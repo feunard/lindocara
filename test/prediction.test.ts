@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { resolveTerrain } from "../src/shared/game.js";
 import { prunePending, reconcile } from "../src/shared/prediction.js";
 import type { Command } from "../src/shared/protocol.js";
 import { type Input, NO_INPUT, step, TICK_DT, type Vec2 } from "../src/shared/simulation.js";
@@ -36,7 +37,9 @@ describe("reconcile", () => {
 
   it("replays a single pending command", () => {
     const pending = [command(1, { right: true })];
-    expect(reconcile(origin, pending)).toEqual(step(origin, input({ right: true }), TICK_DT));
+    expect(reconcile(origin, pending)).toEqual(
+      resolveTerrain(origin, step(origin, input({ right: true }), TICK_DT)),
+    );
   });
 
   /**
@@ -55,7 +58,7 @@ describe("reconcile", () => {
 
     // The server, applying one command per tick from the same starting point.
     let server: Vec2 = origin;
-    for (const c of commands) server = step(server, c.input, TICK_DT);
+    for (const c of commands) server = resolveTerrain(server, step(server, c.input, TICK_DT));
 
     // The client, reconciling from a server position that predates all of them.
     expect(reconcile(origin, commands)).toEqual(server);

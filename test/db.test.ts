@@ -7,6 +7,7 @@
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
 import { createDb, player } from "../src/server/db/index.js";
+import { loadOrCreateProfile, saveProfile } from "../src/server/profile.js";
 
 describe("player table", () => {
   // This pool does not isolate storage between tests, so rows written by one test are visible
@@ -31,7 +32,24 @@ describe("player table", () => {
     }>();
 
     const columns = Object.fromEntries(results.map((c) => [c.name, c]));
-    expect(Object.keys(columns).sort()).toEqual(["created_at", "id", "last_seen_at", "nick"]);
+    expect(Object.keys(columns).sort()).toEqual([
+      "appearance",
+      "created_at",
+      "crystals",
+      "gold",
+      "hp",
+      "id",
+      "last_seen_at",
+      "level",
+      "nick",
+      "potions",
+      "quest_progress",
+      "quest_status",
+      "weapon",
+      "x",
+      "xp",
+      "y",
+    ]);
     expect(columns.id?.pk).toBe(1);
     expect(columns.nick?.notnull).toBe(1);
   });
@@ -65,6 +83,19 @@ describe("player table", () => {
     const row = rows[0];
     expect(row?.id).toBe("11111111-2222-3333-4444-555555555555");
     expect(row?.nick).toBe("nico");
+    expect(row).toMatchObject({
+      x: 784,
+      y: 450,
+      level: 1,
+      xp: 0,
+      hp: 100,
+      potions: 2,
+      gold: 0,
+      crystals: 0,
+      weapon: "rusty_sword",
+      questStatus: "available",
+      questProgress: 0,
+    });
 
     // `timestamp_ms` mode must hand back Dates, not raw integers.
     expect(row?.createdAt).toBeInstanceOf(Date);
@@ -78,6 +109,34 @@ describe("player table", () => {
 
     await db.insert(player).values(row);
     await expect(db.insert(player).values({ ...row, nick: "second" })).rejects.toThrow();
+  });
+
+  it("persists and restores gameplay progression through the profile service", async () => {
+    const db = createDb(env.DB);
+    const profile = await loadOrCreateProfile(db, "persistent-id", "hero");
+    profile.x = 321;
+    profile.y = 432;
+    profile.level = 4;
+    profile.xp = 37;
+    profile.hp = 88;
+    profile.inventory.gold = 19;
+    profile.inventory.crystals = 3;
+    profile.quest.status = "active";
+    profile.quest.progress = 2;
+    await saveProfile(db, profile);
+
+    const restored = await loadOrCreateProfile(db, "persistent-id", "hero-renamed");
+    expect(restored).toMatchObject({
+      id: "persistent-id",
+      nick: "hero-renamed",
+      x: 321,
+      y: 432,
+      level: 4,
+      xp: 37,
+      hp: 88,
+      inventory: { gold: 19, crystals: 3 },
+      quest: { status: "active", progress: 2 },
+    });
   });
 
   // Deliberately last. "starts empty" above runs before any insert, so it would pass even if

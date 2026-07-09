@@ -1,20 +1,48 @@
 /**
- * The world: one Durable Object holding every connected player, and the only authority on
- * where each square is.
- *
- * Sockets are accepted through the WebSocket Hibernation API, so an empty world costs
- * nothing. A running `setInterval` keeps the object resident, so the loop only exists
- * while at least one player is connected — the last player to leave shuts it down and the
- * world is free to hibernate.
+ * One authoritative MMO room. Clients send movement/action intent; this Durable Object alone
+ * moves entities, applies damage, grants loot/XP, advances quests, and persists player profiles.
  */
-
 import { DurableObject } from "cloudflare:workers";
+import {
+  ATTACK_COOLDOWN_MS,
+  ATTACK_RANGE,
+  applyDamage,
+  applyExperience,
+  attackDamageForLevel,
+  clampRestoredPosition,
+  INTERACTION_RANGE,
+  inRect,
+  LOOT_PICKUP_RANGE,
+  MONSTER_AGGRO_RANGE,
+  MONSTER_ATTACK_COOLDOWN_MS,
+  MONSTER_ATTACK_RANGE,
+  MONSTER_DAMAGE,
+  MONSTER_MAX_HP,
+  MONSTER_RESPAWN_MS,
+  MONSTER_SPAWNS,
+  MONSTER_SPEED,
+  MONSTER_XP,
+  maxHpForLevel,
+  OBSTACLES,
+  PLAYER_RESPAWN_MS,
+  pointDistance,
+  QUEST_KILL_TARGET,
+  QUEST_NPC,
+  resolveTerrain,
+  SAFE_ZONE,
+  spawnPosition,
+  withinRange,
+  xpForNextLevel,
+} from "../shared/game.js";
 import {
   type ClientMessage,
   type Command,
   encodeServerMessage,
+  type LootSnapshot,
+  type MonsterSnapshot,
   type PlayerSnapshot,
   parseClientMessage,
+  type SelfState,
   type ServerMessage,
 } from "../shared/protocol.js";
 import {
@@ -29,115 +57,163 @@ import {
   WORLD_HEIGHT,
   WORLD_WIDTH,
 } from "../shared/simulation.js";
+import { createDb } from "./db/index.js";
+import {
+  loadOrCreateProfile,
+  type PlayerProfile,
+  type SaveableProfile,
+  saveProfile,
+} from "./profile.js";
 
-/**
- * Rides along with the socket rather than living in `#players`, so it outlives the object.
- *
- * A running `setInterval` prevents idle hibernation, so a world with players in it will not
- * simply doze off. But if the object is ever rebuilt while its hibernatable sockets survive
- * — which is the exact situation the Hibernation API exists for — `#players` is gone and the
- * sockets are not. Carrying the position here lets those players resume where they were
- * instead of being teleported to a fresh spawn.
- *
- * Written at most once a second rather than every tick: 20 writes/second/player to buy back
- * one second of accuracy is a bad trade.
- */
-export interface Attachment {
-  id: string;
-  nick: string;
-  x: number;
-  y: number;
-}
-
-/** ~1s at TICK_HZ. */
-const PERSIST_EVERY_TICKS = TICK_HZ;
-
-/**
- * Exactly one command is applied per tick, so a client that floods commands gains no speed —
- * it only builds a backlog and adds latency to itself. The queue is capped so that backlog
- * cannot become a memory hole; a well-behaved client never fills more than a slot or two.
- */
+const ATTACHMENT_EVERY_TICKS = TICK_HZ;
+const D1_SAVE_EVERY_TICKS = TICK_HZ * 5;
+const MAX_FRAME_BYTES = 2_048;
+const RATE_WINDOW_MS = 1_000;
+const RATE_MAX_MESSAGES = 35;
+const MAX_MALFORMED = 5;
+const CHAT_MAX_LENGTH = 160;
 const MAX_QUEUED_COMMANDS = 12;
-
-/**
- * With no command to apply the server repeats the player's last intent, which rides out the
- * ordinary case of one late packet. But a client whose tab froze sends nothing at all, and a
- * square must not sprint across the world unattended. After a quarter second of silence, stop.
- */
 const MAX_STARVED_TICKS = 5;
 
-interface Player {
+export interface Attachment extends Vec2 {
   id: string;
   nick: string;
-  x: number;
-  y: number;
-  /** Commands received but not yet applied. Drained one per tick. */
-  queue: Command[];
-  /** The intent of the last applied command; repeated if the next one is late. */
-  lastInput: Input;
-  /** Highest sequence applied. Echoed to the client so it can retire pending commands. */
-  ack: number;
-  /** Highest sequence ever accepted, so replays and reorderings are ignored. */
-  lastSeq: number;
-  /** Consecutive ticks with an empty queue. */
-  starvedTicks: number;
-  /** Position has changed since it was last written to the socket attachment. */
-  dirty: boolean;
+  level?: number;
+  xp?: number;
+  hp?: number;
+  appearance?: PlayerProfile["appearance"];
+  inventory?: PlayerProfile["inventory"];
+  quest?: PlayerProfile["quest"];
+  ack?: number;
+  lastSeq?: number;
 }
 
-function spawnPosition(): Vec2 {
+interface Player extends PlayerProfile {
+  queue: Command[];
+  lastInput: Input;
+  ack: number;
+  lastSeq: number;
+  starvedTicks: number;
+  dirty: boolean;
+  lastAttackAt: number;
+  deadUntil: number;
+  messageTimes: number[];
+  malformedCount: number;
+}
+
+interface Monster extends Vec2 {
+  id: string;
+  kind: "slime";
+  name: string;
+  spawnX: number;
+  spawnY: number;
+  patrolRadius: number;
+  hp: number;
+  lastAttackAt: number;
+  deadUntil: number;
+}
+
+interface GroundLoot extends LootSnapshot {
+  expiresAt: number;
+}
+
+function toProfile(player: Player): SaveableProfile {
   return {
-    x: Math.random() * (WORLD_WIDTH - PLAYER_SIZE),
-    y: Math.random() * (WORLD_HEIGHT - PLAYER_SIZE),
+    id: player.id,
+    nick: player.nick,
+    x: player.x,
+    y: player.y,
+    level: player.level,
+    xp: player.xp,
+    hp: player.hp,
+    appearance: player.appearance,
+    inventory: { ...player.inventory },
+    quest: { ...player.quest },
   };
 }
 
-/**
- * Where a player resumes when the world is rebuilt beneath them. Exported so the rule can
- * be tested directly: an eviction cannot be simulated while the tick loop is running, since
- * eviction waits for in-flight work to drain and the loop never drains.
- */
+function toAttachment(player: Player): Attachment {
+  return { ...toProfile(player), ack: player.ack, lastSeq: player.lastSeq };
+}
+
+function newPlayer(profile: PlayerProfile, ack = 0, lastSeq = 0): Player {
+  return {
+    ...profile,
+    inventory: { ...profile.inventory },
+    quest: { ...profile.quest },
+    queue: [],
+    lastInput: NO_INPUT,
+    ack,
+    lastSeq,
+    starvedTicks: 0,
+    dirty: false,
+    lastAttackAt: 0,
+    deadUntil: 0,
+    messageTimes: [],
+    malformedCount: 0,
+  };
+}
+
+function profileFromAttachment(attachment: Attachment): PlayerProfile {
+  const level = attachment.level ?? 1;
+  return {
+    id: attachment.id,
+    nick: attachment.nick,
+    ...clampRestoredPosition(attachment),
+    level,
+    xp: attachment.xp ?? 0,
+    appearance: attachment.appearance ?? "azure",
+    inventory: {
+      potions: attachment.inventory?.potions ?? 2,
+      gold: attachment.inventory?.gold ?? 0,
+      crystals: attachment.inventory?.crystals ?? 0,
+      weapon: "rusty_sword",
+    },
+    quest: {
+      status: attachment.quest?.status ?? "available",
+      progress: attachment.quest?.progress ?? 0,
+      target: QUEST_KILL_TARGET,
+    },
+    hp: Math.min(maxHpForLevel(level), Math.max(1, attachment.hp ?? maxHpForLevel(level))),
+  };
+}
+
+/** Kept exported because rebuilding a ticking DO cannot be simulated safely in the test pool. */
 export function positionFromAttachment(attachment: Attachment | null): Vec2 {
   if (attachment && Number.isFinite(attachment.x) && Number.isFinite(attachment.y)) {
-    return { x: attachment.x, y: attachment.y };
+    return clampRestoredPosition(attachment);
   }
   return spawnPosition();
 }
 
-function newPlayer(id: string, nick: string, position: Vec2): Player {
-  return {
-    id,
-    nick,
-    ...position,
-    queue: [],
-    lastInput: NO_INPUT,
-    ack: 0,
-    lastSeq: 0,
-    starvedTicks: 0,
-    dirty: false,
-  };
+function createMonsters(): Monster[] {
+  return MONSTER_SPAWNS.map((spawn) => ({
+    ...spawn,
+    spawnX: spawn.x,
+    spawnY: spawn.y,
+    hp: MONSTER_MAX_HP,
+    lastAttackAt: 0,
+    deadUntil: 0,
+  }));
 }
 
 export class World extends DurableObject<Env> {
   #players = new Map<WebSocket, Player>();
+  #monsters: Monster[] = createMonsters();
+  #loot: GroundLoot[] = [];
   #loop: ReturnType<typeof setInterval> | null = null;
   #tick = 0;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
-
-    // Being rebuilt: the sockets outlived our memory. Restore each player from what their
-    // own socket carries. A player whose position was never persisted spawns fresh.
     for (const ws of ctx.getWebSockets()) {
       const attachment = ws.deserializeAttachment() as Attachment | null;
       if (!attachment) continue;
-
       this.#players.set(
         ws,
-        newPlayer(attachment.id, attachment.nick, positionFromAttachment(attachment)),
+        newPlayer(profileFromAttachment(attachment), attachment.ack ?? 0, attachment.lastSeq ?? 0),
       );
     }
-
     if (this.#players.size > 0) this.#startLoop();
   }
 
@@ -145,27 +221,42 @@ export class World extends DurableObject<Env> {
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("expected a websocket upgrade", { status: 426 });
     }
-
-    // The Worker has already verified the signed cookie; it is the only thing that can
-    // reach this object, so these headers are trusted.
     const id = request.headers.get("x-player-id");
     const nick = request.headers.get("x-player-nick");
     if (!id || !nick) return new Response("unauthorized", { status: 401 });
 
+    for (const [socket, existing] of this.#players) {
+      if (existing.id === id) this.#kick(socket, 4001, "connected elsewhere");
+    }
+
+    const profile = await loadOrCreateProfile(createDb(this.env.DB), id, nick);
     const { 0: client, 1: server } = new WebSocketPair();
     this.ctx.acceptWebSocket(server);
-
-    const player = newPlayer(id, nick, spawnPosition());
-    server.serializeAttachment({ id, nick, x: player.x, y: player.y } satisfies Attachment);
+    const player = newPlayer(profile);
+    server.serializeAttachment(toAttachment(player));
     this.#players.set(server, player);
 
     this.#send(server, {
       t: "welcome",
       selfId: id,
-      world: { width: WORLD_WIDTH, height: WORLD_HEIGHT, playerSize: PLAYER_SIZE },
-      players: this.#snapshot(),
+      world: {
+        width: WORLD_WIDTH,
+        height: WORLD_HEIGHT,
+        playerSize: PLAYER_SIZE,
+        obstacles: [...OBSTACLES],
+        safeZone: SAFE_ZONE,
+        questNpc: QUEST_NPC,
+      },
+      players: this.#playerSnapshots(),
+      monsters: this.#monsterSnapshots(),
+      loot: this.#lootSnapshots(),
+      self: this.#selfState(player),
     });
-
+    this.#send(server, {
+      t: "event",
+      text: "Welcome to Everwild Hollow. Keeper Elowen waits beside the Heartroot.",
+      tone: "info",
+    });
     this.#startLoop();
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -173,29 +264,33 @@ export class World extends DurableObject<Env> {
   override async webSocketMessage(ws: WebSocket, raw: string | ArrayBuffer): Promise<void> {
     const player = this.#players.get(ws);
     if (!player) return;
+    const bytes =
+      typeof raw === "string" ? new TextEncoder().encode(raw).byteLength : raw.byteLength;
+    if (bytes > MAX_FRAME_BYTES) {
+      this.#kick(ws, 1009, "frame too large");
+      return;
+    }
+    if (this.#rateLimited(player)) {
+      this.#kick(ws, 1008, "message rate exceeded");
+      return;
+    }
 
-    const message: ClientMessage | null = parseClientMessage(raw);
-    // A malformed frame is a client bug or an attack. Drop it; never trust it, never crash.
-    if (!message) return;
-
-    // Sequences only ever go up. A repeat is a duplicate; a lower number is a replay attempt.
-    if (message.seq <= player.lastSeq) return;
-    player.lastSeq = message.seq;
-
-    // Backlogged. Dropping costs this client accuracy — its prediction will be corrected on
-    // the next snapshot — and costs the world nothing. It is not a way to move faster.
-    if (player.queue.length >= MAX_QUEUED_COMMANDS) return;
-
-    player.queue.push({ seq: message.seq, input: message.input });
+    const message = parseClientMessage(raw);
+    if (!message) {
+      player.malformedCount += 1;
+      if (player.malformedCount >= MAX_MALFORMED) this.#kick(ws, 1008, "too many invalid frames");
+      return;
+    }
+    player.malformedCount = 0;
+    this.#handleMessage(ws, player, message);
   }
 
   override async webSocketClose(ws: WebSocket, code: number, reason: string): Promise<void> {
     this.#drop(ws);
-    // Complete the closing handshake. 1006 is never a legal code to send back.
     try {
       ws.close(code === 1006 ? 1000 : code, reason);
     } catch {
-      // Already closed — nothing to do.
+      // The peer already completed the closing handshake.
     }
   }
 
@@ -203,9 +298,182 @@ export class World extends DurableObject<Env> {
     this.#drop(ws);
   }
 
+  #handleMessage(ws: WebSocket, player: Player, message: ClientMessage): void {
+    if (message.t === "input") {
+      if (message.seq <= player.lastSeq) return;
+      player.lastSeq = message.seq;
+      if (player.deadUntil > Date.now()) {
+        player.ack = message.seq;
+        player.lastInput = NO_INPUT;
+        player.queue = [];
+        return;
+      }
+      if (player.queue.length >= MAX_QUEUED_COMMANDS) return;
+      player.queue.push({ seq: message.seq, input: message.input });
+      return;
+    }
+    if (message.t === "attack") {
+      this.#attack(ws, player);
+      return;
+    }
+    if (message.t === "interact") {
+      this.#interact(ws, player);
+      return;
+    }
+    if (message.t === "use") {
+      this.#usePotion(ws, player);
+      return;
+    }
+    const text = message.text.trim().replaceAll(/\s+/g, " ");
+    if (text.length === 0 || text.length > CHAT_MAX_LENGTH) return;
+    this.#broadcast({ t: "chat", from: player.nick, text });
+  }
+
+  #attack(ws: WebSocket, player: Player): void {
+    const now = Date.now();
+    if (player.deadUntil > now || now - player.lastAttackAt < ATTACK_COOLDOWN_MS) return;
+    player.lastAttackAt = now;
+
+    let target: Monster | undefined;
+    let distance = ATTACK_RANGE;
+    for (const monster of this.#monsters) {
+      if (monster.deadUntil > now) continue;
+      const candidate = pointDistance(player, monster);
+      if (withinRange(player, monster, distance)) {
+        target = monster;
+        distance = candidate;
+      }
+    }
+    if (!target) {
+      this.#send(ws, { t: "event", text: "Your swing hits only air.", tone: "info" });
+      return;
+    }
+
+    const damage = attackDamageForLevel(player.level);
+    const result = applyDamage(target.hp, damage);
+    target.hp = result.hp;
+    this.#broadcast({
+      t: "event",
+      text: `${player.nick} hits ${target.name} for ${damage}.`,
+      tone: "info",
+      x: target.x,
+      y: target.y,
+    });
+    if (result.killed) this.#defeatMonster(ws, player, target, now);
+  }
+
+  #defeatMonster(ws: WebSocket, player: Player, monster: Monster, now: number): void {
+    monster.deadUntil = now + MONSTER_RESPAWN_MS;
+    const result = applyExperience(player.level, player.xp, MONSTER_XP);
+    player.level = result.level;
+    player.xp = result.xp;
+    if (result.levelsGained > 0) player.hp = maxHpForLevel(player.level);
+
+    if (player.quest.status === "active") {
+      player.quest.progress = Math.min(QUEST_KILL_TARGET, player.quest.progress + 1);
+      if (player.quest.progress >= QUEST_KILL_TARGET) player.quest.status = "ready";
+    }
+
+    const kind = this.#tick % 4 === 0 ? "potion" : this.#tick % 2 === 0 ? "crystal" : "gold";
+    this.#loot.push({
+      id: crypto.randomUUID(),
+      kind,
+      amount: kind === "gold" ? 4 : 1,
+      x: monster.x + 8,
+      y: monster.y + 8,
+      expiresAt: now + 30_000,
+    });
+    this.#send(ws, {
+      t: "event",
+      text:
+        result.levelsGained > 0
+          ? `Level up! You are now level ${player.level}.`
+          : `Defeated ${monster.name}: +${MONSTER_XP} XP.`,
+      tone: "good",
+    });
+    this.#sendState(ws, player);
+    player.dirty = true;
+  }
+
+  #interact(ws: WebSocket, player: Player): void {
+    if (player.deadUntil > Date.now() || pointDistance(player, QUEST_NPC) > INTERACTION_RANGE) {
+      this.#send(ws, {
+        t: "event",
+        text: "There is nothing close enough to interact with.",
+        tone: "info",
+      });
+      return;
+    }
+    if (player.quest.status === "available") {
+      player.quest.status = "active";
+      player.quest.progress = 0;
+      this.#send(ws, {
+        t: "event",
+        text: `Oath sworn: quiet ${QUEST_KILL_TARGET} creatures of the Gloamwood.`,
+        tone: "good",
+      });
+    } else if (player.quest.status === "active") {
+      this.#send(ws, {
+        t: "event",
+        text: `Elowen: ${player.quest.progress}/${QUEST_KILL_TARGET} gloam creatures quieted.`,
+        tone: "info",
+      });
+    } else if (player.quest.status === "ready") {
+      player.quest.status = "completed";
+      player.inventory.potions += 2;
+      player.inventory.gold += 20;
+      const result = applyExperience(player.level, player.xp, 100);
+      player.level = result.level;
+      player.xp = result.xp;
+      player.hp = maxHpForLevel(player.level);
+      this.#send(ws, {
+        t: "event",
+        text: "The Gloamcap Oath is fulfilled: +100 XP, +20 gold, +2 tonics.",
+        tone: "good",
+      });
+    } else {
+      this.#send(ws, {
+        t: "event",
+        text: "Elowen: the Heartroot remembers your courage.",
+        tone: "good",
+      });
+    }
+    player.dirty = true;
+    this.#sendState(ws, player);
+  }
+
+  #usePotion(ws: WebSocket, player: Player): void {
+    const maxHp = maxHpForLevel(player.level);
+    if (player.deadUntil > Date.now() || player.inventory.potions <= 0 || player.hp >= maxHp)
+      return;
+    player.inventory.potions -= 1;
+    player.hp = Math.min(maxHp, player.hp + 45);
+    player.dirty = true;
+    this.#send(ws, { t: "event", text: "Heartroot tonic: +45 HP.", tone: "good" });
+    this.#sendState(ws, player);
+  }
+
+  #rateLimited(player: Player): boolean {
+    const now = Date.now();
+    player.messageTimes = player.messageTimes.filter((time) => now - time < RATE_WINDOW_MS);
+    player.messageTimes.push(now);
+    return player.messageTimes.length > RATE_MAX_MESSAGES;
+  }
+
   #drop(ws: WebSocket): void {
+    const player = this.#players.get(ws);
+    if (player) this.ctx.waitUntil(saveProfile(createDb(this.env.DB), toProfile(player)));
     this.#players.delete(ws);
     if (this.#players.size === 0) this.#stopLoop();
+  }
+
+  #kick(ws: WebSocket, code: number, reason: string): void {
+    this.#drop(ws);
+    try {
+      ws.close(code, reason);
+    } catch {
+      // Already closed.
+    }
   }
 
   #startLoop(): void {
@@ -219,57 +487,216 @@ export class World extends DurableObject<Env> {
     this.#loop = null;
   }
 
-  /** One fixed timestep: integrate every player, then tell everyone where everyone is. */
   #advance(): void {
     if (this.#players.size === 0) {
       this.#stopLoop();
       return;
     }
-
     this.#tick += 1;
-    const persisting = this.#tick % PERSIST_EVERY_TICKS === 0;
+    const now = Date.now();
+    const writeAttachment = this.#tick % ATTACHMENT_EVERY_TICKS === 0;
+    const writeD1 = this.#tick % D1_SAVE_EVERY_TICKS === 0;
 
     for (const [ws, player] of this.#players) {
-      // Exactly one command per tick. This is what makes the tick rate, and not the client's
-      // send rate, the speed limit.
-      const command = player.queue.shift();
-      if (command) {
-        player.lastInput = command.input;
-        player.ack = command.seq;
-        player.starvedTicks = 0;
-      } else if (++player.starvedTicks > MAX_STARVED_TICKS) {
-        player.lastInput = NO_INPUT;
+      if (player.deadUntil > 0 && player.deadUntil <= now) this.#respawnPlayer(ws, player);
+
+      if (player.deadUntil <= now) {
+        const command = player.queue.shift();
+        if (command) {
+          player.lastInput = command.input;
+          player.ack = command.seq;
+          player.starvedTicks = 0;
+        } else if (++player.starvedTicks > MAX_STARVED_TICKS) {
+          player.lastInput = NO_INPUT;
+        }
+
+        const desired = step(player, player.lastInput, TICK_DT);
+        const moved = resolveTerrain(player, desired);
+        if (moved.x !== player.x || moved.y !== player.y) {
+          player.x = moved.x;
+          player.y = moved.y;
+          player.dirty = true;
+        }
       }
 
-      const { x, y } = step(player, player.lastInput, TICK_DT);
-      if (x !== player.x || y !== player.y) {
-        player.x = x;
-        player.y = y;
-        player.dirty = true;
-      }
-
-      // Only a player who actually moved is worth a write.
-      if (persisting && player.dirty) {
-        const { id, nick } = player;
-        ws.serializeAttachment({ id, nick, x, y } satisfies Attachment);
+      this.#collectLoot(ws, player, now);
+      if (writeAttachment && player.dirty) ws.serializeAttachment(toAttachment(player));
+      if (writeD1 && player.dirty) {
+        this.ctx.waitUntil(saveProfile(createDb(this.env.DB), toProfile(player)));
         player.dirty = false;
       }
     }
 
-    this.#broadcast({ t: "snapshot", tick: this.#tick, players: this.#snapshot() });
+    this.#advanceMonsters(now);
+    this.#loot = this.#loot.filter((item) => item.expiresAt > now);
+    this.#broadcast({
+      t: "snapshot",
+      tick: this.#tick,
+      players: this.#playerSnapshots(),
+      monsters: this.#monsterSnapshots(),
+      loot: this.#lootSnapshots(),
+    });
   }
 
-  #snapshot(): PlayerSnapshot[] {
-    return Array.from(this.#players.values(), ({ id, nick, x, y, ack }) => ({
-      id,
-      nick,
-      // Sub-pixel precision is invisible and inflates every frame of every snapshot. The
-      // client reconciles from this rounded value, so its prediction can be off by at most
-      // half a hundredth of a pixel — and the error is reset, not accumulated, every snapshot.
-      x: Math.round(x * 100) / 100,
-      y: Math.round(y * 100) / 100,
-      ack,
+  #advanceMonsters(now: number): void {
+    const players = Array.from(this.#players.entries()).filter(
+      ([, player]) => player.deadUntil <= now,
+    );
+    for (let index = 0; index < this.#monsters.length; index++) {
+      const monster = this.#monsters[index];
+      if (!monster) continue;
+      if (monster.deadUntil > now) continue;
+      if (monster.deadUntil > 0) {
+        monster.deadUntil = 0;
+        monster.hp = MONSTER_MAX_HP;
+        monster.x = monster.spawnX;
+        monster.y = monster.spawnY;
+      }
+
+      let target: [WebSocket, Player] | undefined;
+      let targetDistance = MONSTER_AGGRO_RANGE;
+      for (const candidate of players) {
+        const player = candidate[1];
+        if (inRect(player, SAFE_ZONE)) continue;
+        const distance = pointDistance(monster, player);
+        if (distance < targetDistance) {
+          target = candidate;
+          targetDistance = distance;
+        }
+      }
+
+      if (target) {
+        const [socket, player] = target;
+        if (targetDistance <= MONSTER_ATTACK_RANGE) {
+          if (now - monster.lastAttackAt >= MONSTER_ATTACK_COOLDOWN_MS) {
+            monster.lastAttackAt = now;
+            this.#damagePlayer(socket, player, MONSTER_DAMAGE, monster.name, now);
+          }
+          continue;
+        }
+        this.#moveMonsterToward(monster, player);
+      } else {
+        const angle = this.#tick / 90 + index * 1.7;
+        this.#moveMonsterToward(monster, {
+          x: monster.spawnX + Math.cos(angle) * monster.patrolRadius,
+          y: monster.spawnY + Math.sin(angle) * monster.patrolRadius,
+        });
+      }
+    }
+  }
+
+  #moveMonsterToward(monster: Monster, target: Vec2): void {
+    const dx = target.x - monster.x;
+    const dy = target.y - monster.y;
+    const length = Math.hypot(dx, dy);
+    if (length < 2) return;
+    const distance = MONSTER_SPEED * TICK_DT;
+    const desired = {
+      x: monster.x + (dx / length) * distance,
+      y: monster.y + (dy / length) * distance,
+    };
+    const moved = resolveTerrain(monster, desired);
+    monster.x = moved.x;
+    monster.y = moved.y;
+  }
+
+  #damagePlayer(ws: WebSocket, player: Player, damage: number, source: string, now: number): void {
+    const result = applyDamage(player.hp, damage);
+    player.hp = result.hp;
+    player.dirty = true;
+    this.#send(ws, {
+      t: "event",
+      text: `${source} hits you for ${damage}.`,
+      tone: "bad",
+      x: player.x,
+      y: player.y,
+    });
+    if (result.killed) {
+      player.deadUntil = now + PLAYER_RESPAWN_MS;
+      player.lastInput = NO_INPUT;
+      player.queue = [];
+      this.#broadcast({ t: "event", text: `${player.nick} was knocked out.`, tone: "bad" });
+    }
+    this.#sendState(ws, player);
+  }
+
+  #respawnPlayer(ws: WebSocket, player: Player): void {
+    const position = spawnPosition();
+    player.x = position.x;
+    player.y = position.y;
+    player.hp = maxHpForLevel(player.level);
+    player.deadUntil = 0;
+    player.lastInput = NO_INPUT;
+    player.queue = [];
+    player.dirty = true;
+    this.#send(ws, { t: "event", text: "The Heartroot calls you home.", tone: "info" });
+    this.#sendState(ws, player);
+  }
+
+  #collectLoot(ws: WebSocket, player: Player, now: number): void {
+    if (player.deadUntil > now) return;
+    for (let i = this.#loot.length - 1; i >= 0; i--) {
+      const item = this.#loot[i];
+      if (!item || pointDistance(player, item) > LOOT_PICKUP_RANGE) continue;
+      if (item.kind === "potion") player.inventory.potions += item.amount;
+      if (item.kind === "gold") player.inventory.gold += item.amount;
+      if (item.kind === "crystal") player.inventory.crystals += item.amount;
+      this.#loot.splice(i, 1);
+      player.dirty = true;
+      this.#send(ws, {
+        t: "event",
+        text: `Picked up ${item.amount} ${item.kind}.`,
+        tone: "good",
+      });
+      this.#sendState(ws, player);
+    }
+  }
+
+  #selfState(player: Player): SelfState {
+    return {
+      xp: player.xp,
+      xpToNext: xpForNextLevel(player.level),
+      inventory: { ...player.inventory },
+      quest: { ...player.quest, target: QUEST_KILL_TARGET },
+    };
+  }
+
+  #sendState(ws: WebSocket, player: Player): void {
+    this.#send(ws, { t: "state", self: this.#selfState(player) });
+  }
+
+  #playerSnapshots(): PlayerSnapshot[] {
+    const now = Date.now();
+    return Array.from(this.#players.values(), (player) => ({
+      id: player.id,
+      nick: player.nick,
+      x: Math.round(player.x * 100) / 100,
+      y: Math.round(player.y * 100) / 100,
+      ack: player.ack,
+      hp: player.hp,
+      maxHp: maxHpForLevel(player.level),
+      level: player.level,
+      appearance: player.appearance,
+      dead: player.deadUntil > now,
     }));
+  }
+
+  #monsterSnapshots(): MonsterSnapshot[] {
+    const now = Date.now();
+    return this.#monsters.map((monster) => ({
+      id: monster.id,
+      kind: monster.kind,
+      name: monster.name,
+      x: Math.round(monster.x * 100) / 100,
+      y: Math.round(monster.y * 100) / 100,
+      hp: monster.hp,
+      maxHp: MONSTER_MAX_HP,
+      dead: monster.deadUntil > now,
+    }));
+  }
+
+  #lootSnapshots(): LootSnapshot[] {
+    return this.#loot.map(({ id, kind, amount, x, y }) => ({ id, kind, amount, x, y }));
   }
 
   #send(ws: WebSocket, message: ServerMessage): void {

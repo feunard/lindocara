@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="fr">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="light" />
+    <meta name="color-scheme" content="dark" />
     <title>BURN THE TOKENS</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   </head>
@@ -12,7 +12,10 @@
 
     <div id="login" hidden>
       <form id="login-form">
+        <span class="eyebrow">A tiny online world</span>
         <h1>lindocara</h1>
+        <h2>Everwild Hollow</h2>
+        <p>Wake beneath the Heartroot. Swear Elowen's oath. Face the strange life of the Gloamwood.</p>
         <label for="nickname" class="visually-hidden">Nickname</label>
         <input
           id="nickname"
@@ -27,11 +30,44 @@
           spellcheck="false"
           required
         />
-        <button type="submit">enter the world</button>
+        <button type="submit">Enter the Hollow</button>
         <p id="login-error" role="alert"></p>
       </form>
     </div>
 
+    <aside id="hud" hidden>
+      <section class="panel identity">
+        <div class="crest">✦</div>
+        <div class="identity-copy">
+          <strong id="player-name">Wayfarer</strong>
+          <span id="player-level">Level 1</span>
+        </div>
+        <label><span>VIT</span><progress id="hp-bar" max="100" value="100"></progress><span id="hp-text"></span></label>
+        <label><span>SPARK</span><progress id="xp-bar" max="100" value="0"></progress><span id="xp-text"></span></label>
+      </section>
+
+      <section class="panel quest">
+        <div class="panel-title"><span>◆</span><strong>Active Oath</strong></div>
+        <span id="quest-text">Speak with Keeper Elowen [E]</span>
+      </section>
+
+      <section class="panel inventory">
+        <div class="panel-title"><span>◇</span><strong>Wayfarer's Pack</strong></div>
+        <div id="inventory-text" class="item-grid"></div>
+      </section>
+    </aside>
+
+    <div id="event-log" aria-live="polite"></div>
+
+    <section id="chat" class="panel" hidden>
+      <div class="chat-title"><span>Campfire voices</span><kbd>Enter</kbd></div>
+      <div id="chat-messages" aria-live="polite"></div>
+      <form id="chat-form">
+        <input id="chat-input" maxlength="160" autocomplete="off" placeholder="Enter: chat…" />
+      </form>
+    </section>
+
+    <div id="help" hidden><kbd>WASD</kbd> move <kbd>Space</kbd> strike <kbd>E</kbd> commune <kbd>Q</kbd> tonic</div>
     <div id="status"></div>
 
     <script type="module" src="/src/client/main.ts"></script>

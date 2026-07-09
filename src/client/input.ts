@@ -1,10 +1,7 @@
 /**
  * Keyboard -> intent. The client never says where it is, only what it is trying to do.
  *
- * Intent is *polled*, not pushed: the simulation samples it once per fixed tick. Pushing on
- * every keydown would emit commands on the browser's key-repeat schedule rather than the
- * simulation's, and prediction depends on the client stepping in exactly the increments the
- * server does.
+ * Movement intent is polled once per predicted tick. Action keys stay edge-triggered.
  */
 
 import { type Input, NO_INPUT } from "../shared/simulation.js";
@@ -21,8 +18,8 @@ const KEY_BINDINGS: Record<string, keyof Input> = {
 };
 
 export interface InputTracker {
-  /** The intent held right now. */
   current(): Input;
+  reset(): void;
   stop(): void;
 }
 
@@ -37,15 +34,15 @@ export function trackInput(): InputTracker {
   };
 
   const onKeyDown = (event: KeyboardEvent) => {
+    if (event.target instanceof HTMLInputElement || event.repeat) return;
     if (set(event.code, true)) event.preventDefault();
   };
 
   const onKeyUp = (event: KeyboardEvent) => {
+    if (event.target instanceof HTMLInputElement) return;
     if (set(event.code, false)) event.preventDefault();
   };
 
-  // Alt-tabbing away while holding a key would otherwise leave the square sprinting forever,
-  // since the keyup lands on another window.
   const onBlur = () => {
     held = { ...NO_INPUT };
   };
@@ -56,10 +53,35 @@ export function trackInput(): InputTracker {
 
   return {
     current: () => held,
+    reset: () => {
+      held = { ...NO_INPUT };
+    },
     stop: () => {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", onBlur);
     },
   };
+}
+
+export interface ActionHandlers {
+  attack(): void;
+  interact(): void;
+  usePotion(): void;
+  focusChat(): void;
+}
+
+/** Edge-triggered gameplay actions; repeats are ignored and never become trusted outcomes. */
+export function trackActions(handlers: ActionHandlers): () => void {
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.target instanceof HTMLInputElement || event.repeat) return;
+    if (event.code === "Space") handlers.attack();
+    else if (event.code === "KeyE") handlers.interact();
+    else if (event.code === "KeyQ") handlers.usePotion();
+    else if (event.code === "Enter") handlers.focusChat();
+    else return;
+    event.preventDefault();
+  };
+  window.addEventListener("keydown", onKeyDown);
+  return () => window.removeEventListener("keydown", onKeyDown);
 }

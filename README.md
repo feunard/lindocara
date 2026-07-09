@@ -1,10 +1,8 @@
 # lindocara
 
-A white world. Log in, and you control a black square. Everyone else sees it move.
-
-A deliberately small multiplayer skeleton on Cloudflare Workers, built to grow into a real
-online game: server-authoritative movement, a Durable Object as the world, and a shared
-simulation both sides can run.
+**Verdant Reach** is a compact, server-authoritative 2D MMO slice on Cloudflare Workers.
+Players explore one shared room, hunt roaming slimes, gain levels, collect persistent loot,
+complete Warden Mira's quest, chat, and resume their character after reconnecting.
 
 **Live:** [lindocara.alepha.dev](https://lindocara.alepha.dev)
 
@@ -49,15 +47,36 @@ Everyone *else* is drawn ~100 ms in the past, interpolated between the two snaps
 that instant — you can't know where a remote player is right now, and guessing looks worse than
 being slightly late.
 
-All of this hangs on `step(position, input, dt)` in `src/shared/simulation.ts` being a pure
-function that the server and the client both call. Reconciliation is only correct because the
-two are literally the same code.
+All of this hangs on `step(position, input, dt)` and `resolveTerrain()` in `src/shared/` being
+pure functions that the server and the client both call. Reconciliation is only correct because
+movement and collision are literally the same code on both sides.
+
+The same rule applies to combat and progression: the browser asks to attack, interact, use a
+potion, or chat. The Durable Object validates distance, cooldown, inventory, health, quest state,
+and rewards. The client never sends positions, damage, XP, loot, deaths, or quest completion.
+
+Movement lives in `src/shared/simulation.ts`; map geometry, collision, combat constants, and
+progression formulas live in `src/shared/game.ts`. They are platform-free and directly tested.
+
+## Play
+
+| Input | Action |
+| --- | --- |
+| WASD / arrows | Move |
+| Space | Attack the closest monster in range |
+| E | Interact with Warden Mira |
+| Q | Use a potion |
+| Enter | Focus chat |
+
+New players begin in the sanctuary beside Warden Mira. Accept **Slime Hunt**, defeat three Moss
+Slimes, collect their drops by walking over them, then return to Mira for the reward.
 
 ## Database
 
-A D1 database (`lindocara`) with a single `player` table, defined in
-`src/server/db/schema.ts` and accessed through Drizzle. It is **empty and unused** — the game
-keeps all state in the Durable Object. It exists so persistence has somewhere to land.
+A D1 database (`lindocara`) stores one row per signed session identity through Drizzle. Position,
+nickname, appearance, HP, level, XP, inventory, quest progress, creation time, and last-seen time
+survive reconnects. The active room remains in the Durable Object for low-latency simulation and
+writes dirty profiles periodically and on disconnect.
 
 ```bash
 npm run db:generate   # schema change -> migrations/NNNN_name.sql

@@ -8,6 +8,13 @@
       "when": 1783619397839,
       "tag": "0000_nebulous_chronomancer",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1783621842963,
+      "tag": "0001_nostalgic_fantastic_four",
+      "breakpoints": true
     }
   ]
 }

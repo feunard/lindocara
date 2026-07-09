@@ -9,7 +9,7 @@
  */
 
 import { sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 /** Milliseconds since the epoch, as SQLite integers. `unixepoch()` is seconds. */
 const nowMs = sql`(unixepoch() * 1000)`;
@@ -20,6 +20,28 @@ export const player = sqliteTable(
     /** Matches the session id shape: a UUID minted by the Worker. */
     id: text("id").primaryKey(),
     nick: text("nick").notNull(),
+    x: real("x").notNull().default(784),
+    y: real("y").notNull().default(450),
+    level: integer("level").notNull().default(1),
+    xp: integer("xp").notNull().default(0),
+    hp: integer("hp").notNull().default(100),
+    appearance: text("appearance", {
+      enum: ["azure", "ember", "moss", "violet"],
+    })
+      .notNull()
+      .default("azure"),
+    potions: integer("potions").notNull().default(2),
+    gold: integer("gold").notNull().default(0),
+    crystals: integer("crystals").notNull().default(0),
+    weapon: text("weapon", { enum: ["rusty_sword"] })
+      .notNull()
+      .default("rusty_sword"),
+    questStatus: text("quest_status", {
+      enum: ["available", "active", "ready", "completed"],
+    })
+      .notNull()
+      .default("available"),
+    questProgress: integer("quest_progress").notNull().default(0),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
     lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
   },

@@ -1,7 +1,7 @@
 # lindocara — agent & contributor guide
 
-A multiplayer game skeleton on Cloudflare Workers. One white world, one black square per
-logged-in player. It is deliberately small, but the shape is the shape a real game needs.
+A compact MMO vertical slice on Cloudflare Workers. One authoritative room contains players,
+terrain, Warden Mira, roaming slimes, combat, loot, progression, a quest, and local chat.
 
 ## Commands
 
@@ -21,25 +21,27 @@ logged-in player. It is deliberately small, but the shape is the shape a real ga
 
 ## Architecture
 
-The one rule that matters: **the server decides where things are.** Clients send intent
-(`{ up, down, left, right }`), never a position. A client that lies gets ignored.
+The one rule that matters: **the server decides outcomes.** Clients send movement and action
+intent, never positions, damage, health, inventory, XP, deaths, loot, or quest completion.
 
 ```
 src/shared/     platform-free. Imports nothing from Cloudflare or the DOM.
   simulation.ts pure step(position, input, dt). The single source of movement truth.
+  game.ts       map geometry, collision, combat/progression constants and pure rules.
   protocol.ts   the wire format, with defensive parsing of anything a client sends.
   prediction.ts pure reconcile()/prunePending(). Client-side prediction, as functions.
 
 src/server/     runs in workerd.
   index.ts      Worker entry: /api/* only. Assets never reach it.
   session.ts    HMAC-signed cookie. No user table, no password.
-  world.ts      the Durable Object: one world, a 20 Hz tick loop, snapshot broadcast.
-  db/           D1 schema + Drizzle. Unused by the game so far.
+  profile.ts    D1 profile load/create/save boundary.
+  world.ts      room authority: 20 Hz simulation, prediction acks, AI, combat, loot, quest, chat.
+  db/           D1 schema + Drizzle.
 
 src/client/     runs in a browser.
-  net.ts        socket, local prediction of your own square, interpolation of everyone else's
-  renderer.ts   PixiJS. A renderer, not an engine — it owns no state and no game loop.
-  input.ts      keyboard -> intent, polled once per tick
+  net.ts        socket, typed actions, local prediction, reconciliation, interpolation.
+  renderer.ts   procedural PixiJS map/entities and follow camera; no game authority.
+  input.ts      keyboard -> movement/action intent; movement is polled once per tick.
 ```
 
 ### Two players, two rules
@@ -113,10 +115,10 @@ npm run cf-typegen      # only if you changed bindings, not the schema
 Deploying applies migrations to production **before** shipping the code, so a column always
 exists before the code that reads it.
 
-**Nothing uses the `player` table yet.** It is schema-only preparation. `nick` is indexed but
-deliberately *not* unique: sessions are anonymous, a login mints a fresh UUID, and two people
-may both be "nico" today. A unique constraint would encode a promise the auth layer does not
-make. Add it the day nicknames are claimed.
+The `player` row is the persistent character for the UUID inside the signed session cookie.
+Nickname, position, level, XP, HP, appearance, inventory, and quest state are loaded before the
+WebSocket is accepted. Dirty profiles are saved every five seconds and on disconnect. `nick`
+remains non-unique because anonymous sessions do not claim names.
 
 ## Gotchas worth knowing
 
@@ -150,6 +152,10 @@ sits still may be clamped, not broken.
 
 **`import.meta.env.DEV` exposes `window.__lindocara`** (`self()`, `all()`) for measuring input
 latency and interpolation from outside the app. It is stripped from production builds.
+
+**The room is intentionally one Durable Object today.** The next scale boundary is deterministic
+room routing in `server/index.ts`, not a larger global object. Keep room-local simulation in
+`World` so sharding later is a routing change rather than a gameplay rewrite.
 
 ## Secrets
 

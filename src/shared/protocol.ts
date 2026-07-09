@@ -1,21 +1,34 @@
 /**
  * The wire format between browser and Durable Object.
  *
- * Clients send intent, never position — the server is the only thing that decides where
- * a square is. Every inbound message is parsed defensively, because a client is an
- * attacker until proven otherwise.
- *
- * Inputs are numbered. The server echoes back the highest sequence number it has actually
- * applied (`ack`), which is what lets a client predict its own movement and then reconcile
- * against the truth. See `prediction.ts`.
+ * Clients send intent, never position or outcomes. Movement input is sequenced so the
+ * server can acknowledge exactly what it applied; actions are still just intent.
  */
 
+import type { NpcDefinition, Rect } from "./game.js";
 import type { Input } from "./simulation.js";
 
-/** One tick's worth of intent, stamped so the server can acknowledge it. */
+/** One tick's worth of movement intent, stamped so the server can acknowledge it. */
 export interface Command {
   seq: number;
   input: Input;
+}
+
+export type Appearance = "azure" | "ember" | "moss" | "violet";
+export type ItemKind = "potion" | "gold" | "crystal";
+export type QuestStatus = "available" | "active" | "ready" | "completed";
+
+export interface Inventory {
+  potions: number;
+  gold: number;
+  crystals: number;
+  weapon: "rusty_sword";
+}
+
+export interface QuestState {
+  status: QuestStatus;
+  progress: number;
+  target: number;
 }
 
 export interface PlayerSnapshot {
@@ -23,23 +36,81 @@ export interface PlayerSnapshot {
   nick: string;
   x: number;
   y: number;
-  /** Highest command sequence the server has applied for this player. */
+  /** Highest movement command sequence the server has applied for this player. */
   ack: number;
+  hp: number;
+  maxHp: number;
+  level: number;
+  appearance: Appearance;
+  dead: boolean;
+}
+
+export interface MonsterSnapshot {
+  id: string;
+  kind: "slime";
+  name: string;
+  x: number;
+  y: number;
+  hp: number;
+  maxHp: number;
+  dead: boolean;
+}
+
+export interface LootSnapshot {
+  id: string;
+  kind: ItemKind;
+  amount: number;
+  x: number;
+  y: number;
+}
+
+export interface SelfState {
+  xp: number;
+  xpToNext: number;
+  inventory: Inventory;
+  quest: QuestState;
 }
 
 export interface WorldInfo {
   width: number;
   height: number;
   playerSize: number;
+  obstacles: Rect[];
+  safeZone: Rect;
+  questNpc: NpcDefinition;
 }
 
-/** Sent by the browser, once per simulation tick. */
-export type ClientMessage = { t: "input"; seq: number; input: Input };
+/** Sent by the browser. Actions contain intent only; every outcome is validated by the server. */
+export type ClientMessage =
+  | { t: "input"; seq: number; input: Input }
+  | { t: "attack" }
+  | { t: "interact" }
+  | { t: "use"; item: "potion" }
+  | { t: "chat"; text: string };
+
+export type EventTone = "info" | "good" | "bad";
 
 /** Sent by the Durable Object. */
 export type ServerMessage =
-  | { t: "welcome"; selfId: string; world: WorldInfo; players: PlayerSnapshot[] }
-  | { t: "snapshot"; tick: number; players: PlayerSnapshot[] };
+  | {
+      t: "welcome";
+      selfId: string;
+      world: WorldInfo;
+      players: PlayerSnapshot[];
+      monsters: MonsterSnapshot[];
+      loot: LootSnapshot[];
+      self: SelfState;
+    }
+  | {
+      t: "snapshot";
+      tick: number;
+      players: PlayerSnapshot[];
+      monsters: MonsterSnapshot[];
+      loot: LootSnapshot[];
+    }
+  | { t: "state"; self: SelfState }
+  | { t: "chat"; from: string; text: string }
+  | { t: "event"; text: string; tone: EventTone; x?: number; y?: number };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -70,15 +141,17 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
     return null;
   }
 
-  if (!isRecord(value) || value.t !== "input") return null;
-
-  // A sequence number is the client's claim about ordering. Anything that is not a positive
-  // safe integer is a broken client or a hostile one; either way it does not get to move.
-  const { seq } = value;
-  if (typeof seq !== "number" || !Number.isSafeInteger(seq) || seq < 1) return null;
-
-  const input = parseInput(value.input);
-  return input === null ? null : { t: "input", seq, input };
+  if (!isRecord(value) || typeof value.t !== "string") return null;
+  if (value.t === "input") {
+    const { seq } = value;
+    if (typeof seq !== "number" || !Number.isSafeInteger(seq) || seq < 1) return null;
+    const input = parseInput(value.input);
+    return input === null ? null : { t: "input", seq, input };
+  }
+  if (value.t === "attack" || value.t === "interact") return { t: value.t };
+  if (value.t === "use" && value.item === "potion") return { t: "use", item: "potion" };
+  if (value.t === "chat" && typeof value.text === "string") return { t: "chat", text: value.text };
+  return null;
 }
 
 export function encodeServerMessage(message: ServerMessage): string {
@@ -88,8 +161,38 @@ export function encodeServerMessage(message: ServerMessage): string {
 export function parseServerMessage(raw: string): ServerMessage | null {
   try {
     const value: unknown = JSON.parse(raw);
-    if (!isRecord(value)) return null;
-    if (value.t === "welcome" || value.t === "snapshot") return value as unknown as ServerMessage;
+    if (!isRecord(value) || typeof value.t !== "string") return null;
+    if (
+      value.t === "welcome" &&
+      typeof value.selfId === "string" &&
+      isRecord(value.world) &&
+      Array.isArray(value.players) &&
+      Array.isArray(value.monsters) &&
+      Array.isArray(value.loot) &&
+      isRecord(value.self)
+    ) {
+      return value as unknown as ServerMessage;
+    }
+    if (
+      value.t === "snapshot" &&
+      typeof value.tick === "number" &&
+      Array.isArray(value.players) &&
+      Array.isArray(value.monsters) &&
+      Array.isArray(value.loot)
+    ) {
+      return value as unknown as ServerMessage;
+    }
+    if (value.t === "state" && isRecord(value.self)) return value as unknown as ServerMessage;
+    if (value.t === "chat" && typeof value.from === "string" && typeof value.text === "string") {
+      return value as unknown as ServerMessage;
+    }
+    if (
+      value.t === "event" &&
+      typeof value.text === "string" &&
+      (value.tone === "info" || value.tone === "good" || value.tone === "bad")
+    ) {
+      return value as unknown as ServerMessage;
+    }
     return null;
   } catch {
     return null;

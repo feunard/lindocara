@@ -52,7 +52,14 @@ function clamp(value: number, min: number, max: number): number {
  * Diagonal movement is normalised, otherwise holding two keys would be ~41% faster than
  * holding one.
  */
-export function step(position: Vec2, input: Input, dt: number): Vec2 {
+export function clampToWorld(position: Vec2): Vec2 {
+  return {
+    x: clamp(position.x, 0, WORLD_WIDTH - PLAYER_SIZE),
+    y: clamp(position.y, 0, WORLD_HEIGHT - PLAYER_SIZE),
+  };
+}
+
+export function step(position: Vec2, input: Input, dt: number, speed: number = PLAYER_SPEED): Vec2 {
   let dx = (input.right ? 1 : 0) - (input.left ? 1 : 0);
   let dy = (input.down ? 1 : 0) - (input.up ? 1 : 0);
 
@@ -61,9 +68,9 @@ export function step(position: Vec2, input: Input, dt: number): Vec2 {
     dy *= Math.SQRT1_2;
   }
 
-  const distance = PLAYER_SPEED * dt;
-  return {
-    x: clamp(position.x + dx * distance, 0, WORLD_WIDTH - PLAYER_SIZE),
-    y: clamp(position.y + dy * distance, 0, WORLD_HEIGHT - PLAYER_SIZE),
-  };
+  const distance = speed * dt;
+  return clampToWorld({
+    x: position.x + dx * distance,
+    y: position.y + dy * distance,
+  });
 }

@@ -46,6 +46,7 @@ async function sessionCookie(nickname: string): Promise<string> {
  */
 class Client {
   readonly received: ServerMessage[] = [];
+  closeInfo: { code: number; reason: string } | null = null;
   #socket: WebSocket;
   #input: Input = NO_INPUT;
   #seq = 0;
@@ -58,6 +59,10 @@ class Client {
       if (typeof event.data !== "string") return;
       const message = parseServerMessage(event.data);
       if (message) this.received.push(message);
+    });
+    socket.addEventListener("close", (event) => {
+      this.closeInfo = { code: event.code, reason: event.reason };
+      this.stopPump();
     });
   }
 
@@ -111,9 +116,21 @@ class Client {
     this.#socket.send(payload);
   }
 
+  action(type: "attack" | "interact"): void {
+    this.#socket.send(JSON.stringify({ t: type }));
+  }
+
+  chat(text: string): void {
+    this.#socket.send(JSON.stringify({ t: "chat", text }));
+  }
+
   close(): void {
     this.stopPump();
-    this.#socket.close(1000, "done");
+    try {
+      this.#socket.close(1000, "done");
+    } catch {
+      // The server may already have closed an abusive client.
+    }
   }
 
   get welcome() {
@@ -126,6 +143,14 @@ class Client {
       if (message?.t === "snapshot") return message;
     }
     return undefined;
+  }
+
+  get latestState() {
+    for (let i = this.received.length - 1; i >= 0; i--) {
+      const message = this.received[i];
+      if (message?.t === "state") return message.self;
+    }
+    return this.welcome?.self;
   }
 
   self(): PlayerSnapshot | undefined {
@@ -166,7 +191,10 @@ describe("World", () => {
 
     const welcome = await until("welcome", () => client.welcome);
     expect(welcome.selfId).toMatch(/^[0-9a-f-]{36}$/);
-    expect(welcome.world).toEqual({ width: 1600, height: 900, playerSize: 32 });
+    expect(welcome.world).toMatchObject({ width: 1600, height: 900, playerSize: 32 });
+    expect(welcome.world.obstacles.length).toBeGreaterThan(0);
+    expect(welcome.monsters.length).toBeGreaterThan(0);
+    expect(welcome.self.inventory).toMatchObject({ potions: 2, weapon: "rusty_sword" });
 
     client.close();
   });
@@ -256,6 +284,34 @@ describe("World", () => {
     });
 
     alice.close();
+  });
+
+  it("starts the server-owned quest only when interacting near the quest NPC", async () => {
+    const client = await Client.join("quester");
+    await until("welcome", () => client.welcome);
+    expect(client.latestState?.quest.status).toBe("available");
+
+    // New profiles spawn in the sanctuary beside Warden Mira.
+    client.action("interact");
+    await until("quest state", () =>
+      client.latestState?.quest.status === "active" ? client.latestState : undefined,
+    );
+    expect(client.latestState?.quest.progress).toBe(0);
+    client.close();
+  });
+
+  it("relays trimmed chat to every connected player", async () => {
+    const alice = await Client.join("chat_a");
+    const bob = await Client.join("chat_b");
+    await until("both welcomes", () => alice.welcome && bob.welcome);
+
+    alice.chat("  hello   world  ");
+    const relayed = await until("chat relay", () =>
+      bob.received.find((message) => message.t === "chat" && message.from === "chat_a"),
+    );
+    expect(relayed).toMatchObject({ t: "chat", from: "chat_a", text: "hello world" });
+    alice.close();
+    bob.close();
   });
 
   // A Durable Object is rebuilt on deploys and evictions, not only when it hibernates idle.
@@ -420,6 +476,22 @@ describe("World", () => {
     expect(self.y).toBeLessThanOrEqual(WORLD_HEIGHT - PLAYER_SIZE);
 
     client.close();
+  });
+
+  it("closes clients that repeatedly send malformed frames", async () => {
+    const client = await Client.join("bad_frames");
+    await until("welcome", () => client.welcome);
+    for (let i = 0; i < 5; i++) client.sendRaw("{broken");
+    const closed = await until("policy close", () => client.closeInfo ?? undefined);
+    expect(closed.code).toBe(1008);
+  });
+
+  it("closes an oversized WebSocket frame", async () => {
+    const client = await Client.join("huge_frame");
+    await until("welcome", () => client.welcome);
+    client.sendRaw("x".repeat(2_049));
+    const closed = await until("oversized close", () => client.closeInfo ?? undefined);
+    expect(closed.code).toBe(1009);
   });
 });
 

@@ -1,6 +1,7 @@
 :root {
-  color-scheme: light;
+  color-scheme: dark;
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  color: #f5f0df;
 }
 
 * {
@@ -12,7 +13,7 @@ body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: #fff;
+  background: #0b201b;
 }
 
 #stage {
@@ -21,8 +22,19 @@ body {
   inset: 0;
 }
 
-#login[hidden] {
+#login[hidden],
+#hud[hidden],
+#chat[hidden],
+#help[hidden] {
   display: none;
+}
+
+.panel {
+  border: 1px solid rgb(164 203 180 / 45%);
+  border-radius: 8px;
+  background: rgb(9 28 24 / 88%);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 30%);
+  backdrop-filter: blur(7px);
 }
 
 #login {
@@ -30,40 +42,55 @@ body {
   inset: 0;
   display: grid;
   place-items: center;
-  background: rgba(255, 255, 255, 0.92);
-  z-index: 2;
+  background: radial-gradient(circle at 50% 40%, rgb(35 97 74 / 75%), rgb(4 18 15 / 96%)), #0b201b;
+  z-index: 10;
 }
 
 #login-form {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  width: min(20rem, calc(100vw - 2rem));
+  gap: 0.8rem;
+  width: min(24rem, calc(100vw - 2rem));
+  padding: 1.5rem;
+  border: 1px solid #719c83;
+  border-radius: 12px;
+  background: rgb(8 30 24 / 92%);
+}
+
+#login-form h1,
+#login-form p {
+  margin: 0;
 }
 
 #login-form h1 {
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  color: #c9f3d8;
+  letter-spacing: 0.08em;
 }
 
-#login-form input,
-#login-form button {
+#login-form p {
+  color: #a6c3b0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+input,
+button {
   font: inherit;
-  padding: 0.6rem 0.75rem;
-  border: 1px solid #000;
-  border-radius: 2px;
-  background: #fff;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #719c83;
+  border-radius: 6px;
+  background: #102c24;
+  color: #f5f0df;
 }
 
-#login-form button {
-  background: #000;
-  color: #fff;
+button {
+  background: #82c99a;
+  color: #092016;
+  font-weight: 700;
   cursor: pointer;
 }
 
-#login-form button:disabled {
+button:disabled {
   opacity: 0.5;
   cursor: progress;
 }
@@ -77,19 +104,167 @@ body {
   white-space: nowrap;
 }
 
-#login-error {
-  margin: 0;
+#login-form #login-error {
   min-height: 1.2em;
-  font-size: 0.8rem;
-  color: #b00020;
+  color: #ff8c8c;
+}
+
+#hud {
+  position: fixed;
+  z-index: 3;
+  top: 0.75rem;
+  left: 0.75rem;
+  display: grid;
+  gap: 0.55rem;
+  width: min(22rem, calc(100vw - 1.5rem));
+  pointer-events: none;
+}
+
+#hud .panel {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.65rem 0.75rem;
+}
+
+.identity {
+  grid-template-columns: auto 1fr;
+}
+
+.identity strong {
+  color: #b9f0ca;
+}
+
+.identity > span {
+  text-align: right;
+  color: #f6c85f;
+}
+
+.identity label {
+  grid-column: span 2;
+  display: grid;
+  grid-template-columns: 2rem 1fr 4.5rem;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+}
+
+progress {
+  width: 100%;
+  accent-color: #66d17c;
+}
+
+#xp-bar {
+  accent-color: #5db7de;
+}
+
+.quest,
+.inventory {
+  font-size: 0.75rem;
+  color: #d6ddcd;
+}
+
+.quest strong,
+.inventory strong {
+  color: #f6c85f;
+}
+
+#chat {
+  position: fixed;
+  z-index: 4;
+  left: 0.75rem;
+  bottom: 2.4rem;
+  width: min(30rem, calc(100vw - 1.5rem));
+  padding: 0.55rem;
+}
+
+#chat-messages {
+  height: 8.5rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: end;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+}
+
+#chat-messages .name {
+  color: #8fd7a4;
+}
+
+#chat-form {
+  margin-top: 0.45rem;
+}
+
+#chat-input {
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+}
+
+#event-log {
+  position: fixed;
+  z-index: 3;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: min(24rem, calc(100vw - 1.5rem));
+  display: grid;
+  justify-items: end;
+  gap: 0.35rem;
+  pointer-events: none;
+}
+
+.event {
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  background: rgb(8 24 20 / 85%);
+  font-size: 0.72rem;
+  animation: event-in 180ms ease-out;
+}
+
+.event.good {
+  color: #9ff0ad;
+}
+
+.event.bad {
+  color: #ff9b93;
+}
+
+#help,
+#status {
+  position: fixed;
+  z-index: 3;
+  bottom: 0.7rem;
+  color: #d4dfd5;
+  font-size: 0.68rem;
+  text-shadow: 0 1px 3px #000;
+  pointer-events: none;
+}
+
+#help {
+  left: 0.75rem;
 }
 
 #status {
-  position: fixed;
-  left: 0.75rem;
-  bottom: 0.75rem;
-  z-index: 1;
-  font-size: 0.75rem;
-  color: #666;
-  pointer-events: none;
+  right: 0.75rem;
+}
+
+@keyframes event-in {
+  from {
+    transform: translateY(-5px);
+    opacity: 0;
+  }
+}
+
+@media (max-width: 700px) {
+  #hud {
+    width: calc(100vw - 1.5rem);
+  }
+
+  #event-log {
+    top: auto;
+    bottom: 12.5rem;
+  }
+
+  #help {
+    display: none;
+  }
 }

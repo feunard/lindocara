@@ -7,10 +7,11 @@
  * account for the commands still in flight. Replaying those on top of it reproduces exactly
  * where the server *will* say the player is, which is where the client already drew them.
  *
- * This only works because `step()` here is byte-for-byte the same function the Durable Object
- * runs. That is the whole reason it lives in `shared/`.
+ * This only works because the client and server run the same movement and terrain resolution
+ * rules. That is the whole reason they live in `shared/`.
  */
 
+import { resolveTerrain } from "./game.js";
 import type { Command } from "./protocol.js";
 import { step, TICK_DT, type Vec2 } from "./simulation.js";
 
@@ -39,6 +40,10 @@ export function prunePending(pending: readonly Command[], ack: number): Command[
   return pending.filter((command) => command.seq > ack);
 }
 
+export function predictStep(position: Vec2, command: Command): Vec2 {
+  return resolveTerrain(position, step(position, command.input, TICK_DT));
+}
+
 /**
  * Where the player really is, given the server's last word and everything it has not seen yet.
  * Each pending command advanced the world by exactly one fixed tick, so replay uses TICK_DT.
@@ -46,7 +51,7 @@ export function prunePending(pending: readonly Command[], ack: number): Command[
 export function reconcile(authoritative: Vec2, pending: readonly Command[]): Vec2 {
   let position: Vec2 = authoritative;
   for (const command of pending) {
-    position = step(position, command.input, TICK_DT);
+    position = predictStep(position, command);
   }
   return position;
 }
