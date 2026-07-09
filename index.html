@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <title>lindocara</title>
+    <link rel="icon" href="data:," />
+  </head>
+  <body>
+    <canvas id="stage"></canvas>
+
+    <div id="login" hidden>
+      <form id="login-form">
+        <h1>lindocara</h1>
+        <label for="nickname" class="visually-hidden">Nickname</label>
+        <input
+          id="nickname"
+          name="nickname"
+          type="text"
+          placeholder="nickname"
+          minlength="2"
+          maxlength="16"
+          pattern="[A-Za-z0-9_\-]{2,16}"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+          required
+        />
+        <button type="submit">enter the world</button>
+        <p id="login-error" role="alert"></p>
+      </form>
+    </div>
+
+    <div id="status"></div>
+
+    <script type="module" src="/src/client/main.ts"></script>
+  </body>
+</html>

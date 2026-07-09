@@ -1,0 +1,44 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  # Lets you redeploy the current main without pushing an empty commit.
+  workflow_dispatch:
+
+concurrency:
+  # Never let two deploys race for the same Worker.
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  # Nothing reaches production without passing exactly the checks CI runs on a PR.
+  check:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: check
+    name: deploy to Cloudflare
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://lindocara.alepha.dev
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # wrangler-action does not build for you, and the Vite plugin emits the deployable
+      # wrangler.json as part of the build. Deploying without this would ship nothing.
+      - run: npm run build
+
+      - uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy

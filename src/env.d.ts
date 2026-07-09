@@ -1,0 +1,15 @@
+/**
+ * Secrets are not declared in wrangler.jsonc — that file is committed, and secrets are set
+ * out of band (`wrangler secret put`, or a `.dev.vars` file locally). `wrangler types` can
+ * infer them from `.dev.vars`, but that file is gitignored, so CI would typecheck against a
+ * different `Env` than a developer's laptop.
+ *
+ * Declaring them here instead keeps the type identical everywhere. This merges with the
+ * generated `Env` in worker-configuration.d.ts rather than replacing it, so regenerating
+ * those types never clobbers this.
+ */
+
+interface Env {
+  /** HMAC key for signing session cookies. See README for how to set it. */
+  SESSION_SECRET: string;
+}

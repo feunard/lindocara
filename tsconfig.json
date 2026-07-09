@@ -1,0 +1,32 @@
+{
+  // Base options only — this project compiles nothing itself.
+  //
+  // The client and the Worker cannot share a single program: the DOM lib and the Workers
+  // runtime types both declare `WebSocket`, `Response`, `fetch` and more, with different
+  // shapes. Loading both into one program produces a blizzard of bogus errors. So there is
+  // one program per runtime, and `npm run typecheck` runs each in turn.
+  //
+  // Code under src/shared/ is checked by both, which is exactly what we want: it must be
+  // valid in a browser and in workerd.
+  "files": [],
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "exactOptionalPropertyTypes": true,
+
+    "skipLibCheck": true,
+    "noEmit": true
+  }
+}

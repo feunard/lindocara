@@ -1,0 +1,36 @@
+{
+  "name": "lindocara",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "deploy": "npm run build && wrangler deploy",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "typecheck": "tsc -p tsconfig.client.json && tsc -p tsconfig.worker.json && tsc -p tsconfig.node.json",
+    "cf-typegen": "wrangler types ./src/worker-configuration.d.ts",
+    "check": "npm run lint && npm run typecheck && npm run test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.3",
+    "@cloudflare/vite-plugin": "^1.43.3",
+    "@cloudflare/vitest-pool-workers": "^0.18.3",
+    "@types/node": "^26.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.4",
+    "vitest": "^4.1.10",
+    "wrangler": "^4.109.0"
+  },
+  "dependencies": {
+    "pixi.js": "^8.19.0"
+  }
+}

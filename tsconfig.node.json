@@ -1,0 +1,9 @@
+{
+  // Build tooling that runs in Node, not in a browser or in workerd.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["node"]
+  },
+  "include": ["vite.config.ts", "vitest.config.ts"]
+}

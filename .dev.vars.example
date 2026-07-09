@@ -1,0 +1,8 @@
+# Copy to `.dev.vars` for local development (`.dev.vars` is gitignored).
+#
+# Generate a real value with:
+#   openssl rand -base64 32
+#
+# In production this is set once with:
+#   npx wrangler secret put SESSION_SECRET
+SESSION_SECRET="dev-secret-not-for-production"
