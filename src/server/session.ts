@@ -47,6 +47,10 @@ function base64UrlDecode(text: string): Uint8Array | null {
 }
 
 async function importKey(secret: string): Promise<CryptoKey> {
+  // Without this, an unset SESSION_SECRET reaches WebCrypto as a zero-length key and every
+  // login dies with an opaque "Zero-length key is not supported" 500. Say what is wrong.
+  if (!secret) throw new Error("SESSION_SECRET is not configured");
+
   return crypto.subtle.importKey(
     "raw",
     encoder.encode(secret),

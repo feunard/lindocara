@@ -87,6 +87,12 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
+    // A deploy succeeds without the secret being set — nothing in wrangler.jsonc requires it.
+    // Fail loudly and legibly here rather than deep inside WebCrypto on the first login.
+    if (!env.SESSION_SECRET) {
+      return json({ error: "server misconfigured: SESSION_SECRET is not set" }, { status: 503 });
+    }
+
     if (url.pathname === "/api/ws") {
       return handleJoin(request, env);
     }

@@ -68,6 +68,14 @@ describe("signSession / verifySession", () => {
     expect(await verifySession(token, SECRET)).toBeNull();
   });
 
+  it("refuses to sign or verify with an unset secret", async () => {
+    const session = createSession("player");
+    await expect(signSession(session, "")).rejects.toThrow(/SESSION_SECRET/);
+
+    const token = await signSession(session, SECRET);
+    await expect(verifySession(token, "")).rejects.toThrow(/SESSION_SECRET/);
+  });
+
   it("rejects an expired token", async () => {
     const token = await signSession(createSession("player"), SECRET);
     expect(await verifySession(token, SECRET)).not.toBeNull();
