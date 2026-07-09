@@ -31,16 +31,27 @@ npm run deploy   # build, then ship
 
 ## How it works
 
-The client sends **intent** — "I'm holding right" — and never a position. The Durable Object
-runs a 20 Hz loop, advances every player through a shared `step()` function, and broadcasts a
-snapshot of the world. The client renders ~100 ms in the past and interpolates between the
-two snapshots bracketing that moment, so 20 updates per second look like smooth motion.
+The client sends **intent** — "I'm holding right" — and never a position. Cheating by editing
+your own coordinates is impossible, because you never send coordinates.
 
-Cheating by editing your own coordinates is not possible, because you never send coordinates.
+Each input is stamped with a sequence number, one per simulation tick. The Durable Object runs
+a 20 Hz loop, applies **exactly one command per player per tick**, and broadcasts a snapshot
+along with the highest sequence number it has applied. Applying one per tick is what makes the
+tick rate — rather than how fast you can send packets — the speed limit.
 
-The movement rules live in `src/shared/simulation.ts` as a pure function. Right now only the
-server calls it. When client-side prediction arrives, the client will call the very same
-function — which is the whole reason it lives there.
+Your own square does not wait for any of that. The client applies your input locally the frame
+you press a key, then reconciles: when a snapshot arrives it takes the server's position and
+replays whatever commands the server hasn't acknowledged yet. Agreement means nothing visibly
+happens; disagreement is smeared over ~100 ms rather than snapping. Measured input latency is
+**one frame** (~7 ms), down from ~124 ms before prediction.
+
+Everyone *else* is drawn ~100 ms in the past, interpolated between the two snapshots bracketing
+that instant — you can't know where a remote player is right now, and guessing looks worse than
+being slightly late.
+
+All of this hangs on `step(position, input, dt)` in `src/shared/simulation.ts` being a pure
+function that the server and the client both call. Reconciliation is only correct because the
+two are literally the same code.
 
 ## Database
 

@@ -4,15 +4,27 @@
  * Clients send intent, never position — the server is the only thing that decides where
  * a square is. Every inbound message is parsed defensively, because a client is an
  * attacker until proven otherwise.
+ *
+ * Inputs are numbered. The server echoes back the highest sequence number it has actually
+ * applied (`ack`), which is what lets a client predict its own movement and then reconcile
+ * against the truth. See `prediction.ts`.
  */
 
 import type { Input } from "./simulation.js";
+
+/** One tick's worth of intent, stamped so the server can acknowledge it. */
+export interface Command {
+  seq: number;
+  input: Input;
+}
 
 export interface PlayerSnapshot {
   id: string;
   nick: string;
   x: number;
   y: number;
+  /** Highest command sequence the server has applied for this player. */
+  ack: number;
 }
 
 export interface WorldInfo {
@@ -21,8 +33,8 @@ export interface WorldInfo {
   playerSize: number;
 }
 
-/** Sent by the browser. */
-export type ClientMessage = { t: "input"; input: Input };
+/** Sent by the browser, once per simulation tick. */
+export type ClientMessage = { t: "input"; seq: number; input: Input };
 
 /** Sent by the Durable Object. */
 export type ServerMessage =
@@ -60,8 +72,13 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
 
   if (!isRecord(value) || value.t !== "input") return null;
 
+  // A sequence number is the client's claim about ordering. Anything that is not a positive
+  // safe integer is a broken client or a hostile one; either way it does not get to move.
+  const { seq } = value;
+  if (typeof seq !== "number" || !Number.isSafeInteger(seq) || seq < 1) return null;
+
   const input = parseInput(value.input);
-  return input === null ? null : { t: "input", input };
+  return input === null ? null : { t: "input", seq, input };
 }
 
 export function encodeServerMessage(message: ServerMessage): string {

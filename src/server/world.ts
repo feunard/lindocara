@@ -11,6 +11,7 @@
 import { DurableObject } from "cloudflare:workers";
 import {
   type ClientMessage,
+  type Command,
   encodeServerMessage,
   type PlayerSnapshot,
   parseClientMessage,
@@ -51,12 +52,35 @@ export interface Attachment {
 /** ~1s at TICK_HZ. */
 const PERSIST_EVERY_TICKS = TICK_HZ;
 
+/**
+ * Exactly one command is applied per tick, so a client that floods commands gains no speed —
+ * it only builds a backlog and adds latency to itself. The queue is capped so that backlog
+ * cannot become a memory hole; a well-behaved client never fills more than a slot or two.
+ */
+const MAX_QUEUED_COMMANDS = 12;
+
+/**
+ * With no command to apply the server repeats the player's last intent, which rides out the
+ * ordinary case of one late packet. But a client whose tab froze sends nothing at all, and a
+ * square must not sprint across the world unattended. After a quarter second of silence, stop.
+ */
+const MAX_STARVED_TICKS = 5;
+
 interface Player {
   id: string;
   nick: string;
   x: number;
   y: number;
-  input: Input;
+  /** Commands received but not yet applied. Drained one per tick. */
+  queue: Command[];
+  /** The intent of the last applied command; repeated if the next one is late. */
+  lastInput: Input;
+  /** Highest sequence applied. Echoed to the client so it can retire pending commands. */
+  ack: number;
+  /** Highest sequence ever accepted, so replays and reorderings are ignored. */
+  lastSeq: number;
+  /** Consecutive ticks with an empty queue. */
+  starvedTicks: number;
   /** Position has changed since it was last written to the socket attachment. */
   dirty: boolean;
 }
@@ -80,6 +104,20 @@ export function positionFromAttachment(attachment: Attachment | null): Vec2 {
   return spawnPosition();
 }
 
+function newPlayer(id: string, nick: string, position: Vec2): Player {
+  return {
+    id,
+    nick,
+    ...position,
+    queue: [],
+    lastInput: NO_INPUT,
+    ack: 0,
+    lastSeq: 0,
+    starvedTicks: 0,
+    dirty: false,
+  };
+}
+
 export class World extends DurableObject<Env> {
   #players = new Map<WebSocket, Player>();
   #loop: ReturnType<typeof setInterval> | null = null;
@@ -94,13 +132,10 @@ export class World extends DurableObject<Env> {
       const attachment = ws.deserializeAttachment() as Attachment | null;
       if (!attachment) continue;
 
-      this.#players.set(ws, {
-        id: attachment.id,
-        nick: attachment.nick,
-        ...positionFromAttachment(attachment),
-        input: NO_INPUT,
-        dirty: false,
-      });
+      this.#players.set(
+        ws,
+        newPlayer(attachment.id, attachment.nick, positionFromAttachment(attachment)),
+      );
     }
 
     if (this.#players.size > 0) this.#startLoop();
@@ -120,7 +155,7 @@ export class World extends DurableObject<Env> {
     const { 0: client, 1: server } = new WebSocketPair();
     this.ctx.acceptWebSocket(server);
 
-    const player: Player = { id, nick, ...spawnPosition(), input: NO_INPUT, dirty: false };
+    const player = newPlayer(id, nick, spawnPosition());
     server.serializeAttachment({ id, nick, x: player.x, y: player.y } satisfies Attachment);
     this.#players.set(server, player);
 
@@ -143,7 +178,15 @@ export class World extends DurableObject<Env> {
     // A malformed frame is a client bug or an attack. Drop it; never trust it, never crash.
     if (!message) return;
 
-    player.input = message.input;
+    // Sequences only ever go up. A repeat is a duplicate; a lower number is a replay attempt.
+    if (message.seq <= player.lastSeq) return;
+    player.lastSeq = message.seq;
+
+    // Backlogged. Dropping costs this client accuracy — its prediction will be corrected on
+    // the next snapshot — and costs the world nothing. It is not a way to move faster.
+    if (player.queue.length >= MAX_QUEUED_COMMANDS) return;
+
+    player.queue.push({ seq: message.seq, input: message.input });
   }
 
   override async webSocketClose(ws: WebSocket, code: number, reason: string): Promise<void> {
@@ -187,7 +230,18 @@ export class World extends DurableObject<Env> {
     const persisting = this.#tick % PERSIST_EVERY_TICKS === 0;
 
     for (const [ws, player] of this.#players) {
-      const { x, y } = step(player, player.input, TICK_DT);
+      // Exactly one command per tick. This is what makes the tick rate, and not the client's
+      // send rate, the speed limit.
+      const command = player.queue.shift();
+      if (command) {
+        player.lastInput = command.input;
+        player.ack = command.seq;
+        player.starvedTicks = 0;
+      } else if (++player.starvedTicks > MAX_STARVED_TICKS) {
+        player.lastInput = NO_INPUT;
+      }
+
+      const { x, y } = step(player, player.lastInput, TICK_DT);
       if (x !== player.x || y !== player.y) {
         player.x = x;
         player.y = y;
@@ -206,12 +260,15 @@ export class World extends DurableObject<Env> {
   }
 
   #snapshot(): PlayerSnapshot[] {
-    return Array.from(this.#players.values(), ({ id, nick, x, y }) => ({
+    return Array.from(this.#players.values(), ({ id, nick, x, y, ack }) => ({
       id,
       nick,
-      // Sub-pixel precision is invisible and inflates every frame of every snapshot.
+      // Sub-pixel precision is invisible and inflates every frame of every snapshot. The
+      // client reconciles from this rounded value, so its prediction can be off by at most
+      // half a hundredth of a pixel — and the error is reset, not accumulated, every snapshot.
       x: Math.round(x * 100) / 100,
       y: Math.round(y * 100) / 100,
+      ack,
     }));
   }
 

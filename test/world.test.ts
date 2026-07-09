@@ -12,7 +12,16 @@ import {
   parseServerMessage,
   type ServerMessage,
 } from "../src/shared/protocol.js";
-import { PLAYER_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from "../src/shared/simulation.js";
+import {
+  type Input,
+  NO_INPUT,
+  PLAYER_SIZE,
+  PLAYER_SPEED,
+  TICK_DT,
+  TICK_MS,
+  WORLD_HEIGHT,
+  WORLD_WIDTH,
+} from "../src/shared/simulation.js";
 
 const ORIGIN = "https://lindocara.test";
 
@@ -29,10 +38,18 @@ async function sessionCookie(nickname: string): Promise<string> {
   return `${SESSION_COOKIE}=${token}`;
 }
 
-/** A connected player, recording everything the world tells it. */
+/**
+ * A connected player, recording everything the world tells it.
+ *
+ * Like a real client it pumps one numbered command per tick, because the server applies at
+ * most one per tick and repeats the last intent only briefly before assuming the client died.
+ */
 class Client {
   readonly received: ServerMessage[] = [];
   #socket: WebSocket;
+  #input: Input = NO_INPUT;
+  #seq = 0;
+  #pump: ReturnType<typeof setInterval> | null = null;
 
   private constructor(socket: WebSocket) {
     this.#socket = socket;
@@ -44,7 +61,7 @@ class Client {
     });
   }
 
-  static async join(nickname: string): Promise<Client> {
+  static async join(nickname: string, options: { pump?: boolean } = {}): Promise<Client> {
     const response = await SELF.fetch(`${ORIGIN}/api/ws`, {
       headers: { Upgrade: "websocket", Cookie: await sessionCookie(nickname) },
     });
@@ -52,25 +69,42 @@ class Client {
     expect(response.status).toBe(101);
     const socket = response.webSocket;
     if (!socket) throw new Error("expected a websocket in the 101 response");
-    return new Client(socket);
+
+    const client = new Client(socket);
+    if (options.pump !== false) client.startPump();
+    return client;
+  }
+
+  /** Emit the currently-held intent once per tick, exactly as the browser does. */
+  startPump(): void {
+    if (this.#pump !== null) return;
+    this.#pump = setInterval(() => this.sendCommand(this.#input), TICK_MS);
+  }
+
+  stopPump(): void {
+    if (this.#pump === null) return;
+    clearInterval(this.#pump);
+    this.#pump = null;
+  }
+
+  /** Next sequence number, sent with the given intent. */
+  sendCommand(input: Input): number {
+    const seq = ++this.#seq;
+    this.#socket.send(JSON.stringify({ t: "input", seq, input }));
+    return seq;
+  }
+
+  /** Send a command with an explicit sequence number, however implausible. */
+  sendCommandAt(seq: number, input: Input): void {
+    this.#socket.send(JSON.stringify({ t: "input", seq, input }));
   }
 
   press(direction: "up" | "down" | "left" | "right"): void {
-    this.#socket.send(
-      JSON.stringify({
-        t: "input",
-        input: { up: false, down: false, left: false, right: false, [direction]: true },
-      }),
-    );
+    this.#input = { ...NO_INPUT, [direction]: true };
   }
 
   release(): void {
-    this.#socket.send(
-      JSON.stringify({
-        t: "input",
-        input: { up: false, down: false, left: false, right: false },
-      }),
-    );
+    this.#input = { ...NO_INPUT };
   }
 
   sendRaw(payload: string): void {
@@ -78,6 +112,7 @@ class Client {
   }
 
   close(): void {
+    this.stopPump();
     this.#socket.close(1000, "done");
   }
 
@@ -97,6 +132,17 @@ class Client {
     const id = this.welcome?.selfId;
     return id ? this.latestSnapshot?.players.find((p) => p.id === id) : undefined;
   }
+}
+
+/**
+ * Players spawn at a random x. A test that always pushes "right" will occasionally start next
+ * to the right wall, travel nothing, and fail for reasons that have nothing to do with what it
+ * claims to test. Always push toward the far wall.
+ */
+function awayFromNearestWall(x: number): { direction: "left" | "right"; sign: 1 | -1 } {
+  return x < (WORLD_WIDTH - PLAYER_SIZE) / 2
+    ? { direction: "right", sign: 1 }
+    : { direction: "left", sign: -1 };
 }
 
 /** Poll until `predicate` holds, or fail. Real timers: the world ticks in real time. */
@@ -143,14 +189,15 @@ describe("World", () => {
     await until("welcome", () => client.welcome);
 
     const start = await until("initial position", () => client.self());
-    client.press("right");
+    const { direction, sign } = awayFromNearestWall(start.x);
+    client.press(direction);
 
-    const moved = await until("the square to move right", () => {
+    const moved = await until(`the square to move ${direction}`, () => {
       const now = client.self();
-      return now && now.x > start.x + 20 ? now : undefined;
+      return now && sign * (now.x - start.x) > 20 ? now : undefined;
     });
 
-    expect(moved.x).toBeGreaterThan(start.x);
+    expect(sign * (moved.x - start.x)).toBeGreaterThan(0);
     expect(moved.y).toBeCloseTo(start.y, 5);
 
     client.close();
@@ -240,6 +287,115 @@ describe("World", () => {
     expect(mine?.id).toBe(resting.id);
     expect(mine?.x).toBeCloseTo(resting.x, 1);
     expect(mine?.y).toBeCloseTo(resting.y, 1);
+
+    client.close();
+  });
+
+  it("acknowledges the commands it has applied", async () => {
+    const client = await Client.join("acker");
+    await until("welcome", () => client.welcome);
+
+    // The pump is running, so acks must climb.
+    const first = await until("a non-zero ack", () => {
+      const self = client.self();
+      return self && self.ack > 0 ? self.ack : undefined;
+    });
+
+    const later = await until("the ack to advance", () => {
+      const self = client.self();
+      return self && self.ack > first ? self.ack : undefined;
+    });
+
+    expect(later).toBeGreaterThan(first);
+    client.close();
+  });
+
+  /**
+   * The whole point of draining one command per tick. A client that sends 40 commands at once
+   * must not travel 40 ticks' worth of distance — otherwise sending faster is a speed hack.
+   */
+  it("applies at most one command per tick, so flooding buys no speed", async () => {
+    const client = await Client.join("flooder", { pump: false });
+    await until("welcome", () => client.welcome);
+    const start = await until("initial position", () => client.self());
+    const { direction, sign } = awayFromNearestWall(start.x);
+
+    const flood = 40;
+    for (let i = 0; i < flood; i++) client.sendCommand({ ...NO_INPUT, [direction]: true });
+
+    const elapsedMs = 300;
+    await scheduler.wait(elapsedMs);
+
+    const after = await until("a snapshot", () => client.self());
+    const travelled = sign * (after.x - start.x);
+
+    // Generous ceiling: the elapsed ticks, plus the starvation grace period, plus slack.
+    const ceiling = (elapsedMs / TICK_MS + 6) * PLAYER_SPEED * TICK_DT;
+    const ifFloodingWorked = flood * PLAYER_SPEED * TICK_DT;
+
+    expect(travelled).toBeGreaterThan(0);
+    expect(travelled).toBeLessThan(ceiling);
+    expect(travelled).toBeLessThan(ifFloodingWorked / 2);
+
+    client.close();
+  });
+
+  it("ignores a replayed sequence number", async () => {
+    const client = await Client.join("replayer", { pump: false });
+    await until("welcome", () => client.welcome);
+    const start = await until("initial position", () => client.self());
+    const { direction, sign } = awayFromNearestWall(start.x);
+    const backwards = direction === "right" ? "left" : "right";
+
+    client.sendCommandAt(100, { ...NO_INPUT, [direction]: true });
+    const moved = await until("the square to move", () => {
+      const self = client.self();
+      return self && sign * (self.x - start.x) > 1 ? self : undefined;
+    });
+
+    // A stale command, arriving late or replayed by an attacker. It must not be applied.
+    client.sendCommandAt(3, { ...NO_INPUT, [backwards]: true });
+    await scheduler.wait(400);
+
+    const after = await until("a later snapshot", () => client.self());
+    // Never travelled backwards, and the stale sequence never became the acknowledged one.
+    expect(sign * (after.x - moved.x)).toBeGreaterThanOrEqual(0);
+    expect(after.ack).toBe(100);
+
+    client.close();
+  });
+
+  it("stops a square whose client has gone silent", async () => {
+    const client = await Client.join("ghost");
+    await until("welcome", () => client.welcome);
+
+    const start = await until("initial position", () => client.self());
+    const { direction, sign } = awayFromNearestWall(start.x);
+    client.press(direction);
+
+    await scheduler.wait(300);
+    const beforeSilence = await until("the square to be moving", () => {
+      const self = client.self();
+      return self && sign * (self.x - start.x) > 20 ? self : undefined;
+    });
+
+    // The tab froze: no more commands. The server may coast briefly, then must stop.
+    client.stopPump();
+    await scheduler.wait(700);
+
+    const settled = await until("a snapshot", () => client.self());
+    await scheduler.wait(300);
+    const stillSettled = await until("a later snapshot", () => client.self());
+
+    expect(stillSettled.x).toBe(settled.x);
+
+    // It stopped because the server gave up on us, not because it hit a wall.
+    expect(settled.x).toBeGreaterThan(0);
+    expect(settled.x).toBeLessThan(WORLD_WIDTH - PLAYER_SIZE);
+
+    // Coasting is bounded by the queue depth plus the starvation grace period.
+    const coasted = sign * (settled.x - beforeSilence.x);
+    expect(coasted).toBeLessThan(18 * PLAYER_SPEED * TICK_DT);
 
     client.close();
   });

@@ -102,9 +102,45 @@ teleport between a few fixed positions. This is a dev-server artifact — produc
 exactly one object per id — and it is documented in AGENTS.md so the next person does not
 spend an hour debugging a bug that does not exist.
 
+## Amendment, same day: client-side prediction
+
+Movement felt laggy. Measured against production before changing anything:
+
+| | |
+| --- | --- |
+| network RTT to the edge | ~11 ms |
+| input → server-confirmed movement | median 24 ms |
+| snapshot arrival gaps | p50 50.0 ms, p95 55.1 ms, max 61.3 ms, **0/201 over 80 ms** |
+
+So the network was blameless. The delay was `INTERPOLATION_DELAY_MS`, correctly applied to
+remote players and *wrongly applied to the local one*: ~124 ms of deliberate lag on your own
+square, wandering up to ~175 ms with tick quantisation. That wander is what "sometimes laggy"
+was.
+
+Approach C from the original design is now implemented, exactly as the seam anticipated:
+
+- Inputs are numbered. The client sends one command per tick and keeps them until the server
+  acknowledges them (`ack` on each `PlayerSnapshot`).
+- The server queues commands and applies **exactly one per tick**. This is what stops a client
+  from moving faster by sending faster. Replayed sequences are dropped; after five starved
+  ticks the server stops a silent client's square rather than coasting forever.
+- The client predicts locally with the shared `step()`, and on each snapshot replays its
+  unacknowledged commands over the server's position. Corrections smaller than 96 px are smeared
+  over 100 ms; larger ones snap.
+- Remote players are unchanged — still interpolated 100 ms in the past.
+
+Measured after: input latency is **1 frame (~7 ms)**, every run. A square travels 390 px in
+1.5 s, i.e. exactly `PLAYER_SPEED`, so prediction does not double-step. Remote players sampled
+over 217 frames showed 217 distinct positions and no jump over 10 px — still smoothly
+interpolated.
+
+Two traps found while verifying, both recorded in AGENTS.md: a remote square resting against a
+wall is indistinguishable from a broken interpolator (the test now oscillates), and a nested
+`requestAnimationFrame` polling harness provokes a WebGL warning storm under headless
+SwiftShader that the app itself never produces.
+
 ## Future
 
-Client-side prediction and reconciliation, using the existing `step()`. Sharding one world
-into many rooms, which Durable Objects make almost free. If the game ever needs sub-50 ms
-competitive latency or UDP, the platform-free `shared/` layer means a Bun/Node port touches
-only `world.ts` and `index.ts`.
+Sharding one world into many rooms, which Durable Objects make almost free. If the game ever
+needs sub-50 ms competitive latency or UDP, the platform-free `shared/` layer means a Bun/Node
+port touches only `world.ts` and `index.ts`.

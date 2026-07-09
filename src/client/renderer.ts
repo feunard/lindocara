@@ -111,9 +111,12 @@ export class Renderer {
     }
   }
 
-  /** Drives `onFrame` once per display refresh. */
-  onFrame(callback: (nowMs: number) => void): void {
-    this.#app.ticker.add(() => callback(performance.now()));
+  /**
+   * Drives `onFrame` once per display refresh, with the seconds elapsed since the last one.
+   * The delta is left unclamped here; the simulation caps its own catch-up.
+   */
+  onFrame(callback: (nowMs: number, deltaSeconds: number) => void): void {
+    this.#app.ticker.add((ticker) => callback(performance.now(), ticker.deltaMS / 1000));
   }
 
   destroy(): void {

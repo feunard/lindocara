@@ -28,24 +28,56 @@ The one rule that matters: **the server decides where things are.** Clients send
 src/shared/     platform-free. Imports nothing from Cloudflare or the DOM.
   simulation.ts pure step(position, input, dt). The single source of movement truth.
   protocol.ts   the wire format, with defensive parsing of anything a client sends.
+  prediction.ts pure reconcile()/prunePending(). Client-side prediction, as functions.
 
 src/server/     runs in workerd.
   index.ts      Worker entry: /api/* only. Assets never reach it.
   session.ts    HMAC-signed cookie. No user table, no password.
   world.ts      the Durable Object: one world, a 20 Hz tick loop, snapshot broadcast.
+  db/           D1 schema + Drizzle. Unused by the game so far.
 
 src/client/     runs in a browser.
-  net.ts        socket + snapshot buffer + interpolation
+  net.ts        socket, local prediction of your own square, interpolation of everyone else's
   renderer.ts   PixiJS. A renderer, not an engine — it owns no state and no game loop.
-  input.ts      keyboard -> intent
+  input.ts      keyboard -> intent, polled once per tick
 ```
+
+### Two players, two rules
+
+- **You** are drawn in the present. Your input is applied locally the frame you press a key
+  (measured: 1 frame, ~7ms). Each snapshot carries the server's truth, which is one
+  round-trip stale, so the commands it has not acknowledged yet are replayed on top of it.
+  When client and server agree, nothing visibly happens.
+- **Everyone else** is drawn `INTERPOLATION_DELAY_MS` (100ms) in the past, interpolated
+  between the two snapshots bracketing that instant. You cannot know where a remote player is
+  *now*, and guessing looks worse than being slightly late.
+
+Do not "fix" the interpolation delay by removing it. It is what buys smooth remote motion out
+of a 20Hz snapshot stream, and it does not apply to your own square.
+
+### One command per tick
+
+The client stamps every input with a sequence number and sends one per simulation tick. The
+server queues them and applies **exactly one per tick**, echoing the highest sequence it has
+applied as `ack`. This is the load-bearing invariant:
+
+- Flooding commands buys no speed. The tick rate is the speed limit, not the send rate.
+- A replayed or out-of-order sequence is dropped (`seq <= lastSeq`).
+- With no command to apply the server repeats the last intent for up to `MAX_STARVED_TICKS`
+  (5, i.e. 250ms) to ride out a late packet, then stops the square. A frozen tab must not
+  leave a square sprinting.
+
+If you change the tick rate, the client's command rate follows automatically — both derive
+from `TICK_HZ`. If you ever make them differ, reconciliation breaks silently, because replay
+assumes one command means exactly one `TICK_DT`.
 
 ### Why `step()` lives in `shared/`
 
-Today only the server calls it. When client-side prediction is added, the client will call
-the *same function* on the same input to predict its own square, then reconcile against the
-server's snapshot. Two hand-synchronised copies of movement logic is the classic way to make
-prediction unfixable. There is one copy.
+Both sides call it. The server to decide truth; the client to predict, and to replay pending
+commands during reconciliation. Reconciliation is only correct because the two are literally
+the same function. Two hand-synchronised copies of movement logic is the classic way to make
+prediction unfixable. There is one copy, and `prediction.test.ts` asserts that replaying
+commands over a stale position lands exactly where the server lands.
 
 ### Three tsconfigs, not one
 
@@ -110,6 +142,14 @@ to the next. `test/db.test.ts` truncates in `afterEach`. Do not reach for `reset
 **Durable Object billing follows the tick loop.** The loop runs while at least one player is
 connected, and an active object is billed for its duration. An empty world stops the loop and
 costs nothing. Don't make the loop unconditional.
+
+**Players spawn at a random x.** A test that always pushes "right" will occasionally start
+against the right wall and fail for reasons unrelated to what it tests. Use
+`awayFromNearestWall()` in `world.test.ts`. The same trap bites manual checks: a square that
+sits still may be clamped, not broken.
+
+**`import.meta.env.DEV` exposes `window.__lindocara`** (`self()`, `all()`) for measuring input
+latency and interpolation from outside the app. It is stripped from production builds.
 
 ## Secrets
 

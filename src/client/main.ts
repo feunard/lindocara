@@ -54,22 +54,32 @@ async function play(me: Me): Promise<void> {
 
   const renderer = await Renderer.create(canvas);
   const client = new WorldClient();
-
-  // Assigned immediately below, but `onClose` can in principle fire before that happens.
-  let stopInput: (() => void) | null = null;
+  const input = trackInput();
 
   const connection = client.connect({
     onWelcome: () => setStatus(`${me.nick} — WASD or arrow keys`),
     onClose: (reason) => {
-      stopInput?.();
+      input.stop();
       setStatus(`disconnected: ${reason}. reload to rejoin.`);
     },
   });
 
-  stopInput = trackInput((input) => connection.send(input));
+  renderer.onFrame((now, dt) => {
+    // Predict first, then draw: your square must reflect the key you are holding this frame,
+    // not the one the server last heard about.
+    client.update(input.current(), dt);
+    renderer.render(client.sample(now));
+  });
 
-  renderer.onFrame((now) => renderer.render(client.sample(now)));
   window.addEventListener("beforeunload", () => connection.close());
+
+  // A handle for measuring input latency and interpolation from the outside. Dev builds only.
+  if (import.meta.env.DEV) {
+    (window as unknown as Record<string, unknown>).__lindocara = {
+      all: () => client.sample(performance.now()),
+      self: () => client.sample(performance.now()).find((p) => p.id === client.selfId),
+    };
+  }
 }
 
 loginForm.addEventListener("submit", async (event) => {
