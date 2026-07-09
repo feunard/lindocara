@@ -35,7 +35,8 @@ body::after {
   display: block;
   position: fixed;
   inset: 0;
-  filter: saturate(1.06) contrast(1.02);
+  image-rendering: pixelated;
+  filter: saturate(0.94) contrast(1.04);
 }
 
 #login[hidden],
@@ -152,34 +153,39 @@ button:disabled {
 #hud {
   position: fixed;
   z-index: 3;
-  top: 0.8rem;
-  left: 0.8rem;
+  top: 0.62rem;
+  left: 0.62rem;
   display: grid;
-  gap: 0.5rem;
-  width: min(21rem, calc(100vw - 1.6rem));
+  grid-template-columns: minmax(12rem, 16rem) auto;
+  align-items: start;
+  gap: 0.34rem;
+  width: auto;
   pointer-events: none;
 }
 
 #hud .panel {
-  padding: 0.68rem 0.75rem;
+  padding: 0.38rem 0.48rem;
+  border-radius: 8px;
+  background: rgb(8 27 23 / 82%);
 }
 
 .identity {
   display: grid;
-  grid-template-columns: 2.5rem 1fr;
-  gap: 0.45rem 0.65rem;
+  grid-template-columns: 1.75rem 1fr;
+  gap: 0.24rem 0.45rem;
+  min-width: 13.5rem;
 }
 
 .crest {
   grid-row: span 2;
   display: grid;
   place-items: center;
-  width: 2.5rem;
+  width: 1.75rem;
   aspect-ratio: 1;
   border: 1px solid rgb(185 239 196 / 35%);
   border-radius: 50%;
   background:
-    url("/assets/lindocara/atlas/hud.png") 0 50% / 11.1rem 1.85rem no-repeat,
+    url("/assets/lindocara/atlas/hud.png") 0 50% / 8.1rem 1.35rem no-repeat,
     radial-gradient(circle, rgb(97 189 128 / 34%), rgb(16 55 43 / 60%));
   image-rendering: pixelated;
 }
@@ -194,14 +200,14 @@ button:disabled {
 .identity-copy strong {
   color: #e1f8e5;
   font:
-    700 0.88rem Georgia,
+    700 0.78rem Georgia,
     serif;
 }
 
 .identity-copy span {
   color: var(--gold);
   font:
-    700 0.62rem ui-monospace,
+    700 0.54rem ui-monospace,
     monospace;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -210,12 +216,12 @@ button:disabled {
 .identity label {
   grid-column: 2;
   display: grid;
-  grid-template-columns: 3rem 1fr 3.8rem;
+  grid-template-columns: 2rem 1fr 3rem;
   align-items: center;
   gap: 0.35rem;
   color: var(--muted);
   font:
-    0.58rem ui-monospace,
+    0.5rem ui-monospace,
     monospace;
   letter-spacing: 0.08em;
 }
@@ -228,7 +234,7 @@ button:disabled {
 progress {
   appearance: none;
   width: 100%;
-  height: 0.42rem;
+  height: 0.32rem;
   overflow: hidden;
   border: 0;
   border-radius: 999px;
@@ -289,31 +295,54 @@ progress::-webkit-progress-value {
 .inventory,
 .combat {
   display: grid;
-  gap: 0.42rem;
-  font-size: 0.73rem;
+  gap: 0.24rem;
+  font-size: 0.64rem;
   color: #d6dfd2;
 }
 
 #quest-text {
   color: #d9e3d6;
   font:
-    italic 0.73rem / 1.35 Georgia,
+    italic 0.64rem / 1.25 Georgia,
     serif;
+}
+
+.quest {
+  grid-column: 1;
+  max-width: 16rem;
+}
+
+.combat {
+  grid-column: 1;
+  max-width: 13rem;
+}
+
+.inventory {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  align-self: start;
+}
+
+.inventory .panel-title {
+  display: none;
 }
 
 .item-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.35rem;
+  grid-template-columns: repeat(4, 2.15rem);
+  gap: 0.22rem;
 }
 
 .item-chip {
   position: relative;
   display: grid;
-  grid-template-columns: 1.55rem 1fr;
+  grid-template-columns: 1fr;
   align-items: center;
-  gap: 0.38rem;
-  padding: 0.35rem;
+  justify-items: center;
+  gap: 0;
+  min-width: 2.15rem;
+  min-height: 2.15rem;
+  padding: 0.2rem;
   border: 1px solid rgb(168 203 172 / 14%);
   border-radius: 6px;
   background: rgb(0 12 10 / 25%);
@@ -322,7 +351,8 @@ progress::-webkit-progress-value {
 .item-icon {
   display: grid;
   place-items: center;
-  height: 1.55rem;
+  width: 1.45rem;
+  height: 1.45rem;
   border-radius: 5px;
   background:
     url("/assets/lindocara/atlas/hud.png") 0 50% / 7.32rem 1.22rem no-repeat,
@@ -355,7 +385,7 @@ progress::-webkit-progress-value {
 }
 
 .item-copy {
-  display: grid;
+  display: contents;
   min-width: 0;
 }
 
@@ -364,10 +394,17 @@ progress::-webkit-progress-value {
   font-size: 0.5rem;
 }
 
+.inventory .item-copy small {
+  display: none;
+}
+
 .item-copy strong {
+  position: absolute;
+  right: 0.18rem;
+  bottom: 0.1rem;
   color: #e1e9df;
   font:
-    0.62rem ui-monospace,
+    700 0.55rem ui-monospace,
     monospace;
 }
 
@@ -387,8 +424,9 @@ kbd {
 
 .item-chip kbd {
   position: absolute;
-  top: 0.2rem;
-  right: 0.2rem;
+  top: -0.25rem;
+  right: -0.18rem;
+  transform: scale(0.78);
 }
 
 #prompt {
@@ -414,10 +452,19 @@ kbd {
 #chat {
   position: fixed;
   z-index: 4;
-  left: 0.8rem;
-  bottom: 2.6rem;
-  width: min(30rem, calc(100vw - 1.6rem));
-  padding: 0.6rem;
+  left: 0.62rem;
+  bottom: 2.15rem;
+  width: min(18rem, calc(100vw - 1.24rem));
+  padding: 0.38rem;
+  opacity: 0.78;
+  transition:
+    width 160ms ease,
+    opacity 160ms ease;
+}
+
+#chat.chat-open {
+  width: min(25rem, calc(100vw - 1.24rem));
+  opacity: 1;
 }
 
 .chat-title {
@@ -435,17 +482,25 @@ kbd {
 }
 
 #chat-messages {
-  height: 7rem;
+  height: 2.35rem;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: end;
   gap: 0.22rem;
-  padding-top: 0.4rem;
+  padding-top: 0.28rem;
   font:
     0.7rem / 1.35 ui-monospace,
     monospace;
   mask-image: linear-gradient(transparent, #000 25%);
+}
+
+#chat.chat-open #chat-messages {
+  height: 5.5rem;
+}
+
+#chat-messages:empty {
+  display: none;
 }
 
 #chat-messages .name {
@@ -454,7 +509,20 @@ kbd {
 }
 
 #chat-form {
-  margin-top: 0.42rem;
+  margin-top: 0;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition:
+    max-height 160ms ease,
+    margin-top 160ms ease,
+    opacity 160ms ease;
+}
+
+#chat.chat-open #chat-form {
+  margin-top: 0.35rem;
+  max-height: 3rem;
+  opacity: 1;
 }
 
 #chat-input {
@@ -473,6 +541,135 @@ kbd {
   justify-items: end;
   gap: 0.35rem;
   pointer-events: none;
+}
+
+#interior {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background:
+    radial-gradient(circle at center, rgb(17 31 22 / 52%), rgb(2 8 7 / 82%)),
+    linear-gradient(180deg, rgb(0 0 0 / 12%), rgb(0 0 0 / 36%));
+  animation: interior-fade 180ms ease-out;
+}
+
+#interior[hidden] {
+  display: none;
+}
+
+.interior-room {
+  width: min(31rem, calc(100vw - 2rem));
+  border: 1px solid rgb(207 180 101 / 42%);
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, rgb(57 43 30 / 92%) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(rgb(57 43 30 / 92%) 1px, transparent 1px) 0 0 / 24px 24px,
+    #2a2019;
+  box-shadow: 0 30px 80px rgb(0 0 0 / 62%);
+  overflow: hidden;
+}
+
+.interior-room header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.58rem 0.72rem;
+  border-bottom: 1px solid rgb(207 180 101 / 24%);
+  background: rgb(9 21 17 / 72%);
+  color: var(--gold);
+  font:
+    700 0.72rem Georgia,
+    serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+#interior-close {
+  width: auto;
+  padding: 0.28rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.58rem;
+}
+
+.room-grid {
+  position: relative;
+  height: min(16rem, 52vh);
+  image-rendering: pixelated;
+  background:
+    radial-gradient(circle at 22% 30%, rgb(240 170 78 / 16%), transparent 20%),
+    radial-gradient(circle at 76% 58%, rgb(106 163 121 / 13%), transparent 22%);
+}
+
+.room-object {
+  position: absolute;
+  display: block;
+  border: 2px solid #221711;
+  box-shadow: 0 7px 0 rgb(0 0 0 / 22%);
+}
+
+.room-object.hearth {
+  left: 9%;
+  top: 16%;
+  width: 4.4rem;
+  height: 3rem;
+  background: radial-gradient(circle, #ffd36a 12%, #d96735 30%, #382118 32%);
+}
+
+.room-object.table {
+  left: 38%;
+  top: 31%;
+  width: 5.2rem;
+  height: 3.2rem;
+  background: #7a5435;
+}
+
+.room-object.npc {
+  left: 55%;
+  top: 42%;
+  width: 1.8rem;
+  height: 2.5rem;
+  background: #d6c973;
+  border-radius: 45% 45% 20% 20%;
+}
+
+.room-object.chest {
+  right: 13%;
+  top: 24%;
+  width: 3.8rem;
+  height: 2.4rem;
+  background: linear-gradient(#bd7a35 45%, #6c3e24 45%);
+}
+
+.room-object.bench {
+  right: 16%;
+  bottom: 18%;
+  width: 5rem;
+  height: 1.4rem;
+  background: #6f4b32;
+}
+
+.room-object.rug {
+  left: 31%;
+  bottom: 14%;
+  width: 9rem;
+  height: 3.6rem;
+  border-color: #472b27;
+  background: repeating-linear-gradient(90deg, #7f3d3b 0 12px, #b97845 12px 24px);
+}
+
+#interior-copy {
+  margin: 0;
+  padding: 0.62rem 0.72rem 0.72rem;
+  border-top: 1px solid rgb(207 180 101 / 20%);
+  background: rgb(9 21 17 / 76%);
+  color: #e0d5b9;
+  font:
+    italic 0.72rem / 1.35 Georgia,
+    serif;
 }
 
 .event {
@@ -549,6 +746,12 @@ kbd {
 @keyframes prompt-in {
   from {
     transform: translateY(6px);
+    opacity: 0;
+  }
+}
+
+@keyframes interior-fade {
+  from {
     opacity: 0;
   }
 }

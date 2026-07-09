@@ -42,6 +42,10 @@ const questProgress = required<HTMLProgressElement>("#quest-progress");
 const attackCooldown = required<HTMLProgressElement>("#attack-cooldown");
 const combatPanel = required<HTMLElement>(".combat");
 const prompt = required<HTMLDivElement>("#prompt");
+const interior = required<HTMLElement>("#interior");
+const interiorTitle = required<HTMLElement>("#interior-title");
+const interiorCopy = required<HTMLElement>("#interior-copy");
+const interiorClose = required<HTMLButtonElement>("#interior-close");
 const eventLog = required<HTMLElement>("#event-log");
 const chat = required<HTMLElement>("#chat");
 const chatMessages = required<HTMLElement>("#chat-messages");
@@ -49,6 +53,46 @@ const chatForm = required<HTMLFormElement>("#chat-form");
 const chatInput = required<HTMLInputElement>("#chat-input");
 const help = required<HTMLElement>("#help");
 const sound = new GameSound();
+
+interface InteriorDoor {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  copy: string;
+}
+
+const INTERIOR_RANGE = 54;
+const INTERIORS: readonly InteriorDoor[] = [
+  {
+    id: "hearth",
+    name: "Heartroot Hearth",
+    x: 620,
+    y: 205,
+    copy: "A low fire, drying herbs, a cedar chest, and a quiet keeper sorting charms.",
+  },
+  {
+    id: "farm",
+    name: "Old Root Farm",
+    x: 608,
+    y: 426,
+    copy: "Weathered tools, sacks of seed, a workbench, and a map of paths swallowed by moss.",
+  },
+  {
+    id: "watch",
+    name: "Mosswatch House",
+    x: 1038,
+    y: 168,
+    copy: "Warm coals, patched shutters, and a chest marked with the old village seal.",
+  },
+  {
+    id: "marsh",
+    name: "Marsh Door",
+    x: 1018,
+    y: 552,
+    copy: "Damp stone, blue lanternlight, and a stairwell descending below the reeds.",
+  },
+] as const;
 
 function setStatus(text: string): void {
   statusBar.textContent = text;
@@ -59,6 +103,8 @@ type ItemIcon = "potion" | "gold" | "crystal" | "sword";
 function itemChip(icon: ItemIcon, label: string, value: string, hotkey?: string): HTMLElement {
   const chip = document.createElement("div");
   chip.className = "item-chip";
+  chip.title = hotkey ? `${label} [${hotkey}]` : label;
+  chip.setAttribute("aria-label", `${label}: ${value}`);
   const symbol = document.createElement("span");
   symbol.className = `item-icon item-icon--${icon}`;
   symbol.setAttribute("aria-hidden", "true");
@@ -104,7 +150,7 @@ function renderState(state: SelfState): void {
     itemChip("potion", "Heartroot tonic", String(potions), "Q"),
     itemChip("gold", "Sunmarks", String(gold)),
     itemChip("crystal", "Gloam shards", String(crystals)),
-    itemChip("sword", "Weathered blade", weapon === "rusty_sword" ? "Equipped" : "Unknown"),
+    itemChip("sword", "Weathered blade", weapon === "rusty_sword" ? "On" : "?"),
   );
   if (state.quest.status === "available") {
     questText.textContent = "Keeper Elowen waits beside the Heartroot.";
@@ -124,6 +170,32 @@ function renderState(state: SelfState): void {
     questProgress.hidden = true;
   }
   pulse(questText.closest(".panel"));
+}
+
+function nearestInterior(self: PlayerSnapshot | undefined): InteriorDoor | undefined {
+  if (!self) return undefined;
+  let nearest: InteriorDoor | undefined;
+  let nearestDistance = INTERIOR_RANGE;
+  for (const door of INTERIORS) {
+    const distance = pointDistance(self, door);
+    if (distance > nearestDistance) continue;
+    nearest = door;
+    nearestDistance = distance;
+  }
+  return nearest;
+}
+
+function openInterior(door: InteriorDoor): void {
+  interiorTitle.textContent = door.name;
+  interiorCopy.textContent = door.copy;
+  interior.dataset.room = door.id;
+  interior.hidden = false;
+  interior.classList.add("open");
+}
+
+function closeInterior(): void {
+  interior.classList.remove("open");
+  interior.hidden = true;
 }
 
 function renderPlayer(player: PlayerSnapshot | undefined): void {
@@ -151,12 +223,26 @@ function shouldLogEvent(text: string): boolean {
   return text.length < 80;
 }
 
-function updatePrompt(self: PlayerSnapshot | undefined, questStatus: QuestStatus): void {
+function updatePrompt(
+  self: PlayerSnapshot | undefined,
+  questStatus: QuestStatus,
+  interiorDoor: InteriorDoor | undefined,
+): void {
+  if (!interior.hidden) {
+    prompt.textContent = "[E] Leave";
+    prompt.hidden = false;
+    return;
+  }
   if (!self || self.dead) {
     prompt.hidden = true;
     return;
   }
   const nearNpc = pointDistance(self, QUEST_NPC) <= INTERACTION_RANGE;
+  if (interiorDoor && !nearNpc) {
+    prompt.textContent = `[E] Enter ${interiorDoor.name}`;
+    prompt.hidden = false;
+    return;
+  }
   if (
     nearNpc &&
     (questStatus === "available" || questStatus === "ready" || questStatus === "completed")
@@ -207,7 +293,8 @@ function addChat(from: string, text: string): void {
   name.textContent = `${from}: `;
   line.append(name, document.createTextNode(text));
   chatMessages.append(line);
-  while (chatMessages.children.length > 30) chatMessages.firstElementChild?.remove();
+  while (chatMessages.children.length > 8) chatMessages.firstElementChild?.remove();
+  chat.classList.add("has-chat");
 }
 
 async function play(me: Me): Promise<void> {
@@ -220,6 +307,7 @@ async function play(me: Me): Promise<void> {
   let questStatus: QuestStatus = "available";
   let attackCooldownUntil = 0;
   let welcomed = false;
+  let currentSelf: PlayerSnapshot | undefined;
 
   const connection = client.connect({
     onWelcome: (selfId, _world, state) => {
@@ -272,6 +360,19 @@ async function play(me: Me): Promise<void> {
     },
     interact: () => {
       sound.unlock();
+      if (!interior.hidden) {
+        closeInterior();
+        input.reset();
+        return;
+      }
+      const door = nearestInterior(currentSelf);
+      const nearNpc = currentSelf && pointDistance(currentSelf, QUEST_NPC) <= INTERACTION_RANGE;
+      if (door && !nearNpc) {
+        sound.interact();
+        input.reset();
+        openInterior(door);
+        return;
+      }
       sound.interact();
       renderer.playInteraction();
       connection.interact();
@@ -283,8 +384,16 @@ async function play(me: Me): Promise<void> {
     },
     focusChat: () => {
       input.reset();
+      chat.classList.add("chat-open");
       chatInput.focus();
     },
+  });
+
+  chatInput.addEventListener("focus", () => {
+    chat.classList.add("chat-open");
+  });
+  chatInput.addEventListener("blur", () => {
+    chat.classList.remove("chat-open");
   });
 
   chatForm.addEventListener("submit", (event) => {
@@ -294,11 +403,20 @@ async function play(me: Me): Promise<void> {
     chatInput.value = "";
     chatInput.blur();
   });
+  interiorClose.addEventListener("click", closeInterior);
+  window.addEventListener("keydown", (event) => {
+    if (event.code !== "Escape" || interior.hidden) return;
+    closeInterior();
+    input.reset();
+    event.preventDefault();
+  });
 
   renderer.onFrame((now, dt) => {
     client.update(input.current(), dt);
     const sample = client.sample(now);
     const self = sample.players.find((player) => player.id === client.selfId);
+    currentSelf = self;
+    const door = nearestInterior(self);
     const context: RenderContext = {
       questStatus,
       attackCooldownUntil,
@@ -308,7 +426,7 @@ async function play(me: Me): Promise<void> {
     };
     renderer.render(sample, context);
     renderPlayer(self);
-    updatePrompt(self, questStatus);
+    updatePrompt(self, questStatus, door);
     updateAttackCooldown(now, attackCooldownUntil);
   });
   window.addEventListener("beforeunload", () => connection.close());

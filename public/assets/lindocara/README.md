@@ -14,8 +14,9 @@ Primary source: Ninja Adventure by Pixel-Boy and AAA.
 Local derivatives in the atlas:
 
 - palette variants for player appearances;
-- compact slime, potion, gold, crystal, crest, oath, and sword icons drawn to match the
-  same 16x16 pixel-art constraints.
+- terrain detail tiles, wet ground, water tiles, ruin variants, torches, leaves, roots, grass,
+  compact slime, potion, gold, crystal, crest, oath, and sword icons drawn to match the same
+  16x16 pixel-art constraints.
 
 These derivatives are released under the same CC0 / public domain equivalent terms.
 No external runtime URLs are used.

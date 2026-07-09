@@ -48,7 +48,7 @@ const COLORS = {
 const ATLAS_IMAGE = "/assets/lindocara/atlas/world.png";
 const ATLAS_DATA = "/assets/lindocara/atlas/world.json";
 
-const TILE_SIZE = 32;
+const TILE_SIZE = 16;
 
 interface AtlasData {
   frames: Record<string, { x: number; y: number; w: number; h: number }>;
@@ -61,7 +61,9 @@ interface ArtTextures {
   keeper: Texture;
   tiles: {
     grass: Texture[];
+    wet: Texture[];
     path: Texture[];
+    water: Texture[];
     sanctuary: Texture;
   };
   props: {
@@ -72,6 +74,10 @@ interface ArtTextures {
     stump: Texture;
     log: Texture;
     fence: Texture;
+    tufts: Texture[];
+    leaves: Texture[];
+    roots: Texture[];
+    torch: Texture;
   };
   sword: Texture;
   loot: Record<ItemKind, Texture>;
@@ -107,6 +113,16 @@ interface Effect {
   bornAt: number;
   duration: number;
   rise: number;
+}
+
+interface AmbientView {
+  container: Container;
+  baseX: number;
+  baseY: number;
+  baseScaleX: number;
+  baseScaleY: number;
+  phase: number;
+  sway: number;
 }
 
 function phaseFor(id: string): number {
@@ -162,8 +178,20 @@ async function loadArt(): Promise<ArtTextures> {
         texture("tile.grass.b"),
         texture("tile.grass.c"),
         texture("tile.grass.d"),
+        texture("tile.grass.moss.a"),
+        texture("tile.grass.moss.b"),
+        texture("tile.grass.flowers"),
+        texture("tile.grass.stones"),
       ],
-      path: [texture("tile.path.a"), texture("tile.path.b"), texture("tile.path.c")],
+      wet: [texture("tile.grass.wet.a"), texture("tile.grass.wet.b")],
+      path: [
+        texture("tile.path.a"),
+        texture("tile.path.b"),
+        texture("tile.path.c"),
+        texture("tile.path.worn.a"),
+        texture("tile.path.worn.b"),
+      ],
+      water: [texture("tile.water.a"), texture("tile.water.b"), texture("tile.water.c")],
       sanctuary: texture("tile.sanctuary"),
     },
     props: {
@@ -172,13 +200,21 @@ async function loadArt(): Promise<ArtTextures> {
         texture("prop.ruin.gate"),
         texture("prop.ruin.wall"),
         texture("prop.ruin.house"),
+        texture("prop.ruin.house.vines"),
+        texture("prop.ruin.house.dark"),
         texture("prop.hut"),
+        texture("prop.hut.vines"),
+        texture("prop.hut.dark"),
       ],
       rocks: [texture("prop.rock.a"), texture("prop.rock.b"), texture("prop.rock.c")],
       mushrooms: [texture("prop.mushroom.a"), texture("prop.mushroom.b")],
       stump: texture("prop.stump"),
       log: texture("prop.log"),
       fence: texture("prop.fence"),
+      tufts: [texture("prop.grass.tuft")],
+      leaves: [texture("prop.leaf")],
+      roots: [texture("prop.root")],
+      torch: texture("prop.torch"),
     },
     sword: texture("weapon.sword"),
     loot: {
@@ -207,6 +243,34 @@ function pickTexture(textures: readonly Texture[], index: number): Texture {
   const texture = textures[index % textures.length] ?? textures[0];
   if (!texture) throw new Error("Cannot pick from an empty texture list");
   return texture;
+}
+
+function placeTile(tile: Sprite, x: number, y: number, flipX: boolean, flipY: boolean): void {
+  tile.position.set(x + (flipX ? TILE_SIZE : 0), y + (flipY ? TILE_SIZE : 0));
+  tile.scale.x = Math.abs(tile.scale.x) * (flipX ? -1 : 1);
+  tile.scale.y = Math.abs(tile.scale.y) * (flipY ? -1 : 1);
+}
+
+function isMainRoad(x: number, y: number): boolean {
+  const horizontalNoise = Math.sin(x / 58) * 12 + Math.sin(x / 137) * 9;
+  const verticalNoise = Math.sin(y / 71) * 10 + Math.sin(y / 149) * 8;
+  const horizontal = Math.abs(y - 452 - horizontalNoise) < 48;
+  const vertical = Math.abs(x - 798 - verticalNoise) < 40 && y < 690;
+  return horizontal || vertical;
+}
+
+function waterStrength(x: number, y: number): number {
+  const pond = 1 - Math.hypot((x - 1284) / 210, (y - 682) / 122);
+  const streamCenter = 1164 + Math.sin(y / 88) * 54;
+  const stream = 1 - Math.abs(x - streamCenter) / 36;
+  return Math.max(pond, y > 505 ? stream : -1);
+}
+
+function createSoftShadow(width: number, height: number, alpha = 0.36): Graphics {
+  return new Graphics().ellipse(0, 0, width / 2, height / 2).fill({
+    color: COLORS.shadow,
+    alpha,
+  });
 }
 
 function reconcile<T extends { id: string }>(
@@ -239,11 +303,15 @@ export class Renderer {
   #effects = new Container();
   #overlay = new Graphics();
   #npcMark?: Text;
+  #npcLabel?: Text;
   #sanctuaryLabel?: Text;
   #players = new Map<string, EntityView<PlayerSnapshot>>();
   #monsters = new Map<string, EntityView<MonsterSnapshot>>();
   #loot = new Map<string, EntityView<LootSnapshot>>();
   #activeEffects: Effect[] = [];
+  #ambient = new Container();
+  #ambientViews: AmbientView[] = [];
+  #waterTiles: Sprite[] = [];
   #selfId: string | null = null;
   #cameraX = WORLD_WIDTH / 2;
   #cameraY = WORLD_HEIGHT / 2;
@@ -261,7 +329,7 @@ export class Renderer {
       canvas,
       background: COLORS.grass,
       resizeTo: window,
-      antialias: true,
+      antialias: false,
       autoDensity: true,
       resolution: window.devicePixelRatio || 1,
     });
@@ -280,59 +348,170 @@ export class Renderer {
     this.#app.stage.addChild(this.#world);
 
     const ground = new Container();
+    const microDecor = new Container();
+    const grassBase = this.art.tiles.grass.slice(0, 4);
+    const grassDetail = this.art.tiles.grass.slice(4);
+    const pathBase = this.art.tiles.path.slice(0, 3);
+    const pathDetail = this.art.tiles.path.slice(3);
     for (let y = 0; y < WORLD_HEIGHT; y += TILE_SIZE) {
       for (let x = 0; x < WORLD_WIDTH; x += TILE_SIZE) {
         const tileX = Math.floor(x / TILE_SIZE);
         const tileY = Math.floor(y / TILE_SIZE);
+        const seed = tileX * 97 + tileY * 131;
         const inSafe =
           x >= SAFE_ZONE.x - TILE_SIZE &&
           x <= SAFE_ZONE.x + SAFE_ZONE.width &&
           y >= SAFE_ZONE.y - TILE_SIZE &&
           y <= SAFE_ZONE.y + SAFE_ZONE.height;
-        const onPath = (y > 384 && y < 512) || (x > 736 && x < 864);
-        const variants = onPath ? this.art.tiles.path : this.art.tiles.grass;
-        const texture = inSafe
-          ? this.art.tiles.sanctuary
-          : pickTexture(variants, tileX * 7 + tileY * 13);
+        const water = waterStrength(x + TILE_SIZE / 2, y + TILE_SIZE / 2);
+        const onPath = isMainRoad(x + TILE_SIZE / 2, y + TILE_SIZE / 2) && water < 0.25;
+        const damp = y > 660 || water > -0.15;
+        const detailRoll = seeded(seed + 17);
+        const texture =
+          water > 0.08
+            ? pickTexture(this.art.tiles.water, seed)
+            : onPath
+              ? pickTexture(detailRoll > 0.86 ? pathDetail : pathBase, seed)
+              : damp && detailRoll > 0.42
+                ? pickTexture(this.art.tiles.wet, seed)
+                : pickTexture(detailRoll > 0.9 && !inSafe ? grassDetail : grassBase, seed);
         const tile = createSprite(texture, TILE_SIZE, TILE_SIZE);
-        tile.position.set(x, y);
+        placeTile(tile, x, y, seeded(seed + 2) > 0.5, seeded(seed + 4) > 0.78);
+        tile.tint = water > 0.08 ? 0xffffff : damp ? 0xe0e4c9 : onPath ? 0xf3dec4 : 0xf0efcf;
         ground.addChild(tile);
+
+        if (!onPath && !inSafe && water < 0.08 && seeded(seed + 8) > 0.93) {
+          const pool =
+            seeded(seed + 9) > 0.7
+              ? this.art.props.leaves
+              : seeded(seed + 10) > 0.58
+                ? this.art.props.roots
+                : this.art.props.tufts;
+          const detail = createFittedSprite(pickTexture(pool, seed), 18, 18);
+          detail.anchor.set(0.5, 1);
+          detail.position.set(x + 8 + seeded(seed + 11) * 16, y + 14 + seeded(seed + 12) * 15);
+          detail.alpha = 0.58 + seeded(seed + 13) * 0.24;
+          microDecor.addChild(detail);
+        }
+
+        if (water > 0.08) this.#waterTiles.push(tile);
       }
     }
     this.#world.addChild(ground);
+    this.#world.addChild(microDecor);
+
+    const waterEdge = new Graphics();
+    for (let index = 0; index < 26; index++) {
+      const y = 530 + index * 12;
+      const x = 1164 + Math.sin(y / 88) * 54;
+      waterEdge
+        .moveTo(x - 26, y)
+        .lineTo(x + 24, y + Math.sin(index) * 2)
+        .stroke({ width: 1.2, color: 0xb9e0d7, alpha: 0.18 });
+    }
+    waterEdge.ellipse(1284, 682, 176, 98).stroke({ width: 2, color: 0xb9e0d7, alpha: 0.2 });
+    this.#world.addChild(waterEdge);
 
     const decor = new Container();
-    for (let index = 0; index < 105; index++) {
-      const x = seeded(index + 1000) * WORLD_WIDTH;
-      const y = seeded(index + 1400) * WORLD_HEIGHT;
-      const onPath = (y > 384 && y < 512) || (x > 736 && x < 864);
+    const groveCenters = [
+      { x: 135, y: 150, radius: 170 },
+      { x: 242, y: 735, radius: 210 },
+      { x: 1470, y: 160, radius: 145 },
+      { x: 1390, y: 790, radius: 180 },
+    ];
+    for (let index = 0; index < 145; index++) {
+      const grove = groveCenters[index % groveCenters.length];
+      if (!grove) continue;
+      const angle = seeded(index + 1000) * Math.PI * 2;
+      const radius = Math.sqrt(seeded(index + 1400)) * grove.radius;
+      const x = Math.max(26, Math.min(WORLD_WIDTH - 26, grove.x + Math.cos(angle) * radius));
+      const y = Math.max(40, Math.min(WORLD_HEIGHT - 12, grove.y + Math.sin(angle) * radius));
+      const onPath = isMainRoad(x, y);
+      const water = waterStrength(x, y);
       const inSafe =
         x >= SAFE_ZONE.x - 20 &&
         x <= SAFE_ZONE.x + SAFE_ZONE.width + 20 &&
         y >= SAFE_ZONE.y - 20 &&
         y <= SAFE_ZONE.y + SAFE_ZONE.height + 20;
-      if (onPath || inSafe) continue;
+      if (onPath || inSafe || water > -0.1) continue;
+      const swampTrees = [
+        pickTexture(this.art.props.trees, 1),
+        pickTexture(this.art.props.trees, 2),
+        this.art.props.log,
+      ];
       const pool =
-        index % 9 === 0
+        index % 11 === 0
           ? this.art.props.rocks
-          : index % 7 === 0
+          : index % 8 === 0
             ? this.art.props.mushrooms
-            : index % 5 === 0
+            : index % 6 === 0
               ? [this.art.props.log, this.art.props.stump]
-              : this.art.props.trees.slice(1);
+              : y > 610
+                ? swampTrees
+                : this.art.props.trees;
       const texture = pickTexture(pool, index);
-      const size = index % 5 === 0 ? 28 : index % 9 === 0 ? 22 : 34;
+      const size = index % 6 === 0 ? 30 : index % 11 === 0 ? 24 : 42 + seeded(index + 12) * 18;
+      const shadow = createSoftShadow(size * 0.82, size * 0.32, 0.24);
+      shadow.position.set(x, y - 2);
+      decor.addChild(shadow);
       const prop = createFittedSprite(texture, size, size);
       prop.anchor.set(0.5, 1);
       prop.position.set(x, y);
+      prop.tint = y > 650 ? 0xd7dfbf : 0xffffff;
       decor.addChild(prop);
     }
     this.#world.addChild(decor);
 
+    const edgeDecor = new Container();
+    for (let index = 0; index < 92; index++) {
+      const side = index % 4;
+      const along = seeded(index + 2200);
+      const depth = 8 + seeded(index + 2300) * 62;
+      const x =
+        side === 0
+          ? along * WORLD_WIDTH
+          : side === 1
+            ? WORLD_WIDTH - depth
+            : side === 2
+              ? along * WORLD_WIDTH
+              : depth;
+      const y =
+        side === 0
+          ? depth
+          : side === 1
+            ? along * WORLD_HEIGHT
+            : side === 2
+              ? WORLD_HEIGHT - depth
+              : along * WORLD_HEIGHT;
+      const texture =
+        side === 2 && index % 3 === 0
+          ? pickTexture(this.art.props.rocks, index)
+          : pickTexture(this.art.props.trees, index);
+      const size = side === 2 ? 38 + seeded(index + 5) * 36 : 48 + seeded(index + 7) * 46;
+      const shadow = createSoftShadow(size * 0.78, size * 0.28, 0.28);
+      shadow.position.set(x, y - 2);
+      edgeDecor.addChild(shadow);
+      const prop = createFittedSprite(texture, size, size);
+      prop.anchor.set(0.5, 1);
+      prop.position.set(x, y);
+      prop.tint = side === 2 ? 0xbec8a0 : 0xdce3bd;
+      edgeDecor.addChild(prop);
+    }
+    const edgeFog = new Graphics()
+      .rect(0, 0, WORLD_WIDTH, 74)
+      .fill({ color: 0x07120f, alpha: 0.2 })
+      .rect(0, WORLD_HEIGHT - 92, WORLD_WIDTH, 92)
+      .fill({ color: 0x07120f, alpha: 0.28 })
+      .rect(0, 0, 74, WORLD_HEIGHT)
+      .fill({ color: 0x07120f, alpha: 0.18 })
+      .rect(WORLD_WIDTH - 86, 0, 86, WORLD_HEIGHT)
+      .fill({ color: 0x07120f, alpha: 0.2 });
+    this.#world.addChild(edgeDecor, edgeFog);
+
     const safeMark = new Graphics()
       .roundRect(SAFE_ZONE.x, SAFE_ZONE.y, SAFE_ZONE.width, SAFE_ZONE.height, 42)
-      .fill({ color: COLORS.safe, alpha: 0.18 })
-      .stroke({ width: 3, color: 0x72d5cb, alpha: 0.72 });
+      .fill({ color: 0xb5d995, alpha: 0.03 })
+      .stroke({ width: 2, color: 0x9bd7b6, alpha: 0.24 });
     for (let inset = 14; inset < 58; inset += 14) {
       safeMark
         .roundRect(
@@ -342,7 +521,7 @@ export class Renderer {
           SAFE_ZONE.height - inset * 2,
           28,
         )
-        .stroke({ width: 1.2, color: 0xb3f2dc, alpha: 0.15 });
+        .stroke({ width: 1, color: 0xf3d58a, alpha: 0.12 });
     }
     this.#world.addChild(safeMark);
 
@@ -350,7 +529,7 @@ export class Renderer {
       const ruin = new Container();
       ruin.position.set(obstacle.x, obstacle.y);
       const shadow = new Graphics()
-        .ellipse(obstacle.width / 2, obstacle.height - 10, obstacle.width * 0.46, 18)
+        .ellipse(obstacle.width / 2, obstacle.height - 8, obstacle.width * 0.5, 22)
         .fill({ color: COLORS.shadow, alpha: 0.45 });
       ruin.addChild(shadow);
       const mainProp = createFittedSprite(
@@ -360,7 +539,23 @@ export class Renderer {
       );
       mainProp.anchor.set(0.5, 1);
       mainProp.position.set(obstacle.width / 2, obstacle.height);
+      mainProp.tint = obstacle.y > 580 ? 0xd2d8bb : obstacle.y < 260 ? 0xf1e8c9 : 0xffffff;
       ruin.addChild(mainProp);
+      if (obstacleIndex % 2 === 0) {
+        const torch = createFittedSprite(this.art.props.torch, 22, 34);
+        torch.anchor.set(0.5, 1);
+        torch.position.set(obstacle.width * 0.18, obstacle.height - 8);
+        ruin.addChild(torch);
+        this.#ambientViews.push({
+          container: torch,
+          baseX: torch.x,
+          baseY: torch.y,
+          baseScaleX: torch.scale.x,
+          baseScaleY: torch.scale.y,
+          phase: obstacleIndex * 0.9,
+          sway: 1,
+        });
+      }
       for (let tree = 0; tree < 4; tree++) {
         const isRock = tree % 3 === 0;
         const texture = isRock
@@ -376,6 +571,24 @@ export class Renderer {
       }
       this.#world.addChild(ruin);
     }
+
+    for (let index = 0; index < 38; index++) {
+      const light = new Graphics()
+        .circle(0, 0, 1.4 + seeded(index + 40) * 1.2)
+        .fill({ color: index % 3 === 0 ? 0xffe089 : 0xb6f3a4, alpha: 0.72 });
+      light.position.set(1040 + seeded(index + 60) * 500, 560 + seeded(index + 80) * 300);
+      this.#ambient.addChild(light);
+      this.#ambientViews.push({
+        container: light,
+        baseX: light.x,
+        baseY: light.y,
+        baseScaleX: light.scale.x,
+        baseScaleY: light.scale.y,
+        phase: seeded(index + 100) * Math.PI * 2,
+        sway: 6 + seeded(index + 120) * 10,
+      });
+    }
+    this.#world.addChild(this.#ambient);
 
     for (const [text, x, y] of [
       ["THE GLOAMWOOD", 120, 58],
@@ -432,7 +645,9 @@ export class Renderer {
     });
     label.anchor.set(0.5, 1);
     label.position.set(16, -3);
+    label.alpha = 0;
     npc.addChild(label);
+    this.#npcLabel = label;
     this.#world.addChild(npc);
 
     const sanctuaryLabel = new Text({
@@ -513,12 +728,12 @@ export class Renderer {
     actor.pivot.set(18, 20);
     actor.position.set(18, 20);
     const shadow = new Graphics()
-      .ellipse(18, 32, 20, 7)
+      .ellipse(18, 33, 25, 9)
       .fill({ color: COLORS.shadow, alpha: 0.65 });
-    const body = createSprite(this.art.slime, 32, 32);
+    const body = createSprite(this.art.slime, 42, 42);
     body.anchor.set(0.5, 1);
-    body.position.set(18, 34);
-    const flash = new Graphics().ellipse(18, 18, 21, 18).fill({ color: 0xffffff, alpha: 0 });
+    body.position.set(18, 36);
+    const flash = new Graphics().ellipse(18, 18, 25, 21).fill({ color: 0xffffff, alpha: 0 });
     actor.addChild(shadow, body, flash);
     container.addChild(actor);
     const hp = new Graphics();
@@ -550,7 +765,8 @@ export class Renderer {
     });
     label.name = "label";
     label.anchor.set(0.5, 1);
-    label.position.set(18, -11);
+    label.position.set(18, -15);
+    label.alpha = 0;
     container.addChild(label);
     this.#world.addChild(container);
     return {
@@ -723,6 +939,23 @@ export class Renderer {
     }
   }
 
+  #updateAmbient(now: number): void {
+    for (let index = 0; index < this.#waterTiles.length; index++) {
+      const tile = this.#waterTiles[index];
+      if (!tile) continue;
+      tile.alpha = 0.84 + Math.sin(now / 720 + index * 0.37) * 0.08;
+      tile.tint = index % 3 === 0 ? 0xd6ffff : 0xffffff;
+    }
+    for (const view of this.#ambientViews) {
+      const wave = Math.sin(now / 900 + view.phase);
+      view.container.x = view.baseX + wave * view.sway;
+      view.container.y = view.baseY + Math.cos(now / 1100 + view.phase) * (view.sway * 0.45);
+      view.container.alpha = 0.42 + Math.abs(wave) * 0.52;
+      const scale = 1 + Math.sin(now / 420 + view.phase) * 0.08;
+      view.container.scale.set(view.baseScaleX * scale, view.baseScaleY * scale);
+    }
+  }
+
   playAttackMiss(): void {
     const self = this.#selfId ? this.#players.get(this.#selfId)?.data : undefined;
     if (!self) return;
@@ -738,21 +971,14 @@ export class Renderer {
 
     const center = centerOf(self);
     const onCooldown = attackCooldownUntil > now;
-    const rangeAlpha = onCooldown ? 0.14 : 0.22 + Math.sin(now / 320) * 0.05;
-    this.#overlay
-      .circle(center.x, center.y, attackRange)
-      .stroke({ width: 2, color: onCooldown ? 0xffb0a8 : COLORS.selfRing, alpha: rangeAlpha })
-      .circle(center.x, center.y, attackRange - 6)
-      .stroke({ width: 1, color: 0xffffff, alpha: rangeAlpha * 0.35 });
-
+    const npcDistance = pointDistance(self, QUEST_NPC);
     if (this.#npcMark) {
-      const pulse = questStatus === "ready" ? 1.2 : questStatus === "available" ? 1 : 0.55;
-      this.#npcMark.alpha = pulse * (0.65 + Math.sin(now / 260) * 0.35);
-      this.#npcMark.scale.set(questStatus === "available" ? 1 + Math.sin(now / 220) * 0.12 : 1);
+      const pulse = questStatus === "ready" ? 1.2 : questStatus === "available" ? 1 : 0.45;
+      this.#npcMark.alpha = npcDistance < 180 ? pulse * (0.55 + Math.sin(now / 260) * 0.25) : 0;
+      this.#npcMark.scale.set(questStatus === "available" ? 1 + Math.sin(now / 220) * 0.08 : 1);
     }
-    if (this.#sanctuaryLabel) {
-      this.#sanctuaryLabel.alpha = 0.55 + Math.sin(now / 900) * 0.18;
-    }
+    if (this.#npcLabel) this.#npcLabel.alpha = npcDistance < 125 ? 0.92 : 0;
+    if (this.#sanctuaryLabel) this.#sanctuaryLabel.alpha = npcDistance < 210 ? 0.38 : 0.14;
 
     if (questStatus === "available" || questStatus === "ready") {
       const npcCenter = { x: QUEST_NPC.x + 16, y: QUEST_NPC.y + 16 };
@@ -793,6 +1019,10 @@ export class Renderer {
       }
     }
     if (nearest) {
+      const rangeAlpha = onCooldown ? 0.1 : 0.14 + Math.sin(now / 360) * 0.03;
+      this.#overlay
+        .circle(center.x, center.y, attackRange)
+        .stroke({ width: 1.5, color: onCooldown ? 0xffb0a8 : COLORS.selfRing, alpha: rangeAlpha });
       this.#overlay
         .circle(nearest.x + 18, nearest.y + 18, 24)
         .stroke({ width: 2, color: 0xffe08a, alpha: 0.75 });
@@ -842,8 +1072,9 @@ export class Renderer {
         view.container.alpha = player.dead ? 0.55 : 1;
         const label = view.container.getChildByName("label");
         if (label instanceof Text) {
-          label.text = `${player.nick} - Lv ${player.level}`;
-          label.alpha = player.dead ? 0.45 : 1;
+          label.text =
+            player.id === this.#selfId ? `${player.nick}  Lv ${player.level}` : player.nick;
+          label.alpha = player.dead ? 0.45 : player.id === this.#selfId ? 1 : 0.76;
         }
         this.#drawHp(view.container, player.hp, player.maxHp);
         view.data = player;
@@ -877,9 +1108,12 @@ export class Renderer {
         const aggro = Boolean(
           self && !self.dead && !monster.dead && pointDistance(self, monster) < 215,
         );
+        const close = Boolean(
+          self && !self.dead && !monster.dead && pointDistance(self, monster) < 155,
+        );
         if (view.actor) {
           view.actor.y = 20 + bounce * (moving ? -2.3 : -1.1);
-          view.actor.scale.set(1 + bounce * 0.045, monster.dead ? 0.28 : 1 - bounce * 0.045);
+          view.actor.scale.set(1 + bounce * 0.07, monster.dead ? 0.28 : 1 - bounce * 0.05);
           view.actor.alpha = monster.dead ? 0.28 : 1;
           if ((view.attackUntil ?? 0) > now) {
             const strike = 1 - ((view.attackUntil ?? now) - now) / 240;
@@ -898,7 +1132,7 @@ export class Renderer {
         const label = view.container.getChildByName("label");
         if (label instanceof Text) {
           label.text = aggro ? `!  ${monster.name}` : monster.name;
-          label.alpha = monster.dead ? 0.25 : aggro ? 1 : 0.82;
+          label.alpha = monster.dead ? 0 : aggro || close ? 0.92 : 0;
         }
         this.#drawHp(view.container, monster.hp, monster.maxHp);
         const hp = view.container.getChildByName("hp");
@@ -926,6 +1160,7 @@ export class Renderer {
       },
     );
     this.#drawOverlay(context);
+    this.#updateAmbient(now);
     this.#updateEffects(now);
   }
 

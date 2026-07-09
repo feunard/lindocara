@@ -41,6 +41,100 @@ def shift_palette(image: Image.Image, mapping: dict[tuple[int, int, int], tuple[
     return image
 
 
+def multiply_rgb(image: Image.Image, factors: tuple[float, float, float]) -> Image.Image:
+    image = image.convert("RGBA")
+    pixels = image.load()
+    for y in range(image.height):
+        for x in range(image.width):
+            r, g, b, a = pixels[x, y]
+            if a == 0:
+                continue
+            pixels[x, y] = (
+                min(255, int(r * factors[0])),
+                min(255, int(g * factors[1])),
+                min(255, int(b * factors[2])),
+                a,
+            )
+    return image
+
+
+def decorate_tile(image: Image.Image, seed: int, kind: str) -> Image.Image:
+    image = image.convert("RGBA")
+    draw = ImageDraw.Draw(image)
+    for index in range(10):
+        x = (seed * 5 + index * 7) % 16
+        y = (seed * 11 + index * 3) % 16
+        if kind == "moss":
+            color = "#6f9e47" if index % 2 else "#88b858"
+            draw.point((x, y), fill=color)
+            draw.point(((x + 1) % 16, y), fill=color)
+        elif kind == "flowers":
+            color = "#e9c36e" if index % 3 else "#dca0b7"
+            draw.point((x, y), fill=color)
+        elif kind == "stones":
+            draw.rectangle((x, y, min(15, x + 1), min(15, y + 1)), fill="#9a8668")
+        elif kind == "roots":
+            draw.line([(x, y), ((x + 4) % 16, min(15, y + 2))], fill="#7a5a38")
+    return image
+
+
+def add_vines(image: Image.Image, seed: int, density: int = 5) -> Image.Image:
+    image = image.convert("RGBA")
+    draw = ImageDraw.Draw(image)
+    for index in range(density):
+        x = (seed * 13 + index * 17) % max(1, image.width)
+        top = (seed * 7 + index * 5) % max(1, image.height // 2)
+        length = 10 + ((seed + index * 3) % 18)
+        draw.line([(x, top), (max(0, x - 3), min(image.height - 1, top + length))], fill="#5f8f37")
+        draw.point((max(0, x - 2), min(image.height - 1, top + 5)), fill="#9cc455")
+    return image
+
+
+def make_water_tile(seed: int) -> Image.Image:
+    image = Image.new("RGBA", (16, 16), "#4b8fa2")
+    draw = ImageDraw.Draw(image)
+    for y in range(0, 16, 4):
+        color = "#66b4bc" if (y + seed) % 8 == 0 else "#3f7f93"
+        draw.line([(0, y + seed % 3), (15, y + 1 + seed % 3)], fill=color)
+    draw.rectangle((0, 0, 15, 15), outline="#356b7b")
+    return image
+
+
+def make_grass_tuft() -> Image.Image:
+    image = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    for x in (4, 7, 10, 12):
+        draw.line([(x, 14), (x - 1, 8)], fill="#4f7e38")
+        draw.line([(x, 14), (x + 1, 9)], fill="#7fae4c")
+    return image
+
+
+def make_leaf() -> Image.Image:
+    image = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    draw.polygon([(7, 3), (12, 7), (9, 12), (4, 10), (3, 6)], fill="#c07a3a")
+    draw.line([(4, 6), (10, 10)], fill="#8a4f29")
+    return image
+
+
+def make_root() -> Image.Image:
+    image = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    draw.line([(1, 10), (6, 8), (10, 10), (15, 7)], fill="#6f4b32", width=2)
+    draw.line([(6, 8), (5, 13)], fill="#6f4b32")
+    return image
+
+
+def make_torch() -> Image.Image:
+    image = Image.new("RGBA", (16, 24), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((7, 8, 9, 22), fill="#5a3824")
+    draw.rectangle((6, 7, 10, 10), fill="#2f2118")
+    draw.polygon([(8, 0), (12, 6), (8, 10), (4, 6)], fill="#e06a2f")
+    draw.polygon([(8, 2), (10, 6), (8, 8), (6, 6)], fill="#ffd36a")
+    return image
+
+
 def make_slime() -> Image.Image:
     image = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
@@ -242,6 +336,27 @@ def main() -> None:
     entries["ui.potion"] = make_potion()
     entries["ui.gold"] = make_gold()
     entries["ui.crystal"] = make_crystal()
+
+    base_grass = entries["tile.grass.a"]
+    entries["tile.grass.moss.a"] = decorate_tile(multiply_rgb(base_grass, (0.82, 0.96, 0.78)), 2, "moss")
+    entries["tile.grass.moss.b"] = decorate_tile(multiply_rgb(entries["tile.grass.b"], (0.78, 0.9, 0.75)), 9, "roots")
+    entries["tile.grass.flowers"] = decorate_tile(multiply_rgb(entries["tile.grass.c"], (0.88, 0.96, 0.82)), 5, "flowers")
+    entries["tile.grass.stones"] = decorate_tile(multiply_rgb(entries["tile.grass.d"], (0.9, 0.9, 0.78)), 11, "stones")
+    entries["tile.grass.wet.a"] = multiply_rgb(decorate_tile(base_grass, 17, "moss"), (0.62, 0.78, 0.82))
+    entries["tile.grass.wet.b"] = multiply_rgb(decorate_tile(entries["tile.grass.b"], 21, "stones"), (0.58, 0.72, 0.78))
+    entries["tile.path.worn.a"] = multiply_rgb(decorate_tile(entries["tile.path.a"], 30, "stones"), (1.06, 0.92, 0.78))
+    entries["tile.path.worn.b"] = multiply_rgb(decorate_tile(entries["tile.path.b"], 31, "roots"), (1.02, 0.88, 0.76))
+    entries["tile.water.a"] = make_water_tile(1)
+    entries["tile.water.b"] = make_water_tile(6)
+    entries["tile.water.c"] = make_water_tile(11)
+    entries["prop.ruin.house.vines"] = add_vines(entries["prop.ruin.house"], 4, 7)
+    entries["prop.ruin.house.dark"] = multiply_rgb(add_vines(entries["prop.ruin.house"], 12, 4), (0.78, 0.82, 0.72))
+    entries["prop.hut.vines"] = add_vines(entries["prop.hut"], 8, 6)
+    entries["prop.hut.dark"] = multiply_rgb(add_vines(entries["prop.hut"], 15, 3), (0.82, 0.84, 0.76))
+    entries["prop.grass.tuft"] = make_grass_tuft()
+    entries["prop.leaf"] = make_leaf()
+    entries["prop.root"] = make_root()
+    entries["prop.torch"] = make_torch()
 
     pack(entries, args.out / "world.png", args.out / "world.json")
 
