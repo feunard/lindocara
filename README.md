@@ -10,7 +10,8 @@ simulation both sides can run.
 
 ## Stack
 
-TypeScript · Vite · PixiJS · Cloudflare Workers + Durable Objects · Biome · Vitest
+TypeScript · Vite · PixiJS · Cloudflare Workers + Durable Objects · D1 + Drizzle ORM · Biome ·
+Vitest
 
 ## Quick start
 
@@ -40,6 +41,19 @@ Cheating by editing your own coordinates is not possible, because you never send
 The movement rules live in `src/shared/simulation.ts` as a pure function. Right now only the
 server calls it. When client-side prediction arrives, the client will call the very same
 function — which is the whole reason it lives there.
+
+## Database
+
+A D1 database (`lindocara`) with a single `player` table, defined in
+`src/server/db/schema.ts` and accessed through Drizzle. It is **empty and unused** — the game
+keeps all state in the Durable Object. It exists so persistence has somewhere to land.
+
+```bash
+npm run db:generate   # schema change -> migrations/NNNN_name.sql
+npm run db:migrate    # apply to local D1
+```
+
+Production migrations run automatically on deploy, before the new code goes live.
 
 ## Deployment
 

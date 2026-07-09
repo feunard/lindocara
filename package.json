@@ -18,6 +18,9 @@
     "format": "biome format --write .",
     "typecheck": "tsc -p tsconfig.client.json && tsc -p tsconfig.worker.json && tsc -p tsconfig.node.json",
     "cf-typegen": "wrangler types ./src/worker-configuration.d.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "wrangler d1 migrations apply lindocara --local",
+    "db:migrate:remote": "wrangler d1 migrations apply lindocara --remote",
     "check": "npm run lint && npm run typecheck && npm run test"
   },
   "devDependencies": {
@@ -25,12 +28,14 @@
     "@cloudflare/vite-plugin": "^1.43.3",
     "@cloudflare/vitest-pool-workers": "^0.18.3",
     "@types/node": "^26.1.1",
+    "drizzle-kit": "^0.31.10",
     "typescript": "^7.0.2",
     "vite": "^8.1.4",
     "vitest": "^4.1.10",
     "wrangler": "^4.109.0"
   },
   "dependencies": {
+    "drizzle-orm": "^0.45.2",
     "pixi.js": "^8.19.0"
   }
 }

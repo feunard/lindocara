@@ -1,5 +1,10 @@
-import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
+import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-pool-workers";
 import { defineConfig } from "vitest/config";
+
+// Read at config time, in Node, then handed to the workers runtime as a binding. The tests
+// apply these against the in-memory D1 so the test schema is the deployed schema — there is
+// no second, hand-maintained CREATE TABLE anywhere.
+const migrations = await readD1Migrations("./migrations");
 
 export default defineConfig({
   // Tests run inside workerd, against the real Durable Object — not a mock of it. Bindings,
@@ -11,13 +16,19 @@ export default defineConfig({
   plugins: [
     cloudflareTest({
       wrangler: { configPath: "./wrangler.jsonc" },
-      // SESSION_SECRET is a secret, so it is absent from wrangler.jsonc by design. Supply a
-      // throwaway value for tests; the crypto is what's under test, not the key.
-      miniflare: { bindings: { SESSION_SECRET: "test-secret-do-not-use-in-production" } },
+      miniflare: {
+        bindings: {
+          // SESSION_SECRET is a secret, so it is absent from wrangler.jsonc by design. Supply
+          // a throwaway value for tests; the crypto is what's under test, not the key.
+          SESSION_SECRET: "test-secret-do-not-use-in-production",
+          TEST_MIGRATIONS: migrations,
+        },
+      },
     }),
   ],
   test: {
     name: "lindocara",
     include: ["test/**/*.test.ts"],
+    setupFiles: ["./test/setup.ts"],
   },
 });

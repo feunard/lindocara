@@ -15,6 +15,9 @@ logged-in player. It is deliberately small, but the shape is the shape a real ga
 | `npm run build` | client bundle + deployable `wrangler.json` |
 | `npm run deploy` | build, then `wrangler deploy` |
 | `npm run cf-typegen` | regenerate `src/worker-configuration.d.ts` from wrangler.jsonc |
+| `npm run db:generate` | diff `db/schema.ts` into a new `migrations/*.sql` |
+| `npm run db:migrate` | apply migrations to the local D1 |
+| `npm run db:migrate:remote` | apply migrations to production D1 (CI does this on deploy) |
 
 ## Architecture
 
@@ -59,6 +62,30 @@ a browser *and* in workerd.
 calls with the SPA shell and the Worker would never see them. Both settings are load-bearing;
 changing one without the other breaks routing in a way tests will catch.
 
+## Database
+
+D1 (`DB` binding) with **Drizzle ORM**. `src/server/db/schema.ts` is the single source of
+truth; `drizzle-kit generate` diffs it into a numbered `.sql` file under `migrations/`, and
+`wrangler d1 migrations apply` runs those files. drizzle-kit never talks to D1 — there is one
+migration system, not two.
+
+Changing the schema:
+
+```bash
+# edit src/server/db/schema.ts
+npm run db:generate     # writes migrations/NNNN_name.sql — commit it
+npm run db:migrate      # apply locally
+npm run cf-typegen      # only if you changed bindings, not the schema
+```
+
+Deploying applies migrations to production **before** shipping the code, so a column always
+exists before the code that reads it.
+
+**Nothing uses the `player` table yet.** It is schema-only preparation. `nick` is indexed but
+deliberately *not* unique: sessions are anonymous, a login mints a fresh UUID, and two people
+may both be "nico" today. A unique constraint would encode a promise the auth layer does not
+make. Add it the day nicknames are claimed.
+
 ## Gotchas worth knowing
 
 **`vite dev` stacks Worker versions.** After a hot reload the *previous* Worker can keep
@@ -75,6 +102,10 @@ write (`persists a moved player's position onto their socket`) and the read
 **The world Durable Object is a singleton across a test file.** Assert on *which* player ids
 are present, never on how many; a straggler still disconnecting from an earlier test must not
 be able to fail an unrelated assertion.
+
+**The test pool does not isolate storage between tests.** Rows written by one test are visible
+to the next. `test/db.test.ts` truncates in `afterEach`. Do not reach for `reset()` from
+`cloudflare:test` to fix this — it wipes every binding, Durable Object storage included.
 
 **Durable Object billing follows the tick loop.** The loop runs while at least one player is
 connected, and an active object is billed for its duration. An empty world stops the loop and

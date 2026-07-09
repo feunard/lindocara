@@ -37,6 +37,15 @@ jobs:
       # wrangler.json as part of the build. Deploying without this would ship nothing.
       - run: npm run build
 
+      # Schema first: code that expects a column must never reach production before the
+      # column does. Migrations are additive, so this is safe to run on every deploy.
+      - name: Apply D1 migrations
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: d1 migrations apply lindocara --remote
+
       - uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}

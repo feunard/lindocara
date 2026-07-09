@@ -20,6 +20,16 @@
     "bindings": [{ "name": "WORLD", "class_name": "World" }]
   },
 
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "lindocara",
+      "database_id": "322daa90-dc36-41af-a319-84c3ba5456fc",
+      // drizzle-kit generates numbered .sql files here; wrangler applies them.
+      "migrations_dir": "./migrations"
+    }
+  ],
+
   // SQLite-backed Durable Objects are the current default and the only kind available on
   // the Workers free plan.
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["World"] }],

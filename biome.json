@@ -3,7 +3,7 @@
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!dist", "!.wrangler", "!src/worker-configuration.d.ts"]
+    "includes": ["**", "!dist", "!.wrangler", "!src/worker-configuration.d.ts", "!migrations/meta"]
   },
   "formatter": {
     "enabled": true,
