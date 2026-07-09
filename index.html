@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark" />
-    <title>BURN THE TOKENS</title>
+    <title>lindocara - Everwild Hollow</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   </head>
   <body>
@@ -37,7 +37,7 @@
 
     <aside id="hud" hidden>
       <section class="panel identity">
-        <div class="crest">✦</div>
+        <div class="crest" aria-hidden="true"></div>
         <div class="identity-copy">
           <strong id="player-name">Wayfarer</strong>
           <span id="player-level">Level 1</span>
@@ -47,12 +47,18 @@
       </section>
 
       <section class="panel quest">
-        <div class="panel-title"><span>◆</span><strong>Active Oath</strong></div>
+        <div class="panel-title"><span class="panel-icon panel-icon--oath" aria-hidden="true"></span><strong>Active Oath</strong></div>
         <span id="quest-text">Speak with Keeper Elowen [E]</span>
+        <progress id="quest-progress" max="3" value="0" hidden></progress>
+      </section>
+
+      <section class="panel combat" hidden>
+        <div class="panel-title"><span class="panel-icon panel-icon--sword" aria-hidden="true"></span><strong>Strike</strong></div>
+        <progress id="attack-cooldown" max="100" value="100"></progress>
       </section>
 
       <section class="panel inventory">
-        <div class="panel-title"><span>◇</span><strong>Wayfarer's Pack</strong></div>
+        <div class="panel-title"><span class="panel-icon panel-icon--pack" aria-hidden="true"></span><strong>Wayfarer's Pack</strong></div>
         <div id="inventory-text" class="item-grid"></div>
       </section>
     </aside>
@@ -63,10 +69,11 @@
       <div class="chat-title"><span>Campfire voices</span><kbd>Enter</kbd></div>
       <div id="chat-messages" aria-live="polite"></div>
       <form id="chat-form">
-        <input id="chat-input" maxlength="160" autocomplete="off" placeholder="Enter: chat…" />
+        <input id="chat-input" maxlength="160" autocomplete="off" placeholder="Enter: chat..." />
       </form>
     </section>
 
+    <div id="prompt" hidden></div>
     <div id="help" hidden><kbd>WASD</kbd> move <kbd>Space</kbd> strike <kbd>E</kbd> commune <kbd>Q</kbd> tonic</div>
     <div id="status"></div>
 

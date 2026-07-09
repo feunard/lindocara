@@ -254,7 +254,7 @@ export class World extends DurableObject<Env> {
     });
     this.#send(server, {
       t: "event",
-      text: "Welcome to Everwild Hollow. Keeper Elowen waits beside the Heartroot.",
+      text: "You wake beneath the Heartroot. Elowen, marked in gold, awaits your oath [E].",
       tone: "info",
     });
     this.#startLoop();
@@ -345,16 +345,16 @@ export class World extends DurableObject<Env> {
       }
     }
     if (!target) {
-      this.#send(ws, { t: "event", text: "Your swing hits only air.", tone: "info" });
+      this.#send(ws, { t: "event", text: "Too far — step closer to strike.", tone: "info" });
       return;
     }
 
     const damage = attackDamageForLevel(player.level);
     const result = applyDamage(target.hp, damage);
     target.hp = result.hp;
-    this.#broadcast({
+    this.#send(ws, {
       t: "event",
-      text: `${player.nick} hits ${target.name} for ${damage}.`,
+      text: `You hit ${target.name} for ${damage}.`,
       tone: "info",
       x: target.x,
       y: target.y,
@@ -409,13 +409,13 @@ export class World extends DurableObject<Env> {
       player.quest.progress = 0;
       this.#send(ws, {
         t: "event",
-        text: `Oath sworn: quiet ${QUEST_KILL_TARGET} creatures of the Gloamwood.`,
+        text: `Oath sworn — quiet ${QUEST_KILL_TARGET} gloam creatures beyond the Heartroot.`,
         tone: "good",
       });
     } else if (player.quest.status === "active") {
       this.#send(ws, {
         t: "event",
-        text: `Elowen: ${player.quest.progress}/${QUEST_KILL_TARGET} gloam creatures quieted.`,
+        text: `${player.quest.progress}/${QUEST_KILL_TARGET} quieted. The woods still stir.`,
         tone: "info",
       });
     } else if (player.quest.status === "ready") {

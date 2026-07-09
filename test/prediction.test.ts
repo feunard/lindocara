@@ -71,6 +71,22 @@ describe("reconcile", () => {
     expect(reconcile(atWall, commands)).toEqual({ x: 0, y: 0 });
   });
 
+  it("chains multiple replays the same way the server applies one command per tick", () => {
+    let position: Vec2 = { x: 500, y: 400 };
+    const batches = [
+      [command(1, { right: true })],
+      [command(2, { right: true }), command(3, { down: true })],
+    ];
+    for (const batch of batches) {
+      position = reconcile(position, batch);
+    }
+    let server: Vec2 = { x: 500, y: 400 };
+    for (const batch of batches) {
+      for (const c of batch) server = resolveTerrain(server, step(server, c.input, TICK_DT));
+    }
+    expect(position).toEqual(server);
+  });
+
   it("does not mutate the authoritative position it is handed", () => {
     const authoritative = { x: 100, y: 100 };
     reconcile(authoritative, [command(1, { right: true })]);

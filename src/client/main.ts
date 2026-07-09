@@ -1,7 +1,14 @@
-import type { PlayerSnapshot, SelfState } from "../shared/protocol.js";
+import {
+  ATTACK_COOLDOWN_MS,
+  ATTACK_RANGE,
+  INTERACTION_RANGE,
+  pointDistance,
+  QUEST_NPC,
+} from "../shared/game.js";
+import type { PlayerSnapshot, QuestStatus, SelfState } from "../shared/protocol.js";
 import { trackActions, trackInput } from "./input.js";
 import { WorldClient } from "./net.js";
-import { Renderer } from "./renderer.js";
+import { type RenderContext, Renderer } from "./renderer.js";
 import { GameSound } from "./sound.js";
 import "./style.css";
 
@@ -31,6 +38,10 @@ const xpBar = required<HTMLProgressElement>("#xp-bar");
 const xpText = required<HTMLElement>("#xp-text");
 const inventoryText = required<HTMLElement>("#inventory-text");
 const questText = required<HTMLElement>("#quest-text");
+const questProgress = required<HTMLProgressElement>("#quest-progress");
+const attackCooldown = required<HTMLProgressElement>("#attack-cooldown");
+const combatPanel = required<HTMLElement>(".combat");
+const prompt = required<HTMLDivElement>("#prompt");
 const eventLog = required<HTMLElement>("#event-log");
 const chat = required<HTMLElement>("#chat");
 const chatMessages = required<HTMLElement>("#chat-messages");
@@ -43,12 +54,14 @@ function setStatus(text: string): void {
   statusBar.textContent = text;
 }
 
-function itemChip(icon: string, label: string, value: string, hotkey?: string): HTMLElement {
+type ItemIcon = "potion" | "gold" | "crystal" | "sword";
+
+function itemChip(icon: ItemIcon, label: string, value: string, hotkey?: string): HTMLElement {
   const chip = document.createElement("div");
   chip.className = "item-chip";
   const symbol = document.createElement("span");
-  symbol.className = "item-icon";
-  symbol.textContent = icon;
+  symbol.className = `item-icon item-icon--${icon}`;
+  symbol.setAttribute("aria-hidden", "true");
   const copy = document.createElement("span");
   copy.className = "item-copy";
   const name = document.createElement("small");
@@ -88,20 +101,28 @@ function renderState(state: SelfState): void {
   xpText.textContent = `${state.xp}/${state.xpToNext}`;
   const { potions, gold, crystals, weapon } = state.inventory;
   inventoryText.replaceChildren(
-    itemChip("◒", "Heartroot tonic", String(potions), "Q"),
-    itemChip("●", "Sunmarks", String(gold)),
-    itemChip("◆", "Gloam shards", String(crystals)),
-    itemChip("†", "Weathered blade", weapon === "rusty_sword" ? "Equipped" : "Unknown"),
+    itemChip("potion", "Heartroot tonic", String(potions), "Q"),
+    itemChip("gold", "Sunmarks", String(gold)),
+    itemChip("crystal", "Gloam shards", String(crystals)),
+    itemChip("sword", "Weathered blade", weapon === "rusty_sword" ? "Equipped" : "Unknown"),
   );
-  if (state.quest.status === "available") questText.textContent = "Speak with Keeper Elowen [E]";
-  else if (state.quest.status === "active") {
-    questText.textContent = `The Gloamcap Oath: ${state.quest.progress}/${state.quest.target}`;
+  if (state.quest.status === "available") {
+    questText.textContent = "Keeper Elowen waits beside the Heartroot.";
+    questProgress.hidden = true;
+  } else if (state.quest.status === "active") {
+    questText.textContent = `Quiet gloam creatures in the woods (${state.quest.progress}/${state.quest.target})`;
+    questProgress.hidden = false;
+    questProgress.max = state.quest.target;
+    questProgress.value = state.quest.progress;
   } else if (state.quest.status === "ready") {
-    questText.textContent = "Oath fulfilled — return to Elowen [E]";
+    questText.textContent = "Return to Elowen at the Heartroot.";
+    questProgress.hidden = false;
+    questProgress.max = state.quest.target;
+    questProgress.value = state.quest.target;
   } else {
-    questText.textContent = "The Gloamcap Oath fulfilled";
+    questText.textContent = "The Gloamcap Oath is fulfilled.";
+    questProgress.hidden = true;
   }
-  pulse(inventoryText.closest(".panel"));
   pulse(questText.closest(".panel"));
 }
 
@@ -121,11 +142,59 @@ function pulse(element: Element | null): void {
   element.classList.add("pulse");
 }
 
+function shouldLogEvent(text: string): boolean {
+  if (/^You hit /i.test(text)) return false;
+  if (/ hits you for /i.test(text)) return true;
+  if (/too far|nothing close/i.test(text)) return true;
+  if (/knocked out|heartroot|oath|level up|defeated|picked up|tonic|awaken|still stir/i.test(text))
+    return true;
+  return text.length < 80;
+}
+
+function updatePrompt(self: PlayerSnapshot | undefined, questStatus: QuestStatus): void {
+  if (!self || self.dead) {
+    prompt.hidden = true;
+    return;
+  }
+  const nearNpc = pointDistance(self, QUEST_NPC) <= INTERACTION_RANGE;
+  if (
+    nearNpc &&
+    (questStatus === "available" || questStatus === "ready" || questStatus === "completed")
+  ) {
+    prompt.textContent =
+      questStatus === "available"
+        ? "[E] Swear the Gloamcap Oath"
+        : questStatus === "ready"
+          ? "[E] Claim your reward"
+          : "[E] Speak with Elowen";
+    prompt.hidden = false;
+    return;
+  }
+  if (questStatus === "active") {
+    prompt.textContent = "Leave the Heartroot - hunt gloam creatures [Space]";
+    prompt.hidden = nearNpc;
+    return;
+  }
+  if (questStatus === "available") {
+    prompt.textContent = "Approach the golden marker - Keeper Elowen [E]";
+    prompt.hidden = false;
+    return;
+  }
+  prompt.hidden = true;
+}
+
+function updateAttackCooldown(now: number, until: number): void {
+  const remaining = Math.max(0, until - now);
+  attackCooldown.max = ATTACK_COOLDOWN_MS;
+  attackCooldown.value = ATTACK_COOLDOWN_MS - remaining;
+  combatPanel.hidden = remaining <= 0;
+}
+
 function addEvent(text: string, tone: "info" | "good" | "bad"): void {
   const line = document.createElement("div");
   line.className = `event ${tone}`;
-  const icon = tone === "good" ? "✦" : tone === "bad" ? "◆" : "◇";
-  line.textContent = `${icon}  ${text}`;
+  const marker = tone === "good" ? "+ " : tone === "bad" ? "! " : "* ";
+  line.textContent = `${marker}${text}`;
   eventLog.prepend(line);
   while (eventLog.children.length > 6) eventLog.lastElementChild?.remove();
   window.setTimeout(() => line.remove(), 6_000);
@@ -143,38 +212,52 @@ function addChat(from: string, text: string): void {
 
 async function play(me: Me): Promise<void> {
   loginPanel.hidden = true;
-  setStatus(`connecting as ${me.nick}…`);
+  setStatus(`connecting as ${me.nick}...`);
   const renderer = await Renderer.create(canvas);
   const client = new WorldClient();
   const input = trackInput();
   let stopActions: (() => void) | null = null;
+  let questStatus: QuestStatus = "available";
+  let attackCooldownUntil = 0;
+  let welcomed = false;
 
   const connection = client.connect({
     onWelcome: (selfId, _world, state) => {
       renderer.setSelfId(selfId);
+      questStatus = state.quest.status;
       renderState(state);
       hud.hidden = false;
       chat.hidden = false;
       help.hidden = false;
-      setStatus("connected");
+      setStatus("connected - Everwild Hollow");
+      if (!welcomed) {
+        welcomed = true;
+        addEvent("Elowen stands beside the golden marker. Press [E] to begin.", "info");
+      }
     },
-    onState: renderState,
+    onState: (state) => {
+      questStatus = state.quest.status;
+      renderState(state);
+    },
     onChat: (from, text) => {
       addChat(from, text);
       sound.chat();
     },
     onEvent: (text, tone, x, y) => {
-      addEvent(text, tone);
+      if (shouldLogEvent(text)) addEvent(text, tone);
       renderer.showWorldEvent(text, tone, x, y);
-      if (/level up|oath is fulfilled/i.test(text)) sound.levelUp();
+      if (/swing hits only air|too far/i.test(text)) {
+        sound.attack();
+        renderer.playAttackMiss();
+      } else if (/level up|oath is fulfilled/i.test(text)) sound.levelUp();
       else if (/picked up|oath sworn|heartroot tonic/i.test(text)) sound.loot();
-      else if (/knocked out/i.test(text)) sound.death();
-      else if (/hits|hit you/i.test(text)) sound.hit();
+      else if (/knocked out|awaken/i.test(text)) sound.death();
+      else if (/You hit|hits you for/i.test(text)) sound.hit();
     },
     onClose: (reason) => {
       input.stop();
       stopActions?.();
-      setStatus(`disconnected: ${reason}`);
+      setStatus(`disconnected - ${reason}`);
       addEvent("Connection lost. Reload to rejoin.", "bad");
     },
   });
@@ -183,6 +266,7 @@ async function play(me: Me): Promise<void> {
     attack: () => {
       sound.unlock();
       sound.attack();
+      attackCooldownUntil = performance.now() + ATTACK_COOLDOWN_MS;
       if (client.selfId) renderer.playAttack(client.selfId);
       connection.attack();
     },
@@ -212,11 +296,20 @@ async function play(me: Me): Promise<void> {
   });
 
   renderer.onFrame((now, dt) => {
-    // Predict before drawing, so the local player reacts within the frame.
     client.update(input.current(), dt);
     const sample = client.sample(now);
-    renderer.render(sample, now);
-    renderPlayer(sample.players.find((player) => player.id === client.selfId));
+    const self = sample.players.find((player) => player.id === client.selfId);
+    const context: RenderContext = {
+      questStatus,
+      attackCooldownUntil,
+      attackRange: ATTACK_RANGE,
+      now,
+      ...(self ? { self } : {}),
+    };
+    renderer.render(sample, context);
+    renderPlayer(self);
+    updatePrompt(self, questStatus);
+    updateAttackCooldown(now, attackCooldownUntil);
   });
   window.addEventListener("beforeunload", () => connection.close());
 
