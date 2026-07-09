@@ -1,14 +1,15 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
   # Let the deploy workflow reuse this exact job rather than duplicating the steps.
+  # Pushes to main are covered that way, so there is no `push` trigger here: two runs of
+  # the same checks on the same ref would land in the same concurrency group and cancel
+  # each other.
   workflow_call:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
