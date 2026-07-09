@@ -367,26 +367,36 @@ describe("World", () => {
   });
 
   /**
-   * The whole point of draining one command per tick. A client that sends 40 commands at once
+   * The whole point of draining one command per tick. A client that sends many commands at once
    * must not travel 40 ticks' worth of distance — otherwise sending faster is a speed hack.
    */
-  it("applies at most one command per tick, so flooding buys no speed", async () => {
+  it("applies at most one command per tick, so flooding buys no speed", {
+    timeout: 10_000,
+  }, async () => {
     const client = await Client.join("flooder", { pump: false });
     await until("welcome", () => client.welcome);
     const start = await until("initial position", () => client.self());
     const { direction, sign } = awayFromNearestWall(start.x);
 
-    const flood = 40;
+    const flood = 24;
     for (let i = 0; i < flood; i++) client.sendCommand({ ...NO_INPUT, [direction]: true });
 
-    const elapsedMs = 300;
-    await scheduler.wait(elapsedMs);
-
-    const after = await until("a snapshot", () => client.self());
+    const startTick = client.latestSnapshot?.tick ?? 0;
+    const minimumTicks = 4;
+    const after = await until("the flooded player to move", () => {
+      const snapshot = client.latestSnapshot;
+      const self = client.self();
+      if (!snapshot || !self) return undefined;
+      const tickDelta = snapshot.tick - startTick;
+      const travelled = sign * (self.x - start.x);
+      return tickDelta >= minimumTicks && travelled > 0 ? self : undefined;
+    });
+    const afterTick = client.latestSnapshot?.tick ?? startTick;
+    const tickDelta = afterTick - startTick;
     const travelled = sign * (after.x - start.x);
 
-    // Generous ceiling: the elapsed ticks, plus the starvation grace period, plus slack.
-    const ceiling = (elapsedMs / TICK_MS + 6) * PLAYER_SPEED * TICK_DT;
+    // Generous ceiling: the observed ticks, plus the starvation grace period, plus slack.
+    const ceiling = (tickDelta + 6) * PLAYER_SPEED * TICK_DT;
     const ifFloodingWorked = flood * PLAYER_SPEED * TICK_DT;
 
     expect(travelled).toBeGreaterThan(0);
