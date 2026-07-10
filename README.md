@@ -1,8 +1,10 @@
 # lindocara
 
 **Verdant Reach** is a compact, server-authoritative 2D MMO slice on Cloudflare Workers.
-Players explore one shared room, hunt roaming slimes, gain levels, collect persistent loot,
-complete Warden Mira's quest, chat, and resume their character after reconnecting.
+Register a username and password, create up to three characters and pick one at character
+select, then explore one shared room, hunt roaming slimes, gain levels, collect persistent
+loot, complete Warden Mira's quest, chat, and resume your character after reconnecting. The
+whole UI is localized in French and English, with a live toggle.
 
 **Live:** [lindocara.alepha.dev](https://lindocara.alepha.dev)
 
@@ -86,16 +88,19 @@ progression formulas live in `src/shared/game.ts`. They are platform-free and di
 | E | Interact with Warden Mira |
 | Q | Use a potion |
 | Enter | Focus chat |
+| FR/EN button | Switch language |
 
 New players begin in the sanctuary beside Warden Mira. Accept **Slime Hunt**, defeat three Moss
 Slimes, collect their drops by walking over them, then return to Mira for the reward.
 
 ## Database
 
-A D1 database (`lindocara`) stores one row per signed session identity through Drizzle. Position,
-nickname, appearance, HP, level, XP, inventory, quest progress, creation time, and last-seen time
-survive reconnects. The active room remains in the Durable Object for low-latency simulation and
-writes dirty profiles periodically and on disconnect.
+A D1 database (`lindocara`) stores accounts and characters through Drizzle. One `account` row
+per registered user (`username` unique, stored lowercase, password PBKDF2-hashed), and up to
+three `character` rows per account — position, appearance, HP, level, XP, inventory, quest
+progress, creation time, and last-seen time — one of which you pick at character select. The
+active room remains in the Durable Object for low-latency simulation and writes dirty
+characters periodically and on disconnect.
 
 ```bash
 npm run db:generate   # schema change -> migrations/NNNN_name.sql
@@ -126,9 +131,11 @@ on the same Cloudflare account as the Worker.
 
 ## Sessions
 
-There are no passwords and no user table. You pick a nickname, the Worker signs
-`{ id, nick, iat }` with an HMAC and hands it back as an `HttpOnly` cookie. The Durable
-Object trusts the identity only because the Worker verified that signature first.
+Registering or logging in verifies a username/password against the `account` table, then the
+Worker signs `{ id, username, iat }` with an HMAC and hands it back as an `HttpOnly` cookie.
+The Durable Object never sees a password — it trusts the identity only because the Worker
+verified that signature first, and only ever learns which character to load after the Worker
+has separately checked that the session's account owns it.
 
 Swapping in real OAuth means changing how a session is minted. The cookie, the Worker, and
 the Durable Object all keep working.

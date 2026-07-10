@@ -30,10 +30,15 @@ src/shared/     platform-free. Imports nothing from Cloudflare or the DOM.
   game.ts       map geometry, collision, combat/progression constants and pure rules.
   protocol.ts   the wire format, with defensive parsing of anything a client sends.
   prediction.ts pure reconcile()/prunePending(). Client-side prediction, as functions.
+  i18n/         FR/EN dictionaries — data only; the server sends codes, never prose.
 
 src/server/     runs in workerd.
   index.ts      Worker entry: /api/* only. Assets never reach it.
-  session.ts    HMAC-signed cookie. No user table, no password.
+  session.ts    HMAC-signed cookie carrying the account identity. accounts.ts owns
+                username/password (PBKDF2), characters.ts owns the roster.
+  accounts.ts   register/login: username uniqueness, password hashing and verification.
+  characters.ts roster CRUD and ownership checks, scoped to the caller's account.
+  password.ts   PBKDF2 password hashing.
   profile.ts    D1 profile load/create/save boundary.
   world.ts      room authority: 20 Hz simulation, prediction acks, AI, combat, loot, quest, chat.
   db/           D1 schema + Drizzle.
@@ -42,6 +47,7 @@ src/client/     runs in a browser.
   net.ts        socket, typed actions, local prediction, reconciliation, interpolation.
   renderer.ts   procedural PixiJS map/entities and follow camera; no game authority.
   input.ts      keyboard -> movement/action intent; movement is polled once per tick.
+  i18n.ts       locale state and DOM application; wraps shared/i18n/ for the browser.
 ```
 
 ### Two players, two rules
@@ -115,10 +121,12 @@ npm run cf-typegen      # only if you changed bindings, not the schema
 Deploying applies migrations to production **before** shipping the code, so a column always
 exists before the code that reads it.
 
-The `player` row is the persistent character for the UUID inside the signed session cookie.
-Nickname, position, level, XP, HP, appearance, inventory, and quest state are loaded before the
-WebSocket is accepted. Dirty profiles are saved every five seconds and on disconnect. `nick`
-remains non-unique because anonymous sessions do not claim names.
+One `account` row per registered user (`username` unique, stored lowercase). Up to three
+`character` rows per account, each the persistent roster entry a player picks at character
+select. The character row — position, level, XP, HP, appearance, inventory, and quest state —
+is what the world loads before the WebSocket is accepted and saves back; `name` is deliberately
+not unique, since the account, not the name, is the identity. Dirty profiles are saved every
+five seconds and on disconnect.
 
 ## Gotchas worth knowing
 
@@ -157,6 +165,10 @@ latency and interpolation from outside the app. It is stripped from production b
 room routing in `server/index.ts`, not a larger global object. Keep room-local simulation in
 `World` so sharding later is a routing change rather than a gameplay rewrite.
 
+**Server events are codes, not sentences.** `{ t: "event", code, params }` — the client owns
+all wording via `src/shared/i18n/`. Never add an English string to a `#send` in `world.ts`; add
+an `EventCode` and two dictionary entries instead (the i18n test enforces parity).
+
 ## Secrets
 
 `SESSION_SECRET` signs the session cookie.
@@ -174,3 +186,5 @@ the same `Env`.
 - Never trust a client message. `parseClientMessage` returns `null` and the frame is dropped.
 - Prefer a test that drives the real Durable Object over one that mocks it. The existing
   suite opens real WebSockets against real workerd; follow that.
+- Every player-facing string lives in `src/shared/i18n/` in both languages. API errors are
+  machine codes.
