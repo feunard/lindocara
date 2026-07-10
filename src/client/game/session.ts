@@ -31,18 +31,10 @@ function required<T extends Element>(selector: string): T {
 }
 
 const canvas = required<HTMLCanvasElement>("#stage");
-const statusBar = required<HTMLDivElement>("#status");
-const prompt = required<HTMLDivElement>("#prompt");
 const interior = required<HTMLElement>("#interior");
 const interiorTitle = required<HTMLElement>("#interior-title");
 const interiorCopy = required<HTMLElement>("#interior-copy");
 const interiorClose = required<HTMLButtonElement>("#interior-close");
-const eventLog = required<HTMLElement>("#event-log");
-const chat = required<HTMLElement>("#chat");
-const chatMessages = required<HTMLElement>("#chat-messages");
-const chatForm = required<HTMLFormElement>("#chat-form");
-const chatInput = required<HTMLInputElement>("#chat-input");
-const help = required<HTMLElement>("#help");
 const sound = new GameSound();
 
 /** The store is the single source of truth for whether the interior panel is open; the
@@ -54,12 +46,8 @@ function interiorOpen(): boolean {
 /** The door currently shown in the interior panel, so a locale toggle can re-translate it. */
 let openDoor: InteriorDoor | undefined;
 
-let lastStatus: LocalizedText | null = null;
-
 function setStatus(key: MessageKey, params?: Record<string, string | number>): void {
   const status: LocalizedText = params === undefined ? { key } : { key, params };
-  lastStatus = status;
-  statusBar.textContent = t(key, params);
   useUiStore.getState().setStatus(status);
 }
 
@@ -153,32 +141,15 @@ function updatePrompt(
       result = pointDistance(self, QUEST_NPC) > 420 ? null : { key: "prompt.approach" };
     }
   }
-  prompt.hidden = result === null;
-  if (result) prompt.textContent = t(result.key, result.params);
   useUiStore.getState().setPrompt(result);
 }
 
 function addEvent(text: string, tone: "info" | "good" | "bad"): void {
   useUiStore.getState().addEvent(text, tone);
-  const line = document.createElement("div");
-  line.className = `event ${tone}`;
-  const marker = tone === "good" ? "+ " : tone === "bad" ? "! " : "* ";
-  line.textContent = `${marker}${text}`;
-  eventLog.prepend(line);
-  while (eventLog.children.length > 6) eventLog.lastElementChild?.remove();
-  window.setTimeout(() => line.remove(), 6_000);
 }
 
 function addChat(from: string, text: string): void {
   useUiStore.getState().addChat(from, text);
-  const line = document.createElement("div");
-  const name = document.createElement("span");
-  name.className = "name";
-  name.textContent = `${from}: `;
-  line.append(name, document.createTextNode(text));
-  chatMessages.append(line);
-  while (chatMessages.children.length > 8) chatMessages.firstElementChild?.remove();
-  chat.classList.add("has-chat");
 }
 
 export async function startGame(character: CharacterSummary): Promise<void> {
@@ -198,8 +169,6 @@ export async function startGame(character: CharacterSummary): Promise<void> {
         renderer.setSelfId(selfId);
         questStatus = state.quest.status;
         renderState(state);
-        chat.hidden = false;
-        help.hidden = false;
         setStatus("status.connected");
         if (!welcomed) {
           welcomed = true;
@@ -314,8 +283,6 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     usePotion,
     focusChat: () => {
       input.reset();
-      chat.classList.add("chat-open");
-      chatInput.focus();
       useUiStore.getState().requestChatFocus();
     },
   });
@@ -329,20 +296,6 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     logout: logoutAndReload,
   });
 
-  chatInput.addEventListener("focus", () => {
-    chat.classList.add("chat-open");
-  });
-  chatInput.addEventListener("blur", () => {
-    chat.classList.remove("chat-open");
-  });
-
-  chatForm.addEventListener("submit", (event) => {
-    event.preventDefault();
-    const text = chatInput.value.trim();
-    if (text) connection.sendChat(text);
-    chatInput.value = "";
-    chatInput.blur();
-  });
   interiorClose.addEventListener("click", closeInterior);
   window.addEventListener("keydown", (event) => {
     if (event.code !== "Escape" || !interiorOpen()) return;
@@ -381,9 +334,8 @@ export async function startGame(character: CharacterSummary): Promise<void> {
 }
 
 onLocaleChange(() => {
-  // React re-translates the HUD itself (Task 6); #status and #interior are still legacy DOM
-  // (Tasks 7/8) and still need a manual re-render here.
-  if (lastStatus) statusBar.textContent = t(lastStatus.key, lastStatus.params);
+  // React re-translates the HUD (Task 6) and status/prompt/chat/help (Task 7) themselves;
+  // #interior is still legacy DOM (Task 8) and still needs a manual re-render here.
   if (openDoor) {
     interiorTitle.textContent = t(openDoor.nameKey);
     interiorCopy.textContent = t(openDoor.copyKey);

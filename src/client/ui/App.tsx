@@ -5,8 +5,13 @@ import { startGame } from "../game/session.js";
 import { useUiStore } from "../store.js";
 import { AuthScreen } from "./AuthScreen.js";
 import { CharacterSelect } from "./CharacterSelect.js";
+import { Chat } from "./Chat.js";
+import { EventLog } from "./EventLog.js";
+import { HelpBar } from "./HelpBar.js";
 import { Hud } from "./hud/Hud.js";
 import { LocaleToggle } from "./LocaleToggle.js";
+import { Prompt } from "./Prompt.js";
+import { StatusBar } from "./StatusBar.js";
 
 export function App() {
   const screen = useUiStore((s) => s.screen);
@@ -24,9 +29,18 @@ export function App() {
   return (
     <>
       <LocaleToggle />
+      <StatusBar />
       {screen === "auth" && <AuthScreen />}
       {screen === "characters" && <CharacterSelect onPlay={play} />}
-      {screen === "game" && <Hud />}
+      {screen === "game" && (
+        <>
+          <Hud />
+          <Chat />
+          <EventLog />
+          <Prompt />
+          <HelpBar />
+        </>
+      )}
     </>
   );
 }
