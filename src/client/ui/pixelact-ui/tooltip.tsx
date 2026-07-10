@@ -6,7 +6,7 @@ import "./styles/styles.css";
 
 // Vendored from github.com/pixelact-ui/pixelact-ui (components/ui/pixelact-ui/tooltip.tsx),
 // with its base shadcn/ui Tooltip inlined. Not a Task 2 restyle touchpoint — untouched from
-// upstream, "inherits tokens".
+// upstream, "inherits tokens". MIT-licensed upstream; modifications for lindocara's garrison skin.
 export const tooltipVariants = cva(
   "rounded-none bg-background text-foreground shadow-(--pixel-box-shadow) box-shadow-margin",
   {

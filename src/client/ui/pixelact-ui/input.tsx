@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils.js";
 // PixelAct's structure is kept as-is; only the two touchpoints called out in the Task 2
 // brief change: the "Press Start 2P" pixel font becomes `--font-ui`, and the hard-edged
 // pixel box-shadow border becomes a 2px solid border derived from `--parchment-ink`, for use
-// on parchment surfaces.
+// on parchment surfaces. MIT-licensed upstream; modifications for lindocara's garrison skin.
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   disabled?: boolean;
   className?: string;
@@ -16,7 +16,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     return (
       <input
         className={cn(
-          "pixel__input max-w-full bg-background p-2 text-foreground outline-none placeholder:text-sm md:placeholder:text-base",
+          "max-w-full bg-background p-2 text-foreground outline-none placeholder:text-sm md:placeholder:text-base",
           "[font-family:var(--font-ui)]",
           "border-2 border-solid [border-color:color-mix(in_srgb,var(--parchment-ink)_55%,transparent)]",
           "disabled:opacity-40",

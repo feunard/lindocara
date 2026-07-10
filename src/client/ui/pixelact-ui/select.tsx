@@ -8,7 +8,7 @@ import "./styles/styles.css";
 // with its base shadcn/ui Select inlined and its Radix icons replaced by PixelAct's own
 // blocky pixel-art SVGs (the same icon language it already uses for the trigger chevron),
 // so the component stays dependency-free of an icon package. Not a Task 2 restyle
-// touchpoint — untouched from upstream, "inherits tokens".
+// touchpoint — untouched from upstream, "inherits tokens". MIT-licensed upstream; modifications for lindocara's garrison skin.
 export const inputVariants = cva("text-foreground", {
   variants: {
     font: {

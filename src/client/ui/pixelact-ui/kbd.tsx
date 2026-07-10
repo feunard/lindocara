@@ -4,7 +4,7 @@ import "./styles/styles.css";
 
 // Vendored from github.com/pixelact-ui/pixelact-ui (components/ui/pixelact-ui/kbd.tsx). No
 // base shadcn/ui component to inline — self-contained. Not a Task 2 restyle touchpoint —
-// untouched from upstream, "inherits tokens".
+// untouched from upstream, "inherits tokens". MIT-licensed upstream; modifications for lindocara's garrison skin.
 function Kbd({ className, ...props }: React.ComponentProps<"kbd">) {
   return (
     <kbd

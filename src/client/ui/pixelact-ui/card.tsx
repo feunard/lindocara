@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils.js";
 // with its base shadcn/ui Card inlined. Restyled to the garrison skin (Task 2, step 4): the
 // pixel box-shadow border is deleted (it fights border-image) and the outer Card gets
 // `framed` + `parchment` (src/client/styles/theme.css) instead. The header/title/description/
-// action/content/footer pieces are untouched structural layout, per PixelAct.
+// action/content/footer pieces are untouched structural layout, per PixelAct. MIT-licensed upstream; modifications for lindocara's garrison skin.
 export const cardVariants = cva("", {
   variants: {
     font: {

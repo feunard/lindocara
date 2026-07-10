@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils.js";
 
 // Vendored from github.com/pixelact-ui/pixelact-ui (components/ui/pixelact-ui/badge.tsx),
 // with its base shadcn/ui Badge inlined. Not a Task 2 restyle touchpoint — untouched from
-// upstream, "inherits tokens".
+// upstream, "inherits tokens". MIT-licensed upstream; modifications for lindocara's garrison skin.
 const badgeVariants = cva(
   "inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-none border-none px-2 py-0.5 text-xs font-medium whitespace-nowrap shadow-(--pixel-box-shadow) box-shadow-margin transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3",
   {

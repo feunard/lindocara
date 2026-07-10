@@ -2,9 +2,17 @@
  * (components/ui/pixelact-ui/styles/styles.css). Powers the components below that are not
  * part of the garrison restyle (label, select, badge, kbd, tooltip) — those keep PixelAct's
  * own look and "inherit tokens" per the Task 2 brief; only button/card/dialog/input were
- * restyled to the garrison skin.
+ * restyled to the garrison skin. MIT-licensed upstream; modifications for lindocara's garrison skin.
  */
-@import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap");
+
+/* Self-hosted Press Start 2P font (SIL OFL 1.1 licensed from Google Fonts). */
+@font-face {
+  font-family: "Press Start 2P";
+  src: url("../../assets/fonts/press-start-2p/press-start-2p-latin.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
 
 :root {
   --box-shadow-width: 4px;

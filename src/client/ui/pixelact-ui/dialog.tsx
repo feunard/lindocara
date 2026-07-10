@@ -7,7 +7,7 @@ import "./styles/styles.css";
 // with its base shadcn/ui Dialog inlined. Restyled to the garrison skin (Task 2, step 4):
 // DialogContent's pixel box-shadow border is deleted (it fights border-image) and replaced
 // by `framed` (src/client/styles/theme.css), which sits over `var(--surface-raised)` — no
-// `parchment`, dialogs stay on the dark surface. DialogTitle keeps PixelAct's pixel font.
+// `parchment`, dialogs stay on the dark surface. DialogTitle keeps PixelAct's pixel font. MIT-licensed upstream; modifications for lindocara's garrison skin.
 
 const Dialog = DialogPrimitive.Root;
 const DialogTrigger = DialogPrimitive.Trigger;
