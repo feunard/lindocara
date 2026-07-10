@@ -86,6 +86,10 @@ export const fr: Record<keyof typeof en, string> = {
   "status.disconnected": "déconnecté - {reason}",
   "status.welcome_hint": "Elowen se tient près du repère doré. Appuyez sur [E] pour commencer.",
   "status.connection_lost": "Connexion perdue. Rechargez pour revenir.",
+  "status.close.elsewhere": "Ce personnage s'est connecté ailleurs.",
+  "status.close.deleted": "Ce personnage a été supprimé.",
+  "status.close.policy": "Déconnecté par le serveur.",
+  "status.close.generic": "Connexion fermée.",
 
   // PNJ
   "npc.warden.name": "Gardienne Elowen",

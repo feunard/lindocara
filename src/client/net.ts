@@ -59,7 +59,7 @@ export interface ConnectionHandlers {
     x?: number,
     y?: number,
   ): void;
-  onClose(reason: string): void;
+  onClose(code: number, reason: string): void;
 }
 
 function lerp(a: number, b: number, t: number): number {
@@ -122,9 +122,9 @@ export class WorldClient {
 
     socket.addEventListener("close", (event) => {
       this.#socket = null;
-      handlers.onClose(event.reason || "connection closed");
+      handlers.onClose(event.code, event.reason);
     });
-    socket.addEventListener("error", () => handlers.onClose("connection error"));
+    socket.addEventListener("error", () => handlers.onClose(1006, "connection error"));
 
     return {
       attack: () => this.#send({ t: "attack" }),

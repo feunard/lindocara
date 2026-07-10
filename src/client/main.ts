@@ -71,17 +71,23 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 const fetchMe = () => api<Me>("/api/me").catch(() => null);
 const fetchCharacters = () => api<CharacterSummary[]>("/api/characters");
 
-function authErrorText(error: unknown): string {
-  const code = error instanceof ApiError ? error.code : "generic";
-  const known: Record<string, MessageKey> = {
-    username_taken: "auth.error.username_taken",
-    invalid_credentials: "auth.error.invalid_credentials",
-    invalid_username: "auth.error.invalid_username",
-    invalid_password: "auth.error.invalid_password",
-    limit_reached: "chars.error.limit_reached",
-    invalid_name: "chars.error.invalid_name",
-  };
-  return t(known[code] ?? "auth.error.generic");
+/** Stable machine codes (from ApiError, or synthesized client-side) mapped to i18n keys. */
+const ERROR_KEYS: Record<string, MessageKey> = {
+  username_taken: "auth.error.username_taken",
+  invalid_credentials: "auth.error.invalid_credentials",
+  invalid_username: "auth.error.invalid_username",
+  invalid_password: "auth.error.invalid_password",
+  password_mismatch: "auth.error.password_mismatch",
+  limit_reached: "chars.error.limit_reached",
+  invalid_name: "chars.error.invalid_name",
+};
+
+function errorCode(error: unknown): string {
+  return error instanceof ApiError ? error.code : "generic";
+}
+
+function authErrorText(code: string): string {
+  return t(ERROR_KEYS[code] ?? "auth.error.generic");
 }
 
 function required<T extends Element>(selector: string): T {
@@ -128,6 +134,27 @@ const chatInput = required<HTMLInputElement>("#chat-input");
 const help = required<HTMLElement>("#help");
 const sound = new GameSound();
 
+type FormErrorField = "login" | "register" | "character";
+
+const errorElements: Record<FormErrorField, HTMLParagraphElement> = {
+  login: loginError,
+  register: registerError,
+  character: characterError,
+};
+
+/** The last error code shown per form, so a locale toggle can re-render it in the new language. */
+const errorCodes: Partial<Record<FormErrorField, string>> = {};
+
+function showFormError(field: FormErrorField, code: string): void {
+  errorCodes[field] = code;
+  errorElements[field].textContent = authErrorText(code);
+}
+
+function clearFormError(field: FormErrorField): void {
+  delete errorCodes[field];
+  errorElements[field].textContent = "";
+}
+
 function showAuth(): void {
   authPanel.hidden = false;
   charactersPanel.hidden = true;
@@ -139,8 +166,8 @@ function setTab(register: boolean): void {
   tabRegister.classList.toggle("active", register);
   loginForm.hidden = register;
   registerForm.hidden = !register;
-  loginError.textContent = "";
-  registerError.textContent = "";
+  clearFormError("login");
+  clearFormError("register");
 }
 tabLogin.addEventListener("click", () => setTab(false));
 tabRegister.addEventListener("click", () => setTab(true));
@@ -148,7 +175,7 @@ tabRegister.addEventListener("click", () => setTab(true));
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   sound.unlock();
-  loginError.textContent = "";
+  clearFormError("login");
   const data = new FormData(loginForm);
   try {
     await api<Me>("/api/session", {
@@ -157,17 +184,17 @@ loginForm.addEventListener("submit", async (event) => {
     });
     await showCharacters();
   } catch (error) {
-    loginError.textContent = authErrorText(error);
+    showFormError("login", errorCode(error));
   }
 });
 
 registerForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   sound.unlock();
-  registerError.textContent = "";
+  clearFormError("register");
   const data = new FormData(registerForm);
   if (data.get("password") !== data.get("confirm")) {
-    registerError.textContent = t("auth.error.password_mismatch");
+    showFormError("register", "password_mismatch");
     return;
   }
   try {
@@ -177,7 +204,7 @@ registerForm.addEventListener("submit", async (event) => {
     });
     await showCharacters();
   } catch (error) {
-    registerError.textContent = authErrorText(error);
+    showFormError("register", errorCode(error));
   }
 });
 
@@ -250,7 +277,7 @@ function newCharacterCard(count: number): HTMLElement {
 
 characterCreate.addEventListener("submit", async (event) => {
   event.preventDefault();
-  characterError.textContent = "";
+  clearFormError("character");
   const data = new FormData(characterCreate);
   try {
     await api<CharacterSummary>("/api/characters", {
@@ -260,7 +287,7 @@ characterCreate.addEventListener("submit", async (event) => {
     characterCreate.reset();
     await showCharacters();
   } catch (error) {
-    characterError.textContent = authErrorText(error);
+    showFormError("character", errorCode(error));
   }
 });
 required<HTMLButtonElement>("#character-create-cancel").addEventListener("click", () => {
@@ -311,6 +338,9 @@ const INTERIORS: readonly InteriorDoor[] = [
     copyKey: "interior.bramblewick-farm.copy",
   },
 ] as const;
+
+/** The door currently shown in the interior panel, so a locale toggle can re-translate it. */
+let openDoor: InteriorDoor | undefined;
 
 let lastStatus: () => string = () => "";
 
@@ -397,6 +427,7 @@ function nearestInterior(self: PlayerSnapshot | undefined): InteriorDoor | undef
 }
 
 function openInterior(door: InteriorDoor): void {
+  openDoor = door;
   interiorTitle.textContent = t(door.nameKey);
   interiorCopy.textContent = t(door.copyKey);
   interior.dataset.room = door.id;
@@ -405,6 +436,7 @@ function openInterior(door: InteriorDoor): void {
 }
 
 function closeInterior(): void {
+  openDoor = undefined;
   interior.classList.remove("open");
   interior.hidden = true;
 }
@@ -586,10 +618,20 @@ async function play(character: CharacterSummary): Promise<void> {
             break;
         }
       },
-      onClose: (reason) => {
+      onClose: (code, reason) => {
         input.stop();
         stopActions?.();
-        setStatus(() => t("status.disconnected", { reason }));
+        // The raw wire reason is English server prose; never render it directly.
+        console.debug("connection closed", code, reason);
+        const key: MessageKey =
+          code === 4001
+            ? "status.close.elsewhere"
+            : code === 4002
+              ? "status.close.deleted"
+              : code === 1008 || code === 1009
+                ? "status.close.policy"
+                : "status.close.generic";
+        setStatus(() => t("status.disconnected", { reason: t(key) }));
         addEvent(t("status.connection_lost"), "bad");
       },
     },
@@ -704,6 +746,14 @@ onLocaleChange(() => {
   if (lastState) renderState(lastState);
   renderPlayer(lastPlayer);
   if (!charactersPanel.hidden) renderCharacterList(lastCharacters ?? []);
+  if (openDoor) {
+    interiorTitle.textContent = t(openDoor.nameKey);
+    interiorCopy.textContent = t(openDoor.copyKey);
+  }
+  for (const field of Object.keys(errorElements) as FormErrorField[]) {
+    const code = errorCodes[field];
+    if (code) errorElements[field].textContent = authErrorText(code);
+  }
 });
 
 initLocale();

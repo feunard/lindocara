@@ -15,6 +15,6 @@ export const dictionaries: Record<Locale, Record<MessageKey, string>> = { en, fr
 export function format(template: string, params?: Record<string, string | number>): string {
   if (!params) return template;
   return template.replace(/\{(\w+)\}/g, (match, name: string) =>
-    name in params ? String(params[name]) : match,
+    Object.hasOwn(params, name) ? String(params[name]) : match,
   );
 }

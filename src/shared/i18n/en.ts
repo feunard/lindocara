@@ -89,6 +89,10 @@ export const en = {
   "status.disconnected": "disconnected - {reason}",
   "status.welcome_hint": "Elowen stands beside the golden marker. Press [E] to begin.",
   "status.connection_lost": "Connection lost. Reload to rejoin.",
+  "status.close.elsewhere": "This character connected somewhere else.",
+  "status.close.deleted": "This character was deleted.",
+  "status.close.policy": "Disconnected by the server.",
+  "status.close.generic": "Connection closed.",
 
   // NPC
   "npc.warden.name": "Keeper Elowen",
