@@ -33,6 +33,10 @@ interface CharacterSummary {
  *  imported, since client code must not import server code. */
 const MAX_CHARACTERS = 3;
 
+/** Cache of the last-fetched character list, used to re-render on locale changes
+ *  without re-fetching or closing the character creation form. */
+let lastCharacters: CharacterSummary[] | null = null;
+
 /** API errors carry stable machine codes the UI maps to i18n keys. */
 class ApiError extends Error {
   constructor(readonly code: string) {
@@ -179,6 +183,7 @@ async function showCharacters(): Promise<void> {
     showAuth();
     return;
   }
+  lastCharacters = characters;
   renderCharacterList(characters);
   characterCreate.hidden = characters.length > 0;
   charactersPanel.hidden = false;
@@ -664,7 +669,7 @@ onLocaleChange(() => {
   statusBar.textContent = lastStatus();
   if (lastState) renderState(lastState);
   renderPlayer(lastPlayer);
-  if (!charactersPanel.hidden) void showCharacters();
+  if (!charactersPanel.hidden) renderCharacterList(lastCharacters ?? []);
 });
 
 initLocale();
