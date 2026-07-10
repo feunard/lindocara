@@ -1,6 +1,6 @@
 /**
- * Locale state and DOM application. First visit: browser language (fr* → French). The
- * FR/EN toggle persists to localStorage and re-renders live — no reload.
+ * Locale state. First visit: browser language (fr* → French). The FR/EN toggle persists to
+ * localStorage and re-renders live — no reload.
  */
 
 import { useSyncExternalStore } from "react";
@@ -47,29 +47,4 @@ export function onLocaleChange(listener: () => void): () => void {
 /** React subscription to the locale — components re-render on toggle. */
 export function useLocale(): Locale {
   return useSyncExternalStore(onLocaleChange, currentLocale);
-}
-
-/**
- * `data-i18n="key"` sets textContent. `data-i18n-attr="attr:key;attr2:key2"` sets
- * attributes (placeholders, aria-labels, titles).
- */
-export function applyStaticText(root: ParentNode = document): void {
-  for (const element of root.querySelectorAll<HTMLElement>("[data-i18n]")) {
-    const key = element.dataset.i18n;
-    if (key) element.textContent = t(key as MessageKey);
-  }
-  for (const element of root.querySelectorAll<HTMLElement>("[data-i18n-attr]")) {
-    for (const pair of (element.dataset.i18nAttr ?? "").split(";")) {
-      const colon = pair.indexOf(":");
-      if (colon <= 0) continue;
-      element.setAttribute(pair.slice(0, colon), t(pair.slice(colon + 1) as MessageKey));
-    }
-  }
-}
-
-/** Stamp <html lang>, and apply the initial pass. Call once at boot. */
-export function initLocale(): void {
-  document.documentElement.lang = current;
-  onLocaleChange(() => applyStaticText());
-  applyStaticText();
 }

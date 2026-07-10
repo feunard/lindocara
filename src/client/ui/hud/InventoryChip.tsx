@@ -14,7 +14,7 @@ export function InventoryChip({
   return (
     <fieldset
       className="item-chip"
-      // .item-chip (style.css) overrides the UA fieldset border/padding, but not its default
+      // .item-chip (styles/legacy.css) overrides the UA fieldset border/padding, but not its default
       // inline margin - reset that so the four chips line up flush in .item-grid.
       style={{ margin: 0 }}
       title={hotkey ? `${label} [${hotkey}]` : label}

@@ -48,8 +48,8 @@ export function Hud() {
           </button>
         </div>
         {/* biome-ignore lint/a11y/noLabelWithoutControl: reuses the legacy `.identity label`
-            grid layout (style.css); the row labels a read-only <Bar> progressbar, not a form
-            control, so there is nothing to htmlFor. */}
+            grid layout (styles/legacy.css); the row labels a read-only <Bar> progressbar, not a
+            form control, so there is nothing to htmlFor. */}
         <label>
           <span>{t("hud.vit")}</span>
           <Bar value={self.hp} max={self.maxHp} variant="hp" />

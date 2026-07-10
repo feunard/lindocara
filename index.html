@@ -10,33 +10,6 @@
   <body>
     <canvas id="stage"></canvas>
     <div id="root"></div>
-
-    <section id="interior" hidden>
-      <div class="interior-room">
-        <header>
-          <span id="interior-title">Wayside House</span>
-          <button
-            id="interior-close"
-            type="button"
-            data-i18n-attr="aria-label:interior.close;title:interior.close"
-            aria-label="Close threshold view"
-            title="Close"
-          >
-            &times;
-          </button>
-        </header>
-        <div class="room-grid" aria-hidden="true">
-          <span class="room-object hearth"></span>
-          <span class="room-object table"></span>
-          <span class="room-object npc"></span>
-          <span class="room-object chest"></span>
-          <span class="room-object bench"></span>
-          <span class="room-object rug"></span>
-        </div>
-        <p id="interior-copy">Warm ash, stacked tools, and a locked cedar chest.</p>
-      </div>
-    </section>
-
     <script type="module" src="/src/client/main.tsx"></script>
   </body>
 </html>

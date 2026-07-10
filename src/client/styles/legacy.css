@@ -39,20 +39,6 @@ body::after {
   filter: saturate(0.94) contrast(1.04);
 }
 
-#auth[hidden],
-#characters[hidden],
-#login-form[hidden],
-#register-form[hidden],
-#character-create[hidden],
-#hud[hidden],
-#chat[hidden],
-#help[hidden],
-#prompt[hidden],
-.combat[hidden],
-#quest-progress[hidden] {
-  display: none;
-}
-
 .panel {
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -61,67 +47,12 @@ body::after {
   backdrop-filter: blur(8px);
 }
 
-#auth {
-  position: fixed;
-  inset: 0;
-  z-index: 10;
-  display: grid;
-  place-items: center;
-  background: radial-gradient(circle at 50% 38%, rgb(49 123 86 / 78%), rgb(4 17 14 / 97%) 68%);
-}
-
-.auth-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-  width: min(27rem, calc(100vw - 2rem));
-  padding: 1.8rem;
-  border: 1px solid rgb(157 215 173 / 45%);
-  border-radius: 16px;
-  background: rgb(8 30 24 / 94%);
-}
-
-#auth form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-}
-
 .eyebrow {
   color: var(--green);
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0;
   text-transform: uppercase;
-}
-
-.auth-card h1,
-.auth-card h2,
-.auth-card p {
-  margin: 0;
-}
-
-.auth-card h1 {
-  color: #e4ffe9;
-  font:
-    700 2.4rem / 0.95 Georgia,
-    serif;
-}
-
-.auth-card h2 {
-  color: var(--gold);
-  font:
-    italic 0.95rem Georgia,
-    serif;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-.auth-card p {
-  color: #b8cabd;
-  font:
-    0.82rem / 1.6 Georgia,
-    serif;
 }
 
 input,
@@ -175,53 +106,6 @@ button:disabled {
   font-weight: 700;
 }
 
-#login-error,
-#register-error,
-#character-error {
-  min-height: 1.2em;
-  color: #ff9b93;
-}
-
-#auth .tabs {
-  display: flex;
-  gap: 8px;
-  margin: 12px 0;
-}
-#auth .tab {
-  flex: 1;
-  padding: 8px 0;
-  cursor: pointer;
-  opacity: 0.55;
-}
-#auth .tab.active {
-  opacity: 1;
-  font-weight: 700;
-  border-bottom: 2px solid currentColor;
-}
-
-#characters {
-  position: fixed;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  z-index: 30;
-  background: radial-gradient(circle at 50% 38%, rgb(49 123 86 / 78%), rgb(4 17 14 / 97%) 68%);
-}
-#characters .characters-card {
-  min-width: 340px;
-  max-width: 520px;
-  display: grid;
-  gap: 12px;
-  padding: 1.8rem;
-  border: 1px solid rgb(157 215 173 / 45%);
-  border-radius: 16px;
-  background: rgb(8 30 24 / 94%);
-}
-.characters-card header {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-}
 #character-list {
   display: grid;
   gap: 8px;
@@ -372,37 +256,6 @@ button:disabled {
   letter-spacing: 0;
 }
 
-progress {
-  appearance: none;
-  width: 100%;
-  height: 0.32rem;
-  overflow: hidden;
-  border: 0;
-  border-radius: 999px;
-  background: rgb(0 0 0 / 42%);
-}
-
-progress::-webkit-progress-bar {
-  background: rgb(0 0 0 / 42%);
-}
-
-progress::-webkit-progress-value {
-  border-radius: 999px;
-  background: linear-gradient(90deg, #bd494e, #f0796b);
-}
-
-#xp-bar::-webkit-progress-value {
-  background: linear-gradient(90deg, #378ea0, #67d1c1);
-}
-
-#quest-progress::-webkit-progress-value {
-  background: linear-gradient(90deg, #6a8f3d, #a8d86a);
-}
-
-#attack-cooldown::-webkit-progress-value {
-  background: linear-gradient(90deg, #8a6a2f, #f0c85a);
-}
-
 .panel-title {
   display: flex;
   align-items: center;
@@ -439,13 +292,6 @@ progress::-webkit-progress-value {
   gap: 0.24rem;
   font-size: 0.64rem;
   color: #d6dfd2;
-}
-
-#quest-text {
-  color: #d9e3d6;
-  font:
-    italic 0.64rem / 1.25 Georgia,
-    serif;
 }
 
 .quest {
@@ -691,10 +537,6 @@ kbd {
   z-index: 8;
   display: block;
   animation: interior-fade 180ms ease-out;
-}
-
-#interior[hidden] {
-  display: none;
 }
 
 .interior-room {

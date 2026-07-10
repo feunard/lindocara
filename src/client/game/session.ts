@@ -16,7 +16,7 @@ import type {
 } from "../../shared/protocol.js";
 import { NO_INPUT } from "../../shared/simulation.js";
 import { type CharacterSummary, logout } from "../api.js";
-import { onLocaleChange, t } from "../i18n.js";
+import { t } from "../i18n.js";
 import { type LocalizedText, useUiStore } from "../store.js";
 import { trackActions, trackInput } from "./input.js";
 import { type InteriorDoor, nearestInterior } from "./interiors.js";
@@ -31,20 +31,13 @@ function required<T extends Element>(selector: string): T {
 }
 
 const canvas = required<HTMLCanvasElement>("#stage");
-const interior = required<HTMLElement>("#interior");
-const interiorTitle = required<HTMLElement>("#interior-title");
-const interiorCopy = required<HTMLElement>("#interior-copy");
-const interiorClose = required<HTMLButtonElement>("#interior-close");
 const sound = new GameSound();
 
-/** The store is the single source of truth for whether the interior panel is open; the
- *  legacy `#interior` element (still hidden/shown by openInterior/closeInterior) mirrors it. */
+/** The store is the single source of truth for whether the interior panel is open;
+ *  InteriorOverlay renders it from `interiorDoorId`. */
 function interiorOpen(): boolean {
   return useUiStore.getState().interiorDoorId !== null;
 }
-
-/** The door currently shown in the interior panel, so a locale toggle can re-translate it. */
-let openDoor: InteriorDoor | undefined;
 
 function setStatus(key: MessageKey, params?: Record<string, string | number>): void {
   const status: LocalizedText = params === undefined ? { key } : { key, params };
@@ -57,19 +50,10 @@ function renderState(state: SelfState): void {
 }
 
 function openInterior(door: InteriorDoor): void {
-  openDoor = door;
-  interiorTitle.textContent = t(door.nameKey);
-  interiorCopy.textContent = t(door.copyKey);
-  interior.dataset.room = door.id;
-  interior.hidden = false;
-  interior.classList.add("open");
   useUiStore.getState().setInteriorDoorId(door.id);
 }
 
 function closeInterior(): void {
-  openDoor = undefined;
-  interior.classList.remove("open");
-  interior.hidden = true;
   useUiStore.getState().setInteriorDoorId(null);
 }
 
@@ -296,7 +280,6 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     logout: logoutAndReload,
   });
 
-  interiorClose.addEventListener("click", closeInterior);
   window.addEventListener("keydown", (event) => {
     if (event.code !== "Escape" || !interiorOpen()) return;
     closeInterior();
@@ -332,12 +315,3 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     };
   }
 }
-
-onLocaleChange(() => {
-  // React re-translates the HUD (Task 6) and status/prompt/chat/help (Task 7) themselves;
-  // #interior is still legacy DOM (Task 8) and still needs a manual re-render here.
-  if (openDoor) {
-    interiorTitle.textContent = t(openDoor.nameKey);
-    interiorCopy.textContent = t(openDoor.copyKey);
-  }
-});

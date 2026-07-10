@@ -9,6 +9,7 @@ import { Chat } from "./Chat.js";
 import { EventLog } from "./EventLog.js";
 import { HelpBar } from "./HelpBar.js";
 import { Hud } from "./hud/Hud.js";
+import { InteriorOverlay } from "./InteriorOverlay.js";
 import { LocaleToggle } from "./LocaleToggle.js";
 import { Prompt } from "./Prompt.js";
 import { StatusBar } from "./StatusBar.js";
@@ -39,6 +40,7 @@ export function App() {
           <EventLog />
           <Prompt />
           <HelpBar />
+          <InteriorOverlay />
         </>
       )}
     </>
