@@ -25,7 +25,7 @@ describe("AuthScreen", () => {
   it("switches tabs and blocks mismatched register passwords client-side", async () => {
     const mock = stubFetch(200, {});
     render(<AuthScreen />);
-    await userEvent.click(screen.getByRole("button", { name: "Create account" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Create account" }));
     await userEvent.type(screen.getByLabelText("Username"), "nico");
     await userEvent.type(screen.getByLabelText("Password"), "12345678");
     await userEvent.type(screen.getByLabelText("Confirm password"), "87654321");

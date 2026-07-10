@@ -15,24 +15,15 @@ export function Tabs({ tabs, active, onSelect }: TabsProps) {
           tab.id === active && "opacity-100 font-bold",
         );
         const onClick = () => onSelect(tab.id);
-        // Only the active tab is exposed as role="tab"; an inactive tab keeps the button's
-        // native role so it stays reachable by a `getByRole("button", ...)` query used to
-        // switch to it. Once active, its label can collide with the form's submit button
-        // (e.g. both read "Create account"), so it steps out of the "button" role query to
-        // keep that name unique to the submit button — see test/ui/auth-screen.test.tsx.
-        return tab.id === active ? (
+        return (
           <button
             key={tab.id}
             type="button"
             role="tab"
-            aria-selected={true}
+            aria-selected={tab.id === active}
             className={className}
             onClick={onClick}
           >
-            {tab.label}
-          </button>
-        ) : (
-          <button key={tab.id} type="button" className={className} onClick={onClick}>
             {tab.label}
           </button>
         );
