@@ -8,7 +8,6 @@ import {
 } from "../shared/game.js";
 import type { MessageKey } from "../shared/i18n/index.js";
 import type {
-  Appearance,
   EventCode,
   EventParams,
   PlayerSnapshot,
@@ -16,6 +15,16 @@ import type {
   SelfState,
 } from "../shared/protocol.js";
 import { NO_INPUT } from "../shared/simulation.js";
+import {
+  api,
+  authErrorText,
+  type CharacterSummary,
+  errorCode,
+  fetchCharacters,
+  fetchMe,
+  MAX_CHARACTERS,
+  type Me,
+} from "./api.js";
 import { initLocale, onLocaleChange, t } from "./i18n.js";
 import { trackActions, trackInput } from "./input.js";
 import { WorldClient } from "./net.js";
@@ -23,72 +32,9 @@ import { type RenderContext, Renderer } from "./renderer.js";
 import { GameSound } from "./sound.js";
 import "./style.css";
 
-interface Me {
-  id: string;
-  username: string;
-}
-
-interface CharacterSummary {
-  id: string;
-  name: string;
-  appearance: Appearance;
-  level: number;
-}
-
-/** The client can only create as many characters as the server's per-account cap allows.
- *  Kept in sync with `MAX_CHARACTERS_PER_ACCOUNT` in `src/server/characters.ts` — not
- *  imported, since client code must not import server code. */
-const MAX_CHARACTERS = 3;
-
 /** Cache of the last-fetched character list, used to re-render on locale changes
  *  without re-fetching or closing the character creation form. */
 let lastCharacters: CharacterSummary[] | null = null;
-
-/** API errors carry stable machine codes the UI maps to i18n keys. */
-class ApiError extends Error {
-  constructor(readonly code: string) {
-    super(code);
-  }
-}
-
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
-  });
-  if (response.status === 204) return undefined as T;
-  const body: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
-    const code =
-      typeof body === "object" && body !== null && "error" in body && typeof body.error === "string"
-        ? body.error
-        : "generic";
-    throw new ApiError(code);
-  }
-  return body as T;
-}
-
-const fetchMe = () => api<Me>("/api/me").catch(() => null);
-const fetchCharacters = () => api<CharacterSummary[]>("/api/characters");
-
-/** Stable machine codes (from ApiError, or synthesized client-side) mapped to i18n keys. */
-const ERROR_KEYS: Record<string, MessageKey> = {
-  username_taken: "auth.error.username_taken",
-  invalid_credentials: "auth.error.invalid_credentials",
-  invalid_username: "auth.error.invalid_username",
-  invalid_password: "auth.error.invalid_password",
-  password_mismatch: "auth.error.password_mismatch",
-  limit_reached: "chars.error.limit_reached",
-  invalid_name: "chars.error.invalid_name",
-};
-
-function errorCode(error: unknown): string {
-  return error instanceof ApiError ? error.code : "generic";
-}
-
-function authErrorText(code: string): string {
-  return t(ERROR_KEYS[code] ?? "auth.error.generic");
-}
 
 function required<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
