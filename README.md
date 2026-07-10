@@ -10,8 +10,13 @@ whole UI is localized in French and English, with a live toggle.
 
 ## Stack
 
-TypeScript · Vite · PixiJS · Cloudflare Workers + Durable Objects · D1 + Drizzle ORM · Biome ·
-Vitest
+TypeScript · Vite · PixiJS · React 19 · Tailwind v4 · shadcn/PixelAct UI · Zustand ·
+Cloudflare Workers + Durable Objects · D1 + Drizzle ORM · Biome · Vitest
+
+The HUD, screens, and overlays are PixelAct UI components (shadcn-structured, Radix-backed)
+restyled with a garrison-style 9-slice PNG skin — wood panels and stone-framed buttons instead
+of the library's default look. The PixiJS canvas underneath stays untouched by React; it is
+only ever read from, never targeted.
 
 ## Assets and license
 

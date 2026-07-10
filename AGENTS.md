@@ -44,10 +44,15 @@ src/server/     runs in workerd.
   db/           D1 schema + Drizzle.
 
 src/client/     runs in a browser.
-  net.ts        socket, typed actions, local prediction, reconciliation, interpolation.
-  renderer.ts   procedural PixiJS map/entities and follow camera; no game authority.
-  input.ts      keyboard -> movement/action intent; movement is polled once per tick.
-  i18n.ts       locale state and DOM application; wraps shared/i18n/ for the browser.
+  main.tsx      React entry; mounts <App/> beside the canvas.
+  ui/           React components: screens, HUD, chat, overlays. PixelAct UI copies
+                (restyled) under ui/pixelact-ui/.
+  store.ts      zustand bridge: the game session writes, React reads. Text state is
+                i18n keys + params, never rendered strings.
+  api.ts        fetch client; machine-code errors mapped to dictionary keys.
+  game/         the game loop: net.ts (prediction), renderer.ts (PixiJS), input.ts,
+                sound.ts, session.ts (owns the store writes). No React in here.
+  i18n.ts       locale state; useLocale() for React, t() for everyone.
 ```
 
 ### Two players, two rules
@@ -169,6 +174,8 @@ room routing in `server/index.ts`, not a larger global object. Keep room-local s
 all wording via `src/shared/i18n/`. Never add an English string to a `#send` in `world.ts`; add
 an `EventCode` and two dictionary entries instead (the i18n test enforces parity).
 
+**The canvas is not React's.** `#stage` is a sibling of `#root`; nothing in `ui/` may touch it.
+
 ## Secrets
 
 `SESSION_SECRET` signs the session cookie.
@@ -188,3 +195,6 @@ the same `Env`.
   suite opens real WebSockets against real workerd; follow that.
 - Every player-facing string lives in `src/shared/i18n/` in both languages. API errors are
   machine codes.
+- UI is React; game code under `src/client/game/` must not import React. The store is the
+  only bridge — components never call into net/renderer directly (the `GameHandle` in the
+  store is the exception and the boundary).
