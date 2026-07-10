@@ -8,11 +8,8 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   </head>
   <body>
-    <fieldset id="locale-toggle" aria-label="Language / Langue">
-      <button type="button" data-locale="en">EN</button>
-      <button type="button" data-locale="fr">FR</button>
-    </fieldset>
     <canvas id="stage"></canvas>
+    <div id="root"></div>
 
     <div id="auth" hidden>
       <div class="auth-card">
@@ -162,6 +159,6 @@
     </div>
     <div id="status"></div>
 
-    <script type="module" src="/src/client/main.ts"></script>
+    <script type="module" src="/src/client/main.tsx"></script>
   </body>
 </html>

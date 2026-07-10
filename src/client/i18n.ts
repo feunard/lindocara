@@ -3,6 +3,7 @@
  * FR/EN toggle persists to localStorage and re-renders live — no reload.
  */
 
+import { useSyncExternalStore } from "react";
 import { dictionaries, format, type Locale, type MessageKey } from "../shared/i18n/index.js";
 
 const STORAGE_KEY = "lindocara_locale";
@@ -32,8 +33,14 @@ export function setLocale(locale: Locale): void {
   for (const listener of listeners) listener();
 }
 
-export function onLocaleChange(listener: () => void): void {
+export function onLocaleChange(listener: () => void): () => void {
   listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+/** React subscription to the locale — components re-render on toggle. */
+export function useLocale(): Locale {
+  return useSyncExternalStore(onLocaleChange, currentLocale);
 }
 
 /**
@@ -54,24 +61,9 @@ export function applyStaticText(root: ParentNode = document): void {
   }
 }
 
-/** Wire the toggle, stamp <html lang>, and apply the initial pass. Call once at boot. */
+/** Stamp <html lang>, and apply the initial pass. Call once at boot. */
 export function initLocale(): void {
   document.documentElement.lang = current;
-  const buttons = document.querySelectorAll<HTMLButtonElement>("#locale-toggle button");
-  const paint = () => {
-    for (const button of buttons) {
-      button.classList.toggle("active", button.dataset.locale === current);
-    }
-  };
-  for (const button of buttons) {
-    button.addEventListener("click", () => {
-      setLocale(button.dataset.locale === "fr" ? "fr" : "en");
-    });
-  }
-  onLocaleChange(() => {
-    paint();
-    applyStaticText();
-  });
-  paint();
+  onLocaleChange(() => applyStaticText());
   applyStaticText();
 }

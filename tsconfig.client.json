@@ -3,7 +3,15 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "jsx": "react-jsx",
+    "paths": { "@/*": ["./src/client/*"] }
   },
-  "include": ["src/client/**/*.ts", "src/shared/**/*.ts"]
+  "include": [
+    "src/client/**/*.ts",
+    "src/client/**/*.tsx",
+    "src/shared/**/*.ts",
+    "test/ui/**/*.ts",
+    "test/ui/**/*.tsx"
+  ]
 }

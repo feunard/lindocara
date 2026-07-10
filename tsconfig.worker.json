@@ -12,5 +12,8 @@
     "test/**/*.ts",
     "src/worker-configuration.d.ts",
     "src/env.d.ts"
-  ]
+  ],
+  // test/ui/ is the jsdom-backed React suite (tsconfig.client.json, vitest.ui.config.ts).
+  // It has no DOM lib here, so leave those files to the client program.
+  "exclude": ["test/ui"]
 }
