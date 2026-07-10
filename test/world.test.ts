@@ -104,6 +104,14 @@ class Client {
     options: { pump?: boolean; position?: { x: number; y: number } } = {},
   ): Promise<Client> {
     const session = await testCharacter(nickname, options.position);
+    return Client.joinCharacter(session, options);
+  }
+
+  /** Join with an already-created character, e.g. one the test needs to keep the cookie for. */
+  static async joinCharacter(
+    session: TestCharacter,
+    options: { pump?: boolean } = {},
+  ): Promise<Client> {
     const response = await SELF.fetch(`${ORIGIN}/api/ws?character=${session.characterId}`, {
       headers: { Upgrade: "websocket", Cookie: session.cookie },
     });
@@ -563,6 +571,21 @@ describe("World", () => {
     client.sendRaw("x".repeat(2_049));
     const closed = await until("oversized close", () => client.closeInfo ?? undefined);
     expect(closed.code).toBe(1009);
+  });
+
+  it("deleting a connected character kicks its socket", async () => {
+    const session = await testCharacter("deleteme");
+    const client = await Client.joinCharacter(session);
+    await until("welcome", () => client.welcome);
+
+    const deleted = await SELF.fetch(`${ORIGIN}/api/characters/${session.characterId}`, {
+      method: "DELETE",
+      headers: { Cookie: session.cookie },
+    });
+    expect(deleted.status).toBe(204);
+
+    const closed = await until("kick close", () => client.closeInfo ?? undefined);
+    expect(closed.code).toBe(4002);
   });
 });
 

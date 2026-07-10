@@ -106,14 +106,14 @@ async function handleJoin(request: Request, env: Env, url: URL): Promise<Respons
   }
 
   const session = await currentSession(request, env);
-  if (!session) return new Response("unauthorized", { status: 401 });
+  if (!session) return json({ error: "unauthorized" }, { status: 401 });
 
   const characterId = url.searchParams.get("character");
-  if (!characterId) return new Response("missing character", { status: 400 });
+  if (!characterId) return json({ error: "missing_character" }, { status: 400 });
 
   // Ownership is proven here, outside the Durable Object, so the DO can trust the header.
   const owned = await characterOwnedBy(createDb(env.DB), session.id, characterId);
-  if (!owned) return new Response("forbidden", { status: 403 });
+  if (!owned) return json({ error: "forbidden" }, { status: 403 });
 
   const stub = env.WORLD.get(env.WORLD.idFromName(WORLD_NAME));
   return stub.fetch(
@@ -158,6 +158,15 @@ async function handleDeleteCharacter(
   if (!session) return json({ error: "unauthorized" }, { status: 401 });
   const deleted = await deleteCharacter(createDb(env.DB), session.id, characterId);
   if (!deleted) return json({ error: "not_found" }, { status: 404 });
+
+  // A deleted character must not keep playing through a socket opened before the delete.
+  const stub = env.WORLD.get(env.WORLD.idFromName(WORLD_NAME));
+  await stub.fetch(
+    new Request("https://world/internal/kick", {
+      method: "POST",
+      headers: { "x-kick-character-id": characterId },
+    }),
+  );
   return new Response(null, { status: 204 });
 }
 

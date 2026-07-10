@@ -212,6 +212,16 @@ export class World extends DurableObject<Env> {
 
   override async fetch(request: Request): Promise<Response> {
     if (request.headers.get("Upgrade") !== "websocket") {
+      // Internal kick: fired by index.ts after a character delete. The Durable Object is not
+      // publicly reachable — only the Worker can address it by name — so trusting this header
+      // matches the existing x-character-id trust model used for join.
+      const kickId = request.method === "POST" ? request.headers.get("x-kick-character-id") : null;
+      if (kickId !== null) {
+        for (const [socket, existing] of this.#players) {
+          if (existing.id === kickId) this.#kick(socket, 4002, "character deleted");
+        }
+        return new Response(null, { status: 204 });
+      }
       return new Response("expected a websocket upgrade", { status: 426 });
     }
     const id = request.headers.get("x-character-id");
