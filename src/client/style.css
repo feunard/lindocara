@@ -697,10 +697,6 @@ kbd {
   display: none;
 }
 
-#interior:not([hidden]) ~ #prompt {
-  display: none;
-}
-
 .interior-room {
   width: min(27rem, calc(100vw - 1.6rem));
   border: 1px solid rgb(207 180 101 / 42%);
