@@ -1,4 +1,4 @@
-import { resolveTerrain } from "../shared/game.js";
+import { resolveTerrain } from "../../shared/game.js";
 import {
   CORRECTION_SMOOTHING_MS,
   MAX_ACCUMULATED_SECONDS,
@@ -7,7 +7,7 @@ import {
   prunePending,
   reconcile,
   SNAP_THRESHOLD_PX,
-} from "../shared/prediction.js";
+} from "../../shared/prediction.js";
 import {
   type ClientMessage,
   type Command,
@@ -21,8 +21,8 @@ import {
   type SelfState,
   type ServerMessage,
   type WorldInfo,
-} from "../shared/protocol.js";
-import { type Input, NO_INPUT, step, TICK_DT, type Vec2 } from "../shared/simulation.js";
+} from "../../shared/protocol.js";
+import { type Input, NO_INPUT, step, TICK_DT, type Vec2 } from "../../shared/simulation.js";
 
 const INTERPOLATION_DELAY_MS = 100;
 const BUFFER_MS = 1_000;

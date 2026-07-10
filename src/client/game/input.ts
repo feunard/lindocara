@@ -4,7 +4,7 @@
  * Movement intent is polled once per predicted tick. Action keys stay edge-triggered.
  */
 
-import { type Input, NO_INPUT } from "../shared/simulation.js";
+import { type Input, NO_INPUT } from "../../shared/simulation.js";
 
 const KEY_BINDINGS: Record<string, keyof Input> = {
   ArrowUp: "up",

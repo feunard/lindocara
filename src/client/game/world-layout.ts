@@ -1,6 +1,6 @@
-import { type Rect, SAFE_ZONE, TERRAIN_BLOCKERS } from "../shared/game.js";
-import type { MessageKey } from "../shared/i18n/index.js";
-import type { Vec2 } from "../shared/simulation.js";
+import { type Rect, SAFE_ZONE, TERRAIN_BLOCKERS } from "../../shared/game.js";
+import type { MessageKey } from "../../shared/i18n/index.js";
+import type { Vec2 } from "../../shared/simulation.js";
 
 export type ZoneId =
   | "heartroot"

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import type { CharacterSummary } from "../api.js";
 import { fetchMe } from "../api.js";
-import { startGame } from "../main.js";
+import { startGame } from "../game/session.js";
 import { useUiStore } from "../store.js";
 import { AuthScreen } from "./AuthScreen.js";
 import { CharacterSelect } from "./CharacterSelect.js";

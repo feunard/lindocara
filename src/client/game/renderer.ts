@@ -15,8 +15,8 @@ import {
   SAFE_ZONE,
   TERRAIN_BLOCKERS,
   WORLD_LANDMARKS,
-} from "../shared/game.js";
-import type { MessageKey } from "../shared/i18n/index.js";
+} from "../../shared/game.js";
+import type { MessageKey } from "../../shared/i18n/index.js";
 import type {
   Appearance,
   ItemKind,
@@ -24,9 +24,9 @@ import type {
   MonsterSnapshot,
   PlayerSnapshot,
   QuestStatus,
-} from "../shared/protocol.js";
-import { PLAYER_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from "../shared/simulation.js";
-import { onLocaleChange, t } from "./i18n.js";
+} from "../../shared/protocol.js";
+import { PLAYER_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from "../../shared/simulation.js";
+import { onLocaleChange, t } from "../i18n.js";
 import type { SceneSample } from "./net.js";
 import {
   DECOR_REGIONS,

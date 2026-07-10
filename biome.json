@@ -27,7 +27,7 @@
   },
   "overrides": [
     {
-      "includes": ["src/server/**", "src/client/main.ts", "src/client/input.ts"],
+      "includes": ["src/server/**", "src/client/game/session.ts", "src/client/game/input.ts"],
       "linter": {
         "enabled": true,
         "rules": {

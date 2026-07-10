@@ -5,23 +5,24 @@ import {
   pointDistance,
   QUEST_NPC,
   SAFE_ZONE,
-} from "../shared/game.js";
-import type { MessageKey } from "../shared/i18n/index.js";
+} from "../../shared/game.js";
+import type { MessageKey } from "../../shared/i18n/index.js";
 import type {
   EventCode,
   EventParams,
   PlayerSnapshot,
   QuestStatus,
   SelfState,
-} from "../shared/protocol.js";
-import { NO_INPUT } from "../shared/simulation.js";
-import type { CharacterSummary } from "./api.js";
-import { onLocaleChange, t } from "./i18n.js";
+} from "../../shared/protocol.js";
+import { NO_INPUT } from "../../shared/simulation.js";
+import { type CharacterSummary, logout } from "../api.js";
+import { onLocaleChange, t } from "../i18n.js";
+import { type LocalizedText, useUiStore } from "../store.js";
 import { trackActions, trackInput } from "./input.js";
+import { type InteriorDoor, nearestInterior } from "./interiors.js";
 import { WorldClient } from "./net.js";
 import { type RenderContext, Renderer } from "./renderer.js";
 import { GameSound } from "./sound.js";
-import "./style.css";
 
 function required<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -56,54 +57,22 @@ const chatInput = required<HTMLInputElement>("#chat-input");
 const help = required<HTMLElement>("#help");
 const sound = new GameSound();
 
-interface InteriorDoor {
-  id: string;
-  nameKey: MessageKey;
-  x: number;
-  y: number;
-  copyKey: MessageKey;
+/** The store is the single source of truth for whether the interior panel is open; the
+ *  legacy `#interior` element (still hidden/shown by openInterior/closeInterior) mirrors it. */
+function interiorOpen(): boolean {
+  return useUiStore.getState().interiorDoorId !== null;
 }
-
-const INTERIOR_RANGE = 54;
-const INTERIORS: readonly InteriorDoor[] = [
-  {
-    id: "crossing-hall",
-    nameKey: "interior.crossing-hall.name",
-    x: 910,
-    y: 490,
-    copyKey: "interior.crossing-hall.copy",
-  },
-  {
-    id: "lantern-house",
-    nameKey: "interior.lantern-house.name",
-    x: 1235,
-    y: 500,
-    copyKey: "interior.lantern-house.copy",
-  },
-  {
-    id: "wayfarer-rest",
-    nameKey: "interior.wayfarer-rest.name",
-    x: 510,
-    y: 1055,
-    copyKey: "interior.wayfarer-rest.copy",
-  },
-  {
-    id: "bramblewick-farm",
-    nameKey: "interior.bramblewick-farm.name",
-    x: 1960,
-    y: 2070,
-    copyKey: "interior.bramblewick-farm.copy",
-  },
-] as const;
 
 /** The door currently shown in the interior panel, so a locale toggle can re-translate it. */
 let openDoor: InteriorDoor | undefined;
 
-let lastStatus: () => string = () => "";
+let lastStatus: LocalizedText | null = null;
 
-function setStatus(compute: () => string): void {
-  lastStatus = compute;
-  statusBar.textContent = compute();
+function setStatus(key: MessageKey, params?: Record<string, string | number>): void {
+  const status: LocalizedText = params === undefined ? { key } : { key, params };
+  lastStatus = status;
+  statusBar.textContent = t(key, params);
+  useUiStore.getState().setStatus(status);
 }
 
 type ItemIcon = "potion" | "gold" | "crystal" | "sword";
@@ -137,6 +106,8 @@ let lastPlayer: PlayerSnapshot | undefined;
 
 function renderState(state: SelfState): void {
   lastState = state;
+  useUiStore.getState().setSelfState(state);
+  useUiStore.getState().setQuestStatus(state.quest.status);
   xpBar.max = state.xpToNext;
   xpBar.value = state.xp;
   xpText.textContent = `${state.xp}/${state.xpToNext}`;
@@ -170,19 +141,6 @@ function renderState(state: SelfState): void {
   pulse(questText.closest(".panel"));
 }
 
-function nearestInterior(self: PlayerSnapshot | undefined): InteriorDoor | undefined {
-  if (!self) return undefined;
-  let nearest: InteriorDoor | undefined;
-  let nearestDistance = INTERIOR_RANGE;
-  for (const door of INTERIORS) {
-    const distance = pointDistance(self, door);
-    if (distance > nearestDistance) continue;
-    nearest = door;
-    nearestDistance = distance;
-  }
-  return nearest;
-}
-
 function openInterior(door: InteriorDoor): void {
   openDoor = door;
   interiorTitle.textContent = t(door.nameKey);
@@ -190,16 +148,29 @@ function openInterior(door: InteriorDoor): void {
   interior.dataset.room = door.id;
   interior.hidden = false;
   interior.classList.add("open");
+  useUiStore.getState().setInteriorDoorId(door.id);
 }
 
 function closeInterior(): void {
   openDoor = undefined;
   interior.classList.remove("open");
   interior.hidden = true;
+  useUiStore.getState().setInteriorDoorId(null);
 }
 
 function renderPlayer(player: PlayerSnapshot | undefined): void {
   lastPlayer = player;
+  useUiStore.getState().setSelf(
+    player
+      ? {
+          nick: player.nick,
+          level: player.level,
+          hp: player.hp,
+          maxHp: player.maxHp,
+          dead: player.dead,
+        }
+      : null,
+  );
   if (!player) return;
   playerName.textContent = player.nick;
   playerLevel.textContent = t("hud.level", { level: player.level });
@@ -237,50 +208,41 @@ function updatePrompt(
   questStatus: QuestStatus,
   interiorDoor: InteriorDoor | undefined,
 ): void {
-  if (!interior.hidden) {
-    prompt.textContent = t("prompt.close_interior");
-    prompt.hidden = false;
-    return;
+  let result: LocalizedText | null = null;
+  if (interiorOpen()) {
+    result = { key: "prompt.close_interior" };
+  } else if (!self || self.dead) {
+    result = null;
+  } else {
+    const nearNpc = pointDistance(self, QUEST_NPC) <= INTERACTION_RANGE;
+    if (interiorDoor && !nearNpc) {
+      result = { key: "prompt.look_inside", params: { name: t(interiorDoor.nameKey) } };
+    } else if (
+      nearNpc &&
+      (questStatus === "available" || questStatus === "ready" || questStatus === "completed")
+    ) {
+      result = {
+        key:
+          questStatus === "available"
+            ? "prompt.swear"
+            : questStatus === "ready"
+              ? "prompt.claim"
+              : "prompt.speak",
+      };
+    } else if (questStatus === "active") {
+      const inHub =
+        self.x >= SAFE_ZONE.x &&
+        self.x <= SAFE_ZONE.x + SAFE_ZONE.width &&
+        self.y >= SAFE_ZONE.y &&
+        self.y <= SAFE_ZONE.y + SAFE_ZONE.height;
+      result = nearNpc || !inHub ? null : { key: "prompt.hunt" };
+    } else if (questStatus === "available") {
+      result = pointDistance(self, QUEST_NPC) > 420 ? null : { key: "prompt.approach" };
+    }
   }
-  if (!self || self.dead) {
-    prompt.hidden = true;
-    return;
-  }
-  const nearNpc = pointDistance(self, QUEST_NPC) <= INTERACTION_RANGE;
-  if (interiorDoor && !nearNpc) {
-    prompt.textContent = t("prompt.look_inside", { name: t(interiorDoor.nameKey) });
-    prompt.hidden = false;
-    return;
-  }
-  if (
-    nearNpc &&
-    (questStatus === "available" || questStatus === "ready" || questStatus === "completed")
-  ) {
-    prompt.textContent =
-      questStatus === "available"
-        ? t("prompt.swear")
-        : questStatus === "ready"
-          ? t("prompt.claim")
-          : t("prompt.speak");
-    prompt.hidden = false;
-    return;
-  }
-  if (questStatus === "active") {
-    const inHub =
-      self.x >= SAFE_ZONE.x &&
-      self.x <= SAFE_ZONE.x + SAFE_ZONE.width &&
-      self.y >= SAFE_ZONE.y &&
-      self.y <= SAFE_ZONE.y + SAFE_ZONE.height;
-    prompt.textContent = t("prompt.hunt");
-    prompt.hidden = nearNpc || !inHub;
-    return;
-  }
-  if (questStatus === "available") {
-    prompt.textContent = t("prompt.approach");
-    prompt.hidden = pointDistance(self, QUEST_NPC) > 420;
-    return;
-  }
-  prompt.hidden = true;
+  prompt.hidden = result === null;
+  if (result) prompt.textContent = t(result.key, result.params);
+  useUiStore.getState().setPrompt(result);
 }
 
 function updateAttackCooldown(now: number, until: number): void {
@@ -291,6 +253,7 @@ function updateAttackCooldown(now: number, until: number): void {
 }
 
 function addEvent(text: string, tone: "info" | "good" | "bad"): void {
+  useUiStore.getState().addEvent(text, tone);
   const line = document.createElement("div");
   line.className = `event ${tone}`;
   const marker = tone === "good" ? "+ " : tone === "bad" ? "! " : "* ";
@@ -301,6 +264,7 @@ function addEvent(text: string, tone: "info" | "good" | "bad"): void {
 }
 
 function addChat(from: string, text: string): void {
+  useUiStore.getState().addChat(from, text);
   const line = document.createElement("div");
   const name = document.createElement("span");
   name.className = "name";
@@ -312,7 +276,7 @@ function addChat(from: string, text: string): void {
 }
 
 export async function startGame(character: CharacterSummary): Promise<void> {
-  setStatus(() => t("status.connecting", { name: character.name }));
+  setStatus("status.connecting", { name: character.name });
   const renderer = await Renderer.create(canvas);
   const client = new WorldClient();
   const input = trackInput();
@@ -331,7 +295,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
         hud.hidden = false;
         chat.hidden = false;
         help.hidden = false;
-        setStatus(() => t("status.connected"));
+        setStatus("status.connected");
         if (!welcomed) {
           welcomed = true;
           addEvent(t("status.welcome_hint"), "info");
@@ -388,52 +352,76 @@ export async function startGame(character: CharacterSummary): Promise<void> {
               : code === 1008 || code === 1009
                 ? "status.close.policy"
                 : "status.close.generic";
-        setStatus(() => t("status.disconnected", { reason: t(key) }));
+        setStatus("status.disconnected", { reason: t(key) });
         addEvent(t("status.connection_lost"), "bad");
+        useUiStore.getState().setGame(null);
       },
     },
     character.id,
   );
 
-  stopActions = trackActions({
-    attack: () => {
-      if (!interior.hidden) return;
-      sound.unlock();
-      sound.attack();
-      attackCooldownUntil = performance.now() + ATTACK_COOLDOWN_MS;
-      if (client.selfId) renderer.playAttack(client.selfId);
-      connection.attack();
-    },
-    interact: () => {
-      sound.unlock();
-      if (!interior.hidden) {
-        closeInterior();
-        input.reset();
-        return;
-      }
-      const door = nearestInterior(currentSelf);
-      const nearNpc = currentSelf && pointDistance(currentSelf, QUEST_NPC) <= INTERACTION_RANGE;
-      if (door && !nearNpc) {
-        sound.interact();
-        input.reset();
-        openInterior(door);
-        return;
-      }
+  const attack = () => {
+    if (interiorOpen()) return;
+    sound.unlock();
+    sound.attack();
+    attackCooldownUntil = performance.now() + ATTACK_COOLDOWN_MS;
+    useUiStore.getState().setAttackCooldownUntil(attackCooldownUntil);
+    if (client.selfId) renderer.playAttack(client.selfId);
+    connection.attack();
+  };
+  const interact = () => {
+    sound.unlock();
+    if (interiorOpen()) {
+      closeInterior();
+      input.reset();
+      return;
+    }
+    const door = nearestInterior(currentSelf);
+    const nearNpc = currentSelf && pointDistance(currentSelf, QUEST_NPC) <= INTERACTION_RANGE;
+    if (door && !nearNpc) {
       sound.interact();
-      renderer.playInteraction();
-      connection.interact();
-    },
-    usePotion: () => {
-      if (!interior.hidden) return;
-      sound.unlock();
-      sound.loot();
-      connection.usePotion();
-    },
+      input.reset();
+      openInterior(door);
+      return;
+    }
+    sound.interact();
+    renderer.playInteraction();
+    connection.interact();
+  };
+  const usePotion = () => {
+    if (interiorOpen()) return;
+    sound.unlock();
+    sound.loot();
+    connection.usePotion();
+  };
+  const switchCharacter = () => {
+    connection.close();
+    window.location.reload();
+  };
+  const logoutAndReload = () => {
+    connection.close();
+    void logout();
+  };
+
+  stopActions = trackActions({
+    attack,
+    interact,
+    usePotion,
     focusChat: () => {
       input.reset();
       chat.classList.add("chat-open");
       chatInput.focus();
+      useUiStore.getState().requestChatFocus();
     },
+  });
+
+  useUiStore.getState().setGame({
+    attack,
+    interact,
+    usePotion,
+    sendChat: connection.sendChat,
+    switchCharacter,
+    logout: logoutAndReload,
   });
 
   chatInput.addEventListener("focus", () => {
@@ -452,14 +440,14 @@ export async function startGame(character: CharacterSummary): Promise<void> {
   });
   interiorClose.addEventListener("click", closeInterior);
   window.addEventListener("keydown", (event) => {
-    if (event.code !== "Escape" || interior.hidden) return;
+    if (event.code !== "Escape" || !interiorOpen()) return;
     closeInterior();
     input.reset();
     event.preventDefault();
   });
 
   renderer.onFrame((now, dt) => {
-    client.update(interior.hidden ? input.current() : NO_INPUT, dt);
+    client.update(interiorOpen() ? NO_INPUT : input.current(), dt);
     const sample = client.sample(now);
     const self = sample.players.find((player) => player.id === client.selfId);
     currentSelf = self;
@@ -478,15 +466,8 @@ export async function startGame(character: CharacterSummary): Promise<void> {
   });
   window.addEventListener("beforeunload", () => connection.close());
 
-  required<HTMLButtonElement>("#switch-character").addEventListener("click", () => {
-    connection.close();
-    window.location.reload();
-  });
-  required<HTMLButtonElement>("#logout-game").addEventListener("click", async () => {
-    connection.close();
-    await fetch("/api/session", { method: "DELETE" });
-    window.location.reload();
-  });
+  required<HTMLButtonElement>("#switch-character").addEventListener("click", switchCharacter);
+  required<HTMLButtonElement>("#logout-game").addEventListener("click", logoutAndReload);
 
   // A handle for measuring input latency and interpolation from the outside. Dev builds only.
   if (import.meta.env.DEV) {
@@ -499,7 +480,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
 }
 
 onLocaleChange(() => {
-  statusBar.textContent = lastStatus();
+  if (lastStatus) statusBar.textContent = t(lastStatus.key, lastStatus.params);
   if (lastState) renderState(lastState);
   renderPlayer(lastPlayer);
   if (openDoor) {
