@@ -136,6 +136,35 @@ button:disabled {
   cursor: progress;
 }
 
+#locale-toggle {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 40;
+  display: flex;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+#locale-toggle button {
+  font: inherit;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgb(8 27 23 / 82%);
+  color: #d6dfd2;
+  cursor: pointer;
+  opacity: 0.55;
+}
+
+#locale-toggle button.active {
+  opacity: 1;
+  color: var(--gold);
+  font-weight: 700;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;

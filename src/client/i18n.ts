@@ -1,0 +1,77 @@
+/**
+ * Locale state and DOM application. First visit: browser language (fr* → French). The
+ * FR/EN toggle persists to localStorage and re-renders live — no reload.
+ */
+
+import { dictionaries, format, type Locale, type MessageKey } from "../shared/i18n/index.js";
+
+const STORAGE_KEY = "lindocara_locale";
+const listeners = new Set<() => void>();
+
+function detectLocale(): Locale {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored === "en" || stored === "fr") return stored;
+  return navigator.language.toLowerCase().startsWith("fr") ? "fr" : "en";
+}
+
+let current: Locale = detectLocale();
+
+export function currentLocale(): Locale {
+  return current;
+}
+
+export function t(key: MessageKey, params?: Record<string, string | number>): string {
+  return format(dictionaries[current][key], params);
+}
+
+export function setLocale(locale: Locale): void {
+  if (locale === current) return;
+  current = locale;
+  localStorage.setItem(STORAGE_KEY, locale);
+  document.documentElement.lang = locale;
+  for (const listener of listeners) listener();
+}
+
+export function onLocaleChange(listener: () => void): void {
+  listeners.add(listener);
+}
+
+/**
+ * `data-i18n="key"` sets textContent. `data-i18n-attr="attr:key;attr2:key2"` sets
+ * attributes (placeholders, aria-labels, titles).
+ */
+export function applyStaticText(root: ParentNode = document): void {
+  for (const element of root.querySelectorAll<HTMLElement>("[data-i18n]")) {
+    const key = element.dataset.i18n;
+    if (key) element.textContent = t(key as MessageKey);
+  }
+  for (const element of root.querySelectorAll<HTMLElement>("[data-i18n-attr]")) {
+    for (const pair of (element.dataset.i18nAttr ?? "").split(";")) {
+      const colon = pair.indexOf(":");
+      if (colon <= 0) continue;
+      element.setAttribute(pair.slice(0, colon), t(pair.slice(colon + 1) as MessageKey));
+    }
+  }
+}
+
+/** Wire the toggle, stamp <html lang>, and apply the initial pass. Call once at boot. */
+export function initLocale(): void {
+  document.documentElement.lang = current;
+  const buttons = document.querySelectorAll<HTMLButtonElement>("#locale-toggle button");
+  const paint = () => {
+    for (const button of buttons) {
+      button.classList.toggle("active", button.dataset.locale === current);
+    }
+  };
+  for (const button of buttons) {
+    button.addEventListener("click", () => {
+      setLocale(button.dataset.locale === "fr" ? "fr" : "en");
+    });
+  }
+  onLocaleChange(() => {
+    paint();
+    applyStaticText();
+  });
+  paint();
+  applyStaticText();
+}

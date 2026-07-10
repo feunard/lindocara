@@ -25,6 +25,7 @@ import type {
   QuestStatus,
 } from "../shared/protocol.js";
 import { PLAYER_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from "../shared/simulation.js";
+import { onLocaleChange, t } from "./i18n.js";
 import type { SceneSample } from "./net.js";
 import {
   DECOR_REGIONS,
@@ -335,6 +336,7 @@ export class Renderer {
   #ambientViews: AmbientView[] = [];
   #staticViews: StaticView[] = [];
   #worldTextViews: WorldTextView[] = [];
+  #localizedTexts: Array<{ node: Text; compute: () => string }> = [];
   #terrainTiles: Sprite[] = [];
   #waterTiles: Sprite[] = [];
   #terrainKey = "";
@@ -349,6 +351,9 @@ export class Renderer {
     private readonly art: ArtTextures,
   ) {
     this.#app = app;
+    onLocaleChange(() => {
+      for (const entry of this.#localizedTexts) entry.node.text = entry.compute();
+    });
   }
 
   static async create(canvas: HTMLCanvasElement): Promise<Renderer> {
@@ -939,8 +944,9 @@ export class Renderer {
 
   #buildWorldLabels(): void {
     for (const zone of WORLD_ZONES) {
+      const computeZoneLabel = () => t(zone.nameKey).toUpperCase();
       const label = new Text({
-        text: zone.name.toUpperCase(),
+        text: computeZoneLabel(),
         style: {
           fontFamily: "Georgia, serif",
           fontSize: 13,
@@ -960,12 +966,14 @@ export class Renderer {
         revealRadius: Math.max(420, Math.min(zone.radiusX, zone.radiusY)),
         zoneId: zone.id,
       });
+      this.#localizedTexts.push({ node: label, compute: computeZoneLabel });
     }
 
     for (const poi of POINTS_OF_INTEREST) {
       if (poi.kind === "tree" || poi.kind === "square") continue;
+      const computePoiLabel = () => t(poi.nameKey);
       const label = new Text({
-        text: poi.name,
+        text: computePoiLabel(),
         style: {
           fontFamily: "Georgia, serif",
           fontSize: 11,
@@ -984,6 +992,7 @@ export class Renderer {
         y: label.y,
         revealRadius: poi.revealRadius,
       });
+      this.#localizedTexts.push({ node: label, compute: computePoiLabel });
     }
   }
 
@@ -1010,8 +1019,9 @@ export class Renderer {
     questMark.position.set(16, -25);
     npc.addChild(questMark);
     this.#npcMark = questMark;
+    const computeNpcLabel = () => `${t("npc.warden.name")}\n${t("npc.warden.role")}`;
     const label = new Text({
-      text: `${QUEST_NPC.name}\n${QUEST_NPC.role}`,
+      text: computeNpcLabel(),
       style: {
         fontFamily: "Georgia, serif",
         fontSize: 11,
@@ -1025,6 +1035,7 @@ export class Renderer {
     label.alpha = 0;
     npc.addChild(label);
     this.#npcLabel = label;
+    this.#localizedTexts.push({ node: label, compute: computeNpcLabel });
     this.#actors.addChild(npc);
   }
 
@@ -1391,7 +1402,7 @@ export class Renderer {
                 : 0;
       }
       if (!(label instanceof Text)) continue;
-      label.text = local ? `${player.nick}  Lv ${player.level}` : player.nick;
+      label.text = local ? `${player.nick}  ${t("hud.lv", { level: player.level })}` : player.nick;
       if (!view.container.visible || !onScreen || player.dead || baseAlpha <= 0) {
         label.alpha = player.dead && local ? 0.45 : 0;
         continue;

@@ -1,0 +1,161 @@
+import type { en } from "./en.js";
+
+export const fr: Record<keyof typeof en, string> = {
+  // Écran de connexion
+  "auth.eyebrow": "Un petit monde en ligne",
+  "auth.subtitle": "La Combe Sauvage",
+  "auth.tagline":
+    "Éveillez-vous sous le Cœur-Racine. Prêtez le serment d'Elowen. Affrontez l'étrange vie du Bois-Crépuscule.",
+  "auth.tab.login": "Connexion",
+  "auth.tab.register": "Créer un compte",
+  "auth.username": "Nom d'utilisateur",
+  "auth.password": "Mot de passe",
+  "auth.password_confirm": "Confirmez le mot de passe",
+  "auth.submit.login": "Entrer dans la Combe",
+  "auth.submit.register": "Créer le compte",
+  "auth.error.username_taken": "Ce nom d'utilisateur est déjà pris.",
+  "auth.error.invalid_credentials": "Nom d'utilisateur ou mot de passe incorrect.",
+  "auth.error.invalid_username":
+    "Le nom d'utilisateur doit faire 2 à 16 caractères : lettres, chiffres, tiret ou tiret bas.",
+  "auth.error.invalid_password": "Le mot de passe doit faire entre 8 et 128 caractères.",
+  "auth.error.password_mismatch": "Les mots de passe ne correspondent pas.",
+  "auth.error.generic": "Une erreur est survenue. Réessayez.",
+
+  // Sélection de personnage
+  "chars.title": "Choisissez votre voyageur",
+  "chars.new": "Nouveau personnage",
+  "chars.play": "Jouer",
+  "chars.delete": "Supprimer",
+  "chars.delete_confirm": "Supprimer définitivement ?",
+  "chars.create.title": "Nouveau voyageur",
+  "chars.create.name": "Nom",
+  "chars.create.appearance": "Apparence",
+  "chars.create.submit": "Créer",
+  "chars.create.cancel": "Annuler",
+  "chars.error.limit_reached": "Ce compte possède déjà 3 personnages.",
+  "chars.error.invalid_name":
+    "Le nom doit faire 2 à 16 caractères : lettres, chiffres, tiret ou tiret bas.",
+  "chars.logout": "Se déconnecter",
+  "appearance.azure": "Azur",
+  "appearance.ember": "Braise",
+  "appearance.moss": "Mousse",
+  "appearance.violet": "Violet",
+
+  // ATH
+  "hud.level": "Niveau {level}",
+  "hud.lv": "Niv {level}",
+  "hud.vit": "VIT",
+  "hud.spark": "ÉCLAT",
+  "hud.oath": "Serment actif",
+  "hud.strike": "Frappe",
+  "hud.pack": "Sac du Voyageur",
+  "hud.switch_character": "Changer de personnage",
+  "hud.logout": "Se déconnecter",
+
+  // Objets
+  "item.potion": "Tonique du Cœur-Racine",
+  "item.gold": "Marcs solaires",
+  "item.crystal": "Éclats du crépuscule",
+  "item.sword": "Lame usée",
+  "item.sword_on": "Équipée",
+
+  // Quête
+  "quest.available": "Gardienne Elowen attend près du Cœur-Racine.",
+  "quest.active": "Apaisez les créatures du crépuscule dans les bois ({progress}/{target})",
+  "quest.ready": "Retournez voir Elowen au Cœur-Racine.",
+  "quest.completed": "Le Serment du Crépuchon est accompli.",
+
+  // Invites
+  "prompt.close_interior": "[E] Fermer la vue du seuil",
+  "prompt.look_inside": "[E] Regarder dans {name}",
+  "prompt.swear": "[E] Prêter le Serment du Crépuchon",
+  "prompt.claim": "[E] Réclamer votre récompense",
+  "prompt.speak": "[E] Parler à Elowen",
+  "prompt.hunt": "Suivez la Vieille Route - chassez les créatures du crépuscule [Espace]",
+  "prompt.approach": "Approchez du repère doré - Gardienne Elowen [E]",
+
+  // Discussion, aide, statut
+  "chat.title": "Voix du feu de camp",
+  "chat.placeholder": "Entrée : discuter...",
+  "help.move": "se déplacer",
+  "help.strike": "frapper",
+  "help.commune": "communier",
+  "help.tonic": "tonique",
+  "status.connecting": "connexion en tant que {name}...",
+  "status.connected": "connecté - La Combe Sauvage",
+  "status.disconnected": "déconnecté - {reason}",
+  "status.welcome_hint": "Elowen se tient près du repère doré. Appuyez sur [E] pour commencer.",
+  "status.connection_lost": "Connexion perdue. Rechargez pour revenir.",
+
+  // PNJ
+  "npc.warden.name": "Gardienne Elowen",
+  "npc.warden.role": "Le Serment du Crépuchon",
+
+  // Monstres
+  "monster.gloamcap": "Crépuchon",
+  "monster.murkbud": "Sombrebourgeon",
+  "monster.briar_ooze": "Limon des Ronces",
+  "monster.relic_ooze": "Limon des Reliques",
+  "monster.mire_murkbud": "Sombrebourgeon des Marais",
+  "monster.vault_gloamcap": "Crépuchon du Caveau",
+
+  // Zones
+  "zone.heartroot_crossing": "La Croisée du Cœur-Racine",
+  "zone.old_road": "La Vieille Route",
+  "zone.sunwake_clearing": "La Clairière du Levant",
+  "zone.gloamwood": "Le Bois-Crépuscule",
+  "zone.old_root_farm": "La Ferme de la Vieille Racine",
+  "zone.moonmere_reach": "Les Rives de Lunemere",
+  "zone.wayfarer_camp": "Le Camp du Voyageur",
+  "zone.elderfall_ruins": "Les Ruines d'Elderfall",
+  "zone.duskmire": "Le Sombremarais",
+  "zone.sealed_gate": "La Porte Scellée",
+
+  // Points d'intérêt
+  "poi.heartroot": "Le Cœur-Racine",
+  "poi.crossing_square": "La Place de la Croisée",
+  "poi.three_way_stone": "La Pierre des Trois Chemins",
+  "poi.sunwake_ring": "Le Cercle du Levant",
+  "poi.old_root_farm": "La Ferme de la Vieille Racine",
+  "poi.old_bridge": "Le Vieux Pont",
+  "poi.moonmere_reach": "Les Rives de Lunemere",
+  "poi.reedwater_ford": "Le Gué des Roseaux",
+  "poi.elderfall_court": "La Cour d'Elderfall",
+  "poi.wayfarer_camp": "Le Camp du Voyageur",
+  "poi.mireheart": "Cœur-de-Marais",
+  "poi.sealed_gate": "La Porte Scellée",
+
+  // Intérieurs
+  "interior.crossing-hall.name": "Le Hall de la Croisée",
+  "interior.crossing-hall.copy":
+    "Un feu doux, des herbes qui sèchent, un coffre en cèdre et une gardienne silencieuse qui trie des talismans.",
+  "interior.lantern-house.name": "La Maison des Lanternes",
+  "interior.lantern-house.copy":
+    "Des outils patinés, des sacs de semences, un établi et une carte de sentiers avalés par la mousse.",
+  "interior.wayfarer-rest.name": "Le Repos du Voyageur",
+  "interior.wayfarer-rest.copy":
+    "Des braises chaudes, des volets rapiécés et un coffre marqué du vieux sceau du village.",
+  "interior.bramblewick-farm.name": "La Ferme des Ronces",
+  "interior.bramblewick-farm.copy":
+    "Des outils poussiéreux, des casiers à semences vides et une carte d'itinéraire épinglée sous une fenêtre fêlée.",
+  "interior.close": "Fermer la vue du seuil",
+
+  // Événements serveur
+  "event.wake":
+    "Vous vous éveillez sous le Cœur-Racine. Elowen, marquée d'or, attend votre serment [E].",
+  "event.combat.too_far": "Trop loin — approchez-vous pour frapper.",
+  "event.combat.hit": "Vous frappez {species} : {damage} dégâts.",
+  "event.combat.hurt": "{species} vous inflige {damage} dégâts.",
+  "event.monster.defeated": "{species} vaincu : +{xp} XP.",
+  "event.level_up": "Niveau supérieur ! Vous êtes maintenant niveau {level}.",
+  "event.interact.nothing": "Rien d'assez proche pour interagir.",
+  "event.quest.accepted":
+    "Serment prêté — apaisez {target} créatures du crépuscule au-delà du Cœur-Racine.",
+  "event.quest.progress": "{progress}/{target} apaisées. Les bois s'agitent encore.",
+  "event.quest.fulfilled": "Le Serment du Crépuchon est accompli : +100 XP, +20 or, +2 toniques.",
+  "event.quest.blessing": "Elowen : le Cœur-Racine se souvient de votre courage.",
+  "event.potion.used": "Tonique du Cœur-Racine : +{heal} PV.",
+  "event.player.down": "{name} a été terrassé.",
+  "event.respawn": "Le Cœur-Racine vous rappelle à lui.",
+  "event.loot.picked": "Ramassé : {amount} × {kind}.",
+};

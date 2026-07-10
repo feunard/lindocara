@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,14 +8,20 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   </head>
   <body>
+    <fieldset id="locale-toggle" aria-label="Language / Langue">
+      <button type="button" data-locale="en">EN</button>
+      <button type="button" data-locale="fr">FR</button>
+    </fieldset>
     <canvas id="stage"></canvas>
 
     <div id="login" hidden>
       <form id="login-form">
-        <span class="eyebrow">A tiny online world</span>
+        <span class="eyebrow" data-i18n="auth.eyebrow">A tiny online world</span>
         <h1>lindocara</h1>
-        <h2>Everwild Hollow</h2>
-        <p>Wake beneath the Heartroot. Swear Elowen's oath. Face the strange life of the Gloamwood.</p>
+        <h2 data-i18n="auth.subtitle">Everwild Hollow</h2>
+        <p data-i18n="auth.tagline">
+          Wake beneath the Heartroot. Swear Elowen's oath. Face the strange life of the Gloamwood.
+        </p>
         <label for="nickname" class="visually-hidden">Nickname</label>
         <input
           id="nickname"
@@ -42,23 +48,23 @@
           <strong id="player-name">Wayfarer</strong>
           <span id="player-level">Level 1</span>
         </div>
-        <label><span>VIT</span><progress id="hp-bar" max="100" value="100"></progress><span id="hp-text"></span></label>
-        <label><span>SPARK</span><progress id="xp-bar" max="100" value="0"></progress><span id="xp-text"></span></label>
+        <label><span data-i18n="hud.vit">VIT</span><progress id="hp-bar" max="100" value="100"></progress><span id="hp-text"></span></label>
+        <label><span data-i18n="hud.spark">SPARK</span><progress id="xp-bar" max="100" value="0"></progress><span id="xp-text"></span></label>
       </section>
 
       <section class="panel quest">
-        <div class="panel-title"><span class="panel-icon panel-icon--oath" aria-hidden="true"></span><strong>Active Oath</strong></div>
+        <div class="panel-title"><span class="panel-icon panel-icon--oath" aria-hidden="true"></span><strong data-i18n="hud.oath">Active Oath</strong></div>
         <span id="quest-text">Speak with Keeper Elowen [E]</span>
         <progress id="quest-progress" max="3" value="0" hidden></progress>
       </section>
 
       <section class="panel combat" hidden>
-        <div class="panel-title"><span class="panel-icon panel-icon--sword" aria-hidden="true"></span><strong>Strike</strong></div>
+        <div class="panel-title"><span class="panel-icon panel-icon--sword" aria-hidden="true"></span><strong data-i18n="hud.strike">Strike</strong></div>
         <progress id="attack-cooldown" max="100" value="100"></progress>
       </section>
 
       <section class="panel inventory">
-        <div class="panel-title"><span class="panel-icon panel-icon--pack" aria-hidden="true"></span><strong>Wayfarer's Pack</strong></div>
+        <div class="panel-title"><span class="panel-icon panel-icon--pack" aria-hidden="true"></span><strong data-i18n="hud.pack">Wayfarer's Pack</strong></div>
         <div id="inventory-text" class="item-grid"></div>
       </section>
     </aside>
@@ -67,7 +73,15 @@
       <div class="interior-room">
         <header>
           <span id="interior-title">Wayside House</span>
-          <button id="interior-close" type="button" aria-label="Close threshold view" title="Close">&times;</button>
+          <button
+            id="interior-close"
+            type="button"
+            data-i18n-attr="aria-label:interior.close;title:interior.close"
+            aria-label="Close threshold view"
+            title="Close"
+          >
+            &times;
+          </button>
         </header>
         <div class="room-grid" aria-hidden="true">
           <span class="room-object hearth"></span>
@@ -84,15 +98,26 @@
     <div id="event-log" aria-live="polite"></div>
 
     <section id="chat" class="panel" hidden>
-      <div class="chat-title"><span>Campfire voices</span><kbd>Enter</kbd></div>
+      <div class="chat-title"><span data-i18n="chat.title">Campfire voices</span><kbd>Enter</kbd></div>
       <div id="chat-messages" aria-live="polite"></div>
       <form id="chat-form">
-        <input id="chat-input" maxlength="160" autocomplete="off" placeholder="Enter: chat..." />
+        <input
+          id="chat-input"
+          maxlength="160"
+          autocomplete="off"
+          placeholder="Enter: chat..."
+          data-i18n-attr="placeholder:chat.placeholder"
+        />
       </form>
     </section>
 
     <div id="prompt" hidden></div>
-    <div id="help" hidden><kbd>WASD</kbd> move <kbd>Space</kbd> strike <kbd>E</kbd> commune <kbd>Q</kbd> tonic</div>
+    <div id="help" hidden>
+      <kbd>WASD</kbd> <span data-i18n="help.move">move</span>
+      <kbd>Space</kbd> <span data-i18n="help.strike">strike</span>
+      <kbd>E</kbd> <span data-i18n="help.commune">commune</span>
+      <kbd>Q</kbd> <span data-i18n="help.tonic">tonic</span>
+    </div>
     <div id="status"></div>
 
     <script type="module" src="/src/client/main.ts"></script>

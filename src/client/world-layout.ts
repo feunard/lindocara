@@ -1,4 +1,5 @@
 import { type Rect, SAFE_ZONE, TERRAIN_BLOCKERS } from "../shared/game.js";
+import type { MessageKey } from "../shared/i18n/index.js";
 import type { Vec2 } from "../shared/simulation.js";
 
 export type ZoneId =
@@ -17,7 +18,7 @@ export type Biome = "village" | "meadow" | "forest" | "farm" | "wetland" | "ruin
 
 export interface ZoneDefinition extends Vec2 {
   id: ZoneId;
-  name: string;
+  nameKey: MessageKey;
   biome: Biome;
   radiusX: number;
   radiusY: number;
@@ -27,7 +28,7 @@ export interface ZoneDefinition extends Vec2 {
 export const WORLD_ZONES: readonly ZoneDefinition[] = [
   {
     id: "heartroot",
-    name: "Heartroot Crossing",
+    nameKey: "zone.heartroot_crossing",
     biome: "village",
     x: 920,
     y: 720,
@@ -37,7 +38,7 @@ export const WORLD_ZONES: readonly ZoneDefinition[] = [
   },
   {
     id: "old-road",
-    name: "The Old Road",
+    nameKey: "zone.old_road",
     biome: "meadow",
     x: 1650,
     y: 720,
@@ -47,7 +48,7 @@ export const WORLD_ZONES: readonly ZoneDefinition[] = [
   },
   {
     id: "sunwake",
-    name: "Sunwake Clearing",
+    nameKey: "zone.sunwake_clearing",
     biome: "meadow",
     x: 2110,
     y: 560,
@@ -57,7 +58,7 @@ export const WORLD_ZONES: readonly ZoneDefinition[] = [
   },
   {
     id: "gloamwood",
-    name: "Gloamwood",
+    nameKey: "zone.gloamwood",
     biome: "forest",
     x: 2180,
     y: 1390,
@@ -67,7 +68,7 @@ export const WORLD_ZONES: readonly ZoneDefinition[] = [
   },
   {
     id: "old-root-farm",
-    name: "Old Root Farm",
+    nameKey: "zone.old_root_farm",
     biome: "farm",
     x: 1920,
     y: 1980,
@@ -77,7 +78,7 @@ export const WORLD_ZONES: readonly ZoneDefinition[] = [
   },
   {
     id: "moonmere",
-    name: "Moonmere Reach",
+    nameKey: "zone.moonmere_reach",
     biome: "wetland",
     x: 2620,
     y: 1270,
@@ -87,7 +88,7 @@ export const WORLD_ZONES: readonly ZoneDefinition[] = [
   },
   {
     id: "wayfarer-camp",
-    name: "Wayfarer Camp",
+    nameKey: "zone.wayfarer_camp",
     biome: "meadow",
     x: 2870,
     y: 1810,
@@ -97,7 +98,7 @@ export const WORLD_ZONES: readonly ZoneDefinition[] = [
   },
   {
     id: "elderfall",
-    name: "Elderfall Ruins",
+    nameKey: "zone.elderfall_ruins",
     biome: "ruins",
     x: 3480,
     y: 760,
@@ -107,7 +108,7 @@ export const WORLD_ZONES: readonly ZoneDefinition[] = [
   },
   {
     id: "duskmire",
-    name: "Duskmire",
+    nameKey: "zone.duskmire",
     biome: "marsh",
     x: 3510,
     y: 2150,
@@ -117,7 +118,7 @@ export const WORLD_ZONES: readonly ZoneDefinition[] = [
   },
   {
     id: "sealed-gate",
-    name: "The Sealed Gate",
+    nameKey: "zone.sealed_gate",
     biome: "ruins",
     x: 4470,
     y: 1320,
@@ -218,16 +219,23 @@ export type PoiKind =
 
 export interface PointOfInterest extends Vec2 {
   id: string;
-  name: string;
+  nameKey: MessageKey;
   kind: PoiKind;
   revealRadius: number;
 }
 
 export const POINTS_OF_INTEREST: readonly PointOfInterest[] = [
-  { id: "heartroot-tree", name: "The Heartroot", kind: "tree", x: 550, y: 555, revealRadius: 440 },
+  {
+    id: "heartroot-tree",
+    nameKey: "poi.heartroot",
+    kind: "tree",
+    x: 550,
+    y: 555,
+    revealRadius: 440,
+  },
   {
     id: "crossing-square",
-    name: "Crossing Square",
+    nameKey: "poi.crossing_square",
     kind: "square",
     x: 930,
     y: 790,
@@ -235,7 +243,7 @@ export const POINTS_OF_INTEREST: readonly PointOfInterest[] = [
   },
   {
     id: "old-road-sign",
-    name: "Three-Way Stone",
+    nameKey: "poi.three_way_stone",
     kind: "sign",
     x: 1530,
     y: 735,
@@ -243,7 +251,7 @@ export const POINTS_OF_INTEREST: readonly PointOfInterest[] = [
   },
   {
     id: "sunwake-ring",
-    name: "Sunwake Ring",
+    nameKey: "poi.sunwake_ring",
     kind: "clearing",
     x: 2100,
     y: 560,
@@ -251,16 +259,23 @@ export const POINTS_OF_INTEREST: readonly PointOfInterest[] = [
   },
   {
     id: "abandoned-farm",
-    name: "Old Root Farm",
+    nameKey: "poi.old_root_farm",
     kind: "farm",
     x: 1960,
     y: 1910,
     revealRadius: 500,
   },
-  { id: "old-bridge", name: "The Old Bridge", kind: "bridge", x: 2610, y: 820, revealRadius: 430 },
+  {
+    id: "old-bridge",
+    nameKey: "poi.old_bridge",
+    kind: "bridge",
+    x: 2610,
+    y: 820,
+    revealRadius: 430,
+  },
   {
     id: "moonmere-lake",
-    name: "Moonmere Reach",
+    nameKey: "poi.moonmere_reach",
     kind: "lake",
     x: 2610,
     y: 1300,
@@ -268,7 +283,7 @@ export const POINTS_OF_INTEREST: readonly PointOfInterest[] = [
   },
   {
     id: "reedwater-ford",
-    name: "Reedwater Ford",
+    nameKey: "poi.reedwater_ford",
     kind: "ford",
     x: 2610,
     y: 1800,
@@ -276,15 +291,36 @@ export const POINTS_OF_INTEREST: readonly PointOfInterest[] = [
   },
   {
     id: "elderfall-court",
-    name: "Elderfall Court",
+    nameKey: "poi.elderfall_court",
     kind: "ruin",
     x: 3500,
     y: 720,
     revealRadius: 520,
   },
-  { id: "wayfarer-fire", name: "Wayfarer Camp", kind: "camp", x: 2880, y: 1810, revealRadius: 390 },
-  { id: "mire-heart", name: "Mireheart", kind: "danger", x: 3530, y: 2190, revealRadius: 520 },
-  { id: "sealed-gate", name: "The Sealed Gate", kind: "gate", x: 4480, y: 1320, revealRadius: 620 },
+  {
+    id: "wayfarer-fire",
+    nameKey: "poi.wayfarer_camp",
+    kind: "camp",
+    x: 2880,
+    y: 1810,
+    revealRadius: 390,
+  },
+  {
+    id: "mire-heart",
+    nameKey: "poi.mireheart",
+    kind: "danger",
+    x: 3530,
+    y: 2190,
+    revealRadius: 520,
+  },
+  {
+    id: "sealed-gate",
+    nameKey: "poi.sealed_gate",
+    kind: "gate",
+    x: 4480,
+    y: 1320,
+    revealRadius: 620,
+  },
 ] as const;
 
 export type DecorTheme =

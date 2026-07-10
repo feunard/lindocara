@@ -6,8 +6,10 @@ import {
   QUEST_NPC,
   SAFE_ZONE,
 } from "../shared/game.js";
+import type { MessageKey } from "../shared/i18n/index.js";
 import type { PlayerSnapshot, QuestStatus, SelfState } from "../shared/protocol.js";
 import { NO_INPUT } from "../shared/simulation.js";
+import { initLocale, onLocaleChange, t } from "./i18n.js";
 import { trackActions, trackInput } from "./input.js";
 import { WorldClient } from "./net.js";
 import { type RenderContext, Renderer } from "./renderer.js";
@@ -58,46 +60,49 @@ const sound = new GameSound();
 
 interface InteriorDoor {
   id: string;
-  name: string;
+  nameKey: MessageKey;
   x: number;
   y: number;
-  copy: string;
+  copyKey: MessageKey;
 }
 
 const INTERIOR_RANGE = 54;
 const INTERIORS: readonly InteriorDoor[] = [
   {
     id: "crossing-hall",
-    name: "Crossing Hall",
+    nameKey: "interior.crossing-hall.name",
     x: 910,
     y: 490,
-    copy: "A low fire, drying herbs, a cedar chest, and a quiet keeper sorting charms.",
+    copyKey: "interior.crossing-hall.copy",
   },
   {
     id: "lantern-house",
-    name: "Lantern House",
+    nameKey: "interior.lantern-house.name",
     x: 1235,
     y: 500,
-    copy: "Weathered tools, sacks of seed, a workbench, and a map of paths swallowed by moss.",
+    copyKey: "interior.lantern-house.copy",
   },
   {
     id: "wayfarer-rest",
-    name: "Wayfarer Rest",
+    nameKey: "interior.wayfarer-rest.name",
     x: 510,
     y: 1055,
-    copy: "Warm coals, patched shutters, and a chest marked with the old village seal.",
+    copyKey: "interior.wayfarer-rest.copy",
   },
   {
     id: "bramblewick-farm",
-    name: "Bramblewick Farm",
+    nameKey: "interior.bramblewick-farm.name",
     x: 1960,
     y: 2070,
-    copy: "Dusty tools, empty seed racks, and a route map pinned beneath a cracked window.",
+    copyKey: "interior.bramblewick-farm.copy",
   },
 ] as const;
 
-function setStatus(text: string): void {
-  statusBar.textContent = text;
+let lastStatus: () => string = () => "";
+
+function setStatus(compute: () => string): void {
+  lastStatus = compute;
+  statusBar.textContent = compute();
 }
 
 type ItemIcon = "potion" | "gold" | "crystal" | "sword";
@@ -143,32 +148,39 @@ async function login(nickname: string): Promise<Me> {
   return body as Me;
 }
 
+let lastState: SelfState | null = null;
+let lastPlayer: PlayerSnapshot | undefined;
+
 function renderState(state: SelfState): void {
+  lastState = state;
   xpBar.max = state.xpToNext;
   xpBar.value = state.xp;
   xpText.textContent = `${state.xp}/${state.xpToNext}`;
   const { potions, gold, crystals, weapon } = state.inventory;
   inventoryText.replaceChildren(
-    itemChip("potion", "Heartroot tonic", String(potions), "Q"),
-    itemChip("gold", "Sunmarks", String(gold)),
-    itemChip("crystal", "Gloam shards", String(crystals)),
-    itemChip("sword", "Weathered blade", weapon === "rusty_sword" ? "On" : "?"),
+    itemChip("potion", t("item.potion"), String(potions), "Q"),
+    itemChip("gold", t("item.gold"), String(gold)),
+    itemChip("crystal", t("item.crystal"), String(crystals)),
+    itemChip("sword", t("item.sword"), weapon === "rusty_sword" ? t("item.sword_on") : "?"),
   );
   if (state.quest.status === "available") {
-    questText.textContent = "Keeper Elowen waits beside the Heartroot.";
+    questText.textContent = t("quest.available");
     questProgress.hidden = true;
   } else if (state.quest.status === "active") {
-    questText.textContent = `Quiet gloam creatures in the woods (${state.quest.progress}/${state.quest.target})`;
+    questText.textContent = t("quest.active", {
+      progress: state.quest.progress,
+      target: state.quest.target,
+    });
     questProgress.hidden = false;
     questProgress.max = state.quest.target;
     questProgress.value = state.quest.progress;
   } else if (state.quest.status === "ready") {
-    questText.textContent = "Return to Elowen at the Heartroot.";
+    questText.textContent = t("quest.ready");
     questProgress.hidden = false;
     questProgress.max = state.quest.target;
     questProgress.value = state.quest.target;
   } else {
-    questText.textContent = "The Gloamcap Oath is fulfilled.";
+    questText.textContent = t("quest.completed");
     questProgress.hidden = true;
   }
   pulse(questText.closest(".panel"));
@@ -188,8 +200,8 @@ function nearestInterior(self: PlayerSnapshot | undefined): InteriorDoor | undef
 }
 
 function openInterior(door: InteriorDoor): void {
-  interiorTitle.textContent = door.name;
-  interiorCopy.textContent = door.copy;
+  interiorTitle.textContent = t(door.nameKey);
+  interiorCopy.textContent = t(door.copyKey);
   interior.dataset.room = door.id;
   interior.hidden = false;
   interior.classList.add("open");
@@ -201,9 +213,10 @@ function closeInterior(): void {
 }
 
 function renderPlayer(player: PlayerSnapshot | undefined): void {
+  lastPlayer = player;
   if (!player) return;
   playerName.textContent = player.nick;
-  playerLevel.textContent = `Level ${player.level}`;
+  playerLevel.textContent = t("hud.level", { level: player.level });
   hpBar.max = player.maxHp;
   hpBar.value = player.hp;
   hpText.textContent = `${player.hp}/${player.maxHp}`;
@@ -231,7 +244,7 @@ function updatePrompt(
   interiorDoor: InteriorDoor | undefined,
 ): void {
   if (!interior.hidden) {
-    prompt.textContent = "[E] Close threshold view";
+    prompt.textContent = t("prompt.close_interior");
     prompt.hidden = false;
     return;
   }
@@ -241,7 +254,7 @@ function updatePrompt(
   }
   const nearNpc = pointDistance(self, QUEST_NPC) <= INTERACTION_RANGE;
   if (interiorDoor && !nearNpc) {
-    prompt.textContent = `[E] Look inside ${interiorDoor.name}`;
+    prompt.textContent = t("prompt.look_inside", { name: t(interiorDoor.nameKey) });
     prompt.hidden = false;
     return;
   }
@@ -251,10 +264,10 @@ function updatePrompt(
   ) {
     prompt.textContent =
       questStatus === "available"
-        ? "[E] Swear the Gloamcap Oath"
+        ? t("prompt.swear")
         : questStatus === "ready"
-          ? "[E] Claim your reward"
-          : "[E] Speak with Elowen";
+          ? t("prompt.claim")
+          : t("prompt.speak");
     prompt.hidden = false;
     return;
   }
@@ -264,12 +277,12 @@ function updatePrompt(
       self.x <= SAFE_ZONE.x + SAFE_ZONE.width &&
       self.y >= SAFE_ZONE.y &&
       self.y <= SAFE_ZONE.y + SAFE_ZONE.height;
-    prompt.textContent = "Follow the Old Road - hunt gloam creatures [Space]";
+    prompt.textContent = t("prompt.hunt");
     prompt.hidden = nearNpc || !inHub;
     return;
   }
   if (questStatus === "available") {
-    prompt.textContent = "Approach the golden marker - Keeper Elowen [E]";
+    prompt.textContent = t("prompt.approach");
     prompt.hidden = pointDistance(self, QUEST_NPC) > 420;
     return;
   }
@@ -306,7 +319,7 @@ function addChat(from: string, text: string): void {
 
 async function play(me: Me): Promise<void> {
   loginPanel.hidden = true;
-  setStatus(`connecting as ${me.nick}...`);
+  setStatus(() => t("status.connecting", { name: me.nick }));
   const renderer = await Renderer.create(canvas);
   const client = new WorldClient();
   const input = trackInput();
@@ -324,10 +337,10 @@ async function play(me: Me): Promise<void> {
       hud.hidden = false;
       chat.hidden = false;
       help.hidden = false;
-      setStatus("connected - Everwild Hollow");
+      setStatus(() => t("status.connected"));
       if (!welcomed) {
         welcomed = true;
-        addEvent("Elowen stands beside the golden marker. Press [E] to begin.", "info");
+        addEvent(t("status.welcome_hint"), "info");
       }
     },
     onState: (state) => {
@@ -352,8 +365,8 @@ async function play(me: Me): Promise<void> {
     onClose: (reason) => {
       input.stop();
       stopActions?.();
-      setStatus(`disconnected - ${reason}`);
-      addEvent("Connection lost. Reload to rejoin.", "bad");
+      setStatus(() => t("status.disconnected", { reason }));
+      addEvent(t("status.connection_lost"), "bad");
     },
   });
 
@@ -450,6 +463,12 @@ async function play(me: Me): Promise<void> {
   }
 }
 
+onLocaleChange(() => {
+  statusBar.textContent = lastStatus();
+  if (lastState) renderState(lastState);
+  renderPlayer(lastPlayer);
+});
+
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   sound.unlock();
@@ -463,6 +482,8 @@ loginForm.addEventListener("submit", async (event) => {
     if (submit) submit.disabled = false;
   }
 });
+
+initLocale();
 
 const existing = await fetchMe();
 if (existing) await play(existing);
