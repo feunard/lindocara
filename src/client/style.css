@@ -81,7 +81,7 @@ body::after {
   color: var(--green);
   font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.22em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
@@ -103,7 +103,7 @@ body::after {
   font:
     italic 0.95rem Georgia,
     serif;
-  letter-spacing: 0.14em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
@@ -209,7 +209,7 @@ button:disabled {
   font:
     700 0.54rem ui-monospace,
     monospace;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
@@ -223,7 +223,7 @@ button:disabled {
   font:
     0.5rem ui-monospace,
     monospace;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
 }
 
 .identity label > span:last-child {
@@ -270,7 +270,7 @@ progress::-webkit-progress-value {
   font:
     700 0.64rem Georgia,
     serif;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
@@ -437,7 +437,7 @@ kbd {
   translate: -50% 0;
   padding: 0.45rem 0.85rem;
   border: 1px solid rgb(243 201 106 / 35%);
-  border-radius: 999px;
+  border-radius: 6px;
   background: rgb(8 28 22 / 88%);
   color: #ffe8a6;
   font:
@@ -477,7 +477,7 @@ kbd {
   font:
     700 0.64rem Georgia,
     serif;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
@@ -545,14 +545,10 @@ kbd {
 
 #interior {
   position: fixed;
-  inset: 0;
+  right: 0.8rem;
+  bottom: 4.9rem;
   z-index: 8;
-  display: grid;
-  place-items: center;
-  padding: 1rem;
-  background:
-    radial-gradient(circle at center, rgb(17 31 22 / 52%), rgb(2 8 7 / 82%)),
-    linear-gradient(180deg, rgb(0 0 0 / 12%), rgb(0 0 0 / 36%));
+  display: block;
   animation: interior-fade 180ms ease-out;
 }
 
@@ -560,15 +556,19 @@ kbd {
   display: none;
 }
 
+#interior:not([hidden]) ~ #prompt {
+  display: none;
+}
+
 .interior-room {
-  width: min(31rem, calc(100vw - 2rem));
+  width: min(27rem, calc(100vw - 1.6rem));
   border: 1px solid rgb(207 180 101 / 42%);
   border-radius: 8px;
   background:
     linear-gradient(90deg, rgb(57 43 30 / 92%) 1px, transparent 1px) 0 0 / 24px 24px,
     linear-gradient(rgb(57 43 30 / 92%) 1px, transparent 1px) 0 0 / 24px 24px,
     #2a2019;
-  box-shadow: 0 30px 80px rgb(0 0 0 / 62%);
+  box-shadow: 0 18px 50px rgb(0 0 0 / 54%);
   overflow: hidden;
 }
 
@@ -584,20 +584,22 @@ kbd {
   font:
     700 0.72rem Georgia,
     serif;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
 #interior-close {
-  width: auto;
-  padding: 0.28rem 0.5rem;
+  width: 1.7rem;
+  height: 1.7rem;
+  padding: 0;
   border-radius: 4px;
-  font-size: 0.58rem;
+  font-size: 1rem;
+  line-height: 1;
 }
 
 .room-grid {
   position: relative;
-  height: min(16rem, 52vh);
+  height: min(11rem, 32vh);
   image-rendering: pixelated;
   background:
     radial-gradient(circle at 22% 30%, rgb(240 170 78 / 16%), transparent 20%),
@@ -785,8 +787,22 @@ kbd {
     bottom: 0.65rem;
   }
 
+  #interior {
+    right: 0.8rem;
+    bottom: 5.2rem;
+    left: 0.8rem;
+  }
+
+  .interior-room {
+    width: 100%;
+  }
+
   #prompt {
-    bottom: 2.2rem;
+    bottom: 4.8rem;
     width: calc(100vw - 2rem);
+  }
+
+  #chat.chat-open ~ #prompt {
+    display: none;
   }
 }

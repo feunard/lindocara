@@ -24,7 +24,7 @@ function appearanceForId(id: string): Appearance {
 }
 
 function fromRow(row: typeof player.$inferSelect): PlayerProfile {
-  const position = clampRestoredPosition({ x: row.x, y: row.y });
+  const position = clampRestoredPosition({ x: row.x, y: row.y }, row.id);
   const maxHp = maxHpForLevel(row.level);
   return {
     id: row.id,
@@ -59,7 +59,7 @@ export async function loadOrCreateProfile(
     return fromRow({ ...existing, nick });
   }
 
-  const position = spawnPosition();
+  const position = spawnPosition(id);
   const appearance = appearanceForId(id);
   await db.insert(player).values({
     id,

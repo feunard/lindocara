@@ -14,8 +14,8 @@ export const TICK_MS = 1000 / TICK_HZ;
 /** Fixed timestep, in seconds. Every tick advances the world by exactly this much. */
 export const TICK_DT = 1 / TICK_HZ;
 
-export const WORLD_WIDTH = 1600;
-export const WORLD_HEIGHT = 900;
+export const WORLD_WIDTH = 4800;
+export const WORLD_HEIGHT = 2700;
 export const PLAYER_SIZE = 32;
 
 /** Pixels per second at full tilt. */

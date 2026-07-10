@@ -8,6 +8,7 @@ import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
 import { createDb, player } from "../src/server/db/index.js";
 import { loadOrCreateProfile, saveProfile } from "../src/server/profile.js";
+import { isWalkable, spawnPosition, WORLD_LANDMARKS } from "../src/shared/game.js";
 
 describe("player table", () => {
   // This pool does not isolate storage between tests, so rows written by one test are visible
@@ -109,6 +110,34 @@ describe("player table", () => {
 
     await db.insert(player).values(row);
     await expect(db.insert(player).values({ ...row, nick: "second" })).rejects.toThrow();
+  });
+
+  it("creates new profiles at their deterministic plaza spawn", async () => {
+    const db = createDb(env.DB);
+    const profile = await loadOrCreateProfile(db, "new-profile-id", "newbie");
+    expect(profile).toMatchObject(spawnPosition("new-profile-id"));
+    expect(isWalkable(profile)).toBe(true);
+  });
+
+  it("preserves walkable legacy positions and safely falls back from new blockers", async () => {
+    const db = createDb(env.DB);
+    await db.insert(player).values({ id: "legacy-valid", nick: "legacy", x: 784, y: 450 });
+    expect(await loadOrCreateProfile(db, "legacy-valid", "legacy")).toMatchObject({
+      x: 784,
+      y: 450,
+    });
+
+    const collider = WORLD_LANDMARKS.find((landmark) => landmark.collider)?.collider;
+    if (!collider) throw new Error("test world needs a landmark collider");
+    await db.insert(player).values({
+      id: "legacy-blocked",
+      nick: "blocked",
+      x: collider.x + 1,
+      y: collider.y + 1,
+    });
+    expect(await loadOrCreateProfile(db, "legacy-blocked", "blocked")).toMatchObject(
+      spawnPosition("legacy-blocked"),
+    );
   });
 
   it("persists and restores gameplay progression through the profile service", async () => {

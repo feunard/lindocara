@@ -8,6 +8,15 @@ import { describe, expect, it } from "vitest";
 import { SESSION_COOKIE } from "../src/server/session.js";
 import { type Attachment, positionFromAttachment } from "../src/server/world.js";
 import {
+  isWalkable,
+  OBSTACLES,
+  QUEST_NPC,
+  SAFE_ZONE,
+  spawnPosition,
+  WORLD_BOUNDARY_DEPTH,
+  WORLD_LANDMARKS,
+} from "../src/shared/game.js";
+import {
   type PlayerSnapshot,
   parseServerMessage,
   type ServerMessage,
@@ -25,7 +34,12 @@ import {
 
 const ORIGIN = "https://lindocara.test";
 
-async function sessionCookie(nickname: string): Promise<string> {
+interface TestSession {
+  cookie: string;
+  id: string;
+}
+
+async function testSession(nickname: string): Promise<TestSession> {
   const response = await SELF.fetch(`${ORIGIN}/api/session`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -35,7 +49,11 @@ async function sessionCookie(nickname: string): Promise<string> {
 
   const token = response.headers.get("Set-Cookie")?.split(";")[0]?.split("=")[1];
   if (!token) throw new Error("no session cookie issued");
-  return `${SESSION_COOKIE}=${token}`;
+  const body: unknown = await response.json();
+  if (typeof body !== "object" || body === null || !("id" in body) || typeof body.id !== "string") {
+    throw new Error("session response did not include a player id");
+  }
+  return { cookie: `${SESSION_COOKIE}=${token}`, id: body.id };
 }
 
 /**
@@ -66,9 +84,18 @@ class Client {
     });
   }
 
-  static async join(nickname: string, options: { pump?: boolean } = {}): Promise<Client> {
+  static async join(
+    nickname: string,
+    options: { pump?: boolean; position?: { x: number; y: number } } = {},
+  ): Promise<Client> {
+    const session = await testSession(nickname);
+    if (options.position) {
+      await env.DB.prepare("INSERT INTO player (id, nick, x, y) VALUES (?, ?, ?, ?)")
+        .bind(session.id, nickname, options.position.x, options.position.y)
+        .run();
+    }
     const response = await SELF.fetch(`${ORIGIN}/api/ws`, {
-      headers: { Upgrade: "websocket", Cookie: await sessionCookie(nickname) },
+      headers: { Upgrade: "websocket", Cookie: session.cookie },
     });
 
     expect(response.status).toBe(101);
@@ -160,9 +187,8 @@ class Client {
 }
 
 /**
- * Players spawn at a random x. A test that always pushes "right" will occasionally start next
- * to the right wall, travel nothing, and fail for reasons that have nothing to do with what it
- * claims to test. Always push toward the far wall.
+ * Spawn points are spread across the plaza. Always push toward the farther horizontal wall so
+ * movement assertions stay independent of which deterministic point an id receives.
  */
 function awayFromNearestWall(x: number): { direction: "left" | "right"; sign: 1 | -1 } {
   return x < (WORLD_WIDTH - PLAYER_SIZE) / 2
@@ -191,10 +217,19 @@ describe("World", () => {
 
     const welcome = await until("welcome", () => client.welcome);
     expect(welcome.selfId).toMatch(/^[0-9a-f-]{36}$/);
-    expect(welcome.world).toMatchObject({ width: 1600, height: 900, playerSize: 32 });
-    expect(welcome.world.obstacles.length).toBeGreaterThan(0);
+    expect(welcome.world).toMatchObject({
+      width: WORLD_WIDTH,
+      height: WORLD_HEIGHT,
+      playerSize: PLAYER_SIZE,
+      obstacles: OBSTACLES,
+      safeZone: SAFE_ZONE,
+      questNpc: QUEST_NPC,
+    });
     expect(welcome.monsters.length).toBeGreaterThan(0);
     expect(welcome.self.inventory).toMatchObject({ potions: 2, weapon: "rusty_sword" });
+    expect(welcome.players.find((player) => player.id === welcome.selfId)).toMatchObject(
+      spawnPosition(welcome.selfId),
+    );
 
     client.close();
   });
@@ -231,10 +266,10 @@ describe("World", () => {
     client.close();
   });
 
-  // Players spawn at a random x, so walking to the wall takes up to WORLD_WIDTH /
-  // PLAYER_SPEED ≈ 6s of real ticking. Vitest's 5s default would flake on an unlucky spawn.
-  it("never lets a square leave the world", { timeout: 20_000 }, async () => {
-    const client = await Client.join("dave");
+  it("never lets a square cross the authoritative boundary mass", async () => {
+    const client = await Client.join("dave", {
+      position: { x: WORLD_BOUNDARY_DEPTH + PLAYER_SPEED * TICK_DT, y: 2000 },
+    });
     await until("welcome", () => client.welcome);
 
     client.press("left");
@@ -242,16 +277,16 @@ describe("World", () => {
       "the square to reach the left wall",
       () => {
         const now = client.self();
-        return now && now.x === 0 ? now : undefined;
+        return now && now.x === WORLD_BOUNDARY_DEPTH ? now : undefined;
       },
-      15_000,
+      2_000,
     );
 
-    expect(pinned.x).toBe(0);
+    expect(pinned.x).toBe(WORLD_BOUNDARY_DEPTH);
 
     // Keep pushing: the wall must hold, not merely be touched once.
     await scheduler.wait(200);
-    expect(client.self()?.x).toBe(0);
+    expect(client.self()?.x).toBe(WORLD_BOUNDARY_DEPTH);
 
     client.close();
   });
@@ -287,11 +322,12 @@ describe("World", () => {
   });
 
   it("starts the server-owned quest only when interacting near the quest NPC", async () => {
-    const client = await Client.join("quester");
+    const client = await Client.join("quester", {
+      position: { x: QUEST_NPC.x + 50, y: QUEST_NPC.y },
+    });
     await until("welcome", () => client.welcome);
     expect(client.latestState?.quest.status).toBe("available");
 
-    // New profiles spawn in the sanctuary beside Warden Mira.
     client.action("interact");
     await until("quest state", () =>
       client.latestState?.quest.status === "active" ? client.latestState : undefined,
@@ -512,6 +548,7 @@ describe("positionFromAttachment", () => {
     expect(position.y).toBeGreaterThanOrEqual(0);
     expect(position.x).toBeLessThanOrEqual(WORLD_WIDTH - PLAYER_SIZE);
     expect(position.y).toBeLessThanOrEqual(WORLD_HEIGHT - PLAYER_SIZE);
+    expect(isWalkable(position)).toBe(true);
   };
 
   it("resumes a persisted position exactly", () => {
@@ -529,5 +566,22 @@ describe("positionFromAttachment", () => {
   ])("spawns fresh rather than trusting a %s coordinate", (_label, bad) => {
     inWorld(positionFromAttachment({ id: "a", nick: "n", x: bad, y: 10 }));
     inWorld(positionFromAttachment({ id: "a", nick: "n", x: 10, y: bad }));
+  });
+
+  it("uses the player-specific spawn for blocked and out-of-world attachments", () => {
+    const collider = WORLD_LANDMARKS.find((landmark) => landmark.collider)?.collider;
+    if (!collider) throw new Error("test world needs a landmark collider");
+    const expected = spawnPosition("returning-id");
+    expect(
+      positionFromAttachment({
+        id: "returning-id",
+        nick: "n",
+        x: collider.x + 1,
+        y: collider.y + 1,
+      }),
+    ).toEqual(expected);
+    expect(positionFromAttachment({ id: "returning-id", nick: "n", x: -500, y: 500 })).toEqual(
+      expected,
+    );
   });
 });

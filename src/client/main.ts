@@ -4,8 +4,10 @@ import {
   INTERACTION_RANGE,
   pointDistance,
   QUEST_NPC,
+  SAFE_ZONE,
 } from "../shared/game.js";
 import type { PlayerSnapshot, QuestStatus, SelfState } from "../shared/protocol.js";
+import { NO_INPUT } from "../shared/simulation.js";
 import { trackActions, trackInput } from "./input.js";
 import { WorldClient } from "./net.js";
 import { type RenderContext, Renderer } from "./renderer.js";
@@ -65,32 +67,32 @@ interface InteriorDoor {
 const INTERIOR_RANGE = 54;
 const INTERIORS: readonly InteriorDoor[] = [
   {
-    id: "hearth",
-    name: "Heartroot Hearth",
-    x: 620,
-    y: 205,
+    id: "crossing-hall",
+    name: "Crossing Hall",
+    x: 910,
+    y: 490,
     copy: "A low fire, drying herbs, a cedar chest, and a quiet keeper sorting charms.",
   },
   {
-    id: "farm",
-    name: "Old Root Farm",
-    x: 608,
-    y: 426,
+    id: "lantern-house",
+    name: "Lantern House",
+    x: 1235,
+    y: 500,
     copy: "Weathered tools, sacks of seed, a workbench, and a map of paths swallowed by moss.",
   },
   {
-    id: "watch",
-    name: "Mosswatch House",
-    x: 1038,
-    y: 168,
+    id: "wayfarer-rest",
+    name: "Wayfarer Rest",
+    x: 510,
+    y: 1055,
     copy: "Warm coals, patched shutters, and a chest marked with the old village seal.",
   },
   {
-    id: "marsh",
-    name: "Marsh Door",
-    x: 1018,
-    y: 552,
-    copy: "Damp stone, blue lanternlight, and a stairwell descending below the reeds.",
+    id: "bramblewick-farm",
+    name: "Bramblewick Farm",
+    x: 1960,
+    y: 2070,
+    copy: "Dusty tools, empty seed racks, and a route map pinned beneath a cracked window.",
   },
 ] as const;
 
@@ -229,7 +231,7 @@ function updatePrompt(
   interiorDoor: InteriorDoor | undefined,
 ): void {
   if (!interior.hidden) {
-    prompt.textContent = "[E] Leave";
+    prompt.textContent = "[E] Close threshold view";
     prompt.hidden = false;
     return;
   }
@@ -239,7 +241,7 @@ function updatePrompt(
   }
   const nearNpc = pointDistance(self, QUEST_NPC) <= INTERACTION_RANGE;
   if (interiorDoor && !nearNpc) {
-    prompt.textContent = `[E] Enter ${interiorDoor.name}`;
+    prompt.textContent = `[E] Look inside ${interiorDoor.name}`;
     prompt.hidden = false;
     return;
   }
@@ -257,13 +259,18 @@ function updatePrompt(
     return;
   }
   if (questStatus === "active") {
-    prompt.textContent = "Leave the Heartroot - hunt gloam creatures [Space]";
-    prompt.hidden = nearNpc;
+    const inHub =
+      self.x >= SAFE_ZONE.x &&
+      self.x <= SAFE_ZONE.x + SAFE_ZONE.width &&
+      self.y >= SAFE_ZONE.y &&
+      self.y <= SAFE_ZONE.y + SAFE_ZONE.height;
+    prompt.textContent = "Follow the Old Road - hunt gloam creatures [Space]";
+    prompt.hidden = nearNpc || !inHub;
     return;
   }
   if (questStatus === "available") {
     prompt.textContent = "Approach the golden marker - Keeper Elowen [E]";
-    prompt.hidden = false;
+    prompt.hidden = pointDistance(self, QUEST_NPC) > 420;
     return;
   }
   prompt.hidden = true;
@@ -352,6 +359,7 @@ async function play(me: Me): Promise<void> {
 
   stopActions = trackActions({
     attack: () => {
+      if (!interior.hidden) return;
       sound.unlock();
       sound.attack();
       attackCooldownUntil = performance.now() + ATTACK_COOLDOWN_MS;
@@ -378,6 +386,7 @@ async function play(me: Me): Promise<void> {
       connection.interact();
     },
     usePotion: () => {
+      if (!interior.hidden) return;
       sound.unlock();
       sound.loot();
       connection.usePotion();
@@ -412,7 +421,7 @@ async function play(me: Me): Promise<void> {
   });
 
   renderer.onFrame((now, dt) => {
-    client.update(input.current(), dt);
+    client.update(interior.hidden ? input.current() : NO_INPUT, dt);
     const sample = client.sample(now);
     const self = sample.players.find((player) => player.id === client.selfId);
     currentSelf = self;
@@ -436,6 +445,7 @@ async function play(me: Me): Promise<void> {
     (window as unknown as Record<string, unknown>).__lindocara = {
       all: () => client.sample(performance.now()),
       self: () => client.sample(performance.now()).players.find((p) => p.id === client.selfId),
+      renderStats: () => renderer.diagnostics(),
     };
   }
 }

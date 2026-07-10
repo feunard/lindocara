@@ -1,0 +1,12 @@
+
+> lindocara@0.1.0 dev
+> vite dev --host 127.0.0.1
+
+Using secrets defined in .dev.vars
+[2m15:22:55[22m [36m[1m[vite][22m[39m [35m[2m(lindocara)[22m[39m Re-optimizing dependencies because vite config has changed
+[2m15:22:56[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m Re-optimizing dependencies because vite config has changed
+
+  [32m[1mVITE[22m v8.1.4[39m  [2mready in [0m[1m4132[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://127.0.0.1:[1m5173[22m/[39m
+  [32m➜[39m  [1mDebug[22m:   [2m[33mhttp://127.0.0.1:[1m5173[22m[2m/__debug[39m[22m

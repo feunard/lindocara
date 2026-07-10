@@ -159,7 +159,7 @@ function profileFromAttachment(attachment: Attachment): PlayerProfile {
   return {
     id: attachment.id,
     nick: attachment.nick,
-    ...clampRestoredPosition(attachment),
+    ...clampRestoredPosition(attachment, attachment.id),
     level,
     xp: attachment.xp ?? 0,
     appearance: attachment.appearance ?? "azure",
@@ -180,10 +180,7 @@ function profileFromAttachment(attachment: Attachment): PlayerProfile {
 
 /** Kept exported because rebuilding a ticking DO cannot be simulated safely in the test pool. */
 export function positionFromAttachment(attachment: Attachment | null): Vec2 {
-  if (attachment && Number.isFinite(attachment.x) && Number.isFinite(attachment.y)) {
-    return clampRestoredPosition(attachment);
-  }
-  return spawnPosition();
+  return attachment === null ? spawnPosition() : clampRestoredPosition(attachment, attachment.id);
 }
 
 function createMonsters(): Monster[] {
@@ -621,7 +618,7 @@ export class World extends DurableObject<Env> {
   }
 
   #respawnPlayer(ws: WebSocket, player: Player): void {
-    const position = spawnPosition();
+    const position = spawnPosition(player.id);
     player.x = position.x;
     player.y = position.y;
     player.hp = maxHpForLevel(player.level);
