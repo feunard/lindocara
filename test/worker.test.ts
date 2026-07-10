@@ -4,11 +4,11 @@ import { SESSION_COOKIE } from "../src/server/session.js";
 
 const ORIGIN = "https://lindocara.test";
 
-async function login(nickname: string): Promise<Response> {
-  return SELF.fetch(`${ORIGIN}/api/session`, {
+async function register(username: string): Promise<Response> {
+  return SELF.fetch(`${ORIGIN}/api/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ nickname }),
+    body: JSON.stringify({ username, password: "12345678" }),
   });
 }
 
@@ -21,11 +21,11 @@ function tokenFrom(response: Response): string {
   return value as string;
 }
 
-describe("POST /api/session", () => {
-  it("issues an HttpOnly session cookie for a valid nickname", async () => {
-    const response = await login("player_one");
+describe("POST /api/register", () => {
+  it("issues an HttpOnly session cookie for a valid username", async () => {
+    const response = await register("player_one");
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ nick: "player_one" });
+    expect(await response.json()).toMatchObject({ username: "player_one" });
 
     const setCookie = response.headers.get("Set-Cookie") ?? "";
     expect(setCookie).toContain("HttpOnly");
@@ -36,16 +36,16 @@ describe("POST /api/session", () => {
 
   it.each([
     "a",
-    "way-too-long-a-nickname",
+    "way-too-long-a-username",
     "has space",
     "",
-  ])("rejects invalid nickname %j", async (nickname) => {
-    const response = await login(nickname);
+  ])("rejects invalid username %j", async (username) => {
+    const response = await register(username);
     expect(response.status).toBe(400);
   });
 
   it("rejects a non-JSON body", async () => {
-    const response = await SELF.fetch(`${ORIGIN}/api/session`, {
+    const response = await SELF.fetch(`${ORIGIN}/api/register`, {
       method: "POST",
       body: "not json",
     });
@@ -67,13 +67,13 @@ describe("GET /api/me", () => {
   });
 
   it("returns the session for a valid cookie", async () => {
-    const token = tokenFrom(await login("returning"));
+    const token = tokenFrom(await register("returning"));
     const response = await SELF.fetch(`${ORIGIN}/api/me`, {
       headers: { Cookie: `${SESSION_COOKIE}=${token}` },
     });
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ nick: "returning" });
+    expect(await response.json()).toMatchObject({ username: "returning" });
   });
 });
 

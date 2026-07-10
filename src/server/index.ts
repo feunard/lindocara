@@ -6,10 +6,13 @@
  * call and this handler never has to think about serving files.
  */
 
+import { createAccount, verifyCredentials } from "./accounts.js";
+import { createDb } from "./db/index.js";
 import {
   clearSessionCookie,
   createSession,
-  isValidNickname,
+  isValidPassword,
+  isValidUsername,
   readSessionCookie,
   serializeSessionCookie,
   signSession,
@@ -35,29 +38,58 @@ async function currentSession(request: Request, env: Env) {
   return verifySession(token, env.SESSION_SECRET);
 }
 
-async function handleLogin(request: Request, env: Env, url: URL): Promise<Response> {
+interface Credentials {
+  username: string;
+  password: string;
+}
+
+/** Returns parsed credentials or a ready-to-send 400. */
+async function readCredentials(request: Request): Promise<Credentials | Response> {
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return json({ error: "expected a JSON body" }, { status: 400 });
+    return json({ error: "expected_json" }, { status: 400 });
   }
+  const username = (body as { username?: unknown } | null)?.username;
+  const password = (body as { password?: unknown } | null)?.password;
+  if (!isValidUsername(username)) return json({ error: "invalid_username" }, { status: 400 });
+  if (!isValidPassword(password)) return json({ error: "invalid_password" }, { status: 400 });
+  return { username, password };
+}
 
-  const nick = (body as { nickname?: unknown } | null)?.nickname;
-  if (!isValidNickname(nick)) {
-    return json(
-      { error: "nickname must be 2-16 characters: letters, digits, underscore or hyphen" },
-      { status: 400 },
-    );
-  }
-
-  const session = createSession(nick);
+async function sessionResponse(
+  account: { id: string; username: string },
+  env: Env,
+  url: URL,
+): Promise<Response> {
+  const session = createSession(account.id, account.username);
   const token = await signSession(session, env.SESSION_SECRET);
-
   return json(
-    { id: session.id, nick: session.nick },
+    { id: account.id, username: account.username },
     { headers: { "Set-Cookie": serializeSessionCookie(token, isSecure(url)) } },
   );
+}
+
+async function handleRegister(request: Request, env: Env, url: URL): Promise<Response> {
+  const credentials = await readCredentials(request);
+  if (credentials instanceof Response) return credentials;
+  const account = await createAccount(createDb(env.DB), credentials.username, credentials.password);
+  if (account === "username_taken") return json({ error: "username_taken" }, { status: 409 });
+  return sessionResponse(account, env, url);
+}
+
+async function handleLogin(request: Request, env: Env, url: URL): Promise<Response> {
+  const credentials = await readCredentials(request);
+  if (credentials instanceof Response) return credentials;
+  const account = await verifyCredentials(
+    createDb(env.DB),
+    credentials.username,
+    credentials.password,
+  );
+  // One body for both "no such user" and "wrong password" — indistinguishable by design.
+  if (!account) return json({ error: "invalid_credentials" }, { status: 401 });
+  return sessionResponse(account, env, url);
 }
 
 async function handleJoin(request: Request, env: Env): Promise<Response> {
@@ -77,7 +109,7 @@ async function handleJoin(request: Request, env: Env): Promise<Response> {
       headers: {
         Upgrade: "websocket",
         "x-player-id": session.id,
-        "x-player-nick": session.nick,
+        "x-player-nick": session.username,
       },
     }),
   );
@@ -97,6 +129,10 @@ export default {
       return handleJoin(request, env);
     }
 
+    if (url.pathname === "/api/register" && request.method === "POST") {
+      return handleRegister(request, env, url);
+    }
+
     if (url.pathname === "/api/session" && request.method === "POST") {
       return handleLogin(request, env, url);
     }
@@ -111,7 +147,7 @@ export default {
     if (url.pathname === "/api/me" && request.method === "GET") {
       const session = await currentSession(request, env);
       if (!session) return json({ error: "unauthorized" }, { status: 401 });
-      return json({ id: session.id, nick: session.nick });
+      return json({ id: session.id, username: session.username });
     }
 
     return json({ error: "not found" }, { status: 404 });

@@ -39,19 +39,21 @@ interface TestSession {
   id: string;
 }
 
+let accountCounter = 0;
+
 async function testSession(nickname: string): Promise<TestSession> {
-  const response = await SELF.fetch(`${ORIGIN}/api/session`, {
+  const username = `u${++accountCounter}${nickname}`.toLowerCase().slice(0, 16);
+  const response = await SELF.fetch(`${ORIGIN}/api/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ nickname }),
+    body: JSON.stringify({ username, password: "12345678" }),
   });
   expect(response.status).toBe(200);
-
   const token = response.headers.get("Set-Cookie")?.split(";")[0]?.split("=")[1];
   if (!token) throw new Error("no session cookie issued");
   const body: unknown = await response.json();
   if (typeof body !== "object" || body === null || !("id" in body) || typeof body.id !== "string") {
-    throw new Error("session response did not include a player id");
+    throw new Error("register response did not include an account id");
   }
   return { cookie: `${SESSION_COOKIE}=${token}`, id: body.id };
 }
@@ -90,15 +92,14 @@ class Client {
   ): Promise<Client> {
     const session = await testSession(nickname);
     const spawn = options.position ?? { x: 784, y: 450 };
-    await env.DB.prepare(
-      "INSERT INTO account (id, username, password_hash, password_salt, password_iterations) VALUES (?, ?, 'x', 'x', 1)",
-    )
-      .bind(`acct-${session.id}`, `u-${session.id}`.slice(0, 16).toLowerCase())
-      .run();
+    // Until Task 6's `?character=` parameter, the Worker forwards the account id as
+    // `x-player-id`, and the DO loads a character by that id — so the character's id is set
+    // to the account id here. A character whose id equals its account id is a shim-only
+    // oddity that Task 6 removes.
     await env.DB.prepare(
       "INSERT INTO character (id, account_id, name, x, y) VALUES (?, ?, ?, ?, ?)",
     )
-      .bind(session.id, `acct-${session.id}`, nickname, spawn.x, spawn.y)
+      .bind(session.id, session.id, nickname, spawn.x, spawn.y)
       .run();
     const response = await SELF.fetch(`${ORIGIN}/api/ws`, {
       headers: { Upgrade: "websocket", Cookie: session.cookie },

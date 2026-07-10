@@ -1,22 +1,21 @@
 /**
  * Stateless, signed sessions.
  *
- * A token is `base64url(payload) "." base64url(hmac)`. There is no user table and no
- * password: a nickname buys you a signed identity, nothing more. The signature exists so
- * that a player cannot hand themselves someone else's id and hijack their square.
+ * A token is `base64url(payload) "." base64url(hmac)`. The signature exists so that a
+ * player cannot hand themselves someone else's id and hijack their account.
  *
- * Swapping this for real OAuth later means changing how a `Session` is minted. Everything
- * downstream — the cookie, the Worker, the Durable Object — keeps working untouched.
+ * The `id` is an account id, minted once at registration by `createAccount` — not per
+ * login. Logging in again reuses the same id; only `iat` changes.
  */
 
 export const SESSION_COOKIE = "lindocara_session";
 export const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 
-const NICKNAME_PATTERN = /^[A-Za-z0-9_-]{2,16}$/;
+const USERNAME_PATTERN = /^[A-Za-z0-9_-]{2,16}$/;
 
 export interface Session {
   id: string;
-  nick: string;
+  username: string;
   /** Issued-at, in seconds since the epoch. */
   iat: number;
 }
@@ -24,8 +23,12 @@ export interface Session {
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-export function isValidNickname(nick: unknown): nick is string {
-  return typeof nick === "string" && NICKNAME_PATTERN.test(nick);
+export function isValidUsername(value: unknown): value is string {
+  return typeof value === "string" && USERNAME_PATTERN.test(value);
+}
+
+export function isValidPassword(value: unknown): value is string {
+  return typeof value === "string" && value.length >= 8 && value.length <= 128;
 }
 
 function base64UrlEncode(bytes: Uint8Array): string {
@@ -104,19 +107,19 @@ export async function verifySession(token: string, secret: string): Promise<Sess
     session === null ||
     typeof (session as Session).id !== "string" ||
     typeof (session as Session).iat !== "number" ||
-    !isValidNickname((session as Session).nick)
+    !isValidUsername((session as Session).username)
   ) {
     return null;
   }
 
-  const { id, nick, iat } = session as Session;
+  const { id, username, iat } = session as Session;
   if (Date.now() / 1000 > iat + SESSION_TTL_SECONDS) return null;
 
-  return { id, nick, iat };
+  return { id, username, iat };
 }
 
-export function createSession(nick: string): Session {
-  return { id: crypto.randomUUID(), nick, iat: Math.floor(Date.now() / 1000) };
+export function createSession(id: string, username: string): Session {
+  return { id, username, iat: Math.floor(Date.now() / 1000) };
 }
 
 export function readSessionCookie(request: Request): string | null {

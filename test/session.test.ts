@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   createSession,
-  isValidNickname,
+  isValidPassword,
+  isValidUsername,
   readSessionCookie,
   SESSION_TTL_SECONDS,
   signSession,
@@ -10,9 +11,9 @@ import {
 
 const SECRET = "test-secret";
 
-describe("isValidNickname", () => {
-  it.each(["ab", "Player_1", "a-b-c", "0123456789abcdef"])("accepts %j", (nick) => {
-    expect(isValidNickname(nick)).toBe(true);
+describe("isValidUsername", () => {
+  it.each(["ab", "Player_1", "a-b-c", "0123456789abcdef"])("accepts %j", (username) => {
+    expect(isValidUsername(username)).toBe(true);
   });
 
   it.each([
@@ -24,31 +25,41 @@ describe("isValidNickname", () => {
     "",
     null,
     42,
-  ])("rejects %j", (nick) => {
-    expect(isValidNickname(nick)).toBe(false);
+  ])("rejects %j", (username) => {
+    expect(isValidUsername(username)).toBe(false);
+  });
+});
+
+describe("isValidPassword", () => {
+  it("rejects a password one character short of the minimum", () => {
+    expect(isValidPassword("1234567")).toBe(false);
+  });
+
+  it("accepts a password at the minimum length", () => {
+    expect(isValidPassword("12345678")).toBe(true);
   });
 });
 
 describe("signSession / verifySession", () => {
   it("round-trips a session", async () => {
-    const session = createSession("player");
+    const session = createSession("id-1", "player");
     const token = await signSession(session, SECRET);
 
     expect(await verifySession(token, SECRET)).toEqual(session);
   });
 
   it("rejects a token signed with a different secret", async () => {
-    const token = await signSession(createSession("player"), SECRET);
+    const token = await signSession(createSession("id-1", "player"), SECRET);
     expect(await verifySession(token, "other-secret")).toBeNull();
   });
 
   it("rejects a tampered payload", async () => {
-    const session = createSession("player");
+    const session = createSession("id-1", "player");
     const token = await signSession(session, SECRET);
     const [, signature] = token.split(".");
 
     // Forge a payload claiming to be someone else, keeping the original signature.
-    const forged = btoa(JSON.stringify({ ...session, nick: "victim" }))
+    const forged = btoa(JSON.stringify({ ...session, username: "victim" }))
       .replaceAll("+", "-")
       .replaceAll("/", "_")
       .replaceAll("=", "");
@@ -69,7 +80,7 @@ describe("signSession / verifySession", () => {
   });
 
   it("refuses to sign or verify with an unset secret", async () => {
-    const session = createSession("player");
+    const session = createSession("id-1", "player");
     await expect(signSession(session, "")).rejects.toThrow(/SESSION_SECRET/);
 
     const token = await signSession(session, SECRET);
@@ -77,7 +88,7 @@ describe("signSession / verifySession", () => {
   });
 
   it("rejects an expired token", async () => {
-    const token = await signSession(createSession("player"), SECRET);
+    const token = await signSession(createSession("id-1", "player"), SECRET);
     expect(await verifySession(token, SECRET)).not.toBeNull();
 
     const past = Date.now() + (SESSION_TTL_SECONDS + 60) * 1000;
