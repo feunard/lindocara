@@ -5,8 +5,17 @@
 
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
+import { createAccount, verifyCredentials } from "../src/server/accounts.js";
+import {
+  characterOwnedBy,
+  createCharacter,
+  deleteCharacter,
+  listCharacters,
+  MAX_CHARACTERS_PER_ACCOUNT,
+} from "../src/server/characters.js";
 import { account, character, createDb } from "../src/server/db/index.js";
 import { loadProfile, saveProfile } from "../src/server/profile.js";
+import { spawnPosition } from "../src/shared/game.js";
 
 describe("account and character tables", () => {
   // The pool does not isolate storage between tests. Truncate children before parents (FK).
@@ -155,5 +164,84 @@ describe("account and character tables", () => {
       inventory: { gold: 19 },
       quest: { status: "active", progress: 2 },
     });
+  });
+});
+
+describe("accounts service", () => {
+  afterEach(async () => {
+    await env.DB.exec("DELETE FROM character");
+    await env.DB.exec("DELETE FROM account");
+  });
+
+  it("creates an account and verifies its credentials", async () => {
+    const db = createDb(env.DB);
+    const created = await createAccount(db, "Nico", "a good password");
+    if (created === "username_taken") throw new Error("unexpected collision");
+    expect(created.username).toBe("nico"); // stored lowercase
+
+    expect(await verifyCredentials(db, "nico", "a good password")).toMatchObject({
+      id: created.id,
+    });
+    // Login is case-insensitive on the username…
+    expect(await verifyCredentials(db, "NICO", "a good password")).toMatchObject({
+      id: created.id,
+    });
+    // …but never on the password.
+    expect(await verifyCredentials(db, "nico", "A good password")).toBeNull();
+    expect(await verifyCredentials(db, "stranger", "a good password")).toBeNull();
+  });
+
+  it("rejects a duplicate username case-insensitively", async () => {
+    const db = createDb(env.DB);
+    await createAccount(db, "nico", "a good password");
+    expect(await createAccount(db, "NiCo", "another password")).toBe("username_taken");
+  });
+});
+
+describe("characters service", () => {
+  afterEach(async () => {
+    await env.DB.exec("DELETE FROM character");
+    await env.DB.exec("DELETE FROM account");
+  });
+
+  async function owner(username = "owner"): Promise<string> {
+    const created = await createAccount(createDb(env.DB), username, "a good password");
+    if (created === "username_taken") throw new Error("test account collision");
+    return created.id;
+  }
+
+  it("creates up to the cap, then refuses", async () => {
+    const db = createDb(env.DB);
+    const accountId = await owner();
+    for (let i = 0; i < MAX_CHARACTERS_PER_ACCOUNT; i++) {
+      const created = await createCharacter(db, accountId, `Hero${i}`, "ember");
+      expect(created).toMatchObject({ name: `Hero${i}`, appearance: "ember", level: 1 });
+    }
+    expect(await createCharacter(db, accountId, "OneTooMany", "moss")).toBe("limit_reached");
+    expect(await listCharacters(db, accountId)).toHaveLength(MAX_CHARACTERS_PER_ACCOUNT);
+  });
+
+  it("spawns a new character at its deterministic plaza spawn", async () => {
+    const db = createDb(env.DB);
+    const created = await createCharacter(db, await owner(), "Fresh", "azure");
+    if (created === "limit_reached") throw new Error("unexpected cap");
+    const row = await loadProfile(db, created.id);
+    expect(row).toMatchObject(spawnPosition(created.id));
+  });
+
+  it("scopes list, ownership, and delete to the owning account", async () => {
+    const db = createDb(env.DB);
+    const alice = await owner("alice");
+    const bob = await owner("bob");
+    const created = await createCharacter(db, alice, "AliceHero", "violet");
+    if (created === "limit_reached") throw new Error("unexpected cap");
+
+    expect(await listCharacters(db, bob)).toEqual([]);
+    expect(await characterOwnedBy(db, alice, created.id)).toMatchObject({ id: created.id });
+    expect(await characterOwnedBy(db, bob, created.id)).toBeNull();
+
+    expect(await deleteCharacter(db, bob, created.id)).toBe(false);
+    expect(await deleteCharacter(db, alice, created.id)).toBe(true);
+    expect(await listCharacters(db, alice)).toEqual([]);
   });
 });
