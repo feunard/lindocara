@@ -1,5 +1,30 @@
+import { useEffect } from "react";
+import type { CharacterSummary } from "../api.js";
+import { fetchMe } from "../api.js";
+import { startGame } from "../main.js";
+import { useUiStore } from "../store.js";
+import { AuthScreen } from "./AuthScreen.js";
+import { CharacterSelect } from "./CharacterSelect.js";
 import { LocaleToggle } from "./LocaleToggle.js";
 
 export function App() {
-  return <LocaleToggle />;
+  const screen = useUiStore((s) => s.screen);
+  const setScreen = useUiStore((s) => s.setScreen);
+
+  useEffect(() => {
+    fetchMe().then((me) => setScreen(me ? "characters" : "auth"));
+  }, [setScreen]);
+
+  function play(character: CharacterSummary) {
+    setScreen("game");
+    void startGame(character);
+  }
+
+  return (
+    <>
+      <LocaleToggle />
+      {screen === "auth" && <AuthScreen />}
+      {screen === "characters" && <CharacterSelect onPlay={play} />}
+    </>
+  );
 }
