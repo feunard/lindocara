@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dictionaries, format } from "../src/shared/i18n/index.js";
+import { EVENT_CODES } from "../src/shared/protocol.js";
 
 describe("i18n", () => {
   it("interpolates {tokens} and leaves unknown tokens visible", () => {
@@ -19,6 +20,15 @@ describe("i18n", () => {
     for (const locale of ["en", "fr"] as const) {
       for (const [key, value] of Object.entries(dictionaries[locale])) {
         expect(value, `${locale}:${key}`).not.toBe("");
+      }
+    }
+  });
+
+  it("has a template for every event code in both languages", () => {
+    for (const code of EVENT_CODES) {
+      for (const locale of ["en", "fr"] as const) {
+        const table = dictionaries[locale] as Record<string, string>;
+        expect(table[`event.${code}`], `${locale}:event.${code}`).toBeTypeOf("string");
       }
     }
   });

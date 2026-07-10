@@ -16,6 +16,7 @@ import {
   TERRAIN_BLOCKERS,
   WORLD_LANDMARKS,
 } from "../shared/game.js";
+import type { MessageKey } from "../shared/i18n/index.js";
 import type {
   Appearance,
   ItemKind,
@@ -1302,7 +1303,7 @@ export class Renderer {
     alert.visible = false;
     container.addChild(alert);
     const label = new Text({
-      text: monster.name,
+      text: t(`monster.${monster.species}` as MessageKey),
       style: {
         fontFamily: "Georgia, serif",
         fontSize: 11,
@@ -1724,7 +1725,8 @@ export class Renderer {
           }
           const label = view.container.getChildByLabel("label");
           if (label instanceof Text) {
-            label.text = aggro ? `!  ${monster.name}` : monster.name;
+            const name = t(`monster.${monster.species}` as MessageKey);
+            label.text = aggro ? `!  ${name}` : name;
             label.alpha = monster.dead ? 0 : aggro || close ? 0.92 : 0;
           }
           this.#drawHp(view, monster.hp, monster.maxHp);

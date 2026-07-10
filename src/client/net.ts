@@ -11,6 +11,9 @@ import {
 import {
   type ClientMessage,
   type Command,
+  type EventCode,
+  type EventParams,
+  type EventTone,
   type LootSnapshot,
   type MonsterSnapshot,
   type PlayerSnapshot,
@@ -49,7 +52,13 @@ export interface ConnectionHandlers {
   onWelcome(selfId: string, world: WorldInfo, state: SelfState): void;
   onState(state: SelfState): void;
   onChat(from: string, text: string): void;
-  onEvent(text: string, tone: "info" | "good" | "bad", x?: number, y?: number): void;
+  onEvent(
+    code: EventCode,
+    params: EventParams | undefined,
+    tone: EventTone,
+    x?: number,
+    y?: number,
+  ): void;
   onClose(reason: string): void;
 }
 
@@ -182,7 +191,7 @@ export class WorldClient {
       handlers.onChat(message.from, message.text);
       return;
     }
-    handlers.onEvent(message.text, message.tone, message.x, message.y);
+    handlers.onEvent(message.code, message.params, message.tone, message.x, message.y);
   }
 
   #push(players: PlayerSnapshot[], monsters: MonsterSnapshot[], loot: LootSnapshot[]): number {

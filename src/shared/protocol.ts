@@ -5,7 +5,7 @@
  * server can acknowledge exactly what it applied; actions are still just intent.
  */
 
-import type { NpcDefinition, Rect } from "./game.js";
+import type { MonsterSpecies, NpcDefinition, Rect } from "./game.js";
 import type { Input } from "./simulation.js";
 
 /** One tick's worth of movement intent, stamped so the server can acknowledge it. */
@@ -48,7 +48,7 @@ export interface PlayerSnapshot {
 export interface MonsterSnapshot {
   id: string;
   kind: "slime";
-  name: string;
+  species: MonsterSpecies;
   x: number;
   y: number;
   hp: number;
@@ -90,6 +90,30 @@ export type ClientMessage =
 
 export type EventTone = "info" | "good" | "bad";
 
+/**
+ * Every event the server can emit. The server sends a code and params; the client owns the
+ * localized template (`event.<code>` in `shared/i18n/`). No prose crosses the wire.
+ */
+export const EVENT_CODES = [
+  "wake",
+  "combat.too_far",
+  "combat.hit",
+  "combat.hurt",
+  "monster.defeated",
+  "level_up",
+  "interact.nothing",
+  "quest.accepted",
+  "quest.progress",
+  "quest.fulfilled",
+  "quest.blessing",
+  "potion.used",
+  "player.down",
+  "respawn",
+  "loot.picked",
+] as const;
+export type EventCode = (typeof EVENT_CODES)[number];
+export type EventParams = Record<string, string | number>;
+
 /** Sent by the Durable Object. */
 export type ServerMessage =
   | {
@@ -110,7 +134,7 @@ export type ServerMessage =
     }
   | { t: "state"; self: SelfState }
   | { t: "chat"; from: string; text: string }
-  | { t: "event"; text: string; tone: EventTone; x?: number; y?: number };
+  | { t: "event"; code: EventCode; params?: EventParams; tone: EventTone; x?: number; y?: number };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -188,7 +212,9 @@ export function parseServerMessage(raw: string): ServerMessage | null {
     }
     if (
       value.t === "event" &&
-      typeof value.text === "string" &&
+      typeof value.code === "string" &&
+      (EVENT_CODES as readonly string[]).includes(value.code) &&
+      (value.params === undefined || isRecord(value.params)) &&
       (value.tone === "info" || value.tone === "good" || value.tone === "bad")
     ) {
       return value as unknown as ServerMessage;

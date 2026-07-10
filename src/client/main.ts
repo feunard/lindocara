@@ -7,7 +7,14 @@ import {
   SAFE_ZONE,
 } from "../shared/game.js";
 import type { MessageKey } from "../shared/i18n/index.js";
-import type { Appearance, PlayerSnapshot, QuestStatus, SelfState } from "../shared/protocol.js";
+import type {
+  Appearance,
+  EventCode,
+  EventParams,
+  PlayerSnapshot,
+  QuestStatus,
+  SelfState,
+} from "../shared/protocol.js";
 import { NO_INPUT } from "../shared/simulation.js";
 import { initLocale, onLocaleChange, t } from "./i18n.js";
 import { trackActions, trackInput } from "./input.js";
@@ -419,13 +426,21 @@ function pulse(element: Element | null): void {
   element.classList.add("pulse");
 }
 
-function shouldLogEvent(text: string): boolean {
-  if (/^You hit /i.test(text)) return false;
-  if (/ hits you for /i.test(text)) return true;
-  if (/too far|nothing close/i.test(text)) return true;
-  if (/knocked out|heartroot|oath|level up|defeated|picked up|tonic|awaken|still stir/i.test(text))
-    return true;
-  return text.length < 80;
+/** Resolve species/kind params to localized names, then apply the event template. */
+function eventText(code: EventCode, params: EventParams = {}): string {
+  const resolved: EventParams = { ...params };
+  if (typeof resolved.species === "string") {
+    resolved.species = t(`monster.${resolved.species}` as MessageKey);
+  }
+  if (typeof resolved.kind === "string") {
+    resolved.kind = t(`item.${resolved.kind}` as MessageKey);
+  }
+  return t(`event.${code}` as MessageKey, resolved);
+}
+
+/** Your own hits spam the combat log; everything else is worth a line. */
+function shouldLogEvent(code: EventCode): boolean {
+  return code !== "combat.hit";
 }
 
 function updatePrompt(
@@ -541,16 +556,35 @@ async function play(character: CharacterSummary): Promise<void> {
         addChat(from, text);
         sound.chat();
       },
-      onEvent: (text, tone, x, y) => {
-        if (shouldLogEvent(text)) addEvent(text, tone);
+      onEvent: (code, params, tone, x, y) => {
+        const text = eventText(code, params);
+        if (shouldLogEvent(code)) addEvent(text, tone);
         renderer.showWorldEvent(text, tone, x, y);
-        if (/swing hits only air|too far/i.test(text)) {
-          sound.attack();
-          renderer.playAttackMiss();
-        } else if (/level up|oath is fulfilled/i.test(text)) sound.levelUp();
-        else if (/picked up|oath sworn|heartroot tonic/i.test(text)) sound.loot();
-        else if (/knocked out|awaken/i.test(text)) sound.death();
-        else if (/You hit|hits you for/i.test(text)) sound.hit();
+        switch (code) {
+          case "combat.too_far":
+            sound.attack();
+            renderer.playAttackMiss();
+            break;
+          case "level_up":
+          case "quest.fulfilled":
+            sound.levelUp();
+            break;
+          case "loot.picked":
+          case "quest.accepted":
+          case "potion.used":
+            sound.loot();
+            break;
+          case "player.down":
+          case "respawn":
+            sound.death();
+            break;
+          case "combat.hit":
+          case "combat.hurt":
+            sound.hit();
+            break;
+          default:
+            break;
+        }
       },
       onClose: (reason) => {
         input.stop();

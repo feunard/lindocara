@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { parseClientMessage, parseServerMessage } from "../src/shared/protocol.js";
+import {
+  encodeServerMessage,
+  parseClientMessage,
+  parseServerMessage,
+} from "../src/shared/protocol.js";
 
 describe("client protocol", () => {
   it("accepts movement and action intents without accepting outcomes", () => {
@@ -55,5 +59,28 @@ describe("server protocol", () => {
     expect(parseServerMessage(JSON.stringify({ t: "unknown" }))).toBeNull();
     expect(parseServerMessage(JSON.stringify({ t: "snapshot", players: [] }))).toBeNull();
     expect(parseServerMessage("broken")).toBeNull();
+  });
+});
+
+describe("event messages", () => {
+  it("round-trips a coded event", () => {
+    const encoded = encodeServerMessage({
+      t: "event",
+      code: "combat.hit",
+      params: { species: "gloamcap", damage: 12 },
+      tone: "info",
+      x: 1,
+      y: 2,
+    });
+    expect(parseServerMessage(encoded)).toMatchObject({ t: "event", code: "combat.hit" });
+  });
+
+  it("rejects unknown codes and the legacy text shape", () => {
+    expect(
+      parseServerMessage(JSON.stringify({ t: "event", code: "made.up", tone: "info" })),
+    ).toBeNull();
+    expect(
+      parseServerMessage(JSON.stringify({ t: "event", text: "Old prose.", tone: "info" })),
+    ).toBeNull();
   });
 });

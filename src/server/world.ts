@@ -22,6 +22,7 @@ import {
   MONSTER_SPAWNS,
   MONSTER_SPEED,
   MONSTER_XP,
+  type MonsterSpecies,
   maxHpForLevel,
   OBSTACLES,
   PLAYER_RESPAWN_MS,
@@ -99,7 +100,7 @@ interface Player extends PlayerProfile {
 interface Monster extends Vec2 {
   id: string;
   kind: "slime";
-  name: string;
+  species: MonsterSpecies;
   spawnX: number;
   spawnY: number;
   patrolRadius: number;
@@ -245,11 +246,7 @@ export class World extends DurableObject<Env> {
       loot: this.#lootSnapshots(),
       self: this.#selfState(player),
     });
-    this.#send(server, {
-      t: "event",
-      text: "You wake beneath the Heartroot. Elowen, marked in gold, awaits your oath [E].",
-      tone: "info",
-    });
+    this.#send(server, { t: "event", code: "wake", tone: "info" });
     this.#startLoop();
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -338,7 +335,7 @@ export class World extends DurableObject<Env> {
       }
     }
     if (!target) {
-      this.#send(ws, { t: "event", text: "Too far — step closer to strike.", tone: "info" });
+      this.#send(ws, { t: "event", code: "combat.too_far", tone: "info" });
       return;
     }
 
@@ -347,7 +344,8 @@ export class World extends DurableObject<Env> {
     target.hp = result.hp;
     this.#send(ws, {
       t: "event",
-      text: `You hit ${target.name} for ${damage}.`,
+      code: "combat.hit",
+      params: { species: target.species, damage },
       tone: "info",
       x: target.x,
       y: target.y,
@@ -376,25 +374,24 @@ export class World extends DurableObject<Env> {
       y: monster.y + 8,
       expiresAt: now + 30_000,
     });
-    this.#send(ws, {
-      t: "event",
-      text:
-        result.levelsGained > 0
-          ? `Level up! You are now level ${player.level}.`
-          : `Defeated ${monster.name}: +${MONSTER_XP} XP.`,
-      tone: "good",
-    });
+    this.#send(
+      ws,
+      result.levelsGained > 0
+        ? { t: "event", code: "level_up", params: { level: player.level }, tone: "good" }
+        : {
+            t: "event",
+            code: "monster.defeated",
+            params: { species: monster.species, xp: MONSTER_XP },
+            tone: "good",
+          },
+    );
     this.#sendState(ws, player);
     player.dirty = true;
   }
 
   #interact(ws: WebSocket, player: Player): void {
     if (player.deadUntil > Date.now() || pointDistance(player, QUEST_NPC) > INTERACTION_RANGE) {
-      this.#send(ws, {
-        t: "event",
-        text: "There is nothing close enough to interact with.",
-        tone: "info",
-      });
+      this.#send(ws, { t: "event", code: "interact.nothing", tone: "info" });
       return;
     }
     if (player.quest.status === "available") {
@@ -402,13 +399,15 @@ export class World extends DurableObject<Env> {
       player.quest.progress = 0;
       this.#send(ws, {
         t: "event",
-        text: `Oath sworn — quiet ${QUEST_KILL_TARGET} gloam creatures beyond the Heartroot.`,
+        code: "quest.accepted",
+        params: { target: QUEST_KILL_TARGET },
         tone: "good",
       });
     } else if (player.quest.status === "active") {
       this.#send(ws, {
         t: "event",
-        text: `${player.quest.progress}/${QUEST_KILL_TARGET} quieted. The woods still stir.`,
+        code: "quest.progress",
+        params: { progress: player.quest.progress, target: QUEST_KILL_TARGET },
         tone: "info",
       });
     } else if (player.quest.status === "ready") {
@@ -419,17 +418,9 @@ export class World extends DurableObject<Env> {
       player.level = result.level;
       player.xp = result.xp;
       player.hp = maxHpForLevel(player.level);
-      this.#send(ws, {
-        t: "event",
-        text: "The Gloamcap Oath is fulfilled: +100 XP, +20 gold, +2 tonics.",
-        tone: "good",
-      });
+      this.#send(ws, { t: "event", code: "quest.fulfilled", tone: "good" });
     } else {
-      this.#send(ws, {
-        t: "event",
-        text: "Elowen: the Heartroot remembers your courage.",
-        tone: "good",
-      });
+      this.#send(ws, { t: "event", code: "quest.blessing", tone: "good" });
     }
     player.dirty = true;
     this.#sendState(ws, player);
@@ -442,7 +433,7 @@ export class World extends DurableObject<Env> {
     player.inventory.potions -= 1;
     player.hp = Math.min(maxHp, player.hp + 45);
     player.dirty = true;
-    this.#send(ws, { t: "event", text: "Heartroot tonic: +45 HP.", tone: "good" });
+    this.#send(ws, { t: "event", code: "potion.used", params: { heal: 45 }, tone: "good" });
     this.#sendState(ws, player);
   }
 
@@ -563,7 +554,7 @@ export class World extends DurableObject<Env> {
         if (targetDistance <= MONSTER_ATTACK_RANGE) {
           if (now - monster.lastAttackAt >= MONSTER_ATTACK_COOLDOWN_MS) {
             monster.lastAttackAt = now;
-            this.#damagePlayer(socket, player, MONSTER_DAMAGE, monster.name, now);
+            this.#damagePlayer(socket, player, MONSTER_DAMAGE, monster.species, now);
           }
           continue;
         }
@@ -593,13 +584,20 @@ export class World extends DurableObject<Env> {
     monster.y = moved.y;
   }
 
-  #damagePlayer(ws: WebSocket, player: Player, damage: number, source: string, now: number): void {
+  #damagePlayer(
+    ws: WebSocket,
+    player: Player,
+    damage: number,
+    species: MonsterSpecies,
+    now: number,
+  ): void {
     const result = applyDamage(player.hp, damage);
     player.hp = result.hp;
     player.dirty = true;
     this.#send(ws, {
       t: "event",
-      text: `${source} hits you for ${damage}.`,
+      code: "combat.hurt",
+      params: { species, damage },
       tone: "bad",
       x: player.x,
       y: player.y,
@@ -608,7 +606,12 @@ export class World extends DurableObject<Env> {
       player.deadUntil = now + PLAYER_RESPAWN_MS;
       player.lastInput = NO_INPUT;
       player.queue = [];
-      this.#broadcast({ t: "event", text: `${player.nick} was knocked out.`, tone: "bad" });
+      this.#broadcast({
+        t: "event",
+        code: "player.down",
+        params: { name: player.nick },
+        tone: "bad",
+      });
     }
     this.#sendState(ws, player);
   }
@@ -622,7 +625,7 @@ export class World extends DurableObject<Env> {
     player.lastInput = NO_INPUT;
     player.queue = [];
     player.dirty = true;
-    this.#send(ws, { t: "event", text: "The Heartroot calls you home.", tone: "info" });
+    this.#send(ws, { t: "event", code: "respawn", tone: "info" });
     this.#sendState(ws, player);
   }
 
@@ -638,7 +641,8 @@ export class World extends DurableObject<Env> {
       player.dirty = true;
       this.#send(ws, {
         t: "event",
-        text: `Picked up ${item.amount} ${item.kind}.`,
+        code: "loot.picked",
+        params: { amount: item.amount, kind: item.kind },
         tone: "good",
       });
       this.#sendState(ws, player);
@@ -679,7 +683,7 @@ export class World extends DurableObject<Env> {
     return this.#monsters.map((monster) => ({
       id: monster.id,
       kind: monster.kind,
-      name: monster.name,
+      species: monster.species,
       x: Math.round(monster.x * 100) / 100,
       y: Math.round(monster.y * 100) / 100,
       hp: monster.hp,

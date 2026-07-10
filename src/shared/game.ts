@@ -9,14 +9,20 @@ export interface Rect {
 
 export interface NpcDefinition extends Vec2 {
   id: string;
-  name: string;
-  role: string;
 }
+
+export type MonsterSpecies =
+  | "gloamcap"
+  | "murkbud"
+  | "briar_ooze"
+  | "relic_ooze"
+  | "mire_murkbud"
+  | "vault_gloamcap";
 
 export interface MonsterSpawn extends Vec2 {
   id: string;
   kind: "slime";
-  name: string;
+  species: MonsterSpecies;
   zone: "route" | "clearing" | "forest" | "farm" | "ruins" | "swamp" | "gate";
   patrolRadius: number;
 }
@@ -50,8 +56,6 @@ export const WORLD_BOUNDARY_DEPTH = 96;
 export const SAFE_ZONE: Rect = { x: 360, y: 260, width: 1200, height: 920 };
 export const QUEST_NPC: NpcDefinition = {
   id: "warden",
-  name: "Keeper Elowen",
-  role: "The Gloamcap Oath",
   x: 590,
   y: 790,
 };
@@ -265,7 +269,7 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   {
     id: "road-gloamcap",
     kind: "slime",
-    name: "Gloamcap",
+    species: "gloamcap",
     zone: "route",
     x: 1870,
     y: 820,
@@ -274,7 +278,7 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   {
     id: "road-murkbud",
     kind: "slime",
-    name: "Murkbud",
+    species: "murkbud",
     zone: "route",
     x: 2260,
     y: 820,
@@ -283,7 +287,7 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   {
     id: "clearing-briar-1",
     kind: "slime",
-    name: "Briar Ooze",
+    species: "briar_ooze",
     zone: "clearing",
     x: 1880,
     y: 390,
@@ -292,7 +296,7 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   {
     id: "clearing-briar-2",
     kind: "slime",
-    name: "Briar Ooze",
+    species: "briar_ooze",
     zone: "clearing",
     x: 2260,
     y: 590,
@@ -301,7 +305,7 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   {
     id: "forest-gloamcap-1",
     kind: "slime",
-    name: "Gloamcap",
+    species: "gloamcap",
     zone: "forest",
     x: 2020,
     y: 1290,
@@ -310,7 +314,7 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   {
     id: "forest-gloamcap-2",
     kind: "slime",
-    name: "Gloamcap",
+    species: "gloamcap",
     zone: "forest",
     x: 2320,
     y: 1610,
@@ -319,7 +323,7 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   {
     id: "farm-murkbud-1",
     kind: "slime",
-    name: "Murkbud",
+    species: "murkbud",
     zone: "farm",
     x: 1640,
     y: 1900,
@@ -328,7 +332,7 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   {
     id: "farm-murkbud-2",
     kind: "slime",
-    name: "Murkbud",
+    species: "murkbud",
     zone: "farm",
     x: 2240,
     y: 2100,
@@ -337,7 +341,7 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   {
     id: "ruins-ooze-1",
     kind: "slime",
-    name: "Relic Ooze",
+    species: "relic_ooze",
     zone: "ruins",
     x: 3140,
     y: 620,
@@ -346,7 +350,7 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   {
     id: "ruins-ooze-2",
     kind: "slime",
-    name: "Relic Ooze",
+    species: "relic_ooze",
     zone: "ruins",
     x: 3740,
     y: 900,
@@ -355,7 +359,7 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   {
     id: "swamp-murkbud-1",
     kind: "slime",
-    name: "Mire Murkbud",
+    species: "mire_murkbud",
     zone: "swamp",
     x: 3140,
     y: 2100,
@@ -364,7 +368,7 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   {
     id: "swamp-murkbud-2",
     kind: "slime",
-    name: "Mire Murkbud",
+    species: "mire_murkbud",
     zone: "swamp",
     x: 3600,
     y: 1860,
@@ -373,7 +377,7 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   {
     id: "gate-gloamcap-1",
     kind: "slime",
-    name: "Vault Gloamcap",
+    species: "vault_gloamcap",
     zone: "gate",
     x: 4080,
     y: 1120,
@@ -382,7 +386,7 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   {
     id: "gate-gloamcap-2",
     kind: "slime",
-    name: "Vault Gloamcap",
+    species: "vault_gloamcap",
     zone: "gate",
     x: 4230,
     y: 1580,
