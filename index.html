@@ -11,38 +11,6 @@
     <canvas id="stage"></canvas>
     <div id="root"></div>
 
-    <aside id="hud" hidden>
-      <section class="panel identity">
-        <div class="crest" aria-hidden="true"></div>
-        <div class="identity-copy">
-          <strong id="player-name">Wayfarer</strong>
-          <span id="player-level">Level 1</span>
-        </div>
-        <div class="session-actions">
-          <button type="button" id="switch-character" data-i18n="hud.switch_character">Switch character</button>
-          <button type="button" id="logout-game" data-i18n="hud.logout">Log out</button>
-        </div>
-        <label><span data-i18n="hud.vit">VIT</span><progress id="hp-bar" max="100" value="100"></progress><span id="hp-text"></span></label>
-        <label><span data-i18n="hud.spark">SPARK</span><progress id="xp-bar" max="100" value="0"></progress><span id="xp-text"></span></label>
-      </section>
-
-      <section class="panel quest">
-        <div class="panel-title"><span class="panel-icon panel-icon--oath" aria-hidden="true"></span><strong data-i18n="hud.oath">Active Oath</strong></div>
-        <span id="quest-text">Speak with Keeper Elowen [E]</span>
-        <progress id="quest-progress" max="3" value="0" hidden></progress>
-      </section>
-
-      <section class="panel combat" hidden>
-        <div class="panel-title"><span class="panel-icon panel-icon--sword" aria-hidden="true"></span><strong data-i18n="hud.strike">Strike</strong></div>
-        <progress id="attack-cooldown" max="100" value="100"></progress>
-      </section>
-
-      <section class="panel inventory">
-        <div class="panel-title"><span class="panel-icon panel-icon--pack" aria-hidden="true"></span><strong data-i18n="hud.pack">Wayfarer's Pack</strong></div>
-        <div id="inventory-text" class="item-grid"></div>
-      </section>
-    </aside>
-
     <section id="interior" hidden>
       <div class="interior-room">
         <header>

@@ -4,6 +4,7 @@
  */
 
 import { useSyncExternalStore } from "react";
+import { flushSync } from "react-dom";
 import { dictionaries, format, type Locale, type MessageKey } from "../shared/i18n/index.js";
 
 const STORAGE_KEY = "lindocara_locale";
@@ -30,7 +31,12 @@ export function setLocale(locale: Locale): void {
   current = locale;
   localStorage.setItem(STORAGE_KEY, locale);
   document.documentElement.lang = locale;
-  for (const listener of listeners) listener();
+  // React 18+ defers updates from outside its own event handlers to a microtask, even for
+  // useSyncExternalStore subscribers. flushSync makes the toggle apply in the same tick it
+  // is called in, so every mounted screen re-translates immediately, not one tick later.
+  flushSync(() => {
+    for (const listener of listeners) listener();
+  });
 }
 
 export function onLocaleChange(listener: () => void): () => void {

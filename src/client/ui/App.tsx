@@ -5,6 +5,7 @@ import { startGame } from "../game/session.js";
 import { useUiStore } from "../store.js";
 import { AuthScreen } from "./AuthScreen.js";
 import { CharacterSelect } from "./CharacterSelect.js";
+import { Hud } from "./hud/Hud.js";
 import { LocaleToggle } from "./LocaleToggle.js";
 
 export function App() {
@@ -25,6 +26,7 @@ export function App() {
       <LocaleToggle />
       {screen === "auth" && <AuthScreen />}
       {screen === "characters" && <CharacterSelect onPlay={play} />}
+      {screen === "game" && <Hud />}
     </>
   );
 }

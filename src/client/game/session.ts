@@ -32,18 +32,6 @@ function required<T extends Element>(selector: string): T {
 
 const canvas = required<HTMLCanvasElement>("#stage");
 const statusBar = required<HTMLDivElement>("#status");
-const hud = required<HTMLElement>("#hud");
-const playerName = required<HTMLElement>("#player-name");
-const playerLevel = required<HTMLElement>("#player-level");
-const hpBar = required<HTMLProgressElement>("#hp-bar");
-const hpText = required<HTMLElement>("#hp-text");
-const xpBar = required<HTMLProgressElement>("#xp-bar");
-const xpText = required<HTMLElement>("#xp-text");
-const inventoryText = required<HTMLElement>("#inventory-text");
-const questText = required<HTMLElement>("#quest-text");
-const questProgress = required<HTMLProgressElement>("#quest-progress");
-const attackCooldown = required<HTMLProgressElement>("#attack-cooldown");
-const combatPanel = required<HTMLElement>(".combat");
 const prompt = required<HTMLDivElement>("#prompt");
 const interior = required<HTMLElement>("#interior");
 const interiorTitle = required<HTMLElement>("#interior-title");
@@ -75,70 +63,9 @@ function setStatus(key: MessageKey, params?: Record<string, string | number>): v
   useUiStore.getState().setStatus(status);
 }
 
-type ItemIcon = "potion" | "gold" | "crystal" | "sword";
-
-function itemChip(icon: ItemIcon, label: string, value: string, hotkey?: string): HTMLElement {
-  const chip = document.createElement("div");
-  chip.className = "item-chip";
-  chip.title = hotkey ? `${label} [${hotkey}]` : label;
-  chip.setAttribute("aria-label", `${label}: ${value}`);
-  const symbol = document.createElement("span");
-  symbol.className = `item-icon item-icon--${icon}`;
-  symbol.setAttribute("aria-hidden", "true");
-  const copy = document.createElement("span");
-  copy.className = "item-copy";
-  const name = document.createElement("small");
-  name.textContent = label;
-  const amount = document.createElement("strong");
-  amount.textContent = value;
-  copy.append(name, amount);
-  chip.append(symbol, copy);
-  if (hotkey) {
-    const key = document.createElement("kbd");
-    key.textContent = hotkey;
-    chip.append(key);
-  }
-  return chip;
-}
-
-let lastState: SelfState | null = null;
-let lastPlayer: PlayerSnapshot | undefined;
-
 function renderState(state: SelfState): void {
-  lastState = state;
   useUiStore.getState().setSelfState(state);
   useUiStore.getState().setQuestStatus(state.quest.status);
-  xpBar.max = state.xpToNext;
-  xpBar.value = state.xp;
-  xpText.textContent = `${state.xp}/${state.xpToNext}`;
-  const { potions, gold, crystals, weapon } = state.inventory;
-  inventoryText.replaceChildren(
-    itemChip("potion", t("item.potion"), String(potions), "Q"),
-    itemChip("gold", t("item.gold"), String(gold)),
-    itemChip("crystal", t("item.crystal"), String(crystals)),
-    itemChip("sword", t("item.sword"), weapon === "rusty_sword" ? t("item.sword_on") : "?"),
-  );
-  if (state.quest.status === "available") {
-    questText.textContent = t("quest.available");
-    questProgress.hidden = true;
-  } else if (state.quest.status === "active") {
-    questText.textContent = t("quest.active", {
-      progress: state.quest.progress,
-      target: state.quest.target,
-    });
-    questProgress.hidden = false;
-    questProgress.max = state.quest.target;
-    questProgress.value = state.quest.progress;
-  } else if (state.quest.status === "ready") {
-    questText.textContent = t("quest.ready");
-    questProgress.hidden = false;
-    questProgress.max = state.quest.target;
-    questProgress.value = state.quest.target;
-  } else {
-    questText.textContent = t("quest.completed");
-    questProgress.hidden = true;
-  }
-  pulse(questText.closest(".panel"));
 }
 
 function openInterior(door: InteriorDoor): void {
@@ -159,7 +86,6 @@ function closeInterior(): void {
 }
 
 function renderPlayer(player: PlayerSnapshot | undefined): void {
-  lastPlayer = player;
   useUiStore.getState().setSelf(
     player
       ? {
@@ -171,19 +97,6 @@ function renderPlayer(player: PlayerSnapshot | undefined): void {
         }
       : null,
   );
-  if (!player) return;
-  playerName.textContent = player.nick;
-  playerLevel.textContent = t("hud.level", { level: player.level });
-  hpBar.max = player.maxHp;
-  hpBar.value = player.hp;
-  hpText.textContent = `${player.hp}/${player.maxHp}`;
-}
-
-function pulse(element: Element | null): void {
-  if (!(element instanceof HTMLElement)) return;
-  element.classList.remove("pulse");
-  void element.offsetWidth;
-  element.classList.add("pulse");
 }
 
 /** Resolve species/kind params to localized names, then apply the event template. */
@@ -245,13 +158,6 @@ function updatePrompt(
   useUiStore.getState().setPrompt(result);
 }
 
-function updateAttackCooldown(now: number, until: number): void {
-  const remaining = Math.max(0, until - now);
-  attackCooldown.max = ATTACK_COOLDOWN_MS;
-  attackCooldown.value = ATTACK_COOLDOWN_MS - remaining;
-  combatPanel.hidden = remaining <= 0;
-}
-
 function addEvent(text: string, tone: "info" | "good" | "bad"): void {
   useUiStore.getState().addEvent(text, tone);
   const line = document.createElement("div");
@@ -292,7 +198,6 @@ export async function startGame(character: CharacterSummary): Promise<void> {
         renderer.setSelfId(selfId);
         questStatus = state.quest.status;
         renderState(state);
-        hud.hidden = false;
         chat.hidden = false;
         help.hidden = false;
         setStatus("status.connected");
@@ -462,12 +367,8 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     renderer.render(sample, context);
     renderPlayer(self);
     updatePrompt(self, questStatus, door);
-    updateAttackCooldown(now, attackCooldownUntil);
   });
   window.addEventListener("beforeunload", () => connection.close());
-
-  required<HTMLButtonElement>("#switch-character").addEventListener("click", switchCharacter);
-  required<HTMLButtonElement>("#logout-game").addEventListener("click", logoutAndReload);
 
   // A handle for measuring input latency and interpolation from the outside. Dev builds only.
   if (import.meta.env.DEV) {
@@ -480,9 +381,9 @@ export async function startGame(character: CharacterSummary): Promise<void> {
 }
 
 onLocaleChange(() => {
+  // React re-translates the HUD itself (Task 6); #status and #interior are still legacy DOM
+  // (Tasks 7/8) and still need a manual re-render here.
   if (lastStatus) statusBar.textContent = t(lastStatus.key, lastStatus.params);
-  if (lastState) renderState(lastState);
-  renderPlayer(lastPlayer);
   if (openDoor) {
     interiorTitle.textContent = t(openDoor.nameKey);
     interiorCopy.textContent = t(openDoor.copyKey);
