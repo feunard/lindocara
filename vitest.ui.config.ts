@@ -12,6 +12,12 @@ export default defineConfig({
   test: {
     name: "lindocara-ui",
     environment: "jsdom",
+    // Node >=22 ships its own global `localStorage`/`sessionStorage` (backed by a file that
+    // needs `--localstorage-file` to actually work), and it wins over jsdom's window.
+    // localStorage on globalThis — every `localStorage.*` call (i18n's locale persistence,
+    // PixelAct's) hits Node's non-functional stub instead. Disable Node's version for the
+    // worker processes running these tests so jsdom's own Storage implementation is used.
+    execArgv: ["--no-experimental-webstorage"],
     include: ["test/ui/**/*.test.tsx"],
     setupFiles: ["./test/ui/setup.ts"],
     css: false,

@@ -50,6 +50,7 @@
   "dependencies": {
     "drizzle-orm": "^0.45.2",
     "pixi.js": "^8.19.0",
+    "radix-ui": "^1.6.2",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "zustand": "^5.0.14"

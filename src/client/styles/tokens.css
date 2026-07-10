@@ -1,0 +1,45 @@
+/* Design tokens. Fonts follow garrison (display for headings/buttons, UI for body);
+ * everything below is swappable without touching components.
+ *
+ * Fonts are vendored verbatim from garrison (src/assets/fonts/, OFL licensed — see the
+ * OFL.txt alongside each family) so the look does not depend on a CDN or system font
+ * availability. The stacks below are the fallback if a woff2 fails to load.
+ */
+
+@font-face {
+  font-family: "Cinzel";
+  src: url("../assets/fonts/cinzel/cinzel-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Cinzel";
+  src: url("../assets/fonts/cinzel/cinzel-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("../assets/fonts/inter/inter-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("../assets/fonts/inter/inter-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --font-display: "Cinzel", "Georgia", serif;
+  --font-ui: "Inter", system-ui, sans-serif;
+  --parchment: #e8d9b0;
+  --parchment-ink: #2b1d10;
+  --surface-raised: rgba(24, 16, 10, 0.96);
+  --gold: #f0d060;
+}

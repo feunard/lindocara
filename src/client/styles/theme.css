@@ -1,0 +1,42 @@
+.framed {
+  border: 13px solid transparent;
+  border-image: url("../assets/hud/frame-panel.png") 26 / 13px stretch;
+  background: var(--surface-raised);
+  background-clip: padding-box;
+}
+
+.parchment {
+  background: var(--parchment) url("../assets/hud/paper.png");
+  color: var(--parchment-ink);
+}
+
+.wood {
+  background: #3a2818 url("../assets/hud/wood.png");
+}
+
+.pixelated {
+  image-rendering: pixelated;
+}
+
+.btn-frame {
+  border: 8px solid transparent;
+  border-image: url("../assets/hud/frame-button.png") 14 / 8px stretch;
+  background: linear-gradient(180deg, #8a6a34 0%, #6b4c1e 55%, #57390f 100%);
+  background-clip: padding-box;
+  color: #f7ead0;
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.75);
+}
+.btn-frame:hover:not(:disabled) {
+  filter: brightness(1.16);
+  box-shadow: 0 0 14px rgba(240, 208, 96, 0.35);
+}
+.btn-frame:active:not(:disabled) {
+  transform: translateY(1px);
+  filter: brightness(0.86);
+}
+.btn-frame:disabled {
+  filter: grayscale(0.6) brightness(0.7);
+}
