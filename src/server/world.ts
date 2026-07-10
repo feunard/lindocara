@@ -321,7 +321,6 @@ export class World extends DurableObject<Env> {
       return;
     }
     if (message.t === "use") {
-      // biome-ignore lint/correctness/useHookAtTopLevel: usePotion is a server action handler, not a React hook.
       this.#usePotion(ws, player);
       return;
     }

@@ -77,7 +77,6 @@ export function trackActions(handlers: ActionHandlers): () => void {
     if (event.target instanceof HTMLInputElement || event.repeat) return;
     if (event.code === "Space") handlers.attack();
     else if (event.code === "KeyE") handlers.interact();
-    // biome-ignore lint/correctness/useHookAtTopLevel: usePotion is a game action handler, not a React hook.
     else if (event.code === "KeyQ") handlers.usePotion();
     else if (event.code === "Enter") handlers.focusChat();
     else return;

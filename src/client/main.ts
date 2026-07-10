@@ -670,7 +670,6 @@ async function play(character: CharacterSummary): Promise<void> {
       if (!interior.hidden) return;
       sound.unlock();
       sound.loot();
-      // biome-ignore lint/correctness/useHookAtTopLevel: usePotion is a game action handler, not a React hook.
       connection.usePotion();
     },
     focusChat: () => {

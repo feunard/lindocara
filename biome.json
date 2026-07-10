@@ -25,6 +25,19 @@
       }
     }
   },
+  "overrides": [
+    {
+      "includes": ["src/server/**", "src/client/main.ts", "src/client/input.ts"],
+      "linter": {
+        "enabled": true,
+        "rules": {
+          "correctness": {
+            "useHookAtTopLevel": "off"
+          }
+        }
+      }
+    }
+  ],
   "javascript": {
     "formatter": {
       "quoteStyle": "double",
