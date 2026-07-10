@@ -8,6 +8,7 @@
 
 import { createAccount, verifyCredentials } from "./accounts.js";
 import {
+  characterOwnedBy,
   createCharacter,
   deleteCharacter,
   isValidAppearance,
@@ -99,7 +100,7 @@ async function handleLogin(request: Request, env: Env, url: URL): Promise<Respon
   return sessionResponse(account, env, url);
 }
 
-async function handleJoin(request: Request, env: Env): Promise<Response> {
+async function handleJoin(request: Request, env: Env, url: URL): Promise<Response> {
   if (request.headers.get("Upgrade") !== "websocket") {
     return new Response("expected a websocket upgrade", { status: 426 });
   }
@@ -107,17 +108,17 @@ async function handleJoin(request: Request, env: Env): Promise<Response> {
   const session = await currentSession(request, env);
   if (!session) return new Response("unauthorized", { status: 401 });
 
-  const stub = env.WORLD.get(env.WORLD.idFromName(WORLD_NAME));
+  const characterId = url.searchParams.get("character");
+  if (!characterId) return new Response("missing character", { status: 400 });
 
-  // Re-issue the request with the identity we just proved. The Durable Object is not
-  // publicly reachable, so it can trust these headers.
+  // Ownership is proven here, outside the Durable Object, so the DO can trust the header.
+  const owned = await characterOwnedBy(createDb(env.DB), session.id, characterId);
+  if (!owned) return new Response("forbidden", { status: 403 });
+
+  const stub = env.WORLD.get(env.WORLD.idFromName(WORLD_NAME));
   return stub.fetch(
     new Request(request, {
-      headers: {
-        Upgrade: "websocket",
-        "x-player-id": session.id,
-        "x-player-nick": session.username,
-      },
+      headers: { Upgrade: "websocket", "x-character-id": owned.id },
     }),
   );
 }
@@ -171,7 +172,7 @@ export default {
     }
 
     if (url.pathname === "/api/ws") {
-      return handleJoin(request, env);
+      return handleJoin(request, env, url);
     }
 
     if (url.pathname === "/api/register" && request.method === "POST") {

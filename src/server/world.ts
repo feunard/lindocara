@@ -213,11 +213,12 @@ export class World extends DurableObject<Env> {
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("expected a websocket upgrade", { status: 426 });
     }
-    const id = request.headers.get("x-player-id");
+    const id = request.headers.get("x-character-id");
     if (!id) return new Response("unauthorized", { status: 401 });
 
+    // Same character connected elsewhere: the newer socket wins, the older one is kicked.
     for (const [socket, existing] of this.#players) {
-      if (existing.id === id) this.#kick(socket, 4001, "connected elsewhere");
+      if (existing.id === id) this.#kick(socket, 4001, "same character connected elsewhere");
     }
 
     const profile = await loadProfile(createDb(this.env.DB), id);

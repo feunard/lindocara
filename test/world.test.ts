@@ -5,7 +5,6 @@
 
 import { env, runInDurableObject, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { SESSION_COOKIE } from "../src/server/session.js";
 import { type Attachment, positionFromAttachment } from "../src/server/world.js";
 import {
   isWalkable,
@@ -34,28 +33,42 @@ import {
 
 const ORIGIN = "https://lindocara.test";
 
-interface TestSession {
+interface TestCharacter {
   cookie: string;
-  id: string;
+  characterId: string;
 }
 
 let accountCounter = 0;
 
-async function testSession(nickname: string): Promise<TestSession> {
-  const username = `u${++accountCounter}${nickname}`.toLowerCase().slice(0, 16);
-  const response = await SELF.fetch(`${ORIGIN}/api/register`, {
+/** Register a fresh account and create one character on it through the real API. */
+async function testCharacter(
+  name: string,
+  position?: { x: number; y: number },
+): Promise<TestCharacter> {
+  const username = `u${++accountCounter}${name}`.toLowerCase().slice(0, 16);
+  const registered = await SELF.fetch(`${ORIGIN}/api/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password: "12345678" }),
   });
-  expect(response.status).toBe(200);
-  const token = response.headers.get("Set-Cookie")?.split(";")[0]?.split("=")[1];
-  if (!token) throw new Error("no session cookie issued");
-  const body: unknown = await response.json();
-  if (typeof body !== "object" || body === null || !("id" in body) || typeof body.id !== "string") {
-    throw new Error("register response did not include an account id");
+  expect(registered.status).toBe(200);
+  const pair = registered.headers.get("Set-Cookie")?.split(";")[0];
+  if (!pair) throw new Error("no session cookie issued");
+
+  const created = await SELF.fetch(`${ORIGIN}/api/characters`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: pair },
+    body: JSON.stringify({ name, appearance: "azure" }),
+  });
+  expect(created.status).toBe(200);
+  const body = (await created.json()) as { id: string };
+
+  if (position) {
+    await env.DB.prepare("UPDATE character SET x = ?, y = ? WHERE id = ?")
+      .bind(position.x, position.y, body.id)
+      .run();
   }
-  return { cookie: `${SESSION_COOKIE}=${token}`, id: body.id };
+  return { cookie: pair, characterId: body.id };
 }
 
 /**
@@ -90,18 +103,8 @@ class Client {
     nickname: string,
     options: { pump?: boolean; position?: { x: number; y: number } } = {},
   ): Promise<Client> {
-    const session = await testSession(nickname);
-    const spawn = options.position ?? { x: 784, y: 450 };
-    // Until Task 6's `?character=` parameter, the Worker forwards the account id as
-    // `x-player-id`, and the DO loads a character by that id — so the character's id is set
-    // to the account id here. A character whose id equals its account id is a shim-only
-    // oddity that Task 6 removes.
-    await env.DB.prepare(
-      "INSERT INTO character (id, account_id, name, x, y) VALUES (?, ?, ?, ?, ?)",
-    )
-      .bind(session.id, session.id, nickname, spawn.x, spawn.y)
-      .run();
-    const response = await SELF.fetch(`${ORIGIN}/api/ws`, {
+    const session = await testCharacter(nickname, options.position);
+    const response = await SELF.fetch(`${ORIGIN}/api/ws?character=${session.characterId}`, {
       headers: { Upgrade: "websocket", Cookie: session.cookie },
     });
 
@@ -234,12 +237,26 @@ describe("World", () => {
     });
     expect(welcome.monsters.length).toBeGreaterThan(0);
     expect(welcome.self.inventory).toMatchObject({ potions: 2, weapon: "rusty_sword" });
-    expect(welcome.players.find((player) => player.id === welcome.selfId)).toMatchObject({
-      x: 784,
-      y: 450,
-    });
+    expect(welcome.players.find((player) => player.id === welcome.selfId)).toMatchObject(
+      spawnPosition(welcome.selfId),
+    );
 
     client.close();
+  });
+
+  it("refuses a join for a character the session does not own", async () => {
+    const alice = await testCharacter("own_a");
+    const bob = await testCharacter("own_b");
+
+    const stolen = await SELF.fetch(`${ORIGIN}/api/ws?character=${alice.characterId}`, {
+      headers: { Upgrade: "websocket", Cookie: bob.cookie },
+    });
+    expect(stolen.status).toBe(403);
+
+    const missing = await SELF.fetch(`${ORIGIN}/api/ws`, {
+      headers: { Upgrade: "websocket", Cookie: bob.cookie },
+    });
+    expect(missing.status).toBe(400);
   });
 
   it("broadcasts snapshots on the tick loop", async () => {
