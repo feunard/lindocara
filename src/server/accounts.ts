@@ -17,6 +17,17 @@ export function normalizeUsername(username: string): string {
   return username.toLowerCase();
 }
 
+/** Drizzle wraps the D1 driver error ("Failed query: ...") with the real SQLITE_CONSTRAINT
+ *  message reachable only via `.cause`. Walk the chain rather than trusting the top message. */
+function causedByUnique(error: unknown): boolean {
+  let current: unknown = error;
+  while (current instanceof Error) {
+    if (current.message.includes("UNIQUE")) return true;
+    current = current.cause;
+  }
+  return false;
+}
+
 export async function createAccount(
   db: Db,
   username: string,
@@ -33,9 +44,12 @@ export async function createAccount(
       passwordSalt: record.salt,
       passwordIterations: record.iterations,
     });
-  } catch {
-    // The UNIQUE constraint is the source of truth — no read-then-write race.
-    return "username_taken";
+  } catch (error) {
+    // The UNIQUE constraint is the source of truth — no read-then-write race. Anything else
+    // (a transient D1 error, a schema mismatch) is a real failure and must not be masked as
+    // a username collision.
+    if (causedByUnique(error)) return "username_taken";
+    throw error;
   }
   return { id, username: normalized };
 }
