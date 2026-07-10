@@ -14,3 +14,9 @@ dist/
 
 # Playwright MCP scratch output
 .playwright-mcp/
+
+# Agent dev/verification scratch: captured dev logs and root-level screenshots.
+# The real game assets live under public/assets/ and are not matched here.
+.codex-dev.*.log
+/*.png
+.superpowers/
