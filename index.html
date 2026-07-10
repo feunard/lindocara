@@ -14,32 +14,70 @@
     </fieldset>
     <canvas id="stage"></canvas>
 
-    <div id="login" hidden>
-      <form id="login-form">
+    <div id="auth" hidden>
+      <div class="auth-card">
         <span class="eyebrow" data-i18n="auth.eyebrow">A tiny online world</span>
         <h1>lindocara</h1>
         <h2 data-i18n="auth.subtitle">Everwild Hollow</h2>
-        <p data-i18n="auth.tagline">
-          Wake beneath the Heartroot. Swear Elowen's oath. Face the strange life of the Gloamwood.
-        </p>
-        <label for="nickname" class="visually-hidden">Nickname</label>
-        <input
-          id="nickname"
-          name="nickname"
-          type="text"
-          placeholder="nickname"
-          minlength="2"
-          maxlength="16"
-          pattern="[A-Za-z0-9_\-]{2,16}"
-          autocomplete="off"
-          autocapitalize="off"
-          spellcheck="false"
-          required
-        />
-        <button type="submit">Enter the Hollow</button>
-        <p id="login-error" role="alert"></p>
-      </form>
+        <p data-i18n="auth.tagline">Wake beneath the Heartroot.</p>
+        <div class="tabs" role="tablist">
+          <button type="button" id="tab-login" class="tab active" data-i18n="auth.tab.login">Log in</button>
+          <button type="button" id="tab-register" class="tab" data-i18n="auth.tab.register">Create account</button>
+        </div>
+        <form id="login-form">
+          <label for="login-username" data-i18n="auth.username">Username</label>
+          <input id="login-username" name="username" type="text" minlength="2" maxlength="16"
+            pattern="[A-Za-z0-9_\-]{2,16}" autocomplete="username" autocapitalize="off"
+            spellcheck="false" required />
+          <label for="login-password" data-i18n="auth.password">Password</label>
+          <input id="login-password" name="password" type="password" minlength="8" maxlength="128"
+            autocomplete="current-password" required />
+          <button type="submit" data-i18n="auth.submit.login">Enter the Hollow</button>
+          <p id="login-error" role="alert"></p>
+        </form>
+        <form id="register-form" hidden>
+          <label for="register-username" data-i18n="auth.username">Username</label>
+          <input id="register-username" name="username" type="text" minlength="2" maxlength="16"
+            pattern="[A-Za-z0-9_\-]{2,16}" autocomplete="username" autocapitalize="off"
+            spellcheck="false" required />
+          <label for="register-password" data-i18n="auth.password">Password</label>
+          <input id="register-password" name="password" type="password" minlength="8" maxlength="128"
+            autocomplete="new-password" required />
+          <label for="register-confirm" data-i18n="auth.password_confirm">Confirm password</label>
+          <input id="register-confirm" name="confirm" type="password" minlength="8" maxlength="128"
+            autocomplete="new-password" required />
+          <button type="submit" data-i18n="auth.submit.register">Create account</button>
+          <p id="register-error" role="alert"></p>
+        </form>
+      </div>
     </div>
+
+    <section id="characters" hidden>
+      <div class="characters-card">
+        <header>
+          <h2 data-i18n="chars.title">Choose your wayfarer</h2>
+          <button type="button" id="logout" data-i18n="chars.logout">Log out</button>
+        </header>
+        <div id="character-list"></div>
+        <form id="character-create" hidden>
+          <h3 data-i18n="chars.create.title">New wayfarer</h3>
+          <label for="character-name" data-i18n="chars.create.name">Name</label>
+          <input id="character-name" name="name" type="text" minlength="2" maxlength="16"
+            pattern="[A-Za-z0-9_\-]{2,16}" autocomplete="off" autocapitalize="off"
+            spellcheck="false" required />
+          <fieldset id="appearance-picker">
+            <legend data-i18n="chars.create.appearance">Appearance</legend>
+            <label class="swatch swatch--azure"><input type="radio" name="appearance" value="azure" checked /><span data-i18n="appearance.azure">Azure</span></label>
+            <label class="swatch swatch--ember"><input type="radio" name="appearance" value="ember" /><span data-i18n="appearance.ember">Ember</span></label>
+            <label class="swatch swatch--moss"><input type="radio" name="appearance" value="moss" /><span data-i18n="appearance.moss">Moss</span></label>
+            <label class="swatch swatch--violet"><input type="radio" name="appearance" value="violet" /><span data-i18n="appearance.violet">Violet</span></label>
+          </fieldset>
+          <button type="submit" data-i18n="chars.create.submit">Create</button>
+          <button type="button" id="character-create-cancel" data-i18n="chars.create.cancel">Cancel</button>
+          <p id="character-error" role="alert"></p>
+        </form>
+      </div>
+    </section>
 
     <aside id="hud" hidden>
       <section class="panel identity">
@@ -47,6 +85,10 @@
         <div class="identity-copy">
           <strong id="player-name">Wayfarer</strong>
           <span id="player-level">Level 1</span>
+        </div>
+        <div class="session-actions">
+          <button type="button" id="switch-character" data-i18n="hud.switch_character">Switch character</button>
+          <button type="button" id="logout-game" data-i18n="hud.logout">Log out</button>
         </div>
         <label><span data-i18n="hud.vit">VIT</span><progress id="hp-bar" max="100" value="100"></progress><span id="hp-text"></span></label>
         <label><span data-i18n="hud.spark">SPARK</span><progress id="xp-bar" max="100" value="0"></progress><span id="xp-text"></span></label>

@@ -39,7 +39,11 @@ body::after {
   filter: saturate(0.94) contrast(1.04);
 }
 
-#login[hidden],
+#auth[hidden],
+#characters[hidden],
+#login-form[hidden],
+#register-form[hidden],
+#character-create[hidden],
 #hud[hidden],
 #chat[hidden],
 #help[hidden],
@@ -57,7 +61,7 @@ body::after {
   backdrop-filter: blur(8px);
 }
 
-#login {
+#auth {
   position: fixed;
   inset: 0;
   z-index: 10;
@@ -66,7 +70,7 @@ body::after {
   background: radial-gradient(circle at 50% 38%, rgb(49 123 86 / 78%), rgb(4 17 14 / 97%) 68%);
 }
 
-#login-form {
+.auth-card {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
@@ -77,6 +81,12 @@ body::after {
   background: rgb(8 30 24 / 94%);
 }
 
+#auth form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
 .eyebrow {
   color: var(--green);
   font-size: 0.68rem;
@@ -85,20 +95,20 @@ body::after {
   text-transform: uppercase;
 }
 
-#login-form h1,
-#login-form h2,
-#login-form p {
+.auth-card h1,
+.auth-card h2,
+.auth-card p {
   margin: 0;
 }
 
-#login-form h1 {
+.auth-card h1 {
   color: #e4ffe9;
   font:
     700 2.4rem / 0.95 Georgia,
     serif;
 }
 
-#login-form h2 {
+.auth-card h2 {
   color: var(--gold);
   font:
     italic 0.95rem Georgia,
@@ -107,7 +117,7 @@ body::after {
   text-transform: uppercase;
 }
 
-#login-form p {
+.auth-card p {
   color: #b8cabd;
   font:
     0.82rem / 1.6 Georgia,
@@ -165,18 +175,120 @@ button:disabled {
   font-weight: 700;
 }
 
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-#login-form #login-error {
+#login-error,
+#register-error,
+#character-error {
   min-height: 1.2em;
   color: #ff9b93;
+}
+
+#auth .tabs {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0;
+}
+#auth .tab {
+  flex: 1;
+  padding: 8px 0;
+  cursor: pointer;
+  opacity: 0.55;
+}
+#auth .tab.active {
+  opacity: 1;
+  font-weight: 700;
+  border-bottom: 2px solid currentColor;
+}
+
+#characters {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 30;
+  background: radial-gradient(circle at 50% 38%, rgb(49 123 86 / 78%), rgb(4 17 14 / 97%) 68%);
+}
+#characters .characters-card {
+  min-width: 340px;
+  max-width: 520px;
+  display: grid;
+  gap: 12px;
+  padding: 1.8rem;
+  border: 1px solid rgb(157 215 173 / 45%);
+  border-radius: 16px;
+  background: rgb(8 30 24 / 94%);
+}
+.characters-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+#character-list {
+  display: grid;
+  gap: 8px;
+}
+.character-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgb(157 215 173 / 25%);
+  border-radius: 10px;
+  background: rgb(5 24 20 / 60%);
+}
+.character-card strong {
+  flex: 1;
+}
+.character-card--new {
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.7;
+}
+.character-card .danger {
+  background: linear-gradient(180deg, #f0796b, #bd494e);
+  color: #2a0d0a;
+}
+.swatch {
+  width: 18px;
+  height: 18px;
+  display: inline-block;
+}
+.swatch--azure {
+  background: #4aa3df;
+}
+.swatch--ember {
+  background: #e2703a;
+}
+.swatch--moss {
+  background: #6a9955;
+}
+.swatch--violet {
+  background: #9b6dd6;
+}
+#appearance-picker {
+  display: flex;
+  gap: 8px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+#appearance-picker .swatch {
+  width: auto;
+  height: auto;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+#appearance-picker input {
+  margin-right: 6px;
+}
+.session-actions {
+  display: flex;
+  gap: 6px;
+  grid-column: 2;
+  pointer-events: auto;
+}
+.session-actions button {
+  font-size: 0.75rem;
+  cursor: pointer;
 }
 
 #hud {

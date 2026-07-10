@@ -7,7 +7,7 @@ import {
   SAFE_ZONE,
 } from "../shared/game.js";
 import type { MessageKey } from "../shared/i18n/index.js";
-import type { PlayerSnapshot, QuestStatus, SelfState } from "../shared/protocol.js";
+import type { Appearance, PlayerSnapshot, QuestStatus, SelfState } from "../shared/protocol.js";
 import { NO_INPUT } from "../shared/simulation.js";
 import { initLocale, onLocaleChange, t } from "./i18n.js";
 import { trackActions, trackInput } from "./input.js";
@@ -18,7 +18,59 @@ import "./style.css";
 
 interface Me {
   id: string;
-  nick: string;
+  username: string;
+}
+
+interface CharacterSummary {
+  id: string;
+  name: string;
+  appearance: Appearance;
+  level: number;
+}
+
+/** The client can only create as many characters as the server's per-account cap allows.
+ *  Kept in sync with `MAX_CHARACTERS_PER_ACCOUNT` in `src/server/characters.ts` — not
+ *  imported, since client code must not import server code. */
+const MAX_CHARACTERS = 3;
+
+/** API errors carry stable machine codes the UI maps to i18n keys. */
+class ApiError extends Error {
+  constructor(readonly code: string) {
+    super(code);
+  }
+}
+
+async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(path, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...init?.headers },
+  });
+  if (response.status === 204) return undefined as T;
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const code =
+      typeof body === "object" && body !== null && "error" in body && typeof body.error === "string"
+        ? body.error
+        : "generic";
+    throw new ApiError(code);
+  }
+  return body as T;
+}
+
+const fetchMe = () => api<Me>("/api/me").catch(() => null);
+const fetchCharacters = () => api<CharacterSummary[]>("/api/characters");
+
+function authErrorText(error: unknown): string {
+  const code = error instanceof ApiError ? error.code : "generic";
+  const known: Record<string, MessageKey> = {
+    username_taken: "auth.error.username_taken",
+    invalid_credentials: "auth.error.invalid_credentials",
+    invalid_username: "auth.error.invalid_username",
+    invalid_password: "auth.error.invalid_password",
+    limit_reached: "chars.error.limit_reached",
+    invalid_name: "chars.error.invalid_name",
+  };
+  return t(known[code] ?? "auth.error.generic");
 }
 
 function required<T extends Element>(selector: string): T {
@@ -28,10 +80,17 @@ function required<T extends Element>(selector: string): T {
 }
 
 const canvas = required<HTMLCanvasElement>("#stage");
-const loginPanel = required<HTMLDivElement>("#login");
+const authPanel = required<HTMLDivElement>("#auth");
+const tabLogin = required<HTMLButtonElement>("#tab-login");
+const tabRegister = required<HTMLButtonElement>("#tab-register");
 const loginForm = required<HTMLFormElement>("#login-form");
-const nicknameField = required<HTMLInputElement>("#nickname");
+const registerForm = required<HTMLFormElement>("#register-form");
 const loginError = required<HTMLParagraphElement>("#login-error");
+const registerError = required<HTMLParagraphElement>("#register-error");
+const charactersPanel = required<HTMLElement>("#characters");
+const characterList = required<HTMLDivElement>("#character-list");
+const characterCreate = required<HTMLFormElement>("#character-create");
+const characterError = required<HTMLParagraphElement>("#character-error");
 const statusBar = required<HTMLDivElement>("#status");
 const hud = required<HTMLElement>("#hud");
 const playerName = required<HTMLElement>("#player-name");
@@ -57,6 +116,149 @@ const chatForm = required<HTMLFormElement>("#chat-form");
 const chatInput = required<HTMLInputElement>("#chat-input");
 const help = required<HTMLElement>("#help");
 const sound = new GameSound();
+
+function showAuth(): void {
+  authPanel.hidden = false;
+  charactersPanel.hidden = true;
+  required<HTMLInputElement>("#login-username").focus();
+}
+
+function setTab(register: boolean): void {
+  tabLogin.classList.toggle("active", !register);
+  tabRegister.classList.toggle("active", register);
+  loginForm.hidden = register;
+  registerForm.hidden = !register;
+  loginError.textContent = "";
+  registerError.textContent = "";
+}
+tabLogin.addEventListener("click", () => setTab(false));
+tabRegister.addEventListener("click", () => setTab(true));
+
+loginForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  sound.unlock();
+  loginError.textContent = "";
+  const data = new FormData(loginForm);
+  try {
+    await api<Me>("/api/session", {
+      method: "POST",
+      body: JSON.stringify({ username: data.get("username"), password: data.get("password") }),
+    });
+    await showCharacters();
+  } catch (error) {
+    loginError.textContent = authErrorText(error);
+  }
+});
+
+registerForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  sound.unlock();
+  registerError.textContent = "";
+  const data = new FormData(registerForm);
+  if (data.get("password") !== data.get("confirm")) {
+    registerError.textContent = t("auth.error.password_mismatch");
+    return;
+  }
+  try {
+    await api<Me>("/api/register", {
+      method: "POST",
+      body: JSON.stringify({ username: data.get("username"), password: data.get("password") }),
+    });
+    await showCharacters();
+  } catch (error) {
+    registerError.textContent = authErrorText(error);
+  }
+});
+
+async function showCharacters(): Promise<void> {
+  authPanel.hidden = true;
+  let characters: CharacterSummary[];
+  try {
+    characters = await fetchCharacters();
+  } catch {
+    showAuth();
+    return;
+  }
+  renderCharacterList(characters);
+  characterCreate.hidden = characters.length > 0;
+  charactersPanel.hidden = false;
+}
+
+function renderCharacterList(characters: CharacterSummary[]): void {
+  characterList.replaceChildren(
+    ...characters.map((character) => {
+      const card = document.createElement("article");
+      card.className = "character-card";
+      const swatch = document.createElement("span");
+      swatch.className = `swatch swatch--${character.appearance}`;
+      swatch.setAttribute("aria-hidden", "true");
+      const name = document.createElement("strong");
+      name.textContent = character.name;
+      const level = document.createElement("span");
+      level.textContent = t("hud.level", { level: character.level });
+      const playButton = document.createElement("button");
+      playButton.type = "button";
+      playButton.textContent = t("chars.play");
+      playButton.addEventListener("click", () => {
+        charactersPanel.hidden = true;
+        void play(character);
+      });
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "danger";
+      remove.textContent = t("chars.delete");
+      remove.addEventListener("click", async () => {
+        if (remove.dataset.confirming !== "true") {
+          remove.dataset.confirming = "true";
+          remove.textContent = t("chars.delete_confirm");
+          return;
+        }
+        await api(`/api/characters/${character.id}`, { method: "DELETE" }).catch(() => undefined);
+        await showCharacters();
+      });
+      card.append(swatch, name, level, playButton, remove);
+      return card;
+    }),
+    newCharacterCard(characters.length),
+  );
+}
+
+function newCharacterCard(count: number): HTMLElement {
+  const card = document.createElement("button");
+  card.type = "button";
+  card.className = "character-card character-card--new";
+  card.textContent = t("chars.new");
+  card.disabled = count >= MAX_CHARACTERS;
+  card.addEventListener("click", () => {
+    characterCreate.hidden = false;
+    required<HTMLInputElement>("#character-name").focus();
+  });
+  return card;
+}
+
+characterCreate.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  characterError.textContent = "";
+  const data = new FormData(characterCreate);
+  try {
+    await api<CharacterSummary>("/api/characters", {
+      method: "POST",
+      body: JSON.stringify({ name: data.get("name"), appearance: data.get("appearance") }),
+    });
+    characterCreate.reset();
+    await showCharacters();
+  } catch (error) {
+    characterError.textContent = authErrorText(error);
+  }
+});
+required<HTMLButtonElement>("#character-create-cancel").addEventListener("click", () => {
+  characterCreate.hidden = true;
+});
+
+required<HTMLButtonElement>("#logout").addEventListener("click", async () => {
+  await fetch("/api/session", { method: "DELETE" });
+  window.location.reload();
+});
 
 interface InteriorDoor {
   id: string;
@@ -129,23 +331,6 @@ function itemChip(icon: ItemIcon, label: string, value: string, hotkey?: string)
     chip.append(key);
   }
   return chip;
-}
-
-async function fetchMe(): Promise<Me | null> {
-  const response = await fetch("/api/me");
-  if (!response.ok) return null;
-  return (await response.json()) as Me;
-}
-
-async function login(nickname: string): Promise<Me> {
-  const response = await fetch("/api/session", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ nickname }),
-  });
-  const body = (await response.json()) as Me | { error: string };
-  if (!response.ok) throw new Error("error" in body ? body.error : "login failed");
-  return body as Me;
 }
 
 let lastState: SelfState | null = null;
@@ -317,9 +502,8 @@ function addChat(from: string, text: string): void {
   chat.classList.add("has-chat");
 }
 
-async function play(me: Me): Promise<void> {
-  loginPanel.hidden = true;
-  setStatus(() => t("status.connecting", { name: me.nick }));
+async function play(character: CharacterSummary): Promise<void> {
+  setStatus(() => t("status.connecting", { name: character.name }));
   const renderer = await Renderer.create(canvas);
   const client = new WorldClient();
   const input = trackInput();
@@ -329,46 +513,49 @@ async function play(me: Me): Promise<void> {
   let welcomed = false;
   let currentSelf: PlayerSnapshot | undefined;
 
-  const connection = client.connect({
-    onWelcome: (selfId, _world, state) => {
-      renderer.setSelfId(selfId);
-      questStatus = state.quest.status;
-      renderState(state);
-      hud.hidden = false;
-      chat.hidden = false;
-      help.hidden = false;
-      setStatus(() => t("status.connected"));
-      if (!welcomed) {
-        welcomed = true;
-        addEvent(t("status.welcome_hint"), "info");
-      }
+  const connection = client.connect(
+    {
+      onWelcome: (selfId, _world, state) => {
+        renderer.setSelfId(selfId);
+        questStatus = state.quest.status;
+        renderState(state);
+        hud.hidden = false;
+        chat.hidden = false;
+        help.hidden = false;
+        setStatus(() => t("status.connected"));
+        if (!welcomed) {
+          welcomed = true;
+          addEvent(t("status.welcome_hint"), "info");
+        }
+      },
+      onState: (state) => {
+        questStatus = state.quest.status;
+        renderState(state);
+      },
+      onChat: (from, text) => {
+        addChat(from, text);
+        sound.chat();
+      },
+      onEvent: (text, tone, x, y) => {
+        if (shouldLogEvent(text)) addEvent(text, tone);
+        renderer.showWorldEvent(text, tone, x, y);
+        if (/swing hits only air|too far/i.test(text)) {
+          sound.attack();
+          renderer.playAttackMiss();
+        } else if (/level up|oath is fulfilled/i.test(text)) sound.levelUp();
+        else if (/picked up|oath sworn|heartroot tonic/i.test(text)) sound.loot();
+        else if (/knocked out|awaken/i.test(text)) sound.death();
+        else if (/You hit|hits you for/i.test(text)) sound.hit();
+      },
+      onClose: (reason) => {
+        input.stop();
+        stopActions?.();
+        setStatus(() => t("status.disconnected", { reason }));
+        addEvent(t("status.connection_lost"), "bad");
+      },
     },
-    onState: (state) => {
-      questStatus = state.quest.status;
-      renderState(state);
-    },
-    onChat: (from, text) => {
-      addChat(from, text);
-      sound.chat();
-    },
-    onEvent: (text, tone, x, y) => {
-      if (shouldLogEvent(text)) addEvent(text, tone);
-      renderer.showWorldEvent(text, tone, x, y);
-      if (/swing hits only air|too far/i.test(text)) {
-        sound.attack();
-        renderer.playAttackMiss();
-      } else if (/level up|oath is fulfilled/i.test(text)) sound.levelUp();
-      else if (/picked up|oath sworn|heartroot tonic/i.test(text)) sound.loot();
-      else if (/knocked out|awaken/i.test(text)) sound.death();
-      else if (/You hit|hits you for/i.test(text)) sound.hit();
-    },
-    onClose: (reason) => {
-      input.stop();
-      stopActions?.();
-      setStatus(() => t("status.disconnected", { reason }));
-      addEvent(t("status.connection_lost"), "bad");
-    },
-  });
+    character.id,
+  );
 
   stopActions = trackActions({
     attack: () => {
@@ -453,6 +640,16 @@ async function play(me: Me): Promise<void> {
   });
   window.addEventListener("beforeunload", () => connection.close());
 
+  required<HTMLButtonElement>("#switch-character").addEventListener("click", () => {
+    connection.close();
+    window.location.reload();
+  });
+  required<HTMLButtonElement>("#logout-game").addEventListener("click", async () => {
+    connection.close();
+    await fetch("/api/session", { method: "DELETE" });
+    window.location.reload();
+  });
+
   // A handle for measuring input latency and interpolation from the outside. Dev builds only.
   if (import.meta.env.DEV) {
     (window as unknown as Record<string, unknown>).__lindocara = {
@@ -467,27 +664,10 @@ onLocaleChange(() => {
   statusBar.textContent = lastStatus();
   if (lastState) renderState(lastState);
   renderPlayer(lastPlayer);
-});
-
-loginForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  sound.unlock();
-  loginError.textContent = "";
-  const submit = loginForm.querySelector("button");
-  if (submit) submit.disabled = true;
-  try {
-    await play(await login(nicknameField.value.trim()));
-  } catch (error) {
-    loginError.textContent = error instanceof Error ? error.message : "login failed";
-    if (submit) submit.disabled = false;
-  }
+  if (!charactersPanel.hidden) void showCharacters();
 });
 
 initLocale();
-
 const existing = await fetchMe();
-if (existing) await play(existing);
-else {
-  loginPanel.hidden = false;
-  nicknameField.focus();
-}
+if (existing) await showCharacters();
+else showAuth();

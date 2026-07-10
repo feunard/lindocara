@@ -98,9 +98,10 @@ export class WorldClient {
     return this.#selfId;
   }
 
-  connect(handlers: ConnectionHandlers): Connection {
+  connect(handlers: ConnectionHandlers, characterId: string): Connection {
     const url = new URL("/api/ws", window.location.href);
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+    url.searchParams.set("character", characterId);
     const socket = new WebSocket(url);
     this.#socket = socket;
 
