@@ -58,12 +58,7 @@ import {
   WORLD_WIDTH,
 } from "../shared/simulation.js";
 import { createDb } from "./db/index.js";
-import {
-  loadOrCreateProfile,
-  type PlayerProfile,
-  type SaveableProfile,
-  saveProfile,
-} from "./profile.js";
+import { loadProfile, type PlayerProfile, type SaveableProfile, saveProfile } from "./profile.js";
 
 const ATTACHMENT_EVERY_TICKS = TICK_HZ;
 const D1_SAVE_EVERY_TICKS = TICK_HZ * 5;
@@ -219,14 +214,14 @@ export class World extends DurableObject<Env> {
       return new Response("expected a websocket upgrade", { status: 426 });
     }
     const id = request.headers.get("x-player-id");
-    const nick = request.headers.get("x-player-nick");
-    if (!id || !nick) return new Response("unauthorized", { status: 401 });
+    if (!id) return new Response("unauthorized", { status: 401 });
 
     for (const [socket, existing] of this.#players) {
       if (existing.id === id) this.#kick(socket, 4001, "connected elsewhere");
     }
 
-    const profile = await loadOrCreateProfile(createDb(this.env.DB), id, nick);
+    const profile = await loadProfile(createDb(this.env.DB), id);
+    if (!profile) return new Response("unknown character", { status: 404 });
     const { 0: client, 1: server } = new WebSocketPair();
     this.ctx.acceptWebSocket(server);
     const player = newPlayer(profile);

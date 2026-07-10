@@ -1,11 +1,9 @@
 /**
- * The D1 schema. Nothing reads or writes this yet — it exists so that persistence has
- * somewhere to land when the game needs it.
+ * The D1 schema: accounts own up to three characters.
  *
- * Sessions are currently anonymous: a nickname buys you a freshly-minted UUID, and nothing
- * survives a logout. So a row here is not yet an identity, and `nick` is deliberately NOT
- * unique — two people may both call themselves "nico" today, and a unique constraint would
- * encode a promise the auth layer does not make. Add it the day nicknames are claimed.
+ * `username` is stored lowercase, so its UNIQUE constraint is case-insensitive by
+ * construction — "Nico" and "nico" are the same account. Character `name` is deliberately
+ * NOT unique: accounts claim usernames; characters do not claim names.
  */
 
 import { sql } from "drizzle-orm";
@@ -14,12 +12,26 @@ import { index, integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core
 /** Milliseconds since the epoch, as SQLite integers. `unixepoch()` is seconds. */
 const nowMs = sql`(unixepoch() * 1000)`;
 
-export const player = sqliteTable(
-  "player",
+export const account = sqliteTable("account", {
+  id: text("id").primaryKey(),
+  /** Always lowercase — normalized before every read and write. */
+  username: text("username").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  passwordSalt: text("password_salt").notNull(),
+  /** Stored per-row so PBKDF2_ITERATIONS can be raised without breaking old accounts. */
+  passwordIterations: integer("password_iterations").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
+  lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
+});
+
+export const character = sqliteTable(
+  "character",
   {
-    /** Matches the session id shape: a UUID minted by the Worker. */
     id: text("id").primaryKey(),
-    nick: text("nick").notNull(),
+    accountId: text("account_id")
+      .notNull()
+      .references(() => account.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
     x: real("x").notNull().default(784),
     y: real("y").notNull().default(450),
     level: integer("level").notNull().default(1),
@@ -45,8 +57,10 @@ export const player = sqliteTable(
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
     lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
   },
-  (table) => [index("player_nick_idx").on(table.nick)],
+  (table) => [index("character_account_idx").on(table.accountId)],
 );
 
-export type Player = typeof player.$inferSelect;
-export type NewPlayer = typeof player.$inferInsert;
+export type Account = typeof account.$inferSelect;
+export type NewAccount = typeof account.$inferInsert;
+export type Character = typeof character.$inferSelect;
+export type NewCharacter = typeof character.$inferInsert;

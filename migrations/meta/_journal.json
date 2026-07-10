@@ -15,6 +15,13 @@
       "when": 1783621842963,
       "tag": "0001_nostalgic_fantastic_four",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1783702832804,
+      "tag": "0002_icy_turbo",
+      "breakpoints": true
     }
   ]
 }

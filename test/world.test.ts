@@ -89,11 +89,17 @@ class Client {
     options: { pump?: boolean; position?: { x: number; y: number } } = {},
   ): Promise<Client> {
     const session = await testSession(nickname);
-    if (options.position) {
-      await env.DB.prepare("INSERT INTO player (id, nick, x, y) VALUES (?, ?, ?, ?)")
-        .bind(session.id, nickname, options.position.x, options.position.y)
-        .run();
-    }
+    const spawn = options.position ?? { x: 784, y: 450 };
+    await env.DB.prepare(
+      "INSERT INTO account (id, username, password_hash, password_salt, password_iterations) VALUES (?, ?, 'x', 'x', 1)",
+    )
+      .bind(`acct-${session.id}`, `u-${session.id}`.slice(0, 16).toLowerCase())
+      .run();
+    await env.DB.prepare(
+      "INSERT INTO character (id, account_id, name, x, y) VALUES (?, ?, ?, ?, ?)",
+    )
+      .bind(session.id, `acct-${session.id}`, nickname, spawn.x, spawn.y)
+      .run();
     const response = await SELF.fetch(`${ORIGIN}/api/ws`, {
       headers: { Upgrade: "websocket", Cookie: session.cookie },
     });
@@ -227,9 +233,10 @@ describe("World", () => {
     });
     expect(welcome.monsters.length).toBeGreaterThan(0);
     expect(welcome.self.inventory).toMatchObject({ potions: 2, weapon: "rusty_sword" });
-    expect(welcome.players.find((player) => player.id === welcome.selfId)).toMatchObject(
-      spawnPosition(welcome.selfId),
-    );
+    expect(welcome.players.find((player) => player.id === welcome.selfId)).toMatchObject({
+      x: 784,
+      y: 450,
+    });
 
     client.close();
   });

@@ -1,8 +1,8 @@
 import { eq } from "drizzle-orm";
-import { clampRestoredPosition, maxHpForLevel, spawnPosition } from "../shared/game.js";
+import { clampRestoredPosition, maxHpForLevel } from "../shared/game.js";
 import type { Appearance, Inventory, QuestState } from "../shared/protocol.js";
 import type { Vec2 } from "../shared/simulation.js";
-import { type Db, player } from "./db/index.js";
+import { type Character, character, type Db } from "./db/index.js";
 
 export interface PlayerProfile extends Vec2 {
   id: string;
@@ -15,20 +15,12 @@ export interface PlayerProfile extends Vec2 {
   quest: QuestState;
 }
 
-const APPEARANCES: readonly Appearance[] = ["azure", "ember", "moss", "violet"];
-
-function appearanceForId(id: string): Appearance {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-  return APPEARANCES[hash % APPEARANCES.length] ?? "azure";
-}
-
-function fromRow(row: typeof player.$inferSelect): PlayerProfile {
+function fromRow(row: Character): PlayerProfile {
   const position = clampRestoredPosition({ x: row.x, y: row.y }, row.id);
   const maxHp = maxHpForLevel(row.level);
   return {
     id: row.id,
-    nick: row.nick,
+    nick: row.name,
     ...position,
     level: Math.max(1, row.level),
     xp: Math.max(0, row.xp),
@@ -48,38 +40,24 @@ function fromRow(row: typeof player.$inferSelect): PlayerProfile {
   };
 }
 
-export async function loadOrCreateProfile(
-  db: Db,
-  id: string,
-  nick: string,
-): Promise<PlayerProfile> {
-  const existing = await db.select().from(player).where(eq(player.id, id)).get();
-  if (existing) {
-    await db.update(player).set({ nick, lastSeenAt: new Date() }).where(eq(player.id, id));
-    return fromRow({ ...existing, nick });
-  }
-
-  const position = spawnPosition(id);
-  const appearance = appearanceForId(id);
-  await db.insert(player).values({
-    id,
-    nick,
-    ...position,
-    appearance,
-    hp: maxHpForLevel(1),
-  });
-  const created = await db.select().from(player).where(eq(player.id, id)).get();
-  if (!created) throw new Error("player profile insert did not return a row");
-  return fromRow(created);
+/**
+ * Load by character id, never create. Characters exist only through POST /api/characters,
+ * so a missing row here means the socket must be refused.
+ */
+export async function loadProfile(db: Db, characterId: string): Promise<PlayerProfile | null> {
+  const row = await db.select().from(character).where(eq(character.id, characterId)).get();
+  if (!row) return null;
+  await db.update(character).set({ lastSeenAt: new Date() }).where(eq(character.id, characterId));
+  return fromRow(row);
 }
 
 export type SaveableProfile = PlayerProfile;
 
 export async function saveProfile(db: Db, profile: SaveableProfile): Promise<void> {
   await db
-    .update(player)
+    .update(character)
     .set({
-      nick: profile.nick,
+      name: profile.nick,
       x: profile.x,
       y: profile.y,
       level: profile.level,
@@ -94,5 +72,5 @@ export async function saveProfile(db: Db, profile: SaveableProfile): Promise<voi
       questProgress: profile.quest.progress,
       lastSeenAt: new Date(),
     })
-    .where(eq(player.id, profile.id));
+    .where(eq(character.id, profile.id));
 }
