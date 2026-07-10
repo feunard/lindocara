@@ -7,6 +7,13 @@
  */
 
 import { createAccount, verifyCredentials } from "./accounts.js";
+import {
+  createCharacter,
+  deleteCharacter,
+  isValidAppearance,
+  isValidCharacterName,
+  listCharacters,
+} from "./characters.js";
 import { createDb } from "./db/index.js";
 import {
   clearSessionCookie,
@@ -115,6 +122,44 @@ async function handleJoin(request: Request, env: Env): Promise<Response> {
   );
 }
 
+async function handleListCharacters(request: Request, env: Env): Promise<Response> {
+  const session = await currentSession(request, env);
+  if (!session) return json({ error: "unauthorized" }, { status: 401 });
+  return json(await listCharacters(createDb(env.DB), session.id));
+}
+
+async function handleCreateCharacter(request: Request, env: Env): Promise<Response> {
+  const session = await currentSession(request, env);
+  if (!session) return json({ error: "unauthorized" }, { status: 401 });
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "expected_json" }, { status: 400 });
+  }
+  const name = (body as { name?: unknown } | null)?.name;
+  const appearance = (body as { appearance?: unknown } | null)?.appearance;
+  if (!isValidCharacterName(name)) return json({ error: "invalid_name" }, { status: 400 });
+  if (!isValidAppearance(appearance)) return json({ error: "invalid_appearance" }, { status: 400 });
+
+  const created = await createCharacter(createDb(env.DB), session.id, name, appearance);
+  if (created === "limit_reached") return json({ error: "limit_reached" }, { status: 409 });
+  return json(created);
+}
+
+async function handleDeleteCharacter(
+  request: Request,
+  env: Env,
+  characterId: string,
+): Promise<Response> {
+  const session = await currentSession(request, env);
+  if (!session) return json({ error: "unauthorized" }, { status: 401 });
+  const deleted = await deleteCharacter(createDb(env.DB), session.id, characterId);
+  if (!deleted) return json({ error: "not_found" }, { status: 404 });
+  return new Response(null, { status: 204 });
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -148,6 +193,17 @@ export default {
       const session = await currentSession(request, env);
       if (!session) return json({ error: "unauthorized" }, { status: 401 });
       return json({ id: session.id, username: session.username });
+    }
+
+    if (url.pathname === "/api/characters" && request.method === "GET") {
+      return handleListCharacters(request, env);
+    }
+    if (url.pathname === "/api/characters" && request.method === "POST") {
+      return handleCreateCharacter(request, env);
+    }
+    const characterPath = url.pathname.match(/^\/api\/characters\/([0-9a-f-]{36})$/);
+    if (characterPath?.[1] && request.method === "DELETE") {
+      return handleDeleteCharacter(request, env, characterPath[1]);
     }
 
     return json({ error: "not found" }, { status: 404 });
