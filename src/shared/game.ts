@@ -397,10 +397,6 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
 export const PLAYER_MAX_HP_BASE = 100;
 export const PLAYER_HP_PER_LEVEL = 12;
 
-/** Replaced by CLASS_STATS — deleted when world.ts/session.ts switch (classes plan Tasks 5–6). */
-export const PLAYER_ATTACK_BASE = 24;
-export const PLAYER_ATTACK_PER_LEVEL = 3;
-export const ATTACK_RANGE = 82;
 export const ATTACK_COOLDOWN_MS = 550;
 export const MONSTER_MAX_HP = 64;
 export const MONSTER_DAMAGE = 9;
@@ -479,10 +475,6 @@ export function spawnPosition(seed = ""): Vec2 {
 
 export function maxHpForLevel(level: number): number {
   return PLAYER_MAX_HP_BASE + Math.max(0, level - 1) * PLAYER_HP_PER_LEVEL;
-}
-
-export function attackDamageForLevel(level: number): number {
-  return PLAYER_ATTACK_BASE + Math.max(0, level - 1) * PLAYER_ATTACK_PER_LEVEL;
 }
 
 // Class system: character types with distinct balance profiles.

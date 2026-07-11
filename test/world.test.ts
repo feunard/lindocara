@@ -9,6 +9,7 @@ import { type Attachment, positionFromAttachment } from "../src/server/world.js"
 import {
   isWalkable,
   OBSTACLES,
+  type PlayerClass,
   QUEST_NPC,
   SAFE_ZONE,
   spawnPosition,
@@ -40,10 +41,16 @@ interface TestCharacter {
 
 let accountCounter = 0;
 
+interface TestCharacterOptions {
+  position?: { x: number; y: number };
+  class?: PlayerClass;
+  hp?: number;
+}
+
 /** Register a fresh account and create one character on it through the real API. */
 async function testCharacter(
   name: string,
-  position?: { x: number; y: number },
+  options: TestCharacterOptions = {},
 ): Promise<TestCharacter> {
   const username = `u${++accountCounter}${name}`.toLowerCase().slice(0, 16);
   const registered = await SELF.fetch(`${ORIGIN}/api/register`, {
@@ -58,14 +65,19 @@ async function testCharacter(
   const created = await SELF.fetch(`${ORIGIN}/api/characters`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Cookie: pair },
-    body: JSON.stringify({ name, appearance: "azure", class: "warrior" }),
+    body: JSON.stringify({ name, appearance: "azure", class: options.class ?? "warrior" }),
   });
   expect(created.status).toBe(200);
   const body = (await created.json()) as { id: string };
 
-  if (position) {
+  if (options.position) {
     await env.DB.prepare("UPDATE character SET x = ?, y = ? WHERE id = ?")
-      .bind(position.x, position.y, body.id)
+      .bind(options.position.x, options.position.y, body.id)
+      .run();
+  }
+  if (options.hp !== undefined) {
+    await env.DB.prepare("UPDATE character SET hp = ? WHERE id = ?")
+      .bind(options.hp, body.id)
       .run();
   }
   return { cookie: pair, characterId: body.id };
@@ -101,9 +113,14 @@ class Client {
 
   static async join(
     nickname: string,
-    options: { pump?: boolean; position?: { x: number; y: number } } = {},
+    options: {
+      pump?: boolean;
+      position?: { x: number; y: number };
+      class?: PlayerClass;
+      hp?: number;
+    } = {},
   ): Promise<Client> {
-    const session = await testCharacter(nickname, options.position);
+    const session = await testCharacter(nickname, options);
     return Client.joinCharacter(session, options);
   }
 
@@ -161,7 +178,7 @@ class Client {
     this.#socket.send(payload);
   }
 
-  action(type: "attack" | "interact"): void {
+  action(type: "attack" | "interact" | "heal"): void {
     this.#socket.send(JSON.stringify({ t: type }));
   }
 
@@ -571,6 +588,56 @@ describe("World", () => {
     client.sendRaw("x".repeat(2_049));
     const closed = await until("oversized close", () => client.closeInfo ?? undefined);
     expect(closed.code).toBe(1009);
+  });
+
+  it("lets a priest mend the most injured player in range, respecting cooldown", async () => {
+    const priest = await Client.join("mender", { position: { x: 784, y: 450 }, class: "priest" });
+    const wounded = await Client.join("wounded", { position: { x: 800, y: 450 }, hp: 40 });
+    await until("both welcomes", () => priest.welcome && wounded.welcome);
+
+    priest.action("heal");
+    await until("the wounded player to be mended", () => {
+      const snapshot = wounded.self();
+      return snapshot && snapshot.hp > 40 ? snapshot : undefined;
+    });
+
+    const healed = wounded.self();
+    expect(healed?.hp).toBe(40 + 35); // healAmountFor(1)
+
+    // Cooldown: an immediate second cast must not double-heal.
+    priest.action("heal");
+    priest.action("heal");
+    await scheduler.wait(200);
+    expect(wounded.self()?.hp).toBe(75);
+
+    const cast = priest.received.find((m) => m.t === "event" && m.code === "heal.cast");
+    const received = wounded.received.find((m) => m.t === "event" && m.code === "heal.received");
+    expect(cast).toMatchObject({ params: { name: "wounded", amount: 35 } });
+    expect(received).toMatchObject({ params: { name: "mender", amount: 35 } });
+
+    priest.close();
+    wounded.close();
+  });
+
+  it("ignores heal intents from non-priests and out-of-range or full-health situations", async () => {
+    const warrior = await Client.join("brute", { position: { x: 784, y: 450 } });
+    await until("welcome", () => warrior.welcome);
+    warrior.action("heal");
+    await scheduler.wait(150);
+    expect(warrior.received.some((m) => m.t === "event" && String(m.code).startsWith("heal"))).toBe(
+      false,
+    );
+
+    const priest = await Client.join("lonely", { position: { x: 3000, y: 2200 }, class: "priest" });
+    await until("welcome", () => priest.welcome);
+    priest.action("heal"); // full HP everywhere near → nobody
+    const nobody = await until("heal.nobody", () =>
+      priest.received.find((m) => m.t === "event" && m.code === "heal.nobody"),
+    );
+    expect(nobody).toMatchObject({ tone: "info" });
+
+    warrior.close();
+    priest.close();
   });
 
   it("deleting a connected character kicks its socket", async () => {

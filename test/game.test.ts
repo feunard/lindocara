@@ -3,7 +3,6 @@ import {
   applyDamage,
   applyExperience,
   attackDamageFor,
-  attackDamageForLevel,
   BOUNDARY_OBSTACLES,
   CLASS_STATS,
   clampRestoredPosition,
@@ -331,9 +330,8 @@ describe("authoritative combat and progression rules", () => {
     expect(applyExperience(1, 0, gained)).toEqual({ level: 3, xp: 17, levelsGained: 2 });
   });
 
-  it("increases health and attack damage with level", () => {
+  it("increases health with level", () => {
     expect(maxHpForLevel(5)).toBeGreaterThan(maxHpForLevel(1));
-    expect(attackDamageForLevel(5)).toBeGreaterThan(attackDamageForLevel(1));
   });
 
   it("applies combat damage without allowing healing or negative HP", () => {

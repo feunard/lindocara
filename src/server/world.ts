@@ -5,11 +5,12 @@
 import { DurableObject } from "cloudflare:workers";
 import {
   ATTACK_COOLDOWN_MS,
-  ATTACK_RANGE,
   applyDamage,
   applyExperience,
-  attackDamageForLevel,
+  attackDamageFor,
+  CLASS_STATS,
   clampRestoredPosition,
+  healAmountFor,
   INTERACTION_RANGE,
   inRect,
   LOOT_PICKUP_RANGE,
@@ -93,6 +94,7 @@ interface Player extends PlayerProfile {
   starvedTicks: number;
   dirty: boolean;
   lastAttackAt: number;
+  lastHealAt: number;
   deadUntil: number;
   messageTimes: number[];
   malformedCount: number;
@@ -146,6 +148,7 @@ function newPlayer(profile: PlayerProfile, ack = 0, lastSeq = 0): Player {
     starvedTicks: 0,
     dirty: false,
     lastAttackAt: 0,
+    lastHealAt: 0,
     deadUntil: 0,
     messageTimes: [],
     malformedCount: 0,
@@ -328,7 +331,7 @@ export class World extends DurableObject<Env> {
       return;
     }
     if (message.t === "heal") {
-      // TODO: Implement heal logic (Task 5)
+      this.#heal(ws, player);
       return;
     }
     const text = message.text.trim().replaceAll(/\s+/g, " ");
@@ -341,8 +344,9 @@ export class World extends DurableObject<Env> {
     if (player.deadUntil > now || now - player.lastAttackAt < ATTACK_COOLDOWN_MS) return;
     player.lastAttackAt = now;
 
+    const stats = CLASS_STATS[player.class];
     let target: Monster | undefined;
-    let distance = ATTACK_RANGE;
+    let distance = stats.attackRange;
     for (const monster of this.#monsters) {
       if (monster.deadUntil > now) continue;
       const candidate = pointDistance(player, monster);
@@ -356,7 +360,7 @@ export class World extends DurableObject<Env> {
       return;
     }
 
-    const damage = attackDamageForLevel(player.level);
+    const damage = attackDamageFor(player.class, player.level);
     const result = applyDamage(target.hp, damage);
     target.hp = result.hp;
     this.#send(ws, {
@@ -404,6 +408,56 @@ export class World extends DurableObject<Env> {
     );
     this.#sendState(ws, player);
     player.dirty = true;
+  }
+
+  #heal(ws: WebSocket, player: Player): void {
+    const heal = CLASS_STATS[player.class].heal;
+    if (!heal) return; // not a priest — intent silently ignored
+    const now = Date.now();
+    if (player.deadUntil > now || now - player.lastHealAt < heal.cooldownMs) return;
+
+    let target: Player | undefined;
+    let targetSocket: WebSocket | undefined;
+    let worstRatio = 1;
+    for (const [socket, candidate] of this.#players) {
+      if (candidate.deadUntil > now) continue;
+      if (pointDistance(player, candidate) > heal.range) continue;
+      const ratio = candidate.hp / maxHpForLevel(candidate.level);
+      if (ratio < worstRatio) {
+        worstRatio = ratio;
+        target = candidate;
+        targetSocket = socket;
+      }
+    }
+    if (!target || !targetSocket) {
+      // No cooldown consumed on a whiff — pressing F at full health must not punish.
+      this.#send(ws, { t: "event", code: "heal.nobody", tone: "info" });
+      return;
+    }
+
+    player.lastHealAt = now;
+    const amount = healAmountFor(player.level);
+    target.hp = Math.min(maxHpForLevel(target.level), target.hp + amount);
+    target.dirty = true;
+    player.dirty = true;
+    this.#send(ws, {
+      t: "event",
+      code: "heal.cast",
+      params: { name: target.nick, amount },
+      tone: "good",
+      x: target.x,
+      y: target.y,
+    });
+    if (targetSocket !== ws) {
+      this.#send(targetSocket, {
+        t: "event",
+        code: "heal.received",
+        params: { name: player.nick, amount },
+        tone: "good",
+      });
+    }
+    this.#sendState(ws, player);
+    if (targetSocket !== ws) this.#sendState(targetSocket, target);
   }
 
   #interact(ws: WebSocket, player: Player): void {

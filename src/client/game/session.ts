@@ -1,6 +1,6 @@
 import {
   ATTACK_COOLDOWN_MS,
-  ATTACK_RANGE,
+  CLASS_STATS,
   INTERACTION_RANGE,
   pointDistance,
   QUEST_NPC,
@@ -299,7 +299,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     const context: RenderContext = {
       questStatus,
       attackCooldownUntil,
-      attackRange: ATTACK_RANGE,
+      attackRange: currentSelf ? CLASS_STATS[currentSelf.class].attackRange : 0,
       now,
       ...(self ? { self } : {}),
     };
