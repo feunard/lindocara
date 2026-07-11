@@ -55,13 +55,14 @@ export function CharacterSelect({ onPlay }: { onPlay(character: CharacterSummary
   async function submitCreate(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setError(null);
-    const data = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const data = new FormData(form);
     try {
       await api<CharacterSummary>("/api/characters", {
         method: "POST",
         body: JSON.stringify({ name: data.get("name"), appearance: data.get("appearance") }),
       });
-      event.currentTarget.reset();
+      form.reset();
       setCreating(false);
       setCharacters(null);
     } catch (caught) {

@@ -45,4 +45,43 @@ describe("CharacterSelect", () => {
     await userEvent.click(screen.getAllByRole("button", { name: "Play" })[0] as HTMLElement);
     expect(onPlay).toHaveBeenCalledWith(three[0]);
   });
+
+  it("creates a character without false error on success", async () => {
+    const mock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+      if (url === "/api/characters" && options?.method === "POST") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({ id: "new-1", name: "TestHero", appearance: "azure", level: 1 }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        );
+      }
+      if (url === "/api/characters" && (!options?.method || options.method === "GET")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify([{ id: "new-1", name: "TestHero", appearance: "azure", level: 1 }]),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        );
+      }
+      return Promise.reject(new Error(`Unexpected fetch: ${url}`));
+    });
+    vi.stubGlobal("fetch", mock);
+    useUiStore.setState({ screen: "characters", characters: [] });
+    render(<CharacterSelect onPlay={() => undefined} />);
+
+    // Type character name
+    const nameInput = screen.getByDisplayValue("") as HTMLInputElement;
+    await userEvent.type(nameInput, "TestHero");
+
+    // Submit form
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: (accessibleName) => accessibleName.includes("Create"),
+      }),
+    );
+
+    // Assert NO alert appears (the bug would show a false error)
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
 });
