@@ -4,7 +4,7 @@
  */
 
 import { and, eq } from "drizzle-orm";
-import { maxHpForLevel, spawnPosition } from "../shared/game.js";
+import { maxHpForLevel, type PlayerClass, spawnPosition } from "../shared/game.js";
 import type { Appearance } from "../shared/protocol.js";
 import { character, type Db } from "./db/index.js";
 
@@ -26,6 +26,7 @@ export interface CharacterSummary {
   name: string;
   appearance: Appearance;
   level: number;
+  class: PlayerClass;
 }
 
 function summary(row: {
@@ -33,8 +34,15 @@ function summary(row: {
   name: string;
   appearance: Appearance;
   level: number;
+  class: PlayerClass;
 }): CharacterSummary {
-  return { id: row.id, name: row.name, appearance: row.appearance, level: row.level };
+  return {
+    id: row.id,
+    name: row.name,
+    appearance: row.appearance,
+    level: row.level,
+    class: row.class,
+  };
 }
 
 export async function listCharacters(db: Db, accountId: string): Promise<CharacterSummary[]> {
@@ -47,6 +55,7 @@ export async function createCharacter(
   accountId: string,
   name: string,
   appearance: Appearance,
+  playerClass: PlayerClass,
 ): Promise<CharacterSummary | "limit_reached"> {
   const existing = await listCharacters(db, accountId);
   if (existing.length >= MAX_CHARACTERS_PER_ACCOUNT) return "limit_reached";
@@ -59,9 +68,10 @@ export async function createCharacter(
     name,
     ...position,
     appearance,
+    class: playerClass,
     hp: maxHpForLevel(1),
   });
-  return { id, name, appearance, level: 1 };
+  return { id, name, appearance, level: 1, class: playerClass };
 }
 
 export async function characterOwnedBy(

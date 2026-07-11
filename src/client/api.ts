@@ -1,3 +1,4 @@
+import type { PlayerClass } from "../shared/game.js";
 import type { MessageKey } from "../shared/i18n/index.js";
 import type { Appearance } from "../shared/protocol.js";
 import { t } from "./i18n.js";
@@ -12,6 +13,7 @@ export interface CharacterSummary {
   name: string;
   appearance: Appearance;
   level: number;
+  class: PlayerClass;
 }
 
 /** The client can only create as many characters as the server's per-account cap allows.

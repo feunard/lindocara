@@ -7,9 +7,9 @@ import { useUiStore } from "../../src/client/store.js";
 import { CharacterSelect } from "../../src/client/ui/CharacterSelect.js";
 
 const three: CharacterSummary[] = [
-  { id: "1", name: "One", appearance: "azure", level: 1 },
-  { id: "2", name: "Two", appearance: "ember", level: 2 },
-  { id: "3", name: "Three", appearance: "moss", level: 3 },
+  { id: "1", name: "One", appearance: "azure", level: 1, class: "warrior" },
+  { id: "2", name: "Two", appearance: "ember", level: 2, class: "warrior" },
+  { id: "3", name: "Three", appearance: "moss", level: 3, class: "warrior" },
 ];
 
 describe("CharacterSelect", () => {

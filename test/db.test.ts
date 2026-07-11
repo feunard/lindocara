@@ -235,16 +235,18 @@ describe("characters service", () => {
     const db = createDb(env.DB);
     const accountId = await owner();
     for (let i = 0; i < MAX_CHARACTERS_PER_ACCOUNT; i++) {
-      const created = await createCharacter(db, accountId, `Hero${i}`, "ember");
+      const created = await createCharacter(db, accountId, `Hero${i}`, "ember", "warrior");
       expect(created).toMatchObject({ name: `Hero${i}`, appearance: "ember", level: 1 });
     }
-    expect(await createCharacter(db, accountId, "OneTooMany", "moss")).toBe("limit_reached");
+    expect(await createCharacter(db, accountId, "OneTooMany", "moss", "warrior")).toBe(
+      "limit_reached",
+    );
     expect(await listCharacters(db, accountId)).toHaveLength(MAX_CHARACTERS_PER_ACCOUNT);
   });
 
   it("spawns a new character at its deterministic plaza spawn", async () => {
     const db = createDb(env.DB);
-    const created = await createCharacter(db, await owner(), "Fresh", "azure");
+    const created = await createCharacter(db, await owner(), "Fresh", "azure", "warrior");
     if (created === "limit_reached") throw new Error("unexpected cap");
     const row = await loadProfile(db, created.id);
     expect(row).toMatchObject(spawnPosition(created.id));
@@ -254,7 +256,7 @@ describe("characters service", () => {
     const db = createDb(env.DB);
     const alice = await owner("alice");
     const bob = await owner("bob");
-    const created = await createCharacter(db, alice, "AliceHero", "violet");
+    const created = await createCharacter(db, alice, "AliceHero", "violet", "warrior");
     if (created === "limit_reached") throw new Error("unexpected cap");
 
     expect(await listCharacters(db, bob)).toEqual([]);

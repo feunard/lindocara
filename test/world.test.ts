@@ -58,7 +58,7 @@ async function testCharacter(
   const created = await SELF.fetch(`${ORIGIN}/api/characters`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Cookie: pair },
-    body: JSON.stringify({ name, appearance: "azure" }),
+    body: JSON.stringify({ name, appearance: "azure", class: "warrior" }),
   });
   expect(created.status).toBe(200);
   const body = (await created.json()) as { id: string };
