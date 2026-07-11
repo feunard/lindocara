@@ -42,6 +42,14 @@ export const character = sqliteTable(
     })
       .notNull()
       .default("azure"),
+    appearanceBody: text("appearance_body", { enum: ["wayfarer"] })
+      .notNull()
+      .default("wayfarer"),
+    appearancePrimaryColor: text("appearance_primary_color", {
+      enum: ["azure", "ember", "moss", "violet"],
+    })
+      .notNull()
+      .default("azure"),
     class: text("class", { enum: ["warrior", "ranger", "priest"] })
       .notNull()
       .default("warrior"),
@@ -51,6 +59,12 @@ export const character = sqliteTable(
     weapon: text("weapon", { enum: ["rusty_sword"] })
       .notNull()
       .default("rusty_sword"),
+    mainHand: text("main_hand", {
+      enum: ["weathered_sword", "hunter_bow", "heartwood_staff"],
+    })
+      .notNull()
+      .default("weathered_sword"),
+    offHand: text("off_hand", { enum: ["oak_shield"] }),
     questStatus: text("quest_status", {
       enum: ["available", "active", "ready", "completed"],
     })

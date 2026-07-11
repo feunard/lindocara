@@ -1,6 +1,6 @@
+import type { CharacterAppearance, Equipment } from "../shared/character.js";
 import type { PlayerClass } from "../shared/game.js";
 import type { MessageKey } from "../shared/i18n/index.js";
-import type { Appearance } from "../shared/protocol.js";
 import { t } from "./i18n.js";
 
 export interface Me {
@@ -11,9 +11,10 @@ export interface Me {
 export interface CharacterSummary {
   id: string;
   name: string;
-  appearance: Appearance;
+  appearance: CharacterAppearance;
   level: number;
   class: PlayerClass;
+  equipment: Equipment;
 }
 
 /** The client can only create as many characters as the server's per-account cap allows.
@@ -57,6 +58,8 @@ export const ERROR_KEYS: Record<string, MessageKey> = {
   password_mismatch: "auth.error.password_mismatch",
   limit_reached: "chars.error.limit_reached",
   invalid_name: "chars.error.invalid_name",
+  invalid_appearance: "chars.error.invalid_appearance",
+  invalid_class: "chars.error.invalid_class",
 };
 
 export function errorCode(error: unknown): string {

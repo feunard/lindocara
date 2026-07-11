@@ -1,0 +1,738 @@
+.creator-shell,
+.roster-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  overflow: auto;
+  color: #f4ead4;
+  background:
+    radial-gradient(circle at 20% 10%, rgb(91 133 90 / 20%), transparent 32rem),
+    linear-gradient(rgb(4 15 13 / 84%), rgb(5 17 14 / 96%)),
+    url("/assets/lindocara/atlas/world.png") center / 768px auto;
+}
+
+.creator-topbar,
+.roster-header {
+  width: min(1480px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 1.25rem 0 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.creator-topbar h1,
+.roster-header h1,
+.creator-controls h2,
+.creator-preview-copy h2,
+.roster-card h2 {
+  margin: 0.15rem 0;
+  font-family: var(--font-display), Georgia, serif;
+  letter-spacing: 0.02em;
+}
+
+.creator-layout {
+  width: min(1480px, calc(100% - 2rem));
+  margin: 0 auto 2rem;
+  display: grid;
+  grid-template-columns: minmax(320px, 0.78fr) minmax(600px, 1.42fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.creator-preview-panel {
+  position: sticky;
+  top: 1rem;
+  min-height: calc(100vh - 7rem);
+  padding: 1.5rem;
+  display: grid;
+  grid-template-rows: auto minmax(280px, 1fr) auto auto;
+  background:
+    linear-gradient(rgb(8 30 24 / 90%), rgb(4 18 15 / 95%)), url("../assets/hud/wood.png");
+}
+
+.creator-preview-copy p,
+.roster-header p,
+.creator-class-description,
+.creator-color-picker > p {
+  margin: 0.25rem 0 0;
+  color: #bdd0bd;
+}
+
+.creator-preview-stage {
+  display: grid;
+  place-items: center;
+  min-height: 300px;
+  background:
+    radial-gradient(ellipse at 50% 70%, rgb(175 216 137 / 14%), transparent 45%),
+    linear-gradient(transparent 75%, rgb(0 0 0 / 25%));
+}
+
+.character-preview {
+  --preview-scale: 8;
+  position: relative;
+  width: 220px;
+  height: 250px;
+  display: grid;
+  place-items: center;
+  image-rendering: pixelated;
+  overflow: hidden;
+}
+
+.character-preview--compact {
+  --preview-scale: 4;
+  width: 112px;
+  height: 120px;
+}
+
+.character-preview__shadow {
+  position: absolute;
+  left: 50%;
+  top: 70%;
+  width: 7rem;
+  height: 1.4rem;
+  translate: -50% -50%;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 42%);
+  filter: blur(2px);
+}
+
+.character-preview--compact .character-preview__shadow {
+  width: 3.4rem;
+  height: 0.8rem;
+}
+
+.character-preview__actor {
+  position: relative;
+  display: block;
+  width: 16px;
+  height: 18px;
+  transform: scale(var(--preview-scale));
+  transform-origin: center bottom;
+  will-change: transform;
+}
+
+.character-preview--idle .character-preview__actor {
+  animation: creator-idle 1.9s ease-in-out infinite;
+}
+
+.character-preview--walk .character-preview__actor {
+  animation: creator-walk 420ms ease-in-out infinite;
+}
+
+.character-preview--attack .character-preview__actor {
+  animation: creator-attack 900ms ease-in-out infinite;
+}
+
+.character-preview__body,
+.character-preview__mainhand,
+.character-preview__offhand {
+  position: absolute;
+  display: block;
+  image-rendering: pixelated;
+}
+
+.character-preview__body {
+  z-index: 2;
+  inset: 0 auto auto 0;
+  width: 16px;
+  height: 16px;
+  background-repeat: no-repeat;
+}
+
+.character-preview__offhand {
+  z-index: 1;
+  left: -4px;
+  top: 2px;
+  width: 12px;
+  height: 15px;
+}
+
+.character-preview__mainhand {
+  z-index: 3;
+  right: -6px;
+  bottom: 0;
+  object-fit: contain;
+  transform-origin: 50% 90%;
+}
+
+.character-preview__mainhand--sword {
+  width: 7px;
+  height: 16px;
+  background: url("/assets/lindocara/atlas/world.png") -153px -208px no-repeat;
+}
+
+.character-preview__mainhand--hunter_bow {
+  right: -5px;
+  width: 9px;
+  height: 18px;
+}
+
+.character-preview__mainhand--heartwood_staff {
+  right: -5px;
+  bottom: -1px;
+  width: 10px;
+  height: 18px;
+}
+
+.character-preview--attack .character-preview__mainhand {
+  animation: creator-weapon-strike 900ms ease-in-out infinite;
+}
+
+.creator-motion-picker {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.creator-motion-picker button,
+.creator-utility-actions button {
+  padding: 0.45rem 0.65rem;
+  border-color: rgb(196 176 105 / 35%);
+  background: rgb(4 19 16 / 66%);
+  color: #dcd2b9;
+  font-size: 0.72rem;
+}
+
+.creator-motion-picker button.active {
+  border-color: #d9bc69;
+  color: #ffe8a0;
+  box-shadow: 0 0 0 2px rgb(217 188 105 / 16%);
+}
+
+.creator-loadout,
+.creator-confirm dl,
+.roster-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+  margin: 1rem 0 0;
+}
+
+.creator-loadout div,
+.creator-confirm dl div,
+.roster-card dl div {
+  padding: 0.6rem;
+  border: 1px solid rgb(210 187 111 / 20%);
+  background: rgb(0 12 10 / 26%);
+}
+
+.creator-loadout dt,
+.creator-confirm dt,
+.roster-card dt {
+  color: #aab9aa;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+}
+
+.creator-loadout dd,
+.creator-confirm dd,
+.roster-card dd {
+  margin: 0.2rem 0 0;
+  font-weight: 700;
+}
+
+.creator-controls {
+  min-height: calc(100vh - 7rem);
+  padding: 1.25rem;
+}
+
+.creator-section {
+  margin: 0;
+  padding: 1rem 0;
+  border: 0;
+  border-bottom: 1px solid rgb(69 50 28 / 22%);
+}
+
+.creator-section-heading,
+.creator-section-heading > div,
+.creator-class-picker legend,
+.creator-color-picker legend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.creator-step-number {
+  color: #7f5f2d;
+  font:
+    700 0.68rem ui-monospace,
+    monospace;
+}
+
+.creator-section-heading h2,
+.creator-section legend {
+  font-family: var(--font-display), Georgia, serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.creator-utility-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.creator-section > small,
+.creator-section-heading > small {
+  color: #735e43;
+}
+
+.creator-controls .creator-field-label,
+.creator-controls .creator-class-description,
+.creator-controls .creator-color-picker > p {
+  color: #4f3e29;
+}
+
+.creator-controls #character-name {
+  display: block;
+  width: min(34rem, 100%);
+  margin-top: 0.3rem;
+}
+
+.creator-controls #character-name + small {
+  display: block;
+  margin-top: 0.35rem;
+}
+
+.creator-class-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+}
+
+.class-card {
+  position: relative;
+  min-height: 155px;
+  padding: 0.8rem;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.65rem;
+  border: 2px solid rgb(93 67 32 / 28%);
+  background: rgb(255 248 224 / 34%);
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background 140ms ease;
+}
+
+.class-card:hover,
+.class-card.selected {
+  transform: translateY(-2px);
+  border-color: #8c672e;
+  background: rgb(226 195 122 / 24%);
+  box-shadow: 0 8px 20px rgb(69 45 13 / 12%);
+}
+
+.class-card input,
+.creator-swatches input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.class-card:focus-within,
+.creator-swatches label:focus-within {
+  outline: 3px solid #4d7d65;
+  outline-offset: 3px;
+}
+
+.class-card__sigil {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid #75552c;
+  background: #263f32;
+  color: #f0cf76;
+  font-size: 1.35rem;
+}
+
+.class-card__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.24rem;
+}
+
+.class-card__copy strong {
+  font-family: var(--font-display), Georgia, serif;
+  font-size: 1rem;
+}
+
+.class-card__copy small {
+  min-height: 2.25em;
+  color: #584934;
+}
+
+.class-card__copy > span {
+  color: #725c3e;
+  font-size: 0.67rem;
+}
+
+.creator-swatches {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(90px, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.7rem;
+}
+
+.creator-swatches label {
+  position: relative;
+  padding: 0.65rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  border: 2px solid rgb(93 67 32 / 24%);
+  cursor: pointer;
+}
+
+.creator-swatches label.selected {
+  border-color: #72501e;
+  background: rgb(226 195 122 / 24%);
+}
+
+.creator-swatches .swatch {
+  width: 2rem;
+  height: 2rem;
+  border: 3px solid rgb(38 28 18 / 68%);
+  box-shadow: inset 0 0 0 2px rgb(255 255 255 / 18%);
+}
+
+.creator-skill-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.45rem;
+  margin-top: 0.7rem;
+}
+
+.creator-skill-grid article {
+  min-height: 92px;
+  padding: 0.55rem;
+  border: 1px dashed rgb(92 66 31 / 42%);
+  background: rgb(255 249 230 / 25%);
+}
+
+.creator-skill-grid article > span {
+  display: grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 1px solid #76582d;
+  color: #76582d;
+  font:
+    700 0.62rem ui-monospace,
+    monospace;
+}
+
+.creator-skill-grid p {
+  margin: 0.45rem 0 0;
+  color: #594b37;
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
+.creator-footer {
+  padding-top: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+.creator-footer [role="alert"],
+.creator-confirm [role="alert"] {
+  color: #8c2925;
+}
+
+.creator-confirm {
+  min-height: calc(100vh - 10rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.creator-confirm .character-preview {
+  height: 210px;
+}
+
+.creator-confirm dl {
+  width: min(560px, 100%);
+}
+
+.creator-confirm-actions,
+.delete-dialog > div,
+.roster-card__actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.55rem;
+}
+
+.roster-shell {
+  padding-bottom: 2rem;
+}
+
+.roster-header {
+  padding-top: 2rem;
+}
+
+.roster-grid {
+  width: min(1240px, calc(100% - 2rem));
+  margin: 1rem auto;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.roster-card {
+  min-height: 500px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  border-width: 11px;
+  border-image-width: 11px;
+  background:
+    linear-gradient(rgb(8 29 24 / 92%), rgb(5 18 15 / 96%)), url("../assets/hud/wood.png");
+  color: #efe4cc;
+}
+
+.roster-card__preview {
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(ellipse, rgb(157 209 133 / 12%), transparent 62%);
+}
+
+.roster-card__identity {
+  text-align: center;
+}
+
+.roster-card__identity > span {
+  color: #d0b567;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+
+.roster-card__identity p {
+  margin: 0.2rem;
+  color: #b8cbb9;
+}
+
+.roster-card__actions {
+  margin-top: auto;
+  padding-top: 1rem;
+}
+
+.roster-card__actions > :first-child {
+  flex: 1;
+}
+
+.roster-card--new {
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  background: rgb(6 24 20 / 82%);
+  color: #f0dfb6;
+  cursor: pointer;
+}
+
+.roster-card--new > span {
+  display: grid;
+  place-items: center;
+  width: 4rem;
+  height: 4rem;
+  border: 2px dashed #b39450;
+  border-radius: 50%;
+  font-size: 2rem;
+}
+
+.roster-card--new:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.8);
+}
+
+.delete-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(0 8 6 / 74%);
+  backdrop-filter: blur(5px);
+}
+
+.delete-dialog {
+  width: min(520px, 100%);
+  padding: 1.4rem;
+  text-align: center;
+}
+
+.delete-dialog h2 {
+  font-family: var(--font-display), Georgia, serif;
+}
+
+.delete-dialog .danger {
+  background: linear-gradient(#9a4036, #6e251f);
+}
+
+button:focus-visible,
+input:focus-visible,
+.class-card:focus-within,
+.creator-swatches label:focus-within {
+  outline: 3px solid #e2c66f;
+  outline-offset: 3px;
+}
+
+@keyframes creator-idle {
+  0%,
+  100% {
+    transform: translateY(0) scale(var(--preview-scale)) rotate(-0.4deg);
+  }
+  50% {
+    transform: translateY(-1px) scale(var(--preview-scale)) rotate(0.6deg);
+  }
+}
+
+@keyframes creator-walk {
+  0%,
+  100% {
+    transform: translate(-1px, 0) scale(var(--preview-scale)) rotate(-2deg);
+  }
+  50% {
+    transform: translate(1px, -2px) scale(var(--preview-scale)) rotate(2deg);
+  }
+}
+
+@keyframes creator-attack {
+  0%,
+  55%,
+  100% {
+    transform: translateX(0) scale(var(--preview-scale));
+  }
+  68% {
+    transform: translateX(-1px) scale(var(--preview-scale)) rotate(-3deg);
+  }
+  78% {
+    transform: translateX(2px) scale(var(--preview-scale)) rotate(4deg);
+  }
+}
+
+@keyframes creator-weapon-strike {
+  0%,
+  55%,
+  100% {
+    transform: rotate(0);
+  }
+  68% {
+    transform: rotate(-48deg);
+  }
+  80% {
+    transform: rotate(38deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .character-preview--idle .character-preview__actor,
+  .character-preview--walk .character-preview__actor,
+  .character-preview--attack .character-preview__actor,
+  .character-preview--attack .character-preview__mainhand,
+  .class-card {
+    animation: none;
+    transition: none;
+  }
+}
+
+@media (max-width: 980px) {
+  .creator-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .creator-preview-panel {
+    position: relative;
+    top: 0;
+    min-height: 520px;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto 1fr auto;
+  }
+
+  .creator-preview-stage {
+    grid-row: 1 / 4;
+    grid-column: 2;
+  }
+
+  .roster-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 680px) {
+  .creator-topbar,
+  .roster-header,
+  .creator-layout,
+  .roster-grid {
+    width: min(100% - 1rem, 100%);
+  }
+
+  .creator-topbar,
+  .roster-header {
+    align-items: flex-start;
+    padding-top: 3.75rem;
+  }
+
+  .creator-preview-panel {
+    min-height: 520px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .creator-preview-stage {
+    min-height: 250px;
+  }
+
+  .character-preview {
+    --preview-scale: 6;
+    height: 210px;
+  }
+
+  .character-preview--compact {
+    --preview-scale: 4;
+    height: 120px;
+  }
+
+  .creator-controls {
+    padding: 0.75rem;
+  }
+
+  .creator-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .creator-class-grid,
+  .creator-swatches,
+  .roster-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .creator-skill-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .creator-skill-grid article:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .roster-card {
+    min-height: 450px;
+  }
+}

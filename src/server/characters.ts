@@ -4,44 +4,56 @@
  */
 
 import { and, eq } from "drizzle-orm";
+import {
+  type CharacterAppearance,
+  type Equipment,
+  isValidAppearance,
+  normalizeAppearance,
+  normalizeEquipment,
+  starterEquipmentFor,
+} from "../shared/character.js";
 import { maxHpForLevel, type PlayerClass, spawnPosition } from "../shared/game.js";
-import type { Appearance } from "../shared/protocol.js";
 import { character, type Db } from "./db/index.js";
 
 export const MAX_CHARACTERS_PER_ACCOUNT = 3;
 
 const NAME_PATTERN = /^[A-Za-z0-9_-]{2,16}$/;
-const APPEARANCES: readonly Appearance[] = ["azure", "ember", "moss", "violet"];
-
 export function isValidCharacterName(value: unknown): value is string {
   return typeof value === "string" && NAME_PATTERN.test(value);
 }
 
-export function isValidAppearance(value: unknown): value is Appearance {
-  return typeof value === "string" && (APPEARANCES as readonly string[]).includes(value);
-}
+export { isValidAppearance };
 
 export interface CharacterSummary {
   id: string;
   name: string;
-  appearance: Appearance;
+  appearance: CharacterAppearance;
   level: number;
   class: PlayerClass;
+  equipment: Equipment;
 }
 
 function summary(row: {
   id: string;
   name: string;
-  appearance: Appearance;
+  appearance: unknown;
+  appearanceBody: unknown;
+  appearancePrimaryColor: unknown;
   level: number;
   class: PlayerClass;
+  mainHand: unknown;
+  offHand: unknown;
 }): CharacterSummary {
   return {
     id: row.id,
     name: row.name,
-    appearance: row.appearance,
+    appearance: normalizeAppearance(
+      { body: row.appearanceBody, primaryColor: row.appearancePrimaryColor },
+      row.appearance,
+    ),
     level: row.level,
     class: row.class,
+    equipment: normalizeEquipment(row.class, row.mainHand, row.offHand),
   };
 }
 
@@ -54,7 +66,7 @@ export async function createCharacter(
   db: Db,
   accountId: string,
   name: string,
-  appearance: Appearance,
+  appearance: CharacterAppearance,
   playerClass: PlayerClass,
 ): Promise<CharacterSummary | "limit_reached"> {
   const existing = await listCharacters(db, accountId);
@@ -62,16 +74,24 @@ export async function createCharacter(
 
   const id = crypto.randomUUID();
   const position = spawnPosition(id);
+  const equipment = starterEquipmentFor(playerClass);
+  const now = new Date();
   await db.insert(character).values({
     id,
     accountId,
     name,
     ...position,
-    appearance,
+    appearance: appearance.primaryColor,
+    appearanceBody: appearance.body,
+    appearancePrimaryColor: appearance.primaryColor,
     class: playerClass,
+    mainHand: equipment.mainHand,
+    offHand: equipment.offHand,
     hp: maxHpForLevel(1),
+    createdAt: now,
+    lastSeenAt: now,
   });
-  return { id, name, appearance, level: 1, class: playerClass };
+  return { id, name, appearance, level: 1, class: playerClass, equipment };
 }
 
 export async function characterOwnedBy(

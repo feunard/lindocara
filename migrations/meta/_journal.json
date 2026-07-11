@@ -29,6 +29,13 @@
       "when": 1783730441391,
       "tag": "0003_broken_wendigo",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1783774177152,
+      "tag": "0004_little_magus",
+      "breakpoints": true
     }
   ]
 }

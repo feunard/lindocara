@@ -71,6 +71,7 @@ function renderPlayer(player: PlayerSnapshot | undefined): void {
           maxHp: player.maxHp,
           dead: player.dead,
           class: player.class,
+          equipment: { ...player.equipment },
         }
       : null,
   );

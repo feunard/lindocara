@@ -53,7 +53,7 @@ export function Hud() {
 
   if (self === null || selfState === null) return null;
 
-  const { potions, gold, crystals, weapon } = selfState.inventory;
+  const { potions, gold, crystals } = selfState.inventory;
   const { quest } = selfState;
   const showQuestBar = quest.status === "active" || quest.status === "ready";
 
@@ -144,8 +144,8 @@ export function Hud() {
           <InventoryChip icon="crystal" label={t("item.crystal")} value={String(crystals)} />
           <InventoryChip
             icon="sword"
-            label={t("item.sword")}
-            value={weapon === "rusty_sword" ? t("item.sword_on") : "?"}
+            label={t(`item.${self.equipment.mainHand}`)}
+            value={t("item.sword_on")}
           />
         </div>
       </section>

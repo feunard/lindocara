@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { Equipment } from "../shared/character.js";
 import type { PlayerClass } from "../shared/game.js";
 import type { MessageKey } from "../shared/i18n/index.js";
 import type { QuestStatus, SelfState } from "../shared/protocol.js";
@@ -29,6 +30,7 @@ export interface SelfHud {
   maxHp: number;
   dead: boolean;
   class: PlayerClass;
+  equipment: Equipment;
 }
 
 export interface GameHandle {
@@ -86,7 +88,9 @@ function selfHudEqual(a: SelfHud | null, b: SelfHud | null): boolean {
     a.hp === b.hp &&
     a.maxHp === b.maxHp &&
     a.dead === b.dead &&
-    a.class === b.class
+    a.class === b.class &&
+    a.equipment.mainHand === b.equipment.mainHand &&
+    a.equipment.offHand === b.equipment.offHand
   );
 }
 

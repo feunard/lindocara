@@ -8,6 +8,7 @@ import {
   Text,
   Texture,
 } from "pixi.js";
+import type { MainHandItem, OffHandItem, PrimaryColor } from "../../shared/character.js";
 import {
   BOUNDARY_OBSTACLES,
   type PlayerClass,
@@ -19,7 +20,6 @@ import {
 } from "../../shared/game.js";
 import type { MessageKey } from "../../shared/i18n/index.js";
 import type {
-  Appearance,
   ItemKind,
   LootSnapshot,
   MonsterSnapshot,
@@ -28,6 +28,7 @@ import type {
 } from "../../shared/protocol.js";
 import { PLAYER_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from "../../shared/simulation.js";
 import { onLocaleChange, t } from "../i18n.js";
+import { MAIN_HAND_ART, OFF_HAND_ART, PLAYER_ATLAS_FRAMES } from "./character-art.js";
 import type { SceneSample } from "./net.js";
 import {
   DECOR_REGIONS,
@@ -72,7 +73,7 @@ interface AtlasData {
 }
 
 interface ArtTextures {
-  players: Record<Appearance, Texture>;
+  players: Record<PrimaryColor, Texture>;
   slime: Texture;
   keeper: Texture;
   tiles: {
@@ -95,7 +96,8 @@ interface ArtTextures {
     roots: Texture[];
     torch: Texture;
   };
-  sword: Texture;
+  mainHands: Record<MainHandItem, Texture>;
+  offHands: Record<OffHandItem, Texture>;
   loot: Record<ItemKind, Texture>;
 }
 
@@ -186,9 +188,14 @@ function centerOf(entity: { x: number; y: number }): { x: number; y: number } {
 }
 
 async function loadArt(): Promise<ArtTextures> {
-  const [baseTexture, atlasData] = await Promise.all([
+  const externalEquipment = [
+    ...Object.values(MAIN_HAND_ART).filter((art) => art.source !== "atlas"),
+    ...Object.values(OFF_HAND_ART),
+  ];
+  const [baseTexture, atlasData, ...equipmentTextures] = await Promise.all([
     Assets.load<Texture>(ATLAS_IMAGE),
     fetch(ATLAS_DATA).then((response) => response.json() as Promise<AtlasData>),
+    ...externalEquipment.map((art) => Assets.load<Texture>(art.source)),
   ]);
   baseTexture.source.style.scaleMode = "nearest";
 
@@ -206,13 +213,21 @@ async function loadArt(): Promise<ArtTextures> {
     if (!result) throw new Error(`Missing atlas frame: ${name}`);
     return result;
   };
+  const external = new Map(
+    externalEquipment.map((art, index) => [art.source, equipmentTextures[index] as Texture]),
+  );
+  const equipmentTexture = (source: string): Texture => {
+    const result = external.get(source);
+    if (!result) throw new Error(`Missing equipment texture: ${source}`);
+    return result;
+  };
 
   return {
     players: {
-      azure: texture("player.azure"),
-      ember: texture("player.ember"),
-      moss: texture("player.moss"),
-      violet: texture("player.violet"),
+      azure: texture(PLAYER_ATLAS_FRAMES.azure.name),
+      ember: texture(PLAYER_ATLAS_FRAMES.ember.name),
+      moss: texture(PLAYER_ATLAS_FRAMES.moss.name),
+      violet: texture(PLAYER_ATLAS_FRAMES.violet.name),
     },
     slime: texture("monster.slime"),
     keeper: texture("npc.keeper"),
@@ -260,7 +275,14 @@ async function loadArt(): Promise<ArtTextures> {
       roots: [texture("prop.root")],
       torch: texture("prop.torch"),
     },
-    sword: texture("weapon.sword"),
+    mainHands: {
+      weathered_sword: texture("weapon.sword"),
+      hunter_bow: equipmentTexture(MAIN_HAND_ART.hunter_bow.source),
+      heartwood_staff: equipmentTexture(MAIN_HAND_ART.heartwood_staff.source),
+    },
+    offHands: {
+      oak_shield: equipmentTexture(OFF_HAND_ART.oak_shield.source),
+    },
     loot: {
       potion: texture("loot.potion"),
       gold: texture("loot.gold"),
@@ -1229,18 +1251,33 @@ export class Renderer {
     actor.pivot.set(16, 17);
     actor.position.set(16, 17);
     const shadow = new Graphics().ellipse(16, 31, 16, 6).fill({ color: COLORS.shadow, alpha: 0.6 });
-    const body = createSprite(this.art.players[player.appearance], 32, 32);
+    const body = createSprite(this.art.players[player.appearance.primaryColor], 32, 32);
     body.anchor.set(0.5, 1);
     body.position.set(16, 34);
     const selfRing = new Graphics();
     if (player.id === this.#selfId) {
       selfRing.ellipse(16, 31, 18, 7).stroke({ width: 2, color: COLORS.selfRing, alpha: 0.82 });
     }
-    const weapon = createSprite(this.art.sword, 14, 28);
+    const mainArt = MAIN_HAND_ART[player.equipment.mainHand];
+    const mainScale = player.equipment.mainHand === "hunter_bow" ? 1.7 : 1.85;
+    const weapon = createSprite(
+      this.art.mainHands[player.equipment.mainHand],
+      mainArt.width * mainScale,
+      mainArt.height * mainScale,
+    );
     weapon.anchor.set(0.5, 1);
     weapon.position.set(25, 31);
+    const offHand = player.equipment.offHand
+      ? createSprite(this.art.offHands[player.equipment.offHand], 20, 25)
+      : null;
+    if (offHand) {
+      offHand.anchor.set(0.5, 1);
+      offHand.position.set(7, 31);
+    }
     const flash = new Graphics().roundRect(3, -8, 28, 40, 10).fill({ color: 0xffffff, alpha: 0 });
-    actor.addChild(shadow, selfRing, body, weapon, flash);
+    actor.addChild(shadow, selfRing);
+    if (offHand) actor.addChild(offHand);
+    actor.addChild(body, weapon, flash);
     container.addChild(actor);
     const hp = new Graphics();
     hp.label = "hp";

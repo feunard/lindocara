@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
+  isEquipmentForClass,
+  isValidAppearance,
+  STARTER_EQUIPMENT,
+  starterEquipmentFor,
+} from "../src/shared/character.js";
+import {
   applyDamage,
   applyExperience,
   attackDamageFor,
   BOUNDARY_OBSTACLES,
   CLASS_STATS,
   clampRestoredPosition,
+  hasLineOfSight,
   healAmountFor,
   INTERACTION_RANGE,
   isValidClass,
@@ -344,9 +351,49 @@ describe("authoritative combat and progression rules", () => {
     expect(withinRange({ x: 0, y: 0 }, { x: 30, y: 40 }, 50)).toBe(true);
     expect(withinRange({ x: 0, y: 0 }, { x: 30, y: 40 }, 49)).toBe(false);
   });
+
+  it("checks line of sight from entity centers against blocking rectangles", () => {
+    const wall = { x: 100, y: 40, width: 30, height: 120 };
+    expect(hasLineOfSight({ x: 20, y: 80 }, { x: 180, y: 80 }, [wall])).toBe(false);
+    expect(hasLineOfSight({ x: 20, y: 10 }, { x: 180, y: 10 }, [wall])).toBe(true);
+  });
+
+  it("uses world obstacles for line-of-sight blockers", () => {
+    const hall = WORLD_LANDMARKS.find((landmark) => landmark.id === "crossing-hall")?.collider;
+    if (!hall) throw new Error("crossing hall collider missing");
+
+    expect(
+      hasLineOfSight({ x: hall.x - 70, y: hall.y + 40 }, { x: hall.x + 320, y: hall.y + 40 }),
+    ).toBe(false);
+    expect(
+      hasLineOfSight({ x: hall.x - 70, y: hall.y - 80 }, { x: hall.x + 320, y: hall.y - 80 }),
+    ).toBe(true);
+  });
 });
 
 describe("class rules", () => {
+  it("maps every class to one coherent starter loadout", () => {
+    expect(starterEquipmentFor("warrior")).toEqual({
+      mainHand: "weathered_sword",
+      offHand: "oak_shield",
+    });
+    expect(starterEquipmentFor("ranger")).toEqual({ mainHand: "hunter_bow", offHand: null });
+    expect(starterEquipmentFor("priest")).toEqual({
+      mainHand: "heartwood_staff",
+      offHand: null,
+    });
+    for (const playerClass of PLAYER_CLASSES) {
+      expect(isEquipmentForClass(STARTER_EQUIPMENT[playerClass], playerClass)).toBe(true);
+    }
+  });
+
+  it("validates only renderable structured appearances", () => {
+    expect(isValidAppearance({ body: "wayfarer", primaryColor: "violet" })).toBe(true);
+    expect(isValidAppearance({ body: "giant", primaryColor: "violet" })).toBe(false);
+    expect(isValidAppearance({ body: "wayfarer", primaryColor: "plaid" })).toBe(false);
+    expect(isValidAppearance("azure")).toBe(false);
+  });
+
   it("keeps the balance table in the spec's shape", () => {
     expect(PLAYER_CLASSES).toEqual(["warrior", "ranger", "priest"]);
     expect(CLASS_STATS.warrior).toMatchObject({

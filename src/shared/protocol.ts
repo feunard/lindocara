@@ -5,6 +5,7 @@
  * server can acknowledge exactly what it applied; actions are still just intent.
  */
 
+import type { CharacterAppearance, Equipment, PrimaryColor } from "./character.js";
 import type { MonsterSpecies, NpcDefinition, PlayerClass, Rect } from "./game.js";
 import type { Input } from "./simulation.js";
 
@@ -14,7 +15,8 @@ export interface Command {
   input: Input;
 }
 
-export type Appearance = "azure" | "ember" | "moss" | "violet";
+/** @deprecated Transitional alias for the original one-field appearance model. */
+export type Appearance = PrimaryColor;
 export type ItemKind = "potion" | "gold" | "crystal";
 export type QuestStatus = "available" | "active" | "ready" | "completed";
 
@@ -22,7 +24,6 @@ export interface Inventory {
   potions: number;
   gold: number;
   crystals: number;
-  weapon: "rusty_sword";
 }
 
 export interface QuestState {
@@ -41,8 +42,9 @@ export interface PlayerSnapshot {
   hp: number;
   maxHp: number;
   level: number;
-  appearance: Appearance;
+  appearance: CharacterAppearance;
   class: PlayerClass;
+  equipment: Equipment;
   dead: boolean;
 }
 
@@ -99,6 +101,7 @@ export type EventTone = "info" | "good" | "bad";
 export const EVENT_CODES = [
   "wake",
   "combat.too_far",
+  "combat.blocked",
   "combat.hit",
   "combat.hurt",
   "monster.defeated",
@@ -115,6 +118,7 @@ export const EVENT_CODES = [
   "heal.cast",
   "heal.received",
   "heal.nobody",
+  "heal.blocked",
 ] as const;
 export type EventCode = (typeof EVENT_CODES)[number];
 export type EventParams = Record<string, string | number>;
