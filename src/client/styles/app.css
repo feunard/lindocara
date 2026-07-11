@@ -2,3 +2,15 @@
 @import "./tokens.css";
 @import "./theme.css";
 @import "./legacy.css";
+
+/* shadcn-style palette tokens consumed by the vendored pixelact-ui primitives
+ * (input.tsx, label.tsx, kbd.tsx: bg-background, text-foreground, bg-muted,
+ * text-muted-foreground) via Tailwind's `@theme`. No such tokens existed before, so those
+ * utility classes emitted nothing - Kbd's key-cap background in particular was invisible.
+ * Values matched to the garrison palette already in tokens.css/legacy.css. */
+@theme {
+  --color-background: #14100b;
+  --color-foreground: #f7ead0;
+  --color-muted: #3a2f22;
+  --color-muted-foreground: #cdb98a;
+}

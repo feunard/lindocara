@@ -10,14 +10,6 @@
   color: var(--parchment-ink);
 }
 
-.wood {
-  background: #3a2818 url("../assets/hud/wood.png");
-}
-
-.pixelated {
-  image-rendering: pixelated;
-}
-
 .btn-frame {
   border: 8px solid transparent;
   border-image: url("../assets/hud/frame-button.png") 14 / 8px stretch;
