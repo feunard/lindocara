@@ -22,6 +22,13 @@
       "when": 1783702832804,
       "tag": "0002_icy_turbo",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1783730441391,
+      "tag": "0003_broken_wendigo",
+      "breakpoints": true
     }
   ]
 }

@@ -42,6 +42,9 @@ export const character = sqliteTable(
     })
       .notNull()
       .default("azure"),
+    class: text("class", { enum: ["warrior", "ranger", "priest"] })
+      .notNull()
+      .default("warrior"),
     potions: integer("potions").notNull().default(2),
     gold: integer("gold").notNull().default(0),
     crystals: integer("crystals").notNull().default(0),

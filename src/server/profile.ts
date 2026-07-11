@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { clampRestoredPosition, maxHpForLevel } from "../shared/game.js";
+import { clampRestoredPosition, maxHpForLevel, type PlayerClass } from "../shared/game.js";
 import type { Appearance, Inventory, QuestState } from "../shared/protocol.js";
 import type { Vec2 } from "../shared/simulation.js";
 import { type Character, character, type Db } from "./db/index.js";
@@ -11,6 +11,7 @@ export interface PlayerProfile extends Vec2 {
   xp: number;
   hp: number;
   appearance: Appearance;
+  class: PlayerClass;
   inventory: Inventory;
   quest: QuestState;
 }
@@ -26,6 +27,7 @@ function fromRow(row: Character): PlayerProfile {
     xp: Math.max(0, row.xp),
     hp: Math.min(maxHp, Math.max(1, row.hp)),
     appearance: row.appearance,
+    class: row.class,
     inventory: {
       potions: Math.max(0, row.potions),
       gold: Math.max(0, row.gold),
@@ -64,6 +66,7 @@ export async function saveProfile(db: Db, profile: SaveableProfile): Promise<voi
       xp: profile.xp,
       hp: profile.hp,
       appearance: profile.appearance,
+      class: profile.class,
       potions: profile.inventory.potions,
       gold: profile.inventory.gold,
       crystals: profile.inventory.crystals,

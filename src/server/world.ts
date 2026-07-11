@@ -78,6 +78,7 @@ export interface Attachment extends Vec2 {
   xp?: number;
   hp?: number;
   appearance?: PlayerProfile["appearance"];
+  class?: PlayerProfile["class"];
   inventory?: PlayerProfile["inventory"];
   quest?: PlayerProfile["quest"];
   ack?: number;
@@ -123,6 +124,7 @@ function toProfile(player: Player): SaveableProfile {
     xp: player.xp,
     hp: player.hp,
     appearance: player.appearance,
+    class: player.class,
     inventory: { ...player.inventory },
     quest: { ...player.quest },
   };
@@ -159,6 +161,7 @@ function profileFromAttachment(attachment: Attachment): PlayerProfile {
     level,
     xp: attachment.xp ?? 0,
     appearance: attachment.appearance ?? "azure",
+    class: attachment.class ?? "warrior",
     inventory: {
       potions: attachment.inventory?.potions ?? 2,
       gold: attachment.inventory?.gold ?? 0,

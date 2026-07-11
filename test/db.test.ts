@@ -72,6 +72,7 @@ describe("account and character tables", () => {
     expect(results.map((c) => c.name).sort()).toEqual([
       "account_id",
       "appearance",
+      "class",
       "created_at",
       "crystals",
       "gold",
@@ -113,6 +114,7 @@ describe("account and character tables", () => {
       xp: 0,
       hp: 100,
       appearance: "azure",
+      class: "warrior",
       potions: 2,
       gold: 0,
       crystals: 0,
@@ -121,6 +123,25 @@ describe("account and character tables", () => {
       questProgress: 0,
     });
     expect(rows[0]?.createdAt).toBeInstanceOf(Date);
+  });
+
+  it("gives characters a class column defaulting to warrior", async () => {
+    const { results } = await env.DB.prepare("pragma table_info(character)").all<{
+      name: string;
+    }>();
+    expect(results.map((c) => c.name)).toContain("class");
+
+    const db = createDb(env.DB);
+    await db.insert(account).values({
+      id: "acct-cls",
+      username: "classowner",
+      passwordHash: "h",
+      passwordSalt: "s",
+      passwordIterations: 1,
+    });
+    await db.insert(character).values({ id: "char-cls", accountId: "acct-cls", name: "Old" });
+    const profile = await loadProfile(db, "char-cls");
+    expect(profile?.class).toBe("warrior");
   });
 
   it("loadProfile returns null for an unknown character and never creates", async () => {
