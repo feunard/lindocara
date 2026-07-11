@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="9" height="18" viewBox="0 0 9 18" shape-rendering="crispEdges">
+  <title>Hunter bow</title>
+  <path fill="#261710" d="M3 0h3v2h1v2h1v3h1v4H8v3H7v2H6v2H3v-2h2v-3h1V5H5V2H3z"/>
+  <path fill="#a95d2c" d="M4 1h1v2h1v2h1v8H6v2H5v2H4v-2h1v-3h1V6H5V3H4z"/>
+  <path fill="#e8d9ad" d="M3 1h1v2H3v2H2v3H1v2h1v3h1v2h1v2H3v-1H2v-2H1v-3H0V8h1V5h1V3h1z"/>
+  <path fill="#f1c665" d="M4 8h3v2H4z"/>
+</svg>

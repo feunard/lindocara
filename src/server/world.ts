@@ -4,12 +4,18 @@
  */
 import { DurableObject } from "cloudflare:workers";
 import {
+  normalizeAppearance,
+  normalizeEquipment,
+  starterEquipmentFor,
+} from "../shared/character.js";
+import {
   ATTACK_COOLDOWN_MS,
   applyDamage,
   applyExperience,
   attackDamageFor,
   CLASS_STATS,
   clampRestoredPosition,
+  hasLineOfSight,
   healAmountFor,
   INTERACTION_RANGE,
   inRect,
@@ -80,6 +86,7 @@ export interface Attachment extends Vec2 {
   hp?: number;
   appearance?: PlayerProfile["appearance"];
   class?: PlayerProfile["class"];
+  equipment?: PlayerProfile["equipment"];
   inventory?: PlayerProfile["inventory"];
   quest?: PlayerProfile["quest"];
   ack?: number;
@@ -127,6 +134,7 @@ function toProfile(player: Player): SaveableProfile {
     hp: player.hp,
     appearance: player.appearance,
     class: player.class,
+    equipment: { ...player.equipment },
     inventory: { ...player.inventory },
     quest: { ...player.quest },
   };
@@ -139,6 +147,8 @@ function toAttachment(player: Player): Attachment {
 function newPlayer(profile: PlayerProfile, ack = 0, lastSeq = 0): Player {
   return {
     ...profile,
+    appearance: { ...profile.appearance },
+    equipment: { ...profile.equipment },
     inventory: { ...profile.inventory },
     quest: { ...profile.quest },
     queue: [],
@@ -157,19 +167,22 @@ function newPlayer(profile: PlayerProfile, ack = 0, lastSeq = 0): Player {
 
 function profileFromAttachment(attachment: Attachment): PlayerProfile {
   const level = attachment.level ?? 1;
+  const playerClass = attachment.class ?? "warrior";
   return {
     id: attachment.id,
     nick: attachment.nick,
     ...clampRestoredPosition(attachment, attachment.id),
     level,
     xp: attachment.xp ?? 0,
-    appearance: attachment.appearance ?? "azure",
-    class: attachment.class ?? "warrior",
+    appearance: normalizeAppearance(attachment.appearance),
+    class: playerClass,
+    equipment: attachment.equipment
+      ? normalizeEquipment(playerClass, attachment.equipment.mainHand, attachment.equipment.offHand)
+      : starterEquipmentFor(playerClass),
     inventory: {
       potions: attachment.inventory?.potions ?? 2,
       gold: attachment.inventory?.gold ?? 0,
       crystals: attachment.inventory?.crystals ?? 0,
-      weapon: "rusty_sword",
     },
     quest: {
       status: attachment.quest?.status ?? "available",
@@ -200,6 +213,7 @@ export class World extends DurableObject<Env> {
   #players = new Map<WebSocket, Player>();
   #monsters: Monster[] = createMonsters();
   #loot: GroundLoot[] = [];
+  #profileSaves = new Map<string, Promise<void>>();
   #loop: ReturnType<typeof setInterval> | null = null;
   #tick = 0;
 
@@ -233,10 +247,7 @@ export class World extends DurableObject<Env> {
     const id = request.headers.get("x-character-id");
     if (!id) return new Response("unauthorized", { status: 401 });
 
-    // Same character connected elsewhere: the newer socket wins, the older one is kicked.
-    for (const [socket, existing] of this.#players) {
-      if (existing.id === id) this.#kick(socket, 4001, "same character connected elsewhere");
-    }
+    await this.#replaceExistingCharacter(id);
 
     const profile = await loadProfile(createDb(this.env.DB), id);
     if (!profile) return new Response("unknown character", { status: 404 });
@@ -347,16 +358,26 @@ export class World extends DurableObject<Env> {
     const stats = CLASS_STATS[player.class];
     let target: Monster | undefined;
     let distance = stats.attackRange;
+    let blockedInRange = false;
     for (const monster of this.#monsters) {
       if (monster.deadUntil > now) continue;
       const candidate = pointDistance(player, monster);
-      if (withinRange(player, monster, distance)) {
+      if (!withinRange(player, monster, stats.attackRange)) continue;
+      if (!hasLineOfSight(player, monster)) {
+        blockedInRange = true;
+        continue;
+      }
+      if (candidate <= distance) {
         target = monster;
         distance = candidate;
       }
     }
     if (!target) {
-      this.#send(ws, { t: "event", code: "combat.too_far", tone: "info" });
+      this.#send(ws, {
+        t: "event",
+        code: blockedInRange ? "combat.blocked" : "combat.too_far",
+        tone: "info",
+      });
       return;
     }
 
@@ -419,10 +440,16 @@ export class World extends DurableObject<Env> {
     let target: Player | undefined;
     let targetSocket: WebSocket | undefined;
     let worstRatio = 1;
+    let blockedInRange = false;
     for (const [socket, candidate] of this.#players) {
       if (candidate.deadUntil > now) continue;
       if (pointDistance(player, candidate) > heal.range) continue;
       const ratio = candidate.hp / maxHpForLevel(candidate.level);
+      if (ratio >= 1) continue;
+      if (!hasLineOfSight(player, candidate)) {
+        blockedInRange = true;
+        continue;
+      }
       if (ratio < worstRatio) {
         worstRatio = ratio;
         target = candidate;
@@ -431,7 +458,11 @@ export class World extends DurableObject<Env> {
     }
     if (!target || !targetSocket) {
       // No cooldown consumed on a whiff — pressing F at full health must not punish.
-      this.#send(ws, { t: "event", code: "heal.nobody", tone: "info" });
+      this.#send(ws, {
+        t: "event",
+        code: blockedInRange ? "heal.blocked" : "heal.nobody",
+        tone: "info",
+      });
       return;
     }
 
@@ -517,9 +548,43 @@ export class World extends DurableObject<Env> {
 
   #drop(ws: WebSocket): void {
     const player = this.#players.get(ws);
-    if (player) this.ctx.waitUntil(saveProfile(createDb(this.env.DB), toProfile(player)));
+    if (player) this.ctx.waitUntil(this.#savePlayer(player));
     this.#players.delete(ws);
     if (this.#players.size === 0) this.#stopLoop();
+  }
+
+  async #replaceExistingCharacter(id: string): Promise<void> {
+    const existingSockets = Array.from(this.#players.entries()).filter(
+      ([, player]) => player.id === id,
+    );
+    for (const [socket, player] of existingSockets) {
+      this.#players.delete(socket);
+      await this.#savePlayer(player);
+      try {
+        socket.close(4001, "same character connected elsewhere");
+      } catch {
+        // Already closed.
+      }
+    }
+    if (this.#players.size === 0) this.#stopLoop();
+  }
+
+  #savePlayer(player: Player): Promise<void> {
+    const profile = toProfile(player);
+    const previous = this.#profileSaves.get(profile.id) ?? Promise.resolve();
+    const save = previous
+      .catch(() => undefined)
+      .then(() => saveProfile(createDb(this.env.DB), profile));
+    this.#profileSaves.set(profile.id, save);
+    void save.then(
+      () => {
+        if (this.#profileSaves.get(profile.id) === save) this.#profileSaves.delete(profile.id);
+      },
+      () => {
+        if (this.#profileSaves.get(profile.id) === save) this.#profileSaves.delete(profile.id);
+      },
+    );
+    return save;
   }
 
   #kick(ws: WebSocket, code: number, reason: string): void {
@@ -577,7 +642,7 @@ export class World extends DurableObject<Env> {
       this.#collectLoot(ws, player, now);
       if (writeAttachment && player.dirty) ws.serializeAttachment(toAttachment(player));
       if (writeD1 && player.dirty) {
-        this.ctx.waitUntil(saveProfile(createDb(this.env.DB), toProfile(player)));
+        this.ctx.waitUntil(this.#savePlayer(player));
         player.dirty = false;
       }
     }
@@ -746,6 +811,7 @@ export class World extends DurableObject<Env> {
       level: player.level,
       appearance: player.appearance,
       class: player.class,
+      equipment: { ...player.equipment },
       dead: player.deadUntil > now,
     }));
   }

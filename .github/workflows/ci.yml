@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   check:
-    name: lint, typecheck, test, build
+    name: lint, typecheck, test, ui, build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -32,9 +32,19 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Test
+      - name: Worker tests
         run: npm run test
+
+      - name: React UI tests
+        run: npm run test:ui
 
       # Catches Vite/Wrangler bundling errors that typecheck and tests cannot see.
       - name: Build
         run: npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lindocara-build
+          path: dist
+          if-no-files-found: error

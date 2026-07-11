@@ -5,33 +5,64 @@ import type { CharacterSummary } from "../../src/client/api.js";
 import { setLocale } from "../../src/client/i18n.js";
 import { useUiStore } from "../../src/client/store.js";
 import { CharacterSelect } from "../../src/client/ui/CharacterSelect.js";
+import { starterEquipmentFor } from "../../src/shared/character.js";
 
 const three: CharacterSummary[] = [
-  { id: "1", name: "One", appearance: "azure", level: 1, class: "warrior" },
-  { id: "2", name: "Two", appearance: "ember", level: 2, class: "warrior" },
-  { id: "3", name: "Three", appearance: "moss", level: 3, class: "warrior" },
+  {
+    id: "1",
+    name: "One",
+    appearance: { body: "wayfarer", primaryColor: "azure" },
+    equipment: starterEquipmentFor("warrior"),
+    level: 1,
+    class: "warrior",
+  },
+  {
+    id: "2",
+    name: "Two",
+    appearance: { body: "wayfarer", primaryColor: "ember" },
+    equipment: starterEquipmentFor("ranger"),
+    level: 2,
+    class: "ranger",
+  },
+  {
+    id: "3",
+    name: "Three",
+    appearance: { body: "wayfarer", primaryColor: "moss" },
+    equipment: starterEquipmentFor("priest"),
+    level: 3,
+    class: "priest",
+  },
 ];
 
 describe("CharacterSelect", () => {
   beforeEach(() => {
     setLocale("en");
     vi.stubGlobal("fetch", vi.fn());
+    useUiStore.setState({ screen: "characters", characters: null });
   });
 
-  it("disables the new-character card at the cap", () => {
-    useUiStore.setState({ screen: "characters", characters: three });
+  it("renders existing character identity, previews, equipment, and the primary play action", () => {
+    useUiStore.setState({ characters: three });
     render(<CharacterSelect onPlay={() => undefined} />);
-    expect(screen.getByRole("button", { name: "New character" })).toBeDisabled();
+
+    expect(screen.getByText("One")).toBeInTheDocument();
+    expect(screen.getByText("Hunter's bow")).toBeInTheDocument();
+    expect(screen.getByText("Heartwood staff")).toBeInTheDocument();
+    expect(screen.getAllByRole("img", { name: /wayfarer/i })).toHaveLength(3);
+    expect(screen.getAllByRole("button", { name: "Play" })).toHaveLength(3);
+    expect(screen.getByRole("button", { name: /^New character/ })).toBeDisabled();
   });
 
-  it("requires two clicks to delete", async () => {
+  it("protects deletion with a localized alert dialog", async () => {
     const mock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
     vi.stubGlobal("fetch", mock);
-    useUiStore.setState({ screen: "characters", characters: [three[0] as CharacterSummary] });
+    useUiStore.setState({ characters: [three[0] as CharacterSummary] });
     render(<CharacterSelect onPlay={() => undefined} />);
+
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
     expect(mock).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByRole("button", { name: "Delete forever?" }));
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("Delete One?");
+    await userEvent.click(screen.getByRole("button", { name: "Delete permanently" }));
     expect(mock).toHaveBeenCalledWith(
       "/api/characters/1",
       expect.objectContaining({ method: "DELETE" }),
@@ -40,71 +71,81 @@ describe("CharacterSelect", () => {
 
   it("calls onPlay with the chosen character", async () => {
     const onPlay = vi.fn();
-    useUiStore.setState({ screen: "characters", characters: three });
+    useUiStore.setState({ characters: three });
     render(<CharacterSelect onPlay={onPlay} />);
-    await userEvent.click(screen.getAllByRole("button", { name: "Play" })[0] as HTMLElement);
-    expect(onPlay).toHaveBeenCalledWith(three[0]);
+    await userEvent.click(screen.getAllByRole("button", { name: "Play" })[1] as HTMLElement);
+    expect(onPlay).toHaveBeenCalledWith(three[1]);
   });
 
-  it("posts the chosen class on create", async () => {
+  it("changes class and appearance with immediate visual feedback", async () => {
+    useUiStore.setState({ characters: [] });
+    render(<CharacterSelect onPlay={() => undefined} />);
+
+    await userEvent.click(screen.getByRole("radio", { name: /Priest/i }));
+    expect(screen.getAllByText("Heartwood staff").length).toBeGreaterThan(0);
+    await userEvent.click(screen.getByRole("radio", { name: "Violet" }));
+    expect(
+      screen.getByRole("img", { name: /Priest wayfarer in the Violet palette/i }),
+    ).toBeVisible();
+  });
+
+  it("generates only valid class and appearance choices", async () => {
+    vi.spyOn(Math, "random").mockReturnValueOnce(0.5).mockReturnValueOnce(0.99);
+    useUiStore.setState({ characters: [] });
+    render(<CharacterSelect onPlay={() => undefined} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Randomize" }));
+    expect(screen.getByRole("radio", { name: /Ranger/i })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Violet" })).toBeChecked();
+  });
+
+  it("shows a confirmation summary before posting the server-owned loadout", async () => {
+    const created: CharacterSummary = {
+      id: "9",
+      name: "Mercy",
+      appearance: { body: "wayfarer", primaryColor: "violet" },
+      equipment: starterEquipmentFor("priest"),
+      class: "priest",
+      level: 1,
+    };
     const mock = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({ id: "9", name: "Mercy", appearance: "azure", class: "priest", level: 1 }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        },
-      ),
+      new Response(JSON.stringify(created), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
     );
     vi.stubGlobal("fetch", mock);
-    useUiStore.setState({ screen: "characters", characters: [] });
+    useUiStore.setState({ characters: [] });
     render(<CharacterSelect onPlay={() => undefined} />);
+
     await userEvent.type(screen.getByLabelText("Name"), "Mercy");
-    await userEvent.click(screen.getByRole("radio", { name: /Priest/ }));
-    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+    await userEvent.click(screen.getByRole("radio", { name: /Priest/i }));
+    await userEvent.click(screen.getByRole("radio", { name: "Violet" }));
+    await userEvent.click(screen.getByRole("button", { name: "Review wayfarer" }));
+    expect(screen.getByRole("heading", { name: "Confirm your wayfarer" })).toBeInTheDocument();
+    expect(screen.queryByText("Oak shield")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Create wayfarer" }));
     const createCall = mock.mock.calls.find(
       ([url, init]) => url === "/api/characters" && init?.method === "POST",
     );
-    expect(createCall).toBeDefined();
-    expect(JSON.parse(String(createCall?.[1]?.body))).toMatchObject({ class: "priest" });
+    expect(JSON.parse(String(createCall?.[1]?.body))).toEqual({
+      name: "Mercy",
+      appearance: { body: "wayfarer", primaryColor: "violet" },
+      class: "priest",
+    });
+    expect(useUiStore.getState().characters).toContainEqual(created);
   });
 
-  it("creates a character without false error on success", async () => {
-    const mock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
-      if (url === "/api/characters" && options?.method === "POST") {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({ id: "new-1", name: "TestHero", appearance: "azure", level: 1 }),
-            { status: 200, headers: { "content-type": "application/json" } },
-          ),
-        );
-      }
-      if (url === "/api/characters" && (!options?.method || options.method === "GET")) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify([{ id: "new-1", name: "TestHero", appearance: "azure", level: 1 }]),
-            { status: 200, headers: { "content-type": "application/json" } },
-          ),
-        );
-      }
-      return Promise.reject(new Error(`Unexpected fetch: ${url}`));
-    });
-    vi.stubGlobal("fetch", mock);
-    useUiStore.setState({ screen: "characters", characters: [] });
+  it("renders the creator in both English and French", () => {
+    useUiStore.setState({ characters: [] });
+    const view = render(<CharacterSelect onPlay={() => undefined} />);
+    expect(screen.getByText("Character forge")).toBeInTheDocument();
+    view.unmount();
+
+    setLocale("fr");
     render(<CharacterSelect onPlay={() => undefined} />);
-
-    // Type character name
-    const nameInput = screen.getByDisplayValue("") as HTMLInputElement;
-    await userEvent.type(nameInput, "TestHero");
-
-    // Submit form
-    await userEvent.click(
-      screen.getByRole("button", {
-        name: (accessibleName) => accessibleName.includes("Create"),
-      }),
-    );
-
-    // Assert NO alert appears (the bug would show a false error)
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByText("Forge de personnage")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Aléatoire" })).toBeInTheDocument();
   });
 });

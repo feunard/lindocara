@@ -21,11 +21,19 @@ describe("Hud", () => {
 
   it("renders identity, bars, quest and inventory from the store", () => {
     useUiStore.setState({
-      self: { nick: "Hero", level: 3, hp: 80, maxHp: 124, dead: false, class: "warrior" },
+      self: {
+        nick: "Hero",
+        level: 3,
+        hp: 80,
+        maxHp: 124,
+        dead: false,
+        class: "warrior",
+        equipment: { mainHand: "weathered_sword", offHand: "oak_shield" },
+      },
       selfState: {
         xp: 40,
         xpToNext: 220,
-        inventory: { potions: 2, gold: 9, crystals: 1, weapon: "rusty_sword" },
+        inventory: { potions: 2, gold: 9, crystals: 1 },
         quest: { status: "active", progress: 1, target: 3 },
       },
     });
@@ -44,11 +52,19 @@ describe("Hud", () => {
   it("keeps switch-character and logout enabled after a disconnect, and falls back to the API", async () => {
     const mock = stubFetch(204, undefined);
     useUiStore.setState({
-      self: { nick: "Hero", level: 3, hp: 80, maxHp: 124, dead: false, class: "warrior" },
+      self: {
+        nick: "Hero",
+        level: 3,
+        hp: 80,
+        maxHp: 124,
+        dead: false,
+        class: "warrior",
+        equipment: { mainHand: "weathered_sword", offHand: "oak_shield" },
+      },
       selfState: {
         xp: 40,
         xpToNext: 220,
-        inventory: { potions: 2, gold: 9, crystals: 1, weapon: "rusty_sword" },
+        inventory: { potions: 2, gold: 9, crystals: 1 },
         quest: { status: "active", progress: 1, target: 3 },
       },
       game: null,
@@ -65,11 +81,19 @@ describe("Hud", () => {
 
   it("shows the class name and a heal bar for priests", () => {
     useUiStore.setState({
-      self: { nick: "Mercy", level: 1, hp: 100, maxHp: 100, dead: false, class: "priest" },
+      self: {
+        nick: "Mercy",
+        level: 1,
+        hp: 100,
+        maxHp: 100,
+        dead: false,
+        class: "priest",
+        equipment: { mainHand: "heartwood_staff", offHand: null },
+      },
       selfState: {
         xp: 0,
         xpToNext: 100,
-        inventory: { potions: 2, gold: 0, crystals: 0, weapon: "rusty_sword" },
+        inventory: { potions: 2, gold: 0, crystals: 0 },
         quest: { status: "available", progress: 0, target: 3 },
       },
       healCooldownUntil: performance.now() + 1000,
@@ -82,11 +106,19 @@ describe("Hud", () => {
 
   it("never shows the heal bar for non-priests, even mid-cooldown", () => {
     useUiStore.setState({
-      self: { nick: "Bruiser", level: 1, hp: 100, maxHp: 100, dead: false, class: "warrior" },
+      self: {
+        nick: "Bruiser",
+        level: 1,
+        hp: 100,
+        maxHp: 100,
+        dead: false,
+        class: "warrior",
+        equipment: { mainHand: "weathered_sword", offHand: "oak_shield" },
+      },
       selfState: {
         xp: 0,
         xpToNext: 100,
-        inventory: { potions: 2, gold: 0, crystals: 0, weapon: "rusty_sword" },
+        inventory: { potions: 2, gold: 0, crystals: 0 },
         quest: { status: "available", progress: 0, target: 3 },
       },
       healCooldownUntil: performance.now() + 1000,

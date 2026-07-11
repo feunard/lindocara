@@ -427,6 +427,47 @@ export function withinRange(a: Vec2, b: Vec2, range: number): boolean {
   return Number.isFinite(range) && range >= 0 && pointDistance(a, b) <= range;
 }
 
+function centerOf(position: Vec2, size: number): Vec2 {
+  return { x: position.x + size / 2, y: position.y + size / 2 };
+}
+
+function segmentIntersectsRect(from: Vec2, to: Vec2, rect: Rect): boolean {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  let min = 0;
+  let max = 1;
+
+  for (const [origin, delta, low, high] of [
+    [from.x, dx, rect.x, rect.x + rect.width],
+    [from.y, dy, rect.y, rect.y + rect.height],
+  ] as const) {
+    if (delta === 0) {
+      if (origin < low || origin > high) return false;
+      continue;
+    }
+    const first = (low - origin) / delta;
+    const second = (high - origin) / delta;
+    const entry = Math.min(first, second);
+    const exit = Math.max(first, second);
+    min = Math.max(min, entry);
+    max = Math.min(max, exit);
+    if (min > max) return false;
+  }
+
+  return true;
+}
+
+export function hasLineOfSight(
+  from: Vec2,
+  to: Vec2,
+  obstacles: readonly Rect[] = OBSTACLES,
+  size: number = PLAYER_SIZE,
+): boolean {
+  const start = centerOf(from, size);
+  const end = centerOf(to, size);
+  return !obstacles.some((obstacle) => segmentIntersectsRect(start, end, obstacle));
+}
+
 export function applyDamage(currentHp: number, damage: number): { hp: number; killed: boolean } {
   const hp = Math.max(0, currentHp - Math.max(0, damage));
   return { hp, killed: hp === 0 };

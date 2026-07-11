@@ -33,9 +33,11 @@ jobs:
 
       - run: npm ci
 
-      # wrangler-action does not build for you, and the Vite plugin emits the deployable
-      # wrangler.json as part of the build. Deploying without this would ship nothing.
-      - run: npm run build
+      - name: Download checked build
+        uses: actions/download-artifact@v4
+        with:
+          name: lindocara-build
+          path: dist
 
       # Schema first: code that expects a column must never reach production before the
       # column does. Migrations are additive, so this is safe to run on every deploy.
@@ -50,4 +52,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy
+          command: deploy --config dist/lindocara/wrangler.json

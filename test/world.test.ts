@@ -65,7 +65,11 @@ async function testCharacter(
   const created = await SELF.fetch(`${ORIGIN}/api/characters`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Cookie: pair },
-    body: JSON.stringify({ name, appearance: "azure", class: options.class ?? "warrior" }),
+    body: JSON.stringify({
+      name,
+      appearance: { body: "wayfarer", primaryColor: "azure" },
+      class: options.class ?? "warrior",
+    }),
   });
   expect(created.status).toBe(200);
   const body = (await created.json()) as { id: string };
@@ -182,6 +186,10 @@ class Client {
     this.#socket.send(JSON.stringify({ t: type }));
   }
 
+  usePotion(): void {
+    this.#socket.send(JSON.stringify({ t: "use", item: "potion" }));
+  }
+
   chat(text: string): void {
     this.#socket.send(JSON.stringify({ t: "chat", text }));
   }
@@ -261,7 +269,11 @@ describe("World", () => {
       questNpc: QUEST_NPC,
     });
     expect(welcome.monsters.length).toBeGreaterThan(0);
-    expect(welcome.self.inventory).toMatchObject({ potions: 2, weapon: "rusty_sword" });
+    expect(welcome.self.inventory).toMatchObject({ potions: 2 });
+    expect(welcome.players.find((player) => player.id === welcome.selfId)).toMatchObject({
+      appearance: { body: "wayfarer", primaryColor: "azure" },
+      equipment: { mainHand: "weathered_sword", offHand: "oak_shield" },
+    });
     expect(welcome.players.find((player) => player.id === welcome.selfId)).toMatchObject(
       spawnPosition(welcome.selfId),
     );
@@ -431,6 +443,48 @@ describe("World", () => {
     expect(mine?.y).toBeCloseTo(resting.y, 1);
 
     client.close();
+  });
+
+  it("persists authoritative state before reconnecting the same character", async () => {
+    const session = await testCharacter("rejoin", {
+      position: { x: QUEST_NPC.x + 50, y: QUEST_NPC.y },
+      hp: 40,
+    });
+    const first = await Client.joinCharacter(session);
+    await until("welcome", () => first.welcome);
+
+    first.action("interact");
+    await until("quest to become active", () =>
+      first.latestState?.quest.status === "active" ? first.latestState : undefined,
+    );
+    first.usePotion();
+    await until("potion state", () =>
+      first.latestState?.inventory.potions === 1 && first.self()?.hp === 85
+        ? first.latestState
+        : undefined,
+    );
+
+    const beforeMove = await until("position before reconnect move", () => first.self());
+    first.press("right");
+    const moved = await until("latest moved position before reconnect", () => {
+      const self = first.self();
+      return self && self.x > beforeMove.x + 12 ? self : undefined;
+    });
+    first.release();
+
+    const rejoined = await Client.joinCharacter(session);
+    const oldClosed = await until("old socket to close", () => first.closeInfo ?? undefined);
+    expect(oldClosed.code).toBe(4001);
+
+    const welcome = await until("rejoin welcome", () => rejoined.welcome);
+    const self = welcome.players.find((player) => player.id === welcome.selfId);
+    expect(self?.x).toBeCloseTo(moved.x, 1);
+    expect(self?.y).toBeCloseTo(moved.y, 1);
+    expect(self?.hp).toBe(85);
+    expect(welcome.self.inventory).toMatchObject({ potions: 1, gold: 0, crystals: 0 });
+    expect(welcome.self.quest).toMatchObject({ status: "active", progress: 0 });
+
+    rejoined.close();
   });
 
   it("acknowledges the commands it has applied", async () => {
@@ -623,6 +677,68 @@ describe("World", () => {
 
     priest.close();
     wounded.close();
+  });
+
+  it("lets a visible ranged attack hit a monster", async () => {
+    const ranger = await Client.join("sighter", {
+      position: { x: 1750, y: 820 },
+      class: "ranger",
+    });
+    await until("welcome", () => ranger.welcome);
+
+    ranger.action("attack");
+    const hit = await until("combat hit", () => {
+      ranger.action("attack");
+      return ranger.received.find((m) => m.t === "event" && m.code === "combat.hit");
+    });
+    expect(hit).toMatchObject({ tone: "info" });
+
+    ranger.close();
+  });
+
+  it("reports a blocked heal target in range", async () => {
+    const priest = await Client.join("blocked_heal", {
+      position: { x: 480, y: 650 },
+      class: "priest",
+    });
+    const blocked = await Client.join("behind_tree", { position: { x: 590, y: 650 }, hp: 40 });
+    await until("both welcomes", () => priest.welcome && blocked.welcome);
+
+    priest.action("heal");
+    const event = await until("blocked heal event", () =>
+      priest.received.find((m) => m.t === "event" && m.code === "heal.blocked"),
+    );
+    expect(event).toMatchObject({ tone: "info" });
+    expect(blocked.self()?.hp).toBe(40);
+
+    priest.close();
+    blocked.close();
+  });
+
+  it("heals the best visible target instead of a blocked lower-health target", async () => {
+    const priest = await Client.join("los_priest", {
+      position: { x: 480, y: 650 },
+      class: "priest",
+    });
+    const blocked = await Client.join("los_blocked", { position: { x: 590, y: 650 }, hp: 10 });
+    const visible = await Client.join("los_visible", { position: { x: 480, y: 760 }, hp: 40 });
+    await until("all welcomes", () => priest.welcome && blocked.welcome && visible.welcome);
+
+    priest.action("heal");
+    const healed = await until("visible ally healed", () => {
+      priest.action("heal");
+      const snapshot = visible.self();
+      return snapshot && snapshot.hp > 40 ? snapshot : undefined;
+    });
+
+    expect(healed.hp).toBe(75);
+    expect(blocked.self()?.hp).toBe(10);
+    const cast = priest.received.find((m) => m.t === "event" && m.code === "heal.cast");
+    expect(cast).toMatchObject({ params: { name: "los_visible", amount: 35 } });
+
+    priest.close();
+    blocked.close();
+    visible.close();
   });
 
   it("keeps a wounded ally beyond heal.range untouched", async () => {

@@ -2,6 +2,7 @@ import { env, SELF } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
 
 const ORIGIN = "https://lindocara.test";
+const appearance = (primaryColor: string) => ({ body: "wayfarer", primaryColor });
 
 async function registered(username: string): Promise<string> {
   const response = await SELF.fetch(`${ORIGIN}/api/register`, {
@@ -38,11 +39,16 @@ describe("character endpoints", () => {
 
     const created = await characters(cookie, {
       method: "POST",
-      body: JSON.stringify({ name: "Hero", appearance: "ember", class: "warrior" }),
+      body: JSON.stringify({ name: "Hero", appearance: appearance("ember"), class: "warrior" }),
     });
     expect(created.status).toBe(200);
     const body = (await created.json()) as { id: string };
-    expect(body).toMatchObject({ name: "Hero", appearance: "ember", level: 1 });
+    expect(body).toMatchObject({
+      name: "Hero",
+      appearance: appearance("ember"),
+      equipment: { mainHand: "weathered_sword", offHand: "oak_shield" },
+      level: 1,
+    });
 
     const listed = await characters(cookie);
     expect(await listed.json()).toMatchObject([{ id: body.id, name: "Hero" }]);
@@ -59,31 +65,50 @@ describe("character endpoints", () => {
     const cookie = await registered("validator");
     const badName = await characters(cookie, {
       method: "POST",
-      body: JSON.stringify({ name: "x", appearance: "ember", class: "warrior" }),
+      body: JSON.stringify({ name: "x", appearance: appearance("ember"), class: "warrior" }),
     });
     expect(badName.status).toBe(400);
     expect(await badName.json()).toEqual({ error: "invalid_name" });
 
     const badLook = await characters(cookie, {
       method: "POST",
-      body: JSON.stringify({ name: "FineName", appearance: "plaid", class: "warrior" }),
+      body: JSON.stringify({
+        name: "FineName",
+        appearance: appearance("plaid"),
+        class: "warrior",
+      }),
     });
     expect(badLook.status).toBe(400);
     expect(await badLook.json()).toEqual({ error: "invalid_appearance" });
+
+    const badBody = await characters(cookie, {
+      method: "POST",
+      body: JSON.stringify({
+        name: "FineName",
+        appearance: { body: "giant", primaryColor: "azure" },
+        class: "warrior",
+      }),
+    });
+    expect(badBody.status).toBe(400);
+    expect(await badBody.json()).toEqual({ error: "invalid_appearance" });
   });
 
   it("requires a valid class", async () => {
     const cookie = await registered("classless");
     const missing = await characters(cookie, {
       method: "POST",
-      body: JSON.stringify({ name: "NoClass", appearance: "azure" }),
+      body: JSON.stringify({ name: "NoClass", appearance: appearance("azure") }),
     });
     expect(missing.status).toBe(400);
     expect(await missing.json()).toEqual({ error: "invalid_class" });
 
     const bogus = await characters(cookie, {
       method: "POST",
-      body: JSON.stringify({ name: "Bogus", appearance: "azure", class: "necromancer" }),
+      body: JSON.stringify({
+        name: "Bogus",
+        appearance: appearance("azure"),
+        class: "necromancer",
+      }),
     });
     expect(bogus.status).toBe(400);
   });
@@ -92,12 +117,51 @@ describe("character endpoints", () => {
     const cookie = await registered("healer_maker");
     const created = await characters(cookie, {
       method: "POST",
-      body: JSON.stringify({ name: "Mercy", appearance: "moss", class: "priest" }),
+      body: JSON.stringify({ name: "Mercy", appearance: appearance("moss"), class: "priest" }),
     });
     expect(created.status).toBe(200);
-    expect(await created.json()).toMatchObject({ name: "Mercy", class: "priest", level: 1 });
+    expect(await created.json()).toMatchObject({
+      name: "Mercy",
+      class: "priest",
+      appearance: appearance("moss"),
+      equipment: { mainHand: "heartwood_staff", offHand: null },
+      level: 1,
+    });
     const listed = (await (await characters(cookie)).json()) as Array<{ class: string }>;
     expect(listed[0]?.class).toBe("priest");
+  });
+
+  it("assigns and persists the server-owned starter equipment for every class", async () => {
+    const cookie = await registered("starter_loadouts");
+    const expected = {
+      warrior: { mainHand: "weathered_sword", offHand: "oak_shield" },
+      ranger: { mainHand: "hunter_bow", offHand: null },
+      priest: { mainHand: "heartwood_staff", offHand: null },
+    } as const;
+
+    for (const [index, playerClass] of (["warrior", "ranger", "priest"] as const).entries()) {
+      const response = await characters(cookie, {
+        method: "POST",
+        body: JSON.stringify({
+          name: `Loadout${index}`,
+          appearance: appearance("violet"),
+          class: playerClass,
+          equipment: { mainHand: "hunter_bow", offHand: "oak_shield" },
+        }),
+      });
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({
+        class: playerClass,
+        appearance: appearance("violet"),
+        equipment: expected[playerClass],
+      });
+    }
+
+    const listed = (await (await characters(cookie)).json()) as Array<{
+      class: keyof typeof expected;
+      equipment: unknown;
+    }>;
+    for (const entry of listed) expect(entry.equipment).toEqual(expected[entry.class]);
   });
 
   it("refuses a fourth character", async () => {
@@ -105,13 +169,13 @@ describe("character endpoints", () => {
     for (const name of ["One", "Two", "Three"]) {
       const created = await characters(cookie, {
         method: "POST",
-        body: JSON.stringify({ name, appearance: "azure", class: "warrior" }),
+        body: JSON.stringify({ name, appearance: appearance("azure"), class: "warrior" }),
       });
       expect(created.status).toBe(200);
     }
     const fourth = await characters(cookie, {
       method: "POST",
-      body: JSON.stringify({ name: "Four", appearance: "azure", class: "warrior" }),
+      body: JSON.stringify({ name: "Four", appearance: appearance("azure"), class: "warrior" }),
     });
     expect(fourth.status).toBe(409);
     expect(await fourth.json()).toEqual({ error: "limit_reached" });
@@ -122,7 +186,11 @@ describe("character endpoints", () => {
     const bobCookie = await registered("bob");
     const created = await characters(aliceCookie, {
       method: "POST",
-      body: JSON.stringify({ name: "AliceHero", appearance: "violet", class: "warrior" }),
+      body: JSON.stringify({
+        name: "AliceHero",
+        appearance: appearance("violet"),
+        class: "warrior",
+      }),
     });
     const body = (await created.json()) as { id: string };
 

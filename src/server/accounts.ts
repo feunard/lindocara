@@ -36,6 +36,7 @@ export async function createAccount(
   const normalized = normalizeUsername(username);
   const record = await hashPassword(password);
   const id = crypto.randomUUID();
+  const now = new Date();
   try {
     await db.insert(account).values({
       id,
@@ -43,6 +44,8 @@ export async function createAccount(
       passwordHash: record.hash,
       passwordSalt: record.salt,
       passwordIterations: record.iterations,
+      createdAt: now,
+      lastSeenAt: now,
     });
   } catch (error) {
     // The UNIQUE constraint is the source of truth — no read-then-write race. Anything else

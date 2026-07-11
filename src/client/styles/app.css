@@ -2,6 +2,7 @@
 @import "./tokens.css";
 @import "./theme.css";
 @import "./legacy.css";
+@import "./character-creator.css";
 
 /* shadcn-style palette tokens consumed by the vendored pixelact-ui primitives
  * (input.tsx, label.tsx, kbd.tsx: bg-background, text-foreground, bg-muted,

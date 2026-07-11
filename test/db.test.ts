@@ -15,6 +15,7 @@ import {
 } from "../src/server/characters.js";
 import { account, character, createDb } from "../src/server/db/index.js";
 import { loadProfile, saveProfile } from "../src/server/profile.js";
+import { starterEquipmentFor } from "../src/shared/character.js";
 import { spawnPosition } from "../src/shared/game.js";
 
 describe("account and character tables", () => {
@@ -72,6 +73,8 @@ describe("account and character tables", () => {
     expect(results.map((c) => c.name).sort()).toEqual([
       "account_id",
       "appearance",
+      "appearance_body",
+      "appearance_primary_color",
       "class",
       "created_at",
       "crystals",
@@ -80,7 +83,9 @@ describe("account and character tables", () => {
       "id",
       "last_seen_at",
       "level",
+      "main_hand",
       "name",
+      "off_hand",
       "potions",
       "quest_progress",
       "quest_status",
@@ -114,11 +119,15 @@ describe("account and character tables", () => {
       xp: 0,
       hp: 100,
       appearance: "azure",
+      appearanceBody: "wayfarer",
+      appearancePrimaryColor: "azure",
       class: "warrior",
       potions: 2,
       gold: 0,
       crystals: 0,
       weapon: "rusty_sword",
+      mainHand: "weathered_sword",
+      offHand: null,
       questStatus: "available",
       questProgress: 0,
     });
@@ -142,6 +151,30 @@ describe("account and character tables", () => {
     await db.insert(character).values({ id: "char-cls", accountId: "acct-cls", name: "Old" });
     const profile = await loadProfile(db, "char-cls");
     expect(profile?.class).toBe("warrior");
+    expect(profile?.appearance).toEqual({ body: "wayfarer", primaryColor: "azure" });
+    expect(profile?.equipment).toEqual(starterEquipmentFor("warrior"));
+  });
+
+  it("repairs safe starter equipment defaults for legacy rows from their class", async () => {
+    const db = createDb(env.DB);
+    await db.insert(account).values({
+      id: "acct-legacy",
+      username: "legacyowner",
+      passwordHash: "h",
+      passwordSalt: "s",
+      passwordIterations: 1,
+    });
+    await db.insert(character).values([
+      { id: "legacy-warrior", accountId: "acct-legacy", name: "OldWarrior", class: "warrior" },
+      { id: "legacy-ranger", accountId: "acct-legacy", name: "OldRanger", class: "ranger" },
+      { id: "legacy-priest", accountId: "acct-legacy", name: "OldPriest", class: "priest" },
+    ]);
+
+    for (const playerClass of ["warrior", "ranger", "priest"] as const) {
+      const profile = await loadProfile(db, `legacy-${playerClass}`);
+      expect(profile?.appearance).toEqual({ body: "wayfarer", primaryColor: "azure" });
+      expect(profile?.equipment).toEqual(starterEquipmentFor(playerClass));
+    }
   });
 
   it("loadProfile returns null for an unknown character and never creates", async () => {
@@ -169,6 +202,7 @@ describe("account and character tables", () => {
     profile.xp = 37;
     profile.hp = 88;
     profile.inventory.gold = 19;
+    profile.appearance = { body: "wayfarer", primaryColor: "violet" };
     profile.quest.status = "active";
     profile.quest.progress = 2;
     await saveProfile(db, profile);
@@ -183,6 +217,8 @@ describe("account and character tables", () => {
       xp: 37,
       hp: 88,
       inventory: { gold: 19 },
+      appearance: { body: "wayfarer", primaryColor: "violet" },
+      equipment: starterEquipmentFor("warrior"),
       quest: { status: "active", progress: 2 },
     });
   });
@@ -235,18 +271,41 @@ describe("characters service", () => {
     const db = createDb(env.DB);
     const accountId = await owner();
     for (let i = 0; i < MAX_CHARACTERS_PER_ACCOUNT; i++) {
-      const created = await createCharacter(db, accountId, `Hero${i}`, "ember", "warrior");
-      expect(created).toMatchObject({ name: `Hero${i}`, appearance: "ember", level: 1 });
+      const created = await createCharacter(
+        db,
+        accountId,
+        `Hero${i}`,
+        { body: "wayfarer", primaryColor: "ember" },
+        "warrior",
+      );
+      expect(created).toMatchObject({
+        name: `Hero${i}`,
+        appearance: { body: "wayfarer", primaryColor: "ember" },
+        equipment: starterEquipmentFor("warrior"),
+        level: 1,
+      });
     }
-    expect(await createCharacter(db, accountId, "OneTooMany", "moss", "warrior")).toBe(
-      "limit_reached",
-    );
+    expect(
+      await createCharacter(
+        db,
+        accountId,
+        "OneTooMany",
+        { body: "wayfarer", primaryColor: "moss" },
+        "warrior",
+      ),
+    ).toBe("limit_reached");
     expect(await listCharacters(db, accountId)).toHaveLength(MAX_CHARACTERS_PER_ACCOUNT);
   });
 
   it("spawns a new character at its deterministic plaza spawn", async () => {
     const db = createDb(env.DB);
-    const created = await createCharacter(db, await owner(), "Fresh", "azure", "warrior");
+    const created = await createCharacter(
+      db,
+      await owner(),
+      "Fresh",
+      { body: "wayfarer", primaryColor: "azure" },
+      "warrior",
+    );
     if (created === "limit_reached") throw new Error("unexpected cap");
     const row = await loadProfile(db, created.id);
     expect(row).toMatchObject(spawnPosition(created.id));
@@ -256,7 +315,13 @@ describe("characters service", () => {
     const db = createDb(env.DB);
     const alice = await owner("alice");
     const bob = await owner("bob");
-    const created = await createCharacter(db, alice, "AliceHero", "violet", "warrior");
+    const created = await createCharacter(
+      db,
+      alice,
+      "AliceHero",
+      { body: "wayfarer", primaryColor: "violet" },
+      "warrior",
+    );
     if (created === "limit_reached") throw new Error("unexpected cap");
 
     expect(await listCharacters(db, bob)).toEqual([]);

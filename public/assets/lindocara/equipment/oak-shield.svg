@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="12" height="15" viewBox="0 0 12 15" shape-rendering="crispEdges">
+  <title>Oak shield</title>
+  <path fill="#251711" d="M1 0h10v1h1v8h-1v3H9v2H3v-2H1V9H0V1h1z"/>
+  <path fill="#87552c" d="M2 2h8v7H9v2H7v2H5v-2H3V9H2z"/>
+  <path fill="#b47a3d" d="M3 3h6v5H8v2H4V8H3z"/>
+  <path fill="#d5b568" d="M5 2h2v9H5zM2 6h8v2H2z"/>
+  <path fill="#5c3a23" d="M5 5h2v4H5z"/>
+</svg>

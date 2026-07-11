@@ -21,6 +21,7 @@ describe("ui store", () => {
       maxHp: 112,
       dead: false,
       class: "warrior" as const,
+      equipment: { mainHand: "weathered_sword" as const, offHand: "oak_shield" as const },
     };
     useUiStore.getState().setSelf(self);
     const first = useUiStore.getState().self;
