@@ -396,6 +396,8 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
 
 export const PLAYER_MAX_HP_BASE = 100;
 export const PLAYER_HP_PER_LEVEL = 12;
+
+/** Replaced by CLASS_STATS — deleted when world.ts/session.ts switch (classes plan Tasks 5–6). */
 export const PLAYER_ATTACK_BASE = 24;
 export const PLAYER_ATTACK_PER_LEVEL = 3;
 export const ATTACK_RANGE = 82;
@@ -481,6 +483,49 @@ export function maxHpForLevel(level: number): number {
 
 export function attackDamageForLevel(level: number): number {
   return PLAYER_ATTACK_BASE + Math.max(0, level - 1) * PLAYER_ATTACK_PER_LEVEL;
+}
+
+// Class system: character types with distinct balance profiles.
+
+export type PlayerClass = "warrior" | "ranger" | "priest";
+
+export const PLAYER_CLASSES: readonly PlayerClass[] = ["warrior", "ranger", "priest"];
+
+export interface ClassStats {
+  attackBase: number;
+  attackPerLevel: number;
+  attackRange: number;
+  heal?: { base: number; perLevel: number; range: number; cooldownMs: number };
+}
+
+export const CLASS_STATS: Record<PlayerClass, ClassStats> = {
+  warrior: { attackBase: 30, attackPerLevel: 4, attackRange: 60 },
+  ranger: { attackBase: 16, attackPerLevel: 2, attackRange: 170 },
+  priest: {
+    attackBase: 14,
+    attackPerLevel: 2,
+    attackRange: 100,
+    heal: { base: 35, perLevel: 3, range: 130, cooldownMs: 1_500 },
+  },
+};
+
+export function attackDamageFor(playerClass: PlayerClass, level: number): number {
+  return (
+    CLASS_STATS[playerClass].attackBase +
+    Math.max(0, level - 1) * CLASS_STATS[playerClass].attackPerLevel
+  );
+}
+
+export function healAmountFor(level: number): number {
+  const heal = CLASS_STATS.priest.heal;
+  if (!heal) {
+    throw new Error("healAmountFor: priest heal stats missing");
+  }
+  return heal.base + Math.max(0, level - 1) * heal.perLevel;
+}
+
+export function isValidClass(value: unknown): value is PlayerClass {
+  return typeof value === "string" && PLAYER_CLASSES.includes(value as PlayerClass);
 }
 
 export function xpForNextLevel(level: number): number {

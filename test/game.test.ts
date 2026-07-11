@@ -2,15 +2,20 @@ import { describe, expect, it } from "vitest";
 import {
   applyDamage,
   applyExperience,
+  attackDamageFor,
   attackDamageForLevel,
   BOUNDARY_OBSTACLES,
+  CLASS_STATS,
   clampRestoredPosition,
+  healAmountFor,
   INTERACTION_RANGE,
+  isValidClass,
   isWalkable,
   MONSTER_AGGRO_RANGE,
   MONSTER_SPAWNS,
   maxHpForLevel,
   OBSTACLES,
+  PLAYER_CLASSES,
   pointDistance,
   QUEST_NPC,
   type Rect,
@@ -340,5 +345,48 @@ describe("authoritative combat and progression rules", () => {
   it("validates combat and interaction range geometrically", () => {
     expect(withinRange({ x: 0, y: 0 }, { x: 30, y: 40 }, 50)).toBe(true);
     expect(withinRange({ x: 0, y: 0 }, { x: 30, y: 40 }, 49)).toBe(false);
+  });
+});
+
+describe("class rules", () => {
+  it("keeps the balance table in the spec's shape", () => {
+    expect(PLAYER_CLASSES).toEqual(["warrior", "ranger", "priest"]);
+    expect(CLASS_STATS.warrior).toMatchObject({
+      attackBase: 30,
+      attackPerLevel: 4,
+      attackRange: 60,
+    });
+    expect(CLASS_STATS.ranger).toMatchObject({
+      attackBase: 16,
+      attackPerLevel: 2,
+      attackRange: 170,
+    });
+    expect(CLASS_STATS.priest).toMatchObject({
+      attackBase: 14,
+      attackPerLevel: 2,
+      attackRange: 100,
+    });
+    expect(CLASS_STATS.priest.heal).toEqual({
+      base: 35,
+      perLevel: 3,
+      range: 130,
+      cooldownMs: 1500,
+    });
+    expect(CLASS_STATS.warrior.heal).toBeUndefined();
+  });
+
+  it("scales damage and healing by level", () => {
+    expect(attackDamageFor("warrior", 1)).toBe(30);
+    expect(attackDamageFor("warrior", 3)).toBe(38);
+    expect(attackDamageFor("ranger", 1)).toBe(16);
+    expect(attackDamageFor("priest", 5)).toBe(22);
+    expect(healAmountFor(1)).toBe(35);
+    expect(healAmountFor(4)).toBe(44);
+  });
+
+  it("validates class names", () => {
+    expect(isValidClass("priest")).toBe(true);
+    expect(isValidClass("necromancer")).toBe(false);
+    expect(isValidClass(3)).toBe(false);
   });
 });
