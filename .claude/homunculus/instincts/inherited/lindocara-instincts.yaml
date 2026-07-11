@@ -1,0 +1,415 @@
+# Instincts generated from https://github.com/feunard/lindocara
+# Generated: 2026-07-11T13:24:33.375Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: lindocara-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Commit Length
+
+## Action
+
+Keep commit messages concise (~46 characters)
+
+## Evidence
+
+- Average commit message length: 46 chars
+- Based on 1 commits
+
+---
+id: lindocara-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Naming Files
+
+## Action
+
+Use camelCase naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: camelCase
+
+---
+id: lindocara-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: lindocara-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: lindocara-test-separate
+trigger: "when writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Test Separate
+
+## Action
+
+Place tests in the tests/ or __tests__/ directory, mirroring src structure
+
+## Evidence
+
+- Separate test directory pattern detected
+- Tests live in dedicated test folders
+
+---
+id: lindocara-test-framework
+trigger: "when writing tests"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Test Framework
+
+## Action
+
+Use vitest as the test framework
+
+## Evidence
+
+- Test framework detected: vitest
+- File pattern: *.test.ts
+
+---
+id: lindocara-test-naming
+trigger: "when creating a test file"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Test Naming
+
+## Action
+
+Name test files using the pattern: *.test.ts
+
+## Evidence
+
+- File pattern: *.test.ts
+- Consistent across test files
+
+---
+id: lindocara-test-types
+trigger: "when planning tests for a feature"
+confidence: 0.7
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Test Types
+
+## Action
+
+Write unit, integration tests to match project standards
+
+## Evidence
+
+- Test types detected: unit, integration
+- Coverage config: no
+
+---
+id: lindocara-instinct-file-naming
+trigger: "When creating a new file"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct File Naming
+
+## Action
+
+Name the file using camelCase
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.files
+
+---
+id: lindocara-instinct-function-naming
+trigger: "When defining a function"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Function Naming
+
+## Action
+
+Name the function using camelCase
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.functions
+
+---
+id: lindocara-instinct-class-naming
+trigger: "When defining a class"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Class Naming
+
+## Action
+
+Name the class using PascalCase
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.classes
+
+---
+id: lindocara-instinct-constant-naming
+trigger: "When declaring a constant"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Constant Naming
+
+## Action
+
+Name the constant using SCREAMING_SNAKE_CASE
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.constants
+
+---
+id: lindocara-instinct-import-style
+trigger: "When importing modules"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Import Style
+
+## Action
+
+Use relative import paths
+
+## Evidence
+
+- Pattern in codeStyle.importStyle
+
+---
+id: lindocara-instinct-export-style
+trigger: "When exporting from a module"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Export Style
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- Pattern in codeStyle.exportStyle
+
+---
+id: lindocara-instinct-test-file-pattern
+trigger: "When creating a test file"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Test File Pattern
+
+## Action
+
+Name the file with the pattern *.test.ts
+
+## Evidence
+
+- Pattern in testing.filePattern
+
+---
+id: lindocara-instinct-test-framework
+trigger: "When writing tests"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Test Framework
+
+## Action
+
+Use the vitest framework
+
+## Evidence
+
+- Pattern in testing.framework
+
+---
+id: lindocara-instinct-test-type
+trigger: "When designing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Test Type
+
+## Action
+
+Write both unit and integration tests
+
+## Evidence
+
+- Pattern in testing.testTypes
+
+---
+id: lindocara-instinct-test-location
+trigger: "When organizing test files"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Test Location
+
+## Action
+
+Place test files in a separate test folder
+
+## Evidence
+
+- Pattern in architecture.folderStructure.testLocation
+
+---
+id: lindocara-instinct-commit-format
+trigger: "When writing a commit message"
+confidence: 0.7
+domain: git
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Commit Format
+
+## Action
+
+Use a freeform message without a prefix, typically short and descriptive
+
+## Evidence
+
+- Pattern in commits.type
+- Example: 'update selector - update unity - prepare spell'
+
+---
+id: lindocara-instinct-commit-length
+trigger: "When composing a commit message"
+confidence: 0.7
+domain: git
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Commit Length
+
+## Action
+
+Keep the message concise (average length ~46 characters)
+
+## Evidence
+
+- Pattern in commits.averageLength
+
+---
+id: lindocara-instinct-error-handling
+trigger: "When handling errors in code"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Error Handling
+
+## Action
+
+Use try-catch blocks and custom error classes
+
+## Evidence
+
+- Pattern in errorHandling.style
+- Pattern in errorHandling.customErrorClasses
+
