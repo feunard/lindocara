@@ -90,6 +90,7 @@ progression formulas live in `src/shared/game.ts`. They are platform-free and di
 | --- | --- |
 | WASD / arrows | Move |
 | Space | Attack the closest monster in range |
+| F | Mend the most injured ally in range (priest) |
 | E | Interact with Warden Mira |
 | Q | Use a potion |
 | Enter | Focus chat |
@@ -97,6 +98,10 @@ progression formulas live in `src/shared/game.ts`. They are platform-free and di
 
 New players begin in the sanctuary beside Warden Mira. Accept **Slime Hunt**, defeat three Moss
 Slimes, collect their drops by walking over them, then return to Mira for the reward.
+
+Each character is one of three classes, picked at creation: the warrior hits hard at short
+range, the ranger hits softer from far away, and the priest hits softest of all but can mend
+the most injured ally in range.
 
 ## Database
 

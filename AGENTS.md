@@ -22,7 +22,8 @@ terrain, Warden Mira, roaming slimes, combat, loot, progression, a quest, and lo
 ## Architecture
 
 The one rule that matters: **the server decides outcomes.** Clients send movement and action
-intent, never positions, damage, health, inventory, XP, deaths, loot, or quest completion.
+intent, never positions, damage, health, heals, inventory, XP, deaths, loot, or quest
+completion.
 
 ```
 src/shared/     platform-free. Imports nothing from Cloudflare or the DOM.
@@ -99,6 +100,14 @@ with incompatible shapes. Loading both into one program produces a blizzard of n
 errors. So: `tsconfig.client.json`, `tsconfig.worker.json`, `tsconfig.node.json`. Code in
 `src/shared/` is checked by both of the first two, which is the point — it must be valid in
 a browser *and* in workerd.
+
+### Classes
+
+`CLASS_STATS` in `shared/game.ts` is the one balance table — attack damage, attack range, and
+(for priests) heal amount, heal range, and heal cooldown all read from it, for both the server's
+validation and the client's UI. The server validates class, range, cooldown, and targeting for
+every action; `{ t: "heal" }` is intent like any other, resolved server-side into the most
+injured ally in range or `heal.nobody` if there is none.
 
 ### `run_worker_first`
 
