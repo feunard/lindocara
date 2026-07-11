@@ -100,7 +100,7 @@ describe("Hud", () => {
     });
     render(<Hud />);
     expect(screen.getByText("Priest")).toBeInTheDocument();
-    expect(screen.getByText("Mend")).toBeInTheDocument();
+    expect(screen.getAllByText("Mend")).toHaveLength(2);
     expect(screen.getAllByRole("progressbar")).toHaveLength(3); // vit, spark, heal cooldown
   });
 

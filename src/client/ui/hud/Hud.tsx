@@ -7,6 +7,7 @@ import { Bar } from "./Bar.js";
 import { CooldownBar } from "./CooldownBar.js";
 import { HealCooldownBar } from "./HealCooldownBar.js";
 import { InventoryChip } from "./InventoryChip.js";
+import { SkillBar } from "./SkillBar.js";
 
 /** Same status -> copy mapping as the legacy `renderState`. */
 function questText(quest: QuestState): string {
@@ -70,85 +71,88 @@ export function Hud() {
   };
 
   return (
-    <aside id="hud">
-      <section className="panel identity">
-        <div className="crest" aria-hidden="true" />
-        <div className="identity-copy">
-          <strong>{self.nick}</strong>
-          <span>{t("hud.level", { level: self.level })}</span>
-          <span>{t(`class.${self.class}`)}</span>
-        </div>
-        <div className="session-actions">
-          <button type="button" onClick={handleSwitchCharacter}>
-            {t("hud.switch_character")}
-          </button>
-          <button type="button" onClick={handleLogout}>
-            {t("hud.logout")}
-          </button>
-        </div>
-        {/* biome-ignore lint/a11y/noLabelWithoutControl: reuses the legacy `.identity label`
+    <>
+      <aside id="hud">
+        <section className="panel identity">
+          <div className="crest" aria-hidden="true" />
+          <div className="identity-copy">
+            <strong>{self.nick}</strong>
+            <span>{t("hud.level", { level: self.level })}</span>
+            <span>{t(`class.${self.class}`)}</span>
+          </div>
+          <div className="session-actions">
+            <button type="button" onClick={handleSwitchCharacter}>
+              {t("hud.switch_character")}
+            </button>
+            <button type="button" onClick={handleLogout}>
+              {t("hud.logout")}
+            </button>
+          </div>
+          {/* biome-ignore lint/a11y/noLabelWithoutControl: reuses the legacy `.identity label`
             grid layout (styles/legacy.css); the row labels a read-only <Bar> progressbar, not a
             form control, so there is nothing to htmlFor. */}
-        <label>
-          <span>{t("hud.vit")}</span>
-          <Bar value={self.hp} max={self.maxHp} variant="hp" />
-          <span>
-            {self.hp}/{self.maxHp}
-          </span>
-        </label>
-        {/* biome-ignore lint/a11y/noLabelWithoutControl: see above. */}
-        <label>
-          <span>{t("hud.spark")}</span>
-          <Bar value={selfState.xp} max={selfState.xpToNext} variant="xp" />
-          <span>
-            {selfState.xp}/{selfState.xpToNext}
-          </span>
-        </label>
-      </section>
+          <label>
+            <span>{t("hud.vit")}</span>
+            <Bar value={self.hp} max={self.maxHp} variant="hp" />
+            <span>
+              {self.hp}/{self.maxHp}
+            </span>
+          </label>
+          {/* biome-ignore lint/a11y/noLabelWithoutControl: see above. */}
+          <label>
+            <span>{t("hud.spark")}</span>
+            <Bar value={selfState.xp} max={selfState.xpToNext} variant="xp" />
+            <span>
+              {selfState.xp}/{selfState.xpToNext}
+            </span>
+          </label>
+        </section>
 
-      <section
-        key={questPulseKey}
-        className={questPulseKey > 0 ? "panel quest pulse" : "panel quest"}
-      >
-        <div className="panel-title">
-          <span className="panel-icon panel-icon--oath" aria-hidden="true" />
-          <strong>{t("hud.oath")}</strong>
-        </div>
-        <span>{questText(quest)}</span>
-        {showQuestBar && (
-          // "ready" shows a full bar, same as legacy renderState (value = target, not progress).
-          <Bar
-            value={quest.status === "ready" ? quest.target : quest.progress}
-            max={quest.target}
-            variant="quest"
-          />
-        )}
-      </section>
+        <section
+          key={questPulseKey}
+          className={questPulseKey > 0 ? "panel quest pulse" : "panel quest"}
+        >
+          <div className="panel-title">
+            <span className="panel-icon panel-icon--oath" aria-hidden="true" />
+            <strong>{t("hud.oath")}</strong>
+          </div>
+          <span>{questText(quest)}</span>
+          {showQuestBar && (
+            // "ready" shows a full bar, same as legacy renderState (value = target, not progress).
+            <Bar
+              value={quest.status === "ready" ? quest.target : quest.progress}
+              max={quest.target}
+              variant="quest"
+            />
+          )}
+        </section>
 
-      <CooldownBar />
-      {self.class === "priest" && <HealCooldownBar />}
+        <CooldownBar />
+        {self.class === "priest" && <HealCooldownBar />}
 
-      <section className="panel inventory">
-        <div className="panel-title">
-          <span className="panel-icon panel-icon--pack" aria-hidden="true" />
-          <strong>{t("hud.pack")}</strong>
-        </div>
-        <div className="item-grid">
-          <InventoryChip
-            icon="potion"
-            label={t("item.potion")}
-            value={String(potions)}
-            hotkey="Q"
-          />
-          <InventoryChip icon="gold" label={t("item.gold")} value={String(gold)} />
-          <InventoryChip icon="crystal" label={t("item.crystal")} value={String(crystals)} />
-          <InventoryChip
-            icon="sword"
-            label={t(`item.${self.equipment.mainHand}`)}
-            value={t("item.sword_on")}
-          />
-        </div>
-      </section>
-    </aside>
+        <section className="panel inventory">
+          <div className="panel-title">
+            <span className="panel-icon panel-icon--pack" aria-hidden="true" />
+            <strong>{t("hud.pack")}</strong>
+          </div>
+          <div className="item-grid">
+            <InventoryChip
+              icon="potion"
+              label={t("item.potion")}
+              value={String(potions)}
+              hotkey="Q"
+            />
+            <InventoryChip icon="gold" label={t("item.gold")} value={String(gold)} />
+            <InventoryChip icon="crystal" label={t("item.crystal")} value={String(crystals)} />
+            <InventoryChip
+              icon="sword"
+              label={t(`item.${self.equipment.mainHand}`)}
+              value={t("item.sword_on")}
+            />
+          </div>
+        </section>
+      </aside>
+      <SkillBar />
+    </>
   );
 }

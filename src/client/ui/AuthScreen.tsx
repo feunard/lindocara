@@ -39,8 +39,8 @@ export function AuthScreen() {
   }
 
   return (
-    <div className="fixed inset-0 grid place-items-center">
-      <div className="framed parchment flex w-full max-w-sm flex-col gap-4 p-6">
+    <main className="auth-shell">
+      <div className="auth-panel framed parchment flex flex-col gap-4 p-6">
         <span className="eyebrow">{t("auth.eyebrow")}</span>
         <h1>lindocara</h1>
         <h2>{t("auth.subtitle")}</h2>
@@ -102,6 +102,6 @@ export function AuthScreen() {
           {error && <p role="alert">{authErrorText(error)}</p>}
         </form>
       </div>
-    </div>
+    </main>
   );
 }

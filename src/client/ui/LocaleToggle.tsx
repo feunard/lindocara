@@ -11,7 +11,7 @@ export function LocaleToggle() {
         <button
           key={code}
           type="button"
-          className={cn(locale === code && "active")}
+          className={cn("btn-frame locale-chip", locale === code && "locale-chip--active")}
           onClick={() => setLocale(code)}
         >
           {code.toUpperCase()}

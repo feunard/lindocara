@@ -60,6 +60,16 @@ describe("client protocol", () => {
     });
     expect(parseClientMessage(JSON.stringify({ t: "heals" }))).toBeNull();
   });
+
+  it("accepts only the five authoritative skill slots", () => {
+    expect(parseClientMessage(JSON.stringify({ t: "skill", slot: 3 }))).toEqual({
+      t: "skill",
+      slot: 3,
+    });
+    expect(parseClientMessage(JSON.stringify({ t: "skill", slot: 0 }))).toBeNull();
+    expect(parseClientMessage(JSON.stringify({ t: "skill", slot: 6 }))).toBeNull();
+    expect(parseClientMessage(JSON.stringify({ t: "skill", slot: "3" }))).toBeNull();
+  });
 });
 
 describe("server protocol", () => {

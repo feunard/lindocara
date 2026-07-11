@@ -11,6 +11,10 @@
 }
 
 .btn-frame {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
   border: 8px solid transparent;
   border-image: url("../assets/hud/frame-button.png") 14 / 8px stretch;
   background: linear-gradient(180deg, #8a6a34 0%, #6b4c1e 55%, #57390f 100%);
@@ -31,4 +35,18 @@
 }
 .btn-frame:disabled {
   filter: grayscale(0.6) brightness(0.7);
+}
+.locale-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: unset;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.72rem;
+  line-height: 1;
+  opacity: 0.62;
+}
+.locale-chip--active {
+  opacity: 1;
+  filter: brightness(1.14);
 }

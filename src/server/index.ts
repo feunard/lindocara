@@ -6,6 +6,7 @@
  * call and this handler never has to think about serving files.
  */
 
+import { normalizeAppearance } from "../shared/character.js";
 import { isValidClass } from "../shared/game.js";
 import { createAccount, verifyCredentials } from "./accounts.js";
 import {
@@ -147,7 +148,13 @@ async function handleCreateCharacter(request: Request, env: Env): Promise<Respon
   if (!isValidAppearance(appearance)) return json({ error: "invalid_appearance" }, { status: 400 });
   if (!isValidClass(klass)) return json({ error: "invalid_class" }, { status: 400 });
 
-  const created = await createCharacter(createDb(env.DB), session.id, name, appearance, klass);
+  const created = await createCharacter(
+    createDb(env.DB),
+    session.id,
+    name,
+    normalizeAppearance(appearance),
+    klass,
+  );
   if (created === "limit_reached") return json({ error: "limit_reached" }, { status: 409 });
   return json(created);
 }

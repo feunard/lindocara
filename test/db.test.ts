@@ -151,7 +151,10 @@ describe("account and character tables", () => {
     await db.insert(character).values({ id: "char-cls", accountId: "acct-cls", name: "Old" });
     const profile = await loadProfile(db, "char-cls");
     expect(profile?.class).toBe("warrior");
-    expect(profile?.appearance).toEqual({ body: "wayfarer", primaryColor: "azure" });
+    expect(profile?.appearance).toEqual({
+      body: "wayfarer",
+      primaryColor: "azure",
+    });
     expect(profile?.equipment).toEqual(starterEquipmentFor("warrior"));
   });
 
@@ -172,7 +175,10 @@ describe("account and character tables", () => {
 
     for (const playerClass of ["warrior", "ranger", "priest"] as const) {
       const profile = await loadProfile(db, `legacy-${playerClass}`);
-      expect(profile?.appearance).toEqual({ body: "wayfarer", primaryColor: "azure" });
+      expect(profile?.appearance).toEqual({
+        body: "wayfarer",
+        primaryColor: "azure",
+      });
       expect(profile?.equipment).toEqual(starterEquipmentFor(playerClass));
     }
   });
@@ -202,7 +208,10 @@ describe("account and character tables", () => {
     profile.xp = 37;
     profile.hp = 88;
     profile.inventory.gold = 19;
-    profile.appearance = { body: "wayfarer", primaryColor: "violet" };
+    profile.appearance = {
+      body: "wayfarer",
+      primaryColor: "violet",
+    };
     profile.quest.status = "active";
     profile.quest.progress = 2;
     await saveProfile(db, profile);
@@ -275,7 +284,10 @@ describe("characters service", () => {
         db,
         accountId,
         `Hero${i}`,
-        { body: "wayfarer", primaryColor: "ember" },
+        {
+          body: "wayfarer",
+          primaryColor: "ember",
+        },
         "warrior",
       );
       expect(created).toMatchObject({
@@ -290,7 +302,10 @@ describe("characters service", () => {
         db,
         accountId,
         "OneTooMany",
-        { body: "wayfarer", primaryColor: "moss" },
+        {
+          body: "wayfarer",
+          primaryColor: "moss",
+        },
         "warrior",
       ),
     ).toBe("limit_reached");
@@ -303,7 +318,10 @@ describe("characters service", () => {
       db,
       await owner(),
       "Fresh",
-      { body: "wayfarer", primaryColor: "azure" },
+      {
+        body: "wayfarer",
+        primaryColor: "azure",
+      },
       "warrior",
     );
     if (created === "limit_reached") throw new Error("unexpected cap");
@@ -319,7 +337,10 @@ describe("characters service", () => {
       db,
       alice,
       "AliceHero",
-      { body: "wayfarer", primaryColor: "violet" },
+      {
+        body: "wayfarer",
+        primaryColor: "violet",
+      },
       "warrior",
     );
     if (created === "limit_reached") throw new Error("unexpected cap");

@@ -34,7 +34,10 @@ function fromRow(row: Character): PlayerProfile {
     xp: Math.max(0, row.xp),
     hp: Math.min(maxHp, Math.max(1, row.hp)),
     appearance: normalizeAppearance(
-      { body: row.appearanceBody, primaryColor: row.appearancePrimaryColor },
+      {
+        body: row.appearanceBody,
+        primaryColor: row.appearancePrimaryColor,
+      },
       row.appearance,
     ),
     class: row.class,

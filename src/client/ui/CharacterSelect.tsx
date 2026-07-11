@@ -103,16 +103,17 @@ export function CharacterSelect({ onPlay }: { onPlay(character: CharacterSummary
             </div>
           </article>
         ))}
-        <button
-          type="button"
-          className="roster-card roster-card--new framed"
-          disabled={characters.length >= MAX_CHARACTERS}
-          onClick={() => setCreating(true)}
-        >
-          <span aria-hidden="true">+</span>
-          <strong>{t("chars.new")}</strong>
-          <small>{t("chars.slots", { count: characters.length, max: MAX_CHARACTERS })}</small>
-        </button>
+        {characters.length < MAX_CHARACTERS && (
+          <button
+            type="button"
+            className="roster-card roster-card--new framed"
+            onClick={() => setCreating(true)}
+          >
+            <span aria-hidden="true">+</span>
+            <strong>{t("chars.new")}</strong>
+            <small>{t("chars.slots", { count: characters.length, max: MAX_CHARACTERS })}</small>
+          </button>
+        )}
       </section>
 
       {deleting && (
@@ -126,7 +127,7 @@ export function CharacterSelect({ onPlay }: { onPlay(character: CharacterSummary
             <span className="eyebrow">{t("chars.delete.warning")}</span>
             <h2 id="delete-title">{t("chars.delete.title", { name: deleting.name })}</h2>
             <p>{t("chars.delete.copy")}</p>
-            <div>
+            <div className="delete-dialog__actions">
               <Button type="button" variant="secondary" onClick={() => setConfirmingId(null)}>
                 {t("chars.delete.cancel")}
               </Button>

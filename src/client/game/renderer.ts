@@ -31,6 +31,15 @@ import { onLocaleChange, t } from "../i18n.js";
 import { MAIN_HAND_ART, OFF_HAND_ART, PLAYER_ATLAS_FRAMES } from "./character-art.js";
 import type { SceneSample } from "./net.js";
 import {
+  allUnitSheets,
+  TINY_SWORDS_BUILDINGS,
+  TINY_SWORDS_EFFECT_SHEETS,
+  TINY_SWORDS_EFFECTS,
+  TINY_SWORDS_UNIT_FRAME,
+  type UnitMotion,
+  unitSheet,
+} from "./tiny-swords-art.js";
+import {
   DECOR_REGIONS,
   type DecorTheme,
   POINTS_OF_INTEREST,
@@ -99,6 +108,10 @@ interface ArtTextures {
   mainHands: Record<MainHandItem, Texture>;
   offHands: Record<OffHandItem, Texture>;
   loot: Record<ItemKind, Texture>;
+  units: Record<string, readonly Texture[]>;
+  buildings: Texture[];
+  effects: Record<keyof typeof TINY_SWORDS_EFFECTS, Texture>;
+  effectFrames: Record<keyof typeof TINY_SWORDS_EFFECT_SHEETS, readonly Texture[]>;
 }
 
 export interface RenderContext {
@@ -126,6 +139,8 @@ interface EntityView<T extends { id: string }> {
   hitUntil?: number;
   wasDead?: boolean;
   phase?: number;
+  unitSprite?: Sprite;
+  unitAnimations?: Record<UnitMotion, readonly Texture[]>;
 }
 
 interface Effect {
@@ -134,6 +149,8 @@ interface Effect {
   duration: number;
   rise: number;
   baseY: number;
+  sprite?: Sprite;
+  frames?: readonly Texture[];
 }
 
 interface AmbientView {
@@ -175,6 +192,21 @@ function phaseFor(id: string): number {
 function seeded(index: number): number {
   const value = Math.sin(index * 12.9898 + 78.233) * 43_758.5453;
   return value - Math.floor(value);
+}
+
+function sliceHorizontalSheet(
+  source: Texture,
+  frameWidth: number,
+  frames: number,
+): readonly Texture[] {
+  return Array.from({ length: frames }, (_, index) => {
+    const frame = new Rectangle(index * frameWidth, 0, frameWidth, source.height);
+    return new Texture({
+      source: source.source,
+      frame,
+      label: `${source.label ?? "sheet"}:${index}`,
+    });
+  });
 }
 
 function tileVariation(tileX: number, tileY: number): number {
@@ -221,6 +253,51 @@ async function loadArt(): Promise<ArtTextures> {
     if (!result) throw new Error(`Missing equipment texture: ${source}`);
     return result;
   };
+  const unitSheets = allUnitSheets();
+  const loadedUnits = await Promise.all(
+    unitSheets.map((definition) => Assets.load<Texture>(definition.source)),
+  );
+  const units: Record<string, readonly Texture[]> = {};
+  for (let sourceIndex = 0; sourceIndex < unitSheets.length; sourceIndex++) {
+    const definition = unitSheets[sourceIndex];
+    const sheet = loadedUnits[sourceIndex];
+    if (!definition || !sheet) continue;
+    sheet.source.style.scaleMode = "nearest";
+    units[definition.source] = Array.from(
+      { length: definition.frames },
+      (_, frame) =>
+        new Texture({
+          source: sheet.source,
+          frame: new Rectangle(
+            frame * TINY_SWORDS_UNIT_FRAME,
+            0,
+            TINY_SWORDS_UNIT_FRAME,
+            TINY_SWORDS_UNIT_FRAME,
+          ),
+          label: `${definition.source}:${frame}`,
+        }),
+    );
+  }
+  const buildings = await Promise.all(
+    TINY_SWORDS_BUILDINGS.map((source) => Assets.load<Texture>(source)),
+  );
+  for (const building of buildings) building.source.style.scaleMode = "nearest";
+  const effectEntries = await Promise.all(
+    Object.entries(TINY_SWORDS_EFFECTS).map(
+      async ([name, source]) => [name, await Assets.load<Texture>(source)] as const,
+    ),
+  );
+  const effects = Object.fromEntries(effectEntries) as Record<
+    keyof typeof TINY_SWORDS_EFFECTS,
+    Texture
+  >;
+  for (const effect of Object.values(effects)) effect.source.style.scaleMode = "nearest";
+  const effectFrames = Object.fromEntries(
+    Object.entries(TINY_SWORDS_EFFECT_SHEETS).map(([name, sheet]) => {
+      const texture = effects[name as keyof typeof TINY_SWORDS_EFFECTS];
+      return [name, sliceHorizontalSheet(texture, sheet.frame, sheet.frames)] as const;
+    }),
+  ) as Record<keyof typeof TINY_SWORDS_EFFECT_SHEETS, readonly Texture[]>;
 
   return {
     players: {
@@ -288,6 +365,10 @@ async function loadArt(): Promise<ArtTextures> {
       gold: texture("loot.gold"),
       crystal: texture("loot.crystal"),
     },
+    units,
+    buildings,
+    effects,
+    effectFrames,
   };
 }
 
@@ -296,6 +377,20 @@ function createSprite(texture: Texture, width: number, height: number): Sprite {
   sprite.width = width;
   sprite.height = height;
   return sprite;
+}
+
+function playerAnimations(
+  player: PlayerSnapshot,
+  textures: Record<string, readonly Texture[]>,
+): Record<UnitMotion, readonly Texture[]> {
+  const result = {} as Record<UnitMotion, readonly Texture[]>;
+  for (const motion of ["idle", "run", "attack"] as const) {
+    const source = unitSheet(player.class, player.appearance, motion).source;
+    const frames = textures[source];
+    if (!frames || frames.length === 0) throw new Error(`Missing Tiny Swords unit: ${source}`);
+    result[motion] = frames;
+  }
+  return result;
 }
 
 function createFittedSprite(texture: Texture, maxWidth: number, maxHeight: number): Sprite {
@@ -937,12 +1032,13 @@ export class Renderer {
             .ellipse(landmark.width / 2, landmark.height - 12, landmark.width * 0.46, 24)
             .fill({ color: COLORS.shadow, alpha: isBuilding ? 0.48 : 0.4 }),
         );
-        const pool = isBuilding ? this.art.props.ruins.slice(2) : this.art.props.ruins;
+        const pool = isBuilding ? this.art.buildings : this.art.props.ruins;
         const prop = createFittedSprite(pickTexture(pool, index), landmark.width, landmark.height);
         prop.anchor.set(0.5, 1);
         prop.position.set(landmark.width / 2, landmark.height);
-        prop.tint =
-          landmark.kind === "swamp_shrine"
+        prop.tint = isBuilding
+          ? 0xffffff
+          : landmark.kind === "swamp_shrine"
             ? 0xb8c4a7
             : landmark.kind === "farm"
               ? 0xe2cf9f
@@ -950,14 +1046,7 @@ export class Renderer {
                 ? 0xd2d0b5
                 : 0xf1e4be;
         container.addChild(prop);
-        if (isBuilding) {
-          container.addChild(
-            new Graphics()
-              .roundRect(landmark.width / 2 - 22, landmark.height - 55, 44, 54, 5)
-              .fill({ color: 0x100f0d, alpha: 0.88 })
-              .rect(landmark.width / 2 - 42, landmark.height - 4, 84, 6)
-              .fill({ color: 0xc19a64, alpha: 0.72 }),
-          );
+        if (landmark.kind === "building") {
           this.#addTorch(container, landmark.width / 2 + 38, landmark.height - 26);
         }
       }
@@ -1251,33 +1340,18 @@ export class Renderer {
     actor.pivot.set(16, 17);
     actor.position.set(16, 17);
     const shadow = new Graphics().ellipse(16, 31, 16, 6).fill({ color: COLORS.shadow, alpha: 0.6 });
-    const body = createSprite(this.art.players[player.appearance.primaryColor], 32, 32);
-    body.anchor.set(0.5, 1);
-    body.position.set(16, 34);
+    const animations = playerAnimations(player, this.art.units);
+    const unitSprite = new Sprite(animations.idle[0]);
+    unitSprite.width = 96;
+    unitSprite.height = 96;
+    unitSprite.position.set(-32, -43);
     const selfRing = new Graphics();
     if (player.id === this.#selfId) {
       selfRing.ellipse(16, 31, 18, 7).stroke({ width: 2, color: COLORS.selfRing, alpha: 0.82 });
     }
-    const mainArt = MAIN_HAND_ART[player.equipment.mainHand];
-    const mainScale = player.equipment.mainHand === "hunter_bow" ? 1.7 : 1.85;
-    const weapon = createSprite(
-      this.art.mainHands[player.equipment.mainHand],
-      mainArt.width * mainScale,
-      mainArt.height * mainScale,
-    );
-    weapon.anchor.set(0.5, 1);
-    weapon.position.set(25, 31);
-    const offHand = player.equipment.offHand
-      ? createSprite(this.art.offHands[player.equipment.offHand], 20, 25)
-      : null;
-    if (offHand) {
-      offHand.anchor.set(0.5, 1);
-      offHand.position.set(7, 31);
-    }
     const flash = new Graphics().roundRect(3, -8, 28, 40, 10).fill({ color: 0xffffff, alpha: 0 });
     actor.addChild(shadow, selfRing);
-    if (offHand) actor.addChild(offHand);
-    actor.addChild(body, weapon, flash);
+    actor.addChild(unitSprite, flash);
     container.addChild(actor);
     const hp = new Graphics();
     hp.label = "hp";
@@ -1301,7 +1375,6 @@ export class Renderer {
       container,
       data: player,
       actor,
-      weapon,
       flash,
       lastX: player.x,
       lastY: player.y,
@@ -1311,6 +1384,8 @@ export class Renderer {
       hitUntil: 0,
       wasDead: player.dead,
       phase: phaseFor(player.id),
+      unitSprite,
+      unitAnimations: animations,
     };
   }
 
@@ -1481,19 +1556,28 @@ export class Renderer {
     return { x: QUEST_NPC.x + PLAYER_SIZE / 2, y: QUEST_NPC.y };
   }
 
-  #trackEffect(container: Container, duration: number, rise: number): void {
+  #trackEffect(
+    container: Container,
+    duration: number,
+    rise: number,
+    frames?: readonly Texture[],
+  ): void {
     while (this.#activeEffects.length >= MAX_ACTIVE_EFFECTS) {
       const oldest = this.#activeEffects.shift();
       oldest?.container.destroy({ children: true });
     }
     this.#effects.addChild(container);
-    this.#activeEffects.push({
+    const sprite = container instanceof Sprite ? container : undefined;
+    const effect: Effect = {
       container,
       bornAt: performance.now(),
       duration,
       rise,
       baseY: container.y,
-    });
+    };
+    if (sprite) effect.sprite = sprite;
+    if (frames) effect.frames = frames;
+    this.#activeEffects.push(effect);
   }
 
   #addPulse(x: number, y: number, color: number, radius: number, durationMs: number): void {
@@ -1507,7 +1591,7 @@ export class Renderer {
     if (attacker === this.#selfId || (typeof attacker === "string" && attacker.length > 0)) {
       for (const view of this.#players.values()) {
         if (attacker === this.#selfId ? view.data.id === this.#selfId : view.data.nick === attacker)
-          view.attackUntil = performance.now() + 190;
+          view.attackUntil = performance.now() + 700;
       }
     }
     const position = this.#effectPosition(x, y);
@@ -1534,15 +1618,63 @@ export class Renderer {
   playAttack(playerId: string): void {
     const view = this.#players.get(playerId);
     if (!view) return;
-    view.attackUntil = performance.now() + 190;
+    view.attackUntil = performance.now() + 700;
     const position = centerOf(view.data);
     this.#addPulse(position.x, position.y, COLORS.selfRing, 44, 180);
     this.#burst(position.x + 14, position.y, 0xffe0a0, 5);
   }
 
+  playRangedHit(
+    playerId: string,
+    targetX: number,
+    targetY: number,
+    playerClass: PlayerClass,
+  ): void {
+    if (playerClass === "warrior") return;
+    const view = this.#players.get(playerId);
+    if (!view) return;
+    const start = centerOf(view.data);
+    const target = { x: targetX + 16, y: targetY + 16 };
+    const angle = Math.atan2(target.y - start.y, target.x - start.x);
+    const color = playerClass === "ranger" ? 0xf3cf78 : 0xb9f5d8;
+    if (playerClass === "ranger") {
+      const arrow = createSprite(this.art.effects.arrow, 34, 34);
+      arrow.anchor.set(0.5);
+      arrow.rotation = angle;
+      arrow.position.set(target.x - Math.cos(angle) * 18, target.y - Math.sin(angle) * 18);
+      this.#trackEffect(arrow, 220, 0);
+    } else {
+      const projectile = new Graphics()
+        .moveTo(start.x, start.y)
+        .lineTo(target.x, target.y)
+        .stroke({ width: 4, color, alpha: 0.92 });
+      this.#trackEffect(projectile, 180, 0);
+    }
+    this.#burst(target.x, target.y, color, playerClass === "ranger" ? 4 : 7);
+  }
+
   playInteraction(): void {
     const position = this.#effectPosition();
     this.#addPulse(position.x, position.y, COLORS.npc, 34, 220);
+  }
+
+  playSkillEffect(playerClass: PlayerClass, x?: number, y?: number): void {
+    const position = this.#effectPosition(x, y);
+    const sheetKey =
+      playerClass === "priest" ? "heal" : playerClass === "ranger" ? "dust" : "explosion";
+    const frames = this.art.effectFrames[sheetKey];
+    const first = frames[0];
+    if (!first) return;
+    const display = playerClass === "ranger" ? 56 : playerClass === "priest" ? 96 : 88;
+    const sprite = createSprite(first, display, display);
+    sprite.anchor.set(0.5);
+    sprite.position.set(position.x, position.y);
+    this.#trackEffect(
+      sprite,
+      playerClass === "ranger" ? 360 : 480,
+      playerClass === "priest" ? 6 : 4,
+      frames,
+    );
   }
 
   #burst(x: number, y: number, color: number, count: number): void {
@@ -1563,6 +1695,14 @@ export class Renderer {
       const effect = this.#activeEffects[index];
       if (!effect) continue;
       const progress = Math.min(1, (now - effect.bornAt) / effect.duration);
+      if (effect.frames && effect.sprite) {
+        const frameIndex = Math.min(
+          effect.frames.length - 1,
+          Math.floor(progress * effect.frames.length),
+        );
+        const frame = effect.frames[frameIndex];
+        if (frame) effect.sprite.texture = frame;
+      }
       effect.container.alpha = 1 - progress;
       effect.container.y = effect.baseY - effect.rise * progress;
       effect.container.scale.set(1 + progress * 0.55);
@@ -1701,10 +1841,12 @@ export class Renderer {
             view.actor.alpha = player.dead ? 0.4 : 1;
             view.actor.scale.y = player.dead ? 0.62 : 1;
           }
-          if (view.weapon) {
-            const attacking = (view.attackUntil ?? 0) > now;
-            view.weapon.rotation = attacking ? -1.35 + ((view.attackUntil ?? now) - now) / 190 : 0;
-            view.weapon.position.set(attacking ? 30 : 25, 27);
+          if (view.unitSprite && view.unitAnimations) {
+            const motion: UnitMotion =
+              (view.attackUntil ?? 0) > now ? "attack" : moving ? "run" : "idle";
+            const frames = view.unitAnimations[motion];
+            const frame = frames[Math.floor(now / 95) % frames.length] ?? frames[0];
+            if (frame) view.unitSprite.texture = frame;
           }
           if (view.flash) view.flash.alpha = (view.hitUntil ?? 0) > now ? 0.65 : 0;
           view.container.alpha = player.dead ? 0.55 : 1;

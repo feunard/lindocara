@@ -11,7 +11,10 @@ const three: CharacterSummary[] = [
   {
     id: "1",
     name: "One",
-    appearance: { body: "wayfarer", primaryColor: "azure" },
+    appearance: {
+      body: "wayfarer",
+      primaryColor: "azure",
+    },
     equipment: starterEquipmentFor("warrior"),
     level: 1,
     class: "warrior",
@@ -19,7 +22,10 @@ const three: CharacterSummary[] = [
   {
     id: "2",
     name: "Two",
-    appearance: { body: "wayfarer", primaryColor: "ember" },
+    appearance: {
+      body: "wayfarer",
+      primaryColor: "ember",
+    },
     equipment: starterEquipmentFor("ranger"),
     level: 2,
     class: "ranger",
@@ -27,7 +33,10 @@ const three: CharacterSummary[] = [
   {
     id: "3",
     name: "Three",
-    appearance: { body: "wayfarer", primaryColor: "moss" },
+    appearance: {
+      body: "wayfarer",
+      primaryColor: "moss",
+    },
     equipment: starterEquipmentFor("priest"),
     level: 3,
     class: "priest",
@@ -50,7 +59,7 @@ describe("CharacterSelect", () => {
     expect(screen.getByText("Heartwood staff")).toBeInTheDocument();
     expect(screen.getAllByRole("img", { name: /wayfarer/i })).toHaveLength(3);
     expect(screen.getAllByRole("button", { name: "Play" })).toHaveLength(3);
-    expect(screen.getByRole("button", { name: /^New character/ })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /^New character/ })).not.toBeInTheDocument();
   });
 
   it("protects deletion with a localized alert dialog", async () => {
@@ -103,7 +112,10 @@ describe("CharacterSelect", () => {
     const created: CharacterSummary = {
       id: "9",
       name: "Mercy",
-      appearance: { body: "wayfarer", primaryColor: "violet" },
+      appearance: {
+        body: "wayfarer",
+        primaryColor: "violet",
+      },
       equipment: starterEquipmentFor("priest"),
       class: "priest",
       level: 1,

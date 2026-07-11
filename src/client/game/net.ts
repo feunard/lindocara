@@ -23,6 +23,7 @@ import {
   type WorldInfo,
 } from "../../shared/protocol.js";
 import { type Input, NO_INPUT, step, TICK_DT, type Vec2 } from "../../shared/simulation.js";
+import type { SkillSlot } from "../../shared/skills.js";
 
 const INTERPOLATION_DELAY_MS = 100;
 const BUFFER_MS = 1_000;
@@ -45,6 +46,7 @@ export interface Connection {
   interact(): void;
   usePotion(): void;
   heal(): void;
+  skill(slot: SkillSlot): void;
   sendChat(text: string): void;
   close(): void;
 }
@@ -132,6 +134,7 @@ export class WorldClient {
       interact: () => this.#send({ t: "interact" }),
       usePotion: () => this.#send({ t: "use", item: "potion" }),
       heal: () => this.#send({ t: "heal" }),
+      skill: (slot) => this.#send({ t: "skill", slot }),
       sendChat: (text) => this.#send({ t: "chat", text }),
       close: () => socket.close(1000, "client left"),
     };

@@ -65,6 +65,7 @@ import {
   WORLD_HEIGHT,
   WORLD_WIDTH,
 } from "../shared/simulation.js";
+import { type SkillDefinition, type SkillSlot, skillFor } from "../shared/skills.js";
 import { createDb } from "./db/index.js";
 import { loadProfile, type PlayerProfile, type SaveableProfile, saveProfile } from "./profile.js";
 
@@ -102,6 +103,9 @@ interface Player extends PlayerProfile {
   dirty: boolean;
   lastAttackAt: number;
   lastHealAt: number;
+  skillCooldowns: number[];
+  guardUntil: number;
+  guardReduction: number;
   deadUntil: number;
   messageTimes: number[];
   malformedCount: number;
@@ -159,6 +163,9 @@ function newPlayer(profile: PlayerProfile, ack = 0, lastSeq = 0): Player {
     dirty: false,
     lastAttackAt: 0,
     lastHealAt: 0,
+    skillCooldowns: [0, 0, 0, 0, 0],
+    guardUntil: 0,
+    guardReduction: 0,
     deadUntil: 0,
     messageTimes: [],
     malformedCount: 0,
@@ -345,6 +352,10 @@ export class World extends DurableObject<Env> {
       this.#heal(ws, player);
       return;
     }
+    if (message.t === "skill") {
+      this.#castSkill(ws, player, message.slot);
+      return;
+    }
     const text = message.text.trim().replaceAll(/\s+/g, " ");
     if (text.length === 0 || text.length > CHAT_MAX_LENGTH) return;
     this.#broadcast({ t: "chat", from: player.nick, text });
@@ -393,6 +404,134 @@ export class World extends DurableObject<Env> {
       y: target.y,
     });
     if (result.killed) this.#defeatMonster(ws, player, target, now);
+  }
+
+  #castSkill(ws: WebSocket, player: Player, slot: SkillSlot): void {
+    const skill = skillFor(player.class, slot);
+    if (skill.effect === "attack") {
+      this.#attack(ws, player);
+      return;
+    }
+    if (skill.effect === "single_heal") {
+      this.#heal(ws, player);
+      return;
+    }
+
+    const now = Date.now();
+    if (player.deadUntil > now || (player.skillCooldowns[slot - 1] ?? 0) > now) return;
+
+    let cast = false;
+    if (skill.effect === "guard") {
+      player.guardUntil = now + (skill.durationMs ?? 0);
+      player.guardReduction = skill.reduction ?? 0;
+      cast = true;
+    } else if (skill.effect === "single_damage") {
+      const target = this.#nearestMonster(player, skill.range, now);
+      if (target) {
+        this.#skillDamage(ws, player, target, skill, now);
+        cast = true;
+      }
+    } else if (skill.effect === "area_damage") {
+      const targets = this.#monsters.filter(
+        (monster) =>
+          monster.deadUntil <= now &&
+          withinRange(player, monster, skill.radius ?? skill.range) &&
+          hasLineOfSight(player, monster),
+      );
+      for (const target of targets) this.#skillDamage(ws, player, target, skill, now);
+      cast = targets.length > 0;
+    } else if (skill.effect === "area_heal") {
+      cast = this.#areaHeal(ws, player, skill, now) > 0;
+    } else if (skill.effect === "nova") {
+      const targets = this.#monsters.filter(
+        (monster) =>
+          monster.deadUntil <= now &&
+          withinRange(player, monster, skill.radius ?? skill.range) &&
+          hasLineOfSight(player, monster),
+      );
+      for (const target of targets) this.#skillDamage(ws, player, target, skill, now);
+      cast = targets.length > 0 || this.#areaHeal(ws, player, skill, now) > 0;
+    }
+
+    if (!cast) {
+      this.#send(ws, {
+        t: "event",
+        code: "skill.no_target",
+        params: { skill: skill.id },
+        tone: "info",
+      });
+      return;
+    }
+    player.skillCooldowns[slot - 1] = now + skill.cooldownMs;
+    this.#send(ws, {
+      t: "event",
+      code: "skill.cast",
+      params: { skill: skill.id, slot },
+      tone: "good",
+      x: player.x,
+      y: player.y,
+    });
+  }
+
+  #nearestMonster(player: Player, range: number, now: number): Monster | undefined {
+    let target: Monster | undefined;
+    let distance = range;
+    for (const monster of this.#monsters) {
+      if (monster.deadUntil > now || !withinRange(player, monster, range)) continue;
+      if (!hasLineOfSight(player, monster)) continue;
+      const candidate = pointDistance(player, monster);
+      if (candidate <= distance) {
+        target = monster;
+        distance = candidate;
+      }
+    }
+    return target;
+  }
+
+  #skillDamage(
+    ws: WebSocket,
+    player: Player,
+    target: Monster,
+    skill: SkillDefinition,
+    now: number,
+  ): void {
+    const damage = skill.power + Math.max(0, player.level - 1) * 2;
+    const result = applyDamage(target.hp, damage);
+    target.hp = result.hp;
+    this.#send(ws, {
+      t: "event",
+      code: "combat.hit",
+      params: { species: target.species, damage },
+      tone: "info",
+      x: target.x,
+      y: target.y,
+    });
+    if (result.killed) this.#defeatMonster(ws, player, target, now);
+  }
+
+  #areaHeal(ws: WebSocket, player: Player, skill: SkillDefinition, now: number): number {
+    let healed = 0;
+    for (const [targetSocket, target] of this.#players) {
+      if (target.deadUntil > now || pointDistance(player, target) > (skill.radius ?? skill.range))
+        continue;
+      if (!hasLineOfSight(player, target)) continue;
+      const maxHp = maxHpForLevel(target.level);
+      if (target.hp >= maxHp) continue;
+      const amount = skill.power + Math.max(0, player.level - 1) * 2;
+      target.hp = Math.min(maxHp, target.hp + amount);
+      target.dirty = true;
+      healed += 1;
+      this.#send(targetSocket, {
+        t: "event",
+        code: targetSocket === ws ? "heal.cast" : "heal.received",
+        params: { name: player.nick, amount },
+        tone: "good",
+        x: target.x,
+        y: target.y,
+      });
+      this.#sendState(targetSocket, target);
+    }
+    return healed;
   }
 
   #defeatMonster(ws: WebSocket, player: Player, monster: Monster, now: number): void {
@@ -727,13 +866,17 @@ export class World extends DurableObject<Env> {
     species: MonsterSpecies,
     now: number,
   ): void {
-    const result = applyDamage(player.hp, damage);
+    const guardedDamage =
+      player.guardUntil > now
+        ? Math.max(1, Math.ceil(damage * (1 - player.guardReduction)))
+        : damage;
+    const result = applyDamage(player.hp, guardedDamage);
     player.hp = result.hp;
     player.dirty = true;
     this.#send(ws, {
       t: "event",
       code: "combat.hurt",
-      params: { species, damage },
+      params: { species, damage: guardedDamage },
       tone: "bad",
       x: player.x,
       y: player.y,

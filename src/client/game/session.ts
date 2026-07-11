@@ -15,6 +15,7 @@ import type {
   SelfState,
 } from "../../shared/protocol.js";
 import { NO_INPUT } from "../../shared/simulation.js";
+import { type SkillSlot, skillFor } from "../../shared/skills.js";
 import { type CharacterSummary, logout } from "../api.js";
 import { t } from "../i18n.js";
 import { type LocalizedText, useUiStore } from "../store.js";
@@ -78,13 +79,20 @@ function renderPlayer(player: PlayerSnapshot | undefined): void {
 }
 
 /** Resolve species/kind params to localized names, then apply the event template. */
-function eventText(code: EventCode, params: EventParams = {}): string {
+function eventText(
+  code: EventCode,
+  params: EventParams = {},
+  playerClass?: PlayerSnapshot["class"],
+): string {
   const resolved: EventParams = { ...params };
   if (typeof resolved.species === "string") {
     resolved.species = t(`monster.${resolved.species}` as MessageKey);
   }
   if (typeof resolved.kind === "string") {
     resolved.kind = t(`item.${resolved.kind}` as MessageKey);
+  }
+  if (typeof resolved.skill === "string" && playerClass) {
+    resolved.skill = t(`skill.${playerClass}.${resolved.skill}.name` as MessageKey);
   }
   return t(`event.${code}` as MessageKey, resolved);
 }
@@ -177,9 +185,12 @@ export async function startGame(character: CharacterSummary): Promise<void> {
         sound.chat();
       },
       onEvent: (code, params, tone, x, y) => {
-        const text = eventText(code, params);
+        const text = eventText(code, params, currentSelf?.class ?? character.class);
         if (shouldLogEvent(code)) addEvent(text, tone);
         renderer.showWorldEvent(text, tone, x, y);
+        if (code === "combat.hit" && x !== undefined && y !== undefined && client.selfId) {
+          renderer.playRangedHit(client.selfId, x, y, currentSelf?.class ?? character.class);
+        }
         switch (code) {
           case "combat.too_far":
             sound.attack();
@@ -193,8 +204,26 @@ export async function startGame(character: CharacterSummary): Promise<void> {
             // The server never consumes the cooldown on a whiff (heal.nobody), so arm the UI
             // bar only once a cast actually lands. Only priests ever receive heal.cast.
             useUiStore.getState().setHealCooldownUntil(performance.now() + PRIEST_HEAL_COOLDOWN_MS);
+            if ((currentSelf?.class ?? character.class) === "priest") {
+              useUiStore
+                .getState()
+                .setSkillCooldown(2, performance.now() + PRIEST_HEAL_COOLDOWN_MS);
+            }
             sound.loot();
             break;
+          case "skill.cast": {
+            const slot = params?.slot;
+            if (typeof slot === "number" && slot >= 1 && slot <= 5) {
+              const skillSlot = slot as SkillSlot;
+              const skill = skillFor(currentSelf?.class ?? character.class, skillSlot);
+              useUiStore
+                .getState()
+                .setSkillCooldown(skillSlot, performance.now() + skill.cooldownMs);
+            }
+            renderer.playSkillEffect(currentSelf?.class ?? character.class, x, y);
+            sound.attack();
+            break;
+          }
           case "loot.picked":
           case "quest.accepted":
           case "potion.used":
@@ -273,6 +302,23 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     sound.unlock();
     connection.heal();
   };
+  const castSkill = (slot: SkillSlot) => {
+    if (interiorOpen()) return;
+    const playerClass = currentSelf?.class ?? character.class;
+    const skill = skillFor(playerClass, slot);
+    if ((useUiStore.getState().skillCooldowns[slot] ?? 0) > performance.now()) return;
+    if (slot === 1) {
+      useUiStore.getState().setSkillCooldown(slot, performance.now() + skill.cooldownMs);
+      attack();
+      return;
+    }
+    if (playerClass === "priest" && slot === 2) {
+      heal();
+      return;
+    }
+    sound.unlock();
+    connection.skill(slot);
+  };
   const switchCharacter = () => {
     connection.close();
     window.location.reload();
@@ -287,6 +333,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     interact,
     usePotion,
     heal,
+    castSkill,
     focusChat: () => {
       input.reset();
       useUiStore.getState().requestChatFocus();
@@ -298,6 +345,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     interact,
     usePotion,
     heal,
+    castSkill,
     sendChat: connection.sendChat,
     switchCharacter,
     logout: logoutAndReload,

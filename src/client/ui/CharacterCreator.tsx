@@ -1,12 +1,14 @@
 import { useState } from "react";
 import {
   DEFAULT_APPEARANCE,
-  PRIMARY_COLORS,
   type PrimaryColor,
   starterEquipmentFor,
 } from "../../shared/character.js";
 import { CLASS_STATS, PLAYER_CLASSES, type PlayerClass } from "../../shared/game.js";
+import type { MessageKey } from "../../shared/i18n/index.js";
+import { CLASS_SKILLS } from "../../shared/skills.js";
 import { api, authErrorText, type CharacterSummary, errorCode } from "../api.js";
+import { skillIconSource } from "../game/tiny-swords-art.js";
 import { t, useLocale } from "../i18n.js";
 import { CharacterPreview, type PreviewMotion } from "./CharacterPreview.js";
 import { Button } from "./pixelact-ui/button/index.js";
@@ -14,8 +16,8 @@ import { Input } from "./pixelact-ui/input.js";
 import { Label } from "./pixelact-ui/label.js";
 
 const DEFAULT_CLASS: PlayerClass = "warrior";
-const SKILL_SLOTS = [1, 2, 3, 4, 5] as const;
 const MOTIONS: PreviewMotion[] = ["idle", "walk", "attack"];
+const CHARACTER_PALETTES = ["azure", "ember", "moss", "violet"] as const;
 
 function randomFrom<T>(items: readonly T[]): T {
   const item = items[Math.floor(Math.random() * items.length)];
@@ -37,7 +39,7 @@ export function CharacterCreator({ onCancel, onCreated }: CharacterCreatorProps)
   const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const appearance = { body: DEFAULT_APPEARANCE.body, primaryColor } as const;
+  const appearance = { ...DEFAULT_APPEARANCE, primaryColor };
   const equipment = starterEquipmentFor(playerClass);
 
   function reset(): void {
@@ -51,7 +53,7 @@ export function CharacterCreator({ onCancel, onCreated }: CharacterCreatorProps)
 
   function randomize(): void {
     setPlayerClass(randomFrom(PLAYER_CLASSES));
-    setPrimaryColor(randomFrom(PRIMARY_COLORS));
+    setPrimaryColor(randomFrom(CHARACTER_PALETTES));
     setConfirming(false);
     setError(null);
   }
@@ -204,26 +206,29 @@ export function CharacterCreator({ onCancel, onCreated }: CharacterCreatorProps)
                 <p className="creator-class-description">{t(`class.${playerClass}.description`)}</p>
               </fieldset>
 
-              <fieldset className="creator-section creator-color-picker">
+              <fieldset className="creator-section creator-appearance-picker">
                 <legend>
                   <span className="creator-step-number">03</span>
                   {t("chars.create.appearance")}
                 </legend>
                 <p>{t("chars.create.palette_help")}</p>
-                <div className="creator-swatches">
-                  {PRIMARY_COLORS.map((color) => (
-                    <label key={color} className={primaryColor === color ? "selected" : ""}>
-                      <input
-                        type="radio"
-                        name="primaryColor"
-                        value={color}
-                        checked={primaryColor === color}
-                        onChange={() => setPrimaryColor(color)}
-                      />
-                      <span className={`swatch swatch--${color}`} aria-hidden="true" />
-                      <span>{t(`appearance.${color}`)}</span>
-                    </label>
-                  ))}
+                <div className="creator-option-group">
+                  <strong>{t("chars.create.banner")}</strong>
+                  <div className="creator-swatches">
+                    {CHARACTER_PALETTES.map((color) => (
+                      <label key={color} className={primaryColor === color ? "selected" : ""}>
+                        <input
+                          type="radio"
+                          name="primaryColor"
+                          value={color}
+                          checked={primaryColor === color}
+                          onChange={() => setPrimaryColor(color)}
+                        />
+                        <span className={`swatch swatch--${color}`} aria-hidden="true" />
+                        <span>{t(`appearance.${color}`)}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </fieldset>
 
@@ -233,13 +238,18 @@ export function CharacterCreator({ onCancel, onCreated }: CharacterCreatorProps)
                     <span className="creator-step-number">04</span>
                     <h2 id="future-skills">{t("chars.create.skills")}</h2>
                   </div>
-                  <small>{t("chars.create.skills_future")}</small>
+                  <small>{t("chars.create.skills_ready")}</small>
                 </div>
                 <div className="creator-skill-grid">
-                  {SKILL_SLOTS.map((slot) => (
-                    <article key={slot}>
-                      <span>{slot}</span>
-                      <p>{t(`class.${playerClass}.skill.${slot}`)}</p>
+                  {CLASS_SKILLS[playerClass].map((skill) => (
+                    <article key={skill.slot}>
+                      <span>
+                        <img src={skillIconSource(playerClass, skill.slot)} alt="" />
+                      </span>
+                      <p>{t(`skill.${playerClass}.${skill.id}.name` as MessageKey)}</p>
+                      <small>
+                        {t("chars.create.skill_cooldown", { seconds: skill.cooldownMs / 1000 })}
+                      </small>
                     </article>
                   ))}
                 </div>

@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils.js";
 // verbatim; color variants lose their box-shadow classes and inherit the single garrison
 // bronze treatment, except `link`, which drops the frame entirely. MIT-licensed upstream; modifications for lindocara's garrison skin.
 const pixelButtonVariants = cva(
-  "btn-frame w-fit cursor-pointer items-center justify-center whitespace-nowrap text-sm transition-colors duration-100 disabled:cursor-not-allowed",
+  "btn-frame inline-flex w-fit cursor-pointer items-center justify-center whitespace-nowrap text-sm transition-colors duration-100 disabled:cursor-not-allowed",
   {
     variants: {
       variant: {

@@ -8,6 +8,7 @@
 import type { CharacterAppearance, Equipment, PrimaryColor } from "./character.js";
 import type { MonsterSpecies, NpcDefinition, PlayerClass, Rect } from "./game.js";
 import type { Input } from "./simulation.js";
+import { isSkillSlot, type SkillSlot } from "./skills.js";
 
 /** One tick's worth of movement intent, stamped so the server can acknowledge it. */
 export interface Command {
@@ -89,6 +90,7 @@ export type ClientMessage =
   | { t: "attack" }
   | { t: "interact" }
   | { t: "heal" }
+  | { t: "skill"; slot: SkillSlot }
   | { t: "use"; item: "potion" }
   | { t: "chat"; text: string };
 
@@ -119,6 +121,9 @@ export const EVENT_CODES = [
   "heal.received",
   "heal.nobody",
   "heal.blocked",
+  "skill.cast",
+  "skill.no_target",
+  "skill.blocked",
 ] as const;
 export type EventCode = (typeof EVENT_CODES)[number];
 export type EventParams = Record<string, string | number>;
@@ -182,6 +187,7 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
     return input === null ? null : { t: "input", seq, input };
   }
   if (value.t === "attack" || value.t === "interact" || value.t === "heal") return { t: value.t };
+  if (value.t === "skill" && isSkillSlot(value.slot)) return { t: "skill", slot: value.slot };
   if (value.t === "use" && value.item === "potion") return { t: "use", item: "potion" };
   if (value.t === "chat" && typeof value.text === "string") return { t: "chat", text: value.text };
   return null;

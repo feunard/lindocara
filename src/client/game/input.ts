@@ -5,6 +5,7 @@
  */
 
 import { type Input, NO_INPUT } from "../../shared/simulation.js";
+import type { SkillSlot } from "../../shared/skills.js";
 
 const KEY_BINDINGS: Record<string, keyof Input> = {
   ArrowUp: "up",
@@ -69,6 +70,7 @@ export interface ActionHandlers {
   interact(): void;
   usePotion(): void;
   heal(): void;
+  castSkill(slot: SkillSlot): void;
   focusChat(): void;
 }
 
@@ -76,11 +78,13 @@ export interface ActionHandlers {
 export function trackActions(handlers: ActionHandlers): () => void {
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.target instanceof HTMLInputElement || event.repeat) return;
-    if (event.code === "Space") handlers.attack();
+    if (event.code === "Space") handlers.castSkill(1);
     else if (event.code === "KeyE") handlers.interact();
     else if (event.code === "KeyQ") handlers.usePotion();
-    else if (event.code === "KeyF") handlers.heal();
-    else if (event.code === "Enter") handlers.focusChat();
+    else if (event.code === "KeyF") handlers.castSkill(2);
+    else if (/^Digit[1-5]$/.test(event.code)) {
+      handlers.castSkill(Number(event.code.slice(-1)) as SkillSlot);
+    } else if (event.code === "Enter") handlers.focusChat();
     else return;
     event.preventDefault();
   };

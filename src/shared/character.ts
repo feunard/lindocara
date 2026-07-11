@@ -6,14 +6,13 @@ export type BodyVariant = (typeof BODY_VARIANTS)[number];
 export const PRIMARY_COLORS = ["azure", "ember", "moss", "violet"] as const;
 export type PrimaryColor = (typeof PRIMARY_COLORS)[number];
 
-/**
- * Structured even while the atlas only supports one body and one palette layer. New visual
- * layers can be added here without changing every API and snapshot shape again.
- */
+/** The pack provides class sprites in four faction colors; creation stays intentionally simple. */
 export interface CharacterAppearance {
   body: BodyVariant;
   primaryColor: PrimaryColor;
 }
+
+export type CharacterAppearanceInput = CharacterAppearance;
 
 export const DEFAULT_APPEARANCE: CharacterAppearance = {
   body: "wayfarer",
@@ -42,7 +41,7 @@ export function starterEquipmentFor(playerClass: PlayerClass): Equipment {
   return { ...STARTER_EQUIPMENT[playerClass] };
 }
 
-export function isValidAppearance(value: unknown): value is CharacterAppearance {
+export function isValidAppearance(value: unknown): value is CharacterAppearanceInput {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as Record<string, unknown>;
   return (

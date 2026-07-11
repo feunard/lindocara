@@ -48,7 +48,10 @@ function summary(row: {
     id: row.id,
     name: row.name,
     appearance: normalizeAppearance(
-      { body: row.appearanceBody, primaryColor: row.appearancePrimaryColor },
+      {
+        body: row.appearanceBody,
+        primaryColor: row.appearancePrimaryColor,
+      },
       row.appearance,
     ),
     level: row.level,

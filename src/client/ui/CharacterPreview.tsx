@@ -1,10 +1,6 @@
+import type { CSSProperties } from "react";
 import type { CharacterAppearance, Equipment } from "../../shared/character.js";
-import {
-  CHARACTER_ATLAS_URL,
-  MAIN_HAND_ART,
-  OFF_HAND_ART,
-  PLAYER_ATLAS_FRAMES,
-} from "../game/character-art.js";
+import { classForEquipment, unitSheet } from "../game/tiny-swords-art.js";
 
 export type PreviewMotion = "idle" | "walk" | "attack";
 
@@ -16,19 +12,31 @@ interface CharacterPreviewProps {
   label: string;
 }
 
-function AtlasLayer({
-  frame,
+function UnitPreview({
+  appearance,
+  equipment,
+  motion,
 }: {
-  frame: (typeof PLAYER_ATLAS_FRAMES)[keyof typeof PLAYER_ATLAS_FRAMES];
+  appearance: CharacterAppearance;
+  equipment: Equipment;
+  motion: PreviewMotion;
 }) {
+  const playerClass = classForEquipment(equipment);
+  const sheet = unitSheet(playerClass, appearance, motion === "walk" ? "run" : motion);
   return (
     <span
-      className="character-preview__body"
-      style={{
-        backgroundImage: `url(${CHARACTER_ATLAS_URL})`,
-        backgroundPosition: `-${frame.x}px -${frame.y}px`,
-      }}
-    />
+      className="character-preview__tiny-swords"
+      aria-hidden="true"
+      style={
+        {
+          "--unit-frames": sheet.frames,
+          "--unit-distance": `${-192 * sheet.frames}px`,
+          "--unit-duration": `${Math.max(520, sheet.frames * 95)}ms`,
+        } as CSSProperties
+      }
+    >
+      <img className="character-preview__unit-strip" src={sheet.source} alt="" />
+    </span>
   );
 }
 
@@ -39,10 +47,6 @@ export function CharacterPreview({
   compact = false,
   label,
 }: CharacterPreviewProps) {
-  const frame = PLAYER_ATLAS_FRAMES[appearance.primaryColor];
-  const mainHand = MAIN_HAND_ART[equipment.mainHand];
-  const offHand = equipment.offHand ? OFF_HAND_ART[equipment.offHand] : null;
-
   return (
     <div
       className={`character-preview character-preview--${motion}${compact ? " character-preview--compact" : ""}`}
@@ -51,27 +55,7 @@ export function CharacterPreview({
     >
       <span className="character-preview__shadow" />
       <span className="character-preview__actor">
-        {offHand && (
-          <img
-            className="character-preview__offhand"
-            src={offHand.source}
-            width={offHand.width}
-            height={offHand.height}
-            alt=""
-          />
-        )}
-        <AtlasLayer frame={frame} />
-        {mainHand.source === "atlas" ? (
-          <span className="character-preview__mainhand character-preview__mainhand--sword" />
-        ) : (
-          <img
-            className={`character-preview__mainhand character-preview__mainhand--${equipment.mainHand}`}
-            src={mainHand.source}
-            width={mainHand.width}
-            height={mainHand.height}
-            alt=""
-          />
-        )}
+        <UnitPreview appearance={appearance} equipment={equipment} motion={motion} />
       </span>
     </div>
   );

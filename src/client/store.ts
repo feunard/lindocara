@@ -3,6 +3,7 @@ import type { Equipment } from "../shared/character.js";
 import type { PlayerClass } from "../shared/game.js";
 import type { MessageKey } from "../shared/i18n/index.js";
 import type { QuestStatus, SelfState } from "../shared/protocol.js";
+import type { SkillSlot } from "../shared/skills.js";
 import type { CharacterSummary } from "./api.js";
 
 export interface LocalizedText {
@@ -38,6 +39,7 @@ export interface GameHandle {
   interact(): void;
   usePotion(): void;
   heal(): void;
+  castSkill(slot: SkillSlot): void;
   sendChat(text: string): void;
   switchCharacter(): void;
   logout(): void;
@@ -56,6 +58,7 @@ interface UiState {
   chatFocusRequest: number;
   attackCooldownUntil: number;
   healCooldownUntil: number;
+  skillCooldowns: Record<SkillSlot, number>;
   interiorDoorId: string | null;
   game: GameHandle | null;
 
@@ -72,6 +75,7 @@ interface UiState {
   requestChatFocus(): void;
   setAttackCooldownUntil(until: number): void;
   setHealCooldownUntil(until: number): void;
+  setSkillCooldown(slot: SkillSlot, until: number): void;
   setInteriorDoorId(id: string | null): void;
   setGame(game: GameHandle | null): void;
 }
@@ -115,6 +119,7 @@ export const useUiStore = create<UiState>((set) => ({
   chatFocusRequest: 0,
   attackCooldownUntil: 0,
   healCooldownUntil: 0,
+  skillCooldowns: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
   interiorDoorId: null,
   game: null,
 
@@ -169,6 +174,8 @@ export const useUiStore = create<UiState>((set) => ({
     })),
   setAttackCooldownUntil: (until) => set({ attackCooldownUntil: until }),
   setHealCooldownUntil: (until) => set({ healCooldownUntil: until }),
+  setSkillCooldown: (slot, until) =>
+    set((state) => ({ skillCooldowns: { ...state.skillCooldowns, [slot]: until } })),
   setInteriorDoorId: (id) => set({ interiorDoorId: id }),
   setGame: (game) => set({ game }),
 }));
