@@ -5,7 +5,7 @@
  * server can acknowledge exactly what it applied; actions are still just intent.
  */
 
-import type { MonsterSpecies, NpcDefinition, Rect } from "./game.js";
+import type { MonsterSpecies, NpcDefinition, PlayerClass, Rect } from "./game.js";
 import type { Input } from "./simulation.js";
 
 /** One tick's worth of movement intent, stamped so the server can acknowledge it. */
@@ -42,6 +42,7 @@ export interface PlayerSnapshot {
   maxHp: number;
   level: number;
   appearance: Appearance;
+  class: PlayerClass;
   dead: boolean;
 }
 
@@ -85,6 +86,7 @@ export type ClientMessage =
   | { t: "input"; seq: number; input: Input }
   | { t: "attack" }
   | { t: "interact" }
+  | { t: "heal" }
   | { t: "use"; item: "potion" }
   | { t: "chat"; text: string };
 
@@ -110,6 +112,9 @@ export const EVENT_CODES = [
   "player.down",
   "respawn",
   "loot.picked",
+  "heal.cast",
+  "heal.received",
+  "heal.nobody",
 ] as const;
 export type EventCode = (typeof EVENT_CODES)[number];
 export type EventParams = Record<string, string | number>;
@@ -172,7 +177,7 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
     const input = parseInput(value.input);
     return input === null ? null : { t: "input", seq, input };
   }
-  if (value.t === "attack" || value.t === "interact") return { t: value.t };
+  if (value.t === "attack" || value.t === "interact" || value.t === "heal") return { t: value.t };
   if (value.t === "use" && value.item === "potion") return { t: "use", item: "potion" };
   if (value.t === "chat" && typeof value.text === "string") return { t: "chat", text: value.text };
   return null;

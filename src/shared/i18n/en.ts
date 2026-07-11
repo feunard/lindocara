@@ -33,6 +33,7 @@ export const en = {
   "chars.create.title": "New wayfarer",
   "chars.create.name": "Name",
   "chars.create.appearance": "Appearance",
+  "chars.create.class": "Class",
   "chars.create.submit": "Create",
   "chars.create.cancel": "Cancel",
   "chars.error.limit_reached": "This account already has 3 characters.",
@@ -43,6 +44,12 @@ export const en = {
   "appearance.ember": "Ember",
   "appearance.moss": "Moss",
   "appearance.violet": "Violet",
+  "class.warrior": "Warrior",
+  "class.ranger": "Ranger",
+  "class.priest": "Priest",
+  "class.warrior.blurb": "Hits hard, up close.",
+  "class.ranger.blurb": "Hits light, from afar.",
+  "class.priest.blurb": "Hits light, mends allies [F].",
 
   // HUD
   "hud.level": "Level {level}",
@@ -51,6 +58,7 @@ export const en = {
   "hud.spark": "SPARK",
   "hud.oath": "Active Oath",
   "hud.strike": "Strike",
+  "hud.heal": "Mend",
   "hud.pack": "Wayfarer's Pack",
   "hud.switch_character": "Switch character",
   "hud.logout": "Log out",
@@ -163,4 +171,7 @@ export const en = {
   "event.player.down": "{name} was knocked out.",
   "event.respawn": "The Heartroot calls you home.",
   "event.loot.picked": "Picked up {amount} {kind}.",
+  "event.heal.cast": "You mend {name} for {amount}.",
+  "event.heal.received": "{name} mends you for {amount}.",
+  "event.heal.nobody": "No one nearby needs mending.",
 } as const satisfies Record<string, string>;

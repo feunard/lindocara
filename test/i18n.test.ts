@@ -52,4 +52,24 @@ describe("i18n", () => {
       }
     }
   });
+
+  it("has class names and blurbs in both languages", () => {
+    for (const key of [
+      "class.warrior",
+      "class.ranger",
+      "class.priest",
+      "class.warrior.blurb",
+      "class.ranger.blurb",
+      "class.priest.blurb",
+      "chars.create.class",
+      "hud.heal",
+    ]) {
+      for (const locale of ["en", "fr"] as const) {
+        expect(
+          (dictionaries[locale] as Record<string, string>)[key],
+          `${locale}:${key}`,
+        ).toBeTypeOf("string");
+      }
+    }
+  });
 });

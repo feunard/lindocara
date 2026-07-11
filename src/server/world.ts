@@ -327,6 +327,10 @@ export class World extends DurableObject<Env> {
       this.#usePotion(ws, player);
       return;
     }
+    if (message.t === "heal") {
+      // TODO: Implement heal logic (Task 5)
+      return;
+    }
     const text = message.text.trim().replaceAll(/\s+/g, " ");
     if (text.length === 0 || text.length > CHAT_MAX_LENGTH) return;
     this.#broadcast({ t: "chat", from: player.nick, text });
@@ -687,6 +691,7 @@ export class World extends DurableObject<Env> {
       maxHp: maxHpForLevel(player.level),
       level: player.level,
       appearance: player.appearance,
+      class: player.class,
       dead: player.deadUntil > now,
     }));
   }

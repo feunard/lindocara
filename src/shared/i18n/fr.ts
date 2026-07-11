@@ -30,6 +30,7 @@ export const fr: Record<keyof typeof en, string> = {
   "chars.create.title": "Nouveau voyageur",
   "chars.create.name": "Nom",
   "chars.create.appearance": "Apparence",
+  "chars.create.class": "Classe",
   "chars.create.submit": "Créer",
   "chars.create.cancel": "Annuler",
   "chars.error.limit_reached": "Ce compte possède déjà 3 personnages.",
@@ -40,6 +41,12 @@ export const fr: Record<keyof typeof en, string> = {
   "appearance.ember": "Braise",
   "appearance.moss": "Mousse",
   "appearance.violet": "Violet",
+  "class.warrior": "Guerrier",
+  "class.ranger": "Rôdeur",
+  "class.priest": "Prêtre",
+  "class.warrior.blurb": "Frappe fort, au corps à corps.",
+  "class.ranger.blurb": "Frappe léger, de loin.",
+  "class.priest.blurb": "Frappe léger, soigne les alliés [F].",
 
   // ATH
   "hud.level": "Niveau {level}",
@@ -48,6 +55,7 @@ export const fr: Record<keyof typeof en, string> = {
   "hud.spark": "ÉCLAT",
   "hud.oath": "Serment actif",
   "hud.strike": "Frappe",
+  "hud.heal": "Soin",
   "hud.pack": "Sac du Voyageur",
   "hud.switch_character": "Changer de personnage",
   "hud.logout": "Se déconnecter",
@@ -162,4 +170,7 @@ export const fr: Record<keyof typeof en, string> = {
   "event.player.down": "{name} a été terrassé.",
   "event.respawn": "Le Cœur-Racine vous rappelle à lui.",
   "event.loot.picked": "Ramassé : {amount} × {kind}.",
+  "event.heal.cast": "Vous soignez {name} : +{amount} PV.",
+  "event.heal.received": "{name} vous soigne : +{amount} PV.",
+  "event.heal.nobody": "Personne à soigner aux alentours.",
 };

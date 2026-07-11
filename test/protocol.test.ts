@@ -52,6 +52,14 @@ describe("client protocol", () => {
   it("rejects binary frames", () => {
     expect(parseClientMessage(new ArrayBuffer(8))).toBeNull();
   });
+
+  it("parses the heal intent and rejects garbage variants", () => {
+    expect(parseClientMessage(JSON.stringify({ t: "heal" }))).toEqual({ t: "heal" });
+    expect(parseClientMessage(JSON.stringify({ t: "heal", target: "someone" }))).toEqual({
+      t: "heal",
+    });
+    expect(parseClientMessage(JSON.stringify({ t: "heals" }))).toBeNull();
+  });
 });
 
 describe("server protocol", () => {
@@ -82,5 +90,14 @@ describe("event messages", () => {
     expect(
       parseServerMessage(JSON.stringify({ t: "event", text: "Old prose.", tone: "info" })),
     ).toBeNull();
+  });
+
+  it("accepts the heal event codes", () => {
+    for (const code of ["heal.cast", "heal.received", "heal.nobody"] as const) {
+      expect(parseServerMessage(JSON.stringify({ t: "event", code, tone: "good" }))).toMatchObject({
+        t: "event",
+        code,
+      });
+    }
   });
 });
