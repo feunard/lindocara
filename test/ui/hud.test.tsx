@@ -21,7 +21,7 @@ describe("Hud", () => {
 
   it("renders identity, bars, quest and inventory from the store", () => {
     useUiStore.setState({
-      self: { nick: "Hero", level: 3, hp: 80, maxHp: 124, dead: false },
+      self: { nick: "Hero", level: 3, hp: 80, maxHp: 124, dead: false, class: "warrior" },
       selfState: {
         xp: 40,
         xpToNext: 220,
@@ -44,7 +44,7 @@ describe("Hud", () => {
   it("keeps switch-character and logout enabled after a disconnect, and falls back to the API", async () => {
     const mock = stubFetch(204, undefined);
     useUiStore.setState({
-      self: { nick: "Hero", level: 3, hp: 80, maxHp: 124, dead: false },
+      self: { nick: "Hero", level: 3, hp: 80, maxHp: 124, dead: false, class: "warrior" },
       selfState: {
         xp: 40,
         xpToNext: 220,
@@ -61,5 +61,20 @@ describe("Hud", () => {
 
     await userEvent.click(logoutButton);
     expect(mock).toHaveBeenCalledWith("/api/session", { method: "DELETE" });
+  });
+
+  it("shows the class name and a heal bar for priests", () => {
+    useUiStore.setState({
+      self: { nick: "Mercy", level: 1, hp: 100, maxHp: 100, dead: false, class: "priest" },
+      selfState: {
+        xp: 0,
+        xpToNext: 100,
+        inventory: { potions: 2, gold: 0, crystals: 0, weapon: "rusty_sword" },
+        quest: { status: "available", progress: 0, target: 3 },
+      },
+      healCooldownUntil: 0,
+    });
+    render(<Hud />);
+    expect(screen.getByText("Priest")).toBeInTheDocument();
   });
 });

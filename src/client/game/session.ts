@@ -33,6 +33,10 @@ function required<T extends Element>(selector: string): T {
 const canvas = required<HTMLCanvasElement>("#stage");
 const sound = new GameSound();
 
+const PRIEST_HEAL = CLASS_STATS.priest.heal;
+if (!PRIEST_HEAL) throw new Error("priest heal stats missing");
+const PRIEST_HEAL_COOLDOWN_MS = PRIEST_HEAL.cooldownMs;
+
 /** The store is the single source of truth for whether the interior panel is open;
  *  InteriorOverlay renders it from `interiorDoorId`. */
 function interiorOpen(): boolean {
@@ -66,6 +70,7 @@ function renderPlayer(player: PlayerSnapshot | undefined): void {
           hp: player.hp,
           maxHp: player.maxHp,
           dead: player.dead,
+          class: player.class,
         }
       : null,
   );
@@ -186,6 +191,8 @@ export async function startGame(character: CharacterSummary): Promise<void> {
           case "loot.picked":
           case "quest.accepted":
           case "potion.used":
+          case "heal.cast":
+          case "heal.received":
             sound.loot();
             break;
           case "player.down":
@@ -255,6 +262,14 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     sound.loot();
     connection.usePotion();
   };
+  const heal = () => {
+    if (interiorOpen()) return;
+    sound.unlock();
+    connection.heal();
+    if (currentSelf?.class === "priest") {
+      useUiStore.getState().setHealCooldownUntil(performance.now() + PRIEST_HEAL_COOLDOWN_MS);
+    }
+  };
   const switchCharacter = () => {
     connection.close();
     window.location.reload();
@@ -268,6 +283,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     attack,
     interact,
     usePotion,
+    heal,
     focusChat: () => {
       input.reset();
       useUiStore.getState().requestChatFocus();
@@ -278,6 +294,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     attack,
     interact,
     usePotion,
+    heal,
     sendChat: connection.sendChat,
     switchCharacter,
     logout: logoutAndReload,

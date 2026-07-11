@@ -16,6 +16,7 @@ describe("Chat", () => {
         attack: vi.fn(),
         interact: vi.fn(),
         usePotion: vi.fn(),
+        heal: vi.fn(),
         sendChat,
         switchCharacter: vi.fn(),
         logout: vi.fn(),

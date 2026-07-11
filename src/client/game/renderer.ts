@@ -10,6 +10,7 @@ import {
 } from "pixi.js";
 import {
   BOUNDARY_OBSTACLES,
+  type PlayerClass,
   pointDistance,
   QUEST_NPC,
   SAFE_ZONE,
@@ -52,6 +53,12 @@ const COLORS = {
   lootGold: 0xf0c85c,
   lootCrystal: 0x7dd8ff,
 } as const;
+
+const CLASS_GLYPHS: Record<PlayerClass, string> = {
+  warrior: "⚔",
+  ranger: "➶",
+  priest: "✚",
+};
 
 const ATLAS_IMAGE = "/assets/lindocara/atlas/world.png";
 const ATLAS_DATA = "/assets/lindocara/atlas/world.json";
@@ -1403,7 +1410,10 @@ export class Renderer {
                 : 0;
       }
       if (!(label instanceof Text)) continue;
-      label.text = local ? `${player.nick}  ${t("hud.lv", { level: player.level })}` : player.nick;
+      const glyph = CLASS_GLYPHS[player.class];
+      label.text = local
+        ? `${glyph} ${player.nick}  ${t("hud.lv", { level: player.level })}`
+        : `${glyph} ${player.nick}`;
       if (!view.container.visible || !onScreen || player.dead || baseAlpha <= 0) {
         label.alpha = player.dead && local ? 0.45 : 0;
         continue;

@@ -14,7 +14,14 @@ describe("ui store", () => {
   });
 
   it("setSelf is referentially stable for equal values", () => {
-    const self = { nick: "Hero", level: 2, hp: 90, maxHp: 112, dead: false };
+    const self = {
+      nick: "Hero",
+      level: 2,
+      hp: 90,
+      maxHp: 112,
+      dead: false,
+      class: "warrior" as const,
+    };
     useUiStore.getState().setSelf(self);
     const first = useUiStore.getState().self;
     useUiStore.getState().setSelf({ ...self });

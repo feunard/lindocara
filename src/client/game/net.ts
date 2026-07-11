@@ -44,6 +44,7 @@ export interface Connection {
   attack(): void;
   interact(): void;
   usePotion(): void;
+  heal(): void;
   sendChat(text: string): void;
   close(): void;
 }
@@ -130,6 +131,7 @@ export class WorldClient {
       attack: () => this.#send({ t: "attack" }),
       interact: () => this.#send({ t: "interact" }),
       usePotion: () => this.#send({ t: "use", item: "potion" }),
+      heal: () => this.#send({ t: "heal" }),
       sendChat: (text) => this.#send({ t: "chat", text }),
       close: () => socket.close(1000, "client left"),
     };

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { PlayerClass } from "../shared/game.js";
 import type { MessageKey } from "../shared/i18n/index.js";
 import type { QuestStatus, SelfState } from "../shared/protocol.js";
 import type { CharacterSummary } from "./api.js";
@@ -27,12 +28,14 @@ export interface SelfHud {
   hp: number;
   maxHp: number;
   dead: boolean;
+  class: PlayerClass;
 }
 
 export interface GameHandle {
   attack(): void;
   interact(): void;
   usePotion(): void;
+  heal(): void;
   sendChat(text: string): void;
   switchCharacter(): void;
   logout(): void;
@@ -50,6 +53,7 @@ interface UiState {
   chat: ChatLine[];
   chatFocusRequest: number;
   attackCooldownUntil: number;
+  healCooldownUntil: number;
   interiorDoorId: string | null;
   game: GameHandle | null;
 
@@ -65,6 +69,7 @@ interface UiState {
   addChat(from: string, text: string): void;
   requestChatFocus(): void;
   setAttackCooldownUntil(until: number): void;
+  setHealCooldownUntil(until: number): void;
   setInteriorDoorId(id: string | null): void;
   setGame(game: GameHandle | null): void;
 }
@@ -80,7 +85,8 @@ function selfHudEqual(a: SelfHud | null, b: SelfHud | null): boolean {
     a.level === b.level &&
     a.hp === b.hp &&
     a.maxHp === b.maxHp &&
-    a.dead === b.dead
+    a.dead === b.dead &&
+    a.class === b.class
   );
 }
 
@@ -104,6 +110,7 @@ export const useUiStore = create<UiState>((set) => ({
   chat: [],
   chatFocusRequest: 0,
   attackCooldownUntil: 0,
+  healCooldownUntil: 0,
   interiorDoorId: null,
   game: null,
 
@@ -157,6 +164,7 @@ export const useUiStore = create<UiState>((set) => ({
       chatFocusRequest: state.chatFocusRequest + 1,
     })),
   setAttackCooldownUntil: (until) => set({ attackCooldownUntil: until }),
+  setHealCooldownUntil: (until) => set({ healCooldownUntil: until }),
   setInteriorDoorId: (id) => set({ interiorDoorId: id }),
   setGame: (game) => set({ game }),
 }));

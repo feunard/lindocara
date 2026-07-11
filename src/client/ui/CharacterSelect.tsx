@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/ui/pixelact-ui/button/index.js";
 import { Input } from "@/ui/pixelact-ui/input.js";
 import { Label } from "@/ui/pixelact-ui/label.js";
+import { PLAYER_CLASSES } from "../../shared/game.js";
 import {
   api,
   authErrorText,
@@ -60,7 +61,11 @@ export function CharacterSelect({ onPlay }: { onPlay(character: CharacterSummary
     try {
       await api<CharacterSummary>("/api/characters", {
         method: "POST",
-        body: JSON.stringify({ name: data.get("name"), appearance: data.get("appearance") }),
+        body: JSON.stringify({
+          name: data.get("name"),
+          appearance: data.get("appearance"),
+          class: data.get("class"),
+        }),
       });
       form.reset();
       setCreating(false);
@@ -84,6 +89,7 @@ export function CharacterSelect({ onPlay }: { onPlay(character: CharacterSummary
             <article key={character.id} className="character-card">
               <span className={`swatch swatch--${character.appearance}`} aria-hidden="true" />
               <strong>{character.name}</strong>
+              <span>{t(`class.${character.class}`)}</span>
               <span>{t("hud.level", { level: character.level })}</span>
               <Button type="button" onClick={() => onPlay(character)}>
                 {t("chars.play")}
@@ -129,6 +135,23 @@ export function CharacterSelect({ onPlay }: { onPlay(character: CharacterSummary
                     defaultChecked={appearance === "azure"}
                   />
                   <span>{t(`appearance.${appearance}`)}</span>
+                </label>
+              ))}
+            </fieldset>
+            <fieldset id="class-picker">
+              <legend>{t("chars.create.class")}</legend>
+              {PLAYER_CLASSES.map((klass) => (
+                <label key={klass}>
+                  <input
+                    type="radio"
+                    name="class"
+                    value={klass}
+                    defaultChecked={klass === "warrior"}
+                  />
+                  <span>
+                    <strong>{t(`class.${klass}`)}</strong>
+                    <small>{t(`class.${klass}.blurb`)}</small>
+                  </span>
                 </label>
               ))}
             </fieldset>

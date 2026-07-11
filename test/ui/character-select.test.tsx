@@ -46,6 +46,29 @@ describe("CharacterSelect", () => {
     expect(onPlay).toHaveBeenCalledWith(three[0]);
   });
 
+  it("posts the chosen class on create", async () => {
+    const mock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ id: "9", name: "Mercy", appearance: "azure", class: "priest", level: 1 }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
+    );
+    vi.stubGlobal("fetch", mock);
+    useUiStore.setState({ screen: "characters", characters: [] });
+    render(<CharacterSelect onPlay={() => undefined} />);
+    await userEvent.type(screen.getByLabelText("Name"), "Mercy");
+    await userEvent.click(screen.getByRole("radio", { name: /Priest/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+    const createCall = mock.mock.calls.find(
+      ([url, init]) => url === "/api/characters" && init?.method === "POST",
+    );
+    expect(createCall).toBeDefined();
+    expect(JSON.parse(String(createCall?.[1]?.body))).toMatchObject({ class: "priest" });
+  });
+
   it("creates a character without false error on success", async () => {
     const mock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
       if (url === "/api/characters" && options?.method === "POST") {

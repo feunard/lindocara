@@ -68,6 +68,7 @@ export interface ActionHandlers {
   attack(): void;
   interact(): void;
   usePotion(): void;
+  heal(): void;
   focusChat(): void;
 }
 
@@ -78,6 +79,7 @@ export function trackActions(handlers: ActionHandlers): () => void {
     if (event.code === "Space") handlers.attack();
     else if (event.code === "KeyE") handlers.interact();
     else if (event.code === "KeyQ") handlers.usePotion();
+    else if (event.code === "KeyF") handlers.heal();
     else if (event.code === "Enter") handlers.focusChat();
     else return;
     event.preventDefault();

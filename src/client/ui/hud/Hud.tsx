@@ -5,6 +5,7 @@ import { t, useLocale } from "../../i18n.js";
 import { useUiStore } from "../../store.js";
 import { Bar } from "./Bar.js";
 import { CooldownBar } from "./CooldownBar.js";
+import { HealCooldownBar } from "./HealCooldownBar.js";
 import { InventoryChip } from "./InventoryChip.js";
 
 /** Same status -> copy mapping as the legacy `renderState`. */
@@ -75,6 +76,7 @@ export function Hud() {
         <div className="identity-copy">
           <strong>{self.nick}</strong>
           <span>{t("hud.level", { level: self.level })}</span>
+          <span>{t(`class.${self.class}`)}</span>
         </div>
         <div className="session-actions">
           <button type="button" onClick={handleSwitchCharacter}>
@@ -124,6 +126,7 @@ export function Hud() {
       </section>
 
       <CooldownBar />
+      {self.class === "priest" && <HealCooldownBar />}
 
       <section className="panel inventory">
         <div className="panel-title">
