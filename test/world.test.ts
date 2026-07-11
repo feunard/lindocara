@@ -704,12 +704,25 @@ describe("World", () => {
     const blocked = await Client.join("behind_tree", { position: { x: 590, y: 650 }, hp: 40 });
     await until("both welcomes", () => priest.welcome && blocked.welcome);
 
+    const before = await until("blocked target initial snapshot", () => {
+      const snapshot = blocked.latestSnapshot;
+      const self = blocked.self();
+      return snapshot && self ? { tick: snapshot.tick, hp: self.hp } : undefined;
+    });
+    expect(before.hp).toBe(40);
+
     priest.action("heal");
     const event = await until("blocked heal event", () =>
       priest.received.find((m) => m.t === "event" && m.code === "heal.blocked"),
     );
     expect(event).toMatchObject({ tone: "info" });
-    expect(blocked.self()?.hp).toBe(40);
+
+    const after = await until("blocked target later snapshot", () => {
+      const snapshot = blocked.latestSnapshot;
+      const self = blocked.self();
+      return snapshot && snapshot.tick > before.tick && self ? self : undefined;
+    });
+    expect(after.hp).toBe(40);
 
     priest.close();
     blocked.close();
