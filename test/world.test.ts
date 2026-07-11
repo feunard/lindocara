@@ -591,12 +591,18 @@ describe("World", () => {
   });
 
   it("lets a priest mend the most injured player in range, respecting cooldown", async () => {
-    const priest = await Client.join("mender", { position: { x: 784, y: 450 }, class: "priest" });
-    const wounded = await Client.join("wounded", { position: { x: 800, y: 450 }, hp: 40 });
+    // ~250px from the nearest SPAWN_POINTS grid cell — far enough that a straggler still
+    // disconnecting from an earlier test (spawned somewhere on that grid, always inside
+    // heal.range 130 of *itself* but not of here) cannot be closer than the wounded ally and
+    // steal the cast.
+    const priest = await Client.join("mender", { position: { x: 1150, y: 250 }, class: "priest" });
+    const wounded = await Client.join("wounded", { position: { x: 1166, y: 250 }, hp: 40 });
     await until("both welcomes", () => priest.welcome && wounded.welcome);
 
     priest.action("heal");
     await until("the wounded player to be mended", () => {
+      // Re-send: belt and suspenders in case the very first cast raced the join.
+      priest.action("heal");
       const snapshot = wounded.self();
       return snapshot && snapshot.hp > 40 ? snapshot : undefined;
     });
@@ -617,6 +623,65 @@ describe("World", () => {
 
     priest.close();
     wounded.close();
+  });
+
+  it("keeps a wounded ally beyond heal.range untouched", async () => {
+    const priest = await Client.join("far_healer", {
+      position: { x: 784, y: 450 },
+      class: "priest",
+    });
+    // 200px away: past heal.range (130), well inside the snapshot view.
+    const wounded = await Client.join("far_wounded", { position: { x: 984, y: 450 }, hp: 40 });
+    await until("both welcomes", () => priest.welcome && wounded.welcome);
+
+    priest.action("heal");
+    const nobody = await until("heal.nobody", () =>
+      priest.received.find((m) => m.t === "event" && m.code === "heal.nobody"),
+    );
+    expect(nobody).toMatchObject({ tone: "info" });
+    expect(wounded.self()?.hp).toBe(40);
+
+    priest.close();
+    wounded.close();
+  });
+
+  it("blocks a dead priest from casting heal", async () => {
+    // road-gloamcap patrols within patrolRadius (75px) of its spawn, well inside
+    // MONSTER_AGGRO_RANGE (210), so a player standing on the spawn point aggroes it reliably;
+    // hp: 1 plus MONSTER_DAMAGE (9) means the first landed hit kills.
+    const priest = await Client.join("dying_priest", {
+      position: { x: 1870, y: 820 },
+      class: "priest",
+      hp: 1,
+    });
+    await until("welcome", () => priest.welcome);
+    await until("the monster to kill the priest", () =>
+      priest.self()?.dead ? priest.self() : undefined,
+    );
+
+    // Only bring in a healable ally now that the priest is dead. The monster orbits its spawn
+    // at a roughly constant distance, so if it had joined earlier there'd be a real chance the
+    // patrol phase put the ally closer to the monster than the (stationary) priest, drawing the
+    // kill onto the wrong player. Landing the killing blow just reset the monster's own
+    // MONSTER_ATTACK_COOLDOWN_MS (900ms), so whichever player it picks next, it cannot land a
+    // second hit inside the 300ms this test asserts over — the ally is safe by timing, not
+    // position.
+    const ally = await Client.join("spared_ally", { position: { x: 1870, y: 920 }, hp: 40 });
+    await until("ally welcome", () => ally.welcome);
+
+    // Dead priests must not be able to cast: no cooldown check saves them, the intent is
+    // dropped outright — the server never even sends heal.nobody.
+    priest.action("heal");
+    priest.action("heal");
+    await scheduler.wait(300);
+
+    expect(ally.self()?.hp).toBe(40);
+    expect(priest.received.some((m) => m.t === "event" && String(m.code).startsWith("heal"))).toBe(
+      false,
+    );
+
+    priest.close();
+    ally.close();
   });
 
   it("ignores heal intents from non-priests and out-of-range or full-health situations", async () => {
