@@ -1,4 +1,5 @@
 import type { QuestState } from "../../../shared/protocol.js";
+import { logout } from "../../api.js";
 import { t, useLocale } from "../../i18n.js";
 import { useUiStore } from "../../store.js";
 import { Bar } from "./Bar.js";
@@ -31,6 +32,18 @@ export function Hud() {
   const { quest } = selfState;
   const showQuestBar = quest.status === "active" || quest.status === "ready";
 
+  // `game` goes null on any disconnect (kicked, character deleted, network drop). These
+  // buttons must stay usable even then, so each falls back to the same escape hatch the
+  // logged-out screens use instead of going dead.
+  const handleSwitchCharacter = () => {
+    if (game) game.switchCharacter();
+    else window.location.reload();
+  };
+  const handleLogout = () => {
+    if (game) game.logout();
+    else void logout();
+  };
+
   return (
     <aside id="hud">
       <section className="panel identity">
@@ -40,10 +53,10 @@ export function Hud() {
           <span>{t("hud.level", { level: self.level })}</span>
         </div>
         <div className="session-actions">
-          <button type="button" disabled={game === null} onClick={() => game?.switchCharacter()}>
+          <button type="button" onClick={handleSwitchCharacter}>
             {t("hud.switch_character")}
           </button>
-          <button type="button" disabled={game === null} onClick={() => game?.logout()}>
+          <button type="button" onClick={handleLogout}>
             {t("hud.logout")}
           </button>
         </div>
