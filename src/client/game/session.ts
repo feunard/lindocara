@@ -188,10 +188,15 @@ export async function startGame(character: CharacterSummary): Promise<void> {
           case "quest.fulfilled":
             sound.levelUp();
             break;
+          case "heal.cast":
+            // The server never consumes the cooldown on a whiff (heal.nobody), so arm the UI
+            // bar only once a cast actually lands. Only priests ever receive heal.cast.
+            useUiStore.getState().setHealCooldownUntil(performance.now() + PRIEST_HEAL_COOLDOWN_MS);
+            sound.loot();
+            break;
           case "loot.picked":
           case "quest.accepted":
           case "potion.used":
-          case "heal.cast":
           case "heal.received":
             sound.loot();
             break;
@@ -266,9 +271,6 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     if (interiorOpen()) return;
     sound.unlock();
     connection.heal();
-    if (currentSelf?.class === "priest") {
-      useUiStore.getState().setHealCooldownUntil(performance.now() + PRIEST_HEAL_COOLDOWN_MS);
-    }
   };
   const switchCharacter = () => {
     connection.close();

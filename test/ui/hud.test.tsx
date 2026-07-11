@@ -72,9 +72,28 @@ describe("Hud", () => {
         inventory: { potions: 2, gold: 0, crystals: 0, weapon: "rusty_sword" },
         quest: { status: "available", progress: 0, target: 3 },
       },
-      healCooldownUntil: 0,
+      healCooldownUntil: performance.now() + 1000,
     });
     render(<Hud />);
     expect(screen.getByText("Priest")).toBeInTheDocument();
+    expect(screen.getByText("Mend")).toBeInTheDocument();
+    expect(screen.getAllByRole("progressbar")).toHaveLength(3); // vit, spark, heal cooldown
+  });
+
+  it("never shows the heal bar for non-priests, even mid-cooldown", () => {
+    useUiStore.setState({
+      self: { nick: "Bruiser", level: 1, hp: 100, maxHp: 100, dead: false, class: "warrior" },
+      selfState: {
+        xp: 0,
+        xpToNext: 100,
+        inventory: { potions: 2, gold: 0, crystals: 0, weapon: "rusty_sword" },
+        quest: { status: "available", progress: 0, target: 3 },
+      },
+      healCooldownUntil: performance.now() + 1000,
+    });
+    render(<Hud />);
+    expect(screen.getByText("Warrior")).toBeInTheDocument();
+    expect(screen.queryByText("Mend")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("progressbar")).toHaveLength(2); // vit, spark only
   });
 });

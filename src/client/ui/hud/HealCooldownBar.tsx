@@ -39,7 +39,10 @@ export function HealCooldownBar() {
   return (
     <section className="panel combat">
       <div className="panel-title">
-        <span className="panel-icon panel-icon--sword" aria-hidden="true" />
+        {/* panel-icon--sword is a blade; --oath's sparkle (styles/legacy.css) reads closer to
+            a priest's blessing. panel-icon--pack would be a no-op here — it shares --sword's
+            sprite frame exactly. */}
+        <span className="panel-icon panel-icon--oath" aria-hidden="true" />
         <strong>{t("hud.heal")}</strong>
       </div>
       <Bar value={HEAL_COOLDOWN_MS - remaining} max={HEAL_COOLDOWN_MS} variant="xp" />
