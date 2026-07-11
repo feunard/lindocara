@@ -39,7 +39,7 @@ export interface GameHandle {
 }
 
 interface UiState {
-  screen: "auth" | "characters" | "game";
+  screen: "boot" | "auth" | "characters" | "game";
   characters: CharacterSummary[] | null;
   self: SelfHud | null;
   selfState: SelfState | null;
@@ -91,7 +91,9 @@ function localizedTextEqual(a: LocalizedText | null, b: LocalizedText | null): b
 }
 
 export const useUiStore = create<UiState>((set) => ({
-  screen: "auth",
+  // "boot" is a brief, invisible holding state while fetchMe() is in flight, so a logged-in
+  // user does not see a flash of the auth screen before landing on characters.
+  screen: "boot",
   characters: null,
   self: null,
   selfState: null,

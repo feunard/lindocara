@@ -94,9 +94,9 @@ function updatePrompt(
   interiorDoor: InteriorDoor | undefined,
 ): void {
   let result: LocalizedText | null = null;
-  if (interiorOpen()) {
-    result = { key: "prompt.close_interior" };
-  } else if (!self || self.dead) {
+  // Prompt.tsx hides the floating prompt whenever the interior panel is open, so a
+  // "close_interior" key here would never render - don't bother computing one.
+  if (interiorOpen() || !self || self.dead) {
     result = null;
   } else {
     const nearNpc = pointDistance(self, QUEST_NPC) <= INTERACTION_RANGE;
@@ -136,6 +136,9 @@ function addChat(from: string, text: string): void {
   useUiStore.getState().addChat(from, text);
 }
 
+// Assumes it runs at most once per page life: the keydown/beforeunload listeners it
+// registers are never removed, and switchCharacter/logout tear the session down by
+// reloading the page rather than unwinding this function.
 export async function startGame(character: CharacterSummary): Promise<void> {
   setStatus("status.connecting", { name: character.name });
   const renderer = await Renderer.create(canvas);

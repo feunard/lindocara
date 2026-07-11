@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import type { QuestState } from "../../../shared/protocol.js";
 import { logout } from "../../api.js";
 import { t, useLocale } from "../../i18n.js";
@@ -25,6 +26,29 @@ export function Hud() {
   const self = useUiStore((s) => s.self);
   const selfState = useUiStore((s) => s.selfState);
   const game = useUiStore((s) => s.game);
+
+  // Legacy juice (styles/legacy.css: .pulse / @keyframes panel-pulse) removed and re-added
+  // the class on every state update, forcing a reflow in between so the animation could
+  // restart. React can't do that dance, but remounting the panel via `key` has the same
+  // effect: a fresh DOM node always (re)starts a CSS animation already on its className.
+  // Only bump the key once the quest has actually changed, so the panel doesn't pulse on
+  // its very first render.
+  const questSnapshot = selfState?.quest ?? null;
+  const [questPulseKey, setQuestPulseKey] = useState(0);
+  const prevQuestRef = useRef(questSnapshot);
+  useEffect(() => {
+    const prev = prevQuestRef.current;
+    prevQuestRef.current = questSnapshot;
+    if (
+      prev &&
+      questSnapshot &&
+      (prev.status !== questSnapshot.status ||
+        prev.progress !== questSnapshot.progress ||
+        prev.target !== questSnapshot.target)
+    ) {
+      setQuestPulseKey((key) => key + 1);
+    }
+  }, [questSnapshot]);
 
   if (self === null || selfState === null) return null;
 
@@ -80,7 +104,10 @@ export function Hud() {
         </label>
       </section>
 
-      <section className="panel quest">
+      <section
+        key={questPulseKey}
+        className={questPulseKey > 0 ? "panel quest pulse" : "panel quest"}
+      >
         <div className="panel-title">
           <span className="panel-icon panel-icon--oath" aria-hidden="true" />
           <strong>{t("hud.oath")}</strong>
