@@ -466,11 +466,15 @@ describe("World", () => {
 
     const beforeMove = await until("position before reconnect move", () => first.self());
     first.press("right");
-    const moved = await until("latest moved position before reconnect", () => {
+    await until("moved before reconnect", () => {
       const self = first.self();
       return self && self.x > beforeMove.x + 12 ? self : undefined;
     });
     first.release();
+    // Capture the resting position after input stops — rejoin saves in-memory truth, not an
+    // early snapshot taken while the pump was still holding "right".
+    await scheduler.wait(400);
+    const moved = await until("resting position before reconnect", () => first.self());
 
     const rejoined = await Client.joinCharacter(session);
     const oldClosed = await until("old socket to close", () => first.closeInfo ?? undefined);
