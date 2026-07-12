@@ -95,6 +95,53 @@ describe("CharacterPresence", () => {
     });
   });
 
+  it("atomically hands off a room and fences a late source save in D1", async () => {
+    const characterId = await characterFixture("handoff");
+    const presence = env.CHARACTER_PRESENCE.getByName(characterId);
+    const first = await presence.acquire(
+      request(characterId, crypto.randomUUID(), "verdant-reach:main"),
+    );
+    const stale = await loadProfile(createDb(env.DB), characterId);
+    if (!stale) throw new Error("missing source profile");
+    stale.x = 880;
+    stale.y = 450;
+    stale.xp = 999;
+
+    const next = await presence.handoff({
+      characterId,
+      connectionId: first.connectionId,
+      sessionEpoch: first.sessionEpoch,
+      sourceRoomKey: "verdant-reach:main",
+      destinationRoomKey: "mmo-test-zone:main",
+      zoneId: "mmo-test-zone",
+      instanceId: "main",
+      x: 160,
+      y: 160,
+    });
+    expect(next).toMatchObject({ sessionEpoch: 2, roomKey: "mmo-test-zone:main" });
+    expect(await saveProfile(createDb(env.DB), stale)).toBe(false);
+    const row = await env.DB.prepare(
+      "SELECT zone_id, instance_id, x, y, xp, session_epoch FROM character WHERE id = ?",
+    )
+      .bind(characterId)
+      .first<{
+        zone_id: string;
+        instance_id: string;
+        x: number;
+        y: number;
+        xp: number;
+        session_epoch: number;
+      }>();
+    expect(row).toEqual({
+      zone_id: "mmo-test-zone",
+      instance_id: "main",
+      x: 160,
+      y: 160,
+      xp: 0,
+      session_epoch: 2,
+    });
+  });
+
   it("expires a vanished lease without sleeping and allows recovery", async () => {
     const characterId = await characterFixture("expiry");
     const presence = env.CHARACTER_PRESENCE.getByName(characterId);

@@ -24,7 +24,7 @@ import { t } from "../i18n.js";
 import { type LocalizedText, useUiStore } from "../store.js";
 import { trackActions, trackInput } from "./input.js";
 import { type InteriorDoor, nearestInterior } from "./interiors.js";
-import { WorldClient } from "./net.js";
+import { type Connection, type ConnectionHandlers, WorldClient } from "./net.js";
 import { type RenderContext, Renderer } from "./renderer.js";
 import { GameSound } from "./sound.js";
 
@@ -187,7 +187,12 @@ function addChat(from: string, text: string): void {
 export async function startGame(character: CharacterSummary): Promise<void> {
   setStatus("status.connecting", { name: character.name });
   const renderer = await Renderer.create(canvas);
-  const client = new WorldClient();
+  let client = new WorldClient();
+  let connection: Connection | null = null;
+  let reconnectTimer: number | null = null;
+  let reconnectAttempts = 0;
+  let reconnectCancelled = false;
+  let intentionallyClosed = false;
   const input = trackInput();
   let stopActions: (() => void) | null = null;
   let questState: QuestState = {
@@ -206,133 +211,182 @@ export async function startGame(character: CharacterSummary): Promise<void> {
   window.addEventListener("pointerdown", unlockAudio);
   window.addEventListener("keydown", unlockAudio);
 
-  const connection = client.connect(
-    {
-      onWelcome: (selfId, _world, state) => {
-        renderer.setSelfId(selfId);
-        questState = state.quest;
-        selfCorpse = state.corpse;
-        renderState(state);
-        setStatus("status.connected");
-        if (!welcomed) {
-          welcomed = true;
-          addEvent(t("status.welcome_hint"), "info");
-        }
-      },
-      onState: (state) => {
-        questState = state.quest;
-        selfCorpse = state.corpse;
-        renderState(state);
-      },
-      onChat: (from, text) => {
-        addChat(from, text);
-        sound.chat();
-      },
-      onEvent: (code, params, tone, x, y) => {
-        const text = eventText(code, params, currentSelf?.class ?? character.class);
-        if (shouldLogEvent(code)) addEvent(text, tone);
-        renderer.showWorldEvent(text, tone, x, y);
-        if (code === "quest.site_harvested" && typeof params?.site === "string") {
-          renderer.hideQuestSite(params.site, 15_000);
-        }
-        if (code === "combat.hit" && x !== undefined && y !== undefined && client.selfId) {
-          renderer.playRangedHit(client.selfId, x, y, currentSelf?.class ?? character.class);
-        }
-        switch (code) {
-          case "combat.too_far":
-            sound.attackMiss(playerClass());
-            renderer.playAttackMiss();
-            break;
-          case "level_up":
-          case "quest.fulfilled":
-            sound.levelUp();
-            break;
-          case "heal.cast":
-            // The server never consumes the cooldown on a whiff (heal.nobody), so arm the UI
-            // bar only once a cast actually lands. Only priests ever receive heal.cast.
-            useUiStore.getState().setHealCooldownUntil(performance.now() + PRIEST_HEAL_COOLDOWN_MS);
-            if ((currentSelf?.class ?? character.class) === "priest") {
-              useUiStore
-                .getState()
-                .setSkillCooldown(2, performance.now() + PRIEST_HEAL_COOLDOWN_MS);
-            }
-            sound.healCast();
-            break;
-          case "skill.cast": {
-            const slot = params?.slot;
-            if (typeof slot === "number" && slot >= 1 && slot <= 5) {
-              const skillSlot = slot as SkillSlot;
-              const skill = skillFor(currentSelf?.class ?? character.class, skillSlot);
-              useUiStore
-                .getState()
-                .setSkillCooldown(skillSlot, performance.now() + skill.cooldownMs);
-            }
-            if (typeof params?.skill === "string") sound.skillCast(params.skill);
-            renderer.playSkillEffect(currentSelf?.class ?? character.class, x, y);
-            break;
-          }
-          case "loot.picked":
-          case "quest.accepted":
-          case "quest.site_harvested":
-          case "potion.used":
-            sound.loot();
-            break;
-          case "heal.received":
-            sound.healReceived();
-            break;
-          case "player.down":
-          case "death.fallen":
-          case "death.released":
-            sound.death();
-            break;
-          case "death.reclaimed":
-          case "death.resurrected":
-            sound.levelUp();
-            break;
-          case "resurrect.cast":
-            sound.healReceived();
-            break;
-          case "combat.hit":
-            sound.combatImpact(playerClass());
-            break;
-          case "combat.hurt":
-            sound.hit();
-            break;
-          default:
-            break;
-        }
-      },
-      onClose: (code, reason) => {
-        input.stop();
-        stopActions?.();
-        window.removeEventListener("pointerdown", unlockAudio);
-        window.removeEventListener("keydown", unlockAudio);
-        sound.stopAmbient();
-        // The raw wire reason is English server prose; never render it directly.
-        console.debug("connection closed", code, reason);
-        const key: MessageKey =
-          code === WS_CLOSE.CHARACTER_REPLACED
-            ? "status.close.elsewhere"
-            : code === WS_CLOSE.CHARACTER_DELETED
-              ? "status.close.deleted"
-              : code === WS_CLOSE.SESSION_EXPIRED
-                ? "status.close.session_expired"
-                : code === WS_CLOSE.PRESENCE_LOST || code === WS_CLOSE.PRESENCE_ERROR
-                  ? "status.close.presence"
-                  : code === WS_CLOSE.ROOM_FULL
-                    ? "status.close.room_full"
-                    : code === WS_CLOSE.INVALID_LOCATION
-                      ? "status.close.invalid_location"
-                      : code === 1008 || code === 1009
-                        ? "status.close.policy"
-                        : "status.close.generic";
-        setStatus("status.disconnected", { reason: t(key) });
-        addEvent(t("status.connection_lost"), "bad");
-        useUiStore.getState().setGame(null);
-      },
+  const handlers: Omit<ConnectionHandlers, "onClose"> = {
+    onWelcome: (selfId, world, state) => {
+      reconnectAttempts = 0;
+      useUiStore.getState().setReconnect(null);
+      renderer.setSelfId(selfId);
+      questState = state.quest;
+      selfCorpse = state.corpse;
+      renderState(state);
+      setStatus("status.connected_zone", { zone: t(world.zoneNameKey as MessageKey) });
+      if (!welcomed) {
+        welcomed = true;
+        addEvent(t("status.welcome_hint"), "info");
+      }
     },
-    character.id,
-  );
+    onState: (state) => {
+      questState = state.quest;
+      selfCorpse = state.corpse;
+      renderState(state);
+    },
+    onChat: (from, text) => {
+      addChat(from, text);
+      sound.chat();
+    },
+    onEvent: (code, params, tone, x, y) => {
+      const text = eventText(code, params, currentSelf?.class ?? character.class);
+      if (shouldLogEvent(code)) addEvent(text, tone);
+      renderer.showWorldEvent(text, tone, x, y);
+      if (code === "quest.site_harvested" && typeof params?.site === "string") {
+        renderer.hideQuestSite(params.site, 15_000);
+      }
+      if (code === "combat.hit" && x !== undefined && y !== undefined && client.selfId) {
+        renderer.playRangedHit(client.selfId, x, y, currentSelf?.class ?? character.class);
+      }
+      switch (code) {
+        case "combat.too_far":
+          sound.attackMiss(playerClass());
+          renderer.playAttackMiss();
+          break;
+        case "level_up":
+        case "quest.fulfilled":
+          sound.levelUp();
+          break;
+        case "heal.cast":
+          // The server never consumes the cooldown on a whiff (heal.nobody), so arm the UI
+          // bar only once a cast actually lands. Only priests ever receive heal.cast.
+          useUiStore.getState().setHealCooldownUntil(performance.now() + PRIEST_HEAL_COOLDOWN_MS);
+          if ((currentSelf?.class ?? character.class) === "priest") {
+            useUiStore.getState().setSkillCooldown(2, performance.now() + PRIEST_HEAL_COOLDOWN_MS);
+          }
+          sound.healCast();
+          break;
+        case "skill.cast": {
+          const slot = params?.slot;
+          if (typeof slot === "number" && slot >= 1 && slot <= 5) {
+            const skillSlot = slot as SkillSlot;
+            const skill = skillFor(currentSelf?.class ?? character.class, skillSlot);
+            useUiStore.getState().setSkillCooldown(skillSlot, performance.now() + skill.cooldownMs);
+          }
+          if (typeof params?.skill === "string") sound.skillCast(params.skill);
+          renderer.playSkillEffect(currentSelf?.class ?? character.class, x, y);
+          break;
+        }
+        case "loot.picked":
+        case "quest.accepted":
+        case "quest.site_harvested":
+        case "potion.used":
+          sound.loot();
+          break;
+        case "heal.received":
+          sound.healReceived();
+          break;
+        case "player.down":
+        case "death.fallen":
+        case "death.released":
+          sound.death();
+          break;
+        case "death.reclaimed":
+        case "death.resurrected":
+          sound.levelUp();
+          break;
+        case "resurrect.cast":
+          sound.healReceived();
+          break;
+        case "combat.hit":
+          sound.combatImpact(playerClass());
+          break;
+        case "combat.hurt":
+          sound.hit();
+          break;
+        default:
+          break;
+      }
+    },
+  };
+
+  const endGame = (key: MessageKey) => {
+    if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+    input.stop();
+    stopActions?.();
+    window.removeEventListener("pointerdown", unlockAudio);
+    window.removeEventListener("keydown", unlockAudio);
+    sound.stopAmbient();
+    useUiStore.getState().setReconnect(null);
+    setStatus("status.disconnected", { reason: t(key) });
+    useUiStore.getState().setGame(null);
+    useUiStore.getState().setScreen("characters");
+  };
+
+  const cancelReconnect = () => {
+    reconnectCancelled = true;
+    endGame("status.close.generic");
+  };
+
+  const openConnection = () => {
+    client = new WorldClient();
+    let closed = false;
+    connection = client.connect(
+      {
+        ...handlers,
+        onClose: (code, reason) => {
+          if (closed) return;
+          closed = true;
+          if (intentionallyClosed || reconnectCancelled) return;
+          // The raw wire reason is English server prose; never render it directly.
+          console.debug("connection closed", code, reason);
+          if (code === WS_CLOSE.ZONE_TRANSITION) {
+            reconnectAttempts = 0;
+            useUiStore.getState().setReconnect({ kind: "transition", attempt: 0, cancelReconnect });
+            scheduleReconnect(120);
+            return;
+          }
+          const terminal: MessageKey | null =
+            code === WS_CLOSE.CHARACTER_REPLACED
+              ? "status.close.elsewhere"
+              : code === WS_CLOSE.CHARACTER_DELETED
+                ? "status.close.deleted"
+                : code === WS_CLOSE.SESSION_EXPIRED
+                  ? "status.close.session_expired"
+                  : code === WS_CLOSE.PRESENCE_LOST || code === WS_CLOSE.PRESENCE_ERROR
+                    ? "status.close.presence"
+                    : code === WS_CLOSE.ROOM_FULL
+                      ? "status.close.room_full"
+                      : code === WS_CLOSE.INVALID_LOCATION
+                        ? "status.close.invalid_location"
+                        : code === 1008 || code === 1009
+                          ? "status.close.policy"
+                          : null;
+          if (terminal) {
+            endGame(terminal);
+            return;
+          }
+          if (reconnectAttempts >= 4) {
+            endGame("status.close.generic");
+            return;
+          }
+          reconnectAttempts += 1;
+          useUiStore
+            .getState()
+            .setReconnect({ kind: "network", attempt: reconnectAttempts, cancelReconnect });
+          scheduleReconnect(250 * 2 ** (reconnectAttempts - 1));
+        },
+      },
+      character.id,
+    );
+  };
+
+  const scheduleReconnect = (delayMs: number) => {
+    if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
+    reconnectTimer = window.setTimeout(() => {
+      reconnectTimer = null;
+      if (!reconnectCancelled) openConnection();
+    }, delayMs);
+  };
+
+  openConnection();
 
   const attack = () => {
     if (interiorOpen()) return;
@@ -341,7 +395,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     attackCooldownUntil = performance.now() + ATTACK_COOLDOWN_MS;
     useUiStore.getState().setAttackCooldownUntil(attackCooldownUntil);
     if (client.selfId) renderer.playAttack(client.selfId);
-    connection.attack();
+    connection?.attack();
   };
   const interact = () => {
     sound.unlock();
@@ -361,23 +415,23 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     }
     sound.interact();
     renderer.playInteraction();
-    connection.interact();
+    connection?.interact();
   };
   const usePotion = () => {
     if (interiorOpen()) return;
     sound.unlock();
     sound.loot();
-    connection.usePotion();
+    connection?.usePotion();
   };
   const heal = () => {
     if (interiorOpen()) return;
     sound.unlock();
-    connection.heal();
+    connection?.heal();
   };
   const release = () => {
     if (interiorOpen()) return;
     sound.unlock();
-    connection.release();
+    connection?.release();
   };
   const castSkill = (slot: SkillSlot) => {
     if (interiorOpen()) return;
@@ -394,14 +448,16 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       return;
     }
     sound.unlock();
-    connection.skill(slot);
+    connection?.skill(slot);
   };
   const switchCharacter = () => {
-    connection.close();
+    intentionallyClosed = true;
+    connection?.close();
     window.location.reload();
   };
   const logoutAndReload = () => {
-    connection.close();
+    intentionallyClosed = true;
+    connection?.close();
     void logout();
   };
 
@@ -425,7 +481,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     heal,
     release,
     castSkill,
-    sendChat: connection.sendChat,
+    sendChat: (text) => connection?.sendChat(text),
     switchCharacter,
     logout: logoutAndReload,
   });
@@ -466,7 +522,10 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     renderPlayer(self, selfCorpse);
     updatePrompt(self, questState, door);
   });
-  window.addEventListener("beforeunload", () => connection.close());
+  window.addEventListener("beforeunload", () => {
+    intentionallyClosed = true;
+    connection?.close();
+  });
 
   // A handle for measuring input latency and interpolation from the outside. Dev builds only.
   if (import.meta.env.DEV) {

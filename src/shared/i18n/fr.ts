@@ -246,6 +246,7 @@ export const fr: Record<keyof typeof en, string> = {
   "settings.close": "Fermer les paramètres",
   "status.connecting": "connexion en tant que {name}...",
   "status.connected": "connecté - La Combe Sauvage",
+  "status.connected_zone": "connecté - {zone}",
   "status.disconnected": "déconnecté - {reason}",
   "status.welcome_hint": "Elowen se tient près du repère doré. Appuyez sur [E] pour commencer.",
   "status.connection_lost": "Connexion perdue. Rechargez pour revenir.",
@@ -257,6 +258,15 @@ export const fr: Record<keyof typeof en, string> = {
   "status.close.presence": "L'autorité du personnage a été perdue. Rejoignez-le à nouveau.",
   "status.close.room_full": "Cette room est pleine.",
   "status.close.invalid_location": "Ce personnage possède une localisation de room invalide.",
+  "transition.title": "Passage du seuil",
+  "transition.copy": "Le prochain lieu s'ouvre...",
+  "reconnect.title": "Reconnexion",
+  "reconnect.copy": "Tentative de retour dans le monde ({attempt}/4)...",
+  "reconnect.cancel": "Retour aux personnages",
+  "portal.verdant_gate": "Porte du voyageur",
+  "portal.test_return_gate": "Porte de retour",
+  "zone.verdant_reach.name": "Étendue verdoyante",
+  "zone.mmo_test_zone.name": "Annexe du Passage",
 
   // PNJ
   "npc.warden.name": "Gardienne Elowen",
@@ -364,4 +374,9 @@ export const fr: Record<keyof typeof en, string> = {
   "event.presence.lost": "Cette connexion ne contrôle plus le personnage.",
   "event.room.full": "Cette room est pleine.",
   "event.room.invalid_location": "Ce personnage possède une localisation de room invalide.",
+  "event.zone.transition": "Vous franchissez la porte.",
+  "event.zone.transition_denied": "La porte ne peut pas être utilisée maintenant.",
+  "event.zone.transition_cooldown": "La porte doit reprendre son souffle avant un autre passage.",
+  "event.zone.transition_failed":
+    "Le passage a échoué. Votre dernière position sûre est conservée.",
 };

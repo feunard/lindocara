@@ -208,9 +208,11 @@ room, zone, instance, timestamps).
 - `ward_run_expires_at` is an absolute D1/attachment deadline. Never reconstruct it from a new
   connection time or a tick counter.
 
-Future interzone handoff must use the presence epoch as its fence: freeze source, save source,
-claim destination with a new epoch, then admit destination. Do not add a playable transition
-before that state machine is tested.
+Interzone handoff uses the same epoch fence: freeze source actions, save the source, then let
+`CharacterPresence.handoff()` conditionally write destination location and epoch N+1 in one D1
+statement. Only then remove/close the source socket with `WS_CLOSE.ZONE_TRANSITION`. The client
+reconnects; `index.ts` reads the destination from D1 and grants a fresh lease. Never add a portal
+without a server-owned catalogue destination and integration tests for the stale source save.
 
 ### Zone routing and room isolation
 
@@ -221,9 +223,9 @@ parameters and WebSocket messages never select a room.
 
 `World` validates the internal room headers against the catalogue before admission, then owns only
 that zone's players, monsters, loot, quests, timers and chat. Respect `maxPlayers`: a full room
-closes with `WS_CLOSE.ROOM_FULL`. `verdant-reach:main` preserves the current map; the empty,
-small `mmo-test-zone` exists solely for routing/isolation coverage. Do not add portals or mutate a
-character's location until the handoff state machine in the migration plan is implemented.
+closes with `WS_CLOSE.ROOM_FULL`. `verdant-reach:main` preserves the current map; the compact
+`mmo-test-zone` has a collision obstacle and paired return portal for handoff coverage. Rooms
+remain isolated; portal interaction is only an intent, never a client-selected destination.
 
 ## Gotchas worth knowing
 

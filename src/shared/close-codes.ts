@@ -7,4 +7,5 @@ export const WS_CLOSE = Object.freeze({
   PRESENCE_ERROR: 4005,
   ROOM_FULL: 4006,
   INVALID_LOCATION: 4007,
+  ZONE_TRANSITION: 4008,
 });

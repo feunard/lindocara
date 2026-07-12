@@ -49,6 +49,12 @@ export interface GameHandle {
   logout(): void;
 }
 
+export interface ReconnectState {
+  kind: "transition" | "network";
+  attempt: number;
+  cancelReconnect(): void;
+}
+
 interface UiState {
   screen: "boot" | "auth" | "characters" | "game";
   characters: CharacterSummary[] | null;
@@ -65,6 +71,7 @@ interface UiState {
   skillCooldowns: Record<SkillSlot, number>;
   interiorDoorId: string | null;
   settingsOpen: boolean;
+  reconnect: ReconnectState | null;
   game: GameHandle | null;
 
   setScreen(screen: UiState["screen"]): void;
@@ -83,6 +90,7 @@ interface UiState {
   setSkillCooldown(slot: SkillSlot, until: number): void;
   setInteriorDoorId(id: string | null): void;
   setSettingsOpen(open: boolean): void;
+  setReconnect(reconnect: ReconnectState | null): void;
   setGame(game: GameHandle | null): void;
 }
 
@@ -130,6 +138,7 @@ export const useUiStore = create<UiState>((set) => ({
   skillCooldowns: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
   interiorDoorId: null,
   settingsOpen: false,
+  reconnect: null,
   game: null,
 
   setScreen: (screen) => set({ screen }),
@@ -187,5 +196,6 @@ export const useUiStore = create<UiState>((set) => ({
     set((state) => ({ skillCooldowns: { ...state.skillCooldowns, [slot]: until } })),
   setInteriorDoorId: (id) => set({ interiorDoorId: id }),
   setSettingsOpen: (open) => set({ settingsOpen: open }),
+  setReconnect: (reconnect) => set({ reconnect }),
   setGame: (game) => set({ game }),
 }));

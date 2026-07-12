@@ -240,6 +240,7 @@ export const en = {
   "settings.close": "Close settings",
   "status.connecting": "connecting as {name}...",
   "status.connected": "connected - Everwild Hollow",
+  "status.connected_zone": "connected - {zone}",
   "status.disconnected": "disconnected - {reason}",
   "status.welcome_hint": "Elowen stands beside the golden marker. Press [E] to begin.",
   "status.connection_lost": "Connection lost. Reload to rejoin.",
@@ -251,6 +252,15 @@ export const en = {
   "status.close.presence": "Character authority was lost. Rejoin the character.",
   "status.close.room_full": "This room is full.",
   "status.close.invalid_location": "This character has an invalid room location.",
+  "transition.title": "Crossing the threshold",
+  "transition.copy": "The next place is opening...",
+  "reconnect.title": "Reconnecting",
+  "reconnect.copy": "Trying to return to the world ({attempt}/4)...",
+  "reconnect.cancel": "Return to characters",
+  "portal.verdant_gate": "Wayfarer's gate",
+  "portal.test_return_gate": "Return gate",
+  "zone.verdant_reach.name": "Verdant Reach",
+  "zone.mmo_test_zone.name": "Crossing Annex",
 
   // NPC
   "npc.warden.name": "Keeper Elowen",
@@ -355,4 +365,8 @@ export const en = {
   "event.presence.lost": "This connection no longer controls the character.",
   "event.room.full": "This room is full.",
   "event.room.invalid_location": "This character has an invalid room location.",
+  "event.zone.transition": "You step through the gate.",
+  "event.zone.transition_denied": "The gate cannot be used right now.",
+  "event.zone.transition_cooldown": "The gate needs a moment before another crossing.",
+  "event.zone.transition_failed": "The crossing failed. Your last safe location was kept.",
 } as const satisfies Record<string, string>;

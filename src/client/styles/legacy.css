@@ -1119,6 +1119,34 @@ kbd {
   color: #a9d8ff;
 }
 
+.connection-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: rgb(9 15 20 / 58%);
+  pointer-events: all;
+}
+
+.connection-overlay__panel {
+  width: min(360px, calc(100vw - 40px));
+  padding: 22px;
+  color: #f7e8b5;
+  text-align: center;
+  background: #172723;
+  border: 2px solid #c4a15e;
+  box-shadow: 0 8px 30px rgb(0 0 0 / 45%);
+}
+
+.connection-overlay__panel h2 {
+  margin: 0 0 8px;
+}
+
+.connection-overlay__panel button {
+  margin-top: 8px;
+}
+
 .death-copy {
   max-width: 26rem;
   margin: 0;
