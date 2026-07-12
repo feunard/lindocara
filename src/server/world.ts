@@ -80,7 +80,12 @@ import {
   type SkillSlot,
   skillFor,
 } from "../shared/skills.js";
-import { resolveZoneLocation, type ZoneDefinition, type ZoneLocation } from "../shared/zones.js";
+import {
+  type PortalDefinition,
+  resolveZoneLocation,
+  type ZoneDefinition,
+  type ZoneLocation,
+} from "../shared/zones.js";
 import { PRESENCE_HEARTBEAT_MS } from "./character-presence.js";
 import { createDb } from "./db/index.js";
 import { loadProfile, type PlayerProfile, type SaveableProfile, saveProfile } from "./profile.js";
@@ -138,6 +143,8 @@ interface Player extends PlayerProfile {
   roomKey: string;
   authorized: boolean;
   disconnecting: boolean;
+  transitioning: boolean;
+  lastTransitionAt: number;
   nextPresenceHeartbeatAt: number;
 }
 
@@ -229,6 +236,8 @@ function newPlayer(
     roomKey,
     authorized: true,
     disconnecting: false,
+    transitioning: false,
+    lastTransitionAt: 0,
     nextPresenceHeartbeatAt: Date.now() + PRESENCE_HEARTBEAT_MS,
   };
 }
@@ -492,10 +501,20 @@ export class World extends DurableObject<Env> {
       profile.wardRunExpiresAt = null;
       wardRunExpired = true;
     }
+    // A route changed out of band (repair tooling or a future interrupted handoff) may leave
+    // coordinates that only made sense in the previous zone. Persist the corrected spawn before
+    // admission, rather than waiting for the five-second dirty flush and exposing a stale D1 row
+    // to another room.
+    if (positionChanged || wardRunExpired) {
+      if (!(await saveProfile(createDb(this.env.DB), profile))) {
+        await presence.release(connectionId, sessionEpoch);
+        return new Response("presence epoch mismatch", { status: 409 });
+      }
+    }
     const { 0: client, 1: server } = new WebSocketPair();
     this.ctx.acceptWebSocket(server);
     const player = newPlayer(profile, connectionId, roomKey);
-    player.dirty = wardRunExpired || positionChanged;
+    player.dirty = false;
     server.serializeAttachment(toAttachment(player));
     this.#players.set(server, player);
 
@@ -512,6 +531,7 @@ export class World extends DurableObject<Env> {
       t: "welcome",
       selfId: id,
       world: {
+        zoneNameKey: location.definition.nameKey,
         width: location.definition.terrain.width,
         height: location.definition.terrain.height,
         playerSize: PLAYER_SIZE,
@@ -521,6 +541,12 @@ export class World extends DurableObject<Env> {
         questNpcs: location.definition.quests.map((quest) => quest.giver),
         questSites: [...location.definition.questSites],
         cemeteries: [...CEMETERIES],
+        portals: location.definition.portals.map((portal) => ({
+          id: portal.id,
+          nameKey: portal.nameKey,
+          x: portal.x,
+          y: portal.y,
+        })),
       },
       players: this.#playerSnapshots(),
       monsters: this.#monsterSnapshots(),
@@ -554,7 +580,7 @@ export class World extends DurableObject<Env> {
       return;
     }
     player.malformedCount = 0;
-    this.#handleMessage(ws, player, message);
+    await this.#handleMessage(ws, player, message);
   }
 
   override async webSocketClose(ws: WebSocket, code: number, reason: string): Promise<void> {
@@ -613,7 +639,7 @@ export class World extends DurableObject<Env> {
     return this.#savePlayer(entry[1], entry[0]);
   }
 
-  #handleMessage(ws: WebSocket, player: Player, message: ClientMessage): void {
+  async #handleMessage(ws: WebSocket, player: Player, message: ClientMessage): Promise<void> {
     if (message.t === "input") {
       if (message.seq <= player.lastSeq) return;
       player.lastSeq = message.seq;
@@ -639,7 +665,7 @@ export class World extends DurableObject<Env> {
       return;
     }
     if (message.t === "interact") {
-      this.#interact(ws, player);
+      await this.#interact(ws, player);
       return;
     }
     if (message.t === "use") {
@@ -1003,9 +1029,16 @@ export class World extends DurableObject<Env> {
     if (targetSocket !== ws) this.#sendState(targetSocket, target);
   }
 
-  #interact(ws: WebSocket, player: Player): void {
+  async #interact(ws: WebSocket, player: Player): Promise<void> {
     const now = Date.now();
     if (!canAct(player.life)) return;
+    const portal = this.#zone().portals.find(
+      (candidate) => pointDistance(player, candidate) <= INTERACTION_RANGE,
+    );
+    if (portal) {
+      await this.#transition(ws, player, portal, now);
+      return;
+    }
     // A corpse is just one more thing you can be standing next to. The skill bar is full and
     // this codebase resolves every action as "the nearest valid thing in range"; so does this.
     if (this.#resurrectNearbyCorpse(ws, player, now)) return;
@@ -1060,6 +1093,69 @@ export class World extends DurableObject<Env> {
     }
     player.dirty = true;
     this.#sendState(ws, player);
+  }
+
+  async #transition(
+    ws: WebSocket,
+    player: Player,
+    portal: PortalDefinition,
+    now: number,
+  ): Promise<void> {
+    const destination = resolveZoneLocation(
+      portal.destination.zoneId,
+      portal.destination.instanceId,
+    );
+    if (!destination || player.transitioning) {
+      this.#send(ws, { t: "event", code: "zone.transition_denied", tone: "bad" });
+      return;
+    }
+    if (now - player.lastTransitionAt < 1_000) {
+      this.#send(ws, { t: "event", code: "zone.transition_cooldown", tone: "info" });
+      return;
+    }
+    const spawn = clampRestoredPosition(
+      portal.destination.spawn,
+      player.id,
+      destination.definition.terrain,
+    );
+
+    // No new simulation/action may run while the final source save and epoch handoff are in
+    // flight. The forced save remains fenced by the source epoch.
+    player.transitioning = true;
+    player.authorized = false;
+    player.lastInput = NO_INPUT;
+    player.queue = [];
+    player.lastTransitionAt = now;
+
+    const saved = await this.#savePlayer(player, ws, true);
+    if (!saved) return;
+    const next = await this.env.CHARACTER_PRESENCE.getByName(player.id).handoff({
+      characterId: player.id,
+      connectionId: player.connectionId,
+      sessionEpoch: player.sessionEpoch,
+      sourceRoomKey: player.roomKey,
+      destinationRoomKey: destination.roomKey,
+      zoneId: destination.zoneId,
+      instanceId: destination.instanceId,
+      x: spawn.x,
+      y: spawn.y,
+    });
+    if (!next) {
+      this.#rejectStaleSave(ws, player);
+      return;
+    }
+
+    // The epoch is already N+1 in D1. Removing before close guarantees the old room cannot
+    // run another tick for this character; a late persistence attempt is fenced by D1 anyway.
+    player.disconnecting = true;
+    this.#players.delete(ws);
+    this.#send(ws, { t: "event", code: "zone.transition", tone: "good" });
+    try {
+      ws.close(WS_CLOSE.ZONE_TRANSITION, "zone transition");
+    } catch {
+      // A network interruption still leaves the destination persisted and recoverable.
+    }
+    if (this.#players.size === 0) this.#stopLoop();
   }
 
   /**

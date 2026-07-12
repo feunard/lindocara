@@ -333,6 +333,70 @@ describe("World", () => {
     }
   });
 
+  it("moves through server-owned portals, persists the destination, and returns", {
+    timeout: 10_000,
+  }, async () => {
+    await waitForRoomSockets(MMO_TEST_ROOM_KEY, 0);
+    const session = await testCharacter("portal_runner", { position: { x: 880, y: 450 } });
+    const outbound = await Client.joinCharacter(session);
+    await until("outbound welcome", () => outbound.welcome);
+    outbound.action("interact");
+    expect((await until("transition close", () => outbound.closeInfo ?? undefined)).code).toBe(
+      WS_CLOSE.ZONE_TRANSITION,
+    );
+    const destination = await env.DB.prepare(
+      "SELECT zone_id, instance_id, x, y FROM character WHERE id = ?",
+    )
+      .bind(session.characterId)
+      .first<{ zone_id: string; instance_id: string; x: number; y: number }>();
+    expect(destination).toEqual({ zone_id: "mmo-test-zone", instance_id: "main", x: 160, y: 160 });
+
+    const inbound = await Client.joinCharacter(session);
+    expect((await until("destination welcome", () => inbound.welcome)).world).toMatchObject({
+      width: 640,
+      height: 480,
+    });
+    expect((await until("destination player", () => inbound.self())).x).toBe(160);
+    inbound.action("interact");
+    expect(
+      (await until("return transition close", () => inbound.closeInfo ?? undefined)).code,
+    ).toBe(WS_CLOSE.ZONE_TRANSITION);
+    const returned = await env.DB.prepare(
+      "SELECT zone_id, instance_id, x, y FROM character WHERE id = ?",
+    )
+      .bind(session.characterId)
+      .first<{ zone_id: string; instance_id: string; x: number; y: number }>();
+    expect(returned).toEqual({ zone_id: "verdant-reach", instance_id: "main", x: 784, y: 450 });
+  });
+
+  it("refuses a distant or destination-spoofed portal interaction", async () => {
+    const client = await Client.join("far_portal", { position: { x: 1400, y: 450 } });
+    await until("far portal welcome", () => client.welcome);
+    client.sendRaw(JSON.stringify({ t: "interact", destination: "mmo-test-zone" }));
+    await scheduler.wait(150);
+    expect(client.closeInfo).toBeNull();
+    expect(client.received.some((m) => m.t === "event" && m.code === "zone.transition")).toBe(
+      false,
+    );
+    client.close();
+  });
+
+  it("handles a double portal interact once and leaves a recoverable destination", async () => {
+    const session = await testCharacter("portal_spam", { position: { x: 880, y: 450 } });
+    const client = await Client.joinCharacter(session);
+    await until("portal spam welcome", () => client.welcome);
+    client.action("interact");
+    client.action("interact");
+    await until("portal spam close", () => client.closeInfo ?? undefined);
+    const row = await env.DB.prepare("SELECT zone_id, session_epoch FROM character WHERE id = ?")
+      .bind(session.characterId)
+      .first<{ zone_id: string; session_epoch: number }>();
+    expect(row).toEqual({ zone_id: "mmo-test-zone", session_epoch: 2 });
+    const recovered = await Client.joinCharacter(session);
+    expect((await until("portal recovery welcome", () => recovered.welcome)).world.width).toBe(640);
+    recovered.close();
+  });
+
   it("starts the server-owned quest only when interacting near the quest NPC", async () => {
     const client = await Client.join("quester", {
       position: { x: QUEST_NPC.x + 50, y: QUEST_NPC.y },

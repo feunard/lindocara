@@ -6,6 +6,7 @@ import { useUiStore } from "../store.js";
 import { AuthScreen } from "./AuthScreen.js";
 import { CharacterSelect } from "./CharacterSelect.js";
 import { Chat } from "./Chat.js";
+import { ConnectionOverlay } from "./ConnectionOverlay.js";
 import { EventLog } from "./EventLog.js";
 import { HelpBar } from "./HelpBar.js";
 import { Hud } from "./hud/Hud.js";
@@ -43,6 +44,7 @@ export function App() {
           <HelpBar />
           <InteriorOverlay />
           <SettingsMenu />
+          <ConnectionOverlay />
         </>
       )}
     </>

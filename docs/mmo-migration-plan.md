@@ -9,7 +9,7 @@ Statut : document de préparation ; aucun routage, protocole ou comportement de 
 Les étapes de persistance et d'autorité de présence ont été réalisées sans activer le multizone :
 
 - `character` porte désormais `zone_id`, `instance_id`, `session_epoch` et
-  `ward_run_expires_at` via la migration additive `0006_cultured_captain_midlands.sql` ;
+  `ward_run_expires_at` via la migration additive `0007_shiny_robin_chapel.sql` ;
 - `CharacterPresence`, adressé par `characterId`, détient un bail de 30 secondes renouvelé toutes
   les 10 secondes par la room ;
 - D1 reste l'unique source monotone de l'epoch : chaque acquisition incrémente atomiquement
@@ -34,12 +34,13 @@ d'acquérir sa présence et d'appeler `WORLD.getByName(roomKey)`.
 `World` valide la localisation interne, utilise les dimensions, le terrain, les spawns, les
 monstres, les quêtes et les sites de la zone courante, et applique sa capacité. Les rooms isolent
 leur état mutable. Verdant Reach reste identique ; la zone technique est sans contenu de gameplay
-et couvre les tests. Les portails, le handoff jouable et l'instanciation automatique restent hors
-de cette étape.
+et couvre les tests. Les portails déclaratifs et le handoff jouable sont maintenant actifs ;
+l'instanciation automatique reste hors de cette étape.
 
-Le futur handoff interzone doit conserver cet ordre : geler la source, sauvegarder avec l'epoch
-source, acquérir un nouvel epoch pour la destination, revérifier l'autorité après admission, puis
-seulement activer le joueur dans la destination.
+Le handoff interzone appliqué est : geler la source, sauvegarder avec l'epoch source, écrire
+conditionnellement destination + coordonnées + epoch suivant dans D1, retirer/fermer la source,
+puis laisser le navigateur reconnecter. Le routeur relit toujours la destination depuis D1 ; une
+sauvegarde tardive de la source est refusée par son ancien epoch.
 
 ## 1. Résumé exécutif
 

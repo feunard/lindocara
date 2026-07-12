@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { WS_CLOSE } from "../shared/close-codes.js";
 import { createDb } from "./db/index.js";
-import { acquireSessionEpoch } from "./profile.js";
+import { acquireSessionEpoch, handoffProfileLocation } from "./profile.js";
 
 export const PRESENCE_TTL_MS = 30_000;
 export const PRESENCE_HEARTBEAT_MS = 10_000;
@@ -23,6 +23,18 @@ export interface AcquirePresence {
   roomKey: string;
   zoneId: string;
   instanceId: string;
+}
+
+export interface HandoffPresence {
+  characterId: string;
+  connectionId: string;
+  sessionEpoch: number;
+  sourceRoomKey: string;
+  destinationRoomKey: string;
+  zoneId: string;
+  instanceId: string;
+  x: number;
+  y: number;
 }
 
 interface PresenceRow extends Record<string, SqlStorageValue> {
@@ -116,6 +128,15 @@ export class CharacterPresence extends DurableObject<Env> {
     });
   }
 
+  /**
+   * The source World has already frozen and saved its player. This conditional D1 update moves
+   * the durable location and increments the epoch in one statement, fencing every late source
+   * save before the browser is asked to reconnect.
+   */
+  handoff(request: HandoffPresence): Promise<PresenceLease | null> {
+    return this.#serialized(() => this.#handoff(request));
+  }
+
   /** Used by character deletion and by tests that need deterministic expiry without sleeping. */
   expireAt(now = Date.now()): Promise<boolean> {
     return this.#serialized(async () => {
@@ -195,6 +216,58 @@ export class CharacterPresence extends DurableObject<Env> {
     await this.ctx.storage.setAlarm(lease.expiresAt);
 
     return lease;
+  }
+
+  async #handoff(request: HandoffPresence): Promise<PresenceLease | null> {
+    const current = this.#current();
+    if (
+      !current ||
+      current.expiresAt <= Date.now() ||
+      current.characterId !== request.characterId ||
+      current.connectionId !== request.connectionId ||
+      current.sessionEpoch !== request.sessionEpoch ||
+      current.roomKey !== request.sourceRoomKey ||
+      !validIdentity(request.destinationRoomKey) ||
+      !validIdentity(request.zoneId) ||
+      !validIdentity(request.instanceId) ||
+      !Number.isFinite(request.x) ||
+      !Number.isFinite(request.y)
+    ) {
+      if (current && current.expiresAt <= Date.now()) this.#clear();
+      return null;
+    }
+
+    const nextEpoch = await handoffProfileLocation(
+      createDb(this.env.DB),
+      { id: current.characterId, sessionEpoch: current.sessionEpoch },
+      request,
+    );
+    if (nextEpoch === null) return null;
+
+    const now = Date.now();
+    const next: PresenceLease = {
+      characterId: current.characterId,
+      connectionId: current.connectionId,
+      sessionEpoch: nextEpoch,
+      roomKey: request.destinationRoomKey,
+      zoneId: request.zoneId,
+      instanceId: request.instanceId,
+      acquiredAt: now,
+      expiresAt: now + PRESENCE_TTL_MS,
+    };
+    this.ctx.storage.sql.exec(
+      `UPDATE active_presence
+       SET session_epoch = ?, room_key = ?, zone_id = ?, instance_id = ?, acquired_at = ?, expires_at = ?
+       WHERE singleton = 1`,
+      next.sessionEpoch,
+      next.roomKey,
+      next.zoneId,
+      next.instanceId,
+      next.acquiredAt,
+      next.expiresAt,
+    );
+    await this.ctx.storage.setAlarm(next.expiresAt);
+    return next;
   }
 
   async #invalidateRoom(lease: PresenceLease, closeCode: number, reason: string): Promise<void> {

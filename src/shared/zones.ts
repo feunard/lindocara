@@ -24,6 +24,18 @@ export interface ZoneDefinition {
   quests: readonly QuestDefinition[];
   questSites: readonly QuestSite[];
   monsters: readonly MonsterSpawn[];
+  portals: readonly PortalDefinition[];
+}
+
+/** A server-owned exit. The browser can only ask to interact near it. */
+export interface PortalDefinition extends Vec2 {
+  id: string;
+  nameKey: string;
+  destination: {
+    zoneId: ZoneId;
+    instanceId: string;
+    spawn: Vec2;
+  };
 }
 
 export interface ZoneLocation {
@@ -49,7 +61,7 @@ const TEST_ZONE_SAFE_ZONE: Rect = { x: 64, y: 64, width: 512, height: 352 };
 const TEST_ZONE_TERRAIN: TerrainGeometry = {
   width: 640,
   height: 480,
-  obstacles: [],
+  obstacles: [{ x: 320, y: 180, width: 96, height: 128 }],
   spawnPoints: TEST_ZONE_SPAWNS,
   safeZone: TEST_ZONE_SAFE_ZONE,
 };
@@ -65,6 +77,19 @@ export const ZONES: Readonly<Record<ZoneId, ZoneDefinition>> = {
     quests: QUEST_DEFINITIONS,
     questSites: QUEST_SITES,
     monsters: MONSTER_SPAWNS,
+    portals: [
+      {
+        id: "verdant-gate",
+        nameKey: "portal.verdant_gate",
+        x: 880,
+        y: 450,
+        destination: {
+          zoneId: "mmo-test-zone",
+          instanceId: "main",
+          spawn: { x: 160, y: 160 },
+        },
+      },
+    ],
   },
   "mmo-test-zone": {
     id: "mmo-test-zone",
@@ -76,6 +101,19 @@ export const ZONES: Readonly<Record<ZoneId, ZoneDefinition>> = {
     quests: [],
     questSites: [],
     monsters: [],
+    portals: [
+      {
+        id: "test-return-gate",
+        nameKey: "portal.test_return_gate",
+        x: 160,
+        y: 160,
+        destination: {
+          zoneId: "verdant-reach",
+          instanceId: "main",
+          spawn: { x: 784, y: 450 },
+        },
+      },
+    ],
   },
 };
 

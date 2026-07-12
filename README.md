@@ -166,7 +166,12 @@ current live world; `mmo-test-zone:main` is a small technical room used by the t
 Rooms isolate players, chat, monsters, loot, timers, commands, and snapshots. Each zone declares
 its own maximum room capacity. Adding a zone means adding an immutable entry in
 `src/shared/zones.ts`; adding an instance means persisting a valid instance id for a character.
-Portals and playable cross-zone transitions are not implemented yet.
+
+Portals are server-owned catalogue entries. An interaction is accepted only in range of the portal;
+the browser never supplies a destination. The source room freezes actions, saves under its current
+epoch, then `CharacterPresence` atomically writes `zoneId`, `instanceId`, `x`, `y` and the next
+epoch in D1. It closes with `ZONE_TRANSITION`; the browser reconnects with bounded backoff, and
+the Worker resolves the destination from D1. A late source save is rejected by its old epoch.
 
 Swapping in real OAuth means changing how a session is minted. The cookie, the Worker, and
 the Durable Object all keep working.

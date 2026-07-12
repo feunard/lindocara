@@ -104,6 +104,7 @@ export interface SelfState {
 }
 
 export interface WorldInfo {
+  zoneNameKey: string;
   width: number;
   height: number;
   playerSize: number;
@@ -113,6 +114,7 @@ export interface WorldInfo {
   questNpcs: NpcDefinition[];
   questSites: QuestSite[];
   cemeteries: Cemetery[];
+  portals: readonly { id: string; nameKey: string; x: number; y: number }[];
 }
 
 /** Sent by the browser. Actions contain intent only; every outcome is validated by the server. */
@@ -173,6 +175,10 @@ export const EVENT_CODES = [
   "presence.lost",
   "room.full",
   "room.invalid_location",
+  "zone.transition",
+  "zone.transition_denied",
+  "zone.transition_cooldown",
+  "zone.transition_failed",
 ] as const;
 export type EventCode = (typeof EVENT_CODES)[number];
 export type EventParams = Record<string, string | number>;

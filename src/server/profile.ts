@@ -12,9 +12,11 @@ import {
   maxHpForLevel,
   type PlayerClass,
   questDefinition,
+  type TerrainGeometry,
 } from "../shared/game.js";
 import type { Inventory, QuestState } from "../shared/protocol.js";
 import type { Vec2 } from "../shared/simulation.js";
+import { resolveZoneLocation } from "../shared/zones.js";
 import { type Character, character, type Db } from "./db/index.js";
 
 export interface PlayerProfile extends Vec2 {
@@ -41,17 +43,21 @@ export interface PlayerProfile extends Vec2 {
  * A dead row must carry a body. If the two ever disagree — a hand-edited row, a half-applied
  * migration — repair to alive rather than stranding a ghost with nothing to walk back to.
  */
-function lifeFromRow(row: Character): { life: LifeState; corpse: Vec2 | null } {
+function lifeFromRow(
+  row: Character,
+  terrain?: TerrainGeometry,
+): { life: LifeState; corpse: Vec2 | null } {
   const life = isLifeState(row.life) ? row.life : "alive";
   if (life === "alive") return { life: "alive", corpse: null };
   if (row.corpseX === null || row.corpseY === null) return { life: "alive", corpse: null };
   const corpse = { x: row.corpseX, y: row.corpseY };
-  if (!isWalkable(corpse)) return { life: "alive", corpse: null };
+  if (!isWalkable(corpse, undefined, terrain)) return { life: "alive", corpse: null };
   return { life, corpse };
 }
 
 function fromRow(row: Character): PlayerProfile {
-  const position = clampRestoredPosition({ x: row.x, y: row.y }, row.id);
+  const terrain = resolveZoneLocation(row.zoneId, row.instanceId)?.definition.terrain;
+  const position = clampRestoredPosition({ x: row.x, y: row.y }, row.id, terrain);
   const maxHp = maxHpForLevel(row.level);
   return {
     id: row.id,
@@ -84,7 +90,7 @@ function fromRow(row: Character): PlayerProfile {
     instanceId: row.instanceId,
     sessionEpoch: Math.max(0, row.sessionEpoch),
     wardRunExpiresAt: row.wardRunExpiresAt?.getTime() ?? null,
-    ...lifeFromRow(row),
+    ...lifeFromRow(row, terrain),
   };
 }
 
@@ -106,6 +112,31 @@ export async function acquireSessionEpoch(db: Db, characterId: string): Promise<
     .update(character)
     .set({ sessionEpoch: sql`${character.sessionEpoch} + 1` })
     .where(eq(character.id, characterId))
+    .returning({ sessionEpoch: character.sessionEpoch })
+    .get();
+  return updated?.sessionEpoch ?? null;
+}
+
+/**
+ * Atomically move a character and advance its fencing epoch.  This is deliberately separate
+ * from the normal profile save: a source room can never write over this location once it wins.
+ */
+export async function handoffProfileLocation(
+  db: Db,
+  profile: Pick<SaveableProfile, "id" | "sessionEpoch">,
+  destination: { zoneId: string; instanceId: string; x: number; y: number },
+): Promise<number | null> {
+  const updated = await db
+    .update(character)
+    .set({
+      zoneId: destination.zoneId,
+      instanceId: destination.instanceId,
+      x: destination.x,
+      y: destination.y,
+      sessionEpoch: sql`${character.sessionEpoch} + 1`,
+      lastSeenAt: new Date(),
+    })
+    .where(and(eq(character.id, profile.id), eq(character.sessionEpoch, profile.sessionEpoch)))
     .returning({ sessionEpoch: character.sessionEpoch })
     .get();
   return updated?.sessionEpoch ?? null;
