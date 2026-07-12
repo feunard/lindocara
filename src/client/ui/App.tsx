@@ -12,6 +12,7 @@ import { Hud } from "./hud/Hud.js";
 import { InteriorOverlay } from "./InteriorOverlay.js";
 import { LocaleToggle } from "./LocaleToggle.js";
 import { Prompt } from "./Prompt.js";
+import { SettingsMenu } from "./SettingsMenu.js";
 import { StatusBar } from "./StatusBar.js";
 
 export function App() {
@@ -41,6 +42,7 @@ export function App() {
           <Prompt />
           <HelpBar />
           <InteriorOverlay />
+          <SettingsMenu />
         </>
       )}
     </>

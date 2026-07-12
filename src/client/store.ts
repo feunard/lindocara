@@ -60,6 +60,7 @@ interface UiState {
   healCooldownUntil: number;
   skillCooldowns: Record<SkillSlot, number>;
   interiorDoorId: string | null;
+  settingsOpen: boolean;
   game: GameHandle | null;
 
   setScreen(screen: UiState["screen"]): void;
@@ -77,6 +78,7 @@ interface UiState {
   setHealCooldownUntil(until: number): void;
   setSkillCooldown(slot: SkillSlot, until: number): void;
   setInteriorDoorId(id: string | null): void;
+  setSettingsOpen(open: boolean): void;
   setGame(game: GameHandle | null): void;
 }
 
@@ -121,6 +123,7 @@ export const useUiStore = create<UiState>((set) => ({
   healCooldownUntil: 0,
   skillCooldowns: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
   interiorDoorId: null,
+  settingsOpen: false,
   game: null,
 
   setScreen: (screen) => set({ screen }),
@@ -177,5 +180,6 @@ export const useUiStore = create<UiState>((set) => ({
   setSkillCooldown: (slot, until) =>
     set((state) => ({ skillCooldowns: { ...state.skillCooldowns, [slot]: until } })),
   setInteriorDoorId: (id) => set({ interiorDoorId: id }),
+  setSettingsOpen: (open) => set({ settingsOpen: open }),
   setGame: (game) => set({ game }),
 }));

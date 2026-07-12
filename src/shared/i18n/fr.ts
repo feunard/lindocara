@@ -224,6 +224,16 @@ export const fr: Record<keyof typeof en, string> = {
   "help.strike": "frapper",
   "help.commune": "communier",
   "help.tonic": "tonique",
+  "help.settings": "paramètres",
+
+  // Menu pause / paramètres
+  "settings.title": "Paramètres",
+  "settings.audio": "Audio",
+  "settings.mute": "Couper tous les sons",
+  "settings.sfx": "Effets & actions",
+  "settings.ambient": "Musique & ambiance",
+  "settings.resume": "Reprendre",
+  "settings.close": "Fermer les paramètres",
   "status.connecting": "connexion en tant que {name}...",
   "status.connected": "connecté - La Combe Sauvage",
   "status.disconnected": "déconnecté - {reason}",

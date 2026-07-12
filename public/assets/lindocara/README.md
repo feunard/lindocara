@@ -37,3 +37,25 @@ Additional runtime art selected from `assets/vendor/` lives under `vendor/`:
 The CraftPix license pointers shipped with the source packs are copied under
 `vendor/licenses/`. Only the runtime frames used by the game are copied into `public/`; the
 complete source packs remain under `assets/vendor/`.
+
+Ambient music lives under `audio/`:
+
+- `gloamwood-ambience.mp3`: *Forest Ambience* by TinyWorlds (Ludum Dare 29), CC0.
+- Source: https://opengameart.org/content/forest-ambience
+
+Class attack SFX live under `audio/sfx/` (CC0). Curated for a punchy fantasy-RPG feel:
+
+**Sources**
+
+- [Kenney Impact Sounds](https://kenney.nl/assets/impact-sounds) — metal / soft / glass impacts
+- [80 CC0 RPG SFX](https://opengameart.org/content/80-cc0-rpg-sfx) (rubberduck) — blades, spells, roars
+- [100 CC0 SFX](https://opengameart.org/content/100-cc0-sfx) (rubberduck) — hits, UI feedback
+- [Bow & Arrow Shot](https://opengameart.org/content/bow-arrow-shot) (dorkster) — ranger bow release
+
+**Warrior** — `warrior-*.ogg` (blade swings, metal guard, charge, roar, Kenney impacts)
+
+**Ranger** — `ranger-*.ogg` (bow shot, volley whoosh, dash, soft impact)
+
+**Priest** — `priest-*.ogg` (spell cast, heal, blink, prayer bell, fire nova, glass impact)
+
+**UI** — `ui-*.ogg` (hit, loot/coins, level-up gong, interact, death, chat)

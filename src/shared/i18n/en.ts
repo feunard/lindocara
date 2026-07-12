@@ -218,6 +218,16 @@ export const en = {
   "help.strike": "strike",
   "help.commune": "commune",
   "help.tonic": "tonic",
+  "help.settings": "settings",
+
+  // Pause / settings menu
+  "settings.title": "Settings",
+  "settings.audio": "Audio",
+  "settings.mute": "Mute all sounds",
+  "settings.sfx": "Effects & actions",
+  "settings.ambient": "Music & ambience",
+  "settings.resume": "Resume",
+  "settings.close": "Close settings",
   "status.connecting": "connecting as {name}...",
   "status.connected": "connected - Everwild Hollow",
   "status.disconnected": "disconnected - {reason}",

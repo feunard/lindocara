@@ -45,6 +45,14 @@ function interiorOpen(): boolean {
   return useUiStore.getState().interiorDoorId !== null;
 }
 
+function settingsOpen(): boolean {
+  return useUiStore.getState().settingsOpen;
+}
+
+function gameplayPaused(): boolean {
+  return interiorOpen() || settingsOpen();
+}
+
 function setStatus(key: MessageKey, params?: Record<string, string | number>): void {
   const status: LocalizedText = params === undefined ? { key } : { key, params };
   useUiStore.getState().setStatus(status);
@@ -186,6 +194,11 @@ export async function startGame(character: CharacterSummary): Promise<void> {
   let attackCooldownUntil = 0;
   let welcomed = false;
   let currentSelf: PlayerSnapshot | undefined;
+  const playerClass = () => currentSelf?.class ?? character.class;
+
+  const unlockAudio = () => sound.unlock();
+  window.addEventListener("pointerdown", unlockAudio);
+  window.addEventListener("keydown", unlockAudio);
 
   const connection = client.connect(
     {
@@ -219,7 +232,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
         }
         switch (code) {
           case "combat.too_far":
-            sound.attack();
+            sound.attackMiss(playerClass());
             renderer.playAttackMiss();
             break;
           case "level_up":
@@ -235,7 +248,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
                 .getState()
                 .setSkillCooldown(2, performance.now() + PRIEST_HEAL_COOLDOWN_MS);
             }
-            sound.loot();
+            sound.healCast();
             break;
           case "skill.cast": {
             const slot = params?.slot;
@@ -246,22 +259,26 @@ export async function startGame(character: CharacterSummary): Promise<void> {
                 .getState()
                 .setSkillCooldown(skillSlot, performance.now() + skill.cooldownMs);
             }
+            if (typeof params?.skill === "string") sound.skillCast(params.skill);
             renderer.playSkillEffect(currentSelf?.class ?? character.class, x, y);
-            sound.attack();
             break;
           }
           case "loot.picked":
           case "quest.accepted":
           case "quest.site_harvested":
           case "potion.used":
-          case "heal.received":
             sound.loot();
+            break;
+          case "heal.received":
+            sound.healReceived();
             break;
           case "player.down":
           case "respawn":
             sound.death();
             break;
           case "combat.hit":
+            sound.combatImpact(playerClass());
+            break;
           case "combat.hurt":
             sound.hit();
             break;
@@ -272,6 +289,9 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       onClose: (code, reason) => {
         input.stop();
         stopActions?.();
+        window.removeEventListener("pointerdown", unlockAudio);
+        window.removeEventListener("keydown", unlockAudio);
+        sound.stopAmbient();
         // The raw wire reason is English server prose; never render it directly.
         console.debug("connection closed", code, reason);
         const key: MessageKey =
@@ -293,7 +313,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
   const attack = () => {
     if (interiorOpen()) return;
     sound.unlock();
-    sound.attack();
+    sound.basicAttack(playerClass());
     attackCooldownUntil = performance.now() + ATTACK_COOLDOWN_MS;
     useUiStore.getState().setAttackCooldownUntil(attackCooldownUntil);
     if (client.selfId) renderer.playAttack(client.selfId);
@@ -380,14 +400,26 @@ export async function startGame(character: CharacterSummary): Promise<void> {
   });
 
   window.addEventListener("keydown", (event) => {
-    if (event.code !== "Escape" || !interiorOpen()) return;
-    closeInterior();
-    input.reset();
+    if (event.code !== "Escape") return;
+    if (event.target instanceof HTMLInputElement) {
+      event.target.blur();
+      event.preventDefault();
+      return;
+    }
+    if (interiorOpen()) {
+      closeInterior();
+      input.reset();
+      event.preventDefault();
+      return;
+    }
+    const nextOpen = !settingsOpen();
+    useUiStore.getState().setSettingsOpen(nextOpen);
+    if (nextOpen) input.reset();
     event.preventDefault();
   });
 
   renderer.onFrame((now, dt) => {
-    client.update(interiorOpen() ? NO_INPUT : input.current(), dt);
+    client.update(gameplayPaused() ? NO_INPUT : input.current(), dt);
     const sample = client.sample(now);
     const self = sample.players.find((player) => player.id === client.selfId);
     currentSelf = self;
