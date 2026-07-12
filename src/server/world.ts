@@ -9,10 +9,20 @@ import {
   starterEquipmentFor,
 } from "../shared/character.js";
 import {
+  canAct,
+  canBeResurrected,
+  canReclaim,
+  type LifeState,
+  RESURRECT_COOLDOWN_MS,
+  resurrectHp,
+  speedForLife,
+} from "../shared/death.js";
+import {
   ATTACK_COOLDOWN_MS,
   applyDamage,
   applyExperience,
   attackDamageFor,
+  CEMETERIES,
   CLASS_STATS,
   clampRestoredPosition,
   hasLineOfSight,
@@ -29,9 +39,9 @@ import {
   type MonsterKind,
   type MonsterSpecies,
   maxHpForLevel,
+  nearestCemetery,
   nextQuestChapter,
   OBSTACLES,
-  PLAYER_RESPAWN_MS,
   pointDistance,
   QUEST_DEFINITIONS,
   QUEST_NPC,
@@ -50,6 +60,7 @@ import {
 import {
   type ClientMessage,
   type Command,
+  type CorpseSnapshot,
   encodeServerMessage,
   type LootSnapshot,
   type MonsterSnapshot,
@@ -101,6 +112,8 @@ export interface Attachment extends Vec2 {
   equipment?: PlayerProfile["equipment"];
   inventory?: PlayerProfile["inventory"];
   quest?: PlayerProfile["quest"];
+  life?: PlayerProfile["life"];
+  corpse?: PlayerProfile["corpse"];
   ack?: number;
   lastSeq?: number;
 }
@@ -117,7 +130,7 @@ interface Player extends PlayerProfile {
   skillCooldowns: number[];
   guardUntil: number;
   guardReduction: number;
-  deadUntil: number;
+  lastResurrectAt: number;
   messageTimes: number[];
   malformedCount: number;
   questRunStartedAt: number;
@@ -160,6 +173,8 @@ function toProfile(player: Player): SaveableProfile {
     equipment: { ...player.equipment },
     inventory: { ...player.inventory },
     quest: { ...player.quest },
+    life: player.life,
+    corpse: player.corpse === null ? null : { ...player.corpse },
   };
 }
 
@@ -172,6 +187,7 @@ function newPlayer(profile: PlayerProfile, ack = 0, lastSeq = 0): Player {
     ...profile,
     appearance: { ...profile.appearance },
     equipment: { ...profile.equipment },
+    corpse: profile.corpse === null ? null : { ...profile.corpse },
     inventory: { ...profile.inventory },
     quest: { ...profile.quest },
     queue: [],
@@ -185,7 +201,7 @@ function newPlayer(profile: PlayerProfile, ack = 0, lastSeq = 0): Player {
     skillCooldowns: [0, 0, 0, 0, 0],
     guardUntil: 0,
     guardReduction: 0,
-    deadUntil: 0,
+    lastResurrectAt: 0,
     messageTimes: [],
     malformedCount: 0,
     questRunStartedAt: 0,
@@ -219,7 +235,19 @@ function profileFromAttachment(attachment: Attachment): PlayerProfile {
       target: questDefinition(attachment.quest?.chapter ?? "three_offerings").target,
     },
     hp: Math.min(maxHpForLevel(level), Math.max(1, attachment.hp ?? maxHpForLevel(level))),
+    ...lifeFromAttachment(attachment),
   };
+}
+
+/** A dead attachment must carry a body; if it does not, repair to alive rather than strand it. */
+function lifeFromAttachment(attachment: Attachment): {
+  life: LifeState;
+  corpse: Vec2 | null;
+} {
+  const life = attachment.life ?? "alive";
+  const corpse = attachment.corpse ?? null;
+  if (life === "alive" || corpse === null) return { life: "alive", corpse: null };
+  return { life, corpse: { ...corpse } };
 }
 
 /** Kept exported because rebuilding a ticking DO cannot be simulated safely in the test pool. */
@@ -308,10 +336,12 @@ export class World extends DurableObject<Env> {
         questNpc: QUEST_NPC,
         questNpcs: QUEST_DEFINITIONS.map((quest) => quest.giver),
         questSites: [...QUEST_SITES],
+        cemeteries: [...CEMETERIES],
       },
       players: this.#playerSnapshots(),
       monsters: this.#monsterSnapshots(),
       loot: this.#lootSnapshots(),
+      corpses: this.#corpseSnapshots(),
       self: this.#selfState(player),
     });
     this.#send(server, { t: "event", code: "wake", tone: "info" });
@@ -360,7 +390,8 @@ export class World extends DurableObject<Env> {
     if (message.t === "input") {
       if (message.seq <= player.lastSeq) return;
       player.lastSeq = message.seq;
-      if (player.deadUntil > Date.now()) {
+      // A corpse does not move. A ghost does — that is the whole point of the walk home.
+      if (player.life === "corpse") {
         player.ack = message.seq;
         player.lastInput = NO_INPUT;
         player.queue = [];
@@ -370,6 +401,12 @@ export class World extends DurableObject<Env> {
       player.queue.push({ seq: message.seq, input: message.input });
       return;
     }
+    if (message.t === "release") {
+      this.#release(ws, player);
+      return;
+    }
+    // The dead act only through the two exits above. Chat is the one thing a spirit keeps.
+    if (message.t !== "chat" && !canAct(player.life)) return;
     if (message.t === "attack") {
       this.#attack(ws, player);
       return;
@@ -397,7 +434,7 @@ export class World extends DurableObject<Env> {
 
   #attack(ws: WebSocket, player: Player): void {
     const now = Date.now();
-    if (player.deadUntil > now || now - player.lastAttackAt < ATTACK_COOLDOWN_MS) return;
+    if (!canAct(player.life) || now - player.lastAttackAt < ATTACK_COOLDOWN_MS) return;
     player.lastAttackAt = now;
 
     const stats = CLASS_STATS[player.class];
@@ -461,7 +498,7 @@ export class World extends DurableObject<Env> {
     }
 
     const now = Date.now();
-    if (player.deadUntil > now || (player.skillCooldowns[slot - 1] ?? 0) > now) return;
+    if (!canAct(player.life) || (player.skillCooldowns[slot - 1] ?? 0) > now) return;
 
     let cast = false;
     if (skill.effect === "teleport") {
@@ -507,7 +544,7 @@ export class World extends DurableObject<Env> {
       for (const target of targets) this.#skillDamage(ws, player, target, skill, now);
       cast = targets.length > 0;
     } else if (skill.effect === "area_heal") {
-      cast = this.#areaHeal(ws, player, skill, now) > 0;
+      cast = this.#areaHeal(ws, player, skill) > 0;
     } else if (skill.effect === "nova") {
       const targets = this.#monsters.filter(
         (monster) =>
@@ -516,7 +553,7 @@ export class World extends DurableObject<Env> {
           hasLineOfSight(player, monster),
       );
       for (const target of targets) this.#skillDamage(ws, player, target, skill, now);
-      cast = targets.length > 0 || this.#areaHeal(ws, player, skill, now) > 0;
+      cast = targets.length > 0 || this.#areaHeal(ws, player, skill) > 0;
     }
 
     if (!cast) {
@@ -598,10 +635,10 @@ export class World extends DurableObject<Env> {
     if (result.killed) this.#defeatMonster(ws, player, target, now);
   }
 
-  #areaHeal(ws: WebSocket, player: Player, skill: SkillDefinition, now: number): number {
+  #areaHeal(ws: WebSocket, player: Player, skill: SkillDefinition): number {
     let healed = 0;
     for (const [targetSocket, target] of this.#players) {
-      if (target.deadUntil > now || pointDistance(player, target) > (skill.radius ?? skill.range))
+      if (target.life !== "alive" || pointDistance(player, target) > (skill.radius ?? skill.range))
         continue;
       if (!hasLineOfSight(player, target)) continue;
       const maxHp = maxHpForLevel(target.level);
@@ -678,14 +715,14 @@ export class World extends DurableObject<Env> {
     const heal = CLASS_STATS[player.class].heal;
     if (!heal) return; // not a priest — intent silently ignored
     const now = Date.now();
-    if (player.deadUntil > now || now - player.lastHealAt < heal.cooldownMs) return;
+    if (!canAct(player.life) || now - player.lastHealAt < heal.cooldownMs) return;
 
     let target: Player | undefined;
     let targetSocket: WebSocket | undefined;
     let worstRatio = 1;
     let blockedInRange = false;
     for (const [socket, candidate] of this.#players) {
-      if (candidate.deadUntil > now) continue;
+      if (candidate.life !== "alive") continue;
       if (pointDistance(player, candidate) > heal.range) continue;
       const ratio = candidate.hp / maxHpForLevel(candidate.level);
       if (ratio >= 1) continue;
@@ -736,7 +773,10 @@ export class World extends DurableObject<Env> {
 
   #interact(ws: WebSocket, player: Player): void {
     const now = Date.now();
-    if (player.deadUntil > now) return;
+    if (!canAct(player.life)) return;
+    // A corpse is just one more thing you can be standing next to. The skill bar is full and
+    // this codebase resolves every action as "the nearest valid thing in range"; so does this.
+    if (this.#resurrectNearbyCorpse(ws, player, now)) return;
     const chapter = player.quest.chapter ?? "three_offerings";
     player.quest.chapter = chapter;
 
@@ -784,6 +824,65 @@ export class World extends DurableObject<Env> {
     }
     player.dirty = true;
     this.#sendState(ws, player);
+  }
+
+  /**
+   * A priest standing over a body calls its owner back where they lie. Returns true when the
+   * interact was spent on a corpse, so it does not fall through to the quest dispatch.
+   *
+   * A ghost is not a candidate: releasing shuts this door, which is what makes releasing a
+   * decision rather than a formality.
+   */
+  #resurrectNearbyCorpse(ws: WebSocket, player: Player, now: number): boolean {
+    const heal = CLASS_STATS[player.class].heal;
+    let target: Player | undefined;
+    let targetSocket: WebSocket | undefined;
+    let distance = heal?.range ?? INTERACTION_RANGE;
+
+    for (const [socket, candidate] of this.#players) {
+      if (socket === ws || !canBeResurrected(candidate.life) || candidate.corpse === null) continue;
+      const candidateDistance = pointDistance(player, candidate.corpse);
+      if (candidateDistance > distance) continue;
+      target = candidate;
+      targetSocket = socket;
+      distance = candidateDistance;
+    }
+    if (!target || !targetSocket) return false;
+
+    // Only now that we know a body is in reach is it worth telling a warrior he cannot help.
+    if (!heal) {
+      this.#send(ws, { t: "event", code: "resurrect.not_priest", tone: "info" });
+      return true;
+    }
+    if (now - player.lastResurrectAt < RESURRECT_COOLDOWN_MS) {
+      this.#send(ws, { t: "event", code: "resurrect.nobody", tone: "info" });
+      return true;
+    }
+
+    player.lastResurrectAt = now;
+    target.life = "alive";
+    target.corpse = null;
+    target.hp = resurrectHp(target.level);
+    this.#freeze(target);
+
+    this.#send(ws, {
+      t: "event",
+      code: "resurrect.cast",
+      params: { name: target.nick },
+      tone: "good",
+      x: target.x,
+      y: target.y,
+    });
+    this.#send(targetSocket, {
+      t: "event",
+      code: "death.resurrected",
+      params: { name: player.nick },
+      tone: "good",
+      x: target.x,
+      y: target.y,
+    });
+    this.#sendState(targetSocket, target);
+    return true;
   }
 
   #interactQuestSite(
@@ -883,8 +982,7 @@ export class World extends DurableObject<Env> {
 
   #usePotion(ws: WebSocket, player: Player): void {
     const maxHp = maxHpForLevel(player.level);
-    if (player.deadUntil > Date.now() || player.inventory.potions <= 0 || player.hp >= maxHp)
-      return;
+    if (!canAct(player.life) || player.inventory.potions <= 0 || player.hp >= maxHp) return;
     player.inventory.potions -= 1;
     player.hp = Math.min(maxHp, player.hp + 45);
     player.dirty = true;
@@ -971,9 +1069,7 @@ export class World extends DurableObject<Env> {
     const writeD1 = this.#tick % D1_SAVE_EVERY_TICKS === 0;
 
     for (const [ws, player] of this.#players) {
-      if (player.deadUntil > 0 && player.deadUntil <= now) this.#respawnPlayer(ws, player);
-
-      if (player.deadUntil <= now) {
+      if (player.life !== "corpse") {
         const command = player.queue.shift();
         if (command) {
           player.lastInput = command.input;
@@ -989,7 +1085,8 @@ export class World extends DurableObject<Env> {
           player.lastInput = NO_INPUT;
         }
 
-        const desired = step(player, player.lastInput, TICK_DT);
+        // The one place ghost speed enters the simulation. The client derives it identically.
+        const desired = step(player, player.lastInput, TICK_DT, speedForLife(player.life));
         const moved = resolveTerrain(player, desired);
         if (moved.x !== player.x || moved.y !== player.y) {
           player.x = moved.x;
@@ -998,7 +1095,8 @@ export class World extends DurableObject<Env> {
         }
       }
 
-      this.#collectLoot(ws, player, now);
+      if (canReclaim(player.life, player, player.corpse)) this.#reclaimCorpse(ws, player);
+      this.#collectLoot(ws, player);
       if (writeAttachment && player.dirty) ws.serializeAttachment(toAttachment(player));
       if (writeD1 && player.dirty) {
         this.ctx.waitUntil(this.#savePlayer(player));
@@ -1014,12 +1112,15 @@ export class World extends DurableObject<Env> {
       players: this.#playerSnapshots(),
       monsters: this.#monsterSnapshots(),
       loot: this.#lootSnapshots(),
+      corpses: this.#corpseSnapshots(),
     });
   }
 
   #advanceMonsters(now: number): void {
+    // Monsters do not see spirits. Without this the corpse run is unwinnable: you would die
+    // on the way to your own body, over and over.
     const players = Array.from(this.#players.entries()).filter(
-      ([, player]) => player.deadUntil <= now,
+      ([, player]) => player.life === "alive",
     );
     for (let index = 0; index < this.#monsters.length; index++) {
       const monster = this.#monsters[index];
@@ -1113,35 +1214,60 @@ export class World extends DurableObject<Env> {
       x: player.x,
       y: player.y,
     });
-    if (result.killed) {
-      player.deadUntil = now + PLAYER_RESPAWN_MS;
-      player.lastInput = NO_INPUT;
-      player.queue = [];
-      this.#broadcast({
-        t: "event",
-        code: "player.down",
-        params: { name: player.nick },
-        tone: "bad",
-      });
-    }
+    if (result.killed) this.#killPlayer(ws, player);
     this.#sendState(ws, player);
   }
 
-  #respawnPlayer(ws: WebSocket, player: Player): void {
-    const position = spawnPosition(player.id);
-    player.x = position.x;
-    player.y = position.y;
-    player.hp = maxHpForLevel(player.level);
-    player.deadUntil = 0;
+  /** Dying does not move you. Your body stays exactly where it fell, and you wait over it. */
+  #killPlayer(ws: WebSocket, player: Player): void {
+    player.life = "corpse";
+    player.corpse = { x: player.x, y: player.y };
+    this.#freeze(player);
+    this.#broadcast({
+      t: "event",
+      code: "player.down",
+      params: { name: player.nick },
+      tone: "bad",
+    });
+    this.#send(ws, { t: "event", code: "death.fallen", tone: "bad", x: player.x, y: player.y });
+  }
+
+  /**
+   * Every life transition is a teleport or a freeze, so the queue must go with it: replaying
+   * commands buffered as one life state across another is exactly the desync prediction exists
+   * to catch. The client prunes on the `ack` that rides along with the next snapshot.
+   */
+  #freeze(player: Player): void {
     player.lastInput = NO_INPUT;
     player.queue = [];
+    player.starvedTicks = 0;
     player.dirty = true;
-    this.#send(ws, { t: "event", code: "respawn", tone: "info" });
+  }
+
+  /** Release is one-way and deliberate. It is what closes the door on a priest saving you. */
+  #release(ws: WebSocket, player: Player): void {
+    if (player.life !== "corpse" || player.corpse === null) return;
+    const cemetery = nearestCemetery(player.corpse);
+    player.life = "ghost";
+    player.x = cemetery.x;
+    player.y = cemetery.y;
+    this.#freeze(player);
+    this.#send(ws, { t: "event", code: "death.released", tone: "info", x: player.x, y: player.y });
     this.#sendState(ws, player);
   }
 
-  #collectLoot(ws: WebSocket, player: Player, now: number): void {
-    if (player.deadUntil > now) return;
+  /** Walking your ghost onto your own body. Automatic within range, like loot. */
+  #reclaimCorpse(ws: WebSocket, player: Player): void {
+    player.life = "alive";
+    player.corpse = null;
+    player.hp = resurrectHp(player.level);
+    this.#freeze(player);
+    this.#send(ws, { t: "event", code: "death.reclaimed", tone: "good", x: player.x, y: player.y });
+    this.#sendState(ws, player);
+  }
+
+  #collectLoot(ws: WebSocket, player: Player): void {
+    if (!canAct(player.life)) return;
     for (let i = this.#loot.length - 1; i >= 0; i--) {
       const item = this.#loot[i];
       if (!item || pointDistance(player, item) > LOOT_PICKUP_RANGE) continue;
@@ -1176,6 +1302,8 @@ export class World extends DurableObject<Env> {
         target: questDefinition(chapter).target,
         ...(timerEndsAt === undefined ? {} : { timerEndsAt }),
       },
+      life: player.life,
+      corpse: player.corpse === null ? null : { ...player.corpse },
     };
   }
 
@@ -1184,7 +1312,6 @@ export class World extends DurableObject<Env> {
   }
 
   #playerSnapshots(): PlayerSnapshot[] {
-    const now = Date.now();
     return Array.from(this.#players.values(), (player) => ({
       id: player.id,
       nick: player.nick,
@@ -1197,8 +1324,29 @@ export class World extends DurableObject<Env> {
       appearance: player.appearance,
       class: player.class,
       equipment: { ...player.equipment },
-      dead: player.deadUntil > now,
+      life: player.life,
     }));
+  }
+
+  /**
+   * A body exists for as long as its owner has one — while they lie over it *and* while their
+   * ghost is walking back to it. Emitting only the former would make your corpse vanish at the
+   * exact moment you released, which is the moment you start needing to find it.
+   */
+  #corpseSnapshots(): CorpseSnapshot[] {
+    const corpses: CorpseSnapshot[] = [];
+    for (const player of this.#players.values()) {
+      if (player.corpse === null) continue;
+      corpses.push({
+        id: player.id,
+        nick: player.nick,
+        class: player.class,
+        appearance: player.appearance,
+        x: player.corpse.x,
+        y: player.corpse.y,
+      });
+    }
+    return corpses;
   }
 
   #monsterSnapshots(): MonsterSnapshot[] {

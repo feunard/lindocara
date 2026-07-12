@@ -6,8 +6,12 @@
 import { env, runInDurableObject, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { type Attachment, positionFromAttachment } from "../src/server/world.js";
+import { CORPSE_RECLAIM_RANGE, RESURRECT_HP_RATIO } from "../src/shared/death.js";
 import {
+  CEMETERIES,
   isWalkable,
+  maxHpForLevel,
+  nearestCemetery,
   OBSTACLES,
   type PlayerClass,
   QUEST_DEFINITIONS,
@@ -20,6 +24,7 @@ import {
   WORLD_LANDMARKS,
 } from "../src/shared/game.js";
 import {
+  type CorpseSnapshot,
   type PlayerSnapshot,
   parseServerMessage,
   type QuestStatus,
@@ -206,6 +211,11 @@ class Client {
     this.#socket.send(JSON.stringify({ t: type }));
   }
 
+  /** Let go of the body. Not to be confused with release(), which lets go of the keys. */
+  releaseSpirit(): void {
+    this.#socket.send(JSON.stringify({ t: "release" }));
+  }
+
   skill(slot: number): void {
     this.#socket.send(JSON.stringify({ t: "skill", slot }));
   }
@@ -250,6 +260,12 @@ class Client {
   self(): PlayerSnapshot | undefined {
     const id = this.welcome?.selfId;
     return id ? this.latestSnapshot?.players.find((p) => p.id === id) : undefined;
+  }
+
+  /** This player's body, if they have left one lying around. */
+  corpse(): CorpseSnapshot | undefined {
+    const id = this.welcome?.selfId;
+    return id ? this.latestSnapshot?.corpses.find((c) => c.id === id) : undefined;
   }
 }
 
@@ -934,7 +950,7 @@ describe("World", () => {
     await until("welcome", () => priest.welcome);
     await until(
       "the monster to kill the priest",
-      () => (priest.self()?.dead ? priest.self() : undefined),
+      () => (priest.self()?.life === "corpse" ? priest.self() : undefined),
       10_000,
     );
 
@@ -1046,5 +1062,313 @@ describe("positionFromAttachment", () => {
     expect(positionFromAttachment({ id: "returning-id", nick: "n", x: -500, y: 500 })).toEqual(
       expected,
     );
+  });
+});
+
+/**
+ * Death, end to end. Dying leaves a body; the body is the only way back, by one of two routes.
+ *
+ * These drive the real Durable Object, so they assert on *which* ids are present, never on how
+ * many — a straggler from an earlier test is still disconnecting and must not be able to fail
+ * an assertion here.
+ */
+describe("death, ghosts, and the corpse run", () => {
+  /** Park on the first road goblin's spawn with 1 HP: it aggros, and one hit is fatal. */
+  const KILL_ZONE = { x: 1870, y: 820 };
+
+  async function joinAndDie(nickname: string, options: { class?: PlayerClass } = {}) {
+    const client = await Client.join(nickname, { ...options, position: KILL_ZONE, hp: 1 });
+    await until("welcome", () => client.welcome);
+    await until(
+      "the goblin to land a killing blow",
+      () => (client.self()?.life === "corpse" ? client.self() : undefined),
+      10_000,
+    );
+    return client;
+  }
+
+  it("leaves a body where you fell, and freezes you over it", { timeout: 10_000 }, async () => {
+    const player = await joinAndDie("faller");
+
+    const corpse = player.corpse();
+    expect(corpse).toBeDefined();
+    // The body lies where the player fell, not at a spawn point: dying does not move you.
+    expect(corpse?.x).toBeCloseTo(player.self()?.x ?? -1, 5);
+    expect(corpse?.y).toBeCloseTo(player.self()?.y ?? -1, 5);
+    expect(player.latestState?.life).toBe("corpse");
+
+    // A corpse does not walk, no matter how hard the client pushes.
+    const before = { x: player.self()?.x, y: player.self()?.y };
+    player.press("left");
+    await scheduler.wait(400);
+    expect(player.self()?.x).toBeCloseTo(before.x ?? -1, 5);
+    expect(player.self()?.y).toBeCloseTo(before.y ?? -1, 5);
+
+    player.close();
+  });
+
+  it("sends a released spirit to the nearest cemetery", { timeout: 10_000 }, async () => {
+    const player = await joinAndDie("releaser");
+    const corpse = player.corpse();
+    if (!corpse) throw new Error("expected a body");
+
+    player.releaseSpirit();
+    await until("the ghost to rise", () =>
+      player.self()?.life === "ghost" ? player.self() : undefined,
+    );
+
+    const expected = nearestCemetery(corpse);
+    // Nearest, not merely *a* cemetery — the whole point is that the walk home stays short.
+    expect(expected.id).toBe(
+      [...CEMETERIES].sort(
+        (a, b) =>
+          Math.hypot(a.x - corpse.x, a.y - corpse.y) - Math.hypot(b.x - corpse.x, b.y - corpse.y),
+      )[0]?.id,
+    );
+    expect(player.self()?.x).toBeCloseTo(expected.x, 5);
+    expect(player.self()?.y).toBeCloseTo(expected.y, 5);
+
+    // And the body stays behind. If it vanished on release there would be nothing to run to.
+    expect(player.corpse()?.x).toBeCloseTo(corpse.x, 5);
+    expect(player.corpse()?.y).toBeCloseTo(corpse.y, 5);
+
+    player.close();
+  });
+
+  it("lets a ghost walk, faster than the living", { timeout: 10_000 }, async () => {
+    const player = await joinAndDie("walker");
+    player.releaseSpirit();
+    await until("the ghost to rise", () =>
+      player.self()?.life === "ghost" ? player.self() : undefined,
+    );
+
+    const start = player.self();
+    if (!start) throw new Error("expected a ghost");
+    const { direction, sign } = awayFromNearestWall(start.x);
+    player.press(direction);
+    await scheduler.wait(500);
+    player.release();
+    await scheduler.wait(120);
+
+    const travelled = ((player.self()?.x ?? start.x) - start.x) * sign;
+    expect(travelled).toBeGreaterThan(0);
+    // Ghost speed, not living speed: over half a second the gap is far wider than the slop.
+    expect(travelled).toBeGreaterThan(PLAYER_SPEED * 0.35);
+
+    player.close();
+  });
+
+  it("hides a ghost from the monsters that killed it", { timeout: 12_000 }, async () => {
+    const player = await joinAndDie("unhaunted");
+    player.releaseSpirit();
+    await until("the ghost to rise", () =>
+      player.self()?.life === "ghost" ? player.self() : undefined,
+    );
+    const hurtBefore = player.received.filter(
+      (m) => m.t === "event" && m.code === "combat.hurt",
+    ).length;
+
+    // Walk the ghost straight back onto the goblin that killed it and stand there.
+    const corpse = player.corpse();
+    if (!corpse) throw new Error("expected a body");
+    await scheduler.wait(1_500);
+
+    const hurtAfter = player.received.filter(
+      (m) => m.t === "event" && m.code === "combat.hurt",
+    ).length;
+    expect(hurtAfter).toBe(hurtBefore);
+    expect(player.self()?.life).toBe("ghost");
+
+    player.close();
+  });
+
+  it("drops every action a spirit tries to take", { timeout: 10_000 }, async () => {
+    const player = await joinAndDie("inert", { class: "priest" });
+    const potionsBefore = player.latestState?.inventory.potions ?? 0;
+    // Everything before this point includes the blow that killed us. Only what comes after counts.
+    const mark = player.received.length;
+
+    player.action("attack");
+    player.action("heal");
+    player.action("interact");
+    player.usePotion();
+    player.skill(3);
+    await scheduler.wait(300);
+
+    // Not "rejected with an explanation" — dropped outright. A corpse gets no events at all.
+    const acted = player.received
+      .slice(mark)
+      .filter(
+        (m) =>
+          m.t === "event" &&
+          (String(m.code).startsWith("heal.") ||
+            String(m.code).startsWith("skill.") ||
+            m.code === "combat.too_far" ||
+            m.code === "combat.blocked" ||
+            m.code === "combat.hit" ||
+            m.code === "potion.used" ||
+            m.code === "interact.nothing"),
+      );
+    expect(acted).toEqual([]);
+    expect(player.latestState?.inventory.potions).toBe(potionsBefore);
+    expect(player.self()?.life).toBe("corpse");
+
+    player.close();
+  });
+
+  it("revives a ghost that reaches its own body", { timeout: 15_000 }, async () => {
+    const player = await joinAndDie("reclaimer");
+    const corpse = player.corpse();
+    if (!corpse) throw new Error("expected a body");
+
+    player.releaseSpirit();
+    await until("the ghost to rise", () =>
+      player.self()?.life === "ghost" ? player.self() : undefined,
+    );
+
+    // Walk the ghost home. It is a long way, so steer each tick rather than holding one key.
+    const arrived = await until(
+      "the ghost to reach its body and draw breath",
+      () => {
+        const self = player.self();
+        if (!self) return undefined;
+        if (self.life === "alive") return self;
+        const dx = corpse.x - self.x;
+        const dy = corpse.y - self.y;
+        if (Math.abs(dx) > Math.abs(dy)) player.press(dx > 0 ? "right" : "left");
+        else player.press(dy > 0 ? "down" : "up");
+        return undefined;
+      },
+      14_000,
+    );
+
+    expect(arrived.life).toBe("alive");
+    // Back at the body, not at a spawn point, and paying for it in health.
+    expect(Math.hypot(arrived.x - corpse.x, arrived.y - corpse.y)).toBeLessThanOrEqual(
+      CORPSE_RECLAIM_RANGE,
+    );
+    expect(arrived.hp).toBe(Math.round(maxHpForLevel(arrived.level) * RESURRECT_HP_RATIO));
+    expect(player.corpse()).toBeUndefined();
+    expect(player.received.some((m) => m.t === "event" && m.code === "death.reclaimed")).toBe(true);
+
+    player.close();
+  });
+
+  it("lets a priest raise a body in place", { timeout: 12_000 }, async () => {
+    const fallen = await joinAndDie("raisable");
+    const corpse = fallen.corpse();
+    if (!corpse) throw new Error("expected a body");
+
+    // Stand the priest on the body. Interact is the resurrect: no sixth skill slot needed.
+    const priest = await Client.join("raiser", {
+      class: "priest",
+      position: { x: corpse.x + 20, y: corpse.y },
+      level: 5,
+    });
+    await until("priest welcome", () => priest.welcome);
+    priest.action("interact");
+
+    const raised = await until(
+      "the fallen to be called back",
+      () => (fallen.self()?.life === "alive" ? fallen.self() : undefined),
+      8_000,
+    );
+
+    // Raised where they lay — the whole value of a priest is that you skip the walk.
+    expect(Math.hypot(raised.x - corpse.x, raised.y - corpse.y)).toBeLessThanOrEqual(2);
+    expect(raised.hp).toBe(Math.round(maxHpForLevel(raised.level) * RESURRECT_HP_RATIO));
+    expect(fallen.corpse()).toBeUndefined();
+    expect(fallen.received.some((m) => m.t === "event" && m.code === "death.resurrected")).toBe(
+      true,
+    );
+
+    priest.close();
+    fallen.close();
+  });
+
+  it("refuses a warrior standing on the same body", { timeout: 12_000 }, async () => {
+    const fallen = await joinAndDie("unraisable");
+    const corpse = fallen.corpse();
+    if (!corpse) throw new Error("expected a body");
+
+    const warrior = await Client.join("wrongclass", {
+      class: "warrior",
+      position: { x: corpse.x + 20, y: corpse.y },
+    });
+    await until("warrior welcome", () => warrior.welcome);
+    warrior.action("interact");
+    await scheduler.wait(400);
+
+    expect(fallen.self()?.life).toBe("corpse");
+    expect(warrior.received.some((m) => m.t === "event" && m.code === "resurrect.not_priest")).toBe(
+      true,
+    );
+
+    warrior.close();
+    fallen.close();
+  });
+
+  it("closes the priest's door once you release", { timeout: 12_000 }, async () => {
+    const fallen = await joinAndDie("gone");
+    const corpse = fallen.corpse();
+    if (!corpse) throw new Error("expected a body");
+
+    fallen.releaseSpirit();
+    await until("the ghost to rise", () =>
+      fallen.self()?.life === "ghost" ? fallen.self() : undefined,
+    );
+
+    // The body is still lying there, but its owner has left it. Releasing is one-way.
+    const priest = await Client.join("late_priest", {
+      class: "priest",
+      position: { x: corpse.x + 20, y: corpse.y },
+      level: 5,
+    });
+    await until("priest welcome", () => priest.welcome);
+    priest.action("interact");
+    await scheduler.wait(400);
+
+    // Assert on *this* ghost, never on the absence of any resurrect at all: the world is one
+    // Durable Object across this file, and a straggler's body could be lying in the same dirt.
+    expect(fallen.self()?.life).toBe("ghost");
+    expect(fallen.corpse()).toBeDefined();
+    expect(fallen.received.some((m) => m.t === "event" && m.code === "death.resurrected")).toBe(
+      false,
+    );
+
+    priest.close();
+    fallen.close();
+  });
+
+  it("survives a reconnect: logging out is not a resurrection", { timeout: 15_000 }, async () => {
+    const session = await testCharacter("persistent", { position: KILL_ZONE, hp: 1 });
+    const first = await Client.joinCharacter(session);
+    await until("welcome", () => first.welcome);
+    const died = await until(
+      "the goblin to land a killing blow",
+      () => (first.self()?.life === "corpse" ? first.self() : undefined),
+      10_000,
+    );
+
+    first.releaseSpirit();
+    await until("the ghost to rise", () =>
+      first.self()?.life === "ghost" ? first.self() : undefined,
+    );
+    // Give the world its five-second D1 write, then vanish mid-corpse-run.
+    await scheduler.wait(5_500);
+    first.close();
+    await scheduler.wait(300);
+
+    const second = await Client.joinCharacter(session);
+    const welcome = await until("the second welcome", () => second.welcome);
+    await until("the first snapshot", () => second.latestSnapshot);
+
+    // Still a ghost, and the body is still out there waiting.
+    expect(welcome.self.life).toBe("ghost");
+    expect(welcome.self.corpse?.x).toBeCloseTo(died.x, 0);
+    expect(welcome.self.corpse?.y).toBeCloseTo(died.y, 0);
+    expect(second.corpse()).toBeDefined();
+
+    second.close();
   });
 });

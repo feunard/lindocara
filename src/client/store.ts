@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { Equipment } from "../shared/character.js";
+import type { LifeState } from "../shared/death.js";
 import type { PlayerClass } from "../shared/game.js";
 import type { MessageKey } from "../shared/i18n/index.js";
 import type { QuestStatus, SelfState } from "../shared/protocol.js";
@@ -29,7 +30,9 @@ export interface SelfHud {
   level: number;
   hp: number;
   maxHp: number;
-  dead: boolean;
+  life: LifeState;
+  /** How far your ghost still has to walk. Null unless you are one. */
+  corpseDistance: number | null;
   class: PlayerClass;
   equipment: Equipment;
 }
@@ -38,6 +41,7 @@ export interface GameHandle {
   attack(): void;
   interact(): void;
   usePotion(): void;
+  release(): void;
   heal(): void;
   castSkill(slot: SkillSlot): void;
   sendChat(text: string): void;
@@ -93,7 +97,9 @@ function selfHudEqual(a: SelfHud | null, b: SelfHud | null): boolean {
     a.level === b.level &&
     a.hp === b.hp &&
     a.maxHp === b.maxHp &&
-    a.dead === b.dead &&
+    a.life === b.life &&
+    // Rounded to the metre by the writer, so a walking ghost re-renders the HUD ~1x/step.
+    a.corpseDistance === b.corpseDistance &&
     a.class === b.class &&
     a.equipment.mainHand === b.equipment.mainHand &&
     a.equipment.offHand === b.equipment.offHand

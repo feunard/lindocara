@@ -151,6 +151,13 @@ export const en = {
   "skill.priest.divine_nova.name": "Divine Nova",
 
   // HUD
+  "death.fallen_title": "You have fallen",
+  "death.fallen_copy":
+    "Your body lies where you fell. A priest may still call you back — or you can let go.",
+  "death.release": "Release spirit [R]",
+  "death.ghost_title": "Your spirit walks",
+  "death.ghost_copy": "Find your body and reclaim it.",
+  "death.ghost_distance": "Your body lies {distance}m away. Walk back to it.",
   "hud.level": "Level {level}",
   "hud.lv": "Lv {level}",
   "hud.vit": "VIT",
@@ -218,6 +225,7 @@ export const en = {
   "help.strike": "strike",
   "help.commune": "commune",
   "help.tonic": "tonic",
+  "help.release": "release spirit",
   "help.settings": "settings",
 
   // Pause / settings menu
@@ -321,12 +329,18 @@ export const en = {
   "event.quest.site_harvested": "Collected {site}. It regrows in {seconds} seconds.",
   "event.potion.used": "Heartroot tonic: +{heal} HP.",
   "event.player.down": "{name} was knocked out.",
-  "event.respawn": "The Heartroot calls you home.",
   "event.loot.picked": "Picked up {amount} {kind}.",
   "event.heal.cast": "You mend {name} for {amount}.",
   "event.heal.received": "{name} mends you for {amount}.",
   "event.heal.nobody": "No one nearby needs mending.",
   "event.heal.blocked": "Someone nearby needs mending, but the path is blocked.",
+  "event.death.fallen": "You have fallen. Wait for a priest, or press [R] to release your spirit.",
+  "event.death.released": "Your spirit rises. Your body lies where you fell — walk back to it.",
+  "event.death.reclaimed": "You reclaim your body and draw breath again.",
+  "event.death.resurrected": "{name} calls you back from the edge.",
+  "event.resurrect.cast": "You bring {name} back.",
+  "event.resurrect.nobody": "No body lies close enough to mend.",
+  "event.resurrect.not_priest": "Only a priest can call the fallen back.",
   "event.skill.cast": "{skill} activated.",
   "event.skill.no_target": "No valid target for {skill}.",
   "event.skill.blocked": "The path to the target is blocked.",

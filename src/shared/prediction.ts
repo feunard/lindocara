@@ -11,9 +11,10 @@
  * rules. That is the whole reason they live in `shared/`.
  */
 
+import { type LifeState, speedForLife } from "./death.js";
 import { resolveTerrain } from "./game.js";
 import type { Command } from "./protocol.js";
-import { step, TICK_DT, type Vec2 } from "./simulation.js";
+import { PLAYER_SPEED, step, TICK_DT, type Vec2 } from "./simulation.js";
 
 /**
  * A frame can be arbitrarily long — a backgrounded tab resumes with a multi-second delta.
@@ -40,18 +41,28 @@ export function prunePending(pending: readonly Command[], ack: number): Command[
   return pending.filter((command) => command.seq > ack);
 }
 
-export function predictStep(position: Vec2, command: Command): Vec2 {
-  return resolveTerrain(position, step(position, command.input, TICK_DT));
+export function predictStep(position: Vec2, command: Command, speed: number = PLAYER_SPEED): Vec2 {
+  return resolveTerrain(position, step(position, command.input, TICK_DT, speed));
 }
 
 /**
  * Where the player really is, given the server's last word and everything it has not seen yet.
  * Each pending command advanced the world by exactly one fixed tick, so replay uses TICK_DT.
+ *
+ * A ghost moves faster than the living, so replay has to know which you are — a replay at the
+ * wrong speed is exactly the silent desync prediction exists to prevent. The server clears the
+ * command queue on every life transition, so a batch of pending commands is never split across
+ * two life states.
  */
-export function reconcile(authoritative: Vec2, pending: readonly Command[]): Vec2 {
+export function reconcile(
+  authoritative: Vec2,
+  pending: readonly Command[],
+  life: LifeState = "alive",
+): Vec2 {
+  const speed = speedForLife(life);
   let position: Vec2 = authoritative;
   for (const command of pending) {
-    position = predictStep(position, command);
+    position = predictStep(position, command, speed);
   }
   return position;
 }

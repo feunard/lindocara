@@ -156,6 +156,13 @@ export const fr: Record<keyof typeof en, string> = {
   "skill.priest.divine_nova.name": "Nova divine",
 
   // ATH
+  "death.fallen_title": "Vous êtes tombé",
+  "death.fallen_copy":
+    "Votre corps gît là où vous êtes tombé. Un prêtre peut encore vous rappeler — ou vous pouvez lâcher prise.",
+  "death.release": "Libérer l'esprit [R]",
+  "death.ghost_title": "Votre esprit erre",
+  "death.ghost_copy": "Retrouvez votre corps et reprenez-le.",
+  "death.ghost_distance": "Votre corps gît à {distance} m. Retournez-y.",
   "hud.level": "Niveau {level}",
   "hud.lv": "Niv {level}",
   "hud.vit": "VIT",
@@ -224,6 +231,7 @@ export const fr: Record<keyof typeof en, string> = {
   "help.strike": "frapper",
   "help.commune": "communier",
   "help.tonic": "tonique",
+  "help.release": "libérer l'esprit",
   "help.settings": "paramètres",
 
   // Menu pause / paramètres
@@ -328,12 +336,20 @@ export const fr: Record<keyof typeof en, string> = {
   "event.quest.site_harvested": "{site} récolté. Réapparition dans {seconds} secondes.",
   "event.potion.used": "Tonique du Cœur-Racine : +{heal} PV.",
   "event.player.down": "{name} a été terrassé.",
-  "event.respawn": "Le Cœur-Racine vous rappelle à lui.",
   "event.loot.picked": "Ramassé : {amount} × {kind}.",
   "event.heal.cast": "Vous soignez {name} : +{amount} PV.",
   "event.heal.received": "{name} vous soigne : +{amount} PV.",
   "event.heal.nobody": "Personne à soigner aux alentours.",
   "event.heal.blocked": "Quelqu'un à portée a besoin de soins, mais le chemin est bloqué.",
+  "event.death.fallen":
+    "Vous êtes tombé. Attendez un prêtre, ou pressez [R] pour libérer votre esprit.",
+  "event.death.released":
+    "Votre esprit s'élève. Votre corps gît là où vous êtes tombé — retournez-y.",
+  "event.death.reclaimed": "Vous reprenez votre corps et respirez à nouveau.",
+  "event.death.resurrected": "{name} vous rappelle du seuil.",
+  "event.resurrect.cast": "Vous ramenez {name}.",
+  "event.resurrect.nobody": "Aucun corps assez proche à relever.",
+  "event.resurrect.not_priest": "Seul un prêtre peut rappeler les morts.",
   "event.skill.cast": "{skill} activé.",
   "event.skill.no_target": "Aucune cible valide pour {skill}.",
   "event.skill.blocked": "Le chemin vers la cible est bloqué.",

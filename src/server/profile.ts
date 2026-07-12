@@ -5,8 +5,10 @@ import {
   normalizeAppearance,
   normalizeEquipment,
 } from "../shared/character.js";
+import { isLifeState, type LifeState } from "../shared/death.js";
 import {
   clampRestoredPosition,
+  isWalkable,
   maxHpForLevel,
   type PlayerClass,
   questDefinition,
@@ -26,6 +28,22 @@ export interface PlayerProfile extends Vec2 {
   equipment: Equipment;
   inventory: Inventory;
   quest: QuestState;
+  life: LifeState;
+  /** Null exactly when `life` is "alive". */
+  corpse: Vec2 | null;
+}
+
+/**
+ * A dead row must carry a body. If the two ever disagree — a hand-edited row, a half-applied
+ * migration — repair to alive rather than stranding a ghost with nothing to walk back to.
+ */
+function lifeFromRow(row: Character): { life: LifeState; corpse: Vec2 | null } {
+  const life = isLifeState(row.life) ? row.life : "alive";
+  if (life === "alive") return { life: "alive", corpse: null };
+  if (row.corpseX === null || row.corpseY === null) return { life: "alive", corpse: null };
+  const corpse = { x: row.corpseX, y: row.corpseY };
+  if (!isWalkable(corpse)) return { life: "alive", corpse: null };
+  return { life, corpse };
 }
 
 function fromRow(row: Character): PlayerProfile {
@@ -58,6 +76,7 @@ function fromRow(row: Character): PlayerProfile {
       progress: Math.max(0, row.questProgress),
       target: questDefinition(row.questChapter).target,
     },
+    ...lifeFromRow(row),
   };
 }
 
@@ -96,6 +115,9 @@ export async function saveProfile(db: Db, profile: SaveableProfile): Promise<voi
       questStatus: profile.quest.status,
       questChapter: profile.quest.chapter ?? "three_offerings",
       questProgress: profile.quest.progress,
+      life: profile.life,
+      corpseX: profile.corpse?.x ?? null,
+      corpseY: profile.corpse?.y ?? null,
       lastSeenAt: new Date(),
     })
     .where(eq(character.id, profile.id));

@@ -1,3 +1,4 @@
+import { isSpirit } from "../../shared/death.js";
 import {
   ATTACK_COOLDOWN_MS,
   CLASS_STATS,
@@ -15,7 +16,7 @@ import type {
   QuestState,
   SelfState,
 } from "../../shared/protocol.js";
-import { NO_INPUT } from "../../shared/simulation.js";
+import { NO_INPUT, type Vec2 } from "../../shared/simulation.js";
 import { type SkillSlot, skillFor } from "../../shared/skills.js";
 import { type CharacterSummary, logout } from "../api.js";
 import { t } from "../i18n.js";
@@ -71,7 +72,7 @@ function closeInterior(): void {
   useUiStore.getState().setInteriorDoorId(null);
 }
 
-function renderPlayer(player: PlayerSnapshot | undefined): void {
+function renderPlayer(player: PlayerSnapshot | undefined, corpse: Vec2 | null): void {
   useUiStore.getState().setSelf(
     player
       ? {
@@ -79,7 +80,10 @@ function renderPlayer(player: PlayerSnapshot | undefined): void {
           level: player.level,
           hp: player.hp,
           maxHp: player.maxHp,
-          dead: player.dead,
+          life: player.life,
+          // Rounded, so a walking ghost does not re-render the HUD every frame.
+          corpseDistance:
+            player.life === "ghost" && corpse ? Math.round(pointDistance(player, corpse)) : null,
           class: player.class,
           equipment: { ...player.equipment },
         }
@@ -125,7 +129,7 @@ function updatePrompt(
   let result: LocalizedText | null = null;
   // Prompt.tsx hides the floating prompt whenever the interior panel is open, so a
   // "close_interior" key here would never render - don't bother computing one.
-  if (interiorOpen() || !self || self.dead) {
+  if (interiorOpen() || !self || isSpirit(self.life)) {
     result = null;
   } else {
     const chapter = quest.chapter ?? "three_offerings";
@@ -194,6 +198,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
   let attackCooldownUntil = 0;
   let welcomed = false;
   let currentSelf: PlayerSnapshot | undefined;
+  let selfCorpse: Vec2 | null = null;
   const playerClass = () => currentSelf?.class ?? character.class;
 
   const unlockAudio = () => sound.unlock();
@@ -205,6 +210,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       onWelcome: (selfId, _world, state) => {
         renderer.setSelfId(selfId);
         questState = state.quest;
+        selfCorpse = state.corpse;
         renderState(state);
         setStatus("status.connected");
         if (!welcomed) {
@@ -214,6 +220,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       },
       onState: (state) => {
         questState = state.quest;
+        selfCorpse = state.corpse;
         renderState(state);
       },
       onChat: (from, text) => {
@@ -273,8 +280,16 @@ export async function startGame(character: CharacterSummary): Promise<void> {
             sound.healReceived();
             break;
           case "player.down":
-          case "respawn":
+          case "death.fallen":
+          case "death.released":
             sound.death();
+            break;
+          case "death.reclaimed":
+          case "death.resurrected":
+            sound.levelUp();
+            break;
+          case "resurrect.cast":
+            sound.healReceived();
             break;
           case "combat.hit":
             sound.combatImpact(playerClass());
@@ -350,6 +365,11 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     sound.unlock();
     connection.heal();
   };
+  const release = () => {
+    if (interiorOpen()) return;
+    sound.unlock();
+    connection.release();
+  };
   const castSkill = (slot: SkillSlot) => {
     if (interiorOpen()) return;
     const playerClass = currentSelf?.class ?? character.class;
@@ -381,6 +401,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     interact,
     usePotion,
     heal,
+    release,
     castSkill,
     focusChat: () => {
       input.reset();
@@ -393,6 +414,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     interact,
     usePotion,
     heal,
+    release,
     castSkill,
     sendChat: connection.sendChat,
     switchCharacter,
@@ -432,7 +454,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       ...(self ? { self } : {}),
     };
     renderer.render(sample, context);
-    renderPlayer(self);
+    renderPlayer(self, selfCorpse);
     updatePrompt(self, questState, door);
   });
   window.addEventListener("beforeunload", () => connection.close());

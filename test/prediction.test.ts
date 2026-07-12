@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { speedForLife } from "../src/shared/death.js";
 import { resolveTerrain } from "../src/shared/game.js";
 import { prunePending, reconcile } from "../src/shared/prediction.js";
 import type { Command } from "../src/shared/protocol.js";
@@ -62,6 +63,30 @@ describe("reconcile", () => {
 
     // The client, reconciling from a server position that predates all of them.
     expect(reconcile(origin, commands)).toEqual(server);
+  });
+
+  /**
+   * The same property, for a ghost. A ghost moves faster than the living, so replay has to
+   * know which you are — replaying a ghost's commands at living speed would leave the client
+   * drawing its own spirit permanently short of where the server has actually put it, and
+   * nothing in the protocol would ever complain.
+   */
+  it("lands where the server will for a ghost too, at ghost speed", () => {
+    const commands = [
+      command(1, { right: true }),
+      command(2, { right: true, down: true }),
+      command(3, { down: true }),
+    ];
+    const ghostSpeed = speedForLife("ghost");
+
+    let server: Vec2 = origin;
+    for (const c of commands) {
+      server = resolveTerrain(server, step(server, c.input, TICK_DT, ghostSpeed));
+    }
+
+    expect(reconcile(origin, commands, "ghost")).toEqual(server);
+    // And the living replay must NOT land there — otherwise this test proves nothing.
+    expect(reconcile(origin, commands, "alive")).not.toEqual(server);
   });
 
   it("respects the world walls while replaying", () => {

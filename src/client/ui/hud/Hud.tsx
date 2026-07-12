@@ -6,6 +6,7 @@ import { t, useLocale } from "../../i18n.js";
 import { useUiStore } from "../../store.js";
 import { Bar } from "./Bar.js";
 import { CooldownBar } from "./CooldownBar.js";
+import { DeathOverlay } from "./DeathOverlay.js";
 import { HealCooldownBar } from "./HealCooldownBar.js";
 import { InventoryChip } from "./InventoryChip.js";
 import { SkillBar } from "./SkillBar.js";
@@ -87,6 +88,7 @@ export function Hud() {
 
   return (
     <>
+      <DeathOverlay />
       <aside id="hud">
         <section className="panel identity">
           <div className="crest" aria-hidden="true" />

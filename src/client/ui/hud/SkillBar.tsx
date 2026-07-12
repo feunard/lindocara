@@ -38,7 +38,7 @@ export function SkillBar() {
             type="button"
             key={skill.id}
             className={unavailable ? "skill-slot cooling" : "skill-slot"}
-            disabled={!game || self.dead || unavailable}
+            disabled={!game || self.life !== "alive" || unavailable}
             onClick={() => game?.castSkill(skill.slot)}
             aria-label={`${skill.slot}. ${name}`}
             aria-keyshortcuts={String(skill.slot)}

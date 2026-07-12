@@ -57,7 +57,8 @@ export type LandmarkKind =
   | "farm"
   | "ruin"
   | "swamp_shrine"
-  | "dungeon_gate";
+  | "dungeon_gate"
+  | "graveyard";
 
 export interface WorldLandmark extends Vec2 {
   id: string;
@@ -190,6 +191,21 @@ export const SPAWN_POINTS: readonly Vec2[] = Array.from({ length: 48 }, (_, inde
   y: 500 + Math.floor(index / 8) * 112,
 }));
 
+export interface Cemetery extends Vec2 {
+  id: string;
+}
+
+/**
+ * Spirit anchors. Releasing puts your ghost at the one nearest your corpse, which is what
+ * keeps the walk home in the fifteen-to-thirty-second range wherever on the map you fell.
+ * Each sits on open ground just below its chapel — see the `graveyard` landmarks.
+ */
+export const CEMETERIES: readonly Cemetery[] = [
+  { id: "hollowrest", x: 1040, y: 1990 },
+  { id: "crossroads", x: 2040, y: 780 },
+  { id: "gloamfield", x: 3700, y: 1280 },
+];
+
 export const BOUNDARY_OBSTACLES: readonly Rect[] = [
   { x: 0, y: 0, width: WORLD_WIDTH, height: WORLD_BOUNDARY_DEPTH },
   {
@@ -279,6 +295,35 @@ export const WORLD_LANDMARKS: readonly WorldLandmark[] = [
     width: 360,
     height: 430,
     collider: { x: 4390, y: 1080, width: 190, height: 150 },
+  },
+  // One chapel per cemetery. The collider is the chapel itself; the spirit anchor in
+  // CEMETERIES sits on open ground below it, so a ghost never materialises inside a wall.
+  {
+    id: "hollowrest-chapel",
+    kind: "graveyard",
+    x: 960,
+    y: 1815,
+    width: 190,
+    height: 160,
+    collider: { x: 985, y: 1840, width: 140, height: 110 },
+  },
+  {
+    id: "crossroads-chapel",
+    kind: "graveyard",
+    x: 1960,
+    y: 605,
+    width: 190,
+    height: 160,
+    collider: { x: 1985, y: 630, width: 140, height: 110 },
+  },
+  {
+    id: "gloamfield-chapel",
+    kind: "graveyard",
+    x: 3620,
+    y: 1105,
+    width: 190,
+    height: 160,
+    collider: { x: 3645, y: 1130, width: 140, height: 110 },
   },
 ] as const;
 
@@ -550,7 +595,6 @@ export const MONSTER_AGGRO_RANGE = 210;
 export const MONSTER_ATTACK_RANGE = 42;
 export const MONSTER_ATTACK_COOLDOWN_MS = 900;
 export const MONSTER_RESPAWN_MS = 6_000;
-export const PLAYER_RESPAWN_MS = 2_500;
 export const INTERACTION_RANGE = 92;
 export const LOOT_PICKUP_RANGE = 46;
 export const QUEST_KILL_TARGET = 3;
@@ -656,6 +700,20 @@ export function spawnPosition(seed = ""): Vec2 {
   const index = seed.length === 0 ? 0 : hashSeed(seed) % SPAWN_POINTS.length;
   const position = SPAWN_POINTS[index] ?? SPAWN_POINTS[0] ?? { x: SAFE_ZONE.x, y: SAFE_ZONE.y };
   return { ...position };
+}
+
+/** Where a spirit released at `from` materialises. Straight-line nearest; there is no pathing. */
+export function nearestCemetery(from: Vec2): Cemetery {
+  let nearest = CEMETERIES[0] ?? { id: "hollowrest", ...spawnPosition() };
+  let best = Number.POSITIVE_INFINITY;
+  for (const cemetery of CEMETERIES) {
+    const distance = pointDistance(from, cemetery);
+    if (distance < best) {
+      best = distance;
+      nearest = cemetery;
+    }
+  }
+  return nearest;
 }
 
 export function maxHpForLevel(level: number): number {

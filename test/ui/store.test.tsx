@@ -19,7 +19,8 @@ describe("ui store", () => {
       level: 2,
       hp: 90,
       maxHp: 112,
-      dead: false,
+      life: "alive" as const,
+      corpseDistance: null,
       class: "warrior" as const,
       equipment: { mainHand: "weathered_sword" as const, offHand: "oak_shield" as const },
     };
