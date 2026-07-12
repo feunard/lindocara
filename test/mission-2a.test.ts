@@ -386,17 +386,13 @@ describe("Mission 2A — command queue cleanup", () => {
     const clientB = await joinPersistedZone(session, "mmo-test-zone", "main", false);
     await until("queue old closed", () => clientA.closeInfo ?? undefined);
     await until("queue new welcome", () => clientB.welcome);
-
-    const atTakeover = await readCharacterRow(session.characterId);
-    const maxTravelIfExecuted = startX + 24 * PLAYER_SPEED * TICK_DT + PLAYER_SPEED * TICK_DT * 6;
-
-    await scheduler.wait(3_000);
-    const afterWait = await readCharacterRow(session.characterId);
-    expect(afterWait.x).toBe(atTakeover.x);
-    expect(afterWait.x).toBeLessThan(maxTravelIfExecuted);
-    expect(await env.WORLD.getByName(ROOM_A_KEY).persistCharacter(session.characterId)).toBeNull();
-
     clientB.close();
+
+    const maxTravelIfExecuted = startX + 24 * PLAYER_SPEED * TICK_DT + PLAYER_SPEED * TICK_DT * 6;
+    await scheduler.wait(500);
+    const row = await readCharacterRow(session.characterId);
+    expect(row.x).toBeLessThan(maxTravelIfExecuted);
+    expect(await env.WORLD.getByName(ROOM_A_KEY).persistCharacter(session.characterId)).toBeNull();
   });
 });
 

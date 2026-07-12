@@ -937,12 +937,25 @@ describe("World", () => {
     const wounded = await Client.join("far_wounded", { position: { x: 984, y: 450 }, hp: 40 });
     await until("both welcomes", () => priest.welcome && wounded.welcome);
 
+    const before = await until("far wounded initial snapshot", () => {
+      const snapshot = wounded.latestSnapshot;
+      const self = wounded.self();
+      return snapshot && self ? { tick: snapshot.tick, hp: self.hp } : undefined;
+    });
+    expect(before.hp).toBe(40);
+
     priest.action("heal");
     const nobody = await until("heal.nobody", () =>
       priest.received.find((m) => m.t === "event" && m.code === "heal.nobody"),
     );
     expect(nobody).toMatchObject({ tone: "info" });
-    expect(wounded.self()?.hp).toBe(40);
+
+    const after = await until("far wounded later snapshot", () => {
+      const snapshot = wounded.latestSnapshot;
+      const self = wounded.self();
+      return snapshot && snapshot.tick > before.tick && self ? self : undefined;
+    });
+    expect(after.hp).toBe(40);
 
     priest.close();
     wounded.close();
