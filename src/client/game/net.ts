@@ -25,7 +25,9 @@ import {
 import { type Input, NO_INPUT, step, TICK_DT, type Vec2 } from "../../shared/simulation.js";
 import type { SkillSlot } from "../../shared/skills.js";
 
-const INTERPOLATION_DELAY_MS = 100;
+// A slightly deeper buffer covers short workerd/browser scheduling bursts, so AI movement stays
+// between two authoritative snapshots rather than briefly snapping to the newest one.
+const INTERPOLATION_DELAY_MS = 150;
 const BUFFER_MS = 1_000;
 
 interface BufferedSnapshot {

@@ -5,12 +5,15 @@ export type SkillSlot = (typeof SKILL_SLOTS)[number];
 
 export type SkillEffect =
   | "attack"
+  | "charge"
+  | "dash"
   | "single_damage"
   | "area_damage"
   | "guard"
   | "single_heal"
   | "area_heal"
-  | "nova";
+  | "nova"
+  | "teleport";
 
 export interface SkillDefinition {
   id: string;
@@ -19,6 +22,7 @@ export interface SkillDefinition {
   cooldownMs: number;
   range: number;
   power: number;
+  distance?: number;
   radius?: number;
   durationMs?: number;
   reduction?: number;
@@ -42,10 +46,11 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
     {
       id: "shield_bash",
       slot: 3,
-      effect: "single_damage",
-      cooldownMs: 2_400,
-      range: 68,
+      effect: "charge",
+      cooldownMs: 3_200,
+      range: 308,
       power: 24,
+      distance: 150,
       icon: "◈",
     },
     {
@@ -99,14 +104,13 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       icon: "⌁",
     },
     {
-      id: "sidestep",
+      id: "dash",
       slot: 4,
-      effect: "guard",
+      effect: "dash",
       cooldownMs: 7_000,
       range: 0,
       power: 0,
-      durationMs: 2_500,
-      reduction: 0.65,
+      distance: 189,
       icon: "◒",
     },
     {
@@ -139,14 +143,13 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       icon: "✚",
     },
     {
-      id: "sanctuary",
+      id: "blink",
       slot: 3,
-      effect: "guard",
+      effect: "teleport",
       cooldownMs: 8_000,
       range: 0,
       power: 0,
-      durationMs: 4_000,
-      reduction: 0.4,
+      distance: 110,
       icon: "◇",
     },
     {
@@ -180,4 +183,16 @@ export function skillFor(playerClass: PlayerClass, slot: SkillSlot): SkillDefini
 
 export function isSkillSlot(value: unknown): value is SkillSlot {
   return typeof value === "number" && (SKILL_SLOTS as readonly number[]).includes(value);
+}
+
+export const SKILL_UNLOCK_LEVEL: Readonly<Record<SkillSlot, number>> = {
+  1: 1,
+  2: 3,
+  3: 5,
+  4: 7,
+  5: 10,
+};
+
+export function isSkillUnlocked(level: number, slot: SkillSlot): boolean {
+  return level >= SKILL_UNLOCK_LEVEL[slot];
 }

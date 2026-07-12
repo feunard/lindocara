@@ -19,11 +19,14 @@ import {
   isWalkable,
   MONSTER_AGGRO_RANGE,
   MONSTER_SPAWNS,
+  MONSTER_STATS,
   maxHpForLevel,
   OBSTACLES,
   PLAYER_CLASSES,
   pointDistance,
+  QUEST_DEFINITIONS,
   QUEST_NPC,
+  QUEST_SITES,
   type Rect,
   resolveTerrain,
   SAFE_ZONE,
@@ -42,6 +45,7 @@ import {
   WORLD_HEIGHT,
   WORLD_WIDTH,
 } from "../src/shared/simulation.js";
+import { isSkillUnlocked, SKILL_UNLOCK_LEVEL } from "../src/shared/skills.js";
 
 function expectValidRect(rect: Rect): void {
   expect(Number.isFinite(rect.x)).toBe(true);
@@ -268,6 +272,9 @@ describe("authoritative world geometry", () => {
     expect(new Set(MONSTER_SPAWNS.map((spawn) => spawn.zone))).toEqual(
       new Set(["route", "clearing", "forest", "farm", "ruins", "swamp", "gate"]),
     );
+    expect(new Set(MONSTER_SPAWNS.map((spawn) => spawn.kind))).toEqual(
+      new Set(["goblin", "orc", "ogre", "skeleton", "troll"]),
+    );
 
     for (const spawn of MONSTER_SPAWNS) {
       expect(isWalkable(spawn)).toBe(true);
@@ -283,6 +290,35 @@ describe("authoritative world geometry", () => {
           }),
         ).toBe(true);
       }
+    }
+  });
+
+  it("spreads a four-chapter quest arc and ordered interactions across the world", () => {
+    expect(QUEST_DEFINITIONS.map((quest) => quest.id)).toEqual([
+      "three_offerings",
+      "bone_choir",
+      "mire_runes",
+      "ward_run",
+    ]);
+    expect(QUEST_SITES).toHaveLength(11);
+    expect(new Set(QUEST_SITES.map((site) => site.id)).size).toBe(QUEST_SITES.length);
+
+    const reachable = reachableSamples(spawnPosition("quest-pathfinder"));
+    for (const quest of QUEST_DEFINITIONS) {
+      expect(
+        hasReachableSample(reachable, quest.giver),
+        `${quest.id} giver should be reachable`,
+      ).toBe(true);
+    }
+    for (const site of QUEST_SITES) {
+      expect(hasReachableSample(reachable, site), `${site.id} should be reachable`).toBe(true);
+      expect(isWalkable(site), `${site.id} should be interactable from open terrain`).toBe(true);
+    }
+
+    for (const kind of ["goblin", "orc", "ogre", "skeleton", "troll"] as const) {
+      expect(MONSTER_STATS[kind].maxHp).toBeGreaterThan(0);
+      expect(MONSTER_STATS[kind].damage).toBeGreaterThan(0);
+      expect(MONSTER_STATS[kind].xp).toBeGreaterThan(0);
     }
   });
 
@@ -372,6 +408,17 @@ describe("authoritative combat and progression rules", () => {
 });
 
 describe("class rules", () => {
+  it("unlocks the five ability slots at the intended progression levels", () => {
+    expect(SKILL_UNLOCK_LEVEL).toEqual({ 1: 1, 2: 3, 3: 5, 4: 7, 5: 10 });
+    expect(isSkillUnlocked(1, 1)).toBe(true);
+    expect(isSkillUnlocked(2, 2)).toBe(false);
+    expect(isSkillUnlocked(3, 2)).toBe(true);
+    expect(isSkillUnlocked(5, 3)).toBe(true);
+    expect(isSkillUnlocked(7, 4)).toBe(true);
+    expect(isSkillUnlocked(9, 5)).toBe(false);
+    expect(isSkillUnlocked(10, 5)).toBe(true);
+  });
+
   it("maps every class to one coherent starter loadout", () => {
     expect(starterEquipmentFor("warrior")).toEqual({
       mainHand: "weathered_sword",

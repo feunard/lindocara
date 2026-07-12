@@ -11,9 +11,12 @@ import {
 import type { MainHandItem, OffHandItem, PrimaryColor } from "../../shared/character.js";
 import {
   BOUNDARY_OBSTACLES,
+  type MonsterSpecies,
   type PlayerClass,
   pointDistance,
+  QUEST_DEFINITIONS,
   QUEST_NPC,
+  QUEST_SITES,
   SAFE_ZONE,
   TERRAIN_BLOCKERS,
   WORLD_LANDMARKS,
@@ -24,7 +27,7 @@ import type {
   LootSnapshot,
   MonsterSnapshot,
   PlayerSnapshot,
-  QuestStatus,
+  QuestState,
 } from "../../shared/protocol.js";
 import { PLAYER_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from "../../shared/simulation.js";
 import { onLocaleChange, t } from "../i18n.js";
@@ -39,6 +42,7 @@ import {
   type UnitMotion,
   unitSheet,
 } from "./tiny-swords-art.js";
+import { VENDOR_MONSTER_ART, VENDOR_QUEST_ART } from "./vendor-art.js";
 import {
   DECOR_REGIONS,
   type DecorTheme,
@@ -83,7 +87,7 @@ interface AtlasData {
 
 interface ArtTextures {
   players: Record<PrimaryColor, Texture>;
-  slime: Texture;
+  monsters: Record<MonsterSpecies, Texture>;
   keeper: Texture;
   tiles: {
     grass: Texture[];
@@ -112,11 +116,12 @@ interface ArtTextures {
   buildings: Texture[];
   effects: Record<keyof typeof TINY_SWORDS_EFFECTS, Texture>;
   effectFrames: Record<keyof typeof TINY_SWORDS_EFFECT_SHEETS, readonly Texture[]>;
+  questResources: Record<keyof typeof VENDOR_QUEST_ART, Texture>;
 }
 
 export interface RenderContext {
   self?: PlayerSnapshot;
-  questStatus: QuestStatus;
+  quest: QuestState;
   attackCooldownUntil: number;
   attackRange: number;
   now: number;
@@ -174,6 +179,16 @@ interface WorldTextView {
   y: number;
   revealRadius: number;
   zoneId?: string;
+}
+
+interface QuestSiteView {
+  id: string;
+  chapter: string;
+  order: number;
+  container: Container;
+  signal: Graphics;
+  label: Text;
+  hiddenUntil: number;
 }
 
 interface WorldBounds {
@@ -298,6 +313,23 @@ async function loadArt(): Promise<ArtTextures> {
       return [name, sliceHorizontalSheet(texture, sheet.frame, sheet.frames)] as const;
     }),
   ) as Record<keyof typeof TINY_SWORDS_EFFECT_SHEETS, readonly Texture[]>;
+  const monsterEntries = await Promise.all(
+    Object.entries(VENDOR_MONSTER_ART).map(
+      async ([species, source]) => [species, await Assets.load<Texture>(source)] as const,
+    ),
+  );
+  const monsters = Object.fromEntries(monsterEntries) as Record<MonsterSpecies, Texture>;
+  for (const monster of Object.values(monsters)) monster.source.style.scaleMode = "linear";
+  const questResourceEntries = await Promise.all(
+    Object.entries(VENDOR_QUEST_ART).map(
+      async ([kind, source]) => [kind, await Assets.load<Texture>(source)] as const,
+    ),
+  );
+  const questResources = Object.fromEntries(questResourceEntries) as Record<
+    keyof typeof VENDOR_QUEST_ART,
+    Texture
+  >;
+  for (const resource of Object.values(questResources)) resource.source.style.scaleMode = "nearest";
 
   return {
     players: {
@@ -306,7 +338,7 @@ async function loadArt(): Promise<ArtTextures> {
       moss: texture(PLAYER_ATLAS_FRAMES.moss.name),
       violet: texture(PLAYER_ATLAS_FRAMES.violet.name),
     },
-    slime: texture("monster.slime"),
+    monsters,
     keeper: texture("npc.keeper"),
     tiles: {
       grass: [
@@ -369,6 +401,7 @@ async function loadArt(): Promise<ArtTextures> {
     buildings,
     effects,
     effectFrames,
+    questResources,
   };
 }
 
@@ -452,8 +485,14 @@ export class Renderer {
   #worldLabels = new Container();
   #overlay = new Graphics();
   #effects = new Container();
-  #npcMark?: Text;
-  #npcLabel?: Text;
+  #questNpcs: Array<{
+    chapter: string;
+    x: number;
+    y: number;
+    mark: Text;
+    label: Text;
+  }> = [];
+  #questSites: QuestSiteView[] = [];
   #players = new Map<string, EntityView<PlayerSnapshot>>();
   #monsters = new Map<string, EntityView<MonsterSnapshot>>();
   #loot = new Map<string, EntityView<LootSnapshot>>();
@@ -535,6 +574,7 @@ export class Renderer {
     this.#buildDecor();
     this.#buildSetPieces();
     this.#buildLandmarks();
+    this.#buildQuestSites();
     this.#buildWorldLabels();
     this.#buildNpc();
     this.#buildAmbient();
@@ -1115,47 +1155,132 @@ export class Renderer {
     }
   }
 
+  #buildQuestSites(): void {
+    const runeGlyphs = ["◆", "☾", "▲", "♛"] as const;
+    for (const site of QUEST_SITES) {
+      const container = new Container();
+      container.position.set(site.x, site.y);
+      container.zIndex = site.y + PLAYER_SIZE;
+      container.addChild(
+        new Graphics()
+          .ellipse(0, 8, site.kind === "ward" ? 34 : 24, site.kind === "ward" ? 11 : 8)
+          .fill({ color: COLORS.shadow, alpha: 0.5 }),
+      );
+      const signal = new Graphics()
+        .circle(0, -18, 30)
+        .stroke({ width: 3, color: 0xffdf77, alpha: 0.9 })
+        .circle(0, -18, 20)
+        .stroke({ width: 1.5, color: 0xfff4bd, alpha: 0.8 });
+      signal.alpha = 0;
+      container.addChild(signal);
+      if (site.kind === "resource") {
+        const texture = this.art.questResources[site.art as keyof typeof VENDOR_QUEST_ART];
+        const sprite = createFittedSprite(texture, 58, 58);
+        sprite.anchor.set(0.5, 1);
+        sprite.position.set(0, 12);
+        container.addChild(sprite);
+      } else if (site.kind === "rune") {
+        container.addChild(
+          new Graphics()
+            .roundRect(-22, -38, 44, 50, 9)
+            .fill({ color: 0x5b665f, alpha: 1 })
+            .stroke({ width: 3, color: 0x9dc9aa, alpha: 0.75 }),
+        );
+        const glyph = new Text({
+          text: runeGlyphs[site.order] ?? "◆",
+          style: { fontFamily: "Georgia, serif", fontSize: 22, fill: 0x9effc2 },
+        });
+        glyph.anchor.set(0.5);
+        glyph.position.set(0, -14);
+        container.addChild(glyph);
+      } else {
+        const tower = createFittedSprite(pickTexture(this.art.buildings, 5), 82, 112);
+        tower.anchor.set(0.5, 1);
+        tower.position.set(0, 12);
+        tower.tint = 0xd9c5a2;
+        container.addChild(tower);
+        this.#addTorch(container, 0, -52);
+      }
+
+      const computeLabel = () => t(`quest.site.${site.id}` as MessageKey);
+      const label = new Text({
+        text: computeLabel(),
+        style: {
+          fontFamily: "Georgia, serif",
+          fontSize: 11,
+          fill: 0xffe8a5,
+          align: "center",
+          dropShadow: { color: 0x000000, alpha: 0.9, blur: 3, distance: 1 },
+        },
+      });
+      label.anchor.set(0.5, 1);
+      label.position.set(0, site.kind === "ward" ? -100 : -48);
+      container.addChild(label);
+      this.#localizedTexts.push({ node: label, compute: computeLabel });
+      this.#questSites.push({
+        id: site.id,
+        chapter: site.chapter,
+        order: site.order,
+        container,
+        signal,
+        label,
+        hiddenUntil: 0,
+      });
+      this.#registerStatic(container, site.x, site.y, site.kind === "ward" ? 90 : 60, this.#actors);
+    }
+  }
+
   #buildNpc(): void {
-    const npc = new Container();
-    npc.position.set(QUEST_NPC.x, QUEST_NPC.y);
-    npc.zIndex = QUEST_NPC.y + PLAYER_SIZE;
-    npc.addChild(new Graphics().ellipse(16, 31, 18, 7).fill({ color: 0x000000, alpha: 0.38 }));
-    npc.addChild(new Graphics().circle(16, 15, 27).fill({ color: COLORS.npc, alpha: 0.08 }));
-    const keeper = createSprite(this.art.keeper, 34, 34);
-    keeper.anchor.set(0.5, 1);
-    keeper.position.set(16, 35);
-    npc.addChild(keeper);
-    const questMark = new Text({
-      text: "*",
-      style: {
-        fontFamily: "Georgia, serif",
-        fontSize: 20,
-        fill: COLORS.npc,
-        dropShadow: { color: 0x4a2f00, alpha: 0.9, blur: 5, distance: 0 },
-      },
-    });
-    questMark.anchor.set(0.5);
-    questMark.position.set(16, -25);
-    npc.addChild(questMark);
-    this.#npcMark = questMark;
-    const computeNpcLabel = () => `${t("npc.warden.name")}\n${t("npc.warden.role")}`;
-    const label = new Text({
-      text: computeNpcLabel(),
-      style: {
-        fontFamily: "Georgia, serif",
-        fontSize: 11,
-        fill: 0xffe5a6,
-        align: "center",
-        dropShadow: { color: 0x000000, alpha: 0.9, blur: 3, distance: 1 },
-      },
-    });
-    label.anchor.set(0.5, 1);
-    label.position.set(16, -3);
-    label.alpha = 0;
-    npc.addChild(label);
-    this.#npcLabel = label;
-    this.#localizedTexts.push({ node: label, compute: computeNpcLabel });
-    this.#actors.addChild(npc);
+    const tints = [0xffffff, 0xd8e5ff, 0xbef1cf, 0xffd6ab] as const;
+    for (const [index, quest] of QUEST_DEFINITIONS.entries()) {
+      const npc = new Container();
+      npc.position.set(quest.giver.x, quest.giver.y);
+      npc.zIndex = quest.giver.y + PLAYER_SIZE;
+      npc.addChild(new Graphics().ellipse(16, 31, 18, 7).fill({ color: 0x000000, alpha: 0.38 }));
+      npc.addChild(new Graphics().circle(16, 15, 27).fill({ color: COLORS.npc, alpha: 0.08 }));
+      const keeper = createSprite(this.art.keeper, 34, 34);
+      keeper.anchor.set(0.5, 1);
+      keeper.position.set(16, 35);
+      keeper.tint = tints[index] ?? 0xffffff;
+      npc.addChild(keeper);
+      const questMark = new Text({
+        text: "!",
+        style: {
+          fontFamily: "Georgia, serif",
+          fontSize: 38,
+          fill: COLORS.npc,
+          dropShadow: { color: 0x4a2f00, alpha: 1, blur: 8, distance: 0 },
+        },
+      });
+      questMark.anchor.set(0.5);
+      questMark.position.set(16, -40);
+      npc.addChild(questMark);
+      const computeNpcLabel = () =>
+        `${t(`npc.${quest.giver.id}.name` as MessageKey)}\n${t(`npc.${quest.giver.id}.role` as MessageKey)}`;
+      const label = new Text({
+        text: computeNpcLabel(),
+        style: {
+          fontFamily: "Georgia, serif",
+          fontSize: 11,
+          fill: 0xffe5a6,
+          align: "center",
+          dropShadow: { color: 0x000000, alpha: 0.9, blur: 3, distance: 1 },
+        },
+      });
+      label.anchor.set(0.5, 1);
+      label.position.set(16, -3);
+      label.alpha = 0;
+      npc.addChild(label);
+      this.#questNpcs.push({
+        chapter: quest.id,
+        x: quest.giver.x,
+        y: quest.giver.y,
+        mark: questMark,
+        label,
+      });
+      this.#localizedTexts.push({ node: label, compute: computeNpcLabel });
+      this.#actors.addChild(npc);
+    }
   }
 
   #buildAmbient(): void {
@@ -1394,12 +1519,20 @@ export class Renderer {
     const actor = new Container();
     actor.pivot.set(18, 20);
     actor.position.set(18, 20);
+    const scale =
+      monster.kind === "troll"
+        ? 112
+        : monster.kind === "ogre"
+          ? 92
+          : monster.kind === "goblin"
+            ? 72
+            : 82;
     const shadow = new Graphics()
-      .ellipse(18, 33, 25, 9)
+      .ellipse(18, 33, monster.kind === "troll" ? 35 : 25, monster.kind === "troll" ? 12 : 9)
       .fill({ color: COLORS.shadow, alpha: 0.65 });
-    const body = createSprite(this.art.slime, 42, 42);
+    const body = createSprite(this.art.monsters[monster.species], scale, scale);
     body.anchor.set(0.5, 1);
-    body.position.set(18, 36);
+    body.position.set(18, 40);
     const flash = new Graphics().ellipse(18, 18, 25, 21).fill({ color: 0xffffff, alpha: 0 });
     actor.addChild(shadow, body, flash);
     container.addChild(actor);
@@ -1763,20 +1896,38 @@ export class Renderer {
     this.#burst(position.x + 28, position.y + 12, 0xffc8c0, 4);
   }
 
+  /** A gathered quest resource is visually absent until its authoritative respawn window passes. */
+  hideQuestSite(id: string, durationMs: number): void {
+    const site = this.#questSites.find((candidate) => candidate.id === id);
+    if (site) site.hiddenUntil = performance.now() + durationMs;
+  }
+
   #drawOverlay(context: RenderContext): void {
     this.#overlay.clear();
-    const { self, now, questStatus, attackCooldownUntil, attackRange } = context;
+    const { self, now, quest, attackCooldownUntil, attackRange } = context;
     if (!self || self.dead) return;
 
     const center = centerOf(self);
     const onCooldown = attackCooldownUntil > now;
-    const npcDistance = pointDistance(self, QUEST_NPC);
-    if (this.#npcMark) {
-      const pulse = questStatus === "ready" ? 1.2 : questStatus === "available" ? 1 : 0.45;
-      this.#npcMark.alpha = npcDistance < 210 ? pulse * (0.55 + Math.sin(now / 260) * 0.25) : 0;
-      this.#npcMark.scale.set(questStatus === "available" ? 1 + Math.sin(now / 220) * 0.08 : 1);
+    for (const npc of this.#questNpcs) {
+      const npcDistance = pointDistance(self, npc);
+      const current = npc.chapter === (quest.chapter ?? "three_offerings");
+      const pulse = quest.status === "ready" ? 1.2 : quest.status === "available" ? 1 : 0.45;
+      npc.mark.alpha = current ? pulse * (0.76 + Math.sin(now / 180) * 0.24) : 0;
+      npc.mark.scale.set(current ? 1.05 + Math.sin(now / 180) * 0.13 : 0.8);
+      npc.label.alpha = npcDistance < 150 ? 0.92 : 0;
     }
-    if (this.#npcLabel) this.#npcLabel.alpha = npcDistance < 140 ? 0.92 : 0;
+    const chapter = quest.chapter ?? "three_offerings";
+    for (const site of this.#questSites) {
+      const hidden = site.hiddenUntil > now;
+      site.container.visible =
+        !hidden && this.#isVisibleWorld(site.container.x, site.container.y, 100);
+      const active = quest.status === "active" && site.chapter === chapter;
+      const expected = active && site.order === quest.progress;
+      site.signal.alpha = expected ? 0.72 + Math.sin(now / 160) * 0.22 : 0;
+      site.signal.scale.set(expected ? 1 + Math.sin(now / 180) * 0.12 : 1);
+      site.label.alpha = expected ? 1 : active ? 0.58 : 0.3;
+    }
 
     let nearest: MonsterSnapshot | undefined;
     let nearestDistance = attackRange;

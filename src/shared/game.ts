@@ -11,20 +11,44 @@ export interface NpcDefinition extends Vec2 {
   id: string;
 }
 
+export type MonsterKind = "goblin" | "orc" | "ogre" | "skeleton" | "troll";
+
 export type MonsterSpecies =
-  | "gloamcap"
-  | "murkbud"
-  | "briar_ooze"
-  | "relic_ooze"
-  | "mire_murkbud"
-  | "vault_gloamcap";
+  | "goblin_scout"
+  | "goblin_raider"
+  | "orc_marauder"
+  | "ogre_brute"
+  | "bone_guard"
+  | "bone_crusader"
+  | "bone_warden"
+  | "mire_troll"
+  | "gate_troll";
 
 export interface MonsterSpawn extends Vec2 {
   id: string;
-  kind: "slime";
+  kind: MonsterKind;
   species: MonsterSpecies;
   zone: "route" | "clearing" | "forest" | "farm" | "ruins" | "swamp" | "gate";
   patrolRadius: number;
+}
+
+export type QuestChapter = "three_offerings" | "bone_choir" | "mire_runes" | "ward_run";
+export type QuestSiteKind = "resource" | "rune" | "ward";
+
+export interface QuestSite extends Vec2 {
+  id: string;
+  chapter: QuestChapter;
+  kind: QuestSiteKind;
+  order: number;
+  art: "wood" | "gold" | "meat" | "rune" | "ward";
+}
+
+export interface QuestDefinition {
+  id: QuestChapter;
+  giver: NpcDefinition;
+  target: number;
+  rewardXp: number;
+  rewardGold: number;
 }
 
 export type LandmarkKind =
@@ -59,6 +83,106 @@ export const QUEST_NPC: NpcDefinition = {
   x: 590,
   y: 790,
 };
+
+export const QUEST_DEFINITIONS: readonly QuestDefinition[] = [
+  {
+    id: "three_offerings",
+    giver: QUEST_NPC,
+    target: 3,
+    rewardXp: 80,
+    rewardGold: 12,
+  },
+  {
+    id: "bone_choir",
+    giver: { id: "archivist", x: 3130, y: 760 },
+    target: 5,
+    rewardXp: 140,
+    rewardGold: 24,
+  },
+  {
+    id: "mire_runes",
+    giver: { id: "reed_seer", x: 2910, y: 1810 },
+    target: 4,
+    rewardXp: 170,
+    rewardGold: 30,
+  },
+  {
+    id: "ward_run",
+    giver: { id: "gatewatch", x: 4180, y: 1320 },
+    target: 4,
+    rewardXp: 260,
+    rewardGold: 50,
+  },
+] as const;
+
+export const QUEST_SITES: readonly QuestSite[] = [
+  {
+    id: "offering-heartwood",
+    chapter: "three_offerings",
+    kind: "resource",
+    order: 0,
+    art: "wood",
+    x: 2150,
+    y: 1510,
+  },
+  {
+    id: "offering-provisions",
+    chapter: "three_offerings",
+    kind: "resource",
+    order: 1,
+    art: "meat",
+    x: 2160,
+    y: 2020,
+  },
+  {
+    id: "offering-sun-ore",
+    chapter: "three_offerings",
+    kind: "resource",
+    order: 2,
+    art: "gold",
+    x: 3290,
+    y: 880,
+  },
+  { id: "rune-root", chapter: "mire_runes", kind: "rune", order: 1, art: "rune", x: 3160, y: 2200 },
+  { id: "rune-moon", chapter: "mire_runes", kind: "rune", order: 3, art: "rune", x: 3470, y: 1830 },
+  {
+    id: "rune-flame",
+    chapter: "mire_runes",
+    kind: "rune",
+    order: 0,
+    art: "rune",
+    x: 3760,
+    y: 2240,
+  },
+  {
+    id: "rune-crown",
+    chapter: "mire_runes",
+    kind: "rune",
+    order: 2,
+    art: "rune",
+    x: 3960,
+    y: 1730,
+  },
+  { id: "ward-gate", chapter: "ward_run", kind: "ward", order: 0, art: "ward", x: 4100, y: 1570 },
+  { id: "ward-mire", chapter: "ward_run", kind: "ward", order: 1, art: "ward", x: 3760, y: 1910 },
+  { id: "ward-ford", chapter: "ward_run", kind: "ward", order: 2, art: "ward", x: 2760, y: 1810 },
+  { id: "ward-farm", chapter: "ward_run", kind: "ward", order: 3, art: "ward", x: 2240, y: 2180 },
+] as const;
+
+export const QUEST_CHAPTERS = QUEST_DEFINITIONS.map((quest) => quest.id);
+export const QUEST_RUN_LIMIT_MS = 45_000;
+export const QUEST_SITE_RESPAWN_MS = 15_000;
+
+export function questDefinition(chapter: QuestChapter): QuestDefinition {
+  const definition = QUEST_DEFINITIONS.find((quest) => quest.id === chapter);
+  if (!definition) throw new Error(`Unknown quest chapter: ${chapter}`);
+  return definition;
+}
+
+export function nextQuestChapter(chapter: QuestChapter): QuestChapter | null {
+  const index = QUEST_CHAPTERS.indexOf(chapter);
+  return QUEST_CHAPTERS[index + 1] ?? null;
+}
 
 /** A broad plaza grid prevents new arrivals and respawns from forming one unreadable stack. */
 export const SPAWN_POINTS: readonly Vec2[] = Array.from({ length: 48 }, (_, index) => ({
@@ -267,145 +391,165 @@ export const OBSTACLES: readonly Rect[] = [
 
 export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   {
-    id: "road-gloamcap",
-    kind: "slime",
-    species: "gloamcap",
+    id: "road-goblin-scout",
+    kind: "goblin",
+    species: "goblin_scout",
     zone: "route",
     x: 1870,
     y: 820,
     patrolRadius: 75,
   },
   {
-    id: "road-murkbud",
-    kind: "slime",
-    species: "murkbud",
+    id: "road-goblin-raider",
+    kind: "goblin",
+    species: "goblin_raider",
     zone: "route",
     x: 2260,
     y: 820,
     patrolRadius: 85,
   },
   {
-    id: "clearing-briar-1",
-    kind: "slime",
-    species: "briar_ooze",
+    id: "clearing-orc-1",
+    kind: "orc",
+    species: "orc_marauder",
     zone: "clearing",
     x: 1880,
     y: 390,
     patrolRadius: 95,
   },
   {
-    id: "clearing-briar-2",
-    kind: "slime",
-    species: "briar_ooze",
+    id: "clearing-orc-2",
+    kind: "orc",
+    species: "orc_marauder",
     zone: "clearing",
     x: 2260,
     y: 590,
     patrolRadius: 105,
   },
   {
-    id: "forest-gloamcap-1",
-    kind: "slime",
-    species: "gloamcap",
+    id: "forest-goblin-1",
+    kind: "goblin",
+    species: "goblin_raider",
     zone: "forest",
     x: 2020,
     y: 1290,
     patrolRadius: 70,
   },
   {
-    id: "forest-gloamcap-2",
-    kind: "slime",
-    species: "gloamcap",
+    id: "forest-orc-1",
+    kind: "orc",
+    species: "orc_marauder",
     zone: "forest",
     x: 2320,
     y: 1610,
     patrolRadius: 70,
   },
   {
-    id: "farm-murkbud-1",
-    kind: "slime",
-    species: "murkbud",
+    id: "farm-goblin-1",
+    kind: "goblin",
+    species: "goblin_scout",
     zone: "farm",
     x: 1640,
     y: 1900,
     patrolRadius: 90,
   },
   {
-    id: "farm-murkbud-2",
-    kind: "slime",
-    species: "murkbud",
+    id: "farm-ogre-1",
+    kind: "ogre",
+    species: "ogre_brute",
     zone: "farm",
-    x: 2240,
-    y: 2100,
+    x: 2350,
+    y: 1900,
     patrolRadius: 100,
   },
   {
-    id: "ruins-ooze-1",
-    kind: "slime",
-    species: "relic_ooze",
+    id: "ruins-bone-guard",
+    kind: "skeleton",
+    species: "bone_guard",
     zone: "ruins",
-    x: 3140,
-    y: 620,
+    x: 3380,
+    y: 420,
     patrolRadius: 100,
   },
   {
-    id: "ruins-ooze-2",
-    kind: "slime",
-    species: "relic_ooze",
+    id: "ruins-bone-crusader",
+    kind: "skeleton",
+    species: "bone_crusader",
     zone: "ruins",
-    x: 3740,
-    y: 900,
+    x: 3820,
+    y: 820,
     patrolRadius: 95,
   },
   {
-    id: "swamp-murkbud-1",
-    kind: "slime",
-    species: "mire_murkbud",
-    zone: "swamp",
-    x: 3140,
-    y: 2100,
-    patrolRadius: 85,
-  },
-  {
-    id: "swamp-murkbud-2",
-    kind: "slime",
-    species: "mire_murkbud",
-    zone: "swamp",
-    x: 3600,
-    y: 1860,
+    id: "ruins-bone-warden",
+    kind: "skeleton",
+    species: "bone_warden",
+    zone: "ruins",
+    x: 3220,
+    y: 1160,
     patrolRadius: 80,
   },
   {
-    id: "gate-gloamcap-1",
-    kind: "slime",
-    species: "vault_gloamcap",
+    id: "swamp-troll-1",
+    kind: "troll",
+    species: "mire_troll",
+    zone: "swamp",
+    x: 3900,
+    y: 2450,
+    patrolRadius: 70,
+  },
+  {
+    id: "swamp-troll-2",
+    kind: "troll",
+    species: "mire_troll",
+    zone: "swamp",
+    x: 3300,
+    y: 2100,
+    patrolRadius: 80,
+  },
+  {
+    id: "gate-ogre",
+    kind: "ogre",
+    species: "ogre_brute",
     zone: "gate",
-    x: 4080,
-    y: 1120,
+    x: 4070,
+    y: 1100,
     patrolRadius: 85,
   },
   {
-    id: "gate-gloamcap-2",
-    kind: "slime",
-    species: "vault_gloamcap",
+    id: "gate-troll",
+    kind: "troll",
+    species: "gate_troll",
     zone: "gate",
-    x: 4230,
-    y: 1580,
+    x: 4300,
+    y: 850,
     patrolRadius: 95,
   },
 ] as const;
+
+export interface MonsterStats {
+  maxHp: number;
+  damage: number;
+  speed: number;
+  xp: number;
+}
+
+export const MONSTER_STATS: Record<MonsterKind, MonsterStats> = {
+  goblin: { maxHp: 48, damage: 7, speed: 105, xp: 28 },
+  orc: { maxHp: 72, damage: 10, speed: 88, xp: 42 },
+  ogre: { maxHp: 110, damage: 14, speed: 65, xp: 62 },
+  skeleton: { maxHp: 78, damage: 11, speed: 82, xp: 48 },
+  troll: { maxHp: 145, damage: 16, speed: 60, xp: 78 },
+};
 
 export const PLAYER_MAX_HP_BASE = 100;
 export const PLAYER_HP_PER_LEVEL = 12;
 
 export const ATTACK_COOLDOWN_MS = 550;
-export const MONSTER_MAX_HP = 64;
-export const MONSTER_DAMAGE = 9;
-export const MONSTER_SPEED = 85;
 export const MONSTER_AGGRO_RANGE = 210;
 export const MONSTER_ATTACK_RANGE = 42;
 export const MONSTER_ATTACK_COOLDOWN_MS = 900;
 export const MONSTER_RESPAWN_MS = 6_000;
-export const MONSTER_XP = 35;
 export const PLAYER_RESPAWN_MS = 2_500;
 export const INTERACTION_RANGE = 92;
 export const LOOT_PICKUP_RANGE = 46;

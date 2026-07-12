@@ -1,0 +1,1 @@
+ALTER TABLE `character` ADD `quest_chapter` text DEFAULT 'three_offerings' NOT NULL;

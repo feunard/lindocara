@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { MessageKey } from "../../../shared/i18n/index.js";
 import type { QuestState } from "../../../shared/protocol.js";
 import { logout } from "../../api.js";
 import { t, useLocale } from "../../i18n.js";
@@ -11,11 +12,15 @@ import { SkillBar } from "./SkillBar.js";
 
 /** Same status -> copy mapping as the legacy `renderState`. */
 function questText(quest: QuestState): string {
+  const chapter = quest.chapter ?? "three_offerings";
   switch (quest.status) {
     case "available":
       return t("quest.available");
     case "active":
-      return t("quest.active", { progress: quest.progress, target: quest.target });
+      return t(`quest.${chapter}.active` as MessageKey, {
+        progress: quest.progress,
+        target: quest.target,
+      });
     case "ready":
       return t("quest.ready");
     default:
@@ -37,6 +42,7 @@ export function Hud() {
   // its very first render.
   const questSnapshot = selfState?.quest ?? null;
   const [questPulseKey, setQuestPulseKey] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
   const prevQuestRef = useRef(questSnapshot);
   useEffect(() => {
     const prev = prevQuestRef.current;
@@ -52,11 +58,20 @@ export function Hud() {
     }
   }, [questSnapshot]);
 
+  useEffect(() => {
+    if (!questSnapshot?.timerEndsAt) return;
+    const interval = window.setInterval(() => setNow(Date.now()), 100);
+    return () => window.clearInterval(interval);
+  }, [questSnapshot?.timerEndsAt]);
+
   if (self === null || selfState === null) return null;
 
   const { potions, gold, crystals } = selfState.inventory;
   const { quest } = selfState;
+  const questChapter = quest.chapter ?? "three_offerings";
   const showQuestBar = quest.status === "active" || quest.status === "ready";
+  const remainingSeconds =
+    quest.timerEndsAt === undefined ? 0 : Math.max(0, Math.ceil((quest.timerEndsAt - now) / 1_000));
 
   // `game` goes null on any disconnect (kicked, character deleted, network drop). These
   // buttons must stay usable even then, so each falls back to the same escape hatch the
@@ -114,7 +129,7 @@ export function Hud() {
         >
           <div className="panel-title">
             <span className="panel-icon panel-icon--oath" aria-hidden="true" />
-            <strong>{t("hud.oath")}</strong>
+            <strong>{t(`quest.${questChapter}.name` as MessageKey)}</strong>
           </div>
           <span>{questText(quest)}</span>
           {showQuestBar && (
@@ -124,6 +139,11 @@ export function Hud() {
               max={quest.target}
               variant="quest"
             />
+          )}
+          {quest.timerEndsAt !== undefined && (
+            <strong className="quest-timer" aria-live="polite">
+              {t("quest.timer", { seconds: remainingSeconds })}
+            </strong>
           )}
         </section>
 

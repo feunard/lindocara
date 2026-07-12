@@ -6,7 +6,15 @@
  */
 
 import type { CharacterAppearance, Equipment, PrimaryColor } from "./character.js";
-import type { MonsterSpecies, NpcDefinition, PlayerClass, Rect } from "./game.js";
+import type {
+  MonsterKind,
+  MonsterSpecies,
+  NpcDefinition,
+  PlayerClass,
+  QuestChapter,
+  QuestSite,
+  Rect,
+} from "./game.js";
 import type { Input } from "./simulation.js";
 import { isSkillSlot, type SkillSlot } from "./skills.js";
 
@@ -28,9 +36,12 @@ export interface Inventory {
 }
 
 export interface QuestState {
+  chapter?: QuestChapter;
   status: QuestStatus;
   progress: number;
   target: number;
+  /** Unix milliseconds; present only while the ward run is active. */
+  timerEndsAt?: number;
 }
 
 export interface PlayerSnapshot {
@@ -51,7 +62,7 @@ export interface PlayerSnapshot {
 
 export interface MonsterSnapshot {
   id: string;
-  kind: "slime";
+  kind: MonsterKind;
   species: MonsterSpecies;
   x: number;
   y: number;
@@ -82,6 +93,8 @@ export interface WorldInfo {
   obstacles: Rect[];
   safeZone: Rect;
   questNpc: NpcDefinition;
+  questNpcs: NpcDefinition[];
+  questSites: QuestSite[];
 }
 
 /** Sent by the browser. Actions contain intent only; every outcome is validated by the server. */
@@ -113,6 +126,12 @@ export const EVENT_CODES = [
   "quest.progress",
   "quest.fulfilled",
   "quest.blessing",
+  "quest.site_progress",
+  "quest.site_wrong",
+  "quest.run_started",
+  "quest.run_expired",
+  "quest.chapter_ready",
+  "quest.site_harvested",
   "potion.used",
   "player.down",
   "respawn",
@@ -124,6 +143,7 @@ export const EVENT_CODES = [
   "skill.cast",
   "skill.no_target",
   "skill.blocked",
+  "skill.locked",
 ] as const;
 export type EventCode = (typeof EVENT_CODES)[number];
 export type EventParams = Record<string, string | number>;

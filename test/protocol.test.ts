@@ -85,7 +85,7 @@ describe("event messages", () => {
     const encoded = encodeServerMessage({
       t: "event",
       code: "combat.hit",
-      params: { species: "gloamcap", damage: 12 },
+      params: { species: "goblin_scout", damage: 12 },
       tone: "info",
       x: 1,
       y: 2,

@@ -70,6 +70,11 @@ export const character = sqliteTable(
     })
       .notNull()
       .default("available"),
+    questChapter: text("quest_chapter", {
+      enum: ["three_offerings", "bone_choir", "mire_runes", "ward_run"],
+    })
+      .notNull()
+      .default("three_offerings"),
     questProgress: integer("quest_progress").notNull().default(0),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
     lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" }).notNull().default(nowMs),

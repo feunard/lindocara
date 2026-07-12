@@ -5,7 +5,12 @@ import {
   normalizeAppearance,
   normalizeEquipment,
 } from "../shared/character.js";
-import { clampRestoredPosition, maxHpForLevel, type PlayerClass } from "../shared/game.js";
+import {
+  clampRestoredPosition,
+  maxHpForLevel,
+  type PlayerClass,
+  questDefinition,
+} from "../shared/game.js";
 import type { Inventory, QuestState } from "../shared/protocol.js";
 import type { Vec2 } from "../shared/simulation.js";
 import { type Character, character, type Db } from "./db/index.js";
@@ -48,9 +53,10 @@ function fromRow(row: Character): PlayerProfile {
       crystals: Math.max(0, row.crystals),
     },
     quest: {
+      chapter: row.questChapter,
       status: row.questStatus,
       progress: Math.max(0, row.questProgress),
-      target: 3,
+      target: questDefinition(row.questChapter).target,
     },
   };
 }
@@ -88,6 +94,7 @@ export async function saveProfile(db: Db, profile: SaveableProfile): Promise<voi
       gold: profile.inventory.gold,
       crystals: profile.inventory.crystals,
       questStatus: profile.quest.status,
+      questChapter: profile.quest.chapter ?? "three_offerings",
       questProgress: profile.quest.progress,
       lastSeenAt: new Date(),
     })

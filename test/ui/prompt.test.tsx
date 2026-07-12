@@ -18,7 +18,7 @@ describe("Prompt", () => {
       prompt: { key: "prompt.hunt" },
     });
     render(<Prompt />);
-    expect(screen.getByText(/hunt/)).toBeInTheDocument();
+    expect(screen.getByText(/quest trail/)).toBeInTheDocument();
   });
 
   it("renders nothing when prompt is null", () => {

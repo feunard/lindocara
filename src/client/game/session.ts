@@ -3,7 +3,8 @@ import {
   CLASS_STATS,
   INTERACTION_RANGE,
   pointDistance,
-  QUEST_NPC,
+  QUEST_SITES,
+  questDefinition,
   SAFE_ZONE,
 } from "../../shared/game.js";
 import type { MessageKey } from "../../shared/i18n/index.js";
@@ -11,7 +12,7 @@ import type {
   EventCode,
   EventParams,
   PlayerSnapshot,
-  QuestStatus,
+  QuestState,
   SelfState,
 } from "../../shared/protocol.js";
 import { NO_INPUT } from "../../shared/simulation.js";
@@ -94,17 +95,23 @@ function eventText(
   if (typeof resolved.skill === "string" && playerClass) {
     resolved.skill = t(`skill.${playerClass}.${resolved.skill}.name` as MessageKey);
   }
+  if (typeof resolved.chapter === "string") {
+    resolved.chapter = t(`quest.${resolved.chapter}.name` as MessageKey);
+  }
+  if (typeof resolved.site === "string") {
+    resolved.site = t(`quest.site.${resolved.site}` as MessageKey);
+  }
   return t(`event.${code}` as MessageKey, resolved);
 }
 
 /** Your own hits spam the combat log; everything else is worth a line. */
 function shouldLogEvent(code: EventCode): boolean {
-  return code !== "combat.hit";
+  return code !== "combat.hit" && code !== "quest.site_harvested";
 }
 
 function updatePrompt(
   self: PlayerSnapshot | undefined,
-  questStatus: QuestStatus,
+  quest: QuestState,
   interiorDoor: InteriorDoor | undefined,
 ): void {
   let result: LocalizedText | null = null;
@@ -113,30 +120,41 @@ function updatePrompt(
   if (interiorOpen() || !self || self.dead) {
     result = null;
   } else {
-    const nearNpc = pointDistance(self, QUEST_NPC) <= INTERACTION_RANGE;
+    const chapter = quest.chapter ?? "three_offerings";
+    const giver = questDefinition(chapter).giver;
+    const nearNpc = pointDistance(self, giver) <= INTERACTION_RANGE;
+    const site = QUEST_SITES.find(
+      (candidate) =>
+        candidate.chapter === chapter && pointDistance(self, candidate) <= INTERACTION_RANGE,
+    );
     if (interiorDoor && !nearNpc) {
       result = { key: "prompt.look_inside", params: { name: t(interiorDoor.nameKey) } };
     } else if (
       nearNpc &&
-      (questStatus === "available" || questStatus === "ready" || questStatus === "completed")
+      (quest.status === "available" || quest.status === "ready" || quest.status === "completed")
     ) {
       result = {
         key:
-          questStatus === "available"
+          quest.status === "available"
             ? "prompt.swear"
-            : questStatus === "ready"
+            : quest.status === "ready"
               ? "prompt.claim"
               : "prompt.speak",
       };
-    } else if (questStatus === "active") {
+    } else if (quest.status === "active" && site) {
+      result = {
+        key: "prompt.quest_site" as MessageKey,
+        params: { name: t(`quest.site.${site.id}` as MessageKey) },
+      };
+    } else if (quest.status === "active") {
       const inHub =
         self.x >= SAFE_ZONE.x &&
         self.x <= SAFE_ZONE.x + SAFE_ZONE.width &&
         self.y >= SAFE_ZONE.y &&
         self.y <= SAFE_ZONE.y + SAFE_ZONE.height;
       result = nearNpc || !inHub ? null : { key: "prompt.hunt" };
-    } else if (questStatus === "available") {
-      result = pointDistance(self, QUEST_NPC) > 420 ? null : { key: "prompt.approach" };
+    } else if (quest.status === "available") {
+      result = pointDistance(self, giver) > 420 ? null : { key: "prompt.approach" };
     }
   }
   useUiStore.getState().setPrompt(result);
@@ -159,7 +177,12 @@ export async function startGame(character: CharacterSummary): Promise<void> {
   const client = new WorldClient();
   const input = trackInput();
   let stopActions: (() => void) | null = null;
-  let questStatus: QuestStatus = "available";
+  let questState: QuestState = {
+    chapter: "three_offerings",
+    status: "available",
+    progress: 0,
+    target: 3,
+  };
   let attackCooldownUntil = 0;
   let welcomed = false;
   let currentSelf: PlayerSnapshot | undefined;
@@ -168,7 +191,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     {
       onWelcome: (selfId, _world, state) => {
         renderer.setSelfId(selfId);
-        questStatus = state.quest.status;
+        questState = state.quest;
         renderState(state);
         setStatus("status.connected");
         if (!welcomed) {
@@ -177,7 +200,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
         }
       },
       onState: (state) => {
-        questStatus = state.quest.status;
+        questState = state.quest;
         renderState(state);
       },
       onChat: (from, text) => {
@@ -188,6 +211,9 @@ export async function startGame(character: CharacterSummary): Promise<void> {
         const text = eventText(code, params, currentSelf?.class ?? character.class);
         if (shouldLogEvent(code)) addEvent(text, tone);
         renderer.showWorldEvent(text, tone, x, y);
+        if (code === "quest.site_harvested" && typeof params?.site === "string") {
+          renderer.hideQuestSite(params.site, 15_000);
+        }
         if (code === "combat.hit" && x !== undefined && y !== undefined && client.selfId) {
           renderer.playRangedHit(client.selfId, x, y, currentSelf?.class ?? character.class);
         }
@@ -226,6 +252,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
           }
           case "loot.picked":
           case "quest.accepted":
+          case "quest.site_harvested":
           case "potion.used":
           case "heal.received":
             sound.loot();
@@ -280,7 +307,8 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       return;
     }
     const door = nearestInterior(currentSelf);
-    const nearNpc = currentSelf && pointDistance(currentSelf, QUEST_NPC) <= INTERACTION_RANGE;
+    const giver = questDefinition(questState.chapter ?? "three_offerings").giver;
+    const nearNpc = currentSelf && pointDistance(currentSelf, giver) <= INTERACTION_RANGE;
     if (door && !nearNpc) {
       sound.interact();
       input.reset();
@@ -365,7 +393,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     currentSelf = self;
     const door = nearestInterior(self);
     const context: RenderContext = {
-      questStatus,
+      quest: questState,
       attackCooldownUntil,
       attackRange: currentSelf ? CLASS_STATS[currentSelf.class].attackRange : 0,
       now,
@@ -373,7 +401,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     };
     renderer.render(sample, context);
     renderPlayer(self);
-    updatePrompt(self, questStatus, door);
+    updatePrompt(self, questState, door);
   });
   window.addEventListener("beforeunload", () => connection.close());
 

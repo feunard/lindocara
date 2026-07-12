@@ -23,19 +23,24 @@ import {
   MONSTER_AGGRO_RANGE,
   MONSTER_ATTACK_COOLDOWN_MS,
   MONSTER_ATTACK_RANGE,
-  MONSTER_DAMAGE,
-  MONSTER_MAX_HP,
   MONSTER_RESPAWN_MS,
   MONSTER_SPAWNS,
-  MONSTER_SPEED,
-  MONSTER_XP,
+  MONSTER_STATS,
+  type MonsterKind,
   type MonsterSpecies,
   maxHpForLevel,
+  nextQuestChapter,
   OBSTACLES,
   PLAYER_RESPAWN_MS,
   pointDistance,
-  QUEST_KILL_TARGET,
+  QUEST_DEFINITIONS,
   QUEST_NPC,
+  QUEST_RUN_LIMIT_MS,
+  QUEST_SITE_RESPAWN_MS,
+  QUEST_SITES,
+  type QuestChapter,
+  type QuestSite,
+  questDefinition,
   resolveTerrain,
   SAFE_ZONE,
   spawnPosition,
@@ -65,7 +70,13 @@ import {
   WORLD_HEIGHT,
   WORLD_WIDTH,
 } from "../shared/simulation.js";
-import { type SkillDefinition, type SkillSlot, skillFor } from "../shared/skills.js";
+import {
+  isSkillUnlocked,
+  SKILL_UNLOCK_LEVEL,
+  type SkillDefinition,
+  type SkillSlot,
+  skillFor,
+} from "../shared/skills.js";
 import { createDb } from "./db/index.js";
 import { loadProfile, type PlayerProfile, type SaveableProfile, saveProfile } from "./profile.js";
 
@@ -109,18 +120,26 @@ interface Player extends PlayerProfile {
   deadUntil: number;
   messageTimes: number[];
   malformedCount: number;
+  questRunStartedAt: number;
+  facing: Vec2;
 }
 
 interface Monster extends Vec2 {
   id: string;
-  kind: "slime";
+  kind: MonsterKind;
   species: MonsterSpecies;
   spawnX: number;
   spawnY: number;
   patrolRadius: number;
   hp: number;
+  maxHp: number;
+  damage: number;
+  speed: number;
+  xp: number;
   lastAttackAt: number;
   deadUntil: number;
+  vx: number;
+  vy: number;
 }
 
 interface GroundLoot extends LootSnapshot {
@@ -169,6 +188,8 @@ function newPlayer(profile: PlayerProfile, ack = 0, lastSeq = 0): Player {
     deadUntil: 0,
     messageTimes: [],
     malformedCount: 0,
+    questRunStartedAt: 0,
+    facing: { x: 1, y: 0 },
   };
 }
 
@@ -192,9 +213,10 @@ function profileFromAttachment(attachment: Attachment): PlayerProfile {
       crystals: attachment.inventory?.crystals ?? 0,
     },
     quest: {
+      chapter: attachment.quest?.chapter ?? "three_offerings",
       status: attachment.quest?.status ?? "available",
       progress: attachment.quest?.progress ?? 0,
-      target: QUEST_KILL_TARGET,
+      target: questDefinition(attachment.quest?.chapter ?? "three_offerings").target,
     },
     hp: Math.min(maxHpForLevel(level), Math.max(1, attachment.hp ?? maxHpForLevel(level))),
   };
@@ -206,20 +228,30 @@ export function positionFromAttachment(attachment: Attachment | null): Vec2 {
 }
 
 function createMonsters(): Monster[] {
-  return MONSTER_SPAWNS.map((spawn) => ({
-    ...spawn,
-    spawnX: spawn.x,
-    spawnY: spawn.y,
-    hp: MONSTER_MAX_HP,
-    lastAttackAt: 0,
-    deadUntil: 0,
-  }));
+  return MONSTER_SPAWNS.map((spawn) => {
+    const stats = MONSTER_STATS[spawn.kind];
+    return {
+      ...spawn,
+      spawnX: spawn.x,
+      spawnY: spawn.y,
+      hp: stats.maxHp,
+      maxHp: stats.maxHp,
+      damage: stats.damage,
+      speed: stats.speed,
+      xp: stats.xp,
+      lastAttackAt: 0,
+      deadUntil: 0,
+      vx: 0,
+      vy: 0,
+    };
+  });
 }
 
 export class World extends DurableObject<Env> {
   #players = new Map<WebSocket, Player>();
   #monsters: Monster[] = createMonsters();
   #loot: GroundLoot[] = [];
+  #siteRespawnAt = new Map<string, number>();
   #profileSaves = new Map<string, Promise<void>>();
   #loop: ReturnType<typeof setInterval> | null = null;
   #tick = 0;
@@ -274,6 +306,8 @@ export class World extends DurableObject<Env> {
         obstacles: [...OBSTACLES],
         safeZone: SAFE_ZONE,
         questNpc: QUEST_NPC,
+        questNpcs: QUEST_DEFINITIONS.map((quest) => quest.giver),
+        questSites: [...QUEST_SITES],
       },
       players: this.#playerSnapshots(),
       monsters: this.#monsterSnapshots(),
@@ -408,6 +442,15 @@ export class World extends DurableObject<Env> {
 
   #castSkill(ws: WebSocket, player: Player, slot: SkillSlot): void {
     const skill = skillFor(player.class, slot);
+    if (!isSkillUnlocked(player.level, slot)) {
+      this.#send(ws, {
+        t: "event",
+        code: "skill.locked",
+        params: { level: SKILL_UNLOCK_LEVEL[slot], skill: skill.id },
+        tone: "info",
+      });
+      return;
+    }
     if (skill.effect === "attack") {
       this.#attack(ws, player);
       return;
@@ -421,7 +464,30 @@ export class World extends DurableObject<Env> {
     if (player.deadUntil > now || (player.skillCooldowns[slot - 1] ?? 0) > now) return;
 
     let cast = false;
-    if (skill.effect === "guard") {
+    if (skill.effect === "teleport") {
+      cast = this.#movePlayerInDirection(player, player.facing, skill.distance ?? 0);
+    } else if (skill.effect === "dash") {
+      cast = this.#movePlayerInDirection(
+        player,
+        { x: -player.facing.x, y: -player.facing.y },
+        skill.distance ?? 0,
+      );
+    } else if (skill.effect === "charge") {
+      const target = this.#nearestMonster(player, skill.range, now);
+      if (target) {
+        const distance = Math.max(0, pointDistance(player, target) - MONSTER_ATTACK_RANGE + 8);
+        this.#movePlayerInDirection(
+          player,
+          {
+            x: target.x - player.x,
+            y: target.y - player.y,
+          },
+          Math.min(skill.distance ?? 0, distance),
+        );
+        this.#skillDamage(ws, player, target, skill, now);
+        cast = true;
+      }
+    } else if (skill.effect === "guard") {
       player.guardUntil = now + (skill.durationMs ?? 0);
       player.guardReduction = skill.reduction ?? 0;
       cast = true;
@@ -488,6 +554,29 @@ export class World extends DurableObject<Env> {
     return target;
   }
 
+  /** Move in short collision-resolved segments so mobility skills can never phase through walls. */
+  #movePlayerInDirection(player: Player, direction: Vec2, distance: number): boolean {
+    const length = Math.hypot(direction.x, direction.y);
+    if (length === 0 || distance <= 0) return false;
+    const unit = { x: direction.x / length, y: direction.y / length };
+    let remaining = distance;
+    let movedAny = false;
+    while (remaining > 0) {
+      const stepDistance = Math.min(12, remaining);
+      const moved = resolveTerrain(player, {
+        x: player.x + unit.x * stepDistance,
+        y: player.y + unit.y * stepDistance,
+      });
+      if (moved.x === player.x && moved.y === player.y) break;
+      player.x = moved.x;
+      player.y = moved.y;
+      movedAny = true;
+      remaining -= stepDistance;
+    }
+    if (movedAny) player.dirty = true;
+    return movedAny;
+  }
+
   #skillDamage(
     ws: WebSocket,
     player: Player,
@@ -536,14 +625,29 @@ export class World extends DurableObject<Env> {
 
   #defeatMonster(ws: WebSocket, player: Player, monster: Monster, now: number): void {
     monster.deadUntil = now + MONSTER_RESPAWN_MS;
-    const result = applyExperience(player.level, player.xp, MONSTER_XP);
+    const result = applyExperience(player.level, player.xp, monster.xp);
     player.level = result.level;
     player.xp = result.xp;
     if (result.levelsGained > 0) player.hp = maxHpForLevel(player.level);
 
-    if (player.quest.status === "active") {
-      player.quest.progress = Math.min(QUEST_KILL_TARGET, player.quest.progress + 1);
-      if (player.quest.progress >= QUEST_KILL_TARGET) player.quest.status = "ready";
+    if (
+      player.quest.chapter === "bone_choir" &&
+      player.quest.status === "active" &&
+      monster.kind === "skeleton"
+    ) {
+      const target = questDefinition("bone_choir").target;
+      player.quest.progress = Math.min(target, player.quest.progress + 1);
+      if (player.quest.progress >= target) {
+        player.quest.status = "ready";
+        this.#send(ws, { t: "event", code: "quest.chapter_ready", tone: "good" });
+      } else {
+        this.#send(ws, {
+          t: "event",
+          code: "quest.site_progress",
+          params: { progress: player.quest.progress, target },
+          tone: "good",
+        });
+      }
     }
 
     const kind = this.#tick % 4 === 0 ? "potion" : this.#tick % 2 === 0 ? "crystal" : "gold";
@@ -562,7 +666,7 @@ export class World extends DurableObject<Env> {
         : {
             t: "event",
             code: "monster.defeated",
-            params: { species: monster.species, xp: MONSTER_XP },
+            params: { species: monster.species, xp: monster.xp },
             tone: "good",
           },
     );
@@ -631,40 +735,150 @@ export class World extends DurableObject<Env> {
   }
 
   #interact(ws: WebSocket, player: Player): void {
-    if (player.deadUntil > Date.now() || pointDistance(player, QUEST_NPC) > INTERACTION_RANGE) {
+    const now = Date.now();
+    if (player.deadUntil > now) return;
+    const chapter = player.quest.chapter ?? "three_offerings";
+    player.quest.chapter = chapter;
+
+    const site = QUEST_SITES.find(
+      (candidate) =>
+        candidate.chapter === chapter && pointDistance(player, candidate) <= INTERACTION_RANGE,
+    );
+    if (site && player.quest.status === "active") {
+      if (site.kind === "resource" && (this.#siteRespawnAt.get(site.id) ?? 0) > now) {
+        this.#send(ws, { t: "event", code: "interact.nothing", tone: "info" });
+        return;
+      }
+      this.#interactQuestSite(ws, player, chapter, site, now);
+      return;
+    }
+
+    const definition = questDefinition(chapter);
+    if (pointDistance(player, definition.giver) > INTERACTION_RANGE) {
       this.#send(ws, { t: "event", code: "interact.nothing", tone: "info" });
       return;
     }
+
     if (player.quest.status === "available") {
       player.quest.status = "active";
       player.quest.progress = 0;
+      player.quest.target = definition.target;
+      player.questRunStartedAt = 0;
       this.#send(ws, {
         t: "event",
         code: "quest.accepted",
-        params: { target: QUEST_KILL_TARGET },
+        params: { chapter, target: definition.target },
         tone: "good",
       });
     } else if (player.quest.status === "active") {
       this.#send(ws, {
         t: "event",
         code: "quest.progress",
-        params: { progress: player.quest.progress, target: QUEST_KILL_TARGET },
+        params: { chapter, progress: player.quest.progress, target: definition.target },
         tone: "info",
       });
     } else if (player.quest.status === "ready") {
-      player.quest.status = "completed";
-      player.inventory.potions += 2;
-      player.inventory.gold += 20;
-      const result = applyExperience(player.level, player.xp, 100);
-      player.level = result.level;
-      player.xp = result.xp;
-      player.hp = maxHpForLevel(player.level);
-      this.#send(ws, { t: "event", code: "quest.fulfilled", tone: "good" });
+      this.#completeQuestChapter(ws, player, chapter);
     } else {
       this.#send(ws, { t: "event", code: "quest.blessing", tone: "good" });
     }
     player.dirty = true;
     this.#sendState(ws, player);
+  }
+
+  #interactQuestSite(
+    ws: WebSocket,
+    player: Player,
+    chapter: QuestChapter,
+    site: QuestSite,
+    now: number,
+  ): void {
+    const definition = questDefinition(chapter);
+    const { order } = site;
+    if (chapter === "ward_run") {
+      if (player.questRunStartedAt > 0 && now - player.questRunStartedAt > QUEST_RUN_LIMIT_MS) {
+        player.quest.progress = 0;
+        player.questRunStartedAt = 0;
+        this.#send(ws, { t: "event", code: "quest.run_expired", tone: "bad" });
+        this.#sendState(ws, player);
+        return;
+      }
+      if (order === 0 && player.quest.progress === 0) {
+        player.questRunStartedAt = now;
+        this.#send(ws, {
+          t: "event",
+          code: "quest.run_started",
+          params: { seconds: QUEST_RUN_LIMIT_MS / 1_000 },
+          tone: "good",
+        });
+      }
+    }
+
+    if (order !== player.quest.progress) {
+      if (chapter === "mire_runes" || chapter === "ward_run") {
+        player.quest.progress = 0;
+        player.questRunStartedAt = 0;
+      }
+      this.#send(ws, { t: "event", code: "quest.site_wrong", tone: "bad" });
+      this.#sendState(ws, player);
+      player.dirty = true;
+      return;
+    }
+
+    if (site.kind === "resource") {
+      this.#siteRespawnAt.set(site.id, now + QUEST_SITE_RESPAWN_MS);
+      this.#broadcast({
+        t: "event",
+        code: "quest.site_harvested",
+        params: { site: site.id, seconds: QUEST_SITE_RESPAWN_MS / 1_000 },
+        tone: "good",
+        x: site.x,
+        y: site.y,
+      });
+    }
+    player.quest.progress += 1;
+    if (player.quest.progress >= definition.target) {
+      player.quest.status = "ready";
+      player.questRunStartedAt = 0;
+      this.#send(ws, { t: "event", code: "quest.chapter_ready", tone: "good" });
+    } else {
+      this.#send(ws, {
+        t: "event",
+        code: "quest.site_progress",
+        params: { progress: player.quest.progress, target: definition.target },
+        tone: "good",
+      });
+    }
+    player.dirty = true;
+    this.#sendState(ws, player);
+  }
+
+  #completeQuestChapter(ws: WebSocket, player: Player, chapter: QuestChapter): void {
+    const definition = questDefinition(chapter);
+    player.inventory.potions += 1;
+    player.inventory.gold += definition.rewardGold;
+    const result = applyExperience(player.level, player.xp, definition.rewardXp);
+    player.level = result.level;
+    player.xp = result.xp;
+    player.hp = maxHpForLevel(player.level);
+
+    const next = nextQuestChapter(chapter);
+    if (next) {
+      player.quest = {
+        chapter: next,
+        status: "available",
+        progress: 0,
+        target: questDefinition(next).target,
+      };
+    } else {
+      player.quest.status = "completed";
+    }
+    this.#send(ws, {
+      t: "event",
+      code: "quest.fulfilled",
+      params: { chapter, xp: definition.rewardXp, gold: definition.rewardGold },
+      tone: "good",
+    });
   }
 
   #usePotion(ws: WebSocket, player: Player): void {
@@ -763,6 +977,12 @@ export class World extends DurableObject<Env> {
         const command = player.queue.shift();
         if (command) {
           player.lastInput = command.input;
+          const facingX = Number(command.input.right) - Number(command.input.left);
+          const facingY = Number(command.input.down) - Number(command.input.up);
+          if (facingX !== 0 || facingY !== 0) {
+            const length = Math.hypot(facingX, facingY);
+            player.facing = { x: facingX / length, y: facingY / length };
+          }
           player.ack = command.seq;
           player.starvedTicks = 0;
         } else if (++player.starvedTicks > MAX_STARVED_TICKS) {
@@ -807,9 +1027,11 @@ export class World extends DurableObject<Env> {
       if (monster.deadUntil > now) continue;
       if (monster.deadUntil > 0) {
         monster.deadUntil = 0;
-        monster.hp = MONSTER_MAX_HP;
+        monster.hp = monster.maxHp;
         monster.x = monster.spawnX;
         monster.y = monster.spawnY;
+        monster.vx = 0;
+        monster.vy = 0;
       }
 
       let target: [WebSocket, Player] | undefined;
@@ -829,7 +1051,7 @@ export class World extends DurableObject<Env> {
         if (targetDistance <= MONSTER_ATTACK_RANGE) {
           if (now - monster.lastAttackAt >= MONSTER_ATTACK_COOLDOWN_MS) {
             monster.lastAttackAt = now;
-            this.#damagePlayer(socket, player, MONSTER_DAMAGE, monster.species, now);
+            this.#damagePlayer(socket, player, monster.damage, monster.species, now);
           }
           continue;
         }
@@ -848,13 +1070,23 @@ export class World extends DurableObject<Env> {
     const dx = target.x - monster.x;
     const dy = target.y - monster.y;
     const length = Math.hypot(dx, dy);
-    if (length < 2) return;
-    const distance = MONSTER_SPEED * TICK_DT;
+    if (length < 2) {
+      monster.vx *= 0.6;
+      monster.vy *= 0.6;
+      return;
+    }
+    const targetVx = (dx / length) * monster.speed;
+    const targetVy = (dy / length) * monster.speed;
+    // Inertia removes direction flicker when the nearest player changes position between ticks.
+    monster.vx += (targetVx - monster.vx) * 0.28;
+    monster.vy += (targetVy - monster.vy) * 0.28;
     const desired = {
-      x: monster.x + (dx / length) * distance,
-      y: monster.y + (dy / length) * distance,
+      x: monster.x + monster.vx * TICK_DT,
+      y: monster.y + monster.vy * TICK_DT,
     };
     const moved = resolveTerrain(monster, desired);
+    if (moved.x === monster.x) monster.vx = 0;
+    if (moved.y === monster.y) monster.vy = 0;
     monster.x = moved.x;
     monster.y = moved.y;
   }
@@ -929,11 +1161,21 @@ export class World extends DurableObject<Env> {
   }
 
   #selfState(player: Player): SelfState {
+    const chapter = player.quest.chapter ?? "three_offerings";
+    const timerEndsAt =
+      chapter === "ward_run" && player.quest.status === "active" && player.questRunStartedAt > 0
+        ? player.questRunStartedAt + QUEST_RUN_LIMIT_MS
+        : undefined;
     return {
       xp: player.xp,
       xpToNext: xpForNextLevel(player.level),
       inventory: { ...player.inventory },
-      quest: { ...player.quest, target: QUEST_KILL_TARGET },
+      quest: {
+        ...player.quest,
+        chapter,
+        target: questDefinition(chapter).target,
+        ...(timerEndsAt === undefined ? {} : { timerEndsAt }),
+      },
     };
   }
 
@@ -968,7 +1210,7 @@ export class World extends DurableObject<Env> {
       x: Math.round(monster.x * 100) / 100,
       y: Math.round(monster.y * 100) / 100,
       hp: monster.hp,
-      maxHp: MONSTER_MAX_HP,
+      maxHp: monster.maxHp,
       dead: monster.deadUntil > now,
     }));
   }

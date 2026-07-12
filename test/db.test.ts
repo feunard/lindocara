@@ -87,6 +87,7 @@ describe("account and character tables", () => {
       "name",
       "off_hand",
       "potions",
+      "quest_chapter",
       "quest_progress",
       "quest_status",
       "weapon",
@@ -129,6 +130,7 @@ describe("account and character tables", () => {
       mainHand: "weathered_sword",
       offHand: null,
       questStatus: "available",
+      questChapter: "three_offerings",
       questProgress: 0,
     });
     expect(rows[0]?.createdAt).toBeInstanceOf(Date);

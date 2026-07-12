@@ -10,7 +10,10 @@ import {
   isWalkable,
   OBSTACLES,
   type PlayerClass,
+  QUEST_DEFINITIONS,
   QUEST_NPC,
+  QUEST_SITES,
+  type QuestChapter,
   SAFE_ZONE,
   spawnPosition,
   WORLD_BOUNDARY_DEPTH,
@@ -19,6 +22,7 @@ import {
 import {
   type PlayerSnapshot,
   parseServerMessage,
+  type QuestStatus,
   type ServerMessage,
 } from "../src/shared/protocol.js";
 import {
@@ -44,7 +48,9 @@ let accountCounter = 0;
 interface TestCharacterOptions {
   position?: { x: number; y: number };
   class?: PlayerClass;
+  level?: number;
   hp?: number;
+  quest?: { chapter: QuestChapter; status: QuestStatus; progress: number };
 }
 
 /** Register a fresh account and create one character on it through the real API. */
@@ -79,9 +85,21 @@ async function testCharacter(
       .bind(options.position.x, options.position.y, body.id)
       .run();
   }
+  if (options.level !== undefined) {
+    await env.DB.prepare("UPDATE character SET level = ?, hp = ? WHERE id = ?")
+      .bind(options.level, 100 + (options.level - 1) * 12, body.id)
+      .run();
+  }
   if (options.hp !== undefined) {
     await env.DB.prepare("UPDATE character SET hp = ? WHERE id = ?")
       .bind(options.hp, body.id)
+      .run();
+  }
+  if (options.quest) {
+    await env.DB.prepare(
+      "UPDATE character SET quest_chapter = ?, quest_status = ?, quest_progress = ? WHERE id = ?",
+    )
+      .bind(options.quest.chapter, options.quest.status, options.quest.progress, body.id)
       .run();
   }
   return { cookie: pair, characterId: body.id };
@@ -121,7 +139,9 @@ class Client {
       pump?: boolean;
       position?: { x: number; y: number };
       class?: PlayerClass;
+      level?: number;
       hp?: number;
+      quest?: NonNullable<TestCharacterOptions["quest"]>;
     } = {},
   ): Promise<Client> {
     const session = await testCharacter(nickname, options);
@@ -184,6 +204,10 @@ class Client {
 
   action(type: "attack" | "interact" | "heal"): void {
     this.#socket.send(JSON.stringify({ t: type }));
+  }
+
+  skill(slot: number): void {
+    this.#socket.send(JSON.stringify({ t: "skill", slot }));
   }
 
   usePotion(): void {
@@ -268,6 +292,8 @@ describe("World", () => {
       safeZone: SAFE_ZONE,
       questNpc: QUEST_NPC,
     });
+    expect(welcome.world.questNpcs).toEqual(QUEST_DEFINITIONS.map((quest) => quest.giver));
+    expect(welcome.world.questSites).toEqual(QUEST_SITES);
     expect(welcome.monsters.length).toBeGreaterThan(0);
     expect(welcome.self.inventory).toMatchObject({ potions: 2 });
     expect(welcome.players.find((player) => player.id === welcome.selfId)).toMatchObject({
@@ -395,6 +421,80 @@ describe("World", () => {
       client.latestState?.quest.status === "active" ? client.latestState : undefined,
     );
     expect(client.latestState?.quest.progress).toBe(0);
+    client.close();
+  });
+
+  it("publishes a clear server-timed deadline when the ward run begins", async () => {
+    const ward = QUEST_SITES.find(
+      (candidate) => candidate.chapter === "ward_run" && candidate.order === 0,
+    );
+    if (!ward) throw new Error("first ward missing");
+    const client = await Client.join("timerunner", {
+      position: { x: ward.x + 30, y: ward.y },
+      quest: { chapter: "ward_run", status: "active", progress: 0 },
+    });
+    await until("ward welcome", () => client.welcome);
+
+    client.action("interact");
+    const state = await until("ward timer", () =>
+      client.latestState?.quest.timerEndsAt ? client.latestState : undefined,
+    );
+    expect(state.quest.timerEndsAt).toBeGreaterThan(Date.now() + 40_000);
+    client.close();
+  });
+
+  it("advances ordered gathering sites on the authoritative server", async () => {
+    const site = QUEST_SITES.find(
+      (candidate) => candidate.chapter === "three_offerings" && candidate.order === 0,
+    );
+    if (!site) throw new Error("first offering site missing");
+    const client = await Client.join("gatherer", {
+      position: { x: site.x + 30, y: site.y },
+      quest: { chapter: "three_offerings", status: "active", progress: 0 },
+    });
+    await until("gathering welcome", () => client.welcome);
+
+    client.action("interact");
+    const state = await until("gathering progress", () =>
+      client.latestState?.quest.progress === 1 ? client.latestState : undefined,
+    );
+    expect(state.quest).toMatchObject({
+      chapter: "three_offerings",
+      status: "active",
+      progress: 1,
+      target: 3,
+    });
+    expect(
+      client.received.find(
+        (message) =>
+          message.t === "event" &&
+          message.code === "quest.site_harvested" &&
+          message.params?.site === site.id,
+      ),
+    ).toMatchObject({ params: { seconds: 15 } });
+    client.close();
+  });
+
+  it("resets the mire-rune puzzle when a rune is used out of order", async () => {
+    const wrongRune = QUEST_SITES.find(
+      (candidate) => candidate.chapter === "mire_runes" && candidate.order === 3,
+    );
+    if (!wrongRune) throw new Error("wrong rune fixture missing");
+    const client = await Client.join("runebreaker", {
+      position: { x: wrongRune.x + 30, y: wrongRune.y },
+      quest: { chapter: "mire_runes", status: "active", progress: 2 },
+    });
+    await until("rune welcome", () => client.welcome);
+
+    client.action("interact");
+    const state = await until("rune reset", () =>
+      client.received.some(
+        (message) => message.t === "event" && message.code === "quest.site_wrong",
+      )
+        ? client.latestState
+        : undefined,
+    );
+    expect(state?.quest).toMatchObject({ chapter: "mire_runes", status: "active", progress: 0 });
     client.close();
   });
 
@@ -653,7 +753,11 @@ describe("World", () => {
     // disconnecting from an earlier test (spawned somewhere on that grid, always inside
     // heal.range 130 of *itself* but not of here) cannot be closer than the wounded ally and
     // steal the cast.
-    const priest = await Client.join("mender", { position: { x: 1150, y: 250 }, class: "priest" });
+    const priest = await Client.join("mender", {
+      position: { x: 1150, y: 250 },
+      class: "priest",
+      level: 3,
+    });
     const wounded = await Client.join("wounded", { position: { x: 1166, y: 250 }, hp: 40 });
     await until("both welcomes", () => priest.welcome && wounded.welcome);
 
@@ -666,18 +770,18 @@ describe("World", () => {
     });
 
     const healed = wounded.self();
-    expect(healed?.hp).toBe(40 + 35); // healAmountFor(1)
+    expect(healed?.hp).toBe(40 + 41); // healAmountFor(3)
 
     // Cooldown: an immediate second cast must not double-heal.
     priest.action("heal");
     priest.action("heal");
     await scheduler.wait(200);
-    expect(wounded.self()?.hp).toBe(75);
+    expect(wounded.self()?.hp).toBe(81);
 
     const cast = priest.received.find((m) => m.t === "event" && m.code === "heal.cast");
     const received = wounded.received.find((m) => m.t === "event" && m.code === "heal.received");
-    expect(cast).toMatchObject({ params: { name: "wounded", amount: 35 } });
-    expect(received).toMatchObject({ params: { name: "mender", amount: 35 } });
+    expect(cast).toMatchObject({ params: { name: "wounded", amount: 41 } });
+    expect(received).toMatchObject({ params: { name: "mender", amount: 41 } });
 
     priest.close();
     wounded.close();
@@ -700,10 +804,48 @@ describe("World", () => {
     ranger.close();
   });
 
+  it("rejects an ability before its level requirement", async () => {
+    const warrior = await Client.join("locked_skill", { position: { x: 1750, y: 820 } });
+    await until("locked skill welcome", () => warrior.welcome);
+
+    warrior.skill(3);
+    const locked = await until("locked ability event", () =>
+      warrior.received.find((message) => message.t === "event" && message.code === "skill.locked"),
+    );
+    expect(locked).toMatchObject({ params: { level: 5, skill: "shield_bash" } });
+    warrior.close();
+  });
+
+  it("charges the nearest monster with the warrior shield bash", async () => {
+    const warrior = await Client.join("charger", {
+      position: { x: 1700, y: 820 },
+      level: 5,
+    });
+    await until("charge welcome", () => warrior.welcome);
+
+    warrior.skill(3);
+    const cast = await until("charge cast", () =>
+      warrior.received.find(
+        (message) =>
+          message.t === "event" &&
+          message.code === "skill.cast" &&
+          message.params?.skill === "shield_bash",
+      ),
+    );
+    expect(cast).toMatchObject({ tone: "good" });
+    const moved = await until("charge position", () => {
+      const self = warrior.self();
+      return self && self.x > 1760 ? self : undefined;
+    });
+    expect(moved.x).toBeGreaterThan(1760);
+    warrior.close();
+  });
+
   it("reports a blocked heal target in range", async () => {
     const priest = await Client.join("blocked_heal", {
       position: { x: 480, y: 650 },
       class: "priest",
+      level: 3,
     });
     const blocked = await Client.join("behind_tree", { position: { x: 590, y: 650 }, hp: 40 });
     await until("both welcomes", () => priest.welcome && blocked.welcome);
@@ -736,6 +878,7 @@ describe("World", () => {
     const priest = await Client.join("los_priest", {
       position: { x: 480, y: 650 },
       class: "priest",
+      level: 3,
     });
     const blocked = await Client.join("los_blocked", { position: { x: 590, y: 650 }, hp: 10 });
     const visible = await Client.join("los_visible", { position: { x: 480, y: 760 }, hp: 40 });
@@ -748,10 +891,10 @@ describe("World", () => {
       return snapshot && snapshot.hp > 40 ? snapshot : undefined;
     });
 
-    expect(healed.hp).toBe(75);
+    expect(healed.hp).toBe(81);
     expect(blocked.self()?.hp).toBe(10);
     const cast = priest.received.find((m) => m.t === "event" && m.code === "heal.cast");
-    expect(cast).toMatchObject({ params: { name: "los_visible", amount: 35 } });
+    expect(cast).toMatchObject({ params: { name: "los_visible", amount: 41 } });
 
     priest.close();
     blocked.close();
@@ -762,6 +905,7 @@ describe("World", () => {
     const priest = await Client.join("far_healer", {
       position: { x: 784, y: 450 },
       class: "priest",
+      level: 3,
     });
     // 200px away: past heal.range (130), well inside the snapshot view.
     const wounded = await Client.join("far_wounded", { position: { x: 984, y: 450 }, hp: 40 });
@@ -778,18 +922,20 @@ describe("World", () => {
     wounded.close();
   });
 
-  it("blocks a dead priest from casting heal", async () => {
-    // road-gloamcap patrols within patrolRadius (75px) of its spawn, well inside
-    // MONSTER_AGGRO_RANGE (210), so a player standing on the spawn point aggroes it reliably;
-    // hp: 1 plus MONSTER_DAMAGE (9) means the first landed hit kills.
+  it("blocks a dead priest from casting heal", { timeout: 10_000 }, async () => {
+    // The first road goblin patrols within 75px of its spawn, well inside the 210px aggro
+    // range, so a player standing on the spawn point draws it reliably. One HP means the first
+    // landed hit kills regardless of the species-specific damage table.
     const priest = await Client.join("dying_priest", {
       position: { x: 1870, y: 820 },
       class: "priest",
       hp: 1,
     });
     await until("welcome", () => priest.welcome);
-    await until("the monster to kill the priest", () =>
-      priest.self()?.dead ? priest.self() : undefined,
+    await until(
+      "the monster to kill the priest",
+      () => (priest.self()?.dead ? priest.self() : undefined),
+      10_000,
     );
 
     // Only bring in a healable ally now that the priest is dead. The monster orbits its spawn
@@ -826,7 +972,11 @@ describe("World", () => {
       false,
     );
 
-    const priest = await Client.join("lonely", { position: { x: 3000, y: 2200 }, class: "priest" });
+    const priest = await Client.join("lonely", {
+      position: { x: 3000, y: 2200 },
+      class: "priest",
+      level: 3,
+    });
     await until("welcome", () => priest.welcome);
     priest.action("heal"); // full HP everywhere near → nobody
     const nobody = await until("heal.nobody", () =>

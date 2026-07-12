@@ -42,7 +42,9 @@ describe("Hud", () => {
     expect(screen.getByText("Level 3")).toBeInTheDocument();
     expect(screen.getByText("80/124")).toBeInTheDocument();
     expect(screen.getByText("40/220")).toBeInTheDocument();
-    expect(screen.getByText("Quiet gloam creatures in the woods (1/3)")).toBeInTheDocument();
+    expect(
+      screen.getByText("Gather heartwood, provisions, then sun-ore (1/3)"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Heartroot tonic")).toBeInTheDocument();
     // FR toggle re-renders live
     setLocale("fr");
@@ -102,6 +104,39 @@ describe("Hud", () => {
     expect(screen.getByText("Priest")).toBeInTheDocument();
     expect(screen.getAllByText("Mend")).toHaveLength(2);
     expect(screen.getAllByRole("progressbar")).toHaveLength(3); // vit, spark, heal cooldown
+  });
+
+  it("makes a timed quest and locked skill requirements explicit", () => {
+    useUiStore.setState({
+      self: {
+        nick: "Vanguard",
+        level: 1,
+        hp: 100,
+        maxHp: 100,
+        dead: false,
+        class: "warrior",
+        equipment: { mainHand: "weathered_sword", offHand: "oak_shield" },
+      },
+      selfState: {
+        xp: 0,
+        xpToNext: 100,
+        inventory: { potions: 2, gold: 0, crystals: 0 },
+        quest: {
+          status: "active",
+          progress: 0,
+          target: 4,
+          chapter: "ward_run",
+          timerEndsAt: Date.now() + 15_000,
+        },
+      },
+      game: null,
+    });
+    render(<Hud />);
+    expect(screen.getByText(/WARD RUN: 1[45]s/)).toBeInTheDocument();
+    expect(
+      screen.getByText("A reliable close-range strike against the nearest enemy."),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Unlocks at level 5").length).toBeGreaterThan(0);
   });
 
   it("never shows the heal bar for non-priests, even mid-cooldown", () => {

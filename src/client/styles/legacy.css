@@ -290,6 +290,20 @@ button:disabled {
   max-width: 16rem;
 }
 
+.quest-timer {
+  justify-self: start;
+  padding: 0.2rem 0.38rem;
+  border: 1px solid rgb(255 198 98 / 72%);
+  border-radius: 4px;
+  background: rgb(83 37 19 / 78%);
+  color: #ffe7a6;
+  font:
+    700 0.72rem ui-monospace,
+    monospace;
+  letter-spacing: 0.03em;
+  animation: quest-timer-pulse 900ms ease-in-out infinite alternate;
+}
+
 .combat {
   grid-column: 1;
   max-width: 13rem;
@@ -829,6 +843,58 @@ kbd {
   font:
     700 1rem ui-monospace,
     monospace;
+}
+
+.skill-slot__lock {
+  position: absolute;
+  right: 0.25rem;
+  bottom: 0.18rem;
+  min-width: 1.1rem;
+  padding: 0.05rem 0.16rem;
+  border: 1px solid rgb(230 196 116 / 55%);
+  background: rgb(5 16 13 / 84%);
+  color: #ffe29c;
+  font:
+    700 0.55rem ui-monospace,
+    monospace;
+}
+
+.skill-slot__tooltip {
+  position: absolute;
+  z-index: 12;
+  bottom: calc(100% + 0.5rem);
+  left: 50%;
+  width: max-content;
+  max-width: 14rem;
+  padding: 0.42rem 0.5rem;
+  border: 1px solid rgb(243 214 139 / 50%);
+  background: rgb(4 19 15 / 96%);
+  color: #f6edd3;
+  font:
+    0.64rem / 1.3 ui-monospace,
+    monospace;
+  pointer-events: none;
+  opacity: 0;
+  text-align: center;
+  transform: translate(-50%, 0.25rem);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.skill-slot:hover .skill-slot__tooltip,
+.skill-slot:focus-visible .skill-slot__tooltip {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+@keyframes quest-timer-pulse {
+  from {
+    box-shadow: 0 0 0 rgb(255 172 86 / 0%);
+  }
+  to {
+    box-shadow: 0 0 12px rgb(255 172 86 / 55%);
+  }
 }
 
 @media (max-width: 700px) {
