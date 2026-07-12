@@ -44,6 +44,8 @@ export interface MonsterSpawn extends Vec2 {
   species: MonsterSpecies;
   zone: "route" | "clearing" | "forest" | "farm" | "ruins" | "swamp" | "gate";
   patrolRadius: number;
+  /** Border patrols may naturally cross the city boundary and be handled by guards. */
+  mayEnterSafeZone?: boolean;
 }
 
 export type QuestChapter = "three_offerings" | "bone_choir" | "mire_runes" | "ward_run";
@@ -63,6 +65,11 @@ export interface QuestDefinition {
   target: number;
   rewardXp: number;
   rewardGold: number;
+}
+
+export interface GuardDefinition extends Vec2 {
+  id: string;
+  patrolRadius: number;
 }
 
 export type LandmarkKind =
@@ -95,8 +102,8 @@ export const WORLD_BOUNDARY_DEPTH = 96;
 export const SAFE_ZONE: Rect = { x: 360, y: 260, width: 1200, height: 920 };
 export const QUEST_NPC: NpcDefinition = {
   id: "warden",
-  x: 590,
-  y: 790,
+  x: 600,
+  y: 760,
 };
 
 export const QUEST_DEFINITIONS: readonly QuestDefinition[] = [
@@ -109,21 +116,21 @@ export const QUEST_DEFINITIONS: readonly QuestDefinition[] = [
   },
   {
     id: "bone_choir",
-    giver: { id: "archivist", x: 3130, y: 760 },
+    giver: { id: "archivist", x: 650, y: 520 },
     target: 5,
     rewardXp: 140,
     rewardGold: 24,
   },
   {
     id: "mire_runes",
-    giver: { id: "reed_seer", x: 2910, y: 1810 },
+    giver: { id: "reed_seer", x: 1050, y: 1120 },
     target: 4,
     rewardXp: 170,
     rewardGold: 30,
   },
   {
     id: "ward_run",
-    giver: { id: "gatewatch", x: 4180, y: 1320 },
+    giver: { id: "gatewatch", x: 1390, y: 1020 },
     target: 4,
     rewardXp: 260,
     rewardGold: 50,
@@ -199,11 +206,24 @@ export function nextQuestChapter(chapter: QuestChapter): QuestChapter | null {
   return QUEST_CHAPTERS[index + 1] ?? null;
 }
 
-/** A broad plaza grid prevents new arrivals and respawns from forming one unreadable stack. */
-export const SPAWN_POINTS: readonly Vec2[] = Array.from({ length: 48 }, (_, index) => ({
-  x: 720 + (index % 8) * 104,
-  y: 500 + Math.floor(index / 8) * 112,
+/** The central civic plaza: broad, collision-free arrivals with 100px personal spacing. */
+export const SPAWN_POINTS: readonly Vec2[] = Array.from({ length: 24 }, (_, index) => ({
+  x: 720 + (index % 6) * 100,
+  y: 580 + Math.floor(index / 6) * 100,
 }));
+
+export const CITY_GUARDS: readonly GuardDefinition[] = [
+  { id: "guard-west", x: 430, y: 760, patrolRadius: 210 },
+  { id: "guard-east", x: 1510, y: 950, patrolRadius: 210 },
+  { id: "guard-north", x: 1040, y: 510, patrolRadius: 190 },
+  { id: "guard-south", x: 1040, y: 1120, patrolRadius: 190 },
+] as const;
+
+export const GUARD_DETECTION_RANGE = 360;
+export const GUARD_ATTACK_RANGE = 54;
+export const GUARD_ATTACK_COOLDOWN_MS = 260;
+export const GUARD_DAMAGE = 500;
+export const GUARD_SPEED = 235;
 
 export interface Cemetery extends Vec2 {
   id: string;
@@ -273,6 +293,33 @@ export const WORLD_LANDMARKS: readonly WorldLandmark[] = [
     width: 240,
     height: 210,
     collider: { x: 420, y: 880, width: 190, height: 140 },
+  },
+  {
+    id: "founders-guildhall",
+    kind: "building",
+    x: 720,
+    y: 900,
+    width: 300,
+    height: 190,
+    collider: { x: 750, y: 940, width: 240, height: 125 },
+  },
+  {
+    id: "heartroot-sanctuary",
+    kind: "building",
+    x: 1060,
+    y: 900,
+    width: 220,
+    height: 200,
+    collider: { x: 1085, y: 945, width: 170, height: 130 },
+  },
+  {
+    id: "eastwatch-barracks",
+    kind: "building",
+    x: 1260,
+    y: 650,
+    width: 270,
+    height: 210,
+    collider: { x: 1290, y: 700, width: 215, height: 140 },
   },
   {
     id: "bramblewick-farm",
@@ -474,6 +521,16 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
     x: 2260,
     y: 820,
     patrolRadius: 85,
+  },
+  {
+    id: "city-edge-prowler",
+    kind: "goblin",
+    species: "goblin_scout",
+    zone: "route",
+    x: 1580,
+    y: 780,
+    patrolRadius: 120,
+    mayEnterSafeZone: true,
   },
   {
     id: "clearing-orc-1",

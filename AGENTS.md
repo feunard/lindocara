@@ -227,6 +227,45 @@ closes with `WS_CLOSE.ROOM_FULL`. `verdant-reach:main` preserves the current map
 `mmo-test-zone` has a collision obstacle and paired return portal for handoff coverage. Rooms
 remain isolated; portal interaction is only an intent, never a client-selected destination.
 
+### Heartroot city, guards and visual readability
+
+The safe zone is an authored city, not a decoration-only rectangle. `shared/game.ts` owns every
+building collider, quest-keeper coordinate, spawn, and guard home; `client/game/world-layout.ts`
+owns only visual roads, districts, signs and decor density. Keep those two descriptions aligned.
+All quest keepers must remain inside `SAFE_ZONE` on walkable ground.
+
+Guards are simulated by `World` and emitted in snapshots. They target only live monsters already
+inside the safe zone, cannot leave their home patrol radius, and never attack players. A guard
+kill sets the monster respawn state directly: it must never call the player reward path, create
+loot, grant XP, or advance a kill quest.
+
+Direction signs use the bundled Tiny Swords banner texture and localized text. They have no
+collider by design so junctions cannot be grief-blocked. Puzzle rendering must never receive the
+expected rune order; `questSiteFeedback()` exposes proximity labels but always returns a zero
+signal alpha. World-space notifications are limited by `MAX_ACTIVE_WORLD_EFFECTS` and
+`shouldFloatEvent()`; system, loot and quest prose belongs in React's event log.
+
+### Spatial grid and area of interest
+
+`server/spatial-grid.ts` is a non-authoritative index: `World` collections remain the source of
+truth. Cells are 256 px. Per-recipient views query nearby players (900 px), monsters (850 px) and
+loot (650 px), with a 96 px exit hysteresis; self is unconditional. Guards and corpses use a
+900 px view, spatial events 850 px, and local chat 700 px. `welcome` is the complete baseline;
+`world.delta` is emitted at 10 Hz while simulation stays at 20 Hz. Per-player network maps compare
+against the last state actually sent, including ACK, HP, life, class, appearance and equipment.
+Movement below 0.5 px accumulates against that sent baseline rather than being forgotten.
+
+The client applies upserts/removals to maps, materializes a complete view, and only then appends it
+to the existing interpolation buffer. A non-monotone/unexpected delta tick, invalid frame, unknown
+removal, or `world.resync_required` causes one bounded `world.resync` request. The full response
+replaces the maps and interpolation baseline. Keep JSON validation on every new delta collection.
+
+When adding a dynamic spatial type, insert on creation, update after authoritative movement,
+remove on destruction/expiry, and never mutate gameplay through the grid. A radius query touches
+only intersecting cells; corpse and guard scans are intentionally retained because those sets are
+small and bounded. Only the `local` chat channel is implemented even though protocol types reserve
+future `party`, `guild`, `global`, and `whisper` names.
+
 ## Gotchas worth knowing
 
 **`vite dev` stacks Worker versions.** After a hot reload the *previous* Worker can keep

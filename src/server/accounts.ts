@@ -57,6 +57,11 @@ export async function createAccount(
   return { id, username: normalized };
 }
 
+export async function accountExists(db: Db, id: string): Promise<boolean> {
+  const row = await db.select({ id: account.id }).from(account).where(eq(account.id, id)).get();
+  return row !== undefined;
+}
+
 export async function verifyCredentials(
   db: Db,
   username: string,

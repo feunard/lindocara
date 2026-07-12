@@ -26,6 +26,12 @@ import {
   CEMETERIES,
   CLASS_STATS,
   clampRestoredPosition,
+  GUARD_ATTACK_COOLDOWN_MS,
+  GUARD_ATTACK_RANGE,
+  GUARD_DAMAGE,
+  GUARD_DETECTION_RANGE,
+  GUARD_SPEED,
+  type GuardDefinition,
   hasLineOfSight,
   healAmountFor,
   INTERACTION_RANGE,
@@ -52,19 +58,33 @@ import {
   xpForNextLevel,
 } from "../shared/game.js";
 import {
+  CORPSE_VISIBILITY_RADIUS,
+  GUARD_VISIBILITY_RADIUS,
+  INTEREST_HYSTERESIS,
+  LOCAL_CHAT_RADIUS,
+  LOOT_VISIBILITY_RADIUS,
+  MONSTER_VISIBILITY_RADIUS,
+  PLAYER_VISIBILITY_RADIUS,
+  SPATIAL_CELL_SIZE,
+  SPATIAL_EVENT_RADIUS,
+} from "../shared/interest.js";
+import {
   type ClientMessage,
   type Command,
   type CorpseSnapshot,
   encodeServerMessage,
+  type GuardSnapshot,
   type LootSnapshot,
   type MonsterSnapshot,
   type PlayerSnapshot,
   parseClientMessage,
   type SelfState,
   type ServerMessage,
+  type WorldView,
 } from "../shared/protocol.js";
 import {
   type Input,
+  NETWORK_TICKS_PER_SNAPSHOT,
   NO_INPUT,
   PLAYER_SIZE,
   step,
@@ -81,6 +101,12 @@ import {
   skillFor,
 } from "../shared/skills.js";
 import {
+  buildWorldDelta,
+  createWorldCache,
+  replaceWorldCache,
+  type WorldCache,
+} from "../shared/world-delta.js";
+import {
   type PortalDefinition,
   resolveZoneLocation,
   type ZoneDefinition,
@@ -89,6 +115,7 @@ import {
 import { PRESENCE_HEARTBEAT_MS } from "./character-presence.js";
 import { createDb } from "./db/index.js";
 import { loadProfile, type PlayerProfile, type SaveableProfile, saveProfile } from "./profile.js";
+import { queryWithHysteresis, SpatialGrid } from "./spatial-grid.js";
 
 const ATTACHMENT_EVERY_TICKS = TICK_HZ;
 const D1_SAVE_EVERY_TICKS = TICK_HZ * 5;
@@ -146,6 +173,14 @@ interface Player extends PlayerProfile {
   transitioning: boolean;
   lastTransitionAt: number;
   nextPresenceHeartbeatAt: number;
+  interest: PlayerInterest;
+  network: WorldCache;
+}
+
+interface PlayerInterest {
+  players: Set<string>;
+  monsters: Set<string>;
+  loot: Set<string>;
 }
 
 interface Monster extends Vec2 {
@@ -164,6 +199,15 @@ interface Monster extends Vec2 {
   deadUntil: number;
   vx: number;
   vy: number;
+}
+
+interface Guard extends Vec2 {
+  id: string;
+  homeX: number;
+  homeY: number;
+  patrolRadius: number;
+  lastAttackAt: number;
+  fightingUntil: number;
 }
 
 interface GroundLoot extends LootSnapshot {
@@ -239,6 +283,8 @@ function newPlayer(
     transitioning: false,
     lastTransitionAt: 0,
     nextPresenceHeartbeatAt: Date.now() + PRESENCE_HEARTBEAT_MS,
+    interest: { players: new Set(), monsters: new Set(), loot: new Set() },
+    network: createWorldCache(),
   };
 }
 
@@ -312,15 +358,30 @@ function createMonsters(spawns: readonly MonsterSpawn[]): Monster[] {
   });
 }
 
+function createGuards(definitions: readonly GuardDefinition[]): Guard[] {
+  return definitions.map((guard) => ({
+    ...guard,
+    homeX: guard.x,
+    homeY: guard.y,
+    lastAttackAt: 0,
+    fightingUntil: 0,
+  }));
+}
+
 export class World extends DurableObject<Env> {
   #players = new Map<WebSocket, Player>();
+  #socketByPlayerId = new Map<string, WebSocket>();
   #monsters: Monster[] = [];
+  #guards: Guard[] = [];
   #location: ZoneLocation | null = null;
   #loot: GroundLoot[] = [];
   #siteRespawnAt = new Map<string, number>();
   #profileSaves = new Map<string, Promise<boolean>>();
   #loop: ReturnType<typeof setInterval> | null = null;
   #tick = 0;
+  #playerGrid = new SpatialGrid<Player>(SPATIAL_CELL_SIZE);
+  #monsterGrid = new SpatialGrid<Monster>(SPATIAL_CELL_SIZE);
+  #lootGrid = new SpatialGrid<GroundLoot>(SPATIAL_CELL_SIZE);
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -381,7 +442,7 @@ export class World extends DurableObject<Env> {
           attachment.lastSeq ?? 0,
         );
         ws.serializeAttachment(toAttachment(player));
-        this.#players.set(ws, player);
+        this.#addPlayer(ws, player);
       }
       if (this.#players.size > 0) this.#startLoop();
     });
@@ -394,6 +455,9 @@ export class World extends DurableObject<Env> {
     if (this.#location) return;
     this.#location = location;
     this.#monsters = createMonsters(location.definition.monsters);
+    this.#guards = createGuards(location.definition.guards);
+    this.#monsterGrid.clear();
+    for (const monster of this.#monsters) this.#monsterGrid.insert(monster);
   }
 
   #zone(): ZoneDefinition {
@@ -516,19 +580,22 @@ export class World extends DurableObject<Env> {
     const player = newPlayer(profile, connectionId, roomKey);
     player.dirty = false;
     server.serializeAttachment(toAttachment(player));
-    this.#players.set(server, player);
+    this.#addPlayer(server, player);
 
     // Close the acquire/admit race: once the socket is in the map, a later replacement can find
     // it; before returning the upgrade, verify no newer acquisition already won.
     if (!(await presence.isAuthorized(connectionId, sessionEpoch, roomKey))) {
-      this.#players.delete(server);
+      this.#removePlayer(server, player);
       player.authorized = false;
       server.close(WS_CLOSE.PRESENCE_LOST, "presence lost during admission");
       return new Response("presence lost", { status: 409 });
     }
 
+    const initialView = this.#worldView(player);
+    replaceWorldCache(player.network, initialView);
     this.#send(server, {
       t: "welcome",
+      tick: this.#tick,
       selfId: id,
       world: {
         zoneNameKey: location.definition.nameKey,
@@ -548,10 +615,7 @@ export class World extends DurableObject<Env> {
           y: portal.y,
         })),
       },
-      players: this.#playerSnapshots(),
-      monsters: this.#monsterSnapshots(),
-      loot: this.#lootSnapshots(),
-      corpses: this.#corpseSnapshots(),
+      ...initialView,
       self: this.#selfState(player),
     });
     this.#send(server, { t: "event", code: "wake", tone: "info" });
@@ -612,7 +676,7 @@ export class World extends DurableObject<Env> {
     player.disconnecting = true;
     player.lastInput = NO_INPUT;
     player.queue = [];
-    this.#players.delete(ws);
+    this.#removePlayer(ws, player);
 
     try {
       if (closeCode === WS_CLOSE.CHARACTER_REPLACED) {
@@ -640,6 +704,10 @@ export class World extends DurableObject<Env> {
   }
 
   async #handleMessage(ws: WebSocket, player: Player, message: ClientMessage): Promise<void> {
+    if (message.t === "world.resync") {
+      this.#sendWorldResync(ws, player);
+      return;
+    }
     if (message.t === "input") {
       if (message.seq <= player.lastSeq) return;
       player.lastSeq = message.seq;
@@ -682,7 +750,7 @@ export class World extends DurableObject<Env> {
     }
     const text = message.text.trim().replaceAll(/\s+/g, " ");
     if (text.length === 0 || text.length > CHAT_MAX_LENGTH) return;
-    this.#broadcast({ t: "chat", from: player.nick, text });
+    this.#sendLocalChat(player, text);
   }
 
   #attack(ws: WebSocket, player: Player): void {
@@ -862,8 +930,10 @@ export class World extends DurableObject<Env> {
         this.#zone().terrain,
       );
       if (moved.x === player.x && moved.y === player.y) break;
+      const previousPosition = { x: player.x, y: player.y };
       player.x = moved.x;
       player.y = moved.y;
+      this.#playerGrid.update(player, previousPosition);
       movedAny = true;
       remaining -= stepDistance;
     }
@@ -946,14 +1016,16 @@ export class World extends DurableObject<Env> {
     }
 
     const kind = this.#tick % 4 === 0 ? "potion" : this.#tick % 2 === 0 ? "crystal" : "gold";
-    this.#loot.push({
+    const droppedLoot: GroundLoot = {
       id: crypto.randomUUID(),
       kind,
       amount: kind === "gold" ? 4 : 1,
       x: monster.x + 8,
       y: monster.y + 8,
       expiresAt: now + 30_000,
-    });
+    };
+    this.#loot.push(droppedLoot);
+    this.#lootGrid.insert(droppedLoot);
     this.#send(
       ws,
       result.levelsGained > 0
@@ -1148,7 +1220,7 @@ export class World extends DurableObject<Env> {
     // The epoch is already N+1 in D1. Removing before close guarantees the old room cannot
     // run another tick for this character; a late persistence attempt is fenced by D1 anyway.
     player.disconnecting = true;
-    this.#players.delete(ws);
+    this.#removePlayer(ws, player);
     this.#send(ws, { t: "event", code: "zone.transition", tone: "good" });
     try {
       ws.close(WS_CLOSE.ZONE_TRANSITION, "zone transition");
@@ -1260,14 +1332,17 @@ export class World extends DurableObject<Env> {
 
     if (site.kind === "resource") {
       this.#siteRespawnAt.set(site.id, now + QUEST_SITE_RESPAWN_MS);
-      this.#broadcast({
-        t: "event",
-        code: "quest.site_harvested",
-        params: { site: site.id, seconds: QUEST_SITE_RESPAWN_MS / 1_000 },
-        tone: "good",
-        x: site.x,
-        y: site.y,
-      });
+      this.#sendSpatialEvent(
+        {
+          t: "event",
+          code: "quest.site_harvested",
+          params: { site: site.id, seconds: QUEST_SITE_RESPAWN_MS / 1_000 },
+          tone: "good",
+          x: site.x,
+          y: site.y,
+        },
+        site,
+      );
     }
     player.quest.progress += 1;
     if (player.quest.progress >= definition.target) {
@@ -1350,7 +1425,7 @@ export class World extends DurableObject<Env> {
         );
       }
     } finally {
-      if (this.#players.get(ws) === player) this.#players.delete(ws);
+      if (this.#players.get(ws) === player) this.#removePlayer(ws, player);
       if (this.#players.size === 0) this.#stopLoop();
     }
   }
@@ -1394,7 +1469,7 @@ export class World extends DurableObject<Env> {
     player.authorized = false;
     player.lastInput = NO_INPUT;
     player.queue = [];
-    if (this.#players.get(ws) === player) this.#players.delete(ws);
+    if (this.#players.get(ws) === player) this.#removePlayer(ws, player);
     console.warn(
       JSON.stringify({
         event: "stale_character_save_rejected",
@@ -1464,6 +1539,7 @@ export class World extends DurableObject<Env> {
           player.lastInput = NO_INPUT;
         }
 
+        const previousPosition = { x: player.x, y: player.y };
         const desired = step(
           player,
           player.lastInput,
@@ -1475,6 +1551,7 @@ export class World extends DurableObject<Env> {
         if (moved.x !== player.x || moved.y !== player.y) {
           player.x = moved.x;
           player.y = moved.y;
+          this.#playerGrid.update(player, previousPosition);
           player.dirty = true;
         }
       }
@@ -1489,15 +1566,13 @@ export class World extends DurableObject<Env> {
     }
 
     this.#advanceMonsters(now);
-    this.#loot = this.#loot.filter((item) => item.expiresAt > now);
-    this.#broadcast({
-      t: "snapshot",
-      tick: this.#tick,
-      players: this.#playerSnapshots(),
-      monsters: this.#monsterSnapshots(),
-      loot: this.#lootSnapshots(),
-      corpses: this.#corpseSnapshots(),
+    this.#advanceGuards(now);
+    this.#loot = this.#loot.filter((item) => {
+      if (item.expiresAt > now) return true;
+      this.#lootGrid.remove(item.id);
+      return false;
     });
+    if (this.#tick % NETWORK_TICKS_PER_SNAPSHOT === 0) this.#sendWorldDeltas();
   }
 
   async #renewPresence(player: Player): Promise<void> {
@@ -1526,12 +1601,14 @@ export class World extends DurableObject<Env> {
       if (!monster) continue;
       if (monster.deadUntil > now) continue;
       if (monster.deadUntil > 0) {
+        const previousPosition = { x: monster.x, y: monster.y };
         monster.deadUntil = 0;
         monster.hp = monster.maxHp;
         monster.x = monster.spawnX;
         monster.y = monster.spawnY;
         monster.vx = 0;
         monster.vy = 0;
+        this.#monsterGrid.update(monster, previousPosition);
       }
 
       let target: [WebSocket, Player] | undefined;
@@ -1567,6 +1644,7 @@ export class World extends DurableObject<Env> {
   }
 
   #moveMonsterToward(monster: Monster, target: Vec2): void {
+    const previousPosition = { x: monster.x, y: monster.y };
     const dx = target.x - monster.x;
     const dy = target.y - monster.y;
     const length = Math.hypot(dx, dy);
@@ -1589,6 +1667,64 @@ export class World extends DurableObject<Env> {
     if (moved.y === monster.y) monster.vy = 0;
     monster.x = moved.x;
     monster.y = moved.y;
+    this.#monsterGrid.update(monster, previousPosition);
+  }
+
+  #advanceGuards(now: number): void {
+    const safeZone = this.#zone().terrain.safeZone;
+    for (const guard of this.#guards) {
+      let target: Monster | undefined;
+      let targetDistance = GUARD_DETECTION_RANGE;
+      for (const monster of this.#monsters) {
+        if (monster.deadUntil > now || !inRect(monster, safeZone)) continue;
+        const distance = pointDistance(guard, monster);
+        if (distance >= targetDistance) continue;
+        target = monster;
+        targetDistance = distance;
+      }
+
+      if (!target) {
+        this.#moveGuardToward(guard, { x: guard.homeX, y: guard.homeY });
+        continue;
+      }
+      guard.fightingUntil = now + 420;
+      if (targetDistance > GUARD_ATTACK_RANGE) {
+        this.#moveGuardToward(guard, target);
+        continue;
+      }
+      if (now - guard.lastAttackAt < GUARD_ATTACK_COOLDOWN_MS) continue;
+      guard.lastAttackAt = now;
+      target.hp = Math.max(0, target.hp - GUARD_DAMAGE);
+      if (target.hp > 0) continue;
+
+      // Guard kills are civic cleanup, never player progression: no XP, quest credit or loot.
+      target.deadUntil = now + MONSTER_RESPAWN_MS;
+      target.vx = 0;
+      target.vy = 0;
+    }
+  }
+
+  #moveGuardToward(guard: Guard, target: Vec2): void {
+    const dx = target.x - guard.x;
+    const dy = target.y - guard.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance < 2) return;
+    const maxTravel = GUARD_SPEED * TICK_DT;
+    const desired = {
+      x: guard.x + (dx / distance) * Math.min(maxTravel, distance),
+      y: guard.y + (dy / distance) * Math.min(maxTravel, distance),
+    };
+    const safe = this.#zone().terrain.safeZone;
+    desired.x = Math.max(safe.x, Math.min(safe.x + safe.width - PLAYER_SIZE, desired.x));
+    desired.y = Math.max(safe.y, Math.min(safe.y + safe.height - PLAYER_SIZE, desired.y));
+    const fromHome = Math.hypot(desired.x - guard.homeX, desired.y - guard.homeY);
+    if (fromHome > guard.patrolRadius) {
+      desired.x = guard.homeX + ((desired.x - guard.homeX) / fromHome) * guard.patrolRadius;
+      desired.y = guard.homeY + ((desired.y - guard.homeY) / fromHome) * guard.patrolRadius;
+    }
+    const moved = resolveTerrain(guard, desired, this.#zone().terrain);
+    guard.x = moved.x;
+    guard.y = moved.y;
   }
 
   #damagePlayer(
@@ -1622,12 +1758,17 @@ export class World extends DurableObject<Env> {
     player.life = "corpse";
     player.corpse = { x: player.x, y: player.y };
     this.#freeze(player);
-    this.#broadcast({
-      t: "event",
-      code: "player.down",
-      params: { name: player.nick },
-      tone: "bad",
-    });
+    this.#sendSpatialEvent(
+      {
+        t: "event",
+        code: "player.down",
+        params: { name: player.nick },
+        tone: "bad",
+        x: player.x,
+        y: player.y,
+      },
+      player,
+    );
     this.#send(ws, { t: "event", code: "death.fallen", tone: "bad", x: player.x, y: player.y });
   }
 
@@ -1647,9 +1788,11 @@ export class World extends DurableObject<Env> {
   #release(ws: WebSocket, player: Player): void {
     if (player.life !== "corpse" || player.corpse === null) return;
     const cemetery = nearestCemetery(player.corpse);
+    const previousPosition = { x: player.x, y: player.y };
     player.life = "ghost";
     player.x = cemetery.x;
     player.y = cemetery.y;
+    this.#playerGrid.update(player, previousPosition);
     this.#freeze(player);
     this.#send(ws, { t: "event", code: "death.released", tone: "info", x: player.x, y: player.y });
     this.#sendState(ws, player);
@@ -1674,6 +1817,7 @@ export class World extends DurableObject<Env> {
       if (item.kind === "gold") player.inventory.gold += item.amount;
       if (item.kind === "crystal") player.inventory.crystals += item.amount;
       this.#loot.splice(i, 1);
+      this.#lootGrid.remove(item.id);
       player.dirty = true;
       this.#send(ws, {
         t: "event",
@@ -1710,23 +1854,63 @@ export class World extends DurableObject<Env> {
     this.#send(ws, { t: "state", self: this.#selfState(player) });
   }
 
-  #playerSnapshots(): PlayerSnapshot[] {
-    return Array.from(this.#players.values())
+  #worldView(player: Player): WorldView {
+    return {
+      players: this.#visiblePlayerSnapshots(player),
+      monsters: this.#visibleMonsterSnapshots(player),
+      guards: this.#guardSnapshots(player),
+      loot: this.#visibleLootSnapshots(player),
+      corpses: this.#corpseSnapshots(player),
+    };
+  }
+
+  #sendWorldDeltas(): void {
+    for (const [ws, player] of this.#players) {
+      if (!player.authorized) continue;
+      const delta = buildWorldDelta(player.network, this.#worldView(player));
+      this.#send(ws, { t: "world.delta", tick: this.#tick, ...delta });
+    }
+  }
+
+  #sendWorldResync(ws: WebSocket, player: Player): void {
+    const view = this.#worldView(player);
+    replaceWorldCache(player.network, view);
+    this.#send(ws, { t: "world.resync", tick: this.#tick, ...view });
+  }
+
+  #visiblePlayerSnapshots(viewer: Player): PlayerSnapshot[] {
+    const selection = queryWithHysteresis(
+      this.#playerGrid,
+      viewer,
+      PLAYER_VISIBILITY_RADIUS,
+      INTEREST_HYSTERESIS,
+      viewer.interest.players,
+    );
+    viewer.interest.players = selection.visibleIds;
+    if (!viewer.interest.players.has(viewer.id)) {
+      viewer.interest.players.add(viewer.id);
+      selection.entities.push(viewer);
+    }
+    return selection.entities
       .filter((player) => player.authorized)
-      .map((player) => ({
-        id: player.id,
-        nick: player.nick,
-        x: Math.round(player.x * 100) / 100,
-        y: Math.round(player.y * 100) / 100,
-        ack: player.ack,
-        hp: player.hp,
-        maxHp: maxHpForLevel(player.level),
-        level: player.level,
-        appearance: player.appearance,
-        class: player.class,
-        equipment: { ...player.equipment },
-        life: player.life,
-      }));
+      .map((player) => this.#playerSnapshot(player));
+  }
+
+  #playerSnapshot(player: Player): PlayerSnapshot {
+    return {
+      id: player.id,
+      nick: player.nick,
+      x: Math.round(player.x * 100) / 100,
+      y: Math.round(player.y * 100) / 100,
+      ack: player.ack,
+      hp: player.hp,
+      maxHp: maxHpForLevel(player.level),
+      level: player.level,
+      appearance: player.appearance,
+      class: player.class,
+      equipment: { ...player.equipment },
+      life: player.life,
+    };
   }
 
   /**
@@ -1734,10 +1918,16 @@ export class World extends DurableObject<Env> {
    * ghost is walking back to it. Emitting only the former would make your corpse vanish at the
    * exact moment you released, which is the moment you start needing to find it.
    */
-  #corpseSnapshots(): CorpseSnapshot[] {
+  #corpseSnapshots(viewer: Player): CorpseSnapshot[] {
     const corpses: CorpseSnapshot[] = [];
+    const radiusSquared = CORPSE_VISIBILITY_RADIUS * CORPSE_VISIBILITY_RADIUS;
+    // Corpse counts are bounded by connected players and normally tiny, so this rare-state scan
+    // stays simpler than maintaining a second position for every player in the spatial index.
     for (const player of this.#players.values()) {
       if (player.corpse === null) continue;
+      const dx = player.corpse.x - viewer.x;
+      const dy = player.corpse.y - viewer.y;
+      if (player.id !== viewer.id && dx * dx + dy * dy > radiusSquared) continue;
       corpses.push({
         id: player.id,
         nick: player.nick,
@@ -1750,9 +1940,17 @@ export class World extends DurableObject<Env> {
     return corpses;
   }
 
-  #monsterSnapshots(): MonsterSnapshot[] {
+  #visibleMonsterSnapshots(viewer: Player): MonsterSnapshot[] {
+    const selection = queryWithHysteresis(
+      this.#monsterGrid,
+      viewer,
+      MONSTER_VISIBILITY_RADIUS,
+      INTEREST_HYSTERESIS,
+      viewer.interest.monsters,
+    );
+    viewer.interest.monsters = selection.visibleIds;
     const now = Date.now();
-    return this.#monsters.map((monster) => ({
+    return selection.entities.map((monster) => ({
       id: monster.id,
       kind: monster.kind,
       species: monster.species,
@@ -1764,8 +1962,65 @@ export class World extends DurableObject<Env> {
     }));
   }
 
-  #lootSnapshots(): LootSnapshot[] {
-    return this.#loot.map(({ id, kind, amount, x, y }) => ({ id, kind, amount, x, y }));
+  #guardSnapshots(viewer?: Player): GuardSnapshot[] {
+    const now = Date.now();
+    const guards = viewer
+      ? this.#guards.filter((guard) => pointDistance(viewer, guard) <= GUARD_VISIBILITY_RADIUS)
+      : this.#guards;
+    return guards.map((guard) => ({
+      id: guard.id,
+      x: Math.round(guard.x * 100) / 100,
+      y: Math.round(guard.y * 100) / 100,
+      homeX: guard.homeX,
+      homeY: guard.homeY,
+      fighting: guard.fightingUntil > now,
+    }));
+  }
+
+  #visibleLootSnapshots(viewer: Player): LootSnapshot[] {
+    const selection = queryWithHysteresis(
+      this.#lootGrid,
+      viewer,
+      LOOT_VISIBILITY_RADIUS,
+      INTEREST_HYSTERESIS,
+      viewer.interest.loot,
+    );
+    viewer.interest.loot = selection.visibleIds;
+    return selection.entities.map(({ id, kind, amount, x, y }) => ({ id, kind, amount, x, y }));
+  }
+
+  #addPlayer(ws: WebSocket, player: Player): void {
+    this.#players.set(ws, player);
+    this.#socketByPlayerId.set(player.id, ws);
+    this.#playerGrid.insert(player);
+  }
+
+  #removePlayer(ws: WebSocket, player: Player): void {
+    this.#players.delete(ws);
+    if (this.#socketByPlayerId.get(player.id) === ws) this.#socketByPlayerId.delete(player.id);
+    this.#playerGrid.remove(player.id);
+  }
+
+  #sendLocalChat(sender: Player, text: string): void {
+    const message: ServerMessage = {
+      t: "chat",
+      channel: "local",
+      from: sender.nick,
+      text,
+    };
+    for (const recipient of this.#playerGrid.queryRadius(sender, LOCAL_CHAT_RADIUS)) {
+      if (!recipient.authorized) continue;
+      const socket = this.#socketByPlayerId.get(recipient.id);
+      if (socket) this.#send(socket, message);
+    }
+  }
+
+  #sendSpatialEvent(message: ServerMessage, position: Vec2): void {
+    for (const recipient of this.#playerGrid.queryRadius(position, SPATIAL_EVENT_RADIUS)) {
+      if (!recipient.authorized) continue;
+      const socket = this.#socketByPlayerId.get(recipient.id);
+      if (socket) this.#send(socket, message);
+    }
   }
 
   #send(ws: WebSocket, message: ServerMessage): void {
@@ -1773,17 +2028,6 @@ export class World extends DurableObject<Env> {
       ws.send(encodeServerMessage(message));
     } catch {
       this.ctx.waitUntil(this.#drop(ws));
-    }
-  }
-
-  #broadcast(message: ServerMessage): void {
-    const payload = encodeServerMessage(message);
-    for (const ws of this.ctx.getWebSockets()) {
-      try {
-        ws.send(payload);
-      } catch {
-        this.ctx.waitUntil(this.#drop(ws));
-      }
     }
   }
 }

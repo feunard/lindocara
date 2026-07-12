@@ -10,7 +10,7 @@ import { normalizeAppearance } from "../shared/character.js";
 import { WS_CLOSE } from "../shared/close-codes.js";
 import { isValidClass } from "../shared/game.js";
 import { resolveZoneLocation } from "../shared/zones.js";
-import { createAccount, verifyCredentials } from "./accounts.js";
+import { accountExists, createAccount, verifyCredentials } from "./accounts.js";
 import {
   characterOwnedBy,
   createCharacter,
@@ -27,6 +27,7 @@ import {
   isValidPassword,
   isValidUsername,
   readSessionCookie,
+  type Session,
   serializeSessionCookie,
   signSession,
   verifySession,
@@ -55,6 +56,21 @@ async function currentSession(request: Request, env: Env) {
   const token = readSessionCookie(request);
   if (!token) return null;
   return verifySession(token, env.SESSION_SECRET);
+}
+
+type SessionAuth = { session: Session } | Response;
+
+/** Cryptographic session plus a live account row — stale cookies after a local D1 reset 401 here. */
+async function requireSession(request: Request, env: Env, url: URL): Promise<SessionAuth> {
+  const session = await currentSession(request, env);
+  if (!session) return json({ error: "unauthorized" }, { status: 401 });
+  if (!(await accountExists(createDb(env.DB), session.id))) {
+    return json(
+      { error: "session_expired" },
+      { status: 401, headers: { "Set-Cookie": clearSessionCookie(isSecure(url)) } },
+    );
+  }
+  return { session };
 }
 
 interface Credentials {
@@ -123,6 +139,9 @@ async function handleJoin(request: Request, env: Env, url: URL): Promise<Respons
     return closedWebSocket(WS_CLOSE.SESSION_EXPIRED, "session expired");
   }
   if (!session) return json({ error: "unauthorized" }, { status: 401 });
+  if (!(await accountExists(createDb(env.DB), session.id))) {
+    return closedWebSocket(WS_CLOSE.SESSION_EXPIRED, "session expired");
+  }
 
   const characterId = url.searchParams.get("character");
   if (!characterId) return json({ error: "missing_character" }, { status: 400 });
@@ -173,15 +192,16 @@ async function handleJoin(request: Request, env: Env, url: URL): Promise<Respons
   );
 }
 
-async function handleListCharacters(request: Request, env: Env): Promise<Response> {
-  const session = await currentSession(request, env);
-  if (!session) return json({ error: "unauthorized" }, { status: 401 });
-  return json(await listCharacters(createDb(env.DB), session.id));
+async function handleListCharacters(request: Request, env: Env, url: URL): Promise<Response> {
+  const auth = await requireSession(request, env, url);
+  if (auth instanceof Response) return auth;
+  return json(await listCharacters(createDb(env.DB), auth.session.id));
 }
 
-async function handleCreateCharacter(request: Request, env: Env): Promise<Response> {
-  const session = await currentSession(request, env);
-  if (!session) return json({ error: "unauthorized" }, { status: 401 });
+async function handleCreateCharacter(request: Request, env: Env, url: URL): Promise<Response> {
+  const auth = await requireSession(request, env, url);
+  if (auth instanceof Response) return auth;
+  const session = auth.session;
 
   let body: unknown;
   try {
@@ -210,10 +230,12 @@ async function handleCreateCharacter(request: Request, env: Env): Promise<Respon
 async function handleDeleteCharacter(
   request: Request,
   env: Env,
+  url: URL,
   characterId: string,
 ): Promise<Response> {
-  const session = await currentSession(request, env);
-  if (!session) return json({ error: "unauthorized" }, { status: 401 });
+  const auth = await requireSession(request, env, url);
+  if (auth instanceof Response) return auth;
+  const session = auth.session;
   const deleted = await deleteCharacter(createDb(env.DB), session.id, characterId);
   if (!deleted) return json({ error: "not_found" }, { status: 404 });
 
@@ -251,20 +273,20 @@ export default {
     }
 
     if (url.pathname === "/api/me" && request.method === "GET") {
-      const session = await currentSession(request, env);
-      if (!session) return json({ error: "unauthorized" }, { status: 401 });
-      return json({ id: session.id, username: session.username });
+      const auth = await requireSession(request, env, url);
+      if (auth instanceof Response) return auth;
+      return json({ id: auth.session.id, username: auth.session.username });
     }
 
     if (url.pathname === "/api/characters" && request.method === "GET") {
-      return handleListCharacters(request, env);
+      return handleListCharacters(request, env, url);
     }
     if (url.pathname === "/api/characters" && request.method === "POST") {
-      return handleCreateCharacter(request, env);
+      return handleCreateCharacter(request, env, url);
     }
     const characterPath = url.pathname.match(/^\/api\/characters\/([0-9a-f-]{36})$/);
     if (characterPath?.[1] && request.method === "DELETE") {
-      return handleDeleteCharacter(request, env, characterPath[1]);
+      return handleDeleteCharacter(request, env, url, characterPath[1]);
     }
 
     return json({ error: "not found" }, { status: 404 });

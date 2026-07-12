@@ -21,6 +21,7 @@ import {
   attackDamageFor,
   BOUNDARY_OBSTACLES,
   CEMETERIES,
+  CITY_GUARDS,
   CLASS_STATS,
   clampRestoredPosition,
   hasLineOfSight,
@@ -285,6 +286,19 @@ describe("authoritative world geometry", () => {
     ).toBeGreaterThan(INTERACTION_RANGE);
   });
 
+  it("places every quest giver and guard on walkable city ground", () => {
+    for (const quest of QUEST_DEFINITIONS) {
+      expect(isWalkable(quest.giver)).toBe(true);
+      expect(distanceToRect(quest.giver, SAFE_ZONE)).toBe(0);
+    }
+    expect(CITY_GUARDS).toHaveLength(4);
+    for (const guard of CITY_GUARDS) {
+      expect(isWalkable(guard)).toBe(true);
+      expect(distanceToRect(guard, SAFE_ZONE)).toBe(0);
+      expect(guard.patrolRadius).toBeLessThanOrEqual(Math.min(SAFE_ZONE.width, SAFE_ZONE.height));
+    }
+  });
+
   it("places a modest, zone-balanced monster population in open patrol clearings", () => {
     expect(MONSTER_SPAWNS.length).toBeGreaterThanOrEqual(12);
     expect(MONSTER_SPAWNS.length).toBeLessThanOrEqual(16);
@@ -298,17 +312,20 @@ describe("authoritative world geometry", () => {
 
     for (const spawn of MONSTER_SPAWNS) {
       expect(isWalkable(spawn)).toBe(true);
-      expect(distanceToRect(spawn, SAFE_ZONE)).toBeGreaterThan(
-        MONSTER_AGGRO_RANGE + spawn.patrolRadius,
-      );
+      if (spawn.mayEnterSafeZone) {
+        expect(distanceToRect(spawn, SAFE_ZONE)).toBeLessThanOrEqual(spawn.patrolRadius);
+      } else {
+        expect(distanceToRect(spawn, SAFE_ZONE)).toBeGreaterThan(
+          MONSTER_AGGRO_RANGE + spawn.patrolRadius,
+        );
+      }
       for (let sample = 0; sample < 16; sample++) {
         const angle = (sample / 16) * Math.PI * 2;
-        expect(
-          isWalkable({
-            x: spawn.x + Math.cos(angle) * spawn.patrolRadius,
-            y: spawn.y + Math.sin(angle) * spawn.patrolRadius,
-          }),
-        ).toBe(true);
+        const patrolSample = {
+          x: spawn.x + Math.cos(angle) * spawn.patrolRadius,
+          y: spawn.y + Math.sin(angle) * spawn.patrolRadius,
+        };
+        if (!spawn.mayEnterSafeZone) expect(isWalkable(patrolSample)).toBe(true);
       }
     }
   });
@@ -325,6 +342,10 @@ describe("authoritative world geometry", () => {
 
     const reachable = reachableSamples(spawnPosition("quest-pathfinder"));
     for (const quest of QUEST_DEFINITIONS) {
+      expect(quest.giver.x).toBeGreaterThanOrEqual(SAFE_ZONE.x);
+      expect(quest.giver.y).toBeGreaterThanOrEqual(SAFE_ZONE.y);
+      expect(quest.giver.x + PLAYER_SIZE).toBeLessThanOrEqual(SAFE_ZONE.x + SAFE_ZONE.width);
+      expect(quest.giver.y + PLAYER_SIZE).toBeLessThanOrEqual(SAFE_ZONE.y + SAFE_ZONE.height);
       expect(
         hasReachableSample(reachable, quest.giver),
         `${quest.id} giver should be reachable`,

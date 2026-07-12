@@ -137,6 +137,26 @@ export interface RoadDefinition {
 /** Wide shared routes form two loops, so travel creates meetings without becoming a corridor. */
 export const ROADS: readonly RoadDefinition[] = [
   {
+    id: "city-main-street",
+    width: 148,
+    points: [
+      { x: 480, y: 760 },
+      { x: 760, y: 760 },
+      { x: 1040, y: 760 },
+      { x: 1320, y: 760 },
+      { x: 1580, y: 760 },
+    ],
+  },
+  {
+    id: "city-civic-crossing",
+    width: 118,
+    points: [
+      { x: 1040, y: 480 },
+      { x: 1040, y: 760 },
+      { x: 1040, y: 1120 },
+    ],
+  },
+  {
     id: "old-road-east",
     width: 132,
     points: [
@@ -243,11 +263,19 @@ export const POINTS_OF_INTEREST: readonly PointOfInterest[] = [
   },
   {
     id: "old-road-sign",
-    nameKey: "poi.three_way_stone",
+    nameKey: "sign.city_east",
     kind: "sign",
     x: 1530,
     y: 735,
     revealRadius: 310,
+  },
+  {
+    id: "city-south-sign",
+    nameKey: "sign.city_south",
+    kind: "sign",
+    x: 1320,
+    y: 1120,
+    revealRadius: 280,
   },
   {
     id: "sunwake-ring",
@@ -272,6 +300,14 @@ export const POINTS_OF_INTEREST: readonly PointOfInterest[] = [
     x: 2610,
     y: 820,
     revealRadius: 430,
+  },
+  {
+    id: "bridge-direction-sign",
+    nameKey: "sign.bridge",
+    kind: "sign",
+    x: 2810,
+    y: 835,
+    revealRadius: 300,
   },
   {
     id: "moonmere-lake",
@@ -304,6 +340,14 @@ export const POINTS_OF_INTEREST: readonly PointOfInterest[] = [
     x: 2880,
     y: 1810,
     revealRadius: 390,
+  },
+  {
+    id: "mire-direction-sign",
+    nameKey: "sign.mire",
+    kind: "sign",
+    x: 3030,
+    y: 1810,
+    revealRadius: 300,
   },
   {
     id: "mire-heart",
@@ -351,7 +395,7 @@ export const DECOR_REGIONS: readonly DecorRegion[] = [
     y: 720,
     radiusX: 720,
     radiusY: 520,
-    count: 54,
+    count: 28,
     seed: 110,
   },
   {

@@ -272,8 +272,8 @@ describe("account and character tables", () => {
     expect(await acquireSessionEpoch(db, old.id)).toBe(2);
     const current = await loadProfile(db, old.id);
     if (!current) throw new Error("missing current epoch");
-    current.x = 900;
-    current.y = 1000;
+    current.x = 700;
+    current.y = 1100;
     current.xp = 77;
     expect(await saveProfile(db, current)).toBe(true);
 
@@ -286,8 +286,8 @@ describe("account and character tables", () => {
     expect(await saveProfile(db, old)).toBe(false);
 
     expect(await loadProfile(db, old.id)).toMatchObject({
-      x: 900,
-      y: 1000,
+      x: 700,
+      y: 1100,
       xp: 77,
       sessionEpoch: 2,
     });

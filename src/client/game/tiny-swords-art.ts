@@ -5,15 +5,40 @@ import type { SkillSlot } from "../../shared/skills.js";
 export const TINY_SWORDS_ROOT = "/assets/lindocara/tiny-swords";
 export const TINY_SWORDS_UNIT_FRAME = 192;
 
+/**
+ * Deliberately curated across Tiny Swords factions: roof colour gives each city district an
+ * identity while the shared silhouettes/palette keep the town visually coherent.
+ */
 export const TINY_SWORDS_BUILDINGS = [
-  "House1.png",
-  "House2.png",
-  "House3.png",
-  "Barracks.png",
-  "Monastery.png",
-  "Tower.png",
-  "Castle.png",
-].map((file) => `${TINY_SWORDS_ROOT}/buildings/${file}`);
+  `${TINY_SWORDS_ROOT}/buildings/House1.png`,
+  `${TINY_SWORDS_ROOT}/buildings/House2.png`,
+  `${TINY_SWORDS_ROOT}/buildings/House3.png`,
+  `${TINY_SWORDS_ROOT}/buildings/Barracks.png`,
+  `${TINY_SWORDS_ROOT}/buildings/Monastery.png`,
+  `${TINY_SWORDS_ROOT}/buildings/Tower.png`,
+  `${TINY_SWORDS_ROOT}/buildings/Castle.png`,
+  new URL("../../../assets/vendor/tiny-swords/Buildings/Red Buildings/House1.png", import.meta.url)
+    .href,
+  new URL(
+    "../../../assets/vendor/tiny-swords/Buildings/Yellow Buildings/Barracks.png",
+    import.meta.url,
+  ).href,
+  new URL(
+    "../../../assets/vendor/tiny-swords/Buildings/Purple Buildings/Monastery.png",
+    import.meta.url,
+  ).href,
+  new URL("../../../assets/vendor/tiny-swords/Buildings/Red Buildings/House3.png", import.meta.url)
+    .href,
+  new URL(
+    "../../../assets/vendor/tiny-swords/Buildings/Yellow Buildings/House2.png",
+    import.meta.url,
+  ).href,
+] as const;
+
+export const TINY_SWORDS_SIGN_BOARD = new URL(
+  "../../../assets/vendor/tiny-swords/UI Elements/UI Elements/Banners/Banner.png",
+  import.meta.url,
+).href;
 
 export const TINY_SWORDS_EFFECTS = {
   fire: `${TINY_SWORDS_ROOT}/effects/Fire_01.png`,

@@ -1,5 +1,31 @@
 # Audit technique et plan de migration MMO multizone
 
+## Statut de la grille spatiale et de la zone d'intérêt
+
+La sélection spatiale est active sans modifier la simulation à 20 Hz. Le réseau émet à 10 Hz :
+`welcome` fournit la vue complète initiale, puis `world.delta` transporte les upserts et suppressions.
+`SpatialGrid` utilise des cellules de 256 px et indexe joueurs, monstres et butin ; les
+collections de `World` restent autoritaires. Chaque destinataire obtient sa propre vue avec
+des rayons de 900/850/650 px et une hystérésis de sortie de 96 px. Le joueur local est toujours
+présent. Les gardes et corps utilisent 900 px, les événements spatiaux 850 px et le chat local
+700 px. Les rooms et zones restent isolées par leur Durable Object.
+
+Le coût attendu par mise à jour est proportionnel aux cellules voisines et aux entités effectivement
+proches, au lieu d'un scan complet par joueur. Les gardes et corps font encore un scan borné : leur
+cardinalité est faible. Un cache par connexion retient uniquement le dernier état envoyé. Le client
+demande `world.resync` si un delta ou son tick est incohérent ; la réponse complète remplace son cache
+avant de reprendre l'interpolation et la réconciliation par ACK.
+
+## Statut de lisibilité du monde
+
+Verdant Reach possède désormais une ville safe-zone structurée : rues principales, place
+d'arrivée, bâtiments Tiny Swords multicolores avec collisions, quatre donneurs de quêtes en ville,
+panneaux localisés et gardes autoritaires. Les monstres ne sont pas bloqués magiquement à la
+frontière ; les gardes les interceptent dans la safe zone, sans récompense joueur. Le renderer ne
+révèle plus la prochaine rune par clignotement et réserve les textes flottants aux résultats de
+combat immédiats. Ces éléments restent locaux à chaque `World` et ne changent ni le routage, ni le
+handoff, ni le fencing `sessionEpoch`.
+
 Date de l'audit : 12 juillet 2026  
 Portée : branche active du dépôt LindoCara.  
 Statut : document de préparation ; aucun routage, protocole ou comportement de jeu n'est modifié.

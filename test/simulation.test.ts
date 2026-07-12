@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   type Input,
+  NETWORK_SNAPSHOT_HZ,
+  NETWORK_TICKS_PER_SNAPSHOT,
   NO_INPUT,
   PLAYER_SIZE,
   PLAYER_SPEED,
   step,
+  TICK_HZ,
   WORLD_HEIGHT,
   WORLD_WIDTH,
 } from "../src/shared/simulation.js";
@@ -12,6 +15,14 @@ import {
 const input = (partial: Partial<Input>): Input => ({ ...NO_INPUT, ...partial });
 
 describe("step", () => {
+  it("simulates twice as often as it emits network world state", () => {
+    expect(TICK_HZ).toBe(20);
+    expect(NETWORK_SNAPSHOT_HZ).toBe(10);
+    expect(NETWORK_SNAPSHOT_HZ).toBeLessThan(TICK_HZ);
+    expect(NETWORK_TICKS_PER_SNAPSHOT).toBe(2);
+    expect(Number.isInteger(NETWORK_TICKS_PER_SNAPSHOT)).toBe(true);
+  });
+
   it("stays put with no input", () => {
     expect(step({ x: 100, y: 100 }, NO_INPUT, 1)).toEqual({ x: 100, y: 100 });
   });

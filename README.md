@@ -38,6 +38,11 @@ equivalent terms.
 
 No external runtime URLs are used.
 
+The world also uses the bundled **Tiny Swords** pack under `assets/vendor/tiny-swords`: faction
+buildings, units, particles and UI art are bundled by Vite into the client. Heartroot now mixes
+blue, red, yellow and purple roof families deliberately by district; direction boards use the
+pack's parchment banner art rather than generated placeholder shapes.
+
 ## Quick start
 
 ```bash
@@ -101,6 +106,18 @@ New players begin in the sanctuary beside Warden Mira. The current quest chain c
 map through **The Three Offerings**, **The Bone Choir**, **Runes of the Mire**, and **The Ward
 Run**. It combines ordered gathering, monster hunting, a rune sequence, and a clearly timed ward
 course before each chapter's reward is claimed from its keeper.
+
+Heartroot Crossing is a real protected town: a wide east-west main street, a civic crossing,
+central arrival plaza, guildhall, sanctuary, market homes and eastwatch barracks. All four quest
+keepers live in those districts. Four yellow-clad city guards patrol only inside the safe zone.
+A border monster can physically enter, but guards intercept it server-side; a guard kill grants
+no player XP, quest credit or loot. Direction boards point toward the forest, farm, marsh, ruins
+and gate and are intentionally non-blocking so crossroads remain readable.
+
+World-space text is reserved for immediate combat numbers, important heals and level-ups. Loot,
+quest, interaction, presence and transition messages stay in the event log. Ordered rune sites no
+longer pulse the expected answer: their distinct glyphs and the quest clue communicate the rule,
+while success/error feedback appears only after interaction.
 
 Each character is one of three classes, picked at creation: the warrior hits hard at short
 range, the ranger hits softer from far away, and the priest hits softest of all but can mend
@@ -175,6 +192,26 @@ the Worker resolves the destination from D1. A late source save is rejected by i
 
 Swapping in real OAuth means changing how a session is minted. The cookie, the Worker, and
 the Durable Object all keep working.
+
+## Spatial interest and local chat
+
+Each `World` keeps its authoritative entity collections and maintains a disposable spatial index
+with 256 px cells. `welcome` contains the complete initial area; subsequent `world.delta` messages
+contain only changed or removed entities for that recipient. The local player is always
+included. Enter radii are 900 px for players, 850 px for monsters, 650 px for loot and 900 px for
+guards/corpses; a 96 px exit margin prevents border flicker. Local chat reaches 700 px and spatial
+events reach 850 px. Other chat channel names are reserved by the protocol but not implemented.
+
+Queries visit only the cells intersecting a radius, so their approximate cost is the nearby
+entities plus a small fixed cell count, rather than every entity in the room for every player.
+To add a dynamic entity type, keep its authoritative collection in `World`, index it on
+creation/movement/removal, then build its per-viewer snapshot from `queryWithHysteresis()`.
+
+Simulation remains at 20 Hz while JSON world updates run at 10 Hz. A typical initial message is
+`{"t":"welcome","tick":40,"players":[...],"monsters":[...],...}`; a later update is
+`{"t":"world.delta","tick":42,"players":{"upsert":[...],"remove":[]},...}`. If a delta
+cannot be applied or its tick is incoherent, the browser sends `{"t":"world.resync"}` and the
+server answers with a complete `world.resync` view and a fresh tick/cache baseline.
 
 ## More
 

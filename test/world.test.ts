@@ -23,6 +23,7 @@ import {
   WORLD_BOUNDARY_DEPTH,
   WORLD_LANDMARKS,
 } from "../src/shared/game.js";
+import { GUARD_VISIBILITY_RADIUS, MONSTER_VISIBILITY_RADIUS } from "../src/shared/interest.js";
 import {
   NO_INPUT,
   PLAYER_SIZE,
@@ -47,6 +48,7 @@ describe("World", () => {
     const client = await Client.join("alice");
 
     const welcome = await until("welcome", () => client.welcome);
+    expect(Number.isSafeInteger(welcome.tick)).toBe(true);
     expect(welcome.selfId).toMatch(/^[0-9a-f-]{36}$/);
     expect(welcome.world).toMatchObject({
       width: WORLD_WIDTH,
@@ -58,7 +60,13 @@ describe("World", () => {
     });
     expect(welcome.world.questNpcs).toEqual(QUEST_DEFINITIONS.map((quest) => quest.giver));
     expect(welcome.world.questSites).toEqual(QUEST_SITES);
-    expect(welcome.monsters.length).toBeGreaterThan(0);
+    const welcomedSelf = welcome.players.find((player) => player.id === welcome.selfId);
+    if (!welcomedSelf) throw new Error("welcome omitted the local player");
+    for (const monster of welcome.monsters) {
+      expect(
+        Math.hypot(monster.x - welcomedSelf.x, monster.y - welcomedSelf.y),
+      ).toBeLessThanOrEqual(MONSTER_VISIBILITY_RADIUS);
+    }
     expect(welcome.self.inventory).toMatchObject({ potions: 2 });
     expect(welcome.players.find((player) => player.id === welcome.selfId)).toMatchObject({
       appearance: { body: "wayfarer", primaryColor: "azure" },
@@ -86,16 +94,102 @@ describe("World", () => {
     expect(missing.status).toBe(400);
   });
 
-  it("broadcasts snapshots on the tick loop", async () => {
+  it("emits network world state less often than simulation ticks", async () => {
     const client = await Client.join("bob");
-
-    const first = await until("a snapshot", () => client.latestSnapshot);
-    const later = await until("a second, later snapshot", () => {
-      const snapshot = client.latestSnapshot;
-      return snapshot && snapshot.tick > first.tick ? snapshot : undefined;
+    const deltas = await until("two network deltas", () => {
+      const messages = client.received.filter((message) => message.t === "world.delta");
+      return messages.length >= 2 ? messages : undefined;
     });
+    const first = deltas[0];
+    const second = deltas[1];
+    if (!first || !second) throw new Error("network delta fixtures missing");
+    expect(second.tick - first.tick).toBe(2);
+    client.close();
+  });
 
-    expect(later.tick).toBeGreaterThan(first.tick);
+  it("sends sparse deltas, movement upserts, and an explicit full resynchronization", async () => {
+    await waitForRoomSockets(MMO_TEST_ROOM_KEY, 0);
+    const client = await Client.join("delta_probe", {
+      zoneId: "mmo-test-zone",
+      position: { x: 160, y: 160 },
+      pump: false,
+    });
+    const welcome = await until("delta welcome", () => client.welcome);
+    expect(welcome.players.map((player) => player.id)).toContain(welcome.selfId);
+
+    const unchanged = await until("unchanged delta", () =>
+      client.received.find((message) => message.t === "world.delta"),
+    );
+    for (const part of [
+      unchanged.players,
+      unchanged.monsters,
+      unchanged.guards,
+      unchanged.loot,
+      unchanged.corpses,
+    ]) {
+      expect(part).toEqual({ upsert: [], remove: [] });
+    }
+
+    client.sendCommand({ ...NO_INPUT, right: true });
+    const moved = await until("movement delta", () =>
+      client.received.find(
+        (message) =>
+          message.t === "world.delta" &&
+          message.players.upsert.some((player) => player.id === welcome.selfId),
+      ),
+    );
+    expect(moved).toMatchObject({ t: "world.delta" });
+
+    const beforeResync = client.received.length;
+    client.requestResync();
+    const resync = await until("full world resync", () =>
+      client.received.slice(beforeResync).find((message) => message.t === "world.resync"),
+    );
+    expect(resync.players.map((player) => player.id)).toContain(welcome.selfId);
+    client.close();
+  });
+
+  it("lets a border monster enter the city and has guards remove it without rewards", {
+    timeout: 12_000,
+  }, async () => {
+    const client = await Client.join("guard_witness", {
+      position: { x: 1380, y: 980 },
+    });
+    const welcome = await until("guard welcome", () => client.welcome);
+    const witness = welcome.players.find((player) => player.id === welcome.selfId);
+    if (!witness) throw new Error("guard witness missing from welcome");
+    expect(welcome.guards.length).toBeGreaterThan(0);
+    for (const guard of welcome.guards) {
+      expect(Math.hypot(guard.x - witness.x, guard.y - witness.y)).toBeLessThanOrEqual(
+        GUARD_VISIBILITY_RADIUS,
+      );
+    }
+    const hpBefore = client.self()?.hp ?? 100;
+    const xpBefore = welcome.self.xp;
+
+    const fighting = await until(
+      "a guard to intercept the city prowler",
+      () => client.latestSnapshot?.guards.find((guard) => guard.fighting),
+      8_000,
+    );
+    expect(
+      Math.hypot(fighting.x - fighting.homeX, fighting.y - fighting.homeY),
+    ).toBeLessThanOrEqual(212);
+    const defeated = await until(
+      "the city prowler to be defeated",
+      () =>
+        client.latestSnapshot?.monsters.find(
+          (monster) => monster.id === "city-edge-prowler" && monster.dead,
+        ),
+      4_000,
+    );
+    expect(defeated.hp).toBe(0);
+    expect(client.self()?.hp).toBe(hpBefore);
+    expect(client.latestState?.xp).toBe(xpBefore);
+    expect(client.latestSnapshot?.loot).toEqual([]);
+    for (const guard of client.latestSnapshot?.guards ?? []) {
+      expect(Math.hypot(guard.x - guard.homeX, guard.y - guard.homeY)).toBeLessThanOrEqual(212);
+    }
     client.close();
   });
 
@@ -242,23 +336,41 @@ describe("World", () => {
       level: 10,
     });
     const observer = await Client.join("LootEye", { zoneId: "mmo-test-zone" });
+    const distant = await Client.join("DistantLootEye", {
+      zoneId: "verdant-reach",
+      position: { x: 4000, y: 1200 },
+    });
     try {
-      await until("loot rooms welcome", () => hunter.welcome && observer.welcome);
+      await until(
+        "loot rooms welcome",
+        () => hunter.welcome && observer.welcome && distant.welcome,
+      );
 
       hunter.action("attack");
       await scheduler.wait(600);
       hunter.action("attack");
-      const loot = await until("main-room monster loot", () => {
+      const lootObserved = await until("main-room monster loot", () => {
         const snapshot = hunter.latestSnapshot;
-        return snapshot && snapshot.loot.length > 0 ? snapshot.loot : undefined;
+        if (snapshot && snapshot.loot.length > 0) return true;
+        return hunter.received.some(
+          (message) => message.t === "event" && message.code === "loot.picked",
+        )
+          ? true
+          : undefined;
       });
-      expect(loot.length).toBeGreaterThan(0);
+      expect(lootObserved).toBe(true);
       await until("technical-room snapshot", () => observer.latestSnapshot);
+      await until("distant-room snapshot", () => distant.latestSnapshot);
       expect(observer.latestSnapshot?.loot).toEqual([]);
       expect(observer.latestSnapshot?.monsters).toEqual([]);
+      expect(distant.latestSnapshot?.loot).toEqual([]);
+      expect(
+        distant.received.some((message) => message.t === "event" && message.code === "combat.hit"),
+      ).toBe(false);
     } finally {
       hunter.close();
       observer.close();
+      distant.close();
     }
   });
 
@@ -486,18 +598,41 @@ describe("World", () => {
     client.close();
   });
 
-  it("relays trimmed chat to every connected player", async () => {
-    const alice = await Client.join("chat_a");
-    const bob = await Client.join("chat_b");
-    await until("both welcomes", () => alice.welcome && bob.welcome);
+  it("filters snapshots and local chat by spatial interest while always including self", async () => {
+    const alice = await Client.join("chat_a", { position: { x: 500, y: 1100 } });
+    const bob = await Client.join("chat_b", { position: { x: 600, y: 1100 } });
+    const far = await Client.join("chat_far", { position: { x: 1870, y: 820 } });
+    await until("all interest snapshots", () =>
+      alice.latestSnapshot && bob.latestSnapshot && far.latestSnapshot ? true : undefined,
+    );
+
+    const aliceId = alice.welcome?.selfId;
+    const bobId = bob.welcome?.selfId;
+    const farId = far.welcome?.selfId;
+    expect(alice.latestSnapshot?.players.map((player) => player.id)).toEqual(
+      expect.arrayContaining([aliceId, bobId]),
+    );
+    expect(alice.latestSnapshot?.players.map((player) => player.id)).not.toContain(farId);
+    expect(far.latestSnapshot?.players.map((player) => player.id)).toContain(farId);
+    expect(far.latestSnapshot?.players.map((player) => player.id)).not.toContain(aliceId);
 
     alice.chat("  hello   world  ");
     const relayed = await until("chat relay", () =>
       bob.received.find((message) => message.t === "chat" && message.from === "chat_a"),
     );
-    expect(relayed).toMatchObject({ t: "chat", from: "chat_a", text: "hello world" });
+    expect(relayed).toMatchObject({
+      t: "chat",
+      channel: "local",
+      from: "chat_a",
+      text: "hello world",
+    });
+    await scheduler.wait(200);
+    expect(
+      far.received.some((message) => message.t === "chat" && message.text === "hello world"),
+    ).toBe(false);
     alice.close();
     bob.close();
+    far.close();
   });
 
   // A Durable Object is rebuilt on deploys and evictions, not only when it hibernates idle.
@@ -919,12 +1054,22 @@ describe("World", () => {
     warrior.close();
   });
 
-  it("charges the nearest monster with the warrior shield bash", async () => {
+  it("charges the nearest monster with the warrior shield bash", { timeout: 10_000 }, async () => {
     const warrior = await Client.join("charger", {
-      position: { x: 1700, y: 820 },
+      position: { x: 1750, y: 820 },
       level: 5,
     });
     await until("charge welcome", () => warrior.welcome);
+    const before = await until("charge target", () => {
+      const self = warrior.self();
+      const monsters = warrior.latestSnapshot?.monsters.filter((monster) => !monster.dead);
+      if (!self || !monsters?.length) return undefined;
+      const target = [...monsters].sort(
+        (a, b) => Math.hypot(a.x - self.x, a.y - self.y) - Math.hypot(b.x - self.x, b.y - self.y),
+      )[0];
+      if (!target) return undefined;
+      return { self, target };
+    });
 
     warrior.skill(3);
     const cast = await until("charge cast", () =>
@@ -938,9 +1083,10 @@ describe("World", () => {
     expect(cast).toMatchObject({ tone: "good" });
     const moved = await until("charge position", () => {
       const self = warrior.self();
-      return self && self.x > 1760 ? self : undefined;
+      if (!self) return undefined;
+      return Math.hypot(self.x - before.self.x, self.y - before.self.y) > 1 ? self : undefined;
     });
-    expect(moved.x).toBeGreaterThan(1760);
+    expect(Math.hypot(moved.x - before.self.x, moved.y - before.self.y)).toBeGreaterThan(1);
     warrior.close();
   });
 

@@ -86,4 +86,27 @@ describe("register and login", () => {
     expect(out.status).toBe(204);
     expect(out.headers.get("Set-Cookie")).toContain("Max-Age=0");
   });
+
+  it("rejects a signed session whose account row was wiped", async () => {
+    const registered = await post("/api/register", { username: "ghosted", password: "12345678" });
+    const cookie = cookieOf(registered);
+    await env.DB.exec("DELETE FROM account");
+
+    const me = await SELF.fetch(`${ORIGIN}/api/me`, { headers: { Cookie: cookie } });
+    expect(me.status).toBe(401);
+    expect(await me.json()).toEqual({ error: "session_expired" });
+    expect(me.headers.get("Set-Cookie")).toContain("Max-Age=0");
+
+    const create = await SELF.fetch(`${ORIGIN}/api/characters`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: cookie },
+      body: JSON.stringify({
+        name: "GhostHero",
+        appearance: { body: "wayfarer", primaryColor: "azure" },
+        class: "warrior",
+      }),
+    });
+    expect(create.status).toBe(401);
+    expect(await create.json()).toEqual({ error: "session_expired" });
+  });
 });

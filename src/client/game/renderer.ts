@@ -25,6 +25,7 @@ import {
 import type { MessageKey } from "../../shared/i18n/index.js";
 import type {
   CorpseSnapshot,
+  GuardSnapshot,
   ItemKind,
   LootSnapshot,
   MonsterSnapshot,
@@ -34,12 +35,14 @@ import type {
 import { PLAYER_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from "../../shared/simulation.js";
 import { onLocaleChange, t } from "../i18n.js";
 import { MAIN_HAND_ART, OFF_HAND_ART, PLAYER_ATLAS_FRAMES } from "./character-art.js";
+import { MAX_ACTIVE_WORLD_EFFECTS, questSiteFeedback } from "./feedback.js";
 import type { SceneSample } from "./net.js";
 import {
   allUnitSheets,
   TINY_SWORDS_BUILDINGS,
   TINY_SWORDS_EFFECT_SHEETS,
   TINY_SWORDS_EFFECTS,
+  TINY_SWORDS_SIGN_BOARD,
   TINY_SWORDS_UNIT_FRAME,
   type UnitMotion,
   unitSheet,
@@ -76,12 +79,20 @@ const CLASS_GLYPHS: Record<PlayerClass, string> = {
   priest: "✚",
 };
 
+const CITY_BUILDING_ART: Readonly<Record<string, number>> = {
+  "crossing-hall": 8,
+  "lantern-house": 7,
+  "wayfarer-rest": 11,
+  "founders-guildhall": 10,
+  "heartroot-sanctuary": 9,
+  "eastwatch-barracks": 8,
+};
+
 const ATLAS_IMAGE = "/assets/lindocara/atlas/world.png";
 const ATLAS_DATA = "/assets/lindocara/atlas/world.json";
 const TILE_SIZE = 32;
 const STATIC_CULL_MARGIN = 180;
 const ENTITY_CULL_MARGIN = 120;
-const MAX_ACTIVE_EFFECTS = 96;
 
 interface AtlasData {
   frames: Record<string, { x: number; y: number; w: number; h: number }>;
@@ -116,6 +127,7 @@ interface ArtTextures {
   loot: Record<ItemKind, Texture>;
   units: Record<string, readonly Texture[]>;
   buildings: Texture[];
+  signBoard: Texture;
   effects: Record<keyof typeof TINY_SWORDS_EFFECTS, Texture>;
   effectFrames: Record<keyof typeof TINY_SWORDS_EFFECT_SHEETS, readonly Texture[]>;
   questResources: Record<keyof typeof VENDOR_QUEST_ART, Texture>;
@@ -299,6 +311,8 @@ async function loadArt(): Promise<ArtTextures> {
     TINY_SWORDS_BUILDINGS.map((source) => Assets.load<Texture>(source)),
   );
   for (const building of buildings) building.source.style.scaleMode = "nearest";
+  const signBoard = await Assets.load<Texture>(TINY_SWORDS_SIGN_BOARD);
+  signBoard.source.style.scaleMode = "nearest";
   const effectEntries = await Promise.all(
     Object.entries(TINY_SWORDS_EFFECTS).map(
       async ([name, source]) => [name, await Assets.load<Texture>(source)] as const,
@@ -401,6 +415,7 @@ async function loadArt(): Promise<ArtTextures> {
     },
     units,
     buildings,
+    signBoard,
     effects,
     effectFrames,
     questResources,
@@ -497,6 +512,7 @@ export class Renderer {
   #questSites: QuestSiteView[] = [];
   #players = new Map<string, EntityView<PlayerSnapshot>>();
   #monsters = new Map<string, EntityView<MonsterSnapshot>>();
+  #guards = new Map<string, EntityView<GuardSnapshot>>();
   #loot = new Map<string, EntityView<LootSnapshot>>();
   #corpses = new Map<string, EntityView<CorpseSnapshot>>();
   #activeEffects: Effect[] = [];
@@ -550,7 +566,8 @@ export class Renderer {
       staticVisible: this.#staticViews.filter(({ container }) => container.visible).length,
       ambientTotal: this.#ambientViews.length,
       ambientVisible: this.#ambientViews.filter(({ container }) => container.visible).length,
-      actorViews: this.#players.size + this.#monsters.size + this.#loot.size + 1,
+      actorViews:
+        this.#players.size + this.#monsters.size + this.#guards.size + this.#loot.size + 1,
       activeEffects: this.#activeEffects.length,
     };
   }
@@ -823,19 +840,29 @@ export class Renderer {
   #buildRoadSign(poi: PointOfInterest): void {
     const sign = new Container();
     sign.position.set(poi.x, poi.y);
-    sign.addChild(createSoftShadow(48, 13, 0.32));
-    sign.addChild(
-      new Graphics()
-        .rect(-3, -42, 6, 43)
-        .fill({ color: 0x493d31 })
-        .roundRect(-26, -52, 55, 18, 3)
-        .fill({ color: 0xa28254 })
-        .moveTo(29, -52)
-        .lineTo(42, -43)
-        .lineTo(29, -34)
-        .fill({ color: 0xa28254 }),
-    );
-    this.#registerStatic(sign, poi.x, poi.y, 75);
+    sign.addChild(createSoftShadow(76, 16, 0.34));
+    const board = createFittedSprite(this.art.signBoard, 126, 72);
+    board.anchor.set(0.5, 1);
+    board.position.set(0, 0);
+    sign.addChild(board);
+    const computeText = () => t(poi.nameKey);
+    const text = new Text({
+      text: computeText(),
+      style: {
+        fontFamily: "Georgia, serif",
+        fontSize: 10,
+        fontWeight: "bold",
+        fill: 0x493627,
+        align: "center",
+        wordWrap: true,
+        wordWrapWidth: 92,
+      },
+    });
+    text.anchor.set(0.5);
+    text.position.set(0, -38);
+    sign.addChild(text);
+    this.#localizedTexts.push({ node: text, compute: computeText });
+    this.#registerStatic(sign, poi.x, poi.y, 90);
   }
 
   #buildClearing(poi: PointOfInterest): void {
@@ -1110,7 +1137,12 @@ export class Renderer {
             .fill({ color: COLORS.shadow, alpha: isBuilding ? 0.48 : 0.4 }),
         );
         const pool = isBuilding ? this.art.buildings : this.art.props.ruins;
-        const prop = createFittedSprite(pickTexture(pool, index), landmark.width, landmark.height);
+        const artIndex = isBuilding ? (CITY_BUILDING_ART[landmark.id] ?? index) : index;
+        const prop = createFittedSprite(
+          pickTexture(pool, artIndex),
+          landmark.width,
+          landmark.height,
+        );
         prop.anchor.set(0.5, 1);
         prop.position.set(landmark.width / 2, landmark.height);
         prop.tint = isBuilding
@@ -1166,7 +1198,7 @@ export class Renderer {
     }
 
     for (const poi of POINTS_OF_INTEREST) {
-      if (poi.kind === "tree" || poi.kind === "square") continue;
+      if (poi.kind === "tree" || poi.kind === "square" || poi.kind === "sign") continue;
       const computePoiLabel = () => t(poi.nameKey);
       const label = new Text({
         text: computePoiLabel(),
@@ -1623,6 +1655,57 @@ export class Renderer {
     };
   }
 
+  #createGuard(guard: GuardSnapshot): EntityView<GuardSnapshot> {
+    const container = new Container();
+    const actor = new Container();
+    actor.pivot.set(16, 17);
+    actor.position.set(16, 17);
+    const animations = playerAnimations(
+      { class: "warrior", appearance: { body: "wayfarer", primaryColor: "moss" } },
+      this.art.units,
+    );
+    const shadow = new Graphics()
+      .ellipse(16, 31, 18, 7)
+      .fill({ color: COLORS.shadow, alpha: 0.62 });
+    const ring = new Graphics()
+      .ellipse(16, 31, 20, 8)
+      .stroke({ width: 2, color: 0xf6c85f, alpha: 0.55 });
+    const unitSprite = new Sprite(animations.idle[0]);
+    unitSprite.width = 102;
+    unitSprite.height = 102;
+    unitSprite.position.set(-35, -48);
+    actor.addChild(shadow, ring, unitSprite);
+    container.addChild(actor);
+    const label = new Text({
+      text: t("npc.city_guard.name"),
+      style: {
+        fontFamily: "Georgia, serif",
+        fontWeight: "bold",
+        fontSize: 11,
+        fill: 0xffe49a,
+        dropShadow: { color: 0x000000, alpha: 0.9, blur: 3, distance: 1 },
+      },
+    });
+    label.label = "label";
+    label.anchor.set(0.5, 1);
+    label.position.set(16, -14);
+    container.addChild(label);
+    this.#localizedTexts.push({ node: label, compute: () => t("npc.city_guard.name") });
+    this.#actors.addChild(container);
+    return {
+      container,
+      data: guard,
+      actor,
+      unitSprite,
+      unitAnimations: animations,
+      lastX: guard.x,
+      lastY: guard.y,
+      movingUntil: 0,
+      attackUntil: 0,
+      phase: phaseFor(guard.id),
+    };
+  }
+
   /** A fallen body: the class sprite, slumped, drained of colour, with a mote hanging over it. */
   #createCorpse(corpse: CorpseSnapshot): EntityView<CorpseSnapshot> {
     const container = new Container();
@@ -1765,7 +1848,7 @@ export class Renderer {
     rise: number,
     frames?: readonly Texture[],
   ): void {
-    while (this.#activeEffects.length >= MAX_ACTIVE_EFFECTS) {
+    while (this.#activeEffects.length >= MAX_ACTIVE_WORLD_EFFECTS) {
       const oldest = this.#activeEffects.shift();
       oldest?.container.destroy({ children: true });
     }
@@ -1800,13 +1883,13 @@ export class Renderer {
     const position = this.#effectPosition(x, y);
     if (!this.#isVisibleWorld(position.x, position.y, 100)) return;
     const fill = tone === "bad" ? 0xff9b93 : tone === "good" ? 0x9ff0ad : COLORS.label;
-    const damage = text.match(/ for (\d+)\./)?.[1];
+    const compactAmount = /^[+-]\d+$/.test(text);
     const label = new Text({
-      text: damage ? `-${damage}` : text,
+      text,
       style: {
         fontFamily: "Georgia, serif",
         fontWeight: "bold",
-        fontSize: damage ? 17 : 12,
+        fontSize: compactAmount ? 17 : 12,
         fill,
         stroke: { color: COLORS.shadow, width: 4 },
         dropShadow: { color: 0x000000, alpha: 0.85, blur: 3, distance: 2 },
@@ -1814,8 +1897,8 @@ export class Renderer {
     });
     label.anchor.set(0.5, 1);
     label.position.set(position.x, position.y - 16);
-    this.#trackEffect(label, damage ? 720 : 1_250, damage ? 38 : 25);
-    if (damage || tone === "bad") this.#burst(position.x, position.y, fill, 7);
+    this.#trackEffect(label, compactAmount ? 720 : 1_100, compactAmount ? 38 : 25);
+    if (compactAmount || tone === "bad") this.#burst(position.x, position.y, fill, 5);
   }
 
   playAttack(playerId: string): void {
@@ -1993,10 +2076,14 @@ export class Renderer {
       site.container.visible =
         !hidden && this.#isVisibleWorld(site.container.x, site.container.y, 100);
       const active = quest.status === "active" && site.chapter === chapter;
-      const expected = active && site.order === quest.progress;
-      site.signal.alpha = expected ? 0.72 + Math.sin(now / 160) * 0.22 : 0;
-      site.signal.scale.set(expected ? 1 + Math.sin(now / 180) * 0.12 : 1);
-      site.label.alpha = expected ? 1 : active ? 0.58 : 0.3;
+      // The ordered puzzle is read from its glyphs and quest clue. Never pulse the expected
+      // answer: feedback arrives only after the player commits an interaction.
+      site.signal.alpha = 0;
+      site.signal.scale.set(1);
+      const siteDistance = Math.hypot(self.x - site.container.x, self.y - site.container.y);
+      const feedback = questSiteFeedback(active, siteDistance);
+      site.signal.alpha = feedback.signalAlpha;
+      site.label.alpha = feedback.labelAlpha;
     }
 
     let nearest: MonsterSnapshot | undefined;
@@ -2166,6 +2253,35 @@ export class Renderer {
         view.lastY = monster.y;
         view.lastHp = monster.hp;
         view.wasDead = monster.dead;
+      },
+    );
+
+    reconcile(
+      this.#guards,
+      sample.guards,
+      (guard) => this.#createGuard(guard),
+      (view, guard) => {
+        const dx = guard.x - (view.lastX ?? guard.x);
+        const dy = guard.y - (view.lastY ?? guard.y);
+        if (Math.hypot(dx, dy) > 0.15) view.movingUntil = now + 120;
+        const visible = this.#isVisibleWorld(guard.x, guard.y, ENTITY_CULL_MARGIN);
+        view.container.visible = visible;
+        view.container.position.set(guard.x, guard.y);
+        view.container.zIndex = Math.round(guard.y + PLAYER_SIZE);
+        if (visible && view.actor && view.unitSprite && view.unitAnimations) {
+          const moving = (view.movingUntil ?? 0) > now;
+          const motion: UnitMotion = guard.fighting ? "attack" : moving ? "run" : "idle";
+          const frames = view.unitAnimations[motion];
+          const frame = frames[Math.floor(now / 90) % frames.length] ?? frames[0];
+          if (frame) view.unitSprite.texture = frame;
+          if (Math.abs(dx) > 0.1) view.actor.scale.x = dx < 0 ? -1 : 1;
+          view.actor.y = 17 + Math.sin(now / (moving ? 90 : 440) + (view.phase ?? 0)) * -1.2;
+          const label = view.container.getChildByLabel("label");
+          if (label instanceof Text) label.alpha = guard.fighting ? 1 : 0.72;
+        }
+        view.data = guard;
+        view.lastX = guard.x;
+        view.lastY = guard.y;
       },
     );
 

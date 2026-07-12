@@ -22,6 +22,7 @@ import { type SkillSlot, skillFor } from "../../shared/skills.js";
 import { type CharacterSummary, logout } from "../api.js";
 import { t } from "../i18n.js";
 import { type LocalizedText, useUiStore } from "../store.js";
+import { shouldFloatEvent } from "./feedback.js";
 import { trackActions, trackInput } from "./input.js";
 import { type InteriorDoor, nearestInterior } from "./interiors.js";
 import { type Connection, type ConnectionHandlers, WorldClient } from "./net.js";
@@ -237,7 +238,15 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     onEvent: (code, params, tone, x, y) => {
       const text = eventText(code, params, currentSelf?.class ?? character.class);
       if (shouldLogEvent(code)) addEvent(text, tone);
-      renderer.showWorldEvent(text, tone, x, y);
+      if (shouldFloatEvent(code)) {
+        const compact =
+          code === "combat.hit" || code === "combat.hurt"
+            ? `-${String(params?.damage ?? "")}`
+            : code === "heal.cast" || code === "heal.received"
+              ? `+${String(params?.amount ?? "")}`
+              : text;
+        renderer.showWorldEvent(compact, tone, x, y);
+      }
       if (code === "quest.site_harvested" && typeof params?.site === "string") {
         renderer.hideQuestSite(params.site, 15_000);
       }

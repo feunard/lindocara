@@ -11,6 +11,7 @@ import {
   parseServerMessage,
   type QuestStatus,
   type ServerMessage,
+  type WorldView,
 } from "../../src/shared/protocol.js";
 import {
   type Input,
@@ -19,6 +20,12 @@ import {
   TICK_MS,
   WORLD_WIDTH,
 } from "../../src/shared/simulation.js";
+import {
+  applyWorldDelta,
+  createWorldCache,
+  replaceWorldCache,
+  type WorldCache,
+} from "../../src/shared/world-delta.js";
 
 export const ORIGIN = "https://lindocara.test";
 export const VERDANT_ROOM_KEY = "verdant-reach:main";
@@ -117,6 +124,8 @@ export class Client {
   #input: Input = NO_INPUT;
   #seq = 0;
   #pump: ReturnType<typeof setInterval> | null = null;
+  #worldCache: WorldCache = createWorldCache();
+  #latestWorld: (WorldView & { tick: number }) | undefined;
 
   constructor(socket: WebSocket) {
     this.#socket = socket;
@@ -124,7 +133,22 @@ export class Client {
     socket.addEventListener("message", (event) => {
       if (typeof event.data !== "string") return;
       const message = parseServerMessage(event.data);
-      if (message) this.received.push(message);
+      if (!message) return;
+      this.received.push(message);
+      if (message.t === "welcome" || message.t === "world.resync") {
+        replaceWorldCache(this.#worldCache, message);
+        this.#latestWorld = {
+          tick: message.tick,
+          players: message.players,
+          monsters: message.monsters,
+          guards: message.guards,
+          loot: message.loot,
+          corpses: message.corpses,
+        };
+      } else if (message.t === "world.delta") {
+        const view = applyWorldDelta(this.#worldCache, message);
+        if (view) this.#latestWorld = { tick: message.tick, ...view };
+      }
     });
     socket.addEventListener("close", (event) => {
       this.closeInfo = { code: event.code, reason: event.reason };
@@ -233,7 +257,11 @@ export class Client {
   }
 
   chat(text: string): void {
-    this.#socket.send(JSON.stringify({ t: "chat", text }));
+    this.#socket.send(JSON.stringify({ t: "chat", channel: "local", text }));
+  }
+
+  requestResync(): void {
+    this.#socket.send(JSON.stringify({ t: "world.resync" }));
   }
 
   close(): void {
@@ -250,11 +278,7 @@ export class Client {
   }
 
   get latestSnapshot() {
-    for (let i = this.received.length - 1; i >= 0; i--) {
-      const message = this.received[i];
-      if (message?.t === "snapshot") return message;
-    }
-    return undefined;
+    return this.#latestWorld;
   }
 
   get latestState() {

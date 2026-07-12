@@ -271,6 +271,7 @@ export const en = {
   "npc.reed_seer.role": "Listener of the Mire",
   "npc.gatewatch.name": "Gatewatch Rook",
   "npc.gatewatch.role": "Warden of the Last Road",
+  "npc.city_guard.name": "Heartroot Guard",
 
   // Monsters (keys match MonsterSpecies, Task 9)
   "monster.goblin_scout": "Road Goblin",
@@ -308,6 +309,10 @@ export const en = {
   "poi.wayfarer_camp": "Wayfarer Camp",
   "poi.mireheart": "Mireheart",
   "poi.sealed_gate": "The Sealed Gate",
+  "sign.city_east": "CITY  ←  |  FOREST & RUINS  →",
+  "sign.city_south": "FARM & MARSH  ↓",
+  "sign.bridge": "CITY  ←  |  RUINS  →",
+  "sign.mire": "FARM  ←  |  GATE  →",
 
   // Interiors
   "interior.crossing-hall.name": "Crossing Hall",

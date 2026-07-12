@@ -11,6 +11,11 @@
 export const TICK_HZ = 20;
 export const TICK_MS = 1000 / TICK_HZ;
 
+/** Simulation remains at 20 Hz; network state is emitted every second simulation tick. */
+export const NETWORK_SNAPSHOT_HZ = 10;
+export const NETWORK_TICKS_PER_SNAPSHOT = TICK_HZ / NETWORK_SNAPSHOT_HZ;
+export const NETWORK_SNAPSHOT_MS = 1000 / NETWORK_SNAPSHOT_HZ;
+
 /** Fixed timestep, in seconds. Every tick advances the world by exactly this much. */
 export const TICK_DT = 1 / TICK_HZ;
 

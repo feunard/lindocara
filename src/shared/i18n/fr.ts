@@ -277,6 +277,7 @@ export const fr: Record<keyof typeof en, string> = {
   "npc.reed_seer.role": "À l'écoute du Marais",
   "npc.gatewatch.name": "Rook de la Porte",
   "npc.gatewatch.role": "Gardien de la Dernière Route",
+  "npc.city_guard.name": "Garde du Cœur-Racine",
 
   // Monstres
   "monster.goblin_scout": "Gobelin de la Route",
@@ -314,6 +315,10 @@ export const fr: Record<keyof typeof en, string> = {
   "poi.wayfarer_camp": "Le Camp du Voyageur",
   "poi.mireheart": "Cœur-de-Marais",
   "poi.sealed_gate": "La Porte Scellée",
+  "sign.city_east": "VILLE  ←  |  FORÊT & RUINES  →",
+  "sign.city_south": "FERME & MARAIS  ↓",
+  "sign.bridge": "VILLE  ←  |  RUINES  →",
+  "sign.mire": "FERME  ←  |  PORTE  →",
 
   // Intérieurs
   "interior.crossing-hall.name": "Le Hall de la Croisée",

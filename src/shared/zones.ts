@@ -1,4 +1,6 @@
 import {
+  CITY_GUARDS,
+  type GuardDefinition,
   MONSTER_SPAWNS,
   type MonsterSpawn,
   QUEST_DEFINITIONS,
@@ -24,6 +26,7 @@ export interface ZoneDefinition {
   quests: readonly QuestDefinition[];
   questSites: readonly QuestSite[];
   monsters: readonly MonsterSpawn[];
+  guards: readonly GuardDefinition[];
   portals: readonly PortalDefinition[];
 }
 
@@ -77,6 +80,7 @@ export const ZONES: Readonly<Record<ZoneId, ZoneDefinition>> = {
     quests: QUEST_DEFINITIONS,
     questSites: QUEST_SITES,
     monsters: MONSTER_SPAWNS,
+    guards: CITY_GUARDS,
     portals: [
       {
         id: "verdant-gate",
@@ -101,6 +105,7 @@ export const ZONES: Readonly<Record<ZoneId, ZoneDefinition>> = {
     quests: [],
     questSites: [],
     monsters: [],
+    guards: [],
     portals: [
       {
         id: "test-return-gate",

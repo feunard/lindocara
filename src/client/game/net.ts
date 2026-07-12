@@ -16,6 +16,7 @@ import {
   type EventCode,
   type EventParams,
   type EventTone,
+  type GuardSnapshot,
   type LootSnapshot,
   type MonsterSnapshot,
   type PlayerSnapshot,
@@ -24,8 +25,22 @@ import {
   type ServerMessage,
   type WorldInfo,
 } from "../../shared/protocol.js";
-import { type Input, NO_INPUT, step, TICK_DT, type Vec2 } from "../../shared/simulation.js";
+import {
+  type Input,
+  NETWORK_TICKS_PER_SNAPSHOT,
+  NO_INPUT,
+  step,
+  TICK_DT,
+  type Vec2,
+} from "../../shared/simulation.js";
 import type { SkillSlot } from "../../shared/skills.js";
+import {
+  applyWorldDelta,
+  createWorldCache,
+  interpolateSnapshots,
+  replaceWorldCache,
+  type WorldCache,
+} from "../../shared/world-delta.js";
 
 // A slightly deeper buffer covers short workerd/browser scheduling bursts, so AI movement stays
 // between two authoritative snapshots rather than briefly snapping to the newest one.
@@ -36,12 +51,14 @@ interface BufferedSnapshot {
   receivedAt: number;
   players: PlayerSnapshot[];
   monsters: MonsterSnapshot[];
+  guards: GuardSnapshot[];
   loot: LootSnapshot[];
 }
 
 export interface SceneSample {
   players: PlayerSnapshot[];
   monsters: MonsterSnapshot[];
+  guards: GuardSnapshot[];
   loot: LootSnapshot[];
   /** Bodies do not move, so they are never interpolated — the newest word is the only word. */
   corpses: CorpseSnapshot[];
@@ -72,27 +89,6 @@ export interface ConnectionHandlers {
   onClose(code: number, reason: string): void;
 }
 
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
-}
-
-function interpolate<T extends { id: string; x: number; y: number }>(
-  older: T[],
-  newer: T[],
-  alpha: number,
-): T[] {
-  const previous = new Map(older.map((entity) => [entity.id, entity]));
-  return newer.map((entity) => {
-    const before = previous.get(entity.id);
-    if (!before) return entity;
-    return {
-      ...entity,
-      x: lerp(before.x, entity.x, alpha),
-      y: lerp(before.y, entity.y, alpha),
-    };
-  });
-}
-
 function predictPartial(position: Vec2, input: Input, dt: number, speed: number): Vec2 {
   return resolveTerrain(position, step(position, input, dt, speed));
 }
@@ -100,6 +96,10 @@ function predictPartial(position: Vec2, input: Input, dt: number, speed: number)
 export class WorldClient {
   #socket: WebSocket | null = null;
   #buffer: BufferedSnapshot[] = [];
+  #worldCache: WorldCache = createWorldCache();
+  #lastWorldTick: number | null = null;
+  #receivedDelta = false;
+  #resyncPending = false;
 
   #selfId: string | null = null;
   #selfSnapshot: PlayerSnapshot | null = null;
@@ -130,6 +130,7 @@ export class WorldClient {
       if (typeof event.data !== "string") return;
       const message = parseServerMessage(event.data);
       if (message) this.#handle(message, handlers);
+      else this.#requestResync();
     });
 
     socket.addEventListener("close", (event) => {
@@ -145,7 +146,7 @@ export class WorldClient {
       heal: () => this.#send({ t: "heal" }),
       release: () => this.#send({ t: "release" }),
       skill: (slot) => this.#send({ t: "skill", slot }),
-      sendChat: (text) => this.#send({ t: "chat", text }),
+      sendChat: (text) => this.#send({ t: "chat", channel: "local", text }),
       close: () => socket.close(1000, "client left"),
     };
   }
@@ -171,7 +172,7 @@ export class WorldClient {
 
   sample(now: number): SceneSample {
     const newest = this.#buffer[this.#buffer.length - 1];
-    if (!newest) return { players: [], monsters: [], loot: [], corpses: [] };
+    if (!newest) return { players: [], monsters: [], guards: [], loot: [], corpses: [] };
 
     const interpolated = { ...this.#sampleInterpolated(now, newest), corpses: this.#corpses };
     const self = this.#sampleSelf(now);
@@ -186,7 +187,11 @@ export class WorldClient {
     if (message.t === "welcome") {
       this.#selfId = message.selfId;
       this.#corpses = message.corpses;
-      this.#push(message.players, message.monsters, message.loot);
+      replaceWorldCache(this.#worldCache, message);
+      this.#lastWorldTick = message.tick;
+      this.#receivedDelta = false;
+      this.#resyncPending = false;
+      this.#push(message.players, message.monsters, message.guards, message.loot);
       const self = message.players.find((player) => player.id === message.selfId);
       if (self) {
         this.#selfSnapshot = self;
@@ -196,10 +201,42 @@ export class WorldClient {
       handlers.onWelcome(message.selfId, message.world, message.self);
       return;
     }
-    if (message.t === "snapshot") {
+    if (message.t === "world.delta") {
+      const tickGap = this.#lastWorldTick === null ? 0 : message.tick - this.#lastWorldTick;
+      if (tickGap <= 0 || (this.#receivedDelta && tickGap !== NETWORK_TICKS_PER_SNAPSHOT)) {
+        this.#requestResync();
+        return;
+      }
+      const view = applyWorldDelta(this.#worldCache, message);
+      if (!view) {
+        this.#requestResync();
+        return;
+      }
+      this.#lastWorldTick = message.tick;
+      this.#receivedDelta = true;
+      this.#corpses = view.corpses;
+      const receivedAt = this.#push(view.players, view.monsters, view.guards, view.loot);
+      this.#reconcile(view.players, receivedAt);
+      return;
+    }
+    if (message.t === "world.resync") {
+      replaceWorldCache(this.#worldCache, message);
+      this.#lastWorldTick = message.tick;
+      this.#receivedDelta = false;
+      this.#resyncPending = false;
       this.#corpses = message.corpses;
-      const receivedAt = this.#push(message.players, message.monsters, message.loot);
+      this.#buffer = [];
+      const receivedAt = this.#push(
+        message.players,
+        message.monsters,
+        message.guards,
+        message.loot,
+      );
       this.#reconcile(message.players, receivedAt);
+      return;
+    }
+    if (message.t === "world.resync_required") {
+      this.#requestResync();
       return;
     }
     if (message.t === "state") {
@@ -213,9 +250,14 @@ export class WorldClient {
     handlers.onEvent(message.code, message.params, message.tone, message.x, message.y);
   }
 
-  #push(players: PlayerSnapshot[], monsters: MonsterSnapshot[], loot: LootSnapshot[]): number {
+  #push(
+    players: PlayerSnapshot[],
+    monsters: MonsterSnapshot[],
+    guards: GuardSnapshot[],
+    loot: LootSnapshot[],
+  ): number {
     const receivedAt = performance.now();
-    this.#buffer.push({ receivedAt, players, monsters, loot });
+    this.#buffer.push({ receivedAt, players, monsters, guards, loot });
     const cutoff = receivedAt - BUFFER_MS;
     while (this.#buffer.length > 2 && (this.#buffer[0]?.receivedAt ?? 0) < cutoff) {
       this.#buffer.shift();
@@ -296,6 +338,7 @@ export class WorldClient {
       return {
         players: newest.players.filter((player) => player.id !== this.#selfId),
         monsters: newest.monsters,
+        guards: newest.guards,
         loot: newest.loot,
       };
     }
@@ -305,6 +348,7 @@ export class WorldClient {
       return {
         players: newest.players.filter((player) => player.id !== this.#selfId),
         monsters: newest.monsters,
+        guards: newest.guards,
         loot: newest.loot,
       };
     }
@@ -324,16 +368,18 @@ export class WorldClient {
       return {
         players: newest.players.filter((player) => player.id !== this.#selfId),
         monsters: newest.monsters,
+        guards: newest.guards,
         loot: newest.loot,
       };
     }
     const span = newer.receivedAt - older.receivedAt;
     const alpha = span <= 0 ? 1 : Math.max(0, Math.min(1, (renderAt - older.receivedAt) / span));
     return {
-      players: interpolate(older.players, newer.players, alpha).filter(
+      players: interpolateSnapshots(older.players, newer.players, alpha).filter(
         (player) => player.id !== this.#selfId,
       ),
-      monsters: interpolate(older.monsters, newer.monsters, alpha),
+      monsters: interpolateSnapshots(older.monsters, newer.monsters, alpha),
+      guards: interpolateSnapshots(older.guards, newer.guards, alpha),
       loot: newer.loot,
     };
   }
@@ -341,5 +387,11 @@ export class WorldClient {
   #send(message: ClientMessage): void {
     if (this.#socket?.readyState !== WebSocket.OPEN) return;
     this.#socket.send(JSON.stringify(message));
+  }
+
+  #requestResync(): void {
+    if (this.#resyncPending) return;
+    this.#resyncPending = true;
+    this.#send({ t: "world.resync" });
   }
 }

@@ -28,7 +28,14 @@ describe("client protocol", () => {
     });
     expect(parseClientMessage(JSON.stringify({ t: "chat", text: "hello" }))).toEqual({
       t: "chat",
+      channel: "local",
       text: "hello",
+    });
+    expect(
+      parseClientMessage(JSON.stringify({ t: "chat", channel: "global", text: "hello" })),
+    ).toBeNull();
+    expect(parseClientMessage(JSON.stringify({ t: "world.resync" }))).toEqual({
+      t: "world.resync",
     });
   });
 
@@ -77,6 +84,49 @@ describe("server protocol", () => {
     expect(parseServerMessage(JSON.stringify({ t: "unknown" }))).toBeNull();
     expect(parseServerMessage(JSON.stringify({ t: "snapshot", players: [] }))).toBeNull();
     expect(parseServerMessage("broken")).toBeNull();
+  });
+
+  it("validates world deltas and full resynchronization messages", () => {
+    const emptyDelta = { upsert: [], remove: [] };
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          t: "world.delta",
+          tick: 12,
+          players: emptyDelta,
+          monsters: emptyDelta,
+          guards: emptyDelta,
+          loot: emptyDelta,
+          corpses: emptyDelta,
+        }),
+      ),
+    ).toMatchObject({ t: "world.delta", tick: 12 });
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          t: "world.delta",
+          tick: 12,
+          players: { upsert: [{}], remove: [] },
+          monsters: emptyDelta,
+          guards: emptyDelta,
+          loot: emptyDelta,
+          corpses: emptyDelta,
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          t: "world.resync",
+          tick: 14,
+          players: [],
+          monsters: [],
+          guards: [],
+          loot: [],
+          corpses: [],
+        }),
+      ),
+    ).toMatchObject({ t: "world.resync", tick: 14 });
   });
 });
 
