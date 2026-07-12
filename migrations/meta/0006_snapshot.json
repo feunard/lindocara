@@ -271,6 +271,28 @@
           "notNull": false,
           "autoincrement": false
         },
+        "life": {
+          "name": "life",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'alive'"
+        },
+        "corpse_x": {
+          "name": "corpse_x",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "corpse_y": {
+          "name": "corpse_y",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",

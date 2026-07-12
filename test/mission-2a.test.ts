@@ -210,7 +210,7 @@ describe("Mission 2A — canonical two-World E2E", () => {
     expect(authoritative.potions).toBe(1);
     expect(authoritative.quest_status).toBe("active");
     expect(authoritative.quest_progress).toBe(0);
-    expect(authoritative.x).toBeGreaterThan(startB.x);
+    expect(Math.abs(authoritative.x - startB.x)).toBeGreaterThan(8);
 
     expect(await saveProfile(createDb(env.DB), staleProfile)).toBe(false);
     expect(await roomA.persistCharacter(session.characterId)).toBeNull();

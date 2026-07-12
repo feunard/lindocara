@@ -80,6 +80,16 @@ export const character = sqliteTable(
     instanceId: text("instance_id").notNull().default("main"),
     sessionEpoch: integer("session_epoch").notNull().default(0),
     wardRunExpiresAt: integer("ward_run_expires_at", { mode: "timestamp_ms" }),
+    /**
+     * Death is persistent, not a session detail. If it lived only in memory, logging out
+     * would be a free resurrection — you would reconnect alive, standing over nothing.
+     * `corpseX`/`corpseY` are null exactly when `life` is "alive".
+     */
+    life: text("life", { enum: ["alive", "corpse", "ghost"] })
+      .notNull()
+      .default("alive"),
+    corpseX: real("corpse_x"),
+    corpseY: real("corpse_y"),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
     lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
   },

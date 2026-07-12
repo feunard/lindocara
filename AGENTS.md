@@ -118,6 +118,45 @@ validation and the client's UI. The server validates class, range, cooldown, and
 every action; `{ t: "heal" }` is intent like any other, resolved server-side into the most
 injured ally in range or `heal.nobody` if there is none.
 
+### Death is a state machine, not a timer
+
+`shared/death.ts` owns it. Dying does not move you — it leaves your body where you fell:
+
+```
+"alive" ──(hp 0)──▶ "corpse" ──(a priest interacts)──▶ "alive"
+                        │
+                        └──(you press R)──▶ "ghost" ──(walk onto your body)──▶ "alive"
+```
+
+There is no timer in it and no auto-release. A corpse waits indefinitely, which is the only
+reason a priest's grace period means anything, and releasing is **one-way** — a priest cannot
+resurrect a ghost. Both routes back cost you: you return at `RESURRECT_HP_RATIO` of max HP.
+
+Three consequences, each easy to break:
+
+- **Monsters skip any player who is not `alive`.** Without that the corpse run is unwinnable —
+  you would die on the way to your own body, over and over.
+- **A body is broadcast for as long as its owner has one** — while they lie over it *and* while
+  their ghost walks back to it. Emitting corpses only for the `corpse` state makes your body
+  vanish at the exact moment you start needing to find it.
+- **`life` and the corpse position are persisted** (`character.life`, `corpse_x`, `corpse_y`).
+  Death that lives only in memory turns logging out into a free resurrection.
+
+A ghost moves at `GHOST_SPEED`, so `step()` takes a speed and `reconcile()` takes a `LifeState`.
+Replaying a ghost's commands at living speed is a *silent* desync: nothing in the protocol would
+complain, the client would simply draw its own spirit permanently short of where the server has
+put it. The server clears the command queue on **every** life transition, so a batch of pending
+commands is never split across two life states. `prediction.test.ts` pins both speeds against the
+server, and that assertion is the thing standing between you and an unfixable drift.
+
+The priest's resurrect is the interact key, not a sixth skill slot: `#interact` already dispatches
+to the nearest sensible thing, and a corpse is one more thing you can be standing next to.
+
+`CEMETERIES` are the three spirit anchors; `nearestCemetery()` picks where a released ghost
+appears. Their chapels are `graveyard` landmarks with colliders, so moving one means re-checking
+that it blocks no spawn point, no monster patrol ring, and no quest site — `game.test.ts` asserts
+all three, and it will catch you.
+
 ### `run_worker_first`
 
 `assets.not_found_handling: "single-page-application"` means any unmatched path returns

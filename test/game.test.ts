@@ -6,10 +6,21 @@ import {
   starterEquipmentFor,
 } from "../src/shared/character.js";
 import {
+  CORPSE_RECLAIM_RANGE,
+  canAct,
+  canBeResurrected,
+  canMove,
+  canReclaim,
+  RESURRECT_HP_RATIO,
+  resurrectHp,
+  speedForLife,
+} from "../src/shared/death.js";
+import {
   applyDamage,
   applyExperience,
   attackDamageFor,
   BOUNDARY_OBSTACLES,
+  CEMETERIES,
   CLASS_STATS,
   clampRestoredPosition,
   hasLineOfSight,
@@ -21,6 +32,7 @@ import {
   MONSTER_SPAWNS,
   MONSTER_STATS,
   maxHpForLevel,
+  nearestCemetery,
   OBSTACLES,
   PLAYER_CLASSES,
   pointDistance,
@@ -155,7 +167,15 @@ describe("authoritative world geometry", () => {
     ];
     expect(new Set(ids).size).toBe(ids.length);
     expect(new Set(WORLD_LANDMARKS.map((landmark) => landmark.kind))).toEqual(
-      new Set(["sacred_tree", "building", "farm", "ruin", "swamp_shrine", "dungeon_gate"]),
+      new Set([
+        "sacred_tree",
+        "building",
+        "farm",
+        "ruin",
+        "swamp_shrine",
+        "dungeon_gate",
+        "graveyard",
+      ]),
     );
     expect(new Set(TERRAIN_BLOCKERS.map((terrain) => terrain.kind))).toEqual(
       new Set(["forest", "water", "cliff"]),
@@ -480,5 +500,78 @@ describe("class rules", () => {
     expect(isValidClass("priest")).toBe(true);
     expect(isValidClass("necromancer")).toBe(false);
     expect(isValidClass(3)).toBe(false);
+  });
+});
+
+describe("cemeteries", () => {
+  it("plants every spirit anchor on ground a ghost can actually stand on", () => {
+    // A ghost materialising inside a chapel wall would be stuck there forever.
+    for (const cemetery of CEMETERIES) {
+      expect(isWalkable(cemetery)).toBe(true);
+    }
+  });
+
+  it("spreads them out, so no corner of the map is a long commute", () => {
+    expect(CEMETERIES.length).toBeGreaterThanOrEqual(3);
+    for (const a of CEMETERIES) {
+      for (const b of CEMETERIES) {
+        if (a.id === b.id) continue;
+        expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(600);
+      }
+    }
+  });
+
+  it("sends a spirit to the nearest one, not merely to a fixed one", () => {
+    for (const cemetery of CEMETERIES) {
+      // Standing on a cemetery, the nearest cemetery is the one you are standing on.
+      expect(nearestCemetery({ x: cemetery.x, y: cemetery.y }).id).toBe(cemetery.id);
+    }
+    const west = nearestCemetery({ x: 0, y: 0 });
+    const east = nearestCemetery({ x: WORLD_WIDTH - PLAYER_SIZE, y: WORLD_HEIGHT - PLAYER_SIZE });
+    expect(west.id).not.toBe(east.id);
+  });
+});
+
+describe("the death state machine", () => {
+  it("freezes a corpse and hurries a ghost", () => {
+    expect(speedForLife("alive")).toBe(PLAYER_SPEED);
+    expect(speedForLife("corpse")).toBe(0);
+    expect(speedForLife("ghost")).toBeGreaterThan(PLAYER_SPEED);
+  });
+
+  it("lets a ghost move but never act", () => {
+    expect(canMove("alive")).toBe(true);
+    expect(canMove("ghost")).toBe(true);
+    expect(canMove("corpse")).toBe(false);
+
+    expect(canAct("alive")).toBe(true);
+    expect(canAct("ghost")).toBe(false);
+    expect(canAct("corpse")).toBe(false);
+  });
+
+  it("only a body can be raised — releasing is one-way", () => {
+    expect(canBeResurrected("corpse")).toBe(true);
+    expect(canBeResurrected("ghost")).toBe(false);
+    expect(canBeResurrected("alive")).toBe(false);
+  });
+
+  it("charges the same toll whichever way you come back", () => {
+    const hp = resurrectHp(1);
+    expect(hp).toBe(Math.round(maxHpForLevel(1) * RESURRECT_HP_RATIO));
+    expect(hp).toBeGreaterThan(0);
+    expect(hp).toBeLessThan(maxHpForLevel(1));
+  });
+
+  it("reclaims only your own body, and only within arm's reach", () => {
+    const corpse = { x: 1000, y: 1000 };
+    expect(canReclaim("ghost", corpse, corpse)).toBe(true);
+    expect(canReclaim("ghost", { x: 1000 + CORPSE_RECLAIM_RANGE - 1, y: 1000 }, corpse)).toBe(true);
+    expect(canReclaim("ghost", { x: 1000 + CORPSE_RECLAIM_RANGE + 1, y: 1000 }, corpse)).toBe(
+      false,
+    );
+    // The living do not reclaim, and a body with no ghost has nobody to reclaim it.
+    expect(canReclaim("alive", corpse, corpse)).toBe(false);
+    expect(canReclaim("corpse", corpse, corpse)).toBe(false);
+    expect(canReclaim("ghost", corpse, null)).toBe(false);
   });
 });

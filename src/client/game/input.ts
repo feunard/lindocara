@@ -70,6 +70,7 @@ export interface ActionHandlers {
   interact(): void;
   usePotion(): void;
   heal(): void;
+  release(): void;
   castSkill(slot: SkillSlot): void;
   focusChat(): void;
 }
@@ -82,6 +83,7 @@ export function trackActions(handlers: ActionHandlers): () => void {
     else if (event.code === "KeyE") handlers.interact();
     else if (event.code === "KeyQ") handlers.usePotion();
     else if (event.code === "KeyF") handlers.castSkill(2);
+    else if (event.code === "KeyR") handlers.release();
     else if (/^Digit[1-5]$/.test(event.code)) {
       handlers.castSkill(Number(event.code.slice(-1)) as SkillSlot);
     } else if (event.code === "Enter") handlers.focusChat();

@@ -6,7 +6,9 @@
  */
 
 import type { CharacterAppearance, Equipment, PrimaryColor } from "./character.js";
+import type { LifeState } from "./death.js";
 import type {
+  Cemetery,
   MonsterKind,
   MonsterSpecies,
   NpcDefinition,
@@ -57,7 +59,19 @@ export interface PlayerSnapshot {
   appearance: CharacterAppearance;
   class: PlayerClass;
   equipment: Equipment;
-  dead: boolean;
+  /** Replaces the old `dead` boolean: death has three states, not two. */
+  life: LifeState;
+}
+
+/** A body on the ground. Broadcast to everyone: the renderer draws it, a priest revives it. */
+export interface CorpseSnapshot {
+  /** The character id of whoever fell here. */
+  id: string;
+  nick: string;
+  class: PlayerClass;
+  appearance: CharacterAppearance;
+  x: number;
+  y: number;
 }
 
 export interface MonsterSnapshot {
@@ -84,6 +98,9 @@ export interface SelfState {
   xpToNext: number;
   inventory: Inventory;
   quest: QuestState;
+  life: LifeState;
+  /** Where your body lies, so the HUD can point you at it. Null unless you are dead. */
+  corpse: { x: number; y: number } | null;
 }
 
 export interface WorldInfo {
@@ -95,6 +112,7 @@ export interface WorldInfo {
   questNpc: NpcDefinition;
   questNpcs: NpcDefinition[];
   questSites: QuestSite[];
+  cemeteries: Cemetery[];
 }
 
 /** Sent by the browser. Actions contain intent only; every outcome is validated by the server. */
@@ -103,6 +121,7 @@ export type ClientMessage =
   | { t: "attack" }
   | { t: "interact" }
   | { t: "heal" }
+  | { t: "release" }
   | { t: "skill"; slot: SkillSlot }
   | { t: "use"; item: "potion" }
   | { t: "chat"; text: string };
@@ -134,12 +153,18 @@ export const EVENT_CODES = [
   "quest.site_harvested",
   "potion.used",
   "player.down",
-  "respawn",
   "loot.picked",
   "heal.cast",
   "heal.received",
   "heal.nobody",
   "heal.blocked",
+  "death.fallen",
+  "death.released",
+  "death.reclaimed",
+  "death.resurrected",
+  "resurrect.cast",
+  "resurrect.nobody",
+  "resurrect.not_priest",
   "skill.cast",
   "skill.no_target",
   "skill.blocked",
@@ -161,6 +186,7 @@ export type ServerMessage =
       players: PlayerSnapshot[];
       monsters: MonsterSnapshot[];
       loot: LootSnapshot[];
+      corpses: CorpseSnapshot[];
       self: SelfState;
     }
   | {
@@ -169,6 +195,7 @@ export type ServerMessage =
       players: PlayerSnapshot[];
       monsters: MonsterSnapshot[];
       loot: LootSnapshot[];
+      corpses: CorpseSnapshot[];
     }
   | { t: "state"; self: SelfState }
   | { t: "chat"; from: string; text: string }
@@ -210,7 +237,8 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
     const input = parseInput(value.input);
     return input === null ? null : { t: "input", seq, input };
   }
-  if (value.t === "attack" || value.t === "interact" || value.t === "heal") return { t: value.t };
+  if (value.t === "attack" || value.t === "interact" || value.t === "heal" || value.t === "release")
+    return { t: value.t };
   if (value.t === "skill" && isSkillSlot(value.slot)) return { t: "skill", slot: value.slot };
   if (value.t === "use" && value.item === "potion") return { t: "use", item: "potion" };
   if (value.t === "chat" && typeof value.text === "string") return { t: "chat", text: value.text };
@@ -241,7 +269,8 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       typeof value.tick === "number" &&
       Array.isArray(value.players) &&
       Array.isArray(value.monsters) &&
-      Array.isArray(value.loot)
+      Array.isArray(value.loot) &&
+      Array.isArray(value.corpses)
     ) {
       return value as unknown as ServerMessage;
     }

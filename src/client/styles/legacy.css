@@ -1081,3 +1081,69 @@ kbd {
     display: none;
   }
 }
+
+/* Death. Centred, unmissable, and the only thing you can act on while you are dead. */
+.death-overlay {
+  position: fixed;
+  z-index: 8;
+  top: 34%;
+  left: 50%;
+  translate: -50% -50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 1.1rem 1.8rem;
+  border: 1px solid rgb(216 122 122 / 40%);
+  border-radius: 10px;
+  background: rgb(14 8 10 / 88%);
+  text-align: center;
+  pointer-events: auto;
+}
+
+.death-overlay.ghost {
+  border-color: rgb(139 197 240 / 42%);
+  background: rgb(9 16 26 / 84%);
+}
+
+.death-title {
+  margin: 0;
+  color: #f0b4b4;
+  font:
+    600 1.15rem Georgia,
+    serif;
+  letter-spacing: 0.06em;
+}
+
+.death-overlay.ghost .death-title {
+  color: #a9d8ff;
+}
+
+.death-copy {
+  max-width: 26rem;
+  margin: 0;
+  color: #d9cfcf;
+  font:
+    0.78rem ui-monospace,
+    monospace;
+  line-height: 1.5;
+}
+
+.death-release {
+  margin-top: 0.25rem;
+  padding: 0.45rem 1.1rem;
+  border: 1px solid rgb(243 201 106 / 45%);
+  border-radius: 6px;
+  background: rgb(38 16 16 / 90%);
+  color: #ffe8a6;
+  font:
+    0.75rem ui-monospace,
+    monospace;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+}
+
+.death-release:hover {
+  border-color: rgb(243 201 106 / 80%);
+  background: rgb(58 24 24 / 92%);
+}

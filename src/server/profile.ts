@@ -5,8 +5,10 @@ import {
   normalizeAppearance,
   normalizeEquipment,
 } from "../shared/character.js";
+import { isLifeState, type LifeState } from "../shared/death.js";
 import {
   clampRestoredPosition,
+  isWalkable,
   maxHpForLevel,
   type PlayerClass,
   questDefinition,
@@ -30,6 +32,22 @@ export interface PlayerProfile extends Vec2 {
   instanceId: string;
   sessionEpoch: number;
   wardRunExpiresAt: number | null;
+  life: LifeState;
+  /** Null exactly when `life` is "alive". */
+  corpse: Vec2 | null;
+}
+
+/**
+ * A dead row must carry a body. If the two ever disagree — a hand-edited row, a half-applied
+ * migration — repair to alive rather than stranding a ghost with nothing to walk back to.
+ */
+function lifeFromRow(row: Character): { life: LifeState; corpse: Vec2 | null } {
+  const life = isLifeState(row.life) ? row.life : "alive";
+  if (life === "alive") return { life: "alive", corpse: null };
+  if (row.corpseX === null || row.corpseY === null) return { life: "alive", corpse: null };
+  const corpse = { x: row.corpseX, y: row.corpseY };
+  if (!isWalkable(corpse)) return { life: "alive", corpse: null };
+  return { life, corpse };
 }
 
 function fromRow(row: Character): PlayerProfile {
@@ -66,6 +84,7 @@ function fromRow(row: Character): PlayerProfile {
     instanceId: row.instanceId,
     sessionEpoch: Math.max(0, row.sessionEpoch),
     wardRunExpiresAt: row.wardRunExpiresAt?.getTime() ?? null,
+    ...lifeFromRow(row),
   };
 }
 
@@ -119,6 +138,9 @@ export async function saveProfile(db: Db, profile: SaveableProfile): Promise<boo
       instanceId: profile.instanceId,
       wardRunExpiresAt:
         profile.wardRunExpiresAt === null ? null : new Date(profile.wardRunExpiresAt),
+      life: profile.life,
+      corpseX: profile.corpse?.x ?? null,
+      corpseY: profile.corpse?.y ?? null,
       lastSeenAt: new Date(),
     })
     .where(and(eq(character.id, profile.id), eq(character.sessionEpoch, profile.sessionEpoch)))

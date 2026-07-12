@@ -9,6 +9,7 @@ import {
   Texture,
 } from "pixi.js";
 import type { MainHandItem, OffHandItem, PrimaryColor } from "../../shared/character.js";
+import { isSpirit } from "../../shared/death.js";
 import {
   BOUNDARY_OBSTACLES,
   type MonsterSpecies,
@@ -23,6 +24,7 @@ import {
 } from "../../shared/game.js";
 import type { MessageKey } from "../../shared/i18n/index.js";
 import type {
+  CorpseSnapshot,
   ItemKind,
   LootSnapshot,
   MonsterSnapshot,
@@ -413,7 +415,7 @@ function createSprite(texture: Texture, width: number, height: number): Sprite {
 }
 
 function playerAnimations(
-  player: PlayerSnapshot,
+  player: Pick<PlayerSnapshot, "class" | "appearance">,
   textures: Record<string, readonly Texture[]>,
 ): Record<UnitMotion, readonly Texture[]> {
   const result = {} as Record<UnitMotion, readonly Texture[]>;
@@ -496,6 +498,7 @@ export class Renderer {
   #players = new Map<string, EntityView<PlayerSnapshot>>();
   #monsters = new Map<string, EntityView<MonsterSnapshot>>();
   #loot = new Map<string, EntityView<LootSnapshot>>();
+  #corpses = new Map<string, EntityView<CorpseSnapshot>>();
   #activeEffects: Effect[] = [];
   #ambientViews: AmbientView[] = [];
   #staticViews: StaticView[] = [];
@@ -1065,6 +1068,40 @@ export class Renderer {
         );
         this.#addTorch(container, landmark.width * 0.28, landmark.height - 40);
         this.#addTorch(container, landmark.width * 0.72, landmark.height - 40);
+      } else if (landmark.kind === "graveyard") {
+        container.addChild(
+          new Graphics()
+            .roundRect(-40, -30, landmark.width + 80, landmark.height + 90, 18)
+            .fill({ color: 0x121a20, alpha: 0.5 })
+            .stroke({ width: 2, color: 0x6f8496, alpha: 0.45 }),
+        );
+        // 4 is the Monastery in TINY_SWORDS_BUILDINGS — the closest thing the pack has to a chapel.
+        const chapel = createFittedSprite(
+          pickTexture(this.art.buildings, 4),
+          landmark.width,
+          landmark.height,
+        );
+        chapel.anchor.set(0.5, 1);
+        chapel.position.set(landmark.width / 2, landmark.height);
+        chapel.tint = 0xc3cfdb;
+        container.addChild(chapel);
+        // Headstones in the yard below the chapel, where the spirit anchor sits.
+        for (let stone = 0; stone < 6; stone++) {
+          const headstone = createFittedSprite(
+            pickTexture(this.art.props.rocks, index + stone),
+            26,
+            30,
+          );
+          headstone.anchor.set(0.5, 1);
+          headstone.position.set(
+            8 + stone * ((landmark.width - 16) / 5),
+            landmark.height + 34 + (stone % 2) * 20,
+          );
+          headstone.tint = 0x9fb0bd;
+          container.addChild(headstone);
+        }
+        this.#addTorch(container, -18, landmark.height + 14);
+        this.#addTorch(container, landmark.width + 18, landmark.height + 14);
       } else {
         const isBuilding = landmark.kind === "building" || landmark.kind === "farm";
         container.addChild(
@@ -1507,7 +1544,7 @@ export class Renderer {
       movingUntil: 0,
       attackUntil: 0,
       hitUntil: 0,
-      wasDead: player.dead,
+      wasDead: isSpirit(player.life),
       phase: phaseFor(player.id),
       unitSprite,
       unitAnimations: animations,
@@ -1586,6 +1623,38 @@ export class Renderer {
     };
   }
 
+  /** A fallen body: the class sprite, slumped, drained of colour, with a mote hanging over it. */
+  #createCorpse(corpse: CorpseSnapshot): EntityView<CorpseSnapshot> {
+    const container = new Container();
+    const actor = new Container();
+    actor.pivot.set(18, 20);
+
+    const shadow = new Graphics()
+      .ellipse(16, 30, 20, 7)
+      .fill({ color: COLORS.shadow, alpha: 0.45 });
+    const frames = playerAnimations(corpse, this.art.units);
+    const body = new Sprite(frames.idle[0]);
+    body.width = 96;
+    body.height = 96;
+    body.anchor.set(0.5, 0.85);
+    body.position.set(18, 30);
+    body.rotation = 1.35;
+    body.tint = 0x6d7b86;
+    body.alpha = 0.85;
+    actor.addChild(body);
+
+    const wisp = new Graphics()
+      .circle(0, 0, 5)
+      .fill({ color: 0xa8dcff, alpha: 0.5 })
+      .circle(0, 0, 9)
+      .stroke({ width: 1, color: 0xa8dcff, alpha: 0.28 });
+    wisp.position.set(18, 2);
+
+    container.addChild(shadow, actor, wisp);
+    this.#actors.addChild(container);
+    return { container, data: corpse, actor, flash: wisp, phase: phaseFor(corpse.id) };
+  }
+
   #createLoot(loot: LootSnapshot): EntityView<LootSnapshot> {
     const color =
       loot.kind === "potion"
@@ -1659,8 +1728,9 @@ export class Renderer {
       label.text = local
         ? `${glyph} ${player.nick}  ${t("hud.lv", { level: player.level })}`
         : `${glyph} ${player.nick}`;
-      if (!view.container.visible || !onScreen || player.dead || baseAlpha <= 0) {
-        label.alpha = player.dead && local ? 0.45 : 0;
+      const spirit = isSpirit(player.life);
+      if (!view.container.visible || !onScreen || spirit || baseAlpha <= 0) {
+        label.alpha = spirit && local ? 0.45 : 0;
         continue;
       }
 
@@ -1905,7 +1975,7 @@ export class Renderer {
   #drawOverlay(context: RenderContext): void {
     this.#overlay.clear();
     const { self, now, quest, attackCooldownUntil, attackRange } = context;
-    if (!self || self.dead) return;
+    if (!self || isSpirit(self.life)) return;
 
     const center = centerOf(self);
     const onCooldown = attackCooldownUntil > now;
@@ -1974,23 +2044,32 @@ export class Renderer {
           view.hitUntil = now + 190;
           this.#burst(player.x + 16, player.y + 16, 0xff8178, 6);
         }
-        if (view.wasDead && !player.dead && this.#isVisibleWorld(player.x, player.y, 80)) {
+        const ghost = player.life === "ghost";
+        const spirit = isSpirit(player.life);
+        if (view.wasDead && !spirit && this.#isVisibleWorld(player.x, player.y, 80)) {
           this.#addPulse(player.x + 16, player.y + 16, 0xa8f2dc, 24, 650);
-          this.showWorldEvent("HEARTROOT AWAKENING", "good", player.x, player.y);
         }
-        const visible = this.#isVisibleWorld(player.x, player.y, ENTITY_CULL_MARGIN);
+        // A player lying dead IS their corpse — the corpse layer draws the body, so the
+        // avatar steps aside. What is left standing is only ever the living or a ghost.
+        const visible =
+          this.#isVisibleWorld(player.x, player.y, ENTITY_CULL_MARGIN) && player.life !== "corpse";
         view.container.visible = visible;
         view.container.position.set(player.x, player.y);
         view.container.zIndex = Math.round(player.y + PLAYER_SIZE);
         if (visible) {
-          const moving = (view.movingUntil ?? 0) > now && !player.dead;
+          const moving = (view.movingUntil ?? 0) > now;
           const stride = Math.sin(now / 85 + (view.phase ?? 0));
           const idle = Math.sin(now / 480 + (view.phase ?? 0));
+          const drift = Math.sin(now / 520 + (view.phase ?? 0));
           if (view.actor) {
-            view.actor.y = 17 + (moving ? -Math.abs(stride) * 2.4 : idle * -0.8);
-            view.actor.rotation = player.dead ? 1.35 : moving ? stride * 0.045 : idle * 0.012;
-            view.actor.alpha = player.dead ? 0.4 : 1;
-            view.actor.scale.y = player.dead ? 0.62 : 1;
+            // A ghost does not walk, it drifts: no footfalls, a slow bob, and no weight.
+            view.actor.y = ghost
+              ? 13 + drift * 2.6
+              : 17 + (moving ? -Math.abs(stride) * 2.4 : idle * -0.8);
+            view.actor.rotation = ghost ? drift * 0.03 : moving ? stride * 0.045 : idle * 0.012;
+            view.actor.alpha = ghost ? 0.42 : 1;
+            view.actor.scale.y = 1;
+            view.actor.tint = ghost ? 0x9fd8ff : 0xffffff;
           }
           if (view.unitSprite && view.unitAnimations) {
             const motion: UnitMotion =
@@ -2000,14 +2079,15 @@ export class Renderer {
             if (frame) view.unitSprite.texture = frame;
           }
           if (view.flash) view.flash.alpha = (view.hitUntil ?? 0) > now ? 0.65 : 0;
-          view.container.alpha = player.dead ? 0.55 : 1;
-          this.#drawHp(view, player.hp, player.maxHp);
+          view.container.alpha = ghost ? 0.5 : 1;
+          // A ghost has no health to show; it has a body to find.
+          this.#drawHp(view, ghost ? 0 : player.hp, player.maxHp);
         }
         view.data = player;
         view.lastX = player.x;
         view.lastY = player.y;
         view.lastHp = player.hp;
-        view.wasDead = player.dead;
+        view.wasDead = spirit;
       },
     );
 
@@ -2043,8 +2123,8 @@ export class Renderer {
           const moving = (view.movingUntil ?? 0) > now && !monster.dead;
           const bounce = Math.sin(now / (moving ? 105 : 360) + (view.phase ?? 0));
           const distance = self ? pointDistance(self, monster) : Number.POSITIVE_INFINITY;
-          const aggro = Boolean(self && !self.dead && !monster.dead && distance < 215);
-          const close = Boolean(self && !self.dead && !monster.dead && distance < 155);
+          const aggro = Boolean(self && !isSpirit(self.life) && !monster.dead && distance < 215);
+          const close = Boolean(self && !isSpirit(self.life) && !monster.dead && distance < 155);
           if (view.actor) {
             view.actor.y = 20 + bounce * (moving ? -2.3 : -1.1);
             view.actor.scale.set(1 + bounce * 0.07, monster.dead ? 0.28 : 1 - bounce * 0.05);
@@ -2086,6 +2166,24 @@ export class Renderer {
         view.lastY = monster.y;
         view.lastHp = monster.hp;
         view.wasDead = monster.dead;
+      },
+    );
+
+    reconcile(
+      this.#corpses,
+      sample.corpses,
+      (corpse) => this.#createCorpse(corpse),
+      (view, corpse) => {
+        const visible = this.#isVisibleWorld(corpse.x, corpse.y, ENTITY_CULL_MARGIN);
+        view.container.visible = visible;
+        view.container.position.set(corpse.x, corpse.y);
+        view.container.zIndex = Math.round(corpse.y + 4);
+        if (visible && view.flash) {
+          const float = Math.sin(now / 620 + (view.phase ?? 0));
+          view.flash.position.set(18, 2 + float * 3);
+          view.flash.alpha = 0.45 + float * 0.2;
+        }
+        view.data = corpse;
       },
     );
 

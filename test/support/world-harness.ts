@@ -6,6 +6,7 @@ import { env, SELF } from "cloudflare:test";
 import { expect } from "vitest";
 import type { PlayerClass, QuestChapter } from "../../src/shared/game.js";
 import {
+  type CorpseSnapshot,
   type PlayerSnapshot,
   parseServerMessage,
   type QuestStatus,
@@ -206,6 +207,11 @@ export class Client {
     this.#socket.send(JSON.stringify({ t: type }));
   }
 
+  /** Let go of the body. Not to be confused with release(), which lets go of the keys. */
+  releaseSpirit(): void {
+    this.#socket.send(JSON.stringify({ t: "release" }));
+  }
+
   skill(slot: number): void {
     this.#socket.send(JSON.stringify({ t: "skill", slot }));
   }
@@ -258,6 +264,12 @@ export class Client {
   self(): PlayerSnapshot | undefined {
     const id = this.welcome?.selfId;
     return id ? this.latestSnapshot?.players.find((p) => p.id === id) : undefined;
+  }
+
+  /** This player's body, if they have left one lying around. */
+  corpse(): CorpseSnapshot | undefined {
+    const id = this.welcome?.selfId;
+    return id ? this.latestSnapshot?.corpses.find((c) => c.id === id) : undefined;
   }
 }
 

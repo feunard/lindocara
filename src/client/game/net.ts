@@ -1,3 +1,4 @@
+import { canMove, type LifeState, speedForLife } from "../../shared/death.js";
 import { resolveTerrain } from "../../shared/game.js";
 import {
   CORRECTION_SMOOTHING_MS,
@@ -11,6 +12,7 @@ import {
 import {
   type ClientMessage,
   type Command,
+  type CorpseSnapshot,
   type EventCode,
   type EventParams,
   type EventTone,
@@ -41,6 +43,8 @@ export interface SceneSample {
   players: PlayerSnapshot[];
   monsters: MonsterSnapshot[];
   loot: LootSnapshot[];
+  /** Bodies do not move, so they are never interpolated — the newest word is the only word. */
+  corpses: CorpseSnapshot[];
 }
 
 export interface Connection {
@@ -48,6 +52,7 @@ export interface Connection {
   interact(): void;
   usePotion(): void;
   heal(): void;
+  release(): void;
   skill(slot: SkillSlot): void;
   sendChat(text: string): void;
   close(): void;
@@ -88,8 +93,8 @@ function interpolate<T extends { id: string; x: number; y: number }>(
   });
 }
 
-function predictPartial(position: Vec2, input: Input, dt: number): Vec2 {
-  return resolveTerrain(position, step(position, input, dt));
+function predictPartial(position: Vec2, input: Input, dt: number, speed: number): Vec2 {
+  return resolveTerrain(position, step(position, input, dt, speed));
 }
 
 export class WorldClient {
@@ -98,6 +103,8 @@ export class WorldClient {
 
   #selfId: string | null = null;
   #selfSnapshot: PlayerSnapshot | null = null;
+  #life: LifeState = "alive";
+  #corpses: CorpseSnapshot[] = [];
   #predicted: Vec2 | null = null;
   #pending: Command[] = [];
   #seq = 0;
@@ -136,6 +143,7 @@ export class WorldClient {
       interact: () => this.#send({ t: "interact" }),
       usePotion: () => this.#send({ t: "use", item: "potion" }),
       heal: () => this.#send({ t: "heal" }),
+      release: () => this.#send({ t: "release" }),
       skill: (slot) => this.#send({ t: "skill", slot }),
       sendChat: (text) => this.#send({ t: "chat", text }),
       close: () => socket.close(1000, "client left"),
@@ -145,7 +153,9 @@ export class WorldClient {
   update(input: Input, dt: number): void {
     if (this.#predicted === null) return;
     this.#input = input;
-    if (this.#selfSnapshot?.dead) return;
+    // A corpse is frozen over its body; a ghost walks, and faster than the living.
+    if (this.#selfSnapshot && !canMove(this.#selfSnapshot.life)) return;
+    const speed = speedForLife(this.#selfSnapshot?.life ?? "alive");
 
     this.#accumulator = Math.min(this.#accumulator + dt, MAX_ACCUMULATED_SECONDS);
     while (this.#accumulator >= TICK_DT) {
@@ -154,16 +164,16 @@ export class WorldClient {
       const seq = ++this.#seq;
       const command = { seq, input };
       this.#pending.push(command);
-      this.#predicted = predictStep(this.#predicted, command);
+      this.#predicted = predictStep(this.#predicted, command, speed);
       this.#send({ t: "input", seq, input });
     }
   }
 
   sample(now: number): SceneSample {
     const newest = this.#buffer[this.#buffer.length - 1];
-    if (!newest) return { players: [], monsters: [], loot: [] };
+    if (!newest) return { players: [], monsters: [], loot: [], corpses: [] };
 
-    const interpolated = this.#sampleInterpolated(now, newest);
+    const interpolated = { ...this.#sampleInterpolated(now, newest), corpses: this.#corpses };
     const self = this.#sampleSelf(now);
     if (!self) return interpolated;
     return {
@@ -175,6 +185,7 @@ export class WorldClient {
   #handle(message: ServerMessage, handlers: ConnectionHandlers): void {
     if (message.t === "welcome") {
       this.#selfId = message.selfId;
+      this.#corpses = message.corpses;
       this.#push(message.players, message.monsters, message.loot);
       const self = message.players.find((player) => player.id === message.selfId);
       if (self) {
@@ -186,6 +197,7 @@ export class WorldClient {
       return;
     }
     if (message.t === "snapshot") {
+      this.#corpses = message.corpses;
       const receivedAt = this.#push(message.players, message.monsters, message.loot);
       this.#reconcile(message.players, receivedAt);
       return;
@@ -219,17 +231,31 @@ export class WorldClient {
     this.#selfSnapshot = authoritative;
 
     const drawnBefore = this.#samplePredictedPosition();
+    const previousLife = this.#life;
+    this.#life = authoritative.life;
     this.#ack = authoritative.ack;
     this.#pending = prunePending(this.#pending, authoritative.ack);
 
-    if (authoritative.dead || this.#pending.length > MAX_PENDING_COMMANDS) {
+    // Every life transition is a teleport or a freeze, and the server drops its queue across
+    // one. Replaying commands buffered under the old life state — at the old speed, from the
+    // old place — is exactly the desync this whole mechanism exists to prevent. Snap instead.
+    const transitioned = previousLife !== authoritative.life;
+    if (
+      transitioned ||
+      authoritative.life === "corpse" ||
+      this.#pending.length > MAX_PENDING_COMMANDS
+    ) {
       this.#pending = [];
       this.#predicted = { x: authoritative.x, y: authoritative.y };
       this.#error = { x: 0, y: 0 };
       return;
     }
 
-    this.#predicted = reconcile({ x: authoritative.x, y: authoritative.y }, this.#pending);
+    this.#predicted = reconcile(
+      { x: authoritative.x, y: authoritative.y },
+      this.#pending,
+      authoritative.life,
+    );
 
     const drawnAfter = this.#samplePredictedPosition();
     const error = { x: drawnBefore.x - drawnAfter.x, y: drawnBefore.y - drawnAfter.y };
@@ -244,10 +270,11 @@ export class WorldClient {
   }
 
   #samplePredictedPosition(): Vec2 {
-    if (this.#predicted === null || this.#selfSnapshot?.dead) {
+    const life = this.#selfSnapshot?.life ?? "alive";
+    if (this.#predicted === null || !canMove(life)) {
       return this.#predicted ?? { x: 0, y: 0 };
     }
-    return predictPartial(this.#predicted, this.#input, this.#accumulator);
+    return predictPartial(this.#predicted, this.#input, this.#accumulator, speedForLife(life));
   }
 
   #sampleSelf(now: number): PlayerSnapshot | null {
@@ -264,7 +291,7 @@ export class WorldClient {
     };
   }
 
-  #sampleInterpolated(now: number, newest: BufferedSnapshot): SceneSample {
+  #sampleInterpolated(now: number, newest: BufferedSnapshot): Omit<SceneSample, "corpses"> {
     if (this.#buffer.length === 1) {
       return {
         players: newest.players.filter((player) => player.id !== this.#selfId),
