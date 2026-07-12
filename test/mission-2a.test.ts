@@ -369,6 +369,7 @@ describe("Mission 2A — post-revocation commands", () => {
       puzzleInteract: true,
     });
     expect(await env.WORLD.getByName(ROOM_A_KEY).persistCharacter(session.characterId)).toBeNull();
+    client.close();
   });
 });
 
@@ -457,6 +458,7 @@ describe("Mission 2A — heartbeat and presence expiry", () => {
     await scheduler.wait(300);
     expect(await readCharacterRow(session.characterId)).toEqual(baseline);
     expect(await env.WORLD.getByName(ROOM_A_KEY).persistCharacter(session.characterId)).toBeNull();
+    client.close();
   });
 
   it("allows a fresh acquisition after expiry and blocks the old room from saving", {

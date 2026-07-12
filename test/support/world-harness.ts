@@ -204,7 +204,11 @@ export class Client {
   }
 
   action(type: "attack" | "interact" | "heal"): void {
-    this.#socket.send(JSON.stringify({ t: type }));
+    try {
+      this.#socket.send(JSON.stringify({ t: type }));
+    } catch {
+      // The server may already have closed the connection.
+    }
   }
 
   /** Let go of the body. Not to be confused with release(), which lets go of the keys. */

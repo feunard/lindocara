@@ -233,7 +233,7 @@ describe("World", () => {
   });
 
   it("keeps monster drops and combat snapshots inside their room", {
-    timeout: 20_000,
+    timeout: 10_000,
   }, async () => {
     await waitForRoomSockets(MMO_TEST_ROOM_KEY, 0);
     const hunter = await Client.join("LootHunter", {
@@ -242,25 +242,24 @@ describe("World", () => {
       level: 10,
     });
     const observer = await Client.join("LootEye", { zoneId: "mmo-test-zone" });
-    await until("loot rooms welcome", () => hunter.welcome && observer.welcome);
+    try {
+      await until("loot rooms welcome", () => hunter.welcome && observer.welcome);
 
-    const loot = await until(
-      "main-room monster loot",
-      () => {
-        hunter.action("attack");
+      hunter.action("attack");
+      await scheduler.wait(600);
+      hunter.action("attack");
+      const loot = await until("main-room monster loot", () => {
         const snapshot = hunter.latestSnapshot;
         return snapshot && snapshot.loot.length > 0 ? snapshot.loot : undefined;
-      },
-      15_000,
-    );
-    expect(loot.length).toBeGreaterThan(0);
-    await until("technical-room snapshot", () => observer.latestSnapshot);
-    expect(observer.latestSnapshot?.loot).toEqual([]);
-    expect(observer.latestSnapshot?.monsters).toEqual([]);
-
-    hunter.close();
-    observer.close();
-    await waitForRoomSockets(MMO_TEST_ROOM_KEY, 0);
+      });
+      expect(loot.length).toBeGreaterThan(0);
+      await until("technical-room snapshot", () => observer.latestSnapshot);
+      expect(observer.latestSnapshot?.loot).toEqual([]);
+      expect(observer.latestSnapshot?.monsters).toEqual([]);
+    } finally {
+      hunter.close();
+      observer.close();
+    }
   });
 
   it("does not let the URL select a room", async () => {
@@ -304,32 +303,34 @@ describe("World", () => {
     ).toBe(WS_CLOSE.INVALID_LOCATION);
   });
 
-  it("enforces the technical room capacity and reconnects to the persisted test zone", {
-    timeout: 20_000,
-  }, async () => {
+  it("enforces the technical room capacity and reconnects to the persisted test zone", async () => {
     await waitForRoomSockets(MMO_TEST_ROOM_KEY, 0);
     const first = await Client.join("capacity_one", { zoneId: "mmo-test-zone" });
     const second = await Client.join("capacity_two", { zoneId: "mmo-test-zone" });
-    await until("capacity players welcome", () => first.welcome && second.welcome, 10_000);
-    const third = await Client.join("capacity_three", { zoneId: "mmo-test-zone" });
-    expect((await until("room full close", () => third.closeInfo ?? undefined)).code).toBe(
-      WS_CLOSE.ROOM_FULL,
-    );
+    let third: Client | undefined;
+    let joined: Client | undefined;
+    try {
+      await until("capacity players welcome", () => first.welcome && second.welcome);
+      third = await Client.join("capacity_three", { zoneId: "mmo-test-zone" });
+      expect((await until("room full close", () => third?.closeInfo ?? undefined))?.code).toBe(
+        WS_CLOSE.ROOM_FULL,
+      );
 
-    const session = await testCharacter("tech_reconnect", { zoneId: "mmo-test-zone" });
-    // Free a slot before asserting reconnection.
-    first.close();
-    await waitForRoomSockets(MMO_TEST_ROOM_KEY, 1);
-    const joined = await Client.joinCharacter(session);
-    expect(
-      (await until("tech reconnect welcome", () => joined.welcome, 10_000)).world,
-    ).toMatchObject({
-      width: 640,
-      height: 480,
-    });
-    joined.close();
-    second.close();
-    await waitForRoomSockets(MMO_TEST_ROOM_KEY, 0);
+      const session = await testCharacter("tech_reconnect", { zoneId: "mmo-test-zone" });
+      // Free a slot before asserting reconnection.
+      first.close();
+      await waitForRoomSockets(MMO_TEST_ROOM_KEY, 1);
+      joined = await Client.joinCharacter(session);
+      expect((await until("tech reconnect welcome", () => joined?.welcome)).world).toMatchObject({
+        width: 640,
+        height: 480,
+      });
+    } finally {
+      first.close();
+      second.close();
+      third?.close();
+      joined?.close();
+    }
   });
 
   it("starts the server-owned quest only when interacting near the quest NPC", async () => {
@@ -973,7 +974,7 @@ describe("World", () => {
     wounded.close();
   });
 
-  it("blocks a dead priest from casting heal", { timeout: 25_000 }, async () => {
+  it("blocks a dead priest from casting heal", { timeout: 10_000 }, async () => {
     // The first road goblin patrols within 75px of its spawn, well inside the 210px aggro
     // range, so a player standing on the spawn point draws it reliably. One HP means the first
     // landed hit kills regardless of the species-specific damage table.
@@ -986,7 +987,7 @@ describe("World", () => {
     await until(
       "the monster to kill the priest",
       () => (priest.self()?.life === "corpse" ? priest.self() : undefined),
-      20_000,
+      10_000,
     );
 
     // Only bring in a healable ally now that the priest is dead. The monster orbits its spawn
