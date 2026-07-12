@@ -2,8 +2,9 @@
 
 **Verdant Reach** is a compact, server-authoritative 2D MMO slice on Cloudflare Workers.
 Register a username and password, create up to three characters and pick one at character
-select, then explore one shared room, hunt roaming slimes, gain levels, collect persistent
-loot, complete Warden Mira's quest, chat, and resume your character after reconnecting. The
+select, then explore its server-authoritative room, fight several monster families, gain levels, collect
+persistent loot, complete a four-chapter quest chain, chat, and resume your character after
+reconnecting. The
 whole UI is localized in French and English, with a live toggle.
 
 **Live:** [lindocara.alepha.dev](https://lindocara.alepha.dev)
@@ -69,7 +70,7 @@ replays whatever commands the server hasn't acknowledged yet. Agreement means no
 happens; disagreement is smeared over ~100 ms rather than snapping. Measured input latency is
 **one frame** (~7 ms), down from ~124 ms before prediction.
 
-Everyone *else* is drawn ~100 ms in the past, interpolated between the two snapshots bracketing
+Everyone *else* is drawn ~150 ms in the past, interpolated between the two snapshots bracketing
 that instant — you can't know where a remote player is right now, and guessing looks worse than
 being slightly late.
 
@@ -96,8 +97,10 @@ progression formulas live in `src/shared/game.ts`. They are platform-free and di
 | Enter | Focus chat |
 | FR/EN button | Switch language |
 
-New players begin in the sanctuary beside Warden Mira. Accept **Slime Hunt**, defeat three Moss
-Slimes, collect their drops by walking over them, then return to Mira for the reward.
+New players begin in the sanctuary beside Warden Mira. The current quest chain crosses the whole
+map through **The Three Offerings**, **The Bone Choir**, **Runes of the Mire**, and **The Ward
+Run**. It combines ordered gathering, monster hunting, a rune sequence, and a clearly timed ward
+course before each chapter's reward is claimed from its keeper.
 
 Each character is one of three classes, picked at creation: the warrior hits hard at short
 range, the ranger hits softer from far away, and the priest hits softest of all but can mend
@@ -107,8 +110,9 @@ the most injured ally in range.
 
 A D1 database (`lindocara`) stores accounts and characters through Drizzle. One `account` row
 per registered user (`username` unique, stored lowercase, password PBKDF2-hashed), and up to
-three `character` rows per account — position, appearance, HP, level, XP, inventory, quest
-progress, creation time, and last-seen time — one of which you pick at character select. The
+three `character` rows per account — zone/instance, position, appearance, HP, level, XP,
+inventory, quest progress, the absolute ward-run deadline, creation time, and last-seen time —
+one of which you pick at character select. The
 active room remains in the Durable Object for low-latency simulation and writes dirty
 characters periodically and on disconnect.
 
@@ -146,6 +150,23 @@ Worker signs `{ id, username, iat }` with an HMAC and hands it back as an `HttpO
 The Durable Object never sees a password — it trusts the identity only because the Worker
 verified that signature first, and only ever learns which character to load after the Worker
 has separately checked that the session's account owns it.
+
+Before admission, a deterministic `CharacterPresence` Durable Object acquires a 30-second lease
+for that character and assigns a new D1-backed `sessionEpoch`. The room renews it every 10 seconds.
+A newer connection replaces the previous one, and every profile save is conditional on the epoch,
+so a late room can never overwrite the current position, progression, inventory, or quest state.
+
+## Zones and rooms
+
+The server reads each character's `zoneId` and `instanceId` from D1, validates both against the
+shared zone catalogue, and routes its WebSocket to the deterministic room key
+`<zoneId>:<instanceId>`. The browser cannot choose either value. `verdant-reach:main` is the
+current live world; `mmo-test-zone:main` is a small technical room used by the test suite.
+
+Rooms isolate players, chat, monsters, loot, timers, commands, and snapshots. Each zone declares
+its own maximum room capacity. Adding a zone means adding an immutable entry in
+`src/shared/zones.ts`; adding an instance means persisting a valid instance id for a character.
+Portals and playable cross-zone transitions are not implemented yet.
 
 Swapping in real OAuth means changing how a session is minted. The cookie, the Worker, and
 the Durable Object all keep working.

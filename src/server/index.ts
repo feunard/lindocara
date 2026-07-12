@@ -7,7 +7,9 @@
  */
 
 import { normalizeAppearance } from "../shared/character.js";
+import { WS_CLOSE } from "../shared/close-codes.js";
 import { isValidClass } from "../shared/game.js";
+import { resolveZoneLocation } from "../shared/zones.js";
 import { createAccount, verifyCredentials } from "./accounts.js";
 import {
   characterOwnedBy,
@@ -18,6 +20,7 @@ import {
   listCharacters,
 } from "./characters.js";
 import { createDb } from "./db/index.js";
+import { loadProfile } from "./profile.js";
 import {
   clearSessionCookie,
   createSession,
@@ -27,15 +30,21 @@ import {
   serializeSessionCookie,
   signSession,
   verifySession,
+  verifySessionState,
 } from "./session.js";
 
+export { CharacterPresence } from "./character-presence.js";
 export { World } from "./world.js";
-
-/** There is exactly one world, so every connection resolves to the same object. */
-const WORLD_NAME = "world";
 
 function json(body: unknown, init?: ResponseInit): Response {
   return Response.json(body, init);
+}
+
+function closedWebSocket(code: number, reason: string): Response {
+  const { 0: client, 1: server } = new WebSocketPair();
+  server.accept();
+  server.close(code, reason);
+  return new Response(null, { status: 101, webSocket: client });
 }
 
 function isSecure(url: URL): boolean {
@@ -107,7 +116,12 @@ async function handleJoin(request: Request, env: Env, url: URL): Promise<Respons
     return new Response("expected a websocket upgrade", { status: 426 });
   }
 
-  const session = await currentSession(request, env);
+  const token = readSessionCookie(request);
+  if (!token) return json({ error: "unauthorized" }, { status: 401 });
+  const session = await verifySessionState(token, env.SESSION_SECRET);
+  if (session === "expired") {
+    return closedWebSocket(WS_CLOSE.SESSION_EXPIRED, "session expired");
+  }
   if (!session) return json({ error: "unauthorized" }, { status: 401 });
 
   const characterId = url.searchParams.get("character");
@@ -116,11 +130,45 @@ async function handleJoin(request: Request, env: Env, url: URL): Promise<Respons
   // Ownership is proven here, outside the Durable Object, so the DO can trust the header.
   const owned = await characterOwnedBy(createDb(env.DB), session.id, characterId);
   if (!owned) return json({ error: "forbidden" }, { status: 403 });
+  const profile = await loadProfile(createDb(env.DB), owned.id);
+  if (!profile) return json({ error: "not_found" }, { status: 404 });
+  const location = resolveZoneLocation(profile.zoneId, profile.instanceId);
+  if (!location) return closedWebSocket(WS_CLOSE.INVALID_LOCATION, "invalid character location");
 
-  const stub = env.WORLD.get(env.WORLD.idFromName(WORLD_NAME));
+  const connectionId = crypto.randomUUID();
+  let sessionEpoch: number;
+  try {
+    const lease = await env.CHARACTER_PRESENCE.getByName(characterId).acquire({
+      characterId,
+      connectionId,
+      roomKey: location.roomKey,
+      zoneId: location.zoneId,
+      instanceId: location.instanceId,
+    });
+    sessionEpoch = lease.sessionEpoch;
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: "presence_acquisition_failed",
+        characterId,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
+    return closedWebSocket(WS_CLOSE.PRESENCE_ERROR, "presence acquisition failed");
+  }
+
+  const stub = env.WORLD.getByName(location.roomKey);
   return stub.fetch(
     new Request(request, {
-      headers: { Upgrade: "websocket", "x-character-id": owned.id },
+      headers: {
+        Upgrade: "websocket",
+        "x-character-id": owned.id,
+        "x-connection-id": connectionId,
+        "x-session-epoch": String(sessionEpoch),
+        "x-room-key": location.roomKey,
+        "x-zone-id": location.zoneId,
+        "x-instance-id": location.instanceId,
+      },
     }),
   );
 }
@@ -169,14 +217,7 @@ async function handleDeleteCharacter(
   const deleted = await deleteCharacter(createDb(env.DB), session.id, characterId);
   if (!deleted) return json({ error: "not_found" }, { status: 404 });
 
-  // A deleted character must not keep playing through a socket opened before the delete.
-  const stub = env.WORLD.get(env.WORLD.idFromName(WORLD_NAME));
-  await stub.fetch(
-    new Request("https://world/internal/kick", {
-      method: "POST",
-      headers: { "x-kick-character-id": characterId },
-    }),
-  );
+  await env.CHARACTER_PRESENCE.getByName(characterId).revoke();
   return new Response(null, { status: 204 });
 }
 

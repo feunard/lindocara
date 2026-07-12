@@ -144,6 +144,10 @@ export const EVENT_CODES = [
   "skill.no_target",
   "skill.blocked",
   "skill.locked",
+  "presence.replaced",
+  "presence.lost",
+  "room.full",
+  "room.invalid_location",
 ] as const;
 export type EventCode = (typeof EVENT_CODES)[number];
 export type EventParams = Record<string, string | number>;

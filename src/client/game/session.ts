@@ -1,3 +1,4 @@
+import { WS_CLOSE } from "../../shared/close-codes.js";
 import {
   ATTACK_COOLDOWN_MS,
   CLASS_STATS,
@@ -295,13 +296,21 @@ export async function startGame(character: CharacterSummary): Promise<void> {
         // The raw wire reason is English server prose; never render it directly.
         console.debug("connection closed", code, reason);
         const key: MessageKey =
-          code === 4001
+          code === WS_CLOSE.CHARACTER_REPLACED
             ? "status.close.elsewhere"
-            : code === 4002
+            : code === WS_CLOSE.CHARACTER_DELETED
               ? "status.close.deleted"
-              : code === 1008 || code === 1009
-                ? "status.close.policy"
-                : "status.close.generic";
+              : code === WS_CLOSE.SESSION_EXPIRED
+                ? "status.close.session_expired"
+                : code === WS_CLOSE.PRESENCE_LOST || code === WS_CLOSE.PRESENCE_ERROR
+                  ? "status.close.presence"
+                  : code === WS_CLOSE.ROOM_FULL
+                    ? "status.close.room_full"
+                    : code === WS_CLOSE.INVALID_LOCATION
+                      ? "status.close.invalid_location"
+                      : code === 1008 || code === 1009
+                        ? "status.close.policy"
+                        : "status.close.generic";
         setStatus("status.disconnected", { reason: t(key) });
         addEvent(t("status.connection_lost"), "bad");
         useUiStore.getState().setGame(null);

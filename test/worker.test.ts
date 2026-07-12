@@ -1,6 +1,12 @@
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { SESSION_COOKIE } from "../src/server/session.js";
+import {
+  createSession,
+  SESSION_COOKIE,
+  SESSION_TTL_SECONDS,
+  signSession,
+} from "../src/server/session.js";
+import { WS_CLOSE } from "../src/shared/close-codes.js";
 
 const ORIGIN = "https://lindocara.test";
 
@@ -96,6 +102,27 @@ describe("GET /api/ws", () => {
       headers: { Upgrade: "websocket" },
     });
     expect(response.status).toBe(401);
+  });
+
+  it("refuses an expired session with a distinct machine code", async () => {
+    const session = createSession("expired-account", "expired_user");
+    session.iat -= SESSION_TTL_SECONDS + 60;
+    const token = await signSession(session, "test-secret-do-not-use-in-production");
+    const response = await SELF.fetch(`${ORIGIN}/api/ws?character=missing`, {
+      headers: {
+        Upgrade: "websocket",
+        Cookie: `${SESSION_COOKIE}=${token}`,
+      },
+    });
+    expect(response.status).toBe(101);
+    const socket = response.webSocket;
+    if (!socket) throw new Error("expected rejection websocket");
+    socket.accept();
+    const closed = new Promise<CloseEvent>((resolve) =>
+      socket.addEventListener("close", resolve, { once: true }),
+    );
+    const event = await closed;
+    expect(event.code).toBe(WS_CLOSE.SESSION_EXPIRED);
   });
 });
 

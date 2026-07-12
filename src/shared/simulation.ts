@@ -26,6 +26,16 @@ export interface Vec2 {
   y: number;
 }
 
+export interface WorldBounds {
+  width: number;
+  height: number;
+}
+
+export const VERDANT_REACH_BOUNDS: WorldBounds = {
+  width: WORLD_WIDTH,
+  height: WORLD_HEIGHT,
+};
+
 export interface Input {
   up: boolean;
   down: boolean;
@@ -52,14 +62,20 @@ function clamp(value: number, min: number, max: number): number {
  * Diagonal movement is normalised, otherwise holding two keys would be ~41% faster than
  * holding one.
  */
-export function clampToWorld(position: Vec2): Vec2 {
+export function clampToWorld(position: Vec2, bounds: WorldBounds = VERDANT_REACH_BOUNDS): Vec2 {
   return {
-    x: clamp(position.x, 0, WORLD_WIDTH - PLAYER_SIZE),
-    y: clamp(position.y, 0, WORLD_HEIGHT - PLAYER_SIZE),
+    x: clamp(position.x, 0, bounds.width - PLAYER_SIZE),
+    y: clamp(position.y, 0, bounds.height - PLAYER_SIZE),
   };
 }
 
-export function step(position: Vec2, input: Input, dt: number, speed: number = PLAYER_SPEED): Vec2 {
+export function step(
+  position: Vec2,
+  input: Input,
+  dt: number,
+  speed: number = PLAYER_SPEED,
+  bounds: WorldBounds = VERDANT_REACH_BOUNDS,
+): Vec2 {
   let dx = (input.right ? 1 : 0) - (input.left ? 1 : 0);
   let dy = (input.down ? 1 : 0) - (input.up ? 1 : 0);
 
@@ -69,8 +85,11 @@ export function step(position: Vec2, input: Input, dt: number, speed: number = P
   }
 
   const distance = speed * dt;
-  return clampToWorld({
-    x: position.x + dx * distance,
-    y: position.y + dy * distance,
-  });
+  return clampToWorld(
+    {
+      x: position.x + dx * distance,
+      y: position.y + dy * distance,
+    },
+    bounds,
+  );
 }

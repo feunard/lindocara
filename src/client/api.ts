@@ -60,6 +60,8 @@ export const ERROR_KEYS: Record<string, MessageKey> = {
   invalid_name: "chars.error.invalid_name",
   invalid_appearance: "chars.error.invalid_appearance",
   invalid_class: "chars.error.invalid_class",
+  session_expired: "auth.error.session_expired",
+  presence_error: "auth.error.presence",
 };
 
 export function errorCode(error: unknown): string {

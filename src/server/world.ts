@@ -8,6 +8,7 @@ import {
   normalizeEquipment,
   starterEquipmentFor,
 } from "../shared/character.js";
+import { WS_CLOSE } from "../shared/close-codes.js";
 import {
   ATTACK_COOLDOWN_MS,
   applyDamage,
@@ -24,25 +25,18 @@ import {
   MONSTER_ATTACK_COOLDOWN_MS,
   MONSTER_ATTACK_RANGE,
   MONSTER_RESPAWN_MS,
-  MONSTER_SPAWNS,
   MONSTER_STATS,
   type MonsterKind,
+  type MonsterSpawn,
   type MonsterSpecies,
   maxHpForLevel,
-  nextQuestChapter,
-  OBSTACLES,
   PLAYER_RESPAWN_MS,
   pointDistance,
-  QUEST_DEFINITIONS,
-  QUEST_NPC,
   QUEST_RUN_LIMIT_MS,
   QUEST_SITE_RESPAWN_MS,
-  QUEST_SITES,
   type QuestChapter,
   type QuestSite,
-  questDefinition,
   resolveTerrain,
-  SAFE_ZONE,
   spawnPosition,
   withinRange,
   xpForNextLevel,
@@ -67,8 +61,6 @@ import {
   TICK_HZ,
   TICK_MS,
   type Vec2,
-  WORLD_HEIGHT,
-  WORLD_WIDTH,
 } from "../shared/simulation.js";
 import {
   isSkillUnlocked,
@@ -77,6 +69,8 @@ import {
   type SkillSlot,
   skillFor,
 } from "../shared/skills.js";
+import { resolveZoneLocation, type ZoneDefinition, type ZoneLocation } from "../shared/zones.js";
+import { PRESENCE_HEARTBEAT_MS } from "./character-presence.js";
 import { createDb } from "./db/index.js";
 import { loadProfile, type PlayerProfile, type SaveableProfile, saveProfile } from "./profile.js";
 
@@ -103,6 +97,12 @@ export interface Attachment extends Vec2 {
   quest?: PlayerProfile["quest"];
   ack?: number;
   lastSeq?: number;
+  connectionId?: string;
+  roomKey?: string;
+  sessionEpoch?: number;
+  zoneId?: string;
+  instanceId?: string;
+  wardRunExpiresAt?: number | null;
 }
 
 interface Player extends PlayerProfile {
@@ -120,8 +120,12 @@ interface Player extends PlayerProfile {
   deadUntil: number;
   messageTimes: number[];
   malformedCount: number;
-  questRunStartedAt: number;
   facing: Vec2;
+  connectionId: string;
+  roomKey: string;
+  authorized: boolean;
+  disconnecting: boolean;
+  nextPresenceHeartbeatAt: number;
 }
 
 interface Monster extends Vec2 {
@@ -160,14 +164,30 @@ function toProfile(player: Player): SaveableProfile {
     equipment: { ...player.equipment },
     inventory: { ...player.inventory },
     quest: { ...player.quest },
+    zoneId: player.zoneId,
+    instanceId: player.instanceId,
+    sessionEpoch: player.sessionEpoch,
+    wardRunExpiresAt: player.wardRunExpiresAt,
   };
 }
 
 function toAttachment(player: Player): Attachment {
-  return { ...toProfile(player), ack: player.ack, lastSeq: player.lastSeq };
+  return {
+    ...toProfile(player),
+    ack: player.ack,
+    lastSeq: player.lastSeq,
+    connectionId: player.connectionId,
+    roomKey: player.roomKey,
+  };
 }
 
-function newPlayer(profile: PlayerProfile, ack = 0, lastSeq = 0): Player {
+function newPlayer(
+  profile: PlayerProfile,
+  connectionId: string,
+  roomKey: string,
+  ack = 0,
+  lastSeq = 0,
+): Player {
   return {
     ...profile,
     appearance: { ...profile.appearance },
@@ -188,8 +208,12 @@ function newPlayer(profile: PlayerProfile, ack = 0, lastSeq = 0): Player {
     deadUntil: 0,
     messageTimes: [],
     malformedCount: 0,
-    questRunStartedAt: 0,
     facing: { x: 1, y: 0 },
+    connectionId,
+    roomKey,
+    authorized: true,
+    disconnecting: false,
+    nextPresenceHeartbeatAt: Date.now() + PRESENCE_HEARTBEAT_MS,
   };
 }
 
@@ -216,9 +240,13 @@ function profileFromAttachment(attachment: Attachment): PlayerProfile {
       chapter: attachment.quest?.chapter ?? "three_offerings",
       status: attachment.quest?.status ?? "available",
       progress: attachment.quest?.progress ?? 0,
-      target: questDefinition(attachment.quest?.chapter ?? "three_offerings").target,
+      target: attachment.quest?.target ?? 3,
     },
     hp: Math.min(maxHpForLevel(level), Math.max(1, attachment.hp ?? maxHpForLevel(level))),
+    zoneId: attachment.zoneId ?? "verdant-reach",
+    instanceId: attachment.instanceId ?? "main",
+    sessionEpoch: attachment.sessionEpoch ?? 0,
+    wardRunExpiresAt: attachment.wardRunExpiresAt ?? null,
   };
 }
 
@@ -227,8 +255,8 @@ export function positionFromAttachment(attachment: Attachment | null): Vec2 {
   return attachment === null ? spawnPosition() : clampRestoredPosition(attachment, attachment.id);
 }
 
-function createMonsters(): Monster[] {
-  return MONSTER_SPAWNS.map((spawn) => {
+function createMonsters(spawns: readonly MonsterSpawn[]): Monster[] {
+  return spawns.map((spawn) => {
     const stats = MONSTER_STATS[spawn.kind];
     return {
       ...spawn,
@@ -249,24 +277,109 @@ function createMonsters(): Monster[] {
 
 export class World extends DurableObject<Env> {
   #players = new Map<WebSocket, Player>();
-  #monsters: Monster[] = createMonsters();
+  #monsters: Monster[] = [];
+  #location: ZoneLocation | null = null;
   #loot: GroundLoot[] = [];
   #siteRespawnAt = new Map<string, number>();
-  #profileSaves = new Map<string, Promise<void>>();
+  #profileSaves = new Map<string, Promise<boolean>>();
   #loop: ReturnType<typeof setInterval> | null = null;
   #tick = 0;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
-    for (const ws of ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (!attachment) continue;
-      this.#players.set(
-        ws,
-        newPlayer(profileFromAttachment(attachment), attachment.ack ?? 0, attachment.lastSeq ?? 0),
-      );
+    ctx.blockConcurrencyWhile(async () => {
+      for (const ws of ctx.getWebSockets()) {
+        const attachment = ws.deserializeAttachment() as Attachment | null;
+        if (!attachment) continue;
+        const location =
+          resolveZoneLocation(
+            attachment.zoneId ?? "verdant-reach",
+            attachment.instanceId ?? "main",
+          ) ?? null;
+        if (!location) {
+          ws.close(WS_CLOSE.PRESENCE_LOST, "invalid character location");
+          continue;
+        }
+        this.#configure(location);
+        const roomKey = attachment.roomKey ?? location.roomKey;
+        if (roomKey !== location.roomKey) {
+          ws.close(WS_CLOSE.PRESENCE_LOST, "room location mismatch");
+          continue;
+        }
+        let connectionId = attachment.connectionId;
+        let sessionEpoch = attachment.sessionEpoch;
+        if (!connectionId || !sessionEpoch) {
+          connectionId = crypto.randomUUID();
+          const lease = await this.env.CHARACTER_PRESENCE.getByName(attachment.id).acquire({
+            characterId: attachment.id,
+            connectionId,
+            roomKey,
+            zoneId: attachment.zoneId ?? "verdant-reach",
+            instanceId: attachment.instanceId ?? "main",
+          });
+          sessionEpoch = lease.sessionEpoch;
+        } else if (
+          !(await this.env.CHARACTER_PRESENCE.getByName(attachment.id).isAuthorized(
+            connectionId,
+            sessionEpoch,
+            roomKey,
+          ))
+        ) {
+          ws.close(WS_CLOSE.PRESENCE_LOST, "presence expired");
+          continue;
+        }
+        const profile = profileFromAttachment({
+          ...attachment,
+          connectionId,
+          sessionEpoch,
+        });
+        const position = clampRestoredPosition(profile, profile.id, location.definition.terrain);
+        profile.x = position.x;
+        profile.y = position.y;
+        const player = newPlayer(
+          profile,
+          connectionId,
+          roomKey,
+          attachment.ack ?? 0,
+          attachment.lastSeq ?? 0,
+        );
+        ws.serializeAttachment(toAttachment(player));
+        this.#players.set(ws, player);
+      }
+      if (this.#players.size > 0) this.#startLoop();
+    });
+  }
+
+  #configure(location: ZoneLocation): void {
+    if (this.#location && this.#location.roomKey !== location.roomKey) {
+      throw new Error("world room key mismatch");
     }
-    if (this.#players.size > 0) this.#startLoop();
+    if (this.#location) return;
+    this.#location = location;
+    this.#monsters = createMonsters(location.definition.monsters);
+  }
+
+  #zone(): ZoneDefinition {
+    if (!this.#location) throw new Error("world was not initialized with a zone");
+    return this.#location.definition;
+  }
+
+  #closedSocket(code: number, eventCode: "room.full" | "room.invalid_location"): Response {
+    const { 0: client, 1: server } = new WebSocketPair();
+    this.ctx.acceptWebSocket(server);
+    this.#send(server, { t: "event", code: eventCode, tone: "bad" });
+    server.close(code, eventCode);
+    return new Response(null, { status: 101, webSocket: client });
+  }
+
+  #questDefinition(chapter: QuestChapter) {
+    return this.#zone().quests.find((quest) => quest.id === chapter);
+  }
+
+  #nextQuestChapter(chapter: QuestChapter): QuestChapter | null {
+    const chapters = this.#zone().quests.map((quest) => quest.id);
+    const index = chapters.indexOf(chapter);
+    return chapters[index + 1] ?? null;
   }
 
   override async fetch(request: Request): Promise<Response> {
@@ -276,38 +389,109 @@ export class World extends DurableObject<Env> {
       // matches the existing x-character-id trust model used for join.
       const kickId = request.method === "POST" ? request.headers.get("x-kick-character-id") : null;
       if (kickId !== null) {
-        for (const [socket, existing] of this.#players) {
-          if (existing.id === kickId) this.#kick(socket, 4002, "character deleted");
+        for (const existing of this.#players.values()) {
+          if (existing.id === kickId) {
+            await this.invalidatePresence(
+              existing.id,
+              existing.connectionId,
+              WS_CLOSE.CHARACTER_DELETED,
+              "character deleted",
+            );
+          }
         }
         return new Response(null, { status: 204 });
       }
       return new Response("expected a websocket upgrade", { status: 426 });
     }
     const id = request.headers.get("x-character-id");
-    if (!id) return new Response("unauthorized", { status: 401 });
+    const connectionId = request.headers.get("x-connection-id");
+    const roomKey = request.headers.get("x-room-key");
+    const zoneId = request.headers.get("x-zone-id");
+    const instanceId = request.headers.get("x-instance-id");
+    const epochRaw = request.headers.get("x-session-epoch");
+    const sessionEpoch = epochRaw === null ? Number.NaN : Number(epochRaw);
+    if (
+      !id ||
+      !connectionId ||
+      !roomKey ||
+      !Number.isSafeInteger(sessionEpoch) ||
+      sessionEpoch < 1
+    ) {
+      return new Response("unauthorized", { status: 401 });
+    }
+    const location = resolveZoneLocation(zoneId, instanceId);
+    if (!location || location.roomKey !== roomKey) {
+      return this.#closedSocket(WS_CLOSE.INVALID_LOCATION, "room.invalid_location");
+    }
+    this.#configure(location);
 
-    await this.#replaceExistingCharacter(id);
+    const presence = this.env.CHARACTER_PRESENCE.getByName(id);
+    if (!(await presence.isAuthorized(connectionId, sessionEpoch, roomKey))) {
+      return new Response("presence lost", { status: 409 });
+    }
 
     const profile = await loadProfile(createDb(this.env.DB), id);
     if (!profile) return new Response("unknown character", { status: 404 });
+    if (profile.sessionEpoch !== sessionEpoch) {
+      return new Response("presence epoch mismatch", { status: 409 });
+    }
+    if (profile.zoneId !== location.zoneId || profile.instanceId !== location.instanceId) {
+      return new Response("character location changed", { status: 409 });
+    }
+    const restoredPosition = clampRestoredPosition(
+      profile,
+      profile.id,
+      location.definition.terrain,
+    );
+    const positionChanged = restoredPosition.x !== profile.x || restoredPosition.y !== profile.y;
+    profile.x = restoredPosition.x;
+    profile.y = restoredPosition.y;
+    const activePlayers = Array.from(this.#players.values()).filter(
+      (player) => player.authorized,
+    ).length;
+    if (activePlayers >= location.definition.maxPlayers) {
+      await presence.release(connectionId, sessionEpoch);
+      return this.#closedSocket(WS_CLOSE.ROOM_FULL, "room.full");
+    }
+    let wardRunExpired = false;
+    if (
+      profile.quest.chapter === "ward_run" &&
+      profile.quest.status === "active" &&
+      profile.wardRunExpiresAt !== null &&
+      profile.wardRunExpiresAt <= Date.now()
+    ) {
+      profile.quest.progress = 0;
+      profile.wardRunExpiresAt = null;
+      wardRunExpired = true;
+    }
     const { 0: client, 1: server } = new WebSocketPair();
     this.ctx.acceptWebSocket(server);
-    const player = newPlayer(profile);
+    const player = newPlayer(profile, connectionId, roomKey);
+    player.dirty = wardRunExpired || positionChanged;
     server.serializeAttachment(toAttachment(player));
     this.#players.set(server, player);
+
+    // Close the acquire/admit race: once the socket is in the map, a later replacement can find
+    // it; before returning the upgrade, verify no newer acquisition already won.
+    if (!(await presence.isAuthorized(connectionId, sessionEpoch, roomKey))) {
+      this.#players.delete(server);
+      player.authorized = false;
+      server.close(WS_CLOSE.PRESENCE_LOST, "presence lost during admission");
+      return new Response("presence lost", { status: 409 });
+    }
 
     this.#send(server, {
       t: "welcome",
       selfId: id,
       world: {
-        width: WORLD_WIDTH,
-        height: WORLD_HEIGHT,
+        width: location.definition.terrain.width,
+        height: location.definition.terrain.height,
         playerSize: PLAYER_SIZE,
-        obstacles: [...OBSTACLES],
-        safeZone: SAFE_ZONE,
-        questNpc: QUEST_NPC,
-        questNpcs: QUEST_DEFINITIONS.map((quest) => quest.giver),
-        questSites: [...QUEST_SITES],
+        obstacles: [...location.definition.terrain.obstacles],
+        safeZone: location.definition.terrain.safeZone,
+        questNpc: location.definition.quests[0]?.giver ?? { id: "none", x: 0, y: 0 },
+        questNpcs: location.definition.quests.map((quest) => quest.giver),
+        questSites: [...location.definition.questSites],
       },
       players: this.#playerSnapshots(),
       monsters: this.#monsterSnapshots(),
@@ -321,7 +505,7 @@ export class World extends DurableObject<Env> {
 
   override async webSocketMessage(ws: WebSocket, raw: string | ArrayBuffer): Promise<void> {
     const player = this.#players.get(ws);
-    if (!player) return;
+    if (!player?.authorized) return;
     const bytes =
       typeof raw === "string" ? new TextEncoder().encode(raw).byteLength : raw.byteLength;
     if (bytes > MAX_FRAME_BYTES) {
@@ -344,7 +528,7 @@ export class World extends DurableObject<Env> {
   }
 
   override async webSocketClose(ws: WebSocket, code: number, reason: string): Promise<void> {
-    this.#drop(ws);
+    await this.#drop(ws);
     try {
       ws.close(code === 1006 ? 1000 : code, reason);
     } catch {
@@ -353,7 +537,50 @@ export class World extends DurableObject<Env> {
   }
 
   override async webSocketError(ws: WebSocket): Promise<void> {
-    this.#drop(ws);
+    await this.#drop(ws);
+  }
+
+  /** Called only by the per-character presence coordinator. */
+  async invalidatePresence(
+    characterId: string,
+    connectionId: string,
+    closeCode: number,
+    reason: string,
+  ): Promise<boolean> {
+    const entry = Array.from(this.#players.entries()).find(
+      ([, player]) => player.id === characterId && player.connectionId === connectionId,
+    );
+    if (!entry) return false;
+    const [ws, player] = entry;
+    player.authorized = false;
+    player.disconnecting = true;
+    player.lastInput = NO_INPUT;
+    player.queue = [];
+    this.#players.delete(ws);
+
+    try {
+      if (closeCode === WS_CLOSE.CHARACTER_REPLACED) {
+        this.#send(ws, { t: "event", code: "presence.replaced", tone: "bad" });
+        await this.#savePlayer(player, ws, true);
+      }
+    } finally {
+      try {
+        ws.close(closeCode, reason);
+      } catch {
+        // Already closed.
+      }
+      if (this.#players.size === 0) this.#stopLoop();
+    }
+    return true;
+  }
+
+  /** Internal persistence hook used by coordinators and workerd concurrency tests. */
+  async persistCharacter(characterId: string): Promise<boolean | null> {
+    const entry = Array.from(this.#players.entries()).find(
+      ([, player]) => player.id === characterId,
+    );
+    if (!entry) return null;
+    return this.#savePlayer(entry[1], entry[0]);
   }
 
   #handleMessage(ws: WebSocket, player: Player, message: ClientMessage): void {
@@ -408,7 +635,7 @@ export class World extends DurableObject<Env> {
       if (monster.deadUntil > now) continue;
       const candidate = pointDistance(player, monster);
       if (!withinRange(player, monster, stats.attackRange)) continue;
-      if (!hasLineOfSight(player, monster)) {
+      if (!hasLineOfSight(player, monster, this.#zone().terrain.obstacles)) {
         blockedInRange = true;
         continue;
       }
@@ -502,7 +729,7 @@ export class World extends DurableObject<Env> {
         (monster) =>
           monster.deadUntil <= now &&
           withinRange(player, monster, skill.radius ?? skill.range) &&
-          hasLineOfSight(player, monster),
+          hasLineOfSight(player, monster, this.#zone().terrain.obstacles),
       );
       for (const target of targets) this.#skillDamage(ws, player, target, skill, now);
       cast = targets.length > 0;
@@ -513,7 +740,7 @@ export class World extends DurableObject<Env> {
         (monster) =>
           monster.deadUntil <= now &&
           withinRange(player, monster, skill.radius ?? skill.range) &&
-          hasLineOfSight(player, monster),
+          hasLineOfSight(player, monster, this.#zone().terrain.obstacles),
       );
       for (const target of targets) this.#skillDamage(ws, player, target, skill, now);
       cast = targets.length > 0 || this.#areaHeal(ws, player, skill, now) > 0;
@@ -544,7 +771,7 @@ export class World extends DurableObject<Env> {
     let distance = range;
     for (const monster of this.#monsters) {
       if (monster.deadUntil > now || !withinRange(player, monster, range)) continue;
-      if (!hasLineOfSight(player, monster)) continue;
+      if (!hasLineOfSight(player, monster, this.#zone().terrain.obstacles)) continue;
       const candidate = pointDistance(player, monster);
       if (candidate <= distance) {
         target = monster;
@@ -563,10 +790,14 @@ export class World extends DurableObject<Env> {
     let movedAny = false;
     while (remaining > 0) {
       const stepDistance = Math.min(12, remaining);
-      const moved = resolveTerrain(player, {
-        x: player.x + unit.x * stepDistance,
-        y: player.y + unit.y * stepDistance,
-      });
+      const moved = resolveTerrain(
+        player,
+        {
+          x: player.x + unit.x * stepDistance,
+          y: player.y + unit.y * stepDistance,
+        },
+        this.#zone().terrain,
+      );
       if (moved.x === player.x && moved.y === player.y) break;
       player.x = moved.x;
       player.y = moved.y;
@@ -603,7 +834,7 @@ export class World extends DurableObject<Env> {
     for (const [targetSocket, target] of this.#players) {
       if (target.deadUntil > now || pointDistance(player, target) > (skill.radius ?? skill.range))
         continue;
-      if (!hasLineOfSight(player, target)) continue;
+      if (!hasLineOfSight(player, target, this.#zone().terrain.obstacles)) continue;
       const maxHp = maxHpForLevel(target.level);
       if (target.hp >= maxHp) continue;
       const amount = skill.power + Math.max(0, player.level - 1) * 2;
@@ -635,7 +866,8 @@ export class World extends DurableObject<Env> {
       player.quest.status === "active" &&
       monster.kind === "skeleton"
     ) {
-      const target = questDefinition("bone_choir").target;
+      const target = this.#questDefinition("bone_choir")?.target;
+      if (target === undefined) return;
       player.quest.progress = Math.min(target, player.quest.progress + 1);
       if (player.quest.progress >= target) {
         player.quest.status = "ready";
@@ -689,7 +921,7 @@ export class World extends DurableObject<Env> {
       if (pointDistance(player, candidate) > heal.range) continue;
       const ratio = candidate.hp / maxHpForLevel(candidate.level);
       if (ratio >= 1) continue;
-      if (!hasLineOfSight(player, candidate)) {
+      if (!hasLineOfSight(player, candidate, this.#zone().terrain.obstacles)) {
         blockedInRange = true;
         continue;
       }
@@ -740,7 +972,7 @@ export class World extends DurableObject<Env> {
     const chapter = player.quest.chapter ?? "three_offerings";
     player.quest.chapter = chapter;
 
-    const site = QUEST_SITES.find(
+    const site = this.#zone().questSites.find(
       (candidate) =>
         candidate.chapter === chapter && pointDistance(player, candidate) <= INTERACTION_RANGE,
     );
@@ -753,7 +985,11 @@ export class World extends DurableObject<Env> {
       return;
     }
 
-    const definition = questDefinition(chapter);
+    const definition = this.#questDefinition(chapter);
+    if (!definition) {
+      this.#send(ws, { t: "event", code: "interact.nothing", tone: "info" });
+      return;
+    }
     if (pointDistance(player, definition.giver) > INTERACTION_RANGE) {
       this.#send(ws, { t: "event", code: "interact.nothing", tone: "info" });
       return;
@@ -763,7 +999,7 @@ export class World extends DurableObject<Env> {
       player.quest.status = "active";
       player.quest.progress = 0;
       player.quest.target = definition.target;
-      player.questRunStartedAt = 0;
+      player.wardRunExpiresAt = null;
       this.#send(ws, {
         t: "event",
         code: "quest.accepted",
@@ -793,18 +1029,20 @@ export class World extends DurableObject<Env> {
     site: QuestSite,
     now: number,
   ): void {
-    const definition = questDefinition(chapter);
+    const definition = this.#questDefinition(chapter);
+    if (!definition) return;
     const { order } = site;
     if (chapter === "ward_run") {
-      if (player.questRunStartedAt > 0 && now - player.questRunStartedAt > QUEST_RUN_LIMIT_MS) {
+      if (player.wardRunExpiresAt !== null && player.wardRunExpiresAt <= now) {
         player.quest.progress = 0;
-        player.questRunStartedAt = 0;
+        player.wardRunExpiresAt = null;
         this.#send(ws, { t: "event", code: "quest.run_expired", tone: "bad" });
         this.#sendState(ws, player);
+        player.dirty = true;
         return;
       }
       if (order === 0 && player.quest.progress === 0) {
-        player.questRunStartedAt = now;
+        player.wardRunExpiresAt = now + QUEST_RUN_LIMIT_MS;
         this.#send(ws, {
           t: "event",
           code: "quest.run_started",
@@ -817,7 +1055,7 @@ export class World extends DurableObject<Env> {
     if (order !== player.quest.progress) {
       if (chapter === "mire_runes" || chapter === "ward_run") {
         player.quest.progress = 0;
-        player.questRunStartedAt = 0;
+        player.wardRunExpiresAt = null;
       }
       this.#send(ws, { t: "event", code: "quest.site_wrong", tone: "bad" });
       this.#sendState(ws, player);
@@ -839,7 +1077,7 @@ export class World extends DurableObject<Env> {
     player.quest.progress += 1;
     if (player.quest.progress >= definition.target) {
       player.quest.status = "ready";
-      player.questRunStartedAt = 0;
+      player.wardRunExpiresAt = null;
       this.#send(ws, { t: "event", code: "quest.chapter_ready", tone: "good" });
     } else {
       this.#send(ws, {
@@ -854,21 +1092,23 @@ export class World extends DurableObject<Env> {
   }
 
   #completeQuestChapter(ws: WebSocket, player: Player, chapter: QuestChapter): void {
-    const definition = questDefinition(chapter);
+    const definition = this.#questDefinition(chapter);
+    if (!definition) return;
     player.inventory.potions += 1;
     player.inventory.gold += definition.rewardGold;
     const result = applyExperience(player.level, player.xp, definition.rewardXp);
     player.level = result.level;
     player.xp = result.xp;
     player.hp = maxHpForLevel(player.level);
+    player.wardRunExpiresAt = null;
 
-    const next = nextQuestChapter(chapter);
+    const next = this.#nextQuestChapter(chapter);
     if (next) {
       player.quest = {
         chapter: next,
         status: "available",
         progress: 0,
-        target: questDefinition(next).target,
+        target: this.#questDefinition(next)?.target ?? 0,
       };
     } else {
       player.quest.status = "completed";
@@ -899,35 +1139,51 @@ export class World extends DurableObject<Env> {
     return player.messageTimes.length > RATE_MAX_MESSAGES;
   }
 
-  #drop(ws: WebSocket): void {
+  async #drop(ws: WebSocket): Promise<void> {
     const player = this.#players.get(ws);
-    if (player) this.ctx.waitUntil(this.#savePlayer(player));
-    this.#players.delete(ws);
-    if (this.#players.size === 0) this.#stopLoop();
-  }
+    if (!player || player.disconnecting) return;
+    player.disconnecting = true;
+    player.authorized = false;
+    player.lastInput = NO_INPUT;
+    player.queue = [];
 
-  async #replaceExistingCharacter(id: string): Promise<void> {
-    const existingSockets = Array.from(this.#players.entries()).filter(
-      ([, player]) => player.id === id,
-    );
-    for (const [socket, player] of existingSockets) {
-      this.#players.delete(socket);
-      await this.#savePlayer(player);
-      try {
-        socket.close(4001, "same character connected elsewhere");
-      } catch {
-        // Already closed.
+    try {
+      const saved = await this.#savePlayer(player, ws, true);
+      if (saved) {
+        await this.env.CHARACTER_PRESENCE.getByName(player.id).release(
+          player.connectionId,
+          player.sessionEpoch,
+        );
       }
+    } finally {
+      if (this.#players.get(ws) === player) this.#players.delete(ws);
+      if (this.#players.size === 0) this.#stopLoop();
     }
-    if (this.#players.size === 0) this.#stopLoop();
   }
 
-  #savePlayer(player: Player): Promise<void> {
+  #savePlayer(player: Player, ws: WebSocket, force = false): Promise<boolean> {
+    if (!player.authorized && !force) return Promise.resolve(false);
     const profile = toProfile(player);
-    const previous = this.#profileSaves.get(profile.id) ?? Promise.resolve();
-    const save = previous
-      .catch(() => undefined)
-      .then(() => saveProfile(createDb(this.env.DB), profile));
+    const previous = this.#profileSaves.get(profile.id);
+    const start = previous
+      ? previous.then(
+          () => undefined,
+          () => undefined,
+        )
+      : Promise.resolve();
+    const save = start.then(async () => {
+      const profile = toProfile(player);
+      if (force) {
+        const latest = await loadProfile(createDb(this.env.DB), profile.id);
+        if (latest) {
+          profile.zoneId = latest.zoneId;
+          profile.instanceId = latest.instanceId;
+        }
+      }
+      const accepted = await saveProfile(createDb(this.env.DB), profile);
+      if (!accepted) this.#rejectStaleSave(ws, player);
+      return accepted;
+    });
     this.#profileSaves.set(profile.id, save);
     void save.then(
       () => {
@@ -940,8 +1196,30 @@ export class World extends DurableObject<Env> {
     return save;
   }
 
+  #rejectStaleSave(ws: WebSocket, player: Player): void {
+    player.authorized = false;
+    player.lastInput = NO_INPUT;
+    player.queue = [];
+    if (this.#players.get(ws) === player) this.#players.delete(ws);
+    console.warn(
+      JSON.stringify({
+        event: "stale_character_save_rejected",
+        characterId: player.id,
+        connectionId: player.connectionId,
+        sessionEpoch: player.sessionEpoch,
+        roomKey: player.roomKey,
+      }),
+    );
+    this.#send(ws, { t: "event", code: "presence.lost", tone: "bad" });
+    try {
+      ws.close(WS_CLOSE.PRESENCE_LOST, "presence epoch is stale");
+    } catch {
+      // Already closed.
+    }
+  }
+
   #kick(ws: WebSocket, code: number, reason: string): void {
-    this.#drop(ws);
+    this.ctx.waitUntil(this.#drop(ws));
     try {
       ws.close(code, reason);
     } catch {
@@ -971,6 +1249,11 @@ export class World extends DurableObject<Env> {
     const writeD1 = this.#tick % D1_SAVE_EVERY_TICKS === 0;
 
     for (const [ws, player] of this.#players) {
+      if (!player.authorized) continue;
+      if (now >= player.nextPresenceHeartbeatAt) {
+        player.nextPresenceHeartbeatAt = now + PRESENCE_HEARTBEAT_MS;
+        this.ctx.waitUntil(this.#renewPresence(player));
+      }
       if (player.deadUntil > 0 && player.deadUntil <= now) this.#respawnPlayer(ws, player);
 
       if (player.deadUntil <= now) {
@@ -989,8 +1272,8 @@ export class World extends DurableObject<Env> {
           player.lastInput = NO_INPUT;
         }
 
-        const desired = step(player, player.lastInput, TICK_DT);
-        const moved = resolveTerrain(player, desired);
+        const desired = step(player, player.lastInput, TICK_DT, undefined, this.#zone().terrain);
+        const moved = resolveTerrain(player, desired, this.#zone().terrain);
         if (moved.x !== player.x || moved.y !== player.y) {
           player.x = moved.x;
           player.y = moved.y;
@@ -1001,7 +1284,7 @@ export class World extends DurableObject<Env> {
       this.#collectLoot(ws, player, now);
       if (writeAttachment && player.dirty) ws.serializeAttachment(toAttachment(player));
       if (writeD1 && player.dirty) {
-        this.ctx.waitUntil(this.#savePlayer(player));
+        this.ctx.waitUntil(this.#savePlayer(player, ws));
         player.dirty = false;
       }
     }
@@ -1017,9 +1300,24 @@ export class World extends DurableObject<Env> {
     });
   }
 
+  async #renewPresence(player: Player): Promise<void> {
+    if (!player.authorized) return;
+    const renewed = await this.env.CHARACTER_PRESENCE.getByName(player.id).renew(
+      player.connectionId,
+      player.sessionEpoch,
+    );
+    if (renewed || !player.authorized) return;
+    await this.invalidatePresence(
+      player.id,
+      player.connectionId,
+      WS_CLOSE.PRESENCE_LOST,
+      "presence expired",
+    );
+  }
+
   #advanceMonsters(now: number): void {
     const players = Array.from(this.#players.entries()).filter(
-      ([, player]) => player.deadUntil <= now,
+      ([, player]) => player.authorized && player.deadUntil <= now,
     );
     for (let index = 0; index < this.#monsters.length; index++) {
       const monster = this.#monsters[index];
@@ -1038,7 +1336,7 @@ export class World extends DurableObject<Env> {
       let targetDistance = MONSTER_AGGRO_RANGE;
       for (const candidate of players) {
         const player = candidate[1];
-        if (inRect(player, SAFE_ZONE)) continue;
+        if (inRect(player, this.#zone().terrain.safeZone)) continue;
         const distance = pointDistance(monster, player);
         if (distance < targetDistance) {
           target = candidate;
@@ -1084,7 +1382,7 @@ export class World extends DurableObject<Env> {
       x: monster.x + monster.vx * TICK_DT,
       y: monster.y + monster.vy * TICK_DT,
     };
-    const moved = resolveTerrain(monster, desired);
+    const moved = resolveTerrain(monster, desired, this.#zone().terrain);
     if (moved.x === monster.x) monster.vx = 0;
     if (moved.y === monster.y) monster.vy = 0;
     monster.x = moved.x;
@@ -1128,7 +1426,7 @@ export class World extends DurableObject<Env> {
   }
 
   #respawnPlayer(ws: WebSocket, player: Player): void {
-    const position = spawnPosition(player.id);
+    const position = spawnPosition(player.id, this.#zone().terrain);
     player.x = position.x;
     player.y = position.y;
     player.hp = maxHpForLevel(player.level);
@@ -1163,8 +1461,8 @@ export class World extends DurableObject<Env> {
   #selfState(player: Player): SelfState {
     const chapter = player.quest.chapter ?? "three_offerings";
     const timerEndsAt =
-      chapter === "ward_run" && player.quest.status === "active" && player.questRunStartedAt > 0
-        ? player.questRunStartedAt + QUEST_RUN_LIMIT_MS
+      chapter === "ward_run" && player.quest.status === "active" && player.wardRunExpiresAt !== null
+        ? player.wardRunExpiresAt
         : undefined;
     return {
       xp: player.xp,
@@ -1173,7 +1471,7 @@ export class World extends DurableObject<Env> {
       quest: {
         ...player.quest,
         chapter,
-        target: questDefinition(chapter).target,
+        target: this.#questDefinition(chapter)?.target ?? player.quest.target,
         ...(timerEndsAt === undefined ? {} : { timerEndsAt }),
       },
     };
@@ -1185,20 +1483,22 @@ export class World extends DurableObject<Env> {
 
   #playerSnapshots(): PlayerSnapshot[] {
     const now = Date.now();
-    return Array.from(this.#players.values(), (player) => ({
-      id: player.id,
-      nick: player.nick,
-      x: Math.round(player.x * 100) / 100,
-      y: Math.round(player.y * 100) / 100,
-      ack: player.ack,
-      hp: player.hp,
-      maxHp: maxHpForLevel(player.level),
-      level: player.level,
-      appearance: player.appearance,
-      class: player.class,
-      equipment: { ...player.equipment },
-      dead: player.deadUntil > now,
-    }));
+    return Array.from(this.#players.values())
+      .filter((player) => player.authorized)
+      .map((player) => ({
+        id: player.id,
+        nick: player.nick,
+        x: Math.round(player.x * 100) / 100,
+        y: Math.round(player.y * 100) / 100,
+        ack: player.ack,
+        hp: player.hp,
+        maxHp: maxHpForLevel(player.level),
+        level: player.level,
+        appearance: player.appearance,
+        class: player.class,
+        equipment: { ...player.equipment },
+        dead: player.deadUntil > now,
+      }));
   }
 
   #monsterSnapshots(): MonsterSnapshot[] {
@@ -1223,7 +1523,7 @@ export class World extends DurableObject<Env> {
     try {
       ws.send(encodeServerMessage(message));
     } catch {
-      this.#drop(ws);
+      this.ctx.waitUntil(this.#drop(ws));
     }
   }
 
@@ -1233,7 +1533,7 @@ export class World extends DurableObject<Env> {
       try {
         ws.send(payload);
       } catch {
-        this.#drop(ws);
+        this.ctx.waitUntil(this.#drop(ws));
       }
     }
   }

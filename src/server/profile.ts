@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   type CharacterAppearance,
   type Equipment,
@@ -26,6 +26,10 @@ export interface PlayerProfile extends Vec2 {
   equipment: Equipment;
   inventory: Inventory;
   quest: QuestState;
+  zoneId: string;
+  instanceId: string;
+  sessionEpoch: number;
+  wardRunExpiresAt: number | null;
 }
 
 function fromRow(row: Character): PlayerProfile {
@@ -58,6 +62,10 @@ function fromRow(row: Character): PlayerProfile {
       progress: Math.max(0, row.questProgress),
       target: questDefinition(row.questChapter).target,
     },
+    zoneId: row.zoneId,
+    instanceId: row.instanceId,
+    sessionEpoch: Math.max(0, row.sessionEpoch),
+    wardRunExpiresAt: row.wardRunExpiresAt?.getTime() ?? null,
   };
 }
 
@@ -74,8 +82,19 @@ export async function loadProfile(db: Db, characterId: string): Promise<PlayerPr
 
 export type SaveableProfile = PlayerProfile;
 
-export async function saveProfile(db: Db, profile: SaveableProfile): Promise<void> {
-  await db
+export async function acquireSessionEpoch(db: Db, characterId: string): Promise<number | null> {
+  const updated = await db
+    .update(character)
+    .set({ sessionEpoch: sql`${character.sessionEpoch} + 1` })
+    .where(eq(character.id, characterId))
+    .returning({ sessionEpoch: character.sessionEpoch })
+    .get();
+  return updated?.sessionEpoch ?? null;
+}
+
+/** Persist only while this runtime still owns the character's current session epoch. */
+export async function saveProfile(db: Db, profile: SaveableProfile): Promise<boolean> {
+  const updated = await db
     .update(character)
     .set({
       name: profile.nick,
@@ -96,7 +115,14 @@ export async function saveProfile(db: Db, profile: SaveableProfile): Promise<voi
       questStatus: profile.quest.status,
       questChapter: profile.quest.chapter ?? "three_offerings",
       questProgress: profile.quest.progress,
+      zoneId: profile.zoneId,
+      instanceId: profile.instanceId,
+      wardRunExpiresAt:
+        profile.wardRunExpiresAt === null ? null : new Date(profile.wardRunExpiresAt),
       lastSeenAt: new Date(),
     })
-    .where(eq(character.id, profile.id));
+    .where(and(eq(character.id, profile.id), eq(character.sessionEpoch, profile.sessionEpoch)))
+    .returning({ id: character.id })
+    .get();
+  return updated !== undefined;
 }

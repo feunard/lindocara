@@ -20,6 +20,8 @@ export const fr: Record<keyof typeof en, string> = {
   "auth.error.invalid_password": "Le mot de passe doit faire entre 8 et 128 caractères.",
   "auth.error.password_mismatch": "Les mots de passe ne correspondent pas.",
   "auth.error.generic": "Une erreur est survenue. Réessayez.",
+  "auth.error.session_expired": "Votre session a expiré. Reconnectez-vous.",
+  "auth.error.presence": "Le service de présence est indisponible. Réessayez.",
 
   // Sélection de personnage
   "chars.title": "Choisissez votre voyageur",
@@ -243,6 +245,10 @@ export const fr: Record<keyof typeof en, string> = {
   "status.close.deleted": "Ce personnage a été supprimé.",
   "status.close.policy": "Déconnecté par le serveur.",
   "status.close.generic": "Connexion fermée.",
+  "status.close.session_expired": "Votre session a expiré. Reconnectez-vous.",
+  "status.close.presence": "L'autorité du personnage a été perdue. Rejoignez-le à nouveau.",
+  "status.close.room_full": "Cette room est pleine.",
+  "status.close.invalid_location": "Ce personnage possède une localisation de room invalide.",
 
   // PNJ
   "npc.warden.name": "Gardienne Elowen",
@@ -338,4 +344,8 @@ export const fr: Record<keyof typeof en, string> = {
   "event.skill.no_target": "Aucune cible valide pour {skill}.",
   "event.skill.blocked": "Le chemin vers la cible est bloqué.",
   "event.skill.locked": "{skill} se débloque au niveau {level}.",
+  "event.presence.replaced": "Ce personnage a été repris dans un autre onglet ou appareil.",
+  "event.presence.lost": "Cette connexion ne contrôle plus le personnage.",
+  "event.room.full": "Cette room est pleine.",
+  "event.room.invalid_location": "Ce personnage possède une localisation de room invalide.",
 };

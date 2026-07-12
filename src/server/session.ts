@@ -75,7 +75,10 @@ export async function signSession(session: Session, secret: string): Promise<str
  * Every failure path returns `null` — callers must not be able to distinguish "bad
  * signature" from "malformed" from "expired".
  */
-export async function verifySession(token: string, secret: string): Promise<Session | null> {
+export async function verifySessionState(
+  token: string,
+  secret: string,
+): Promise<Session | "expired" | null> {
   const dot = token.indexOf(".");
   if (dot <= 0 || dot === token.length - 1) return null;
 
@@ -113,9 +116,14 @@ export async function verifySession(token: string, secret: string): Promise<Sess
   }
 
   const { id, username, iat } = session as Session;
-  if (Date.now() / 1000 > iat + SESSION_TTL_SECONDS) return null;
+  if (Date.now() / 1000 > iat + SESSION_TTL_SECONDS) return "expired";
 
   return { id, username, iat };
+}
+
+export async function verifySession(token: string, secret: string): Promise<Session | null> {
+  const result = await verifySessionState(token, secret);
+  return result === "expired" ? null : result;
 }
 
 export function createSession(id: string, username: string): Session {

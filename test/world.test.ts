@@ -6,277 +6,34 @@
 import { env, runInDurableObject, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { type Attachment, positionFromAttachment } from "../src/server/world.js";
+import { WS_CLOSE } from "../src/shared/close-codes.js";
 import {
   isWalkable,
   OBSTACLES,
-  type PlayerClass,
   QUEST_DEFINITIONS,
   QUEST_NPC,
   QUEST_SITES,
-  type QuestChapter,
   SAFE_ZONE,
   spawnPosition,
   WORLD_BOUNDARY_DEPTH,
   WORLD_LANDMARKS,
 } from "../src/shared/game.js";
 import {
-  type PlayerSnapshot,
-  parseServerMessage,
-  type QuestStatus,
-  type ServerMessage,
-} from "../src/shared/protocol.js";
-import {
-  type Input,
   NO_INPUT,
   PLAYER_SIZE,
   PLAYER_SPEED,
   TICK_DT,
-  TICK_MS,
   WORLD_HEIGHT,
   WORLD_WIDTH,
 } from "../src/shared/simulation.js";
-
-const ORIGIN = "https://lindocara.test";
-
-interface TestCharacter {
-  cookie: string;
-  characterId: string;
-}
-
-let accountCounter = 0;
-
-interface TestCharacterOptions {
-  position?: { x: number; y: number };
-  class?: PlayerClass;
-  level?: number;
-  hp?: number;
-  quest?: { chapter: QuestChapter; status: QuestStatus; progress: number };
-}
-
-/** Register a fresh account and create one character on it through the real API. */
-async function testCharacter(
-  name: string,
-  options: TestCharacterOptions = {},
-): Promise<TestCharacter> {
-  const username = `u${++accountCounter}${name}`.toLowerCase().slice(0, 16);
-  const registered = await SELF.fetch(`${ORIGIN}/api/register`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password: "12345678" }),
-  });
-  expect(registered.status).toBe(200);
-  const pair = registered.headers.get("Set-Cookie")?.split(";")[0];
-  if (!pair) throw new Error("no session cookie issued");
-
-  const created = await SELF.fetch(`${ORIGIN}/api/characters`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Cookie: pair },
-    body: JSON.stringify({
-      name,
-      appearance: { body: "wayfarer", primaryColor: "azure" },
-      class: options.class ?? "warrior",
-    }),
-  });
-  expect(created.status).toBe(200);
-  const body = (await created.json()) as { id: string };
-
-  if (options.position) {
-    await env.DB.prepare("UPDATE character SET x = ?, y = ? WHERE id = ?")
-      .bind(options.position.x, options.position.y, body.id)
-      .run();
-  }
-  if (options.level !== undefined) {
-    await env.DB.prepare("UPDATE character SET level = ?, hp = ? WHERE id = ?")
-      .bind(options.level, 100 + (options.level - 1) * 12, body.id)
-      .run();
-  }
-  if (options.hp !== undefined) {
-    await env.DB.prepare("UPDATE character SET hp = ? WHERE id = ?")
-      .bind(options.hp, body.id)
-      .run();
-  }
-  if (options.quest) {
-    await env.DB.prepare(
-      "UPDATE character SET quest_chapter = ?, quest_status = ?, quest_progress = ? WHERE id = ?",
-    )
-      .bind(options.quest.chapter, options.quest.status, options.quest.progress, body.id)
-      .run();
-  }
-  return { cookie: pair, characterId: body.id };
-}
-
-/**
- * A connected player, recording everything the world tells it.
- *
- * Like a real client it pumps one numbered command per tick, because the server applies at
- * most one per tick and repeats the last intent only briefly before assuming the client died.
- */
-class Client {
-  readonly received: ServerMessage[] = [];
-  closeInfo: { code: number; reason: string } | null = null;
-  #socket: WebSocket;
-  #input: Input = NO_INPUT;
-  #seq = 0;
-  #pump: ReturnType<typeof setInterval> | null = null;
-
-  private constructor(socket: WebSocket) {
-    this.#socket = socket;
-    socket.accept();
-    socket.addEventListener("message", (event) => {
-      if (typeof event.data !== "string") return;
-      const message = parseServerMessage(event.data);
-      if (message) this.received.push(message);
-    });
-    socket.addEventListener("close", (event) => {
-      this.closeInfo = { code: event.code, reason: event.reason };
-      this.stopPump();
-    });
-  }
-
-  static async join(
-    nickname: string,
-    options: {
-      pump?: boolean;
-      position?: { x: number; y: number };
-      class?: PlayerClass;
-      level?: number;
-      hp?: number;
-      quest?: NonNullable<TestCharacterOptions["quest"]>;
-    } = {},
-  ): Promise<Client> {
-    const session = await testCharacter(nickname, options);
-    return Client.joinCharacter(session, options);
-  }
-
-  /** Join with an already-created character, e.g. one the test needs to keep the cookie for. */
-  static async joinCharacter(
-    session: TestCharacter,
-    options: { pump?: boolean } = {},
-  ): Promise<Client> {
-    const response = await SELF.fetch(`${ORIGIN}/api/ws?character=${session.characterId}`, {
-      headers: { Upgrade: "websocket", Cookie: session.cookie },
-    });
-
-    expect(response.status).toBe(101);
-    const socket = response.webSocket;
-    if (!socket) throw new Error("expected a websocket in the 101 response");
-
-    const client = new Client(socket);
-    if (options.pump !== false) client.startPump();
-    return client;
-  }
-
-  /** Emit the currently-held intent once per tick, exactly as the browser does. */
-  startPump(): void {
-    if (this.#pump !== null) return;
-    this.#pump = setInterval(() => this.sendCommand(this.#input), TICK_MS);
-  }
-
-  stopPump(): void {
-    if (this.#pump === null) return;
-    clearInterval(this.#pump);
-    this.#pump = null;
-  }
-
-  /** Next sequence number, sent with the given intent. */
-  sendCommand(input: Input): number {
-    const seq = ++this.#seq;
-    this.#socket.send(JSON.stringify({ t: "input", seq, input }));
-    return seq;
-  }
-
-  /** Send a command with an explicit sequence number, however implausible. */
-  sendCommandAt(seq: number, input: Input): void {
-    this.#socket.send(JSON.stringify({ t: "input", seq, input }));
-  }
-
-  press(direction: "up" | "down" | "left" | "right"): void {
-    this.#input = { ...NO_INPUT, [direction]: true };
-  }
-
-  release(): void {
-    this.#input = { ...NO_INPUT };
-  }
-
-  sendRaw(payload: string): void {
-    this.#socket.send(payload);
-  }
-
-  action(type: "attack" | "interact" | "heal"): void {
-    this.#socket.send(JSON.stringify({ t: type }));
-  }
-
-  skill(slot: number): void {
-    this.#socket.send(JSON.stringify({ t: "skill", slot }));
-  }
-
-  usePotion(): void {
-    this.#socket.send(JSON.stringify({ t: "use", item: "potion" }));
-  }
-
-  chat(text: string): void {
-    this.#socket.send(JSON.stringify({ t: "chat", text }));
-  }
-
-  close(): void {
-    this.stopPump();
-    try {
-      this.#socket.close(1000, "done");
-    } catch {
-      // The server may already have closed an abusive client.
-    }
-  }
-
-  get welcome() {
-    return this.received.find((m) => m.t === "welcome");
-  }
-
-  get latestSnapshot() {
-    for (let i = this.received.length - 1; i >= 0; i--) {
-      const message = this.received[i];
-      if (message?.t === "snapshot") return message;
-    }
-    return undefined;
-  }
-
-  get latestState() {
-    for (let i = this.received.length - 1; i >= 0; i--) {
-      const message = this.received[i];
-      if (message?.t === "state") return message.self;
-    }
-    return this.welcome?.self;
-  }
-
-  self(): PlayerSnapshot | undefined {
-    const id = this.welcome?.selfId;
-    return id ? this.latestSnapshot?.players.find((p) => p.id === id) : undefined;
-  }
-}
-
-/**
- * Spawn points are spread across the plaza. Always push toward the farther horizontal wall so
- * movement assertions stay independent of which deterministic point an id receives.
- */
-function awayFromNearestWall(x: number): { direction: "left" | "right"; sign: 1 | -1 } {
-  return x < (WORLD_WIDTH - PLAYER_SIZE) / 2
-    ? { direction: "right", sign: 1 }
-    : { direction: "left", sign: -1 };
-}
-
-/** Poll until `predicate` holds, or fail. Real timers: the world ticks in real time. */
-async function until<T>(
-  describeIt: string,
-  predicate: () => T | undefined | false,
-  timeoutMs = 5000,
-): Promise<T> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const value = predicate();
-    if (value) return value;
-    await scheduler.wait(20);
-  }
-  throw new Error(`timed out waiting for: ${describeIt}`);
-}
+import {
+  awayFromNearestWall,
+  Client,
+  ORIGIN,
+  testCharacter,
+  until,
+  VERDANT_ROOM_KEY,
+} from "./support/world-harness.js";
 
 describe("World", () => {
   it("welcomes a player with the world dimensions and their own id", async () => {
@@ -409,6 +166,155 @@ describe("World", () => {
     alice.close();
   });
 
+  it("routes persisted zones and instances to isolated rooms", async () => {
+    const main = await Client.join("zone_main", { zoneId: "verdant-reach", instanceId: "main" });
+    const testZone = await Client.join("zone_test", {
+      zoneId: "mmo-test-zone",
+      instanceId: "main",
+    });
+    const mainWelcome = await until("main welcome", () => main.welcome);
+    const testWelcome = await until("test-zone welcome", () => testZone.welcome);
+
+    expect(mainWelcome.world).toMatchObject({ width: WORLD_WIDTH, height: WORLD_HEIGHT });
+    expect(testWelcome.world).toMatchObject({ width: 640, height: 480 });
+    expect(testWelcome.monsters).toEqual([]);
+    expect(mainWelcome.monsters.length).toBeGreaterThan(0);
+    await until("separate snapshots", () => main.latestSnapshot && testZone.latestSnapshot);
+    expect(main.latestSnapshot?.players.map((player) => player.id)).not.toContain(
+      testWelcome.selfId,
+    );
+    expect(testZone.latestSnapshot?.players.map((player) => player.id)).not.toContain(
+      mainWelcome.selfId,
+    );
+
+    main.chat("room-local");
+    await scheduler.wait(150);
+    expect(
+      testZone.received.some((message) => message.t === "chat" && message.text === "room-local"),
+    ).toBe(false);
+
+    const testStart = testZone.self();
+    main.press("right");
+    await scheduler.wait(200);
+    main.release();
+    expect(testZone.self()).toMatchObject({ x: testStart?.x, y: testStart?.y });
+
+    main.close();
+    testZone.close();
+  });
+
+  it("isolates two instances of the same zone", async () => {
+    const main = await Client.join("instance_main", { instanceId: "main" });
+    const raid = await Client.join("instance_raid", { instanceId: "raid-1" });
+    const mainWelcome = await until("main instance welcome", () => main.welcome);
+    const raidWelcome = await until("raid instance welcome", () => raid.welcome);
+    await until("instance snapshots", () => main.latestSnapshot && raid.latestSnapshot);
+
+    expect(main.latestSnapshot?.players.map((player) => player.id)).not.toContain(
+      raidWelcome.selfId,
+    );
+    expect(raid.latestSnapshot?.players.map((player) => player.id)).not.toContain(
+      mainWelcome.selfId,
+    );
+    raid.chat("raid-only");
+    await scheduler.wait(150);
+    expect(
+      main.received.some((message) => message.t === "chat" && message.text === "raid-only"),
+    ).toBe(false);
+    main.close();
+    raid.close();
+  });
+
+  it("keeps monster drops and combat snapshots inside their room", {
+    timeout: 10_000,
+  }, async () => {
+    const hunter = await Client.join("LootHunter", {
+      zoneId: "verdant-reach",
+      position: { x: 1870, y: 820 },
+      level: 10,
+    });
+    const observer = await Client.join("LootEye", { zoneId: "mmo-test-zone" });
+    await until("loot rooms welcome", () => hunter.welcome && observer.welcome);
+
+    hunter.action("attack");
+    await scheduler.wait(600);
+    hunter.action("attack");
+    const loot = await until("main-room monster loot", () => {
+      const snapshot = hunter.latestSnapshot;
+      return snapshot && snapshot.loot.length > 0 ? snapshot.loot : undefined;
+    });
+    expect(loot.length).toBeGreaterThan(0);
+    await until("technical-room snapshot", () => observer.latestSnapshot);
+    expect(observer.latestSnapshot?.loot).toEqual([]);
+    expect(observer.latestSnapshot?.monsters).toEqual([]);
+
+    hunter.close();
+    observer.close();
+  });
+
+  it("does not let the URL select a room", async () => {
+    const session = await testCharacter("url_room", {
+      zoneId: "verdant-reach",
+      instanceId: "main",
+    });
+    const response = await SELF.fetch(
+      `${ORIGIN}/api/ws?character=${session.characterId}&zone=mmo-test-zone&instance=evil`,
+      { headers: { Upgrade: "websocket", Cookie: session.cookie } },
+    );
+    expect(response.status).toBe(101);
+    const socket = response.webSocket;
+    if (!socket) throw new Error("expected websocket");
+    const client = new Client(socket);
+    const welcome = await until("URL spoof welcome", () => client.welcome);
+    expect(welcome.world).toMatchObject({ width: WORLD_WIDTH, height: WORLD_HEIGHT });
+    client.sendRaw(JSON.stringify({ t: "zone", zoneId: "mmo-test-zone", instanceId: "main" }));
+    await scheduler.wait(100);
+    expect(client.welcome?.world.width).toBe(WORLD_WIDTH);
+    client.close();
+  });
+
+  it("rejects corrupt D1 locations and invalid instance ids without crashing", async () => {
+    const unknown = await testCharacter("unknown_zone");
+    await env.DB.prepare("UPDATE character SET zone_id = ? WHERE id = ?")
+      .bind("not-a-zone", unknown.characterId)
+      .run();
+    const unknownClient = await Client.joinCharacter(unknown);
+    expect(
+      (await until("unknown location close", () => unknownClient.closeInfo ?? undefined)).code,
+    ).toBe(WS_CLOSE.INVALID_LOCATION);
+
+    const invalid = await testCharacter("invalid_instance");
+    await env.DB.prepare("UPDATE character SET instance_id = ? WHERE id = ?")
+      .bind("main:other", invalid.characterId)
+      .run();
+    const invalidClient = await Client.joinCharacter(invalid);
+    expect(
+      (await until("invalid instance close", () => invalidClient.closeInfo ?? undefined)).code,
+    ).toBe(WS_CLOSE.INVALID_LOCATION);
+  });
+
+  it("enforces the technical room capacity and reconnects to the persisted test zone", async () => {
+    const first = await Client.join("capacity_one", { zoneId: "mmo-test-zone" });
+    const second = await Client.join("capacity_two", { zoneId: "mmo-test-zone" });
+    await until("capacity players welcome", () => first.welcome && second.welcome);
+    const third = await Client.join("capacity_three", { zoneId: "mmo-test-zone" });
+    expect((await until("room full close", () => third.closeInfo ?? undefined)).code).toBe(
+      WS_CLOSE.ROOM_FULL,
+    );
+
+    const session = await testCharacter("tech_reconnect", { zoneId: "mmo-test-zone" });
+    // Free a slot before asserting reconnection.
+    first.close();
+    await scheduler.wait(100);
+    const joined = await Client.joinCharacter(session);
+    expect((await until("tech reconnect welcome", () => joined.welcome)).world).toMatchObject({
+      width: 640,
+      height: 480,
+    });
+    joined.close();
+    second.close();
+  });
+
   it("starts the server-owned quest only when interacting near the quest NPC", async () => {
     const client = await Client.join("quester", {
       position: { x: QUEST_NPC.x + 50, y: QUEST_NPC.y },
@@ -531,7 +437,7 @@ describe("World", () => {
 
     const resting = await until("a resting position", () => client.self());
 
-    const stub = env.WORLD.get(env.WORLD.idFromName("world"));
+    const stub = env.WORLD.getByName(VERDANT_ROOM_KEY);
     const attachments = await runInDurableObject(stub, (_instance, state) =>
       state.getWebSockets().map((ws) => ws.deserializeAttachment() as Attachment | null),
     );
@@ -578,7 +484,12 @@ describe("World", () => {
 
     const rejoined = await Client.joinCharacter(session);
     const oldClosed = await until("old socket to close", () => first.closeInfo ?? undefined);
-    expect(oldClosed.code).toBe(4001);
+    expect(oldClosed.code).toBe(WS_CLOSE.CHARACTER_REPLACED);
+    expect(
+      first.received.some(
+        (message) => message.t === "event" && message.code === "presence.replaced",
+      ),
+    ).toBe(true);
 
     const welcome = await until("rejoin welcome", () => rejoined.welcome);
     const self = welcome.players.find((player) => player.id === welcome.selfId);
@@ -588,7 +499,117 @@ describe("World", () => {
     expect(welcome.self.inventory).toMatchObject({ potions: 1, gold: 0, crystals: 0 });
     expect(welcome.self.quest).toMatchObject({ status: "active", progress: 0 });
 
+    const rejoinedPosition = self ? { x: self.x, y: self.y } : undefined;
+    first.attemptAfterRevocation({
+      t: "input",
+      seq: 999_999,
+      input: { ...NO_INPUT, right: true },
+    });
+    first.attemptAfterRevocation({ t: "skill", slot: 3 });
+    await scheduler.wait(150);
+    expect(rejoined.self()).toMatchObject(rejoinedPosition ?? {});
+
+    const epoch = await env.DB.prepare("SELECT session_epoch FROM character WHERE id = ?")
+      .bind(session.characterId)
+      .first<{ session_epoch: number }>();
+    expect(epoch?.session_epoch).toBe(2);
+
     rejoined.close();
+  });
+
+  it("detects a stale runtime save, revokes it, and closes its socket", async () => {
+    const session = await testCharacter("stale_runtime");
+    const client = await Client.joinCharacter(session);
+    await until("stale runtime welcome", () => client.welcome);
+    const start = await until("stale runtime start", () => client.self());
+    const { direction, sign } = awayFromNearestWall(start.x);
+    client.press(direction);
+    await until("stale runtime moved", () => {
+      const self = client.self();
+      return self && sign * (self.x - start.x) > 12 ? self : undefined;
+    });
+    client.release();
+
+    // Simulate a newer room having acquired the next epoch before this old runtime flushes.
+    await env.DB.prepare(
+      "UPDATE character SET session_epoch = session_epoch + 1, x = 1500, y = 1600, xp = 88 WHERE id = ?",
+    )
+      .bind(session.characterId)
+      .run();
+    const world = env.WORLD.getByName(VERDANT_ROOM_KEY);
+    expect(await world.persistCharacter(session.characterId)).toBe(false);
+
+    const closed = await until("stale runtime close", () => client.closeInfo ?? undefined);
+    expect(closed.code).toBe(WS_CLOSE.PRESENCE_LOST);
+    client.attemptAfterRevocation({ t: "skill", slot: 3 });
+    client.attemptAfterRevocation({
+      t: "input",
+      seq: 999_999,
+      input: { ...NO_INPUT, right: true },
+    });
+    const row = await env.DB.prepare("SELECT x, y, xp FROM character WHERE id = ?")
+      .bind(session.characterId)
+      .first<{ x: number; y: number; xp: number }>();
+    expect(row).toEqual({ x: 1500, y: 1600, xp: 88 });
+  });
+
+  it("preserves one absolute ward-run deadline across replacement and cannot restart it", async () => {
+    const ward = QUEST_SITES.find(
+      (candidate) => candidate.chapter === "ward_run" && candidate.order === 0,
+    );
+    if (!ward) throw new Error("first ward missing");
+    const session = await testCharacter("ward_rejoin", {
+      position: { x: ward.x + 30, y: ward.y },
+      quest: { chapter: "ward_run", status: "active", progress: 0 },
+    });
+    const first = await Client.joinCharacter(session);
+    await until("ward first welcome", () => first.welcome);
+    first.action("interact");
+    const originalDeadline = await until(
+      "original ward deadline",
+      () => first.latestState?.quest.timerEndsAt,
+    );
+
+    const second = await Client.joinCharacter(session);
+    await until("old ward socket closed", () => first.closeInfo ?? undefined);
+    const welcome = await until("ward replacement welcome", () => second.welcome);
+    expect(welcome.self.quest.timerEndsAt).toBe(originalDeadline);
+
+    first.attemptAfterRevocation({ t: "interact" });
+    await scheduler.wait(100);
+    expect(second.latestState?.quest.timerEndsAt).toBe(originalDeadline);
+    const row = await env.DB.prepare(
+      "SELECT ward_run_expires_at, session_epoch FROM character WHERE id = ?",
+    )
+      .bind(session.characterId)
+      .first<{ ward_run_expires_at: number | null; session_epoch: number }>();
+    expect(row).toMatchObject({ ward_run_expires_at: originalDeadline, session_epoch: 2 });
+    second.close();
+  });
+
+  it("expires a ward run that elapsed while disconnected", async () => {
+    const session = await testCharacter("ward_elapsed", {
+      quest: { chapter: "ward_run", status: "active", progress: 2 },
+      wardRunExpiresAt: Date.now() - 1_000,
+    });
+    const client = await Client.joinCharacter(session);
+    const welcome = await until("expired ward welcome", () => client.welcome);
+    expect(welcome.self.quest).toMatchObject({
+      chapter: "ward_run",
+      status: "active",
+      progress: 0,
+    });
+    expect(welcome.self.quest.timerEndsAt).toBeUndefined();
+    client.close();
+
+    await until("expired ward persisted", () => (client.closeInfo ? client.closeInfo : undefined));
+    await scheduler.wait(100);
+    const row = await env.DB.prepare(
+      "SELECT quest_progress, ward_run_expires_at FROM character WHERE id = ?",
+    )
+      .bind(session.characterId)
+      .first<{ quest_progress: number; ward_run_expires_at: number | null }>();
+    expect(row).toEqual({ quest_progress: 0, ward_run_expires_at: null });
   });
 
   it("acknowledges the commands it has applied", async () => {

@@ -14,7 +14,7 @@ import {
   MAX_CHARACTERS_PER_ACCOUNT,
 } from "../src/server/characters.js";
 import { account, character, createDb } from "../src/server/db/index.js";
-import { loadProfile, saveProfile } from "../src/server/profile.js";
+import { acquireSessionEpoch, loadProfile, saveProfile } from "../src/server/profile.js";
 import { starterEquipmentFor } from "../src/shared/character.js";
 import { spawnPosition } from "../src/shared/game.js";
 
@@ -81,6 +81,7 @@ describe("account and character tables", () => {
       "gold",
       "hp",
       "id",
+      "instance_id",
       "last_seen_at",
       "level",
       "main_hand",
@@ -90,10 +91,13 @@ describe("account and character tables", () => {
       "quest_chapter",
       "quest_progress",
       "quest_status",
+      "session_epoch",
+      "ward_run_expires_at",
       "weapon",
       "x",
       "xp",
       "y",
+      "zone_id",
     ]);
   });
 
@@ -132,6 +136,10 @@ describe("account and character tables", () => {
       questStatus: "available",
       questChapter: "three_offerings",
       questProgress: 0,
+      zoneId: "verdant-reach",
+      instanceId: "main",
+      sessionEpoch: 0,
+      wardRunExpiresAt: null,
     });
     expect(rows[0]?.createdAt).toBeInstanceOf(Date);
   });
@@ -216,7 +224,7 @@ describe("account and character tables", () => {
     };
     profile.quest.status = "active";
     profile.quest.progress = 2;
-    await saveProfile(db, profile);
+    expect(await saveProfile(db, profile)).toBe(true);
 
     const restored = await loadProfile(db, "char-2");
     expect(restored).toMatchObject({
@@ -231,6 +239,54 @@ describe("account and character tables", () => {
       appearance: { body: "wayfarer", primaryColor: "violet" },
       equipment: starterEquipmentFor("warrior"),
       quest: { status: "active", progress: 2 },
+    });
+  });
+
+  it("fences stale position and progression saves with the session epoch", async () => {
+    const db = createDb(env.DB);
+    await db.insert(account).values({
+      id: "acct-epoch",
+      username: "epochowner",
+      passwordHash: "h",
+      passwordSalt: "s",
+      passwordIterations: 1,
+    });
+    await db.insert(character).values({
+      id: "char-epoch",
+      accountId: "acct-epoch",
+      name: "EpochHero",
+      x: 300,
+      y: 400,
+      xp: 5,
+    });
+
+    const old = await loadProfile(db, "char-epoch");
+    if (!old) throw new Error("missing old profile");
+    expect(await acquireSessionEpoch(db, old.id)).toBe(1);
+    const first = await loadProfile(db, old.id);
+    if (!first) throw new Error("missing first epoch");
+
+    expect(await acquireSessionEpoch(db, old.id)).toBe(2);
+    const current = await loadProfile(db, old.id);
+    if (!current) throw new Error("missing current epoch");
+    current.x = 900;
+    current.y = 1000;
+    current.xp = 77;
+    expect(await saveProfile(db, current)).toBe(true);
+
+    first.x = 111;
+    first.y = 222;
+    first.xp = 999;
+    expect(await saveProfile(db, first)).toBe(false);
+    old.x = 10;
+    old.xp = 1000;
+    expect(await saveProfile(db, old)).toBe(false);
+
+    expect(await loadProfile(db, old.id)).toMatchObject({
+      x: 900,
+      y: 1000,
+      xp: 77,
+      sessionEpoch: 2,
     });
   });
 });

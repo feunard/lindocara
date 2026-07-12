@@ -1,10 +1,24 @@
-import { clampToWorld, PLAYER_SIZE, type Vec2, WORLD_HEIGHT, WORLD_WIDTH } from "./simulation.js";
+import {
+  clampToWorld,
+  PLAYER_SIZE,
+  type Vec2,
+  WORLD_HEIGHT,
+  WORLD_WIDTH,
+  type WorldBounds,
+} from "./simulation.js";
 
 export interface Rect {
   x: number;
   y: number;
   width: number;
   height: number;
+}
+
+/** Immutable geometry supplied by the active zone; defaults preserve Verdant Reach. */
+export interface TerrainGeometry extends WorldBounds {
+  obstacles: readonly Rect[];
+  spawnPoints: readonly Vec2[];
+  safeZone: Rect;
 }
 
 export interface NpcDefinition extends Vec2 {
@@ -389,6 +403,14 @@ export const OBSTACLES: readonly Rect[] = [
   ),
 ];
 
+export const VERDANT_REACH_TERRAIN: TerrainGeometry = {
+  width: WORLD_WIDTH,
+  height: WORLD_HEIGHT,
+  obstacles: OBSTACLES,
+  spawnPoints: SPAWN_POINTS,
+  safeZone: SAFE_ZONE,
+};
+
 export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   {
     id: "road-goblin-scout",
@@ -621,25 +643,33 @@ export function inRect(position: Vec2, rect: Rect, size: number = PLAYER_SIZE): 
   return rectsOverlap(entityBox(position, size), rect);
 }
 
-export function isWalkable(position: Vec2, size: number = PLAYER_SIZE): boolean {
+export function isWalkable(
+  position: Vec2,
+  size: number = PLAYER_SIZE,
+  geometry: TerrainGeometry = VERDANT_REACH_TERRAIN,
+): boolean {
   if (
     position.x < 0 ||
     position.y < 0 ||
-    position.x + size > WORLD_WIDTH ||
-    position.y + size > WORLD_HEIGHT
+    position.x + size > geometry.width ||
+    position.y + size > geometry.height
   ) {
     return false;
   }
-  return !OBSTACLES.some((obstacle) => rectsOverlap(entityBox(position, size), obstacle));
+  return !geometry.obstacles.some((obstacle) => rectsOverlap(entityBox(position, size), obstacle));
 }
 
 /** Axis-separated collision resolution preserves wall sliding and never trusts the client. */
-export function resolveTerrain(from: Vec2, desired: Vec2): Vec2 {
-  const clamped = clampToWorld(desired);
+export function resolveTerrain(
+  from: Vec2,
+  desired: Vec2,
+  geometry: TerrainGeometry = VERDANT_REACH_TERRAIN,
+): Vec2 {
+  const clamped = clampToWorld(desired, geometry);
   let x = from.x;
   let y = from.y;
-  if (isWalkable({ x: clamped.x, y: from.y })) x = clamped.x;
-  if (isWalkable({ x, y: clamped.y })) y = clamped.y;
+  if (isWalkable({ x: clamped.x, y: from.y }, PLAYER_SIZE, geometry)) x = clamped.x;
+  if (isWalkable({ x, y: clamped.y }, PLAYER_SIZE, geometry)) y = clamped.y;
   return { x, y };
 }
 
@@ -652,9 +682,10 @@ function hashSeed(seed: string): number {
   return hash >>> 0;
 }
 
-export function spawnPosition(seed = ""): Vec2 {
-  const index = seed.length === 0 ? 0 : hashSeed(seed) % SPAWN_POINTS.length;
-  const position = SPAWN_POINTS[index] ?? SPAWN_POINTS[0] ?? { x: SAFE_ZONE.x, y: SAFE_ZONE.y };
+export function spawnPosition(seed = "", geometry: TerrainGeometry = VERDANT_REACH_TERRAIN): Vec2 {
+  const index = seed.length === 0 ? 0 : hashSeed(seed) % geometry.spawnPoints.length;
+  const position = geometry.spawnPoints[index] ??
+    geometry.spawnPoints[0] ?? { x: geometry.safeZone.x, y: geometry.safeZone.y };
   return { ...position };
 }
 
@@ -725,10 +756,16 @@ export function applyExperience(
   return { level: nextLevel, xp: nextXp, levelsGained };
 }
 
-export function clampRestoredPosition(position: Vec2, fallbackSeed = ""): Vec2 {
+export function clampRestoredPosition(
+  position: Vec2,
+  fallbackSeed = "",
+  geometry: TerrainGeometry = VERDANT_REACH_TERRAIN,
+): Vec2 {
   if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) {
-    return spawnPosition(fallbackSeed);
+    return spawnPosition(fallbackSeed, geometry);
   }
-  const clamped = clampToWorld(position);
-  return isWalkable(clamped) ? clamped : spawnPosition(fallbackSeed);
+  const clamped = clampToWorld(position, geometry);
+  return isWalkable(clamped, PLAYER_SIZE, geometry)
+    ? clamped
+    : spawnPosition(fallbackSeed, geometry);
 }

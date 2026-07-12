@@ -31,6 +31,8 @@ export interface CharacterSummary {
   level: number;
   class: PlayerClass;
   equipment: Equipment;
+  zoneId: string;
+  instanceId: string;
 }
 
 function summary(row: {
@@ -43,6 +45,8 @@ function summary(row: {
   class: PlayerClass;
   mainHand: unknown;
   offHand: unknown;
+  zoneId: string;
+  instanceId: string;
 }): CharacterSummary {
   return {
     id: row.id,
@@ -57,6 +61,8 @@ function summary(row: {
     level: row.level,
     class: row.class,
     equipment: normalizeEquipment(row.class, row.mainHand, row.offHand),
+    zoneId: row.zoneId,
+    instanceId: row.instanceId,
   };
 }
 
@@ -94,7 +100,16 @@ export async function createCharacter(
     createdAt: now,
     lastSeenAt: now,
   });
-  return { id, name, appearance, level: 1, class: playerClass, equipment };
+  return {
+    id,
+    name,
+    appearance,
+    level: 1,
+    class: playerClass,
+    equipment,
+    zoneId: "verdant-reach",
+    instanceId: "main",
+  };
 }
 
 export async function characterOwnedBy(

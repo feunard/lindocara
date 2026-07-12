@@ -76,6 +76,10 @@ export const character = sqliteTable(
       .notNull()
       .default("three_offerings"),
     questProgress: integer("quest_progress").notNull().default(0),
+    zoneId: text("zone_id").notNull().default("verdant-reach"),
+    instanceId: text("instance_id").notNull().default("main"),
+    sessionEpoch: integer("session_epoch").notNull().default(0),
+    wardRunExpiresAt: integer("ward_run_expires_at", { mode: "timestamp_ms" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
     lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
   },

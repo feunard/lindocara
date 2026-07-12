@@ -25,6 +25,13 @@ The one rule that matters: **the server decides outcomes.** Clients send movemen
 intent, never positions, damage, health, heals, inventory, XP, deaths, loot, or quest
 completion.
 
+### MMO multizone migration
+
+Before changing world routing, room ownership, character location persistence, or splitting
+`world.ts`, read [`docs/mmo-migration-plan.md`](./docs/mmo-migration-plan.md). It records the
+verified current flows, migration order, D1 changes, duplicate-character risks, rollback strategy,
+and acceptance criteria for each future step.
+
 ```
 src/shared/     platform-free. Imports nothing from Cloudflare or the DOM.
   simulation.ts pure step(position, input, dt). The single source of movement truth.
@@ -32,6 +39,7 @@ src/shared/     platform-free. Imports nothing from Cloudflare or the DOM.
   protocol.ts   the wire format, with defensive parsing of anything a client sends.
   prediction.ts pure reconcile()/prunePending(). Client-side prediction, as functions.
   i18n/         FR/EN dictionaries — data only; the server sends codes, never prose.
+  zones.ts      typed zone catalogue, validation and deterministic room keys.
 
 src/server/     runs in workerd.
   index.ts      Worker entry: /api/* only. Assets never reach it.
@@ -40,7 +48,8 @@ src/server/     runs in workerd.
   accounts.ts   register/login: username uniqueness, password hashing and verification.
   characters.ts roster CRUD and ownership checks, scoped to the caller's account.
   password.ts   PBKDF2 password hashing.
-  profile.ts    D1 profile load/create/save boundary.
+  profile.ts    D1 profile load/create/save boundary, fenced by sessionEpoch.
+  character-presence.ts deterministic per-character lease and connection authority.
   world.ts      room authority: 20 Hz simulation, prediction acks, AI, combat, loot, quest, chat.
   db/           D1 schema + Drizzle.
 
@@ -62,7 +71,7 @@ src/client/     runs in a browser.
   (measured: 1 frame, ~7ms). Each snapshot carries the server's truth, which is one
   round-trip stale, so the commands it has not acknowledged yet are replayed on top of it.
   When client and server agree, nothing visibly happens.
-- **Everyone else** is drawn `INTERPOLATION_DELAY_MS` (100ms) in the past, interpolated
+- **Everyone else** is drawn `INTERPOLATION_DELAY_MS` (150ms) in the past, interpolated
   between the two snapshots bracketing that instant. You cannot know where a remote player is
   *now*, and guessing looks worse than being slightly late.
 
@@ -141,6 +150,41 @@ select. The character row — position, level, XP, HP, appearance, inventory, an
 is what the world loads before the WebSocket is accepted and saves back; `name` is deliberately
 not unique, since the account, not the name, is the identity. Dirty profiles are saved every
 five seconds and on disconnect.
+
+### Character presence and save fencing
+
+`CharacterPresence` is a SQLite-backed Durable Object addressed with
+`CHARACTER_PRESENCE.getByName(characterId)`. D1 is the single monotone source of
+`character.session_epoch`; the presence DO stores only the active lease (`connectionId`, epoch,
+room, zone, instance, timestamps).
+
+- Acquisition freezes and saves the previous owner while its epoch is still valid, increments the
+  D1 epoch atomically, then installs the new lease.
+- The lease lasts 30 seconds and `World` renews it every 10 seconds. Inputs use local authority and
+  do not call the presence DO per command or tick.
+- Normal disconnect saves with `WHERE id = ? AND session_epoch = ?`, releases the matching lease,
+  then removes the runtime player.
+- A stale save changes no row, logs `stale_character_save_rejected`, invalidates local authority,
+  and closes the socket with `WS_CLOSE.PRESENCE_LOST`.
+- `ward_run_expires_at` is an absolute D1/attachment deadline. Never reconstruct it from a new
+  connection time or a tick counter.
+
+Future interzone handoff must use the presence epoch as its fence: freeze source, save source,
+claim destination with a new epoch, then admit destination. Do not add a playable transition
+before that state machine is tested.
+
+### Zone routing and room isolation
+
+`src/shared/zones.ts` is the only place that declares a zone. It validates the persisted
+`zoneId`/`instanceId`, resolves the immutable terrain/content definition, and builds
+`zoneId:instanceId`. `index.ts` reads that location from D1 after ownership verification; query
+parameters and WebSocket messages never select a room.
+
+`World` validates the internal room headers against the catalogue before admission, then owns only
+that zone's players, monsters, loot, quests, timers and chat. Respect `maxPlayers`: a full room
+closes with `WS_CLOSE.ROOM_FULL`. `verdant-reach:main` preserves the current map; the empty,
+small `mmo-test-zone` exists solely for routing/isolation coverage. Do not add portals or mutate a
+character's location until the handoff state machine in the migration plan is implemented.
 
 ## Gotchas worth knowing
 

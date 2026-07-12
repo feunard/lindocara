@@ -23,6 +23,8 @@ export const en = {
   "auth.error.invalid_password": "Password must be 8-128 characters.",
   "auth.error.password_mismatch": "Passwords do not match.",
   "auth.error.generic": "Something went wrong. Try again.",
+  "auth.error.session_expired": "Your session expired. Sign in again.",
+  "auth.error.presence": "The character presence service is unavailable. Try again.",
 
   // Character select
   "chars.title": "Choose your wayfarer",
@@ -237,6 +239,10 @@ export const en = {
   "status.close.deleted": "This character was deleted.",
   "status.close.policy": "Disconnected by the server.",
   "status.close.generic": "Connection closed.",
+  "status.close.session_expired": "Your session expired. Sign in again.",
+  "status.close.presence": "Character authority was lost. Rejoin the character.",
+  "status.close.room_full": "This room is full.",
+  "status.close.invalid_location": "This character has an invalid room location.",
 
   // NPC
   "npc.warden.name": "Keeper Elowen",
@@ -331,4 +337,8 @@ export const en = {
   "event.skill.no_target": "No valid target for {skill}.",
   "event.skill.blocked": "The path to the target is blocked.",
   "event.skill.locked": "{skill} unlocks at level {level}.",
+  "event.presence.replaced": "This character was resumed in another tab or device.",
+  "event.presence.lost": "This connection no longer controls the character.",
+  "event.room.full": "This room is full.",
+  "event.room.invalid_location": "This character has an invalid room location.",
 } as const satisfies Record<string, string>;
