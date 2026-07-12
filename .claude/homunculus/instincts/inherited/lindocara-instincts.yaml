@@ -1,0 +1,298 @@
+# Instincts generated from https://github.com/feunard/lindocara
+# Generated: 2026-07-12T21:26:32.399Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: lindocara-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Commit Length
+
+## Action
+
+Write moderate-length commit messages (~63 characters)
+
+## Evidence
+
+- Average commit message length: 63 chars
+- Based on 2 commits
+
+---
+id: lindocara-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Naming Files
+
+## Action
+
+Use snake_case naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: snake_case
+
+---
+id: lindocara-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: lindocara-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: lindocara-test-separate
+trigger: "when writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Test Separate
+
+## Action
+
+Place tests in the tests/ or __tests__/ directory, mirroring src structure
+
+## Evidence
+
+- Separate test directory pattern detected
+- Tests live in dedicated test folders
+
+---
+id: lindocara-instinct-file-naming
+trigger: "When creating a new file"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct File Naming
+
+## Action
+
+Name the file using snake_case
+
+## Evidence
+
+- Pattern in namingConventions.files
+
+---
+id: lindocara-instinct-function-naming
+trigger: "When defining a new function"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Function Naming
+
+## Action
+
+Name the function using camelCase
+
+## Evidence
+
+- Pattern in namingConventions.functions
+
+---
+id: lindocara-instinct-class-naming
+trigger: "When defining a new class"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Class Naming
+
+## Action
+
+Name the class using PascalCase
+
+## Evidence
+
+- Pattern in namingConventions.classes
+
+---
+id: lindocara-instinct-constant-naming
+trigger: "When defining a constant"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Constant Naming
+
+## Action
+
+Name the constant using SCREAMING_SNAKE_CASE
+
+## Evidence
+
+- Pattern in namingConventions.constants
+
+---
+id: lindocara-instinct-import-style
+trigger: "When importing modules"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Import Style
+
+## Action
+
+Use relative import paths
+
+## Evidence
+
+- Pattern in importStyle
+
+---
+id: lindocara-instinct-export-style
+trigger: "When exporting code from a module"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Export Style
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- Pattern in exportStyle
+
+---
+id: lindocara-instinct-commit-format
+trigger: "When writing a commit message"
+confidence: 0.8
+domain: git
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Commit Format
+
+## Action
+
+Write a freeform message without a required prefix, typically describing the change in one sentence
+
+## Evidence
+
+- Seen in commit: 'Split merged D1 migration into 0006 premium_pandemic and 0007.'
+- Seen in commit: 'Integrate D1 repair into deploy workflow with Time Travel guard.'
+
+---
+id: lindocara-instinct-test-location
+trigger: "When adding or updating tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Test Location
+
+## Action
+
+Place test files in a separate directory from source code
+
+## Evidence
+
+- Pattern in architecture.folderStructure.testLocation
+
+---
+id: lindocara-instinct-migration-folder
+trigger: "When adding database migrations"
+confidence: 0.9
+domain: architecture
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Migration Folder
+
+## Action
+
+Place migration files in the 'migrations' folder
+
+## Evidence
+
+- Pattern in architecture.folderStructure.commonFolders
+
+---
+id: lindocara-instinct-workflow-location
+trigger: "When adding or editing CI/CD workflows"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Workflow Location
+
+## Action
+
+Place workflow YAML files in the '.github/workflows' directory
+
+## Evidence
+
+- Pattern in architecture.configFiles
+- Pattern in architecture.folderStructure.commonFolders
+
