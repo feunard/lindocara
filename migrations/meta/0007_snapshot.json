@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "6a99f4ba-06b9-4291-92e7-157745d057e9",
-  "prevId": "619ff089-9ce3-40b0-8dcc-5416adad263c",
+  "id": "bada3cc5-3714-4246-b8ec-0ac58d6a8c4f",
+  "prevId": "6a99f4ba-06b9-4291-92e7-157745d057e9",
   "tables": {
     "account": {
       "name": "account",
@@ -239,6 +239,37 @@
           "notNull": true,
           "autoincrement": false,
           "default": 0
+        },
+        "zone_id": {
+          "name": "zone_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'verdant-reach'"
+        },
+        "instance_id": {
+          "name": "instance_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'main'"
+        },
+        "session_epoch": {
+          "name": "session_epoch",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "ward_run_expires_at": {
+          "name": "ward_run_expires_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         },
         "life": {
           "name": "life",
