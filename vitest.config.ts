@@ -30,5 +30,8 @@ export default defineConfig({
     name: "lindocara",
     include: ["test/**/*.test.ts"],
     setupFiles: ["./test/setup.ts"],
+    // World and CharacterPresence Durable Objects are process-wide singletons in workerd.
+    // Parallel test files would share live rooms and flake on capacity, combat, and loot.
+    fileParallelism: false,
   },
 });

@@ -19,6 +19,7 @@ import {
   testCharacter,
   until,
   VERDANT_ROOM_KEY,
+  waitForRoomSockets,
 } from "./support/world-harness.js";
 
 const ROOM_A_KEY = VERDANT_ROOM_KEY;
@@ -64,6 +65,7 @@ async function joinPersistedZone(
   instanceId = "main",
   pump = true,
 ): Promise<Client> {
+  if (zoneId === "mmo-test-zone") await waitForRoomSockets(MMO_TEST_ROOM_KEY, 0);
   await env.DB.prepare("UPDATE character SET zone_id = ?, instance_id = ? WHERE id = ?")
     .bind(zoneId, instanceId, session.characterId)
     .run();

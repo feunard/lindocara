@@ -2,7 +2,7 @@
  * Shared WebSocket harness for World Durable Object integration tests.
  */
 
-import { env, SELF } from "cloudflare:test";
+import { env, runInDurableObject, SELF } from "cloudflare:test";
 import { expect } from "vitest";
 import type { PlayerClass, QuestChapter } from "../../src/shared/game.js";
 import {
@@ -296,4 +296,26 @@ export async function until<T>(
     await scheduler.wait(20);
   }
   throw new Error(`timed out waiting for: ${describeIt}`);
+}
+
+/**
+ * World Durable Objects are singletons across the whole worker test pool. Wait for a room to
+ * drain before tests that assume an empty or nearly-empty room.
+ */
+export async function waitForRoomSockets(
+  roomKey: string,
+  maxSockets: number,
+  timeoutMs = 15_000,
+): Promise<void> {
+  const stub = env.WORLD.getByName(roomKey);
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const count = await runInDurableObject(
+      stub,
+      (_instance, state) => state.getWebSockets().length,
+    );
+    if (count <= maxSockets) return;
+    await scheduler.wait(100);
+  }
+  throw new Error(`timed out waiting for ${roomKey} to have at most ${maxSockets} socket(s)`);
 }
