@@ -506,10 +506,15 @@ export class World extends DurableObject<Env> {
     }
     if (message.t === "world.resync") {
       const now = Date.now();
+      // A throttled request is owed, not dropped: the client latches until a resync arrives and
+      // would otherwise stop applying deltas forever. The tick loop pays the debt once the
+      // cooldown lifts, so the rate limit still holds at one resync per player per second.
       if (now - player.lastResyncAt < RESYNC_COOLDOWN_MS) {
         this.#observability.throttledResyncs += 1;
+        player.resyncQueued = true;
         return;
       }
+      player.resyncQueued = false;
       player.lastResyncAt = now;
       this.#sendWorldResync(ws, player);
       return;
@@ -1346,8 +1351,18 @@ export class World extends DurableObject<Env> {
     const run = async () => {
       if (!player.authorized || player.inventory.potions <= 0) return null;
       const db = createDb(this.env.DB);
+      // The room holds the truth: potions looted since the last periodic flush exist only in
+      // memory. Decrementing a stale D1 row would return a quantity below what the player
+      // actually holds, and #usePotion would then adopt it — destroying every potion picked up
+      // inside the flush window. Push the room's count down first, so the quantity that comes
+      // back is the truth rather than a five-second-old guess.
+      //
+      // Unconditional, not gated on `dirty`: the tick loop clears that flag when it *schedules*
+      // a save, not when the save lands. #savePlayer queues behind any in-flight save for this
+      // character, so awaiting it also awaits that one.
+      if (!(await this.#savePlayer(player, ws))) return null;
       let remaining = await consumeOwnedItem(db, player.id, HEALTH_POTION_ID);
-      // Loot may have entered the authoritative room state since the last periodic D1 flush.
+      // Safety net: an absent or empty row (a save that never landed) still gets one retry.
       if (remaining === null && player.inventory.potions > 0) {
         if (!(await this.#savePlayer(player, ws))) return null;
         remaining = await consumeOwnedItem(db, player.id, HEALTH_POTION_ID);
@@ -1539,6 +1554,22 @@ export class World extends DurableObject<Env> {
       this.#sendWorldDeltas();
       const context = this.#partyContext();
       for (const party of this.#parties.values()) broadcastPartyState(context, party);
+    }
+    this.#flushQueuedResyncs(now);
+  }
+
+  /**
+   * Pays back the resyncs the cooldown deferred. A client that asks for a resync stops applying
+   * deltas until one arrives, so a silently dropped request freezes its world until it reconnects.
+   * The cooldown still holds — at most one resync per player per second — it is only honoured late.
+   */
+  #flushQueuedResyncs(now: number): void {
+    for (const [socket, player] of this.#players) {
+      if (!player.resyncQueued || !player.authorized) continue;
+      if (now - player.lastResyncAt < RESYNC_COOLDOWN_MS) continue;
+      player.resyncQueued = false;
+      player.lastResyncAt = now;
+      this.#sendWorldResync(socket, player);
     }
   }
 

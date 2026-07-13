@@ -90,6 +90,8 @@ export interface PlayerRuntime extends PlayerProfile {
   transitioning: boolean;
   lastTransitionAt: number;
   lastResyncAt: number;
+  /** Set when a resync was throttled so the tick loop can still deliver it once the cooldown lifts. */
+  resyncQueued: boolean;
   nextPresenceHeartbeatAt: number;
   interest: PlayerInterest;
   network: WorldCache;
@@ -283,6 +285,7 @@ export function newPlayer(
     transitioning: false,
     lastTransitionAt: 0,
     lastResyncAt: 0,
+    resyncQueued: false,
     nextPresenceHeartbeatAt: Date.now() + PRESENCE_HEARTBEAT_MS,
     interest: { players: new Set(), monsters: new Set(), loot: new Set() },
     network: createWorldCache(),

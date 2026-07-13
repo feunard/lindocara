@@ -5,6 +5,7 @@
 
 import { env, runInDurableObject, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
+import { D1_SAVE_EVERY_TICKS } from "../src/server/world/world-runtime.js";
 import { type Attachment, positionFromAttachment } from "../src/server/world.js";
 import { WS_CLOSE } from "../src/shared/close-codes.js";
 import { CORPSE_RECLAIM_RANGE, RESURRECT_HP_RATIO } from "../src/shared/death.js";
@@ -29,6 +30,7 @@ import {
   PLAYER_SIZE,
   PLAYER_SPEED,
   TICK_DT,
+  TICK_HZ,
   WORLD_HEIGHT,
   WORLD_WIDTH,
 } from "../src/shared/simulation.js";
@@ -151,6 +153,36 @@ describe("World", () => {
     expect(
       client.received.slice(beforeResync).filter((message) => message.t === "world.resync"),
     ).toHaveLength(1);
+    client.close();
+  });
+
+  // A client that asks for a resync stops applying deltas until one arrives. Dropping a
+  // throttled request therefore freezes its world until it reconnects — so the throttle defers
+  // the resync, it does not discard it.
+  it("pays back a throttled resync once the cooldown lifts", { timeout: 15_000 }, async () => {
+    const client = await Client.join("resync_debt", { pump: false });
+    const welcome = await until("resync debt welcome", () => client.welcome);
+
+    const mark = client.received.length;
+    const resyncsSince = () =>
+      client.received.slice(mark).filter((message) => message.t === "world.resync");
+
+    // Two resync-worthy events inside one cooldown window: routine on a lossy connection.
+    client.requestResync();
+    client.requestResync();
+
+    const both = await until("the throttled resync to arrive late", () => {
+      const seen = resyncsSince();
+      return seen.length >= 2 ? seen : undefined;
+    });
+    expect(both).toHaveLength(2);
+    expect(both[1]?.players.map((player) => player.id)).toContain(welcome.selfId);
+    // The rate limit still holds: the second one waited out the cooldown.
+    expect((both[1]?.tick ?? 0) - (both[0]?.tick ?? 0)).toBeGreaterThanOrEqual(TICK_HZ);
+
+    // And the debt is paid exactly once — no request/throttle ping-pong afterwards.
+    await scheduler.wait(1_500);
+    expect(resyncsSince()).toHaveLength(2);
     client.close();
   });
 
@@ -377,6 +409,70 @@ describe("World", () => {
       observer.close();
       distant.close();
     }
+  });
+
+  // Loot enters the room, not D1: the count only reaches the database on the five-second flush.
+  // A drink that trusts D1's quantity in that window destroys everything picked up since.
+  it("keeps a potion looted inside the D1 flush window", { timeout: 60_000 }, async () => {
+    const drinker = await Client.join("potion_window", {
+      zoneId: "verdant-reach",
+      position: { x: 1870, y: 820 },
+      level: 10,
+      hp: 150,
+    });
+    const welcome = await until("potion window welcome", () => drinker.welcome);
+    expect(welcome.self.inventory.potions).toBe(2);
+
+    // A kill drops a potion on ticks divisible by four, and D1 only catches up every
+    // D1_SAVE_EVERY_TICKS. Land the killing blow on a potion tick early in a flush window, so
+    // the pickup and the drink both happen while D1 still says two.
+    const dropsPotionWellBeforeTheFlush = () => {
+      const tick = drinker.latestSnapshot?.tick;
+      return tick !== undefined && tick % 4 === 0 && tick % D1_SAVE_EVERY_TICKS <= 40;
+    };
+    const potionPickups = () =>
+      drinker.received.filter(
+        (message) =>
+          message.t === "event" &&
+          message.code === "loot.picked" &&
+          message.params?.kind === "potion",
+      ).length;
+
+    let lastAttackAt = 0;
+    const deadline = Date.now() + 45_000;
+    while (potionPickups() === 0 && Date.now() < deadline) {
+      const dropped = drinker.latestSnapshot?.loot.find((item) => item.kind === "potion");
+      const self = drinker.self();
+      if (dropped && self) {
+        // The pickup radius is tighter than the attack range: walk onto the drop.
+        const dx = dropped.x - self.x;
+        const dy = dropped.y - self.y;
+        drinker.press(
+          Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy > 0 ? "down" : "up",
+        );
+      } else if (Date.now() - lastAttackAt > 600 && dropsPotionWellBeforeTheFlush()) {
+        drinker.release();
+        drinker.action("attack");
+        lastAttackAt = Date.now();
+      }
+      await scheduler.wait(10);
+    }
+    drinker.release();
+    expect(potionPickups()).toBeGreaterThan(0);
+
+    const held = await until("the looted potion in the inventory", () => {
+      const potions = drinker.latestState?.inventory.potions;
+      return potions !== undefined && potions >= 3 ? potions : undefined;
+    });
+
+    drinker.usePotion();
+    await until("the drink to resolve", () =>
+      drinker.received.some((message) => message.t === "event" && message.code === "potion.used"),
+    );
+    // One drink costs one potion — not the two it would cost if D1's stale count won.
+    expect(drinker.latestState?.inventory.potions).toBe(held - 1);
+
+    drinker.close();
   });
 
   it("does not let the URL select a room", async () => {
