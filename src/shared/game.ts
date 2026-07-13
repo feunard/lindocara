@@ -712,14 +712,22 @@ function centerOf(position: Vec2, size: number): Vec2 {
 
 /**
  * Line-of-sight consults the same tile grid `isWalkable` collides against — never `obstacles`,
- * the rectangles it was rasterised from. Measured over 400,000 legal position pairs against the
- * old rectangle check: this is *not* uniformly stricter. 1.31% of pairs became more permissive
- * (blocked by a rectangle, now visible through the tile it coarsened to) against only 0.17% that
- * became stricter. The dominant cause isn't fattened wall edges — it's the 50%-coverage rasteriser
- * erasing small colliders entirely, so a shot that used to be refused by a rectangle no longer has
- * anything in its way. That is correct, not a regression: collision has ignored those colliders
- * since the tiles landed, so refusing the shot was the anomaly, not allowing it — line-of-sight
- * agreeing with collision is the whole point of reading the same grid.
+ * the rectangles it was rasterised from. Reading anything else would let the two disagree: a shot
+ * refused through a wall a player's own body could actually stand past, or allowed through one it
+ * would collide with.
+ *
+ * The tile-based check does disagree with the old rectangle check, in both directions — checked
+ * directly against all 37 `OBSTACLES` rects this session: none are erased outright (every rect
+ * keeps at least one solid tile after rasterising), so "small colliders vanish" is not what is
+ * happening. Classifying every tile by whether an `OBSTACLES` rect covers its centre: 43 tiles are
+ * solid with no rect at their centre at all (a wall rasterised fatter than the rectangle it came
+ * from), against only 15 non-solid tiles whose centre sits inside a rect (a thin collider rounded
+ * away by the 50% threshold) — fattening outnumbers erosion roughly 3 to 1 by tile count. Sampling
+ * position pairs (also this session, several sampling schemes) confirms both directions show up at
+ * a percent-or-more scale, but which one dominates the pair count swings with *where* you sample —
+ * an eroded tile can open a much larger fan of newly-visible pairs than a fattened one closes off,
+ * so there is no single stable "X% stricter / Y% permissive" figure to put here; treat any such
+ * number as an artifact of the sample, not a property of the map.
  *
  * This checks the two entities' *centers*, not their bodies (see `addAxisCrossings`'s doc for why
  * a fixed sampling stride isn't used) — appropriate for combat targeting, which is deciding

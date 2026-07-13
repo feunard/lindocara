@@ -223,4 +223,111 @@ describe("monster navigation on the tile grid", () => {
     }
     expect(reachedAtTick).toBeGreaterThan(-1);
   });
+
+  it("re-plans within a tick and does not reuse the stale cached path when a waypoint move is refused", () => {
+    // Same wedge shape as the test above (a single-column wall spanning rows 0-1, open only at
+    // row 2), but this time the stale path is also sitting in the navigation cache under the
+    // exact key a re-plan for this start/goal would use — the situation a *legitimate* earlier
+    // `requestMonsterPath` call would actually leave behind, not just a hand-injected path. If the
+    // recovery does not evict that entry, the very re-plan it triggers hands back the identical
+    // one-waypoint path that just failed.
+    const wallTerrain: TerrainGeometry = {
+      width: 320,
+      height: 192,
+      obstacles: [{ x: 64, y: 0, width: 64, height: 128 }],
+      spawnPoints: [{ x: 20, y: 20 }],
+      safeZone: { x: 0, y: 0, width: 1, height: 1 },
+      tiles: tileMapFromRects(320, 192, [{ x: 64, y: 0, width: 64, height: 128 }]),
+    };
+    const wallZone: ZoneDefinition = {
+      ...zone,
+      terrain: wallTerrain,
+      navigation: { ...DEFAULT_ZONE_NAVIGATION, nodeBudgetPerTick: 200 },
+    };
+
+    const monster = createMonsters([
+      {
+        id: "blocked-goblin-2",
+        kind: "goblin",
+        species: "goblin_scout",
+        zone: "route",
+        x: 32,
+        y: 32,
+        patrolRadius: 40,
+      },
+    ])[0];
+    if (!monster) throw new Error("missing monster");
+    const player = targetPlayer(280, 32);
+    const socket = { id: "socket-3" } as unknown as WebSocket;
+    monster.threat.set(player.id, { playerId: player.id, amount: 999, updatedAt: 0 });
+
+    monster.navigation.state = "chase";
+    monster.navigation.targetId = player.id;
+    monster.navigation.requestedDestination = { x: player.x, y: player.y };
+    monster.navigation.destination = { x: player.x, y: player.y };
+    const staleBlockedPath = [{ x: player.x, y: player.y }];
+    monster.navigation.path = staleBlockedPath.map((point) => ({ ...point }));
+    monster.navigation.pathIndex = 0;
+    monster.navigation.requestPending = false;
+    monster.navigation.lastPathRequestAt = 0;
+
+    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
+    monsterGrid.insert(monster);
+    const navigation = createNavigationRuntime(wallTerrain, wallZone.navigation);
+    // Columns = ceil(320 / 64) = 5. Monster (32,32) centers in column 0 / row 0 -> node 0; the
+    // player (280,32) centers in column 4 / row 0 -> node 4 -- the identical math
+    // `requestMonsterPath` uses to build its cache key.
+    navigation.cache.set("0:4", {
+      points: staleBlockedPath.map((point) => ({ ...point })),
+      usedAt: 0,
+    });
+
+    const context: MonsterSystemContext = {
+      players: new Map([[socket, player]]),
+      monsters: [monster],
+      guards: [],
+      monsterGrid,
+      zone: wallZone,
+      tick: 0,
+      navigation,
+      damagePlayer: vi.fn(),
+    };
+
+    advanceMonsters(context, 0);
+    expect(monster.navigation.path.length).toBe(0);
+    expect(monster.navigation.abandonReason).toBe("waypoint_blocked");
+
+    let replannedAtTick = -1;
+    let firstPathAfterBlock: { x: number; y: number }[] | null = null;
+    const tickMs = TICK_DT * 1000;
+    for (let tick = 1; tick <= 5; tick++) {
+      context.tick = tick;
+      advanceMonsters(context, tick * tickMs);
+      if (replannedAtTick === -1 && monster.navigation.path.length > 0) {
+        replannedAtTick = tick;
+        firstPathAfterBlock = monster.navigation.path.map((point) => ({ ...point }));
+      }
+    }
+
+    // Recovery must happen almost immediately -- not 13 ticks (650ms) later, which is what
+    // `minimumRepathMs` would otherwise impose since neither the monster nor the destination has
+    // moved.
+    expect(replannedAtTick).toBeGreaterThan(0);
+    expect(replannedAtTick).toBeLessThanOrEqual(2);
+    // And the recovered path must not be the identical blocked one served straight back out of
+    // the cache -- it must be a genuine, different (multi-waypoint) route around the wall.
+    expect(firstPathAfterBlock).not.toEqual(staleBlockedPath);
+    expect(firstPathAfterBlock?.length ?? 0).toBeGreaterThan(1);
+
+    let reachedAtTick = -1;
+    for (let tick = 6; tick < 300; tick++) {
+      context.tick = tick;
+      advanceMonsters(context, tick * tickMs);
+      if (pointDistance(monster, player) <= MONSTER_ATTACK_RANGE) {
+        reachedAtTick = tick;
+        break;
+      }
+    }
+    expect(reachedAtTick).toBeGreaterThan(-1);
+  });
 });

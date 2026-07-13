@@ -3,6 +3,7 @@ import {
   advanceWaypoint,
   createNavigationGrid,
   createNavigationRuntime,
+  invalidateBlockedWaypoint,
   type NavigationRuntime,
   processNavigationBudget,
   requestMonsterPath,
@@ -130,6 +131,33 @@ describe("budgeted zone navigation", () => {
     );
     expect(runtime.metrics.cacheHits).toBe(1);
     expect(second.navigation.path).toEqual(first.navigation.path);
+  });
+
+  it("clears the repath gate and evicts the cached path when a waypoint move is refused", () => {
+    const terrain = terrainWith([{ x: 180, y: 80, width: 80, height: 160 }]);
+    const runtime = runtimeFor(terrain);
+    const actor = monster("blocked-waypoint", 80, 140);
+    const destination = { x: 360, y: 140 };
+    requestMonsterPath(runtime, actor, destination, "target", "chase", 0);
+    complete(runtime);
+    expect(actor.navigation.path.length).toBeGreaterThan(0);
+
+    // Confirm the path really is cached under this start/goal: a second monster starting at the
+    // identical cell gets served from cache, not a fresh search.
+    const twin = monster("blocked-waypoint-twin", 80, 140);
+    expect(requestMonsterPath(runtime, twin, destination, "target", "chase", 1)).toBe("cached");
+
+    // Simulate real collision refusing the first waypoint move.
+    invalidateBlockedWaypoint(runtime, actor, destination);
+    expect(actor.navigation.path.length).toBe(0);
+    expect(actor.navigation.abandonReason).toBe("waypoint_blocked");
+    expect(actor.navigation.requestedDestination).toBeNull();
+
+    // A fresh request for the identical start/goal, made a single millisecond later (nowhere near
+    // `minimumRepathMs`), must not be deferred by the repath gate (proven by "queued" rather than
+    // "deferred") and must not be silently handed the same cached path back (proven by "queued"
+    // rather than "cached") -- the two failures the un-fixed recovery had.
+    expect(requestMonsterPath(runtime, actor, destination, "target", "chase", 2)).toBe("queued");
   });
 
   it("invalidates the route when threat selects a new target", () => {

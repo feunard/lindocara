@@ -279,6 +279,39 @@ export function invalidateMonsterPath(monster: MonsterRuntime, reason: string): 
   monster.navigation.abandonReason = reason;
 }
 
+/**
+ * Recovery for a path-following waypoint move that real (box) collision refused even though the
+ * navigation grid called the node walkable — `createNavigationGrid`'s docs cover why that gap
+ * isn't fully closed. `invalidateMonsterPath` alone does not make this recover: `requestedDestination`
+ * and `lastPathRequestAt` survive it, so `requestMonsterPath`'s `minimumRepathMs` gate defers the
+ * very re-plan this exists to trigger — for up to 650ms, since neither the monster nor the
+ * destination has moved. And once the gate does open, the same `cacheKey` (start/goal unchanged)
+ * hands back the *identical* cached path with the identical failing first waypoint, which gets
+ * invalidated again in the same tick it was applied: from the outside, nothing ever looks like it
+ * changed.
+ *
+ * Clearing `requestedDestination` lets the very next request through both of `requestMonsterPath`'s
+ * gates (each keys off it being non-null), and evicting the cache entry for this start/goal forces
+ * a real search instead of a rubber-stamped repeat.
+ *
+ * This does not make a genuinely wedged monster escape — if nothing about the world has changed, a
+ * fresh search is deterministic and finds the identical doomed path. It only removes the parts of
+ * the old "recovery" that did nothing: the up-to-650ms wait and the guaranteed-stale cache hit.
+ */
+export function invalidateBlockedWaypoint(
+  runtime: NavigationRuntime,
+  monster: MonsterRuntime,
+  destination: Vec2,
+): void {
+  invalidateMonsterPath(monster, "waypoint_blocked");
+  monster.navigation.requestedDestination = null;
+  const startNode = nearestWalkableNode(runtime.grid, nodeForPoint(runtime.grid, monster));
+  const goalNode = nearestWalkableNode(runtime.grid, nodeForPoint(runtime.grid, destination));
+  if (startNode !== null && goalNode !== null) {
+    runtime.cache.delete(`${startNode}:${goalNode}`);
+  }
+}
+
 export function currentWaypoint(monster: MonsterRuntime): Vec2 | null {
   return monster.navigation.path[monster.navigation.pathIndex] ?? null;
 }

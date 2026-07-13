@@ -26,6 +26,7 @@ import { isPathWalkable } from "../../shared/tilemap.js";
 import type { ZoneDefinition } from "../../shared/zones.js";
 import {
   advanceWaypoint,
+  invalidateBlockedWaypoint,
   invalidateMonsterPath,
   type NavigationRuntime,
   processNavigationBudget,
@@ -222,14 +223,16 @@ function navigateMonster(
   const waypoint = advanceWaypoint(monster, context.navigation.definition.waypointTolerance);
   if (waypoint) {
     // A waypoint move can fail exactly like a direct move can (a neighbour just outside the
-    // navigation grid's own idea of "walkable", a moving obstacle, anything real collision
-    // refuses that A* didn't know about). Unlike the direct-move branch above, there was no
-    // recovery here at all: `moveMonsterDirect`'s return value used to be discarded, so a fully
-    // blocked waypoint left the monster wedged until the destination itself moved far enough to
-    // force a new plan. Invalidate the stale path so the very next tick re-plans from where the
-    // monster actually is — reacting to the failed move itself, not to how long it has failed.
+    // navigation grid's own idea of "walkable", anything real collision refuses that A* didn't
+    // know about). Clearing the path alone (`invalidateMonsterPath`) is not enough to recover:
+    // `requestedDestination` and `lastPathRequestAt` survive it, so `requestMonsterPath`'s repath
+    // gate defers the next plan for up to 650ms, and once it opens, the unchanged start/goal hands
+    // back the identical cached path — which fails at the identical waypoint and gets invalidated
+    // again before anything outside this function ever sees it. `invalidateBlockedWaypoint` clears
+    // the gate and evicts that cache entry, so the very next tick queues a genuine re-plan; the one
+    // tick already spent on this failed move is the pause that is left.
     if (!moveMonsterDirect(context, monster, waypoint)) {
-      invalidateMonsterPath(monster, "waypoint_blocked");
+      invalidateBlockedWaypoint(context.navigation, monster, destination);
     }
   } else {
     monster.vx *= 0.5;
