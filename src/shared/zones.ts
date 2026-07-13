@@ -63,7 +63,7 @@ const TEST_ZONE_SPAWNS: readonly Vec2[] = [
 ] as const;
 
 const TEST_ZONE_SAFE_ZONE: Rect = { x: 64, y: 64, width: 512, height: 352 };
-const TEST_ZONE_TERRAIN: TerrainGeometry = {
+export const TEST_ZONE_TERRAIN: TerrainGeometry = {
   width: 640,
   height: 480,
   obstacles: [{ x: 320, y: 180, width: 96, height: 128 }],
