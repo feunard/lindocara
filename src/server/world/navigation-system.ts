@@ -1,6 +1,7 @@
 import { isWalkable, type TerrainGeometry } from "../../shared/game.js";
 import type { ZoneNavigationDefinition } from "../../shared/navigation.js";
 import { PLAYER_SIZE, type Vec2 } from "../../shared/simulation.js";
+import { isSolidKind, kindAt } from "../../shared/tilemap.js";
 import type { MonsterRuntime } from "./world-runtime.js";
 
 const PATH_CACHE_LIMIT = 128;
@@ -62,18 +63,24 @@ export interface NavigationRuntime {
   metrics: NavigationMetrics;
 }
 
+/**
+ * A cell is walkable exactly when the tilemap says so — no sampling, no approximation. Navigation
+ * and collision reading the same grid is what makes a "clear" path always actually walkable; see
+ * `hasLineOfSight` and `isWalkable`, which read the identical tiles.
+ */
 export function createNavigationGrid(
   terrain: TerrainGeometry,
   definition: ZoneNavigationDefinition,
 ): NavigationGrid {
-  const columns = Math.ceil(terrain.width / definition.cellSize);
-  const rows = Math.ceil(terrain.height / definition.cellSize);
+  const columns = terrain.tiles.cols;
+  const rows = terrain.tiles.rows;
   const walkable = new Uint8Array(columns * rows);
-  const grid = { cellSize: definition.cellSize, columns, rows, walkable, terrain };
   for (let node = 0; node < walkable.length; node++) {
-    walkable[node] = isWalkable(pointForNode(grid, node), PLAYER_SIZE, terrain) ? 1 : 0;
+    const col = node % columns;
+    const row = Math.floor(node / columns);
+    walkable[node] = isSolidKind(kindAt(terrain.tiles, col, row)) ? 0 : 1;
   }
-  return grid;
+  return { cellSize: definition.cellSize, columns, rows, walkable, terrain };
 }
 
 export function createNavigationRuntime(
@@ -299,7 +306,6 @@ function applyPath(
   monster.navigation.requestPending = false;
   monster.navigation.state = state;
   monster.navigation.abandonReason = null;
-  monster.navigation.stuckTicks = 0;
 }
 
 function completeFailure(

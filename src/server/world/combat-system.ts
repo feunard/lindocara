@@ -21,7 +21,7 @@ export function selectAttackTarget(
     if (monster.deadUntil > now) continue;
     const candidate = pointDistance(player, monster);
     if (!withinRange(player, monster, range)) continue;
-    if (!hasLineOfSight(player, monster, terrain.obstacles)) {
+    if (!hasLineOfSight(player, monster, terrain.tiles)) {
       blockedInRange = true;
       continue;
     }

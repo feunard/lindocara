@@ -57,3 +57,57 @@ export function isWalkableBox(map: TileMap, position: Vec2, size: number): boole
   }
   return true;
 }
+
+/**
+ * Every `t` in `(0, 1)` where `origin + t * delta` crosses a tile boundary. A fixed sampling
+ * stride was tried here first and rejected: a ray can graze a solid tile's corner in a chord
+ * shorter than any practical stride (the crossing lives in a tiny slice of `t`, not a tiny slice
+ * of world distance, so no fixed step size is safe), which is exactly the kind of gap that lets a
+ * mover keep re-deciding a blocked line is "clear" forever. Walking every real boundary crossing
+ * instead means no crossing, however brief, can fall between two samples.
+ */
+export function addAxisCrossings(into: number[], origin: number, delta: number): void {
+  if (delta === 0) return;
+  const step = delta > 0 ? 1 : -1;
+  const firstTile = Math.floor(origin / TILE_SIZE);
+  const lastTile = Math.floor((origin + delta) / TILE_SIZE);
+  for (let tile = firstTile; tile !== lastTile; tile += step) {
+    const boundary = (step > 0 ? tile + 1 : tile) * TILE_SIZE;
+    const t = (boundary - origin) / delta;
+    if (t > 0 && t < 1) into.push(t);
+  }
+}
+
+/**
+ * Sweeps a `size`x`size` box in a straight line from `from` to `to` (both top-left corners, the
+ * same convention as `isWalkable`/`resolveTerrain`), true only if the box stays fully walkable
+ * for the *entire* path, not just at its ends.
+ *
+ * This is deliberately not `isWalkable` at two points, nor a point-sampled ray: a body can clip a
+ * wall's corner over a stretch too short for its own center point's line to ever touch a solid
+ * tile. A caller that treats "the center line is clear" as "the body can walk straight there"
+ * attempts a direct move, gets shoved back by real (box) collision the instant the body actually
+ * reaches the corner, and — once it disagrees with collision like that — repeats forever: this is
+ * the same disagreement `hasLineOfSight` was rewritten to close, one level down, between a
+ * direct-move decision and the body it is deciding for.
+ */
+export function isPathWalkable(map: TileMap, from: Vec2, to: Vec2, size: number): boolean {
+  if (size <= 0) return false;
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const crossings = [0, 1];
+  addAxisCrossings(crossings, from.x, dx);
+  addAxisCrossings(crossings, from.x + size - 1, dx);
+  addAxisCrossings(crossings, from.y, dy);
+  addAxisCrossings(crossings, from.y + size - 1, dy);
+  crossings.sort((a, b) => a - b);
+  for (let index = 0; index < crossings.length - 1; index++) {
+    const entry = crossings[index];
+    const exit = crossings[index + 1];
+    if (entry === undefined || exit === undefined) continue;
+    const midpoint = (entry + exit) / 2;
+    const position = { x: from.x + dx * midpoint, y: from.y + dy * midpoint };
+    if (!isWalkableBox(map, position, size)) return false;
+  }
+  return true;
+}

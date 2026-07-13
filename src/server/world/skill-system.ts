@@ -15,7 +15,7 @@ export function nearestMonster(
   let distance = range;
   for (const monster of monsters) {
     if (monster.deadUntil > now || !withinRange(player, monster, range)) continue;
-    if (!hasLineOfSight(player, monster, terrain.obstacles)) continue;
+    if (!hasLineOfSight(player, monster, terrain.tiles)) continue;
     const candidate = pointDistance(player, monster);
     if (candidate <= distance) {
       target = monster;

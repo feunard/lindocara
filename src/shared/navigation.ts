@@ -1,3 +1,5 @@
+import { TILE_SIZE } from "./tilemap.js";
+
 export interface ZoneNavigationDefinition {
   cellSize: number;
   minimumRepathMs: number;
@@ -10,7 +12,9 @@ export interface ZoneNavigationDefinition {
 }
 
 export const DEFAULT_ZONE_NAVIGATION: ZoneNavigationDefinition = {
-  cellSize: 48,
+  /** The tilemap's cell size. Navigation and collision must be the same grid, or A* will route
+   *  monsters through walls the simulation then refuses — which is what `stuckTicks` used to hide. */
+  cellSize: TILE_SIZE,
   minimumRepathMs: 650,
   targetMoveThreshold: 72,
   nodeBudgetPerTick: 180,

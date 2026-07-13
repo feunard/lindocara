@@ -60,6 +60,7 @@ import {
 } from "../src/shared/simulation.js";
 import { isSkillUnlocked, SKILL_UNLOCK_LEVEL } from "../src/shared/skills.js";
 import { TILE_SIZE } from "../src/shared/tilemap.js";
+import { tileMapFromRects } from "./support/tiles.js";
 
 function expectValidRect(rect: Rect): void {
   expect(Number.isFinite(rect.x)).toBe(true);
@@ -468,10 +469,14 @@ describe("authoritative combat and progression rules", () => {
     expect(withinRange({ x: 0, y: 0 }, { x: 30, y: 40 }, 49)).toBe(false);
   });
 
-  it("checks line of sight from entity centers against blocking rectangles", () => {
-    const wall = { x: 100, y: 40, width: 30, height: 120 };
-    expect(hasLineOfSight({ x: 20, y: 80 }, { x: 180, y: 80 }, [wall])).toBe(false);
-    expect(hasLineOfSight({ x: 20, y: 10 }, { x: 180, y: 10 }, [wall])).toBe(true);
+  it("checks line of sight from entity centers against blocking tiles", () => {
+    // Tile-aligned so the rasteriser (any-overlap; see test/support/tiles.ts) marks exactly one
+    // cell solid, at column 2 / row 2 — this isolates the row the first check crosses from the
+    // row the second doesn't, rather than depending on how a non-aligned rect coarsens.
+    const wall = { x: 128, y: 128, width: 64, height: 64 };
+    const tiles = tileMapFromRects(320, 256, [wall]);
+    expect(hasLineOfSight({ x: 20, y: 150 }, { x: 300, y: 150 }, tiles)).toBe(false);
+    expect(hasLineOfSight({ x: 20, y: 10 }, { x: 300, y: 10 }, tiles)).toBe(true);
   });
 
   it("uses world obstacles for line-of-sight blockers", () => {

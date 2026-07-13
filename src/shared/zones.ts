@@ -124,7 +124,7 @@ export const ZONES: Readonly<Record<ZoneId, ZoneDefinition>> = {
         },
       },
     ],
-    navigation: { ...DEFAULT_ZONE_NAVIGATION, cellSize: 40, nodeBudgetPerTick: 96 },
+    navigation: { ...DEFAULT_ZONE_NAVIGATION, nodeBudgetPerTick: 96 },
   },
 };
 

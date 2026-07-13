@@ -711,7 +711,7 @@ export class World extends DurableObject<Env> {
         (monster) =>
           monster.deadUntil <= now &&
           withinRange(player, monster, skill.radius ?? skill.range) &&
-          hasLineOfSight(player, monster, this.#zone().terrain.obstacles),
+          hasLineOfSight(player, monster, this.#zone().terrain.tiles),
       );
       for (const target of targets) this.#skillDamage(ws, player, target, skill, now);
       cast = targets.length > 0;
@@ -722,7 +722,7 @@ export class World extends DurableObject<Env> {
         (monster) =>
           monster.deadUntil <= now &&
           withinRange(player, monster, skill.radius ?? skill.range) &&
-          hasLineOfSight(player, monster, this.#zone().terrain.obstacles),
+          hasLineOfSight(player, monster, this.#zone().terrain.tiles),
       );
       for (const target of targets) this.#skillDamage(ws, player, target, skill, now);
       cast = targets.length > 0 || this.#areaHeal(ws, player, skill) > 0;
@@ -802,7 +802,7 @@ export class World extends DurableObject<Env> {
     for (const [targetSocket, target] of this.#players) {
       if (target.life !== "alive" || pointDistance(player, target) > (skill.radius ?? skill.range))
         continue;
-      if (!hasLineOfSight(player, target, this.#zone().terrain.obstacles)) continue;
+      if (!hasLineOfSight(player, target, this.#zone().terrain.tiles)) continue;
       const maxHp = maxHpForLevel(target.level);
       if (target.hp >= maxHp) continue;
       const amount = skill.power + Math.max(0, player.level - 1) * 2;
@@ -985,7 +985,7 @@ export class World extends DurableObject<Env> {
       if (pointDistance(player, candidate) > heal.range) continue;
       const ratio = candidate.hp / maxHpForLevel(candidate.level);
       if (ratio >= 1) continue;
-      if (!hasLineOfSight(player, candidate, this.#zone().terrain.obstacles)) {
+      if (!hasLineOfSight(player, candidate, this.#zone().terrain.tiles)) {
         blockedInRange = true;
         continue;
       }

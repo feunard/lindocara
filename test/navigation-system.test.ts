@@ -45,7 +45,6 @@ function complete(runtime: NavigationRuntime, maximumTicks = 2_000): void {
 function runtimeFor(terrain: TerrainGeometry, budget = 180): NavigationRuntime {
   return createNavigationRuntime(terrain, {
     ...DEFAULT_ZONE_NAVIGATION,
-    cellSize: 40,
     nodeBudgetPerTick: budget,
     maximumSearchNodes: 2_000,
   });

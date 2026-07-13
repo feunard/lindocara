@@ -135,8 +135,6 @@ export interface MonsterNavigationRuntime {
   unreachableTargetId: string | null;
   unreachableUntil: number;
   abandonReason: string | null;
-  stuckTicks: number;
-  lastProgressPosition: Vec2;
   directBlockedDestination: Vec2 | null;
 }
 
@@ -371,8 +369,6 @@ export function createMonsters(spawns: readonly MonsterSpawn[]): MonsterRuntime[
         unreachableTargetId: null,
         unreachableUntil: 0,
         abandonReason: null,
-        stuckTicks: 0,
-        lastProgressPosition: { x: spawn.x, y: spawn.y },
         directBlockedDestination: null,
       },
     };

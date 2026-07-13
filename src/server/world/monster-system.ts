@@ -12,7 +12,6 @@ import {
   GUARD_DAMAGE,
   GUARD_DETECTION_RANGE,
   GUARD_SPEED,
-  hasLineOfSight,
   inRect,
   MONSTER_AGGRO_RANGE,
   MONSTER_ATTACK_COOLDOWN_MS,
@@ -23,10 +22,10 @@ import {
   resolveTerrain,
 } from "../../shared/game.js";
 import { PLAYER_SIZE, TICK_DT, type Vec2 } from "../../shared/simulation.js";
+import { isPathWalkable } from "../../shared/tilemap.js";
 import type { ZoneDefinition } from "../../shared/zones.js";
 import {
   advanceWaypoint,
-  currentWaypoint,
   invalidateMonsterPath,
   type NavigationRuntime,
   processNavigationBudget,
@@ -196,11 +195,17 @@ function navigateMonster(
     (monster.navigation.directBlockedDestination &&
       pointDistance(monster.navigation.directBlockedDestination, destination) >=
         context.navigation.definition.targetMoveThreshold)
-  )
+  ) {
     monster.navigation.directBlockedDestination = null;
+  }
+  // Whether the body can walk there in a straight line — not `hasLineOfSight`, which checks the
+  // two entities' centers and is right for combat targeting but wrong here: a body can clip a
+  // wall's corner over a stretch too short for its center's line to ever cross a solid tile, and a
+  // monster that keeps re-deciding "clear" from a slightly different spot near the same corner —
+  // only to be shoved back by real (box) collision each time — pings-pongs there forever.
   const lineClear =
     monster.navigation.directBlockedDestination === null &&
-    hasLineOfSight(monster, destination, context.zone.terrain.obstacles);
+    isPathWalkable(context.zone.terrain.tiles, monster, destination, PLAYER_SIZE);
   if (lineClear) {
     if (monster.navigation.requestPending || monster.navigation.path.length > 0)
       invalidateMonsterPath(monster, "direct_path");
@@ -250,17 +255,6 @@ function moveMonsterDirect(
   monster.y = moved.y;
   context.monsterGrid.update(monster, previousPosition);
   const movedDistance = pointDistance(previousPosition, monster);
-  const progress = pointDistance(monster, monster.navigation.lastProgressPosition);
-  if (progress >= 4) {
-    monster.navigation.lastProgressPosition = { x: monster.x, y: monster.y };
-    monster.navigation.stuckTicks = 0;
-  } else if (currentWaypoint(monster)) {
-    monster.navigation.stuckTicks += 1;
-    if (monster.navigation.stuckTicks >= 20) {
-      invalidateMonsterPath(monster, "stuck");
-      monster.navigation.stuckTicks = 0;
-    }
-  }
   return movedDistance > 0.05;
 }
 
@@ -276,8 +270,6 @@ function resetMonsterNavigation(monster: MonsterRuntime): void {
   monster.navigation.unreachableTargetId = null;
   monster.navigation.unreachableUntil = 0;
   monster.navigation.abandonReason = null;
-  monster.navigation.stuckTicks = 0;
-  monster.navigation.lastProgressPosition = { x: monster.x, y: monster.y };
   monster.navigation.directBlockedDestination = null;
 }
 
