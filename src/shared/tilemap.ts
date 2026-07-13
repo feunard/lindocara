@@ -12,7 +12,12 @@ import type { Vec2 } from "./simulation.js";
 /** Tiny Swords' native tile size. The art is drawn at this scale; using any other would resample it. */
 export const TILE_SIZE = 64;
 
-export type TileKind = "grass" | "plateau" | "water" | "bridge";
+/**
+ * What a cell IS. Appearance and solidity are separate questions, which is why `forest` and
+ * `building` exist: they are land you cannot walk into. You see grass with trees or a house
+ * standing on it — not a lake.
+ */
+export type TileKind = "grass" | "plateau" | "forest" | "building" | "water" | "bridge";
 
 /** Row-major, `cols * rows` entries. */
 export interface TileMap {
@@ -21,9 +26,17 @@ export interface TileMap {
   kinds: readonly TileKind[];
 }
 
-/** Water is the only barrier; a bridge is the sanctioned way across it. */
+/** Water is the void. Forests and buildings are land, but you still cannot walk through them. */
 export function isSolidKind(kind: TileKind): boolean {
-  return kind === "water";
+  return kind === "water" || kind === "forest" || kind === "building";
+}
+
+/**
+ * Land is everything that is not the void. The autotiled rocky rim is drawn where land meets
+ * water — NOT where grass meets a treeline, because a forest is grass with trees standing on it.
+ */
+export function isLandKind(kind: TileKind): boolean {
+  return kind !== "water";
 }
 
 /** Outside the map is water: it is a wall, and it needs no special case anywhere else. */

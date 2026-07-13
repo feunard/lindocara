@@ -5,6 +5,8 @@ import type { TileKind, TileMap } from "./tilemap.js";
 const KIND: Record<string, TileKind> = {
   ".": "grass",
   "^": "plateau",
+  T: "forest",
+  B: "building",
   "#": "water",
   "=": "bridge",
 };

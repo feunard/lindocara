@@ -6,11 +6,74 @@ import {
   QUEST_DEFINITIONS,
   QUEST_SITES,
   SPAWN_POINTS,
+  TERRAIN_BLOCKERS,
 } from "../src/shared/game.js";
 // PLAYER_SIZE lives in simulation.ts, not game.ts.
 import { PLAYER_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from "../src/shared/simulation.js";
-import { isSolidKind, isWalkableBox, kindAt, TILE_SIZE } from "../src/shared/tilemap.js";
+import {
+  isSolidKind,
+  isWalkableBox,
+  kindAt,
+  kindAtPoint,
+  TILE_SIZE,
+} from "../src/shared/tilemap.js";
 import { VERDANT_REACH_TILES } from "../src/shared/zones/verdant-reach-tiles.js";
+
+// Frozen exactly as `src/shared/zones/verdant-reach-tiles.ts` read the moment before Task 1
+// touched the generator — copied by hand from the committed file, not computed from it, and
+// never regenerated. At that point the generator only ever emitted "water" or "grass", so solid
+// meant one thing: the character is "#". This is the independent witness the bit-identical test
+// below compares against; if it were derived from the new map instead, that test would compare
+// the new generator to itself and prove nothing.
+const SLICE_1_ROWS = [
+  "###########################################################################",
+  "###########################################################################",
+  "#####################...##########################################.......##",
+  "##......................##########################################.......##",
+  "##.....................................###...............................##",
+  "##..........####..###..................###...............................##",
+  "##..........####..###..................###...............................##",
+  "##.....................................###...............................##",
+  "##.....................................###....................#############",
+  "##.....................................###....................#############",
+  "##......#......................##......###............#.......#############",
+  "##..................####.......##.....................##.......############",
+  "##..................####.................................................##",
+  "##.......................................................................##",
+  "##....####..............................##...............................##",
+  "##.....##...####.###...................#########.........................##",
+  "##..........###..##....................#########.........................##",
+  "##......................######...###############.....................###.##",
+  "##......................######...###############.........##..........###.##",
+  "##......................######...###############.........................##",
+  "#####################...######...###############.........................##",
+  "#####################...######...###########################.............##",
+  "#####################....####.....########......############.............##",
+  "#####################..................###......############.............##",
+  "#####################..................###......###########..............##",
+  "#####################..................###...............................##",
+  "#####################...................##...............................##",
+  "#####################....................................................##",
+  "#####################.......####................###...............#########",
+  "##.............###..........####...............#####...........############",
+  "##..............#...........####.......###......###.........###############",
+  "##.....................................########.............###############",
+  "##.....................................########.............###############",
+  "##.....................................########................############",
+  "##.....................................########..........#.....############",
+  "##.....................................########................############",
+  "##.....................................########......####......############",
+  "##.....................########################.....#####......############",
+  "##.....................########################.....#####......############",
+  "##.....................########################................############",
+  "##....................#########################................############",
+  "###########################################################################",
+  "...........................................................................",
+] as const;
+
+function solidMaskFromSlice1(): number[] {
+  return SLICE_1_ROWS.flatMap((row) => [...row].map((char) => (char === "#" ? 1 : 0)));
+}
 
 // A tilemap that swallows a spawn point strands a player in a rock forever; one that swallows a
 // quest site makes the quest uncompletable. The old rectangles allowed both to sit a few pixels
@@ -97,5 +160,29 @@ describe("the generated Verdant Reach tilemap", () => {
     for (let x = 0; x <= WORLD_WIDTH - PLAYER_SIZE; x += TILE_SIZE) {
       expect(isWalkableBox(VERDANT_REACH_TILES, { x, y: maxY }, PLAYER_SIZE), `x ${x}`).toBe(false);
     }
+  });
+
+  // Slice 1 labelled every solid cell "water" because the generator only had an untyped rect list.
+  // Restoring the kinds must change what each cell LOOKS like and nothing about what it DOES.
+  // If this fails, collision moved a second time and the whole slice is unsafe.
+  it("keeps the solid mask bit-identical to the collision the game already ships", () => {
+    const SOLID_BEFORE = solidMaskFromSlice1();
+    const solidNow = VERDANT_REACH_TILES.kinds.map((kind) => (isSolidKind(kind) ? 1 : 0));
+    expect(solidNow).toEqual(SOLID_BEFORE);
+  });
+
+  it("labels the forests as forest, the water as water, and the ground under buildings as building", () => {
+    // The first forest blocker: heartroot-north-canopy. The first water blocker: river-north-deepwater.
+    const forest = TERRAIN_BLOCKERS.find((b) => b.kind === "forest");
+    const water = TERRAIN_BLOCKERS.find((b) => b.kind === "water");
+    if (!forest || !water) throw new Error("expected a forest and a water blocker");
+    // heartroot-north-canopy is a thin 120px canopy strip (under 2 tiles tall) — offsetting +96
+    // into it, as a chunkier blocker would allow, lands in a cell this rect alone covers only
+    // 37.5% of, which is correctly "grass" (open) under the unchanged SOLID_COVERAGE rule and
+    // matches the frozen Slice 1 mask. +64 stays inside the one row this strip fully covers.
+    expect(kindAtPoint(VERDANT_REACH_TILES, forest.rect.x + 64, forest.rect.y + 64)).toBe("forest");
+    expect(kindAtPoint(VERDANT_REACH_TILES, water.rect.x + 96, water.rect.y + 96)).toBe("water");
+    // No blue lakes where the buildings are.
+    expect(VERDANT_REACH_TILES.kinds.filter((k) => k === "building").length).toBeGreaterThan(0);
   });
 });

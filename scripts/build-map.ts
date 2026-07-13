@@ -1,11 +1,18 @@
 /**
- * Rasterises today's collision rectangles into tile data, once, so the tilemap can become the
- * source of truth without redesigning the world in the same commit.
+ * Rasterises the world's typed terrain — boundary walls, forests/rivers/cliffs, and building
+ * footprints — into tile data, so the tilemap carries not just collision but what a cell IS.
  *
  * Run with: npm run map:build
  */
 import { writeFileSync } from "node:fs";
-import { OBSTACLES, type Rect, SAFE_ZONE } from "../src/shared/game.js";
+import {
+  BOUNDARY_OBSTACLES,
+  OBSTACLES,
+  type Rect,
+  SAFE_ZONE,
+  TERRAIN_BLOCKERS,
+  WORLD_LANDMARKS,
+} from "../src/shared/game.js";
 import { VERDANT_REACH_BOUNDS, type WorldBounds } from "../src/shared/simulation.js";
 import { TILE_SIZE, type TileKind } from "../src/shared/tilemap.js";
 import { TEST_ZONE_TERRAIN } from "../src/shared/zones.js";
@@ -16,6 +23,9 @@ import { TEST_ZONE_TERRAIN } from "../src/shared/zones.js";
  * Not "any overlap" (walls would fatten by up to 63px and swallow spawn points that today sit a
  * few pixels from a building), and not "entirely covered" (a 120px-thick wall could straddle cell
  * boundaries and vanish). Half is the rule that preserves both walls and the gaps between them.
+ *
+ * Unchanged from Slice 1: a reviewer verified all 3,225 cells of the current map against an
+ * independent reimplementation of this exact rule, and changing it here would move collision.
  */
 const SOLID_COVERAGE = 0.5;
 
@@ -40,7 +50,86 @@ function coverage(rects: readonly Rect[], col: number, row: number): number {
   return covered / (STEPS * STEPS);
 }
 
-function rasterise(
+/** One labelled source of terrain: its rects, and the kind a cell becomes when they cover it. */
+interface Layer {
+  rects: readonly Rect[];
+  kind: TileKind;
+}
+
+/**
+ * Paints a cell's kind from a stack of layers, later entries winning over earlier ones — so a
+ * building collider sitting on a forest's edge reads as a building, not as trees (Step 4 of the
+ * task brief). This is a decision, not an accident: the renderer needs exactly one kind per
+ * cell, and "the thing built last is what you see" is the simplest rule that stays deterministic.
+ *
+ * Solidity is decided once, from `allRects` — the same union `OBSTACLES` has always been — so
+ * relabelling a cell's kind can never move a wall: this function cannot produce a "grass" (or
+ * any non-solid) result for a cell that union already calls solid, and cannot solidify a cell
+ * that union calls open, regardless of how the layers below are sliced up.
+ *
+ * A cell can be solid by that union without any single layer alone reaching SOLID_COVERAGE
+ * across it — e.g. a forest and a building collider each covering a bit less than half of the
+ * same cell. The fallback below attributes that cell to whichever layer actually touches it,
+ * same last-wins rule as the main pass.
+ */
+function paintKind(
+  layers: readonly Layer[],
+  allRects: readonly Rect[],
+  col: number,
+  row: number,
+): TileKind {
+  if (coverage(allRects, col, row) < SOLID_COVERAGE) return "grass";
+  let kind: TileKind | undefined;
+  for (const layer of layers) {
+    if (coverage(layer.rects, col, row) >= SOLID_COVERAGE) kind = layer.kind;
+  }
+  if (kind !== undefined) return kind;
+  for (const layer of layers) {
+    if (coverage(layer.rects, col, row) > 0) kind = layer.kind;
+  }
+  // Unreachable in practice: `allRects` is the union of every layer's rects, so if the union
+  // covers this cell at all, at least one layer above has positive coverage on it. Kept as a
+  // safe, deterministic fallback rather than a non-null assertion.
+  return kind ?? "water";
+}
+
+function rasteriseVerdant(bounds: WorldBounds): {
+  cols: number;
+  rows: number;
+  kinds: TileKind[];
+} {
+  const cols = Math.ceil(bounds.width / TILE_SIZE);
+  const rows = Math.ceil(bounds.height / TILE_SIZE);
+  // Applied in this order — the world's edge, then terrain, then buildings — so a later source
+  // wins where it overlaps an earlier one. See paintKind's doc comment for why this can never
+  // move the solid mask, only the label a solid cell gets.
+  const layers: Layer[] = [
+    { rects: BOUNDARY_OBSTACLES, kind: "water" },
+    ...TERRAIN_BLOCKERS.map(
+      (blocker): Layer => ({
+        rects: [blocker.rect],
+        // A cliff is a sheer drop: to a player it is exactly as impassable as deep water.
+        kind: blocker.kind === "forest" ? "forest" : "water",
+      }),
+    ),
+    ...WORLD_LANDMARKS.flatMap((landmark): Layer[] =>
+      landmark.collider === undefined ? [] : [{ rects: [landmark.collider], kind: "building" }],
+    ),
+  ];
+  const kinds: TileKind[] = [];
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      kinds.push(paintKind(layers, OBSTACLES, col, row));
+    }
+  }
+  return { cols, rows, kinds };
+}
+
+/**
+ * The flat two-kind rasteriser Slice 1 shipped. Kept for the synthetic test zone, which has no
+ * typed terrain sources (forests, rivers, buildings) of its own — just one untyped obstacle rect.
+ */
+function rasteriseFlat(
   bounds: WorldBounds,
   obstacles: readonly Rect[],
 ): {
@@ -59,10 +148,21 @@ function rasterise(
   return { cols, rows, kinds };
 }
 
-function emit(name: string, constant: string, data: ReturnType<typeof rasterise>): string {
+function emit(
+  name: string,
+  constant: string,
+  data: { cols: number; rows: number; kinds: TileKind[] },
+): string {
   // One character per cell, one line per row: a 75-wide map stays readable and diffable in git,
   // and a hand edit in Tiled later shows up as a legible change rather than a wall of numbers.
-  const CHAR: Record<TileKind, string> = { grass: ".", plateau: "^", water: "#", bridge: "=" };
+  const CHAR: Record<TileKind, string> = {
+    grass: ".",
+    plateau: "^",
+    forest: "T",
+    building: "B",
+    water: "#",
+    bridge: "=",
+  };
   const rowsText = [];
   for (let row = 0; row < data.rows; row++) {
     const line = data.kinds
@@ -85,9 +185,9 @@ export const ${constant}: TileMap = decodeTileMap(ROWS);
 `;
 }
 
-// Verdant Reach's height (2700) isn't a multiple of TILE_SIZE (64), so `rasterise` rounds up to
-// 43 rows and the last one (row 42) straddles the world's real bottom edge — only its top 12px
-// are inside the world at all. That sliver sits inside the 96px-thick bottom boundary wall
+// Verdant Reach's height (2700) isn't a multiple of TILE_SIZE (64), so `rasteriseVerdant` rounds
+// up to 43 rows and the last one (row 42) straddles the world's real bottom edge — only its top
+// 12px are inside the world at all. That sliver sits inside the 96px-thick bottom boundary wall
 // (BOUNDARY_OBSTACLES / WORLD_BOUNDARY_DEPTH in game.ts) but doesn't reach the 50% coverage
 // threshold on its own, so row 42 comes out all-grass rather than solid. It looks like a bug —
 // an inexplicable strip of open ground — but it's inert: row 41 sits entirely inside that same
@@ -95,13 +195,13 @@ export const ${constant}: TileMap = decodeTileMap(ROWS);
 // go far enough down for their box to clear row 41 in the first place. Left as-is on purpose;
 // see "keeps the last row unreachable" in test/tilemap-data.test.ts, which pins both halves of
 // why nobody will ever stand there.
-const verdant = rasterise(VERDANT_REACH_BOUNDS, OBSTACLES);
+const verdant = rasteriseVerdant(VERDANT_REACH_BOUNDS);
 writeFileSync(
   "src/shared/zones/verdant-reach-tiles.ts",
   emit("Verdant Reach", "VERDANT_REACH_TILES", verdant),
 );
 
-const test = rasterise(TEST_ZONE_TERRAIN, TEST_ZONE_TERRAIN.obstacles);
+const test = rasteriseFlat(TEST_ZONE_TERRAIN, TEST_ZONE_TERRAIN.obstacles);
 writeFileSync(
   "src/shared/zones/mmo-test-zone-tiles.ts",
   emit("Crossing Annex", "MMO_TEST_ZONE_TILES", test),

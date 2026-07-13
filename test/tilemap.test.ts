@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addAxisCrossings,
+  isLandKind,
   isSolidKind,
   isWalkableBox,
   kindAt,
@@ -157,5 +158,27 @@ describe("isWalkableBox with a degenerate size", () => {
 
   it("refuses a negative-size box the same way", () => {
     expect(isWalkableBox(map(), onWater, -5)).toBe(false);
+  });
+});
+
+describe("land versus void", () => {
+  // Solidity and appearance are different questions. A forest is land you cannot walk into:
+  // you see grass with trees standing on it, and the rocky shoreline is drawn against water,
+  // not against the treeline.
+  it("counts everything except water as land", () => {
+    expect(isLandKind("grass")).toBe(true);
+    expect(isLandKind("forest")).toBe(true);
+    expect(isLandKind("building")).toBe(true);
+    expect(isLandKind("bridge")).toBe(true);
+    expect(isLandKind("plateau")).toBe(true);
+    expect(isLandKind("water")).toBe(false);
+  });
+
+  it("makes forests and buildings solid even though they are land", () => {
+    expect(isSolidKind("forest")).toBe(true);
+    expect(isSolidKind("building")).toBe(true);
+    expect(isSolidKind("water")).toBe(true);
+    expect(isSolidKind("grass")).toBe(false);
+    expect(isSolidKind("bridge")).toBe(false);
   });
 });
