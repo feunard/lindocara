@@ -47,6 +47,9 @@ export interface GameHandle {
   sendChat(text: string): void;
   switchCharacter(): void;
   logout(): void;
+  /** React owns the canvas; the game loop draws into it. The store stays free of world x/y. */
+  attachMinimap(canvas: HTMLCanvasElement | null): void;
+  attachWorldMap(canvas: HTMLCanvasElement | null): void;
 }
 
 export interface ReconnectState {
@@ -71,6 +74,7 @@ interface UiState {
   skillCooldowns: Record<SkillSlot, number>;
   interiorDoorId: string | null;
   settingsOpen: boolean;
+  mapOpen: boolean;
   reconnect: ReconnectState | null;
   game: GameHandle | null;
 
@@ -90,6 +94,7 @@ interface UiState {
   setSkillCooldown(slot: SkillSlot, until: number): void;
   setInteriorDoorId(id: string | null): void;
   setSettingsOpen(open: boolean): void;
+  setMapOpen(open: boolean): void;
   setReconnect(reconnect: ReconnectState | null): void;
   setGame(game: GameHandle | null): void;
 }
@@ -138,6 +143,7 @@ export const useUiStore = create<UiState>((set) => ({
   skillCooldowns: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
   interiorDoorId: null,
   settingsOpen: false,
+  mapOpen: false,
   reconnect: null,
   game: null,
 
@@ -196,6 +202,7 @@ export const useUiStore = create<UiState>((set) => ({
     set((state) => ({ skillCooldowns: { ...state.skillCooldowns, [slot]: until } })),
   setInteriorDoorId: (id) => set({ interiorDoorId: id }),
   setSettingsOpen: (open) => set({ settingsOpen: open }),
+  setMapOpen: (open) => set({ mapOpen: open }),
   setReconnect: (reconnect) => set({ reconnect }),
   setGame: (game) => set({ game }),
 }));

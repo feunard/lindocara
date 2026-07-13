@@ -73,6 +73,7 @@ export interface ActionHandlers {
   release(): void;
   castSkill(slot: SkillSlot): void;
   focusChat(): void;
+  toggleMap(): void;
 }
 
 /** Edge-triggered gameplay actions; repeats are ignored and never become trusted outcomes. */
@@ -86,7 +87,8 @@ export function trackActions(handlers: ActionHandlers): () => void {
     else if (event.code === "KeyR") handlers.release();
     else if (/^Digit[1-5]$/.test(event.code)) {
       handlers.castSkill(Number(event.code.slice(-1)) as SkillSlot);
-    } else if (event.code === "Enter") handlers.focusChat();
+    } else if (event.code === "KeyM") handlers.toggleMap();
+    else if (event.code === "Enter") handlers.focusChat();
     else return;
     event.preventDefault();
   };

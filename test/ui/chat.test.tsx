@@ -22,6 +22,8 @@ describe("Chat", () => {
         sendChat,
         switchCharacter: vi.fn(),
         logout: vi.fn(),
+        attachMinimap: vi.fn(),
+        attachWorldMap: vi.fn(),
       },
     });
     render(<Chat />);

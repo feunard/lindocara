@@ -25,6 +25,7 @@ import { type LocalizedText, useUiStore } from "../store.js";
 import { shouldFloatEvent } from "./feedback.js";
 import { trackActions, trackInput } from "./input.js";
 import { type InteriorDoor, nearestInterior } from "./interiors.js";
+import { MapSurface } from "./minimap-surface.js";
 import { type Connection, type ConnectionHandlers, WorldClient } from "./net.js";
 import { type RenderContext, Renderer } from "./renderer.js";
 import { GameSound } from "./sound.js";
@@ -206,6 +207,11 @@ export async function startGame(character: CharacterSummary): Promise<void> {
   let welcomed = false;
   let currentSelf: PlayerSnapshot | undefined;
   let selfCorpse: Vec2 | null = null;
+  let mapSurface: MapSurface | null = null;
+  // Remembered so a reconnect can re-attach them to a fresh surface: React mounted its canvases
+  // once, and it will not re-run its effect just because the socket dropped.
+  let minimapCanvas: HTMLCanvasElement | null = null;
+  let worldMapCanvas: HTMLCanvasElement | null = null;
   const playerClass = () => currentSelf?.class ?? character.class;
 
   const unlockAudio = () => sound.unlock();
@@ -217,6 +223,11 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       reconnectAttempts = 0;
       useUiStore.getState().setReconnect(null);
       renderer.setSelfId(selfId);
+      // The welcome carries the whole zone: dimensions, obstacles, safe zone, quest sites.
+      // Bake once. Reconnecting into a different zone bakes that zone instead, which is correct.
+      mapSurface = new MapSurface(world);
+      mapSurface.attachMinimap(minimapCanvas);
+      mapSurface.attachWorldMap(worldMapCanvas);
       questState = state.quest;
       selfCorpse = state.corpse;
       renderState(state);
@@ -481,6 +492,10 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       input.reset();
       useUiStore.getState().requestChatFocus();
     },
+    toggleMap: () => {
+      const store = useUiStore.getState();
+      store.setMapOpen(!store.mapOpen);
+    },
   });
 
   useUiStore.getState().setGame({
@@ -493,6 +508,14 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     sendChat: (text) => connection?.sendChat(text),
     switchCharacter,
     logout: logoutAndReload,
+    attachMinimap: (canvas) => {
+      minimapCanvas = canvas;
+      mapSurface?.attachMinimap(canvas);
+    },
+    attachWorldMap: (canvas) => {
+      worldMapCanvas = canvas;
+      mapSurface?.attachWorldMap(canvas);
+    },
   });
 
   window.addEventListener("keydown", (event) => {
@@ -504,6 +527,12 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     }
     if (interiorOpen()) {
       closeInterior();
+      input.reset();
+      event.preventDefault();
+      return;
+    }
+    if (useUiStore.getState().mapOpen) {
+      useUiStore.getState().setMapOpen(false);
       input.reset();
       event.preventDefault();
       return;
@@ -528,6 +557,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       ...(self ? { self } : {}),
     };
     renderer.render(sample, context);
+    mapSurface?.draw(sample, self, selfCorpse);
     renderPlayer(self, selfCorpse);
     updatePrompt(self, questState, door);
   });
