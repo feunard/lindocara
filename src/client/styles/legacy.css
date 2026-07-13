@@ -741,10 +741,19 @@ kbd {
      be while a 40rem-tall map still fits under the viewport," then let height (and only
      height) fall out of aspect-ratio. That is what keeps this from ever distorting — the two
      numbers are always mutually consistent, unlike separately capping width and height would
-     be. At 1366x768 this is what stops the panel from overflowing into the header/legend. */
+     be. At 1366x768 this is what stops the panel from overflowing into the header/legend.
+     The 9rem budgets the rest of .world-map-panel's vertical footprint against the viewport:
+     max-height's 2rem outer margin, the panel's own 0.8rem padding top and bottom, its 3px
+     border top and bottom, the two 0.6rem grid gaps around this row, and the header/legend
+     rows themselves. It has only ~2.5px of headroom at 1366x768, so a taller header (e.g. an
+     extra button) needs a matching bump here or the legend clips.
+     This explicit width defeats grid's default justify-self: stretch, which would otherwise
+     left-align the canvas (justify-self normal) once its own width is definite — recenter it
+     explicitly rather than letting the aspect-ratio math also decide its position. */
   width: min(100%, calc(min(40rem, calc(100vh - 9rem)) * var(--map-ratio, 1.7778)));
   height: auto;
   display: block;
+  justify-self: center;
   image-rendering: pixelated;
   border: 2px solid var(--panel-border, #3b2f26);
 }

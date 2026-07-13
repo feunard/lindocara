@@ -115,6 +115,9 @@ describe("WorldMap", () => {
 
     expect(canvas).toBeInstanceOf(HTMLCanvasElement);
     expect((canvas as HTMLCanvasElement).style.aspectRatio).toBe("4800 / 2700");
+    expect((canvas as HTMLCanvasElement).style.getPropertyValue("--map-ratio")).toBe(
+      String(4800 / 2700),
+    );
   });
 
   it("sizes the canvas to mmo-test-zone's 4:3 world instead of assuming 16:9", () => {
@@ -129,6 +132,9 @@ describe("WorldMap", () => {
 
     expect(canvas).toBeInstanceOf(HTMLCanvasElement);
     expect((canvas as HTMLCanvasElement).style.aspectRatio).toBe("640 / 480");
+    expect((canvas as HTMLCanvasElement).style.getPropertyValue("--map-ratio")).toBe(
+      String(640 / 480),
+    );
   });
 
   it("falls back to Verdant Reach's aspect before any welcome has set the world size", () => {
@@ -138,5 +144,8 @@ describe("WorldMap", () => {
     const canvas = view.container.querySelector(".world-map-canvas");
 
     expect((canvas as HTMLCanvasElement).style.aspectRatio).toBe("4800 / 2700");
+    expect((canvas as HTMLCanvasElement).style.getPropertyValue("--map-ratio")).toBe(
+      String(4800 / 2700),
+    );
   });
 });
