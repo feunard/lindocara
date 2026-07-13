@@ -1,3 +1,5 @@
+import { isUuid } from "../shared/identifiers.js";
+
 /**
  * Stateless, signed sessions.
  *
@@ -108,8 +110,9 @@ export async function verifySessionState(
   if (
     typeof session !== "object" ||
     session === null ||
-    typeof (session as Session).id !== "string" ||
-    typeof (session as Session).iat !== "number" ||
+    !isUuid((session as Session).id) ||
+    !Number.isSafeInteger((session as Session).iat) ||
+    (session as Session).iat < 0 ||
     !isValidUsername((session as Session).username)
   ) {
     return null;

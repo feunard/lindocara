@@ -12,4 +12,6 @@
 interface Env {
   /** HMAC key for signing session cookies. See README for how to set it. */
   SESSION_SECRET: string;
+  /** Optional local-only navigation overlay gate. Keep unset in production. */
+  NAVIGATION_DEBUG?: string;
 }

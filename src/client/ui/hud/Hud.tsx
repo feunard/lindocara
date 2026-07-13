@@ -34,6 +34,8 @@ export function Hud() {
   const self = useUiStore((s) => s.self);
   const selfState = useUiStore((s) => s.selfState);
   const game = useUiStore((s) => s.game);
+  const party = useUiStore((s) => s.party);
+  const partyInvite = useUiStore((s) => s.partyInvite);
 
   // Legacy juice (styles/legacy.css: .pulse / @keyframes panel-pulse) removed and re-added
   // the class on every state update, forcing a reflow in between so the animation could
@@ -123,6 +125,58 @@ export function Hud() {
               {selfState.xp}/{selfState.xpToNext}
             </span>
           </label>
+          {selfState.resource && (
+            // biome-ignore lint/a11y/noLabelWithoutControl: read-only progress row, matching the two rows above.
+            <label>
+              <span>{t(`resource.${selfState.resource.kind}` as MessageKey)}</span>
+              <Bar value={selfState.resource.current} max={selfState.resource.max} variant="xp" />
+              <span>
+                {Math.floor(selfState.resource.current)}/{selfState.resource.max}
+              </span>
+            </label>
+          )}
+        </section>
+
+        <section className="panel party">
+          <div className="panel-title">
+            <strong>{t("party.title")}</strong>
+          </div>
+          {party ? (
+            party.members.map((member) => (
+              <div key={member.id}>
+                <span>
+                  {member.nick}
+                  {member.id === party.leaderId ? " ★" : ""}
+                </span>
+                <Bar value={member.hp} max={member.maxHp} variant="hp" />
+              </div>
+            ))
+          ) : (
+            <button type="button" onClick={() => game?.partyCreate?.()}>
+              {t("party.create")}
+            </button>
+          )}
+          {party && (
+            <button
+              type="button"
+              onClick={() =>
+                party.leaderId === self.id ? game?.partyDissolve?.() : game?.partyLeave?.()
+              }
+            >
+              {party.leaderId === self.id ? t("party.dissolve") : t("party.leave")}
+            </button>
+          )}
+          {partyInvite && (
+            <div>
+              <span>{t("party.invite_received", { name: partyInvite.from })}</span>
+              <button type="button" onClick={() => game?.partyAccept?.(partyInvite.inviteId)}>
+                {t("party.accept")}
+              </button>
+              <button type="button" onClick={() => game?.partyRefuse?.(partyInvite.inviteId)}>
+                {t("party.refuse")}
+              </button>
+            </div>
+          )}
         </section>
 
         <section

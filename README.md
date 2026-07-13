@@ -48,6 +48,7 @@ pack's parchment banner art rather than generated placeholder shapes.
 ```bash
 npm install
 cp .dev.vars.example .dev.vars   # then put a real secret in it
+npm run db:migrate               # apply the local D1 schema
 npm run dev
 ```
 
@@ -58,6 +59,23 @@ same runtime that serves production.
 npm run check    # lint + typecheck + test
 npm run deploy   # build, then ship
 ```
+
+## Local load testing
+
+Start the local stack, then run a scenario from another terminal:
+
+```bash
+npm run dev
+npm run loadtest -- --players=10 --duration=60 --scenario=mixed
+```
+
+Available scenarios are `idle`, `movement`, `combat`, `mixed`, `reconnect`, and
+`zone-transition`. The runner creates or reuses deterministic `loadNNN` accounts and characters,
+opens authenticated WebSockets, and prints connection, throughput, message-size, acknowledgement
+latency, transition, disconnect, and protocol-error metrics. It targets
+`http://localhost:5173` by default and refuses any remote target unless
+`--allow-remote=true` is explicit; the production hostname needs the additional
+`--allow-production=true` safeguard.
 
 ## How it works
 
@@ -215,5 +233,7 @@ server answers with a complete `world.resync` view and a fresh tick/cache baseli
 
 ## More
 
-See [AGENTS.md](./AGENTS.md) for architecture notes, conventions, and the gotchas — including
-why `vite dev` can appear to teleport your square, and why there are three tsconfigs.
+See [docs/mmo-architecture.md](./docs/mmo-architecture.md) for the complete MMO architecture,
+security audit, observability, and load-testing model. See [AGENTS.md](./AGENTS.md) for contributor
+conventions and gotchas, including why `vite dev` can appear to teleport your square and why there
+are three tsconfigs.

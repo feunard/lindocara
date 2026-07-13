@@ -48,10 +48,35 @@ interface CharacterRow {
 
 async function readCharacterRow(characterId: string): Promise<CharacterRow> {
   const row = await env.DB.prepare(
-    `SELECT x, y, hp, level, xp, gold, crystals, potions,
-            main_hand, off_hand, quest_status, quest_chapter, quest_progress,
-            zone_id, instance_id, session_epoch, ward_run_expires_at
-     FROM character WHERE id = ?`,
+    `SELECT c.x, c.y, c.hp, c.level, c.xp, c.gold, c.crystals,
+            COALESCE(p.quantity, 0) AS potions,
+            main_item.item_definition_id AS main_hand,
+            off_item.item_definition_id AS off_hand,
+            q.status AS quest_status,
+            q.quest_id AS quest_chapter,
+            q.progress AS quest_progress,
+            c.zone_id, c.instance_id, c.session_epoch,
+            json_extract(q.data, '$.wardRunExpiresAt') AS ward_run_expires_at
+     FROM character c
+     LEFT JOIN character_item p
+       ON p.character_id = c.id AND p.item_definition_id = 'health_potion'
+     LEFT JOIN character_equipment main_equipment
+       ON main_equipment.character_id = c.id AND main_equipment.slot = 'main_hand'
+     LEFT JOIN character_item main_item ON main_item.id = main_equipment.character_item_id
+     LEFT JOIN character_equipment off_equipment
+       ON off_equipment.character_id = c.id AND off_equipment.slot = 'off_hand'
+     LEFT JOIN character_item off_item ON off_item.id = off_equipment.character_item_id
+     LEFT JOIN character_quest q ON q.rowid = (
+       SELECT candidate.rowid FROM character_quest candidate
+       WHERE candidate.character_id = c.id
+       ORDER BY
+         CASE WHEN candidate.status = 'completed' THEN 1 ELSE 0 END,
+         CASE candidate.quest_id
+           WHEN 'three_offerings' THEN 1 WHEN 'bone_choir' THEN 2
+           WHEN 'mire_runes' THEN 3 WHEN 'ward_run' THEN 4 ELSE 99 END
+       LIMIT 1
+     )
+     WHERE c.id = ?`,
   )
     .bind(characterId)
     .first<CharacterRow>();
@@ -119,10 +144,8 @@ describe("Mission 2A — canonical two-World E2E", () => {
       hp: 55,
       level: 3,
     });
-    await env.DB.prepare(
-      "UPDATE character SET gold = ?, crystals = ?, xp = ?, potions = ? WHERE id = ?",
-    )
-      .bind(7, 2, 14, 2, session.characterId)
+    await env.DB.prepare("UPDATE character SET gold = ?, crystals = ?, xp = ? WHERE id = ?")
+      .bind(7, 2, 14, session.characterId)
       .run();
 
     const clientA = await Client.joinCharacter(session);
@@ -238,10 +261,11 @@ describe("Mission 2A — stale save field fence", () => {
       level: 2,
       quest: { chapter: "three_offerings", status: "active", progress: 1 },
     });
-    await env.DB.prepare(
-      "UPDATE character SET gold = ?, crystals = ?, xp = ?, potions = ?, main_hand = ?, off_hand = ?, ward_run_expires_at = ? WHERE id = ?",
-    )
-      .bind(3, 1, 10, 2, "weathered_sword", "oak_shield", Date.now() + 30_000, session.characterId)
+    await env.DB.prepare("UPDATE character SET gold = ?, crystals = ?, xp = ? WHERE id = ?")
+      .bind(3, 1, 10, session.characterId)
+      .run();
+    await env.DB.prepare("UPDATE character_quest SET data = ? WHERE character_id = ?")
+      .bind(JSON.stringify({ wardRunExpiresAt: Date.now() + 30_000 }), session.characterId)
       .run();
 
     const clientA = await Client.joinCharacter(session);

@@ -19,6 +19,7 @@ import {
   type GuardSnapshot,
   type LootSnapshot,
   type MonsterSnapshot,
+  type PartyState,
   type PlayerSnapshot,
   parseServerMessage,
   type SelfState,
@@ -71,14 +72,23 @@ export interface Connection {
   heal(): void;
   release(): void;
   skill(slot: SkillSlot): void;
-  sendChat(text: string): void;
+  sendChat(text: string, channel?: "local" | "party"): void;
+  partyCreate(): void;
+  partyInvite(playerId: string): void;
+  partyAccept(inviteId: string): void;
+  partyRefuse(inviteId: string): void;
+  partyLeave(): void;
+  partyKick(playerId: string): void;
+  partyDissolve(): void;
   close(): void;
 }
 
 export interface ConnectionHandlers {
   onWelcome(selfId: string, world: WorldInfo, state: SelfState): void;
   onState(state: SelfState): void;
-  onChat(from: string, text: string): void;
+  onChat(from: string, text: string, channel: "local" | "party"): void;
+  onPartyInvite(inviteId: string, fromId: string, from: string, expiresAt: number): void;
+  onPartyState(party: PartyState | null): void;
   onEvent(
     code: EventCode,
     params: EventParams | undefined,
@@ -126,6 +136,13 @@ export class WorldClient {
     const socket = new WebSocket(url);
     this.#socket = socket;
 
+    if (
+      import.meta.env.DEV &&
+      new URLSearchParams(window.location.search).get("navdebug") === "1"
+    ) {
+      socket.addEventListener("open", () => this.#send({ t: "navigation.debug", enabled: true }));
+    }
+
     socket.addEventListener("message", (event) => {
       if (typeof event.data !== "string") return;
       const message = parseServerMessage(event.data);
@@ -146,7 +163,14 @@ export class WorldClient {
       heal: () => this.#send({ t: "heal" }),
       release: () => this.#send({ t: "release" }),
       skill: (slot) => this.#send({ t: "skill", slot }),
-      sendChat: (text) => this.#send({ t: "chat", channel: "local", text }),
+      sendChat: (text, channel = "local") => this.#send({ t: "chat", channel, text }),
+      partyCreate: () => this.#send({ t: "party.create" }),
+      partyInvite: (playerId) => this.#send({ t: "party.invite", playerId }),
+      partyAccept: (inviteId) => this.#send({ t: "party.accept", inviteId }),
+      partyRefuse: (inviteId) => this.#send({ t: "party.refuse", inviteId }),
+      partyLeave: () => this.#send({ t: "party.leave" }),
+      partyKick: (playerId) => this.#send({ t: "party.kick", playerId }),
+      partyDissolve: () => this.#send({ t: "party.dissolve" }),
       close: () => socket.close(1000, "client left"),
     };
   }
@@ -244,7 +268,15 @@ export class WorldClient {
       return;
     }
     if (message.t === "chat") {
-      handlers.onChat(message.from, message.text);
+      handlers.onChat(message.from, message.text, message.channel === "party" ? "party" : "local");
+      return;
+    }
+    if (message.t === "party.invite") {
+      handlers.onPartyInvite(message.inviteId, message.fromId, message.from, message.expiresAt);
+      return;
+    }
+    if (message.t === "party.state") {
+      handlers.onPartyState(message.party);
       return;
     }
     handlers.onEvent(message.code, message.params, message.tone, message.x, message.y);

@@ -17,7 +17,9 @@ import type {
   QuestSite,
   Rect,
 } from "./game.js";
+import { isUuid } from "./identifiers.js";
 import type { ChatChannel } from "./interest.js";
+import type { ClassResourceState } from "./resources.js";
 import type { Input } from "./simulation.js";
 import { isSkillSlot, type SkillSlot } from "./skills.js";
 
@@ -84,6 +86,14 @@ export interface MonsterSnapshot {
   hp: number;
   maxHp: number;
   dead: boolean;
+  navigationDebug?: NavigationDebugSnapshot;
+}
+
+export interface NavigationDebugSnapshot {
+  state: import("./navigation.js").MonsterNavigationState;
+  path: { x: number; y: number }[];
+  destination: { x: number; y: number } | null;
+  reason: string | null;
 }
 
 export interface GuardSnapshot {
@@ -111,6 +121,21 @@ export interface SelfState {
   life: LifeState;
   /** Where your body lies, so the HUD can point you at it. Null unless you are dead. */
   corpse: { x: number; y: number } | null;
+  resource?: ClassResourceState;
+}
+
+export interface PartyMemberState {
+  id: string;
+  nick: string;
+  hp: number;
+  maxHp: number;
+  life: LifeState;
+}
+
+export interface PartyState {
+  id: string;
+  leaderId: string;
+  members: PartyMemberState[];
 }
 
 export interface WorldInfo {
@@ -137,7 +162,15 @@ export type ClientMessage =
   | { t: "skill"; slot: SkillSlot }
   | { t: "use"; item: "potion" }
   | { t: "chat"; channel: ChatChannel; text: string }
-  | { t: "world.resync" };
+  | { t: "party.create" }
+  | { t: "party.invite"; playerId: string }
+  | { t: "party.accept"; inviteId: string }
+  | { t: "party.refuse"; inviteId: string }
+  | { t: "party.leave" }
+  | { t: "party.kick"; playerId: string }
+  | { t: "party.dissolve" }
+  | { t: "world.resync" }
+  | { t: "navigation.debug"; enabled: boolean };
 
 export type EventTone = "info" | "good" | "bad";
 
@@ -182,6 +215,17 @@ export const EVENT_CODES = [
   "skill.no_target",
   "skill.blocked",
   "skill.locked",
+  "resource.insufficient",
+  "party.created",
+  "party.invited",
+  "party.joined",
+  "party.refused",
+  "party.left",
+  "party.kicked",
+  "party.dissolved",
+  "party.invalid",
+  "party.forbidden",
+  "party.full",
   "presence.replaced",
   "presence.lost",
   "room.full",
@@ -234,6 +278,8 @@ export type ServerMessage =
   | { t: "world.resync_required" }
   | { t: "state"; self: SelfState }
   | { t: "chat"; channel: ChatChannel; from: string; text: string }
+  | { t: "party.invite"; inviteId: string; fromId: string; from: string; expiresAt: number }
+  | { t: "party.state"; party: PartyState | null }
   | { t: "event"; code: EventCode; params?: EventParams; tone: EventTone; x?: number; y?: number };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -286,12 +332,20 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
   if (value.t === "skill" && isSkillSlot(value.slot)) return { t: "skill", slot: value.slot };
   if (value.t === "use" && value.item === "potion") return { t: "use", item: "potion" };
   if (value.t === "world.resync") return { t: "world.resync" };
+  if (value.t === "navigation.debug" && typeof value.enabled === "boolean")
+    return { t: "navigation.debug", enabled: value.enabled };
+  if (value.t === "party.create" || value.t === "party.leave" || value.t === "party.dissolve")
+    return { t: value.t };
+  if ((value.t === "party.invite" || value.t === "party.kick") && isUuid(value.playerId))
+    return { t: value.t, playerId: value.playerId };
+  if ((value.t === "party.accept" || value.t === "party.refuse") && isUuid(value.inviteId))
+    return { t: value.t, inviteId: value.inviteId };
   if (
     value.t === "chat" &&
     typeof value.text === "string" &&
-    (value.channel === undefined || value.channel === "local")
+    (value.channel === undefined || value.channel === "local" || value.channel === "party")
   ) {
-    return { t: "chat", channel: "local", text: value.text };
+    return { t: "chat", channel: value.channel === "party" ? "party" : "local", text: value.text };
   }
   return null;
 }
@@ -344,12 +398,22 @@ export function parseServerMessage(raw: string): ServerMessage | null {
     if (value.t === "state" && isRecord(value.self)) return value as unknown as ServerMessage;
     if (
       value.t === "chat" &&
-      value.channel === "local" &&
+      (value.channel === "local" || value.channel === "party") &&
       typeof value.from === "string" &&
       typeof value.text === "string"
     ) {
       return value as unknown as ServerMessage;
     }
+    if (
+      value.t === "party.invite" &&
+      typeof value.inviteId === "string" &&
+      typeof value.fromId === "string" &&
+      typeof value.from === "string" &&
+      typeof value.expiresAt === "number"
+    )
+      return value as unknown as ServerMessage;
+    if (value.t === "party.state" && (value.party === null || isRecord(value.party)))
+      return value as unknown as ServerMessage;
     if (
       value.t === "event" &&
       typeof value.code === "string" &&

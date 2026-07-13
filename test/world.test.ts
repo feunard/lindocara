@@ -142,10 +142,15 @@ describe("World", () => {
 
     const beforeResync = client.received.length;
     client.requestResync();
+    client.requestResync();
     const resync = await until("full world resync", () =>
       client.received.slice(beforeResync).find((message) => message.t === "world.resync"),
     );
     expect(resync.players.map((player) => player.id)).toContain(welcome.selfId);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(
+      client.received.slice(beforeResync).filter((message) => message.t === "world.resync"),
+    ).toHaveLength(1);
     client.close();
   });
 
@@ -796,7 +801,11 @@ describe("World", () => {
     await scheduler.wait(100);
     expect(second.latestState?.quest.timerEndsAt).toBe(originalDeadline);
     const row = await env.DB.prepare(
-      "SELECT ward_run_expires_at, session_epoch FROM character WHERE id = ?",
+      `SELECT json_extract(q.data, '$.wardRunExpiresAt') AS ward_run_expires_at,
+              c.session_epoch
+       FROM character c
+       INNER JOIN character_quest q ON q.character_id = c.id AND q.quest_id = 'ward_run'
+       WHERE c.id = ?`,
     )
       .bind(session.characterId)
       .first<{ ward_run_expires_at: number | null; session_epoch: number }>();
@@ -822,7 +831,10 @@ describe("World", () => {
     await until("expired ward persisted", () => (client.closeInfo ? client.closeInfo : undefined));
     await scheduler.wait(100);
     const row = await env.DB.prepare(
-      "SELECT quest_progress, ward_run_expires_at FROM character WHERE id = ?",
+      `SELECT q.progress AS quest_progress,
+              json_extract(q.data, '$.wardRunExpiresAt') AS ward_run_expires_at
+       FROM character_quest q
+       WHERE q.character_id = ? AND q.quest_id = 'ward_run'`,
     )
       .bind(session.characterId)
       .first<{ quest_progress: number; ward_run_expires_at: number | null }>();

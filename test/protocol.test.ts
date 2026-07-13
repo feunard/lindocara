@@ -37,6 +37,13 @@ describe("client protocol", () => {
     expect(parseClientMessage(JSON.stringify({ t: "world.resync" }))).toEqual({
       t: "world.resync",
     });
+    expect(parseClientMessage(JSON.stringify({ t: "navigation.debug", enabled: true }))).toEqual({
+      t: "navigation.debug",
+      enabled: true,
+    });
+    expect(
+      parseClientMessage(JSON.stringify({ t: "navigation.debug", enabled: "yes" })),
+    ).toBeNull();
   });
 
   it.each([
@@ -76,6 +83,24 @@ describe("client protocol", () => {
     expect(parseClientMessage(JSON.stringify({ t: "skill", slot: 0 }))).toBeNull();
     expect(parseClientMessage(JSON.stringify({ t: "skill", slot: 6 }))).toBeNull();
     expect(parseClientMessage(JSON.stringify({ t: "skill", slot: "3" }))).toBeNull();
+  });
+
+  it("accepts only server-minted UUIDs for party actions", () => {
+    const id = "33333333-3333-4333-8333-333333333333";
+    expect(parseClientMessage(JSON.stringify({ t: "party.invite", playerId: id }))).toEqual({
+      t: "party.invite",
+      playerId: id,
+    });
+    expect(parseClientMessage(JSON.stringify({ t: "party.accept", inviteId: id }))).toEqual({
+      t: "party.accept",
+      inviteId: id,
+    });
+    expect(
+      parseClientMessage(JSON.stringify({ t: "party.invite", playerId: "not-a-player" })),
+    ).toBeNull();
+    expect(
+      parseClientMessage(JSON.stringify({ t: "party.accept", inviteId: "../invite" })),
+    ).toBeNull();
   });
 });
 

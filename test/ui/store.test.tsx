@@ -2,15 +2,17 @@ import { describe, expect, it } from "vitest";
 import { useUiStore } from "../../src/client/store.js";
 
 describe("ui store", () => {
-  it("caps the event log at 6 and the chat at 8", () => {
+  it("caps the event log at 6 and the chat at 50", () => {
     const store = useUiStore.getState();
     for (let i = 0; i < 9; i++) store.addEvent(`event ${i}`, "info");
     for (let i = 0; i < 10; i++) store.addChat("nick", `line ${i}`);
     const state = useUiStore.getState();
     expect(state.events).toHaveLength(6);
     expect(state.events[0]?.text).toBe("event 3");
-    expect(state.chat).toHaveLength(8);
-    expect(state.chat[7]?.text).toBe("line 9");
+    expect(state.chat).toHaveLength(19);
+    expect(state.chat.at(-1)?.text).toBe("line 9");
+    expect(state.chat.at(-1)?.channel).toBe("local");
+    expect(state.chat.find((line) => line.channel === "system")?.text).toBe("event 0");
   });
 
   it("resetToCharacterSelect clears the game handle, reconnect banner, and every overlay flag", () => {

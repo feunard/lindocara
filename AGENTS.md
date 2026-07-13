@@ -9,6 +9,7 @@ terrain, Warden Mira, roaming slimes, combat, loot, progression, a quest, and lo
 | --- | --- |
 | `npm run dev` | Vite + the Worker + the Durable Object, all in workerd |
 | `npm run check` | lint, typecheck, test — run this before committing |
+| `npm run loadtest -- --players=10 --duration=60 --scenario=mixed` | authenticated local WebSocket load test; remote targets require explicit opt-in |
 | `npm run lint` / `lint:fix` | Biome |
 | `npm run typecheck` | three TypeScript programs (see below) |
 | `npm test` | Vitest inside workerd |
@@ -50,7 +51,8 @@ src/server/     runs in workerd.
   password.ts   PBKDF2 password hashing.
   profile.ts    D1 profile load/create/save boundary, fenced by sessionEpoch.
   character-presence.ts deterministic per-character lease and connection authority.
-  world.ts      room authority: 20 Hz simulation, prediction acks, AI, combat, loot, quest, chat.
+  world.ts      Durable Object adapter and room owner: admission, WebSocket lifecycle and tick order.
+  world/        explicit-dependency systems used by World; no module-level mutable room state.
   db/           D1 schema + Drizzle.
 
 src/client/     runs in a browser.
@@ -64,6 +66,50 @@ src/client/     runs in a browser.
                 sound.ts, session.ts (owns the store writes). No React in here.
   i18n.ts       locale state; useLocale() for React, t() for everyone.
 ```
+
+### Server world systems
+
+`World` remains the Durable Object entry point and owns every mutable room collection, timer and
+save queue. Modules under `src/server/world/` are concrete domain systems, not an ECS:
+
+- `world-runtime.ts` defines player, monster, guard, loot and room runtime types plus attachment
+  hydration/serialization and entity factories.
+- `connection-system.ts` maintains socket/player indexes and connection rate windows.
+- `movement-system.ts` consumes at most one command per tick, advances players, updates the player
+  grid and schedules movement-adjacent maintenance.
+- `combat-system.ts` contains target selection and damage calculations; `skill-system.ts` contains
+  skill targeting and collision-resolved mobility helpers.
+- `monster-system.ts` advances monster AI, respawns and guards. Guard kills remain a separate path
+  that cannot grant player rewards.
+- `quest-system.ts` exposes zone-owned quest ordering; quest mutations and interzone handoff remain
+  orchestrated by `World` because they cross persistence, presence and connection boundaries.
+- `loot-system.ts` collects and expires ground loot while keeping the non-authoritative grid in
+  sync.
+- `persistence-system.ts` serializes fenced D1 saves per character. It receives the room save map,
+  database and stale-save callback explicitly.
+- `interest-system.ts` builds per-recipient AOI views; `snapshot-system.ts` turns those views into
+  welcome state, deltas and resync responses.
+- `zone-runtime.ts` initializes zone-scoped monsters/guards and resolves zone quest definitions.
+- `spatial-grid.ts` is the world-system import boundary for the existing non-authoritative grid.
+
+Allowed dependency direction is `world.ts -> world systems -> shared rules`. Systems may import
+server persistence/binding boundaries when that is their stated responsibility, but never client
+code. Shared modules must not import server systems. Systems receive room collections, grids,
+services and callbacks as arguments; do not add mutable module globals or hide room state in a
+singleton.
+
+To add a mechanic, first place platform-free rules in `src/shared/` when both client and server need
+them. Add the authoritative mutation to the narrowest existing server system (or a small new domain
+system), pass its dependencies from `World`, add it explicitly to the readable tick/action order,
+then cover the pure/system edge with a unit test and the authoritative flow with the existing real
+Durable Object harness.
+
+To add a network message, define and defensively parse its wire shape in `shared/protocol.ts`. For a
+client intent, dispatch it in the connection/action boundary and pass only validated intent to the
+responsible system. For a server message, emit a machine event code or typed snapshot change through
+`snapshot-system.ts`; update both i18n dictionaries for player-facing wording, update client map
+upsert/removal validation when the message changes world state, and add protocol plus resync/delta
+integration coverage. Never let a new message select a room or supply an authoritative outcome.
 
 ### Two players, two rules
 
@@ -180,6 +226,13 @@ npm run db:migrate      # apply locally
 npm run cf-typegen      # only if you changed bindings, not the schema
 ```
 
+Objects, equipment, skills and multi-quest progression use the normalized tables documented in
+[`docs/persistence-model.md`](./docs/persistence-model.md). `character` still owns core stats,
+location, fencing epoch and currencies. Do not read or write the legacy potion/equipment/quest
+columns from new code: they remain only as rollback-compatible schema. All owned-item mutations
+must enforce character ownership, positive quantity, slot/class compatibility and the current
+`sessionEpoch`; quest rewards must use the one-time claim path.
+
 Deploying applies migrations to production **before** shipping the code, so a column always
 exists before the code that reads it.
 
@@ -263,8 +316,59 @@ replaces the maps and interpolation baseline. Keep JSON validation on every new 
 When adding a dynamic spatial type, insert on creation, update after authoritative movement,
 remove on destruction/expiry, and never mutate gameplay through the grid. A radius query touches
 only intersecting cells; corpse and guard scans are intentionally retained because those sets are
-small and bounded. Only the `local` chat channel is implemented even though protocol types reserve
-future `party`, `guild`, `global`, and `whisper` names.
+small and bounded. The `local` and `party` chat channels are implemented; protocol types still
+reserve future `guild`, `global`, and `whisper` names.
+
+### Cooperative combat and temporary parties
+
+`shared/cooperation.ts` owns the pure bounded-threat, contribution eligibility, taunt and XP-split
+rules. `shared/resources.ts` is the single class-resource table. Room-owned mutable maps remain in
+`World`; `world/monster-system.ts` selects and prunes threat, `world/contribution-system.ts` fences
+reward attribution, `world/interest-system.ts` filters personal loot, and `world/party-system.ts`
+validates temporary group lifecycle and party chat.
+
+Useful healing means actual missing HP restored; overhealing never creates threat or contribution.
+Personal loot is protected twice: it is omitted from every other player's AOI/delta and collection
+also checks `ownerId`. Parties are room-local and non-persistent, so disconnects and zone handoffs
+remove membership and combat state. See [`docs/cooperative-combat.md`](./docs/cooperative-combat.md)
+for formulas, reward rules, network messages, lifecycle, and resource costs.
+
+### Monster navigation
+
+`ZoneDefinition.navigation` configures a room-local walkability grid generated from the zone's
+authoritative `TerrainGeometry`. `world/navigation-system.ts` owns incremental four-neighbour A*,
+the 128-entry path cache, unique request queue and per-tick node budget. `monster-system.ts` owns
+behaviour selection: patrol, threat chase, unreachable-target abandonment and return to spawn.
+Never bypass `resolveTerrain()` when following a path; it remains the final collision authority.
+
+A target must move at least 72 px and respect the 650 ms repath interval. A threat target change
+may force a request, but navigation work still stays inside the room budget. Add navigation for a
+new zone by configuring `navigation` beside its terrain, not by branching in the engine. See
+[`docs/monster-navigation.md`](./docs/monster-navigation.md) for generation, budgets, debug mode and
+known limits.
+
+### Observability, load and security boundaries
+
+`world/observability-system.ts` owns bounded, room-local counters. `World` records tick duration,
+network bytes/messages and delta sizes, successful/erroring D1 saves, saturated command queues,
+navigation work, transitions, reconnects and rejected traffic. Every active room emits one
+structured `world_metrics` record per 20-second window; it never logs individual inputs, attacks,
+chat messages or inventory operations. Cloudflare logs retain these aggregates and traces are
+sampled at 1%. Do not place metrics in module globals: a metric window belongs to exactly one room.
+
+`scripts/loadtest.mjs` is the black-box load boundary. It provisions through `/api/*`, connects
+through `/api/ws`, sends only legal client intent and reports client-observed throughput and ACK
+latency. Its default target is localhost. Keep production behind both explicit remote and
+production opt-ins, and never put production credentials in the script.
+
+Security limits live beside the boundary they protect: HTTP JSON is capped before parsing,
+WebSocket frames are capped at 2 KiB, identifiers are server-minted UUIDs, malformed/rate-limited
+connections are closed, command queues are bounded, resync is limited to one per second, action
+cooldowns remain authoritative, and D1 mutations use ownership/epoch/idempotency constraints.
+When adding a message, assign its cost class: cheap intents use the connection window, expensive
+rebuild-like requests also need a dedicated cooldown. Add rejection coverage as well as the happy
+path. The remaining public-edge requirement is an account/login IP rate limit or Turnstile policy;
+the per-room limiter is not a credential-stuffing defense.
 
 ## Gotchas worth knowing
 

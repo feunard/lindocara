@@ -40,7 +40,13 @@
     { "tag": "v2", "new_sqlite_classes": ["CharacterPresence"] }
   ],
 
-  "observability": { "enabled": true },
+  "observability": {
+    "enabled": true,
+    // Room metrics are already aggregated over 20 seconds; retain those custom logs while
+    // sampling traces and suppressing the noisier automatic per-invocation log.
+    "logs": { "enabled": true, "head_sampling_rate": 1, "invocation_logs": false },
+    "traces": { "enabled": true, "head_sampling_rate": 0.01 }
+  },
 
   // Served only from the custom domain; no *.workers.dev URL.
   "workers_dev": false,

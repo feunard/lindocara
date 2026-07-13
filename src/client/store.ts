@@ -3,7 +3,7 @@ import type { Equipment } from "../shared/character.js";
 import type { LifeState } from "../shared/death.js";
 import type { PlayerClass } from "../shared/game.js";
 import type { MessageKey } from "../shared/i18n/index.js";
-import type { QuestStatus, SelfState } from "../shared/protocol.js";
+import type { PartyState, QuestStatus, SelfState } from "../shared/protocol.js";
 import type { SkillSlot } from "../shared/skills.js";
 import type { CharacterSummary } from "./api.js";
 
@@ -22,10 +22,21 @@ export interface ChatLine {
   id: number;
   from: string;
   text: string;
+  channel?: "local" | "party" | "system";
+  tone?: EventLine["tone"];
+  at: number;
+}
+
+export interface PartyInviteNotice {
+  inviteId: string;
+  fromId: string;
+  from: string;
+  expiresAt: number;
 }
 
 /** What the HUD needs from the self snapshot — excludes x/y so it does not churn 60x/s. */
 export interface SelfHud {
+  id?: string;
   nick: string;
   level: number;
   hp: number;
@@ -44,7 +55,14 @@ export interface GameHandle {
   release(): void;
   heal(): void;
   castSkill(slot: SkillSlot): void;
-  sendChat(text: string): void;
+  sendChat(text: string, channel?: "local" | "party"): void;
+  partyCreate?(): void;
+  partyInvite?(playerId: string): void;
+  partyAccept?(inviteId: string): void;
+  partyRefuse?(inviteId: string): void;
+  partyLeave?(): void;
+  partyKick?(playerId: string): void;
+  partyDissolve?(): void;
   switchCharacter(): void;
   logout(): void;
   /** React owns the canvas; the game loop draws into it. The store stays free of world x/y. */
@@ -68,6 +86,8 @@ interface UiState {
   status: LocalizedText | null;
   events: EventLine[];
   chat: ChatLine[];
+  party: PartyState | null;
+  partyInvite: PartyInviteNotice | null;
   chatFocusRequest: number;
   attackCooldownUntil: number;
   healCooldownUntil: number;
@@ -96,7 +116,9 @@ interface UiState {
   setStatus(status: LocalizedText): void;
   addEvent(text: string, tone: EventLine["tone"]): void;
   removeEvent(id: number): void;
-  addChat(from: string, text: string): void;
+  addChat(from: string, text: string, channel?: "local" | "party"): void;
+  setParty(party: PartyState | null): void;
+  setPartyInvite(invite: PartyInviteNotice | null): void;
   requestChatFocus(): void;
   setAttackCooldownUntil(until: number): void;
   setHealCooldownUntil(until: number): void;
@@ -121,6 +143,7 @@ function selfHudEqual(a: SelfHud | null, b: SelfHud | null): boolean {
   if (a === null && b === null) return true;
   if (a === null || b === null) return false;
   return (
+    a.id === b.id &&
     a.nick === b.nick &&
     a.level === b.level &&
     a.hp === b.hp &&
@@ -152,6 +175,8 @@ export const useUiStore = create<UiState>((set) => ({
   status: null,
   events: [],
   chat: [],
+  party: null,
+  partyInvite: null,
   chatFocusRequest: 0,
   attackCooldownUntil: 0,
   healCooldownUntil: 0,
@@ -190,25 +215,38 @@ export const useUiStore = create<UiState>((set) => ({
         text,
         tone,
       };
+      const chatLine: ChatLine = {
+        id: chatIdCounter++,
+        from: "",
+        text,
+        channel: "system",
+        tone,
+        at: Date.now(),
+      };
       return {
         events: [...state.events, line].slice(-6),
+        chat: [...state.chat, chatLine].slice(-50),
       };
     }),
   removeEvent: (id) =>
     set((state) => ({
       events: state.events.filter((e) => e.id !== id),
     })),
-  addChat: (from, text) =>
+  addChat: (from, text, channel = "local") =>
     set((state) => {
       const line: ChatLine = {
         id: chatIdCounter++,
         from,
         text,
+        channel,
+        at: Date.now(),
       };
       return {
-        chat: [...state.chat, line].slice(-8),
+        chat: [...state.chat, line].slice(-50),
       };
     }),
+  setParty: (party) => set({ party }),
+  setPartyInvite: (partyInvite) => set({ partyInvite }),
   requestChatFocus: () =>
     set((state) => ({
       chatFocusRequest: state.chatFocusRequest + 1,

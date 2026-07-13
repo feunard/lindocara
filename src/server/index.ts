@@ -9,6 +9,7 @@
 import { normalizeAppearance } from "../shared/character.js";
 import { WS_CLOSE } from "../shared/close-codes.js";
 import { isValidClass } from "../shared/game.js";
+import { isUuid } from "../shared/identifiers.js";
 import { resolveZoneLocation } from "../shared/zones.js";
 import { accountExists, createAccount, verifyCredentials } from "./accounts.js";
 import {
@@ -39,6 +40,40 @@ export { World } from "./world.js";
 
 function json(body: unknown, init?: ResponseInit): Response {
   return Response.json(body, init);
+}
+
+const MAX_API_JSON_BYTES = 4_096;
+
+async function readJson(request: Request): Promise<{ value: unknown } | Response> {
+  const declaredLength = Number(request.headers.get("Content-Length"));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_API_JSON_BYTES) {
+    return json({ error: "request_too_large" }, { status: 413 });
+  }
+  const reader = request.body?.getReader();
+  if (!reader) return json({ error: "expected_json" }, { status: 400 });
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  for (;;) {
+    const part = await reader.read();
+    if (part.done) break;
+    bytes += part.value.byteLength;
+    if (bytes > MAX_API_JSON_BYTES) {
+      await reader.cancel();
+      return json({ error: "request_too_large" }, { status: 413 });
+    }
+    chunks.push(part.value);
+  }
+  const body = new Uint8Array(bytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return { value: JSON.parse(new TextDecoder().decode(body)) };
+  } catch {
+    return json({ error: "expected_json" }, { status: 400 });
+  }
 }
 
 function closedWebSocket(code: number, reason: string): Response {
@@ -80,12 +115,9 @@ interface Credentials {
 
 /** Returns parsed credentials or a ready-to-send 400. */
 async function readCredentials(request: Request): Promise<Credentials | Response> {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return json({ error: "expected_json" }, { status: 400 });
-  }
+  const parsed = await readJson(request);
+  if (parsed instanceof Response) return parsed;
+  const body = parsed.value;
   const username = (body as { username?: unknown } | null)?.username;
   const password = (body as { password?: unknown } | null)?.password;
   if (!isValidUsername(username)) return json({ error: "invalid_username" }, { status: 400 });
@@ -145,6 +177,7 @@ async function handleJoin(request: Request, env: Env, url: URL): Promise<Respons
 
   const characterId = url.searchParams.get("character");
   if (!characterId) return json({ error: "missing_character" }, { status: 400 });
+  if (!isUuid(characterId)) return json({ error: "invalid_character" }, { status: 400 });
 
   // Ownership is proven here, outside the Durable Object, so the DO can trust the header.
   const owned = await characterOwnedBy(createDb(env.DB), session.id, characterId);
@@ -203,12 +236,9 @@ async function handleCreateCharacter(request: Request, env: Env, url: URL): Prom
   if (auth instanceof Response) return auth;
   const session = auth.session;
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return json({ error: "expected_json" }, { status: 400 });
-  }
+  const parsed = await readJson(request);
+  if (parsed instanceof Response) return parsed;
+  const body = parsed.value;
   const name = (body as { name?: unknown } | null)?.name;
   const appearance = (body as { appearance?: unknown } | null)?.appearance;
   const klass = (body as { class?: unknown } | null)?.class;
@@ -284,8 +314,8 @@ export default {
     if (url.pathname === "/api/characters" && request.method === "POST") {
       return handleCreateCharacter(request, env, url);
     }
-    const characterPath = url.pathname.match(/^\/api\/characters\/([0-9a-f-]{36})$/);
-    if (characterPath?.[1] && request.method === "DELETE") {
+    const characterPath = url.pathname.match(/^\/api\/characters\/([^/]+)$/);
+    if (isUuid(characterPath?.[1]) && request.method === "DELETE") {
       return handleDeleteCharacter(request, env, url, characterPath[1]);
     }
 

@@ -57,6 +57,16 @@ describe("POST /api/register", () => {
     });
     expect(response.status).toBe(400);
   });
+
+  it("rejects oversized JSON before parsing credentials", async () => {
+    const response = await SELF.fetch(`${ORIGIN}/api/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: "large", password: "x".repeat(5_000) }),
+    });
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({ error: "request_too_large" });
+  });
 });
 
 describe("GET /api/me", () => {
@@ -104,8 +114,17 @@ describe("GET /api/ws", () => {
     expect(response.status).toBe(401);
   });
 
+  it("rejects a malformed character identifier before querying ownership", async () => {
+    const token = tokenFrom(await register("valid_id_user"));
+    const response = await SELF.fetch(`${ORIGIN}/api/ws?character=../victim`, {
+      headers: { Upgrade: "websocket", Cookie: `${SESSION_COOKIE}=${token}` },
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_character" });
+  });
+
   it("refuses an expired session with a distinct machine code", async () => {
-    const session = createSession("expired-account", "expired_user");
+    const session = createSession("22222222-2222-4222-8222-222222222222", "expired_user");
     session.iat -= SESSION_TTL_SECONDS + 60;
     const token = await signSession(session, "test-secret-do-not-use-in-production");
     const response = await SELF.fetch(`${ORIGIN}/api/ws?character=missing`, {

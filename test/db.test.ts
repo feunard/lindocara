@@ -90,6 +90,7 @@ describe("account and character tables", () => {
       "main_hand",
       "name",
       "off_hand",
+      "persistence_version",
       "potions",
       "quest_chapter",
       "quest_progress",

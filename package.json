@@ -16,6 +16,7 @@
     "test:ui": "vitest run -c vitest.ui.config.ts",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
+    "loadtest": "node scripts/loadtest.mjs",
     "format": "biome format --write .",
     "typecheck": "tsc -p tsconfig.client.json && tsc -p tsconfig.worker.json && tsc -p tsconfig.node.json",
     "cf-typegen": "wrangler types ./src/worker-configuration.d.ts",
@@ -35,6 +36,7 @@
     "@types/node": "^26.1.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^6.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -45,7 +47,8 @@
     "typescript": "^7.0.2",
     "vite": "^8.1.4",
     "vitest": "^4.1.10",
-    "wrangler": "^4.109.0"
+    "wrangler": "^4.109.0",
+    "ws": "^8.21.0"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",

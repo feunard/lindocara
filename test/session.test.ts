@@ -10,6 +10,7 @@ import {
 } from "../src/server/session.js";
 
 const SECRET = "test-secret";
+const ACCOUNT_ID = "11111111-1111-4111-8111-111111111111";
 
 describe("isValidUsername", () => {
   it.each(["ab", "Player_1", "a-b-c", "0123456789abcdef"])("accepts %j", (username) => {
@@ -42,19 +43,24 @@ describe("isValidPassword", () => {
 
 describe("signSession / verifySession", () => {
   it("round-trips a session", async () => {
-    const session = createSession("id-1", "player");
+    const session = createSession(ACCOUNT_ID, "player");
     const token = await signSession(session, SECRET);
 
     expect(await verifySession(token, SECRET)).toEqual(session);
   });
 
   it("rejects a token signed with a different secret", async () => {
-    const token = await signSession(createSession("id-1", "player"), SECRET);
+    const token = await signSession(createSession(ACCOUNT_ID, "player"), SECRET);
     expect(await verifySession(token, "other-secret")).toBeNull();
   });
 
+  it("rejects a correctly signed session carrying a non-UUID account id", async () => {
+    const token = await signSession(createSession("not-an-account", "player"), SECRET);
+    expect(await verifySession(token, SECRET)).toBeNull();
+  });
+
   it("rejects a tampered payload", async () => {
-    const session = createSession("id-1", "player");
+    const session = createSession(ACCOUNT_ID, "player");
     const token = await signSession(session, SECRET);
     const [, signature] = token.split(".");
 
@@ -80,7 +86,7 @@ describe("signSession / verifySession", () => {
   });
 
   it("refuses to sign or verify with an unset secret", async () => {
-    const session = createSession("id-1", "player");
+    const session = createSession(ACCOUNT_ID, "player");
     await expect(signSession(session, "")).rejects.toThrow(/SESSION_SECRET/);
 
     const token = await signSession(session, SECRET);
@@ -88,7 +94,7 @@ describe("signSession / verifySession", () => {
   });
 
   it("rejects an expired token", async () => {
-    const token = await signSession(createSession("id-1", "player"), SECRET);
+    const token = await signSession(createSession(ACCOUNT_ID, "player"), SECRET);
     expect(await verifySession(token, SECRET)).not.toBeNull();
 
     const past = Date.now() + (SESSION_TTL_SECONDS + 60) * 1000;

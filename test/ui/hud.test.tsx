@@ -178,4 +178,47 @@ describe("Hud", () => {
     expect(screen.queryByText("Mend")).not.toBeInTheDocument();
     expect(screen.getAllByRole("progressbar")).toHaveLength(2); // vit, spark only
   });
+
+  it("shows the authoritative class resource and same-zone party health", () => {
+    useUiStore.setState({
+      self: {
+        id: "11111111-1111-4111-8111-111111111111",
+        nick: "Vanguard",
+        level: 4,
+        hp: 88,
+        maxHp: 124,
+        life: "alive",
+        corpseDistance: null,
+        class: "warrior",
+        equipment: { mainHand: "weathered_sword", offHand: "oak_shield" },
+      },
+      selfState: {
+        xp: 10,
+        xpToNext: 220,
+        life: "alive",
+        corpse: null,
+        resource: { kind: "endurance", current: 45, max: 100 },
+        inventory: { potions: 2, gold: 0, crystals: 0 },
+        quest: { status: "available", progress: 0, target: 3 },
+      },
+      party: {
+        id: "22222222-2222-4222-8222-222222222222",
+        leaderId: "11111111-1111-4111-8111-111111111111",
+        members: [
+          {
+            id: "33333333-3333-4333-8333-333333333333",
+            nick: "Ally",
+            hp: 55,
+            maxHp: 100,
+            life: "alive",
+          },
+        ],
+      },
+    });
+    render(<Hud />);
+    expect(screen.getByText("Endurance")).toBeInTheDocument();
+    expect(screen.getByText("45/100")).toBeInTheDocument();
+    expect(screen.getByText("Ally")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Disband party" })).toBeInTheDocument();
+  });
 });

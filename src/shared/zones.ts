@@ -11,6 +11,7 @@ import {
   type TerrainGeometry,
   VERDANT_REACH_TERRAIN,
 } from "./game.js";
+import { DEFAULT_ZONE_NAVIGATION, type ZoneNavigationDefinition } from "./navigation.js";
 import type { Vec2 } from "./simulation.js";
 
 export type ZoneId = "verdant-reach" | "mmo-test-zone";
@@ -28,6 +29,7 @@ export interface ZoneDefinition {
   monsters: readonly MonsterSpawn[];
   guards: readonly GuardDefinition[];
   portals: readonly PortalDefinition[];
+  navigation: ZoneNavigationDefinition;
 }
 
 /** A server-owned exit. The browser can only ask to interact near it. */
@@ -94,6 +96,7 @@ export const ZONES: Readonly<Record<ZoneId, ZoneDefinition>> = {
         },
       },
     ],
+    navigation: { ...DEFAULT_ZONE_NAVIGATION },
   },
   "mmo-test-zone": {
     id: "mmo-test-zone",
@@ -119,6 +122,7 @@ export const ZONES: Readonly<Record<ZoneId, ZoneDefinition>> = {
         },
       },
     ],
+    navigation: { ...DEFAULT_ZONE_NAVIGATION, cellSize: 40, nodeBudgetPerTick: 96 },
   },
 };
 

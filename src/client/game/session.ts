@@ -79,6 +79,7 @@ function renderPlayer(player: PlayerSnapshot | undefined, corpse: Vec2 | null): 
   useUiStore.getState().setSelf(
     player
       ? {
+          id: player.id,
           nick: player.nick,
           level: player.level,
           hp: player.hp,
@@ -179,10 +180,6 @@ function addEvent(text: string, tone: "info" | "good" | "bad"): void {
   useUiStore.getState().addEvent(text, tone);
 }
 
-function addChat(from: string, text: string): void {
-  useUiStore.getState().addChat(from, text);
-}
-
 // Assumes it runs at most once per page life: the keydown/beforeunload listeners it
 // registers are never removed, and switchCharacter/logout tear the session down by
 // reloading the page rather than unwinding this function.
@@ -249,10 +246,15 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       selfCorpse = state.corpse;
       renderState(state);
     },
-    onChat: (from, text) => {
-      addChat(from, text);
+    onChat: (from, text, channel) => {
+      useUiStore.getState().addChat(from, text, channel);
       sound.chat();
     },
+    onPartyInvite: (inviteId, fromId, from, expiresAt) => {
+      useUiStore.getState().setPartyInvite({ inviteId, fromId, from, expiresAt });
+      addEvent(t("party.invite_received", { name: from }), "info");
+    },
+    onPartyState: (party) => useUiStore.getState().setParty(party),
     onEvent: (code, params, tone, x, y) => {
       const text = eventText(code, params, currentSelf?.class ?? character.class);
       if (shouldLogEvent(code)) addEvent(text, tone);
@@ -513,7 +515,20 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     heal,
     release,
     castSkill,
-    sendChat: (text) => connection?.sendChat(text),
+    sendChat: (text, channel) => connection?.sendChat(text, channel),
+    partyCreate: () => connection?.partyCreate(),
+    partyInvite: (playerId) => connection?.partyInvite(playerId),
+    partyAccept: (inviteId) => {
+      connection?.partyAccept(inviteId);
+      useUiStore.getState().setPartyInvite(null);
+    },
+    partyRefuse: (inviteId) => {
+      connection?.partyRefuse(inviteId);
+      useUiStore.getState().setPartyInvite(null);
+    },
+    partyLeave: () => connection?.partyLeave(),
+    partyKick: (playerId) => connection?.partyKick(playerId),
+    partyDissolve: () => connection?.partyDissolve(),
     switchCharacter,
     logout: logoutAndReload,
     attachMinimap: (canvas) => {

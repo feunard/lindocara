@@ -9,11 +9,20 @@ import {
   type Equipment,
   isValidAppearance,
   normalizeAppearance,
-  normalizeEquipment,
   starterEquipmentFor,
 } from "../shared/character.js";
 import { maxHpForLevel, type PlayerClass, spawnPosition } from "../shared/game.js";
-import { character, type Db } from "./db/index.js";
+import { CLASS_SKILLS, isSkillUnlocked } from "../shared/skills.js";
+import { loadNormalizedCharacterState } from "./character-persistence.js";
+import {
+  character,
+  characterEquipment,
+  characterItem,
+  characterQuest,
+  characterSkill,
+  type Db,
+} from "./db/index.js";
+import { HEALTH_POTION_ID, ownedItemId } from "./items.js";
 
 export const MAX_CHARACTERS_PER_ACCOUNT = 3;
 
@@ -35,19 +44,20 @@ export interface CharacterSummary {
   instanceId: string;
 }
 
-function summary(row: {
-  id: string;
-  name: string;
-  appearance: unknown;
-  appearanceBody: unknown;
-  appearancePrimaryColor: unknown;
-  level: number;
-  class: PlayerClass;
-  mainHand: unknown;
-  offHand: unknown;
-  zoneId: string;
-  instanceId: string;
-}): CharacterSummary {
+function summary(
+  row: {
+    id: string;
+    name: string;
+    appearance: unknown;
+    appearanceBody: unknown;
+    appearancePrimaryColor: unknown;
+    level: number;
+    class: PlayerClass;
+    zoneId: string;
+    instanceId: string;
+  },
+  equipment: Equipment,
+): CharacterSummary {
   return {
     id: row.id,
     name: row.name,
@@ -60,7 +70,7 @@ function summary(row: {
     ),
     level: row.level,
     class: row.class,
-    equipment: normalizeEquipment(row.class, row.mainHand, row.offHand),
+    equipment,
     zoneId: row.zoneId,
     instanceId: row.instanceId,
   };
@@ -68,7 +78,9 @@ function summary(row: {
 
 export async function listCharacters(db: Db, accountId: string): Promise<CharacterSummary[]> {
   const rows = await db.select().from(character).where(eq(character.accountId, accountId));
-  return rows.map(summary);
+  return Promise.all(
+    rows.map(async (row) => summary(row, (await loadNormalizedCharacterState(db, row)).equipment)),
+  );
 }
 
 export async function createCharacter(
@@ -85,21 +97,78 @@ export async function createCharacter(
   const position = spawnPosition(id);
   const equipment = starterEquipmentFor(playerClass);
   const now = new Date();
-  await db.insert(character).values({
-    id,
-    accountId,
-    name,
-    ...position,
-    appearance: appearance.primaryColor,
-    appearanceBody: appearance.body,
-    appearancePrimaryColor: appearance.primaryColor,
-    class: playerClass,
-    mainHand: equipment.mainHand,
-    offHand: equipment.offHand,
-    hp: maxHpForLevel(1),
-    createdAt: now,
-    lastSeenAt: now,
-  });
+  const equipmentIds = equipment.offHand
+    ? [equipment.mainHand, equipment.offHand]
+    : [equipment.mainHand];
+  await db.batch([
+    db.insert(character).values({
+      id,
+      accountId,
+      name,
+      ...position,
+      appearance: appearance.primaryColor,
+      appearanceBody: appearance.body,
+      appearancePrimaryColor: appearance.primaryColor,
+      class: playerClass,
+      hp: maxHpForLevel(1),
+      persistenceVersion: 1,
+      createdAt: now,
+      lastSeenAt: now,
+    }),
+    db.insert(characterItem).values([
+      {
+        id: ownedItemId(id, HEALTH_POTION_ID),
+        characterId: id,
+        itemDefinitionId: HEALTH_POTION_ID,
+        quantity: 2,
+        createdAt: now,
+      },
+      ...equipmentIds.map((definitionId) => ({
+        id: ownedItemId(id, definitionId),
+        characterId: id,
+        itemDefinitionId: definitionId,
+        quantity: 1,
+        createdAt: now,
+      })),
+    ]),
+    db.insert(characterEquipment).values([
+      {
+        characterId: id,
+        slot: "main_hand",
+        characterItemId: ownedItemId(id, equipment.mainHand),
+        equippedAt: now,
+      },
+      ...(equipment.offHand === null
+        ? []
+        : [
+            {
+              characterId: id,
+              slot: "off_hand" as const,
+              characterItemId: ownedItemId(id, equipment.offHand),
+              equippedAt: now,
+            },
+          ]),
+    ]),
+    db.insert(characterQuest).values({
+      characterId: id,
+      questId: "three_offerings",
+      status: "available",
+      progress: 0,
+    }),
+    db.insert(characterSkill).values(
+      CLASS_SKILLS[playerClass].map((skill) => {
+        const unlocked = isSkillUnlocked(1, skill.slot);
+        return {
+          characterId: id,
+          skillId: skill.id,
+          unlocked,
+          equipped: unlocked,
+          slot: unlocked ? skill.slot : null,
+          unlockedAt: unlocked ? now : null,
+        };
+      }),
+    ),
+  ]);
   return {
     id,
     name,
@@ -122,7 +191,7 @@ export async function characterOwnedBy(
     .from(character)
     .where(and(eq(character.id, characterId), eq(character.accountId, accountId)))
     .get();
-  return row ? summary(row) : null;
+  return row ? summary(row, (await loadNormalizedCharacterState(db, row)).equipment) : null;
 }
 
 export async function deleteCharacter(

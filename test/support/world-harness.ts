@@ -93,14 +93,28 @@ export async function testCharacter(
   }
   if (options.quest) {
     await env.DB.prepare(
-      "UPDATE character SET quest_chapter = ?, quest_status = ?, quest_progress = ? WHERE id = ?",
+      `UPDATE character_quest
+       SET quest_id = ?, status = ?, progress = ?,
+         accepted_at = CASE WHEN ? = 'available' THEN NULL ELSE unixepoch() * 1000 END
+       WHERE character_id = ?`,
     )
-      .bind(options.quest.chapter, options.quest.status, options.quest.progress, body.id)
+      .bind(
+        options.quest.chapter,
+        options.quest.status,
+        options.quest.progress,
+        options.quest.status,
+        body.id,
+      )
       .run();
   }
   if (options.wardRunExpiresAt !== undefined) {
-    await env.DB.prepare("UPDATE character SET ward_run_expires_at = ? WHERE id = ?")
-      .bind(options.wardRunExpiresAt, body.id)
+    await env.DB.prepare("UPDATE character_quest SET data = ? WHERE character_id = ?")
+      .bind(
+        options.wardRunExpiresAt === null
+          ? null
+          : JSON.stringify({ wardRunExpiresAt: options.wardRunExpiresAt }),
+        body.id,
+      )
       .run();
   }
   if (options.zoneId !== undefined || options.instanceId !== undefined) {

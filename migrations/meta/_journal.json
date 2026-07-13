@@ -57,6 +57,20 @@
       "when": 1783885281169,
       "tag": "0007_shiny_robin_chapel",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1783950589509,
+      "tag": "0008_warm_kate_bishop",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1783950666105,
+      "tag": "0009_quiet_gertrude_yorkes",
+      "breakpoints": true
     }
   ]
 }

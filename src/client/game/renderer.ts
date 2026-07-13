@@ -501,6 +501,8 @@ export class Renderer {
   #actors = new Container();
   #worldLabels = new Container();
   #overlay = new Graphics();
+  #navigationDebug = new Graphics();
+  #navigationDebugLabels = new Container();
   #effects = new Container();
   #questNpcs: Array<{
     chapter: string;
@@ -584,6 +586,8 @@ export class Renderer {
       this.#ambient,
       this.#actors,
       this.#worldLabels,
+      this.#navigationDebug,
+      this.#navigationDebugLabels,
       this.#overlay,
       this.#effects,
     );
@@ -2256,6 +2260,8 @@ export class Renderer {
       },
     );
 
+    if (import.meta.env.DEV) this.#drawNavigationDebug(sample.monsters);
+
     reconcile(
       this.#guards,
       sample.guards,
@@ -2327,6 +2333,37 @@ export class Renderer {
     this.#drawOverlay(context);
     this.#updateAmbient(now);
     this.#updateEffects(now);
+  }
+
+  #drawNavigationDebug(monsters: readonly MonsterSnapshot[]): void {
+    this.#navigationDebug.clear();
+    for (const child of this.#navigationDebugLabels.removeChildren()) child.destroy();
+    for (const monster of monsters) {
+      const debug = monster.navigationDebug;
+      if (!debug) continue;
+      let previous = { x: monster.x + PLAYER_SIZE / 2, y: monster.y + PLAYER_SIZE / 2 };
+      for (const node of debug.path) {
+        const center = { x: node.x + PLAYER_SIZE / 2, y: node.y + PLAYER_SIZE / 2 };
+        this.#navigationDebug
+          .moveTo(previous.x, previous.y)
+          .lineTo(center.x, center.y)
+          .stroke({ width: 2, color: 0x45e8ff, alpha: 0.8 })
+          .circle(center.x, center.y, 3)
+          .fill({ color: 0x45e8ff, alpha: 0.9 });
+        previous = center;
+      }
+      if (debug.destination) {
+        this.#navigationDebug
+          .circle(debug.destination.x + PLAYER_SIZE / 2, debug.destination.y + PLAYER_SIZE / 2, 8)
+          .stroke({ width: 2, color: 0xffd54a, alpha: 0.95 });
+      }
+      const label = new Text({
+        text: `${debug.state}${debug.reason ? ` · ${debug.reason}` : ""}`,
+        style: { fontFamily: "monospace", fontSize: 10, fill: 0xffffff },
+      });
+      label.position.set(monster.x, monster.y - 42);
+      this.#navigationDebugLabels.addChild(label);
+    }
   }
 
   onFrame(callback: (nowMs: number, deltaSeconds: number) => void): void {
