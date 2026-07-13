@@ -85,6 +85,16 @@ export const ${constant}: TileMap = decodeTileMap(ROWS);
 `;
 }
 
+// Verdant Reach's height (2700) isn't a multiple of TILE_SIZE (64), so `rasterise` rounds up to
+// 43 rows and the last one (row 42) straddles the world's real bottom edge — only its top 12px
+// are inside the world at all. That sliver sits inside the 96px-thick bottom boundary wall
+// (BOUNDARY_OBSTACLES / WORLD_BOUNDARY_DEPTH in game.ts) but doesn't reach the 50% coverage
+// threshold on its own, so row 42 comes out all-grass rather than solid. It looks like a bug —
+// an inexplicable strip of open ground — but it's inert: row 41 sits entirely inside that same
+// wall and rasterises fully solid, sealing row 42 off, and clampToWorld never lets a player's y
+// go far enough down for their box to clear row 41 in the first place. Left as-is on purpose;
+// see "keeps the last row unreachable" in test/tilemap-data.test.ts, which pins both halves of
+// why nobody will ever stand there.
 const verdant = rasterise(VERDANT_REACH_BOUNDS, OBSTACLES);
 writeFileSync(
   "src/shared/zones/verdant-reach-tiles.ts",
