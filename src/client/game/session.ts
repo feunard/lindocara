@@ -223,9 +223,14 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       reconnectAttempts = 0;
       useUiStore.getState().setReconnect(null);
       renderer.setSelfId(selfId);
-      // The welcome carries the whole zone: dimensions, obstacles, safe zone, quest sites.
-      // Bake once. Reconnecting into a different zone bakes that zone instead, which is correct.
-      mapSurface = new MapSurface(world);
+      // The welcome carries the whole zone: dimensions, obstacles, safe zone, quest sites. Baking
+      // the texture measures 126-138ms warm — expensive enough that a reconnect landing back in
+      // the same zone must reuse the existing bake rather than repaint an identical one. Only a
+      // genuine zone change (mapSurface.matches(world) false) pays for a fresh bake; either way
+      // the canvases are re-attached below, so a reconnect never leaves the map blank.
+      if (!mapSurface?.matches(world)) {
+        mapSurface = new MapSurface(world);
+      }
       mapSurface.attachMinimap(minimapCanvas);
       mapSurface.attachWorldMap(worldMapCanvas);
       questState = state.quest;
@@ -336,10 +341,11 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     window.removeEventListener("pointerdown", unlockAudio);
     window.removeEventListener("keydown", unlockAudio);
     sound.stopAmbient();
-    useUiStore.getState().setReconnect(null);
     setStatus("status.disconnected", { reason: t(key) });
-    useUiStore.getState().setGame(null);
-    useUiStore.getState().setScreen("characters");
+    // Also clears mapOpen and settingsOpen: without that, either overlay survives a terminal
+    // disconnect and reappears full-screen the instant the next character's world loads, over a
+    // world that has not sent it a welcome yet.
+    useUiStore.getState().resetToCharacterSelect();
   };
 
   const cancelReconnect = () => {

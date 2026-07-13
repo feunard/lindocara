@@ -13,6 +13,39 @@ describe("ui store", () => {
     expect(state.chat[7]?.text).toBe("line 9");
   });
 
+  it("resetToCharacterSelect clears the game handle, reconnect banner, and every overlay flag", () => {
+    useUiStore.setState({
+      game: {
+        attack: () => {},
+        interact: () => {},
+        usePotion: () => {},
+        heal: () => {},
+        release: () => {},
+        castSkill: () => {},
+        sendChat: () => {},
+        switchCharacter: () => {},
+        logout: () => {},
+        attachMinimap: () => {},
+        attachWorldMap: () => {},
+      },
+      reconnect: { kind: "network", attempt: 2, cancelReconnect: () => {} },
+      screen: "game",
+      mapOpen: true,
+      settingsOpen: true,
+      interiorDoorId: "warden-hut",
+    });
+
+    useUiStore.getState().resetToCharacterSelect();
+
+    const state = useUiStore.getState();
+    expect(state.game).toBeNull();
+    expect(state.reconnect).toBeNull();
+    expect(state.screen).toBe("characters");
+    expect(state.mapOpen).toBe(false);
+    expect(state.settingsOpen).toBe(false);
+    expect(state.interiorDoorId).toBeNull();
+  });
+
   it("setSelf is referentially stable for equal values", () => {
     const self = {
       nick: "Hero",

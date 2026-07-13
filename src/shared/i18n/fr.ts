@@ -176,7 +176,6 @@ export const fr: Record<keyof typeof en, string> = {
   "hud.switch_character": "Changer de personnage",
   "hud.logout": "Se déconnecter",
   "hud.abilities": "Compétences",
-  "hud.map": "Carte",
   "hud.map.title": "Val Verdoyant",
   "hud.map.you": "Vous",
   "hud.map.corpse": "Votre corps",

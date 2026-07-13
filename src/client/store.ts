@@ -108,6 +108,10 @@ interface UiState {
   setWorldSize(size: { width: number; height: number } | null): void;
   setReconnect(reconnect: ReconnectState | null): void;
   setGame(game: GameHandle | null): void;
+  /** Everything a terminal disconnect must clear before character select is usable again: the
+   *  handle, the reconnect banner, and every full-screen overlay flag. Miss one and it survives
+   *  into the next character's session, already open over a world that has not welcomed it. */
+  resetToCharacterSelect(): void;
 }
 
 let eventIdCounter = 0;
@@ -220,4 +224,13 @@ export const useUiStore = create<UiState>((set) => ({
   setWorldSize: (worldSize) => set({ worldSize }),
   setReconnect: (reconnect) => set({ reconnect }),
   setGame: (game) => set({ game }),
+  resetToCharacterSelect: () =>
+    set({
+      game: null,
+      reconnect: null,
+      screen: "characters",
+      mapOpen: false,
+      settingsOpen: false,
+      interiorDoorId: null,
+    }),
 }));

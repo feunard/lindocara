@@ -3,12 +3,14 @@
  * workerd, and why minimap-surface.ts (the canvas shell next door) has no logic in it.
  */
 import type { Rect } from "../../shared/game.js";
+import { PLAYER_VISIBILITY_RADIUS } from "../../shared/interest.js";
 import type { Vec2 } from "../../shared/simulation.js";
 import { type GroundPalette, type TerrainSample, terrainAt } from "./world-layout.js";
 
-/** Matches PLAYER_VISIBILITY_RADIUS in shared/interest.ts exactly. Raising it would draw
- *  empty space where players actually are: the server does not send them. */
-export const MINIMAP_WORLD_RADIUS = 900;
+/** Derived, not restated: hand-copying PLAYER_VISIBILITY_RADIUS here would let someone tune
+ *  the server's radius without ever seeing this constant, and the minimap would silently start
+ *  drawing empty space where players actually are — the server does not send them past it. */
+export const MINIMAP_WORLD_RADIUS = PLAYER_VISIBILITY_RADIUS;
 
 /** The baked texture is 1/8 of world size: 4800x2700 becomes 600x338. */
 export const MINIMAP_TEXTURE_SCALE = 8;
@@ -39,6 +41,41 @@ export interface MapSize {
 export interface MapWorld extends MapBounds {
   obstacles: readonly Rect[];
   safeZone: Rect;
+}
+
+/** The subset of a welcome's WorldInfo that the baked texture is a pure function of. Anything
+ *  else in WorldInfo (quest npcs/sites, portals, cemeteries...) can differ without invalidating
+ *  the bake, but callers may pass a full WorldInfo — its extra fields are simply ignored. */
+export interface BakedWorldKey extends MapWorld {
+  zoneNameKey: string;
+}
+
+function rectEqual(a: Rect, b: Rect): boolean {
+  return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+}
+
+function obstaclesEqual(a: readonly Rect[], b: readonly Rect[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((rect, i) => {
+    const other = b[i];
+    return other !== undefined && rectEqual(rect, other);
+  });
+}
+
+/**
+ * Whether two welcomes would bake to the same texture, so a caller can keep an existing bake
+ * instead of paying for an identical one. True only when the zone, footprint, obstacles, and
+ * safe zone all match exactly — any difference (a genuine zone transition) must still re-bake,
+ * or the map would show stale or foreign terrain.
+ */
+export function sameBakedWorld(a: BakedWorldKey, b: BakedWorldKey): boolean {
+  return (
+    a.zoneNameKey === b.zoneNameKey &&
+    a.width === b.width &&
+    a.height === b.height &&
+    rectEqual(a.safeZone, b.safeZone) &&
+    obstaclesEqual(a.obstacles, b.obstacles)
+  );
 }
 
 /** World point to minimap pixel, centred on the viewer. Fixed north: the camera never rotates. */

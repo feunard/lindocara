@@ -1,5 +1,7 @@
 /**
- * The canvas shell for both maps. Bakes the world once, then only ever blits it.
+ * The canvas shell for both maps. Bakes the world once, then only ever blits it. The bake is
+ * expensive enough (see bakeWorldTexture below) that a caller reconnecting into the same zone
+ * should keep an existing instance rather than construct a new one — `matches()` is how it asks.
  * All geometry lives in minimap.ts, which is pure and tested; this file is the part that
  * touches the DOM, so it is deliberately thin.
  */
@@ -12,6 +14,7 @@ import {
   MINIMAP_WORLD_RADIUS,
   projectToMinimap,
   projectToWorldMap,
+  sameBakedWorld,
   terrainColorAt,
 } from "./minimap.js";
 import type { SceneSample } from "./net.js";
@@ -72,6 +75,12 @@ export class MapSurface {
   constructor(world: WorldInfo) {
     this.#world = world;
     this.#texture = bakeWorldTexture(world);
+  }
+
+  /** Whether `world` would bake to the exact same texture this instance already holds — the
+   *  caller's cue to keep reusing this instance instead of paying for a fresh bake. */
+  matches(world: WorldInfo): boolean {
+    return sameBakedWorld(this.#world, world);
   }
 
   attachMinimap(canvas: HTMLCanvasElement | null): void {
@@ -198,7 +207,14 @@ export class MapSurface {
   }
 }
 
-/** Once per connection. 4800x2700 becomes a 600x338 canvas; the loop runs ~200k times, ~5ms. */
+/**
+ * Once per zone, not once per connection — MapSurface#matches lets the caller skip this for a
+ * reconnect into the same zone. 4800x2700 becomes a 600x338 canvas; the loop runs ~202,800 times
+ * (one terrainAt() call plus a scan of every obstacle rect each), and measures 126-138ms warm in
+ * V8 — no fixed millisecond count in a comment stays true forever, but this is nowhere near free,
+ * and running it on every welcome cost ~8 dropped frames at the worst possible moment: the instant
+ * control returns to the player after a zone transition.
+ */
 function bakeWorldTexture(world: WorldInfo): HTMLCanvasElement {
   const width = Math.ceil(world.width / MINIMAP_TEXTURE_SCALE);
   const height = Math.ceil(world.height / MINIMAP_TEXTURE_SCALE);

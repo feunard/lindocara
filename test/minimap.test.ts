@@ -1,15 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
+  type BakedWorldKey,
   clampToRing,
   groundColor,
   MINIMAP_WORLD_RADIUS,
   projectToMinimap,
   projectToWorldMap,
+  sameBakedWorld,
   terrainColorAt,
   VERDANT_REACH_ZONE_KEY,
 } from "../src/client/game/minimap.js";
 import type { GroundPalette } from "../src/client/game/world-layout.js";
 import { TERRAIN_BLOCKERS } from "../src/shared/game.js";
+import { PLAYER_VISIBILITY_RADIUS } from "../src/shared/interest.js";
 
 const SIZE = 200;
 const CENTER = { x: 2000, y: 1000 };
@@ -21,7 +24,10 @@ describe("minimap projection", () => {
   });
 
   it("matches the server's player visibility radius, so it never draws empty space", () => {
-    expect(MINIMAP_WORLD_RADIUS).toBe(900);
+    // Pinned to the coupling, not the literal: tuning PLAYER_VISIBILITY_RADIUS must move this
+    // with it, so nobody can shrink the server's radius and leave the minimap drawing a ring of
+    // empty space where players actually are.
+    expect(MINIMAP_WORLD_RADIUS).toBe(PLAYER_VISIBILITY_RADIUS);
   });
 
   it("maps a point at exactly the radius onto the edge of the circle", () => {
@@ -180,5 +186,49 @@ describe("zone-correct terrain sampling", () => {
       detailChance: 0,
     });
     expect(color).toBe(waterColor);
+  });
+});
+
+describe("sameBakedWorld", () => {
+  const base: BakedWorldKey = {
+    zoneNameKey: VERDANT_REACH_ZONE_KEY,
+    width: 4800,
+    height: 2700,
+    obstacles: [{ x: 100, y: 100, width: 50, height: 50 }],
+    safeZone: { x: 360, y: 260, width: 1200, height: 920 },
+  };
+
+  it("is true for two welcomes describing the identical zone, even as different object instances", () => {
+    const identical: BakedWorldKey = {
+      ...base,
+      obstacles: base.obstacles.map((rect) => ({ ...rect })),
+      safeZone: { ...base.safeZone },
+    };
+    expect(sameBakedWorld(base, identical)).toBe(true);
+  });
+
+  it("is false across a zone transition, so the new zone always gets a fresh bake", () => {
+    expect(sameBakedWorld(base, { ...base, zoneNameKey: "zone.mmo_test_zone.name" })).toBe(false);
+  });
+
+  it("is false when the footprint differs", () => {
+    expect(sameBakedWorld(base, { ...base, width: 640 })).toBe(false);
+    expect(sameBakedWorld(base, { ...base, height: 480 })).toBe(false);
+  });
+
+  it("is false when the safe zone moved", () => {
+    expect(
+      sameBakedWorld(base, { ...base, safeZone: { ...base.safeZone, x: base.safeZone.x + 1 } }),
+    ).toBe(false);
+  });
+
+  it("is false when the obstacle geometry differs, including just a different count", () => {
+    expect(sameBakedWorld(base, { ...base, obstacles: [] })).toBe(false);
+    expect(
+      sameBakedWorld(base, {
+        ...base,
+        obstacles: [{ x: 999, y: 999, width: 50, height: 50 }],
+      }),
+    ).toBe(false);
   });
 });

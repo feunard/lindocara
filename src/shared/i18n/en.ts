@@ -171,7 +171,6 @@ export const en = {
   "hud.switch_character": "Switch character",
   "hud.logout": "Log out",
   "hud.abilities": "Abilities",
-  "hud.map": "Map",
   "hud.map.title": "Verdant Reach",
   "hud.map.you": "You",
   "hud.map.corpse": "Your body",
