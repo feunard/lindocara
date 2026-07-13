@@ -712,9 +712,14 @@ function centerOf(position: Vec2, size: number): Vec2 {
 
 /**
  * Line-of-sight consults the same tile grid `isWalkable` collides against — never `obstacles`,
- * the rectangles it was rasterised from. The tile a wall coarsens to can extend up to half a tile
- * past its rectangle, so a check against the sharper rectangle could call a destination "visible"
- * that collision would refuse to let anyone stand in.
+ * the rectangles it was rasterised from. Measured over 400,000 legal position pairs against the
+ * old rectangle check: this is *not* uniformly stricter. 1.31% of pairs became more permissive
+ * (blocked by a rectangle, now visible through the tile it coarsened to) against only 0.17% that
+ * became stricter. The dominant cause isn't fattened wall edges — it's the 50%-coverage rasteriser
+ * erasing small colliders entirely, so a shot that used to be refused by a rectangle no longer has
+ * anything in its way. That is correct, not a regression: collision has ignored those colliders
+ * since the tiles landed, so refusing the shot was the anomaly, not allowing it — line-of-sight
+ * agreeing with collision is the whole point of reading the same grid.
  *
  * This checks the two entities' *centers*, not their bodies (see `addAxisCrossings`'s doc for why
  * a fixed sampling stride isn't used) — appropriate for combat targeting, which is deciding

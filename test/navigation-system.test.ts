@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   advanceWaypoint,
+  createNavigationGrid,
   createNavigationRuntime,
   type NavigationRuntime,
   processNavigationBudget,
@@ -9,6 +10,7 @@ import {
 import { createMonsters, type MonsterRuntime } from "../src/server/world/world-runtime.js";
 import { isWalkable, type Rect, type TerrainGeometry } from "../src/shared/game.js";
 import { DEFAULT_ZONE_NAVIGATION } from "../src/shared/navigation.js";
+import type { TileMap } from "../src/shared/tilemap.js";
 import { ZONES } from "../src/shared/zones.js";
 import { tileMapFromRects } from "./support/tiles.js";
 
@@ -176,5 +178,37 @@ describe("budgeted zone navigation", () => {
       expect(runtime.grid.rows).toBeGreaterThan(0);
       expect(runtime.grid.walkable.some((value) => value === 1)).toBe(true);
     }
+  });
+
+  it("excludes a node whose waypoint would land in an unwalkable cell", () => {
+    // A tilemap can be taller than the world it was generated from — it rounds up to whole
+    // tiles, the world does not. Row 0 is water, row 1 is grass, but the world is only 80px
+    // tall: short enough that `pointForNode`'s clamp for row 1 (naturally 64 + 16 = 80, clamped
+    // to 80 - 32 = 48) lands at y = 48, *before* row 1 even starts (64) — squarely in row 0's
+    // solid territory. This is the same shape as Verdant Reach's real row 42/41 disagreement,
+    // shrunk down to pin exactly: a node's tile kind alone is not enough to call it walkable.
+    const tiles: TileMap = { cols: 1, rows: 2, kinds: ["water", "grass"] };
+    const terrain: TerrainGeometry = {
+      width: 64,
+      height: 80,
+      obstacles: [],
+      spawnPoints: [{ x: 16, y: 16 }],
+      safeZone: { x: 0, y: 0, width: 1, height: 1 },
+      tiles,
+    };
+    const grid = createNavigationGrid(terrain);
+    expect(grid.walkable[0]).toBe(0); // row 0: water by kind — unwalkable either way.
+    expect(grid.walkable[1]).toBe(0); // row 1: grass by kind, but its waypoint sits in row 0's water.
+  });
+
+  it("marks Verdant Reach's out-of-world-bounds last row entirely unwalkable", () => {
+    // Verdant Reach's tilemap is 43 rows (2752px) but the world is only 2700px tall. Row 42 is
+    // all grass by tile kind, and row 41 (the actual last in-world row) is all water. Without
+    // the fix, all 75 nodes in row 42 were marked walkable purely by kind, even though every one
+    // of their clamped waypoints lands in row 41's water.
+    const grid = createNavigationGrid(ZONES["verdant-reach"].terrain);
+    const row42Start = 42 * grid.columns;
+    const row42 = grid.walkable.slice(row42Start, row42Start + grid.columns);
+    expect(row42.every((value) => value === 0)).toBe(true);
   });
 });

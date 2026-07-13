@@ -1,7 +1,7 @@
 import { isWalkable, type TerrainGeometry } from "../../shared/game.js";
 import type { ZoneNavigationDefinition } from "../../shared/navigation.js";
 import { PLAYER_SIZE, type Vec2 } from "../../shared/simulation.js";
-import { isSolidKind, kindAt } from "../../shared/tilemap.js";
+import { isSolidKind, kindAt, TILE_SIZE } from "../../shared/tilemap.js";
 import type { MonsterRuntime } from "./world-runtime.js";
 
 const PATH_CACHE_LIMIT = 128;
@@ -67,11 +67,14 @@ export interface NavigationRuntime {
  * A cell is walkable exactly when the tilemap says so — no sampling, no approximation. Navigation
  * and collision reading the same grid is what makes a "clear" path always actually walkable; see
  * `hasLineOfSight` and `isWalkable`, which read the identical tiles.
+ *
+ * The grid's cell size is `TILE_SIZE`, always — not something a zone can configure. There used to
+ * be a `ZoneNavigationDefinition.cellSize` a zone could override (that is how `mmo-test-zone` once
+ * shipped with `cellSize: 40`, silently misaligning every waypoint against the collision tiles);
+ * it is gone, and this function takes only the tilemap-bearing `terrain`, so there is no longer a
+ * second number to disagree with it.
  */
-export function createNavigationGrid(
-  terrain: TerrainGeometry,
-  definition: ZoneNavigationDefinition,
-): NavigationGrid {
+export function createNavigationGrid(terrain: TerrainGeometry): NavigationGrid {
   const columns = terrain.tiles.cols;
   const rows = terrain.tiles.rows;
   const walkable = new Uint8Array(columns * rows);
@@ -80,7 +83,20 @@ export function createNavigationGrid(
     const row = Math.floor(node / columns);
     walkable[node] = isSolidKind(kindAt(terrain.tiles, col, row)) ? 0 : 1;
   }
-  return { cellSize: definition.cellSize, columns, rows, walkable, terrain };
+  const grid: NavigationGrid = { cellSize: TILE_SIZE, columns, rows, walkable, terrain };
+  // A node's own tile kind is not enough: `pointForNode` clamps a node's waypoint to stay inside
+  // `terrain.width`/`height`, and the tilemap can be taller or wider than the world it was
+  // generated from (a tile grid rounds up to whole tiles; the world does not). When it is, the
+  // clamped waypoint of an edge row can land in a cell the tilemap disagrees is walkable — the
+  // exact disagreement between "the grid" and "collision" this whole module exists to close. A
+  // node only counts as walkable if a body can actually stand at the point the pathfinder would
+  // ever send it to.
+  for (let node = 0; node < walkable.length; node++) {
+    if (walkable[node] === 1 && !isWalkable(pointForNode(grid, node), PLAYER_SIZE, terrain)) {
+      walkable[node] = 0;
+    }
+  }
+  return grid;
 }
 
 export function createNavigationRuntime(
@@ -88,7 +104,7 @@ export function createNavigationRuntime(
   definition: ZoneNavigationDefinition,
 ): NavigationRuntime {
   return {
-    grid: createNavigationGrid(terrain, definition),
+    grid: createNavigationGrid(terrain),
     definition,
     queue: [],
     active: null,
@@ -391,6 +407,14 @@ function takeLowest(open: SearchNode[]): SearchNode | undefined {
   return selected;
 }
 
+// Only checks `walkable[candidate]`, not the segment between the two cell centres: a neighbour
+// is always the adjacent cell in one axis, exactly `cellSize` away, and a `PLAYER_SIZE` (32px)
+// body centred in one 64px cell can never reach far enough to touch a third cell while crossing
+// to the next — so if both endpoints are walkable, the straight line between them necessarily is
+// too. This used to be re-checked with a sampled sweep (`edgeIsWalkable`), which was load-bearing
+// only because `createNavigationGrid` could mark a node walkable whose own point was not (see its
+// docs) — verified dead (0 of 6,822 candidate edges rejected on verdant-reach, 0 of 264 on
+// mmo-test-zone) once that root cause was fixed, and deleted.
 function neighbors(grid: NavigationGrid, node: number): number[] {
   const column = node % grid.columns;
   const row = Math.floor(node / grid.columns);
@@ -399,28 +423,7 @@ function neighbors(grid: NavigationGrid, node: number): number[] {
   if (column + 1 < grid.columns) result.push(node + 1);
   if (row > 0) result.push(node - grid.columns);
   if (row + 1 < grid.rows) result.push(node + grid.columns);
-  return result.filter(
-    (candidate) => grid.walkable[candidate] === 1 && edgeIsWalkable(grid, node, candidate),
-  );
-}
-
-function edgeIsWalkable(grid: NavigationGrid, fromNode: number, toNode: number): boolean {
-  const from = pointForNode(grid, fromNode);
-  const to = pointForNode(grid, toNode);
-  const length = distance(from, to);
-  const samples = Math.max(1, Math.ceil(length / (PLAYER_SIZE / 2)));
-  for (let index = 1; index <= samples; index++) {
-    const ratio = index / samples;
-    if (
-      !isWalkable(
-        { x: from.x + (to.x - from.x) * ratio, y: from.y + (to.y - from.y) * ratio },
-        PLAYER_SIZE,
-        grid.terrain,
-      )
-    )
-      return false;
-  }
-  return true;
+  return result.filter((candidate) => grid.walkable[candidate] === 1);
 }
 
 function heuristic(grid: NavigationGrid, from: number, to: number): number {

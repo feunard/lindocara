@@ -1,7 +1,4 @@
-import { TILE_SIZE } from "./tilemap.js";
-
 export interface ZoneNavigationDefinition {
-  cellSize: number;
   minimumRepathMs: number;
   targetMoveThreshold: number;
   nodeBudgetPerTick: number;
@@ -11,10 +8,11 @@ export interface ZoneNavigationDefinition {
   waypointTolerance: number;
 }
 
+// There is deliberately no `cellSize` here: the navigation grid's cell size is `TILE_SIZE`,
+// hard-coded in `createNavigationGrid`. A zone-configurable cell size is what let `mmo-test-zone`
+// ship with `cellSize: 40`, silently misaligning every waypoint against the collision tiles the
+// rest of the game reads — the same disagreement `stuckTicks` used to paper over.
 export const DEFAULT_ZONE_NAVIGATION: ZoneNavigationDefinition = {
-  /** The tilemap's cell size. Navigation and collision must be the same grid, or A* will route
-   *  monsters through walls the simulation then refuses — which is what `stuckTicks` used to hide. */
-  cellSize: TILE_SIZE,
   minimumRepathMs: 650,
   targetMoveThreshold: 72,
   nodeBudgetPerTick: 180,

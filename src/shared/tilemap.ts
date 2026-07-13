@@ -67,6 +67,11 @@ export function isWalkableBox(map: TileMap, position: Vec2, size: number): boole
  * instead means no crossing, however brief, can fall between two samples.
  */
 export function addAxisCrossings(into: number[], origin: number, delta: number): void {
+  // `NaN !== NaN`, so a NaN origin or delta would make the loop below never reach `lastTile` —
+  // an infinite loop inside a Durable Object's tick, hanging the whole room. No caller passes
+  // NaN today (every position is server-computed), but this is a 20Hz tick loop; the guard is
+  // free, and it matches the defensiveness `withinRange` already has against a non-finite range.
+  if (!Number.isFinite(origin) || !Number.isFinite(delta)) return;
   if (delta === 0) return;
   const step = delta > 0 ? 1 : -1;
   const firstTile = Math.floor(origin / TILE_SIZE);

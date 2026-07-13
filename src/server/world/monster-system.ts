@@ -202,7 +202,7 @@ function navigateMonster(
   // two entities' centers and is right for combat targeting but wrong here: a body can clip a
   // wall's corner over a stretch too short for its center's line to ever cross a solid tile, and a
   // monster that keeps re-deciding "clear" from a slightly different spot near the same corner —
-  // only to be shoved back by real (box) collision each time — pings-pongs there forever.
+  // only to be shoved back by real (box) collision each time — ping-pongs there forever.
   const lineClear =
     monster.navigation.directBlockedDestination === null &&
     isPathWalkable(context.zone.terrain.tiles, monster, destination, PLAYER_SIZE);
@@ -220,8 +220,18 @@ function navigateMonster(
 
   requestMonsterPath(context.navigation, monster, destination, targetId, state, now, forceRepath);
   const waypoint = advanceWaypoint(monster, context.navigation.definition.waypointTolerance);
-  if (waypoint) moveMonsterDirect(context, monster, waypoint);
-  else {
+  if (waypoint) {
+    // A waypoint move can fail exactly like a direct move can (a neighbour just outside the
+    // navigation grid's own idea of "walkable", a moving obstacle, anything real collision
+    // refuses that A* didn't know about). Unlike the direct-move branch above, there was no
+    // recovery here at all: `moveMonsterDirect`'s return value used to be discarded, so a fully
+    // blocked waypoint left the monster wedged until the destination itself moved far enough to
+    // force a new plan. Invalidate the stale path so the very next tick re-plans from where the
+    // monster actually is — reacting to the failed move itself, not to how long it has failed.
+    if (!moveMonsterDirect(context, monster, waypoint)) {
+      invalidateMonsterPath(monster, "waypoint_blocked");
+    }
+  } else {
     monster.vx *= 0.5;
     monster.vy *= 0.5;
   }

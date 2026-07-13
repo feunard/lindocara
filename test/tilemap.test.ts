@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  addAxisCrossings,
   isSolidKind,
   isWalkableBox,
   kindAt,
@@ -115,6 +116,32 @@ describe("isWalkableBox at an exact tile boundary", () => {
   it("refuses the same box shifted one pixel down, now crossing the seam into water", () => {
     const box = { x: 0, y: 1 };
     expect(isWalkableBox(verticalSeamMap(), box, TILE_SIZE)).toBe(false);
+  });
+});
+
+describe("addAxisCrossings guards against non-finite input", () => {
+  // `tile !== lastTile` never becomes false when either bound is NaN (`NaN !== NaN` is always
+  // true), so the loop would never terminate — an infinite loop inside a Durable Object's 20Hz
+  // tick, hanging the whole room. No caller can pass NaN today (every position is
+  // server-computed), but the guard is free and this pins that it actually stops the loop
+  // rather than relying on that invariant holding forever.
+  it("does nothing and returns promptly when origin is NaN", () => {
+    const into: number[] = [0, 1];
+    addAxisCrossings(into, Number.NaN, 10);
+    expect(into).toEqual([0, 1]);
+  });
+
+  it("does nothing and returns promptly when delta is NaN", () => {
+    const into: number[] = [0, 1];
+    addAxisCrossings(into, 10, Number.NaN);
+    expect(into).toEqual([0, 1]);
+  });
+
+  it("does nothing and returns promptly when either bound is infinite", () => {
+    const into: number[] = [0, 1];
+    addAxisCrossings(into, 10, Number.POSITIVE_INFINITY);
+    addAxisCrossings(into, Number.NEGATIVE_INFINITY, 10);
+    expect(into).toEqual([0, 1]);
   });
 });
 
