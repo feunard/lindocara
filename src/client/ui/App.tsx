@@ -10,6 +10,7 @@ import { ConnectionOverlay } from "./ConnectionOverlay.js";
 import { EventLog } from "./EventLog.js";
 import { HelpBar } from "./HelpBar.js";
 import { Hud } from "./hud/Hud.js";
+import { Minimap } from "./hud/Minimap.js";
 import { InteriorOverlay } from "./InteriorOverlay.js";
 import { LocaleToggle } from "./LocaleToggle.js";
 import { Prompt } from "./Prompt.js";
@@ -38,6 +39,7 @@ export function App() {
       {screen === "game" && (
         <>
           <Hud />
+          <Minimap />
           <Chat />
           <EventLog />
           <Prompt />

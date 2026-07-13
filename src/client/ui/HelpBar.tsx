@@ -11,6 +11,7 @@ export function HelpBar() {
       <Kbd>E</Kbd> {t("help.commune")}
       <Kbd>Q</Kbd> {t("help.tonic")}
       <Kbd>R</Kbd> {t("help.release")}
+      <Kbd>M</Kbd> {t("help.map")}
       <Kbd>Esc</Kbd> {t("help.settings")}
     </div>
   );

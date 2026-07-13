@@ -176,6 +176,11 @@ export const fr: Record<keyof typeof en, string> = {
   "hud.switch_character": "Changer de personnage",
   "hud.logout": "Se déconnecter",
   "hud.abilities": "Compétences",
+  "hud.map": "Carte",
+  "hud.map.title": "Val Verdoyant",
+  "hud.map.you": "Vous",
+  "hud.map.corpse": "Votre corps",
+  "hud.map.close": "Fermer",
 
   // Objets
   "item.potion": "Tonique du Cœur-Racine",
@@ -235,6 +240,7 @@ export const fr: Record<keyof typeof en, string> = {
   "help.tonic": "tonique",
   "help.release": "libérer l'esprit",
   "help.settings": "paramètres",
+  "help.map": "carte",
 
   // Menu pause / paramètres
   "settings.title": "Paramètres",

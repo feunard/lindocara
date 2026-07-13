@@ -171,6 +171,11 @@ export const en = {
   "hud.switch_character": "Switch character",
   "hud.logout": "Log out",
   "hud.abilities": "Abilities",
+  "hud.map": "Map",
+  "hud.map.title": "Verdant Reach",
+  "hud.map.you": "You",
+  "hud.map.corpse": "Your body",
+  "hud.map.close": "Close",
 
   // Items
   "item.potion": "Heartroot tonic",
@@ -229,6 +234,7 @@ export const en = {
   "help.tonic": "tonic",
   "help.release": "release spirit",
   "help.settings": "settings",
+  "help.map": "map",
 
   // Pause / settings menu
   "settings.title": "Settings",
