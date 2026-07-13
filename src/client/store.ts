@@ -75,6 +75,10 @@ interface UiState {
   interiorDoorId: string | null;
   settingsOpen: boolean;
   mapOpen: boolean;
+  /** The current zone's i18n key, carried by the welcome message. Null until the first
+   *  welcome arrives; refreshed on every zone transition so the world map titles itself
+   *  correctly after walking through a portal. */
+  zoneNameKey: MessageKey | null;
   reconnect: ReconnectState | null;
   game: GameHandle | null;
 
@@ -95,6 +99,7 @@ interface UiState {
   setInteriorDoorId(id: string | null): void;
   setSettingsOpen(open: boolean): void;
   setMapOpen(open: boolean): void;
+  setZoneNameKey(key: MessageKey): void;
   setReconnect(reconnect: ReconnectState | null): void;
   setGame(game: GameHandle | null): void;
 }
@@ -144,6 +149,7 @@ export const useUiStore = create<UiState>((set) => ({
   interiorDoorId: null,
   settingsOpen: false,
   mapOpen: false,
+  zoneNameKey: null,
   reconnect: null,
   game: null,
 
@@ -203,6 +209,7 @@ export const useUiStore = create<UiState>((set) => ({
   setInteriorDoorId: (id) => set({ interiorDoorId: id }),
   setSettingsOpen: (open) => set({ settingsOpen: open }),
   setMapOpen: (open) => set({ mapOpen: open }),
+  setZoneNameKey: (zoneNameKey) => set({ zoneNameKey }),
   setReconnect: (reconnect) => set({ reconnect }),
   setGame: (game) => set({ game }),
 }));

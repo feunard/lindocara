@@ -697,6 +697,63 @@ kbd {
     serif;
 }
 
+#world-map {
+  position: fixed;
+  /* Above the HUD and the skill bar; below SettingsMenu (20) and ConnectionOverlay (40),
+     so Escape closes the map before it opens settings and a disconnect always wins. */
+  z-index: 10;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(10, 8, 6, 0.72);
+}
+
+.world-map-panel {
+  width: min(78rem, 92vw);
+  padding: 0.8rem;
+  border: 3px solid var(--panel-border, #3b2f26);
+  background: #1a1712;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.world-map-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #e8d5b7;
+}
+
+.world-map-canvas {
+  width: 100%;
+  /* The world is 4800x2700 — 16:9. Keep the aspect or the map lies about distances. */
+  aspect-ratio: 16 / 9;
+  display: block;
+  image-rendering: pixelated;
+  border: 2px solid var(--panel-border, #3b2f26);
+}
+
+.world-map-legend {
+  display: flex;
+  gap: 1rem;
+  color: #b9a88f;
+  font-size: 0.85rem;
+}
+
+.legend-self::before,
+.legend-corpse::before {
+  content: "\25cf";
+  margin-right: 0.3rem;
+}
+
+.legend-self::before {
+  color: #ffffff;
+}
+
+.legend-corpse::before {
+  color: #ff6b6b;
+}
+
 #settings-menu {
   position: fixed;
   inset: 0;

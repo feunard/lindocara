@@ -231,6 +231,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       questState = state.quest;
       selfCorpse = state.corpse;
       renderState(state);
+      useUiStore.getState().setZoneNameKey(world.zoneNameKey as MessageKey);
       setStatus("status.connected_zone", { zone: t(world.zoneNameKey as MessageKey) });
       if (!welcomed) {
         welcomed = true;

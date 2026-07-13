@@ -16,6 +16,7 @@ import { LocaleToggle } from "./LocaleToggle.js";
 import { Prompt } from "./Prompt.js";
 import { SettingsMenu } from "./SettingsMenu.js";
 import { StatusBar } from "./StatusBar.js";
+import { WorldMap } from "./WorldMap.js";
 
 export function App() {
   const screen = useUiStore((s) => s.screen);
@@ -45,6 +46,7 @@ export function App() {
           <Prompt />
           <HelpBar />
           <InteriorOverlay />
+          <WorldMap />
           <SettingsMenu />
           <ConnectionOverlay />
         </>
