@@ -9,6 +9,7 @@ import {
   VERDANT_REACH_ZONE_KEY,
 } from "../src/client/game/minimap.js";
 import type { GroundPalette } from "../src/client/game/world-layout.js";
+import { TERRAIN_BLOCKERS } from "../src/shared/game.js";
 
 const SIZE = 200;
 const CENTER = { x: 2000, y: 1000 };
@@ -103,6 +104,28 @@ describe("ground colour", () => {
     const dim = groundColor({ kind: "grass", palette: "verdant", tint: 0x808080, detailChance: 0 });
     expect(dim).toBeLessThan(bright);
   });
+
+  it("gives water a fixed colour instead of running it through the palette multiply", () => {
+    // Water carries palette "wet" like a wet-grass sample would, but it must not be tinted:
+    // two water samples with different tints must still match each other, and must differ
+    // from what the multiply path would have produced for the same palette and tint.
+    const water = groundColor({ kind: "water", palette: "wet", tint: 0xe1ffff, detailChance: 0 });
+    const dimmerWater = groundColor({
+      kind: "water",
+      palette: "wet",
+      tint: 0x808080,
+      detailChance: 0,
+    });
+    expect(water).toBe(dimmerWater);
+
+    const multipliedWet = groundColor({
+      kind: "grass",
+      palette: "wet",
+      tint: 0xe1ffff,
+      detailChance: 0,
+    });
+    expect(water).not.toBe(multipliedWet);
+  });
 });
 
 describe("zone-correct terrain sampling", () => {
@@ -131,5 +154,31 @@ describe("zone-correct terrain sampling", () => {
     const sanctuary = terrainColorAt("zone.mmo_test_zone.name", world, 900, 700);
     const wild = terrainColorAt("zone.mmo_test_zone.name", world, 3000, 2000);
     expect(sanctuary).not.toBe(wild);
+  });
+
+  it("paints a river as water, not as an obstacle, even though the server lists it in obstacles", () => {
+    // The server's WorldInfo.obstacles is OBSTACLES, which flattens every TERRAIN_BLOCKERS
+    // rect regardless of kind — water included. Anchor this to a real water blocker so the
+    // test tracks the actual geometry rather than a coordinate nobody will keep in sync.
+    const waterBlocker = TERRAIN_BLOCKERS.find((blocker) => blocker.kind === "water");
+    if (!waterBlocker) throw new Error("Expected at least one water terrain blocker");
+    const { rect } = waterBlocker;
+    const riverWorld = {
+      width: 4800,
+      height: 2700,
+      obstacles: [rect],
+      safeZone: { x: 360, y: 260, width: 1200, height: 920 },
+    };
+    const point = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+
+    const color = terrainColorAt(VERDANT_REACH_ZONE_KEY, riverWorld, point.x, point.y);
+
+    const waterColor = groundColor({
+      kind: "water",
+      palette: "wet",
+      tint: 0xe1ffff,
+      detailChance: 0,
+    });
+    expect(color).toBe(waterColor);
   });
 });

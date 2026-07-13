@@ -127,10 +127,18 @@ function contains(rect: Rect, x: number, y: number): boolean {
  * detailed lie — so any other zone gets a plain sampler built from server geometry alone.
  */
 export function terrainColorAt(zoneNameKey: string, world: MapWorld, x: number, y: number): number {
-  if (world.obstacles.some((rect) => contains(rect, x, y))) return OBSTACLE_COLOR;
   if (zoneNameKey === VERDANT_REACH_ZONE_KEY) {
+    // world.obstacles is a flat Rect list — the server's WorldInfo.obstacles — with no kind
+    // attached, so rivers and pools look exactly like walls to the check below. terrainAt()
+    // reads the same colliders from shared/game.ts with their kind intact, so it must be
+    // consulted first: water wins, everything else impassable (buildings, cliffs, forest)
+    // still paints as OBSTACLE_COLOR.
     // Variation is per-texel noise at full resolution; at 1/8 scale it would be speckle.
-    return groundColor(terrainAt(x, y, 0.5));
+    const sample = terrainAt(x, y, 0.5);
+    if (sample.kind === "water") return groundColor(sample);
+    if (world.obstacles.some((rect) => contains(rect, x, y))) return OBSTACLE_COLOR;
+    return groundColor(sample);
   }
+  if (world.obstacles.some((rect) => contains(rect, x, y))) return OBSTACLE_COLOR;
   return contains(world.safeZone, x, y) ? SANCTUARY_COLOR : PLAIN_GROUND_COLOR;
 }
