@@ -77,3 +77,58 @@ describe("walking a box over tiles", () => {
     expect(isWalkableBox(m, halfOffTheBridge, 32)).toBe(false);
   });
 });
+
+// The far edge is computed as `position + size - 1`, not `position + size`. That `-1` only
+// changes the outcome when `position + size` lands exactly on a multiple of TILE_SIZE — every
+// other value floors to the same cell either way. None of the boxes above sum to a multiple of
+// 64, so they would all still pass with the `-1` deleted. These pin the boundary itself.
+describe("isWalkableBox at an exact tile boundary", () => {
+  // 2x1 map: grass beside water. The seam between them sits at x = TILE_SIZE, a multiple of 64.
+  function horizontalSeamMap(): TileMap {
+    const g: TileKind = "grass";
+    const w: TileKind = "water";
+    return { cols: 2, rows: 1, kinds: [g, w] };
+  }
+
+  // 1x2 map: grass above water. The seam sits at y = TILE_SIZE.
+  function verticalSeamMap(): TileMap {
+    const g: TileKind = "grass";
+    const w: TileKind = "water";
+    return { cols: 1, rows: 2, kinds: [g, w] };
+  }
+
+  it("lets a box whose right edge lands exactly on the seam stay on the grass side", () => {
+    const box = { x: 0, y: 0 };
+    expect(isWalkableBox(horizontalSeamMap(), box, TILE_SIZE)).toBe(true);
+  });
+
+  it("refuses the same box shifted one pixel right, now crossing the seam into water", () => {
+    const box = { x: 1, y: 0 };
+    expect(isWalkableBox(horizontalSeamMap(), box, TILE_SIZE)).toBe(false);
+  });
+
+  it("lets a box whose bottom edge lands exactly on the seam stay on the grass side", () => {
+    const box = { x: 0, y: 0 };
+    expect(isWalkableBox(verticalSeamMap(), box, TILE_SIZE)).toBe(true);
+  });
+
+  it("refuses the same box shifted one pixel down, now crossing the seam into water", () => {
+    const box = { x: 0, y: 1 };
+    expect(isWalkableBox(verticalSeamMap(), box, TILE_SIZE)).toBe(false);
+  });
+});
+
+describe("isWalkableBox with a degenerate size", () => {
+  // Both at x = 0 and y = TILE_SIZE (each a multiple of 64), so `position + size - 1` underflows
+  // into the previous cell on both axes and the loop bounds invert — the exact shape of the bug.
+  const onWater = { x: 0, y: TILE_SIZE };
+
+  it("refuses a zero-size box even though it sits on solid water", () => {
+    expect(isSolidKind(kindAt(map(), 0, 1))).toBe(true);
+    expect(isWalkableBox(map(), onWater, 0)).toBe(false);
+  });
+
+  it("refuses a negative-size box the same way", () => {
+    expect(isWalkableBox(map(), onWater, -5)).toBe(false);
+  });
+});

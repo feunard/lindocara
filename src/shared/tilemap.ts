@@ -41,6 +41,10 @@ export function kindAtPoint(map: TileMap, x: number, y: number): TileKind {
  * with one shoulder in the water would be allowed to stand there.
  */
 export function isWalkableBox(map: TileMap, position: Vec2, size: number): boolean {
+  // A non-positive size has no tiles to check. Without this guard the loops below can end up
+  // with `right < left` (or `bottom < top`), never run, and fall through to `true` — reporting
+  // a degenerate box as walkable even when it sits exactly on a solid tile.
+  if (size <= 0) return false;
   const left = Math.floor(position.x / TILE_SIZE);
   const top = Math.floor(position.y / TILE_SIZE);
   // The box's far edge is exclusive: a body exactly on a cell boundary does not touch the next cell.
