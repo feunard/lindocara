@@ -25,7 +25,7 @@ function mockGame(): GameHandle {
 describe("WorldMap", () => {
   beforeEach(() => {
     setLocale("en");
-    useUiStore.setState({ mapOpen: false, game: null, zoneNameKey: null });
+    useUiStore.setState({ mapOpen: false, game: null, zoneNameKey: null, worldSize: null });
   });
 
   it("renders nothing at all when mapOpen is false", () => {
@@ -101,5 +101,42 @@ describe("WorldMap", () => {
     render(<WorldMap />);
 
     expect(screen.getByRole("heading")).toHaveTextContent("Verdant Reach");
+  });
+
+  it("sizes the canvas to Verdant Reach's 16:9 world", () => {
+    useUiStore.setState({
+      game: mockGame(),
+      mapOpen: true,
+      worldSize: { width: 4800, height: 2700 },
+    });
+
+    const view = render(<WorldMap />);
+    const canvas = view.container.querySelector(".world-map-canvas");
+
+    expect(canvas).toBeInstanceOf(HTMLCanvasElement);
+    expect((canvas as HTMLCanvasElement).style.aspectRatio).toBe("4800 / 2700");
+  });
+
+  it("sizes the canvas to mmo-test-zone's 4:3 world instead of assuming 16:9", () => {
+    useUiStore.setState({
+      game: mockGame(),
+      mapOpen: true,
+      worldSize: { width: 640, height: 480 },
+    });
+
+    const view = render(<WorldMap />);
+    const canvas = view.container.querySelector(".world-map-canvas");
+
+    expect(canvas).toBeInstanceOf(HTMLCanvasElement);
+    expect((canvas as HTMLCanvasElement).style.aspectRatio).toBe("640 / 480");
+  });
+
+  it("falls back to Verdant Reach's aspect before any welcome has set the world size", () => {
+    useUiStore.setState({ game: mockGame(), mapOpen: true, worldSize: null });
+
+    const view = render(<WorldMap />);
+    const canvas = view.container.querySelector(".world-map-canvas");
+
+    expect((canvas as HTMLCanvasElement).style.aspectRatio).toBe("4800 / 2700");
   });
 });

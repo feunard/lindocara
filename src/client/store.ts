@@ -79,6 +79,11 @@ interface UiState {
    *  welcome arrives; refreshed on every zone transition so the world map titles itself
    *  correctly after walking through a portal. */
   zoneNameKey: MessageKey | null;
+  /** The current zone's terrain size, carried by the welcome message. Set once per zone
+   *  transition (not per frame, so it does not run afoul of the no-world-position rule below):
+   *  it lets the world map apply the true aspect ratio instead of assuming every zone is
+   *  Verdant Reach's 16:9. */
+  worldSize: { width: number; height: number } | null;
   reconnect: ReconnectState | null;
   game: GameHandle | null;
 
@@ -100,6 +105,7 @@ interface UiState {
   setSettingsOpen(open: boolean): void;
   setMapOpen(open: boolean): void;
   setZoneNameKey(key: MessageKey): void;
+  setWorldSize(size: { width: number; height: number } | null): void;
   setReconnect(reconnect: ReconnectState | null): void;
   setGame(game: GameHandle | null): void;
 }
@@ -150,6 +156,7 @@ export const useUiStore = create<UiState>((set) => ({
   settingsOpen: false,
   mapOpen: false,
   zoneNameKey: null,
+  worldSize: null,
   reconnect: null,
   game: null,
 
@@ -210,6 +217,7 @@ export const useUiStore = create<UiState>((set) => ({
   setSettingsOpen: (open) => set({ settingsOpen: open }),
   setMapOpen: (open) => set({ mapOpen: open }),
   setZoneNameKey: (zoneNameKey) => set({ zoneNameKey }),
+  setWorldSize: (worldSize) => set({ worldSize }),
   setReconnect: (reconnect) => set({ reconnect }),
   setGame: (game) => set({ game }),
 }));

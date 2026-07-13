@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { WORLD_HEIGHT, WORLD_WIDTH } from "../../shared/simulation.js";
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
 
@@ -15,6 +16,11 @@ export function WorldMap() {
   // The welcome message carries the real zone; falling back to the generic title covers only
   // the narrow race where M is pressed before the first welcome has landed.
   const zoneNameKey = useUiStore((s) => s.zoneNameKey);
+  // Same welcome message carries the zone's true terrain size. Falling back to Verdant Reach's
+  // dimensions (the default zone) covers that same narrow pre-welcome race; every zone after
+  // that reports its own shape, so a 4:3 zone stops being stretched to 16:9.
+  const worldSize = useUiStore((s) => s.worldSize);
+  const aspectRatio = `${worldSize?.width ?? WORLD_WIDTH} / ${worldSize?.height ?? WORLD_HEIGHT}`;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -34,7 +40,7 @@ export function WorldMap() {
             {t("hud.map.close")}
           </button>
         </header>
-        <canvas ref={canvasRef} className="world-map-canvas" />
+        <canvas ref={canvasRef} className="world-map-canvas" style={{ aspectRatio }} />
         <footer className="world-map-legend">
           <span className="legend-self">{t("hud.map.you")}</span>
           <span className="legend-corpse">{t("hud.map.corpse")}</span>

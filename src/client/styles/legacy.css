@@ -726,8 +726,8 @@ kbd {
 
 .world-map-canvas {
   width: 100%;
-  /* The world is 4800x2700 — 16:9. Keep the aspect or the map lies about distances. */
-  aspect-ratio: 16 / 9;
+  /* aspect-ratio is set inline by WorldMap.tsx from the welcome message's world size —
+     zones are not all 16:9 (mmo-test-zone is 640x480, 4:3), so it cannot be a constant here. */
   display: block;
   image-rendering: pixelated;
   border: 2px solid var(--panel-border, #3b2f26);
