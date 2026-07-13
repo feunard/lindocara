@@ -18,8 +18,9 @@ import { tileMapFromRects } from "./support/tiles.js";
 /**
  * A single small rect, thinner than one tile, that the rasteriser (any-overlap; conservative in
  * the direction production's 50%-coverage rule also leans) coarsens to a whole solid 64px tile —
- * exactly the shape of the hazard on `forest-goblin-1` and `gate-troll`'s patrol rings: a wall
- * the tile grid draws fatter than the rectangle it came from.
+ * exactly the shape of the hazard `forest-goblin-1` and `gate-troll`'s patrol rings had before
+ * their spawns were nudged clear of it: a wall the tile grid draws fatter than the rectangle it
+ * came from.
  */
 const OBSTACLE = { x: 300, y: 300, width: 8, height: 8 };
 

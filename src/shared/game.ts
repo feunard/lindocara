@@ -567,7 +567,10 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
     kind: "goblin",
     species: "goblin_raider",
     zone: "forest",
-    x: 2020,
+    // Sits in the 3-tile-wide gap between the two south groves. Centred at x: 2000 (was 2020) so
+    // the patrol ring's east edge stays clear of the fattened tile the coarsened grove wall
+    // rounds out to — see the strict isWalkable assertion in game.test.ts.
+    x: 2000,
     y: 1290,
     patrolRadius: 70,
   },
@@ -657,8 +660,10 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
     kind: "troll",
     species: "gate_troll",
     zone: "gate",
+    // y: 870 (was 850) so the patrol ring's north edge clears the fattened tile below
+    // gate-north-cliff — see the strict isWalkable assertion in game.test.ts.
     x: 4300,
-    y: 850,
+    y: 870,
     patrolRadius: 95,
   },
 ] as const;

@@ -229,8 +229,11 @@ function navigateMonster(
     // gate defers the next plan for up to 650ms, and once it opens, the unchanged start/goal hands
     // back the identical cached path — which fails at the identical waypoint and gets invalidated
     // again before anything outside this function ever sees it. `invalidateBlockedWaypoint` clears
-    // the gate and evicts that cache entry, so the very next tick queues a genuine re-plan; the one
-    // tick already spent on this failed move is the pause that is left.
+    // the gate and evicts that cache entry, so the very next tick queues a genuine re-plan — but
+    // that is two ticks of pause, not one: this tick (N) is the refused move; tick N+1's
+    // `requestMonsterPath` call queues the real search, but the path stays empty until
+    // `processNavigationBudget` runs after the monster loop, so N+1 doesn't move either. Movement
+    // resumes at N+2.
     if (!moveMonsterDirect(context, monster, waypoint)) {
       invalidateBlockedWaypoint(context.navigation, monster, destination);
     }

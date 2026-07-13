@@ -34,6 +34,7 @@ import {
   WORLD_HEIGHT,
   WORLD_WIDTH,
 } from "../src/shared/simulation.js";
+import { TILE_SIZE } from "../src/shared/tilemap.js";
 import {
   awayFromNearestWall,
   Client,
@@ -252,23 +253,39 @@ describe("World", () => {
   it("never lets a square cross the authoritative boundary mass", async () => {
     // The old rectangle's edge sat exactly at WORLD_BOUNDARY_DEPTH; the tile grid coarsens that
     // wall out to the nearest solid cell, so find where it actually sits before spawning nearby,
-    // rather than assuming `WORLD_BOUNDARY_DEPTH` is itself still walkable.
+    // rather than assuming `WORLD_BOUNDARY_DEPTH` is itself still walkable. Bounded: coarsening can
+    // only fatten a wall by less than one tile (SOLID_COVERAGE is a 50% threshold), so two tiles of
+    // search is already generous — if it ever runs out, the row is unexpectedly solid and the test
+    // should fail loudly rather than spin forever.
     const y = 2000;
+    const WALL_SEARCH_LIMIT = WORLD_BOUNDARY_DEPTH + TILE_SIZE * 2;
     let wallX = WORLD_BOUNDARY_DEPTH;
-    while (!isWalkable({ x: wallX, y })) wallX += 1;
+    while (!isWalkable({ x: wallX, y })) {
+      wallX += 1;
+      if (wallX > WALL_SEARCH_LIMIT) {
+        throw new Error(
+          `no walkable ground found within ${WALL_SEARCH_LIMIT}px of the boundary wall at y=${y}`,
+        );
+      }
+    }
     const start = { x: wallX + PLAYER_SPEED * TICK_DT, y };
     const client = await Client.join("dave", { position: start });
     await until("welcome", () => client.welcome);
 
     client.press("left");
-    // Movement is tick-quantised (one command applied per tick), so the resting x is not
-    // guaranteed to be pixel-adjacent to the wall either — assert it made progress and got
-    // blocked, not an exact stop x.
-    await scheduler.wait(300);
-    const pinned = client.self();
-    if (!pinned) throw new Error("expected a position after pushing into the boundary wall");
-    expect(pinned.x).toBeLessThan(start.x);
-    expect(pinned.x).toBeGreaterThanOrEqual(WORLD_BOUNDARY_DEPTH);
+    // Movement is tick-quantised (one command applied per tick), and `start` was placed exactly
+    // one tick's travel from `wallX` — the same computation `resolveTerrain` will make — so the
+    // square settles at exactly `wallX` after a single applied tick. Poll for that real condition
+    // instead of sleeping and hoping a tick landed within an arbitrary window.
+    const pinned = await until(
+      "the square to settle against the boundary wall",
+      () => {
+        const now = client.self();
+        return now && now.x === wallX ? now : undefined;
+      },
+      2_000,
+    );
+    expect(pinned.x).toBe(wallX);
     expect(isWalkable({ x: pinned.x, y: pinned.y })).toBe(true);
 
     // Keep pushing: the wall must hold, not merely be touched once.

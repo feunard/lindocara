@@ -87,26 +87,6 @@ function distanceToRect(position: { x: number; y: number }, rect: Rect): number 
   return Math.hypot(dx, dy);
 }
 
-/**
- * Design points (patrol rings, in particular) were tuned against pixel-exact rectangles. A 64px
- * tile cell can round a nearby wall's edge outward by up to one tile, so a point that used to
- * clear a wall by a few pixels can now sit just inside the coarsened cell. Rather than assert the
- * exact pixel is walkable, assert open ground is at most one tile-step away — the same tolerance
- * the grid itself introduced.
- */
-function nearWalkable(position: { x: number; y: number }): boolean {
-  if (isWalkable(position)) return true;
-  const offsets = [
-    { x: TILE_SIZE, y: 0 },
-    { x: -TILE_SIZE, y: 0 },
-    { x: 0, y: TILE_SIZE },
-    { x: 0, y: -TILE_SIZE },
-  ];
-  return offsets.some((offset) =>
-    isWalkable({ x: position.x + offset.x, y: position.y + offset.y }),
-  );
-}
-
 const REACHABILITY_STEP = 64;
 
 function sampleKey(position: { x: number; y: number }): string {
@@ -356,7 +336,7 @@ describe("authoritative world geometry", () => {
           y: spawn.y + Math.sin(angle) * spawn.patrolRadius,
         };
         if (!spawn.mayEnterSafeZone) {
-          expect(nearWalkable(patrolSample), `${spawn.id} patrol sample ${sample}`).toBe(true);
+          expect(isWalkable(patrolSample), `${spawn.id} patrol sample ${sample}`).toBe(true);
         }
       }
     }
