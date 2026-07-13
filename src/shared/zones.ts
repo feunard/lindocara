@@ -13,6 +13,7 @@ import {
 } from "./game.js";
 import { DEFAULT_ZONE_NAVIGATION, type ZoneNavigationDefinition } from "./navigation.js";
 import type { Vec2 } from "./simulation.js";
+import { MMO_TEST_ZONE_TILES } from "./zones/mmo-test-zone-tiles.js";
 
 export type ZoneId = "verdant-reach" | "mmo-test-zone";
 export type ZoneKind = "open_world" | "town" | "dungeon";
@@ -69,6 +70,7 @@ export const TEST_ZONE_TERRAIN: TerrainGeometry = {
   obstacles: [{ x: 320, y: 180, width: 96, height: 128 }],
   spawnPoints: TEST_ZONE_SPAWNS,
   safeZone: TEST_ZONE_SAFE_ZONE,
+  tiles: MMO_TEST_ZONE_TILES,
 };
 
 export const ZONES: Readonly<Record<ZoneId, ZoneDefinition>> = {

@@ -9,13 +9,17 @@ import {
 } from "../src/server/world/world-runtime.js";
 import { starterEquipmentFor } from "../src/shared/character.js";
 import type { TerrainGeometry } from "../src/shared/game.js";
+import { tileMapFromRects } from "./support/tiles.js";
+
+const OBSTACLES = [{ x: 80, y: 0, width: 20, height: 120 }];
 
 const terrain: TerrainGeometry = {
   width: 400,
   height: 300,
   spawnPoints: [{ x: 10, y: 10 }],
   safeZone: { x: 0, y: 200, width: 100, height: 100 },
-  obstacles: [{ x: 80, y: 0, width: 20, height: 120 }],
+  obstacles: OBSTACLES,
+  tiles: tileMapFromRects(400, 300, OBSTACLES),
 };
 
 function player(): PlayerRuntime {

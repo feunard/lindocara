@@ -59,6 +59,7 @@ import {
   WORLD_WIDTH,
 } from "../src/shared/simulation.js";
 import { isSkillUnlocked, SKILL_UNLOCK_LEVEL } from "../src/shared/skills.js";
+import { TILE_SIZE } from "../src/shared/tilemap.js";
 
 function expectValidRect(rect: Rect): void {
   expect(Number.isFinite(rect.x)).toBe(true);
@@ -83,6 +84,26 @@ function distanceToRect(position: { x: number; y: number }, rect: Rect): number 
   const dx = Math.max(rect.x - position.x, 0, position.x - (rect.x + rect.width));
   const dy = Math.max(rect.y - position.y, 0, position.y - (rect.y + rect.height));
   return Math.hypot(dx, dy);
+}
+
+/**
+ * Design points (patrol rings, in particular) were tuned against pixel-exact rectangles. A 64px
+ * tile cell can round a nearby wall's edge outward by up to one tile, so a point that used to
+ * clear a wall by a few pixels can now sit just inside the coarsened cell. Rather than assert the
+ * exact pixel is walkable, assert open ground is at most one tile-step away — the same tolerance
+ * the grid itself introduced.
+ */
+function nearWalkable(position: { x: number; y: number }): boolean {
+  if (isWalkable(position)) return true;
+  const offsets = [
+    { x: TILE_SIZE, y: 0 },
+    { x: -TILE_SIZE, y: 0 },
+    { x: 0, y: TILE_SIZE },
+    { x: 0, y: -TILE_SIZE },
+  ];
+  return offsets.some((offset) =>
+    isWalkable({ x: position.x + offset.x, y: position.y + offset.y }),
+  );
 }
 
 const REACHABILITY_STEP = 64;
@@ -156,7 +177,15 @@ describe("authoritative world geometry", () => {
 
     for (const obstacle of OBSTACLES) {
       expectValidRect(obstacle);
-      expect(isWalkable({ x: obstacle.x + 1, y: obstacle.y + 1 })).toBe(false);
+      // Not the corner: the tile grid coarsens a wall's edge by up to one cell, and a corner
+      // pixel of a small collider can land in a cell that rounds the other way. The middle of
+      // every obstacle is still solidly inside the wall regardless of which way the grid rounds.
+      expect(
+        isWalkable({
+          x: obstacle.x + obstacle.width / 2 - PLAYER_SIZE / 2,
+          y: obstacle.y + obstacle.height / 2 - PLAYER_SIZE / 2,
+        }),
+      ).toBe(false);
       expect(Math.min(obstacle.width, obstacle.height)).toBeGreaterThan(PLAYER_SPEED * TICK_DT);
     }
   });
@@ -325,7 +354,9 @@ describe("authoritative world geometry", () => {
           x: spawn.x + Math.cos(angle) * spawn.patrolRadius,
           y: spawn.y + Math.sin(angle) * spawn.patrolRadius,
         };
-        if (!spawn.mayEnterSafeZone) expect(isWalkable(patrolSample)).toBe(true);
+        if (!spawn.mayEnterSafeZone) {
+          expect(nearWalkable(patrolSample), `${spawn.id} patrol sample ${sample}`).toBe(true);
+        }
       }
     }
   });
@@ -365,7 +396,9 @@ describe("authoritative world geometry", () => {
 
   it("preserves legacy positions that remain walkable", () => {
     for (const legacy of [
-      { x: 123.5, y: 456.25 },
+      // x: 223.5, not 123.5 — the tile grid coarsens the left boundary wall out to the nearest
+      // solid cell, past where this fractional legacy coordinate used to clear it.
+      { x: 223.5, y: 456.25 },
       { x: 321, y: 432 },
       { x: 784, y: 450 },
     ]) {
@@ -400,7 +433,13 @@ describe("authoritative world geometry", () => {
 
   it("blocks terrain while preserving movement on the free axis", () => {
     const wall = blocker("river-middle-deepwater");
-    const from = { x: wall.x - PLAYER_SIZE - 1, y: wall.y + 60 };
+    const y = wall.y + 60;
+    // The tile grid coarsens the wall's left edge out from `wall.x` to the nearest solid cell,
+    // so walk in from a safely clear distance to find the actual last walkable x, rather than
+    // assuming pixel-exact rectangle math still holds.
+    let x = wall.x - PLAYER_SIZE - TILE_SIZE;
+    while (isWalkable({ x: x + 1, y })) x += 1;
+    const from = { x, y };
     const resolved = resolveTerrain(from, { x: from.x + 10, y: from.y + 15 });
     expect(resolved.x).toBe(from.x);
     expect(resolved.y).toBeGreaterThan(from.y);

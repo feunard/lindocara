@@ -6,6 +6,8 @@ import {
   WORLD_WIDTH,
   type WorldBounds,
 } from "./simulation.js";
+import { isWalkableBox, type TileMap } from "./tilemap.js";
+import { VERDANT_REACH_TILES } from "./zones/verdant-reach-tiles.js";
 
 export interface Rect {
   x: number;
@@ -19,6 +21,9 @@ export interface TerrainGeometry extends WorldBounds {
   obstacles: readonly Rect[];
   spawnPoints: readonly Vec2[];
   safeZone: Rect;
+  /** The collision truth. `obstacles` survives only for line-of-sight and the minimap, and goes
+   *  away in the next slice. */
+  tiles: TileMap;
 }
 
 export interface NpcDefinition extends Vec2 {
@@ -501,6 +506,7 @@ export const VERDANT_REACH_TERRAIN: TerrainGeometry = {
   obstacles: OBSTACLES,
   spawnPoints: SPAWN_POINTS,
   safeZone: SAFE_ZONE,
+  tiles: VERDANT_REACH_TILES,
 };
 
 export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
@@ -744,20 +750,18 @@ export function inRect(position: Vec2, rect: Rect, size: number = PLAYER_SIZE): 
   return rectsOverlap(entityBox(position, size), rect);
 }
 
+/**
+ * The single collision entry point. `resolveTerrain`, `step`'s callers, the navigation grid,
+ * monster movement and mobility skills all reach the world through this one function — which is
+ * why moving it onto tiles converts the entire game at once, and why free continuous movement is
+ * completely unaffected.
+ */
 export function isWalkable(
   position: Vec2,
   size: number = PLAYER_SIZE,
   geometry: TerrainGeometry = VERDANT_REACH_TERRAIN,
 ): boolean {
-  if (
-    position.x < 0 ||
-    position.y < 0 ||
-    position.x + size > geometry.width ||
-    position.y + size > geometry.height
-  ) {
-    return false;
-  }
-  return !geometry.obstacles.some((obstacle) => rectsOverlap(entityBox(position, size), obstacle));
+  return isWalkableBox(geometry.tiles, position, size);
 }
 
 /** Axis-separated collision resolution preserves wall sliding and never trusts the client. */

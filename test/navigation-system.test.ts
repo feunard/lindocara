@@ -7,9 +7,10 @@ import {
   requestMonsterPath,
 } from "../src/server/world/navigation-system.js";
 import { createMonsters, type MonsterRuntime } from "../src/server/world/world-runtime.js";
-import { isWalkable, type TerrainGeometry } from "../src/shared/game.js";
+import { isWalkable, type Rect, type TerrainGeometry } from "../src/shared/game.js";
 import { DEFAULT_ZONE_NAVIGATION } from "../src/shared/navigation.js";
 import { ZONES } from "../src/shared/zones.js";
+import { tileMapFromRects } from "./support/tiles.js";
 
 const baseTerrain: TerrainGeometry = {
   width: 480,
@@ -17,7 +18,13 @@ const baseTerrain: TerrainGeometry = {
   obstacles: [],
   spawnPoints: [{ x: 40, y: 40 }],
   safeZone: { x: 0, y: 280, width: 80, height: 40 },
+  tiles: tileMapFromRects(480, 320, []),
 };
+
+/** Rebuilds `tiles` to match a test's ad hoc `obstacles`, since `isWalkable` reads only the grid. */
+function terrainWith(obstacles: readonly Rect[]): TerrainGeometry {
+  return { ...baseTerrain, obstacles, tiles: tileMapFromRects(480, 320, obstacles) };
+}
 
 function monster(id: string, x: number, y: number): MonsterRuntime {
   const created = createMonsters([
@@ -46,7 +53,7 @@ function runtimeFor(terrain: TerrainGeometry, budget = 180): NavigationRuntime {
 
 describe("budgeted zone navigation", () => {
   it("routes around a building", () => {
-    const terrain = { ...baseTerrain, obstacles: [{ x: 180, y: 80, width: 80, height: 160 }] };
+    const terrain = terrainWith([{ x: 180, y: 80, width: 80, height: 160 }]);
     const runtime = runtimeFor(terrain);
     const actor = monster("building", 80, 140);
     requestMonsterPath(runtime, actor, { x: 360, y: 140 }, "target", "chase", 0);
@@ -56,7 +63,7 @@ describe("budgeted zone navigation", () => {
   });
 
   it("routes around a natural obstacle", () => {
-    const terrain = { ...baseTerrain, obstacles: [{ x: 120, y: 120, width: 240, height: 72 }] };
+    const terrain = terrainWith([{ x: 120, y: 120, width: 240, height: 72 }]);
     const runtime = runtimeFor(terrain);
     const actor = monster("water", 220, 40);
     requestMonsterPath(runtime, actor, { x: 220, y: 250 }, null, "patrol", 0);
@@ -65,7 +72,7 @@ describe("budgeted zone navigation", () => {
   });
 
   it("never emits a waypoint inside a wall", () => {
-    const terrain = { ...baseTerrain, obstacles: [{ x: 216, y: 0, width: 18, height: 230 }] };
+    const terrain = terrainWith([{ x: 216, y: 0, width: 18, height: 230 }]);
     const runtime = runtimeFor(terrain);
     const actor = monster("wall", 80, 80);
     requestMonsterPath(runtime, actor, { x: 360, y: 80 }, null, "return", 0);
@@ -75,7 +82,7 @@ describe("budgeted zone navigation", () => {
   });
 
   it("abandons an inaccessible target", () => {
-    const terrain = { ...baseTerrain, obstacles: [{ x: 220, y: 0, width: 40, height: 320 }] };
+    const terrain = terrainWith([{ x: 220, y: 0, width: 40, height: 320 }]);
     const runtime = runtimeFor(terrain);
     const actor = monster("blocked", 80, 120);
     actor.threat.set("target", { playerId: "target", amount: 100, updatedAt: 0 });
@@ -87,7 +94,7 @@ describe("budgeted zone navigation", () => {
   });
 
   it("builds a return path to the spawn point", () => {
-    const terrain = { ...baseTerrain, obstacles: [{ x: 180, y: 80, width: 80, height: 160 }] };
+    const terrain = terrainWith([{ x: 180, y: 80, width: 80, height: 160 }]);
     const runtime = runtimeFor(terrain);
     const actor = monster("return", 80, 140);
     actor.x = 360;
@@ -154,10 +161,7 @@ describe("budgeted zone navigation", () => {
   });
 
   it("never exceeds the navigation budget for a tick", () => {
-    const runtime = runtimeFor(
-      { ...baseTerrain, obstacles: [{ x: 180, y: 40, width: 80, height: 200 }] },
-      3,
-    );
+    const runtime = runtimeFor(terrainWith([{ x: 180, y: 40, width: 80, height: 200 }]), 3);
     for (let index = 0; index < 8; index++) {
       const actor = monster(`budget-${index}`, 40, 40 + index * 20);
       requestMonsterPath(runtime, actor, { x: 400, y: 240 }, `target-${index}`, "chase", 0);
