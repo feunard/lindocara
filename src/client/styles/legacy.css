@@ -710,11 +710,16 @@ kbd {
 
 .world-map-panel {
   width: min(78rem, 92vw);
+  /* Backstop: the canvas width formula below already keeps real content under this, but a
+     stray extra-tall header (a long wrapped zone name) should clip rather than push the panel
+     off-screen — same reasoning as .settings-panel capping itself against the viewport. */
+  max-height: calc(100vh - 2rem);
   padding: 0.8rem;
   border: 3px solid var(--panel-border, #3b2f26);
   background: #1a1712;
   display: grid;
   gap: 0.6rem;
+  overflow: hidden;
 }
 
 .world-map-header {
@@ -724,10 +729,21 @@ kbd {
   color: #e8d5b7;
 }
 
+.world-map-header h2 {
+  margin: 0;
+}
+
 .world-map-canvas {
-  width: 100%;
-  /* aspect-ratio is set inline by WorldMap.tsx from the welcome message's world size —
-     zones are not all 16:9 (mmo-test-zone is 640x480, 4:3), so it cannot be a constant here. */
+  /* aspect-ratio (and --map-ratio, the same ratio as a plain number) are set inline by
+     WorldMap.tsx from the welcome message's world size — zones are not all 16:9
+     (mmo-test-zone is 640x480, 4:3), so neither can be a constant here.
+     Sized by width, not height: pick the smaller of "fill the panel" and "the widest this can
+     be while a 40rem-tall map still fits under the viewport," then let height (and only
+     height) fall out of aspect-ratio. That is what keeps this from ever distorting — the two
+     numbers are always mutually consistent, unlike separately capping width and height would
+     be. At 1366x768 this is what stops the panel from overflowing into the header/legend. */
+  width: min(100%, calc(min(40rem, calc(100vh - 9rem)) * var(--map-ratio, 1.7778)));
+  height: auto;
   display: block;
   image-rendering: pixelated;
   border: 2px solid var(--panel-border, #3b2f26);

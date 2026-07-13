@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { useEffect, useRef } from "react";
 import { WORLD_HEIGHT, WORLD_WIDTH } from "../../shared/simulation.js";
 import { t, useLocale } from "../i18n.js";
@@ -20,7 +21,14 @@ export function WorldMap() {
   // dimensions (the default zone) covers that same narrow pre-welcome race; every zone after
   // that reports its own shape, so a 4:3 zone stops being stretched to 16:9.
   const worldSize = useUiStore((s) => s.worldSize);
-  const aspectRatio = `${worldSize?.width ?? WORLD_WIDTH} / ${worldSize?.height ?? WORLD_HEIGHT}`;
+  const width = worldSize?.width ?? WORLD_WIDTH;
+  const height = worldSize?.height ?? WORLD_HEIGHT;
+  const aspectRatio = `${width} / ${height}`;
+  // The CSS width formula (.world-map-canvas) needs the ratio as a plain number to multiply
+  // against a viewport-derived height budget — aspect-ratio's "W / H" syntax isn't usable in a
+  // calc(). Both describe the same ratio; keeping them derived from the same width/height here
+  // is what keeps them from ever disagreeing.
+  const mapRatio = width / height;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -40,7 +48,11 @@ export function WorldMap() {
             {t("hud.map.close")}
           </button>
         </header>
-        <canvas ref={canvasRef} className="world-map-canvas" style={{ aspectRatio }} />
+        <canvas
+          ref={canvasRef}
+          className="world-map-canvas"
+          style={{ aspectRatio, "--map-ratio": mapRatio } as CSSProperties}
+        />
         <footer className="world-map-legend">
           <span className="legend-self">{t("hud.map.you")}</span>
           <span className="legend-corpse">{t("hud.map.corpse")}</span>
