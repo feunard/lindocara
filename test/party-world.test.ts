@@ -97,4 +97,60 @@ describe("party integration", () => {
     expect(adapted.party.members.some((entry) => entry.id === leaderId)).toBe(false);
     member.close();
   });
+
+  // Experience is split, so sharing it costs nothing. Loot is minted per recipient and quest
+  // credit granted per recipient — so a party member who never lifts a finger used to multiply
+  // both by party size. Park alts at REWARD_DISTANCE and every kill pays out again.
+  it("shares experience with an idle party member but never loot", {
+    timeout: 30_000,
+  }, async () => {
+    const killer = await Client.join("LeechKiller", {
+      zoneId: "verdant-reach",
+      position: { x: 1870, y: 820 },
+      level: 10,
+    });
+    // Alive, authorized, and well inside REWARD_DISTANCE (900) of the monster - the exact
+    // position from which a leech used to collect a full personal drop for doing nothing.
+    const leech = await Client.join("LeechIdler", {
+      zoneId: "verdant-reach",
+      position: { x: 2270, y: 820 },
+      level: 10,
+    });
+    try {
+      await formParty(killer, leech);
+
+      killer.action("attack");
+      await scheduler.wait(600);
+      killer.action("attack");
+
+      // The leech shares the kill: experience is split, so it still gets the event.
+      await until("idle member shares the kill", () =>
+        leech.received.find(
+          (message) => message.t === "event" && message.code === "monster.defeated",
+        ),
+      );
+
+      // The killer earned a drop. It lands at the monster's feet, where the killer is standing,
+      // so it is often picked up the same tick it appears - accept either sighting.
+      await until("killer earns loot", () => {
+        if ((killer.latestSnapshot?.loot.length ?? 0) > 0) return true;
+        return killer.received.some(
+          (message) => message.t === "event" && message.code === "loot.picked",
+        )
+          ? true
+          : undefined;
+      });
+
+      // ...and the leech earned none. Loot is only ever sent to its owner, so an empty list is
+      // proof of absence, not of distance. Give the room several snapshots to settle first.
+      await scheduler.wait(1_000);
+      expect(leech.latestSnapshot?.loot ?? []).toEqual([]);
+      expect(
+        leech.received.some((message) => message.t === "event" && message.code === "loot.picked"),
+      ).toBe(false);
+    } finally {
+      killer.close();
+      leech.close();
+    }
+  });
 });

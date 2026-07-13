@@ -703,9 +703,20 @@ describe("World", () => {
     const alice = await Client.join("chat_a", { position: { x: 500, y: 1100 } });
     const bob = await Client.join("chat_b", { position: { x: 600, y: 1100 } });
     const far = await Client.join("chat_far", { position: { x: 1870, y: 820 } });
-    await until("all interest snapshots", () =>
-      alice.latestSnapshot && bob.latestSnapshot && far.latestSnapshot ? true : undefined,
-    );
+
+    // Waiting for "a snapshot exists" is not the same as waiting for the snapshot to know about
+    // Bob: he reaches Alice on the next 10Hz delta, so asserting the moment three snapshots exist
+    // races that delta and fails whenever the machine is slow enough to notice. Wait for the
+    // condition actually under test.
+    await until("interest snapshots include the neighbour", () => {
+      const neighbour = bob.welcome?.selfId;
+      return neighbour &&
+        alice.latestSnapshot?.players.some((player) => player.id === neighbour) &&
+        bob.latestSnapshot &&
+        far.latestSnapshot
+        ? true
+        : undefined;
+    });
 
     const aliceId = alice.welcome?.selfId;
     const bobId = bob.welcome?.selfId;

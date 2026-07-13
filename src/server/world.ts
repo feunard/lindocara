@@ -98,7 +98,7 @@ import {
 } from "./world/observability-system.js";
 import {
   answerPartyInvite,
-  broadcastPartyState,
+  broadcastPartyStateIfChanged,
   createParty,
   dissolveParty,
   inviteToParty,
@@ -895,6 +895,12 @@ export class World extends DurableObject<Env> {
       }
     }
 
+    // Experience is *split*, so sharing it with the party inflates nothing — that is the whole
+    // point of grouping. Loot and quest credit are different: each is minted per recipient, so
+    // handing them to a party member who did nothing multiplies the item economy and quest
+    // progress by party size. Park four alts at REWARD_DISTANCE and every kill pays five times.
+    // Fight for your loot; stand near your friends for your XP.
+    const contributors = new Set(directlyEligible);
     const shares = splitExperience(monster.xp, [...eligible]);
     for (const [playerId, xp] of shares) {
       const socket = this.#socketByPlayerId.get(playerId);
@@ -904,20 +910,23 @@ export class World extends DurableObject<Env> {
       recipient.level = result.level;
       recipient.xp = result.xp;
       if (result.levelsGained > 0) recipient.hp = maxHpForLevel(recipient.level);
-      this.#creditSkeletonQuest(socket, recipient, monster);
+      const earned = contributors.has(playerId);
+      if (earned) this.#creditSkeletonQuest(socket, recipient, monster);
 
-      const kind = this.#tick % 4 === 0 ? "potion" : this.#tick % 2 === 0 ? "crystal" : "gold";
-      const droppedLoot: GroundLoot = {
-        id: crypto.randomUUID(),
-        kind,
-        amount: kind === "gold" ? 4 : 1,
-        x: monster.x + 8,
-        y: monster.y + 8,
-        expiresAt: now + 30_000,
-        ownerId: recipient.id,
-      };
-      this.#loot.push(droppedLoot);
-      this.#lootGrid.insert(droppedLoot);
+      if (earned) {
+        const kind = this.#tick % 4 === 0 ? "potion" : this.#tick % 2 === 0 ? "crystal" : "gold";
+        const droppedLoot: GroundLoot = {
+          id: crypto.randomUUID(),
+          kind,
+          amount: kind === "gold" ? 4 : 1,
+          x: monster.x + 8,
+          y: monster.y + 8,
+          expiresAt: now + 30_000,
+          ownerId: recipient.id,
+        };
+        this.#loot.push(droppedLoot);
+        this.#lootGrid.insert(droppedLoot);
+      }
       this.#send(
         socket,
         result.levelsGained > 0
@@ -1553,7 +1562,7 @@ export class World extends DurableObject<Env> {
     if (this.#tick % NETWORK_TICKS_PER_SNAPSHOT === 0) {
       this.#sendWorldDeltas();
       const context = this.#partyContext();
-      for (const party of this.#parties.values()) broadcastPartyState(context, party);
+      for (const party of this.#parties.values()) broadcastPartyStateIfChanged(context, party);
     }
     this.#flushQueuedResyncs(now);
   }

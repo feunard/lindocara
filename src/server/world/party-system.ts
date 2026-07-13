@@ -9,6 +9,8 @@ export interface PartyRuntime {
   id: string;
   leaderId: string;
   members: Set<string>;
+  /** The last state actually sent, so an unchanged party costs nothing to rebroadcast. */
+  lastBroadcast?: string;
 }
 
 export interface PartyInviteRuntime {
@@ -163,6 +165,23 @@ export function sendPartyChat(
 
 export function broadcastPartyState(context: PartySystemContext, party: PartyRuntime): void {
   const state = partyState(context, party);
+  party.lastBroadcast = JSON.stringify(state);
+  for (const memberId of party.members) sendPartyState(context, memberId, state);
+}
+
+/**
+ * The tick loop rebroadcasts every party on every snapshot tick, and `partyState()` rebuilds its
+ * array each call — so the payload is usually identical to the last one. Sending it anyway costs
+ * bandwidth for every member of every party, forever, whether or not anything happened.
+ */
+export function broadcastPartyStateIfChanged(
+  context: PartySystemContext,
+  party: PartyRuntime,
+): void {
+  const state = partyState(context, party);
+  const encoded = JSON.stringify(state);
+  if (encoded === party.lastBroadcast) return;
+  party.lastBroadcast = encoded;
   for (const memberId of party.members) sendPartyState(context, memberId, state);
 }
 

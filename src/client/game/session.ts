@@ -27,6 +27,7 @@ import { trackActions, trackInput } from "./input.js";
 import { type InteriorDoor, nearestInterior } from "./interiors.js";
 import { MapSurface } from "./minimap-surface.js";
 import { type Connection, type ConnectionHandlers, WorldClient } from "./net.js";
+import { type PartyTargetResolution, resolvePartyTarget } from "./party.js";
 import { type RenderContext, Renderer } from "./renderer.js";
 import { GameSound } from "./sound.js";
 
@@ -174,6 +175,12 @@ function updatePrompt(
     }
   }
   useUiStore.getState().setPrompt(result);
+}
+
+function partyTargetError(
+  reason: Extract<PartyTargetResolution, { ok: false }>["reason"],
+): MessageKey {
+  return reason === "self" ? "party.error.self" : "party.error.unknown_player";
 }
 
 function addEvent(text: string, tone: "info" | "good" | "bad"): void {
@@ -517,7 +524,15 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     castSkill,
     sendChat: (text, channel) => connection?.sendChat(text, channel),
     partyCreate: () => connection?.partyCreate(),
-    partyInvite: (playerId) => connection?.partyInvite(playerId),
+    partyInvite: (query) => {
+      const target = resolvePartyTarget(
+        client.sample(performance.now()).players,
+        query,
+        client.selfId,
+      );
+      if (!target.ok) return addEvent(t(partyTargetError(target.reason)), "bad");
+      connection?.partyInvite(target.playerId);
+    },
     partyAccept: (inviteId) => {
       connection?.partyAccept(inviteId);
       useUiStore.getState().setPartyInvite(null);
@@ -527,7 +542,15 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       useUiStore.getState().setPartyInvite(null);
     },
     partyLeave: () => connection?.partyLeave(),
-    partyKick: (playerId) => connection?.partyKick(playerId),
+    partyKick: (query) => {
+      const target = resolvePartyTarget(
+        client.sample(performance.now()).players,
+        query,
+        client.selfId,
+      );
+      if (!target.ok) return addEvent(t(partyTargetError(target.reason)), "bad");
+      connection?.partyKick(target.playerId);
+    },
     partyDissolve: () => connection?.partyDissolve(),
     switchCharacter,
     logout: logoutAndReload,

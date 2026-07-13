@@ -64,4 +64,30 @@ describe("ui store", () => {
     useUiStore.getState().setSelf({ ...self });
     expect(useUiStore.getState().self).toBe(first);
   });
+
+  it("ignores an unchanged party, so a 10Hz rebroadcast does not re-render the HUD", () => {
+    const party = {
+      id: "p1",
+      leaderId: "a",
+      members: [{ id: "a", nick: "Aelwyn", hp: 80, maxHp: 100, life: "alive" as const }],
+    };
+    useUiStore.getState().setParty(party);
+    const first = useUiStore.getState().party;
+
+    // The server rebuilds this array every snapshot tick, so the reference always differs.
+    useUiStore.getState().setParty(structuredClone(party));
+    expect(useUiStore.getState().party).toBe(first);
+
+    // A real change must still land.
+    useUiStore.getState().setParty({ ...structuredClone(party), leaderId: "b" });
+    expect(useUiStore.getState().party).not.toBe(first);
+    expect(useUiStore.getState().party?.leaderId).toBe("b");
+
+    // ...including a member's HP dropping, which is the whole point of the panel.
+    const wounded = structuredClone(party);
+    const member = wounded.members[0];
+    if (member) member.hp = 12;
+    useUiStore.getState().setParty(wounded);
+    expect(useUiStore.getState().party?.members[0]?.hp).toBe(12);
+  });
 });

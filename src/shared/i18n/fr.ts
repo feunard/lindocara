@@ -244,6 +244,8 @@ export const fr: Record<keyof typeof en, string> = {
   "chat.timestamps": "Heure",
   "chat.toggleTimestamps": "Afficher l'horodatage",
   "party.title": "Groupe",
+  "party.error.unknown_player": "Aucun joueur de ce nom à proximité.",
+  "party.error.self": "Vous ne pouvez pas vous inviter vous-même.",
   "party.create": "Créer un groupe",
   "party.accept": "Accepter",
   "party.refuse": "Refuser",

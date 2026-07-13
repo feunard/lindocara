@@ -2,9 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import type { PlayerProfile } from "../src/server/profile.js";
 import {
   answerPartyInvite,
+  broadcastPartyStateIfChanged,
   createParty,
+  dissolveParty,
   inviteToParty,
   kickPartyMember,
+  leaveParty,
+  PARTY_MAX_MEMBERS,
   type PartySystemContext,
   removePlayerFromParties,
   sendPartyChat,
@@ -97,5 +101,78 @@ describe("temporary parties", () => {
     expect(messages.get("outsider")).toHaveLength(0);
     removePlayerFromParties(context, "member");
     expect(context.partyByPlayerId.has("member")).toBe(false);
+  });
+
+  it("lets a member leave, and reassigns leadership when the leader is the one who left", () => {
+    const { context, messages } = setup();
+    createParty(context, "leader");
+    inviteToParty(context, "leader", "member");
+    const invite = messages.get("member")?.find((message) => message.t === "party.invite");
+    if (invite?.t !== "party.invite") throw new Error("missing invite");
+    answerPartyInvite(context, "member", invite.inviteId, true);
+
+    expect(leaveParty(context, "leader")).toBe("left");
+    expect(context.partyByPlayerId.has("leader")).toBe(false);
+    // The party outlives its founder: the remaining member must inherit it, not be stranded in
+    // a party that still names a leader who is gone.
+    const party = [...context.parties.values()][0];
+    expect(party?.leaderId).toBe("member");
+    expect(party?.members.has("member")).toBe(true);
+  });
+
+  it("dissolves a party only for its leader, and drops every member's membership", () => {
+    const { context, messages } = setup();
+    createParty(context, "leader");
+    inviteToParty(context, "leader", "member");
+    const invite = messages.get("member")?.find((message) => message.t === "party.invite");
+    if (invite?.t !== "party.invite") throw new Error("missing invite");
+    answerPartyInvite(context, "member", invite.inviteId, true);
+
+    expect(dissolveParty(context, "member")).toBe("forbidden");
+    expect(context.parties.size).toBe(1);
+
+    expect(dissolveParty(context, "leader")).toBe("dissolved");
+    expect(context.parties.size).toBe(0);
+    expect(context.partyByPlayerId.has("leader")).toBe(false);
+    expect(context.partyByPlayerId.has("member")).toBe(false);
+  });
+
+  it("refuses to grow a party past PARTY_MAX_MEMBERS", () => {
+    const { context } = setup();
+    createParty(context, "leader");
+    const party = [...context.parties.values()][0];
+    if (!party) throw new Error("missing party");
+    // Fill it to the cap with synthetic ids, then check the next invite is refused rather than
+    // silently overflowing.
+    for (let index = party.members.size; index < PARTY_MAX_MEMBERS; index++) {
+      party.members.add(`filler-${index}`);
+      context.partyByPlayerId.set(`filler-${index}`, party.id);
+    }
+    expect(party.members.size).toBe(PARTY_MAX_MEMBERS);
+    expect(inviteToParty(context, "leader", "member")).toBe("full");
+  });
+
+  it("does not rebroadcast an unchanged party, but does send when a member's hp drops", () => {
+    const { context, messages } = setup();
+    createParty(context, "leader");
+    const party = [...context.parties.values()][0];
+    if (!party) throw new Error("missing party");
+
+    broadcastPartyStateIfChanged(context, party);
+    const afterFirst = messages.get("leader")?.filter((m) => m.t === "party.state").length ?? 0;
+    expect(afterFirst).toBeGreaterThan(0);
+
+    // The tick loop calls this 10x/s; an unchanged party must cost nothing.
+    broadcastPartyStateIfChanged(context, party);
+    broadcastPartyStateIfChanged(context, party);
+    expect(messages.get("leader")?.filter((m) => m.t === "party.state").length).toBe(afterFirst);
+
+    const leader = context.playersById.get("leader");
+    if (!leader) throw new Error("missing leader");
+    leader.hp = 12;
+    broadcastPartyStateIfChanged(context, party);
+    expect(messages.get("leader")?.filter((m) => m.t === "party.state").length).toBe(
+      afterFirst + 1,
+    );
   });
 });

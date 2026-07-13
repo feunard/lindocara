@@ -238,6 +238,8 @@ export const en = {
   "chat.timestamps": "Time",
   "chat.toggleTimestamps": "Show timestamps",
   "party.title": "Party",
+  "party.error.unknown_player": "No such player nearby.",
+  "party.error.self": "You cannot party with yourself.",
   "party.create": "Create party",
   "party.accept": "Accept",
   "party.refuse": "Decline",

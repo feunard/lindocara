@@ -157,6 +157,31 @@ function selfHudEqual(a: SelfHud | null, b: SelfHud | null): boolean {
   );
 }
 
+/**
+ * The server rebroadcasts party state on every snapshot tick, and `partyState()` builds a fresh
+ * array each time — so the reference always changes even when nothing did. Without this guard,
+ * `set({ party })` re-renders Hud and Chat ~10-20x/s for as long as you are in a party, standing
+ * still. Same reason `selfHudEqual` exists.
+ */
+function partyEqual(a: PartyState | null, b: PartyState | null): boolean {
+  if (a === null && b === null) return true;
+  if (a === null || b === null) return false;
+  if (a.id !== b.id || a.leaderId !== b.leaderId || a.members.length !== b.members.length) {
+    return false;
+  }
+  return a.members.every((member, index) => {
+    const other = b.members[index];
+    return (
+      other !== undefined &&
+      member.id === other.id &&
+      member.nick === other.nick &&
+      member.hp === other.hp &&
+      member.maxHp === other.maxHp &&
+      member.life === other.life
+    );
+  });
+}
+
 function localizedTextEqual(a: LocalizedText | null, b: LocalizedText | null): boolean {
   if (a === null && b === null) return true;
   if (a === null || b === null) return false;
@@ -245,7 +270,11 @@ export const useUiStore = create<UiState>((set) => ({
         chat: [...state.chat, line].slice(-50),
       };
     }),
-  setParty: (party) => set({ party }),
+  setParty: (party) =>
+    set((state) => {
+      if (partyEqual(state.party, party)) return {};
+      return { party };
+    }),
   setPartyInvite: (partyInvite) => set({ partyInvite }),
   requestChatFocus: () =>
     set((state) => ({
