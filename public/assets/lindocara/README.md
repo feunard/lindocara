@@ -28,15 +28,11 @@ Local derivatives in the atlas:
 These derivatives are released under the same CC0 / public domain equivalent terms.
 No external runtime URLs are used.
 
-Additional runtime art selected from `assets/vendor/` lives under `vendor/`:
-
-- Tiny Swords buildings, resources, units and particle effects;
-- CraftPix goblin, orc, ogre and skeleton character packs;
-- CraftPix Fantasy Trolls pack.
-
-The CraftPix license pointers shipped with the source packs are copied under
-`vendor/licenses/`. Only the runtime frames used by the game are copied into `public/`; the
-complete source packs remain under `assets/vendor/`.
+Additional runtime art lives under `tiny-swords/`: pre-cropped/derived sheets (quest-site
+resources, UI, etc.) built from the vendored **Tiny Swords** pack by Pixel Frog, whose complete
+source lives under `assets/vendor/tiny-swords/`. See
+`assets/vendor/tiny-swords/LICENSE.md` for what the pack is, where it came from, and under what
+terms it is used. Tiny Swords is the only third-party art pack this game draws from.
 
 Ambient music lives under `audio/`:
 
