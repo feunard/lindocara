@@ -639,16 +639,20 @@ describe("the Tiny Swords bestiary", () => {
   });
 
   // bone_choir asks you to put the choir back to rest. It counts undead, and the undead are now
-  // Skulls. If this breaks, a live character mid-quest can never finish it. It is a kill quest,
-  // not a site-visit quest, so it needs at least one undead *source*, not one spawn per required
-  // kill — monsters respawn (MONSTER_RESPAWN_MS), so three Skulls can still yield five kills over
-  // time. (The 3-Skull-spawns-vs-5-target gap predates this rename — confirmed on main before this
-  // change — and is a quest-balance question outside a pure rename task, not something to silently
-  // patch here by moving or adding a spawn.)
+  // Skulls. This regression test protects three Skull spawns (guard, crusader, warden). If this
+  // breaks — e.g. merging two spawns during a rebase or re-kind-ing one — a live character
+  // mid-quest can never finish it. It is a kill quest, not a site-visit quest, so it needs all
+  // three undead *sources* to spawn enough kills over time. Monsters respawn (MONSTER_RESPAWN_MS),
+  // so three Skulls can still yield five kills. (The 3-Skull-spawns-vs-5-target gap predates this
+  // rename — confirmed on main before this change — and is a quest-balance question outside a
+  // pure rename task, not something to silently patch here by moving or adding a spawn.)
   it("keeps a bone_choir quest completable — the undead still exist and still spawn", () => {
     const undead = MONSTER_SPAWNS.filter((spawn) => spawn.kind === "skull");
     const target = QUEST_DEFINITIONS.find((quest) => quest.id === "bone_choir")?.target ?? 0;
     expect(target).toBeGreaterThan(0);
-    expect(undead.length).toBeGreaterThan(0);
+    const skullIds = undead.map((s) => s.id);
+    expect(skullIds).toContain("ruins-bone-guard");
+    expect(skullIds).toContain("ruins-bone-crusader");
+    expect(skullIds).toContain("ruins-bone-warden");
   });
 });
