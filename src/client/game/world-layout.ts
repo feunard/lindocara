@@ -534,6 +534,14 @@ export function zoneAt(x: number, y: number): ZoneDefinition {
   return nearest;
 }
 
+/**
+ * Retired as the renderer's source of truth by Task 4 (Slice 2): `renderer.ts` now paints the
+ * ground from the tilemap (`kindAt`, `landTile`) so what is drawn cannot disagree with what is
+ * walkable. This function survives, unchanged, only because `minimap.ts` still samples it —
+ * deleting it here would break the build for a module this task deliberately does not touch, to
+ * keep the two reviews separate. Task 5 deletes this (and `TerrainSample`/`TerrainKind`/
+ * `GroundPalette`) once the minimap reads tile kinds directly.
+ */
 export function terrainAt(x: number, y: number, variation: number): TerrainSample {
   const blocker = TERRAIN_BLOCKERS.find(({ rect }) => contains(rect, x, y));
   if (blocker?.kind === "water") {

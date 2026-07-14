@@ -12,6 +12,7 @@ import type { MainHandItem, OffHandItem, PrimaryColor } from "../../shared/chara
 import { isSpirit } from "../../shared/death.js";
 import {
   BOUNDARY_OBSTACLES,
+  hashSeed,
   type MonsterSpecies,
   type PlayerClass,
   pointDistance,
@@ -20,6 +21,7 @@ import {
   QUEST_SITES,
   SAFE_ZONE,
   TERRAIN_BLOCKERS,
+  VERDANT_REACH_TERRAIN,
   WORLD_LANDMARKS,
 } from "../../shared/game.js";
 import type { MessageKey } from "../../shared/i18n/index.js";
@@ -33,7 +35,9 @@ import type {
   QuestState,
 } from "../../shared/protocol.js";
 import { PLAYER_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from "../../shared/simulation.js";
+import { isLandKind, kindAt, TILE_SIZE } from "../../shared/tilemap.js";
 import { onLocaleChange, t } from "../i18n.js";
+import { landTile } from "./autotile.js";
 import { MAIN_HAND_ART, OFF_HAND_ART, PLAYER_ATLAS_FRAMES } from "./character-art.js";
 import { MAX_ACTIVE_WORLD_EFFECTS, questSiteFeedback } from "./feedback.js";
 import type { SceneSample } from "./net.js";
@@ -43,6 +47,7 @@ import {
   TINY_SWORDS_EFFECT_SHEETS,
   TINY_SWORDS_EFFECTS,
   TINY_SWORDS_SIGN_BOARD,
+  TINY_SWORDS_TERRAIN,
   TINY_SWORDS_UNIT_FRAME,
   type UnitMotion,
   unitSheet,
@@ -54,7 +59,6 @@ import {
   POINTS_OF_INTEREST,
   type PointOfInterest,
   roadStrength,
-  terrainAt,
   WORLD_ZONES,
   zoneAt,
 } from "./world-layout.js";
@@ -90,7 +94,6 @@ const CITY_BUILDING_ART: Readonly<Record<string, number>> = {
 
 const ATLAS_IMAGE = "/assets/lindocara/atlas/world.png";
 const ATLAS_DATA = "/assets/lindocara/atlas/world.json";
-const TILE_SIZE = 32;
 const STATIC_CULL_MARGIN = 180;
 const ENTITY_CULL_MARGIN = 120;
 
@@ -102,12 +105,11 @@ interface ArtTextures {
   players: Record<PrimaryColor, Texture>;
   monsters: Record<MonsterSpecies, Texture>;
   keeper: Texture;
-  tiles: {
-    grass: Texture[];
-    wet: Texture[];
-    path: Texture[];
-    water: Texture[];
-    sanctuary: Texture;
+  /** The tilemap's ground truth, sliced once from `Tilemap_Flat.png` and `Water.png`.
+   *  `land[row][col]` is a cell of the sheet's first 4x4 autotile group (see `autotile.ts`). */
+  terrain: {
+    land: readonly (readonly Texture[])[];
+    water: Texture;
   };
   props: {
     trees: Texture[];
@@ -238,10 +240,34 @@ function sliceHorizontalSheet(
   });
 }
 
-function tileVariation(tileX: number, tileY: number): number {
-  const broadX = Math.floor(tileX / 4);
-  const broadY = Math.floor(tileY / 4);
-  return seeded(broadX * 977 + broadY * 619 + tileX * 17 + tileY * 29);
+/**
+ * Slices `Tilemap_Flat.png`'s first 4x4 group into one `Texture` per cell, once — not per frame.
+ * `land[row][col]` mirrors `landTile()`'s `{ col, row }` return so a lookup is a plain index, not
+ * a search.
+ */
+function sliceAutotileSheet(sheet: Texture): Texture[][] {
+  return Array.from({ length: 4 }, (_, row) =>
+    Array.from(
+      { length: 4 },
+      (_, col) =>
+        new Texture({
+          source: sheet.source,
+          frame: new Rectangle(col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE),
+          label: `terrain.flat:${col}:${row}`,
+        }),
+    ),
+  );
+}
+
+function landTexture(
+  land: readonly (readonly Texture[])[],
+  cell: { col: number; row: number },
+): Texture {
+  const texture = land[cell.row]?.[cell.col];
+  // AUTOTILE_LUT only ever produces coordinates inside the 4x4 group sliced above, but the types
+  // do not know that and `noNonNullAssertion` is on.
+  if (!texture) throw new Error(`no autotile texture at ${cell.col},${cell.row}`);
+  return texture;
 }
 
 function centerOf(entity: { x: number; y: number }): { x: number; y: number } {
@@ -307,6 +333,12 @@ async function loadArt(): Promise<ArtTextures> {
         }),
     );
   }
+  const [terrainFlatSheet, terrainWaterTexture] = await Promise.all([
+    Assets.load<Texture>(TINY_SWORDS_TERRAIN.flat),
+    Assets.load<Texture>(TINY_SWORDS_TERRAIN.water),
+  ]);
+  terrainFlatSheet.source.style.scaleMode = "nearest";
+  terrainWaterTexture.source.style.scaleMode = "nearest";
   const buildings = await Promise.all(
     TINY_SWORDS_BUILDINGS.map((source) => Assets.load<Texture>(source)),
   );
@@ -356,27 +388,9 @@ async function loadArt(): Promise<ArtTextures> {
     },
     monsters,
     keeper: texture("npc.keeper"),
-    tiles: {
-      grass: [
-        texture("tile.grass.a"),
-        texture("tile.grass.b"),
-        texture("tile.grass.c"),
-        texture("tile.grass.d"),
-        texture("tile.grass.moss.a"),
-        texture("tile.grass.moss.b"),
-        texture("tile.grass.flowers"),
-        texture("tile.grass.stones"),
-      ],
-      wet: [texture("tile.grass.wet.a"), texture("tile.grass.wet.b")],
-      path: [
-        texture("tile.path.a"),
-        texture("tile.path.b"),
-        texture("tile.path.c"),
-        texture("tile.path.worn.a"),
-        texture("tile.path.worn.b"),
-      ],
-      water: [texture("tile.water.a"), texture("tile.water.b"), texture("tile.water.c")],
-      sanctuary: texture("tile.sanctuary"),
+    terrain: {
+      land: sliceAutotileSheet(terrainFlatSheet),
+      water: terrainWaterTexture,
     },
     props: {
       trees: [texture("prop.tree.large"), texture("prop.tree.round"), texture("prop.tree.small")],
@@ -594,6 +608,7 @@ export class Renderer {
     this.#app.stage.addChild(this.#world);
 
     this.#buildSharedBlockers();
+    this.#buildForestTrees();
     this.#buildBoundary();
     this.#buildDecor();
     this.#buildSetPieces();
@@ -664,6 +679,39 @@ export class Renderer {
         mass.addChild(prop);
       }
       this.#registerStatic(mass, centerX, centerY, radius);
+    }
+  }
+
+  /**
+   * A `forest` cell is land with a tree standing on it — not a lake and not a shoreline
+   * (`isLandKind` says so). Built once from the tilemap itself, not the visible-bounds window
+   * `#updateTerrain` scrolls, so a tree never reshuffles when the camera moves: it is seeded from
+   * its own cell coordinates via `hashSeed`, and it goes through the same static pool as every
+   * other prop in `#groundDecor`, so `#updateStaticVisibility` culls it for free.
+   */
+  #buildForestTrees(): void {
+    const tiles = VERDANT_REACH_TERRAIN.tiles;
+    for (let row = 0; row < tiles.rows; row++) {
+      for (let col = 0; col < tiles.cols; col++) {
+        if (kindAt(tiles, col, row) !== "forest") continue;
+        const seed = hashSeed(`forest:${col}:${row}`);
+        const centerX = col * TILE_SIZE + TILE_SIZE / 2;
+        const centerY = row * TILE_SIZE + TILE_SIZE / 2;
+        // Jitter is small on purpose: a canopy can overhang into a neighbouring cell, but the
+        // trunk — what you actually collide with — must stay inside the solid cell it was drawn
+        // for, or a player would stop before or inside a tree that visually isn't there.
+        const x = centerX + (seeded(seed + 2) - 0.5) * TILE_SIZE * 0.2;
+        const y = centerY + (seeded(seed + 5) - 0.5) * TILE_SIZE * 0.2;
+        const size = TILE_SIZE * (0.9 + seeded(seed + 8) * 0.4);
+        const container = new Container();
+        container.position.set(x, y);
+        container.addChild(createSoftShadow(size * 0.72, size * 0.24, 0.3));
+        const prop = createFittedSprite(pickTexture(this.art.props.trees, seed), size, size);
+        prop.anchor.set(0.5, 1);
+        prop.tint = 0xcbd8ae;
+        container.addChild(prop);
+        this.#registerStatic(container, x, y, size, this.#groundDecor);
+      }
     }
   }
 
@@ -1437,7 +1485,20 @@ export class Renderer {
     return x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom;
   }
 
+  /**
+   * Paints the visible window straight from the tilemap — the same `TileMap` collision reads —
+   * so what is drawn and what is walkable cannot disagree. Land (everything `isLandKind` says
+   * is not the void: grass, plateau, forest, building, bridge) draws as autotiled grass from
+   * `landTile`'s neighbourhood lookup; water draws as water. A `forest` cell's tree is a separate,
+   * static prop (`#buildForestTrees`) layered above this, and a `building` cell gets nothing extra
+   * here — its house is already on `#structures` from `WORLD_LANDMARKS`.
+   *
+   * The sprite pool, the visible-bounds culling and the `#terrainKey` early-out are unchanged from
+   * the procedural renderer this replaces; only the source of truth and the cell size (32 -> the
+   * real 64px `TILE_SIZE`) are new.
+   */
   #updateTerrain(): void {
+    const tiles = VERDANT_REACH_TERRAIN.tiles;
     const bounds = this.#visibleBounds(TILE_SIZE * 2);
     const startX = Math.max(0, Math.floor(bounds.left / TILE_SIZE) * TILE_SIZE);
     const startY = Math.max(0, Math.floor(bounds.top / TILE_SIZE) * TILE_SIZE);
@@ -1468,56 +1529,18 @@ export class Renderer {
       const row = Math.floor(index / columns);
       const x = startX + column * TILE_SIZE;
       const y = startY + row * TILE_SIZE;
-      const tileX = Math.floor(x / TILE_SIZE);
-      const tileY = Math.floor(y / TILE_SIZE);
-      const seed = tileX * 97 + tileY * 131;
-      const variation = tileVariation(tileX, tileY);
-      const sample = terrainAt(x + TILE_SIZE / 2, y + TILE_SIZE / 2, variation);
-      const detail = seeded(seed + 17) > 1 - sample.detailChance;
-      const grassBase =
-        sample.palette === "earth"
-          ? this.art.tiles.grass.slice(0, 2)
-          : sample.palette === "moss"
-            ? this.art.tiles.grass.slice(3, 6)
-            : sample.palette === "stone"
-              ? [this.art.tiles.grass[0], this.art.tiles.grass[2], this.art.tiles.grass[7]].filter(
-                  (texture): texture is Texture => texture !== undefined,
-                )
-              : this.art.tiles.grass.slice(2, 4);
-      const grassDetail =
-        sample.palette === "earth"
-          ? [this.art.tiles.grass[1], this.art.tiles.grass[7]].filter(
-              (texture): texture is Texture => texture !== undefined,
-            )
-          : this.art.tiles.grass.slice(4);
-      const texture =
-        sample.kind === "water"
-          ? pickTexture(this.art.tiles.water, seed)
-          : sample.kind === "path"
-            ? detail
-              ? pickTexture(this.art.tiles.path.slice(3), seed)
-              : variation > 0.84
-                ? pickTexture(this.art.tiles.path.slice(0, 3), seed)
-                : pickTexture(this.art.tiles.path.slice(0, 1), seed)
-            : sample.kind === "wet"
-              ? variation > 0.82
-                ? pickTexture(this.art.tiles.wet, seed)
-                : pickTexture(this.art.tiles.wet.slice(0, 1), seed)
-              : sample.kind === "sanctuary"
-                ? variation > 0.995
-                  ? this.art.tiles.sanctuary
-                  : variation > 0.975
-                    ? pickTexture(grassBase, seed)
-                    : pickTexture(grassBase.slice(0, 1), seed)
-                : detail
-                  ? pickTexture(grassDetail, seed)
-                  : variation > 0.97
-                    ? pickTexture(grassBase, seed)
-                    : pickTexture(grassBase.slice(0, 1), seed);
+      const col = Math.floor(x / TILE_SIZE);
+      const tileRow = Math.floor(y / TILE_SIZE);
+      const land = isLandKind(kindAt(tiles, col, tileRow));
+      const texture = land
+        ? landTexture(this.art.terrain.land, landTile(tiles, col, tileRow))
+        : this.art.terrain.water;
       placeTile(tile, texture, x, y);
-      tile.tint = sample.tint;
+      // A pooled sprite may have last served as a water tile: `#updateAmbient` leaves its own
+      // shimmer alpha on it, which must not leak onto whatever this sprite draws next.
       tile.alpha = 1;
-      if (sample.kind === "water") this.#waterTiles.push(tile);
+      tile.tint = 0xffffff;
+      if (!land) this.#waterTiles.push(tile);
     }
   }
 

@@ -802,7 +802,9 @@ export function resolveTerrain(
   return { x, y };
 }
 
-function hashSeed(seed: string): number {
+/** A deterministic uint32 from a string seed. Used wherever cosmetic placement (spawn point pick,
+ *  scattered decoration) must depend only on stable input, never on frame timing or draw order. */
+export function hashSeed(seed: string): number {
   let hash = 2_166_136_261;
   for (let index = 0; index < seed.length; index++) {
     hash ^= seed.charCodeAt(index);
