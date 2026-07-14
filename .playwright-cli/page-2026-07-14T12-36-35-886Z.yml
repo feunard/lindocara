@@ -1,0 +1,49 @@
+- generic [active] [ref=f1e1]:
+  - generic:
+    - group "Language / Langue" [ref=f1e3]:
+      - button "EN" [ref=f1e4] [cursor=pointer]
+      - button "FR" [ref=f1e5] [cursor=pointer]
+    - main [ref=f1e173]:
+      - generic [ref=f1e174]:
+        - generic [ref=f1e175]:
+          - text: Wayfarer roster
+          - heading "Choose your wayfarer" [level=1] [ref=f1e176]
+          - paragraph [ref=f1e177]: Choose who will answer the Heartroot's call.
+        - button "Log out" [ref=f1e178] [cursor=pointer]
+      - region "Choose your wayfarer" [ref=f1e179]:
+        - article [ref=f1e180]:
+          - img "Warrior wayfarer in the Azure palette" [ref=f1e182]
+          - generic [ref=f1e186]:
+            - text: Level 1
+            - heading "QaVerify5" [level=2] [ref=f1e187]
+            - paragraph [ref=f1e188]: Warrior
+          - generic [ref=f1e189]:
+            - generic [ref=f1e190]:
+              - term [ref=f1e191]: Weapon
+              - definition [ref=f1e192]: Weathered sword
+            - generic [ref=f1e193]:
+              - term [ref=f1e194]: Palette
+              - definition [ref=f1e195]: Azure
+          - generic [ref=f1e196]:
+            - button "Play" [ref=f1e197] [cursor=pointer]
+            - button "Delete" [ref=f1e198] [cursor=pointer]
+        - article [ref=f1e199]:
+          - img "Warrior wayfarer in the Azure palette" [ref=f1e201]
+          - generic [ref=f1e205]:
+            - text: Level 1
+            - heading "QaVerify5b" [level=2] [ref=f1e206]
+            - paragraph [ref=f1e207]: Warrior
+          - generic [ref=f1e208]:
+            - generic [ref=f1e209]:
+              - term [ref=f1e210]: Weapon
+              - definition [ref=f1e211]: Weathered sword
+            - generic [ref=f1e212]:
+              - term [ref=f1e213]: Palette
+              - definition [ref=f1e214]: Azure
+          - generic [ref=f1e215]:
+            - button "Play" [ref=f1e216] [cursor=pointer]
+            - button "Delete" [ref=f1e217] [cursor=pointer]
+        - button "New character 2/3 slots used" [ref=f1e218] [cursor=pointer]:
+          - generic [ref=f1e219]: +
+          - strong [ref=f1e220]: New character
+          - generic [ref=f1e221]: 2/3 slots used

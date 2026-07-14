@@ -1,0 +1,101 @@
+- generic [active] [ref=e1]:
+  - generic:
+    - group "Language / Langue" [ref=e3]:
+      - button "EN" [ref=e4] [cursor=pointer]
+      - button "FR" [ref=e5] [cursor=pointer]
+    - generic: connected - Verdant Reach
+    - complementary:
+      - generic:
+        - generic:
+          - strong: QaVerify5
+          - generic: Level 1
+          - generic: Warrior
+        - generic [ref=e201]:
+          - button "Switch character" [ref=e202] [cursor=pointer]
+          - button "Log out" [ref=e203] [cursor=pointer]
+        - generic:
+          - generic: VIT
+          - progressbar
+          - generic: 100/100
+        - generic:
+          - generic: SPARK
+          - progressbar
+          - generic: 0/100
+        - generic:
+          - generic: Endurance
+          - progressbar
+          - generic: 100/100
+      - generic:
+        - generic:
+          - strong: Party
+        - button "Create party"
+      - generic:
+        - generic:
+          - strong: The Three Offerings
+        - generic: A gold-marked keeper has a task for you.
+      - generic:
+        - generic:
+          - 'group "Heartroot tonic: 2"':
+            - generic:
+              - strong: "2"
+            - generic: Q
+          - 'group "Sunmarks: 0"':
+            - generic:
+              - strong: "0"
+          - 'group "Gloam shards: 0"':
+            - generic:
+              - strong: "0"
+          - 'group "Weathered sword: On"':
+            - generic:
+              - strong: "On"
+    - region "Abilities" [ref=e204]:
+      - button "1. Cleave" [ref=e205] [cursor=pointer]:
+        - generic [ref=e206]: "1"
+        - generic [ref=e207]: Cleave
+        - tooltip "A reliable close-range strike against the nearest enemy."
+      - button "2. Iron Guard" [disabled] [ref=e208]:
+        - generic [ref=e209]: "2"
+        - generic [ref=e210]: Iron Guard
+        - generic [ref=e211]: "3"
+        - tooltip "Unlocks at level 3"
+      - button "3. Shield Bash" [disabled] [ref=e212]:
+        - generic [ref=e213]: "3"
+        - generic [ref=e214]: Shield Bash
+        - generic [ref=e215]: "5"
+        - tooltip "Unlocks at level 5"
+      - button "4. Battle Cry" [disabled] [ref=e216]:
+        - generic [ref=e217]: "4"
+        - generic [ref=e218]: Battle Cry
+        - generic [ref=e219]: "7"
+        - tooltip "Unlocks at level 7"
+      - button "5. Whirlwind" [disabled] [ref=e220]:
+        - generic [ref=e221]: "5"
+        - generic [ref=e222]: Whirlwind
+        - generic [ref=e223]: "10"
+        - tooltip "Unlocks at level 10"
+    - button "map" [ref=e226] [cursor=pointer]: +
+    - generic [ref=e227]:
+      - generic [ref=e228]:
+        - generic [ref=e229]: Campfire voices
+        - generic [ref=e230]: Enter
+      - 'textbox "Enter: chat..." [ref=e233]'
+    - generic:
+      - generic: "* You wake beneath the Heartroot. Elowen, marked in gold, awaits your oath [E]."
+      - generic: "* Elowen stands beside the golden marker. Press [E] to begin."
+    - generic:
+      - generic: WASD
+      - text: move
+      - generic: Space
+      - text: strike
+      - generic: 1–5
+      - text: Abilities
+      - generic: E
+      - text: commune
+      - generic: Q
+      - text: tonic
+      - generic: R
+      - text: release spirit
+      - generic: M
+      - text: map
+      - generic: Esc
+      - text: settings

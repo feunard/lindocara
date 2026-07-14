@@ -1,0 +1,22 @@
+- generic [active] [ref=e1]:
+  - generic:
+    - group "Language / Langue" [ref=e3]:
+      - button "EN" [ref=e4] [cursor=pointer]
+      - button "FR" [ref=e5] [cursor=pointer]
+    - main [ref=e6]:
+      - generic [ref=e7]:
+        - generic [ref=e8]: A tiny online world
+        - heading "lindocara" [level=1] [ref=e9]
+        - heading "Everwild Hollow" [level=2] [ref=e10]
+        - paragraph [ref=e11]: Wake beneath the Heartroot. Swear Elowen's oath. Face the strange life of the Gloamwood.
+        - tablist [ref=e12]:
+          - tab "Log in" [selected] [ref=e13] [cursor=pointer]
+          - tab "Create account" [ref=e14] [cursor=pointer]
+        - generic [ref=e15]:
+          - generic [ref=e16]:
+            - generic [ref=e17]: Username
+            - textbox "Username" [ref=e18]
+          - generic [ref=e19]:
+            - generic [ref=e20]: Password
+            - textbox "Password" [ref=e21]
+          - button "Enter the Hollow" [ref=e22] [cursor=pointer]

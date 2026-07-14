@@ -1,0 +1,102 @@
+- generic [active] [ref=f3e1]:
+  - generic:
+    - group "Language / Langue" [ref=f3e3]:
+      - button "EN" [ref=f3e4] [cursor=pointer]
+      - button "FR" [ref=f3e5] [cursor=pointer]
+    - generic: connected - Verdant Reach
+    - status [ref=f3e318]:
+      - paragraph [ref=f3e319]: Your spirit walks
+      - paragraph [ref=f3e320]: Your body lies 817m away. Walk back to it.
+    - complementary:
+      - generic:
+        - generic:
+          - strong: QaVerify5r
+          - generic: Level 1
+          - generic: Ranger
+        - generic [ref=f3e257]:
+          - button "Switch character" [ref=f3e258] [cursor=pointer]
+          - button "Log out" [ref=f3e259] [cursor=pointer]
+        - generic:
+          - generic: VIT
+          - progressbar
+          - generic: 0/100
+        - generic:
+          - generic: SPARK
+          - progressbar
+          - generic: 0/100
+        - generic:
+          - generic: Energy
+          - progressbar
+          - generic: 100/100
+      - generic:
+        - generic:
+          - strong: Party
+        - button "Create party"
+      - generic:
+        - generic:
+          - strong: The Three Offerings
+        - generic: Gather heartwood, provisions, then sun-ore (0/3)
+        - progressbar
+      - generic:
+        - generic:
+          - 'group "Heartroot tonic: 2"':
+            - generic:
+              - strong: "2"
+            - generic: Q
+          - 'group "Sunmarks: 0"':
+            - generic:
+              - strong: "0"
+          - 'group "Gloam shards: 0"':
+            - generic:
+              - strong: "0"
+          - 'group "Hunter''s bow: On"':
+            - generic:
+              - strong: "On"
+    - region "Abilities" [ref=f3e260]:
+      - button "1. Quick Shot" [disabled] [ref=f3e261]:
+        - generic [ref=f3e262]: "1"
+        - generic [ref=f3e263]: Quick Shot
+        - tooltip "A quick precise shot at the nearest enemy."
+      - button "2. Piercing Arrow" [disabled] [ref=f3e264]:
+        - generic [ref=f3e265]: "2"
+        - generic [ref=f3e266]: Piercing Arrow
+        - generic [ref=f3e267]: "3"
+        - tooltip "Unlocks at level 3"
+      - button "3. Volley" [disabled] [ref=f3e268]:
+        - generic [ref=f3e269]: "3"
+        - generic [ref=f3e270]: Volley
+        - generic [ref=f3e271]: "5"
+        - tooltip "Unlocks at level 5"
+      - button "4. Disengage" [disabled] [ref=f3e272]:
+        - generic [ref=f3e273]: "4"
+        - generic [ref=f3e274]: Disengage
+        - generic [ref=f3e275]: "7"
+        - tooltip "Unlocks at level 7"
+      - button "5. Heartseeker" [disabled] [ref=f3e276]:
+        - generic [ref=f3e277]: "5"
+        - generic [ref=f3e278]: Heartseeker
+        - generic [ref=f3e279]: "10"
+        - tooltip "Unlocks at level 10"
+    - button "map" [ref=f3e282] [cursor=pointer]: +
+    - generic [ref=f3e283]:
+      - generic [ref=f3e284]:
+        - generic [ref=f3e285]: Campfire voices
+        - generic [ref=f3e286]: Enter
+      - 'textbox "Enter: chat..." [ref=f3e289]'
+    - generic:
+      - generic: WASD
+      - text: move
+      - generic: Space
+      - text: strike
+      - generic: 1–5
+      - text: Abilities
+      - generic: E
+      - text: commune
+      - generic: Q
+      - text: tonic
+      - generic: R
+      - text: release spirit
+      - generic: M
+      - text: map
+      - generic: Esc
+      - text: settings

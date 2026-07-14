@@ -1,0 +1,117 @@
+- generic [active] [ref=f1e1]:
+  - generic:
+    - group "Language / Langue" [ref=f1e3]:
+      - button "EN" [ref=f1e4] [cursor=pointer]
+      - button "FR" [ref=f1e5] [cursor=pointer]
+    - main [ref=f1e36]:
+      - generic [ref=f1e37]:
+        - generic [ref=f1e38]:
+          - text: Character forge
+          - heading "New wayfarer" [level=1] [ref=f1e39]
+        - button "Cancel" [ref=f1e40] [cursor=pointer]
+      - generic [ref=f1e41]:
+        - region [ref=f1e42]:
+          - generic [ref=f1e43]:
+            - text: Living preview
+            - heading "Unnamed wayfarer" [level=2] [ref=f1e44]
+            - paragraph [ref=f1e45]: Front-line guardian
+          - img "Warrior wayfarer in the Azure palette" [ref=f1e47]
+          - group "Preview animation" [ref=f1e51]:
+            - button "Idle" [pressed] [ref=f1e53] [cursor=pointer]
+            - button "Walk" [ref=f1e54] [cursor=pointer]
+            - button "Attack" [ref=f1e55] [cursor=pointer]
+          - generic [ref=f1e56]:
+            - generic [ref=f1e57]:
+              - term [ref=f1e58]: Main hand
+              - definition [ref=f1e59]: Weathered sword
+            - generic [ref=f1e60]:
+              - term [ref=f1e61]: Off hand
+              - definition [ref=f1e62]: Oak shield
+        - generic [ref=f1e63]:
+          - generic [ref=f1e64]:
+            - generic [ref=f1e65]:
+              - generic [ref=f1e66]:
+                - generic [ref=f1e67]: "01"
+                - heading "Identity" [level=2] [ref=f1e68]
+              - generic [ref=f1e69]:
+                - button "Randomize" [ref=f1e70] [cursor=pointer]
+                - button "Reset" [ref=f1e71] [cursor=pointer]
+            - generic [ref=f1e72]: Name
+            - textbox "Name" [ref=f1e73]
+            - generic [ref=f1e74]: 2–16 letters, digits, hyphens, or underscores.
+          - group "02 Class" [ref=f1e75]:
+            - generic [ref=f1e76]:
+              - generic [ref=f1e77]: "02"
+              - text: Class
+            - generic [ref=f1e78]:
+              - generic [ref=f1e79] [cursor=pointer]:
+                - radio "Warrior Front-line guardian 60 px range Difficulty · Accessible Weathered sword" [checked]
+                - generic [ref=f1e80]: ⚔
+                - generic [ref=f1e81]:
+                  - strong [ref=f1e82]: Warrior
+                  - generic [ref=f1e83]: Front-line guardian
+                  - generic [ref=f1e84]: 60 px range
+                  - generic [ref=f1e85]: Difficulty · Accessible
+                  - generic [ref=f1e86]: Weathered sword
+              - generic [ref=f1e87] [cursor=pointer]:
+                - radio "Ranger Long-range scout 170 px range Difficulty · Tactical Hunter's bow"
+                - generic [ref=f1e88]: ➶
+                - generic [ref=f1e89]:
+                  - strong [ref=f1e90]: Ranger
+                  - generic [ref=f1e91]: Long-range scout
+                  - generic [ref=f1e92]: 170 px range
+                  - generic [ref=f1e93]: Difficulty · Tactical
+                  - generic [ref=f1e94]: Hunter's bow
+              - generic [ref=f1e95] [cursor=pointer]:
+                - radio "Priest Protective healer 100 px range Difficulty · Support Heartwood staff"
+                - generic [ref=f1e96]: ✦
+                - generic [ref=f1e97]:
+                  - strong [ref=f1e98]: Priest
+                  - generic [ref=f1e99]: Protective healer
+                  - generic [ref=f1e100]: 100 px range
+                  - generic [ref=f1e101]: Difficulty · Support
+                  - generic [ref=f1e102]: Heartwood staff
+            - paragraph [ref=f1e103]: Stand close, absorb pressure, and keep danger away from allies.
+          - group "03 Appearance" [ref=f1e104]:
+            - generic [ref=f1e105]:
+              - generic [ref=f1e106]: "03"
+              - text: Appearance
+            - paragraph [ref=f1e107]: Choose the banner colors worn by your Tiny Swords unit.
+            - generic [ref=f1e108]:
+              - strong [ref=f1e109]: Banner color
+              - generic [ref=f1e110]:
+                - generic [ref=f1e111] [cursor=pointer]:
+                  - radio "Azure" [checked]
+                  - generic [ref=f1e113]: Azure
+                - generic [ref=f1e114] [cursor=pointer]:
+                  - radio "Ember"
+                  - generic [ref=f1e116]: Ember
+                - generic [ref=f1e117] [cursor=pointer]:
+                  - radio "Gold"
+                  - generic [ref=f1e119]: Gold
+                - generic [ref=f1e120] [cursor=pointer]:
+                  - radio "Violet"
+                  - generic [ref=f1e122]: Violet
+          - region [ref=f1e123]:
+            - generic [ref=f1e124]:
+              - generic [ref=f1e125]:
+                - generic [ref=f1e126]: "04"
+                - heading "Class abilities" [level=2] [ref=f1e127]
+              - generic [ref=f1e128]: Available from level 1 · keys 1–5
+            - generic [ref=f1e129]:
+              - article [ref=f1e130]:
+                - paragraph [ref=f1e132]: Cleave
+                - text: 0.65s cooldown
+              - article [ref=f1e133]:
+                - paragraph [ref=f1e135]: Iron Guard
+                - text: 8s cooldown
+              - article [ref=f1e136]:
+                - paragraph [ref=f1e138]: Shield Bash
+                - text: 3.2s cooldown
+              - article [ref=f1e139]:
+                - paragraph [ref=f1e141]: Battle Cry
+                - text: 5.5s cooldown
+              - article [ref=f1e142]:
+                - paragraph [ref=f1e144]: Whirlwind
+                - text: 8s cooldown
+          - button "Review wayfarer" [disabled] [ref=f1e146]

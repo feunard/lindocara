@@ -1,0 +1,50 @@
+- generic [active] [ref=f3e1]:
+  - generic:
+    - group "Language / Langue" [ref=f3e3]:
+      - button "EN" [ref=f3e4] [cursor=pointer]
+      - button "FR" [ref=f3e5] [cursor=pointer]
+    - main [ref=f3e55]:
+      - generic [ref=f3e56]:
+        - generic [ref=f3e57]:
+          - text: Character forge
+          - heading "New wayfarer" [level=1] [ref=f3e58]
+        - button "Cancel" [ref=f3e59] [cursor=pointer]
+      - generic [ref=f3e60]:
+        - region [ref=f3e167]:
+          - generic [ref=f3e62]:
+            - text: Living preview
+            - heading "QaVerify5r" [level=2] [ref=f3e168]
+            - paragraph [ref=f3e64]: Long-range scout
+          - img "Ranger wayfarer in the Azure palette" [ref=f3e166]
+          - group "Preview animation" [ref=f3e70]:
+            - button "Idle" [pressed] [ref=f3e72] [cursor=pointer]
+            - button "Walk" [ref=f3e73] [cursor=pointer]
+            - button "Attack" [ref=f3e74] [cursor=pointer]
+          - generic [ref=f3e75]:
+            - generic [ref=f3e76]:
+              - term [ref=f3e77]: Main hand
+              - definition [ref=f3e78]: Hunter's bow
+            - generic [ref=f3e79]:
+              - term [ref=f3e80]: Off hand
+              - definition [ref=f3e81]: None
+        - region [ref=f3e169]:
+          - generic [ref=f3e170]: Final step
+          - heading "Confirm your wayfarer" [level=2] [ref=f3e171]
+          - img "Ranger wayfarer in the Azure palette" [ref=f3e172]
+          - generic [ref=f3e176]:
+            - generic [ref=f3e177]:
+              - term [ref=f3e178]: Name
+              - definition [ref=f3e179]: QaVerify5r
+            - generic [ref=f3e180]:
+              - term [ref=f3e181]: Class
+              - definition [ref=f3e182]: Ranger
+            - generic [ref=f3e183]:
+              - term [ref=f3e184]: Appearance
+              - definition [ref=f3e185]: Azure
+            - generic [ref=f3e186]:
+              - term [ref=f3e187]: Starter equipment
+              - definition [ref=f3e188]: Hunter's bow
+          - paragraph [ref=f3e189]: Your class determines this starter equipment. It cannot be changed during creation.
+          - generic [ref=f3e190]:
+            - button "Back to editing" [ref=f3e191] [cursor=pointer]
+            - button "Create wayfarer" [ref=f3e192] [cursor=pointer]
