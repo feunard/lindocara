@@ -49,6 +49,18 @@ export const TINY_SWORDS_SIGN_BOARD = new URL(
   import.meta.url,
 ).href;
 
+/**
+ * Quest-site resources (wood/gold/meat), cropped from the same Tiny Swords Terrain/Resources
+ * sheets as everything else here. Formerly lived in `vendor-art.ts` alongside the (now-replaced)
+ * monster art; moved here because these three are not monster art and must survive the deletion
+ * of the CraftPix/ForgottenMemories/Resurrected-RPG/Icons32x32 packs.
+ */
+export const TINY_SWORDS_QUEST_ART = {
+  wood: `${TINY_SWORDS_ROOT}/quests/wood.png`,
+  gold: `${TINY_SWORDS_ROOT}/quests/gold.png`,
+  meat: `${TINY_SWORDS_ROOT}/quests/meat.png`,
+} as const;
+
 export const TINY_SWORDS_EFFECTS = {
   fire: `${TINY_SWORDS_ROOT}/effects/Fire_01.png`,
   explosion: `${TINY_SWORDS_ROOT}/effects/Explosion_01.png`,

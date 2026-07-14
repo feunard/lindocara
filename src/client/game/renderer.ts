@@ -51,13 +51,14 @@ import {
   TINY_SWORDS_BUILDINGS,
   TINY_SWORDS_EFFECT_SHEETS,
   TINY_SWORDS_EFFECTS,
+  TINY_SWORDS_QUEST_ART,
   TINY_SWORDS_SIGN_BOARD,
   TINY_SWORDS_TERRAIN,
   TINY_SWORDS_UNIT_FRAME,
   type UnitMotion,
   unitSheet,
 } from "./tiny-swords-art.js";
-import { VENDOR_MONSTER_ART, VENDOR_QUEST_ART } from "./vendor-art.js";
+import { VENDOR_MONSTER_ART } from "./vendor-art.js";
 import {
   DECOR_REGIONS,
   type DecorTheme,
@@ -136,7 +137,7 @@ interface ArtTextures {
   signBoard: Texture;
   effects: Record<keyof typeof TINY_SWORDS_EFFECTS, Texture>;
   effectFrames: Record<keyof typeof TINY_SWORDS_EFFECT_SHEETS, readonly Texture[]>;
-  questResources: Record<keyof typeof VENDOR_QUEST_ART, Texture>;
+  questResources: Record<keyof typeof TINY_SWORDS_QUEST_ART, Texture>;
 }
 
 export interface RenderContext {
@@ -373,12 +374,12 @@ async function loadArt(): Promise<ArtTextures> {
   const monsters = Object.fromEntries(monsterEntries) as Record<MonsterSpecies, Texture>;
   for (const monster of Object.values(monsters)) monster.source.style.scaleMode = "linear";
   const questResourceEntries = await Promise.all(
-    Object.entries(VENDOR_QUEST_ART).map(
+    Object.entries(TINY_SWORDS_QUEST_ART).map(
       async ([kind, source]) => [kind, await Assets.load<Texture>(source)] as const,
     ),
   );
   const questResources = Object.fromEntries(questResourceEntries) as Record<
-    keyof typeof VENDOR_QUEST_ART,
+    keyof typeof TINY_SWORDS_QUEST_ART,
     Texture
   >;
   for (const resource of Object.values(questResources)) resource.source.style.scaleMode = "nearest";
@@ -1340,7 +1341,7 @@ export class Renderer {
       signal.alpha = 0;
       container.addChild(signal);
       if (site.kind === "resource") {
-        const texture = this.art.questResources[site.art as keyof typeof VENDOR_QUEST_ART];
+        const texture = this.art.questResources[site.art as keyof typeof TINY_SWORDS_QUEST_ART];
         const sprite = createFittedSprite(texture, 58, 58);
         sprite.anchor.set(0.5, 1);
         sprite.position.set(0, 12);
