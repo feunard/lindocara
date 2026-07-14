@@ -35,7 +35,7 @@ export const WORLD_ZONES: readonly ZoneDefinition[] = [
     y: 720,
     radiusX: 700,
     radiusY: 520,
-    tint: 0xf0edcf,
+    tint: 0xf4ead1,
   },
   {
     id: "old-road",
@@ -45,7 +45,7 @@ export const WORLD_ZONES: readonly ZoneDefinition[] = [
     y: 720,
     radiusX: 520,
     radiusY: 360,
-    tint: 0xe8e4bd,
+    tint: 0xe0dfb4,
   },
   {
     id: "sunwake",
@@ -55,7 +55,7 @@ export const WORLD_ZONES: readonly ZoneDefinition[] = [
     y: 560,
     radiusX: 470,
     radiusY: 410,
-    tint: 0xf3ebbd,
+    tint: 0xf2e6b2,
   },
   {
     id: "gloamwood",
@@ -65,7 +65,7 @@ export const WORLD_ZONES: readonly ZoneDefinition[] = [
     y: 1390,
     radiusX: 620,
     radiusY: 500,
-    tint: 0xd4ddb7,
+    tint: 0xb9c9a4,
   },
   {
     id: "old-root-farm",
@@ -75,7 +75,7 @@ export const WORLD_ZONES: readonly ZoneDefinition[] = [
     y: 1980,
     radiusX: 620,
     radiusY: 500,
-    tint: 0xe5d6aa,
+    tint: 0xdcc798,
   },
   {
     id: "moonmere",
@@ -85,7 +85,7 @@ export const WORLD_ZONES: readonly ZoneDefinition[] = [
     y: 1270,
     radiusX: 430,
     radiusY: 930,
-    tint: 0xcddbc1,
+    tint: 0xb9d1c0,
   },
   {
     id: "wayfarer-camp",
@@ -95,7 +95,7 @@ export const WORLD_ZONES: readonly ZoneDefinition[] = [
     y: 1810,
     radiusX: 420,
     radiusY: 320,
-    tint: 0xded8b4,
+    tint: 0xd6ceb0,
   },
   {
     id: "elderfall",
@@ -105,7 +105,7 @@ export const WORLD_ZONES: readonly ZoneDefinition[] = [
     y: 760,
     radiusX: 650,
     radiusY: 520,
-    tint: 0xd6d4b8,
+    tint: 0xbfc0ae,
   },
   {
     id: "duskmire",
@@ -115,7 +115,7 @@ export const WORLD_ZONES: readonly ZoneDefinition[] = [
     y: 2150,
     radiusX: 720,
     radiusY: 520,
-    tint: 0xbccbb0,
+    tint: 0x9fb499,
   },
   {
     id: "sealed-gate",
@@ -125,7 +125,7 @@ export const WORLD_ZONES: readonly ZoneDefinition[] = [
     y: 1320,
     radiusX: 420,
     radiusY: 620,
-    tint: 0xc7c4ad,
+    tint: 0xaeb0a3,
   },
 ] as const;
 

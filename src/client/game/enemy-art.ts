@@ -24,6 +24,18 @@ export interface EnemyArt {
   readonly attack: EnemySheet;
 }
 
+export interface EnemyRenderMetrics {
+  /** Size of the full square frame. The source sheets contain substantial transparent padding. */
+  readonly spriteSize: number;
+  /** Frame-bottom anchor adjusted so the visible feet meet the shared ground line. */
+  readonly spriteY: number;
+  readonly shadowWidth: number;
+  readonly shadowHeight: number;
+  readonly labelY: number;
+  readonly hpY: number;
+  readonly alertY: number;
+}
+
 /** Several species share a sheet, exactly as `goblin_scout` and `goblin_raider` shared one before:
  *  the three `skull_*` species already share a stat block, so they were always one monster in three
  *  coats. */
@@ -73,4 +85,76 @@ export const TINY_SWORDS_ENEMIES: Record<MonsterSpecies, EnemyArt> = {
   minotaur_brute: MINOTAUR,
   mire_troll: TROLL,
   gate_troll: TROLL,
+};
+
+const SPEAR_GOBLIN_METRICS: EnemyRenderMetrics = {
+  spriteSize: 98,
+  spriteY: 59,
+  shadowWidth: 16,
+  shadowHeight: 6,
+  labelY: -17,
+  hpY: -9,
+  alertY: -34,
+};
+
+const TORCH_GOBLIN_METRICS: EnemyRenderMetrics = {
+  spriteSize: 119,
+  spriteY: 65,
+  shadowWidth: 17,
+  shadowHeight: 6,
+  labelY: -11,
+  hpY: -3,
+  alertY: -28,
+};
+
+const GNOLL_METRICS: EnemyRenderMetrics = {
+  spriteSize: 128,
+  spriteY: 67,
+  shadowWidth: 22,
+  shadowHeight: 7,
+  labelY: -18,
+  hpY: -10,
+  alertY: -35,
+};
+
+const SKULL_METRICS: EnemyRenderMetrics = {
+  spriteSize: 124,
+  spriteY: 69,
+  shadowWidth: 17,
+  shadowHeight: 6,
+  labelY: -15,
+  hpY: -7,
+  alertY: -32,
+};
+
+const MINOTAUR_METRICS: EnemyRenderMetrics = {
+  spriteSize: 186,
+  spriteY: 90,
+  shadowWidth: 30,
+  shadowHeight: 10,
+  labelY: -44,
+  hpY: -36,
+  alertY: -61,
+};
+
+const TROLL_METRICS: EnemyRenderMetrics = {
+  spriteSize: 168,
+  spriteY: 67,
+  shadowWidth: 29,
+  shadowHeight: 11,
+  labelY: -61,
+  hpY: -53,
+  alertY: -78,
+};
+
+export const ENEMY_RENDER_METRICS: Record<MonsterSpecies, EnemyRenderMetrics> = {
+  spear_goblin: SPEAR_GOBLIN_METRICS,
+  torch_goblin: TORCH_GOBLIN_METRICS,
+  gnoll_marauder: GNOLL_METRICS,
+  skull_guard: SKULL_METRICS,
+  skull_crusader: SKULL_METRICS,
+  skull_warden: SKULL_METRICS,
+  minotaur_brute: MINOTAUR_METRICS,
+  mire_troll: TROLL_METRICS,
+  gate_troll: TROLL_METRICS,
 };

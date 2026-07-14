@@ -39,9 +39,15 @@ import { DEFAULT_ZONE_ID, type ZoneId, zoneDefinition } from "../../shared/zones
 import { onLocaleChange, t } from "../i18n.js";
 import { landTile, tileVisual } from "./autotile.js";
 import { MAIN_HAND_ART, OFF_HAND_ART, PLAYER_ATLAS_FRAMES } from "./character-art.js";
-import { type EnemyArt, type EnemySheet, TINY_SWORDS_ENEMIES } from "./enemy-art.js";
+import {
+  ENEMY_RENDER_METRICS,
+  type EnemyArt,
+  type EnemySheet,
+  TINY_SWORDS_ENEMIES,
+} from "./enemy-art.js";
 import { MAX_ACTIVE_WORLD_EFFECTS, questSiteFeedback } from "./feedback.js";
 import type { SceneSample } from "./net.js";
+import { pulseTint, terrainTintsAt, waterFrameIndex } from "./terrain-visuals.js";
 import {
   allUnitSheets,
   TINY_SWORDS_BUILDINGS,
@@ -53,6 +59,7 @@ import {
   TINY_SWORDS_UNIT_FRAME,
   type UnitMotion,
   unitSheet,
+  WORLD_WATER_SURFACE,
 } from "./tiny-swords-art.js";
 import {
   type DecorTheme,
@@ -97,6 +104,9 @@ const ATLAS_IMAGE = "/assets/lindocara/atlas/world.png";
 const ATLAS_DATA = "/assets/lindocara/atlas/world.json";
 const STATIC_CULL_MARGIN = 180;
 const ENTITY_CULL_MARGIN = 120;
+const WATER_SURFACE_SOURCE_SIZE = 2048;
+const WATER_SURFACE_SAMPLE_SIZE = 128;
+const WATER_SURFACE_GRID = WATER_SURFACE_SOURCE_SIZE / WATER_SURFACE_SAMPLE_SIZE;
 
 interface AtlasData {
   frames: Record<string, { x: number; y: number; w: number; h: number }>;
@@ -106,11 +116,11 @@ interface ArtTextures {
   players: Record<PrimaryColor, Texture>;
   monsters: Record<MonsterSpecies, Record<UnitMotion, readonly Texture[]>>;
   keeper: Texture;
-  /** The tilemap's ground truth, sliced once from `Tilemap_Flat.png` and `Water.png`.
-   *  `land[row][col]` is a cell of the sheet's first 4x4 autotile group (see `autotile.ts`). */
+  /** The tilemap's ground truth. `land[row][col]` is a cell of the flat sheet's first 4x4
+   * autotile group; water is a continuous surface divided into reusable source samples. */
   terrain: {
     land: readonly (readonly Texture[])[];
-    water: Texture;
+    water: readonly Texture[];
   };
   props: {
     trees: Texture[];
@@ -183,6 +193,12 @@ interface AmbientView {
   sway: number;
 }
 
+interface WaterTileView {
+  sprite: Sprite;
+  baseTint: number;
+  phase: number;
+}
+
 interface StaticView {
   container: Container;
   x: number;
@@ -251,6 +267,23 @@ function sliceAutotileSheet(sheet: Texture): Texture[][] {
         }),
     ),
   );
+}
+
+function sliceWaterSurface(surface: Texture): Texture[] {
+  return Array.from({ length: WATER_SURFACE_GRID * WATER_SURFACE_GRID }, (_, index) => {
+    const col = index % WATER_SURFACE_GRID;
+    const row = Math.floor(index / WATER_SURFACE_GRID);
+    return new Texture({
+      source: surface.source,
+      frame: new Rectangle(
+        col * WATER_SURFACE_SAMPLE_SIZE,
+        row * WATER_SURFACE_SAMPLE_SIZE,
+        WATER_SURFACE_SAMPLE_SIZE,
+        WATER_SURFACE_SAMPLE_SIZE,
+      ),
+      label: `terrain.water:${col}:${row}`,
+    });
+  });
 }
 
 function landTexture(
@@ -327,12 +360,14 @@ async function loadArt(): Promise<ArtTextures> {
         }),
     );
   }
-  const [terrainFlatSheet, terrainWaterTexture] = await Promise.all([
+  const [terrainFlatSheet, terrainWaterSurface] = await Promise.all([
     Assets.load<Texture>(TINY_SWORDS_TERRAIN.flat),
-    Assets.load<Texture>(TINY_SWORDS_TERRAIN.water),
+    Assets.load<Texture>(WORLD_WATER_SURFACE),
   ]);
   terrainFlatSheet.source.style.scaleMode = "nearest";
-  terrainWaterTexture.source.style.scaleMode = "nearest";
+  // The ocean source is a continuous painted surface, not pixel art. Linear sampling preserves
+  // its caustics when 128px samples are reduced to the world's 64px tiles.
+  terrainWaterSurface.source.style.scaleMode = "linear";
   const buildings = await Promise.all(
     TINY_SWORDS_BUILDINGS.map((source) => Assets.load<Texture>(source)),
   );
@@ -398,7 +433,7 @@ async function loadArt(): Promise<ArtTextures> {
     keeper: texture("npc.keeper"),
     terrain: {
       land: sliceAutotileSheet(terrainFlatSheet),
-      water: terrainWaterTexture,
+      water: sliceWaterSurface(terrainWaterSurface),
     },
     props: {
       trees: [texture("prop.tree.large"), texture("prop.tree.round"), texture("prop.tree.small")],
@@ -586,7 +621,7 @@ export class Renderer {
   #worldTextViews: WorldTextView[] = [];
   #localizedTexts: Array<{ node: Text; compute: () => string }> = [];
   #terrainTiles: Sprite[] = [];
-  #waterTiles: Sprite[] = [];
+  #waterTiles: WaterTileView[] = [];
   #terrainKey = "";
   /** Which zone's tilemap `#buildForestTrees`/`#buildDecor`/`#updateTerrain` currently read.
    *  Defaults to Verdant Reach so the very first paint (before any welcome) isn't blank; the
@@ -1240,9 +1275,10 @@ export class Renderer {
       } else if (landmark.kind === "graveyard") {
         container.addChild(
           new Graphics()
-            .roundRect(-40, -30, landmark.width + 80, landmark.height + 90, 18)
-            .fill({ color: 0x121a20, alpha: 0.5 })
-            .stroke({ width: 2, color: 0x6f8496, alpha: 0.45 }),
+            .ellipse(landmark.width / 2, landmark.height - 5, landmark.width * 0.43, 18)
+            .fill({ color: COLORS.shadow, alpha: 0.3 })
+            .ellipse(landmark.width / 2, landmark.height + 32, landmark.width * 0.48, 22)
+            .fill({ color: 0x324348, alpha: 0.16 }),
         );
         // 4 is the Monastery in TINY_SWORDS_BUILDINGS — the closest thing the pack has to a chapel.
         const chapel = createFittedSprite(
@@ -1618,9 +1654,14 @@ export class Renderer {
       const col = Math.floor(x / TILE_SIZE);
       const tileRow = Math.floor(y / TILE_SIZE);
       const land = tileVisual(kindAt(tiles, col, tileRow)) === "land";
+      const tints = terrainTintsAt(
+        x + TILE_SIZE / 2,
+        y + TILE_SIZE / 2,
+        this.#visuals.worldRegions,
+      );
       const texture = land
         ? landTexture(this.art.terrain.land, landTile(tiles, col, tileRow))
-        : this.art.terrain.water;
+        : pickTexture(this.art.terrain.water, waterFrameIndex(col, tileRow, WATER_SURFACE_GRID));
       placeTile(
         tile,
         texture,
@@ -1632,8 +1673,14 @@ export class Renderer {
       // A pooled sprite may have last served as a water tile: `#updateAmbient` leaves its own
       // shimmer alpha on it, which must not leak onto whatever this sprite draws next.
       tile.alpha = 1;
-      tile.tint = 0xffffff;
-      if (!land) this.#waterTiles.push(tile);
+      tile.tint = land ? tints.land : tints.water;
+      if (!land) {
+        this.#waterTiles.push({
+          sprite: tile,
+          baseTint: tints.water,
+          phase: (col * 0.37 + tileRow * 0.61) % (Math.PI * 2),
+        });
+      }
     }
   }
 
@@ -1708,29 +1755,22 @@ export class Renderer {
     const actor = new Container();
     actor.pivot.set(18, 20);
     actor.position.set(18, 20);
-    const scale =
-      monster.kind === "troll"
-        ? 112
-        : monster.kind === "minotaur"
-          ? 92
-          : monster.kind === "goblin"
-            ? 72
-            : 82;
+    const metrics = ENEMY_RENDER_METRICS[monster.species];
     const shadow = new Graphics()
-      .ellipse(18, 33, monster.kind === "troll" ? 35 : 25, monster.kind === "troll" ? 12 : 9)
-      .fill({ color: COLORS.shadow, alpha: 0.65 });
+      .ellipse(18, 33, metrics.shadowWidth, metrics.shadowHeight)
+      .fill({ color: COLORS.shadow, alpha: 0.42 });
     const animations = this.art.monsters[monster.species];
     const unitSprite = new Sprite(animations.idle[0]);
-    unitSprite.width = scale;
-    unitSprite.height = scale;
+    unitSprite.width = metrics.spriteSize;
+    unitSprite.height = metrics.spriteSize;
     unitSprite.anchor.set(0.5, 1);
-    unitSprite.position.set(18, 40);
+    unitSprite.position.set(18, metrics.spriteY);
     const flash = new Graphics().ellipse(18, 18, 25, 21).fill({ color: 0xffffff, alpha: 0 });
     actor.addChild(shadow, unitSprite, flash);
     container.addChild(actor);
     const hp = new Graphics();
     hp.label = "hp";
-    hp.position.set(0, -7);
+    hp.position.set(0, metrics.hpY);
     container.addChild(hp);
     const alert = new Text({
       text: "!",
@@ -1743,7 +1783,7 @@ export class Renderer {
       },
     });
     alert.anchor.set(0.5);
-    alert.position.set(18, -29);
+    alert.position.set(18, metrics.alertY);
     alert.visible = false;
     container.addChild(alert);
     const label = new Text({
@@ -1757,7 +1797,7 @@ export class Renderer {
     });
     label.label = "label";
     label.anchor.set(0.5, 1);
-    label.position.set(18, -15);
+    label.position.set(18, metrics.labelY);
     label.alpha = 0;
     container.addChild(label);
     this.#actors.addChild(container);
@@ -2144,11 +2184,10 @@ export class Renderer {
   }
 
   #updateAmbient(now: number): void {
-    for (let index = 0; index < this.#waterTiles.length; index++) {
-      const tile = this.#waterTiles[index];
-      if (!tile) continue;
-      tile.alpha = 0.86 + Math.sin(now / 760 + index * 0.37) * 0.07;
-      tile.tint = index % 3 === 0 ? 0xd7f5ec : 0xe1ffff;
+    for (const view of this.#waterTiles) {
+      const shimmer = Math.sin(now / 1_100 + view.phase);
+      view.sprite.alpha = 0.94 + shimmer * 0.035;
+      view.sprite.tint = pulseTint(view.baseTint, 1 + shimmer * 0.035);
     }
     for (const view of this.#ambientViews) {
       const visible = this.#isVisibleWorld(view.baseX, view.baseY, 80);
@@ -2380,7 +2419,7 @@ export class Renderer {
           if (view.flash) view.flash.alpha = (view.hitUntil ?? 0) > now ? 0.7 : 0;
           if (view.alert) {
             view.alert.visible = aggro;
-            view.alert.y = -29 + Math.sin(now / 120) * 2;
+            view.alert.y = ENEMY_RENDER_METRICS[monster.species].alertY + Math.sin(now / 120) * 2;
           }
           const label = view.container.getChildByLabel("label");
           if (label instanceof Text) {

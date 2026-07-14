@@ -1,0 +1,67 @@
+import type { Biome, ZoneDefinition } from "./world-layout.js";
+
+export interface TerrainTints {
+  land: number;
+  water: number;
+}
+
+const WATER_TINTS: Readonly<Record<Biome, number>> = {
+  village: 0x638c9f,
+  meadow: 0x5d899d,
+  forest: 0x4e7a76,
+  farm: 0x668991,
+  wetland: 0x568b87,
+  ruins: 0x596f7b,
+  marsh: 0x405f60,
+};
+
+function channel(color: number, shift: number): number {
+  return (color >> shift) & 0xff;
+}
+
+export function blendTint(first: number, second: number, firstWeight: number): number {
+  const weight = Math.max(0, Math.min(1, firstWeight));
+  const blend = (shift: number) =>
+    Math.round(channel(first, shift) * weight + channel(second, shift) * (1 - weight));
+  return (blend(16) << 16) | (blend(8) << 8) | blend(0);
+}
+
+export function terrainTintsAt(
+  x: number,
+  y: number,
+  regions: readonly ZoneDefinition[],
+): TerrainTints {
+  if (regions.length === 0) return { land: 0xffffff, water: 0x5d899d };
+  const nearest = regions
+    .map((region) => ({
+      region,
+      score: Math.hypot((x - region.x) / region.radiusX, (y - region.y) / region.radiusY),
+    }))
+    .sort((a, b) => a.score - b.score);
+  const first = nearest[0];
+  if (!first) return { land: 0xffffff, water: 0x5d899d };
+  const second = nearest[1];
+  if (!second) return { land: first.region.tint, water: WATER_TINTS[first.region.biome] };
+
+  // Equal scores sit on a soft 50/50 boundary. Moving towards a region gradually gives it the
+  // full palette, avoiding visible Voronoi seams between neighbouring authored districts.
+  const firstWeight = Math.min(1, 0.5 + Math.max(0, second.score - first.score) * 0.42);
+  return {
+    land: blendTint(first.region.tint, second.region.tint, firstWeight),
+    water: blendTint(
+      WATER_TINTS[first.region.biome],
+      WATER_TINTS[second.region.biome],
+      firstWeight,
+    ),
+  };
+}
+
+export function waterFrameIndex(col: number, row: number, gridSize: number): number {
+  const wrap = (value: number) => ((value % gridSize) + gridSize) % gridSize;
+  return wrap(row) * gridSize + wrap(col);
+}
+
+export function pulseTint(color: number, factor: number): number {
+  const apply = (shift: number) => Math.min(255, Math.round(channel(color, shift) * factor));
+  return (apply(16) << 16) | (apply(8) << 8) | apply(0);
+}
