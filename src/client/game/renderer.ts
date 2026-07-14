@@ -11,7 +11,6 @@ import {
 import type { MainHandItem, OffHandItem, PrimaryColor } from "../../shared/character.js";
 import { isSpirit } from "../../shared/death.js";
 import {
-  BOUNDARY_OBSTACLES,
   hashSeed,
   type MonsterSpecies,
   type PlayerClass,
@@ -20,7 +19,6 @@ import {
   QUEST_NPC,
   QUEST_SITES,
   SAFE_ZONE,
-  TERRAIN_BLOCKERS,
   VERDANT_REACH_TERRAIN,
   WORLD_LANDMARKS,
 } from "../../shared/game.js";
@@ -35,7 +33,7 @@ import type {
   QuestState,
 } from "../../shared/protocol.js";
 import { PLAYER_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from "../../shared/simulation.js";
-import { isLandKind, kindAt, TILE_SIZE } from "../../shared/tilemap.js";
+import { isLandKind, isSolidKind, kindAt, kindAtPoint, TILE_SIZE } from "../../shared/tilemap.js";
 import { onLocaleChange, t } from "../i18n.js";
 import { landTile } from "./autotile.js";
 import { MAIN_HAND_ART, OFF_HAND_ART, PLAYER_ATLAS_FRAMES } from "./character-art.js";
@@ -607,9 +605,7 @@ export class Renderer {
     );
     this.#app.stage.addChild(this.#world);
 
-    this.#buildSharedBlockers();
     this.#buildForestTrees();
-    this.#buildBoundary();
     this.#buildDecor();
     this.#buildSetPieces();
     this.#buildLandmarks();
@@ -631,55 +627,6 @@ export class Renderer {
   ): void {
     parent.addChild(container);
     this.#staticViews.push({ container, x, y, radius });
-  }
-
-  #buildSharedBlockers(): void {
-    for (const [blockerIndex, blocker] of TERRAIN_BLOCKERS.entries()) {
-      const { rect } = blocker;
-      const centerX = rect.x + rect.width / 2;
-      const centerY = rect.y + rect.height / 2;
-      const radius = Math.hypot(rect.width, rect.height) / 2 + 50;
-      if (blocker.kind === "water") {
-        const bank = new Graphics()
-          .rect(rect.x - 3, rect.y - 3, rect.width + 6, rect.height + 6)
-          .stroke({ width: 5, color: 0x88a889, alpha: 0.34 })
-          .rect(rect.x + 2, rect.y + 2, rect.width - 4, rect.height - 4)
-          .stroke({ width: 2, color: 0xc2e3d5, alpha: 0.2 });
-        this.#registerStatic(bank, centerX, centerY, radius, this.#groundDecor);
-        continue;
-      }
-
-      const mass = new Container();
-      mass.position.set(rect.x, rect.y);
-      mass.addChild(
-        new Graphics()
-          .rect(0, 0, rect.width, rect.height)
-          .fill({ color: blocker.kind === "cliff" ? 0x34443c : 0x102f28, alpha: 0.36 }),
-      );
-      const spacing = blocker.kind === "cliff" ? 52 : 64;
-      const columns = Math.max(1, Math.floor(rect.width / spacing));
-      const rows = Math.max(1, Math.floor(rect.height / spacing));
-      const count = Math.min(88, columns * rows + columns);
-      for (let index = 0; index < count; index++) {
-        const seed = blockerIndex * 401 + index * 17;
-        const x = 18 + seeded(seed + 2) * Math.max(8, rect.width - 36);
-        const y = 28 + seeded(seed + 7) * Math.max(8, rect.height - 34);
-        const isRock = blocker.kind === "cliff" || index % 9 === 0;
-        const texture = isRock
-          ? pickTexture(this.art.props.rocks, seed)
-          : pickTexture(this.art.props.trees, seed);
-        const size = isRock ? 36 + seeded(seed + 3) * 30 : 58 + seeded(seed + 5) * 34;
-        const shadow = createSoftShadow(size * 0.78, size * 0.25, 0.3);
-        shadow.position.set(x, y - 2);
-        mass.addChild(shadow);
-        const prop = createFittedSprite(texture, size, size);
-        prop.anchor.set(0.5, 1);
-        prop.position.set(x, y);
-        prop.tint = blocker.kind === "cliff" ? 0xb8c2a8 : 0xcbd8ae;
-        mass.addChild(prop);
-      }
-      this.#registerStatic(mass, centerX, centerY, radius);
-    }
   }
 
   /**
@@ -715,43 +662,6 @@ export class Renderer {
     }
   }
 
-  #buildBoundary(): void {
-    for (const [side, rect] of BOUNDARY_OBSTACLES.entries()) {
-      const horizontal = rect.width > rect.height;
-      const length = horizontal ? rect.width : rect.height;
-      const count = Math.ceil(length / 58);
-      for (let index = 0; index < count; index++) {
-        const seed = 2600 + side * 307 + index * 13;
-        const x = horizontal
-          ? rect.x + ((index + 0.35 + seeded(seed)) / count) * rect.width
-          : rect.x + rect.width * (0.25 + seeded(seed + 2) * 0.5);
-        const y = horizontal
-          ? rect.y + rect.height * (0.35 + seeded(seed + 4) * 0.55)
-          : rect.y + ((index + 0.35 + seeded(seed)) / count) * rect.height;
-        const container = new Container();
-        container.position.set(x, y);
-        const rocky = side >= 2 && index % 3 === 0;
-        const texture = rocky
-          ? pickTexture(this.art.props.rocks, seed)
-          : pickTexture(this.art.props.trees, seed);
-        const size = rocky ? 44 + seeded(seed + 5) * 24 : 68 + seeded(seed + 7) * 42;
-        container.addChild(createSoftShadow(size * 0.75, size * 0.24, 0.32));
-        const prop = createFittedSprite(texture, size, size);
-        prop.anchor.set(0.5, 1);
-        prop.tint = side === 2 ? 0xb8c2a0 : 0xc8d5aa;
-        container.addChild(prop);
-        this.#registerStatic(container, x, y, size + 30);
-      }
-    }
-  }
-
-  #blockedAt(x: number, y: number): boolean {
-    return TERRAIN_BLOCKERS.some(
-      ({ rect }) =>
-        x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height,
-    );
-  }
-
   #nearLandmark(x: number, y: number, margin: number): boolean {
     return WORLD_LANDMARKS.some(
       (landmark) =>
@@ -762,16 +672,37 @@ export class Renderer {
     );
   }
 
-  #decorTexture(theme: DecorTheme, seed: number): { texture: Texture; size: number; tint: number } {
+  /**
+   * `solid` marks a pick as a tree — a prop that reads as something you'd expect to collide
+   * with. `#buildDecor` only lets one stand where the tile grid agrees a tree could be: on a
+   * `forest` (or `building`) cell. Everything else here (tufts, mushrooms, rocks, fences, ruins)
+   * is small enough or already understood as walk-through set dressing, so it is not held to that
+   * rule — only the water check applies to it.
+   */
+  #decorTexture(
+    theme: DecorTheme,
+    seed: number,
+  ): { texture: Texture; size: number; tint: number; solid: boolean } {
     if (theme === "forest") {
       if (seed % 9 === 0)
-        return { texture: pickTexture(this.art.props.mushrooms, seed), size: 22, tint: 0xd8e8b8 };
+        return {
+          texture: pickTexture(this.art.props.mushrooms, seed),
+          size: 22,
+          tint: 0xd8e8b8,
+          solid: false,
+        };
       if (seed % 7 === 0)
-        return { texture: pickTexture(this.art.props.rocks, seed), size: 28, tint: 0xc8d2af };
+        return {
+          texture: pickTexture(this.art.props.rocks, seed),
+          size: 28,
+          tint: 0xc8d2af,
+          solid: false,
+        };
       return {
         texture: pickTexture(this.art.props.trees, seed),
         size: 54 + seeded(seed + 6) * 38,
         tint: 0xd4dfb6,
+        solid: true,
       };
     }
     if (theme === "marsh" || theme === "wet") {
@@ -785,6 +716,7 @@ export class Renderer {
         texture: pickTexture(pool, seed),
         size: seed % 7 === 0 ? 34 : 20 + seeded(seed + 5) * 14,
         tint: 0xbfd2b0,
+        solid: false,
       };
     }
     if (theme === "ruin" || theme === "gate") {
@@ -793,6 +725,7 @@ export class Renderer {
         texture: pickTexture(pool, seed),
         size: seed % 6 === 0 ? 52 : 24 + seeded(seed + 5) * 24,
         tint: 0xcacbb4,
+        solid: false,
       };
     }
     if (theme === "farm") {
@@ -802,6 +735,7 @@ export class Renderer {
         texture: pickTexture(pool, seed),
         size: seed % 5 === 0 ? 42 : 18 + seeded(seed + 5) * 10,
         tint: 0xe0d1a5,
+        solid: false,
       };
     }
     if (theme === "road") {
@@ -810,18 +744,23 @@ export class Renderer {
         texture: pickTexture(pool, seed),
         size: seed % 5 === 0 ? 38 : 20 + seeded(seed + 5) * 14,
         tint: 0xd8cfaa,
+        solid: false,
       };
     }
-    const pool =
-      seed % 6 === 0 ? this.art.props.trees : [...this.art.props.tufts, ...this.art.props.leaves];
+    const isTree = seed % 6 === 0;
+    const pool = isTree
+      ? this.art.props.trees
+      : [...this.art.props.tufts, ...this.art.props.leaves];
     return {
       texture: pickTexture(pool, seed),
-      size: seed % 6 === 0 ? 52 + seeded(seed + 5) * 26 : 18 + seeded(seed + 5) * 10,
+      size: isTree ? 52 + seeded(seed + 5) * 26 : 18 + seeded(seed + 5) * 10,
       tint: theme === "village" ? 0xe5dbb7 : 0xe9e1b8,
+      solid: isTree,
     };
   }
 
   #buildDecor(): void {
+    const tiles = VERDANT_REACH_TERRAIN.tiles;
     for (const region of DECOR_REGIONS) {
       for (let index = 0; index < region.count; index++) {
         const seed = region.seed + index * 19;
@@ -831,7 +770,7 @@ export class Renderer {
         const y = region.y + Math.sin(angle) * region.radiusY * radius;
         if (x < 120 || y < 120 || x > WORLD_WIDTH - 120 || y > WORLD_HEIGHT - 120) continue;
         if (roadStrength(x, y) > 0) continue;
-        if (this.#blockedAt(x, y) || this.#nearLandmark(x, y, 70)) continue;
+        if (this.#nearLandmark(x, y, 70)) continue;
         const inSquare =
           x > SAFE_ZONE.x + 210 &&
           x < SAFE_ZONE.x + SAFE_ZONE.width - 170 &&
@@ -840,6 +779,13 @@ export class Renderer {
         if (inSquare) continue;
 
         const selection = this.#decorTexture(region.theme, seed);
+        // What you see must be what you collide with: a prop floating over water is a lie, and
+        // so is a "solid" tree standing on ground a player can walk straight through. The tile
+        // grid — not the pre-image rects this scatter used to trust — is the one truth for both.
+        const kind = kindAtPoint(tiles, x, y);
+        if (!isLandKind(kind)) continue;
+        if (selection.solid && !isSolidKind(kind)) continue;
+
         const container = new Container();
         container.position.set(x, y);
         if (selection.size > 34) {
