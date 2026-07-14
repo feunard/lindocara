@@ -5,7 +5,7 @@
 
 import { env, runInDurableObject, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { D1_SAVE_EVERY_TICKS } from "../src/server/world/world-runtime.js";
+import { D1_SAVE_EVERY_TICKS, RESYNC_COOLDOWN_MS } from "../src/server/world/world-runtime.js";
 import { type Attachment, positionFromAttachment } from "../src/server/world.js";
 import { WS_CLOSE } from "../src/shared/close-codes.js";
 import { CORPSE_RECLAIM_RANGE, RESURRECT_HP_RATIO } from "../src/shared/death.js";
@@ -30,7 +30,6 @@ import {
   PLAYER_SIZE,
   PLAYER_SPEED,
   TICK_DT,
-  TICK_HZ,
   WORLD_HEIGHT,
   WORLD_WIDTH,
 } from "../src/shared/simulation.js";
@@ -166,7 +165,13 @@ describe("World", () => {
 
     const mark = client.received.length;
     const resyncsSince = () =>
-      client.received.slice(mark).filter((message) => message.t === "world.resync");
+      client.received
+        .slice(mark)
+        .flatMap((message, index) =>
+          message.t === "world.resync"
+            ? [{ message, receivedAt: client.receivedAt[mark + index] ?? 0 }]
+            : [],
+        );
 
     // Two resync-worthy events inside one cooldown window: routine on a lossy connection.
     client.requestResync();
@@ -177,9 +182,11 @@ describe("World", () => {
       return seen.length >= 2 ? seen : undefined;
     });
     expect(both).toHaveLength(2);
-    expect(both[1]?.players.map((player) => player.id)).toContain(welcome.selfId);
+    expect(both[1]?.message.players.map((player) => player.id)).toContain(welcome.selfId);
     // The rate limit still holds: the second one waited out the cooldown.
-    expect((both[1]?.tick ?? 0) - (both[0]?.tick ?? 0)).toBeGreaterThanOrEqual(TICK_HZ);
+    expect((both[1]?.receivedAt ?? 0) - (both[0]?.receivedAt ?? 0)).toBeGreaterThanOrEqual(
+      RESYNC_COOLDOWN_MS,
+    );
 
     // And the debt is paid exactly once — no request/throttle ping-pong afterwards.
     await scheduler.wait(1_500);

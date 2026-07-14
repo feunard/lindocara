@@ -2,7 +2,6 @@
  * Pure map geometry. No DOM, no Pixi, no React — which is why it is unit-testable inside
  * workerd, and why minimap-surface.ts (the canvas shell next door) has no logic in it.
  */
-import type { Rect } from "../../shared/game.js";
 import { PLAYER_VISIBILITY_RADIUS } from "../../shared/interest.js";
 import type { Vec2 } from "../../shared/simulation.js";
 import { kindAtPoint, type TileKind, type TileMap } from "../../shared/tilemap.js";
@@ -37,44 +36,18 @@ export interface MapSize {
   height: number;
 }
 
-export interface MapWorld extends MapBounds {
-  obstacles: readonly Rect[];
-  safeZone: Rect;
-}
-
-/** The subset of a welcome's WorldInfo that the baked texture is a pure function of. Anything
- *  else in WorldInfo (quest npcs/sites, portals, cemeteries...) can differ without invalidating
- *  the bake, but callers may pass a full WorldInfo — its extra fields are simply ignored. */
-export interface BakedWorldKey extends MapWorld {
-  zoneNameKey: string;
-}
-
-function rectEqual(a: Rect, b: Rect): boolean {
-  return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
-}
-
-function obstaclesEqual(a: readonly Rect[], b: readonly Rect[]): boolean {
-  if (a.length !== b.length) return false;
-  return a.every((rect, i) => {
-    const other = b[i];
-    return other !== undefined && rectEqual(rect, other);
-  });
+/** The exact subset of a welcome's WorldInfo that `bakeWorldTexture` reads. */
+export interface BakedWorldKey extends MapBounds {
+  zoneId: ZoneId;
 }
 
 /**
  * Whether two welcomes would bake to the same texture, so a caller can keep an existing bake
- * instead of paying for an identical one. True only when the zone, footprint, obstacles, and
- * safe zone all match exactly — any difference (a genuine zone transition) must still re-bake,
- * or the map would show stale or foreign terrain.
+ * instead of paying for an identical one. The tilemap comes from `zoneId`; width and height set
+ * the baked footprint. No other welcome field influences the texture.
  */
 export function sameBakedWorld(a: BakedWorldKey, b: BakedWorldKey): boolean {
-  return (
-    a.zoneNameKey === b.zoneNameKey &&
-    a.width === b.width &&
-    a.height === b.height &&
-    rectEqual(a.safeZone, b.safeZone) &&
-    obstaclesEqual(a.obstacles, b.obstacles)
-  );
+  return a.zoneId === b.zoneId && a.width === b.width && a.height === b.height;
 }
 
 /** World point to minimap pixel, centred on the viewer. Fixed north: the camera never rotates. */

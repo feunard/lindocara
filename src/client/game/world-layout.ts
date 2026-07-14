@@ -1,5 +1,7 @@
+import { type Rect, SAFE_ZONE, WORLD_LANDMARKS, type WorldLandmark } from "../../shared/game.js";
 import type { MessageKey } from "../../shared/i18n/index.js";
 import type { Vec2 } from "../../shared/simulation.js";
+import type { ZoneId as RuntimeZoneId } from "../../shared/zones.js";
 
 export type ZoneId =
   | "heartroot"
@@ -491,9 +493,13 @@ function distanceToSegment(point: Vec2, start: Vec2, end: Vec2): number {
   return Math.hypot(point.x - (start.x + projection * dx), point.y - (start.y + projection * dy));
 }
 
-export function roadStrength(x: number, y: number): number {
+export function roadStrength(
+  x: number,
+  y: number,
+  roads: readonly RoadDefinition[] = ROADS,
+): number {
   let strength = 0;
-  for (const road of ROADS) {
+  for (const road of roads) {
     for (let index = 0; index < road.points.length - 1; index++) {
       const start = road.points[index];
       const end = road.points[index + 1];
@@ -505,12 +511,66 @@ export function roadStrength(x: number, y: number): number {
   return strength;
 }
 
-export function zoneAt(x: number, y: number): ZoneDefinition {
-  const fallback = WORLD_ZONES[0];
+export interface AmbientRegion extends Vec2 {
+  radiusX: number;
+  radiusY: number;
+  count: number;
+  color: number;
+}
+
+export interface ZoneVisualConfig {
+  safeZone: Rect | null;
+  landmarks: readonly WorldLandmark[];
+  roads: readonly RoadDefinition[];
+  decorRegions: readonly DecorRegion[];
+  pointsOfInterest: readonly PointOfInterest[];
+  worldRegions: readonly ZoneDefinition[];
+  ambientRegions: readonly AmbientRegion[];
+}
+
+const VERDANT_REACH_AMBIENT: readonly AmbientRegion[] = [
+  { x: 3000, y: 660, radiusX: 620, radiusY: 450, count: 20, color: 0xc7f3a7 },
+  { x: 3710, y: 1910, radiusX: 700, radiusY: 520, count: 28, color: 0xb2e6ac },
+  { x: 3100, y: 1770, radiusX: 240, radiusY: 190, count: 10, color: 0xffdf85 },
+] as const;
+
+const EMPTY_ZONE_VISUALS: ZoneVisualConfig = {
+  safeZone: null,
+  landmarks: [],
+  roads: [],
+  decorRegions: [],
+  pointsOfInterest: [],
+  worldRegions: [],
+  ambientRegions: [],
+};
+
+export const ZONE_VISUALS: Readonly<Record<RuntimeZoneId, ZoneVisualConfig>> = {
+  "verdant-reach": {
+    safeZone: SAFE_ZONE,
+    landmarks: WORLD_LANDMARKS,
+    roads: ROADS,
+    decorRegions: DECOR_REGIONS,
+    pointsOfInterest: POINTS_OF_INTEREST,
+    worldRegions: WORLD_ZONES,
+    ambientRegions: VERDANT_REACH_AMBIENT,
+  },
+  "mmo-test-zone": EMPTY_ZONE_VISUALS,
+};
+
+export function visualConfigFor(zoneId: RuntimeZoneId): ZoneVisualConfig {
+  return ZONE_VISUALS[zoneId];
+}
+
+export function zoneAt(
+  x: number,
+  y: number,
+  zones: readonly ZoneDefinition[] = WORLD_ZONES,
+): ZoneDefinition {
+  const fallback = zones[0];
   if (!fallback) throw new Error("World layout requires at least one zone");
   let nearest = fallback;
   let nearestScore = Number.POSITIVE_INFINITY;
-  for (const zone of WORLD_ZONES) {
+  for (const zone of zones) {
     const score = Math.hypot((x - zone.x) / zone.radiusX, (y - zone.y) / zone.radiusY);
     if (score >= nearestScore) continue;
     nearest = zone;

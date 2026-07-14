@@ -133,6 +133,7 @@ export async function testCharacter(
  */
 export class Client {
   readonly received: ServerMessage[] = [];
+  readonly receivedAt: number[] = [];
   closeInfo: { code: number; reason: string } | null = null;
   #socket: WebSocket;
   #input: Input = NO_INPUT;
@@ -149,6 +150,7 @@ export class Client {
       const message = parseServerMessage(event.data);
       if (!message) return;
       this.received.push(message);
+      this.receivedAt.push(Date.now());
       if (message.t === "welcome" || message.t === "world.resync") {
         replaceWorldCache(this.#worldCache, message);
         this.#latestWorld = {

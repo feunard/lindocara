@@ -142,24 +142,20 @@ describe("bakeZoneTerrain", () => {
 
 describe("sameBakedWorld", () => {
   const base: BakedWorldKey = {
-    zoneNameKey: "zone.verdant_reach.name",
+    zoneId: "verdant-reach",
     width: 4800,
     height: 2700,
-    obstacles: [{ x: 100, y: 100, width: 50, height: 50 }],
-    safeZone: { x: 360, y: 260, width: 1200, height: 920 },
   };
 
   it("is true for two welcomes describing the identical zone, even as different object instances", () => {
     const identical: BakedWorldKey = {
       ...base,
-      obstacles: base.obstacles.map((rect) => ({ ...rect })),
-      safeZone: { ...base.safeZone },
     };
     expect(sameBakedWorld(base, identical)).toBe(true);
   });
 
-  it("is false across a zone transition, so the new zone always gets a fresh bake", () => {
-    expect(sameBakedWorld(base, { ...base, zoneNameKey: "zone.mmo_test_zone.name" })).toBe(false);
+  it("does not share a texture between different zone ids with identical dimensions", () => {
+    expect(sameBakedWorld(base, { ...base, zoneId: "mmo-test-zone" })).toBe(false);
   });
 
   it("is false when the footprint differs", () => {
@@ -167,19 +163,13 @@ describe("sameBakedWorld", () => {
     expect(sameBakedWorld(base, { ...base, height: 480 })).toBe(false);
   });
 
-  it("is false when the safe zone moved", () => {
-    expect(
-      sameBakedWorld(base, { ...base, safeZone: { ...base.safeZone, x: base.safeZone.x + 1 } }),
-    ).toBe(false);
-  });
-
-  it("is false when the obstacle geometry differs, including just a different count", () => {
-    expect(sameBakedWorld(base, { ...base, obstacles: [] })).toBe(false);
-    expect(
-      sameBakedWorld(base, {
-        ...base,
-        obstacles: [{ x: 999, y: 999, width: 50, height: 50 }],
-      }),
-    ).toBe(false);
+  it("reuses the texture when only non-baked welcome data changes", () => {
+    const first = { ...base, zoneNameKey: "zone.verdant_reach.name", obstacles: [] };
+    const reconnected = {
+      ...base,
+      zoneNameKey: "zone.renamed.name",
+      obstacles: [{ x: 100, y: 100, width: 50, height: 50 }],
+    };
+    expect(sameBakedWorld(first, reconnected)).toBe(true);
   });
 });

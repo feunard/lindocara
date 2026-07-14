@@ -5,9 +5,6 @@ import {
   CLASS_STATS,
   INTERACTION_RANGE,
   pointDistance,
-  QUEST_SITES,
-  questDefinition,
-  SAFE_ZONE,
 } from "../../shared/game.js";
 import type { MessageKey } from "../../shared/i18n/index.js";
 import type {
@@ -19,6 +16,7 @@ import type {
 } from "../../shared/protocol.js";
 import { NO_INPUT, type Vec2 } from "../../shared/simulation.js";
 import { type SkillSlot, skillFor } from "../../shared/skills.js";
+import { DEFAULT_ZONE_ID, type ZoneId, zoneDefinition } from "../../shared/zones.js";
 import { type CharacterSummary, logout } from "../api.js";
 import { t } from "../i18n.js";
 import { type LocalizedText, useUiStore } from "../store.js";
@@ -130,6 +128,7 @@ function updatePrompt(
   self: PlayerSnapshot | undefined,
   quest: QuestState,
   interiorDoor: InteriorDoor | undefined,
+  zoneId: ZoneId,
 ): void {
   let result: LocalizedText | null = null;
   // Prompt.tsx hides the floating prompt whenever the interior panel is open, so a
@@ -138,9 +137,15 @@ function updatePrompt(
     result = null;
   } else {
     const chapter = quest.chapter ?? "three_offerings";
-    const giver = questDefinition(chapter).giver;
+    const zone = zoneDefinition(zoneId);
+    const definition = zone.quests.find((candidate) => candidate.id === chapter);
+    if (!definition) {
+      useUiStore.getState().setPrompt(null);
+      return;
+    }
+    const giver = definition.giver;
     const nearNpc = pointDistance(self, giver) <= INTERACTION_RANGE;
-    const site = QUEST_SITES.find(
+    const site = zone.questSites.find(
       (candidate) =>
         candidate.chapter === chapter && pointDistance(self, candidate) <= INTERACTION_RANGE,
     );
@@ -164,11 +169,12 @@ function updatePrompt(
         params: { name: t(`quest.site.${site.id}` as MessageKey) },
       };
     } else if (quest.status === "active") {
+      const safeZone = zone.terrain.safeZone;
       const inHub =
-        self.x >= SAFE_ZONE.x &&
-        self.x <= SAFE_ZONE.x + SAFE_ZONE.width &&
-        self.y >= SAFE_ZONE.y &&
-        self.y <= SAFE_ZONE.y + SAFE_ZONE.height;
+        self.x >= safeZone.x &&
+        self.x <= safeZone.x + safeZone.width &&
+        self.y >= safeZone.y &&
+        self.y <= safeZone.y + safeZone.height;
       result = nearNpc || !inHub ? null : { key: "prompt.hunt" };
     } else if (quest.status === "available") {
       result = pointDistance(self, giver) > 420 ? null : { key: "prompt.approach" };
@@ -212,6 +218,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
   let currentSelf: PlayerSnapshot | undefined;
   let selfCorpse: Vec2 | null = null;
   let mapSurface: MapSurface | null = null;
+  let activeZoneId: ZoneId = DEFAULT_ZONE_ID;
   // Remembered so a reconnect can re-attach them to a fresh surface: React mounted its canvases
   // once, and it will not re-run its effect just because the socket dropped.
   let minimapCanvas: HTMLCanvasElement | null = null;
@@ -228,6 +235,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       useUiStore.getState().setReconnect(null);
       renderer.setSelfId(selfId);
       renderer.configureZone(world.zoneId);
+      activeZoneId = world.zoneId;
       // The welcome carries the whole zone: dimensions, obstacles, safe zone, quest sites. Baking
       // the texture measures 126-138ms warm — expensive enough that a reconnect landing back in
       // the same zone must reuse the existing bake rather than repaint an identical one. Only a
@@ -446,8 +454,11 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       return;
     }
     const door = nearestInterior(currentSelf);
-    const giver = questDefinition(questState.chapter ?? "three_offerings").giver;
-    const nearNpc = currentSelf && pointDistance(currentSelf, giver) <= INTERACTION_RANGE;
+    const chapter = questState.chapter ?? "three_offerings";
+    const giver = zoneDefinition(activeZoneId).quests.find(
+      (candidate) => candidate.id === chapter,
+    )?.giver;
+    const nearNpc = currentSelf && giver && pointDistance(currentSelf, giver) <= INTERACTION_RANGE;
     if (door && !nearNpc) {
       sound.interact();
       input.reset();
@@ -609,7 +620,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     renderer.render(sample, context);
     mapSurface?.draw(sample, self, selfCorpse);
     renderPlayer(self, selfCorpse);
-    updatePrompt(self, questState, door);
+    updatePrompt(self, questState, door, activeZoneId);
   });
   window.addEventListener("beforeunload", () => {
     intentionallyClosed = true;

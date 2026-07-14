@@ -18,13 +18,14 @@
     "lint:fix": "biome check --write .",
     "loadtest": "node scripts/loadtest.mjs",
     "map:build": "tsx scripts/build-map.ts",
+    "map:check": "npm run map:build && git diff --exit-code -- src/shared/zones/verdant-reach-tiles.ts src/shared/zones/mmo-test-zone-tiles.ts",
     "format": "biome format --write .",
     "typecheck": "tsc -p tsconfig.client.json && tsc -p tsconfig.worker.json && tsc -p tsconfig.node.json",
     "cf-typegen": "wrangler types ./src/worker-configuration.d.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "wrangler d1 migrations apply lindocara --local",
     "db:migrate:remote": "wrangler d1 migrations apply lindocara --remote",
-    "check": "npm run lint && npm run typecheck && npm run test && npm run test:ui"
+    "check": "npm run map:check && npm run lint && npm run typecheck && npm run test && npm run test:ui"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.3",
@@ -45,6 +46,7 @@
     "jsdom": "^29.1.1",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.3.2",
+    "tsx": "4.23.0",
     "typescript": "^7.0.2",
     "vite": "^8.1.4",
     "vitest": "^4.1.10",

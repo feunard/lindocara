@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { DECOR_REGIONS, roadStrength } from "../src/client/game/world-layout.js";
+import {
+  DECOR_REGIONS,
+  ROADS,
+  roadStrength,
+  ZONE_VISUALS,
+} from "../src/client/game/world-layout.js";
 import { SAFE_ZONE, VERDANT_REACH_TERRAIN, WORLD_LANDMARKS } from "../src/shared/game.js";
 import { WORLD_HEIGHT, WORLD_WIDTH } from "../src/shared/simulation.js";
 import { isLandKind, isSolidKind, kindAtPoint } from "../src/shared/tilemap.js";
@@ -105,6 +110,24 @@ describe("decor scatter stays honest about the tile grid", () => {
       .filter((p) => p.isTree)
       .filter((p) => !isSolidKind(kindAtPoint(tiles, p.x, p.y)));
     expect(treeOnWalkable).toEqual([]);
+  });
+});
+
+describe("zone visual configuration", () => {
+  it("keeps Verdant Reach's authored decor and roads", () => {
+    expect(ZONE_VISUALS["verdant-reach"].decorRegions).toBe(DECOR_REGIONS);
+    expect(ZONE_VISUALS["verdant-reach"].roads).toBe(ROADS);
+  });
+
+  it("does not bleed Verdant Reach furniture into mmo-test-zone", () => {
+    const testZone = ZONE_VISUALS["mmo-test-zone"];
+    expect(testZone.safeZone).toBeNull();
+    expect(testZone.landmarks).toEqual([]);
+    expect(testZone.roads).toEqual([]);
+    expect(testZone.decorRegions).toEqual([]);
+    expect(testZone.pointsOfInterest).toEqual([]);
+    expect(testZone.worldRegions).toEqual([]);
+    expect(testZone.ambientRegions).toEqual([]);
   });
 });
 

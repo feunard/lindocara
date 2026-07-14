@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   check:
-    name: lint, typecheck, test, ui, build
+    name: map, lint, typecheck, test, ui, build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -25,6 +25,9 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      - name: Generated tilemaps are current
+        run: npm run map:check
 
       - name: Lint and format check
         run: npm run lint

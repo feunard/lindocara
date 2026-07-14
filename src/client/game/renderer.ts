@@ -15,11 +15,6 @@ import {
   type MonsterSpecies,
   type PlayerClass,
   pointDistance,
-  QUEST_DEFINITIONS,
-  QUEST_NPC,
-  QUEST_SITES,
-  SAFE_ZONE,
-  WORLD_LANDMARKS,
 } from "../../shared/game.js";
 import type { MessageKey } from "../../shared/i18n/index.js";
 import type {
@@ -31,7 +26,7 @@ import type {
   PlayerSnapshot,
   QuestState,
 } from "../../shared/protocol.js";
-import { PLAYER_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from "../../shared/simulation.js";
+import { PLAYER_SIZE } from "../../shared/simulation.js";
 import {
   isLandKind,
   isSolidKind,
@@ -60,17 +55,18 @@ import {
   unitSheet,
 } from "./tiny-swords-art.js";
 import {
-  DECOR_REGIONS,
   type DecorTheme,
-  POINTS_OF_INTEREST,
   type PointOfInterest,
   roadStrength,
-  WORLD_ZONES,
+  visualConfigFor,
+  type ZoneVisualConfig,
   zoneAt,
 } from "./world-layout.js";
+import { cameraAxisOffset, tileWindowForBounds, type WorldBounds } from "./world-view.js";
 
 const COLORS = {
   grass: 0x173f32,
+  void: 0x050b0d,
   npc: 0xf6c85f,
   hp: 0xe85454,
   hpBack: 0x251f26,
@@ -210,13 +206,6 @@ interface QuestSiteView {
   signal: Graphics;
   label: Text;
   hiddenUntil: number;
-}
-
-interface WorldBounds {
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
 }
 
 function phaseFor(id: string): number {
@@ -517,11 +506,18 @@ function pickTexture(textures: readonly Texture[], index: number): Texture {
   return texture;
 }
 
-function placeTile(tile: Sprite, texture: Texture, x: number, y: number): void {
+function placeTile(
+  tile: Sprite,
+  texture: Texture,
+  x: number,
+  y: number,
+  width = TILE_SIZE,
+  height = TILE_SIZE,
+): void {
   tile.texture = texture;
   tile.position.set(x, y);
-  tile.width = TILE_SIZE;
-  tile.height = TILE_SIZE;
+  tile.width = width;
+  tile.height = height;
 }
 
 function createSoftShadow(width: number, height: number, alpha = 0.36): Graphics {
@@ -555,6 +551,7 @@ function reconcile<T extends { id: string }>(
 export class Renderer {
   #app: Application;
   #world = new Container();
+  #worldBackground = new Graphics();
   #terrain = new Container();
   #groundDecor = new Container();
   #forestTreesLayer = new Container();
@@ -596,14 +593,12 @@ export class Renderer {
    *  real zone lands via `configureZone` moments later, from the welcome's `zoneId`. */
   #currentZoneId: ZoneId = DEFAULT_ZONE_ID;
   #tiles: TileMap = zoneDefinition(DEFAULT_ZONE_ID).terrain.tiles;
-  // The camera and visible-bounds culling must clamp to whichever zone is actually loaded, not to
-  // Verdant Reach's fixed WORLD_WIDTH/WORLD_HEIGHT — mmo-test-zone is a fraction of that size, and
-  // clamping to the bigger constants would let the camera scroll past its edges into open water.
-  #zoneWidth: number = WORLD_WIDTH;
-  #zoneHeight: number = WORLD_HEIGHT;
+  #visuals: ZoneVisualConfig = visualConfigFor(DEFAULT_ZONE_ID);
+  #zoneWidth = zoneDefinition(DEFAULT_ZONE_ID).terrain.width;
+  #zoneHeight = zoneDefinition(DEFAULT_ZONE_ID).terrain.height;
   #selfId: string | null = null;
-  #cameraX = SAFE_ZONE.x + SAFE_ZONE.width / 2;
-  #cameraY = SAFE_ZONE.y + SAFE_ZONE.height / 2;
+  #cameraX = zoneDefinition(DEFAULT_ZONE_ID).terrain.width / 2;
+  #cameraY = zoneDefinition(DEFAULT_ZONE_ID).terrain.height / 2;
   #cameraReady = false;
   #lastCameraAt = 0;
 
@@ -621,7 +616,7 @@ export class Renderer {
     const app = new Application();
     await app.init({
       canvas,
-      background: COLORS.grass,
+      background: COLORS.void,
       resizeTo: window,
       antialias: false,
       autoDensity: true,
@@ -652,26 +647,31 @@ export class Renderer {
    */
   configureZone(zoneId: ZoneId): void {
     if (zoneId === this.#currentZoneId) return;
-    const wasVerdant = this.#currentZoneId === "verdant-reach";
-    const enteringVerdant = zoneId === "verdant-reach";
     const zone = zoneDefinition(zoneId);
-    this.#currentZoneId = zoneId;
-    this.#tiles = zone.terrain.tiles;
-    this.#zoneWidth = zone.terrain.width;
-    this.#zoneHeight = zone.terrain.height;
+    this.#teardownWorldFurniture();
     for (const child of this.#forestTreesLayer.removeChildren()) child.destroy({ children: true });
     for (const child of this.#decorLayer.removeChildren()) child.destroy({ children: true });
-    if (wasVerdant && !enteringVerdant) this.#teardownWorldFurniture();
+    this.#currentZoneId = zoneId;
+    this.#tiles = zone.terrain.tiles;
+    this.#visuals = visualConfigFor(zoneId);
+    this.#zoneWidth = zone.terrain.width;
+    this.#zoneHeight = zone.terrain.height;
+    this.#cameraX = this.#zoneWidth / 2;
+    this.#cameraY = this.#zoneHeight / 2;
+    this.#cameraReady = false;
+    this.#resizeWorldBackground();
     // Static views for the props above are now unparented; drop them rather than let
     // #updateStaticVisibility keep toggling .visible on containers nothing will ever draw.
     this.#staticViews = this.#staticViews.filter((view) => view.container.parent !== null);
     this.#buildForestTrees();
     this.#buildDecor();
-    if (enteringVerdant && !wasVerdant) this.#buildWorldFurniture();
+    this.#buildWorldFurniture();
     // Bounds-derived, not tile-derived: a same-size window after a zone change can compute the
     // same key even though the tiles underneath it are entirely different. Force the repaint.
     this.#terrainKey = "";
     this.#applyCameraTransform();
+    this.#updateTerrain();
+    this.#updateStaticVisibility();
   }
 
   diagnostics(): Record<string, number> {
@@ -689,10 +689,9 @@ export class Renderer {
 
   #buildWorld(): void {
     this.#actors.sortableChildren = true;
-    this.#terrain.addChild(
-      new Graphics().rect(0, 0, WORLD_WIDTH, WORLD_HEIGHT).fill({ color: COLORS.grass }),
-    );
+    this.#resizeWorldBackground();
     this.#world.addChild(
+      this.#worldBackground,
       this.#terrain,
       this.#groundDecor,
       this.#structures,
@@ -709,19 +708,20 @@ export class Renderer {
 
     this.#buildForestTrees();
     this.#buildDecor();
-    // #currentZoneId defaults to Verdant Reach (see its declaration), matching this initial,
-    // pre-welcome paint; a genuine non-Verdant first zone tears this down via #teardownWorldFurniture
-    // the moment the welcome's configureZone call reports otherwise.
-    if (this.#currentZoneId === "verdant-reach") this.#buildWorldFurniture();
+    this.#buildWorldFurniture();
     this.#applyCameraTransform();
     this.#updateTerrain();
     this.#updateStaticVisibility();
   }
 
-  /** Hand-authored for Verdant Reach specifically: every coordinate here is a fixed Verdant pixel
-   *  position (`WORLD_LANDMARKS`, `QUEST_SITES`, `QUEST_DEFINITIONS`, `POINTS_OF_INTEREST`,
-   *  `WORLD_ZONES`), never derived from `#tiles`. Building this for any other zone would stand
-   *  Verdant's buildings, quest-givers and labels over that zone's own terrain. */
+  #resizeWorldBackground(): void {
+    this.#worldBackground
+      .clear()
+      .rect(0, 0, this.#zoneWidth, this.#zoneHeight)
+      .fill({ color: COLORS.grass });
+  }
+
+  /** Builds only the current zone's explicitly configured visual content. */
   #buildWorldFurniture(): void {
     this.#buildSetPieces();
     this.#buildLandmarks();
@@ -805,7 +805,7 @@ export class Renderer {
   }
 
   #nearLandmark(x: number, y: number, margin: number): boolean {
-    return WORLD_LANDMARKS.some(
+    return this.#visuals.landmarks.some(
       (landmark) =>
         x >= landmark.x - margin &&
         x <= landmark.x + landmark.width + margin &&
@@ -903,21 +903,23 @@ export class Renderer {
 
   #buildDecor(): void {
     const tiles = this.#tiles;
-    for (const region of DECOR_REGIONS) {
+    const safeZone = this.#visuals.safeZone;
+    for (const region of this.#visuals.decorRegions) {
       for (let index = 0; index < region.count; index++) {
         const seed = region.seed + index * 19;
         const angle = seeded(seed + 3) * Math.PI * 2;
         const radius = Math.sqrt(seeded(seed + 9));
         const x = region.x + Math.cos(angle) * region.radiusX * radius;
         const y = region.y + Math.sin(angle) * region.radiusY * radius;
-        if (x < 120 || y < 120 || x > WORLD_WIDTH - 120 || y > WORLD_HEIGHT - 120) continue;
-        if (roadStrength(x, y) > 0) continue;
+        if (x < 120 || y < 120 || x > this.#zoneWidth - 120 || y > this.#zoneHeight - 120) continue;
+        if (roadStrength(x, y, this.#visuals.roads) > 0) continue;
         if (this.#nearLandmark(x, y, 70)) continue;
         const inSquare =
-          x > SAFE_ZONE.x + 210 &&
-          x < SAFE_ZONE.x + SAFE_ZONE.width - 170 &&
-          y > SAFE_ZONE.y + 250 &&
-          y < SAFE_ZONE.y + SAFE_ZONE.height - 110;
+          safeZone !== null &&
+          x > safeZone.x + 210 &&
+          x < safeZone.x + safeZone.width - 170 &&
+          y > safeZone.y + 250 &&
+          y < safeZone.y + safeZone.height - 110;
         if (inSquare) continue;
 
         const selection = this.#decorTexture(region.theme, seed);
@@ -944,7 +946,7 @@ export class Renderer {
   }
 
   #buildSetPieces(): void {
-    for (const poi of POINTS_OF_INTEREST) {
+    for (const poi of this.#visuals.pointsOfInterest) {
       if (poi.kind === "square") this.#buildSquare(poi);
       else if (poi.kind === "sign") this.#buildRoadSign(poi);
       else if (poi.kind === "clearing") this.#buildClearing(poi);
@@ -1166,7 +1168,7 @@ export class Renderer {
   }
 
   #buildLandmarks(): void {
-    for (const [index, landmark] of WORLD_LANDMARKS.entries()) {
+    for (const [index, landmark] of this.#visuals.landmarks.entries()) {
       const container = new Container();
       container.position.set(landmark.x, landmark.y);
       const centerX = landmark.x + landmark.width / 2;
@@ -1311,7 +1313,7 @@ export class Renderer {
   }
 
   #buildWorldLabels(): void {
-    for (const zone of WORLD_ZONES) {
+    for (const zone of this.#visuals.worldRegions) {
       const computeZoneLabel = () => t(zone.nameKey).toUpperCase();
       const label = new Text({
         text: computeZoneLabel(),
@@ -1337,7 +1339,7 @@ export class Renderer {
       this.#localizedTexts.push({ node: label, compute: computeZoneLabel });
     }
 
-    for (const poi of POINTS_OF_INTEREST) {
+    for (const poi of this.#visuals.pointsOfInterest) {
       if (poi.kind === "tree" || poi.kind === "square" || poi.kind === "sign") continue;
       const computePoiLabel = () => t(poi.nameKey);
       const label = new Text({
@@ -1366,7 +1368,7 @@ export class Renderer {
 
   #buildQuestSites(): void {
     const runeGlyphs = ["◆", "☾", "▲", "♛"] as const;
-    for (const site of QUEST_SITES) {
+    for (const site of zoneDefinition(this.#currentZoneId).questSites) {
       const container = new Container();
       container.position.set(site.x, site.y);
       container.zIndex = site.y + PLAYER_SIZE;
@@ -1441,7 +1443,7 @@ export class Renderer {
 
   #buildNpc(): void {
     const tints = [0xffffff, 0xd8e5ff, 0xbef1cf, 0xffd6ab] as const;
-    for (const [index, quest] of QUEST_DEFINITIONS.entries()) {
+    for (const [index, quest] of zoneDefinition(this.#currentZoneId).quests.entries()) {
       const npc = new Container();
       npc.position.set(quest.giver.x, quest.giver.y);
       npc.zIndex = quest.giver.y + PLAYER_SIZE;
@@ -1494,13 +1496,8 @@ export class Renderer {
   }
 
   #buildAmbient(): void {
-    const regions = [
-      { x: 3000, y: 660, radiusX: 620, radiusY: 450, count: 20, color: 0xc7f3a7 },
-      { x: 3710, y: 1910, radiusX: 700, radiusY: 520, count: 28, color: 0xb2e6ac },
-      { x: 3100, y: 1770, radiusX: 240, radiusY: 190, count: 10, color: 0xffdf85 },
-    ];
     let ambientIndex = 0;
-    for (const region of regions) {
+    for (const region of this.#visuals.ambientRegions) {
       for (let index = 0; index < region.count; index++) {
         const seed = 5100 + ambientIndex * 29;
         ambientIndex += 1;
@@ -1549,13 +1546,9 @@ export class Renderer {
   #applyCameraTransform(): void {
     const scale = this.#cameraScale();
     this.#world.scale.set(scale);
-    const desiredX = this.#app.screen.width / 2 - this.#cameraX * scale;
-    const desiredY = this.#app.screen.height / 2 - this.#cameraY * scale;
-    const minX = Math.min(0, this.#app.screen.width - this.#zoneWidth * scale);
-    const minY = Math.min(0, this.#app.screen.height - this.#zoneHeight * scale);
     this.#world.position.set(
-      Math.min(0, Math.max(minX, desiredX)),
-      Math.min(0, Math.max(minY, desiredY)),
+      cameraAxisOffset(this.#app.screen.width, this.#zoneWidth, scale, this.#cameraX),
+      cameraAxisOffset(this.#app.screen.height, this.#zoneHeight, scale, this.#cameraY),
     );
   }
 
@@ -1584,7 +1577,7 @@ export class Renderer {
    * grass from `landTile`'s neighbourhood lookup today; water draws as water) — see its doc comment
    * for why that is an exhaustive table and not `isLandKind`'s boolean catch-all. A `forest` cell's
    * tree is a separate, static prop (`#buildForestTrees`) layered above this, and a `building` cell
-   * gets nothing extra here — its house is already on `#structures` from `WORLD_LANDMARKS`.
+   * gets nothing extra here — its house is already on `#structures` from the zone visuals.
    *
    * The sprite pool, the visible-bounds culling and the `#terrainKey` early-out are unchanged from
    * the procedural renderer this replaces; only the source of truth and the cell size (32 -> the
@@ -1593,13 +1586,13 @@ export class Renderer {
   #updateTerrain(): void {
     const tiles = this.#tiles;
     const bounds = this.#visibleBounds(TILE_SIZE * 2);
-    const startX = Math.max(0, Math.floor(bounds.left / TILE_SIZE) * TILE_SIZE);
-    const startY = Math.max(0, Math.floor(bounds.top / TILE_SIZE) * TILE_SIZE);
-    const endX = Math.min(WORLD_WIDTH, Math.ceil(bounds.right / TILE_SIZE) * TILE_SIZE);
-    const endY = Math.min(WORLD_HEIGHT, Math.ceil(bounds.bottom / TILE_SIZE) * TILE_SIZE);
-    const columns = Math.max(0, Math.ceil((endX - startX) / TILE_SIZE));
-    const rows = Math.max(0, Math.ceil((endY - startY) / TILE_SIZE));
-    const key = `${startX}:${startY}:${columns}:${rows}`;
+    const { startX, startY, columns, rows } = tileWindowForBounds(
+      bounds,
+      this.#zoneWidth,
+      this.#zoneHeight,
+      TILE_SIZE,
+    );
+    const key = `${this.#currentZoneId}:${startX}:${startY}:${columns}:${rows}`;
     if (key === this.#terrainKey) return;
     this.#terrainKey = key;
 
@@ -1628,7 +1621,14 @@ export class Renderer {
       const texture = land
         ? landTexture(this.art.terrain.land, landTile(tiles, col, tileRow))
         : this.art.terrain.water;
-      placeTile(tile, texture, x, y);
+      placeTile(
+        tile,
+        texture,
+        x,
+        y,
+        Math.min(TILE_SIZE, this.#zoneWidth - x),
+        Math.min(TILE_SIZE, this.#zoneHeight - y),
+      );
       // A pooled sprite may have last served as a water tile: `#updateAmbient` leaves its own
       // shimmer alpha on it, which must not leak onto whatever this sprite draws next.
       tile.alpha = 1;
@@ -1964,7 +1964,11 @@ export class Renderer {
     if (typeof x === "number" && typeof y === "number") return { x, y };
     const self = this.#selfId ? this.#players.get(this.#selfId)?.data : undefined;
     if (self) return centerOf(self);
-    return { x: QUEST_NPC.x + PLAYER_SIZE / 2, y: QUEST_NPC.y };
+    const zone = zoneDefinition(this.#currentZoneId);
+    const fallback = zone.quests[0]?.giver ?? zone.terrain.spawnPoints[0];
+    return fallback
+      ? { x: fallback.x + PLAYER_SIZE / 2, y: fallback.y }
+      : { x: this.#zoneWidth / 2, y: this.#zoneHeight / 2 };
   }
 
   #trackEffect(
@@ -2160,11 +2164,11 @@ export class Renderer {
   }
 
   #updateWorldText(self: PlayerSnapshot | undefined): void {
-    if (!self) {
+    if (!self || this.#visuals.worldRegions.length === 0) {
       for (const view of this.#worldTextViews) view.label.alpha = 0;
       return;
     }
-    const activeZone = zoneAt(self.x, self.y).id;
+    const activeZone = zoneAt(self.x, self.y, this.#visuals.worldRegions).id;
     for (const view of this.#worldTextViews) {
       if (!this.#isVisibleWorld(view.x, view.y, 80)) {
         view.label.alpha = 0;
