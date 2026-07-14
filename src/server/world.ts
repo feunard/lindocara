@@ -391,6 +391,7 @@ export class World extends DurableObject<Env> {
       tick: this.#tick,
       selfId: id,
       world: {
+        zoneId: location.zoneId,
         zoneNameKey: location.definition.nameKey,
         width: location.definition.terrain.width,
         height: location.definition.terrain.height,

@@ -5,7 +5,8 @@
 import type { Rect } from "../../shared/game.js";
 import { PLAYER_VISIBILITY_RADIUS } from "../../shared/interest.js";
 import type { Vec2 } from "../../shared/simulation.js";
-import type { TileKind } from "../../shared/tilemap.js";
+import { kindAtPoint, type TileKind, type TileMap } from "../../shared/tilemap.js";
+import { type ZoneId, zoneDefinition } from "../../shared/zones.js";
 
 /** Derived, not restated: hand-copying PLAYER_VISIBILITY_RADIUS here would let someone tune
  *  the server's radius without ever seeing this constant, and the minimap would silently start
@@ -138,4 +139,44 @@ export function colorForKind(kind: TileKind): number {
     default:
       return 0x7fa653;
   }
+}
+
+export interface BakedTerrain {
+  /** Texture size in texels, `MINIMAP_TEXTURE_SCALE` world-units each. */
+  width: number;
+  height: number;
+  /** Colour at texel (tx, ty), sampled from the same `TileMap` collision reads the server uses —
+   *  so what is baked and what is walkable cannot disagree. */
+  colorAt(tx: number, ty: number): number;
+}
+
+/**
+ * The whole bake, minus the canvas: given a zone's OWN tile map (never another zone's), the
+ * colour grid the widget paints. Kept here, pure, so "does zone X's bake reflect zone X's
+ * tiles" is a fast unit test rather than a canvas pixel-read — see minimap-surface.ts, which
+ * calls this and only handles the DOM/ImageData part.
+ */
+export function bakeTerrain(tiles: TileMap, worldWidth: number, worldHeight: number): BakedTerrain {
+  const width = Math.ceil(worldWidth / MINIMAP_TEXTURE_SCALE);
+  const height = Math.ceil(worldHeight / MINIMAP_TEXTURE_SCALE);
+  return {
+    width,
+    height,
+    colorAt: (tx, ty) =>
+      colorForKind(kindAtPoint(tiles, tx * MINIMAP_TEXTURE_SCALE, ty * MINIMAP_TEXTURE_SCALE)),
+  };
+}
+
+/**
+ * `bakeTerrain`, but resolving which zone's tiles to use from `zoneId` — the one field a welcome
+ * carries for that. Never resolve this from `zoneNameKey`: it is prose the client localizes, not
+ * an identifier, and reverse-matching a display string back to a zone is exactly the pattern
+ * that let a hardcoded import go unnoticed here before.
+ */
+export function bakeZoneTerrain(
+  zoneId: ZoneId,
+  worldWidth: number,
+  worldHeight: number,
+): BakedTerrain {
+  return bakeTerrain(zoneDefinition(zoneId).terrain.tiles, worldWidth, worldHeight);
 }

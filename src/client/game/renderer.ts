@@ -19,7 +19,6 @@ import {
   QUEST_NPC,
   QUEST_SITES,
   SAFE_ZONE,
-  VERDANT_REACH_TERRAIN,
   WORLD_LANDMARKS,
 } from "../../shared/game.js";
 import type { MessageKey } from "../../shared/i18n/index.js";
@@ -33,7 +32,15 @@ import type {
   QuestState,
 } from "../../shared/protocol.js";
 import { PLAYER_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from "../../shared/simulation.js";
-import { isLandKind, isSolidKind, kindAt, kindAtPoint, TILE_SIZE } from "../../shared/tilemap.js";
+import {
+  isLandKind,
+  isSolidKind,
+  kindAt,
+  kindAtPoint,
+  TILE_SIZE,
+  type TileMap,
+} from "../../shared/tilemap.js";
+import { DEFAULT_ZONE_ID, type ZoneId, zoneDefinition } from "../../shared/zones.js";
 import { onLocaleChange, t } from "../i18n.js";
 import { landTile } from "./autotile.js";
 import { MAIN_HAND_ART, OFF_HAND_ART, PLAYER_ATLAS_FRAMES } from "./character-art.js";
@@ -508,6 +515,8 @@ export class Renderer {
   #world = new Container();
   #terrain = new Container();
   #groundDecor = new Container();
+  #forestTreesLayer = new Container();
+  #decorLayer = new Container();
   #structures = new Container();
   #ambient = new Container();
   #actors = new Container();
@@ -537,6 +546,11 @@ export class Renderer {
   #terrainTiles: Sprite[] = [];
   #waterTiles: Sprite[] = [];
   #terrainKey = "";
+  /** Which zone's tilemap `#buildForestTrees`/`#buildDecor`/`#updateTerrain` currently read.
+   *  Defaults to Verdant Reach so the very first paint (before any welcome) isn't blank; the
+   *  real zone lands via `configureZone` moments later, from the welcome's `zoneId`. */
+  #currentZoneId: ZoneId = DEFAULT_ZONE_ID;
+  #tiles: TileMap = zoneDefinition(DEFAULT_ZONE_ID).terrain.tiles;
   #selfId: string | null = null;
   #cameraX = SAFE_ZONE.x + SAFE_ZONE.width / 2;
   #cameraY = SAFE_ZONE.y + SAFE_ZONE.height / 2;
@@ -573,6 +587,29 @@ export class Renderer {
     this.#selfId = id;
   }
 
+  /**
+   * Called from a welcome's `world.zoneId`. A no-op on a reconnect into the same zone (a fresh
+   * bake is real work: a full tree/decor rebuild). On a genuine zone change — a portal, live,
+   * same renderer instance across the reconnect — swaps `#tiles` and repaints everything that
+   * was built from the previous zone's tile grid, or the old zone's forest and decor would go on
+   * standing over the new room forever.
+   */
+  configureZone(zoneId: ZoneId): void {
+    if (zoneId === this.#currentZoneId) return;
+    this.#currentZoneId = zoneId;
+    this.#tiles = zoneDefinition(zoneId).terrain.tiles;
+    this.#forestTreesLayer.removeChildren();
+    this.#decorLayer.removeChildren();
+    // Static views for the props above are now unparented; drop them rather than let
+    // #updateStaticVisibility keep toggling .visible on containers nothing will ever draw.
+    this.#staticViews = this.#staticViews.filter((view) => view.container.parent !== null);
+    this.#buildForestTrees();
+    this.#buildDecor();
+    // Bounds-derived, not tile-derived: a same-size window after a zone change can compute the
+    // same key even though the tiles underneath it are entirely different. Force the repaint.
+    this.#terrainKey = "";
+  }
+
   diagnostics(): Record<string, number> {
     return {
       terrainPool: this.#terrainTiles.length,
@@ -604,6 +641,7 @@ export class Renderer {
       this.#effects,
     );
     this.#app.stage.addChild(this.#world);
+    this.#groundDecor.addChild(this.#forestTreesLayer, this.#decorLayer);
 
     this.#buildForestTrees();
     this.#buildDecor();
@@ -631,13 +669,14 @@ export class Renderer {
 
   /**
    * A `forest` cell is land with a tree standing on it — not a lake and not a shoreline
-   * (`isLandKind` says so). Built once from the tilemap itself, not the visible-bounds window
-   * `#updateTerrain` scrolls, so a tree never reshuffles when the camera moves: it is seeded from
-   * its own cell coordinates via `hashSeed`, and it goes through the same static pool as every
-   * other prop in `#groundDecor`, so `#updateStaticVisibility` culls it for free.
+   * (`isLandKind` says so). Built once per zone from `this.#tiles` — the current zone's own
+   * tilemap, set by `configureZone` — not the visible-bounds window `#updateTerrain` scrolls, so
+   * a tree never reshuffles when the camera moves: it is seeded from its own cell coordinates via
+   * `hashSeed`, and it goes through the same static pool as every other prop in `#groundDecor`,
+   * so `#updateStaticVisibility` culls it for free.
    */
   #buildForestTrees(): void {
-    const tiles = VERDANT_REACH_TERRAIN.tiles;
+    const tiles = this.#tiles;
     for (let row = 0; row < tiles.rows; row++) {
       for (let col = 0; col < tiles.cols; col++) {
         if (kindAt(tiles, col, row) !== "forest") continue;
@@ -657,7 +696,7 @@ export class Renderer {
         prop.anchor.set(0.5, 1);
         prop.tint = 0xcbd8ae;
         container.addChild(prop);
-        this.#registerStatic(container, x, y, size, this.#groundDecor);
+        this.#registerStatic(container, x, y, size, this.#forestTreesLayer);
       }
     }
   }
@@ -760,7 +799,7 @@ export class Renderer {
   }
 
   #buildDecor(): void {
-    const tiles = VERDANT_REACH_TERRAIN.tiles;
+    const tiles = this.#tiles;
     for (const region of DECOR_REGIONS) {
       for (let index = 0; index < region.count; index++) {
         const seed = region.seed + index * 19;
@@ -796,7 +835,7 @@ export class Renderer {
         prop.tint = selection.tint;
         prop.alpha = 0.78 + seeded(seed + 11) * 0.2;
         container.addChild(prop);
-        this.#registerStatic(container, x, y, selection.size + 22, this.#groundDecor);
+        this.#registerStatic(container, x, y, selection.size + 22, this.#decorLayer);
       }
     }
   }
@@ -1444,7 +1483,7 @@ export class Renderer {
    * real 64px `TILE_SIZE`) are new.
    */
   #updateTerrain(): void {
-    const tiles = VERDANT_REACH_TERRAIN.tiles;
+    const tiles = this.#tiles;
     const bounds = this.#visibleBounds(TILE_SIZE * 2);
     const startX = Math.max(0, Math.floor(bounds.left / TILE_SIZE) * TILE_SIZE);
     const startY = Math.max(0, Math.floor(bounds.top / TILE_SIZE) * TILE_SIZE);

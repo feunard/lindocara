@@ -22,6 +22,7 @@ import type { ChatChannel } from "./interest.js";
 import type { ClassResourceState } from "./resources.js";
 import type { Input } from "./simulation.js";
 import { isSkillSlot, type SkillSlot } from "./skills.js";
+import type { ZoneId } from "./zones.js";
 
 /** One tick's worth of movement intent, stamped so the server can acknowledge it. */
 export interface Command {
@@ -139,6 +140,9 @@ export interface PartyState {
 }
 
 export interface WorldInfo {
+  /** Identifies which zone's `TileMap` to draw. `zoneNameKey` is prose (an i18n key) and must
+   *  never be reverse-matched back into a zone — this is the one field for that. */
+  zoneId: ZoneId;
   zoneNameKey: string;
   width: number;
   height: number;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   type BakedWorldKey,
+  bakeZoneTerrain,
   clampToRing,
   colorForKind,
   MINIMAP_WORLD_RADIUS,
@@ -106,6 +107,36 @@ describe("minimap colour", () => {
   // plan a route through a wall.
   it("does not paint a forest the same as open grass", () => {
     expect(colorForKind("forest")).not.toBe(colorForKind("grass"));
+  });
+});
+
+describe("bakeZoneTerrain", () => {
+  // This is the regression: mmo-test-zone is a real, player-reachable zone (10x8 tiles) behind
+  // the verdant-gate portal, but the minimap bake used to hardcode VERDANT_REACH_TERRAIN.tiles
+  // regardless of which zone the welcome described. Measured directly (not assumed): world
+  // (160,160) — mmo-test-zone's own spawn point — is Verdant Reach's row 2 / col 2, a `forest`
+  // cell there, but `grass` in mmo-test-zone's own grid. A bake that resolved the wrong zone's
+  // tiles from `zoneId` here would paint a real, walkable spawn as solid, impassable-looking
+  // forest — exactly what shipped.
+  it("never paints Verdant Reach's terrain over another zone", () => {
+    const verdantBake = bakeZoneTerrain("verdant-reach", 4800, 2700);
+    const testZoneBake = bakeZoneTerrain("mmo-test-zone", 640, 480);
+
+    // texel (20, 20) * MINIMAP_TEXTURE_SCALE(8) = world (160, 160).
+    expect(verdantBake.colorAt(20, 20)).toBe(colorForKind("forest"));
+    expect(testZoneBake.colorAt(20, 20)).toBe(colorForKind("grass"));
+    expect(testZoneBake.colorAt(20, 20)).not.toBe(verdantBake.colorAt(20, 20));
+  });
+
+  // Measured: world (352, 216) is `water` in mmo-test-zone's own grid — the room's one real
+  // obstacle — but `grass` at the same raw coordinate in Verdant Reach's much larger map. The
+  // old hardcoded bake would have shown this spot as open grass, same as everywhere else, and the
+  // obstacle would never appear.
+  it("paints mmo-test-zone's one real obstacle", () => {
+    const testZoneBake = bakeZoneTerrain("mmo-test-zone", 640, 480);
+
+    // texel (44, 27) * MINIMAP_TEXTURE_SCALE(8) = world (352, 216).
+    expect(testZoneBake.colorAt(44, 27)).toBe(colorForKind("water"));
   });
 });
 

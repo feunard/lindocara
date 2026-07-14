@@ -5,13 +5,11 @@
  * All geometry lives in minimap.ts, which is pure and tested; this file is the part that
  * touches the DOM, so it is deliberately thin.
  */
-import { VERDANT_REACH_TERRAIN } from "../../shared/game.js";
 import type { PlayerSnapshot, WorldInfo } from "../../shared/protocol.js";
 import type { Vec2 } from "../../shared/simulation.js";
-import { kindAtPoint } from "../../shared/tilemap.js";
 import {
+  bakeZoneTerrain,
   clampToRing,
-  colorForKind,
   MINIMAP_TEXTURE_SCALE,
   MINIMAP_WORLD_RADIUS,
   projectToMinimap,
@@ -215,24 +213,23 @@ export class MapSurface {
  * obstacle-rect scan, no zone special-case. Still not free at that iteration count, and running
  * it on every welcome would cost dropped frames at the worst possible moment: the instant control
  * returns to the player after a zone transition.
+ *
+ * `world.zoneId` — never `zoneNameKey`, which is prose — picks which zone's own `TileMap` gets
+ * baked. Painting one zone's roads over another's room is exactly the bug this guards against.
  */
 function bakeWorldTexture(world: WorldInfo): HTMLCanvasElement {
-  const width = Math.ceil(world.width / MINIMAP_TEXTURE_SCALE);
-  const height = Math.ceil(world.height / MINIMAP_TEXTURE_SCALE);
+  const terrain = bakeZoneTerrain(world.zoneId, world.width, world.height);
   const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
+  canvas.width = terrain.width;
+  canvas.height = terrain.height;
   const context = canvas.getContext("2d");
   if (!context) return canvas;
 
-  const tiles = VERDANT_REACH_TERRAIN.tiles;
-  const image = context.createImageData(width, height);
-  for (let ty = 0; ty < height; ty++) {
-    for (let tx = 0; tx < width; tx++) {
-      const color = colorForKind(
-        kindAtPoint(tiles, tx * MINIMAP_TEXTURE_SCALE, ty * MINIMAP_TEXTURE_SCALE),
-      );
-      const offset = (ty * width + tx) * 4;
+  const image = context.createImageData(terrain.width, terrain.height);
+  for (let ty = 0; ty < terrain.height; ty++) {
+    for (let tx = 0; tx < terrain.width; tx++) {
+      const color = terrain.colorAt(tx, ty);
+      const offset = (ty * terrain.width + tx) * 4;
       image.data[offset] = (color >> 16) & 0xff;
       image.data[offset + 1] = (color >> 8) & 0xff;
       image.data[offset + 2] = color & 0xff;

@@ -227,6 +227,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       reconnectAttempts = 0;
       useUiStore.getState().setReconnect(null);
       renderer.setSelfId(selfId);
+      renderer.configureZone(world.zoneId);
       // The welcome carries the whole zone: dimensions, obstacles, safe zone, quest sites. Baking
       // the texture measures 126-138ms warm — expensive enough that a reconnect landing back in
       // the same zone must reuse the existing bake rather than repaint an identical one. Only a
