@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { pulseTint, terrainTintsAt, waterFrameIndex } from "../src/client/game/terrain-visuals.js";
+import {
+  pulseTint,
+  terrainTintsAt,
+  waterScrollOffsets,
+} from "../src/client/game/terrain-visuals.js";
 import { WORLD_ZONES } from "../src/client/game/world-layout.js";
 
 function brightness(color: number): number {
@@ -24,12 +28,33 @@ describe("regional terrain palettes", () => {
     expect(brightness(dark.water)).toBeLessThan(brightness(light.water));
   });
 
-  it("maps adjacent tiles to adjacent surface samples and wraps at the source edge", () => {
-    expect(waterFrameIndex(0, 0, 16)).toBe(0);
-    expect(waterFrameIndex(1, 0, 16)).toBe(1);
-    expect(waterFrameIndex(0, 1, 16)).toBe(16);
-    expect(waterFrameIndex(16, 16, 16)).toBe(0);
-    expect(waterFrameIndex(-1, -1, 16)).toBe(255);
+  it("animates the two authored water layers in different directions", () => {
+    const start = waterScrollOffsets(0, 1_024);
+    const afterOneSecond = waterScrollOffsets(1_000, 1_024);
+
+    expect(start).toEqual({ primary: { x: 0, y: 0 }, secondary: { x: 0, y: 0 } });
+    expect(afterOneSecond.primary.x).toBeCloseTo(15.36);
+    expect(afterOneSecond.primary.y).toBeCloseTo(1.024);
+    expect(afterOneSecond.secondary.x).toBeCloseTo(1_008.64);
+    expect(afterOneSecond.secondary.y).toBeCloseTo(1_003.52);
+    expect(afterOneSecond.primary.x).not.toBe(afterOneSecond.secondary.x);
+  });
+
+  it("wraps water motion on the texture period without accumulating unbounded offsets", () => {
+    expect(waterScrollOffsets(1_000_000, 0)).toEqual({
+      primary: { x: 0, y: 0 },
+      secondary: { x: 0, y: 0 },
+    });
+    const wrapped = waterScrollOffsets(1_000_000, 1_024);
+    for (const value of [
+      wrapped.primary.x,
+      wrapped.primary.y,
+      wrapped.secondary.x,
+      wrapped.secondary.y,
+    ]) {
+      expect(value).toBeGreaterThanOrEqual(0);
+      expect(value).toBeLessThan(1_024);
+    }
   });
 
   it("only makes the ambient water pulse subtly", () => {

@@ -5,6 +5,16 @@ export interface TerrainTints {
   water: number;
 }
 
+export interface WaterScrollOffsets {
+  primary: { x: number; y: number };
+  secondary: { x: number; y: number };
+}
+
+// These are the two authored UV velocities from ocean_surface.tscn. Keeping them here makes the
+// browser rendering follow the supplied water material instead of inventing an unrelated pulse.
+const WATER_PRIMARY_SCROLL = { x: 0.015, y: 0.001 } as const;
+const WATER_SECONDARY_SCROLL = { x: -0.015, y: -0.02 } as const;
+
 const WATER_TINTS: Readonly<Record<Biome, number>> = {
   village: 0x638c9f,
   meadow: 0x5d899d,
@@ -56,9 +66,20 @@ export function terrainTintsAt(
   };
 }
 
-export function waterFrameIndex(col: number, row: number, gridSize: number): number {
-  const wrap = (value: number) => ((value % gridSize) + gridSize) % gridSize;
-  return wrap(row) * gridSize + wrap(col);
+export function waterScrollOffsets(elapsedMs: number, worldPeriod: number): WaterScrollOffsets {
+  if (worldPeriod <= 0) {
+    return { primary: { x: 0, y: 0 }, secondary: { x: 0, y: 0 } };
+  }
+  const seconds = Math.max(0, elapsedMs) / 1_000;
+  const wrap = (value: number) => ((value % worldPeriod) + worldPeriod) % worldPeriod;
+  const offset = (speed: { x: number; y: number }) => ({
+    x: wrap(speed.x * worldPeriod * seconds),
+    y: wrap(speed.y * worldPeriod * seconds),
+  });
+  return {
+    primary: offset(WATER_PRIMARY_SCROLL),
+    secondary: offset(WATER_SECONDARY_SCROLL),
+  };
 }
 
 export function pulseTint(color: number, factor: number): number {

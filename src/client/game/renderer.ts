@@ -7,6 +7,7 @@ import {
   Sprite,
   Text,
   Texture,
+  TilingSprite,
 } from "pixi.js";
 import type { MainHandItem, OffHandItem, PrimaryColor } from "../../shared/character.js";
 import { isSpirit } from "../../shared/death.js";
@@ -49,7 +50,7 @@ import {
 import { MAX_ACTIVE_WORLD_EFFECTS, questSiteFeedback } from "./feedback.js";
 import type { SceneSample } from "./net.js";
 import type { CombatTarget } from "./targeting.js";
-import { pulseTint, terrainTintsAt, waterFrameIndex } from "./terrain-visuals.js";
+import { pulseTint, terrainTintsAt, waterScrollOffsets } from "./terrain-visuals.js";
 import {
   allUnitSheets,
   TINY_SWORDS_BUILDINGS,
@@ -106,9 +107,8 @@ const ATLAS_IMAGE = "/assets/lindocara/atlas/world.png";
 const ATLAS_DATA = "/assets/lindocara/atlas/world.json";
 const STATIC_CULL_MARGIN = 180;
 const ENTITY_CULL_MARGIN = 120;
-const WATER_SURFACE_SOURCE_SIZE = 2048;
-const WATER_SURFACE_SAMPLE_SIZE = 128;
-const WATER_SURFACE_GRID = WATER_SURFACE_SOURCE_SIZE / WATER_SURFACE_SAMPLE_SIZE;
+const WATER_TEXTURE_SCALE = 0.5;
+const WATER_SECONDARY_ALPHA = 0.27;
 
 interface AtlasData {
   frames: Record<string, { x: number; y: number; w: number; h: number }>;
@@ -119,10 +119,10 @@ interface ArtTextures {
   monsters: Record<MonsterSpecies, Record<UnitMotion, readonly Texture[]>>;
   keeper: Texture;
   /** The tilemap's ground truth. `land[row][col]` is a cell of the flat sheet's first 4x4
-   * autotile group; water is a continuous surface divided into reusable source samples. */
+   * autotile group; water is the continuous surface used by the authored scrolling material. */
   terrain: {
     land: readonly (readonly Texture[])[];
-    water: readonly Texture[];
+    water: Texture;
   };
   props: {
     trees: Texture[];
@@ -198,7 +198,10 @@ interface AmbientView {
 }
 
 interface WaterTileView {
-  sprite: Sprite;
+  primary: TilingSprite;
+  secondary: TilingSprite;
+  x: number;
+  y: number;
   baseTint: number;
   phase: number;
 }
@@ -271,23 +274,6 @@ function sliceAutotileSheet(sheet: Texture): Texture[][] {
         }),
     ),
   );
-}
-
-function sliceWaterSurface(surface: Texture): Texture[] {
-  return Array.from({ length: WATER_SURFACE_GRID * WATER_SURFACE_GRID }, (_, index) => {
-    const col = index % WATER_SURFACE_GRID;
-    const row = Math.floor(index / WATER_SURFACE_GRID);
-    return new Texture({
-      source: surface.source,
-      frame: new Rectangle(
-        col * WATER_SURFACE_SAMPLE_SIZE,
-        row * WATER_SURFACE_SAMPLE_SIZE,
-        WATER_SURFACE_SAMPLE_SIZE,
-        WATER_SURFACE_SAMPLE_SIZE,
-      ),
-      label: `terrain.water:${col}:${row}`,
-    });
-  });
 }
 
 function landTexture(
@@ -437,7 +423,7 @@ async function loadArt(): Promise<ArtTextures> {
     keeper: texture("npc.keeper"),
     terrain: {
       land: sliceAutotileSheet(terrainFlatSheet),
-      water: sliceWaterSurface(terrainWaterSurface),
+      water: terrainWaterSurface,
     },
     props: {
       trees: [texture("prop.tree.large"), texture("prop.tree.round"), texture("prop.tree.small")],
@@ -591,6 +577,7 @@ export class Renderer {
   #app: Application;
   #world = new Container();
   #worldBackground = new Graphics();
+  #waterTerrain = new Container();
   #terrain = new Container();
   #groundDecor = new Container();
   #forestTreesLayer = new Container();
@@ -625,6 +612,7 @@ export class Renderer {
   #worldTextViews: WorldTextView[] = [];
   #localizedTexts: Array<{ node: Text; compute: () => string }> = [];
   #terrainTiles: Sprite[] = [];
+  #waterTilePool: WaterTileView[] = [];
   #waterTiles: WaterTileView[] = [];
   #terrainKey = "";
   /** Which zone's tilemap `#buildForestTrees`/`#buildDecor`/`#updateTerrain` currently read.
@@ -742,6 +730,7 @@ export class Renderer {
     this.#resizeWorldBackground();
     this.#world.addChild(
       this.#worldBackground,
+      this.#waterTerrain,
       this.#terrain,
       this.#groundDecor,
       this.#structures,
@@ -769,6 +758,21 @@ export class Renderer {
       .clear()
       .rect(0, 0, this.#zoneWidth, this.#zoneHeight)
       .fill({ color: COLORS.grass });
+  }
+
+  #createWaterTile(): WaterTileView {
+    const makeLayer = (alpha: number) =>
+      new TilingSprite({
+        texture: this.art.terrain.water,
+        width: TILE_SIZE,
+        height: TILE_SIZE,
+        tileScale: { x: WATER_TEXTURE_SCALE, y: WATER_TEXTURE_SCALE },
+        alpha,
+      });
+    const primary = makeLayer(1);
+    const secondary = makeLayer(WATER_SECONDARY_ALPHA);
+    this.#waterTerrain.addChild(primary, secondary);
+    return { primary, secondary, x: 0, y: 0, baseTint: 0xffffff, phase: 0 };
   }
 
   /** Builds only the current zone's explicitly configured visual content. */
@@ -1273,18 +1277,6 @@ export class Renderer {
           prop.tint = 0xbfc6b0;
           container.addChild(prop);
         }
-        container.addChild(
-          new Graphics()
-            .roundRect(
-              landmark.width * 0.36,
-              landmark.height * 0.52,
-              landmark.width * 0.28,
-              landmark.height * 0.46,
-              26,
-            )
-            .fill({ color: 0x08110f, alpha: 0.9 })
-            .stroke({ width: 4, color: 0x8faaa0, alpha: 0.62 }),
-        );
         this.#addTorch(container, landmark.width * 0.28, landmark.height - 40);
         this.#addTorch(container, landmark.width * 0.72, landmark.height - 40);
       } else if (landmark.kind === "graveyard") {
@@ -1653,6 +1645,10 @@ export class Renderer {
       this.#terrainTiles.push(tile);
       this.#terrain.addChild(tile);
     }
+    for (const view of this.#waterTilePool) {
+      view.primary.visible = false;
+      view.secondary.visible = false;
+    }
     this.#waterTiles = [];
     for (let index = 0; index < this.#terrainTiles.length; index++) {
       const tile = this.#terrainTiles[index];
@@ -1674,28 +1670,42 @@ export class Renderer {
         y + TILE_SIZE / 2,
         this.#visuals.worldRegions,
       );
-      const texture = land
-        ? landTexture(this.art.terrain.land, landTile(tiles, col, tileRow))
-        : pickTexture(this.art.terrain.water, waterFrameIndex(col, tileRow, WATER_SURFACE_GRID));
-      placeTile(
-        tile,
-        texture,
-        x,
-        y,
-        Math.min(TILE_SIZE, this.#zoneWidth - x),
-        Math.min(TILE_SIZE, this.#zoneHeight - y),
-      );
-      // A pooled sprite may have last served as a water tile: `#updateAmbient` leaves its own
-      // shimmer alpha on it, which must not leak onto whatever this sprite draws next.
-      tile.alpha = 1;
-      tile.tint = land ? tints.land : tints.water;
-      if (!land) {
-        this.#waterTiles.push({
-          sprite: tile,
-          baseTint: tints.water,
-          phase: (col * 0.37 + tileRow * 0.61) % (Math.PI * 2),
-        });
+      if (land) {
+        placeTile(
+          tile,
+          landTexture(this.art.terrain.land, landTile(tiles, col, tileRow)),
+          x,
+          y,
+          Math.min(TILE_SIZE, this.#zoneWidth - x),
+          Math.min(TILE_SIZE, this.#zoneHeight - y),
+        );
+        tile.visible = true;
+        tile.alpha = 1;
+        tile.tint = tints.land;
+        continue;
       }
+
+      tile.visible = false;
+      const waterIndex = this.#waterTiles.length;
+      let water = this.#waterTilePool[waterIndex];
+      if (!water) {
+        water = this.#createWaterTile();
+        this.#waterTilePool.push(water);
+      }
+      const width = Math.min(TILE_SIZE, this.#zoneWidth - x);
+      const height = Math.min(TILE_SIZE, this.#zoneHeight - y);
+      for (const layer of [water.primary, water.secondary]) {
+        layer.visible = true;
+        layer.position.set(x, y);
+        layer.width = width;
+        layer.height = height;
+        layer.tint = tints.water;
+      }
+      water.x = x;
+      water.y = y;
+      water.baseTint = tints.water;
+      water.phase = (col * 0.37 + tileRow * 0.61) % (Math.PI * 2);
+      this.#waterTiles.push(water);
     }
   }
 
@@ -1853,6 +1863,9 @@ export class Renderer {
 
   #createGuard(guard: GuardSnapshot): EntityView<GuardSnapshot> {
     const container = new Container();
+    container.eventMode = "static";
+    container.cursor = "pointer";
+    container.on("pointertap", () => this.#targetHandler?.({ kind: "guard", id: guard.id }));
     const actor = new Container();
     actor.pivot.set(16, 17);
     actor.position.set(16, 17);
@@ -1866,12 +1879,20 @@ export class Renderer {
     const ring = new Graphics()
       .ellipse(16, 31, 20, 8)
       .stroke({ width: 2, color: 0xf6c85f, alpha: 0.55 });
+    const targetRing = new Graphics()
+      .ellipse(16, 31, 23, 9)
+      .stroke({ width: 3, color: 0x7dd8ff, alpha: 0.95 });
+    targetRing.visible = false;
     const unitSprite = new Sprite(animations.idle[0]);
     unitSprite.width = 102;
     unitSprite.height = 102;
     unitSprite.position.set(-35, -48);
-    actor.addChild(shadow, ring, unitSprite);
+    actor.addChild(shadow, ring, targetRing, unitSprite);
     container.addChild(actor);
+    const hp = new Graphics();
+    hp.label = "hp";
+    hp.position.set(0, -10);
+    container.addChild(hp);
     const label = new Text({
       text: t("npc.city_guard.name"),
       style: {
@@ -1892,10 +1913,12 @@ export class Renderer {
       container,
       data: guard,
       actor,
+      targetRing,
       unitSprite,
       unitAnimations: animations,
       lastX: guard.x,
       lastY: guard.y,
+      lastHp: guard.hp,
       movingUntil: 0,
       attackUntil: 0,
       phase: phaseFor(guard.id),
@@ -1992,11 +2015,13 @@ export class Renderer {
         -42,
       );
       if (hp instanceof Graphics) {
+        const targeted = this.#target?.kind === "player" && this.#target.id === player.id;
         hp.alpha = !onScreen
           ? 0
           : local
             ? 0.92
-            : !isSpirit(player.life) && shouldShowHealthBar(this.#healthBarMode, "ally", distance)
+            : !isSpirit(player.life) &&
+                shouldShowHealthBar(this.#healthBarMode, "ally", distance, targeted)
               ? 0.9
               : 0;
       }
@@ -2220,10 +2245,16 @@ export class Renderer {
   }
 
   #updateAmbient(now: number): void {
+    const waterPeriod = this.art.terrain.water.width * WATER_TEXTURE_SCALE;
+    const scroll = waterScrollOffsets(now, waterPeriod);
     for (const view of this.#waterTiles) {
       const shimmer = Math.sin(now / 1_100 + view.phase);
-      view.sprite.alpha = 0.94 + shimmer * 0.035;
-      view.sprite.tint = pulseTint(view.baseTint, 1 + shimmer * 0.035);
+      view.primary.tilePosition.set(scroll.primary.x - view.x, scroll.primary.y - view.y);
+      view.secondary.tilePosition.set(scroll.secondary.x - view.x, scroll.secondary.y - view.y);
+      view.primary.tint = pulseTint(view.baseTint, 1 + shimmer * 0.025);
+      view.secondary.tint = pulseTint(view.baseTint, 1.04 + shimmer * 0.025);
+      view.primary.alpha = 1;
+      view.secondary.alpha = WATER_SECONDARY_ALPHA + shimmer * 0.025;
     }
     for (const view of this.#ambientViews) {
       const visible = this.#isVisibleWorld(view.baseX, view.baseY, 80);
@@ -2321,9 +2352,7 @@ export class Renderer {
     const rangeAlpha = onCooldown ? 0.1 : 0.14 + Math.sin(now / 360) * 0.03;
     this.#overlay
       .circle(center.x, center.y, attackRange)
-      .stroke({ width: 1.5, color: onCooldown ? 0xffb0a8 : COLORS.selfRing, alpha: rangeAlpha })
-      .circle(nearest.x + 18, nearest.y + 18, 24)
-      .stroke({ width: 2, color: 0xffe08a, alpha: 0.75 });
+      .stroke({ width: 1.5, color: onCooldown ? 0xffb0a8 : COLORS.selfRing, alpha: rangeAlpha });
   }
 
   render(sample: SceneSample, context: RenderContext): void {
@@ -2475,7 +2504,7 @@ export class Renderer {
           if (hp instanceof Graphics) {
             hp.alpha = monster.dead
               ? 0
-              : shouldShowHealthBar(context.healthBars, "enemy", distance)
+              : shouldShowHealthBar(context.healthBars, "enemy", distance, targeted)
                 ? 1
                 : 0;
           }
@@ -2498,10 +2527,16 @@ export class Renderer {
         const dx = guard.x - (view.lastX ?? guard.x);
         const dy = guard.y - (view.lastY ?? guard.y);
         if (Math.hypot(dx, dy) > 0.15) view.movingUntil = now + 120;
+        if (guard.hp < (view.lastHp ?? guard.hp) && this.#isVisibleWorld(guard.x, guard.y, 80)) {
+          view.hitUntil = now + 210;
+          this.#burst(guard.x + 16, guard.y + 16, 0xffd078, 7);
+        }
         const visible = this.#isVisibleWorld(guard.x, guard.y, ENTITY_CULL_MARGIN);
         view.container.visible = visible;
         view.container.position.set(guard.x, guard.y);
         view.container.zIndex = Math.round(guard.y + PLAYER_SIZE);
+        const targeted = this.#target?.kind === "guard" && this.#target.id === guard.id;
+        if (view.targetRing) view.targetRing.visible = targeted;
         if (visible && view.actor && view.unitSprite && view.unitAnimations) {
           const moving = (view.movingUntil ?? 0) > now;
           const motion: UnitMotion = guard.fighting ? "attack" : moving ? "run" : "idle";
@@ -2512,10 +2547,17 @@ export class Renderer {
           view.actor.y = 17 + Math.sin(now / (moving ? 90 : 440) + (view.phase ?? 0)) * -1.2;
           const label = view.container.getChildByLabel("label");
           if (label instanceof Text) label.alpha = guard.fighting ? 1 : 0.72;
+          const distance = self ? pointDistance(self, guard) : Number.POSITIVE_INFINITY;
+          this.#drawHp(view, guard.hp, guard.maxHp);
+          const hp = view.container.getChildByLabel("hp");
+          if (hp instanceof Graphics) {
+            hp.alpha = shouldShowHealthBar(context.healthBars, "ally", distance, targeted) ? 1 : 0;
+          }
         }
         view.data = guard;
         view.lastX = guard.x;
         view.lastY = guard.y;
+        view.lastHp = guard.hp;
       },
     );
 

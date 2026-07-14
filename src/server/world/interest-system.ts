@@ -137,6 +137,8 @@ export function guardSnapshots(
     id: guard.id,
     x: Math.round(guard.x * 100) / 100,
     y: Math.round(guard.y * 100) / 100,
+    hp: guard.hp,
+    maxHp: guard.maxHp,
     homeX: guard.homeX,
     homeY: guard.homeY,
     fighting: guard.fightingUntil > now,

@@ -312,6 +312,15 @@ export function advanceGuards(context: MonsterSystemContext, now: number): void 
       moveGuardToward(context, guard, target);
       continue;
     }
+    if (
+      targetDistance <= MONSTER_ATTACK_RANGE &&
+      now - target.lastAttackAt >= MONSTER_ATTACK_COOLDOWN_MS
+    ) {
+      target.lastAttackAt = now;
+      // City guards remain available as service NPCs, but monsters can wound them enough for
+      // targeted and area healing to have a real authoritative effect.
+      guard.hp = Math.max(1, guard.hp - target.damage);
+    }
     if (now - guard.lastAttackAt < GUARD_ATTACK_COOLDOWN_MS) continue;
     guard.lastAttackAt = now;
     target.hp = Math.max(0, target.hp - GUARD_DAMAGE);

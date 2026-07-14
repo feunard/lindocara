@@ -77,7 +77,11 @@ import { claimQuestReward, consumeOwnedItem } from "./character-persistence.js";
 import { createDb } from "./db/index.js";
 import { HEALTH_POTION_ID } from "./items.js";
 import { loadProfile, saveProfile } from "./profile.js";
-import { guardedDamage, resolveAttackTarget } from "./world/combat-system.js";
+import {
+  guardedDamage,
+  resolveAttackTarget,
+  resolveFriendlyTarget,
+} from "./world/combat-system.js";
 import { addPlayer, isRateLimited, removePlayer } from "./world/connection-system.js";
 import {
   beginRewardAttribution,
@@ -896,6 +900,14 @@ export class World extends DurableObject<Env> {
       });
       this.#sendState(targetSocket, target);
     }
+    for (const guard of this.#guards) {
+      if (pointDistance(player, guard) > (skill.radius ?? skill.range)) continue;
+      if (!hasLineOfSight(player, guard, this.#zone().terrain.tiles)) continue;
+      if (guard.hp >= guard.maxHp) continue;
+      const amount = skill.power + Math.max(0, player.level - 1) * 2;
+      guard.hp = Math.min(guard.maxHp, guard.hp + amount);
+      healed += 1;
+    }
     return healed;
   }
 
@@ -1056,18 +1068,28 @@ export class World extends DurableObject<Env> {
     const now = Date.now();
     if (!canAct(player.life) || now - player.lastHealAt < heal.cooldownMs) return false;
 
-    const targetSocket = this.#socketByPlayerId.get(targetId);
-    const target = targetSocket ? this.#players.get(targetSocket) : undefined;
+    const selection = resolveFriendlyTarget(
+      this.#socketByPlayerId,
+      this.#players,
+      this.#guards,
+      targetId,
+    );
+    const target = selection?.target;
+    const playerTarget = selection?.kind === "player" ? selection.target : undefined;
+    const targetSocket = selection?.kind === "player" ? selection.socket : undefined;
+    const targetMaxHp = selection?.maxHp;
     const inRange = Boolean(
-      target && target.life === "alive" && pointDistance(player, target) <= heal.range,
+      target &&
+        (!playerTarget || playerTarget.life === "alive") &&
+        pointDistance(player, target) <= heal.range,
     );
     const blocked = Boolean(
       target && inRange && !hasLineOfSight(player, target, this.#zone().terrain.tiles),
     );
     const healable = Boolean(
-      target && target.hp < maxHpForLevel(target.level) && inRange && !blocked,
+      target && targetMaxHp !== undefined && target.hp < targetMaxHp && inRange && !blocked,
     );
-    if (!target || !targetSocket || !healable) {
+    if (!target || targetMaxHp === undefined || !healable) {
       // No cooldown consumed on a whiff — pressing F at full health must not punish.
       this.#send(ws, {
         t: "event",
@@ -1080,15 +1102,19 @@ export class World extends DurableObject<Env> {
     player.lastHealAt = now;
     spendResource(player.resource, resourceCost);
     const amount = healAmountFor(player.level);
-    const actualAmount = Math.min(amount, maxHpForLevel(target.level) - target.hp);
-    target.hp = Math.min(maxHpForLevel(target.level), target.hp + amount);
-    this.#recordUsefulHeal(player, target, actualAmount, now);
-    target.dirty = true;
+    const actualAmount = Math.min(amount, targetMaxHp - target.hp);
+    target.hp = Math.min(targetMaxHp, target.hp + amount);
+    if (playerTarget) {
+      this.#recordUsefulHeal(player, playerTarget, actualAmount, now);
+      playerTarget.dirty = true;
+    }
     player.dirty = true;
     this.#send(ws, {
       t: "event",
       code: "heal.cast",
-      params: { name: target.nick, amount },
+      params: playerTarget
+        ? { name: playerTarget.nick, amount }
+        : { nameKey: "npc.city_guard.name", amount },
       tone: "good",
       x: target.x,
       y: target.y,
@@ -1105,7 +1131,7 @@ export class World extends DurableObject<Env> {
       },
       player,
     );
-    if (targetSocket !== ws) {
+    if (playerTarget && targetSocket && targetSocket !== ws) {
       this.#send(targetSocket, {
         t: "event",
         code: "heal.received",
@@ -1114,7 +1140,8 @@ export class World extends DurableObject<Env> {
       });
     }
     this.#sendState(ws, player);
-    if (targetSocket !== ws) this.#sendState(targetSocket, target);
+    if (playerTarget && targetSocket && targetSocket !== ws)
+      this.#sendState(targetSocket, playerTarget);
     return true;
   }
 

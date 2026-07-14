@@ -1,10 +1,29 @@
 import type { TerrainGeometry } from "../../shared/game.js";
-import { applyDamage, hasLineOfSight, withinRange } from "../../shared/game.js";
-import type { MonsterRuntime, PlayerRuntime } from "./world-runtime.js";
+import { applyDamage, hasLineOfSight, maxHpForLevel, withinRange } from "../../shared/game.js";
+import type { GuardRuntime, MonsterRuntime, PlayerRuntime } from "./world-runtime.js";
 
 export interface TargetSelection<T> {
   target: T | undefined;
   blockedInRange: boolean;
+}
+
+export type FriendlyTargetSelection =
+  | { kind: "player"; target: PlayerRuntime; socket: WebSocket; maxHp: number }
+  | { kind: "guard"; target: GuardRuntime; maxHp: number };
+
+export function resolveFriendlyTarget(
+  socketByPlayerId: ReadonlyMap<string, WebSocket>,
+  players: ReadonlyMap<WebSocket, PlayerRuntime>,
+  guards: readonly GuardRuntime[],
+  targetId: string,
+): FriendlyTargetSelection | undefined {
+  const socket = socketByPlayerId.get(targetId);
+  const player = socket ? players.get(socket) : undefined;
+  if (socket && player) {
+    return { kind: "player", target: player, socket, maxHp: maxHpForLevel(player.level) };
+  }
+  const guard = guards.find((candidate) => candidate.id === targetId);
+  return guard ? { kind: "guard", target: guard, maxHp: guard.maxHp } : undefined;
 }
 
 export function resolveAttackTarget(

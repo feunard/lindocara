@@ -11,6 +11,7 @@ import type {
   CombatAnimation,
   EventCode,
   EventParams,
+  GuardSnapshot,
   MonsterSnapshot,
   PlayerSnapshot,
   QuestState,
@@ -34,6 +35,7 @@ import { GameSound } from "./sound.js";
 import {
   type CombatTarget,
   cycleMonsterTarget,
+  offensiveTarget,
   resolveSkillTarget,
   targetExists,
 } from "./targeting.js";
@@ -124,6 +126,9 @@ function eventText(
   }
   if (typeof resolved.site === "string") {
     resolved.site = t(`quest.site.${resolved.site}` as MessageKey);
+  }
+  if (typeof resolved.nameKey === "string") {
+    resolved.name = t(resolved.nameKey as MessageKey);
   }
   return t(`event.${code}` as MessageKey, resolved);
 }
@@ -249,9 +254,10 @@ export async function startGame(character: CharacterSummary): Promise<void> {
   const updateTargetHud = (
     players: readonly PlayerSnapshot[],
     monsters: readonly MonsterSnapshot[],
+    guards: readonly GuardSnapshot[],
   ) => {
     if (!combatTarget) return;
-    if (!targetExists(combatTarget, players, monsters)) {
+    if (!targetExists(combatTarget, players, monsters, guards)) {
       clearTarget();
       return;
     }
@@ -264,6 +270,18 @@ export async function startGame(character: CharacterSummary): Promise<void> {
         name: t(`monster.${monster.species}` as MessageKey),
         hp: monster.hp,
         maxHp: monster.maxHp,
+      });
+      return;
+    }
+    if (combatTarget.kind === "guard") {
+      const guard = guards.find((candidate) => candidate.id === combatTarget?.id);
+      if (!guard) return;
+      useUiStore.getState().setCombatTarget({
+        id: guard.id,
+        kind: "guard",
+        name: t("npc.city_guard.name"),
+        hp: guard.hp,
+        maxHp: guard.maxHp,
       });
       return;
     }
@@ -512,9 +530,19 @@ export async function startGame(character: CharacterSummary): Promise<void> {
 
   openConnection();
 
+  const hostileTarget = (): Extract<CombatTarget, { kind: "monster" }> | null => {
+    const sample = client.sample(performance.now());
+    const self = sample.players.find((player) => player.id === client.selfId) ?? currentSelf;
+    const nearest = offensiveTarget(sample.monsters, self, combatTarget);
+    if (!nearest) return null;
+    selectTarget(nearest);
+    return nearest;
+  };
+
   const attack = () => {
     if (interiorOpen()) return;
-    if (combatTarget?.kind !== "monster") {
+    const target = hostileTarget();
+    if (!target) {
       addEvent(t("target.need_hostile"), "info");
       return;
     }
@@ -523,7 +551,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     attackCooldownUntil = performance.now() + ATTACK_COOLDOWN_MS;
     useUiStore.getState().setAttackCooldownUntil(attackCooldownUntil);
     if (client.selfId) renderer.playAttack(client.selfId);
-    connection?.attack(combatTarget.id);
+    connection?.attack(target.id);
   };
   const interact = () => {
     sound.unlock();
@@ -556,7 +584,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
   };
   const heal = () => {
     if (interiorOpen()) return;
-    if (combatTarget?.kind !== "player") {
+    if (combatTarget?.kind !== "player" && combatTarget?.kind !== "guard") {
       addEvent(t("target.need_friendly"), "info");
       return;
     }
@@ -573,7 +601,12 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     const playerClass = currentSelf?.class ?? character.class;
     const skill = skillFor(playerClass, slot);
     if ((useUiStore.getState().skillCooldowns[slot] ?? 0) > performance.now()) return;
-    const target = resolveSkillTarget(skill.effect, combatTarget);
+    let selectedTarget = combatTarget;
+    const initialResolution = resolveSkillTarget(skill.effect, selectedTarget);
+    if (!initialResolution.ok && initialResolution.required === "hostile") {
+      selectedTarget = hostileTarget();
+    }
+    const target = resolveSkillTarget(skill.effect, selectedTarget);
     if (!target.ok) {
       addEvent(
         t(target.required === "hostile" ? "target.need_hostile" : "target.need_friendly"),
@@ -729,7 +762,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     };
     renderer.render(sample, context);
     if (self && isSpirit(self.life) && combatTarget) clearTarget();
-    else updateTargetHud(sample.players, sample.monsters);
+    else updateTargetHud(sample.players, sample.monsters, sample.guards);
     mapSurface?.draw(sample, self, selfCorpse);
     renderPlayer(self, selfCorpse);
     updatePrompt(self, questState, door, activeZoneId);

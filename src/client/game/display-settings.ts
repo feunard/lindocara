@@ -11,15 +11,36 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = { healthBars: "both" };
 const listeners = new Set<() => void>();
 let settings = loadSettings();
 
+interface DisplayStorage {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+}
+
+function displayStorage(): DisplayStorage | undefined {
+  const candidate = (globalThis as { localStorage?: unknown }).localStorage;
+  if (
+    !candidate ||
+    typeof candidate !== "object" ||
+    !("getItem" in candidate) ||
+    !("setItem" in candidate) ||
+    typeof candidate.getItem !== "function" ||
+    typeof candidate.setItem !== "function"
+  ) {
+    return undefined;
+  }
+  return candidate as DisplayStorage;
+}
+
 function isHealthBarMode(value: unknown): value is HealthBarMode {
   return value === "both" || value === "allies" || value === "enemies" || value === "none";
 }
 
 function loadSettings(): DisplaySettings {
-  if (typeof localStorage === "undefined") return { ...DEFAULT_DISPLAY_SETTINGS };
+  const storage = displayStorage();
+  if (!storage) return { ...DEFAULT_DISPLAY_SETTINGS };
   try {
     const parsed = JSON.parse(
-      localStorage.getItem(STORAGE_KEY) ?? "null",
+      storage.getItem(STORAGE_KEY) ?? "null",
     ) as Partial<DisplaySettings> | null;
     return {
       healthBars: isHealthBarMode(parsed?.healthBars)
@@ -39,8 +60,7 @@ export function setDisplaySettings(partial: Partial<DisplaySettings>): void {
   settings = {
     healthBars: isHealthBarMode(partial.healthBars) ? partial.healthBars : settings.healthBars,
   };
-  if (typeof localStorage !== "undefined")
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  displayStorage()?.setItem(STORAGE_KEY, JSON.stringify(settings));
   for (const listener of listeners) listener();
 }
 
@@ -57,6 +77,7 @@ export function shouldShowHealthBar(
   mode: HealthBarMode,
   kind: "ally" | "enemy",
   distance: number,
+  targeted = false,
 ): boolean {
-  return healthBarsEnabled(mode, kind) && distance <= HEALTH_BAR_PROXIMITY;
+  return targeted || (healthBarsEnabled(mode, kind) && distance <= HEALTH_BAR_PROXIMITY);
 }

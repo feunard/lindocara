@@ -365,7 +365,8 @@ button:disabled {
   border-color: rgb(222 92 82 / 55%);
 }
 
-.target-frame--player {
+.target-frame--player,
+.target-frame--guard {
   border-color: rgb(92 181 221 / 55%);
 }
 

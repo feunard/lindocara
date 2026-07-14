@@ -236,6 +236,7 @@ export const GUARD_ATTACK_RANGE = 54;
 export const GUARD_ATTACK_COOLDOWN_MS = 260;
 export const GUARD_DAMAGE = 500;
 export const GUARD_SPEED = 235;
+export const GUARD_MAX_HP = 220;
 
 export interface Cemetery extends Vec2 {
   id: string;
@@ -858,7 +859,7 @@ export const CLASS_STATS: Record<PlayerClass, ClassStats> = {
   priest: {
     attackBase: 14,
     attackPerLevel: 2,
-    attackRange: 100,
+    attackRange: 150,
     heal: { base: 35, perLevel: 3, range: 130, cooldownMs: 1_500 },
   },
 };

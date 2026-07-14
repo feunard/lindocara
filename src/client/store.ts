@@ -36,7 +36,7 @@ export interface PartyInviteNotice {
 
 export interface CombatTargetHud {
   id: string;
-  kind: "monster" | "player";
+  kind: "monster" | "player" | "guard";
   name: string;
   hp: number;
   maxHp: number;

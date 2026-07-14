@@ -1,7 +1,10 @@
-import type { MonsterSnapshot, PlayerSnapshot } from "../../shared/protocol.js";
+import type { GuardSnapshot, MonsterSnapshot, PlayerSnapshot } from "../../shared/protocol.js";
 import { type SkillEffect, skillTargetKind } from "../../shared/skills.js";
 
-export type CombatTarget = { kind: "monster"; id: string } | { kind: "player"; id: string };
+export type CombatTarget =
+  | { kind: "monster"; id: string }
+  | { kind: "player"; id: string }
+  | { kind: "guard"; id: string };
 
 export type SkillTargetResolution =
   | { ok: true; targetId?: string }
@@ -16,7 +19,7 @@ export function resolveSkillTarget(
   if (required === "hostile" && target?.kind === "monster") {
     return { ok: true, targetId: target.id };
   }
-  if (required === "friendly" && target?.kind === "player") {
+  if (required === "friendly" && (target?.kind === "player" || target?.kind === "guard")) {
     return { ok: true, targetId: target.id };
   }
   return { ok: false, required };
@@ -50,12 +53,30 @@ export function cycleMonsterTarget(
   return next ? { kind: "monster", id: next.id } : null;
 }
 
+/** Offensive actions keep an explicit living enemy, otherwise they acquire the nearest one. */
+export function offensiveTarget(
+  monsters: readonly MonsterSnapshot[],
+  self: PlayerSnapshot | undefined,
+  current: CombatTarget | null,
+): Extract<CombatTarget, { kind: "monster" }> | null {
+  if (
+    current?.kind === "monster" &&
+    monsters.some((monster) => monster.id === current.id && !monster.dead)
+  ) {
+    return current;
+  }
+  const nearest = cycleMonsterTarget(monsters, self, undefined);
+  return nearest?.kind === "monster" ? nearest : null;
+}
+
 export function targetExists(
   target: CombatTarget,
   players: readonly PlayerSnapshot[],
   monsters: readonly MonsterSnapshot[],
+  guards: readonly GuardSnapshot[] = [],
 ): boolean {
-  return target.kind === "monster"
-    ? monsters.some((monster) => monster.id === target.id && !monster.dead)
-    : players.some((player) => player.id === target.id);
+  if (target.kind === "monster")
+    return monsters.some((monster) => monster.id === target.id && !monster.dead);
+  if (target.kind === "guard") return guards.some((guard) => guard.id === target.id);
+  return players.some((player) => player.id === target.id);
 }

@@ -101,6 +101,8 @@ export interface GuardSnapshot {
   id: string;
   x: number;
   y: number;
+  hp: number;
+  maxHp: number;
   homeX: number;
   homeY: number;
   fighting: boolean;

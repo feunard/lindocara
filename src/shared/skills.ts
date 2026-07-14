@@ -139,7 +139,7 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 1,
       effect: "attack",
       cooldownMs: 650,
-      range: 100,
+      range: 150,
       power: 0,
       icon: "✧",
     },

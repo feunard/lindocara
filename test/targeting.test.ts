@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   type CombatTarget,
   cycleMonsterTarget,
+  offensiveTarget,
   resolveSkillTarget,
   targetExists,
 } from "../src/client/game/targeting.js";
@@ -49,6 +50,7 @@ describe("explicit combat targeting", () => {
   it("requires the correct unit kind only for single-target skills", () => {
     const hostile: CombatTarget = { kind: "monster", id: "enemy" };
     const friendly: CombatTarget = { kind: "player", id: "ally" };
+    const guard: CombatTarget = { kind: "guard", id: "guard-west" };
     expect(resolveSkillTarget("single_damage", hostile)).toEqual({
       ok: true,
       targetId: "enemy",
@@ -56,6 +58,10 @@ describe("explicit combat targeting", () => {
     expect(resolveSkillTarget("single_heal", friendly)).toEqual({
       ok: true,
       targetId: "ally",
+    });
+    expect(resolveSkillTarget("single_heal", guard)).toEqual({
+      ok: true,
+      targetId: "guard-west",
     });
     expect(resolveSkillTarget("single_heal", hostile)).toEqual({
       ok: false,
@@ -66,10 +72,41 @@ describe("explicit combat targeting", () => {
     expect(resolveSkillTarget("nova", null)).toEqual({ ok: true });
   });
 
+  it("auto-acquires the nearest living enemy for an offensive action", () => {
+    const monsters = [monster("far", 300), monster("near", 130), monster("dead", 105, true)];
+    expect(offensiveTarget(monsters, self, { kind: "player", id: "ally" })).toEqual({
+      kind: "monster",
+      id: "near",
+    });
+    expect(offensiveTarget(monsters, self, { kind: "monster", id: "far" })).toEqual({
+      kind: "monster",
+      id: "far",
+    });
+  });
+
   it("drops a selected enemy when it dies but keeps valid friendly targets", () => {
     expect(
       targetExists({ kind: "monster", id: "dead" }, [self], [monster("dead", 105, true)]),
     ).toBe(false);
     expect(targetExists({ kind: "player", id: "self" }, [self], [])).toBe(true);
+    expect(
+      targetExists(
+        { kind: "guard", id: "guard-west" },
+        [self],
+        [],
+        [
+          {
+            id: "guard-west",
+            x: 120,
+            y: 100,
+            hp: 220,
+            maxHp: 220,
+            homeX: 120,
+            homeY: 100,
+            fighting: false,
+          },
+        ],
+      ),
+    ).toBe(true);
   });
 });

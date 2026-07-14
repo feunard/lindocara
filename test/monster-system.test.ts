@@ -1,8 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { advanceMonsters, type MonsterSystemContext } from "../src/server/world/monster-system.js";
+import {
+  advanceGuards,
+  advanceMonsters,
+  type MonsterSystemContext,
+} from "../src/server/world/monster-system.js";
 import { createNavigationRuntime } from "../src/server/world/navigation-system.js";
 import { SpatialGrid } from "../src/server/world/spatial-grid.js";
 import {
+  createGuards,
   createMonsters,
   type MonsterRuntime,
   newPlayer,
@@ -97,6 +102,37 @@ function chasingMonster(): MonsterRuntime {
 }
 
 describe("monster navigation on the tile grid", () => {
+  it("lets a monster wound a guard before the guard defeats it", () => {
+    const combatTerrain: TerrainGeometry = {
+      ...terrain,
+      safeZone: { x: 0, y: 0, width: 640, height: 640 },
+    };
+    const combatZone: ZoneDefinition = { ...zone, terrain: combatTerrain };
+    const monster = chasingMonster();
+    monster.x = 100;
+    monster.y = 100;
+    const guards = createGuards([{ id: "guard", x: 110, y: 100, patrolRadius: 100 }]);
+    const guard = guards[0];
+    if (!guard) throw new Error("missing guard");
+    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
+    monsterGrid.insert(monster);
+    const context: MonsterSystemContext = {
+      players: new Map(),
+      monsters: [monster],
+      guards,
+      monsterGrid,
+      zone: combatZone,
+      tick: 0,
+      navigation: createNavigationRuntime(combatTerrain, combatZone.navigation),
+      damagePlayer: vi.fn(),
+    };
+
+    advanceGuards(context, MONSTER_ATTACK_COOLDOWN_MS + 1);
+
+    expect(guard.hp).toBe(guard.maxHp - monster.damage);
+    expect(monster.hp).toBe(0);
+  });
+
   it("paths around a coarsened tile wall instead of grinding into it", () => {
     // The straight line from the monster to its target passes through column 4 / row 4 — the
     // single tile the 8x8 rect above coarsens to solid — even though that continuous segment

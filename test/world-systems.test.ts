@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { resolveAttackTarget } from "../src/server/world/combat-system.js";
+import { resolveAttackTarget, resolveFriendlyTarget } from "../src/server/world/combat-system.js";
 import { movePlayerInDirection } from "../src/server/world/skill-system.js";
 import { SpatialGrid } from "../src/server/world/spatial-grid.js";
 import {
+  createGuards,
   createMonsters,
   newPlayer,
   type PlayerRuntime,
@@ -107,5 +108,15 @@ describe("isolated world systems", () => {
     expect(movePlayerInDirection(actor, { x: 1, y: 0 }, 120, terrain, grid)).toBe(true);
     expect(actor.x).toBeLessThan(80);
     expect(grid.queryRadius(actor, 1)).toContain(actor);
+  });
+
+  it("resolves guards as authoritative friendly heal targets with their own health", () => {
+    const guards = createGuards([{ id: "guard-west", x: 30, y: 30, patrolRadius: 100 }]);
+    const selection = resolveFriendlyTarget(new Map(), new Map(), guards, "guard-west");
+
+    expect(selection).toMatchObject({ kind: "guard", maxHp: 220 });
+    expect(selection?.target.hp).toBe(220);
+    if (selection) selection.target.hp -= 35;
+    expect(guards[0]?.hp).toBe(185);
   });
 });

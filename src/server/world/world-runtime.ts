@@ -7,6 +7,7 @@ import type { CombatContribution, ThreatEntry } from "../../shared/cooperation.j
 import type { LifeState } from "../../shared/death.js";
 import {
   clampRestoredPosition,
+  GUARD_MAX_HP,
   type GuardDefinition,
   MONSTER_STATS,
   type MonsterKind,
@@ -140,6 +141,8 @@ export interface MonsterNavigationRuntime {
 
 export interface GuardRuntime extends Vec2 {
   id: string;
+  hp: number;
+  maxHp: number;
   homeX: number;
   homeY: number;
   patrolRadius: number;
@@ -384,6 +387,8 @@ export function createMonsters(spawns: readonly MonsterSpawn[]): MonsterRuntime[
 export function createGuards(definitions: readonly GuardDefinition[]): GuardRuntime[] {
   return definitions.map((guard) => ({
     ...guard,
+    hp: GUARD_MAX_HP,
+    maxHp: GUARD_MAX_HP,
     homeX: guard.x,
     homeY: guard.y,
     lastAttackAt: 0,
