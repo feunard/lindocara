@@ -6,6 +6,8 @@ import {
 } from "../src/shared/protocol.js";
 
 describe("client protocol", () => {
+  const targetId = "33333333-3333-4333-8333-333333333333";
+
   it("accepts movement and action intents without accepting outcomes", () => {
     expect(
       parseClientMessage(
@@ -20,7 +22,14 @@ describe("client protocol", () => {
       seq: 7,
       input: { up: true, down: false, left: false, right: true },
     });
-    expect(parseClientMessage(JSON.stringify({ t: "attack" }))).toEqual({ t: "attack" });
+    expect(parseClientMessage(JSON.stringify({ t: "attack", targetId }))).toEqual({
+      t: "attack",
+      targetId,
+    });
+    expect(parseClientMessage(JSON.stringify({ t: "attack" }))).toBeNull();
+    expect(
+      parseClientMessage(JSON.stringify({ t: "attack", targetId: "road-goblin-scout" })),
+    ).toEqual({ t: "attack", targetId: "road-goblin-scout" });
     expect(parseClientMessage(JSON.stringify({ t: "interact" }))).toEqual({ t: "interact" });
     expect(parseClientMessage(JSON.stringify({ t: "use", item: "potion" }))).toEqual({
       t: "use",
@@ -68,10 +77,14 @@ describe("client protocol", () => {
   });
 
   it("parses the heal intent and rejects garbage variants", () => {
-    expect(parseClientMessage(JSON.stringify({ t: "heal" }))).toEqual({ t: "heal" });
-    expect(parseClientMessage(JSON.stringify({ t: "heal", target: "someone" }))).toEqual({
+    expect(parseClientMessage(JSON.stringify({ t: "heal", targetId }))).toEqual({
       t: "heal",
+      targetId,
     });
+    expect(parseClientMessage(JSON.stringify({ t: "heal" }))).toBeNull();
+    expect(
+      parseClientMessage(JSON.stringify({ t: "heal", targetId: "someone nearby" })),
+    ).toBeNull();
     expect(parseClientMessage(JSON.stringify({ t: "heals" }))).toBeNull();
   });
 
@@ -80,6 +93,14 @@ describe("client protocol", () => {
       t: "skill",
       slot: 3,
     });
+    expect(parseClientMessage(JSON.stringify({ t: "skill", slot: 3, targetId }))).toEqual({
+      t: "skill",
+      slot: 3,
+      targetId,
+    });
+    expect(
+      parseClientMessage(JSON.stringify({ t: "skill", slot: 3, targetId: "nearest target" })),
+    ).toBeNull();
     expect(parseClientMessage(JSON.stringify({ t: "skill", slot: 0 }))).toBeNull();
     expect(parseClientMessage(JSON.stringify({ t: "skill", slot: 6 }))).toBeNull();
     expect(parseClientMessage(JSON.stringify({ t: "skill", slot: "3" }))).toBeNull();

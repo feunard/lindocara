@@ -1,5 +1,5 @@
 import type { TerrainGeometry } from "../../shared/game.js";
-import { applyDamage, hasLineOfSight, pointDistance, withinRange } from "../../shared/game.js";
+import { applyDamage, hasLineOfSight, withinRange } from "../../shared/game.js";
 import type { MonsterRuntime, PlayerRuntime } from "./world-runtime.js";
 
 export interface TargetSelection<T> {
@@ -7,30 +7,22 @@ export interface TargetSelection<T> {
   blockedInRange: boolean;
 }
 
-export function selectAttackTarget(
+export function resolveAttackTarget(
   player: PlayerRuntime,
   monsters: readonly MonsterRuntime[],
+  targetId: string,
   range: number,
   now: number,
   terrain: TerrainGeometry,
 ): TargetSelection<MonsterRuntime> {
-  let target: MonsterRuntime | undefined;
-  let distance = range;
-  let blockedInRange = false;
-  for (const monster of monsters) {
-    if (monster.deadUntil > now) continue;
-    const candidate = pointDistance(player, monster);
-    if (!withinRange(player, monster, range)) continue;
-    if (!hasLineOfSight(player, monster, terrain.tiles)) {
-      blockedInRange = true;
-      continue;
-    }
-    if (candidate <= distance) {
-      target = monster;
-      distance = candidate;
-    }
+  const target = monsters.find((monster) => monster.id === targetId && monster.deadUntil <= now);
+  if (!target || !withinRange(player, target, range)) {
+    return { target: undefined, blockedInRange: false };
   }
-  return { target, blockedInRange };
+  if (!hasLineOfSight(player, target, terrain.tiles)) {
+    return { target: undefined, blockedInRange: true };
+  }
+  return { target, blockedInRange: false };
 }
 
 export function guardedDamage(player: PlayerRuntime, damage: number, now: number) {

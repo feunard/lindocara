@@ -67,12 +67,12 @@ export interface SceneSample {
 }
 
 export interface Connection {
-  attack(): void;
+  attack(targetId: string): void;
   interact(): void;
   usePotion(): void;
-  heal(): void;
+  heal(targetId: string): void;
   release(): void;
-  skill(slot: SkillSlot): void;
+  skill(slot: SkillSlot, targetId?: string): void;
   sendChat(text: string, channel?: "local" | "party"): void;
   partyCreate(): void;
   partyInvite(playerId: string): void;
@@ -168,12 +168,13 @@ export class WorldClient {
     socket.addEventListener("error", () => handlers.onClose(1006, "connection error"));
 
     return {
-      attack: () => this.#send({ t: "attack" }),
+      attack: (targetId) => this.#send({ t: "attack", targetId }),
       interact: () => this.#send({ t: "interact" }),
       usePotion: () => this.#send({ t: "use", item: "potion" }),
-      heal: () => this.#send({ t: "heal" }),
+      heal: (targetId) => this.#send({ t: "heal", targetId }),
       release: () => this.#send({ t: "release" }),
-      skill: (slot) => this.#send({ t: "skill", slot }),
+      skill: (slot, targetId) =>
+        this.#send(targetId === undefined ? { t: "skill", slot } : { t: "skill", slot, targetId }),
       sendChat: (text, channel = "local") => this.#send({ t: "chat", channel, text }),
       partyCreate: () => this.#send({ t: "party.create" }),
       partyInvite: (playerId) => this.#send({ t: "party.invite", playerId }),

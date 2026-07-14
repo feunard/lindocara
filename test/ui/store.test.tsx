@@ -35,6 +35,7 @@ describe("ui store", () => {
       mapOpen: true,
       settingsOpen: true,
       interiorDoorId: "warden-hut",
+      combatTarget: { id: "enemy", kind: "monster", name: "Enemy", hp: 1, maxHp: 2 },
     });
 
     useUiStore.getState().resetToCharacterSelect();
@@ -46,6 +47,7 @@ describe("ui store", () => {
     expect(state.mapOpen).toBe(false);
     expect(state.settingsOpen).toBe(false);
     expect(state.interiorDoorId).toBeNull();
+    expect(state.combatTarget).toBeNull();
   });
 
   it("setSelf is referentially stable for equal values", () => {
@@ -63,6 +65,14 @@ describe("ui store", () => {
     const first = useUiStore.getState().self;
     useUiStore.getState().setSelf({ ...self });
     expect(useUiStore.getState().self).toBe(first);
+  });
+
+  it("does not churn the target frame for an unchanged snapshot", () => {
+    const target = { id: "enemy", kind: "monster" as const, name: "Enemy", hp: 20, maxHp: 40 };
+    useUiStore.getState().setCombatTarget(target);
+    const first = useUiStore.getState().combatTarget;
+    useUiStore.getState().setCombatTarget({ ...target });
+    expect(useUiStore.getState().combatTarget).toBe(first);
   });
 
   it("ignores an unchanged party, so a 10Hz rebroadcast does not re-render the HUD", () => {

@@ -250,6 +250,7 @@ export const en = {
   "resource.energy": "Energy",
   "resource.mana": "Mana",
   "help.move": "move",
+  "help.target": "target",
   "help.strike": "strike",
   "help.commune": "commune",
   "help.tonic": "tonic",
@@ -310,6 +311,12 @@ export const en = {
   "monster.skull_warden": "Choir Warden",
   "monster.mire_troll": "Mire Troll",
   "monster.gate_troll": "Gate Troll",
+  "hud.target": "Current target",
+  "hud.target.hostile": "Enemy target",
+  "hud.target.friendly": "Friendly target",
+  "hud.target.clear": "Clear target",
+  "target.need_hostile": "Select an enemy target (click or Tab).",
+  "target.need_friendly": "Select an ally to heal.",
 
   // Zones
   "zone.heartroot_crossing": "Heartroot Crossing",

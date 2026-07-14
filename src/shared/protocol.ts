@@ -159,11 +159,11 @@ export interface WorldInfo {
 /** Sent by the browser. Actions contain intent only; every outcome is validated by the server. */
 export type ClientMessage =
   | { t: "input"; seq: number; input: Input }
-  | { t: "attack" }
+  | { t: "attack"; targetId: string }
   | { t: "interact" }
-  | { t: "heal" }
+  | { t: "heal"; targetId: string }
   | { t: "release" }
-  | { t: "skill"; slot: SkillSlot }
+  | { t: "skill"; slot: SkillSlot; targetId?: string }
   | { t: "use"; item: "potion" }
   | { t: "chat"; channel: ChatChannel; text: string }
   | { t: "party.create" }
@@ -290,6 +290,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function isTargetId(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length >= 1 &&
+    value.length <= 64 &&
+    /^[A-Za-z0-9_-]+$/.test(value)
+  );
+}
+
 function isEntityDelta(value: unknown): boolean {
   if (!isRecord(value) || !Array.isArray(value.upsert) || !Array.isArray(value.remove))
     return false;
@@ -331,9 +340,18 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
     const input = parseInput(value.input);
     return input === null ? null : { t: "input", seq, input };
   }
-  if (value.t === "attack" || value.t === "interact" || value.t === "heal" || value.t === "release")
-    return { t: value.t };
-  if (value.t === "skill" && isSkillSlot(value.slot)) return { t: "skill", slot: value.slot };
+  if ((value.t === "attack" || value.t === "heal") && isTargetId(value.targetId))
+    return { t: value.t, targetId: value.targetId };
+  if (value.t === "interact" || value.t === "release") return { t: value.t };
+  if (
+    value.t === "skill" &&
+    isSkillSlot(value.slot) &&
+    (value.targetId === undefined || isTargetId(value.targetId))
+  ) {
+    return value.targetId === undefined
+      ? { t: "skill", slot: value.slot }
+      : { t: "skill", slot: value.slot, targetId: value.targetId };
+  }
   if (value.t === "use" && value.item === "potion") return { t: "use", item: "potion" };
   if (value.t === "world.resync") return { t: "world.resync" };
   if (value.t === "navigation.debug" && typeof value.enabled === "boolean")

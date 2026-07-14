@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { selectAttackTarget } from "../src/server/world/combat-system.js";
+import { resolveAttackTarget } from "../src/server/world/combat-system.js";
 import { movePlayerInDirection } from "../src/server/world/skill-system.js";
 import { SpatialGrid } from "../src/server/world/spatial-grid.js";
 import {
@@ -64,9 +64,38 @@ describe("isolated world systems", () => {
       },
     ]);
 
-    expect(selectAttackTarget(actor, monsters, 120, 1, terrain)).toEqual({
+    expect(resolveAttackTarget(actor, monsters, "goblin-1", 120, 1, terrain)).toEqual({
       target: undefined,
       blockedInRange: true,
+    });
+  });
+
+  it("never substitutes a nearby monster for the requested target", () => {
+    const actor = player();
+    const monsters = createMonsters([
+      {
+        id: "nearby",
+        kind: "goblin",
+        species: "spear_goblin",
+        zone: "route",
+        x: 40,
+        y: 10,
+        patrolRadius: 20,
+      },
+      {
+        id: "requested-but-far",
+        kind: "goblin",
+        species: "spear_goblin",
+        zone: "route",
+        x: 250,
+        y: 10,
+        patrolRadius: 20,
+      },
+    ]);
+
+    expect(resolveAttackTarget(actor, monsters, "requested-but-far", 80, 1, terrain)).toEqual({
+      target: undefined,
+      blockedInRange: false,
     });
   });
 

@@ -411,9 +411,9 @@ describe("World", () => {
         () => hunter.welcome && observer.welcome && distant.welcome,
       );
 
-      hunter.action("attack");
+      hunter.action("attack", hunter.nearestMonsterId());
       await scheduler.wait(600);
-      hunter.action("attack");
+      hunter.action("attack", hunter.nearestMonsterId());
       const lootObserved = await until("main-room monster loot", () => {
         const snapshot = hunter.latestSnapshot;
         if (snapshot && snapshot.loot.length > 0) return true;
@@ -480,7 +480,7 @@ describe("World", () => {
         );
       } else if (Date.now() - lastAttackAt > 600 && dropsPotionWellBeforeTheFlush()) {
         drinker.release();
-        drinker.action("attack");
+        drinker.action("attack", drinker.nearestMonsterId());
         lastAttackAt = Date.now();
       }
       await scheduler.wait(10);
@@ -1133,7 +1133,7 @@ describe("World", () => {
     expect(closed.code).toBe(1009);
   });
 
-  it("lets a priest mend the most injured player in range, respecting cooldown", async () => {
+  it("lets a priest mend the selected player in range, respecting cooldown", async () => {
     // ~250px from the nearest SPAWN_POINTS grid cell — far enough that a straggler still
     // disconnecting from an earlier test (spawned somewhere on that grid, always inside
     // heal.range 130 of *itself* but not of here) cannot be closer than the wounded ally and
@@ -1146,10 +1146,10 @@ describe("World", () => {
     const wounded = await Client.join("wounded", { position: { x: 1166, y: 250 }, hp: 40 });
     await until("both welcomes", () => priest.welcome && wounded.welcome);
 
-    priest.action("heal");
+    priest.action("heal", wounded.welcome?.selfId);
     await until("the wounded player to be mended", () => {
       // Re-send: belt and suspenders in case the very first cast raced the join.
-      priest.action("heal");
+      priest.action("heal", wounded.welcome?.selfId);
       const snapshot = wounded.self();
       return snapshot && snapshot.hp > 40 ? snapshot : undefined;
     });
@@ -1158,8 +1158,8 @@ describe("World", () => {
     expect(healed?.hp).toBe(40 + 41); // healAmountFor(3)
 
     // Cooldown: an immediate second cast must not double-heal.
-    priest.action("heal");
-    priest.action("heal");
+    priest.action("heal", wounded.welcome?.selfId);
+    priest.action("heal", wounded.welcome?.selfId);
     await scheduler.wait(200);
     expect(wounded.self()?.hp).toBe(81);
 
@@ -1174,14 +1174,14 @@ describe("World", () => {
 
   it("lets a visible ranged attack hit a monster", async () => {
     const ranger = await Client.join("sighter", {
-      position: { x: 1750, y: 820 },
+      position: { x: 2140, y: 820 },
       class: "ranger",
     });
     await until("welcome", () => ranger.welcome);
 
-    ranger.action("attack");
+    ranger.action("attack", ranger.nearestMonsterId());
     const hit = await until("combat hit", () => {
-      ranger.action("attack");
+      ranger.action("attack", ranger.nearestMonsterId());
       return ranger.received.find((m) => m.t === "event" && m.code === "combat.hit");
     });
     expect(hit).toMatchObject({ tone: "info" });
@@ -1203,7 +1203,7 @@ describe("World", () => {
 
   it("charges the nearest monster with the warrior shield bash", { timeout: 10_000 }, async () => {
     const warrior = await Client.join("charger", {
-      position: { x: 1750, y: 820 },
+      position: { x: 2140, y: 820 },
       level: 5,
     });
     await until("charge welcome", () => warrior.welcome);
@@ -1218,7 +1218,7 @@ describe("World", () => {
       return { self, target };
     });
 
-    warrior.skill(3);
+    warrior.skill(3, before.target.id);
     const cast = await until("charge cast", () =>
       warrior.received.find(
         (message) =>
@@ -1237,6 +1237,54 @@ describe("World", () => {
     warrior.close();
   });
 
+  it("casts an area attack without a selected target", async () => {
+    const ranger = await Client.join("area_volley", {
+      position: { x: 1150, y: 250 },
+      class: "ranger",
+      level: 5,
+    });
+    await until("area attack welcome", () => ranger.welcome);
+
+    ranger.skill(3);
+    const cast = await until("untargeted volley cast", () =>
+      ranger.received.find(
+        (message) =>
+          message.t === "event" &&
+          message.code === "skill.cast" &&
+          message.params?.skill === "volley",
+      ),
+    );
+    expect(cast).toMatchObject({ tone: "good" });
+    ranger.close();
+  });
+
+  it("casts an area heal without a selected target", async () => {
+    const priest = await Client.join("area_prayer", {
+      position: { x: 1150, y: 250 },
+      class: "priest",
+      level: 7,
+      hp: 40,
+    });
+    await until("area heal welcome", () => priest.welcome);
+
+    priest.skill(4);
+    const cast = await until("untargeted prayer cast", () =>
+      priest.received.find(
+        (message) =>
+          message.t === "event" &&
+          message.code === "skill.cast" &&
+          message.params?.skill === "prayer",
+      ),
+    );
+    expect(cast).toMatchObject({ tone: "good" });
+    const healed = await until("area heal state", () => {
+      const snapshot = priest.self();
+      return snapshot && snapshot.hp > 40 ? snapshot : undefined;
+    });
+    expect(healed.hp).toBeGreaterThan(40);
+    priest.close();
+  });
+
   it("reports a blocked heal target in range", async () => {
     const priest = await Client.join("blocked_heal", {
       position: { x: 480, y: 650 },
@@ -1253,7 +1301,7 @@ describe("World", () => {
     });
     expect(before.hp).toBe(40);
 
-    priest.action("heal");
+    priest.action("heal", blocked.welcome?.selfId);
     const event = await until("blocked heal event", () =>
       priest.received.find((m) => m.t === "event" && m.code === "heal.blocked"),
     );
@@ -1270,7 +1318,7 @@ describe("World", () => {
     blocked.close();
   });
 
-  it("heals the best visible target instead of a blocked lower-health target", async () => {
+  it("heals the selected visible target without switching to a lower-health ally", async () => {
     const priest = await Client.join("los_priest", {
       position: { x: 480, y: 650 },
       class: "priest",
@@ -1280,9 +1328,9 @@ describe("World", () => {
     const visible = await Client.join("los_visible", { position: { x: 480, y: 760 }, hp: 40 });
     await until("all welcomes", () => priest.welcome && blocked.welcome && visible.welcome);
 
-    priest.action("heal");
+    priest.action("heal", visible.welcome?.selfId);
     const healed = await until("visible ally healed", () => {
-      priest.action("heal");
+      priest.action("heal", visible.welcome?.selfId);
       const snapshot = visible.self();
       return snapshot && snapshot.hp > 40 ? snapshot : undefined;
     });
@@ -1314,7 +1362,7 @@ describe("World", () => {
     });
     expect(before.hp).toBe(40);
 
-    priest.action("heal");
+    priest.action("heal", wounded.welcome?.selfId);
     const nobody = await until("heal.nobody", () =>
       priest.received.find((m) => m.t === "event" && m.code === "heal.nobody"),
     );
@@ -1359,8 +1407,8 @@ describe("World", () => {
 
     // Dead priests must not be able to cast: no cooldown check saves them, the intent is
     // dropped outright — the server never even sends heal.nobody.
-    priest.action("heal");
-    priest.action("heal");
+    priest.action("heal", ally.welcome?.selfId);
+    priest.action("heal", ally.welcome?.selfId);
     await scheduler.wait(300);
 
     expect(ally.self()?.hp).toBe(40);
@@ -1375,7 +1423,7 @@ describe("World", () => {
   it("ignores heal intents from non-priests and out-of-range or full-health situations", async () => {
     const warrior = await Client.join("brute", { position: { x: 784, y: 450 } });
     await until("welcome", () => warrior.welcome);
-    warrior.action("heal");
+    warrior.action("heal", warrior.welcome?.selfId);
     await scheduler.wait(150);
     expect(warrior.received.some((m) => m.t === "event" && String(m.code).startsWith("heal"))).toBe(
       false,
@@ -1387,7 +1435,7 @@ describe("World", () => {
       level: 3,
     });
     await until("welcome", () => priest.welcome);
-    priest.action("heal"); // full HP everywhere near → nobody
+    priest.action("heal", priest.welcome?.selfId); // selected target is already at full HP
     const nobody = await until("heal.nobody", () =>
       priest.received.find((m) => m.t === "event" && m.code === "heal.nobody"),
     );
@@ -1584,8 +1632,8 @@ describe("death, ghosts, and the corpse run", () => {
     // Everything before this point includes the blow that killed us. Only what comes after counts.
     const mark = player.received.length;
 
-    player.action("attack");
-    player.action("heal");
+    player.action("attack", player.nearestMonsterId());
+    player.action("heal", player.welcome?.selfId);
     player.action("interact");
     player.usePotion();
     player.skill(3);

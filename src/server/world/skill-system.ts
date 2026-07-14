@@ -1,29 +1,8 @@
 import type { TerrainGeometry } from "../../shared/game.js";
-import { hasLineOfSight, pointDistance, resolveTerrain, withinRange } from "../../shared/game.js";
+import { resolveTerrain } from "../../shared/game.js";
 import type { Vec2 } from "../../shared/simulation.js";
 import type { SpatialGrid } from "./spatial-grid.js";
-import type { MonsterRuntime, PlayerRuntime } from "./world-runtime.js";
-
-export function nearestMonster(
-  player: PlayerRuntime,
-  monsters: readonly MonsterRuntime[],
-  range: number,
-  now: number,
-  terrain: TerrainGeometry,
-): MonsterRuntime | undefined {
-  let target: MonsterRuntime | undefined;
-  let distance = range;
-  for (const monster of monsters) {
-    if (monster.deadUntil > now || !withinRange(player, monster, range)) continue;
-    if (!hasLineOfSight(player, monster, terrain.tiles)) continue;
-    const candidate = pointDistance(player, monster);
-    if (candidate <= distance) {
-      target = monster;
-      distance = candidate;
-    }
-  }
-  return target;
-}
+import type { PlayerRuntime } from "./world-runtime.js";
 
 /** Resolves mobility skills in short segments so they cannot phase through colliders. */
 export function movePlayerInDirection(

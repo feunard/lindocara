@@ -10,6 +10,7 @@ import type { MessageKey } from "../../shared/i18n/index.js";
 import type {
   EventCode,
   EventParams,
+  MonsterSnapshot,
   PlayerSnapshot,
   QuestState,
   SelfState,
@@ -28,6 +29,12 @@ import { type Connection, type ConnectionHandlers, WorldClient } from "./net.js"
 import { type PartyTargetResolution, resolvePartyTarget } from "./party.js";
 import { type RenderContext, Renderer } from "./renderer.js";
 import { GameSound } from "./sound.js";
+import {
+  type CombatTarget,
+  cycleMonsterTarget,
+  resolveSkillTarget,
+  targetExists,
+} from "./targeting.js";
 
 function required<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -219,11 +226,55 @@ export async function startGame(character: CharacterSummary): Promise<void> {
   let selfCorpse: Vec2 | null = null;
   let mapSurface: MapSurface | null = null;
   let activeZoneId: ZoneId = DEFAULT_ZONE_ID;
+  let combatTarget: CombatTarget | null = null;
   // Remembered so a reconnect can re-attach them to a fresh surface: React mounted its canvases
   // once, and it will not re-run its effect just because the socket dropped.
   let minimapCanvas: HTMLCanvasElement | null = null;
   let worldMapCanvas: HTMLCanvasElement | null = null;
   const playerClass = () => currentSelf?.class ?? character.class;
+
+  const clearTarget = () => {
+    combatTarget = null;
+    renderer.setTarget(null);
+    useUiStore.getState().setCombatTarget(null);
+  };
+  const selectTarget = (target: CombatTarget) => {
+    combatTarget = target;
+    renderer.setTarget(target);
+  };
+  renderer.setTargetHandler(selectTarget);
+
+  const updateTargetHud = (
+    players: readonly PlayerSnapshot[],
+    monsters: readonly MonsterSnapshot[],
+  ) => {
+    if (!combatTarget) return;
+    if (!targetExists(combatTarget, players, monsters)) {
+      clearTarget();
+      return;
+    }
+    if (combatTarget.kind === "monster") {
+      const monster = monsters.find((candidate) => candidate.id === combatTarget?.id);
+      if (!monster) return;
+      useUiStore.getState().setCombatTarget({
+        id: monster.id,
+        kind: "monster",
+        name: t(`monster.${monster.species}` as MessageKey),
+        hp: monster.hp,
+        maxHp: monster.maxHp,
+      });
+      return;
+    }
+    const player = players.find((candidate) => candidate.id === combatTarget?.id);
+    if (!player) return;
+    useUiStore.getState().setCombatTarget({
+      id: player.id,
+      kind: "player",
+      name: player.nick,
+      hp: player.hp,
+      maxHp: player.maxHp,
+    });
+  };
 
   const unlockAudio = () => sound.unlock();
   window.addEventListener("pointerdown", unlockAudio);
@@ -231,6 +282,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
 
   const handlers: Omit<ConnectionHandlers, "onClose"> = {
     onWelcome: (selfId, world, state) => {
+      clearTarget();
       reconnectAttempts = 0;
       useUiStore.getState().setReconnect(null);
       renderer.setSelfId(selfId);
@@ -439,12 +491,16 @@ export async function startGame(character: CharacterSummary): Promise<void> {
 
   const attack = () => {
     if (interiorOpen()) return;
+    if (combatTarget?.kind !== "monster") {
+      addEvent(t("target.need_hostile"), "info");
+      return;
+    }
     sound.unlock();
     sound.basicAttack(playerClass());
     attackCooldownUntil = performance.now() + ATTACK_COOLDOWN_MS;
     useUiStore.getState().setAttackCooldownUntil(attackCooldownUntil);
     if (client.selfId) renderer.playAttack(client.selfId);
-    connection?.attack();
+    connection?.attack(combatTarget.id);
   };
   const interact = () => {
     sound.unlock();
@@ -477,8 +533,12 @@ export async function startGame(character: CharacterSummary): Promise<void> {
   };
   const heal = () => {
     if (interiorOpen()) return;
+    if (combatTarget?.kind !== "player") {
+      addEvent(t("target.need_friendly"), "info");
+      return;
+    }
     sound.unlock();
-    connection?.heal();
+    connection?.heal(combatTarget.id);
   };
   const release = () => {
     if (interiorOpen()) return;
@@ -490,6 +550,14 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     const playerClass = currentSelf?.class ?? character.class;
     const skill = skillFor(playerClass, slot);
     if ((useUiStore.getState().skillCooldowns[slot] ?? 0) > performance.now()) return;
+    const target = resolveSkillTarget(skill.effect, combatTarget);
+    if (!target.ok) {
+      addEvent(
+        t(target.required === "hostile" ? "target.need_hostile" : "target.need_friendly"),
+        "info",
+      );
+      return;
+    }
     if (slot === 1) {
       useUiStore.getState().setSkillCooldown(slot, performance.now() + skill.cooldownMs);
       attack();
@@ -500,7 +568,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       return;
     }
     sound.unlock();
-    connection?.skill(slot);
+    connection?.skill(slot, target.targetId);
   };
   const switchCharacter = () => {
     intentionallyClosed = true;
@@ -520,6 +588,18 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     heal,
     release,
     castSkill,
+    switchTarget: (reverse) => {
+      const sample = client.sample(performance.now());
+      const self = sample.players.find((player) => player.id === client.selfId);
+      const next = cycleMonsterTarget(
+        sample.monsters,
+        self,
+        combatTarget?.kind === "monster" ? combatTarget.id : undefined,
+        reverse,
+      );
+      if (next) selectTarget(next);
+      else clearTarget();
+    },
     focusChat: () => {
       input.reset();
       useUiStore.getState().requestChatFocus();
@@ -537,6 +617,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     heal,
     release,
     castSkill,
+    clearTarget,
     sendChat: (text, channel) => connection?.sendChat(text, channel),
     partyCreate: () => connection?.partyCreate(),
     partyInvite: (query) => {
@@ -598,6 +679,11 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       event.preventDefault();
       return;
     }
+    if (combatTarget) {
+      clearTarget();
+      event.preventDefault();
+      return;
+    }
     const nextOpen = !settingsOpen();
     useUiStore.getState().setSettingsOpen(nextOpen);
     if (nextOpen) input.reset();
@@ -618,6 +704,8 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       ...(self ? { self } : {}),
     };
     renderer.render(sample, context);
+    if (self && isSpirit(self.life) && combatTarget) clearTarget();
+    else updateTargetHud(sample.players, sample.monsters);
     mapSurface?.draw(sample, self, selfCorpse);
     renderPlayer(self, selfCorpse);
     updatePrompt(self, questState, door, activeZoneId);

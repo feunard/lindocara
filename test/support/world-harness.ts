@@ -243,9 +243,11 @@ export class Client {
     this.#socket.send(payload);
   }
 
-  action(type: "attack" | "interact" | "heal"): void {
+  action(type: "attack" | "interact" | "heal", targetId?: string): void {
     try {
-      this.#socket.send(JSON.stringify({ t: type }));
+      this.#socket.send(
+        JSON.stringify(targetId === undefined ? { t: type } : { t: type, targetId }),
+      );
     } catch {
       // The server may already have closed the connection.
     }
@@ -256,8 +258,12 @@ export class Client {
     this.#socket.send(JSON.stringify({ t: "release" }));
   }
 
-  skill(slot: number): void {
-    this.#socket.send(JSON.stringify({ t: "skill", slot }));
+  skill(slot: number, targetId?: string): void {
+    this.#socket.send(
+      JSON.stringify(
+        targetId === undefined ? { t: "skill", slot } : { t: "skill", slot, targetId },
+      ),
+    );
   }
 
   attemptAfterRevocation(payload: unknown): void {
@@ -308,6 +314,16 @@ export class Client {
   self(): PlayerSnapshot | undefined {
     const id = this.welcome?.selfId;
     return id ? this.latestSnapshot?.players.find((p) => p.id === id) : undefined;
+  }
+
+  nearestMonsterId(): string | undefined {
+    const self = this.self();
+    if (!self) return undefined;
+    return this.latestSnapshot?.monsters
+      .filter((monster) => !monster.dead)
+      .sort(
+        (a, b) => Math.hypot(a.x - self.x, a.y - self.y) - Math.hypot(b.x - self.x, b.y - self.y),
+      )[0]?.id;
   }
 
   /** This player's body, if they have left one lying around. */

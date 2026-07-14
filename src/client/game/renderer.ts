@@ -47,6 +47,7 @@ import {
 } from "./enemy-art.js";
 import { MAX_ACTIVE_WORLD_EFFECTS, questSiteFeedback } from "./feedback.js";
 import type { SceneSample } from "./net.js";
+import type { CombatTarget } from "./targeting.js";
 import { pulseTint, terrainTintsAt, waterFrameIndex } from "./terrain-visuals.js";
 import {
   allUnitSheets,
@@ -161,6 +162,7 @@ interface EntityView<T extends { id: string }> {
   flash?: Graphics;
   weapon?: Container;
   alert?: Text;
+  targetRing?: Graphics;
   lastX?: number;
   lastY?: number;
   lastHp?: number;
@@ -636,6 +638,8 @@ export class Renderer {
   #cameraY = zoneDefinition(DEFAULT_ZONE_ID).terrain.height / 2;
   #cameraReady = false;
   #lastCameraAt = 0;
+  #target: CombatTarget | null = null;
+  #targetHandler: ((target: CombatTarget) => void) | null = null;
 
   private constructor(
     app: Application,
@@ -665,6 +669,14 @@ export class Renderer {
 
   setSelfId(id: string): void {
     this.#selfId = id;
+  }
+
+  setTargetHandler(handler: (target: CombatTarget) => void): void {
+    this.#targetHandler = handler;
+  }
+
+  setTarget(target: CombatTarget | null): void {
+    this.#target = target;
   }
 
   /**
@@ -1697,6 +1709,9 @@ export class Renderer {
 
   #createPlayer(player: PlayerSnapshot): EntityView<PlayerSnapshot> {
     const container = new Container();
+    container.eventMode = "static";
+    container.cursor = "pointer";
+    container.on("pointertap", () => this.#targetHandler?.({ kind: "player", id: player.id }));
     const actor = new Container();
     actor.pivot.set(16, 17);
     actor.position.set(16, 17);
@@ -1710,8 +1725,12 @@ export class Renderer {
     if (player.id === this.#selfId) {
       selfRing.ellipse(16, 31, 18, 7).stroke({ width: 2, color: COLORS.selfRing, alpha: 0.82 });
     }
+    const targetRing = new Graphics()
+      .ellipse(16, 31, 22, 9)
+      .stroke({ width: 3, color: 0x7dd8ff, alpha: 0.95 });
+    targetRing.visible = false;
     const flash = new Graphics().roundRect(3, -8, 28, 40, 10).fill({ color: 0xffffff, alpha: 0 });
-    actor.addChild(shadow, selfRing);
+    actor.addChild(shadow, selfRing, targetRing);
     actor.addChild(unitSprite, flash);
     container.addChild(actor);
     const hp = new Graphics();
@@ -1737,6 +1756,7 @@ export class Renderer {
       data: player,
       actor,
       flash,
+      targetRing,
       lastX: player.x,
       lastY: player.y,
       lastHp: player.hp,
@@ -1752,6 +1772,9 @@ export class Renderer {
 
   #createMonster(monster: MonsterSnapshot): EntityView<MonsterSnapshot> {
     const container = new Container();
+    container.eventMode = "static";
+    container.cursor = "pointer";
+    container.on("pointertap", () => this.#targetHandler?.({ kind: "monster", id: monster.id }));
     const actor = new Container();
     actor.pivot.set(18, 20);
     actor.position.set(18, 20);
@@ -1759,6 +1782,10 @@ export class Renderer {
     const shadow = new Graphics()
       .ellipse(18, 33, metrics.shadowWidth, metrics.shadowHeight)
       .fill({ color: COLORS.shadow, alpha: 0.42 });
+    const targetRing = new Graphics()
+      .ellipse(18, 33, metrics.shadowWidth + 5, metrics.shadowHeight + 4)
+      .stroke({ width: 3, color: 0xff6b62, alpha: 0.95 });
+    targetRing.visible = false;
     const animations = this.art.monsters[monster.species];
     const unitSprite = new Sprite(animations.idle[0]);
     unitSprite.width = metrics.spriteSize;
@@ -1766,7 +1793,7 @@ export class Renderer {
     unitSprite.anchor.set(0.5, 1);
     unitSprite.position.set(18, metrics.spriteY);
     const flash = new Graphics().ellipse(18, 18, 25, 21).fill({ color: 0xffffff, alpha: 0 });
-    actor.addChild(shadow, unitSprite, flash);
+    actor.addChild(shadow, targetRing, unitSprite, flash);
     container.addChild(actor);
     const hp = new Graphics();
     hp.label = "hp";
@@ -1807,6 +1834,7 @@ export class Renderer {
       actor,
       flash,
       alert,
+      targetRing,
       lastX: monster.x,
       lastY: monster.y,
       lastHp: monster.hp,
@@ -2327,6 +2355,10 @@ export class Renderer {
         view.container.visible = visible;
         view.container.position.set(player.x, player.y);
         view.container.zIndex = Math.round(player.y + PLAYER_SIZE);
+        if (view.targetRing) {
+          view.targetRing.visible =
+            this.#target?.kind === "player" && this.#target.id === player.id;
+        }
         if (visible) {
           const moving = (view.movingUntil ?? 0) > now;
           const stride = Math.sin(now / 85 + (view.phase ?? 0));
@@ -2390,6 +2422,8 @@ export class Renderer {
         view.container.visible = visible;
         view.container.position.set(monster.x, monster.y);
         view.container.zIndex = Math.round(monster.y + PLAYER_SIZE);
+        const targeted = this.#target?.kind === "monster" && this.#target.id === monster.id;
+        if (view.targetRing) view.targetRing.visible = targeted && !monster.dead;
         if (visible) {
           const moving = (view.movingUntil ?? 0) > now && !monster.dead;
           const bounce = Math.sin(now / (moving ? 105 : 360) + (view.phase ?? 0));
@@ -2425,14 +2459,14 @@ export class Renderer {
           if (label instanceof Text) {
             const name = t(`monster.${monster.species}` as MessageKey);
             label.text = aggro ? `!  ${name}` : name;
-            label.alpha = monster.dead ? 0 : aggro || close ? 0.92 : 0;
+            label.alpha = monster.dead ? 0 : aggro || close || targeted ? 0.92 : 0;
           }
           this.#drawHp(view, monster.hp, monster.maxHp);
           const hp = view.container.getChildByLabel("hp");
           if (hp instanceof Graphics) {
             hp.alpha = monster.dead
               ? 0
-              : aggro || monster.hp < monster.maxHp
+              : aggro || targeted || monster.hp < monster.maxHp
                 ? 1
                 : close
                   ? 0.45

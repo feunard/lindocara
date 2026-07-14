@@ -34,6 +34,14 @@ export interface PartyInviteNotice {
   expiresAt: number;
 }
 
+export interface CombatTargetHud {
+  id: string;
+  kind: "monster" | "player";
+  name: string;
+  hp: number;
+  maxHp: number;
+}
+
 /** What the HUD needs from the self snapshot — excludes x/y so it does not churn 60x/s. */
 export interface SelfHud {
   id?: string;
@@ -55,6 +63,7 @@ export interface GameHandle {
   release(): void;
   heal(): void;
   castSkill(slot: SkillSlot): void;
+  clearTarget?(): void;
   sendChat(text: string, channel?: "local" | "party"): void;
   partyCreate?(): void;
   partyInvite?(playerId: string): void;
@@ -88,6 +97,7 @@ interface UiState {
   chat: ChatLine[];
   party: PartyState | null;
   partyInvite: PartyInviteNotice | null;
+  combatTarget: CombatTargetHud | null;
   chatFocusRequest: number;
   attackCooldownUntil: number;
   healCooldownUntil: number;
@@ -119,6 +129,7 @@ interface UiState {
   addChat(from: string, text: string, channel?: "local" | "party"): void;
   setParty(party: PartyState | null): void;
   setPartyInvite(invite: PartyInviteNotice | null): void;
+  setCombatTarget(target: CombatTargetHud | null): void;
   requestChatFocus(): void;
   setAttackCooldownUntil(until: number): void;
   setHealCooldownUntil(until: number): void;
@@ -188,6 +199,14 @@ function localizedTextEqual(a: LocalizedText | null, b: LocalizedText | null): b
   return a.key === b.key && JSON.stringify(a.params) === JSON.stringify(b.params);
 }
 
+function combatTargetEqual(a: CombatTargetHud | null, b: CombatTargetHud | null): boolean {
+  if (a === null && b === null) return true;
+  if (a === null || b === null) return false;
+  return (
+    a.id === b.id && a.kind === b.kind && a.name === b.name && a.hp === b.hp && a.maxHp === b.maxHp
+  );
+}
+
 export const useUiStore = create<UiState>((set) => ({
   // "boot" is a brief, invisible holding state while fetchMe() is in flight, so a logged-in
   // user does not see a flash of the auth screen before landing on characters.
@@ -202,6 +221,7 @@ export const useUiStore = create<UiState>((set) => ({
   chat: [],
   party: null,
   partyInvite: null,
+  combatTarget: null,
   chatFocusRequest: 0,
   attackCooldownUntil: 0,
   healCooldownUntil: 0,
@@ -276,6 +296,8 @@ export const useUiStore = create<UiState>((set) => ({
       return { party };
     }),
   setPartyInvite: (partyInvite) => set({ partyInvite }),
+  setCombatTarget: (combatTarget) =>
+    set((state) => (combatTargetEqual(state.combatTarget, combatTarget) ? {} : { combatTarget })),
   requestChatFocus: () =>
     set((state) => ({
       chatFocusRequest: state.chatFocusRequest + 1,
@@ -299,5 +321,6 @@ export const useUiStore = create<UiState>((set) => ({
       mapOpen: false,
       settingsOpen: false,
       interiorDoorId: null,
+      combatTarget: null,
     }),
 }));

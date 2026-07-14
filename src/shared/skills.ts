@@ -29,6 +29,16 @@ export interface SkillDefinition {
   icon: string;
 }
 
+export type SkillTargetKind = "hostile" | "friendly" | "none";
+
+/** Targeting is part of the skill contract, not a client-side guess. Ground/self-centred effects
+ * remain usable without a selected unit; only single-unit effects carry an entity id. */
+export function skillTargetKind(effect: SkillEffect): SkillTargetKind {
+  if (effect === "attack" || effect === "charge" || effect === "single_damage") return "hostile";
+  if (effect === "single_heal") return "friendly";
+  return "none";
+}
+
 export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition[]>> = {
   warrior: [
     { id: "cleave", slot: 1, effect: "attack", cooldownMs: 650, range: 60, power: 0, icon: "⚔" },

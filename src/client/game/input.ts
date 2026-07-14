@@ -72,6 +72,7 @@ export interface ActionHandlers {
   heal(): void;
   release(): void;
   castSkill(slot: SkillSlot): void;
+  switchTarget(reverse: boolean): void;
   focusChat(): void;
   toggleMap(): void;
 }
@@ -81,6 +82,7 @@ export function trackActions(handlers: ActionHandlers): () => void {
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.target instanceof HTMLInputElement || event.repeat) return;
     if (event.code === "Space") handlers.castSkill(1);
+    else if (event.code === "Tab") handlers.switchTarget(event.shiftKey);
     else if (event.code === "KeyE") handlers.interact();
     else if (event.code === "KeyQ") handlers.usePotion();
     else if (event.code === "KeyF") handlers.castSkill(2);

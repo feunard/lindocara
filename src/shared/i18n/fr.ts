@@ -256,6 +256,7 @@ export const fr: Record<keyof typeof en, string> = {
   "resource.energy": "Énergie",
   "resource.mana": "Mana",
   "help.move": "se déplacer",
+  "help.target": "cibler",
   "help.strike": "frapper",
   "help.commune": "communier",
   "help.tonic": "tonique",
@@ -316,6 +317,12 @@ export const fr: Record<keyof typeof en, string> = {
   "monster.skull_warden": "Gardien du Chœur",
   "monster.mire_troll": "Troll du Marais",
   "monster.gate_troll": "Troll de la Porte",
+  "hud.target": "Cible actuelle",
+  "hud.target.hostile": "Cible ennemie",
+  "hud.target.friendly": "Cible alliée",
+  "hud.target.clear": "Désélectionner la cible",
+  "target.need_hostile": "Sélectionnez une cible ennemie (clic ou Tab).",
+  "target.need_friendly": "Sélectionnez un allié à soigner.",
 
   // Zones
   "zone.heartroot_crossing": "La Croisée du Cœur-Racine",
