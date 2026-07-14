@@ -2,17 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   type BakedWorldKey,
   clampToRing,
-  groundColor,
+  colorForKind,
   MINIMAP_WORLD_RADIUS,
   projectToMinimap,
   projectToWorldMap,
   sameBakedWorld,
-  terrainColorAt,
-  VERDANT_REACH_ZONE_KEY,
 } from "../src/client/game/minimap.js";
-import type { GroundPalette } from "../src/client/game/world-layout.js";
-import { TERRAIN_BLOCKERS } from "../src/shared/game.js";
 import { PLAYER_VISIBILITY_RADIUS } from "../src/shared/interest.js";
+import type { TileKind } from "../src/shared/tilemap.js";
 
 const SIZE = 200;
 const CENTER = { x: 2000, y: 1000 };
@@ -90,108 +87,31 @@ describe("corpse ring clamp", () => {
   });
 });
 
-describe("ground colour", () => {
-  it("resolves every palette to a colour inside the 24-bit range", () => {
-    const palettes: GroundPalette[] = ["verdant", "moss", "earth", "stone", "wet"];
-    for (const palette of palettes) {
-      const color = groundColor({ kind: "grass", palette, tint: 0xffffff, detailChance: 0 });
+describe("minimap colour", () => {
+  it("gives every tile kind its own colour", () => {
+    const kinds: TileKind[] = ["grass", "forest", "building", "water", "bridge", "plateau"];
+    const colors = kinds.map((kind) => colorForKind(kind));
+    expect(new Set(colors).size).toBeGreaterThan(1);
+    for (const color of colors) {
       expect(color).toBeGreaterThanOrEqual(0);
       expect(color).toBeLessThanOrEqual(0xffffff);
     }
   });
 
-  it("darkens with the tint rather than ignoring it", () => {
-    const bright = groundColor({
-      kind: "grass",
-      palette: "verdant",
-      tint: 0xffffff,
-      detailChance: 0,
-    });
-    const dim = groundColor({ kind: "grass", palette: "verdant", tint: 0x808080, detailChance: 0 });
-    expect(dim).toBeLessThan(bright);
+  it("draws water and land differently, so a shoreline is legible at a glance", () => {
+    expect(colorForKind("water")).not.toBe(colorForKind("grass"));
   });
 
-  it("gives water a fixed colour instead of running it through the palette multiply", () => {
-    // Water carries palette "wet" like a wet-grass sample would, but it must not be tinted:
-    // two water samples with different tints must still match each other, and must differ
-    // from what the multiply path would have produced for the same palette and tint.
-    const water = groundColor({ kind: "water", palette: "wet", tint: 0xe1ffff, detailChance: 0 });
-    const dimmerWater = groundColor({
-      kind: "water",
-      palette: "wet",
-      tint: 0x808080,
-      detailChance: 0,
-    });
-    expect(water).toBe(dimmerWater);
-
-    const multipliedWet = groundColor({
-      kind: "grass",
-      palette: "wet",
-      tint: 0xe1ffff,
-      detailChance: 0,
-    });
-    expect(water).not.toBe(multipliedWet);
-  });
-});
-
-describe("zone-correct terrain sampling", () => {
-  const world = {
-    width: 4800,
-    height: 2700,
-    obstacles: [{ x: 100, y: 100, width: 50, height: 50 }],
-    safeZone: { x: 360, y: 260, width: 1200, height: 920 },
-  };
-
-  it("paints an obstacle regardless of zone", () => {
-    const inside = terrainColorAt(VERDANT_REACH_ZONE_KEY, world, 120, 120);
-    const outside = terrainColorAt(VERDANT_REACH_ZONE_KEY, world, 3000, 2000);
-    expect(inside).not.toBe(outside);
-    expect(terrainColorAt("zone.mmo_test_zone.name", world, 120, 120)).toBe(inside);
-  });
-
-  it("never paints Verdant Reach's terrain over another zone", () => {
-    // Deep Gloamwood: rich sampler gives it a forest colour, the plain sampler must not.
-    const verdant = terrainColorAt(VERDANT_REACH_ZONE_KEY, world, 3200, 2100);
-    const other = terrainColorAt("zone.mmo_test_zone.name", world, 3200, 2100);
-    expect(other).not.toBe(verdant);
-  });
-
-  it("tints the safe zone on any zone, because sanctuary is server geometry", () => {
-    const sanctuary = terrainColorAt("zone.mmo_test_zone.name", world, 900, 700);
-    const wild = terrainColorAt("zone.mmo_test_zone.name", world, 3000, 2000);
-    expect(sanctuary).not.toBe(wild);
-  });
-
-  it("paints a river as water, not as an obstacle, even though the server lists it in obstacles", () => {
-    // The server's WorldInfo.obstacles is OBSTACLES, which flattens every TERRAIN_BLOCKERS
-    // rect regardless of kind — water included. Anchor this to a real water blocker so the
-    // test tracks the actual geometry rather than a coordinate nobody will keep in sync.
-    const waterBlocker = TERRAIN_BLOCKERS.find((blocker) => blocker.kind === "water");
-    if (!waterBlocker) throw new Error("Expected at least one water terrain blocker");
-    const { rect } = waterBlocker;
-    const riverWorld = {
-      width: 4800,
-      height: 2700,
-      obstacles: [rect],
-      safeZone: { x: 360, y: 260, width: 1200, height: 920 },
-    };
-    const point = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
-
-    const color = terrainColorAt(VERDANT_REACH_ZONE_KEY, riverWorld, point.x, point.y);
-
-    const waterColor = groundColor({
-      kind: "water",
-      palette: "wet",
-      tint: 0xe1ffff,
-      detailChance: 0,
-    });
-    expect(color).toBe(waterColor);
+  // The minimap exists to be trusted. If it paints a forest as walkable grass, a player will
+  // plan a route through a wall.
+  it("does not paint a forest the same as open grass", () => {
+    expect(colorForKind("forest")).not.toBe(colorForKind("grass"));
   });
 });
 
 describe("sameBakedWorld", () => {
   const base: BakedWorldKey = {
-    zoneNameKey: VERDANT_REACH_ZONE_KEY,
+    zoneNameKey: "zone.verdant_reach.name",
     width: 4800,
     height: 2700,
     obstacles: [{ x: 100, y: 100, width: 50, height: 50 }],

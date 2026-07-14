@@ -1,4 +1,3 @@
-import { type Rect, SAFE_ZONE, TERRAIN_BLOCKERS } from "../../shared/game.js";
 import type { MessageKey } from "../../shared/i18n/index.js";
 import type { Vec2 } from "../../shared/simulation.js";
 
@@ -480,20 +479,6 @@ export const DECOR_REGIONS: readonly DecorRegion[] = [
   },
 ] as const;
 
-export type TerrainKind = "grass" | "wet" | "path" | "water" | "sanctuary";
-export type GroundPalette = "verdant" | "moss" | "earth" | "stone" | "wet";
-
-export interface TerrainSample {
-  kind: TerrainKind;
-  palette: GroundPalette;
-  tint: number;
-  detailChance: number;
-}
-
-function contains(rect: Rect, x: number, y: number): boolean {
-  return x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height;
-}
-
 function distanceToSegment(point: Vec2, start: Vec2, end: Vec2): number {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
@@ -532,55 +517,4 @@ export function zoneAt(x: number, y: number): ZoneDefinition {
     nearestScore = score;
   }
   return nearest;
-}
-
-/**
- * Retired as the renderer's source of truth by Task 4 (Slice 2): `renderer.ts` now paints the
- * ground from the tilemap (`kindAt`, `landTile`) so what is drawn cannot disagree with what is
- * walkable. This function survives, unchanged, only because `minimap.ts` still samples it —
- * deleting it here would break the build for a module this task deliberately does not touch, to
- * keep the two reviews separate. Task 5 deletes this (and `TerrainSample`/`TerrainKind`/
- * `GroundPalette`) once the minimap reads tile kinds directly.
- */
-export function terrainAt(x: number, y: number, variation: number): TerrainSample {
-  const blocker = TERRAIN_BLOCKERS.find(({ rect }) => contains(rect, x, y));
-  if (blocker?.kind === "water") {
-    return { kind: "water", palette: "wet", tint: 0xe1ffff, detailChance: 0 };
-  }
-
-  const road = roadStrength(x, y);
-  if (road > 0) {
-    return {
-      kind: contains(SAFE_ZONE, x, y) && road < 0.28 ? "sanctuary" : "path",
-      palette: "earth",
-      tint: road > 0.45 ? 0xf3ddbd : 0xe8d5b7,
-      detailChance: 0.04,
-    };
-  }
-  if (contains(SAFE_ZONE, x, y)) {
-    return { kind: "sanctuary", palette: "verdant", tint: 0xe5efd0, detailChance: 0.02 };
-  }
-
-  const zone = zoneAt(x, y);
-  if (zone.biome === "wetland" || zone.biome === "marsh") {
-    return {
-      kind: variation > 0.36 ? "wet" : "grass",
-      palette: "wet",
-      tint: zone.tint,
-      detailChance: zone.biome === "marsh" ? 0.1 : 0.07,
-    };
-  }
-  return {
-    kind: blocker?.kind === "forest" || zone.biome === "forest" ? "grass" : "grass",
-    palette:
-      blocker?.kind === "forest" || zone.biome === "forest"
-        ? "moss"
-        : zone.biome === "farm"
-          ? "earth"
-          : zone.biome === "ruins"
-            ? "stone"
-            : "verdant",
-    tint: blocker?.kind === "forest" ? 0xc4cfaa : zone.tint,
-    detailChance: zone.biome === "meadow" ? 0.06 : zone.biome === "forest" ? 0.08 : 0.05,
-  };
 }

@@ -5,7 +5,7 @@
 import type { Rect } from "../../shared/game.js";
 import { PLAYER_VISIBILITY_RADIUS } from "../../shared/interest.js";
 import type { Vec2 } from "../../shared/simulation.js";
-import { type GroundPalette, type TerrainSample, terrainAt } from "./world-layout.js";
+import type { TileKind } from "../../shared/tilemap.js";
 
 /** Derived, not restated: hand-copying PLAYER_VISIBILITY_RADIUS here would let someone tune
  *  the server's radius without ever seeing this constant, and the minimap would silently start
@@ -14,8 +14,6 @@ export const MINIMAP_WORLD_RADIUS = PLAYER_VISIBILITY_RADIUS;
 
 /** The baked texture is 1/8 of world size: 4800x2700 becomes 600x338. */
 export const MINIMAP_TEXTURE_SCALE = 8;
-
-export const VERDANT_REACH_ZONE_KEY = "zone.verdant_reach.name";
 
 export interface MapPoint {
   x: number;
@@ -123,59 +121,21 @@ export function clampToRing(target: Vec2, center: Vec2, sizePx: number): RingPoi
   };
 }
 
-const PALETTE_BASE: Record<GroundPalette, number> = {
-  verdant: 0x7fa653,
-  moss: 0x4e7340,
-  earth: 0xa9855c,
-  stone: 0x8d8a84,
-  wet: 0x5c8d9a,
-};
-
-const OBSTACLE_COLOR = 0x2f2a26;
-const PLAIN_GROUND_COLOR = 0x6f9350;
-const SANCTUARY_COLOR = 0x9dbd6d;
-const WATER_COLOR = 0x3f6f9c;
-
-function multiplyChannel(base: number, tint: number, shift: number): number {
-  const b = (base >> shift) & 0xff;
-  const t = (tint >> shift) & 0xff;
-  return Math.round((b * t) / 0xff) & 0xff;
-}
-
-/** Palette base multiplied by the sample's tint — the same way Pixi tints a sprite. */
-export function groundColor(sample: TerrainSample): number {
-  if (sample.kind === "water") return WATER_COLOR;
-  const base = PALETTE_BASE[sample.palette];
-  const r = multiplyChannel(base, sample.tint, 16);
-  const g = multiplyChannel(base, sample.tint, 8);
-  const b = multiplyChannel(base, sample.tint, 0);
-  return (r << 16) | (g << 8) | b;
-}
-
-function contains(rect: Rect, x: number, y: number): boolean {
-  return x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height;
-}
-
-/**
- * The colour of any world point, for the bake.
- *
- * terrainAt() reads Verdant Reach's blockers and safe zone from shared/game.ts directly, so it
- * describes that zone and no other. Painting its roads over mmo-test-zone would be a confident,
- * detailed lie — so any other zone gets a plain sampler built from server geometry alone.
- */
-export function terrainColorAt(zoneNameKey: string, world: MapWorld, x: number, y: number): number {
-  if (zoneNameKey === VERDANT_REACH_ZONE_KEY) {
-    // world.obstacles is a flat Rect list — the server's WorldInfo.obstacles — with no kind
-    // attached, so rivers and pools look exactly like walls to the check below. terrainAt()
-    // reads the same colliders from shared/game.ts with their kind intact, so it must be
-    // consulted first: water wins, everything else impassable (buildings, cliffs, forest)
-    // still paints as OBSTACLE_COLOR.
-    // Variation is per-texel noise at full resolution; at 1/8 scale it would be speckle.
-    const sample = terrainAt(x, y, 0.5);
-    if (sample.kind === "water") return groundColor(sample);
-    if (world.obstacles.some((rect) => contains(rect, x, y))) return OBSTACLE_COLOR;
-    return groundColor(sample);
+/** The minimap is a map of what the world IS, so it colours by tile kind — not by sampling a
+ *  function that no longer describes anything. */
+export function colorForKind(kind: TileKind): number {
+  switch (kind) {
+    case "water":
+      return 0x3f6f9c;
+    case "forest":
+      return 0x4e7340;
+    case "building":
+      return 0x8d7256;
+    case "bridge":
+      return 0xa9855c;
+    case "plateau":
+      return 0x9dbd6d;
+    default:
+      return 0x7fa653;
   }
-  if (world.obstacles.some((rect) => contains(rect, x, y))) return OBSTACLE_COLOR;
-  return contains(world.safeZone, x, y) ? SANCTUARY_COLOR : PLAIN_GROUND_COLOR;
 }

@@ -5,17 +5,18 @@
  * All geometry lives in minimap.ts, which is pure and tested; this file is the part that
  * touches the DOM, so it is deliberately thin.
  */
+import { VERDANT_REACH_TERRAIN } from "../../shared/game.js";
 import type { PlayerSnapshot, WorldInfo } from "../../shared/protocol.js";
 import type { Vec2 } from "../../shared/simulation.js";
+import { kindAtPoint } from "../../shared/tilemap.js";
 import {
   clampToRing,
-  type MapWorld,
+  colorForKind,
   MINIMAP_TEXTURE_SCALE,
   MINIMAP_WORLD_RADIUS,
   projectToMinimap,
   projectToWorldMap,
   sameBakedWorld,
-  terrainColorAt,
 } from "./minimap.js";
 import type { SceneSample } from "./net.js";
 
@@ -209,11 +210,11 @@ export class MapSurface {
 
 /**
  * Once per zone, not once per connection — MapSurface#matches lets the caller skip this for a
- * reconnect into the same zone. 4800x2700 becomes a 600x338 canvas; the loop runs ~202,800 times
- * (one terrainAt() call plus a scan of every obstacle rect each), and measures 126-138ms warm in
- * V8 — no fixed millisecond count in a comment stays true forever, but this is nowhere near free,
- * and running it on every welcome cost ~8 dropped frames at the worst possible moment: the instant
- * control returns to the player after a zone transition.
+ * reconnect into the same zone. 4800x2700 becomes a 600x338 canvas; the loop runs ~202,800 times,
+ * each iteration one tile lookup (`kindAtPoint`) plus a `colorForKind` switch — no sampling, no
+ * obstacle-rect scan, no zone special-case. Still not free at that iteration count, and running
+ * it on every welcome would cost dropped frames at the worst possible moment: the instant control
+ * returns to the player after a zone transition.
  */
 function bakeWorldTexture(world: WorldInfo): HTMLCanvasElement {
   const width = Math.ceil(world.width / MINIMAP_TEXTURE_SCALE);
@@ -224,20 +225,12 @@ function bakeWorldTexture(world: WorldInfo): HTMLCanvasElement {
   const context = canvas.getContext("2d");
   if (!context) return canvas;
 
-  const bounds: MapWorld = {
-    width: world.width,
-    height: world.height,
-    obstacles: world.obstacles,
-    safeZone: world.safeZone,
-  };
+  const tiles = VERDANT_REACH_TERRAIN.tiles;
   const image = context.createImageData(width, height);
   for (let ty = 0; ty < height; ty++) {
     for (let tx = 0; tx < width; tx++) {
-      const color = terrainColorAt(
-        world.zoneNameKey,
-        bounds,
-        tx * MINIMAP_TEXTURE_SCALE,
-        ty * MINIMAP_TEXTURE_SCALE,
+      const color = colorForKind(
+        kindAtPoint(tiles, tx * MINIMAP_TEXTURE_SCALE, ty * MINIMAP_TEXTURE_SCALE),
       );
       const offset = (ty * width + tx) * 4;
       image.data[offset] = (color >> 16) & 0xff;
