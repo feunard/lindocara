@@ -95,6 +95,7 @@ describe("account and character tables", () => {
       "quest_chapter",
       "quest_progress",
       "quest_status",
+      "resource_current",
       "session_epoch",
       "ward_run_expires_at",
       "weapon",
@@ -144,6 +145,7 @@ describe("account and character tables", () => {
       instanceId: "main",
       sessionEpoch: 0,
       wardRunExpiresAt: null,
+      resourceCurrent: null,
     });
     expect(rows[0]?.createdAt).toBeInstanceOf(Date);
   });
@@ -244,6 +246,33 @@ describe("account and character tables", () => {
       equipment: starterEquipmentFor("warrior"),
       quest: { status: "active", progress: 2 },
     });
+  });
+
+  it("persists priest mana without creating resources for other classes", async () => {
+    const db = createDb(env.DB);
+    await db.insert(account).values({
+      id: "acct-mana",
+      username: "manaowner",
+      passwordHash: "h",
+      passwordSalt: "s",
+      passwordIterations: 1,
+    });
+    await db.insert(character).values([
+      { id: "char-mana", accountId: "acct-mana", name: "Mender", class: "priest" },
+      { id: "char-no-mana", accountId: "acct-mana", name: "Fighter", class: "warrior" },
+    ]);
+
+    const priest = await loadProfile(db, "char-mana");
+    if (!priest?.resource) throw new Error("expected priest mana");
+    priest.resource.current = 37;
+    expect(await saveProfile(db, priest)).toBe(true);
+
+    expect((await loadProfile(db, "char-mana"))?.resource).toEqual({
+      kind: "mana",
+      current: 37,
+      max: 100,
+    });
+    expect((await loadProfile(db, "char-no-mana"))?.resource).toBeUndefined();
   });
 
   it("fences stale position and progression saves with the session epoch", async () => {

@@ -89,6 +89,7 @@ export const character = sqliteTable(
     zoneId: text("zone_id").notNull().default("verdant-reach"),
     instanceId: text("instance_id").notNull().default("main"),
     sessionEpoch: integer("session_epoch").notNull().default(0),
+    resourceCurrent: real("resource_current"),
     /** 0 means legacy columns still need their one-way normalized backfill. */
     persistenceVersion: integer("persistence_version").notNull().default(0),
     wardRunExpiresAt: integer("ward_run_expires_at", { mode: "timestamp_ms" }),

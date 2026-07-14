@@ -25,7 +25,11 @@ export interface MovementSystemContext {
 export function advancePlayers(context: MovementSystemContext): void {
   for (const [socket, player] of context.players) {
     if (!player.authorized) continue;
+    const resourceBefore = player.resource?.current;
     regenerateResource(player.class, player.resource, TICK_DT);
+    if (resourceBefore !== undefined && player.resource?.current !== resourceBefore) {
+      player.dirty = true;
+    }
     if (context.now >= player.nextPresenceHeartbeatAt) {
       player.nextPresenceHeartbeatAt = context.now + PRESENCE_HEARTBEAT_MS;
       context.waitUntil(context.renewPresence(player));

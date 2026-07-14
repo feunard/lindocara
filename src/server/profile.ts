@@ -15,6 +15,7 @@ import {
   type TerrainGeometry,
 } from "../shared/game.js";
 import type { Inventory, QuestState } from "../shared/protocol.js";
+import { type ClassResourceState, initialResource } from "../shared/resources.js";
 import type { Vec2 } from "../shared/simulation.js";
 import { CLASS_SKILLS, isSkillUnlocked } from "../shared/skills.js";
 import { resolveZoneLocation } from "../shared/zones.js";
@@ -40,6 +41,7 @@ export interface PlayerProfile extends Vec2 {
   life: LifeState;
   /** Null exactly when `life` is "alive". */
   corpse: Vec2 | null;
+  resource?: ClassResourceState;
 }
 
 /**
@@ -63,6 +65,10 @@ async function fromRow(db: Db, row: Character): Promise<PlayerProfile> {
   const position = clampRestoredPosition({ x: row.x, y: row.y }, row.id, terrain);
   const maxHp = maxHpForLevel(row.level);
   const normalized = await loadNormalizedCharacterState(db, row);
+  const resource = initialResource(row.class);
+  if (resource && row.resourceCurrent !== null && Number.isFinite(row.resourceCurrent)) {
+    resource.current = Math.max(0, Math.min(resource.max, row.resourceCurrent));
+  }
   return {
     id: row.id,
     nick: row.name,
@@ -89,6 +95,7 @@ async function fromRow(db: Db, row: Character): Promise<PlayerProfile> {
     instanceId: row.instanceId,
     sessionEpoch: Math.max(0, row.sessionEpoch),
     wardRunExpiresAt: normalized.wardRunExpiresAt,
+    ...(resource ? { resource } : {}),
     ...lifeFromRow(row, terrain),
   };
 }
@@ -155,7 +162,7 @@ export async function saveProfile(db: Db, profile: SaveableProfile): Promise<boo
           name = ?, x = ?, y = ?, level = ?, xp = ?, hp = ?,
           appearance = ?, appearance_body = ?, appearance_primary_color = ?, class = ?,
           gold = ?, crystals = ?, zone_id = ?, instance_id = ?, life = ?,
-          corpse_x = ?, corpse_y = ?, last_seen_at = ?, persistence_version = 1
+          corpse_x = ?, corpse_y = ?, resource_current = ?, last_seen_at = ?, persistence_version = 1
          WHERE id = ? AND session_epoch = ?
          RETURNING id`,
       )
@@ -177,6 +184,7 @@ export async function saveProfile(db: Db, profile: SaveableProfile): Promise<boo
         profile.life,
         profile.corpse?.x ?? null,
         profile.corpse?.y ?? null,
+        profile.resource?.current ?? null,
         now,
         profile.id,
         profile.sessionEpoch,

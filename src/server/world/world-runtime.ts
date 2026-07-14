@@ -229,6 +229,7 @@ export function toProfile(player: PlayerRuntime): SaveableProfile {
     wardRunExpiresAt: player.wardRunExpiresAt,
     life: player.life,
     corpse: player.corpse === null ? null : { ...player.corpse },
+    ...(player.resource ? { resource: { ...player.resource } } : {}),
   };
 }
 
@@ -252,12 +253,13 @@ export function newPlayer(
   restoredResource?: ClassResourceState,
 ): PlayerRuntime {
   const resource = initialResource(profile.class);
+  const persistedResource = restoredResource ?? profile.resource;
   if (
     resource &&
-    restoredResource?.kind === resource.kind &&
-    Number.isFinite(restoredResource.current)
+    persistedResource?.kind === resource.kind &&
+    Number.isFinite(persistedResource.current)
   )
-    resource.current = Math.max(0, Math.min(resource.max, restoredResource.current));
+    resource.current = Math.max(0, Math.min(resource.max, persistedResource.current));
   return {
     ...profile,
     appearance: { ...profile.appearance },

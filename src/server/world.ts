@@ -805,6 +805,7 @@ export class World extends DurableObject<Env> {
     }
     player.skillCooldowns[slot - 1] = now + skill.cooldownMs;
     spendResource(player.resource, resourceCost);
+    player.dirty = true;
     this.#sendState(ws, player);
     this.#send(ws, {
       t: "event",
