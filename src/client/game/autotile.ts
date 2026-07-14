@@ -13,7 +13,7 @@
  * along each tile's edge, so two adjacent edge tiles close cleanly around a concave corner.
  * Verified before this was written — see docs/screenshots/autotile-proof.png.
  */
-import { isLandKind, kindAt, type TileMap } from "../../shared/tilemap.js";
+import { isLandKind, kindAt, type TileKind, type TileMap } from "../../shared/tilemap.js";
 
 /** N=1, E=2, S=4, W=8. A bit is set when that neighbour is land. */
 export function landMask(map: TileMap, col: number, row: number): number {
@@ -51,4 +51,37 @@ export function landTile(map: TileMap, col: number, row: number): { col: number;
   // not know that and `noNonNullAssertion` is on.
   if (!tile) throw new Error(`no tile for mask at ${col},${row}`);
   return tile;
+}
+
+/** Which ground texture bucket `#updateTerrain` paints a kind as. Only two exist today because
+ *  only two ground textures were ever vendored (`Tilemap_Flat.png`'s autotiled land, and water). */
+export type TileVisual = "land" | "water";
+
+/**
+ * Every `TileKind` must resolve to an explicit entry here — that is the whole point. `isLandKind`
+ * alone (`kind !== "water"`) would happily keep working forever, silently drawing any future kind
+ * as plain grass; a `Record<TileKind, TileVisual>` is exhaustive at compile time; a new tile kind
+ * with no entry here fails the build, not the first player who stands on it.
+ *
+ * `plateau` and `bridge` are listed even though nothing emits them yet and both draw identically
+ * to `grass` today — that sameness is a decision recorded here, not `isLandKind`'s catch-all
+ * happening to agree.
+ */
+const TILE_VISUALS: Record<TileKind, TileVisual> = {
+  grass: "land",
+  plateau: "land",
+  forest: "land",
+  building: "land",
+  bridge: "land",
+  water: "water",
+};
+
+/** The renderer's one ground-texture decision. Throws rather than defaulting to grass, so a tile
+ *  kind that reaches this without a treatment — only possible if a value bypasses the type system,
+ *  since `TILE_VISUALS` above is otherwise exhaustive — fails loudly instead of quietly painting a
+ *  grass causeway over water. */
+export function tileVisual(kind: TileKind): TileVisual {
+  const visual = TILE_VISUALS[kind];
+  if (!visual) throw new Error(`no visual treatment for tile kind "${kind}"`);
+  return visual;
 }

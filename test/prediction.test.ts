@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { speedForLife } from "../src/shared/death.js";
 import { resolveTerrain } from "../src/shared/game.js";
-import { prunePending, reconcile } from "../src/shared/prediction.js";
+import { predictStep, prunePending, reconcile } from "../src/shared/prediction.js";
 import type { Command } from "../src/shared/protocol.js";
 import { type Input, NO_INPUT, step, TICK_DT, type Vec2 } from "../src/shared/simulation.js";
+import { TEST_ZONE_TERRAIN } from "../src/shared/zones.js";
 
 const input = (partial: Partial<Input>): Input => ({ ...NO_INPUT, ...partial });
 const command = (seq: number, partial: Partial<Input>): Command => ({ seq, input: input(partial) });
@@ -116,5 +117,44 @@ describe("reconcile", () => {
     const authoritative = { x: 100, y: 100 };
     reconcile(authoritative, [command(1, { right: true })]);
     expect(authoritative).toEqual({ x: 100, y: 100 });
+  });
+});
+
+describe("prediction against a non-default zone's geometry", () => {
+  // (160, 160) is mmo-test-zone's arrival spawn (see zones.ts's TEST_ZONE_SPAWNS). It is open
+  // grass there in MMO_TEST_ZONE_TILES. The identically numbered cell in Verdant Reach's own
+  // tilemap — VERDANT_REACH_TERRAIN, `resolveTerrain`'s and `reconcile`'s default geometry — is
+  // `forest`, which is solid. A caller that predicts in mmo-test-zone without passing that zone's
+  // own geometry collides against Verdant Reach's tilemap instead of the room the player is
+  // actually standing in.
+  const arrivalSpawn: Vec2 = { x: 160, y: 160 };
+
+  it("predictStep moves in mmo-test-zone when given that zone's geometry explicitly", () => {
+    const moved = predictStep(
+      arrivalSpawn,
+      command(1, { right: true }),
+      undefined,
+      TEST_ZONE_TERRAIN,
+    );
+    expect(moved).toEqual({ x: 173, y: 160 });
+  });
+
+  it("reconcile replays pending commands against the zone geometry it is given", () => {
+    const pending = [command(1, { right: true })];
+    const server = resolveTerrain(
+      arrivalSpawn,
+      step(arrivalSpawn, input({ right: true }), TICK_DT),
+      TEST_ZONE_TERRAIN,
+    );
+    expect(server).toEqual({ x: 173, y: 160 });
+    expect(reconcile(arrivalSpawn, pending, "alive", TEST_ZONE_TERRAIN)).toEqual(server);
+  });
+
+  it("without an explicit geometry, prediction silently defaults to Verdant Reach and refuses to move here", () => {
+    // This is the bug pinned: dropping the geometry argument (the client's mistake before the
+    // fix) lands on VERDANT_REACH_TERRAIN, whose (160, 160) is forest — solid — so the square
+    // never leaves the spawn point even though the real zone's tile there is open ground.
+    const pending = [command(1, { right: true })];
+    expect(reconcile(arrivalSpawn, pending)).toEqual(arrivalSpawn);
   });
 });

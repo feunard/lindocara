@@ -22,7 +22,7 @@ import type { ChatChannel } from "./interest.js";
 import type { ClassResourceState } from "./resources.js";
 import type { Input } from "./simulation.js";
 import { isSkillSlot, type SkillSlot } from "./skills.js";
-import type { ZoneId } from "./zones.js";
+import { isZoneId, type ZoneId } from "./zones.js";
 
 /** One tick's worth of movement intent, stamped so the server can acknowledge it. */
 export interface Command {
@@ -367,6 +367,10 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       Number.isSafeInteger(value.tick) &&
       typeof value.selfId === "string" &&
       isRecord(value.world) &&
+      // A cached SPA build can be older than the server it talks to. If a future zone ever
+      // reaches this client, drop the frame — like any other malformed message — rather than
+      // hand an unrecognised zoneId to zoneDefinition() a frame later.
+      isZoneId(value.world.zoneId) &&
       Array.isArray(value.players) &&
       Array.isArray(value.monsters) &&
       Array.isArray(value.guards) &&

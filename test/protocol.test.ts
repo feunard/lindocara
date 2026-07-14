@@ -111,6 +111,29 @@ describe("server protocol", () => {
     expect(parseServerMessage("broken")).toBeNull();
   });
 
+  it("only accepts a welcome whose world carries a zone the client actually knows", () => {
+    const base = {
+      t: "welcome",
+      tick: 10,
+      selfId: "p1",
+      players: [],
+      monsters: [],
+      guards: [],
+      loot: [],
+      corpses: [],
+      self: {},
+    };
+    expect(
+      parseServerMessage(JSON.stringify({ ...base, world: { zoneId: "verdant-reach" } })),
+    ).toMatchObject({ t: "welcome", world: { zoneId: "verdant-reach" } });
+    // A cached SPA build meeting a server that has since added a zone must drop the frame
+    // (and resync/reconnect) rather than hand an unrecognised id to zoneDefinition() downstream.
+    expect(
+      parseServerMessage(JSON.stringify({ ...base, world: { zoneId: "some-future-zone" } })),
+    ).toBeNull();
+    expect(parseServerMessage(JSON.stringify({ ...base, world: {} }))).toBeNull();
+  });
+
   it("validates world deltas and full resynchronization messages", () => {
     const emptyDelta = { upsert: [], remove: [] };
     expect(

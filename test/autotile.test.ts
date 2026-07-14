@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { AUTOTILE_LUT, landMask, landTile } from "../src/client/game/autotile.js";
-import type { TileKind, TileMap } from "../src/shared/tilemap.js";
+import { AUTOTILE_LUT, landMask, landTile, tileVisual } from "../src/client/game/autotile.js";
+import { TILE_KINDS, type TileKind, type TileMap } from "../src/shared/tilemap.js";
 
 function map(rows: string[]): TileMap {
   const kinds: TileKind[] = [];
@@ -78,5 +78,24 @@ describe("the autotile table", () => {
   it("picks a tile straight from a map", () => {
     const m = map(["###", "#..", "###"]);
     expect(landTile(m, 1, 1)).toEqual(AUTOTILE_LUT[2]);
+  });
+});
+
+describe("tileVisual", () => {
+  // The forcing function this whole table exists for: TILE_KINDS is the same array TileKind is
+  // derived from, so this loop cannot silently go stale the way a hand-copied list of kinds could.
+  it("has an explicit visual treatment for every tile kind the renderer can encounter", () => {
+    for (const kind of TILE_KINDS) {
+      expect(() => tileVisual(kind), `no treatment for "${kind}"`).not.toThrow();
+    }
+    expect(tileVisual("water")).toBe("water");
+    // Nothing emits plateau or bridge yet, but the day something does, this line is the record
+    // that they were decided to look like land — not `isLandKind`'s catch-all agreeing by luck.
+    expect(tileVisual("plateau")).toBe("land");
+    expect(tileVisual("bridge")).toBe("land");
+  });
+
+  it("fails loudly instead of falling through to grass for a kind with no treatment", () => {
+    expect(() => tileVisual("lava" as TileKind)).toThrow(/no visual treatment/);
   });
 });

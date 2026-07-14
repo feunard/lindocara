@@ -12,7 +12,7 @@
  */
 
 import { type LifeState, speedForLife } from "./death.js";
-import { resolveTerrain } from "./game.js";
+import { resolveTerrain, type TerrainGeometry, VERDANT_REACH_TERRAIN } from "./game.js";
 import type { Command } from "./protocol.js";
 import { PLAYER_SPEED, step, TICK_DT, type Vec2 } from "./simulation.js";
 
@@ -41,8 +41,19 @@ export function prunePending(pending: readonly Command[], ack: number): Command[
   return pending.filter((command) => command.seq > ack);
 }
 
-export function predictStep(position: Vec2, command: Command, speed: number = PLAYER_SPEED): Vec2 {
-  return resolveTerrain(position, step(position, command.input, TICK_DT, speed));
+/**
+ * `geometry` defaults to Verdant Reach only so a caller that has genuinely never left it (or a
+ * stray test) keeps working — every real caller in `client/game/net.ts` is expected to pass the
+ * current zone's own `TerrainGeometry` explicitly. `zoneId` is on the wire precisely so a caller
+ * can do that; relying on this default in `mmo-test-zone` collides against the wrong tilemap.
+ */
+export function predictStep(
+  position: Vec2,
+  command: Command,
+  speed: number = PLAYER_SPEED,
+  geometry: TerrainGeometry = VERDANT_REACH_TERRAIN,
+): Vec2 {
+  return resolveTerrain(position, step(position, command.input, TICK_DT, speed), geometry);
 }
 
 /**
@@ -58,11 +69,12 @@ export function reconcile(
   authoritative: Vec2,
   pending: readonly Command[],
   life: LifeState = "alive",
+  geometry: TerrainGeometry = VERDANT_REACH_TERRAIN,
 ): Vec2 {
   const speed = speedForLife(life);
   let position: Vec2 = authoritative;
   for (const command of pending) {
-    position = predictStep(position, command, speed);
+    position = predictStep(position, command, speed, geometry);
   }
   return position;
 }

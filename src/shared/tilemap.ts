@@ -16,8 +16,14 @@ export const TILE_SIZE = 64;
  * What a cell IS. Appearance and solidity are separate questions, which is why `forest` and
  * `building` exist: they are land you cannot walk into. You see grass with trees or a house
  * standing on it — not a lake.
+ *
+ * `TileKind` is derived from this array, not declared as its own literal union, so anything that
+ * must handle every kind (the renderer's ground-texture treatment — see `tileVisual` in
+ * `client/game/autotile.ts`) can enumerate them at runtime instead of a hand-kept parallel list
+ * silently drifting out of sync with this one.
  */
-export type TileKind = "grass" | "plateau" | "forest" | "building" | "water" | "bridge";
+export const TILE_KINDS = ["grass", "plateau", "forest", "building", "water", "bridge"] as const;
+export type TileKind = (typeof TILE_KINDS)[number];
 
 /** Row-major, `cols * rows` entries. */
 export interface TileMap {

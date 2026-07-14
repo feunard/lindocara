@@ -140,8 +140,17 @@ export function isValidInstanceId(value: unknown): value is string {
   );
 }
 
+/**
+ * `zoneId` is typed as `ZoneId`, but every caller reachable from the wire (the client's
+ * `configureZone`/`bakeZoneTerrain`, driven by a welcome's `world.zoneId`) is really handing this
+ * an arbitrary string once JSON has been through it. `ZONES[zoneId]` would then be `undefined`,
+ * and every caller immediately reads `.terrain` off the result — a crash on the first frame, not
+ * a controlled failure. Falling back to the default zone here is a client-only safety net, not a
+ * relaxation of `resolveZoneLocation`'s "reject, don't reroute": that one guards D1 ownership and
+ * still refuses an unknown id outright, before it would ever reach this function.
+ */
 export function zoneDefinition(zoneId: ZoneId): ZoneDefinition {
-  return ZONES[zoneId];
+  return ZONES[zoneId] ?? ZONES[DEFAULT_ZONE_ID];
 }
 
 export function buildRoomKey(zoneId: ZoneId, instanceId: string): string {

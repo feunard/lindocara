@@ -42,7 +42,7 @@ import {
 } from "../../shared/tilemap.js";
 import { DEFAULT_ZONE_ID, type ZoneId, zoneDefinition } from "../../shared/zones.js";
 import { onLocaleChange, t } from "../i18n.js";
-import { landTile } from "./autotile.js";
+import { landTile, tileVisual } from "./autotile.js";
 import { MAIN_HAND_ART, OFF_HAND_ART, PLAYER_ATLAS_FRAMES } from "./character-art.js";
 import { MAX_ACTIVE_WORLD_EFFECTS, questSiteFeedback } from "./feedback.js";
 import type { SceneSample } from "./net.js";
@@ -70,7 +70,6 @@ import {
 
 const COLORS = {
   grass: 0x173f32,
-  path: 0x8d7653,
   npc: 0xf6c85f,
   hp: 0xe85454,
   hpBack: 0x251f26,
@@ -532,6 +531,9 @@ export class Renderer {
     mark: Text;
     label: Text;
   }> = [];
+  // Tracked separately from #questNpcs because that array keeps only the parts later frames
+  // animate (mark/label); the wrapping Container is what #teardownWorldFurniture must destroy.
+  #npcContainers: Container[] = [];
   #questSites: QuestSiteView[] = [];
   #players = new Map<string, EntityView<PlayerSnapshot>>();
   #monsters = new Map<string, EntityView<MonsterSnapshot>>();
@@ -551,6 +553,11 @@ export class Renderer {
    *  real zone lands via `configureZone` moments later, from the welcome's `zoneId`. */
   #currentZoneId: ZoneId = DEFAULT_ZONE_ID;
   #tiles: TileMap = zoneDefinition(DEFAULT_ZONE_ID).terrain.tiles;
+  // The camera and visible-bounds culling must clamp to whichever zone is actually loaded, not to
+  // Verdant Reach's fixed WORLD_WIDTH/WORLD_HEIGHT — mmo-test-zone is a fraction of that size, and
+  // clamping to the bigger constants would let the camera scroll past its edges into open water.
+  #zoneWidth: number = WORLD_WIDTH;
+  #zoneHeight: number = WORLD_HEIGHT;
   #selfId: string | null = null;
   #cameraX = SAFE_ZONE.x + SAFE_ZONE.width / 2;
   #cameraY = SAFE_ZONE.y + SAFE_ZONE.height / 2;
@@ -593,21 +600,35 @@ export class Renderer {
    * same renderer instance across the reconnect — swaps `#tiles` and repaints everything that
    * was built from the previous zone's tile grid, or the old zone's forest and decor would go on
    * standing over the new room forever.
+   *
+   * The hand-authored world furniture (landmarks, quest sites, NPCs, set pieces, world labels,
+   * ambient lights) is Verdant-Reach-only content built from fixed Verdant pixel coordinates, not
+   * from `#tiles` — so it is gated on entering/leaving Verdant Reach specifically, the same way
+   * `#tiles` itself is gated on the zone actually loaded, rather than left standing over whatever
+   * zone the player portals into next.
    */
   configureZone(zoneId: ZoneId): void {
     if (zoneId === this.#currentZoneId) return;
+    const wasVerdant = this.#currentZoneId === "verdant-reach";
+    const enteringVerdant = zoneId === "verdant-reach";
+    const zone = zoneDefinition(zoneId);
     this.#currentZoneId = zoneId;
-    this.#tiles = zoneDefinition(zoneId).terrain.tiles;
-    this.#forestTreesLayer.removeChildren();
-    this.#decorLayer.removeChildren();
+    this.#tiles = zone.terrain.tiles;
+    this.#zoneWidth = zone.terrain.width;
+    this.#zoneHeight = zone.terrain.height;
+    for (const child of this.#forestTreesLayer.removeChildren()) child.destroy({ children: true });
+    for (const child of this.#decorLayer.removeChildren()) child.destroy({ children: true });
+    if (wasVerdant && !enteringVerdant) this.#teardownWorldFurniture();
     // Static views for the props above are now unparented; drop them rather than let
     // #updateStaticVisibility keep toggling .visible on containers nothing will ever draw.
     this.#staticViews = this.#staticViews.filter((view) => view.container.parent !== null);
     this.#buildForestTrees();
     this.#buildDecor();
+    if (enteringVerdant && !wasVerdant) this.#buildWorldFurniture();
     // Bounds-derived, not tile-derived: a same-size window after a zone change can compute the
     // same key even though the tiles underneath it are entirely different. Force the repaint.
     this.#terrainKey = "";
+    this.#applyCameraTransform();
   }
 
   diagnostics(): Record<string, number> {
@@ -645,15 +666,49 @@ export class Renderer {
 
     this.#buildForestTrees();
     this.#buildDecor();
+    // #currentZoneId defaults to Verdant Reach (see its declaration), matching this initial,
+    // pre-welcome paint; a genuine non-Verdant first zone tears this down via #teardownWorldFurniture
+    // the moment the welcome's configureZone call reports otherwise.
+    if (this.#currentZoneId === "verdant-reach") this.#buildWorldFurniture();
+    this.#applyCameraTransform();
+    this.#updateTerrain();
+    this.#updateStaticVisibility();
+  }
+
+  /** Hand-authored for Verdant Reach specifically: every coordinate here is a fixed Verdant pixel
+   *  position (`WORLD_LANDMARKS`, `QUEST_SITES`, `QUEST_DEFINITIONS`, `POINTS_OF_INTEREST`,
+   *  `WORLD_ZONES`), never derived from `#tiles`. Building this for any other zone would stand
+   *  Verdant's buildings, quest-givers and labels over that zone's own terrain. */
+  #buildWorldFurniture(): void {
     this.#buildSetPieces();
     this.#buildLandmarks();
     this.#buildQuestSites();
     this.#buildWorldLabels();
     this.#buildNpc();
     this.#buildAmbient();
-    this.#applyCameraTransform();
-    this.#updateTerrain();
-    this.#updateStaticVisibility();
+  }
+
+  /** The inverse of `#buildWorldFurniture`, called when a portal leaves Verdant Reach. `#actors`
+   *  also hosts the dynamic player/monster/guard/loot/corpse views, so quest sites and NPCs are
+   *  torn down individually rather than by clearing the whole container; `#groundDecor` also
+   *  parents the persistent `#forestTreesLayer`/`#decorLayer`, so only their set-piece siblings
+   *  are removed. */
+  #teardownWorldFurniture(): void {
+    for (const child of this.#structures.removeChildren()) child.destroy({ children: true });
+    for (const child of this.#worldLabels.removeChildren()) child.destroy({ children: true });
+    for (const child of this.#ambient.removeChildren()) child.destroy({ children: true });
+    for (const child of [...this.#groundDecor.children]) {
+      if (child === this.#forestTreesLayer || child === this.#decorLayer) continue;
+      this.#groundDecor.removeChild(child);
+      child.destroy({ children: true });
+    }
+    for (const site of this.#questSites) site.container.destroy({ children: true });
+    for (const npc of this.#npcContainers) npc.destroy({ children: true });
+    this.#questSites = [];
+    this.#questNpcs = [];
+    this.#npcContainers = [];
+    this.#worldTextViews = [];
+    this.#ambientViews = [];
   }
 
   #registerStatic(
@@ -1385,6 +1440,7 @@ export class Renderer {
         label,
       });
       this.#localizedTexts.push({ node: label, compute: computeNpcLabel });
+      this.#npcContainers.push(npc);
       this.#actors.addChild(npc);
     }
   }
@@ -1447,8 +1503,8 @@ export class Renderer {
     this.#world.scale.set(scale);
     const desiredX = this.#app.screen.width / 2 - this.#cameraX * scale;
     const desiredY = this.#app.screen.height / 2 - this.#cameraY * scale;
-    const minX = Math.min(0, this.#app.screen.width - WORLD_WIDTH * scale);
-    const minY = Math.min(0, this.#app.screen.height - WORLD_HEIGHT * scale);
+    const minX = Math.min(0, this.#app.screen.width - this.#zoneWidth * scale);
+    const minY = Math.min(0, this.#app.screen.height - this.#zoneHeight * scale);
     this.#world.position.set(
       Math.min(0, Math.max(minX, desiredX)),
       Math.min(0, Math.max(minY, desiredY)),
@@ -1460,8 +1516,11 @@ export class Renderer {
     return {
       left: Math.max(0, -this.#world.x / scale - margin),
       top: Math.max(0, -this.#world.y / scale - margin),
-      right: Math.min(WORLD_WIDTH, (this.#app.screen.width - this.#world.x) / scale + margin),
-      bottom: Math.min(WORLD_HEIGHT, (this.#app.screen.height - this.#world.y) / scale + margin),
+      right: Math.min(this.#zoneWidth, (this.#app.screen.width - this.#world.x) / scale + margin),
+      bottom: Math.min(
+        this.#zoneHeight,
+        (this.#app.screen.height - this.#world.y) / scale + margin,
+      ),
     };
   }
 
@@ -1472,11 +1531,12 @@ export class Renderer {
 
   /**
    * Paints the visible window straight from the tilemap — the same `TileMap` collision reads —
-   * so what is drawn and what is walkable cannot disagree. Land (everything `isLandKind` says
-   * is not the void: grass, plateau, forest, building, bridge) draws as autotiled grass from
-   * `landTile`'s neighbourhood lookup; water draws as water. A `forest` cell's tree is a separate,
-   * static prop (`#buildForestTrees`) layered above this, and a `building` cell gets nothing extra
-   * here — its house is already on `#structures` from `WORLD_LANDMARKS`.
+   * so what is drawn and what is walkable cannot disagree. `tileVisual` decides the ground bucket
+   * for every kind explicitly (grass, plateau, forest, building and bridge all draw as autotiled
+   * grass from `landTile`'s neighbourhood lookup today; water draws as water) — see its doc comment
+   * for why that is an exhaustive table and not `isLandKind`'s boolean catch-all. A `forest` cell's
+   * tree is a separate, static prop (`#buildForestTrees`) layered above this, and a `building` cell
+   * gets nothing extra here — its house is already on `#structures` from `WORLD_LANDMARKS`.
    *
    * The sprite pool, the visible-bounds culling and the `#terrainKey` early-out are unchanged from
    * the procedural renderer this replaces; only the source of truth and the cell size (32 -> the
@@ -1516,7 +1576,7 @@ export class Renderer {
       const y = startY + row * TILE_SIZE;
       const col = Math.floor(x / TILE_SIZE);
       const tileRow = Math.floor(y / TILE_SIZE);
-      const land = isLandKind(kindAt(tiles, col, tileRow));
+      const land = tileVisual(kindAt(tiles, col, tileRow)) === "land";
       const texture = land
         ? landTexture(this.art.terrain.land, landTile(tiles, col, tileRow))
         : this.art.terrain.water;

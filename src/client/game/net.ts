@@ -1,5 +1,5 @@
 import { canMove, type LifeState, speedForLife } from "../../shared/death.js";
-import { resolveTerrain } from "../../shared/game.js";
+import { resolveTerrain, type TerrainGeometry } from "../../shared/game.js";
 import {
   CORRECTION_SMOOTHING_MS,
   MAX_ACCUMULATED_SECONDS,
@@ -42,6 +42,7 @@ import {
   replaceWorldCache,
   type WorldCache,
 } from "../../shared/world-delta.js";
+import { DEFAULT_ZONE_ID, zoneDefinition } from "../../shared/zones.js";
 
 // A slightly deeper buffer covers short workerd/browser scheduling bursts, so AI movement stays
 // between two authoritative snapshots rather than briefly snapping to the newest one.
@@ -99,8 +100,14 @@ export interface ConnectionHandlers {
   onClose(code: number, reason: string): void;
 }
 
-function predictPartial(position: Vec2, input: Input, dt: number, speed: number): Vec2 {
-  return resolveTerrain(position, step(position, input, dt, speed));
+function predictPartial(
+  position: Vec2,
+  input: Input,
+  dt: number,
+  speed: number,
+  geometry: TerrainGeometry,
+): Vec2 {
+  return resolveTerrain(position, step(position, input, dt, speed), geometry);
 }
 
 export class WorldClient {
@@ -119,6 +126,10 @@ export class WorldClient {
   #pending: Command[] = [];
   #seq = 0;
   #ack = 0;
+  // Defaults to Verdant Reach only so prediction has *something* to collide against before the
+  // first welcome lands. A welcome's `world.zoneId` overwrites this with the zone the player is
+  // actually in — without that, every zone but Verdant Reach would predict against its tilemap.
+  #geometry: TerrainGeometry = zoneDefinition(DEFAULT_ZONE_ID).terrain;
 
   #accumulator = 0;
   #input: Input = NO_INPUT;
@@ -189,7 +200,7 @@ export class WorldClient {
       const seq = ++this.#seq;
       const command = { seq, input };
       this.#pending.push(command);
-      this.#predicted = predictStep(this.#predicted, command, speed);
+      this.#predicted = predictStep(this.#predicted, command, speed, this.#geometry);
       this.#send({ t: "input", seq, input });
     }
   }
@@ -211,6 +222,7 @@ export class WorldClient {
     if (message.t === "welcome") {
       this.#selfId = message.selfId;
       this.#corpses = message.corpses;
+      this.#geometry = zoneDefinition(message.world.zoneId).terrain;
       replaceWorldCache(this.#worldCache, message);
       this.#lastWorldTick = message.tick;
       this.#receivedDelta = false;
@@ -329,6 +341,7 @@ export class WorldClient {
       { x: authoritative.x, y: authoritative.y },
       this.#pending,
       authoritative.life,
+      this.#geometry,
     );
 
     const drawnAfter = this.#samplePredictedPosition();
@@ -348,7 +361,13 @@ export class WorldClient {
     if (this.#predicted === null || !canMove(life)) {
       return this.#predicted ?? { x: 0, y: 0 };
     }
-    return predictPartial(this.#predicted, this.#input, this.#accumulator, speedForLife(life));
+    return predictPartial(
+      this.#predicted,
+      this.#input,
+      this.#accumulator,
+      speedForLife(life),
+      this.#geometry,
+    );
   }
 
   #sampleSelf(now: number): PlayerSnapshot | null {

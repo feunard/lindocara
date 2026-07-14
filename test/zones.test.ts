@@ -7,6 +7,8 @@ import {
   parseRoomKey,
   resolveZoneLocation,
   ZONES,
+  type ZoneId,
+  zoneDefinition,
 } from "../src/shared/zones.js";
 
 describe("zone catalogue", () => {
@@ -44,5 +46,13 @@ describe("zone catalogue", () => {
 
   it("rejects unknown zones instead of silently routing them to Verdant Reach", () => {
     expect(resolveZoneLocation("unknown-zone", "main")).toBeNull();
+  });
+
+  // A cached browser bundle can be older than the server: `parseServerMessage` now rejects an
+  // unrecognised zoneId at the wire boundary, but `zoneDefinition` is the last line of defence
+  // for any caller that reaches it with one anyway — it must degrade, not throw downstream when
+  // something reads `.terrain` off `undefined`.
+  it("falls back to the default zone for an id it does not recognise, instead of crashing downstream", () => {
+    expect(zoneDefinition("nonexistent-zone" as ZoneId)).toBe(ZONES[DEFAULT_ZONE_ID]);
   });
 });
