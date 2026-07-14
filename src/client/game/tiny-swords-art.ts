@@ -6,6 +6,15 @@ export const TINY_SWORDS_ROOT = "/assets/lindocara/tiny-swords";
 export const TINY_SWORDS_UNIT_FRAME = 192;
 
 /**
+ * The terrain sheet, at its native 64px. `Tilemap_Flat.png` is a 4x4 autotile block (see
+ * `autotile.ts`); `Water.png` is a single tile of open water.
+ */
+export const TINY_SWORDS_TERRAIN = {
+  flat: `${TINY_SWORDS_ROOT}/terrain/Tilemap_Flat.png`,
+  water: `${TINY_SWORDS_ROOT}/terrain/Water.png`,
+};
+
+/**
  * Deliberately curated across Tiny Swords factions: roof colour gives each city district an
  * identity while the shared silhouettes/palette keep the town visually coherent.
  */
