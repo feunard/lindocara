@@ -11,6 +11,7 @@ import {
 } from "../../shared/prediction.js";
 import {
   type ClientMessage,
+  type CombatAnimation,
   type Command,
   type CorpseSnapshot,
   type EventCode,
@@ -90,6 +91,7 @@ export interface ConnectionHandlers {
   onChat(from: string, text: string, channel: "local" | "party"): void;
   onPartyInvite(inviteId: string, fromId: string, from: string, expiresAt: number): void;
   onPartyState(party: PartyState | null): void;
+  onAnimation(animation: CombatAnimation): void;
   onEvent(
     code: EventCode,
     params: EventParams | undefined,
@@ -290,6 +292,10 @@ export class WorldClient {
     }
     if (message.t === "party.state") {
       handlers.onPartyState(message.party);
+      return;
+    }
+    if (message.t === "animation") {
+      handlers.onAnimation(message);
       return;
     }
     handlers.onEvent(message.code, message.params, message.tone, message.x, message.y);

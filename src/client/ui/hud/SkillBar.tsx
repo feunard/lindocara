@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { MessageKey } from "../../../shared/i18n/index.js";
+import { skillResourceCost } from "../../../shared/resources.js";
 import { CLASS_SKILLS, isSkillUnlocked, SKILL_UNLOCK_LEVEL } from "../../../shared/skills.js";
 import { skillIconSource } from "../../game/tiny-swords-art.js";
 import { t } from "../../i18n.js";
@@ -8,6 +9,7 @@ import { useUiStore } from "../../store.js";
 export function SkillBar() {
   const self = useUiStore((state) => state.self);
   const game = useUiStore((state) => state.game);
+  const selfState = useUiStore((state) => state.selfState);
   const cooldowns = useUiStore((state) => state.skillCooldowns);
   const [now, setNow] = useState(() => performance.now());
 
@@ -32,7 +34,11 @@ export function SkillBar() {
         const description = t(`skill.${self.class}.${skill.id}.description` as MessageKey);
         const requiredLevel = SKILL_UNLOCK_LEVEL[skill.slot];
         const unlocked = isSkillUnlocked(self.level, skill.slot);
-        const unavailable = !unlocked || cooling;
+        const manaCost = skillResourceCost(self.class, skill.slot);
+        const lacksMana =
+          manaCost > 0 && (selfState?.resource?.current ?? Number.NEGATIVE_INFINITY) < manaCost;
+        const unavailable = !unlocked || cooling || lacksMana;
+        const manaText = manaCost > 0 ? t("skill.mana_cost", { cost: manaCost }) : null;
         return (
           <button
             type="button"
@@ -44,7 +50,7 @@ export function SkillBar() {
             aria-keyshortcuts={String(skill.slot)}
             title={
               unlocked
-                ? `${name} — ${description} · ${skill.cooldownMs / 1000}s`
+                ? `${name} — ${description} · ${skill.cooldownMs / 1000}s${manaText ? ` · ${manaText}` : ""}`
                 : `${name} — ${t("skill.unlock_at", { level: requiredLevel })}`
             }
           >
@@ -55,6 +61,7 @@ export function SkillBar() {
               alt=""
             />
             <span className="skill-slot__name">{name}</span>
+            {manaCost > 0 && <span className="skill-slot__cost">{manaCost}</span>}
             {!unlocked && <span className="skill-slot__lock">{requiredLevel}</span>}
             {cooling && (
               <span className="skill-slot__cooldown" aria-hidden="true">
@@ -62,7 +69,9 @@ export function SkillBar() {
               </span>
             )}
             <span className="skill-slot__tooltip" role="tooltip">
-              {unlocked ? description : t("skill.unlock_at", { level: requiredLevel })}
+              {unlocked
+                ? `${description}${manaText ? ` · ${manaText}` : ""}`
+                : t("skill.unlock_at", { level: requiredLevel })}
             </span>
           </button>
         );

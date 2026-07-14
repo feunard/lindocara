@@ -65,7 +65,9 @@ export function advancePlayers(context: MovementSystemContext): void {
 
     if (canReclaim(player.life, player, player.corpse)) context.reclaimCorpse(socket, player);
     context.collectLoot(socket, player);
-    if (context.writeAttachment && player.dirty) socket.serializeAttachment(toAttachment(player));
+    if (context.writeAttachment && (player.dirty || player.resource)) {
+      socket.serializeAttachment(toAttachment(player));
+    }
     if (context.writeD1 && player.dirty) {
       context.waitUntil(context.savePlayer(player, socket));
       player.dirty = false;

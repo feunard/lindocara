@@ -8,6 +8,7 @@ import {
 } from "../../shared/game.js";
 import type { MessageKey } from "../../shared/i18n/index.js";
 import type {
+  CombatAnimation,
   EventCode,
   EventParams,
   MonsterSnapshot,
@@ -21,6 +22,7 @@ import { DEFAULT_ZONE_ID, type ZoneId, zoneDefinition } from "../../shared/zones
 import { type CharacterSummary, logout } from "../api.js";
 import { t } from "../i18n.js";
 import { type LocalizedText, useUiStore } from "../store.js";
+import { getDisplaySettings } from "./display-settings.js";
 import { shouldFloatEvent } from "./feedback.js";
 import { trackActions, trackInput } from "./input.js";
 import { type InteriorDoor, nearestInterior } from "./interiors.js";
@@ -323,6 +325,29 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       addEvent(t("party.invite_received", { name: from }), "info");
     },
     onPartyState: (party) => useUiStore.getState().setParty(party),
+    onAnimation: (animation: CombatAnimation) => {
+      if (animation.actorKind === "player") {
+        if (animation.actorId === client.selfId) return;
+        if (animation.action === "attack") {
+          renderer.playAttack(animation.actorId);
+          const actor = client
+            .sample(performance.now())
+            .players.find((player) => player.id === animation.actorId);
+          if (actor && animation.targetX !== undefined && animation.targetY !== undefined) {
+            renderer.playRangedHit(
+              animation.actorId,
+              animation.targetX,
+              animation.targetY,
+              actor.class,
+            );
+          }
+        } else {
+          renderer.playPlayerSkill(animation.actorId, animation.x, animation.y);
+        }
+        return;
+      }
+      renderer.playMonsterAttack(animation.actorId);
+    },
     onEvent: (code, params, tone, x, y) => {
       const text = eventText(code, params, currentSelf?.class ?? character.class);
       if (shouldLogEvent(code)) addEvent(text, tone);
@@ -341,9 +366,6 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       if (code === "combat.hit" && x !== undefined && y !== undefined && client.selfId) {
         renderer.playRangedHit(client.selfId, x, y, currentSelf?.class ?? character.class);
       }
-      if (code === "combat.hurt" && typeof params?.monsterId === "string") {
-        renderer.playMonsterAttack(params.monsterId);
-      }
       switch (code) {
         case "combat.too_far":
           sound.attackMiss(playerClass());
@@ -361,6 +383,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
             useUiStore.getState().setSkillCooldown(2, performance.now() + PRIEST_HEAL_COOLDOWN_MS);
           }
           sound.healCast();
+          renderer.playSkillEffect("priest", x, y);
           break;
         case "skill.cast": {
           const slot = params?.slot;
@@ -701,6 +724,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       attackCooldownUntil,
       attackRange: currentSelf ? CLASS_STATS[currentSelf.class].attackRange : 0,
       now,
+      healthBars: getDisplaySettings().healthBars,
       ...(self ? { self } : {}),
     };
     renderer.render(sample, context);

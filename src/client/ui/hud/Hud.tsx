@@ -129,7 +129,7 @@ export function Hud() {
             // biome-ignore lint/a11y/noLabelWithoutControl: read-only progress row, matching the two rows above.
             <label>
               <span>{t(`resource.${selfState.resource.kind}` as MessageKey)}</span>
-              <Bar value={selfState.resource.current} max={selfState.resource.max} variant="xp" />
+              <Bar value={selfState.resource.current} max={selfState.resource.max} variant="mana" />
               <span>
                 {Math.floor(selfState.resource.current)}/{selfState.resource.max}
               </span>

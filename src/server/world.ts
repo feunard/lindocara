@@ -621,6 +621,18 @@ export class World extends DurableObject<Env> {
       now,
       this.#zone().terrain,
     );
+    this.#sendSpatialEvent(
+      {
+        t: "animation",
+        actorKind: "player",
+        actorId: player.id,
+        action: "attack",
+        x: player.x,
+        y: player.y,
+        ...(target ? { targetX: target.x, targetY: target.y } : {}),
+      },
+      player,
+    );
     if (!target) {
       this.#send(ws, {
         t: "event",
@@ -802,6 +814,18 @@ export class World extends DurableObject<Env> {
       x: player.x,
       y: player.y,
     });
+    this.#sendSpatialEvent(
+      {
+        t: "animation",
+        actorKind: "player",
+        actorId: player.id,
+        action: "skill",
+        skillId: skill.id,
+        x: player.x,
+        y: player.y,
+      },
+      player,
+    );
   }
 
   #movePlayerInDirection(player: Player, direction: Vec2, distance: number): boolean {
@@ -1068,6 +1092,18 @@ export class World extends DurableObject<Env> {
       x: target.x,
       y: target.y,
     });
+    this.#sendSpatialEvent(
+      {
+        t: "animation",
+        actorKind: "player",
+        actorId: player.id,
+        action: "skill",
+        skillId: "mend",
+        x: target.x,
+        y: target.y,
+      },
+      player,
+    );
     if (targetSocket !== ws) {
       this.#send(targetSocket, {
         t: "event",
@@ -1586,6 +1622,11 @@ export class World extends DurableObject<Env> {
       collectLoot: (socket, player) => this.#collectLoot(socket, player),
       savePlayer: (player, socket) => this.#savePlayer(player, socket),
     });
+    if (writeAttachment) {
+      for (const [socket, player] of this.#players) {
+        if (player.authorized && player.resource) this.#sendState(socket, player);
+      }
+    }
 
     const monsterContext = {
       players: this.#players,
@@ -1653,6 +1694,18 @@ export class World extends DurableObject<Env> {
     monsterId: string,
     now: number,
   ): void {
+    const attacker = this.#monsters.find((monster) => monster.id === monsterId);
+    this.#sendSpatialEvent(
+      {
+        t: "animation",
+        actorKind: "monster",
+        actorId: monsterId,
+        action: "attack",
+        x: attacker?.x ?? player.x,
+        y: attacker?.y ?? player.y,
+      },
+      attacker ?? player,
+    );
     const { amount: appliedDamage, result } = guardedDamage(player, damage, now);
     player.hp = result.hp;
     generateResource(player.class, player.resource, "damage_taken", appliedDamage);
@@ -1660,9 +1713,7 @@ export class World extends DurableObject<Env> {
     this.#send(ws, {
       t: "event",
       code: "combat.hurt",
-      // `monsterId` names the attacker the server actually resolved (`advanceMonsters`'s in-scope
-      // `monster` object), not a guess — the client uses it to animate the right monster instead
-      // of scanning for the nearest one of the same species.
+      // Keep the damage event tied to the same authoritative attacker as the spatial animation.
       params: { species, damage: appliedDamage, monsterId },
       tone: "bad",
       x: player.x,

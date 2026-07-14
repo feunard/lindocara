@@ -230,3 +230,67 @@ describe("event messages", () => {
     }
   });
 });
+
+describe("combat animation messages", () => {
+  it("round-trips server-authored player and monster animations", () => {
+    const player = encodeServerMessage({
+      t: "animation",
+      actorKind: "player",
+      actorId: "player-1",
+      action: "skill",
+      skillId: "prayer",
+      x: 100,
+      y: 200,
+    });
+    const monster = encodeServerMessage({
+      t: "animation",
+      actorKind: "monster",
+      actorId: "goblin-1",
+      action: "attack",
+      x: 120,
+      y: 210,
+    });
+    expect(parseServerMessage(player)).toMatchObject({ t: "animation", action: "skill" });
+    expect(parseServerMessage(monster)).toMatchObject({ t: "animation", actorKind: "monster" });
+  });
+
+  it("rejects incomplete or non-finite animations", () => {
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          t: "animation",
+          actorKind: "player",
+          actorId: "player-1",
+          action: "skill",
+          x: 10,
+          y: 20,
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          t: "animation",
+          actorKind: "monster",
+          actorId: "goblin-1",
+          action: "attack",
+          x: null,
+          y: 20,
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          t: "animation",
+          actorKind: "player",
+          actorId: "player-1",
+          action: "attack",
+          x: 10,
+          y: 20,
+          targetX: 30,
+        }),
+      ),
+    ).toBeNull();
+  });
+});

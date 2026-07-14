@@ -39,6 +39,7 @@ import { DEFAULT_ZONE_ID, type ZoneId, zoneDefinition } from "../../shared/zones
 import { onLocaleChange, t } from "../i18n.js";
 import { landTile, tileVisual } from "./autotile.js";
 import { MAIN_HAND_ART, OFF_HAND_ART, PLAYER_ATLAS_FRAMES } from "./character-art.js";
+import { type HealthBarMode, shouldShowHealthBar } from "./display-settings.js";
 import {
   ENEMY_RENDER_METRICS,
   type EnemyArt,
@@ -153,6 +154,7 @@ export interface RenderContext {
   attackCooldownUntil: number;
   attackRange: number;
   now: number;
+  healthBars: HealthBarMode;
 }
 
 interface EntityView<T extends { id: string }> {
@@ -640,6 +642,7 @@ export class Renderer {
   #lastCameraAt = 0;
   #target: CombatTarget | null = null;
   #targetHandler: ((target: CombatTarget) => void) | null = null;
+  #healthBarMode: HealthBarMode = "both";
 
   private constructor(
     app: Application,
@@ -1993,11 +1996,9 @@ export class Renderer {
           ? 0
           : local
             ? 0.92
-            : player.hp < player.maxHp
+            : !isSpirit(player.life) && shouldShowHealthBar(this.#healthBarMode, "ally", distance)
               ? 0.9
-              : distance < 175
-                ? 0.55
-                : 0;
+              : 0;
       }
       if (!(label instanceof Text)) continue;
       const glyph = CLASS_GLYPHS[player.class];
@@ -2121,6 +2122,13 @@ export class Renderer {
     const view = this.#monsters.get(monsterId);
     if (!view || view.data.dead) return;
     view.attackUntil = performance.now() + 700;
+  }
+
+  playPlayerSkill(playerId: string, x: number, y: number): void {
+    const view = this.#players.get(playerId);
+    if (!view) return;
+    view.attackUntil = performance.now() + 700;
+    this.playSkillEffect(view.data.class, x, y);
   }
 
   playRangedHit(
@@ -2320,6 +2328,7 @@ export class Renderer {
 
   render(sample: SceneSample, context: RenderContext): void {
     const now = context.now;
+    this.#healthBarMode = context.healthBars;
     this.#followSelf(sample.players, now);
     this.#updateTerrain();
     this.#updateStaticVisibility();
@@ -2466,11 +2475,9 @@ export class Renderer {
           if (hp instanceof Graphics) {
             hp.alpha = monster.dead
               ? 0
-              : aggro || targeted || monster.hp < monster.maxHp
+              : shouldShowHealthBar(context.healthBars, "enemy", distance)
                 ? 1
-                : close
-                  ? 0.45
-                  : 0;
+                : 0;
           }
         }
         view.data = monster;

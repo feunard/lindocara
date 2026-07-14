@@ -333,7 +333,11 @@ describe("World", () => {
   });
 
   it("routes persisted zones and instances to isolated rooms", async () => {
-    const main = await Client.join("zone_main", { zoneId: "verdant-reach", instanceId: "main" });
+    const main = await Client.join("zone_main", {
+      zoneId: "verdant-reach",
+      instanceId: "main",
+      position: { x: 1870, y: 820 },
+    });
     const testZone = await Client.join("zone_test", {
       zoneId: "mmo-test-zone",
       instanceId: "main",
@@ -1177,16 +1181,31 @@ describe("World", () => {
       position: { x: 2140, y: 820 },
       class: "ranger",
     });
-    await until("welcome", () => ranger.welcome);
-
-    ranger.action("attack", ranger.nearestMonsterId());
-    const hit = await until("combat hit", () => {
-      ranger.action("attack", ranger.nearestMonsterId());
-      return ranger.received.find((m) => m.t === "event" && m.code === "combat.hit");
+    const observer = await Client.join("sighter_observer", {
+      position: { x: 2180, y: 820 },
     });
-    expect(hit).toMatchObject({ tone: "info" });
-
-    ranger.close();
+    try {
+      await until("welcome", () => ranger.welcome && observer.welcome);
+      ranger.action("attack", ranger.nearestMonsterId());
+      const hit = await until("combat hit", () => {
+        ranger.action("attack", ranger.nearestMonsterId());
+        return ranger.received.find((m) => m.t === "event" && m.code === "combat.hit");
+      });
+      expect(hit).toMatchObject({ tone: "info" });
+      const animation = await until("ranged attack animation for the observer", () =>
+        observer.received.find(
+          (message) =>
+            message.t === "animation" &&
+            message.actorKind === "player" &&
+            message.actorId === ranger.welcome?.selfId &&
+            message.action === "attack",
+        ),
+      );
+      expect(animation).toMatchObject({ targetX: expect.any(Number), targetY: expect.any(Number) });
+    } finally {
+      ranger.close();
+      observer.close();
+    }
   });
 
   it("rejects an ability before its level requirement", async () => {
@@ -1243,19 +1262,35 @@ describe("World", () => {
       class: "ranger",
       level: 5,
     });
-    await until("area attack welcome", () => ranger.welcome);
-
-    ranger.skill(3);
-    const cast = await until("untargeted volley cast", () =>
-      ranger.received.find(
-        (message) =>
-          message.t === "event" &&
-          message.code === "skill.cast" &&
-          message.params?.skill === "volley",
-      ),
-    );
-    expect(cast).toMatchObject({ tone: "good" });
-    ranger.close();
+    const observer = await Client.join("volley_eye", {
+      position: { x: 1190, y: 250 },
+    });
+    try {
+      await until("area attack welcome", () => ranger.welcome && observer.welcome);
+      ranger.skill(3);
+      const cast = await until("untargeted volley cast", () =>
+        ranger.received.find(
+          (message) =>
+            message.t === "event" &&
+            message.code === "skill.cast" &&
+            message.params?.skill === "volley",
+        ),
+      );
+      expect(cast).toMatchObject({ tone: "good" });
+      await until("area attack animation for the observer", () =>
+        observer.received.find(
+          (message) =>
+            message.t === "animation" &&
+            message.actorKind === "player" &&
+            message.actorId === ranger.welcome?.selfId &&
+            message.action === "skill" &&
+            message.skillId === "volley",
+        ),
+      );
+    } finally {
+      ranger.close();
+      observer.close();
+    }
   });
 
   it("casts an area heal without a selected target", async () => {
@@ -1277,6 +1312,15 @@ describe("World", () => {
       ),
     );
     expect(cast).toMatchObject({ tone: "good" });
+    const manaAfterCast = await until("prayer mana cost", () =>
+      priest.received.find(
+        (message) =>
+          message.t === "state" &&
+          message.self.resource?.kind === "mana" &&
+          message.self.resource.current < 100,
+      ),
+    );
+    expect(manaAfterCast).toMatchObject({ self: { resource: { current: 68, max: 100 } } });
     const healed = await until("area heal state", () => {
       const snapshot = priest.self();
       return snapshot && snapshot.hp > 40 ? snapshot : undefined;
@@ -1530,6 +1574,26 @@ describe("death, ghosts, and the corpse run", () => {
     );
     return client;
   }
+
+  it("broadcasts a monster attack animation to nearby observers", { timeout: 10_000 }, async () => {
+    const observer = await Client.join("attack_eye", { position: { x: 1500, y: 1000 } });
+    const fighter = await Client.join("attack_fighter", { position: KILL_ZONE });
+    try {
+      await until("observer and fighter welcomes", () => observer.welcome && fighter.welcome);
+      fighter.action("attack", fighter.nearestMonsterId());
+      await until("monster attack animation", () =>
+        observer.received.find(
+          (message) =>
+            message.t === "animation" &&
+            message.actorKind === "monster" &&
+            message.action === "attack",
+        ),
+      );
+    } finally {
+      observer.close();
+      fighter.close();
+    }
+  });
 
   it("leaves a body where you fell, and freezes you over it", { timeout: 10_000 }, async () => {
     const player = await joinAndDie("faller");

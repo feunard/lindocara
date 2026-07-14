@@ -1,9 +1,10 @@
 import { cn } from "@/lib/utils.js";
 
-const FILLS: Record<"hp" | "xp" | "quest", string> = {
+const FILLS: Record<"hp" | "xp" | "quest" | "mana", string> = {
   hp: "bg-gradient-to-b from-[#f0796b] to-[#bd494e]",
   xp: "bg-gradient-to-b from-[#f0d060] to-[#b89a30]",
   quest: "bg-gradient-to-b from-[#7fb069] to-[#557d43]",
+  mana: "bg-gradient-to-b from-[#68c6f0] to-[#3268bd]",
 };
 
 export function Bar({

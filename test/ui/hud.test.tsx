@@ -183,21 +183,21 @@ describe("Hud", () => {
     useUiStore.setState({
       self: {
         id: "11111111-1111-4111-8111-111111111111",
-        nick: "Vanguard",
+        nick: "Mender",
         level: 4,
         hp: 88,
         maxHp: 124,
         life: "alive",
         corpseDistance: null,
-        class: "warrior",
-        equipment: { mainHand: "weathered_sword", offHand: "oak_shield" },
+        class: "priest",
+        equipment: { mainHand: "heartwood_staff", offHand: null },
       },
       selfState: {
         xp: 10,
         xpToNext: 220,
         life: "alive",
         corpse: null,
-        resource: { kind: "endurance", current: 45, max: 100 },
+        resource: { kind: "mana", current: 45, max: 100 },
         inventory: { potions: 2, gold: 0, crystals: 0 },
         quest: { status: "available", progress: 0, target: 3 },
       },
@@ -216,7 +216,7 @@ describe("Hud", () => {
       },
     });
     render(<Hud />);
-    expect(screen.getByText("Endurance")).toBeInTheDocument();
+    expect(screen.getByText("Mana")).toBeInTheDocument();
     expect(screen.getByText("45/100")).toBeInTheDocument();
     expect(screen.getByText("Ally")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Disband party" })).toBeInTheDocument();

@@ -4,6 +4,11 @@ import {
   setAudioSettings,
   subscribeAudioSettings,
 } from "../game/audio-settings.js";
+import {
+  getDisplaySettings,
+  setDisplaySettings,
+  subscribeDisplaySettings,
+} from "../game/display-settings.js";
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
 
@@ -11,11 +16,16 @@ function useAudioSettings() {
   return useSyncExternalStore(subscribeAudioSettings, getAudioSettings, getAudioSettings);
 }
 
+function useDisplaySettings() {
+  return useSyncExternalStore(subscribeDisplaySettings, getDisplaySettings, getDisplaySettings);
+}
+
 export function SettingsMenu() {
   useLocale();
   const open = useUiStore((s) => s.settingsOpen);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
   const audio = useAudioSettings();
+  const display = useDisplaySettings();
 
   if (!open) return null;
 
@@ -81,6 +91,24 @@ export function SettingsMenu() {
                 setAudioSettings({ ambientVolume: Number(event.target.value) / 100 })
               }
             />
+          </label>
+
+          <p className="settings-section-label">{t("settings.interface")}</p>
+          <label className="settings-row">
+            <span className="settings-row-label">{t("settings.health_bars")}</span>
+            <select
+              value={display.healthBars}
+              onChange={(event) =>
+                setDisplaySettings({
+                  healthBars: event.target.value as typeof display.healthBars,
+                })
+              }
+            >
+              <option value="both">{t("settings.health_bars_both")}</option>
+              <option value="allies">{t("settings.health_bars_allies")}</option>
+              <option value="enemies">{t("settings.health_bars_enemies")}</option>
+              <option value="none">{t("settings.health_bars_none")}</option>
+            </select>
           </label>
         </div>
 

@@ -1155,6 +1155,16 @@ kbd {
   accent-color: var(--gold);
 }
 
+.settings-row select {
+  width: 100%;
+  padding: 0.45rem 0.5rem;
+  border: 1px solid rgb(207 180 101 / 38%);
+  border-radius: 4px;
+  background: #171c18;
+  color: #e0d5b9;
+  font: inherit;
+}
+
 .settings-row input[type="range"]:disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -1320,6 +1330,16 @@ kbd {
   color: #d8c789;
   font:
     700 0.6rem ui-monospace,
+    monospace;
+}
+
+.skill-slot__cost {
+  position: absolute;
+  top: 0.18rem;
+  right: 0.28rem;
+  color: #8fd8ff;
+  font:
+    700 0.58rem ui-monospace,
     monospace;
 }
 

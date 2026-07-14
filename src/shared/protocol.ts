@@ -139,6 +139,35 @@ export interface PartyState {
   members: PartyMemberState[];
 }
 
+export type CombatAnimation =
+  | {
+      t: "animation";
+      actorKind: "player";
+      actorId: string;
+      action: "attack";
+      x: number;
+      y: number;
+      targetX?: number;
+      targetY?: number;
+    }
+  | {
+      t: "animation";
+      actorKind: "player";
+      actorId: string;
+      action: "skill";
+      skillId: string;
+      x: number;
+      y: number;
+    }
+  | {
+      t: "animation";
+      actorKind: "monster";
+      actorId: string;
+      action: "attack";
+      x: number;
+      y: number;
+    };
+
 export interface WorldInfo {
   /** Identifies which zone's `TileMap` to draw. `zoneNameKey` is prose (an i18n key) and must
    *  never be reverse-matched back into a zone — this is the one field for that. */
@@ -284,6 +313,7 @@ export type ServerMessage =
   | { t: "chat"; channel: ChatChannel; from: string; text: string }
   | { t: "party.invite"; inviteId: string; fromId: string; from: string; expiresAt: number }
   | { t: "party.state"; party: PartyState | null }
+  | CombatAnimation
   | { t: "event"; code: EventCode; params?: EventParams; tone: EventTone; x?: number; y?: number };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -440,6 +470,29 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       return value as unknown as ServerMessage;
     if (value.t === "party.state" && (value.party === null || isRecord(value.party)))
       return value as unknown as ServerMessage;
+    if (
+      value.t === "animation" &&
+      (value.actorKind === "player" || value.actorKind === "monster") &&
+      isTargetId(value.actorId) &&
+      (value.action === "attack" || (value.actorKind === "player" && value.action === "skill")) &&
+      typeof value.x === "number" &&
+      Number.isFinite(value.x) &&
+      typeof value.y === "number" &&
+      Number.isFinite(value.y) &&
+      (value.action !== "skill" ||
+        (typeof value.skillId === "string" &&
+          value.skillId.length >= 1 &&
+          value.skillId.length <= 64)) &&
+      (value.actorKind !== "player" || value.action !== "attack"
+        ? value.targetX === undefined && value.targetY === undefined
+        : (value.targetX === undefined && value.targetY === undefined) ||
+          (typeof value.targetX === "number" &&
+            Number.isFinite(value.targetX) &&
+            typeof value.targetY === "number" &&
+            Number.isFinite(value.targetY)))
+    ) {
+      return value as unknown as ServerMessage;
+    }
     if (
       value.t === "event" &&
       typeof value.code === "string" &&

@@ -95,7 +95,7 @@ export interface PlayerRuntime extends PlayerProfile {
   nextPresenceHeartbeatAt: number;
   interest: PlayerInterest;
   network: WorldCache;
-  resource: ClassResourceState;
+  resource?: ClassResourceState;
   navigationDebug: boolean;
 }
 
@@ -235,7 +235,7 @@ export function toProfile(player: PlayerRuntime): SaveableProfile {
 export function toAttachment(player: PlayerRuntime): Attachment {
   return {
     ...toProfile(player),
-    resource: { ...player.resource },
+    ...(player.resource ? { resource: { ...player.resource } } : {}),
     ack: player.ack,
     lastSeq: player.lastSeq,
     connectionId: player.connectionId,
@@ -252,7 +252,11 @@ export function newPlayer(
   restoredResource?: ClassResourceState,
 ): PlayerRuntime {
   const resource = initialResource(profile.class);
-  if (restoredResource?.kind === resource.kind && Number.isFinite(restoredResource.current))
+  if (
+    resource &&
+    restoredResource?.kind === resource.kind &&
+    Number.isFinite(restoredResource.current)
+  )
     resource.current = Math.max(0, Math.min(resource.max, restoredResource.current));
   return {
     ...profile,
@@ -287,7 +291,7 @@ export function newPlayer(
     nextPresenceHeartbeatAt: Date.now() + PRESENCE_HEARTBEAT_MS,
     interest: { players: new Set(), monsters: new Set(), loot: new Set() },
     network: createWorldCache(),
-    resource,
+    ...(resource ? { resource } : {}),
     navigationDebug: false,
   };
 }

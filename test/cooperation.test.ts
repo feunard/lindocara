@@ -107,12 +107,18 @@ describe("cooperative combat rules", () => {
     expect(canSeeLoot(loot, "thief")).toBe(false);
   });
 
-  it("validates and regenerates class resources server-side", () => {
-    const resource = initialResource("ranger");
-    const cost = skillResourceCost("ranger", 5);
+  it("validates and regenerates priest mana server-side", () => {
+    const resource = initialResource("priest");
+    if (!resource) throw new Error("priest mana is missing");
+    const cost = skillResourceCost("priest", 5);
     expect(spendResource(resource, cost)).toBe(true);
     expect(canSpendResource(resource, resource.max)).toBe(false);
-    regenerateResource("ranger", resource, 10);
+    regenerateResource("priest", resource, 20);
     expect(resource.current).toBe(resource.max);
+    expect(skillResourceCost("priest", 1)).toBe(0);
+    resource.current = 0;
+    expect(canSpendResource(resource, skillResourceCost("priest", 1))).toBe(true);
+    expect(initialResource("warrior")).toBeUndefined();
+    expect(initialResource("ranger")).toBeUndefined();
   });
 });

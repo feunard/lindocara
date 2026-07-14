@@ -24,7 +24,7 @@ export function selfState(player: PlayerRuntime, questTarget?: number): SelfStat
     },
     life: player.life,
     corpse: player.corpse === null ? null : { ...player.corpse },
-    resource: { ...player.resource },
+    ...(player.resource ? { resource: { ...player.resource } } : {}),
   };
 }
 
