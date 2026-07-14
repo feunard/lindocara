@@ -104,10 +104,10 @@ function predictPartial(
   position: Vec2,
   input: Input,
   dt: number,
-  speed: number,
   geometry: TerrainGeometry,
+  speed: number,
 ): Vec2 {
-  return resolveTerrain(position, step(position, input, dt, speed), geometry);
+  return resolveTerrain(position, step(position, input, dt, speed, geometry), geometry);
 }
 
 export class WorldClient {
@@ -200,7 +200,7 @@ export class WorldClient {
       const seq = ++this.#seq;
       const command = { seq, input };
       this.#pending.push(command);
-      this.#predicted = predictStep(this.#predicted, command, speed, this.#geometry);
+      this.#predicted = predictStep(this.#predicted, command, this.#geometry, speed);
       this.#send({ t: "input", seq, input });
     }
   }
@@ -340,8 +340,8 @@ export class WorldClient {
     this.#predicted = reconcile(
       { x: authoritative.x, y: authoritative.y },
       this.#pending,
-      authoritative.life,
       this.#geometry,
+      authoritative.life,
     );
 
     const drawnAfter = this.#samplePredictedPosition();
@@ -365,8 +365,8 @@ export class WorldClient {
       this.#predicted,
       this.#input,
       this.#accumulator,
-      speedForLife(life),
       this.#geometry,
+      speedForLife(life),
     );
   }
 

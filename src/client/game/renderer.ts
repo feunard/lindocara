@@ -709,6 +709,11 @@ export class Renderer {
     this.#npcContainers = [];
     this.#worldTextViews = [];
     this.#ambientViews = [];
+    // The destroys above cascade onto every Text node this teardown owns, but never touch
+    // #localizedTexts itself — filter out the now-destroyed entries rather than resetting to
+    // `[]`, since #createGuard also pushes into this same array for a view that outlives
+    // Verdant-Reach-only furniture and must not be dropped here.
+    this.#localizedTexts = this.#localizedTexts.filter((entry) => !entry.node.destroyed);
   }
 
   #registerStatic(

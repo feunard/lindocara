@@ -12,7 +12,7 @@
  */
 
 import { type LifeState, speedForLife } from "./death.js";
-import { resolveTerrain, type TerrainGeometry, VERDANT_REACH_TERRAIN } from "./game.js";
+import { resolveTerrain, type TerrainGeometry } from "./game.js";
 import type { Command } from "./protocol.js";
 import { PLAYER_SPEED, step, TICK_DT, type Vec2 } from "./simulation.js";
 
@@ -42,18 +42,24 @@ export function prunePending(pending: readonly Command[], ack: number): Command[
 }
 
 /**
- * `geometry` defaults to Verdant Reach only so a caller that has genuinely never left it (or a
- * stray test) keeps working — every real caller in `client/game/net.ts` is expected to pass the
- * current zone's own `TerrainGeometry` explicitly. `zoneId` is on the wire precisely so a caller
- * can do that; relying on this default in `mmo-test-zone` collides against the wrong tilemap.
+ * `geometry` is required, not defaulted, on purpose: the one time it defaulted to Verdant Reach
+ * (so a caller could "genuinely never leave it"), the only caller that ever relied on the
+ * default was `client/game/net.ts` forgetting to pass it — silently, since a stray test with the
+ * same gap kept compiling and passing. `zoneId` is on the wire precisely so a real caller can
+ * always supply the current zone's own `TerrainGeometry`; making it unrepresentable to omit is
+ * what actually stops that mistake from shipping again.
  */
 export function predictStep(
   position: Vec2,
   command: Command,
+  geometry: TerrainGeometry,
   speed: number = PLAYER_SPEED,
-  geometry: TerrainGeometry = VERDANT_REACH_TERRAIN,
 ): Vec2 {
-  return resolveTerrain(position, step(position, command.input, TICK_DT, speed), geometry);
+  return resolveTerrain(
+    position,
+    step(position, command.input, TICK_DT, speed, geometry),
+    geometry,
+  );
 }
 
 /**
@@ -68,13 +74,13 @@ export function predictStep(
 export function reconcile(
   authoritative: Vec2,
   pending: readonly Command[],
+  geometry: TerrainGeometry,
   life: LifeState = "alive",
-  geometry: TerrainGeometry = VERDANT_REACH_TERRAIN,
 ): Vec2 {
   const speed = speedForLife(life);
   let position: Vec2 = authoritative;
   for (const command of pending) {
-    position = predictStep(position, command, speed, geometry);
+    position = predictStep(position, command, geometry, speed);
   }
   return position;
 }
