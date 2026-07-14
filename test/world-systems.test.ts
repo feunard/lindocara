@@ -56,7 +56,7 @@ describe("isolated world systems", () => {
       {
         id: "goblin-1",
         kind: "goblin",
-        species: "goblin_scout",
+        species: "spear_goblin",
         zone: "route",
         x: 80,
         y: 10,

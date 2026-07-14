@@ -317,7 +317,7 @@ describe("authoritative world geometry", () => {
       new Set(["route", "clearing", "forest", "farm", "ruins", "swamp", "gate"]),
     );
     expect(new Set(MONSTER_SPAWNS.map((spawn) => spawn.kind))).toEqual(
-      new Set(["goblin", "orc", "ogre", "skeleton", "troll"]),
+      new Set(["goblin", "gnoll", "minotaur", "skull", "troll"]),
     );
 
     for (const spawn of MONSTER_SPAWNS) {
@@ -368,7 +368,7 @@ describe("authoritative world geometry", () => {
       expect(isWalkable(site), `${site.id} should be interactable from open terrain`).toBe(true);
     }
 
-    for (const kind of ["goblin", "orc", "ogre", "skeleton", "troll"] as const) {
+    for (const kind of ["goblin", "gnoll", "minotaur", "skull", "troll"] as const) {
       expect(MONSTER_STATS[kind].maxHp).toBeGreaterThan(0);
       expect(MONSTER_STATS[kind].damage).toBeGreaterThan(0);
       expect(MONSTER_STATS[kind].xp).toBeGreaterThan(0);
@@ -618,5 +618,37 @@ describe("the death state machine", () => {
     expect(canReclaim("alive", corpse, corpse)).toBe(false);
     expect(canReclaim("corpse", corpse, corpse)).toBe(false);
     expect(canReclaim("ghost", corpse, null)).toBe(false);
+  });
+});
+
+// This slice moves the monsters onto the one art pack the rest of the game already uses. The stat
+// tiers are unchanged — only their names move onto the art.
+describe("the Tiny Swords bestiary", () => {
+  it("keeps the five stat tiers exactly as they were", () => {
+    expect(MONSTER_STATS.goblin).toEqual({ maxHp: 48, damage: 7, speed: 105, xp: 28 });
+    expect(MONSTER_STATS.gnoll).toEqual({ maxHp: 72, damage: 10, speed: 88, xp: 42 });
+    expect(MONSTER_STATS.skull).toEqual({ maxHp: 78, damage: 11, speed: 82, xp: 48 });
+    expect(MONSTER_STATS.minotaur).toEqual({ maxHp: 110, damage: 14, speed: 65, xp: 62 });
+    expect(MONSTER_STATS.troll).toEqual({ maxHp: 145, damage: 16, speed: 60, xp: 78 });
+  });
+
+  it("gives every spawned species a stat tier that exists", () => {
+    for (const spawn of MONSTER_SPAWNS) {
+      expect(MONSTER_STATS[spawn.kind], `${spawn.id} has kind ${spawn.kind}`).toBeDefined();
+    }
+  });
+
+  // bone_choir asks you to put the choir back to rest. It counts undead, and the undead are now
+  // Skulls. If this breaks, a live character mid-quest can never finish it. It is a kill quest,
+  // not a site-visit quest, so it needs at least one undead *source*, not one spawn per required
+  // kill — monsters respawn (MONSTER_RESPAWN_MS), so three Skulls can still yield five kills over
+  // time. (The 3-Skull-spawns-vs-5-target gap predates this rename — confirmed on main before this
+  // change — and is a quest-balance question outside a pure rename task, not something to silently
+  // patch here by moving or adding a spawn.)
+  it("keeps a bone_choir quest completable — the undead still exist and still spawn", () => {
+    const undead = MONSTER_SPAWNS.filter((spawn) => spawn.kind === "skull");
+    const target = QUEST_DEFINITIONS.find((quest) => quest.id === "bone_choir")?.target ?? 0;
+    expect(target).toBeGreaterThan(0);
+    expect(undead.length).toBeGreaterThan(0);
   });
 });

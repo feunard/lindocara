@@ -61,7 +61,7 @@ describe("cooperative combat rules", () => {
       {
         id: "slime",
         kind: "goblin",
-        species: "goblin_scout",
+        species: "spear_goblin",
         zone: "route",
         x: 0,
         y: 0,
@@ -78,7 +78,7 @@ describe("cooperative combat rules", () => {
       {
         id: "goblin",
         kind: "goblin",
-        species: "goblin_scout",
+        species: "spear_goblin",
         zone: "route",
         x: 0,
         y: 0,

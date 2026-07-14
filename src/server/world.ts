@@ -912,7 +912,7 @@ export class World extends DurableObject<Env> {
       recipient.xp = result.xp;
       if (result.levelsGained > 0) recipient.hp = maxHpForLevel(recipient.level);
       const earned = contributors.has(playerId);
-      if (earned) this.#creditSkeletonQuest(socket, recipient, monster);
+      if (earned) this.#creditUndeadQuest(socket, recipient, monster);
 
       if (earned) {
         const kind = this.#tick % 4 === 0 ? "potion" : this.#tick % 2 === 0 ? "crystal" : "gold";
@@ -945,11 +945,11 @@ export class World extends DurableObject<Env> {
     clearMonsterCombat(monster);
   }
 
-  #creditSkeletonQuest(ws: WebSocket, player: Player, monster: Monster): void {
+  #creditUndeadQuest(ws: WebSocket, player: Player, monster: Monster): void {
     if (
       player.quest.chapter !== "bone_choir" ||
       player.quest.status !== "active" ||
-      monster.kind !== "skeleton"
+      monster.kind !== "skull"
     )
       return;
     const target = this.#questDefinition("bone_choir")?.target;

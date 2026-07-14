@@ -301,13 +301,13 @@ export const en = {
   "npc.city_guard.name": "Heartroot Guard",
 
   // Monsters (keys match MonsterSpecies, Task 9)
-  "monster.goblin_scout": "Road Goblin",
-  "monster.goblin_raider": "Briar Goblin",
-  "monster.orc_marauder": "Sunwake Marauder",
-  "monster.ogre_brute": "Rootland Ogre",
-  "monster.bone_guard": "Elderfall Guard",
-  "monster.bone_crusader": "Bone Crusader",
-  "monster.bone_warden": "Choir Warden",
+  "monster.spear_goblin": "Road Goblin",
+  "monster.torch_goblin": "Briar Goblin",
+  "monster.gnoll_marauder": "Sunwake Marauder",
+  "monster.minotaur_brute": "Rootland Brute",
+  "monster.skull_guard": "Elderfall Guard",
+  "monster.skull_crusader": "Bone Crusader",
+  "monster.skull_warden": "Choir Warden",
   "monster.mire_troll": "Mire Troll",
   "monster.gate_troll": "Gate Troll",
 

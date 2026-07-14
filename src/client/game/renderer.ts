@@ -1668,7 +1668,7 @@ export class Renderer {
     const scale =
       monster.kind === "troll"
         ? 112
-        : monster.kind === "ogre"
+        : monster.kind === "minotaur"
           ? 92
           : monster.kind === "goblin"
             ? 72

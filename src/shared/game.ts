@@ -36,16 +36,17 @@ export interface NpcDefinition extends Vec2 {
   id: string;
 }
 
-export type MonsterKind = "goblin" | "orc" | "ogre" | "skeleton" | "troll";
+/** The stat tiers. Renamed onto the Tiny Swords Enemy Pack; the numbers below are unchanged. */
+export type MonsterKind = "goblin" | "gnoll" | "skull" | "minotaur" | "troll";
 
 export type MonsterSpecies =
-  | "goblin_scout"
-  | "goblin_raider"
-  | "orc_marauder"
-  | "ogre_brute"
-  | "bone_guard"
-  | "bone_crusader"
-  | "bone_warden"
+  | "spear_goblin"
+  | "torch_goblin"
+  | "gnoll_marauder"
+  | "skull_guard"
+  | "skull_crusader"
+  | "skull_warden"
+  | "minotaur_brute"
   | "mire_troll"
   | "gate_troll";
 
@@ -519,7 +520,7 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   {
     id: "road-goblin-scout",
     kind: "goblin",
-    species: "goblin_scout",
+    species: "spear_goblin",
     zone: "route",
     x: 1870,
     y: 820,
@@ -528,7 +529,7 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   {
     id: "road-goblin-raider",
     kind: "goblin",
-    species: "goblin_raider",
+    species: "torch_goblin",
     zone: "route",
     x: 2260,
     y: 820,
@@ -537,7 +538,7 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   {
     id: "city-edge-prowler",
     kind: "goblin",
-    species: "goblin_scout",
+    species: "spear_goblin",
     zone: "route",
     x: 1580,
     y: 780,
@@ -546,8 +547,8 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   },
   {
     id: "clearing-orc-1",
-    kind: "orc",
-    species: "orc_marauder",
+    kind: "gnoll",
+    species: "gnoll_marauder",
     zone: "clearing",
     x: 1880,
     y: 390,
@@ -555,8 +556,8 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   },
   {
     id: "clearing-orc-2",
-    kind: "orc",
-    species: "orc_marauder",
+    kind: "gnoll",
+    species: "gnoll_marauder",
     zone: "clearing",
     x: 2260,
     y: 590,
@@ -565,7 +566,7 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   {
     id: "forest-goblin-1",
     kind: "goblin",
-    species: "goblin_raider",
+    species: "torch_goblin",
     zone: "forest",
     // Sits in the 3-tile-wide gap between the two south groves. Centred at x: 2000 (was 2020) so
     // the patrol ring's east edge stays clear of the fattened tile the coarsened grove wall
@@ -576,8 +577,8 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   },
   {
     id: "forest-orc-1",
-    kind: "orc",
-    species: "orc_marauder",
+    kind: "gnoll",
+    species: "gnoll_marauder",
     zone: "forest",
     x: 2320,
     y: 1610,
@@ -586,7 +587,7 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   {
     id: "farm-goblin-1",
     kind: "goblin",
-    species: "goblin_scout",
+    species: "spear_goblin",
     zone: "farm",
     x: 1640,
     y: 1900,
@@ -594,8 +595,8 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   },
   {
     id: "farm-ogre-1",
-    kind: "ogre",
-    species: "ogre_brute",
+    kind: "minotaur",
+    species: "minotaur_brute",
     zone: "farm",
     x: 2350,
     y: 1900,
@@ -603,8 +604,8 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   },
   {
     id: "ruins-bone-guard",
-    kind: "skeleton",
-    species: "bone_guard",
+    kind: "skull",
+    species: "skull_guard",
     zone: "ruins",
     x: 3380,
     y: 420,
@@ -612,8 +613,8 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   },
   {
     id: "ruins-bone-crusader",
-    kind: "skeleton",
-    species: "bone_crusader",
+    kind: "skull",
+    species: "skull_crusader",
     zone: "ruins",
     x: 3820,
     y: 820,
@@ -621,8 +622,8 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   },
   {
     id: "ruins-bone-warden",
-    kind: "skeleton",
-    species: "bone_warden",
+    kind: "skull",
+    species: "skull_warden",
     zone: "ruins",
     x: 3220,
     y: 1160,
@@ -648,8 +649,8 @@ export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
   },
   {
     id: "gate-ogre",
-    kind: "ogre",
-    species: "ogre_brute",
+    kind: "minotaur",
+    species: "minotaur_brute",
     zone: "gate",
     x: 4070,
     y: 1100,
@@ -677,9 +678,9 @@ export interface MonsterStats {
 
 export const MONSTER_STATS: Record<MonsterKind, MonsterStats> = {
   goblin: { maxHp: 48, damage: 7, speed: 105, xp: 28 },
-  orc: { maxHp: 72, damage: 10, speed: 88, xp: 42 },
-  ogre: { maxHp: 110, damage: 14, speed: 65, xp: 62 },
-  skeleton: { maxHp: 78, damage: 11, speed: 82, xp: 48 },
+  gnoll: { maxHp: 72, damage: 10, speed: 88, xp: 42 },
+  minotaur: { maxHp: 110, damage: 14, speed: 65, xp: 62 },
+  skull: { maxHp: 78, damage: 11, speed: 82, xp: 48 },
   troll: { maxHp: 145, damage: 16, speed: 60, xp: 78 },
 };
 

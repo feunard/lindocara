@@ -31,7 +31,7 @@ function terrainWith(obstacles: readonly Rect[]): TerrainGeometry {
 
 function monster(id: string, x: number, y: number): MonsterRuntime {
   const created = createMonsters([
-    { id, kind: "goblin", species: "goblin_scout", zone: "route", x, y, patrolRadius: 40 },
+    { id, kind: "goblin", species: "spear_goblin", zone: "route", x, y, patrolRadius: 40 },
   ])[0];
   if (!created) throw new Error("missing monster");
   return created;

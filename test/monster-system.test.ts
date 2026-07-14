@@ -80,7 +80,7 @@ function chasingMonster(): MonsterRuntime {
     {
       id: "test-goblin",
       kind: "goblin",
-      species: "goblin_scout",
+      species: "spear_goblin",
       zone: "route",
       x: 250,
       y: 220,
@@ -161,7 +161,7 @@ describe("monster navigation on the tile grid", () => {
       {
         id: "blocked-goblin",
         kind: "goblin",
-        species: "goblin_scout",
+        species: "spear_goblin",
         zone: "route",
         x: 32,
         y: 32,
@@ -250,7 +250,7 @@ describe("monster navigation on the tile grid", () => {
       {
         id: "blocked-goblin-2",
         kind: "goblin",
-        species: "goblin_scout",
+        species: "spear_goblin",
         zone: "route",
         x: 32,
         y: 32,

@@ -307,13 +307,13 @@ export const fr: Record<keyof typeof en, string> = {
   "npc.city_guard.name": "Garde du Cœur-Racine",
 
   // Monstres
-  "monster.goblin_scout": "Gobelin de la Route",
-  "monster.goblin_raider": "Gobelin des Ronces",
-  "monster.orc_marauder": "Maraudeur du Levant",
-  "monster.ogre_brute": "Ogre des Racines",
-  "monster.bone_guard": "Garde d'Elderfall",
-  "monster.bone_crusader": "Croisé d'Os",
-  "monster.bone_warden": "Gardien du Chœur",
+  "monster.spear_goblin": "Gobelin de la Route",
+  "monster.torch_goblin": "Gobelin des Ronces",
+  "monster.gnoll_marauder": "Maraudeur du Levant",
+  "monster.minotaur_brute": "Ogre des Racines",
+  "monster.skull_guard": "Garde d'Elderfall",
+  "monster.skull_crusader": "Croisé d'Os",
+  "monster.skull_warden": "Gardien du Chœur",
   "monster.mire_troll": "Troll du Marais",
   "monster.gate_troll": "Troll de la Porte",
 

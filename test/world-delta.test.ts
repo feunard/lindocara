@@ -28,7 +28,7 @@ const player = (overrides: Partial<PlayerSnapshot> = {}): PlayerSnapshot => ({
 const monster = (overrides: Partial<MonsterSnapshot> = {}): MonsterSnapshot => ({
   id: "monster",
   kind: "goblin",
-  species: "goblin_scout",
+  species: "spear_goblin",
   x: 200,
   y: 100,
   hp: 40,
