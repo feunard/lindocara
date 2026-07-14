@@ -44,6 +44,7 @@ import { DEFAULT_ZONE_ID, type ZoneId, zoneDefinition } from "../../shared/zones
 import { onLocaleChange, t } from "../i18n.js";
 import { landTile, tileVisual } from "./autotile.js";
 import { MAIN_HAND_ART, OFF_HAND_ART, PLAYER_ATLAS_FRAMES } from "./character-art.js";
+import { type EnemyArt, type EnemySheet, TINY_SWORDS_ENEMIES } from "./enemy-art.js";
 import { MAX_ACTIVE_WORLD_EFFECTS, questSiteFeedback } from "./feedback.js";
 import type { SceneSample } from "./net.js";
 import {
@@ -58,7 +59,6 @@ import {
   type UnitMotion,
   unitSheet,
 } from "./tiny-swords-art.js";
-import { VENDOR_MONSTER_ART } from "./vendor-art.js";
 import {
   DECOR_REGIONS,
   type DecorTheme,
@@ -108,7 +108,7 @@ interface AtlasData {
 
 interface ArtTextures {
   players: Record<PrimaryColor, Texture>;
-  monsters: Record<MonsterSpecies, Texture>;
+  monsters: Record<MonsterSpecies, Record<UnitMotion, readonly Texture[]>>;
   keeper: Texture;
   /** The tilemap's ground truth, sliced once from `Tilemap_Flat.png` and `Water.png`.
    *  `land[row][col]` is a cell of the sheet's first 4x4 autotile group (see `autotile.ts`). */
@@ -366,13 +366,27 @@ async function loadArt(): Promise<ArtTextures> {
       return [name, sliceHorizontalSheet(texture, sheet.frame, sheet.frames)] as const;
     }),
   ) as Record<keyof typeof TINY_SWORDS_EFFECT_SHEETS, readonly Texture[]>;
-  const monsterEntries = await Promise.all(
-    Object.entries(VENDOR_MONSTER_ART).map(
-      async ([species, source]) => [species, await Assets.load<Texture>(source)] as const,
-    ),
+  const enemySheets = new Map<string, EnemySheet>();
+  for (const art of Object.values(TINY_SWORDS_ENEMIES)) {
+    for (const motion of ["idle", "run", "attack"] as const)
+      enemySheets.set(art[motion].source, art[motion]);
+  }
+  const enemySheetSources = [...enemySheets.keys()];
+  const loadedEnemySheets = await Promise.all(
+    enemySheetSources.map((source) => Assets.load<Texture>(source)),
   );
-  const monsters = Object.fromEntries(monsterEntries) as Record<MonsterSpecies, Texture>;
-  for (const monster of Object.values(monsters)) monster.source.style.scaleMode = "linear";
+  const enemyTextures = new Map<string, Texture>();
+  for (let index = 0; index < enemySheetSources.length; index++) {
+    const source = enemySheetSources[index];
+    const sheet = loadedEnemySheets[index];
+    if (!source || !sheet) continue;
+    // The Tiny Swords Enemy Pack is pixel art like everything else in this file, but the
+    // vendor monster loader it replaces set "linear", which blurred it. Every other Tiny Swords
+    // texture below already uses "nearest"; the enemies now match.
+    sheet.source.style.scaleMode = "nearest";
+    enemyTextures.set(source, sheet);
+  }
+  const monsters = monsterAnimations(enemyTextures);
   const questResourceEntries = await Promise.all(
     Object.entries(TINY_SWORDS_QUEST_ART).map(
       async ([kind, source]) => [kind, await Assets.load<Texture>(source)] as const,
@@ -458,6 +472,32 @@ function playerAnimations(
     const frames = textures[source];
     if (!frames || frames.length === 0) throw new Error(`Missing Tiny Swords unit: ${source}`);
     result[motion] = frames;
+  }
+  return result;
+}
+
+/**
+ * Slices every `TINY_SWORDS_ENEMIES` sheet into idle/run/attack frame arrays, once. `textures`
+ * holds one loaded `Texture` per distinct sheet source — several species (the three `skull_*`
+ * species, `spear_goblin` vs `torch_goblin` do not) share a sheet, so this reads from a
+ * source-keyed map rather than loading the same file twice.
+ */
+function monsterAnimations(
+  textures: Map<string, Texture>,
+): Record<MonsterSpecies, Record<UnitMotion, readonly Texture[]>> {
+  const result = {} as Record<MonsterSpecies, Record<UnitMotion, readonly Texture[]>>;
+  for (const [species, art] of Object.entries(TINY_SWORDS_ENEMIES) as [
+    MonsterSpecies,
+    EnemyArt,
+  ][]) {
+    const animations = {} as Record<UnitMotion, readonly Texture[]>;
+    for (const motion of ["idle", "run", "attack"] as const) {
+      const sheet = art[motion];
+      const texture = textures.get(sheet.source);
+      if (!texture) throw new Error(`Missing Tiny Swords enemy sheet: ${sheet.source}`);
+      animations[motion] = sliceHorizontalSheet(texture, sheet.frame, sheet.frames);
+    }
+    result[species] = animations;
   }
   return result;
 }
@@ -1677,11 +1717,14 @@ export class Renderer {
     const shadow = new Graphics()
       .ellipse(18, 33, monster.kind === "troll" ? 35 : 25, monster.kind === "troll" ? 12 : 9)
       .fill({ color: COLORS.shadow, alpha: 0.65 });
-    const body = createSprite(this.art.monsters[monster.species], scale, scale);
-    body.anchor.set(0.5, 1);
-    body.position.set(18, 40);
+    const animations = this.art.monsters[monster.species];
+    const unitSprite = new Sprite(animations.idle[0]);
+    unitSprite.width = scale;
+    unitSprite.height = scale;
+    unitSprite.anchor.set(0.5, 1);
+    unitSprite.position.set(18, 40);
     const flash = new Graphics().ellipse(18, 18, 25, 21).fill({ color: 0xffffff, alpha: 0 });
-    actor.addChild(shadow, body, flash);
+    actor.addChild(shadow, unitSprite, flash);
     container.addChild(actor);
     const hp = new Graphics();
     hp.label = "hp";
@@ -1730,6 +1773,8 @@ export class Renderer {
       hitUntil: 0,
       wasDead: monster.dead,
       phase: phaseFor(monster.id),
+      unitSprite,
+      unitAnimations: animations,
     };
   }
 
@@ -1986,6 +2031,27 @@ export class Renderer {
     const position = centerOf(view.data);
     this.#addPulse(position.x, position.y, COLORS.selfRing, 44, 180);
     this.#burst(position.x + 14, position.y, 0xffe0a0, 5);
+  }
+
+  /**
+   * `combat.hurt` carries the species that hit the self player and the player's own position —
+   * never the attacking monster's id or position (the wire stays as it is; see the module doc).
+   * `MONSTER_ATTACK_RANGE` is 42px, so the true attacker is always within a few dozen pixels of
+   * `x, y` at the moment of the hit; the nearest live monster of the given species is it.
+   */
+  playMonsterAttack(species: string, x: number, y: number): void {
+    let nearest: EntityView<MonsterSnapshot> | undefined;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    for (const view of this.#monsters.values()) {
+      if (view.data.species !== species || view.data.dead) continue;
+      const distance = Math.hypot(view.data.x - x, view.data.y - y);
+      if (distance < nearestDistance) {
+        nearest = view;
+        nearestDistance = distance;
+      }
+    }
+    if (!nearest) return;
+    nearest.attackUntil = performance.now() + 700;
   }
 
   playRangedHit(
@@ -2302,6 +2368,13 @@ export class Renderer {
               view.actor.x = 18;
               view.actor.rotation = 0;
             }
+          }
+          if (view.unitSprite && view.unitAnimations) {
+            const motion: UnitMotion =
+              (view.attackUntil ?? 0) > now ? "attack" : moving ? "run" : "idle";
+            const frames = view.unitAnimations[motion];
+            const frame = frames[Math.floor(now / 95) % frames.length] ?? frames[0];
+            if (frame) view.unitSprite.texture = frame;
           }
           if (view.flash) view.flash.alpha = (view.hitUntil ?? 0) > now ? 0.7 : 0;
           if (view.alert) {

@@ -281,6 +281,14 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       if (code === "combat.hit" && x !== undefined && y !== undefined && client.selfId) {
         renderer.playRangedHit(client.selfId, x, y, currentSelf?.class ?? character.class);
       }
+      if (
+        code === "combat.hurt" &&
+        x !== undefined &&
+        y !== undefined &&
+        typeof params?.species === "string"
+      ) {
+        renderer.playMonsterAttack(params.species, x, y);
+      }
       switch (code) {
         case "combat.too_far":
           sound.attackMiss(playerClass());
