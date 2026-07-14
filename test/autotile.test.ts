@@ -20,6 +20,24 @@ describe("the land mask", () => {
     expect(landMask(m, 1, 1)).toBe(2);
   });
 
+  it("isolates North: only N is land", () => {
+    const m = map(["#.#", "#.#", "###"]);
+    // centre cell (1,1): N at (1,0) is land, everything else is water
+    expect(landMask(m, 1, 1)).toBe(1);
+  });
+
+  it("isolates South: only S is land", () => {
+    const m = map(["###", "#.#", "#.#"]);
+    // centre cell (1,1): S at (1,2) is land, everything else is water
+    expect(landMask(m, 1, 1)).toBe(4);
+  });
+
+  it("isolates West: only W is land", () => {
+    const m = map(["###", "..#", "###"]);
+    // centre cell (1,1): W at (0,1) is land, everything else is water
+    expect(landMask(m, 1, 1)).toBe(8);
+  });
+
   it("treats everything off the map as water, so the world's edge is a shoreline", () => {
     const m = map(["."]);
     expect(landMask(m, 0, 0)).toBe(0);
