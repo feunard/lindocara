@@ -1554,8 +1554,9 @@ export class World extends DurableObject<Env> {
         player: Player,
         damage: number,
         species: MonsterSpecies,
+        monsterId: string,
         attackedAt: number,
-      ) => this.#damagePlayer(socket, player, damage, species, attackedAt),
+      ) => this.#damagePlayer(socket, player, damage, species, monsterId, attackedAt),
     };
     advanceMonsters(monsterContext, now);
     advanceGuards(monsterContext, now);
@@ -1603,6 +1604,7 @@ export class World extends DurableObject<Env> {
     player: Player,
     damage: number,
     species: MonsterSpecies,
+    monsterId: string,
     now: number,
   ): void {
     const { amount: appliedDamage, result } = guardedDamage(player, damage, now);
@@ -1612,7 +1614,10 @@ export class World extends DurableObject<Env> {
     this.#send(ws, {
       t: "event",
       code: "combat.hurt",
-      params: { species, damage: appliedDamage },
+      // `monsterId` names the attacker the server actually resolved (`advanceMonsters`'s in-scope
+      // `monster` object), not a guess — the client uses it to animate the right monster instead
+      // of scanning for the nearest one of the same species.
+      params: { species, damage: appliedDamage, monsterId },
       tone: "bad",
       x: player.x,
       y: player.y,

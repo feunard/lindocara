@@ -495,7 +495,9 @@ function monsterAnimations(
       const sheet = art[motion];
       const texture = textures.get(sheet.source);
       if (!texture) throw new Error(`Missing Tiny Swords enemy sheet: ${sheet.source}`);
-      animations[motion] = sliceHorizontalSheet(texture, sheet.frame, sheet.frames);
+      const frames = sliceHorizontalSheet(texture, sheet.frame, sheet.frames);
+      if (frames.length === 0) throw new Error(`Missing Tiny Swords enemy sheet: ${sheet.source}`);
+      animations[motion] = frames;
     }
     result[species] = animations;
   }
@@ -2034,24 +2036,19 @@ export class Renderer {
   }
 
   /**
-   * `combat.hurt` carries the species that hit the self player and the player's own position —
-   * never the attacking monster's id or position (the wire stays as it is; see the module doc).
-   * `MONSTER_ATTACK_RANGE` is 42px, so the true attacker is always within a few dozen pixels of
-   * `x, y` at the moment of the hit; the nearest live monster of the given species is it.
+   * `combat.hurt` carries `monsterId` — the id of the monster `advanceMonsters` actually resolved
+   * as the attacker, threaded through `#damagePlayer` all the way from the in-scope `monster`
+   * object at the call site. `#monsters` is already keyed by id, so this is a direct lookup, not a
+   * guess. It used to scan for the nearest live monster of the hit species to the victim's own
+   * position, which broke whenever two monsters of the same species were both within melee range
+   * of the same player — ordinary next to the safe zone, where `road-goblin-scout` and
+   * `city-edge-prowler` are both `spear_goblin` roughly 293px apart and share `MONSTER_AGGRO_RANGE`
+   * (210px). Distance-to-victim cannot tell such a pair apart; server-known identity can.
    */
-  playMonsterAttack(species: string, x: number, y: number): void {
-    let nearest: EntityView<MonsterSnapshot> | undefined;
-    let nearestDistance = Number.POSITIVE_INFINITY;
-    for (const view of this.#monsters.values()) {
-      if (view.data.species !== species || view.data.dead) continue;
-      const distance = Math.hypot(view.data.x - x, view.data.y - y);
-      if (distance < nearestDistance) {
-        nearest = view;
-        nearestDistance = distance;
-      }
-    }
-    if (!nearest) return;
-    nearest.attackUntil = performance.now() + 700;
+  playMonsterAttack(monsterId: string): void {
+    const view = this.#monsters.get(monsterId);
+    if (!view || view.data.dead) return;
+    view.attackUntil = performance.now() + 700;
   }
 
   playRangedHit(

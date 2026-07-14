@@ -8,12 +8,10 @@ const ROOT = "/assets/lindocara/vendor";
  * `tiny-swords-art.ts` as `TINY_SWORDS_QUEST_ART` — it is genuinely Tiny Swords art and needed a
  * home that survives deleting these packs.
  *
- * `VENDOR_MONSTER_ART` stays here, unchanged, because `renderer.ts` still draws every monster
- * from it as a single static texture per species. `enemy-art.ts` (this same commit) vendors the
- * real, animated Tiny Swords Enemy Pack art and its `TINY_SWORDS_ENEMIES` table, but nothing
- * consumes it yet — the renderer switches over in the next task, and only then does this file (and
- * the old monster packs) get deleted. Deleting it now, before the renderer stops importing it,
- * would delete a texture something still draws.
+ * `VENDOR_MONSTER_ART` stays here, unreferenced, now that `renderer.ts` draws every monster from
+ * the animated Tiny Swords Enemy Pack instead (`enemy-art.ts`'s `TINY_SWORDS_ENEMIES`, wired up via
+ * `monsterAnimations()`). Nothing imports this map any more; it is dead weight kept only until
+ * Task 4 deletes it along with the old monster packs it points at — do not add a new reader.
  */
 export const VENDOR_MONSTER_ART: Record<MonsterSpecies, string> = {
   spear_goblin: `${ROOT}/monsters/goblin.png`,

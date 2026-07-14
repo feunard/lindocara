@@ -48,6 +48,7 @@ export interface MonsterSystemContext {
     player: PlayerRuntime,
     damage: number,
     species: MonsterSpecies,
+    monsterId: string,
     now: number,
   ): void;
 }
@@ -136,7 +137,7 @@ export function advanceMonsters(context: MonsterSystemContext, now: number): voi
         monster.vy = 0;
         if (now - monster.lastAttackAt >= MONSTER_ATTACK_COOLDOWN_MS) {
           monster.lastAttackAt = now;
-          context.damagePlayer(socket, player, monster.damage, monster.species, now);
+          context.damagePlayer(socket, player, monster.damage, monster.species, monster.id, now);
         }
         continue;
       }

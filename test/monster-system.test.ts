@@ -9,7 +9,12 @@ import {
   type PlayerRuntime,
 } from "../src/server/world/world-runtime.js";
 import { starterEquipmentFor } from "../src/shared/character.js";
-import { MONSTER_ATTACK_RANGE, pointDistance, type TerrainGeometry } from "../src/shared/game.js";
+import {
+  MONSTER_ATTACK_COOLDOWN_MS,
+  MONSTER_ATTACK_RANGE,
+  pointDistance,
+  type TerrainGeometry,
+} from "../src/shared/game.js";
 import { DEFAULT_ZONE_NAVIGATION } from "../src/shared/navigation.js";
 import { TICK_DT } from "../src/shared/simulation.js";
 import type { ZoneDefinition } from "../src/shared/zones.js";
@@ -330,5 +335,66 @@ describe("monster navigation on the tile grid", () => {
       }
     }
     expect(reachedAtTick).toBeGreaterThan(-1);
+  });
+});
+
+describe("combat.hurt attacker identity", () => {
+  it("threads each attacking monster's own id into damagePlayer, not a same-species neighbour's", () => {
+    // Mirrors the real hazard next to the safe zone: road-goblin-scout and city-edge-prowler are
+    // both spear_goblin, close enough together that a client guessing the attacker from
+    // distance-to-victim alone cannot reliably tell them apart. Placed symmetrically around the
+    // player here for the same reason — equidistant is the worst case for that guess. The server
+    // must not make the client guess: it must name which monster it resolved as the attacker.
+    const player = targetPlayer(300, 500);
+    const socket = { id: "socket-hurt" } as unknown as WebSocket;
+
+    const monsters = createMonsters([
+      {
+        id: "goblin-a",
+        kind: "goblin",
+        species: "spear_goblin",
+        zone: "route",
+        x: 270,
+        y: 500,
+        patrolRadius: 40,
+      },
+      {
+        id: "goblin-b",
+        kind: "goblin",
+        species: "spear_goblin",
+        zone: "route",
+        x: 330,
+        y: 500,
+        patrolRadius: 40,
+      },
+    ]);
+    const [monsterA, monsterB] = monsters;
+    if (!monsterA || !monsterB) throw new Error("missing monsters");
+    monsterA.threat.set(player.id, { playerId: player.id, amount: 999, updatedAt: 0 });
+    monsterB.threat.set(player.id, { playerId: player.id, amount: 999, updatedAt: 0 });
+
+    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
+    monsterGrid.insert(monsterA);
+    monsterGrid.insert(monsterB);
+
+    const damagePlayer = vi.fn();
+    const context: MonsterSystemContext = {
+      players: new Map([[socket, player]]),
+      monsters: [monsterA, monsterB],
+      guards: [],
+      monsterGrid,
+      zone,
+      tick: 0,
+      navigation: createNavigationRuntime(terrain, zone.navigation),
+      damagePlayer,
+    };
+
+    advanceMonsters(context, MONSTER_ATTACK_COOLDOWN_MS + 100);
+
+    expect(damagePlayer).toHaveBeenCalledTimes(2);
+    // Argument index 4 is `monsterId` — the identity the fix threads through. Each call must name
+    // its own monster, not the other one and not the same one twice.
+    const attackerIds = damagePlayer.mock.calls.map((call) => call[4]);
+    expect(attackerIds.sort()).toEqual(["goblin-a", "goblin-b"]);
   });
 });
