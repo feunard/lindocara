@@ -10,6 +10,10 @@ export type SkillTargetResolution =
   | { ok: true; targetId?: string }
   | { ok: false; required: "hostile" | "friendly" };
 
+export type BasicAttackTargetResolution =
+  | { ok: true; target: MonsterSnapshot }
+  | { ok: false; reason: "no_target" | "out_of_range" };
+
 export function resolveSkillTarget(
   effect: SkillEffect,
   target: CombatTarget | null,
@@ -67,6 +71,22 @@ export function offensiveTarget(
   }
   const nearest = cycleMonsterTarget(monsters, self, undefined);
   return nearest?.kind === "monster" ? nearest : null;
+}
+
+/** Basic attacks never acquire a target implicitly and never start outside their real range. */
+export function resolveBasicAttackTarget(
+  monsters: readonly MonsterSnapshot[],
+  self: PlayerSnapshot | undefined,
+  current: CombatTarget | null,
+  range: number,
+): BasicAttackTargetResolution {
+  if (!self || current?.kind !== "monster") return { ok: false, reason: "no_target" };
+  const target = monsters.find((monster) => monster.id === current.id && !monster.dead);
+  if (!target) return { ok: false, reason: "no_target" };
+  if (Math.hypot(target.x - self.x, target.y - self.y) > range) {
+    return { ok: false, reason: "out_of_range" };
+  }
+  return { ok: true, target };
 }
 
 export function targetExists(

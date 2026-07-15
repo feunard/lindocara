@@ -20,17 +20,19 @@ const KEY_BINDINGS: Record<string, keyof Input> = {
 
 export interface InputTracker {
   current(): Input;
+  setVirtual(input: Input): void;
   reset(): void;
   stop(): void;
 }
 
 export function trackInput(): InputTracker {
-  let held: Input = { ...NO_INPUT };
+  let keyboard: Input = { ...NO_INPUT };
+  let virtual: Input = { ...NO_INPUT };
 
   const set = (code: string, pressed: boolean): boolean => {
     const action = KEY_BINDINGS[code];
     if (!action) return false;
-    held = { ...held, [action]: pressed };
+    keyboard = { ...keyboard, [action]: pressed };
     return true;
   };
 
@@ -45,7 +47,8 @@ export function trackInput(): InputTracker {
   };
 
   const onBlur = () => {
-    held = { ...NO_INPUT };
+    keyboard = { ...NO_INPUT };
+    virtual = { ...NO_INPUT };
   };
 
   window.addEventListener("keydown", onKeyDown);
@@ -53,9 +56,18 @@ export function trackInput(): InputTracker {
   window.addEventListener("blur", onBlur);
 
   return {
-    current: () => held,
+    current: () => ({
+      up: keyboard.up || virtual.up,
+      down: keyboard.down || virtual.down,
+      left: keyboard.left || virtual.left,
+      right: keyboard.right || virtual.right,
+    }),
+    setVirtual: (input) => {
+      virtual = { ...input };
+    },
     reset: () => {
-      held = { ...NO_INPUT };
+      keyboard = { ...NO_INPUT };
+      virtual = { ...NO_INPUT };
     },
     stop: () => {
       window.removeEventListener("keydown", onKeyDown);

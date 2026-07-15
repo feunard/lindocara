@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getAudioSettings, setAudioSettings } from "../../src/client/game/audio-settings.js";
 import { getDisplaySettings, setDisplaySettings } from "../../src/client/game/display-settings.js";
 import { setLocale } from "../../src/client/i18n.js";
@@ -12,7 +12,7 @@ describe("SettingsMenu", () => {
     setLocale("en");
     setAudioSettings({ muted: false, sfxVolume: 0.65, ambientVolume: 0.45 });
     setDisplaySettings({ healthBars: "both" });
-    useUiStore.setState({ settingsOpen: false });
+    useUiStore.setState({ settingsOpen: false, game: null });
   });
 
   it("chooses allied and enemy health bars independently", async () => {
@@ -41,5 +41,31 @@ describe("SettingsMenu", () => {
     render(<SettingsMenu />);
     await userEvent.click(screen.getByRole("button", { name: /resume/i }));
     expect(useUiStore.getState().settingsOpen).toBe(false);
+  });
+
+  it("owns the switch-character and logout actions instead of the player frame", async () => {
+    const switchCharacter = vi.fn();
+    const logout = vi.fn();
+    useUiStore.setState({
+      settingsOpen: true,
+      game: {
+        attack: vi.fn(),
+        interact: vi.fn(),
+        usePotion: vi.fn(),
+        heal: vi.fn(),
+        release: vi.fn(),
+        castSkill: vi.fn(),
+        sendChat: vi.fn(),
+        switchCharacter,
+        logout,
+        attachMinimap: vi.fn(),
+        attachWorldMap: vi.fn(),
+      },
+    });
+    render(<SettingsMenu />);
+    await userEvent.click(screen.getByRole("button", { name: "Switch character" }));
+    await userEvent.click(screen.getByRole("button", { name: "Log out" }));
+    expect(switchCharacter).toHaveBeenCalledOnce();
+    expect(logout).toHaveBeenCalledOnce();
   });
 });

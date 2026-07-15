@@ -3,6 +3,7 @@ import {
   type CombatTarget,
   cycleMonsterTarget,
   offensiveTarget,
+  resolveBasicAttackTarget,
   resolveSkillTarget,
   targetExists,
 } from "../src/client/game/targeting.js";
@@ -82,6 +83,25 @@ describe("explicit combat targeting", () => {
       kind: "monster",
       id: "far",
     });
+  });
+
+  it("requires an explicit in-range target for a basic attack", () => {
+    const monsters = [monster("near", 130), monster("far", 400)];
+    expect(resolveBasicAttackTarget(monsters, self, null, 225)).toEqual({
+      ok: false,
+      reason: "no_target",
+    });
+    expect(resolveBasicAttackTarget(monsters, self, { kind: "player", id: "ally" }, 225)).toEqual({
+      ok: false,
+      reason: "no_target",
+    });
+    expect(resolveBasicAttackTarget(monsters, self, { kind: "monster", id: "far" }, 225)).toEqual({
+      ok: false,
+      reason: "out_of_range",
+    });
+    expect(
+      resolveBasicAttackTarget(monsters, self, { kind: "monster", id: "near" }, 225),
+    ).toMatchObject({ ok: true, target: { id: "near" } });
   });
 
   it("drops a selected enemy when it dies but keeps valid friendly targets", () => {

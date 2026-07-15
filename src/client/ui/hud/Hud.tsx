@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { MessageKey } from "../../../shared/i18n/index.js";
 import type { QuestState } from "../../../shared/protocol.js";
-import { logout } from "../../api.js";
+import { playerPortrait } from "../../game/portrait-art.js";
 import { t, useLocale } from "../../i18n.js";
 import { useUiStore } from "../../store.js";
 import { Bar } from "./Bar.js";
@@ -10,6 +10,7 @@ import { DeathOverlay } from "./DeathOverlay.js";
 import { HealCooldownBar } from "./HealCooldownBar.js";
 import { InventoryChip } from "./InventoryChip.js";
 import { SkillBar } from "./SkillBar.js";
+import { UnitPortrait } from "./UnitPortrait.js";
 
 /** Same status -> copy mapping as the legacy `renderState`. */
 function questText(quest: QuestState): string {
@@ -76,36 +77,16 @@ export function Hud() {
   const remainingSeconds =
     quest.timerEndsAt === undefined ? 0 : Math.max(0, Math.ceil((quest.timerEndsAt - now) / 1_000));
 
-  // `game` goes null on any disconnect (kicked, character deleted, network drop). These
-  // buttons must stay usable even then, so each falls back to the same escape hatch the
-  // logged-out screens use instead of going dead.
-  const handleSwitchCharacter = () => {
-    if (game) game.switchCharacter();
-    else window.location.reload();
-  };
-  const handleLogout = () => {
-    if (game) game.logout();
-    else void logout();
-  };
-
   return (
     <>
       <DeathOverlay />
       <aside id="hud">
         <section className="panel identity">
-          <div className="crest" aria-hidden="true" />
+          <UnitPortrait portrait={playerPortrait(self.class, self.appearance)} size="self" />
           <div className="identity-copy">
             <strong>{self.nick}</strong>
             <span>{t("hud.level", { level: self.level })}</span>
             <span>{t(`class.${self.class}`)}</span>
-          </div>
-          <div className="session-actions">
-            <button type="button" onClick={handleSwitchCharacter}>
-              {t("hud.switch_character")}
-            </button>
-            <button type="button" onClick={handleLogout}>
-              {t("hud.logout")}
-            </button>
           </div>
           {/* biome-ignore lint/a11y/noLabelWithoutControl: reuses the legacy `.identity label`
             grid layout (styles/legacy.css); the row labels a read-only <Bar> progressbar, not a

@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { logout } from "../api.js";
 import {
   getAudioSettings,
   setAudioSettings,
@@ -24,6 +25,7 @@ export function SettingsMenu() {
   useLocale();
   const open = useUiStore((s) => s.settingsOpen);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
+  const game = useUiStore((s) => s.game);
   const audio = useAudioSettings();
   const display = useDisplaySettings();
 
@@ -110,6 +112,23 @@ export function SettingsMenu() {
               <option value="none">{t("settings.health_bars_none")}</option>
             </select>
           </label>
+
+          <p className="settings-section-label">{t("settings.session")}</p>
+          <div className="settings-session-actions">
+            <button
+              type="button"
+              onClick={() => (game ? game.switchCharacter() : window.location.reload())}
+            >
+              {t("hud.switch_character")}
+            </button>
+            <button
+              type="button"
+              className="danger"
+              onClick={() => (game ? game.logout() : logout())}
+            >
+              {t("hud.logout")}
+            </button>
+          </div>
         </div>
 
         <footer className="settings-footer">

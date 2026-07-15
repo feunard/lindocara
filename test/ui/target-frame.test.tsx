@@ -17,6 +17,7 @@ describe("TargetFrame", () => {
         name: "Gobelin de la Route",
         hp: 24,
         maxHp: 40,
+        portrait: { source: "/enemy.png", frames: 1, kind: "enemy" },
       },
       game: {
         attack: () => {},
@@ -36,6 +37,7 @@ describe("TargetFrame", () => {
 
     render(<TargetFrame />);
     expect(screen.getByText("Gobelin de la Route")).toBeInTheDocument();
+    expect(document.querySelector('[data-portrait-kind="enemy"]')).toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "24");
     fireEvent.click(screen.getByRole("button", { name: /cible|target/i }));
     expect(clearTarget).toHaveBeenCalledOnce();

@@ -1,9 +1,10 @@
 import { create } from "zustand";
-import type { Equipment } from "../shared/character.js";
+import type { CharacterAppearance, Equipment } from "../shared/character.js";
 import type { LifeState } from "../shared/death.js";
 import type { PlayerClass } from "../shared/game.js";
 import type { MessageKey } from "../shared/i18n/index.js";
 import type { PartyState, QuestStatus, SelfState } from "../shared/protocol.js";
+import type { Input } from "../shared/simulation.js";
 import type { SkillSlot } from "../shared/skills.js";
 import type { CharacterSummary } from "./api.js";
 
@@ -40,6 +41,13 @@ export interface CombatTargetHud {
   name: string;
   hp: number;
   maxHp: number;
+  portrait: PortraitArt;
+}
+
+export interface PortraitArt {
+  source: string;
+  frames: number;
+  kind: "unit" | "enemy";
 }
 
 /** What the HUD needs from the self snapshot — excludes x/y so it does not churn 60x/s. */
@@ -53,6 +61,7 @@ export interface SelfHud {
   /** How far your ghost still has to walk. Null unless you are one. */
   corpseDistance: number | null;
   class: PlayerClass;
+  appearance: CharacterAppearance;
   equipment: Equipment;
 }
 
@@ -63,6 +72,8 @@ export interface GameHandle {
   release(): void;
   heal(): void;
   castSkill(slot: SkillSlot): void;
+  /** Virtual controls feed the same intent stream as the keyboard; never an authoritative position. */
+  setMovement?(input: Input): void;
   clearTarget?(): void;
   sendChat(text: string, channel?: "local" | "party"): void;
   partyCreate?(): void;
@@ -163,6 +174,8 @@ function selfHudEqual(a: SelfHud | null, b: SelfHud | null): boolean {
     // Rounded to the metre by the writer, so a walking ghost re-renders the HUD ~1x/step.
     a.corpseDistance === b.corpseDistance &&
     a.class === b.class &&
+    a.appearance.body === b.appearance.body &&
+    a.appearance.primaryColor === b.appearance.primaryColor &&
     a.equipment.mainHand === b.equipment.mainHand &&
     a.equipment.offHand === b.equipment.offHand
   );
@@ -203,7 +216,14 @@ function combatTargetEqual(a: CombatTargetHud | null, b: CombatTargetHud | null)
   if (a === null && b === null) return true;
   if (a === null || b === null) return false;
   return (
-    a.id === b.id && a.kind === b.kind && a.name === b.name && a.hp === b.hp && a.maxHp === b.maxHp
+    a.id === b.id &&
+    a.kind === b.kind &&
+    a.name === b.name &&
+    a.hp === b.hp &&
+    a.maxHp === b.maxHp &&
+    a.portrait.source === b.portrait.source &&
+    a.portrait.frames === b.portrait.frames &&
+    a.portrait.kind === b.portrait.kind
   );
 }
 

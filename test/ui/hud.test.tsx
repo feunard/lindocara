@@ -1,20 +1,8 @@
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { setLocale } from "../../src/client/i18n.js";
 import { useUiStore } from "../../src/client/store.js";
 import { Hud } from "../../src/client/ui/hud/Hud.js";
-
-function stubFetch(status: number, body: unknown): ReturnType<typeof vi.fn> {
-  const mock = vi.fn().mockResolvedValue(
-    new Response(body === undefined ? null : JSON.stringify(body), {
-      status,
-      headers: { "Content-Type": "application/json" },
-    }),
-  );
-  vi.stubGlobal("fetch", mock);
-  return mock;
-}
 
 describe("Hud", () => {
   beforeEach(() => setLocale("en"));
@@ -29,6 +17,7 @@ describe("Hud", () => {
         life: "alive",
         corpseDistance: null,
         class: "warrior",
+        appearance: { body: "wayfarer", primaryColor: "azure" },
         equipment: { mainHand: "weathered_sword", offHand: "oak_shield" },
       },
       selfState: {
@@ -41,6 +30,7 @@ describe("Hud", () => {
       },
     });
     render(<Hud />);
+    expect(document.querySelector('[data-portrait-kind="unit"]')).toBeInTheDocument();
     expect(screen.getByText("Hero")).toBeInTheDocument();
     expect(screen.getByText("Level 3")).toBeInTheDocument();
     expect(screen.getByText("80/124")).toBeInTheDocument();
@@ -49,42 +39,11 @@ describe("Hud", () => {
       screen.getByText("Gather heartwood, provisions, then sun-ore (1/3)"),
     ).toBeInTheDocument();
     expect(screen.getByText("Heartroot tonic")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Switch character" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Log out" })).not.toBeInTheDocument();
     // FR toggle re-renders live
     setLocale("fr");
     expect(screen.getByText("Niveau 3")).toBeInTheDocument();
-  });
-
-  it("keeps switch-character and logout enabled after a disconnect, and falls back to the API", async () => {
-    const mock = stubFetch(204, undefined);
-    useUiStore.setState({
-      self: {
-        nick: "Hero",
-        level: 3,
-        hp: 80,
-        maxHp: 124,
-        life: "alive",
-        corpseDistance: null,
-        class: "warrior",
-        equipment: { mainHand: "weathered_sword", offHand: "oak_shield" },
-      },
-      selfState: {
-        xp: 40,
-        xpToNext: 220,
-        life: "alive" as const,
-        corpse: null,
-        inventory: { potions: 2, gold: 9, crystals: 1 },
-        quest: { status: "active", progress: 1, target: 3 },
-      },
-      game: null,
-    });
-    render(<Hud />);
-    const switchButton = screen.getByRole("button", { name: "Switch character" });
-    const logoutButton = screen.getByRole("button", { name: "Log out" });
-    expect(switchButton).toBeEnabled();
-    expect(logoutButton).toBeEnabled();
-
-    await userEvent.click(logoutButton);
-    expect(mock).toHaveBeenCalledWith("/api/session", { method: "DELETE" });
   });
 
   it("shows the class name and a heal bar for priests", () => {
@@ -97,6 +56,7 @@ describe("Hud", () => {
         life: "alive",
         corpseDistance: null,
         class: "priest",
+        appearance: { body: "wayfarer", primaryColor: "azure" },
         equipment: { mainHand: "heartwood_staff", offHand: null },
       },
       selfState: {
@@ -125,6 +85,7 @@ describe("Hud", () => {
         life: "alive",
         corpseDistance: null,
         class: "warrior",
+        appearance: { body: "wayfarer", primaryColor: "azure" },
         equipment: { mainHand: "weathered_sword", offHand: "oak_shield" },
       },
       selfState: {
@@ -161,6 +122,7 @@ describe("Hud", () => {
         life: "alive",
         corpseDistance: null,
         class: "warrior",
+        appearance: { body: "wayfarer", primaryColor: "azure" },
         equipment: { mainHand: "weathered_sword", offHand: "oak_shield" },
       },
       selfState: {
@@ -190,6 +152,7 @@ describe("Hud", () => {
         life: "alive",
         corpseDistance: null,
         class: "priest",
+        appearance: { body: "wayfarer", primaryColor: "azure" },
         equipment: { mainHand: "heartwood_staff", offHand: null },
       },
       selfState: {

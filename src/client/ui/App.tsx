@@ -14,6 +14,7 @@ import { Minimap } from "./hud/Minimap.js";
 import { TargetFrame } from "./hud/TargetFrame.js";
 import { InteriorOverlay } from "./InteriorOverlay.js";
 import { LocaleToggle } from "./LocaleToggle.js";
+import { MobileControls } from "./MobileControls.js";
 import { Prompt } from "./Prompt.js";
 import { SettingsMenu } from "./SettingsMenu.js";
 import { StatusBar } from "./StatusBar.js";
@@ -50,6 +51,7 @@ export function App() {
           <InteriorOverlay />
           <WorldMap />
           <SettingsMenu />
+          <MobileControls />
           <ConnectionOverlay />
         </>
       )}

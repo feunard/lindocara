@@ -1,6 +1,7 @@
 import { t, useLocale } from "../../i18n.js";
 import { useUiStore } from "../../store.js";
 import { Bar } from "./Bar.js";
+import { UnitPortrait } from "./UnitPortrait.js";
 
 export function TargetFrame() {
   useLocale();
@@ -13,7 +14,8 @@ export function TargetFrame() {
       className={`target-frame panel target-frame--${target.kind}`}
       aria-label={t("hud.target")}
     >
-      <div>
+      <UnitPortrait portrait={target.portrait} />
+      <div className="target-frame__identity">
         <span>{t(target.kind === "monster" ? "hud.target.hostile" : "hud.target.friendly")}</span>
         <strong>{target.name}</strong>
       </div>

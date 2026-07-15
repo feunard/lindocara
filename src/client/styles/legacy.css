@@ -8,6 +8,9 @@
   --skill-bar-bottom: 1rem;
   --skill-bar-height: 5.3rem;
   --skill-bar-gap: 0.55rem;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
 }
 
 * {
@@ -39,6 +42,7 @@ body::after {
   inset: 0;
   image-rendering: pixelated;
   filter: saturate(0.94) contrast(1.04);
+  touch-action: none;
 }
 
 .panel {
@@ -156,17 +160,6 @@ button:disabled {
 #appearance-picker input {
   margin-right: 6px;
 }
-.session-actions {
-  display: flex;
-  gap: 6px;
-  grid-column: 2;
-  pointer-events: auto;
-}
-.session-actions button {
-  font-size: 0.75rem;
-  cursor: pointer;
-}
-
 #hud {
   position: fixed;
   z-index: 3;
@@ -188,23 +181,62 @@ button:disabled {
 
 .identity {
   display: grid;
-  grid-template-columns: 1.75rem 1fr;
+  grid-template-columns: 3.25rem 1fr;
   gap: 0.24rem 0.45rem;
   min-width: 13.5rem;
 }
 
-.crest {
-  grid-row: span 2;
-  display: grid;
-  place-items: center;
-  width: 1.75rem;
-  aspect-ratio: 1;
-  border: 1px solid rgb(185 239 196 / 35%);
-  border-radius: 50%;
+.unit-portrait {
+  position: relative;
+  overflow: hidden;
+  flex: none;
+  border: 2px solid #9b7541;
+  border-radius: 7px;
   background:
-    url("/assets/lindocara/atlas/hud.png") 0 50% / 8.1rem 1.35rem no-repeat,
-    radial-gradient(circle, rgb(97 189 128 / 34%), rgb(16 55 43 / 60%));
+    linear-gradient(rgb(18 42 32 / 18%), rgb(18 42 32 / 48%)),
+    url("/assets/lindocara/tiny-swords/ui/Banner_Slots.png") center / cover;
+  box-shadow:
+    0 0 0 1px #291d13,
+    inset 0 0 0 2px rgb(242 210 137 / 28%),
+    inset 0 -9px 13px rgb(20 15 10 / 35%),
+    0 3px 7px rgb(0 0 0 / 38%);
   image-rendering: pixelated;
+}
+
+.unit-portrait::after {
+  position: absolute;
+  inset: 3px;
+  border: 1px solid rgb(240 218 161 / 30%);
+  border-radius: 4px;
+  content: "";
+  pointer-events: none;
+}
+
+.unit-portrait > span {
+  position: absolute;
+  inset: -22%;
+  background-position: left center;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 2px 1px rgb(8 15 11 / 60%));
+  image-rendering: pixelated;
+}
+
+.unit-portrait--enemy > span {
+  inset: 1px;
+  background-position: center;
+}
+
+.unit-portrait--self {
+  grid-row: 1 / span 2;
+  width: 3.25rem;
+  height: 3.25rem;
+}
+
+.unit-portrait--target {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  width: 3.75rem;
+  height: 3.75rem;
 }
 
 .identity-copy {
@@ -317,36 +349,42 @@ button:disabled {
   left: 50%;
   translate: -50% 0;
   display: grid;
-  grid-template-columns: minmax(10rem, 15rem) auto auto;
+  grid-template-columns: 3.75rem minmax(9rem, 14rem) auto auto;
   align-items: center;
   gap: 0.35rem 0.55rem;
-  min-width: min(21rem, calc(100vw - 2rem));
-  padding: 0.52rem 0.65rem;
+  min-width: min(24rem, calc(100vw - 2rem));
+  padding: 0.48rem 0.58rem;
+  border-width: 2px;
+  background: linear-gradient(90deg, rgb(48 37 23 / 32%), transparent 32%), rgb(8 27 23 / 94%);
+  box-shadow:
+    0 0 0 1px rgb(35 22 15 / 80%),
+    0 9px 24px rgb(0 0 0 / 46%);
   pointer-events: auto;
 }
 
-.target-frame > div {
+.target-frame__identity {
   display: flex;
   flex-direction: column;
-  grid-column: 1 / 3;
+  grid-column: 2 / 4;
 }
 
-.target-frame > div > span {
+.target-frame__identity > span {
   color: var(--muted);
   font-size: 0.55rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
 
-.target-frame > div > strong {
+.target-frame__identity > strong {
   color: #f3ead6;
 }
 
 .target-frame .bar {
-  grid-column: 1;
+  grid-column: 2;
 }
 
 .target-frame > span {
+  grid-column: 3;
   color: #d9e4d9;
   font:
     0.62rem ui-monospace,
@@ -354,7 +392,7 @@ button:disabled {
 }
 
 .target-frame > button {
-  grid-column: 3;
+  grid-column: 4;
   grid-row: 1 / 3;
   align-self: stretch;
   min-width: 2rem;
@@ -1056,6 +1094,7 @@ kbd {
 
 .settings-panel {
   width: min(24rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
   border: 1px solid rgb(207 180 101 / 42%);
   border-radius: 8px;
   background:
@@ -1063,7 +1102,7 @@ kbd {
     linear-gradient(rgb(57 43 30 / 92%) 1px, transparent 1px) 0 0 / 24px 24px,
     #2a2019;
   box-shadow: 0 18px 50px rgb(0 0 0 / 54%);
-  overflow: hidden;
+  overflow: hidden auto;
 }
 
 .settings-header {
@@ -1169,6 +1208,30 @@ kbd {
 .settings-row input[type="range"]:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.settings-session-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+}
+
+.settings-session-actions button {
+  min-height: 2.65rem;
+  padding: 0.48rem 0.55rem;
+  border-color: rgb(207 180 101 / 38%);
+  border-radius: 4px;
+  background: linear-gradient(#876c38, #5c4527);
+  color: #fff0c9;
+  font:
+    700 0.67rem Georgia,
+    serif;
+}
+
+.settings-session-actions .danger {
+  border-color: rgb(191 103 87 / 55%);
+  background: linear-gradient(#744137, #4c2825);
+  color: #ffd9cd;
 }
 
 .settings-footer {
@@ -1420,6 +1483,10 @@ kbd {
   transform: translate(-50%, 0);
 }
 
+.mobile-controls {
+  display: none;
+}
+
 @keyframes quest-timer-pulse {
   from {
     box-shadow: 0 0 0 rgb(255 172 86 / 0%);
@@ -1429,52 +1496,263 @@ kbd {
   }
 }
 
-@media (max-width: 700px) {
+@media (max-width: 900px) {
   #hud {
-    width: calc(100vw - 1.6rem);
+    top: 0.45rem;
+    left: calc(0.45rem + var(--safe-left));
+    grid-template-columns: 1fr;
+    width: min(14rem, calc(100vw - 5rem));
+  }
+
+  #hud .party,
+  #hud .quest,
+  #hud .inventory,
+  #hud .combat {
+    display: none;
+  }
+
+  .identity {
+    min-width: 0;
+    width: 100%;
+    grid-template-columns: 2.8rem 1fr;
+  }
+
+  .unit-portrait--self {
+    width: 2.8rem;
+    height: 2.8rem;
+  }
+
+  .identity-copy {
+    gap: 0.3rem;
+  }
+
+  .identity-copy strong {
+    max-width: 7rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .identity label {
+    grid-template-columns: 1.75rem 1fr 2.75rem;
+    gap: 0.2rem;
+  }
+
+  .target-frame {
+    top: 0.45rem;
+    min-width: 0;
+    width: min(20rem, calc(100vw - 15.5rem));
+    padding: 0.38rem 0.45rem;
+    grid-template-columns: 3.2rem minmax(6.5rem, 1fr) auto auto;
+  }
+
+  .unit-portrait--target {
+    width: 3.2rem;
+    height: 3.2rem;
   }
 
   .skill-bar.panel {
-    bottom: 4.2rem;
-    width: calc(100vw - 1rem);
-    grid-template-columns: repeat(5, 1fr);
+    right: calc(0.55rem + var(--safe-right));
+    bottom: calc(0.55rem + var(--safe-bottom));
+    left: auto;
+    width: auto;
+    padding: 0;
+    grid-template-columns: repeat(3, 3.4rem);
+    gap: 0.42rem;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    translate: none;
   }
 
   .skill-slot {
-    min-width: 0;
-    min-height: 3.6rem;
+    width: 3.4rem;
+    min-width: 3.4rem;
+    min-height: 3.4rem;
+    padding: 0.25rem;
+    border-radius: 50%;
+    box-shadow:
+      0 0 0 1px rgb(35 22 15 / 85%),
+      0 4px 10px rgb(0 0 0 / 40%);
+    touch-action: manipulation;
   }
 
-  .skill-slot__name {
+  .skill-slot__icon {
+    width: 2.15rem;
+    height: 2.15rem;
+  }
+
+  .skill-slot__name,
+  .skill-slot__key,
+  .skill-slot__tooltip {
     display: none;
   }
 
-  .inventory {
+  .skill-slot__cost {
+    top: auto;
+    right: -0.08rem;
+    bottom: -0.05rem;
+    display: grid;
+    place-items: center;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    border: 1px solid #4b83a1;
+    border-radius: 50%;
+    background: #102b3a;
+  }
+
+  #minimap,
+  #help,
+  #status {
     display: none;
   }
 
-  /* At this width #hud already claims the full bar (width: calc(100vw - 1.6rem) above), so a
-     fixed 11rem circle in the top-right corner sits on top of it instead of beside it. */
-  #minimap {
-    display: none;
+  #locale-toggle {
+    top: calc(0.4rem + env(safe-area-inset-top, 0px));
+    right: calc(0.4rem + var(--safe-right));
+    bottom: auto;
+  }
+
+  #locale-toggle button {
+    min-width: 2rem;
+    min-height: 2rem;
+    padding: 0.35rem;
   }
 
   #event-log {
-    top: auto;
-    bottom: 12rem;
+    top: 5.2rem;
+    right: calc(0.45rem + var(--safe-right));
+    width: min(13rem, 52vw);
+    max-height: 24vh;
+    overflow: hidden;
   }
 
-  #help {
-    display: none;
+  #chat:not(.chat-open) {
+    bottom: calc(8.5rem + var(--safe-bottom));
+    left: calc(0.45rem + var(--safe-left));
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
   }
 
-  #chat {
-    bottom: 0.65rem;
+  #chat.chat-open {
+    z-index: 12;
+    top: 5rem;
+    right: calc(0.5rem + var(--safe-right));
+    bottom: auto;
+    left: calc(0.5rem + var(--safe-left));
+    width: auto;
+    max-height: calc(100dvh - 6rem);
+    overflow: auto;
+  }
+
+  .mobile-controls {
+    position: fixed;
+    inset: 0;
+    z-index: 7;
+    display: block;
+    pointer-events: none;
+  }
+
+  .mobile-joystick {
+    position: absolute;
+    bottom: calc(0.7rem + var(--safe-bottom));
+    left: calc(0.7rem + var(--safe-left));
+    width: 7rem;
+    height: 7rem;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 2px solid rgb(222 198 127 / 45%);
+    border-radius: 50%;
+    background:
+      radial-gradient(circle, transparent 42%, rgb(8 27 23 / 35%) 43%), rgb(5 19 16 / 48%);
+    box-shadow:
+      inset 0 0 18px rgb(0 0 0 / 42%),
+      0 5px 18px rgb(0 0 0 / 25%);
+    pointer-events: auto;
+    touch-action: none;
+  }
+
+  .mobile-joystick::before,
+  .mobile-joystick::after {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    background: rgb(220 194 111 / 20%);
+    content: "";
+    translate: -50% -50%;
+  }
+
+  .mobile-joystick::before {
+    width: 64%;
+    height: 1px;
+  }
+
+  .mobile-joystick::after {
+    width: 1px;
+    height: 64%;
+  }
+
+  .mobile-joystick__thumb {
+    position: absolute;
+    z-index: 1;
+    top: calc(50% - 1.45rem);
+    left: calc(50% - 1.45rem);
+    width: 2.9rem;
+    height: 2.9rem;
+    border: 2px solid #c6a75c;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 40% 32%, rgb(242 219 155 / 28%), transparent 36%),
+      linear-gradient(#385f4d, #19382d);
+    box-shadow:
+      inset 0 0 0 2px rgb(7 25 20 / 72%),
+      0 3px 8px rgb(0 0 0 / 45%);
+    pointer-events: none;
+  }
+
+  .mobile-utilities {
+    position: absolute;
+    bottom: calc(8.15rem + var(--safe-bottom));
+    left: calc(0.55rem + var(--safe-left));
+    display: flex;
+    gap: 0.34rem;
+    pointer-events: auto;
+  }
+
+  .mobile-utilities button {
+    display: grid;
+    place-items: center;
+    width: 2.45rem;
+    min-width: 2.45rem;
+    height: 2.45rem;
+    padding: 0;
+    border: 1px solid #a8874d;
+    border-radius: 50%;
+    background: linear-gradient(#466c56, #1d3b30);
+    color: #f4dfaa;
+    font:
+      700 1.1rem Georgia,
+      serif;
+    box-shadow: 0 3px 8px rgb(0 0 0 / 38%);
+    touch-action: manipulation;
+  }
+
+  .mobile-utility__potion {
+    width: 1.5rem;
+    height: 1.5rem;
+    background: url("/assets/lindocara/atlas/hud.png") -4.5rem 50% / 9rem 1.5rem no-repeat;
+    image-rendering: pixelated;
   }
 
   #interior {
     right: 0.8rem;
-    bottom: 5.2rem;
+    bottom: calc(8rem + var(--safe-bottom));
     left: 0.8rem;
   }
 
@@ -1483,12 +1761,68 @@ kbd {
   }
 
   #prompt {
-    bottom: 4.8rem;
+    bottom: calc(8.5rem + var(--safe-bottom));
     width: calc(100vw - 2rem);
   }
 
   #chat.chat-open ~ #prompt {
     display: none;
+  }
+
+  #settings-menu {
+    padding: calc(0.6rem + env(safe-area-inset-top, 0px)) calc(0.6rem + var(--safe-right))
+      calc(0.6rem + var(--safe-bottom)) calc(0.6rem + var(--safe-left));
+  }
+
+  .settings-panel {
+    max-height: calc(100dvh - 1.2rem - env(safe-area-inset-top, 0px) - var(--safe-bottom));
+  }
+}
+
+@media (max-width: 600px) {
+  .target-frame {
+    top: 4.85rem;
+    width: calc(100vw - 0.9rem);
+  }
+
+  #event-log {
+    top: 9.4rem;
+  }
+}
+
+@media (max-width: 900px) and (max-height: 500px) {
+  #hud {
+    width: 12.5rem;
+  }
+
+  .target-frame {
+    top: 0.35rem;
+    width: min(18rem, calc(100vw - 27rem));
+  }
+
+  .mobile-joystick {
+    width: 5.6rem;
+    height: 5.6rem;
+  }
+
+  .mobile-utilities {
+    bottom: calc(0.55rem + var(--safe-bottom));
+    left: calc(6.8rem + var(--safe-left));
+  }
+
+  .skill-bar.panel {
+    grid-template-columns: repeat(5, 2.85rem);
+  }
+
+  .skill-slot {
+    width: 2.85rem;
+    min-width: 2.85rem;
+    min-height: 2.85rem;
+  }
+
+  .skill-slot__icon {
+    width: 1.75rem;
+    height: 1.75rem;
   }
 }
 

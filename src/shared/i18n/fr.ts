@@ -264,6 +264,13 @@ export const fr: Record<keyof typeof en, string> = {
   "help.release": "libérer l'esprit",
   "help.settings": "paramètres",
   "help.map": "carte",
+  "mobile.controls": "Commandes tactiles",
+  "mobile.move": "Déplacer le personnage",
+  "mobile.interact": "Interagir",
+  "mobile.potion": "Utiliser un tonique",
+  "mobile.map": "Ouvrir la carte du monde",
+  "mobile.chat": "Ouvrir le chat",
+  "mobile.settings": "Ouvrir les paramètres",
 
   // Menu pause / paramètres
   "settings.title": "Paramètres",
@@ -272,6 +279,7 @@ export const fr: Record<keyof typeof en, string> = {
   "settings.sfx": "Effets & actions",
   "settings.ambient": "Musique & ambiance",
   "settings.interface": "Interface",
+  "settings.session": "Session",
   "settings.health_bars": "Barres de vie à proximité",
   "settings.health_bars_both": "Alliés et ennemis",
   "settings.health_bars_allies": "Alliés uniquement",

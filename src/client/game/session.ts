@@ -30,12 +30,14 @@ import { type InteriorDoor, nearestInterior } from "./interiors.js";
 import { MapSurface } from "./minimap-surface.js";
 import { type Connection, type ConnectionHandlers, WorldClient } from "./net.js";
 import { type PartyTargetResolution, resolvePartyTarget } from "./party.js";
+import { guardPortrait, monsterPortrait, playerPortrait } from "./portrait-art.js";
 import { type RenderContext, Renderer } from "./renderer.js";
 import { GameSound } from "./sound.js";
 import {
   type CombatTarget,
   cycleMonsterTarget,
   offensiveTarget,
+  resolveBasicAttackTarget,
   resolveSkillTarget,
   targetExists,
 } from "./targeting.js";
@@ -99,6 +101,7 @@ function renderPlayer(player: PlayerSnapshot | undefined, corpse: Vec2 | null): 
           corpseDistance:
             player.life === "ghost" && corpse ? Math.round(pointDistance(player, corpse)) : null,
           class: player.class,
+          appearance: { ...player.appearance },
           equipment: { ...player.equipment },
         }
       : null,
@@ -270,6 +273,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
         name: t(`monster.${monster.species}` as MessageKey),
         hp: monster.hp,
         maxHp: monster.maxHp,
+        portrait: monsterPortrait(monster.species),
       });
       return;
     }
@@ -282,6 +286,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
         name: t("npc.city_guard.name"),
         hp: guard.hp,
         maxHp: guard.maxHp,
+        portrait: guardPortrait(),
       });
       return;
     }
@@ -293,6 +298,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       name: player.nick,
       hp: player.hp,
       maxHp: player.maxHp,
+      portrait: playerPortrait(player.class, player.appearance),
     });
   };
 
@@ -539,19 +545,31 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     return nearest;
   };
 
-  const attack = () => {
-    if (interiorOpen()) return;
-    const target = hostileTarget();
-    if (!target) {
+  const attack = (): boolean => {
+    if (interiorOpen()) return false;
+    const sample = client.sample(performance.now());
+    const self = sample.players.find((player) => player.id === client.selfId) ?? currentSelf;
+    const target = resolveBasicAttackTarget(
+      sample.monsters,
+      self,
+      combatTarget,
+      CLASS_STATS[playerClass()].attackRange,
+    );
+    if (!target.ok) {
+      if (target.reason === "out_of_range") {
+        addEvent(t("event.combat.too_far"), "info");
+        return false;
+      }
       addEvent(t("target.need_hostile"), "info");
-      return;
+      return false;
     }
     sound.unlock();
     sound.basicAttack(playerClass());
     attackCooldownUntil = performance.now() + ATTACK_COOLDOWN_MS;
     useUiStore.getState().setAttackCooldownUntil(attackCooldownUntil);
     if (client.selfId) renderer.playAttack(client.selfId);
-    connection?.attack(target.id);
+    connection?.attack(target.target.id);
+    return true;
   };
   const interact = () => {
     sound.unlock();
@@ -601,6 +619,12 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     const playerClass = currentSelf?.class ?? character.class;
     const skill = skillFor(playerClass, slot);
     if ((useUiStore.getState().skillCooldowns[slot] ?? 0) > performance.now()) return;
+    if (slot === 1) {
+      if (attack()) {
+        useUiStore.getState().setSkillCooldown(slot, performance.now() + skill.cooldownMs);
+      }
+      return;
+    }
     let selectedTarget = combatTarget;
     const initialResolution = resolveSkillTarget(skill.effect, selectedTarget);
     if (!initialResolution.ok && initialResolution.required === "hostile") {
@@ -612,11 +636,6 @@ export async function startGame(character: CharacterSummary): Promise<void> {
         t(target.required === "hostile" ? "target.need_hostile" : "target.need_friendly"),
         "info",
       );
-      return;
-    }
-    if (slot === 1) {
-      useUiStore.getState().setSkillCooldown(slot, performance.now() + skill.cooldownMs);
-      attack();
       return;
     }
     if (playerClass === "priest" && slot === 2) {
@@ -673,6 +692,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     heal,
     release,
     castSkill,
+    setMovement: (movement) => input.setVirtual(movement),
     clearTarget,
     sendChat: (text, channel) => connection?.sendChat(text, channel),
     partyCreate: () => connection?.partyCreate(),

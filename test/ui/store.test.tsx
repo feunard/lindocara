@@ -35,7 +35,14 @@ describe("ui store", () => {
       mapOpen: true,
       settingsOpen: true,
       interiorDoorId: "warden-hut",
-      combatTarget: { id: "enemy", kind: "monster", name: "Enemy", hp: 1, maxHp: 2 },
+      combatTarget: {
+        id: "enemy",
+        kind: "monster",
+        name: "Enemy",
+        hp: 1,
+        maxHp: 2,
+        portrait: { source: "/enemy.png", frames: 1, kind: "enemy" },
+      },
     });
 
     useUiStore.getState().resetToCharacterSelect();
@@ -59,6 +66,7 @@ describe("ui store", () => {
       life: "alive" as const,
       corpseDistance: null,
       class: "warrior" as const,
+      appearance: { body: "wayfarer" as const, primaryColor: "azure" as const },
       equipment: { mainHand: "weathered_sword" as const, offHand: "oak_shield" as const },
     };
     useUiStore.getState().setSelf(self);
@@ -68,7 +76,14 @@ describe("ui store", () => {
   });
 
   it("does not churn the target frame for an unchanged snapshot", () => {
-    const target = { id: "enemy", kind: "monster" as const, name: "Enemy", hp: 20, maxHp: 40 };
+    const target = {
+      id: "enemy",
+      kind: "monster" as const,
+      name: "Enemy",
+      hp: 20,
+      maxHp: 40,
+      portrait: { source: "/enemy.png", frames: 1, kind: "enemy" as const },
+    };
     useUiStore.getState().setCombatTarget(target);
     const first = useUiStore.getState().combatTarget;
     useUiStore.getState().setCombatTarget({ ...target });

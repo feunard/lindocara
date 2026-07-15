@@ -859,7 +859,7 @@ export const CLASS_STATS: Record<PlayerClass, ClassStats> = {
   priest: {
     attackBase: 14,
     attackPerLevel: 2,
-    attackRange: 150,
+    attackRange: 225,
     heal: { base: 35, perLevel: 3, range: 130, cooldownMs: 1_500 },
   },
 };

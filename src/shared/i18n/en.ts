@@ -258,6 +258,13 @@ export const en = {
   "help.release": "release spirit",
   "help.settings": "settings",
   "help.map": "map",
+  "mobile.controls": "Touch controls",
+  "mobile.move": "Move character",
+  "mobile.interact": "Interact",
+  "mobile.potion": "Use tonic",
+  "mobile.map": "Open world map",
+  "mobile.chat": "Open chat",
+  "mobile.settings": "Open settings",
 
   // Pause / settings menu
   "settings.title": "Settings",
@@ -266,6 +273,7 @@ export const en = {
   "settings.sfx": "Effects & actions",
   "settings.ambient": "Music & ambience",
   "settings.interface": "Interface",
+  "settings.session": "Session",
   "settings.health_bars": "Nearby health bars",
   "settings.health_bars_both": "Allies and enemies",
   "settings.health_bars_allies": "Allies only",

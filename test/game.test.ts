@@ -521,7 +521,7 @@ describe("class rules", () => {
     expect(CLASS_STATS.priest).toMatchObject({
       attackBase: 14,
       attackPerLevel: 2,
-      attackRange: 150,
+      attackRange: 225,
     });
     expect(CLASS_STATS.priest.heal).toEqual({
       base: 35,
