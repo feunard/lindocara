@@ -83,7 +83,7 @@ function decodeBlocks(blocks: string): string[] {
  * A tree in the sea and a spawn inside a tree are the same class of bug: a map that loads fine and
  * is simply wrong. Both are cheap to check here and impossible to notice later.
  */
-export function validateMapInput(input: MapInput): MapData {
+export function validateMapInput(input: MapInput): MapData & { name: string } {
   const name = input.name.trim();
   if (name.length === 0 || name.length > MAP_NAME_MAX) {
     throw new Error("name: 1-48 characters");
@@ -106,7 +106,8 @@ export function validateMapInput(input: MapInput): MapData {
   if (isSolidKind(kindAt(baked, input.spawn.col, input.spawn.row))) {
     throw new Error("spawn: must be a cell a hero can stand on");
   }
-  return data;
+  // Trimmed, not raw: the name that passed validation is the name that gets stored.
+  return { ...data, name };
 }
 
 function toStoredMap(row: typeof map.$inferSelect, elements: MapElement[]): StoredMap {
@@ -160,7 +161,7 @@ export async function createMap(db: Db, input: MapInput): Promise<StoredMap> {
   const isFirst = (await countMaps(db)) === 0 ? 1 : 0;
   await db.insert(map).values({
     id,
-    name: input.name,
+    name: data.name,
     cols: first.length,
     rows: input.blocks.length,
     blocks: encodeBlocks(input.blocks),
@@ -179,7 +180,7 @@ export async function createMap(db: Db, input: MapInput): Promise<StoredMap> {
       })),
     );
   }
-  return { id, name: input.name, ...data };
+  return { id, ...data };
 }
 
 function blocksFirstRow(blocks: readonly string[]): string {
@@ -196,7 +197,7 @@ export async function updateMap(db: Db, id: string, input: MapInput): Promise<St
   await db
     .update(map)
     .set({
-      name: input.name,
+      name: data.name,
       cols: first.length,
       rows: input.blocks.length,
       blocks: encodeBlocks(input.blocks),
@@ -219,15 +220,20 @@ export async function updateMap(db: Db, id: string, input: MapInput): Promise<St
       })),
     );
   }
-  return { id, name: input.name, ...data };
+  return { id, ...data };
 }
 
-/** Hand the front-door flag to a chosen map. Exactly one map carries it, before and after. */
+/**
+ * Hand the front-door flag to a chosen map. Exactly one map carries it, before and after — the
+ * clear and the set are one `db.batch`, so a crash between them cannot leave zero maps flagged.
+ */
 export async function setFirstMap(db: Db, id: string): Promise<void> {
   const [row] = await db.select().from(map).where(eq(map.id, id)).limit(1);
   if (!row) throw new Error("not_found: no such map");
-  await db.update(map).set({ isFirst: 0 }).where(eq(map.isFirst, 1));
-  await db.update(map).set({ isFirst: 1 }).where(eq(map.id, id));
+  await db.batch([
+    db.update(map).set({ isFirst: 0 }).where(eq(map.isFirst, 1)),
+    db.update(map).set({ isFirst: 1 }).where(eq(map.id, id)),
+  ]);
 }
 
 /**

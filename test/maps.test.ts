@@ -143,6 +143,13 @@ describe("maps", () => {
         /^name:/,
       );
     });
+
+    it("stores a padded name trimmed", async () => {
+      const db = createDb(env.DB);
+      const created = await createMap(db, { ...validInput, name: "  Padded  " });
+      expect(created.name).toBe("Padded");
+      expect((await loadMap(db, created.id))?.name).toBe("Padded");
+    });
   });
 
   describe("placement is enforced on write, not in the browser", () => {
