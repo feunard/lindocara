@@ -589,7 +589,8 @@ const SUNKEN_ISLES_DECOR: readonly DecorRegion[] = [
   },
 ] as const;
 
-const EMPTY_ZONE_VISUALS: ZoneVisualConfig = {
+/** A D1 map has no authored roads, districts or signs — nothing but its own tiles and elements. */
+export const EMPTY_ZONE_VISUALS: ZoneVisualConfig = {
   safeZone: null,
   landmarks: [],
   roads: [],

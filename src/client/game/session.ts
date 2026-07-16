@@ -19,7 +19,8 @@ import type {
 } from "../../shared/protocol.js";
 import { NO_INPUT, type Vec2 } from "../../shared/simulation.js";
 import { type SkillSlot, skillFor } from "../../shared/skills.js";
-import { DEFAULT_ZONE_ID, type ZoneId, zoneDefinition } from "../../shared/zones.js";
+import { decodeTileMap } from "../../shared/tilemap-codec.js";
+import { DEFAULT_ZONE_ID, isKnownZone, type ZoneId, zoneDefinition } from "../../shared/zones.js";
 import { type CharacterSummary, logout } from "../api.js";
 import { t } from "../i18n.js";
 import { type LocalizedText, useUiStore } from "../store.js";
@@ -329,7 +330,14 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       reconnectAttempts = 0;
       useUiStore.getState().setReconnect(null);
       renderer.setSelfId(selfId);
-      renderer.configureZone(world.zoneId);
+      // A known id resolves to the compiled catalogue (terrain, furniture and all); anything else
+      // is a D1 map, so its baked terrain and authored props travel in the welcome and are drawn
+      // from there. Same hybrid-routing rule the server used to pick this room.
+      if (isKnownZone(world.zoneId)) {
+        renderer.configureZone(world.zoneId);
+      } else {
+        renderer.configureMapTerrain(world.zoneId, decodeTileMap(world.tiles), world.elements);
+      }
       activeZoneId = world.zoneId;
       // The welcome carries the whole zone: dimensions, obstacles, safe zone, quest sites. Baking
       // the texture measures 126-138ms warm — expensive enough that a reconnect landing back in

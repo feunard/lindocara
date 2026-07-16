@@ -20,6 +20,7 @@ import {
   pointDistance,
 } from "../../shared/game.js";
 import type { MessageKey } from "../../shared/i18n/index.js";
+import type { MapElement } from "../../shared/map-data.js";
 import type {
   CorpseSnapshot,
   GuardSnapshot,
@@ -81,6 +82,7 @@ import {
 } from "./tiny-swords-art.js";
 import {
   type DecorTheme,
+  EMPTY_ZONE_VISUALS,
   type PointOfInterest,
   roadStrength,
   visualConfigFor,
@@ -174,8 +176,14 @@ interface ArtTextures {
   };
   props: {
     trees: PropArt[];
+    /** Wire-map bushes, carrying their own foot offset exactly like `trees`. Distinct from `leaves`
+     *  (frame 0, footless) which the catalogue's `#buildDecor` scatters as ground clutter. */
+    bushes: PropArt[];
     ruins: Texture[];
     rocks: Texture[];
+    /** The pack's four still rocks, in `TINY_SWORDS_ROCKS` order — a wire `stone` element indexes
+     *  this directly, so a variant maps to the same rock the map author chose. */
+    stones: Texture[];
     mushrooms: Texture[];
     stump: Texture;
     log: Texture;
@@ -542,6 +550,12 @@ async function loadArt(): Promise<ArtTextures> {
         texture: treeFrames[index]?.[0] ?? Texture.EMPTY,
         foot: sheet.foot,
       })),
+      // A bush frame is 128px with ~49px of empty footer, so it needs the same foot handling a tree
+      // does; `leaves` above keeps only frame 0 for footless decor scatter and cannot stand a bush.
+      bushes: TINY_SWORDS_BUSHES.map((sheet, index) => ({
+        texture: bushFrames[index]?.[0] ?? Texture.EMPTY,
+        foot: sheet.foot,
+      })),
       ruins: [
         texture("prop.ruin.gate"),
         texture("prop.ruin.wall"),
@@ -553,6 +567,7 @@ async function loadArt(): Promise<ArtTextures> {
         texture("prop.hut.dark"),
       ],
       rocks: [...rockTextures, ...decoTextures.pebbles],
+      stones: rockTextures,
       mushrooms: decoTextures.mushrooms,
       stump: stumpTextures[0] ?? Texture.EMPTY,
       log: stumpTextures[1] ?? Texture.EMPTY,
@@ -660,6 +675,16 @@ function pickTexture(textures: readonly Texture[], index: number): Texture {
   return texture;
 }
 
+/**
+ * A wire element's `variant` folded into `[0, length)`. Elements are validated for shape but not
+ * range, so a negative or absurd variant must still land on a real sprite rather than read
+ * `undefined` — `%` alone keeps the sign in JS, so this wraps it positive.
+ */
+function variantIndex(variant: number, length: number): number {
+  if (length <= 0) return 0;
+  return ((Math.trunc(variant) % length) + length) % length;
+}
+
 function placeTile(
   tile: Sprite,
   texture: Texture,
@@ -751,6 +776,10 @@ export class Renderer {
    *  real zone lands via `configureZone` moments later, from the welcome's `zoneId`. */
   #currentZoneId: ZoneId = DEFAULT_ZONE_ID;
   #tiles: TileMap = zoneDefinition(DEFAULT_ZONE_ID).terrain.tiles;
+  /** A wire map's authored props, or `null` for a catalogue zone. When set, it is the ONLY prop
+   *  truth: `#buildForestTrees` and `#buildDecor` stand down (a stone bakes to a `forest` cell, and
+   *  the hash pass would grow a tree out of it), and `#buildMapElements` draws this list instead. */
+  #mapElements: readonly MapElement[] | null = null;
   /** Read from the shared catalogue, the same place `#tiles` comes from — not from the welcome.
    *  Swapped wholesale in `configureZone`, so a portal from the zone you left can never draw over
    *  the one you arrived in. */
@@ -821,15 +850,47 @@ export class Renderer {
   configureZone(zoneId: ZoneId): void {
     if (zoneId === this.#currentZoneId) return;
     const zone = zoneDefinition(zoneId);
-    this.#teardownWorldFurniture();
-    for (const child of this.#forestTreesLayer.removeChildren()) child.destroy({ children: true });
-    for (const child of this.#decorLayer.removeChildren()) child.destroy({ children: true });
     this.#currentZoneId = zoneId;
     this.#tiles = zone.terrain.tiles;
     this.#portals = zone.portals;
     this.#visuals = visualConfigFor(zoneId);
     this.#zoneWidth = zone.terrain.width;
     this.#zoneHeight = zone.terrain.height;
+    // A catalogue zone draws its props from the tile grid, not an element list — clearing this is
+    // what keeps `#buildForestTrees`/`#buildDecor` on their normal path.
+    this.#mapElements = null;
+    this.#rebuildForZone();
+  }
+
+  /**
+   * The wire-terrain twin of `configureZone`: an unknown zone id is a D1 map, so its terrain and
+   * props travel in the welcome rather than living in the catalogue. `tiles` is the already-baked
+   * grid the client collides against; `elements` is the authored scenery drawn on top of it. There
+   * are no landmarks, roads or districts, so the visuals are empty and the rebuild is otherwise
+   * identical to a catalogue zone's.
+   */
+  configureMapTerrain(zoneId: string, tiles: TileMap, elements: readonly MapElement[]): void {
+    if (zoneId === this.#currentZoneId) return;
+    this.#currentZoneId = zoneId;
+    this.#tiles = tiles;
+    this.#portals = [];
+    this.#visuals = EMPTY_ZONE_VISUALS;
+    this.#zoneWidth = tiles.cols * TILE_SIZE;
+    this.#zoneHeight = tiles.rows * TILE_SIZE;
+    this.#mapElements = elements;
+    this.#rebuildForZone();
+  }
+
+  /**
+   * Tears down the previous zone's tile-derived props and world furniture, then rebuilds from the
+   * fields set by whichever `configure*` just ran. Shared verbatim by both configure paths — a
+   * second hand-kept copy of this sequence is exactly how a portal leaves the old zone's forest
+   * standing over the new room.
+   */
+  #rebuildForZone(): void {
+    this.#teardownWorldFurniture();
+    for (const child of this.#forestTreesLayer.removeChildren()) child.destroy({ children: true });
+    for (const child of this.#decorLayer.removeChildren()) child.destroy({ children: true });
     this.#cameraX = this.#zoneWidth / 2;
     this.#cameraY = this.#zoneHeight / 2;
     this.#cameraReady = false;
@@ -1002,6 +1063,13 @@ export class Renderer {
    * tree stamped in a row.
    */
   #buildForestTrees(): void {
+    // On a wire map the element list is the only prop truth, so the hash-grown forest stands down.
+    // A colliding element (a tree AND a stone) bakes to a `forest` cell, so this hash pass would
+    // grow a tree out of every stone — `#buildMapElements` draws the authored props instead.
+    if (this.#mapElements !== null) {
+      this.#buildMapElements(this.#mapElements);
+      return;
+    }
     const tiles = this.#tiles;
     for (let row = 0; row < tiles.rows; row++) {
       for (let col = 0; col < tiles.cols; col++) {
@@ -1020,6 +1088,45 @@ export class Renderer {
         container.addChild(prop);
         this.#registerStatic(container, x, y, TILE_SIZE * 2, this.#forestTreesLayer);
       }
+    }
+  }
+
+  /**
+   * A wire map's authored scenery, one sprite per element. The list is the whole prop truth here:
+   * a colliding element already baked its cell to `forest` in `bakeCollision`, so there is no cell
+   * scan and no decor scatter — either would double a prop the author already placed, and the
+   * scatter would grow a tree where a stone stands.
+   *
+   * Trees and bushes are strip props carrying a foot offset, stood on their cell exactly as
+   * `#buildForestTrees` stands a forest tree; stones are still rocks placed on the cell's base. The
+   * `variant` is folded into range because the wire validates its shape, not its magnitude. Props
+   * are untinted: a D1 map has no regional palette to bend toward, and `terrainTintsAt` already
+   * draws its ground at the pack's own colours (empty `worldRegions` → white).
+   */
+  #buildMapElements(elements: readonly MapElement[]): void {
+    for (const element of elements) {
+      const x = element.col * TILE_SIZE + TILE_SIZE / 2;
+      const base = (element.row + 1) * TILE_SIZE;
+      if (element.kind === "stone") {
+        const texture =
+          this.art.props.stones[variantIndex(element.variant, this.art.props.stones.length)];
+        if (!texture) continue;
+        const container = new Container();
+        container.position.set(x, base);
+        container.addChild(createPropSprite(texture));
+        this.#registerStatic(container, x, base, TILE_SIZE * 2, this.#decorLayer);
+        continue;
+      }
+      const pool = element.kind === "tree" ? this.art.props.trees : this.art.props.bushes;
+      const prop = pool[variantIndex(element.variant, pool.length)];
+      if (!prop) continue;
+      // Pushed down by the sheet's empty footer so the object stands on its cell, not over it.
+      const y = base + prop.foot;
+      const container = new Container();
+      container.position.set(x, y);
+      container.addChild(createPropSprite(prop.texture));
+      const layer = element.kind === "tree" ? this.#forestTreesLayer : this.#decorLayer;
+      this.#registerStatic(container, x, y, TILE_SIZE * 2, layer);
     }
   }
 
@@ -1073,6 +1180,10 @@ export class Renderer {
   }
 
   #buildDecor(): void {
+    // A wire map has no decor regions and its props are the authored element list, drawn by
+    // `#buildMapElements`. Skipping keeps a scatter pass from growing clutter over those props —
+    // and `EMPTY_ZONE_VISUALS.decorRegions` is empty anyway, so this only makes the intent explicit.
+    if (this.#mapElements !== null) return;
     const tiles = this.#tiles;
     const safeZone = this.#visuals.safeZone;
     /** Cells already holding a prop, so a region cannot stack two on one square. */
