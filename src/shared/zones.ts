@@ -11,6 +11,7 @@ import {
   type TerrainGeometry,
   VERDANT_REACH_TERRAIN,
 } from "./game.js";
+import type { MapElement } from "./map-data.js";
 import { DEFAULT_ZONE_NAVIGATION, type ZoneNavigationDefinition } from "./navigation.js";
 import type { Vec2 } from "./simulation.js";
 import { MMO_TEST_ZONE_TILES } from "./zones/mmo-test-zone-tiles.js";
@@ -43,6 +44,8 @@ export interface ZoneDefinition {
   guards: readonly GuardDefinition[];
   portals: readonly PortalDefinition[];
   navigation: ZoneNavigationDefinition;
+  /** Scenery placed by the map editor. Undefined for every catalogue zone — none of them are D1 maps. */
+  readonly elements?: readonly MapElement[];
 }
 
 /** A server-owned exit. The browser can only ask to interact near it. */
@@ -191,6 +194,14 @@ export const ZONES: Readonly<Record<ZoneId, ZoneDefinition>> = {
  */
 export function isZoneId(value: unknown): value is ZoneId {
   return typeof value === "string" && value.length > 0 && value.length <= 64;
+}
+
+/**
+ * Whether this id names a compile-time catalogue zone. The hybrid routing rule hangs off this:
+ * known ids resolve to the catalogue (content and all), anything else is a D1 map id.
+ */
+export function isKnownZone(value: unknown): value is ZoneId {
+  return typeof value === "string" && Object.hasOwn(ZONES, value);
 }
 
 export function isValidInstanceId(value: unknown): value is string {

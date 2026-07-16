@@ -148,6 +148,31 @@ export async function handoffProfileLocation(
   return updated?.sessionEpoch ?? null;
 }
 
+/**
+ * Fenced location write for the front-door fallback. The caller already holds the lease at this
+ * epoch, so unlike `handoffProfileLocation` this must NOT advance it — the room is about to
+ * compare `profile.sessionEpoch` against the very lease that authorized the move.
+ */
+export async function relocateProfile(
+  db: Db,
+  fenced: { id: string; sessionEpoch: number },
+  destination: { zoneId: string; instanceId: string; x: number; y: number },
+): Promise<boolean> {
+  const updated = await db
+    .update(character)
+    .set({
+      zoneId: destination.zoneId,
+      instanceId: destination.instanceId,
+      x: destination.x,
+      y: destination.y,
+      lastSeenAt: new Date(),
+    })
+    .where(and(eq(character.id, fenced.id), eq(character.sessionEpoch, fenced.sessionEpoch)))
+    .returning({ id: character.id })
+    .get();
+  return updated !== undefined;
+}
+
 /** Persist only while this runtime still owns the character's current session epoch. */
 export async function saveProfile(db: Db, profile: SaveableProfile): Promise<boolean> {
   const equipment = isEquipmentForClass(profile.equipment, profile.class)

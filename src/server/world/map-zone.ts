@@ -9,39 +9,13 @@
  * any, not because monsters were deleted; when the palette grows, this is where they arrive.
  */
 
-import type { Rect, TerrainGeometry } from "../../shared/game.js";
-import { bakeCollision } from "../../shared/map-data.js";
+import { terrainFromMap } from "../../shared/map-data.js";
 import { DEFAULT_ZONE_NAVIGATION } from "../../shared/navigation.js";
-import { TILE_SIZE } from "../../shared/tilemap.js";
 import type { ZoneDefinition, ZoneLocation } from "../../shared/zones.js";
 import type { StoredMap } from "../maps.js";
 
 /** Rooms are small while a human is drawing them. Nothing here is built for a crowd yet. */
 const MAP_MAX_PLAYERS = 16;
-
-function centreOf(col: number, row: number): { x: number; y: number } {
-  return { x: col * TILE_SIZE + TILE_SIZE / 2, y: row * TILE_SIZE + TILE_SIZE / 2 };
-}
-
-export function terrainFromMap(stored: StoredMap): TerrainGeometry {
-  const tiles = bakeCollision(stored);
-  const width = tiles.cols * TILE_SIZE;
-  const height = tiles.rows * TILE_SIZE;
-  // The whole map is "safe": there are no guards to defend anything and no monsters to keep out,
-  // so the one honest answer is a safe zone that covers everything rather than a rectangle drawn
-  // to look like a decision.
-  const safeZone: Rect = { x: 0, y: 0, width, height };
-  return {
-    width,
-    height,
-    // Minimap-only legacy; `tiles` is the collision truth. A second description of the same walls
-    // would only be a second thing to keep in step.
-    obstacles: [],
-    spawnPoints: [centreOf(stored.spawn.col, stored.spawn.row)],
-    safeZone,
-    tiles,
-  };
-}
 
 export function zoneFromMap(stored: StoredMap): ZoneDefinition {
   return {
@@ -60,6 +34,7 @@ export function zoneFromMap(stored: StoredMap): ZoneDefinition {
     guards: [],
     portals: [],
     navigation: { ...DEFAULT_ZONE_NAVIGATION },
+    elements: stored.elements,
   };
 }
 

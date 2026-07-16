@@ -3,9 +3,11 @@ import {
   bakeCollision,
   canPlaceElement,
   type MapData,
+  mapSpawnPoint,
   parseMapData,
+  terrainFromMap,
 } from "../src/shared/map-data.js";
-import { isSolidKind, kindAt } from "../src/shared/tilemap.js";
+import { isSolidKind, kindAt, TILE_SIZE } from "../src/shared/tilemap.js";
 
 const MAP: MapData = {
   blocks: ["....", ".##.", "....", "...."],
@@ -108,5 +110,30 @@ describe("parsing a map off the wire", () => {
     for (const value of bad) {
       expect(parseMapData(value), JSON.stringify(value)).toBe(null);
     }
+  });
+});
+
+describe("terrainFromMap", () => {
+  const data = {
+    blocks: ["####", "#..#", "#..#", "####"],
+    elements: [{ col: 1, row: 1, kind: "tree" as const, variant: 0 }],
+    spawn: { col: 2, row: 2 },
+  };
+
+  it("builds geometry whose tiles are the baked map", () => {
+    const terrain = terrainFromMap(data);
+    expect(terrain.width).toBe(4 * TILE_SIZE);
+    expect(terrain.height).toBe(4 * TILE_SIZE);
+    expect(terrain.tiles).toEqual(bakeCollision(data));
+    expect(terrain.obstacles).toEqual([]);
+    expect(terrain.safeZone).toEqual({ x: 0, y: 0, width: 4 * TILE_SIZE, height: 4 * TILE_SIZE });
+    expect(terrain.spawnPoints).toEqual([mapSpawnPoint(data)]);
+  });
+
+  it("centres the spawn point on its cell", () => {
+    expect(mapSpawnPoint(data)).toEqual({
+      x: 2 * TILE_SIZE + TILE_SIZE / 2,
+      y: 2 * TILE_SIZE + TILE_SIZE / 2,
+    });
   });
 });

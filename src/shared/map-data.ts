@@ -9,7 +9,8 @@
  * reason.
  */
 
-import type { TileKind, TileMap } from "./tilemap.js";
+import type { Rect, TerrainGeometry } from "./game.js";
+import { TILE_SIZE, type TileKind, type TileMap } from "./tilemap.js";
 import { decodeTileMap } from "./tilemap-codec.js";
 
 export const ELEMENT_KINDS = ["tree", "bush", "stone"] as const;
@@ -41,6 +42,26 @@ export const ELEMENT_RULES: Readonly<
 
 export function isElementKind(value: unknown): value is ElementKind {
   return typeof value === "string" && (ELEMENT_KINDS as readonly string[]).includes(value);
+}
+
+/** Where a hero appears: the centre of the map's one spawn cell. */
+export function mapSpawnPoint(data: MapData): { x: number; y: number } {
+  return {
+    x: data.spawn.col * TILE_SIZE + TILE_SIZE / 2,
+    y: data.spawn.row * TILE_SIZE + TILE_SIZE / 2,
+  };
+}
+
+/**
+ * A map as the world geometry both sides run on. Shared because the server builds rooms from it
+ * and the preview sandbox walks it — one builder, so they cannot disagree.
+ */
+export function terrainFromMap(data: MapData): TerrainGeometry {
+  const tiles = bakeCollision(data);
+  const width = tiles.cols * TILE_SIZE;
+  const height = tiles.rows * TILE_SIZE;
+  const safeZone: Rect = { x: 0, y: 0, width, height };
+  return { width, height, obstacles: [], spawnPoints: [mapSpawnPoint(data)], safeZone, tiles };
 }
 
 export function canPlaceElement(kind: ElementKind, on: TileKind): boolean {
