@@ -50,10 +50,10 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: d1 migrations apply lindocara --remote
 
-      # Cloudflare's deployments endpoint occasionally returns a transient 522 after the upload
-      # has completed. Retry that transport failure only; real Wrangler/configuration failures
-      # remain immediately visible.
-      - name: Deploy Worker (retry transient 522)
+      # Cloudflare's deployments endpoint occasionally returns a transient 522 or an internal
+      # code 10013 after the upload has completed. Retry only those known transient failures;
+      # real Wrangler/configuration failures remain immediately visible.
+      - name: Deploy Worker (retry transient Cloudflare errors)
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -64,12 +64,13 @@ jobs:
             if npx wrangler deploy --config dist/lindocara/wrangler.json 2>&1 | tee "$log"; then
               exit 0
             fi
-            if ! grep -q -- "-> 522" "$log"; then
+            if ! grep -Eq -- '-> 522|\[code: 10013\]' "$log"; then
               exit 1
             fi
             if [ "$attempt" = 3 ]; then
-              echo "::error::Cloudflare deployments API kept returning 522 after 3 attempts."
+              echo "::error::Cloudflare deployments API kept returning transient errors after 3 attempts."
               exit 1
             fi
+            echo "::warning::Transient Cloudflare deploy error on attempt $attempt/3; retrying."
             sleep "$((attempt * 10))"
           done
