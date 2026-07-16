@@ -15,6 +15,13 @@ import {
 } from "../src/shared/game.js";
 import { VERDANT_REACH_BOUNDS, type WorldBounds } from "../src/shared/simulation.js";
 import { TILE_SIZE, type TileKind } from "../src/shared/tilemap.js";
+import {
+  SUNKEN_ISLES_BOUNDS,
+  SUNKEN_ISLES_FORESTS,
+  SUNKEN_ISLES_ISLETS,
+  SUNKEN_ISLES_LAND,
+  SUNKEN_ISLES_LANDMARKS,
+} from "../src/shared/zones/sunken-isles.js";
 import { TEST_ZONE_TERRAIN } from "../src/shared/zones.js";
 
 /**
@@ -148,6 +155,46 @@ function rasteriseFlat(
   return { cols, rows, kinds };
 }
 
+/**
+ * Land as the positive space.
+ *
+ * Both rasterisers above start a cell as `grass` and paint water onto it — the world is ground, and
+ * the sea is a hole cut in it. An archipelago is the other way round, so this one starts every cell
+ * as water and paints the islands.
+ *
+ * It deliberately reuses `coverage` and `SOLID_COVERAGE` rather than deciding for itself what
+ * counts as land: an island rasteriser with its own idea of "half-covered" is two zones quietly
+ * disagreeing about collision.
+ */
+function rasteriseIslands(
+  bounds: WorldBounds,
+  landRects: readonly Rect[],
+  layers: readonly Layer[],
+): {
+  cols: number;
+  rows: number;
+  kinds: TileKind[];
+} {
+  const cols = Math.ceil(bounds.width / TILE_SIZE);
+  const rows = Math.ceil(bounds.height / TILE_SIZE);
+  const kinds: TileKind[] = [];
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      if (coverage(landRects, col, row) < SOLID_COVERAGE) {
+        kinds.push("water");
+        continue;
+      }
+      // Same last-wins rule as paintKind: a house on a treeline reads as a house.
+      let kind: TileKind = "grass";
+      for (const layer of layers) {
+        if (coverage(layer.rects, col, row) >= SOLID_COVERAGE) kind = layer.kind;
+      }
+      kinds.push(kind);
+    }
+  }
+  return { cols, rows, kinds };
+}
+
 function emit(
   name: string,
   constant: string,
@@ -207,7 +254,24 @@ writeFileSync(
   emit("Crossing Annex", "MMO_TEST_ZONE_TILES", test),
 );
 
+// The islets go in as land so they rasterise as scenery you can see, but nothing is placed on them:
+// they are detached, and detached land is land no player can reach.
+const isles = rasteriseIslands(
+  SUNKEN_ISLES_BOUNDS,
+  [...SUNKEN_ISLES_LAND, ...SUNKEN_ISLES_ISLETS],
+  [
+    { rects: SUNKEN_ISLES_FORESTS, kind: "forest" },
+    ...SUNKEN_ISLES_LANDMARKS.flatMap((landmark): Layer[] =>
+      landmark.collider === undefined ? [] : [{ rects: [landmark.collider], kind: "building" }],
+    ),
+  ],
+);
+writeFileSync(
+  "src/shared/zones/sunken-isles-tiles.ts",
+  emit("Sunken Isles", "SUNKEN_ISLES_TILES", isles),
+);
+
 console.log(
-  `verdant-reach ${verdant.cols}x${verdant.rows}, mmo-test-zone ${test.cols}x${test.rows}`,
+  `verdant-reach ${verdant.cols}x${verdant.rows}, mmo-test-zone ${test.cols}x${test.rows}, sunken-isles ${isles.cols}x${isles.rows}`,
 );
 console.log(`safe zone spans x ${SAFE_ZONE.x}..${SAFE_ZONE.x + SAFE_ZONE.width}`);

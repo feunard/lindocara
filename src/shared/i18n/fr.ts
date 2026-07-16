@@ -311,6 +311,9 @@ export const fr: Record<keyof typeof en, string> = {
   "portal.test_return_gate": "Porte de retour",
   "zone.verdant_reach.name": "Étendue verdoyante",
   "zone.mmo_test_zone.name": "Annexe du Passage",
+  "zone.sunken_isles.name": "Îles Englouties",
+  "portal.sunken_isles_gate": "Passage des îles",
+  "portal.sunken_isles_return": "Passage du continent",
 
   // PNJ
   "npc.warden.name": "Gardienne Elowen",

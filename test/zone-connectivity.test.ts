@@ -149,4 +149,11 @@ describe("generated zone connectivity", () => {
     expect(targetsFor(zone).length).toBeGreaterThan(zone.terrain.spawnPoints.length);
     expectConnected(zone);
   });
+
+  // The Sunken Isles are lobes welded together by overlapping rects. Widen a channel by a cell too
+  // many and a lobe floats free: the zone still loads, still looks right, and its castle is simply
+  // somewhere no player can ever stand. There are no bridges to rescue it with.
+  it("keeps every Sunken Isles lobe welded to the spawn", () => {
+    expectConnected(ZONES["sunken-isles"]);
+  });
 });

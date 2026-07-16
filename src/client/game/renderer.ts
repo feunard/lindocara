@@ -13,6 +13,7 @@ import { isSpirit } from "../../shared/death.js";
 import {
   entityBox,
   hashSeed,
+  INTERACTION_RANGE,
   type MonsterSpecies,
   type PlayerClass,
   pointDistance,
@@ -36,7 +37,12 @@ import {
   TILE_SIZE,
   type TileMap,
 } from "../../shared/tilemap.js";
-import { DEFAULT_ZONE_ID, type ZoneId, zoneDefinition } from "../../shared/zones.js";
+import {
+  DEFAULT_ZONE_ID,
+  type PortalDefinition,
+  type ZoneId,
+  zoneDefinition,
+} from "../../shared/zones.js";
 import { onLocaleChange, t } from "../i18n.js";
 import { landTile, needsFoam, tileVisual } from "./autotile.js";
 import { MAIN_HAND_ART, OFF_HAND_ART, PLAYER_ATLAS_FRAMES } from "./character-art.js";
@@ -115,6 +121,7 @@ const GRID_LINE_ALPHA = 0.18;
 const GRID_SOLID_COLOR = 0xff3b30;
 const GRID_SOLID_ALPHA = 0.22;
 const HITBOX_COLOR = 0x30ff6a;
+const PORTAL_RING_COLOR = 0x9b7dff;
 
 interface AtlasData {
   frames: Record<string, { x: number; y: number; w: number; h: number }>;
@@ -657,6 +664,10 @@ export class Renderer {
    *  real zone lands via `configureZone` moments later, from the welcome's `zoneId`. */
   #currentZoneId: ZoneId = DEFAULT_ZONE_ID;
   #tiles: TileMap = zoneDefinition(DEFAULT_ZONE_ID).terrain.tiles;
+  /** Read from the shared catalogue, the same place `#tiles` comes from — not from the welcome.
+   *  Swapped wholesale in `configureZone`, so a portal from the zone you left can never draw over
+   *  the one you arrived in. */
+  #portals: readonly PortalDefinition[] = zoneDefinition(DEFAULT_ZONE_ID).portals;
   #visuals: ZoneVisualConfig = visualConfigFor(DEFAULT_ZONE_ID);
   #zoneWidth = zoneDefinition(DEFAULT_ZONE_ID).terrain.width;
   #zoneHeight = zoneDefinition(DEFAULT_ZONE_ID).terrain.height;
@@ -728,6 +739,7 @@ export class Renderer {
     for (const child of this.#decorLayer.removeChildren()) child.destroy({ children: true });
     this.#currentZoneId = zoneId;
     this.#tiles = zone.terrain.tiles;
+    this.#portals = zone.portals;
     this.#visuals = visualConfigFor(zoneId);
     this.#zoneWidth = zone.terrain.width;
     this.#zoneHeight = zone.terrain.height;
@@ -1798,6 +1810,16 @@ export class Renderer {
       this.#gridOverlay.moveTo(startX, y).lineTo(startX + columns * TILE_SIZE, y);
     }
     this.#gridOverlay.stroke({ width: 1, color: GRID_LINE_COLOR, alpha: GRID_LINE_ALPHA });
+
+    // Portals have no art by design; this debug ring is the only way to see one. It is drawn at the
+    // real INTERACTION_RANGE, so what you see is the distance the server actually tests in
+    // `#interact` — a ring at any other radius would be a lie about where the portal starts working.
+    for (const portal of this.#portals) {
+      this.#gridOverlay.circle(portal.x, portal.y, INTERACTION_RANGE);
+    }
+    if (this.#portals.length > 0) {
+      this.#gridOverlay.stroke({ width: 2, color: PORTAL_RING_COLOR, alpha: 0.9 });
+    }
   }
 
   /**

@@ -17,6 +17,8 @@ import {
   kindAtPoint,
   TILE_SIZE,
 } from "../src/shared/tilemap.js";
+import { SUNKEN_ISLES_SPAWNS } from "../src/shared/zones/sunken-isles.js";
+import { SUNKEN_ISLES_TILES } from "../src/shared/zones/sunken-isles-tiles.js";
 import { VERDANT_REACH_TILES } from "../src/shared/zones/verdant-reach-tiles.js";
 
 // Frozen exactly as `src/shared/zones/verdant-reach-tiles.ts` read the moment before Task 1
@@ -184,5 +186,38 @@ describe("the generated Verdant Reach tilemap", () => {
     expect(kindAtPoint(VERDANT_REACH_TILES, water.rect.x + 96, water.rect.y + 96)).toBe("water");
     // No blue lakes where the buildings are.
     expect(VERDANT_REACH_TILES.kinds.filter((k) => k === "building").length).toBeGreaterThan(0);
+  });
+});
+
+describe("the Sunken Isles map", () => {
+  it("is a 40x30 map with the open sea all the way round it", () => {
+    expect(SUNKEN_ISLES_TILES.cols).toBe(40);
+    expect(SUNKEN_ISLES_TILES.rows).toBe(30);
+    for (let col = 0; col < SUNKEN_ISLES_TILES.cols; col++) {
+      expect(kindAt(SUNKEN_ISLES_TILES, col, 0)).toBe("water");
+      expect(kindAt(SUNKEN_ISLES_TILES, col, SUNKEN_ISLES_TILES.rows - 1)).toBe("water");
+    }
+    for (let row = 0; row < SUNKEN_ISLES_TILES.rows; row++) {
+      expect(kindAt(SUNKEN_ISLES_TILES, 0, row)).toBe("water");
+      expect(kindAt(SUNKEN_ISLES_TILES, SUNKEN_ISLES_TILES.cols - 1, row)).toBe("water");
+    }
+  });
+
+  // The whole point of `rasteriseIslands` is that water is the default. If this ever drops, the
+  // zone has quietly become a field with ponds in it — which is the other rasteriser's job.
+  it("is mostly sea — it is an archipelago, not a rectangle with ponds", () => {
+    const water = SUNKEN_ISLES_TILES.kinds.filter((k) => k === "water").length;
+    expect(water / SUNKEN_ISLES_TILES.kinds.length).toBeGreaterThan(0.35);
+  });
+
+  it("stands every spawn on walkable land", () => {
+    for (const spawn of SUNKEN_ISLES_SPAWNS) {
+      expect(isWalkableBox(SUNKEN_ISLES_TILES, spawn, PLAYER_SIZE)).toBe(true);
+    }
+  });
+
+  it("puts its buildings and treelines on the islands", () => {
+    expect(SUNKEN_ISLES_TILES.kinds.filter((k) => k === "building").length).toBeGreaterThan(0);
+    expect(SUNKEN_ISLES_TILES.kinds.filter((k) => k === "forest").length).toBeGreaterThan(0);
   });
 });
