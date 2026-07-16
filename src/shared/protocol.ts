@@ -19,9 +19,11 @@ import type {
 } from "./game.js";
 import { isUuid } from "./identifiers.js";
 import type { ChatChannel } from "./interest.js";
+import { type MapElement, parseMapElements } from "./map-data.js";
 import type { ClassResourceState } from "./resources.js";
 import type { Input } from "./simulation.js";
 import { isSkillSlot, type SkillSlot } from "./skills.js";
+import { parseTileMap } from "./tilemap-codec.js";
 import { isZoneId, type ZoneId } from "./zones.js";
 
 /** One tick's worth of movement intent, stamped so the server can acknowledge it. */
@@ -171,10 +173,22 @@ export type CombatAnimation =
     };
 
 export interface WorldInfo {
-  /** Identifies which zone's `TileMap` to draw. `zoneNameKey` is prose (an i18n key) and must
-   *  never be reverse-matched back into a zone — this is the one field for that. */
+  /** Names the room. It is no longer enough to find the terrain with: a map can live in D1, so the
+   *  terrain travels below instead of being looked up. `zoneNameKey` is prose (an i18n key) and must
+   *  never be reverse-matched back into a zone — this is the one field for identity. */
   zoneId: ZoneId;
   zoneNameKey: string;
+  /**
+   * The terrain itself, one character per cell, already baked.
+   *
+   * The server bakes its map — ground plus everything solid standing on it — and ships the result.
+   * The client decodes exactly these bytes and collides against them. That is deliberately stronger
+   * than both sides deriving collision from a shared payload: there is only ever one baking, and it
+   * happens on the authority. A client cannot disagree with a map it did not compute.
+   */
+  tiles: string[];
+  /** What to draw on the ground. Scenery only — collision is already in `tiles` above. */
+  elements: readonly MapElement[];
   width: number;
   height: number;
   playerSize: number;
@@ -421,6 +435,11 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       // reaches this client, drop the frame — like any other malformed message — rather than
       // hand an unrecognised zoneId to zoneDefinition() a frame later.
       isZoneId(value.world.zoneId) &&
+      // The terrain arrives as data now, so it gets checked like data. `decodeTileMap` throws on a
+      // ragged row or an unknown character — fine for a map read off disk at build time, fatal for
+      // one arriving on a socket. Drop the frame instead of crashing the first paint.
+      parseTileMap(value.world.tiles) !== null &&
+      parseMapElements(value.world.elements) !== null &&
       Array.isArray(value.players) &&
       Array.isArray(value.monsters) &&
       Array.isArray(value.guards) &&

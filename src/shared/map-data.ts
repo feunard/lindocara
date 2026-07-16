@@ -69,6 +69,33 @@ export function bakeCollision(map: MapData): TileMap {
   return { ...tiles, kinds };
 }
 
+/**
+ * Elements off the wire, checked like the untrusted data they are.
+ *
+ * Bounds are NOT checked here: the caller knows the map's size and this does not. An element with a
+ * silly cell draws nowhere and collides with nothing — collision is already baked into the tiles by
+ * the time these arrive — so the shape is what matters.
+ */
+export function parseMapElements(value: unknown): MapElement[] | null {
+  if (!Array.isArray(value)) return null;
+  const parsed: MapElement[] = [];
+  for (const raw of value) {
+    if (typeof raw !== "object" || raw === null) return null;
+    const item = raw as Record<string, unknown>;
+    const { col, row, variant } = item;
+    if (!Number.isSafeInteger(col) || !Number.isSafeInteger(row)) return null;
+    if (!Number.isSafeInteger(variant)) return null;
+    if (!isElementKind(item.kind)) return null;
+    parsed.push({
+      col: col as number,
+      row: row as number,
+      kind: item.kind,
+      variant: variant as number,
+    });
+  }
+  return parsed;
+}
+
 /** The only two block characters a map may contain. Everything else is scenery standing on them. */
 const BLOCK_CHARS = new Set([".", "#"]);
 
