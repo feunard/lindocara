@@ -32,7 +32,7 @@ with a throwaway warrior, and walk it for real.
 | a map edited under a live room | **stale until empty** — a room reads D1 once at startup; edits are seen by the next room that loads the map. Rooms stop when the last player leaves, so this resolves naturally. |
 | map size | **cols 20–100, rows 15–100**, enforced in `validateMapInput`. Max map ≈ 10 KB of blocks. |
 | preview | **client-only sandbox** — shared `bakeCollision()` + real `step()` + real renderer, no server, previews *unsaved* edits. |
-| old compile-time zones | **untouched this session** — Verdant Reach, Sunken Isles, `ZONES`, `build-map.ts` and generated tiles become unreachable dead weight; deleting them is a follow-up session. Nothing is seeded into D1. |
+| old compile-time zones | **untouched this session, via hybrid routing** — a catalogue id (`verdant-reach`, `mmo-test-zone`, `sunken-isles`) keeps resolving compile-time, so existing characters, zone content and the 473-test suite are untouched; any other id is a D1 map id. New characters start on the resolved D1 map (first map, else builtin), so user maps are where new play happens. Deleting the catalogue is a follow-up session; nothing is seeded into D1. |
 | editor painting surface | **WYSIWYG** — a terrain-only PixiJS stage rendering through the same `landTile`/`needsFoam`/element paths as the game. |
 
 ## Where the code already is
@@ -46,23 +46,34 @@ red: 58/64 `world.test.ts` connections fail with 409.
 
 ## 1. Engine — unstick the branch
 
-**Diagnose before fixing.** Add one log in `World.fetch` before `isAuthorized` (header room key vs
-resolved room key vs lease) and one inside `isAuthorized`; run one failing test. The recorded
-hypothesis: `index.ts` and `World` each call `resolveMapFor` independently against test storage
-other tests write to, so `firstMap()` can answer differently and the two room keys diverge from the
-lease. No fix lands before the log names the bug.
+**Diagnosis (confirmed by running the failing test, 2026-07-16).** The 409 is deterministic — not
+a race, and not `isAuthorized`: `World.fetch`'s "character location changed" guard fires because
+the profile row says `verdant-reach`, no such map row exists, and `resolveMapFor` silently falls
+back to the builtin — a move nothing ever persisted. The guard is right; the fallback was
+incomplete. A second discovery drove the routing shape: sending *every* id through D1 would strip
+zone content (monsters, quests, guards) from every room, which half of `world.test.ts` exists to
+test.
 
-**The fix (assuming the hypothesis holds):** resolve the map **once, at the front door**.
+**The fix:** resolve the map **once, at the front door**, and make the fallback a real move.
 
-- `index.ts` owns all fallback logic: hero's map → `is_first` map → `BUILTIN_MAP`. It acquires the
-  presence lease with the resolved room key and forwards it in the headers it already sends.
-- `World` validates header shape but **never re-resolves**. It calls `loadMap(db, zoneId)` (or uses
-  `BUILTIN_MAP` for the reserved id) purely to obtain terrain. A room that silently re-resolves is
-  a room that can disagree with the lease it was admitted under.
+- **Hybrid routing.** A catalogue zone id (`verdant-reach`, `mmo-test-zone`, `sunken-isles`)
+  resolves compile-time exactly as on `main` — content, tests and existing characters untouched.
+  Any other id is a D1 map id.
+- `index.ts` owns all D1 fallback logic: hero's map → `is_first` map → `BUILTIN_MAP`. When the
+  resolution lands on a *different* map than the profile names, that is the requirement's "move to
+  the first map ever" — persisted after acquiring the lease with an **epoch-fenced relocation
+  write** (`relocateProfile`: like `handoffProfileLocation`, but it must not advance the epoch,
+  because the lease it fences against was just acquired).
+- `World` validates header shape but **never re-resolves**. Catalogue ids use the catalogue; a D1
+  id calls `loadMap(db, zoneId)` exact-id (or `BUILTIN_MAP` for the reserved id) purely to obtain
+  terrain. A room that silently re-resolves is a room that can disagree with the lease it was
+  admitted under.
 - If the map was deleted between admission and load, the room closes with
   `WS_CLOSE.INVALID_LOCATION`; the client reconnects and the front door resolves the fallback.
-- The test harness (`test/support/world-harness.ts`) seeds one map with a **fixed, known id** so
-  room keys are deterministic across the suite regardless of what other tests write.
+- **New characters are created on the resolved D1 map** (first map, else builtin) instead of
+  `verdant-reach`, so user maps are where new play happens.
+- The test harness (`test/support/world-harness.ts`) pins existing world tests to `verdant-reach`
+  explicitly; D1-map coverage lives in a new `test/map-world.test.ts` that creates maps per test.
 
 "Hero saves map + position on exit" is inherited: `character.zone_id` is TEXT and the epoch-fenced
 save is unchanged. "Stale until empty" is true by construction, not by code: a room reads D1
@@ -135,9 +146,10 @@ coastline are exactly what preview must prove.
 
 ## 5. Testing
 
-- **Engine:** the seeded-map harness; all `world.test.ts` green; a character loads a D1 map, walks,
-  disconnects, returns to the same map and position with the epoch fence intact;
-  admitted-then-deleted map closes with `INVALID_LOCATION`.
+- **Engine:** all `world.test.ts` green (pinned to `verdant-reach` by the harness); in the new
+  `test/map-world.test.ts`, a character loads a D1 map, walks, disconnects, and returns to the same
+  map and position with the epoch fence intact; a deleted map relocates (persisted) to the first
+  map; an empty database lands on the builtin floor.
 - **API:** create → list → update → delete round trip; unauthenticated 401; tree-on-water 400;
   bad spawn 400; oversized map 400; last-map delete 409; deleting the flagged map moves the flag;
   the 32 KiB boundary accepts a max-size map and rejects beyond it.
