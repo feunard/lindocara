@@ -45,6 +45,41 @@ body::after {
   touch-action: none;
 }
 
+/* The map editor's painting toolbar floats over the shared #stage canvas (which sits behind #root):
+   a positioned bar with a z-index so it paints above the fixed canvas, leaving the rest of the
+   viewport clear for the pointer to reach the stage and paint. */
+.map-editor-toolbar {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 25;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.25rem;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(rgb(6 22 18 / 94%), rgb(6 22 18 / 78%));
+  border-bottom: 1px solid var(--line);
+  pointer-events: auto;
+}
+
+.map-editor-toolbar__tools,
+.map-editor-toolbar__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.map-editor-toolbar__meta {
+  margin-left: auto;
+}
+
+.map-editor-toolbar [role="alert"] {
+  flex-basis: 100%;
+  margin: 0;
+  color: #ffbcae;
+}
+
 .panel {
   border: 1px solid var(--line);
   border-radius: 10px;

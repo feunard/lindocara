@@ -8,6 +8,21 @@ import { CharacterSelect } from "../../src/client/ui/CharacterSelect.js";
 import { MapEditor } from "../../src/client/ui/MapEditor.js";
 import { starterEquipmentFor } from "../../src/shared/character.js";
 
+// The painting stage is Pixi on a real canvas — untestable in jsdom and not this suite's subject.
+// A fake handle stands in for it so the tests exercise the toolbar's own behaviour: which tool is
+// marked, that Save hands the stage's `current()` to the API, and that Back disposes the stage.
+const stageMock = vi.hoisted(() => ({
+  openMapEditorStage: vi.fn(),
+  setTool: vi.fn(),
+  setName: vi.fn(),
+  current: vi.fn(),
+  dispose: vi.fn(),
+}));
+
+vi.mock("../../src/client/game/map-editor-stage.js", () => ({
+  openMapEditorStage: stageMock.openMapEditorStage,
+}));
+
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(body === undefined ? null : JSON.stringify(body), {
     status,
@@ -31,8 +46,18 @@ const twoMaps: MapSummary[] = [
   { id: "m2", name: "Frostfen", isFirst: false },
 ];
 
-/** A tiny fake /api/maps* backend: list, create, delete, and flag stay consistent with each
- *  other across calls the same way the real server's D1-backed one does. */
+function payloadFor(summary: MapSummary): MapPayload {
+  return {
+    id: summary.id,
+    name: summary.name,
+    blocks: Array.from({ length: 30 }, () => ".".repeat(40)),
+    elements: [],
+    spawn: { col: 20, row: 15 },
+  };
+}
+
+/** A tiny fake /api/maps* backend: list, create, open, update, delete, and flag stay consistent
+ *  with each other across calls the same way the real server's D1-backed one does. */
 function fetchMock(maps: MapSummary[] = twoMaps) {
   const list = maps.map((m) => ({ ...m }));
   return vi.fn((url: string, init?: RequestInit) => {
@@ -49,11 +74,22 @@ function fetchMock(maps: MapSummary[] = twoMaps) {
       list.push({ id: created.id, name: created.name, isFirst: false });
       return Promise.resolve(jsonResponse(created, 201));
     }
-    const deleteMatch = url.match(/^\/api\/maps\/([^/]+)$/);
-    if (deleteMatch?.[1] && method === "DELETE") {
-      const index = list.findIndex((m) => m.id === deleteMatch[1]);
-      if (index >= 0) list.splice(index, 1);
-      return Promise.resolve(new Response(null, { status: 204 }));
+    const idMatch = url.match(/^\/api\/maps\/([^/]+)$/);
+    if (idMatch?.[1]) {
+      const summary = list.find((m) => m.id === idMatch[1]);
+      if (method === "GET") {
+        if (!summary) return Promise.resolve(jsonResponse({ error: "map_not_found" }, 404));
+        return Promise.resolve(jsonResponse(payloadFor(summary)));
+      }
+      if (method === "PUT") {
+        const body: unknown = JSON.parse(String(init?.body ?? "{}"));
+        return Promise.resolve(jsonResponse({ id: idMatch[1], ...(body as object) }));
+      }
+      if (method === "DELETE") {
+        const index = list.findIndex((m) => m.id === idMatch[1]);
+        if (index >= 0) list.splice(index, 1);
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
     }
     const firstMatch = url.match(/^\/api\/maps\/([^/]+)\/first$/);
     if (firstMatch?.[1] && method === "POST") {
@@ -68,7 +104,23 @@ describe("MapEditor", () => {
   beforeEach(() => {
     setLocale("en");
     useUiStore.setState({ screen: "map-editor", characters: null });
+    for (const fn of Object.values(stageMock)) fn.mockReset();
+    stageMock.openMapEditorStage.mockResolvedValue({
+      setTool: stageMock.setTool,
+      current: stageMock.current,
+      setName: stageMock.setName,
+      dispose: stageMock.dispose,
+    });
   });
+
+  /** Opens the first map (m1) into the painting stage and waits until the stage handle is wired,
+   *  so a following toolbar action actually reaches the (fake) handle. */
+  async function openFirstMap(): Promise<void> {
+    await screen.findByText("Verdant Reach");
+    await userEvent.click(screen.getAllByRole("button", { name: "Open" })[0] as HTMLElement);
+    await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(1));
+    await screen.findByRole("button", { name: "Water" });
+  }
 
   it("is reachable from character select via a Map editor button", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse([])));
@@ -151,5 +203,75 @@ describe("MapEditor", () => {
     render(<MapEditor />);
 
     await waitFor(() => expect(useUiStore.getState().screen).toBe("auth"));
+  });
+
+  it("opens a map into the painting stage and marks the selected tool", async () => {
+    vi.stubGlobal("fetch", fetchMock());
+    render(<MapEditor />);
+    await openFirstMap();
+
+    // Grass is the default tool; selecting Water moves the mark and pushes the tool to the stage.
+    expect(screen.getByRole("button", { name: "Grass" })).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(screen.getByRole("button", { name: "Water" }));
+
+    expect(screen.getByRole("button", { name: "Water" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Grass" })).toHaveAttribute("aria-pressed", "false");
+    await waitFor(() =>
+      expect(stageMock.setTool).toHaveBeenCalledWith({ kind: "block", block: "water" }),
+    );
+  });
+
+  it("cycles the selected element's variant", async () => {
+    vi.stubGlobal("fetch", fetchMock());
+    render(<MapEditor />);
+    await openFirstMap();
+
+    await userEvent.click(screen.getByRole("button", { name: "Tree" }));
+    await waitFor(() =>
+      expect(stageMock.setTool).toHaveBeenCalledWith({
+        kind: "element",
+        element: "tree",
+        variant: 0,
+      }),
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Variant" }));
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({
+      kind: "element",
+      element: "tree",
+      variant: 1,
+    });
+  });
+
+  it("saves the stage's current map to the update endpoint", async () => {
+    const edited = {
+      name: "Verdant Reach",
+      blocks: Array.from({ length: 30 }, () => ".".repeat(40)),
+      elements: [{ col: 2, row: 3, kind: "tree", variant: 1 }],
+      spawn: { col: 20, row: 15 },
+    };
+    stageMock.current.mockReturnValue(edited);
+    const mock = fetchMock();
+    vi.stubGlobal("fetch", mock);
+    render(<MapEditor />);
+    await openFirstMap();
+
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(mock).toHaveBeenCalledWith(
+        "/api/maps/m1",
+        expect.objectContaining({ method: "PUT", body: JSON.stringify(edited) }),
+      ),
+    );
+  });
+
+  it("disposes the stage and returns to the list via Back", async () => {
+    vi.stubGlobal("fetch", fetchMock());
+    render(<MapEditor />);
+    await openFirstMap();
+
+    await userEvent.click(screen.getByRole("button", { name: "Back" }));
+    await waitFor(() => expect(stageMock.dispose).toHaveBeenCalled());
+    expect(await screen.findByText("Frostfen")).toBeInTheDocument();
   });
 });

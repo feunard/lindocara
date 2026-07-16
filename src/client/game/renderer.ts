@@ -63,6 +63,8 @@ import {
 import {
   allUnitSheets,
   type DecorSheet,
+  sliceAutotileSheet,
+  sliceStrip,
   TINY_SWORDS_BUILDINGS,
   TINY_SWORDS_BUSHES,
   TINY_SWORDS_DECO,
@@ -320,25 +322,6 @@ function sliceHorizontalSheet(
   });
 }
 
-/**
- * Slices `Tilemap_Flat.png`'s first 4x4 group into one `Texture` per cell, once — not per frame.
- * `land[row][col]` mirrors `landTile()`'s `{ col, row }` return so a lookup is a plain index, not
- * a search.
- */
-function sliceAutotileSheet(sheet: Texture): Texture[][] {
-  return Array.from({ length: 4 }, (_, row) =>
-    Array.from(
-      { length: 4 },
-      (_, col) =>
-        new Texture({
-          source: sheet.source,
-          frame: new Rectangle(col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE),
-          label: `terrain.flat:${col}:${row}`,
-        }),
-    ),
-  );
-}
-
 function landTexture(
   land: readonly (readonly Texture[])[],
   cell: { col: number; row: number },
@@ -424,20 +407,7 @@ async function loadArt(): Promise<ArtTextures> {
   terrainFlatSheet.source.style.scaleMode = "nearest";
   terrainWaterSurface.source.style.scaleMode = "nearest";
   terrainFoamSheet.source.style.scaleMode = "nearest";
-  const terrainFoam = Array.from(
-    { length: TINY_SWORDS_FOAM_FRAMES },
-    (_, frame) =>
-      new Texture({
-        source: terrainFoamSheet.source,
-        frame: new Rectangle(
-          frame * TINY_SWORDS_FOAM_FRAME,
-          0,
-          TINY_SWORDS_FOAM_FRAME,
-          TINY_SWORDS_FOAM_FRAME,
-        ),
-        label: `foam:${frame}`,
-      }),
-  );
+  const terrainFoam = sliceStrip(terrainFoamSheet, TINY_SWORDS_FOAM_FRAME, TINY_SWORDS_FOAM_FRAMES);
   // Every prop below is loaded at its native size and never resampled: `nearest` keeps the pixels
   // square, and nothing scales them afterwards. See `createPropSprite`.
   const loadStills = async (sources: readonly string[]): Promise<Texture[]> => {
@@ -448,15 +418,7 @@ async function loadArt(): Promise<ArtTextures> {
   const loadStrip = async (sheet: DecorSheet): Promise<Texture[]> => {
     const loaded = await Assets.load<Texture>(sheet.source);
     loaded.source.style.scaleMode = "nearest";
-    return Array.from(
-      { length: sheet.frames },
-      (_, frame) =>
-        new Texture({
-          source: loaded.source,
-          frame: new Rectangle(frame * sheet.frame, 0, sheet.frame, sheet.frame),
-          label: `${sheet.source}:${frame}`,
-        }),
-    );
+    return sliceStrip(loaded, sheet.frame, sheet.frames);
   };
   const [treeFrames, bushFrames, rockTextures, stumpTextures] = await Promise.all([
     Promise.all(TINY_SWORDS_TREES.map(loadStrip)),

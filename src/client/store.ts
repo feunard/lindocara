@@ -7,6 +7,7 @@ import type { PartyState, QuestStatus, SelfState } from "../shared/protocol.js";
 import type { Input } from "../shared/simulation.js";
 import type { SkillSlot } from "../shared/skills.js";
 import type { CharacterSummary } from "./api.js";
+import type { MapEditorStageHandle } from "./game/map-editor-stage.js";
 
 export interface LocalizedText {
   key: MessageKey;
@@ -90,15 +91,10 @@ export interface GameHandle {
   attachWorldMap(canvas: HTMLCanvasElement | null): void;
 }
 
-/**
- * Task 9 ships list mode only (fetch, create, delete, flag the front door) — no canvas exists
- * yet, so this is a placeholder just big enough to give the store slot a type. Task 10 owns the
- * real stage: attaching the paint canvas, tool selection, and whatever else the editing surface
- * needs, extending this interface rather than replacing the slot.
- */
-export interface MapEditorStageHandle {
-  dispose(): void;
-}
+// The painting stage owns `MapEditorStageHandle` (it is the Pixi half of the seam); the store only
+// holds the handle React talks to. Re-exported so existing store consumers keep their import site,
+// and taken as `import type` so Pixi never enters the store's runtime graph.
+export type { MapEditorStageHandle };
 
 export interface ReconnectState {
   kind: "transition" | "network";

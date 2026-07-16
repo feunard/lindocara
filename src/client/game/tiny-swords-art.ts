@@ -1,6 +1,8 @@
+import { Rectangle, Texture } from "pixi.js";
 import type { CharacterAppearance, Equipment, PrimaryColor } from "../../shared/character.js";
 import type { PlayerClass } from "../../shared/game.js";
 import type { SkillSlot } from "../../shared/skills.js";
+import { TILE_SIZE } from "../../shared/tilemap.js";
 
 export const TINY_SWORDS_ROOT = "/assets/lindocara/tiny-swords";
 export const TINY_SWORDS_UNIT_FRAME = 192;
@@ -27,6 +29,42 @@ export const TINY_SWORDS_TERRAIN = {
  *  landmass is what draws its shoreline. */
 export const TINY_SWORDS_FOAM_FRAME = 192;
 export const TINY_SWORDS_FOAM_FRAMES = 8;
+
+/**
+ * `Tilemap_Flat.png`'s first 4x4 group sliced into one `Texture` per cell — the shared arithmetic
+ * the world renderer and the map editor both draw the autotiled coastline from, so neither keeps a
+ * private copy that could index the sheet a different way. `land[row][col]` mirrors `landTile()`'s
+ * `{ col, row }` return, so a lookup is a plain index rather than a search. Sliced once per sheet,
+ * never per frame.
+ */
+export function sliceAutotileSheet(sheet: Texture): Texture[][] {
+  return Array.from({ length: 4 }, (_, row) =>
+    Array.from(
+      { length: 4 },
+      (_, col) =>
+        new Texture({
+          source: sheet.source,
+          frame: new Rectangle(col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE),
+          label: `terrain.flat:${col}:${row}`,
+        }),
+    ),
+  );
+}
+
+/** One horizontal strip of `frames` square `frameSize` cells (foam, a tree or bush's sway) sliced
+ *  into a `Texture` each. The same arithmetic `loadArt` runs for its own strips, shared here so the
+ *  editor stage does not grow a second copy of it. */
+export function sliceStrip(sheet: Texture, frameSize: number, frames: number): Texture[] {
+  return Array.from(
+    { length: frames },
+    (_, index) =>
+      new Texture({
+        source: sheet.source,
+        frame: new Rectangle(index * frameSize, 0, frameSize, frameSize),
+        label: `${sheet.label ?? "strip"}:${index}`,
+      }),
+  );
+}
 
 /**
  * The pack's own props, at the pack's own sizes.
