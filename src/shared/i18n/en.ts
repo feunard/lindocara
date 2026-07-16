@@ -305,6 +305,9 @@ export const en = {
   "portal.test_return_gate": "Return gate",
   "zone.verdant_reach.name": "Verdant Reach",
   "zone.mmo_test_zone.name": "Crossing Annex",
+  "zone.sunken_isles.name": "Sunken Isles",
+  "portal.sunken_isles_gate": "Isles crossing",
+  "portal.sunken_isles_return": "Mainland crossing",
 
   // NPC
   "npc.warden.name": "Keeper Elowen",

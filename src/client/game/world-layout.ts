@@ -1,6 +1,7 @@
 import { type Rect, SAFE_ZONE, WORLD_LANDMARKS, type WorldLandmark } from "../../shared/game.js";
 import type { MessageKey } from "../../shared/i18n/index.js";
 import type { Vec2 } from "../../shared/simulation.js";
+import { SUNKEN_ISLES_LANDMARKS } from "../../shared/zones/sunken-isles.js";
 import type { ZoneId as RuntimeZoneId } from "../../shared/zones.js";
 
 export type ZoneId =
@@ -13,7 +14,8 @@ export type ZoneId =
   | "wayfarer-camp"
   | "elderfall"
   | "duskmire"
-  | "sealed-gate";
+  | "sealed-gate"
+  | "sunken-isles";
 
 export type Biome = "village" | "meadow" | "forest" | "farm" | "wetland" | "ruins" | "marsh";
 
@@ -534,6 +536,59 @@ const VERDANT_REACH_AMBIENT: readonly AmbientRegion[] = [
   { x: 3100, y: 1770, radiusX: 240, radiusY: 190, count: 10, color: 0xffdf85 },
 ] as const;
 
+/**
+ * One region covering the whole archipelago, at a neutral tint.
+ *
+ * `terrainTintsAt` bends the land and water away from Tiny Swords' authored palette per biome; a
+ * white tint means "exactly as the artist drew it". The isles are new ground with no regional
+ * story to tell yet, so they get the pack's own colours rather than an invented mood.
+ */
+const SUNKEN_ISLES_REGIONS: readonly ZoneDefinition[] = [
+  {
+    id: "sunken-isles",
+    nameKey: "zone.sunken_isles.name",
+    biome: "meadow",
+    x: 1280,
+    y: 960,
+    radiusX: 1280,
+    radiusY: 960,
+    tint: 0xffffff,
+  },
+] as const;
+
+const SUNKEN_ISLES_DECOR: readonly DecorRegion[] = [
+  {
+    id: "isles-castle-verge",
+    theme: "meadow",
+    x: 540,
+    y: 620,
+    radiusX: 300,
+    radiusY: 220,
+    count: 14,
+    seed: 41,
+  },
+  {
+    id: "isles-village-verge",
+    theme: "village",
+    x: 1790,
+    y: 700,
+    radiusX: 420,
+    radiusY: 280,
+    count: 18,
+    seed: 42,
+  },
+  {
+    id: "isles-tower-verge",
+    theme: "forest",
+    x: 1180,
+    y: 1460,
+    radiusX: 400,
+    radiusY: 180,
+    count: 16,
+    seed: 43,
+  },
+] as const;
+
 const EMPTY_ZONE_VISUALS: ZoneVisualConfig = {
   safeZone: null,
   landmarks: [],
@@ -555,6 +610,17 @@ export const ZONE_VISUALS: Readonly<Record<RuntimeZoneId, ZoneVisualConfig>> = {
     ambientRegions: VERDANT_REACH_AMBIENT,
   },
   "mmo-test-zone": EMPTY_ZONE_VISUALS,
+  "sunken-isles": {
+    // No guards to protect anything, so no safe zone to draw — the terrain's `safeZone` rect exists
+    // only because `TerrainGeometry` demands one.
+    safeZone: null,
+    landmarks: SUNKEN_ISLES_LANDMARKS,
+    roads: [],
+    decorRegions: SUNKEN_ISLES_DECOR,
+    pointsOfInterest: [],
+    worldRegions: SUNKEN_ISLES_REGIONS,
+    ambientRegions: [],
+  },
 };
 
 export function visualConfigFor(zoneId: RuntimeZoneId): ZoneVisualConfig {

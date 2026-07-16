@@ -36,6 +36,7 @@ import {
   type Vec2,
 } from "../../shared/simulation.js";
 import type { SkillSlot } from "../../shared/skills.js";
+import { decodeTileMap } from "../../shared/tilemap-codec.js";
 import {
   applyWorldDelta,
   createWorldCache,
@@ -221,11 +222,31 @@ export class WorldClient {
     };
   }
 
+  /**
+   * The terrain the server actually sent, as the geometry prediction collides against.
+   *
+   * `spawnPoints` is empty on purpose: only the server picks where anyone appears, and a client
+   * that carried a list of spawns would be carrying an opinion it is not entitled to have.
+   */
+  static geometryFrom(world: WorldInfo): TerrainGeometry {
+    return {
+      width: world.width,
+      height: world.height,
+      obstacles: world.obstacles,
+      spawnPoints: [],
+      safeZone: world.safeZone,
+      tiles: decodeTileMap(world.tiles),
+    };
+  }
+
   #handle(message: ServerMessage, handlers: ConnectionHandlers): void {
     if (message.t === "welcome") {
       this.#selfId = message.selfId;
       this.#corpses = message.corpses;
-      this.#geometry = zoneDefinition(message.world.zoneId).terrain;
+      // Collide against the terrain the server sent, not a copy this build happens to have
+      // compiled in. `parseServerMessage` has already checked it decodes, so these are the exact
+      // bytes the authority baked — the client cannot disagree with a map it did not compute.
+      this.#geometry = WorldClient.geometryFrom(message.world);
       replaceWorldCache(this.#worldCache, message);
       this.#lastWorldTick = message.tick;
       this.#receivedDelta = false;

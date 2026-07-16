@@ -4,6 +4,7 @@
  */
 
 import { env } from "cloudflare:test";
+import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import { createAccount, verifyCredentials } from "../src/server/accounts.js";
 import {
@@ -13,7 +14,7 @@ import {
   listCharacters,
   MAX_CHARACTERS_PER_ACCOUNT,
 } from "../src/server/characters.js";
-import { account, character, createDb } from "../src/server/db/index.js";
+import { account, character, createDb, map, mapElement } from "../src/server/db/index.js";
 import { acquireSessionEpoch, loadProfile, saveProfile } from "../src/server/profile.js";
 import { starterEquipmentFor } from "../src/shared/character.js";
 import { spawnPosition } from "../src/shared/game.js";
@@ -443,5 +444,54 @@ describe("characters service", () => {
     expect(await deleteCharacter(db, bob, created.id)).toBe(false);
     expect(await deleteCharacter(db, alice, created.id)).toBe(true);
     expect(await listCharacters(db, alice)).toEqual([]);
+  });
+});
+
+describe("the map tables", () => {
+  // The pool does not isolate storage between tests. Elements before maps (FK).
+  afterEach(async () => {
+    await env.DB.exec("DELETE FROM map_element");
+    await env.DB.exec("DELETE FROM map");
+  });
+
+  async function seedMap(id: string): Promise<void> {
+    await createDb(env.DB).insert(map).values({
+      id,
+      name: "Test",
+      cols: 4,
+      rows: 4,
+      blocks: "....\n....\n....\n....",
+      spawnCol: 0,
+      spawnRow: 0,
+    });
+  }
+
+  // "You can't set another tree on it" is the primary key, not a check anyone has to remember.
+  it("refuses two elements on one cell", async () => {
+    const db = createDb(env.DB);
+    await seedMap("map-pk");
+    await db.insert(mapElement).values({ mapId: "map-pk", col: 1, row: 1, kind: "tree" });
+    await expect(
+      db.insert(mapElement).values({ mapId: "map-pk", col: 1, row: 1, kind: "bush" }),
+    ).rejects.toThrow();
+  });
+
+  it("allows the same cell on a different map", async () => {
+    const db = createDb(env.DB);
+    await seedMap("map-a");
+    await seedMap("map-b");
+    await db.insert(mapElement).values({ mapId: "map-a", col: 1, row: 1, kind: "tree" });
+    await db.insert(mapElement).values({ mapId: "map-b", col: 1, row: 1, kind: "tree" });
+    const all = await db.select().from(mapElement);
+    expect(all.length).toBe(2);
+  });
+
+  it("takes a map's elements with it when the map goes", async () => {
+    const db = createDb(env.DB);
+    await seedMap("map-cascade");
+    await db.insert(mapElement).values({ mapId: "map-cascade", col: 0, row: 0, kind: "tree" });
+    await db.delete(map).where(eq(map.id, "map-cascade"));
+    const left = await db.select().from(mapElement).where(eq(mapElement.mapId, "map-cascade"));
+    expect(left).toEqual([]);
   });
 });

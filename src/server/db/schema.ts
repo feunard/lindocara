@@ -238,3 +238,51 @@ export type CharacterItem = typeof characterItem.$inferSelect;
 export type CharacterEquipment = typeof characterEquipment.$inferSelect;
 export type CharacterSkill = typeof characterSkill.$inferSelect;
 export type CharacterQuest = typeof characterQuest.$inferSelect;
+
+/**
+ * A map is terrain, not a zone: blocks, the things standing on them, and where you arrive.
+ *
+ * `blocks` is one character per cell, row-major, newline-joined — the same encoding
+ * `tilemap-codec.ts` already reads, so there is no second format to keep in step with the first.
+ * A 40x30 map is about 1.2 KB of text: diffable, and cheap enough to send in a welcome.
+ *
+ * There is no owner column on purpose. Any logged-in player may create and edit any map for now;
+ * when that stops being true, this is where the column goes.
+ */
+export const map = sqliteTable("map", {
+  /** Server-minted uuid. A client never supplies this. */
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  cols: integer("cols").notNull(),
+  rows: integer("rows").notNull(),
+  blocks: text("blocks").notNull(),
+  spawnCol: integer("spawn_col").notNull(),
+  spawnRow: integer("spawn_row").notNull(),
+  /** Exactly one map carries this: where a hero lands when their own map is gone. Deleting it
+   *  moves the flag rather than leaving the world without a front door. */
+  isFirst: integer("is_first").notNull().default(0),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
+});
+
+/**
+ * One element per cell — and that is the primary key, not a rule somebody has to remember to check.
+ * "You can't set another tree on it" is enforced by the database itself.
+ */
+export const mapElement = sqliteTable(
+  "map_element",
+  {
+    mapId: text("map_id")
+      .notNull()
+      .references(() => map.id, { onDelete: "cascade" }),
+    col: integer("col").notNull(),
+    row: integer("row").notNull(),
+    /** 'tree' | 'bush' | 'stone' — validated against ELEMENT_RULES on write, not here. */
+    kind: text("kind").notNull(),
+    variant: integer("variant").notNull().default(0),
+  },
+  (table) => [
+    primaryKey({ columns: [table.mapId, table.col, table.row] }),
+    index("map_element_map_idx").on(table.mapId),
+  ],
+);

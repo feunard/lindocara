@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { INTERACTION_RANGE, pointDistance } from "../src/shared/game.js";
 import {
   buildRoomKey,
   DEFAULT_INSTANCE_ID,
@@ -54,5 +55,34 @@ describe("zone catalogue", () => {
   // something reads `.terrain` off `undefined`.
   it("falls back to the default zone for an id it does not recognise, instead of crashing downstream", () => {
     expect(zoneDefinition("nonexistent-zone" as ZoneId)).toBe(ZONES[DEFAULT_ZONE_ID]);
+  });
+});
+
+describe("the Sunken Isles", () => {
+  it("resolves as a room of its own", () => {
+    const location = resolveZoneLocation("sunken-isles", "main");
+    expect(location?.roomKey).toBe("sunken-isles:main");
+    expect(location?.definition.maxPlayers).toBe(16);
+  });
+
+  it("carries no gameplay content — it is scenery", () => {
+    const zone = ZONES["sunken-isles"];
+    expect(zone.monsters).toEqual([]);
+    expect(zone.quests).toEqual([]);
+    expect(zone.guards).toEqual([]);
+  });
+
+  it("pairs its gate with a return that does not land you back inside the gate", () => {
+    const gate = ZONES["verdant-reach"].portals.find((p) => p.id === "sunken-isles-gate");
+    const back = ZONES["sunken-isles"].portals.find((p) => p.id === "sunken-isles-return");
+    expect(gate).toBeDefined();
+    expect(back).toBeDefined();
+    if (!gate || !back) return;
+    expect(gate.destination.zoneId).toBe("sunken-isles");
+    expect(back.destination.zoneId).toBe("verdant-reach");
+    // Arriving within INTERACTION_RANGE of the gate you just came out of makes the two a revolving
+    // door: `#interact` takes the first portal in range, so you would bounce straight back.
+    expect(pointDistance(back.destination.spawn, gate)).toBeGreaterThan(INTERACTION_RANGE);
+    expect(pointDistance(gate.destination.spawn, back)).toBeGreaterThan(INTERACTION_RANGE);
   });
 });

@@ -132,27 +132,67 @@ describe("server protocol", () => {
     expect(parseServerMessage("broken")).toBeNull();
   });
 
+  const welcomeBase = {
+    t: "welcome",
+    tick: 10,
+    selfId: "p1",
+    players: [],
+    monsters: [],
+    guards: [],
+    loot: [],
+    corpses: [],
+    self: {},
+  };
+  /** A world the client can actually collide against: terrain now travels, so a welcome without it
+   *  is not a welcome. */
+  const world = { zoneId: "verdant-reach", tiles: ["..", "##"], elements: [] };
+
   it("only accepts a welcome whose world carries a zone the client actually knows", () => {
-    const base = {
+    expect(parseServerMessage(JSON.stringify({ ...welcomeBase, world }))).toMatchObject({
       t: "welcome",
-      tick: 10,
-      selfId: "p1",
-      players: [],
-      monsters: [],
-      guards: [],
-      loot: [],
-      corpses: [],
-      self: {},
-    };
-    expect(
-      parseServerMessage(JSON.stringify({ ...base, world: { zoneId: "verdant-reach" } })),
-    ).toMatchObject({ t: "welcome", world: { zoneId: "verdant-reach" } });
+      world: { zoneId: "verdant-reach" },
+    });
     // A cached SPA build meeting a server that has since added a zone must drop the frame
     // (and resync/reconnect) rather than hand an unrecognised id to zoneDefinition() downstream.
     expect(
-      parseServerMessage(JSON.stringify({ ...base, world: { zoneId: "some-future-zone" } })),
+      parseServerMessage(
+        JSON.stringify({ ...welcomeBase, world: { ...world, zoneId: "some-future-zone" } }),
+      ),
     ).toBeNull();
-    expect(parseServerMessage(JSON.stringify({ ...base, world: {} }))).toBeNull();
+    expect(parseServerMessage(JSON.stringify({ ...welcomeBase, world: {} }))).toBeNull();
+  });
+
+  // The terrain is data off a socket now, so it is checked like data. Every one of these would
+  // otherwise reach decodeTileMap and throw on the first paint — the client would not drop a bad
+  // frame, it would die on it.
+  it("drops a welcome whose terrain is malformed instead of throwing", () => {
+    const bad: unknown[] = [
+      { ...world, tiles: undefined },
+      { ...world, tiles: [] },
+      { ...world, tiles: ["..", "###"] }, // ragged
+      { ...world, tiles: ["xx", "xx"] }, // not a tile character
+      { ...world, tiles: "…" },
+      { ...world, elements: undefined },
+      { ...world, elements: "nope" },
+      { ...world, elements: [{ col: 0, row: 0, kind: "dragon", variant: 0 }] },
+      { ...world, elements: [{ col: 0.5, row: 0, kind: "tree", variant: 0 }] },
+    ];
+    for (const broken of bad) {
+      expect(
+        parseServerMessage(JSON.stringify({ ...welcomeBase, world: broken })),
+        JSON.stringify(broken),
+      ).toBeNull();
+    }
+  });
+
+  it("keeps a welcome carrying elements to draw", () => {
+    const message = parseServerMessage(
+      JSON.stringify({
+        ...welcomeBase,
+        world: { ...world, elements: [{ col: 1, row: 0, kind: "tree", variant: 2 }] },
+      }),
+    );
+    expect(message).not.toBeNull();
   });
 
   it("validates world deltas and full resynchronization messages", () => {

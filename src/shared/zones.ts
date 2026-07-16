@@ -14,8 +14,9 @@ import {
 import { DEFAULT_ZONE_NAVIGATION, type ZoneNavigationDefinition } from "./navigation.js";
 import type { Vec2 } from "./simulation.js";
 import { MMO_TEST_ZONE_TILES } from "./zones/mmo-test-zone-tiles.js";
+import { SUNKEN_ISLES_TERRAIN } from "./zones/sunken-isles.js";
 
-export type ZoneId = "verdant-reach" | "mmo-test-zone";
+export type ZoneId = "verdant-reach" | "mmo-test-zone" | "sunken-isles";
 export type ZoneKind = "open_world" | "town" | "dungeon";
 
 export interface ZoneDefinition {
@@ -97,6 +98,20 @@ export const ZONES: Readonly<Record<ZoneId, ZoneDefinition>> = {
           spawn: { x: 160, y: 160 },
         },
       },
+      {
+        id: "sunken-isles-gate",
+        nameKey: "portal.sunken_isles_gate",
+        // Verdant Reach's top-left: columns 0-1 are the boundary wall and rows 1-2 a treeline, so
+        // the first open grass is around (128, 192). This sits clear of both, and clear of the
+        // building at columns 12-15.
+        x: 256,
+        y: 320,
+        destination: {
+          zoneId: "sunken-isles",
+          instanceId: "main",
+          spawn: { x: 1050, y: 720 },
+        },
+      },
     ],
     navigation: { ...DEFAULT_ZONE_NAVIGATION },
   },
@@ -125,6 +140,34 @@ export const ZONES: Readonly<Record<ZoneId, ZoneDefinition>> = {
       },
     ],
     navigation: { ...DEFAULT_ZONE_NAVIGATION, nodeBudgetPerTick: 96 },
+  },
+  "sunken-isles": {
+    id: "sunken-isles",
+    nameKey: "zone.sunken_isles.name",
+    type: "open_world",
+    defaultInstanceId: "main",
+    maxPlayers: 16,
+    terrain: SUNKEN_ISLES_TERRAIN,
+    quests: [],
+    questSites: [],
+    monsters: [],
+    guards: [],
+    portals: [
+      {
+        id: "sunken-isles-return",
+        nameKey: "portal.sunken_isles_return",
+        x: 1180,
+        y: 700,
+        destination: {
+          zoneId: "verdant-reach",
+          instanceId: "main",
+          // Clear of the outbound gate at (256, 320) by 140px. Arriving inside its
+          // INTERACTION_RANGE (92) would make the two gates a revolving door.
+          spawn: { x: 256, y: 460 },
+        },
+      },
+    ],
+    navigation: { ...DEFAULT_ZONE_NAVIGATION },
   },
 };
 

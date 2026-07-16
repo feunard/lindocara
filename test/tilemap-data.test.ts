@@ -17,6 +17,8 @@ import {
   kindAtPoint,
   TILE_SIZE,
 } from "../src/shared/tilemap.js";
+import { SUNKEN_ISLES_SPAWNS } from "../src/shared/zones/sunken-isles.js";
+import { SUNKEN_ISLES_TILES } from "../src/shared/zones/sunken-isles-tiles.js";
 import { VERDANT_REACH_TILES } from "../src/shared/zones/verdant-reach-tiles.js";
 
 // Frozen exactly as `src/shared/zones/verdant-reach-tiles.ts` read the moment before Task 1
@@ -162,13 +164,37 @@ describe("the generated Verdant Reach tilemap", () => {
     }
   });
 
-  // Slice 1 labelled every solid cell "water" because the generator only had an untyped rect list.
-  // Restoring the kinds must change what each cell LOOKS like and nothing about what it DOES.
-  // If this fails, collision moved a second time and the whole slice is unsafe.
-  it("keeps the solid mask bit-identical to the collision the game already ships", () => {
+  // This used to demand the solid mask be bit-identical to the rect union. It no longer can be, and
+  // that is the point: a forest is now trunks with an open canopy row above each, so you can stand
+  // in under the branches instead of colliding with a wall of leaves.
+  //
+  // The guarantee is therefore narrower but still exact — collision may only ever OPEN, only on a
+  // canopy cell, and only directly above a trunk. Water and buildings must not move by one cell.
+  // If this fails, something other than the forest thinning changed collision.
+  it("opens collision only where a canopy sits over a trunk, and nowhere else", () => {
     const SOLID_BEFORE = solidMaskFromSlice1();
     const solidNow = VERDANT_REACH_TILES.kinds.map((kind) => (isSolidKind(kind) ? 1 : 0));
-    expect(solidNow).toEqual(SOLID_BEFORE);
+    expect(solidNow.length).toBe(SOLID_BEFORE.length);
+
+    let opened = 0;
+    for (let index = 0; index < solidNow.length; index++) {
+      if (solidNow[index] === SOLID_BEFORE[index]) continue;
+      const col = index % VERDANT_REACH_TILES.cols;
+      const row = Math.floor(index / VERDANT_REACH_TILES.cols);
+      const where = `cell ${col},${row}`;
+
+      // Never the other way: nothing that was walkable may start blocking.
+      expect(SOLID_BEFORE[index], `${where} must have been solid`).toBe(1);
+      expect(solidNow[index], `${where} must now be open`).toBe(0);
+      // It opened because it is a canopy: grass, with the tree it belongs to directly below.
+      expect(kindAt(VERDANT_REACH_TILES, col, row), `${where} is a canopy`).toBe("grass");
+      expect(kindAt(VERDANT_REACH_TILES, col, row + 1), `${where} stands over a trunk`).toBe(
+        "forest",
+      );
+      opened++;
+    }
+    // The thinning must actually have run. Zero would mean this test proves nothing.
+    expect(opened).toBeGreaterThan(0);
   });
 
   it("labels the forests as forest, the water as water, and the ground under buildings as building", () => {
@@ -184,5 +210,38 @@ describe("the generated Verdant Reach tilemap", () => {
     expect(kindAtPoint(VERDANT_REACH_TILES, water.rect.x + 96, water.rect.y + 96)).toBe("water");
     // No blue lakes where the buildings are.
     expect(VERDANT_REACH_TILES.kinds.filter((k) => k === "building").length).toBeGreaterThan(0);
+  });
+});
+
+describe("the Sunken Isles map", () => {
+  it("is a 40x30 map with the open sea all the way round it", () => {
+    expect(SUNKEN_ISLES_TILES.cols).toBe(40);
+    expect(SUNKEN_ISLES_TILES.rows).toBe(30);
+    for (let col = 0; col < SUNKEN_ISLES_TILES.cols; col++) {
+      expect(kindAt(SUNKEN_ISLES_TILES, col, 0)).toBe("water");
+      expect(kindAt(SUNKEN_ISLES_TILES, col, SUNKEN_ISLES_TILES.rows - 1)).toBe("water");
+    }
+    for (let row = 0; row < SUNKEN_ISLES_TILES.rows; row++) {
+      expect(kindAt(SUNKEN_ISLES_TILES, 0, row)).toBe("water");
+      expect(kindAt(SUNKEN_ISLES_TILES, SUNKEN_ISLES_TILES.cols - 1, row)).toBe("water");
+    }
+  });
+
+  // The whole point of `rasteriseIslands` is that water is the default. If this ever drops, the
+  // zone has quietly become a field with ponds in it — which is the other rasteriser's job.
+  it("is mostly sea — it is an archipelago, not a rectangle with ponds", () => {
+    const water = SUNKEN_ISLES_TILES.kinds.filter((k) => k === "water").length;
+    expect(water / SUNKEN_ISLES_TILES.kinds.length).toBeGreaterThan(0.35);
+  });
+
+  it("stands every spawn on walkable land", () => {
+    for (const spawn of SUNKEN_ISLES_SPAWNS) {
+      expect(isWalkableBox(SUNKEN_ISLES_TILES, spawn, PLAYER_SIZE)).toBe(true);
+    }
+  });
+
+  it("puts its buildings and treelines on the islands", () => {
+    expect(SUNKEN_ISLES_TILES.kinds.filter((k) => k === "building").length).toBeGreaterThan(0);
+    expect(SUNKEN_ISLES_TILES.kinds.filter((k) => k === "forest").length).toBeGreaterThan(0);
   });
 });

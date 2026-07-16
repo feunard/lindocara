@@ -15,6 +15,13 @@ import {
 } from "../src/shared/game.js";
 import { VERDANT_REACH_BOUNDS, type WorldBounds } from "../src/shared/simulation.js";
 import { TILE_SIZE, type TileKind } from "../src/shared/tilemap.js";
+import {
+  SUNKEN_ISLES_BOUNDS,
+  SUNKEN_ISLES_FORESTS,
+  SUNKEN_ISLES_ISLETS,
+  SUNKEN_ISLES_LAND,
+  SUNKEN_ISLES_LANDMARKS,
+} from "../src/shared/zones/sunken-isles.js";
 import { TEST_ZONE_TERRAIN } from "../src/shared/zones.js";
 
 /**
@@ -148,6 +155,89 @@ function rasteriseFlat(
   return { cols, rows, kinds };
 }
 
+/**
+ * Land as the positive space.
+ *
+ * Both rasterisers above start a cell as `grass` and paint water onto it — the world is ground, and
+ * the sea is a hole cut in it. An archipelago is the other way round, so this one starts every cell
+ * as water and paints the islands.
+ *
+ * It deliberately reuses `coverage` and `SOLID_COVERAGE` rather than deciding for itself what
+ * counts as land: an island rasteriser with its own idea of "half-covered" is two zones quietly
+ * disagreeing about collision.
+ */
+function rasteriseIslands(
+  bounds: WorldBounds,
+  landRects: readonly Rect[],
+  layers: readonly Layer[],
+): {
+  cols: number;
+  rows: number;
+  kinds: TileKind[];
+} {
+  const cols = Math.ceil(bounds.width / TILE_SIZE);
+  const rows = Math.ceil(bounds.height / TILE_SIZE);
+  const kinds: TileKind[] = [];
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      if (coverage(landRects, col, row) < SOLID_COVERAGE) {
+        kinds.push("water");
+        continue;
+      }
+      // Same last-wins rule as paintKind: a house on a treeline reads as a house.
+      let kind: TileKind = "grass";
+      for (const layer of layers) {
+        if (coverage(layer.rects, col, row) >= SOLID_COVERAGE) kind = layer.kind;
+      }
+      kinds.push(kind);
+    }
+  }
+  return { cols, rows, kinds };
+}
+
+/**
+ * Turns a solid slab of `forest` into a grid of tree trunks.
+ *
+ * A tree stands on exactly two cells: the trunk it grows out of, and the canopy above it. Only the
+ * trunk is solid — you walk *under* the branches, which is what the art has always drawn and what
+ * the collision never admitted. So a forest is not a filled rectangle of blocked cells; it is
+ * trunks on every second row, with the canopy row between them left open.
+ *
+ * Scanned bottom-up per column so the forest's *bottom* edge always lands on a trunk: that edge is
+ * the one you see from open ground, and a canopy floating there with no trunk under it reads as a
+ * tree standing on nothing.
+ *
+ * You still cannot walk through a forest — the next trunk row stops you — but you can now stand in
+ * under the eaves, one cell deep. That is a gameplay change, and an intended one.
+ */
+function thinForestToTrunks(
+  kinds: TileKind[],
+  cols: number,
+  rows: number,
+): { kinds: TileKind[]; trunks: number } {
+  const out = [...kinds];
+  let trunks = 0;
+  for (let col = 0; col < cols; col++) {
+    let canopyReserved = false;
+    for (let row = rows - 1; row >= 0; row--) {
+      const index = row * cols + col;
+      if (out[index] !== "forest") {
+        canopyReserved = false;
+        continue;
+      }
+      if (canopyReserved) {
+        // The tree below owns this cell as its canopy. Open ground you can stand under.
+        out[index] = "grass";
+        canopyReserved = false;
+        continue;
+      }
+      trunks++;
+      canopyReserved = true;
+    }
+  }
+  return { kinds: out, trunks };
+}
+
 function emit(
   name: string,
   constant: string,
@@ -195,7 +285,9 @@ export const ${constant}: TileMap = decodeTileMap(ROWS);
 // go far enough down for their box to clear row 41 in the first place. Left as-is on purpose;
 // see "keeps the last row unreachable" in test/tilemap-data.test.ts, which pins both halves of
 // why nobody will ever stand there.
-const verdant = rasteriseVerdant(VERDANT_REACH_BOUNDS);
+const verdantSolid = rasteriseVerdant(VERDANT_REACH_BOUNDS);
+const verdantThinned = thinForestToTrunks(verdantSolid.kinds, verdantSolid.cols, verdantSolid.rows);
+const verdant = { ...verdantSolid, kinds: verdantThinned.kinds };
 writeFileSync(
   "src/shared/zones/verdant-reach-tiles.ts",
   emit("Verdant Reach", "VERDANT_REACH_TILES", verdant),
@@ -207,7 +299,29 @@ writeFileSync(
   emit("Crossing Annex", "MMO_TEST_ZONE_TILES", test),
 );
 
-console.log(
-  `verdant-reach ${verdant.cols}x${verdant.rows}, mmo-test-zone ${test.cols}x${test.rows}`,
+// The islets go in as land so they rasterise as scenery you can see, but nothing is placed on them:
+// they are detached, and detached land is land no player can reach.
+const islesSolid = rasteriseIslands(
+  SUNKEN_ISLES_BOUNDS,
+  [...SUNKEN_ISLES_LAND, ...SUNKEN_ISLES_ISLETS],
+  [
+    { rects: SUNKEN_ISLES_FORESTS, kind: "forest" },
+    ...SUNKEN_ISLES_LANDMARKS.flatMap((landmark): Layer[] =>
+      landmark.collider === undefined ? [] : [{ rects: [landmark.collider], kind: "building" }],
+    ),
+  ],
 );
+const islesThinned = thinForestToTrunks(islesSolid.kinds, islesSolid.cols, islesSolid.rows);
+const isles = { ...islesSolid, kinds: islesThinned.kinds };
+writeFileSync(
+  "src/shared/zones/sunken-isles-tiles.ts",
+  emit("Sunken Isles", "SUNKEN_ISLES_TILES", isles),
+);
+
+console.log(
+  `verdant-reach ${verdant.cols}x${verdant.rows}, mmo-test-zone ${test.cols}x${test.rows}, sunken-isles ${isles.cols}x${isles.rows}`,
+);
+// Each trunk is one tree the renderer will draw: a forest cell IS a tree, which is why nothing has
+// to agree with a second list of tree positions.
+console.log(`trees: verdant-reach ${verdantThinned.trunks}, sunken-isles ${islesThinned.trunks}`);
 console.log(`safe zone spans x ${SAFE_ZONE.x}..${SAFE_ZONE.x + SAFE_ZONE.width}`);
