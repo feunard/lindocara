@@ -3,14 +3,28 @@ type TinySwordsMenuSceneProps = {
 };
 
 const ROOT = "/assets/lindocara/tiny-swords";
+const CLOUD_ONE = new URL(
+  "../../../assets/Tiny Swords (Free Pack)/Terrain/Decorations/Clouds/Clouds_01.png",
+  import.meta.url,
+).href;
+const CLOUD_TWO = new URL(
+  "../../../assets/Tiny Swords (Free Pack)/Terrain/Decorations/Clouds/Clouds_02.png",
+  import.meta.url,
+).href;
+const CLOUD_THREE = new URL(
+  "../../../assets/Tiny Swords (Free Pack)/Terrain/Decorations/Clouds/Clouds_05.png",
+  import.meta.url,
+).href;
+const FOAM_TILES = Array.from({ length: 72 }, (_, index) => `menu-foam-${index}`);
 
 /** Decorative Tiny Swords diorama shared by the account and roster screens. */
 export function TinySwordsMenuScene({ variant }: TinySwordsMenuSceneProps) {
   return (
     <div className={`menu-scene menu-scene--${variant}`} aria-hidden="true">
       <div className="menu-scene__sky">
-        <span className="menu-scene__cloud menu-scene__cloud--one" />
-        <span className="menu-scene__cloud menu-scene__cloud--two" />
+        <img className="menu-scene__cloud menu-scene__cloud--one" src={CLOUD_ONE} alt="" />
+        <img className="menu-scene__cloud menu-scene__cloud--two" src={CLOUD_TWO} alt="" />
+        <img className="menu-scene__cloud menu-scene__cloud--three" src={CLOUD_THREE} alt="" />
         <span className="menu-scene__sun" />
       </div>
 
@@ -19,6 +33,13 @@ export function TinySwordsMenuScene({ variant }: TinySwordsMenuSceneProps) {
       <div className="menu-scene__ground" />
       <div className="menu-scene__path" />
       <div className="menu-scene__water" />
+      <div className="menu-scene__foam-bank">
+        {FOAM_TILES.map((id) => (
+          <span key={id} className="menu-scene__foam-tile">
+            <img src={`${ROOT}/terrain/Foam.png`} alt="" />
+          </span>
+        ))}
+      </div>
       <div className="menu-scene__shore" />
 
       <img

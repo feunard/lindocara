@@ -157,46 +157,38 @@
 
 .menu-scene__cloud {
   position: absolute;
-  width: 15rem;
-  height: 3rem;
-  border-radius: 4rem;
-  background: rgb(238 246 214 / 48%);
-  filter: drop-shadow(0 1rem rgb(194 224 183 / 25%));
-  animation: menu-cloud-drift 38s linear infinite;
-}
-
-.menu-scene__cloud::before,
-.menu-scene__cloud::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  border-radius: 50% 50% 35% 35%;
-  background: inherit;
-}
-
-.menu-scene__cloud::before {
-  left: 2rem;
-  width: 5rem;
-  height: 5rem;
-}
-
-.menu-scene__cloud::after {
-  right: 2.5rem;
-  width: 7rem;
-  height: 6rem;
+  display: block;
+  height: auto;
+  max-width: none;
+  opacity: 0.76;
+  filter: drop-shadow(0 0.8rem 0 rgb(31 58 75 / 16%));
+  will-change: transform;
+  animation: menu-cloud-drift 52s linear infinite;
 }
 
 .menu-scene__cloud--one {
-  top: 17%;
-  left: -18rem;
+  top: 5%;
+  left: -42rem;
+  width: clamp(28rem, 38vw, 36rem);
+  animation-delay: -18s;
 }
 
 .menu-scene__cloud--two {
-  top: 29%;
-  left: -24rem;
-  scale: 0.7;
-  animation-delay: -19s;
-  animation-duration: 47s;
+  top: 21%;
+  left: -46rem;
+  width: clamp(20rem, 28vw, 28rem);
+  opacity: 0.64;
+  animation-delay: -38s;
+  animation-duration: 65s;
+}
+
+.menu-scene__cloud--three {
+  top: 34%;
+  left: -40rem;
+  width: clamp(18rem, 26vw, 26rem);
+  opacity: 0.52;
+  animation-delay: -7s;
+  animation-duration: 74s;
 }
 
 .menu-scene__hills {
@@ -229,7 +221,8 @@
 
 .menu-scene__ground {
   position: absolute;
-  inset: 52% 0 0;
+  inset: 52% 0 13%;
+  z-index: 2;
   background:
     radial-gradient(circle at 12% 22%, #88b84e 0 0.18rem, transparent 0.22rem),
     radial-gradient(circle at 72% 48%, #5e963d 0 0.15rem, transparent 0.2rem),
@@ -242,6 +235,7 @@
 
 .menu-scene__path {
   position: absolute;
+  z-index: 3;
   left: 50%;
   bottom: -14%;
   width: min(42vw, 38rem);
@@ -257,37 +251,81 @@
 .menu-scene__water {
   position: absolute;
   inset: auto 0 0;
+  z-index: 0;
   height: 13%;
+  overflow: hidden;
   background: #47aba9;
   box-shadow: inset 0 0.25rem rgb(207 244 202 / 52%);
 }
 
+.menu-scene__water::before,
 .menu-scene__water::after {
   content: "";
   position: absolute;
-  inset: 24% 0;
+  inset: -50% -10%;
+  will-change: transform;
+}
+
+.menu-scene__water::before {
   background: repeating-linear-gradient(
-    0deg,
-    transparent 0 0.75rem,
-    rgb(209 248 222 / 18%) 0.8rem 0.95rem
+    170deg,
+    transparent 0 0.55rem,
+    rgb(207 248 220 / 22%) 0.62rem 0.75rem,
+    transparent 0.82rem 1.5rem
   );
-  animation: menu-water-glint 5s ease-in-out infinite alternate;
+  background-size: 96px 32px;
+  opacity: 0.62;
+  animation: menu-water-flow-primary 8s linear infinite;
+}
+
+.menu-scene__water::after {
+  background:
+    radial-gradient(ellipse at 25% 50%, rgb(218 251 226 / 22%) 0 9%, transparent 12%),
+    radial-gradient(ellipse at 75% 50%, rgb(27 121 127 / 16%) 0 8%, transparent 11%);
+  background-size: 64px 24px;
+  mix-blend-mode: soft-light;
+  opacity: 0.8;
+  animation: menu-water-flow-secondary 12s linear infinite;
+}
+
+.menu-scene__foam-bank {
+  position: absolute;
+  right: -192px;
+  bottom: calc(13% - 96px);
+  left: -192px;
+  z-index: 1;
+  height: 192px;
+  display: flex;
+  overflow: hidden;
+}
+
+.menu-scene__foam-tile {
+  display: block;
+  flex: 0 0 192px;
+  width: 192px;
+  height: 192px;
+  margin-right: -128px;
+  overflow: hidden;
+}
+
+.menu-scene__foam-tile > img {
+  display: block;
+  width: 1536px;
+  height: 192px;
+  max-width: none;
+  will-change: transform;
+  animation: menu-foam-strip 1s steps(8) infinite;
 }
 
 .menu-scene__shore {
   position: absolute;
-  right: -5%;
-  bottom: 11.5%;
-  left: -5%;
-  height: 1rem;
-  background: repeating-linear-gradient(
-    90deg,
-    rgb(229 250 203 / 72%) 0 1.8rem,
-    rgb(146 211 161 / 45%) 1.8rem 3.2rem,
-    transparent 3.2rem 4rem
-  );
-  filter: blur(1px);
-  animation: menu-shore-shift 4s steps(4) infinite;
+  right: 0;
+  bottom: 12.7%;
+  left: 0;
+  z-index: 2;
+  height: 0.55rem;
+  background: linear-gradient(#77ad49, #4f873e);
+  box-shadow: 0 0.2rem 0 rgb(44 117 95 / 32%);
 }
 
 .menu-scene__building,
@@ -461,22 +499,33 @@
   }
 }
 
+@keyframes menu-foam-strip {
+  to {
+    transform: translateX(-1536px);
+  }
+}
+
 @keyframes menu-cloud-drift {
   to {
-    transform: translateX(calc(100vw + 42rem));
+    transform: translate3d(calc(100vw + 88rem), 0, 0);
   }
 }
 
-@keyframes menu-water-glint {
+@keyframes menu-cloud-hover {
   to {
-    translate: 0 0.35rem;
-    opacity: 0.6;
+    transform: translate3d(1rem, 0.45rem, 0);
   }
 }
 
-@keyframes menu-shore-shift {
+@keyframes menu-water-flow-primary {
   to {
-    translate: 4rem 0;
+    transform: translate3d(96px, 0, 0);
+  }
+}
+
+@keyframes menu-water-flow-secondary {
+  to {
+    transform: translate3d(-64px, -24px, 0);
   }
 }
 
@@ -1311,6 +1360,15 @@ input:focus-visible,
   .menu-scene__deco--sign,
   .menu-scene__fire--right {
     display: none;
+  }
+
+  .menu-scene__cloud--three {
+    top: 15%;
+    left: 50%;
+    width: 24rem;
+    translate: -50% 0;
+    opacity: 0.34;
+    animation: menu-cloud-hover 10s ease-in-out infinite alternate;
   }
 
   .menu-scene__tree--left {
