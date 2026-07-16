@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isAcceptedBasicAttack,
   MAX_ACTIVE_WORLD_EFFECTS,
   questSiteFeedback,
   shouldFloatEvent,
@@ -19,6 +20,12 @@ describe("world feedback readability", () => {
       expect(shouldFloatEvent(code)).toBe(false);
     }
     expect(MAX_ACTIVE_WORLD_EFFECTS).toBeLessThanOrEqual(32);
+  });
+
+  it("arms a basic attack only from its authoritative acceptance event", () => {
+    expect(isAcceptedBasicAttack("combat.hit", { basic: 1 })).toBe(true);
+    expect(isAcceptedBasicAttack("combat.hit", { amount: 12 })).toBe(false);
+    expect(isAcceptedBasicAttack("combat.too_far")).toBe(false);
   });
 
   it("never reveals the expected puzzle site before interaction", () => {

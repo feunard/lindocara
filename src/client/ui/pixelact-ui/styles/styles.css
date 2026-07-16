@@ -8,7 +8,7 @@
 /* Self-hosted Press Start 2P font (SIL OFL 1.1 licensed from Google Fonts). */
 @font-face {
   font-family: "Press Start 2P";
-  src: url("../../assets/fonts/press-start-2p/press-start-2p-latin.woff2") format("woff2");
+  src: url("../../../assets/fonts/press-start-2p/press-start-2p-latin.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
   font-display: swap;

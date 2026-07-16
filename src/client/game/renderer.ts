@@ -7,6 +7,7 @@ import {
   Sprite,
   Text,
   Texture,
+  TilingSprite,
 } from "pixi.js";
 import type { MainHandItem, OffHandItem, PrimaryColor } from "../../shared/character.js";
 import { isSpirit } from "../../shared/death.js";
@@ -49,7 +50,15 @@ import {
 import { MAX_ACTIVE_WORLD_EFFECTS, questSiteFeedback } from "./feedback.js";
 import type { SceneSample } from "./net.js";
 import type { CombatTarget } from "./targeting.js";
-import { foamFrameAt, pulseTint, terrainTintsAt } from "./terrain-visuals.js";
+import {
+  foamFrameAt,
+  pulseTint,
+  terrainTintsAt,
+  WATER_RENDER_OBJECTS,
+  waterScrollOffsets,
+  waterSurfaceRect,
+  writeWaterScrollOffsets,
+} from "./terrain-visuals.js";
 import {
   allUnitSheets,
   type DecorSheet,
@@ -116,6 +125,8 @@ const ATLAS_IMAGE = "/assets/lindocara/atlas/world.png";
 const ATLAS_DATA = "/assets/lindocara/atlas/world.json";
 const STATIC_CULL_MARGIN = 180;
 const ENTITY_CULL_MARGIN = 120;
+const WATER_TEXTURE_SCALE = 0.5;
+const WATER_SECONDARY_ALPHA = 0.27;
 const GRID_LINE_COLOR = 0xffffff;
 const GRID_LINE_ALPHA = 0.18;
 /** Blocked cells and entity boxes, in the debug overlay the grid toggle turns on. Red is what you
@@ -235,8 +246,9 @@ interface AmbientView {
   sway: number;
 }
 
-interface WaterTileView {
-  surface: Sprite;
+interface WaterSurfaceView {
+  primary: TilingSprite;
+  secondary: TilingSprite;
   x: number;
   y: number;
   baseTint: number;
@@ -728,8 +740,8 @@ export class Renderer {
   #worldTextViews: WorldTextView[] = [];
   #localizedTexts: Array<{ node: Text; compute: () => string }> = [];
   #terrainTiles: Sprite[] = [];
-  #waterTilePool: WaterTileView[] = [];
-  #waterTiles: WaterTileView[] = [];
+  #waterSurface?: WaterSurfaceView;
+  readonly #waterScroll = waterScrollOffsets(0, 1);
   #foamTilePool: FoamTileView[] = [];
   #foamTiles: FoamTileView[] = [];
   #showGrid = false;
@@ -839,6 +851,7 @@ export class Renderer {
   diagnostics(): Record<string, number> {
     return {
       terrainPool: this.#terrainTiles.length,
+      waterObjects: this.#waterTerrain.children.length,
       staticTotal: this.#staticViews.length,
       staticVisible: this.#staticViews.filter(({ container }) => container.visible).length,
       ambientTotal: this.#ambientViews.length,
@@ -851,6 +864,7 @@ export class Renderer {
 
   #buildWorld(): void {
     this.#actors.sortableChildren = true;
+    this.#waterSurface = this.#createWaterSurface();
     this.#resizeWorldBackground();
     // Tiny Swords' own tilemap documentation stacks these as BG Color -> Water Foam -> Flat
     // Ground, and the order is the whole trick: the foam blob is *wider* than its land tile, so
@@ -893,14 +907,22 @@ export class Renderer {
       .fill({ color: COLORS.grass });
   }
 
-  #createWaterTile(): WaterTileView {
-    const surface = new Sprite({
-      texture: this.art.terrain.water,
-      width: TILE_SIZE,
-      height: TILE_SIZE,
-    });
-    this.#waterTerrain.addChild(surface);
-    return { surface, x: 0, y: 0, baseTint: 0xffffff, phase: 0 };
+  #createWaterSurface(): WaterSurfaceView {
+    const makeLayer = (alpha: number) =>
+      new TilingSprite({
+        texture: this.art.terrain.water,
+        width: 0,
+        height: 0,
+        tileScale: { x: WATER_TEXTURE_SCALE, y: WATER_TEXTURE_SCALE },
+        alpha,
+      });
+    const primary = makeLayer(1);
+    const secondary = makeLayer(WATER_SECONDARY_ALPHA);
+    this.#waterTerrain.addChild(primary, secondary);
+    if (this.#waterTerrain.children.length !== WATER_RENDER_OBJECTS) {
+      throw new Error("water surface must stay at two render objects");
+    }
+    return { primary, secondary, x: 0, y: 0, baseTint: 0xffffff, phase: 0 };
   }
 
   #createFoamTile(): FoamTileView {
@@ -1699,9 +1721,36 @@ export class Renderer {
       this.#terrainTiles.push(tile);
       this.#terrain.addChild(tile);
     }
-    for (const view of this.#waterTilePool) view.surface.visible = false;
+    const waterRect = waterSurfaceRect(
+      startX,
+      startY,
+      columns,
+      rows,
+      TILE_SIZE,
+      this.#zoneWidth,
+      this.#zoneHeight,
+    );
+    const water = this.#waterSurface;
+    if (water) {
+      const visible = waterRect.width > 0 && waterRect.height > 0;
+      const tints = terrainTintsAt(
+        waterRect.x + waterRect.width / 2,
+        waterRect.y + waterRect.height / 2,
+        this.#visuals.worldRegions,
+      );
+      for (const layer of [water.primary, water.secondary]) {
+        layer.visible = visible;
+        layer.position.set(waterRect.x, waterRect.y);
+        layer.width = waterRect.width;
+        layer.height = waterRect.height;
+        layer.tint = tints.water;
+      }
+      water.x = waterRect.x;
+      water.y = waterRect.y;
+      water.baseTint = tints.water;
+      water.phase = (waterRect.x * 0.0057 + waterRect.y * 0.0091) % (Math.PI * 2);
+    }
     for (const view of this.#foamTilePool) view.blob.visible = false;
-    this.#waterTiles = [];
     this.#foamTiles = [];
     for (let index = 0; index < this.#terrainTiles.length; index++) {
       const tile = this.#terrainTiles[index];
@@ -1750,22 +1799,6 @@ export class Renderer {
       }
 
       tile.visible = false;
-      const waterIndex = this.#waterTiles.length;
-      let water = this.#waterTilePool[waterIndex];
-      if (!water) {
-        water = this.#createWaterTile();
-        this.#waterTilePool.push(water);
-      }
-      water.surface.visible = true;
-      water.surface.position.set(x, y);
-      water.surface.width = Math.min(TILE_SIZE, this.#zoneWidth - x);
-      water.surface.height = Math.min(TILE_SIZE, this.#zoneHeight - y);
-      water.surface.tint = tints.water;
-      water.x = x;
-      water.y = y;
-      water.baseTint = tints.water;
-      water.phase = (col * 0.37 + tileRow * 0.61) % (Math.PI * 2);
-      this.#waterTiles.push(water);
     }
     this.#drawGrid(startX, startY, columns, rows);
   }
@@ -2365,17 +2398,22 @@ export class Renderer {
   }
 
   #updateAmbient(now: number): void {
-    // The sea is one flat colour, so the only thing moving out there is the foam on the shore.
-    // Every blob shares a frame: it is one coastline, not a tile's worth of surf each.
-    const foamFrame = this.art.terrain.foam[foamFrameAt(now, this.art.terrain.foam.length)];
-    if (foamFrame) {
-      for (const view of this.#foamTiles) view.blob.texture = foamFrame;
-    }
-    for (const view of this.#waterTiles) {
-      // The pulse is kept because a dead-flat colour reads as a hole in the map rather than water.
-      // It stays under a couple of percent; the shoreline is what should draw the eye.
+    const waterPeriod = this.art.terrain.water.width * WATER_TEXTURE_SCALE;
+    const scroll = writeWaterScrollOffsets(now, waterPeriod, this.#waterScroll);
+    const view = this.#waterSurface;
+    if (view?.primary.visible) {
+      // The sea is one flat colour, so the shoreline foam carries most of the visible motion.
+      const foamFrame = this.art.terrain.foam[foamFrameAt(now, this.art.terrain.foam.length)];
+      if (foamFrame) {
+        for (const foam of this.#foamTiles) foam.blob.texture = foamFrame;
+      }
       const shimmer = Math.sin(now / 1_100 + view.phase);
-      view.surface.tint = pulseTint(view.baseTint, 1 + shimmer * 0.02);
+      view.primary.tilePosition.set(scroll.primary.x - view.x, scroll.primary.y - view.y);
+      view.secondary.tilePosition.set(scroll.secondary.x - view.x, scroll.secondary.y - view.y);
+      view.primary.tint = pulseTint(view.baseTint, 1 + shimmer * 0.02);
+      view.secondary.tint = pulseTint(view.baseTint, 1.035 + shimmer * 0.02);
+      view.primary.alpha = 1;
+      view.secondary.alpha = WATER_SECONDARY_ALPHA + shimmer * 0.02;
     }
     for (const view of this.#ambientViews) {
       const visible = this.#isVisibleWorld(view.baseX, view.baseY, 80);

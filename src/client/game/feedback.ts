@@ -1,4 +1,4 @@
-import type { EventCode } from "../../shared/protocol.js";
+import type { EventCode, EventParams } from "../../shared/protocol.js";
 
 export const MAX_ACTIVE_WORLD_EFFECTS = 28;
 
@@ -11,6 +11,10 @@ export function shouldFloatEvent(code: EventCode): boolean {
     code === "heal.received" ||
     code === "level_up"
   );
+}
+
+export function isAcceptedBasicAttack(code: EventCode, params?: EventParams): boolean {
+  return code === "combat.hit" && params?.basic === 1;
 }
 
 /** Puzzle presentation intentionally has no expected-order input, so it cannot reveal the answer. */

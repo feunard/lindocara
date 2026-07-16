@@ -65,7 +65,11 @@ export function setDisplaySettings(partial: Partial<DisplaySettings>): void {
     healthBars: isHealthBarMode(partial.healthBars) ? partial.healthBars : settings.healthBars,
     grid: typeof partial.grid === "boolean" ? partial.grid : settings.grid,
   };
-  displayStorage()?.setItem(STORAGE_KEY, JSON.stringify(settings));
+  try {
+    displayStorage()?.setItem(STORAGE_KEY, JSON.stringify(settings));
+  } catch {
+    // Storage can be disabled or full. The in-memory setting and subscriber update still apply.
+  }
   for (const listener of listeners) listener();
 }
 

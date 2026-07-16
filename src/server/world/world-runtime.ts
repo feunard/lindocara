@@ -3,9 +3,12 @@ import {
   normalizeEquipment,
   starterEquipmentFor,
 } from "../../shared/character.js";
+import { type CombatCooldownState, normalizeCombatCooldowns } from "../../shared/cooldowns.js";
 import type { CombatContribution, ThreatEntry } from "../../shared/cooperation.js";
-import type { LifeState } from "../../shared/death.js";
+import { type LifeState, RESURRECT_COOLDOWN_MS } from "../../shared/death.js";
 import {
+  ATTACK_COOLDOWN_MS,
+  CLASS_STATS,
   clampRestoredPosition,
   GUARD_MAX_HP,
   type GuardDefinition,
@@ -21,6 +24,7 @@ import type { MonsterNavigationState } from "../../shared/navigation.js";
 import type { Command, LootSnapshot, ServerMessage } from "../../shared/protocol.js";
 import { type ClassResourceState, initialResource } from "../../shared/resources.js";
 import { type Input, NO_INPUT, TICK_HZ, type Vec2 } from "../../shared/simulation.js";
+import { CLASS_SKILLS } from "../../shared/skills.js";
 import { createWorldCache, type WorldCache } from "../../shared/world-delta.js";
 import type { ZoneDefinition, ZoneLocation } from "../../shared/zones.js";
 import { PRESENCE_HEARTBEAT_MS } from "../character-presence.js";
@@ -254,6 +258,8 @@ export function newPlayer(
   ack = 0,
   lastSeq = 0,
   restoredResource?: ClassResourceState,
+  restoredCooldowns?: CombatCooldownState,
+  now = Date.now(),
 ): PlayerRuntime {
   const resource = initialResource(profile.class);
   const persistedResource = restoredResource ?? profile.resource;
@@ -263,6 +269,12 @@ export function newPlayer(
     Number.isFinite(persistedResource.current)
   )
     resource.current = Math.max(0, Math.min(resource.max, persistedResource.current));
+  const cooldowns = normalizeCombatCooldowns(restoredCooldowns, now);
+  const healCooldownMs = CLASS_STATS[profile.class].heal?.cooldownMs ?? 0;
+  const guardReduction =
+    cooldowns.guardUntil > now
+      ? (CLASS_SKILLS[profile.class].find((skill) => skill.effect === "guard")?.reduction ?? 0)
+      : 0;
   return {
     ...profile,
     appearance: { ...profile.appearance },
@@ -276,12 +288,13 @@ export function newPlayer(
     lastSeq,
     starvedTicks: 0,
     dirty: false,
-    lastAttackAt: 0,
-    lastHealAt: 0,
-    skillCooldowns: [0, 0, 0, 0, 0],
-    guardUntil: 0,
-    guardReduction: 0,
-    lastResurrectAt: 0,
+    lastAttackAt: cooldowns.attackUntil === 0 ? 0 : cooldowns.attackUntil - ATTACK_COOLDOWN_MS,
+    lastHealAt: cooldowns.healUntil === 0 ? 0 : cooldowns.healUntil - healCooldownMs,
+    skillCooldowns: [...cooldowns.skillCooldowns],
+    guardUntil: cooldowns.guardUntil,
+    guardReduction,
+    lastResurrectAt:
+      cooldowns.resurrectUntil === 0 ? 0 : cooldowns.resurrectUntil - RESURRECT_COOLDOWN_MS,
     messageTimes: [],
     malformedCount: 0,
     facing: { x: 1, y: 0 },
@@ -299,6 +312,23 @@ export function newPlayer(
     ...(resource ? { resource } : {}),
     navigationDebug: false,
   };
+}
+
+export function combatCooldownsFromPlayer(
+  player: PlayerRuntime,
+  now = Date.now(),
+): CombatCooldownState {
+  const healCooldownMs = CLASS_STATS[player.class].heal?.cooldownMs ?? 0;
+  return normalizeCombatCooldowns(
+    {
+      attackUntil: player.lastAttackAt + ATTACK_COOLDOWN_MS,
+      healUntil: player.lastHealAt + healCooldownMs,
+      skillCooldowns: player.skillCooldowns,
+      guardUntil: player.guardUntil,
+      resurrectUntil: player.lastResurrectAt + RESURRECT_COOLDOWN_MS,
+    },
+    now,
+  );
 }
 
 export function profileFromAttachment(attachment: Attachment): PlayerProfile {
