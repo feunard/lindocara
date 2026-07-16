@@ -1,5 +1,12 @@
+import { canAct } from "../../shared/death.js";
 import type { TerrainGeometry } from "../../shared/game.js";
-import { applyDamage, hasLineOfSight, maxHpForLevel, withinRange } from "../../shared/game.js";
+import {
+  ATTACK_COOLDOWN_MS,
+  applyDamage,
+  hasLineOfSight,
+  maxHpForLevel,
+  withinRange,
+} from "../../shared/game.js";
 import type { GuardRuntime, MonsterRuntime, PlayerRuntime } from "./world-runtime.js";
 
 export interface TargetSelection<T> {
@@ -42,6 +49,31 @@ export function resolveAttackTarget(
     return { target: undefined, blockedInRange: true };
   }
   return { target, blockedInRange: false };
+}
+
+export type BasicAttackAttempt =
+  | { kind: "unavailable" }
+  | { kind: "rejected"; blockedInRange: boolean }
+  | { kind: "accepted"; target: MonsterRuntime };
+
+/** Resolves validation first; only an accepted target is allowed to consume the cooldown. */
+export function attemptBasicAttack(
+  player: PlayerRuntime,
+  monsters: readonly MonsterRuntime[],
+  targetId: string,
+  range: number,
+  now: number,
+  terrain: TerrainGeometry,
+): BasicAttackAttempt {
+  if (!canAct(player.life) || now - player.lastAttackAt < ATTACK_COOLDOWN_MS) {
+    return { kind: "unavailable" };
+  }
+  const selection = resolveAttackTarget(player, monsters, targetId, range, now, terrain);
+  if (!selection.target) {
+    return { kind: "rejected", blockedInRange: selection.blockedInRange };
+  }
+  player.lastAttackAt = now;
+  return { kind: "accepted", target: selection.target };
 }
 
 export function guardedDamage(player: PlayerRuntime, damage: number, now: number) {

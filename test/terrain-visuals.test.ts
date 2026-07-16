@@ -4,6 +4,8 @@ import {
   foamFrameAt,
   pulseTint,
   terrainTintsAt,
+  WATER_RENDER_OBJECTS,
+  waterSurfaceRect,
 } from "../src/client/game/terrain-visuals.js";
 import { WORLD_ZONES } from "../src/client/game/world-layout.js";
 
@@ -57,5 +59,21 @@ describe("regional terrain palettes", () => {
   it("only makes the ambient water pulse subtly", () => {
     const base = 0x5d899d;
     expect(brightness(pulseTint(base, 1.035)) - brightness(base)).toBeLessThan(20);
+  });
+
+  it("keeps water at two render objects even for a very large camera window", () => {
+    const surface = waterSurfaceRect(0, 0, 200, 120, 64, 12_800, 7_680);
+    expect(WATER_RENDER_OBJECTS).toBe(2);
+    expect(surface).toEqual({ x: 0, y: 0, width: 12_800, height: 7_680 });
+  });
+
+  it("moves and clips the same viewport surface instead of growing a tile pool", () => {
+    const first = waterSurfaceRect(128, 64, 20, 12, 64, 4_800, 2_752);
+    const moved = waterSurfaceRect(1_280, 640, 20, 12, 64, 4_800, 2_752);
+    const transitioned = waterSurfaceRect(576, 416, 20, 12, 64, 640, 480);
+    expect(first).toEqual({ x: 128, y: 64, width: 1_280, height: 768 });
+    expect(moved).toEqual({ x: 1_280, y: 640, width: 1_280, height: 768 });
+    expect(transitioned).toEqual({ x: 576, y: 416, width: 64, height: 64 });
+    expect(WATER_RENDER_OBJECTS).toBe(2);
   });
 });

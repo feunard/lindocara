@@ -40,13 +40,28 @@ export function MobileControls() {
   const game = useUiStore((state) => state.game);
   const self = useUiStore((state) => state.self);
   const mapOpen = useUiStore((state) => state.mapOpen);
+  const settingsOpen = useUiStore((state) => state.settingsOpen);
+  const chatFocusRequest = useUiStore((state) => state.chatFocusRequest);
   const setMapOpen = useUiStore((state) => state.setMapOpen);
   const setSettingsOpen = useUiStore((state) => state.setSettingsOpen);
   const requestChatFocus = useUiStore((state) => state.requestChatFocus);
   const activePointer = useRef<number | null>(null);
   const [thumb, setThumb] = useState({ x: 0, y: 0 });
 
-  useEffect(() => () => game?.setMovement?.({ ...NO_INPUT }), [game]);
+  useEffect(
+    () => () => {
+      activePointer.current = null;
+      game?.setMovement?.({ ...NO_INPUT });
+    },
+    [game],
+  );
+
+  useEffect(() => {
+    if (!mapOpen && !settingsOpen && chatFocusRequest === 0) return;
+    activePointer.current = null;
+    setThumb({ x: 0, y: 0 });
+    game?.setMovement?.({ ...NO_INPUT });
+  }, [chatFocusRequest, game, mapOpen, settingsOpen]);
 
   if (!game || !self) return null;
   const drinkPotion = game.usePotion;
@@ -55,6 +70,11 @@ export function MobileControls() {
     activePointer.current = null;
     setThumb({ x: 0, y: 0 });
     game.setMovement?.({ ...NO_INPUT });
+  };
+
+  const stopPointer = (event: React.PointerEvent<HTMLFieldSetElement>) => {
+    if (activePointer.current !== event.pointerId) return;
+    stopMovement();
   };
 
   const updateMovement = (
@@ -89,8 +109,9 @@ export function MobileControls() {
         onPointerMove={(event) => {
           if (activePointer.current === event.pointerId) updateMovement(event, false);
         }}
-        onPointerUp={stopMovement}
-        onPointerCancel={stopMovement}
+        onPointerUp={stopPointer}
+        onPointerCancel={stopPointer}
+        onLostPointerCapture={stopPointer}
       >
         <span
           className="mobile-joystick__thumb"

@@ -2,6 +2,7 @@ import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
 import { account, character, createDb } from "../src/server/db/index.js";
 import { loadProfile, saveProfile } from "../src/server/profile.js";
+import { emptyCombatCooldowns } from "../src/shared/cooldowns.js";
 
 async function characterFixture(label: string): Promise<string> {
   const suffix = crypto.randomUUID();
@@ -183,5 +184,75 @@ describe("CharacterPresence", () => {
     expect(
       await alice.isAuthorized(aliceLease.connectionId, aliceLease.sessionEpoch, "world"),
     ).toBe(false);
+  });
+
+  it("promotes cooldowns across reconnects and rejects a stale session overwrite", async () => {
+    const characterId = await characterFixture("cooldown-reconnect");
+    const presence = env.CHARACTER_PRESENCE.getByName(characterId);
+    const first = await presence.acquire(request(characterId, crypto.randomUUID()));
+    const now = Date.now();
+    const cooldowns = {
+      ...emptyCombatCooldowns(),
+      attackUntil: now + 500,
+      skillCooldowns: [0, 0, 0, 0, now + 10_000],
+    };
+    expect(
+      await presence.checkpointCooldowns(first.connectionId, first.sessionEpoch, cooldowns, now),
+    ).toBe(true);
+
+    const second = await presence.acquire(request(characterId, crypto.randomUUID()));
+    expect(
+      await presence.readCooldowns(second.connectionId, second.sessionEpoch, now + 250),
+    ).toMatchObject({ skillCooldowns: [0, 0, 0, 0, now + 10_000] });
+    expect(
+      await presence.checkpointCooldowns(
+        first.connectionId,
+        first.sessionEpoch,
+        emptyCombatCooldowns(),
+        now + 250,
+      ),
+    ).toBe(false);
+    expect(
+      await presence.readCooldowns(second.connectionId, second.sessionEpoch, now + 250),
+    ).toMatchObject({ skillCooldowns: [0, 0, 0, 0, now + 10_000] });
+  });
+
+  it("carries cooldowns through a zone handoff and prunes them after expiry", async () => {
+    const characterId = await characterFixture("cooldown-handoff");
+    const presence = env.CHARACTER_PRESENCE.getByName(characterId);
+    const first = await presence.acquire(
+      request(characterId, crypto.randomUUID(), "verdant-reach:main"),
+    );
+    const now = Date.now();
+    expect(
+      await presence.checkpointCooldowns(
+        first.connectionId,
+        first.sessionEpoch,
+        {
+          ...emptyCombatCooldowns(),
+          skillCooldowns: [0, 0, 0, 0, now + 10_000],
+        },
+        now,
+      ),
+    ).toBe(true);
+
+    const next = await presence.handoff({
+      characterId,
+      connectionId: first.connectionId,
+      sessionEpoch: first.sessionEpoch,
+      sourceRoomKey: "verdant-reach:main",
+      destinationRoomKey: "mmo-test-zone:main",
+      zoneId: "mmo-test-zone",
+      instanceId: "main",
+      x: 160,
+      y: 160,
+    });
+    if (!next) throw new Error("handoff failed");
+    expect(
+      await presence.readCooldowns(next.connectionId, next.sessionEpoch, now + 400),
+    ).toMatchObject({ skillCooldowns: [0, 0, 0, 0, now + 10_000] });
+    expect(
+      await presence.readCooldowns(next.connectionId, next.sessionEpoch, now + 10_001),
+    ).toEqual(emptyCombatCooldowns());
   });
 });

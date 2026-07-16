@@ -1,12 +1,13 @@
 import { type QuestChapter, xpForNextLevel } from "../../shared/game.js";
 import type { SelfState, ServerMessage, WorldView } from "../../shared/protocol.js";
 import { buildWorldDelta, replaceWorldCache } from "../../shared/world-delta.js";
-import type { PlayerRuntime } from "./world-runtime.js";
+import { combatCooldownsFromPlayer, type PlayerRuntime } from "./world-runtime.js";
 
 export type SendMessage = (socket: WebSocket, message: ServerMessage) => void;
 export type ViewForPlayer = (player: PlayerRuntime) => WorldView;
 
 export function selfState(player: PlayerRuntime, questTarget?: number): SelfState {
+  const serverNow = Date.now();
   const chapter = player.quest.chapter ?? "three_offerings";
   const timerEndsAt =
     chapter === "ward_run" && player.quest.status === "active" && player.wardRunExpiresAt !== null
@@ -24,6 +25,8 @@ export function selfState(player: PlayerRuntime, questTarget?: number): SelfStat
     },
     life: player.life,
     corpse: player.corpse === null ? null : { ...player.corpse },
+    serverNow,
+    cooldowns: combatCooldownsFromPlayer(player, serverNow),
     ...(player.resource ? { resource: { ...player.resource } } : {}),
   };
 }
