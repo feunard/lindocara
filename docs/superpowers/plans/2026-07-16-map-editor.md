@@ -461,7 +461,7 @@ export const EMPTY_ZONE_VISUALS: ZoneVisualConfig = {
 };
 ```
 
-- [ ] **Step 2: `configureMapTerrain` in `renderer.ts`.** Read `configureZone` (renderer.ts:809) first; the new method must perform the SAME rebuild sequence after setting fields — copy its tail verbatim:
+- [ ] **Step 2: `configureMapTerrain` in `renderer.ts`.** Read `configureZone` (renderer.ts:809) first; the new method must perform the SAME rebuild sequence after setting fields — extract that tail into one private helper both methods call (behaviour identical, no duplication):
 
 ```ts
 configureMapTerrain(zoneId: string, tiles: TileMap, elements: readonly MapElement[]): void {
@@ -741,7 +741,7 @@ export async function openMapEditorStage(
 
 - [ ] **Step 1: The stage.** New game-code module (no React):
   - `Application` on the `#stage` canvas (same acquisition as session.ts:45-51 — `document.querySelector<HTMLCanvasElement>("#stage")`).
-  - Load textures with `Assets.load` from `TINY_SWORDS_TERRAIN.flat/.water/.foam` and the tree/bush/rock sheets; slice the flat sheet's 4×4 autotile group the way the renderer's `loadArt` does (read renderer.ts ~500-530 for the slicing arithmetic and copy it — same LUT, same `AUTOTILE_LUT`).
+  - Load textures with `Assets.load` from `TINY_SWORDS_TERRAIN.flat/.water/.foam` and the tree/bush/rock sheets. The flat sheet's 4×4 autotile slicing lives in the renderer's `loadArt` (renderer.ts ~500-530): extract that arithmetic into a small exported helper (natural home: `tiny-swords-art.ts`) and call it from BOTH `loadArt` and the stage — do not duplicate the slicing.
   - Draw pass over `bakeCollision(current)`: water cells → animated water; land cells → `landTexture` via `landTile(tiles, col, row)`; foam sprite behind any land cell where `needsFoam(tiles, col, row)`; elements from `current.elements` (tree/bush animated strips, stones static), y-sorted; a distinct marker sprite on the spawn cell (tint a tile corner — any clearly visible marker).
   - On any change, rebuild the tile container wholesale (≤10,000 sprites at 100×100 — acceptable; note a dirty-cell optimisation as a future follow-up in a comment only if measured slow).
   - Pointer: `pointerdown`/`pointermove` while pressed → cell = floor(worldPos / TILE_SIZE) → `next = applyTool(current, tool, col, row)`; if non-null and !== current, adopt it, redraw, call `onChange(next)`. A refused drop does nothing visible.
