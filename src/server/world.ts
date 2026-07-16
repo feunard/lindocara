@@ -69,14 +69,15 @@ import {
 import { encodeTileMap } from "../shared/tilemap-codec.js";
 import { replaceWorldCache } from "../shared/world-delta.js";
 import {
+  isValidInstanceId,
   type PortalDefinition,
-  resolveZoneLocation,
   type ZoneDefinition,
   type ZoneLocation,
 } from "../shared/zones.js";
 import { claimQuestReward, consumeOwnedItem } from "./character-persistence.js";
 import { createDb } from "./db/index.js";
 import { HEALTH_POTION_ID } from "./items.js";
+import { resolveMapFor } from "./maps.js";
 import { loadProfile, saveProfile } from "./profile.js";
 import {
   guardedDamage,
@@ -91,6 +92,7 @@ import {
 } from "./world/contribution-system.js";
 import { worldView } from "./world/interest-system.js";
 import { collectLoot, processExpiredLoot } from "./world/loot-system.js";
+import { locationFromMap } from "./world/map-zone.js";
 import { advanceGuards, advanceMonsters } from "./world/monster-system.js";
 import { advancePlayers } from "./world/movement-system.js";
 import { createNavigationRuntime, type NavigationRuntime } from "./world/navigation-system.js";
@@ -176,11 +178,16 @@ export class World extends DurableObject<Env> {
       for (const ws of ctx.getWebSockets()) {
         const attachment = ws.deserializeAttachment() as Attachment | null;
         if (!attachment) continue;
-        const location =
-          resolveZoneLocation(
-            attachment.zoneId ?? "verdant-reach",
-            attachment.instanceId ?? "main",
-          ) ?? null;
+        // Waking from hibernation with live sockets: the map has to come back from D1 like it did
+        // on admission, because it is no longer something this build has compiled in. We are inside
+        // blockConcurrencyWhile, so awaiting here is what it is for.
+        const zoneId = attachment.zoneId ?? null;
+        const instanceId = attachment.instanceId ?? "main";
+        const stored =
+          zoneId === null || !isValidInstanceId(instanceId)
+            ? null
+            : await resolveMapFor(createDb(env.DB), zoneId);
+        const location = stored === null ? null : locationFromMap(stored, instanceId);
         if (!location) {
           ws.close(WS_CLOSE.PRESENCE_LOST, "invalid character location");
           continue;
@@ -316,7 +323,15 @@ export class World extends DurableObject<Env> {
     ) {
       return new Response("unauthorized", { status: 401 });
     }
-    const location = resolveZoneLocation(zoneId, instanceId);
+    // The room loads its own map rather than trusting the header to describe it. The header only
+    // says WHICH map; D1 says what it is. `roomKey` must still match, so a header cannot point a
+    // room at a map it was not admitted for.
+    const stored =
+      zoneId === null || !isValidInstanceId(instanceId)
+        ? null
+        : await resolveMapFor(createDb(this.env.DB), zoneId);
+    const location =
+      stored === null || instanceId === null ? null : locationFromMap(stored, instanceId);
     if (!location || location.roomKey !== roomKey) {
       return this.#closedSocket(WS_CLOSE.INVALID_LOCATION, "room.invalid_location");
     }
@@ -1226,10 +1241,14 @@ export class World extends DurableObject<Env> {
     portal: PortalDefinition,
     now: number,
   ): Promise<void> {
-    const destination = resolveZoneLocation(
-      portal.destination.zoneId,
-      portal.destination.instanceId,
-    );
+    // A portal names a destination map; D1 says whether it still exists. `resolveMapFor` falls back
+    // to the front door rather than stranding anyone at a gate to a map somebody deleted.
+    const destinationMap = isValidInstanceId(portal.destination.instanceId)
+      ? await resolveMapFor(createDb(this.env.DB), portal.destination.zoneId)
+      : null;
+    const destination = destinationMap
+      ? locationFromMap(destinationMap, portal.destination.instanceId)
+      : null;
     if (!destination || player.transitioning) {
       this.#send(ws, { t: "event", code: "zone.transition_denied", tone: "bad" });
       return;

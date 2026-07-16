@@ -3,7 +3,7 @@ import {
   DECOR_REGIONS,
   ROADS,
   roadStrength,
-  ZONE_VISUALS,
+  visualConfigFor,
 } from "../src/client/game/world-layout.js";
 import { SAFE_ZONE, VERDANT_REACH_TERRAIN, WORLD_LANDMARKS } from "../src/shared/game.js";
 import { WORLD_HEIGHT, WORLD_WIDTH } from "../src/shared/simulation.js";
@@ -115,12 +115,23 @@ describe("decor scatter stays honest about the tile grid", () => {
 
 describe("zone visual configuration", () => {
   it("keeps Verdant Reach's authored decor and roads", () => {
-    expect(ZONE_VISUALS["verdant-reach"].decorRegions).toBe(DECOR_REGIONS);
-    expect(ZONE_VISUALS["verdant-reach"].roads).toBe(ROADS);
+    // `ZoneId` is any string now — a map's id is a uuid — so a lookup can miss. Go through the
+    // accessor the renderer uses rather than indexing the record directly.
+    expect(visualConfigFor("verdant-reach").decorRegions).toBe(DECOR_REGIONS);
+    expect(visualConfigFor("verdant-reach").roads).toBe(ROADS);
+  });
+
+  it("gives a map it has never heard of the empty config instead of crashing", () => {
+    // The normal case once maps live in D1: an id this build cannot know, whose terrain arrives in
+    // the welcome and whose visuals are simply none.
+    const unknown = visualConfigFor("3f8b0c1e-0000-4000-8000-000000000000");
+    expect(unknown.landmarks).toEqual([]);
+    expect(unknown.safeZone).toBeNull();
+    expect(unknown.worldRegions).toEqual([]);
   });
 
   it("does not bleed Verdant Reach furniture into mmo-test-zone", () => {
-    const testZone = ZONE_VISUALS["mmo-test-zone"];
+    const testZone = visualConfigFor("mmo-test-zone");
     expect(testZone.safeZone).toBeNull();
     expect(testZone.landmarks).toEqual([]);
     expect(testZone.roads).toEqual([]);

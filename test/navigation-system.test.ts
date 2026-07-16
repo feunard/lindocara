@@ -12,7 +12,7 @@ import { createMonsters, type MonsterRuntime } from "../src/server/world/world-r
 import { isWalkable, type Rect, type TerrainGeometry } from "../src/shared/game.js";
 import { DEFAULT_ZONE_NAVIGATION } from "../src/shared/navigation.js";
 import type { TileMap } from "../src/shared/tilemap.js";
-import { ZONES } from "../src/shared/zones.js";
+import { ZONES, zoneDefinition } from "../src/shared/zones.js";
 import { tileMapFromRects } from "./support/tiles.js";
 
 const baseTerrain: TerrainGeometry = {
@@ -234,7 +234,7 @@ describe("budgeted zone navigation", () => {
     // all grass by tile kind, and row 41 (the actual last in-world row) is all water. Without
     // the fix, all 75 nodes in row 42 were marked walkable purely by kind, even though every one
     // of their clamped waypoints lands in row 41's water.
-    const grid = createNavigationGrid(ZONES["verdant-reach"].terrain);
+    const grid = createNavigationGrid(zoneDefinition("verdant-reach").terrain);
     const row42Start = 42 * grid.columns;
     const row42 = grid.walkable.slice(row42Start, row42Start + grid.columns);
     expect(row42.every((value) => value === 0)).toBe(true);

@@ -16,7 +16,18 @@ import type { Vec2 } from "./simulation.js";
 import { MMO_TEST_ZONE_TILES } from "./zones/mmo-test-zone-tiles.js";
 import { SUNKEN_ISLES_TERRAIN } from "./zones/sunken-isles.js";
 
-export type ZoneId = "verdant-reach" | "mmo-test-zone" | "sunken-isles";
+/**
+ * A room's identity, and nothing more.
+ *
+ * This used to be a union of the zones compiled into the build, which was the same statement as
+ * "every map that can exist is known at build time". A map is a D1 row now, so its id is a uuid
+ * nobody can enumerate — the type has to be as open as the thing it names.
+ *
+ * What replaced the union's safety is not weaker, it is elsewhere: the terrain travels in the
+ * welcome, so the client no longer looks a zone up in a table it compiled in and no longer needs
+ * the id to be one of a known set. `zoneDefinition` still guards the legacy catalogue lookup.
+ */
+export type ZoneId = string;
 export type ZoneKind = "open_world" | "town" | "dungeon";
 
 export interface ZoneDefinition {
@@ -171,8 +182,15 @@ export const ZONES: Readonly<Record<ZoneId, ZoneDefinition>> = {
   },
 };
 
+/**
+ * A room id is any non-empty string now, because a map's id is a uuid minted by D1.
+ *
+ * It deliberately no longer asks "is this one of the zones I compiled in?" — that question had an
+ * answer only while every map was known at build time. A map the client has never heard of is the
+ * normal case; the terrain arrives with it.
+ */
 export function isZoneId(value: unknown): value is ZoneId {
-  return typeof value === "string" && Object.hasOwn(ZONES, value);
+  return typeof value === "string" && value.length > 0 && value.length <= 64;
 }
 
 export function isValidInstanceId(value: unknown): value is string {
@@ -193,7 +211,12 @@ export function isValidInstanceId(value: unknown): value is string {
  * still refuses an unknown id outright, before it would ever reach this function.
  */
 export function zoneDefinition(zoneId: ZoneId): ZoneDefinition {
-  return ZONES[zoneId] ?? ZONES[DEFAULT_ZONE_ID];
+  const known = ZONES[zoneId] ?? ZONES[DEFAULT_ZONE_ID];
+  // `ZONES` is a plain record and `ZoneId` is now any string, so the compiler is right that this
+  // could be undefined — but DEFAULT_ZONE_ID indexes a literal in this very file. Throwing beats a
+  // non-null assertion: if that ever stops being true it should say so, not crash somewhere else.
+  if (!known) throw new Error(`no zone definition, not even the default (${DEFAULT_ZONE_ID})`);
+  return known;
 }
 
 export function buildRoomKey(zoneId: ZoneId, instanceId: string): string {

@@ -10,7 +10,7 @@ import { normalizeAppearance } from "../shared/character.js";
 import { WS_CLOSE } from "../shared/close-codes.js";
 import { isValidClass } from "../shared/game.js";
 import { isUuid } from "../shared/identifiers.js";
-import { resolveZoneLocation } from "../shared/zones.js";
+import { isValidInstanceId } from "../shared/zones.js";
 import { accountExists, createAccount, verifyCredentials } from "./accounts.js";
 import {
   characterOwnedBy,
@@ -21,6 +21,7 @@ import {
   listCharacters,
 } from "./characters.js";
 import { createDb } from "./db/index.js";
+import { resolveMapFor } from "./maps.js";
 import { loadProfile } from "./profile.js";
 import {
   clearSessionCookie,
@@ -34,6 +35,7 @@ import {
   verifySession,
   verifySessionState,
 } from "./session.js";
+import { locationFromMap } from "./world/map-zone.js";
 
 export { CharacterPresence } from "./character-presence.js";
 export { World } from "./world.js";
@@ -184,8 +186,14 @@ async function handleJoin(request: Request, env: Env, url: URL): Promise<Respons
   if (!owned) return json({ error: "forbidden" }, { status: 403 });
   const profile = await loadProfile(createDb(env.DB), owned.id);
   if (!profile) return json({ error: "not_found" }, { status: 404 });
-  const location = resolveZoneLocation(profile.zoneId, profile.instanceId);
-  if (!location) return closedWebSocket(WS_CLOSE.INVALID_LOCATION, "invalid character location");
+  // D1 owns where a map is, so D1 owns where a character is. `resolveMapFor` never throws: their
+  // own map, or the front door if it was deleted under them, or the built-in floor on an empty
+  // database. A character with a broken location still has to be able to log in.
+  const stored = await resolveMapFor(createDb(env.DB), profile.zoneId);
+  if (!isValidInstanceId(profile.instanceId)) {
+    return closedWebSocket(WS_CLOSE.INVALID_LOCATION, "invalid character location");
+  }
+  const location = locationFromMap(stored, profile.instanceId);
 
   const connectionId = crypto.randomUUID();
   let sessionEpoch: number;

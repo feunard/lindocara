@@ -66,15 +66,15 @@ describe("the Sunken Isles", () => {
   });
 
   it("carries no gameplay content — it is scenery", () => {
-    const zone = ZONES["sunken-isles"];
+    const zone = zoneDefinition("sunken-isles");
     expect(zone.monsters).toEqual([]);
     expect(zone.quests).toEqual([]);
     expect(zone.guards).toEqual([]);
   });
 
   it("pairs its gate with a return that does not land you back inside the gate", () => {
-    const gate = ZONES["verdant-reach"].portals.find((p) => p.id === "sunken-isles-gate");
-    const back = ZONES["sunken-isles"].portals.find((p) => p.id === "sunken-isles-return");
+    const gate = zoneDefinition("verdant-reach").portals.find((p) => p.id === "sunken-isles-gate");
+    const back = zoneDefinition("sunken-isles").portals.find((p) => p.id === "sunken-isles-return");
     expect(gate).toBeDefined();
     expect(back).toBeDefined();
     if (!gate || !back) return;

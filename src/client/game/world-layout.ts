@@ -623,8 +623,15 @@ export const ZONE_VISUALS: Readonly<Record<RuntimeZoneId, ZoneVisualConfig>> = {
   },
 };
 
+/**
+ * A D1 map has no authored visuals — no landmarks, no roads, no districts. It is terrain and the
+ * things standing on it, and that is drawn from the welcome rather than from here.
+ *
+ * So an id this build has never heard of is the normal case now, not an error: it is a map somebody
+ * made. It gets the empty config, and the renderer draws what the server sent.
+ */
 export function visualConfigFor(zoneId: RuntimeZoneId): ZoneVisualConfig {
-  return ZONE_VISUALS[zoneId];
+  return ZONE_VISUALS[zoneId] ?? EMPTY_ZONE_VISUALS;
 }
 
 export function zoneAt(

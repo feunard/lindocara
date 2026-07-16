@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CEMETERIES } from "../src/shared/game.js";
 import { PLAYER_SIZE, type Vec2 } from "../src/shared/simulation.js";
 import { isPathWalkable, isWalkableBox, type TileMap } from "../src/shared/tilemap.js";
-import { ZONES, type ZoneDefinition } from "../src/shared/zones.js";
+import { ZONES, type ZoneDefinition, zoneDefinition } from "../src/shared/zones.js";
 
 const STEP = PLAYER_SIZE;
 
@@ -141,11 +141,11 @@ function expectConnected(zone: ZoneDefinition): void {
 
 describe("generated zone connectivity", () => {
   it("connects every Verdant Reach gameplay point to at least one spawn", () => {
-    expectConnected(ZONES["verdant-reach"]);
+    expectConnected(zoneDefinition("verdant-reach"));
   });
 
   it("keeps mmo-test-zone spawns, portal and arrival connected", () => {
-    const zone = ZONES["mmo-test-zone"];
+    const zone = zoneDefinition("mmo-test-zone");
     expect(targetsFor(zone).length).toBeGreaterThan(zone.terrain.spawnPoints.length);
     expectConnected(zone);
   });
@@ -154,6 +154,6 @@ describe("generated zone connectivity", () => {
   // many and a lobe floats free: the zone still loads, still looks right, and its castle is simply
   // somewhere no player can ever stand. There are no bridges to rescue it with.
   it("keeps every Sunken Isles lobe welded to the spawn", () => {
-    expectConnected(ZONES["sunken-isles"]);
+    expectConnected(zoneDefinition("sunken-isles"));
   });
 });
