@@ -1,0 +1,489 @@
+# Instincts generated from https://github.com/feunard/lindocara
+# Generated: 2026-07-16T17:03:38.546Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: lindocara-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Commit Length
+
+## Action
+
+Write moderate-length commit messages (~64 characters)
+
+## Evidence
+
+- Average commit message length: 64 chars
+- Based on 5 commits
+
+---
+id: lindocara-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Naming Files
+
+## Action
+
+Use snake_case naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: snake_case
+
+---
+id: lindocara-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: lindocara-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: lindocara-test-separate
+trigger: "when writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Test Separate
+
+## Action
+
+Place tests in the tests/ or __tests__/ directory, mirroring src structure
+
+## Evidence
+
+- Separate test directory pattern detected
+- Tests live in dedicated test folders
+
+---
+id: lindocara-test-framework
+trigger: "when writing tests"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Test Framework
+
+## Action
+
+Use vitest as the test framework
+
+## Evidence
+
+- Test framework detected: vitest
+- File pattern: *.test.ts
+
+---
+id: lindocara-test-naming
+trigger: "when creating a test file"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Test Naming
+
+## Action
+
+Name test files using the pattern: *.test.ts
+
+## Evidence
+
+- File pattern: *.test.ts
+- Consistent across test files
+
+---
+id: lindocara-test-types
+trigger: "when planning tests for a feature"
+confidence: 0.7
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Test Types
+
+## Action
+
+Write unit, integration tests to match project standards
+
+## Evidence
+
+- Test types detected: unit, integration
+- Coverage config: no
+
+---
+id: lindocara-workflow-feature-development-and-integration
+trigger: "when doing feature development and integration"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Workflow Feature Development And Integration
+
+## Action
+
+Follow the feature-development-and-integration workflow:
+1. Edit or add implementation files in src/client, src/server, and src/shared.
+2. Update protocol or shared data definitions if needed (e.g., src/shared/protocol.ts).
+3. Update or add relevant test files in test/.
+4. Update related UI components if necessary (e.g., src/client/ui/).
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: src/client/game/*.ts, src/client/ui/*.tsx, src/server/*.ts
+
+---
+id: lindocara-workflow-merge-main-and-resolve-conflicts
+trigger: "when doing merge main and resolve conflicts"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Workflow Merge Main And Resolve Conflicts
+
+## Action
+
+Follow the merge-main-and-resolve-conflicts workflow:
+1. Merge remote-tracking branch 'origin/main'.
+2. Resolve merge conflicts in code, tests, or assets.
+3. Integrate new or updated assets (e.g., images, sprites).
+4. Update documentation and plans/specs if needed.
+5. Update or add migration and meta files if database/schema changes are involved.
+6. Update tests to match new code or data.
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: docs/superpowers/plans/*.md, docs/superpowers/specs/*.md, migrations/*.sql
+
+---
+id: lindocara-instinct-file-naming
+trigger: "When creating a new file"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct File Naming
+
+## Action
+
+Name the file using snake_case
+
+## Evidence
+
+- Pattern in namingConventions.files: snake_case
+
+---
+id: lindocara-instinct-function-naming
+trigger: "When defining a new function"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Function Naming
+
+## Action
+
+Use camelCase for the function name
+
+## Evidence
+
+- Pattern in namingConventions.functions: camelCase
+
+---
+id: lindocara-instinct-class-naming
+trigger: "When defining a new class"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Class Naming
+
+## Action
+
+Use PascalCase for the class name
+
+## Evidence
+
+- Pattern in namingConventions.classes: PascalCase
+
+---
+id: lindocara-instinct-constant-naming
+trigger: "When defining a constant value"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Constant Naming
+
+## Action
+
+Use SCREAMING_SNAKE_CASE for the constant name
+
+## Evidence
+
+- Pattern in namingConventions.constants: SCREAMING_SNAKE_CASE
+
+---
+id: lindocara-instinct-import-style
+trigger: "When importing modules within the project"
+confidence: 0.85
+domain: code-style
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Import Style
+
+## Action
+
+Use relative import paths
+
+## Evidence
+
+- Pattern in importStyle: relative
+
+---
+id: lindocara-instinct-export-style
+trigger: "When exporting functions, classes, or constants"
+confidence: 0.85
+domain: code-style
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Export Style
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- Pattern in exportStyle: named
+
+---
+id: lindocara-instinct-test-file-location
+trigger: "When adding tests for code in src/"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Test File Location
+
+## Action
+
+Place test files in the separate test/ directory
+
+## Evidence
+
+- Pattern in architecture.folderStructure.testLocation: separate
+- test/*.test.ts files
+
+---
+id: lindocara-instinct-test-file-naming
+trigger: "When creating a test file"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Test File Naming
+
+## Action
+
+Name the file with a .test.ts or .test.tsx suffix
+
+## Evidence
+
+- Pattern in testing.filePattern: *.test.ts
+- test/*.test.ts files
+
+---
+id: lindocara-instinct-test-framework
+trigger: "When writing tests"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Test Framework
+
+## Action
+
+Use the Vitest testing framework
+
+## Evidence
+
+- Pattern in testing.framework: vitest
+
+---
+id: lindocara-instinct-test-types
+trigger: "When deciding what tests to write"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Test Types
+
+## Action
+
+Write both unit and integration tests as appropriate
+
+## Evidence
+
+- Pattern in testing.testTypes: unit, integration
+
+---
+id: lindocara-instinct-commit-format-freeform
+trigger: "When making a commit"
+confidence: 0.8
+domain: git
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Commit Format Freeform
+
+## Action
+
+Use a freeform commit message without a specific prefix, describing the change succinctly
+
+## Evidence
+
+- Pattern in commits.type: freeform
+- Examples: 'fix authoritative cooldowns and client edge cases'
+
+---
+id: lindocara-instinct-commit-length
+trigger: "When writing a commit message"
+confidence: 0.7
+domain: git
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Commit Length
+
+## Action
+
+Keep the commit message concise, around 60-70 characters
+
+## Evidence
+
+- Pattern in commits.averageLength: 64
+
+---
+id: lindocara-instinct-feature-workflow
+trigger: "When adding or updating a feature that affects multiple layers (client, server, shared, tests)"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Feature Workflow
+
+## Action
+
+Edit or add implementation files in src/client, src/server, and src/shared; update protocol/shared data if needed; add/update relevant tests in test/; update UI components if necessary
+
+## Evidence
+
+- Workflow: feature-development-and-integration
+- Commit sequences and files involved
+
+---
+id: lindocara-instinct-merge-main-workflow
+trigger: "When bringing a branch up to date with main, especially before a release or after significant changes"
+confidence: 0.88
+domain: workflow
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Instinct Merge Main Workflow
+
+## Action
+
+Merge 'origin/main', resolve conflicts, integrate new or updated assets, update documentation/specs, update/add migration/meta files if needed, update tests to match new code/data
+
+## Evidence
+
+- Workflow: merge-main-and-resolve-conflicts
+- Commit sequences and files involved
+
