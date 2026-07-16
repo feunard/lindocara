@@ -280,6 +280,23 @@ closes with `WS_CLOSE.ROOM_FULL`. `verdant-reach:main` preserves the current map
 `mmo-test-zone` has a collision obstacle and paired return portal for handoff coverage. Rooms
 remain isolated; portal interaction is only an intent, never a client-selected destination.
 
+### Maps and the editor
+
+Maps live in D1 (`src/server/maps.ts`): CRUD, an `is_first` flag with atomic handoff, a refusal to
+delete the last map, and `BUILTIN_MAP` as the floor under an empty database. Routing is hybrid —
+catalogue zone ids keep their compiled-in content; any other id is a D1 map id resolved once, in
+`index.ts`'s `handleJoin` (own map, else the first map, else the built-in floor), with a fallback
+persisted as an epoch-fenced `relocateProfile` before `World.#locateRoom` ever loads the exact
+admitted id. The welcome message bakes tiles and elements onto the wire so the client can predict
+and render an unknown zone id without importing the catalogue. The launch screen's map editor is a
+WYSIWYG PixiJS stage that shares placement and collision rules with the server through
+`shared/map-data.ts`'s `canPlaceElement`/`bakeCollision` (`client/game/editor-state.ts`); its
+`/api/maps` routes cap bodies at `MAX_MAP_JSON_BYTES` (32 KiB), and its live preview is a
+client-only sandbox running the same shared `step()`. See
+[`docs/superpowers/specs/2026-07-16-map-editor-design.md`](./docs/superpowers/specs/2026-07-16-map-editor-design.md)
+and [`docs/superpowers/plans/2026-07-16-map-editor.md`](./docs/superpowers/plans/2026-07-16-map-editor.md)
+for the full spec and plan.
+
 ### Heartroot city, guards and visual readability
 
 The safe zone is an authored city, not a decoration-only rectangle. `shared/game.ts` owns every
