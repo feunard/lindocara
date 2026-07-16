@@ -70,10 +70,11 @@ describe("zone catalogue", () => {
     expect(resolveZoneLocation(zoneId, "main")).toBeNull();
   });
 
-  // A cached browser bundle can be older than the server: `parseServerMessage` now rejects an
-  // unrecognised zoneId at the wire boundary, but `zoneDefinition` is the last line of defence
-  // for any caller that reaches it with one anyway — it must degrade, not throw downstream when
-  // something reads `.terrain` off `undefined`.
+  // A zoneId is wire data now, not a lookup key into a compiled-in catalogue: `parseServerMessage`
+  // accepts an unrecognised one (see test/protocol.test.ts's pin), so `zoneDefinition` is the last
+  // line of defence for any caller that reaches it with an id the catalogue does not know — it must
+  // degrade to the default definition, not throw downstream when something reads `.terrain` off
+  // `undefined`.
   it("falls back to the default zone for an id it does not recognise, instead of crashing downstream", () => {
     expect(zoneDefinition("nonexistent-zone" as ZoneId)).toBe(ZONES[DEFAULT_ZONE_ID]);
   });

@@ -217,9 +217,10 @@ export function isValidInstanceId(value: unknown): value is string {
  * `configureZone`/`bakeZoneTerrain`, driven by a welcome's `world.zoneId`) is really handing this
  * an arbitrary string once JSON has been through it. `ZONES[zoneId]` would then be `undefined`,
  * and every caller immediately reads `.terrain` off the result — a crash on the first frame, not
- * a controlled failure. Falling back to the default zone here is a client-only safety net, not a
- * relaxation of `resolveZoneLocation`'s "reject, don't reroute": that one guards D1 ownership and
- * still refuses an unknown id outright, before it would ever reach this function.
+ * a controlled failure. Falling back to the default zone's definition keeps a stale client from
+ * crashing on an id it cannot resolve. This is the same fallback `resolveZoneLocation` leans on:
+ * an unknown id resolves (to the default definition) rather than being refused — only a
+ * structurally invalid id (empty, oversize, non-string) is rejected, upstream, by `isZoneId`.
  */
 export function zoneDefinition(zoneId: ZoneId): ZoneDefinition {
   const known = ZONES[zoneId] ?? ZONES[DEFAULT_ZONE_ID];
@@ -241,7 +242,9 @@ export function parseRoomKey(roomKey: string): ZoneLocation | null {
   return resolveZoneLocation(roomKey.slice(0, separator), roomKey.slice(separator + 1));
 }
 
-/** D1 owns location. Invalid legacy/corrupt values are rejected rather than silently rerouted. */
+/** D1 owns location. Any structurally valid id resolves — an unknown one falls back to the default
+ *  zone's definition via `zoneDefinition`, not to a refusal; only empty/oversize/non-string ids (and
+ *  malformed instance ids) are rejected, by `isZoneId`/`isValidInstanceId`. */
 export function resolveZoneLocation(zoneId: unknown, instanceId: unknown): ZoneLocation | null {
   if (!isZoneId(zoneId) || !isValidInstanceId(instanceId)) return null;
   return {
