@@ -1102,9 +1102,15 @@ export class Renderer {
    * `variant` is folded into range because the wire validates its shape, not its magnitude. Props
    * are untinted: a D1 map has no regional palette to bend toward, and `terrainTintsAt` already
    * draws its ground at the pack's own colours (empty `worldRegions` → white).
+   *
+   * Drawn row-major, not in wire order: these layers have no `sortableChildren`, so draw order is
+   * insertion order, and the elements arrive in D1 creation order. `#buildForestTrees` earns its
+   * back-to-front depth from its row-then-col loops; a copy sorted the same way earns it here, so a
+   * tree behind another never paints over the one in front regardless of which was authored first.
    */
   #buildMapElements(elements: readonly MapElement[]): void {
-    for (const element of elements) {
+    const ordered = [...elements].sort((a, b) => a.row - b.row || a.col - b.col);
+    for (const element of ordered) {
       const x = element.col * TILE_SIZE + TILE_SIZE / 2;
       const base = (element.row + 1) * TILE_SIZE;
       if (element.kind === "stone") {
