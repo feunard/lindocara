@@ -24,6 +24,7 @@ import {
   hasLineOfSight,
   healAmountFor,
   INTERACTION_RANGE,
+  MONSTER_AGGRO_RANGE,
   MONSTER_ATTACK_RANGE,
   MONSTER_RESPAWN_MS,
   type MonsterSpecies,
@@ -175,75 +176,94 @@ export class World extends DurableObject<Env> {
     super(ctx, env);
     ctx.blockConcurrencyWhile(async () => {
       for (const ws of ctx.getWebSockets()) {
-        const attachment = ws.deserializeAttachment() as Attachment | null;
-        if (!attachment) continue;
-        const location =
-          resolveZoneLocation(
-            attachment.zoneId ?? "verdant-reach",
-            attachment.instanceId ?? "main",
-          ) ?? null;
-        if (!location) {
-          ws.close(WS_CLOSE.PRESENCE_LOST, "invalid character location");
-          continue;
+        try {
+          await this.#restoreWebSocket(ws);
+        } catch (error) {
+          console.error(
+            JSON.stringify({
+              event: "world_socket_restore_failed",
+              error: error instanceof Error ? error.message : String(error),
+            }),
+          );
+          try {
+            ws.close(WS_CLOSE.PRESENCE_LOST, "failed to restore connection");
+          } catch {
+            // The legacy socket may already be closed or carry an unreadable attachment.
+          }
         }
-        this.#configure(location);
-        const roomKey = attachment.roomKey ?? location.roomKey;
-        if (roomKey !== location.roomKey) {
-          ws.close(WS_CLOSE.PRESENCE_LOST, "room location mismatch");
-          continue;
-        }
-        let connectionId = attachment.connectionId;
-        let sessionEpoch = attachment.sessionEpoch;
-        if (!connectionId || !sessionEpoch) {
-          connectionId = crypto.randomUUID();
-          const lease = await this.env.CHARACTER_PRESENCE.getByName(attachment.id).acquire({
-            characterId: attachment.id,
-            connectionId,
-            roomKey,
-            zoneId: attachment.zoneId ?? "verdant-reach",
-            instanceId: attachment.instanceId ?? "main",
-          });
-          sessionEpoch = lease.sessionEpoch;
-        } else if (
-          !(await this.env.CHARACTER_PRESENCE.getByName(attachment.id).isAuthorized(
-            connectionId,
-            sessionEpoch,
-            roomKey,
-          ))
-        ) {
-          ws.close(WS_CLOSE.PRESENCE_LOST, "presence expired");
-          continue;
-        }
-        const profile = profileFromAttachment({
-          ...attachment,
-          connectionId,
-          sessionEpoch,
-        });
-        const position = clampRestoredPosition(profile, profile.id, location.definition.terrain);
-        profile.x = position.x;
-        profile.y = position.y;
-        const restoredCooldowns = await this.env.CHARACTER_PRESENCE.getByName(
-          attachment.id,
-        ).readCooldowns(connectionId, sessionEpoch);
-        if (restoredCooldowns === null) {
-          ws.close(WS_CLOSE.PRESENCE_LOST, "presence expired");
-          continue;
-        }
-        const player = newPlayer(
-          profile,
-          connectionId,
-          roomKey,
-          attachment.ack ?? 0,
-          attachment.lastSeq ?? 0,
-          attachment.resource,
-          restoredCooldowns,
-        );
-        ws.serializeAttachment(toAttachment(player));
-        this.#addPlayer(ws, player);
-        this.#seenCharacterIds.add(player.id);
       }
       if (this.#players.size > 0) this.#startLoop();
     });
+  }
+
+  async #restoreWebSocket(ws: WebSocket): Promise<void> {
+    const attachment = ws.deserializeAttachment() as Attachment | null;
+    if (!attachment) {
+      ws.close(WS_CLOSE.PRESENCE_LOST, "missing connection state");
+      return;
+    }
+    const location =
+      resolveZoneLocation(attachment.zoneId ?? "verdant-reach", attachment.instanceId ?? "main") ??
+      null;
+    if (!location) {
+      ws.close(WS_CLOSE.PRESENCE_LOST, "invalid character location");
+      return;
+    }
+    this.#configure(location);
+    const roomKey = attachment.roomKey ?? location.roomKey;
+    if (roomKey !== location.roomKey) {
+      ws.close(WS_CLOSE.PRESENCE_LOST, "room location mismatch");
+      return;
+    }
+    let connectionId = attachment.connectionId;
+    let sessionEpoch = attachment.sessionEpoch;
+    if (!connectionId || !sessionEpoch) {
+      connectionId = crypto.randomUUID();
+      const lease = await this.env.CHARACTER_PRESENCE.getByName(attachment.id).acquire({
+        characterId: attachment.id,
+        connectionId,
+        roomKey,
+        zoneId: attachment.zoneId ?? "verdant-reach",
+        instanceId: attachment.instanceId ?? "main",
+      });
+      sessionEpoch = lease.sessionEpoch;
+    } else if (
+      !(await this.env.CHARACTER_PRESENCE.getByName(attachment.id).isAuthorized(
+        connectionId,
+        sessionEpoch,
+        roomKey,
+      ))
+    ) {
+      ws.close(WS_CLOSE.PRESENCE_LOST, "presence expired");
+      return;
+    }
+    const profile = profileFromAttachment({
+      ...attachment,
+      connectionId,
+      sessionEpoch,
+    });
+    const position = clampRestoredPosition(profile, profile.id, location.definition.terrain);
+    profile.x = position.x;
+    profile.y = position.y;
+    const restoredCooldowns = await this.env.CHARACTER_PRESENCE.getByName(
+      attachment.id,
+    ).readCooldowns(connectionId, sessionEpoch);
+    if (restoredCooldowns === null) {
+      ws.close(WS_CLOSE.PRESENCE_LOST, "presence expired");
+      return;
+    }
+    const player = newPlayer(
+      profile,
+      connectionId,
+      roomKey,
+      attachment.ack ?? 0,
+      attachment.lastSeq ?? 0,
+      attachment.resource,
+      restoredCooldowns,
+    );
+    ws.serializeAttachment(toAttachment(player));
+    this.#addPlayer(ws, player);
+    this.#seenCharacterIds.add(player.id);
   }
 
   #configure(location: ZoneLocation): void {
@@ -1355,6 +1375,7 @@ export class World extends DurableObject<Env> {
     target.life = "alive";
     target.corpse = null;
     target.hp = resurrectHp(target.level);
+    this.#grantReviveGrace(target, now);
     this.#freeze(target);
 
     this.#send(ws, {
@@ -1840,6 +1861,16 @@ export class World extends DurableObject<Env> {
     player.dirty = true;
   }
 
+  /** A nearby monster may have an attack ready after waiting over the corpse. Restart that
+   * cooldown so the authoritative resurrection state is observable before combat resumes. */
+  #grantReviveGrace(player: Player, now: number): void {
+    for (const monster of this.#monsters) {
+      if (pointDistance(monster, player) <= MONSTER_AGGRO_RANGE) {
+        monster.lastAttackAt = Math.max(monster.lastAttackAt, now);
+      }
+    }
+  }
+
   /** Release is one-way and deliberate. It is what closes the door on a priest saving you. */
   #release(ws: WebSocket, player: Player): void {
     if (player.life !== "corpse" || player.corpse === null) return;
@@ -1859,6 +1890,7 @@ export class World extends DurableObject<Env> {
     player.life = "alive";
     player.corpse = null;
     player.hp = resurrectHp(player.level);
+    this.#grantReviveGrace(player, Date.now());
     this.#freeze(player);
     this.#send(ws, { t: "event", code: "death.reclaimed", tone: "good", x: player.x, y: player.y });
     this.#sendState(ws, player);

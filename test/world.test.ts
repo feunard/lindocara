@@ -1857,6 +1857,8 @@ describe("death, ghosts, and the corpse run", () => {
     expect(fallen.received.some((m) => m.t === "event" && m.code === "death.resurrected")).toBe(
       true,
     );
+    await scheduler.wait(300);
+    expect(fallen.self()?.hp).toBe(Math.round(maxHpForLevel(raised.level) * RESURRECT_HP_RATIO));
 
     priest.close();
     fallen.close();
