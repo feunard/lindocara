@@ -21,8 +21,8 @@ export function zoneFromMap(stored: StoredMap): ZoneDefinition {
   return {
     id: stored.id,
     // The name is the map's own, typed by whoever drew it — so it is not an i18n key and must not
-    // be looked up as one. `World` passes this straight through to `zoneNameKey`; the client falls
-    // back to printing an unknown key verbatim, which is exactly the map's name.
+    // be looked up as one. `World` passes this straight through to `zoneNameKey`; the client's `t()`
+    // prints an unknown key verbatim, which is exactly the map's name (never "undefined").
     nameKey: stored.name,
     type: "open_world",
     defaultInstanceId: "main",

@@ -282,4 +282,21 @@ describe("size caps over the wire", () => {
     });
     expect(response.status).toBe(413);
   });
+
+  it("400s map_elements just over the element cap, before the body would 413", async () => {
+    // 401 in-bounds elements: small enough to clear the 32 KiB cap, so the element cap is what
+    // answers — a legible 400 rather than a mute 413.
+    const elements = Array.from({ length: 401 }, (_, i) => ({
+      col: i % MAP_COLS,
+      row: i % MAP_ROWS,
+      kind: "bush",
+      variant: 0,
+    }));
+    const response = await authed("/api/maps", {
+      method: "POST",
+      body: JSON.stringify(mapBody({ elements })),
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "map_elements" });
+  });
 });

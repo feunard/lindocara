@@ -13,6 +13,7 @@ import {
   setFirstMap,
   updateMap,
 } from "../src/server/maps.js";
+import { MAX_MAP_ELEMENTS } from "../src/shared/map-data.js";
 
 // Exactly the size floor (20x15): small enough to read at a glance, big enough to clear the caps.
 // A one-cell water pocket at (1,1)/(2,1) stands in for "the sea" below; everything else is grass.
@@ -150,6 +151,21 @@ describe("maps", () => {
       expect(created.name).toBe("Padded");
       expect((await loadMap(db, created.id))?.name).toBe("Padded");
     });
+
+    it("refuses more elements than the element cap", async () => {
+      const db = createDb(env.DB);
+      // In-bounds so the cap — not bounds or placement — is what fires. Checked before the DB ever
+      // sees them, so a body that would 413 with no message becomes a clean `elements:` instead.
+      const tooMany = Array.from({ length: MAX_MAP_ELEMENTS + 1 }, (_, i) => ({
+        col: i % MAP_COLS,
+        row: i % MAP_ROWS,
+        kind: "bush" as const,
+        variant: 0,
+      }));
+      await expect(createMap(db, { ...validInput, elements: tooMany })).rejects.toThrow(
+        /^elements:/,
+      );
+    });
   });
 
   describe("placement is enforced on write, not in the browser", () => {
@@ -228,6 +244,40 @@ describe("maps", () => {
       const loaded = await loadMap(db, created.id);
       expect(loaded?.name).toBe("Renamed");
       expect(loaded?.elements).toEqual([{ col: 3, row: 3, kind: "bush", variant: 0 }]);
+    });
+  });
+
+  // The persistence invariants must survive two writers at once, not just a lone caller. With the old
+  // check-then-act code these interleave at their await points and both win; the guarded batches
+  // resolve the race in the database. The pool interleaves the two flows (each `await` yields), so the
+  // race is real here, not merely proven by construction.
+  describe("concurrency", () => {
+    it("flags exactly one front door when maps are created concurrently on an empty database", async () => {
+      const db = createDb(env.DB);
+      await Promise.all([
+        createMap(db, inputNamed("A")),
+        createMap(db, inputNamed("B")),
+        createMap(db, inputNamed("C")),
+      ]);
+      const listed = await listMaps(db);
+      expect(listed).toHaveLength(3);
+      expect(listed.filter((m) => m.isFirst)).toHaveLength(1);
+    });
+
+    it("keeps exactly one flagged map when the last two are deleted concurrently", async () => {
+      const db = createDb(env.DB);
+      const a = await createMap(db, inputNamed("A")); // auto-flagged
+      const b = await createMap(db, inputNamed("B"));
+      const outcomes = await Promise.allSettled([deleteMap(db, a.id), deleteMap(db, b.id)]);
+
+      // Exactly one delete is refused, and it is refused with last_map — not left to zero the world.
+      const rejected = outcomes.filter((o): o is PromiseRejectedResult => o.status === "rejected");
+      expect(rejected).toHaveLength(1);
+      expect(String(rejected[0]?.reason)).toMatch(/last_map/);
+
+      const listed = await listMaps(db);
+      expect(listed).toHaveLength(1);
+      expect(listed.filter((m) => m.isFirst)).toHaveLength(1);
     });
   });
 });

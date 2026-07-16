@@ -329,7 +329,13 @@ function mapErrorResponse(error: unknown): Response {
   const code = message.split(":")[0];
   if (code === "not_found") return json({ error: "map_not_found" }, { status: 404 });
   if (code === "last_map") return json({ error: "last_map" }, { status: 409 });
-  if (code === "placement" || code === "spawn" || code === "size" || code === "name") {
+  if (
+    code === "placement" ||
+    code === "spawn" ||
+    code === "size" ||
+    code === "name" ||
+    code === "elements"
+  ) {
     return json({ error: `map_${code}` }, { status: 400 });
   }
   throw error;

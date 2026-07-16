@@ -79,6 +79,10 @@ async function terrainFor(
 ): Promise<TerrainGeometry | undefined> {
   if (isKnownZone(zoneId)) return resolveZoneLocation(zoneId, instanceId)?.definition.terrain;
   const stored = zoneId === BUILTIN_MAP_ID ? BUILTIN_MAP : await loadMap(db, zoneId);
+  // Undefined for a map that no longer exists — and `clampRestoredPosition` then falls back to the
+  // DEFAULT (Verdant) terrain. Both callers here pass it straight to that clamp on a row already
+  // bound for relocation, so the fallback never decides anything; a third caller must not treat
+  // undefined as "use the current map".
   return stored ? terrainFromMap(stored) : undefined;
 }
 

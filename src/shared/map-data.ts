@@ -40,6 +40,16 @@ export const ELEMENT_RULES: Readonly<
   stone: { on: ["grass", "water"], collides: true },
 };
 
+/**
+ * The most elements one map may carry. A 100x100 map's blocks alone are ~10.4 KB, so without a
+ * cap on the count a few hundred elements push the body past the 32 KiB `/api/maps` limit and 413
+ * with no useful message. Enforced on the server (`validateMapInput`) and refused up front by the
+ * editor (`applyTool`) so a builder never paints past what will save. Lives here, beside
+ * `ELEMENT_RULES`, because both the server and the browser editor read it and neither may import
+ * the other.
+ */
+export const MAX_MAP_ELEMENTS = 400;
+
 export function isElementKind(value: unknown): value is ElementKind {
   return typeof value === "string" && (ELEMENT_KINDS as readonly string[]).includes(value);
 }

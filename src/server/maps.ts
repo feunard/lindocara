@@ -15,6 +15,7 @@ import {
   bakeCollision,
   canPlaceElement,
   isElementKind,
+  MAX_MAP_ELEMENTS,
   type MapData,
   type MapElement,
 } from "../shared/map-data.js";
@@ -93,6 +94,10 @@ export function validateMapInput(input: MapInput): MapData & { name: string } {
   if (cols < MAP_MIN_COLS || cols > MAP_MAX_COLS || rows < MAP_MIN_ROWS || rows > MAP_MAX_ROWS) {
     throw new Error(`size: ${MAP_MIN_COLS}x${MAP_MIN_ROWS} to ${MAP_MAX_COLS}x${MAP_MAX_ROWS}`);
   }
+  if (input.elements.length > MAX_MAP_ELEMENTS) {
+    // Caught here, before the body would silently blow past the 32 KiB `/api/maps` cap and 413.
+    throw new Error(`elements: at most ${MAX_MAP_ELEMENTS}`);
+  }
   const data: MapData = { blocks: input.blocks, elements: input.elements, spawn: input.spawn };
   const ground = bakeCollision({ ...data, elements: [] });
   for (const element of input.elements) {
@@ -148,18 +153,21 @@ export async function firstMap(db: Db): Promise<StoredMap | null> {
   return toStoredMap(row, await elementsOf(db, row.id));
 }
 
-async function countMaps(db: Db): Promise<number> {
-  const [row] = await db.select({ total: sql<number>`count(*)` }).from(map);
-  return row?.total ?? 0;
+function elementRows(mapId: string, elements: readonly MapElement[]) {
+  return elements.map((element) => ({
+    mapId,
+    col: element.col,
+    row: element.row,
+    kind: element.kind,
+    variant: element.variant,
+  }));
 }
 
 export async function createMap(db: Db, input: MapInput): Promise<StoredMap> {
   const data = validateMapInput(input);
   const id = crypto.randomUUID();
   const first = blocksFirstRow(input.blocks);
-  // The very first map to exist becomes the front door. Nothing else could be.
-  const isFirst = (await countMaps(db)) === 0 ? 1 : 0;
-  await db.insert(map).values({
+  const insertMap = db.insert(map).values({
     id,
     name: data.name,
     cols: first.length,
@@ -167,18 +175,17 @@ export async function createMap(db: Db, input: MapInput): Promise<StoredMap> {
     blocks: encodeBlocks(input.blocks),
     spawnCol: input.spawn.col,
     spawnRow: input.spawn.row,
-    isFirst,
+    // The front door is decided by the database at insert time, never by a read-then-write: the very
+    // first row to exist wins. Two concurrent creates on an empty table cannot both flag themselves,
+    // because SQLite serializes the writes and the second's CASE sees the first's committed row.
+    isFirst: sql`CASE WHEN (SELECT count(*) FROM ${map}) = 0 THEN 1 ELSE 0 END`,
   });
   if (input.elements.length > 0) {
-    await db.insert(mapElement).values(
-      input.elements.map((element) => ({
-        mapId: id,
-        col: element.col,
-        row: element.row,
-        kind: element.kind,
-        variant: element.variant,
-      })),
-    );
+    // One transaction: the map and its scenery arrive together, never a map with no elements yet that
+    // a room could load mid-create.
+    await db.batch([insertMap, db.insert(mapElement).values(elementRows(id, input.elements))]);
+  } else {
+    await insertMap;
   }
   return { id, ...data };
 }
@@ -194,7 +201,7 @@ export async function updateMap(db: Db, id: string, input: MapInput): Promise<St
   const existing = await loadMap(db, id);
   if (!existing) throw new Error("not_found: no such map");
   const first = blocksFirstRow(input.blocks);
-  await db
+  const updateRow = db
     .update(map)
     .set({
       name: data.name,
@@ -206,19 +213,18 @@ export async function updateMap(db: Db, id: string, input: MapInput): Promise<St
       updatedAt: new Date(),
     })
     .where(eq(map.id, id));
-  // Replace wholesale: an edit is a new set of elements, and diffing them would only be a slower
-  // way to reach the same rows.
-  await db.delete(mapElement).where(eq(mapElement.mapId, id));
+  // Replace wholesale (diffing would only be a slower way to reach the same rows), but as ONE
+  // transaction: the new blocks and the new elements land together, so a room admitted mid-update can
+  // never load the new terrain paired with the old — or zero — elements.
+  const clearElements = db.delete(mapElement).where(eq(mapElement.mapId, id));
   if (input.elements.length > 0) {
-    await db.insert(mapElement).values(
-      input.elements.map((element) => ({
-        mapId: id,
-        col: element.col,
-        row: element.row,
-        kind: element.kind,
-        variant: element.variant,
-      })),
-    );
+    await db.batch([
+      updateRow,
+      clearElements,
+      db.insert(mapElement).values(elementRows(id, input.elements)),
+    ]);
+  } else {
+    await db.batch([updateRow, clearElements]);
   }
   return { id, ...data };
 }
@@ -239,25 +245,36 @@ export async function setFirstMap(db: Db, id: string): Promise<void> {
 /**
  * Deleting the last map is refused, and deleting the front door moves the flag rather than removing
  * it. Between them, there is always exactly one map flagged and at least one map to flag.
+ *
+ * Every write is one transaction, each guarded by the same live `count(*)`, so two concurrent deletes
+ * of the last two maps cannot both win: SQLite serializes the batches, the second sees the first's
+ * committed delete, and `count(*) > 1` refuses it. The heir handover rides in the same transaction,
+ * so there is never an instant with the flagged map gone and nothing carrying the flag.
  */
 export async function deleteMap(db: Db, id: string): Promise<void> {
   const [row] = await db.select().from(map).where(eq(map.id, id)).limit(1);
   if (!row) throw new Error("not_found: no such map");
-  if ((await countMaps(db)) <= 1) throw new Error("last_map: the world needs somewhere to be");
 
-  if (row.isFirst === 1) {
-    // Hand the flag over BEFORE the delete: a moment with no first map is a moment a hero whose own
-    // map is gone has nowhere to land.
-    const [heir] = await db
-      .select()
-      .from(map)
-      .where(sql`${map.id} <> ${id}`)
-      .orderBy(asc(map.createdAt))
-      .limit(1);
-    if (heir) await db.update(map).set({ isFirst: 1 }).where(eq(map.id, heir.id));
+  const results = await db.$client.batch([
+    // Hand the flag to the earliest survivor, but only when this row is the one carrying it and a
+    // survivor exists — the guard on `count(*) > 1` keeps it in step with the delete below.
+    db.$client
+      .prepare(
+        `UPDATE map SET is_first = 1
+           WHERE id = (SELECT id FROM map WHERE id <> ? ORDER BY created_at ASC, id ASC LIMIT 1)
+             AND (SELECT is_first FROM map WHERE id = ?) = 1
+             AND (SELECT count(*) FROM map) > 1`,
+      )
+      .bind(id, id),
+    db.$client
+      .prepare(`DELETE FROM map_element WHERE map_id = ? AND (SELECT count(*) FROM map) > 1`)
+      .bind(id),
+    db.$client.prepare(`DELETE FROM map WHERE id = ? AND (SELECT count(*) FROM map) > 1`).bind(id),
+  ]);
+  // The guard on the final DELETE refused it: this was the last map, and nothing in the batch changed.
+  if ((results[2]?.meta.changes ?? 0) === 0) {
+    throw new Error("last_map: the world needs somewhere to be");
   }
-  await db.delete(mapElement).where(eq(mapElement.mapId, id));
-  await db.delete(map).where(eq(map.id, id));
 }
 
 /**
