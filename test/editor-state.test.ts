@@ -5,6 +5,7 @@ import {
   type EditorMap,
   type EditorTool,
 } from "../src/client/game/editor-state.js";
+import { MAX_MAP_ELEMENTS, type MapElement } from "../src/shared/map-data.js";
 
 describe("blankMap", () => {
   it("starts all grass, spawn centred", () => {
@@ -121,6 +122,29 @@ describe("applyTool: element", () => {
     const treeTool: EditorTool = { kind: "element", element: "tree", variant: 0 };
     const next = applyTool(map, treeTool, map.spawn.col, map.spawn.row);
     expect(next).toBeNull();
+  });
+
+  it("refuses a new element once the map already holds the cap, but still allows replacing one", () => {
+    // A 100x100 blank map so geometry is not the limit — the cap is. Fill rows 0-3 with bushes
+    // (400 cells, all grass, clear of the centred spawn).
+    const base = blankMap("m", 100, 100);
+    const elements: MapElement[] = Array.from({ length: MAX_MAP_ELEMENTS }, (_, i) => ({
+      col: i % 100,
+      row: Math.floor(i / 100),
+      kind: "bush",
+      variant: 0,
+    }));
+    const full: EditorMap = { ...base, elements };
+
+    // A new cell is refused: it would be element 401.
+    const treeTool: EditorTool = { kind: "element", element: "tree", variant: 0 };
+    expect(applyTool(full, treeTool, 10, 10)).toBeNull();
+
+    // Replacing an element already on a cell is fine — the count does not grow.
+    const replaced = applyTool(full, treeTool, 0, 0);
+    expect(replaced).not.toBeNull();
+    expect(replaced?.elements).toHaveLength(MAX_MAP_ELEMENTS);
+    expect(replaced?.elements.find((e) => e.col === 0 && e.row === 0)?.kind).toBe("tree");
   });
 });
 

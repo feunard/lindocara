@@ -483,4 +483,6 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.error.invalid": "Ces données de carte sont invalides.",
   "editor.error.not_found": "Cette carte n'existe plus.",
   "editor.error.last_map": "Impossible de supprimer la dernière carte.",
+  "editor.error.elements": "Une carte ne peut contenir que 400 éléments au maximum.",
+  "editor.error.too_large": "Cette carte est trop grande pour être enregistrée.",
 };

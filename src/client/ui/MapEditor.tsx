@@ -14,10 +14,10 @@ import {
 } from "../api.js";
 import type { EditorMap, EditorTool } from "../game/editor-state.js";
 import { blankMap } from "../game/editor-state.js";
-import { openMapEditorStage } from "../game/map-editor-stage.js";
+import { type MapEditorStageHandle, openMapEditorStage } from "../game/map-editor-stage.js";
 import { startMapPreview } from "../game/map-preview.js";
 import { t, useLocale } from "../i18n.js";
-import { type MapEditorStageHandle, useUiStore } from "../store.js";
+import { useUiStore } from "../store.js";
 import { Button } from "./pixelact-ui/button/index.js";
 import { Input } from "./pixelact-ui/input.js";
 import { Label } from "./pixelact-ui/label.js";
@@ -82,7 +82,6 @@ function toolFor(key: ToolKey, variant: number): EditorTool {
 function MapEditorStage({ map, onExit }: { map: MapPayload; onExit: () => void }) {
   useLocale();
   const setScreen = useUiStore((state) => state.setScreen);
-  const setMapEditor = useUiStore((state) => state.setMapEditor);
   const handleRef = useRef<MapEditorStageHandle | null>(null);
   // The live `EditorMap` captured when Preview is pressed. It carries the unsaved edits across the
   // preview round-trip: the stage is disposed for the sandbox and reopened from this, not from the
@@ -98,25 +97,27 @@ function MapEditorStage({ map, onExit }: { map: MapPayload; onExit: () => void }
   // The painting stage. Not mounted while previewing — the sandbox owns the one `#stage` app then —
   // and reopened from the captured edits when the preview ends. Opening is async (it loads textures):
   // if this screen unmounts or a preview starts before the stage resolves, it is still disposed.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional per-map open, stable refs/setters
   useEffect(() => {
     if (previewing) return;
     let cancelled = false;
-    openMapEditorStage(editedRef.current ?? toEditorMap(map), () => setError(null)).then(
-      (handle) => {
+    openMapEditorStage(editedRef.current ?? toEditorMap(map), () => setError(null))
+      .then((handle) => {
         if (cancelled) {
           handle.dispose();
           return;
         }
         handleRef.current = handle;
-        setMapEditor(handle);
-      },
-    );
+      })
+      .catch((caught) => {
+        // A failed stage build (WebGL/texture load) must not strand the screen with a blank canvas
+        // and no way out: surface the error and leave the toolbar's Back usable, exactly like the
+        // list view's failed load. Save no-ops while the handle is null.
+        if (!cancelled) setError(errorCode(caught));
+      });
     return () => {
       cancelled = true;
       handleRef.current?.dispose();
       handleRef.current = null;
-      setMapEditor(null);
     };
   }, [map, previewing]);
 
@@ -130,6 +131,10 @@ function MapEditorStage({ map, onExit }: { map: MapPayload; onExit: () => void }
     const data: MapData = { blocks: edited.blocks, elements: edited.elements, spawn: edited.spawn };
     let stopped = false;
     let preview: { stop(): void } | null = null;
+    // Esc during startup: `stopped` latches before `startMapPreview` resolves, so a preview that
+    // arrives late is stopped at once. That transient build-then-stop is safe because a preview's
+    // teardown is scene-scoped — `renderer.destroy()` detaches only its throwaway warrior's world
+    // from the shared `#stage` app, never destroying the Application the editor reopens onto.
     startMapPreview(data).then((started) => {
       if (stopped) {
         started.stop();

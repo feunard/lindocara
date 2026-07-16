@@ -23,7 +23,11 @@ export function currentLocale(): Locale {
 }
 
 export function t(key: MessageKey, params?: Record<string, string | number>): string {
-  return format(dictionaries[current][key], params);
+  // An unknown key prints verbatim. For a D1 map the server sends the map's raw name as
+  // `zoneNameKey` — not an i18n key — so printing the "key" is exactly the map's name, never
+  // "undefined".
+  const table = dictionaries[current] as Record<string, string | undefined>;
+  return format(table[key] ?? key, params);
 }
 
 export function setLocale(locale: Locale): void {

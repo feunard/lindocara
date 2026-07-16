@@ -1,6 +1,7 @@
 import { pointDistance } from "../../shared/game.js";
 import type { MessageKey } from "../../shared/i18n/index.js";
 import type { PlayerSnapshot } from "../../shared/protocol.js";
+import { DEFAULT_ZONE_ID, type ZoneId } from "../../shared/zones.js";
 
 export interface InteriorDoor {
   id: string;
@@ -42,8 +43,14 @@ export const INTERIORS: readonly InteriorDoor[] = [
   },
 ] as const;
 
-export function nearestInterior(self: PlayerSnapshot | undefined): InteriorDoor | undefined {
-  if (!self) return undefined;
+export function nearestInterior(
+  self: PlayerSnapshot | undefined,
+  zoneId: ZoneId,
+): InteriorDoor | undefined {
+  // Every door is a fixed Verdant Reach coordinate. A D1 map (or any other zone) has none, so a blank
+  // user map must not sprout a walkable "Look inside Crossing Hall" prompt where those pixels happen
+  // to land.
+  if (!self || zoneId !== DEFAULT_ZONE_ID) return undefined;
   let nearest: InteriorDoor | undefined;
   let nearestDistance = INTERIOR_RANGE;
   for (const door of INTERIORS) {

@@ -14,6 +14,7 @@ import {
   bakeCollision,
   canPlaceElement,
   type ElementKind,
+  MAX_MAP_ELEMENTS,
   type MapData,
   type MapElement,
 } from "../../shared/map-data.js";
@@ -109,6 +110,11 @@ export function applyTool(
       const ground = bakeCollision({ blocks: map.blocks, elements: [], spawn: map.spawn });
       const under = kindAt(ground, col, row);
       if (!canPlaceElement(tool.element, under)) return null;
+      // At the cap: refuse a new element, but still allow replacing one already on this cell — the
+      // count does not grow. The server enforces the same ceiling; refusing here keeps a builder from
+      // painting past what will save.
+      const replacing = map.elements.some((element) => element.col === col && element.row === row);
+      if (!replacing && map.elements.length >= MAX_MAP_ELEMENTS) return null;
       const placed: MapElement = { col, row, kind: tool.element, variant: tool.variant };
       const elements = [...withoutElementAt(map.elements, col, row), placed];
       const next: EditorMap = { ...map, elements };

@@ -7,7 +7,6 @@ import type { PartyState, QuestStatus, SelfState } from "../shared/protocol.js";
 import type { Input } from "../shared/simulation.js";
 import type { SkillSlot } from "../shared/skills.js";
 import type { CharacterSummary } from "./api.js";
-import type { MapEditorStageHandle } from "./game/map-editor-stage.js";
 
 export interface LocalizedText {
   key: MessageKey;
@@ -91,11 +90,6 @@ export interface GameHandle {
   attachWorldMap(canvas: HTMLCanvasElement | null): void;
 }
 
-// The painting stage owns `MapEditorStageHandle` (it is the Pixi half of the seam); the store only
-// holds the handle React talks to. Re-exported so existing store consumers keep their import site,
-// and taken as `import type` so Pixi never enters the store's runtime graph.
-export type { MapEditorStageHandle };
-
 export interface ReconnectState {
   kind: "transition" | "network";
   attempt: number;
@@ -133,7 +127,6 @@ interface UiState {
   worldSize: { width: number; height: number } | null;
   reconnect: ReconnectState | null;
   game: GameHandle | null;
-  mapEditor: MapEditorStageHandle | null;
 
   setScreen(screen: UiState["screen"]): void;
   setCharacters(characters: CharacterSummary[] | null): void;
@@ -159,7 +152,6 @@ interface UiState {
   setWorldSize(size: { width: number; height: number } | null): void;
   setReconnect(reconnect: ReconnectState | null): void;
   setGame(game: GameHandle | null): void;
-  setMapEditor(mapEditor: MapEditorStageHandle | null): void;
   /** Everything a terminal disconnect must clear before character select is usable again: the
    *  handle, the reconnect banner, and every full-screen overlay flag. Miss one and it survives
    *  into the next character's session, already open over a world that has not welcomed it. */
@@ -261,7 +253,6 @@ export const useUiStore = create<UiState>((set) => ({
   worldSize: null,
   reconnect: null,
   game: null,
-  mapEditor: null,
 
   setScreen: (screen) => set({ screen }),
   setCharacters: (characters) => set({ characters }),
@@ -342,7 +333,6 @@ export const useUiStore = create<UiState>((set) => ({
   setWorldSize: (worldSize) => set({ worldSize }),
   setReconnect: (reconnect) => set({ reconnect }),
   setGame: (game) => set({ game }),
-  setMapEditor: (mapEditor) => set({ mapEditor }),
   resetToCharacterSelect: () =>
     set({
       game: null,

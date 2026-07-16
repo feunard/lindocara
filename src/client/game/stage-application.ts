@@ -40,7 +40,13 @@ export function acquireStageApp(canvas: HTMLCanvasElement): Promise<Application>
     return Promise.resolve(sharedApp);
   }
   if (!sharedAppPromise) {
-    sharedAppPromise = createStageApp(canvas);
+    sharedAppPromise = createStageApp(canvas).catch((error) => {
+      // A failed init must not wedge every later acquire — game, editor and preview all await this
+      // one promise. Clear it so the next acquire retries a fresh init instead of re-awaiting a
+      // permanently rejected promise until the page reloads.
+      sharedAppPromise = null;
+      throw error;
+    });
   }
   return sharedAppPromise;
 }

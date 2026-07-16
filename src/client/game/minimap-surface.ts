@@ -7,7 +7,10 @@
  */
 import type { PlayerSnapshot, WorldInfo } from "../../shared/protocol.js";
 import type { Vec2 } from "../../shared/simulation.js";
+import { decodeTileMap } from "../../shared/tilemap-codec.js";
+import { isKnownZone } from "../../shared/zones.js";
 import {
+  bakeTerrain,
   bakeZoneTerrain,
   clampToRing,
   MINIMAP_TEXTURE_SCALE,
@@ -214,11 +217,16 @@ export class MapSurface {
  * it on every welcome would cost dropped frames at the worst possible moment: the instant control
  * returns to the player after a zone transition.
  *
- * `world.zoneId` — never `zoneNameKey`, which is prose — picks which zone's own `TileMap` gets
- * baked. Painting one zone's roads over another's room is exactly the bug this guards against.
+ * A catalogue zone bakes from its own compiled-in `TileMap`, resolved by `world.zoneId` (never
+ * `zoneNameKey`, which is prose). A D1 map has no compiled-in tiles to look up, so it bakes from the
+ * tiles the welcome carried — decoded from `world.tiles`. Falling back to the default zone's tiles
+ * for an unknown id (what `bakeZoneTerrain` does on its own) is exactly the bug this guards against:
+ * it would paint Verdant Reach's rivers over a user map, stretched to that map's dimensions.
  */
 function bakeWorldTexture(world: WorldInfo): HTMLCanvasElement {
-  const terrain = bakeZoneTerrain(world.zoneId, world.width, world.height);
+  const terrain = isKnownZone(world.zoneId)
+    ? bakeZoneTerrain(world.zoneId, world.width, world.height)
+    : bakeTerrain(decodeTileMap(world.tiles), world.width, world.height);
   const canvas = document.createElement("canvas");
   canvas.width = terrain.width;
   canvas.height = terrain.height;

@@ -151,8 +151,10 @@ function updatePrompt(
 ): void {
   let result: LocalizedText | null = null;
   // Prompt.tsx hides the floating prompt whenever the interior panel is open, so a
-  // "close_interior" key here would never render - don't bother computing one.
-  if (interiorOpen() || !self || isSpirit(self.life)) {
+  // "close_interior" key here would never render - don't bother computing one. A D1 map has no
+  // catalogue quests or interiors either, so `zoneDefinition`'s fallback-to-Verdant must not be
+  // allowed to conjure a phantom quest prompt over a user map.
+  if (interiorOpen() || !self || isSpirit(self.life) || !isKnownZone(zoneId)) {
     result = null;
   } else {
     const chapter = quest.chapter ?? "three_offerings";
@@ -609,11 +611,13 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       input.reset();
       return;
     }
-    const door = nearestInterior(currentSelf);
+    const door = nearestInterior(currentSelf, activeZoneId);
     const chapter = questState.chapter ?? "three_offerings";
-    const giver = zoneDefinition(activeZoneId).quests.find(
-      (candidate) => candidate.id === chapter,
-    )?.giver;
+    // Only a catalogue zone has quests; on a D1 map `zoneDefinition` would fall back to Verdant and
+    // hand back its quest giver, making the player "near" a keeper who is not on this map.
+    const giver = isKnownZone(activeZoneId)
+      ? zoneDefinition(activeZoneId).quests.find((candidate) => candidate.id === chapter)?.giver
+      : undefined;
     const nearNpc = currentSelf && giver && pointDistance(currentSelf, giver) <= INTERACTION_RANGE;
     if (door && !nearNpc) {
       sound.interact();
@@ -800,7 +804,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     const sample = client.sample(now);
     const self = sample.players.find((player) => player.id === client.selfId);
     currentSelf = self;
-    const door = nearestInterior(self);
+    const door = nearestInterior(self, activeZoneId);
     const context: RenderContext = {
       quest: questState,
       attackCooldownUntil,
