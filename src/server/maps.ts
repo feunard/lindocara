@@ -59,6 +59,15 @@ export interface MapInput {
   spawn: { col: number; row: number };
 }
 
+/** A map small enough to fit on screen is also small enough to be a maze of one-tile corridors;
+ *  a map large enough to blow up storage and network payloads is not a design choice worth
+ *  allowing. Both ends are enforced on write, not in the editor. */
+export const MAP_MIN_COLS = 20;
+export const MAP_MAX_COLS = 100;
+export const MAP_MIN_ROWS = 15;
+export const MAP_MAX_ROWS = 100;
+export const MAP_NAME_MAX = 48;
+
 /** Stored newline-joined; `decodeTileMap` wants one string per row. One format, two shapes. */
 function encodeBlocks(blocks: readonly string[]): string {
   return blocks.join("\n");
@@ -75,6 +84,15 @@ function decodeBlocks(blocks: string): string[] {
  * is simply wrong. Both are cheap to check here and impossible to notice later.
  */
 export function validateMapInput(input: MapInput): MapData {
+  const name = input.name.trim();
+  if (name.length === 0 || name.length > MAP_NAME_MAX) {
+    throw new Error("name: 1-48 characters");
+  }
+  const cols = input.blocks[0]?.length ?? 0;
+  const rows = input.blocks.length;
+  if (cols < MAP_MIN_COLS || cols > MAP_MAX_COLS || rows < MAP_MIN_ROWS || rows > MAP_MAX_ROWS) {
+    throw new Error(`size: ${MAP_MIN_COLS}x${MAP_MIN_ROWS} to ${MAP_MAX_COLS}x${MAP_MAX_ROWS}`);
+  }
   const data: MapData = { blocks: input.blocks, elements: input.elements, spawn: input.spawn };
   const ground = bakeCollision({ ...data, elements: [] });
   for (const element of input.elements) {
@@ -202,6 +220,14 @@ export async function updateMap(db: Db, id: string, input: MapInput): Promise<St
     );
   }
   return { id, name: input.name, ...data };
+}
+
+/** Hand the front-door flag to a chosen map. Exactly one map carries it, before and after. */
+export async function setFirstMap(db: Db, id: string): Promise<void> {
+  const [row] = await db.select().from(map).where(eq(map.id, id)).limit(1);
+  if (!row) throw new Error("not_found: no such map");
+  await db.update(map).set({ isFirst: 0 }).where(eq(map.isFirst, 1));
+  await db.update(map).set({ isFirst: 1 }).where(eq(map.id, id));
 }
 
 /**
