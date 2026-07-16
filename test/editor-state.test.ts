@@ -42,10 +42,13 @@ describe("applyTool: block", () => {
     const withTree = applyTool(map, treeTool, 3, 4);
     expect(withTree).not.toBeNull();
     map = withTree as EditorMap;
+    const beforeElements = map.elements.slice();
     const waterTool: EditorTool = { kind: "block", block: "water" };
     const next = applyTool(map, waterTool, 3, 4);
     expect(next).not.toBeNull();
+    expect(next).not.toBe(map);
     expect(next?.elements).toEqual([]);
+    expect(map.elements).toEqual(beforeElements);
   });
 
   it("painting water under a stone keeps it (a stone stands in the shallows)", () => {
@@ -54,10 +57,13 @@ describe("applyTool: block", () => {
     const withStone = applyTool(map, stoneTool, 3, 4);
     expect(withStone).not.toBeNull();
     map = withStone as EditorMap;
+    const beforeElements = map.elements.slice();
     const waterTool: EditorTool = { kind: "block", block: "water" };
     const next = applyTool(map, waterTool, 3, 4);
     expect(next).not.toBeNull();
+    expect(next).not.toBe(map);
     expect(next?.elements).toEqual([{ col: 3, row: 4, kind: "stone", variant: 0 }]);
+    expect(map.elements).toEqual(beforeElements);
   });
 
   it("refuses painting water onto the spawn cell", () => {
@@ -86,10 +92,13 @@ describe("applyTool: element", () => {
     const withWater = applyTool(map, waterTool, 3, 4);
     expect(withWater).not.toBeNull();
     map = withWater as EditorMap;
+    const beforeElements = map.elements.slice();
     const stoneTool: EditorTool = { kind: "element", element: "stone", variant: 0 };
     const next = applyTool(map, stoneTool, 3, 4);
     expect(next).not.toBeNull();
+    expect(next).not.toBe(map);
     expect(next?.elements).toEqual([{ col: 3, row: 4, kind: "stone", variant: 0 }]);
+    expect(map.elements).toEqual(beforeElements);
   });
 
   it("replaces the existing element on an occupied cell (one per cell)", () => {
@@ -98,10 +107,13 @@ describe("applyTool: element", () => {
     const withBush = applyTool(map, bushTool, 3, 4);
     expect(withBush).not.toBeNull();
     map = withBush as EditorMap;
+    const beforeElements = map.elements.slice();
     const treeTool: EditorTool = { kind: "element", element: "tree", variant: 2 };
     const next = applyTool(map, treeTool, 3, 4);
     expect(next).not.toBeNull();
+    expect(next).not.toBe(map);
     expect(next?.elements).toEqual([{ col: 3, row: 4, kind: "tree", variant: 2 }]);
+    expect(map.elements).toEqual(beforeElements);
   });
 
   it("refuses placing a colliding element on the spawn cell", () => {
@@ -119,10 +131,13 @@ describe("applyTool: eraser", () => {
     const withBush = applyTool(map, bushTool, 3, 4);
     expect(withBush).not.toBeNull();
     map = withBush as EditorMap;
+    const beforeElements = map.elements.slice();
     const eraserTool: EditorTool = { kind: "eraser" };
     const next = applyTool(map, eraserTool, 3, 4);
     expect(next).not.toBeNull();
+    expect(next).not.toBe(map);
     expect(next?.elements).toEqual([]);
+    expect(map.elements).toEqual(beforeElements);
   });
 
   it("returns the SAME reference (not null) on an empty cell", () => {
@@ -136,10 +151,13 @@ describe("applyTool: eraser", () => {
 describe("applyTool: spawn", () => {
   it("moves the spawn onto a walkable cell", () => {
     const map = blankMap("m", 20, 15);
+    const beforeSpawn = { ...map.spawn };
     const tool: EditorTool = { kind: "spawn" };
     const next = applyTool(map, tool, 5, 6);
     expect(next).not.toBeNull();
+    expect(next).not.toBe(map);
     expect(next?.spawn).toEqual({ col: 5, row: 6 });
+    expect(map.spawn).toEqual(beforeSpawn);
   });
 
   it("refuses moving the spawn onto water", () => {
