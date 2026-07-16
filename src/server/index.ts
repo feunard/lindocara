@@ -10,7 +10,7 @@ import { normalizeAppearance } from "../shared/character.js";
 import { WS_CLOSE } from "../shared/close-codes.js";
 import { isValidClass } from "../shared/game.js";
 import { isUuid } from "../shared/identifiers.js";
-import { mapSpawnPoint } from "../shared/map-data.js";
+import { mapSpawnPoint, parseMapData } from "../shared/map-data.js";
 import {
   isKnownZone,
   isValidInstanceId,
@@ -27,7 +27,17 @@ import {
   listCharacters,
 } from "./characters.js";
 import { createDb } from "./db/index.js";
-import { resolveMapFor, type StoredMap } from "./maps.js";
+import {
+  createMap,
+  deleteMap,
+  listMaps,
+  loadMap,
+  type MapInput,
+  resolveMapFor,
+  type StoredMap,
+  setFirstMap,
+  updateMap,
+} from "./maps.js";
 import { loadProfile, relocateProfile } from "./profile.js";
 import {
   clearSessionCookie,
@@ -51,10 +61,15 @@ function json(body: unknown, init?: ResponseInit): Response {
 }
 
 const MAX_API_JSON_BYTES = 4_096;
+// A 100x100 map is ~10 KB of blocks plus elements — the maps route gets its own, larger cap.
+const MAX_MAP_JSON_BYTES = 32_768;
 
-async function readJson(request: Request): Promise<{ value: unknown } | Response> {
+async function readJson(
+  request: Request,
+  limit: number = MAX_API_JSON_BYTES,
+): Promise<{ value: unknown } | Response> {
   const declaredLength = Number(request.headers.get("Content-Length"));
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_API_JSON_BYTES) {
+  if (Number.isFinite(declaredLength) && declaredLength > limit) {
     return json({ error: "request_too_large" }, { status: 413 });
   }
   const reader = request.body?.getReader();
@@ -65,7 +80,7 @@ async function readJson(request: Request): Promise<{ value: unknown } | Response
     const part = await reader.read();
     if (part.done) break;
     bytes += part.value.byteLength;
-    if (bytes > MAX_API_JSON_BYTES) {
+    if (bytes > limit) {
       await reader.cancel();
       return json({ error: "request_too_large" }, { status: 413 });
     }
@@ -308,6 +323,108 @@ async function handleDeleteCharacter(
   return new Response(null, { status: 204 });
 }
 
+/** `maps.ts` throws "prefix: message" — the prefix is the machine code, the message is for logs. */
+function mapErrorResponse(error: unknown): Response {
+  const message = error instanceof Error ? error.message : "";
+  const code = message.split(":")[0];
+  if (code === "not_found") return json({ error: "map_not_found" }, { status: 404 });
+  if (code === "last_map") return json({ error: "last_map" }, { status: 409 });
+  if (code === "placement" || code === "spawn" || code === "size" || code === "name") {
+    return json({ error: `map_${code}` }, { status: 400 });
+  }
+  throw error;
+}
+
+/** Shape only — `parseMapData` already validates blocks/chars/bounds/spawn defensively, and
+ *  `validateMapInput` inside create/update remains the one semantic gate. */
+function parseMapBody(body: unknown): MapInput | null {
+  const name = (body as { name?: unknown } | null)?.name;
+  if (typeof name !== "string") return null;
+  const data = parseMapData(body);
+  if (!data) return null;
+  return { name, blocks: data.blocks, elements: data.elements, spawn: data.spawn };
+}
+
+async function handleListMaps(request: Request, env: Env, url: URL): Promise<Response> {
+  const auth = await requireSession(request, env, url);
+  if (auth instanceof Response) return auth;
+  return json(await listMaps(createDb(env.DB)));
+}
+
+async function handleCreateMap(request: Request, env: Env, url: URL): Promise<Response> {
+  const auth = await requireSession(request, env, url);
+  if (auth instanceof Response) return auth;
+  const parsed = await readJson(request, MAX_MAP_JSON_BYTES);
+  if (parsed instanceof Response) return parsed;
+  const input = parseMapBody(parsed.value);
+  if (!input) return json({ error: "map_invalid" }, { status: 400 });
+  try {
+    return json(await createMap(createDb(env.DB), input), { status: 201 });
+  } catch (error) {
+    return mapErrorResponse(error);
+  }
+}
+
+async function handleGetMap(request: Request, env: Env, url: URL, id: string): Promise<Response> {
+  const auth = await requireSession(request, env, url);
+  if (auth instanceof Response) return auth;
+  // The built-in floor is never a D1 row, so loadMap returns null for it — no special case needed.
+  const stored = await loadMap(createDb(env.DB), id);
+  if (!stored) return json({ error: "map_not_found" }, { status: 404 });
+  return json(stored);
+}
+
+async function handleUpdateMap(
+  request: Request,
+  env: Env,
+  url: URL,
+  id: string,
+): Promise<Response> {
+  const auth = await requireSession(request, env, url);
+  if (auth instanceof Response) return auth;
+  const parsed = await readJson(request, MAX_MAP_JSON_BYTES);
+  if (parsed instanceof Response) return parsed;
+  const input = parseMapBody(parsed.value);
+  if (!input) return json({ error: "map_invalid" }, { status: 400 });
+  try {
+    return json(await updateMap(createDb(env.DB), id, input));
+  } catch (error) {
+    return mapErrorResponse(error);
+  }
+}
+
+async function handleDeleteMap(
+  request: Request,
+  env: Env,
+  url: URL,
+  id: string,
+): Promise<Response> {
+  const auth = await requireSession(request, env, url);
+  if (auth instanceof Response) return auth;
+  try {
+    await deleteMap(createDb(env.DB), id);
+    return new Response(null, { status: 204 });
+  } catch (error) {
+    return mapErrorResponse(error);
+  }
+}
+
+async function handleSetFirstMap(
+  request: Request,
+  env: Env,
+  url: URL,
+  id: string,
+): Promise<Response> {
+  const auth = await requireSession(request, env, url);
+  if (auth instanceof Response) return auth;
+  try {
+    await setFirstMap(createDb(env.DB), id);
+    return new Response(null, { status: 204 });
+  } catch (error) {
+    return mapErrorResponse(error);
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -352,6 +469,24 @@ export default {
     const characterPath = url.pathname.match(/^\/api\/characters\/([^/]+)$/);
     if (isUuid(characterPath?.[1]) && request.method === "DELETE") {
       return handleDeleteCharacter(request, env, url, characterPath[1]);
+    }
+
+    if (url.pathname === "/api/maps" && request.method === "GET") {
+      return handleListMaps(request, env, url);
+    }
+    if (url.pathname === "/api/maps" && request.method === "POST") {
+      return handleCreateMap(request, env, url);
+    }
+    const mapRoute = url.pathname.match(/^\/api\/maps\/([A-Za-z0-9-]{1,64})$/);
+    if (mapRoute?.[1]) {
+      const id = mapRoute[1];
+      if (request.method === "GET") return handleGetMap(request, env, url, id);
+      if (request.method === "PUT") return handleUpdateMap(request, env, url, id);
+      if (request.method === "DELETE") return handleDeleteMap(request, env, url, id);
+    }
+    const firstRoute = url.pathname.match(/^\/api\/maps\/([A-Za-z0-9-]{1,64})\/first$/);
+    if (firstRoute?.[1] && request.method === "POST") {
+      return handleSetFirstMap(request, env, url, firstRoute[1]);
     }
 
     return json({ error: "not found" }, { status: 404 });
