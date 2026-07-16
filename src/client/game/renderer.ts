@@ -50,7 +50,14 @@ import {
 import { MAX_ACTIVE_WORLD_EFFECTS, questSiteFeedback } from "./feedback.js";
 import type { SceneSample } from "./net.js";
 import type { CombatTarget } from "./targeting.js";
-import { pulseTint, terrainTintsAt, waterScrollOffsets } from "./terrain-visuals.js";
+import {
+  pulseTint,
+  terrainTintsAt,
+  WATER_RENDER_OBJECTS,
+  waterScrollOffsets,
+  waterSurfaceRect,
+  writeWaterScrollOffsets,
+} from "./terrain-visuals.js";
 import {
   allUnitSheets,
   TINY_SWORDS_BUILDINGS,
@@ -197,7 +204,7 @@ interface AmbientView {
   sway: number;
 }
 
-interface WaterTileView {
+interface WaterSurfaceView {
   primary: TilingSprite;
   secondary: TilingSprite;
   x: number;
@@ -612,8 +619,8 @@ export class Renderer {
   #worldTextViews: WorldTextView[] = [];
   #localizedTexts: Array<{ node: Text; compute: () => string }> = [];
   #terrainTiles: Sprite[] = [];
-  #waterTilePool: WaterTileView[] = [];
-  #waterTiles: WaterTileView[] = [];
+  #waterSurface?: WaterSurfaceView;
+  readonly #waterScroll = waterScrollOffsets(0, 1);
   #terrainKey = "";
   /** Which zone's tilemap `#buildForestTrees`/`#buildDecor`/`#updateTerrain` currently read.
    *  Defaults to Verdant Reach so the very first paint (before any welcome) isn't blank; the
@@ -715,6 +722,7 @@ export class Renderer {
   diagnostics(): Record<string, number> {
     return {
       terrainPool: this.#terrainTiles.length,
+      waterObjects: this.#waterTerrain.children.length,
       staticTotal: this.#staticViews.length,
       staticVisible: this.#staticViews.filter(({ container }) => container.visible).length,
       ambientTotal: this.#ambientViews.length,
@@ -727,6 +735,7 @@ export class Renderer {
 
   #buildWorld(): void {
     this.#actors.sortableChildren = true;
+    this.#waterSurface = this.#createWaterSurface();
     this.#resizeWorldBackground();
     this.#world.addChild(
       this.#worldBackground,
@@ -760,18 +769,21 @@ export class Renderer {
       .fill({ color: COLORS.grass });
   }
 
-  #createWaterTile(): WaterTileView {
+  #createWaterSurface(): WaterSurfaceView {
     const makeLayer = (alpha: number) =>
       new TilingSprite({
         texture: this.art.terrain.water,
-        width: TILE_SIZE,
-        height: TILE_SIZE,
+        width: 0,
+        height: 0,
         tileScale: { x: WATER_TEXTURE_SCALE, y: WATER_TEXTURE_SCALE },
         alpha,
       });
     const primary = makeLayer(1);
     const secondary = makeLayer(WATER_SECONDARY_ALPHA);
     this.#waterTerrain.addChild(primary, secondary);
+    if (this.#waterTerrain.children.length !== WATER_RENDER_OBJECTS) {
+      throw new Error("water surface must stay at two render objects");
+    }
     return { primary, secondary, x: 0, y: 0, baseTint: 0xffffff, phase: 0 };
   }
 
@@ -1645,11 +1657,35 @@ export class Renderer {
       this.#terrainTiles.push(tile);
       this.#terrain.addChild(tile);
     }
-    for (const view of this.#waterTilePool) {
-      view.primary.visible = false;
-      view.secondary.visible = false;
+    const waterRect = waterSurfaceRect(
+      startX,
+      startY,
+      columns,
+      rows,
+      TILE_SIZE,
+      this.#zoneWidth,
+      this.#zoneHeight,
+    );
+    const water = this.#waterSurface;
+    if (water) {
+      const visible = waterRect.width > 0 && waterRect.height > 0;
+      const tints = terrainTintsAt(
+        waterRect.x + waterRect.width / 2,
+        waterRect.y + waterRect.height / 2,
+        this.#visuals.worldRegions,
+      );
+      for (const layer of [water.primary, water.secondary]) {
+        layer.visible = visible;
+        layer.position.set(waterRect.x, waterRect.y);
+        layer.width = waterRect.width;
+        layer.height = waterRect.height;
+        layer.tint = tints.water;
+      }
+      water.x = waterRect.x;
+      water.y = waterRect.y;
+      water.baseTint = tints.water;
+      water.phase = (waterRect.x * 0.0057 + waterRect.y * 0.0091) % (Math.PI * 2);
     }
-    this.#waterTiles = [];
     for (let index = 0; index < this.#terrainTiles.length; index++) {
       const tile = this.#terrainTiles[index];
       if (!tile) continue;
@@ -1686,26 +1722,6 @@ export class Renderer {
       }
 
       tile.visible = false;
-      const waterIndex = this.#waterTiles.length;
-      let water = this.#waterTilePool[waterIndex];
-      if (!water) {
-        water = this.#createWaterTile();
-        this.#waterTilePool.push(water);
-      }
-      const width = Math.min(TILE_SIZE, this.#zoneWidth - x);
-      const height = Math.min(TILE_SIZE, this.#zoneHeight - y);
-      for (const layer of [water.primary, water.secondary]) {
-        layer.visible = true;
-        layer.position.set(x, y);
-        layer.width = width;
-        layer.height = height;
-        layer.tint = tints.water;
-      }
-      water.x = x;
-      water.y = y;
-      water.baseTint = tints.water;
-      water.phase = (col * 0.37 + tileRow * 0.61) % (Math.PI * 2);
-      this.#waterTiles.push(water);
     }
   }
 
@@ -2246,8 +2262,9 @@ export class Renderer {
 
   #updateAmbient(now: number): void {
     const waterPeriod = this.art.terrain.water.width * WATER_TEXTURE_SCALE;
-    const scroll = waterScrollOffsets(now, waterPeriod);
-    for (const view of this.#waterTiles) {
+    const scroll = writeWaterScrollOffsets(now, waterPeriod, this.#waterScroll);
+    const view = this.#waterSurface;
+    if (view?.primary.visible) {
       const shimmer = Math.sin(now / 1_100 + view.phase);
       view.primary.tilePosition.set(scroll.primary.x - view.x, scroll.primary.y - view.y);
       view.secondary.tilePosition.set(scroll.secondary.x - view.x, scroll.secondary.y - view.y);

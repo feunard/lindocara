@@ -15,7 +15,6 @@ import {
 } from "../shared/cooperation.js";
 import { canAct, canBeResurrected, RESURRECT_COOLDOWN_MS, resurrectHp } from "../shared/death.js";
 import {
-  ATTACK_COOLDOWN_MS,
   applyDamage,
   applyExperience,
   attackDamageFor,
@@ -78,6 +77,7 @@ import { createDb } from "./db/index.js";
 import { HEALTH_POTION_ID } from "./items.js";
 import { loadProfile, saveProfile } from "./profile.js";
 import {
+  attemptBasicAttack,
   guardedDamage,
   resolveAttackTarget,
   resolveFriendlyTarget,
@@ -129,6 +129,7 @@ import {
   ATTACHMENT_EVERY_TICKS,
   type Attachment,
   CHAT_MAX_LENGTH,
+  combatCooldownsFromPlayer,
   createGuards,
   createMonsters,
   D1_SAVE_EVERY_TICKS,
@@ -220,6 +221,13 @@ export class World extends DurableObject<Env> {
         const position = clampRestoredPosition(profile, profile.id, location.definition.terrain);
         profile.x = position.x;
         profile.y = position.y;
+        const restoredCooldowns = await this.env.CHARACTER_PRESENCE.getByName(
+          attachment.id,
+        ).readCooldowns(connectionId, sessionEpoch);
+        if (restoredCooldowns === null) {
+          ws.close(WS_CLOSE.PRESENCE_LOST, "presence expired");
+          continue;
+        }
         const player = newPlayer(
           profile,
           connectionId,
@@ -227,6 +235,7 @@ export class World extends DurableObject<Env> {
           attachment.ack ?? 0,
           attachment.lastSeq ?? 0,
           attachment.resource,
+          restoredCooldowns,
         );
         ws.serializeAttachment(toAttachment(player));
         this.#addPlayer(ws, player);
@@ -334,6 +343,8 @@ export class World extends DurableObject<Env> {
     if (profile.zoneId !== location.zoneId || profile.instanceId !== location.instanceId) {
       return new Response("character location changed", { status: 409 });
     }
+    const restoredCooldowns = await presence.readCooldowns(connectionId, sessionEpoch);
+    if (restoredCooldowns === null) return new Response("presence lost", { status: 409 });
     const restoredPosition = clampRestoredPosition(
       profile,
       profile.id,
@@ -372,7 +383,7 @@ export class World extends DurableObject<Env> {
     }
     const { 0: client, 1: server } = new WebSocketPair();
     this.ctx.acceptWebSocket(server);
-    const player = newPlayer(profile, connectionId, roomKey);
+    const player = newPlayer(profile, connectionId, roomKey, 0, 0, undefined, restoredCooldowns);
     player.dirty = false;
     server.serializeAttachment(toAttachment(player));
     if (this.#seenCharacterIds.has(player.id)) this.#observability.reconnections += 1;
@@ -552,7 +563,9 @@ export class World extends DurableObject<Env> {
     // The dead act only through the two exits above. Chat is the one thing a spirit keeps.
     if (message.t !== "chat" && !canAct(player.life)) return;
     if (message.t === "attack") {
-      this.#attack(ws, player, message.targetId);
+      if (this.#attack(ws, player, message.targetId)) {
+        await this.#checkpointCooldownsOrReject(ws, player);
+      }
       return;
     }
     if (message.t === "interact") {
@@ -564,11 +577,15 @@ export class World extends DurableObject<Env> {
       return;
     }
     if (message.t === "heal") {
-      this.#heal(ws, player, message.targetId);
+      if (this.#heal(ws, player, message.targetId)) {
+        await this.#checkpointCooldownsOrReject(ws, player);
+      }
       return;
     }
     if (message.t === "skill") {
-      this.#castSkill(ws, player, message.slot, message.targetId);
+      if (this.#castSkill(ws, player, message.slot, message.targetId)) {
+        await this.#checkpointCooldownsOrReject(ws, player);
+      }
       return;
     }
     if (message.t !== "chat") return;
@@ -611,13 +628,10 @@ export class World extends DurableObject<Env> {
     };
   }
 
-  #attack(ws: WebSocket, player: Player, targetId: string): void {
+  #attack(ws: WebSocket, player: Player, targetId: string): boolean {
     const now = Date.now();
-    if (!canAct(player.life) || now - player.lastAttackAt < ATTACK_COOLDOWN_MS) return;
-    player.lastAttackAt = now;
-
     const stats = CLASS_STATS[player.class];
-    const { target, blockedInRange } = resolveAttackTarget(
+    const attempt = attemptBasicAttack(
       player,
       this.#monsters,
       targetId,
@@ -625,6 +639,17 @@ export class World extends DurableObject<Env> {
       now,
       this.#zone().terrain,
     );
+    if (attempt.kind === "unavailable") return false;
+    if (attempt.kind === "rejected") {
+      this.#send(ws, {
+        t: "event",
+        code: attempt.blockedInRange ? "combat.blocked" : "combat.too_far",
+        tone: "info",
+      });
+      return false;
+    }
+
+    const { target } = attempt;
     this.#sendSpatialEvent(
       {
         t: "animation",
@@ -633,18 +658,11 @@ export class World extends DurableObject<Env> {
         action: "attack",
         x: player.x,
         y: player.y,
-        ...(target ? { targetX: target.x, targetY: target.y } : {}),
+        targetX: target.x,
+        targetY: target.y,
       },
       player,
     );
-    if (!target) {
-      this.#send(ws, {
-        t: "event",
-        code: blockedInRange ? "combat.blocked" : "combat.too_far",
-        tone: "info",
-      });
-      return;
-    }
 
     const damage = attackDamageFor(player.class, player.level);
     const actualDamage = Math.min(target.hp, damage);
@@ -654,15 +672,16 @@ export class World extends DurableObject<Env> {
     this.#send(ws, {
       t: "event",
       code: "combat.hit",
-      params: { species: target.species, damage },
+      params: { species: target.species, damage, basic: 1 },
       tone: "info",
       x: target.x,
       y: target.y,
     });
     if (result.killed) this.#defeatMonster(ws, player, target, now);
+    return true;
   }
 
-  #castSkill(ws: WebSocket, player: Player, slot: SkillSlot, targetId?: string): void {
+  #castSkill(ws: WebSocket, player: Player, slot: SkillSlot, targetId?: string): boolean {
     const skill = skillFor(player.class, slot);
     if (!isSkillUnlocked(player.level, slot)) {
       this.#send(ws, {
@@ -671,15 +690,15 @@ export class World extends DurableObject<Env> {
         params: { level: SKILL_UNLOCK_LEVEL[slot], skill: skill.id },
         tone: "info",
       });
-      return;
+      return false;
     }
     const resourceCost = skillResourceCost(player.class, slot);
     if (!canSpendResource(player.resource, resourceCost)) {
       this.#send(ws, { t: "event", code: "resource.insufficient", tone: "info" });
-      return;
+      return false;
     }
     if (skill.effect === "attack") {
-      if (targetId) this.#attack(ws, player, targetId);
+      if (targetId) return this.#attack(ws, player, targetId);
       else
         this.#send(ws, {
           t: "event",
@@ -687,10 +706,10 @@ export class World extends DurableObject<Env> {
           params: { skill: skill.id },
           tone: "info",
         });
-      return;
+      return false;
     }
     if (skill.effect === "single_heal") {
-      if (targetId) this.#heal(ws, player, targetId, resourceCost);
+      if (targetId) return this.#heal(ws, player, targetId, resourceCost);
       else
         this.#send(ws, {
           t: "event",
@@ -698,11 +717,11 @@ export class World extends DurableObject<Env> {
           params: { skill: skill.id },
           tone: "info",
         });
-      return;
+      return false;
     }
 
     const now = Date.now();
-    if (!canAct(player.life) || (player.skillCooldowns[slot - 1] ?? 0) > now) return;
+    if (!canAct(player.life) || (player.skillCooldowns[slot - 1] ?? 0) > now) return false;
 
     let cast = false;
     if (skill.effect === "teleport") {
@@ -744,7 +763,7 @@ export class World extends DurableObject<Env> {
           params: { skill: skill.id },
           tone: "info",
         });
-        return;
+        return false;
       }
     } else if (skill.effect === "guard") {
       player.guardUntil = now + (skill.durationMs ?? 0);
@@ -772,7 +791,7 @@ export class World extends DurableObject<Env> {
           params: { skill: skill.id },
           tone: "info",
         });
-        return;
+        return false;
       }
     } else if (skill.effect === "area_damage") {
       const targets = this.#monsters.filter(
@@ -805,7 +824,7 @@ export class World extends DurableObject<Env> {
         params: { skill: skill.id },
         tone: "info",
       });
-      return;
+      return false;
     }
     player.skillCooldowns[slot - 1] = now + skill.cooldownMs;
     spendResource(player.resource, resourceCost);
@@ -831,6 +850,7 @@ export class World extends DurableObject<Env> {
       },
       player,
     );
+    return true;
   }
 
   #movePlayerInDirection(player: Player, direction: Vec2, distance: number): boolean {
@@ -1157,7 +1177,13 @@ export class World extends DurableObject<Env> {
     }
     // A corpse is just one more thing you can be standing next to. The skill bar is full and
     // this codebase resolves every action as "the nearest valid thing in range"; so does this.
-    if (this.#resurrectNearbyCorpse(ws, player, now)) return;
+    const resurrection = this.#resurrectNearbyCorpse(ws, player, now);
+    if (resurrection.handled) {
+      if (resurrection.cooldownStarted) {
+        this.ctx.waitUntil(this.#checkpointCooldownsOrReject(ws, player));
+      }
+      return;
+    }
     const chapter = player.quest.chapter ?? "three_offerings";
     player.quest.chapter = chapter;
 
@@ -1243,6 +1269,10 @@ export class World extends DurableObject<Env> {
     player.queue = [];
     player.lastTransitionAt = now;
 
+    if (!(await this.#checkpointCooldowns(player))) {
+      this.#rejectStaleSave(ws, player);
+      return;
+    }
     const saved = await this.#savePlayer(player, ws, true);
     if (!saved) return;
     const next = await this.env.CHARACTER_PRESENCE.getByName(player.id).handoff({
@@ -1282,7 +1312,11 @@ export class World extends DurableObject<Env> {
    * A ghost is not a candidate: releasing shuts this door, which is what makes releasing a
    * decision rather than a formality.
    */
-  #resurrectNearbyCorpse(ws: WebSocket, player: Player, now: number): boolean {
+  #resurrectNearbyCorpse(
+    ws: WebSocket,
+    player: Player,
+    now: number,
+  ): { handled: boolean; cooldownStarted: boolean } {
     const heal = CLASS_STATS[player.class].heal;
     let target: Player | undefined;
     let targetSocket: WebSocket | undefined;
@@ -1296,16 +1330,16 @@ export class World extends DurableObject<Env> {
       targetSocket = socket;
       distance = candidateDistance;
     }
-    if (!target || !targetSocket) return false;
+    if (!target || !targetSocket) return { handled: false, cooldownStarted: false };
 
     // Only now that we know a body is in reach is it worth telling a warrior he cannot help.
     if (!heal) {
       this.#send(ws, { t: "event", code: "resurrect.not_priest", tone: "info" });
-      return true;
+      return { handled: true, cooldownStarted: false };
     }
     if (now - player.lastResurrectAt < RESURRECT_COOLDOWN_MS) {
       this.#send(ws, { t: "event", code: "resurrect.nobody", tone: "info" });
-      return true;
+      return { handled: true, cooldownStarted: false };
     }
 
     player.lastResurrectAt = now;
@@ -1331,7 +1365,7 @@ export class World extends DurableObject<Env> {
       y: target.y,
     });
     this.#sendState(targetSocket, target);
-    return true;
+    return { handled: true, cooldownStarted: true };
   }
 
   #interactQuestSite(
@@ -1549,6 +1583,20 @@ export class World extends DurableObject<Env> {
         throw error;
       },
     );
+  }
+
+  #checkpointCooldowns(player: Player): Promise<boolean> {
+    return this.env.CHARACTER_PRESENCE.getByName(player.id).checkpointCooldowns(
+      player.connectionId,
+      player.sessionEpoch,
+      combatCooldownsFromPlayer(player),
+    );
+  }
+
+  async #checkpointCooldownsOrReject(ws: WebSocket, player: Player): Promise<boolean> {
+    const accepted = await this.#checkpointCooldowns(player);
+    if (!accepted) this.#rejectStaleSave(ws, player);
+    return accepted;
   }
 
   #rejectStaleSave(ws: WebSocket, player: Player): void {

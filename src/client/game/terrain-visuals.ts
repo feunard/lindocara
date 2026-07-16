@@ -10,6 +10,35 @@ export interface WaterScrollOffsets {
   secondary: { x: number; y: number };
 }
 
+export interface WaterSurfaceRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export const WATER_RENDER_OBJECTS = 2;
+
+/** One viewport-sized surface, clipped to the current zone; land tiles mask it from above. */
+export function waterSurfaceRect(
+  startX: number,
+  startY: number,
+  columns: number,
+  rows: number,
+  tileSize: number,
+  zoneWidth: number,
+  zoneHeight: number,
+): WaterSurfaceRect {
+  const x = Math.max(0, Math.min(zoneWidth, startX));
+  const y = Math.max(0, Math.min(zoneHeight, startY));
+  return {
+    x,
+    y,
+    width: Math.max(0, Math.min(zoneWidth - x, columns * tileSize)),
+    height: Math.max(0, Math.min(zoneHeight - y, rows * tileSize)),
+  };
+}
+
 // These are the two authored UV velocities from ocean_surface.tscn. Keeping them here makes the
 // browser rendering follow the supplied water material instead of inventing an unrelated pulse.
 const WATER_PRIMARY_SCROLL = { x: 0.015, y: 0.001 } as const;
@@ -67,19 +96,32 @@ export function terrainTintsAt(
 }
 
 export function waterScrollOffsets(elapsedMs: number, worldPeriod: number): WaterScrollOffsets {
+  return writeWaterScrollOffsets(elapsedMs, worldPeriod, {
+    primary: { x: 0, y: 0 },
+    secondary: { x: 0, y: 0 },
+  });
+}
+
+/** Allocation-free variant for the render loop. */
+export function writeWaterScrollOffsets(
+  elapsedMs: number,
+  worldPeriod: number,
+  output: WaterScrollOffsets,
+): WaterScrollOffsets {
   if (worldPeriod <= 0) {
-    return { primary: { x: 0, y: 0 }, secondary: { x: 0, y: 0 } };
+    output.primary.x = 0;
+    output.primary.y = 0;
+    output.secondary.x = 0;
+    output.secondary.y = 0;
+    return output;
   }
   const seconds = Math.max(0, elapsedMs) / 1_000;
   const wrap = (value: number) => ((value % worldPeriod) + worldPeriod) % worldPeriod;
-  const offset = (speed: { x: number; y: number }) => ({
-    x: wrap(speed.x * worldPeriod * seconds),
-    y: wrap(speed.y * worldPeriod * seconds),
-  });
-  return {
-    primary: offset(WATER_PRIMARY_SCROLL),
-    secondary: offset(WATER_SECONDARY_SCROLL),
-  };
+  output.primary.x = wrap(WATER_PRIMARY_SCROLL.x * worldPeriod * seconds);
+  output.primary.y = wrap(WATER_PRIMARY_SCROLL.y * worldPeriod * seconds);
+  output.secondary.x = wrap(WATER_SECONDARY_SCROLL.x * worldPeriod * seconds);
+  output.secondary.y = wrap(WATER_SECONDARY_SCROLL.y * worldPeriod * seconds);
+  return output;
 }
 
 export function pulseTint(color: number, factor: number): number {

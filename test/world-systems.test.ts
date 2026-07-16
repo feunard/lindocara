@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { resolveAttackTarget, resolveFriendlyTarget } from "../src/server/world/combat-system.js";
+import {
+  attemptBasicAttack,
+  resolveAttackTarget,
+  resolveFriendlyTarget,
+} from "../src/server/world/combat-system.js";
 import { movePlayerInDirection } from "../src/server/world/skill-system.js";
 import { SpatialGrid } from "../src/server/world/spatial-grid.js";
 import {
@@ -51,6 +55,104 @@ function player(): PlayerRuntime {
 }
 
 describe("isolated world systems", () => {
+  it("consumes the basic-attack cooldown only after accepting a living visible target", () => {
+    const actor = player();
+    const monsters = createMonsters([
+      {
+        id: "visible",
+        kind: "goblin",
+        species: "spear_goblin",
+        zone: "route",
+        x: 40,
+        y: 10,
+        patrolRadius: 20,
+      },
+    ]);
+    expect(attemptBasicAttack(actor, monsters, "visible", 80, 1_000, terrain)).toMatchObject({
+      kind: "accepted",
+      target: { id: "visible" },
+    });
+    expect(actor.lastAttackAt).toBe(1_000);
+    expect(attemptBasicAttack(actor, monsters, "visible", 80, 1_001, terrain)).toEqual({
+      kind: "unavailable",
+    });
+  });
+
+  it("does not consume cooldown for far, blocked, dead or unknown targets", () => {
+    const actor = player();
+    const monsters = createMonsters([
+      {
+        id: "blocked",
+        kind: "goblin",
+        species: "spear_goblin",
+        zone: "route",
+        x: 100,
+        y: 10,
+        patrolRadius: 20,
+      },
+      {
+        id: "far",
+        kind: "goblin",
+        species: "spear_goblin",
+        zone: "route",
+        x: 250,
+        y: 10,
+        patrolRadius: 20,
+      },
+      {
+        id: "dead",
+        kind: "goblin",
+        species: "spear_goblin",
+        zone: "route",
+        x: 40,
+        y: 10,
+        patrolRadius: 20,
+      },
+    ]);
+    const dead = monsters.find((monster) => monster.id === "dead");
+    if (!dead) throw new Error("dead fixture missing");
+    dead.deadUntil = 2_000;
+
+    expect(attemptBasicAttack(actor, monsters, "far", 120, 1_000, terrain)).toEqual({
+      kind: "rejected",
+      blockedInRange: false,
+    });
+    expect(attemptBasicAttack(actor, monsters, "blocked", 120, 1_000, terrain)).toEqual({
+      kind: "rejected",
+      blockedInRange: true,
+    });
+    expect(attemptBasicAttack(actor, monsters, "dead", 120, 1_000, terrain)).toEqual({
+      kind: "rejected",
+      blockedInRange: false,
+    });
+    expect(attemptBasicAttack(actor, monsters, "unknown", 120, 1_000, terrain)).toEqual({
+      kind: "rejected",
+      blockedInRange: false,
+    });
+    expect(actor.lastAttackAt).toBe(0);
+  });
+
+  it("accepts a valid attack immediately after a rejected one", () => {
+    const actor = player();
+    const monsters = createMonsters([
+      {
+        id: "visible-after-failure",
+        kind: "goblin",
+        species: "spear_goblin",
+        zone: "route",
+        x: 40,
+        y: 10,
+        patrolRadius: 20,
+      },
+    ]);
+    expect(attemptBasicAttack(actor, monsters, "missing", 80, 1_000, terrain).kind).toBe(
+      "rejected",
+    );
+    expect(
+      attemptBasicAttack(actor, monsters, "visible-after-failure", 80, 1_000, terrain).kind,
+    ).toBe("accepted");
+  });
+
   it("reports a line-of-sight-blocked attack without selecting the monster", () => {
     const actor = player();
     const monsters = createMonsters([

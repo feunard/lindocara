@@ -23,8 +23,9 @@ import { DEFAULT_ZONE_ID, type ZoneId, zoneDefinition } from "../../shared/zones
 import { type CharacterSummary, logout } from "../api.js";
 import { t } from "../i18n.js";
 import { type LocalizedText, useUiStore } from "../store.js";
+import { clientCooldownDeadlines } from "./cooldown-sync.js";
 import { getDisplaySettings } from "./display-settings.js";
-import { shouldFloatEvent } from "./feedback.js";
+import { isAcceptedBasicAttack, shouldFloatEvent } from "./feedback.js";
 import { trackActions, trackInput } from "./input.js";
 import { type InteriorDoor, nearestInterior } from "./interiors.js";
 import { MapSurface } from "./minimap-surface.js";
@@ -241,6 +242,22 @@ export async function startGame(character: CharacterSummary): Promise<void> {
   // once, and it will not re-run its effect just because the socket dropped.
   let minimapCanvas: HTMLCanvasElement | null = null;
   let worldMapCanvas: HTMLCanvasElement | null = null;
+
+  const applyAuthoritativeState = (state: SelfState) => {
+    renderState(state);
+    const deadlines = clientCooldownDeadlines(
+      state.cooldowns,
+      state.serverNow ?? Date.now(),
+      performance.now(),
+    );
+    attackCooldownUntil = deadlines.attackUntil;
+    const store = useUiStore.getState();
+    store.setAttackCooldownUntil(deadlines.attackUntil);
+    store.setHealCooldownUntil(deadlines.healUntil);
+    for (const slot of [1, 2, 3, 4, 5] as const) {
+      store.setSkillCooldown(slot, deadlines.skills[slot]);
+    }
+  };
   const playerClass = () => currentSelf?.class ?? character.class;
 
   const clearTarget = () => {
@@ -326,7 +343,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       mapSurface.attachWorldMap(worldMapCanvas);
       questState = state.quest;
       selfCorpse = state.corpse;
-      renderState(state);
+      applyAuthoritativeState(state);
       useUiStore.getState().setZoneNameKey(world.zoneNameKey as MessageKey);
       useUiStore.getState().setWorldSize({ width: world.width, height: world.height });
       setStatus("status.connected_zone", { zone: t(world.zoneNameKey as MessageKey) });
@@ -338,7 +355,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     onState: (state) => {
       questState = state.quest;
       selfCorpse = state.corpse;
-      renderState(state);
+      applyAuthoritativeState(state);
     },
     onChat: (from, text, channel) => {
       useUiStore.getState().addChat(from, text, channel);
@@ -351,9 +368,12 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     onPartyState: (party) => useUiStore.getState().setParty(party),
     onAnimation: (animation: CombatAnimation) => {
       if (animation.actorKind === "player") {
-        if (animation.actorId === client.selfId) return;
         if (animation.action === "attack") {
           renderer.playAttack(animation.actorId);
+          if (animation.actorId === client.selfId) {
+            sound.basicAttack(playerClass());
+            return;
+          }
           const actor = client
             .sample(performance.now())
             .players.find((player) => player.id === animation.actorId);
@@ -366,6 +386,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
             );
           }
         } else {
+          if (animation.actorId === client.selfId) return;
           renderer.playPlayerSkill(animation.actorId, animation.x, animation.y);
         }
         return;
@@ -389,6 +410,12 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       }
       if (code === "combat.hit" && x !== undefined && y !== undefined && client.selfId) {
         renderer.playRangedHit(client.selfId, x, y, currentSelf?.class ?? character.class);
+      }
+      if (isAcceptedBasicAttack(code, params)) {
+        attackCooldownUntil = performance.now() + ATTACK_COOLDOWN_MS;
+        const store = useUiStore.getState();
+        store.setAttackCooldownUntil(attackCooldownUntil);
+        store.setSkillCooldown(1, performance.now() + skillFor(playerClass(), 1).cooldownMs);
       }
       switch (code) {
         case "combat.too_far":
@@ -564,10 +591,6 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       return false;
     }
     sound.unlock();
-    sound.basicAttack(playerClass());
-    attackCooldownUntil = performance.now() + ATTACK_COOLDOWN_MS;
-    useUiStore.getState().setAttackCooldownUntil(attackCooldownUntil);
-    if (client.selfId) renderer.playAttack(client.selfId);
     connection?.attack(target.target.id);
     return true;
   };
@@ -620,9 +643,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     const skill = skillFor(playerClass, slot);
     if ((useUiStore.getState().skillCooldowns[slot] ?? 0) > performance.now()) return;
     if (slot === 1) {
-      if (attack()) {
-        useUiStore.getState().setSkillCooldown(slot, performance.now() + skill.cooldownMs);
-      }
+      attack();
       return;
     }
     let selectedTarget = combatTarget;

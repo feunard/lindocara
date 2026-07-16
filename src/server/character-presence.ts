@@ -1,5 +1,12 @@
 import { DurableObject } from "cloudflare:workers";
 import { WS_CLOSE } from "../shared/close-codes.js";
+import {
+  type CombatCooldownState,
+  emptyCombatCooldowns,
+  hasActiveCombatCooldowns,
+  latestCombatCooldown,
+  normalizeCombatCooldowns,
+} from "../shared/cooldowns.js";
 import { createDb } from "./db/index.js";
 import { acquireSessionEpoch, handoffProfileLocation } from "./profile.js";
 
@@ -48,6 +55,19 @@ interface PresenceRow extends Record<string, SqlStorageValue> {
   expires_at: number;
 }
 
+interface CooldownRow extends Record<string, SqlStorageValue> {
+  session_epoch: number;
+  attack_until: number;
+  heal_until: number;
+  skill_1_until: number;
+  skill_2_until: number;
+  skill_3_until: number;
+  skill_4_until: number;
+  skill_5_until: number;
+  guard_until: number;
+  resurrect_until: number;
+}
+
 function validIdentity(value: string): boolean {
   return value.length > 0 && value.length <= 128;
 }
@@ -69,6 +89,21 @@ export class CharacterPresence extends DurableObject<Env> {
         instance_id TEXT NOT NULL,
         acquired_at INTEGER NOT NULL,
         expires_at INTEGER NOT NULL
+      )
+    `);
+    this.ctx.storage.sql.exec(`
+      CREATE TABLE IF NOT EXISTS combat_cooldowns (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        session_epoch INTEGER NOT NULL,
+        attack_until INTEGER NOT NULL,
+        heal_until INTEGER NOT NULL,
+        skill_1_until INTEGER NOT NULL,
+        skill_2_until INTEGER NOT NULL,
+        skill_3_until INTEGER NOT NULL,
+        skill_4_until INTEGER NOT NULL,
+        skill_5_until INTEGER NOT NULL,
+        guard_until INTEGER NOT NULL,
+        resurrect_until INTEGER NOT NULL
       )
     `);
   }
@@ -95,7 +130,7 @@ export class CharacterPresence extends DurableObject<Env> {
         "UPDATE active_presence SET expires_at = ? WHERE singleton = 1",
         expiresAt,
       );
-      await this.ctx.storage.setAlarm(expiresAt);
+      await this.#scheduleAlarm();
       return true;
     });
   }
@@ -106,6 +141,7 @@ export class CharacterPresence extends DurableObject<Env> {
       const now = Date.now();
       if (current && current.expiresAt <= now) {
         this.#clear();
+        await this.#scheduleAlarm();
         return false;
       }
       return (
@@ -123,7 +159,7 @@ export class CharacterPresence extends DurableObject<Env> {
         return false;
       }
       this.#clear();
-      await this.ctx.storage.deleteAlarm();
+      await this.#scheduleAlarm();
       return true;
     });
   }
@@ -137,23 +173,69 @@ export class CharacterPresence extends DurableObject<Env> {
     return this.#serialized(() => this.#handoff(request));
   }
 
+  checkpointCooldowns(
+    connectionId: string,
+    sessionEpoch: number,
+    cooldowns: CombatCooldownState,
+    now = Date.now(),
+  ): Promise<boolean> {
+    return this.#serialized(async () => {
+      const current = this.#current();
+      if (
+        !current ||
+        current.connectionId !== connectionId ||
+        current.sessionEpoch !== sessionEpoch ||
+        current.expiresAt <= Date.now()
+      ) {
+        return false;
+      }
+      this.#writeCooldowns(sessionEpoch, normalizeCombatCooldowns(cooldowns, now));
+      await this.#scheduleAlarm();
+      return true;
+    });
+  }
+
+  readCooldowns(
+    connectionId: string,
+    sessionEpoch: number,
+    now = Date.now(),
+  ): Promise<CombatCooldownState | null> {
+    return this.#serialized(async () => {
+      const current = this.#current();
+      if (
+        !current ||
+        current.connectionId !== connectionId ||
+        current.sessionEpoch !== sessionEpoch ||
+        current.expiresAt <= Date.now()
+      ) {
+        return null;
+      }
+      const stored = this.#storedCooldowns(now);
+      if (!stored || stored.sessionEpoch !== sessionEpoch) return emptyCombatCooldowns();
+      await this.#scheduleAlarm();
+      return stored.state;
+    });
+  }
+
   /** Used by character deletion and by tests that need deterministic expiry without sleeping. */
   expireAt(now = Date.now()): Promise<boolean> {
     return this.#serialized(async () => {
       const current = this.#current();
-      if (!current || current.expiresAt > now) return false;
-      this.#clear();
-      await this.ctx.storage.deleteAlarm();
-      return true;
+      const expired = current !== null && current.expiresAt <= now;
+      if (expired) this.#clear();
+      this.#storedCooldowns(now);
+      await this.#scheduleAlarm();
+      return expired;
     });
   }
 
   revoke(closeCode = WS_CLOSE.CHARACTER_DELETED, reason = "character deleted"): Promise<boolean> {
     return this.#serialized(async () => {
       const current = this.#current();
-      if (!current) return false;
       this.#clear();
+      this.#clearCooldowns();
       await this.ctx.storage.deleteAlarm();
+      if (!current) return false;
       await this.#invalidateRoom(current, closeCode, reason);
       return true;
     });
@@ -164,7 +246,7 @@ export class CharacterPresence extends DurableObject<Env> {
   }
 
   override async alarm(): Promise<void> {
-    await this.expireAt();
+    await this.expireAt(Date.now());
   }
 
   async #acquire(request: AcquirePresence): Promise<PresenceLease> {
@@ -213,7 +295,8 @@ export class CharacterPresence extends DurableObject<Env> {
       lease.acquiredAt,
       lease.expiresAt,
     );
-    await this.ctx.storage.setAlarm(lease.expiresAt);
+    this.#promoteCooldowns(lease.sessionEpoch, now);
+    await this.#scheduleAlarm();
 
     return lease;
   }
@@ -266,7 +349,8 @@ export class CharacterPresence extends DurableObject<Env> {
       next.acquiredAt,
       next.expiresAt,
     );
-    await this.ctx.storage.setAlarm(next.expiresAt);
+    this.#promoteCooldowns(next.sessionEpoch, now);
+    await this.#scheduleAlarm();
     return next;
   }
 
@@ -316,6 +400,85 @@ export class CharacterPresence extends DurableObject<Env> {
 
   #clear(): void {
     this.ctx.storage.sql.exec("DELETE FROM active_presence WHERE singleton = 1");
+  }
+
+  #cooldownRow(): CooldownRow | undefined {
+    return this.ctx.storage.sql
+      .exec<CooldownRow>(
+        `SELECT session_epoch, attack_until, heal_until,
+                skill_1_until, skill_2_until, skill_3_until, skill_4_until, skill_5_until,
+                guard_until, resurrect_until
+         FROM combat_cooldowns WHERE singleton = 1`,
+      )
+      .toArray()[0];
+  }
+
+  #storedCooldowns(now: number): { sessionEpoch: number; state: CombatCooldownState } | null {
+    const row = this.#cooldownRow();
+    if (!row) return null;
+    const state = normalizeCombatCooldowns(
+      {
+        attackUntil: row.attack_until,
+        healUntil: row.heal_until,
+        skillCooldowns: [
+          row.skill_1_until,
+          row.skill_2_until,
+          row.skill_3_until,
+          row.skill_4_until,
+          row.skill_5_until,
+        ],
+        guardUntil: row.guard_until,
+        resurrectUntil: row.resurrect_until,
+      },
+      now,
+    );
+    if (!hasActiveCombatCooldowns(state)) {
+      this.#clearCooldowns();
+      return null;
+    }
+    this.#writeCooldowns(row.session_epoch, state);
+    return { sessionEpoch: row.session_epoch, state };
+  }
+
+  #writeCooldowns(sessionEpoch: number, state: CombatCooldownState): void {
+    if (!hasActiveCombatCooldowns(state)) {
+      this.#clearCooldowns();
+      return;
+    }
+    this.ctx.storage.sql.exec(
+      `INSERT OR REPLACE INTO combat_cooldowns
+       (singleton, session_epoch, attack_until, heal_until,
+        skill_1_until, skill_2_until, skill_3_until, skill_4_until, skill_5_until,
+        guard_until, resurrect_until)
+       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sessionEpoch,
+      state.attackUntil,
+      state.healUntil,
+      ...state.skillCooldowns,
+      state.guardUntil,
+      state.resurrectUntil,
+    );
+  }
+
+  #promoteCooldowns(sessionEpoch: number, now: number): void {
+    const stored = this.#storedCooldowns(now);
+    if (stored) this.#writeCooldowns(sessionEpoch, stored.state);
+  }
+
+  #clearCooldowns(): void {
+    this.ctx.storage.sql.exec("DELETE FROM combat_cooldowns WHERE singleton = 1");
+  }
+
+  async #scheduleAlarm(): Promise<void> {
+    const now = Date.now();
+    const deadlines: number[] = [];
+    const current = this.#current();
+    if (current && current.expiresAt > now) deadlines.push(current.expiresAt);
+    const stored = this.#storedCooldowns(now);
+    if (stored) deadlines.push(latestCombatCooldown(stored.state));
+    const next = deadlines.filter((deadline) => deadline > now).sort((a, b) => a - b)[0];
+    if (next === undefined) await this.ctx.storage.deleteAlarm();
+    else await this.ctx.storage.setAlarm(next);
   }
 
   #serialized<T>(operation: () => Promise<T>): Promise<T> {

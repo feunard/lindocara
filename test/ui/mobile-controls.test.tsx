@@ -4,6 +4,7 @@ import { setLocale } from "../../src/client/i18n.js";
 import type { GameHandle } from "../../src/client/store.js";
 import { useUiStore } from "../../src/client/store.js";
 import { MobileControls, resolveJoystick } from "../../src/client/ui/MobileControls.js";
+import { NO_INPUT } from "../../src/shared/simulation.js";
 
 function gameHandle(): GameHandle {
   return {
@@ -78,5 +79,74 @@ describe("mobile controls", () => {
       left: false,
       right: false,
     });
+  });
+
+  it("keeps the first pointer in control until that pointer is released", () => {
+    const game = gameHandle();
+    const setMovement = game.setMovement;
+    if (!setMovement) throw new Error("movement spy missing");
+    useUiStore.setState({ game });
+    render(<MobileControls />);
+    const joystick = screen.getByRole("group", { name: "Move character" });
+    Object.defineProperty(joystick, "setPointerCapture", { value: vi.fn() });
+    vi.spyOn(joystick, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 100,
+      bottom: 100,
+      width: 100,
+      height: 100,
+      toJSON: () => ({}),
+    });
+
+    fireEvent.pointerDown(joystick, { pointerId: 1, clientX: 100, clientY: 50 });
+    expect(game.setMovement).toHaveBeenLastCalledWith(
+      expect.objectContaining({ right: true, left: false }),
+    );
+    const callsAfterPrimary = vi.mocked(setMovement).mock.calls.length;
+
+    fireEvent.pointerDown(joystick, { pointerId: 2, clientX: 0, clientY: 50 });
+    fireEvent.pointerUp(joystick, { pointerId: 2 });
+    expect(game.setMovement).toHaveBeenCalledTimes(callsAfterPrimary);
+
+    fireEvent.pointerMove(joystick, { pointerId: 1, clientX: 50, clientY: 0 });
+    expect(game.setMovement).toHaveBeenLastCalledWith(
+      expect.objectContaining({ up: true, down: false }),
+    );
+    fireEvent.pointerUp(joystick, { pointerId: 1 });
+    expect(game.setMovement).toHaveBeenLastCalledWith({ ...NO_INPUT });
+  });
+
+  it("stops on active capture loss and on unmount, but ignores another pointer", () => {
+    const game = gameHandle();
+    const setMovement = game.setMovement;
+    if (!setMovement) throw new Error("movement spy missing");
+    useUiStore.setState({ game });
+    const view = render(<MobileControls />);
+    const joystick = screen.getByRole("group", { name: "Move character" });
+    Object.defineProperty(joystick, "setPointerCapture", { value: vi.fn() });
+    vi.spyOn(joystick, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 100,
+      bottom: 100,
+      width: 100,
+      height: 100,
+      toJSON: () => ({}),
+    });
+    fireEvent.pointerDown(joystick, { pointerId: 7, clientX: 100, clientY: 50 });
+    const movingCalls = vi.mocked(setMovement).mock.calls.length;
+    fireEvent.lostPointerCapture(joystick, { pointerId: 8 });
+    expect(game.setMovement).toHaveBeenCalledTimes(movingCalls);
+    fireEvent.lostPointerCapture(joystick, { pointerId: 7 });
+    expect(game.setMovement).toHaveBeenLastCalledWith({ ...NO_INPUT });
+
+    fireEvent.pointerDown(joystick, { pointerId: 9, clientX: 100, clientY: 50 });
+    view.unmount();
+    expect(game.setMovement).toHaveBeenLastCalledWith({ ...NO_INPUT });
   });
 });

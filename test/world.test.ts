@@ -614,6 +614,61 @@ describe("World", () => {
     expect(returned).toEqual({ zone_id: "verdant-reach", instance_id: "main", x: 784, y: 450 });
   });
 
+  it("keeps a ten-second skill unavailable across reconnect and zone transition", {
+    timeout: 10_000,
+  }, async () => {
+    await waitForRoomSockets(MMO_TEST_ROOM_KEY, 0);
+    const session = await testCharacter("cooldowner", {
+      position: { x: 880, y: 450 },
+      class: "priest",
+      level: 10,
+    });
+    const first = await Client.joinCharacter(session);
+    await until("cooldown first welcome", () => first.welcome);
+    first.skill(5);
+    const deadline = await until("ten second cooldown state", () => {
+      const value = first.latestState?.cooldowns?.skillCooldowns[4];
+      return value && value > Date.now() + 8_000 ? value : undefined;
+    });
+    first.close();
+
+    const reconnected = await Client.joinCharacter(session);
+    const reconnectWelcome = await until("cooldown reconnect welcome", () => reconnected.welcome);
+    expect(reconnectWelcome.self.cooldowns?.skillCooldowns[4]).toBe(deadline);
+    reconnected.skill(5);
+    await scheduler.wait(150);
+    expect(
+      reconnected.received.some(
+        (message) =>
+          message.t === "event" &&
+          message.code === "skill.cast" &&
+          message.params?.skill === "divine_nova",
+      ),
+    ).toBe(false);
+
+    reconnected.action("interact");
+    expect(
+      (await until("cooldown transition close", () => reconnected.closeInfo ?? undefined)).code,
+    ).toBe(WS_CLOSE.ZONE_TRANSITION);
+    const transitioned = await Client.joinCharacter(session);
+    const transitionWelcome = await until(
+      "cooldown destination welcome",
+      () => transitioned.welcome,
+    );
+    expect(transitionWelcome.self.cooldowns?.skillCooldowns[4]).toBe(deadline);
+    transitioned.skill(5);
+    await scheduler.wait(150);
+    expect(
+      transitioned.received.some(
+        (message) =>
+          message.t === "event" &&
+          message.code === "skill.cast" &&
+          message.params?.skill === "divine_nova",
+      ),
+    ).toBe(false);
+    transitioned.close();
+  });
+
   it("refuses a distant or destination-spoofed portal interaction", async () => {
     const client = await Client.join("far_portal", { position: { x: 1400, y: 450 } });
     await until("far portal welcome", () => client.welcome);
@@ -1126,6 +1181,19 @@ describe("World", () => {
     await until("welcome", () => client.welcome);
     for (let i = 0; i < 5; i++) client.sendRaw("{broken");
     const closed = await until("policy close", () => client.closeInfo ?? undefined);
+    expect(closed.code).toBe(1008);
+  });
+
+  it("rate-limits spammed invalid attack intents", async () => {
+    const client = await Client.join("attack_spammer", { pump: false });
+    await until("welcome", () => client.welcome);
+
+    for (let i = 0; i < 36; i++) client.action("attack", "unknown-target");
+
+    const closed = await until(
+      "invalid attack spam policy close",
+      () => client.closeInfo ?? undefined,
+    );
     expect(closed.code).toBe(1008);
   });
 

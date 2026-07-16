@@ -6,6 +6,7 @@
  */
 
 import type { CharacterAppearance, Equipment, PrimaryColor } from "./character.js";
+import type { CombatCooldownState } from "./cooldowns.js";
 import type { LifeState } from "./death.js";
 import type {
   Cemetery,
@@ -125,6 +126,10 @@ export interface SelfState {
   /** Where your body lies, so the HUD can point you at it. Null unless you are dead. */
   corpse: { x: number; y: number } | null;
   resource?: ClassResourceState;
+  /** Unix milliseconds sampled with `cooldowns`, so clients never depend on wall-clock sync. */
+  serverNow?: number;
+  /** Absolute server deadlines, informational on the client and authoritative on the server. */
+  cooldowns?: CombatCooldownState;
 }
 
 export interface PartyMemberState {
