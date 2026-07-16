@@ -2,11 +2,14 @@ export type HealthBarMode = "both" | "allies" | "enemies" | "none";
 
 export interface DisplaySettings {
   healthBars: HealthBarMode;
+  /** Draws the tile grid the world actually collides against. Off by default: it is a debug view,
+   *  not decoration. */
+  grid: boolean;
 }
 
 const STORAGE_KEY = "lindocara.display";
 export const HEALTH_BAR_PROXIMITY = 280;
-export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = { healthBars: "both" };
+export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = { healthBars: "both", grid: false };
 
 const listeners = new Set<() => void>();
 let settings = loadSettings();
@@ -46,6 +49,7 @@ function loadSettings(): DisplaySettings {
       healthBars: isHealthBarMode(parsed?.healthBars)
         ? parsed.healthBars
         : DEFAULT_DISPLAY_SETTINGS.healthBars,
+      grid: typeof parsed?.grid === "boolean" ? parsed.grid : DEFAULT_DISPLAY_SETTINGS.grid,
     };
   } catch {
     return { ...DEFAULT_DISPLAY_SETTINGS };
@@ -59,6 +63,7 @@ export function getDisplaySettings(): DisplaySettings {
 export function setDisplaySettings(partial: Partial<DisplaySettings>): void {
   settings = {
     healthBars: isHealthBarMode(partial.healthBars) ? partial.healthBars : settings.healthBars,
+    grid: typeof partial.grid === "boolean" ? partial.grid : settings.grid,
   };
   try {
     displayStorage()?.setItem(STORAGE_KEY, JSON.stringify(settings));

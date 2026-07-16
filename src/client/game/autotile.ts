@@ -25,6 +25,28 @@ export function landMask(map: TileMap, col: number, row: number): number {
   );
 }
 
+/**
+ * Does this land tile need a foam blob under it?
+ *
+ * All eight neighbours, not `landMask`'s four: the blob bleeds ~9px past the tile on every side,
+ * so a land tile whose only water neighbour is diagonal still shows foam in that corner. Checking
+ * orthogonals alone leaves a bite missing from every diagonal step of a coastline.
+ *
+ * Interior tiles are skipped because the ground drawn on top of them hides their blob completely —
+ * this is an overdraw optimisation, not a visual rule. Off-map counts as water, so an island
+ * running to the map edge still gets a shore.
+ */
+export function needsFoam(map: TileMap, col: number, row: number): boolean {
+  if (!isLandKind(kindAt(map, col, row))) return false;
+  for (let dRow = -1; dRow <= 1; dRow += 1) {
+    for (let dCol = -1; dCol <= 1; dCol += 1) {
+      if (dCol === 0 && dRow === 0) continue;
+      if (!isLandKind(kindAt(map, col + dCol, row + dRow))) return true;
+    }
+  }
+  return false;
+}
+
 /** Indexed by the mask above. Coordinates are cells of `Tilemap_Flat.png`'s first 4x4 group. */
 export const AUTOTILE_LUT: readonly { col: number; row: number }[] = [
   { col: 3, row: 3 }, //  0  alone

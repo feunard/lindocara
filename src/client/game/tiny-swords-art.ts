@@ -7,16 +7,26 @@ export const TINY_SWORDS_UNIT_FRAME = 192;
 
 /**
  * The land sheet at its native 64px. `Tilemap_Flat.png` is a 4x4 autotile block (see
- * `autotile.ts`); water uses the continuous surface below.
+ * `autotile.ts`).
+ *
+ * `Water.png` is one flat colour — 64x64 of RGB(71,171,169) and nothing else. That is not a
+ * placeholder: Tiny Swords draws the sea as a flat "BG Color" layer and puts *all* the motion in
+ * the foam that rings each shoreline (the pack's own tilemap documentation labels the layers
+ * `BG Color` -> `Water Foam` -> `Flat Ground`). Do not reach for a scrolling texture here — a
+ * uniform colour cannot scroll visibly, which is the trap the previous photographic ocean surface
+ * fell into.
  */
 export const TINY_SWORDS_TERRAIN = {
   flat: `${TINY_SWORDS_ROOT}/terrain/Tilemap_Flat.png`,
+  water: `${TINY_SWORDS_ROOT}/terrain/Water.png`,
+  foam: `${TINY_SWORDS_ROOT}/terrain/Foam.png`,
 };
 
-export const WORLD_WATER_SURFACE = new URL(
-  "../../../assets/vendor/ocean_surface/clear+sea+water-2048x2048.png",
-  import.meta.url,
-).href;
+/** `Foam.png` is eight 192x192 frames; the blob itself is ~82px, centred. Drawn centred under a
+ *  64px land tile it bleeds ~9px into the water on every side, and the union of the blobs under a
+ *  landmass is what draws its shoreline. */
+export const TINY_SWORDS_FOAM_FRAME = 192;
+export const TINY_SWORDS_FOAM_FRAMES = 8;
 
 /**
  * Deliberately curated across Tiny Swords factions: roof colour gives each city district an
@@ -30,26 +40,30 @@ export const TINY_SWORDS_BUILDINGS = [
   `${TINY_SWORDS_ROOT}/buildings/Monastery.png`,
   `${TINY_SWORDS_ROOT}/buildings/Tower.png`,
   `${TINY_SWORDS_ROOT}/buildings/Castle.png`,
-  new URL("../../../assets/vendor/tiny-swords/Buildings/Red Buildings/House1.png", import.meta.url)
-    .href,
   new URL(
-    "../../../assets/vendor/tiny-swords/Buildings/Yellow Buildings/Barracks.png",
+    "../../../assets/Tiny Swords (Free Pack)/Buildings/Red Buildings/House1.png",
     import.meta.url,
   ).href,
   new URL(
-    "../../../assets/vendor/tiny-swords/Buildings/Purple Buildings/Monastery.png",
+    "../../../assets/Tiny Swords (Free Pack)/Buildings/Yellow Buildings/Barracks.png",
     import.meta.url,
   ).href,
-  new URL("../../../assets/vendor/tiny-swords/Buildings/Red Buildings/House3.png", import.meta.url)
-    .href,
   new URL(
-    "../../../assets/vendor/tiny-swords/Buildings/Yellow Buildings/House2.png",
+    "../../../assets/Tiny Swords (Free Pack)/Buildings/Purple Buildings/Monastery.png",
+    import.meta.url,
+  ).href,
+  new URL(
+    "../../../assets/Tiny Swords (Free Pack)/Buildings/Red Buildings/House3.png",
+    import.meta.url,
+  ).href,
+  new URL(
+    "../../../assets/Tiny Swords (Free Pack)/Buildings/Yellow Buildings/House2.png",
     import.meta.url,
   ).href,
 ] as const;
 
 export const TINY_SWORDS_SIGN_BOARD = new URL(
-  "../../../assets/vendor/tiny-swords/UI Elements/UI Elements/Banners/Banner.png",
+  "../../../assets/Tiny Swords (Free Pack)/UI Elements/UI Elements/Banners/Banner.png",
   import.meta.url,
 ).href;
 

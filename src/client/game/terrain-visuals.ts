@@ -44,14 +44,27 @@ export function waterSurfaceRect(
 const WATER_PRIMARY_SCROLL = { x: 0.015, y: 0.001 } as const;
 const WATER_SECONDARY_SCROLL = { x: -0.015, y: -0.02 } as const;
 
+/** One full cycle of `Foam.png`'s eight frames. Slow on purpose: the shoreline should breathe, not
+ *  flicker. */
+export const FOAM_CYCLE_MS = 1_000;
+
+/**
+ * Water and foam are *modulation* tints, exactly like `land` already was — not colours.
+ *
+ * Tiny Swords authored its sea as one flat teal with the foam drawn to sit against it, so a white
+ * tint reproduces the pack look verbatim and each biome only bends it from there. Both layers take
+ * the same tint, which is what keeps foam reading as foam: multiplying the flat water (71,171,169)
+ * and the light foam (198,240,219) by one value preserves the contrast the artist drew between
+ * them. Tint them separately and the shoreline stops belonging to the water it sits in.
+ */
 const WATER_TINTS: Readonly<Record<Biome, number>> = {
-  village: 0x638c9f,
-  meadow: 0x5d899d,
-  forest: 0x4e7a76,
-  farm: 0x668991,
-  wetland: 0x568b87,
-  ruins: 0x596f7b,
-  marsh: 0x405f60,
+  village: 0xffffff,
+  meadow: 0xfcffff,
+  farm: 0xf6fcfa,
+  forest: 0xecf6f0,
+  wetland: 0xe6f2ea,
+  ruins: 0xe4eef2,
+  marsh: 0xd6e8de,
 };
 
 function channel(color: number, shift: number): number {
@@ -70,7 +83,7 @@ export function terrainTintsAt(
   y: number,
   regions: readonly ZoneDefinition[],
 ): TerrainTints {
-  if (regions.length === 0) return { land: 0xffffff, water: 0x5d899d };
+  if (regions.length === 0) return { land: 0xffffff, water: 0xffffff };
   const nearest = regions
     .map((region) => ({
       region,
@@ -78,7 +91,7 @@ export function terrainTintsAt(
     }))
     .sort((a, b) => a.score - b.score);
   const first = nearest[0];
-  if (!first) return { land: 0xffffff, water: 0x5d899d };
+  if (!first) return { land: 0xffffff, water: 0xffffff };
   const second = nearest[1];
   if (!second) return { land: first.region.tint, water: WATER_TINTS[first.region.biome] };
 
@@ -122,6 +135,17 @@ export function writeWaterScrollOffsets(
   output.secondary.x = wrap(WATER_SECONDARY_SCROLL.x * worldPeriod * seconds);
   output.secondary.y = wrap(WATER_SECONDARY_SCROLL.y * worldPeriod * seconds);
   return output;
+}
+
+/**
+ * Which foam frame the whole shoreline is on. Deliberately global rather than per-tile: Tiny
+ * Swords' foam is one animation ringing a landmass, and giving each tile its own phase would break
+ * the blobs apart into a shimmer of unrelated puddles instead of one moving coastline.
+ */
+export function foamFrameAt(elapsedMs: number, frames: number): number {
+  if (frames <= 0) return 0;
+  const elapsed = Math.max(0, elapsedMs);
+  return Math.floor((elapsed / FOAM_CYCLE_MS) * frames) % frames;
 }
 
 export function pulseTint(color: number, factor: number): number {

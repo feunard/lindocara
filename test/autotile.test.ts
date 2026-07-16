@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { AUTOTILE_LUT, landMask, landTile, tileVisual } from "../src/client/game/autotile.js";
+import {
+  AUTOTILE_LUT,
+  landMask,
+  landTile,
+  needsFoam,
+  tileVisual,
+} from "../src/client/game/autotile.js";
 import { TILE_KINDS, type TileKind, type TileMap } from "../src/shared/tilemap.js";
 
 function map(rows: string[]): TileMap {
@@ -11,6 +17,36 @@ function map(rows: string[]): TileMap {
   if (first === undefined) throw new Error("no rows");
   return { cols: first.length, rows: rows.length, kinds };
 }
+
+describe("shoreline foam", () => {
+  it("rings a lone island", () => {
+    expect(needsFoam(map(["###", "#.#", "###"]), 1, 1)).toBe(true);
+  });
+
+  it("never puts foam on open water", () => {
+    // The blob is drawn under land and clipped by it. Water asking for foam would paint a blob
+    // with nothing on top to cut it back, which is a bright pill floating in the sea.
+    expect(needsFoam(map(["###", "###", "###"]), 1, 1)).toBe(false);
+  });
+
+  it("skips land buried inside a landmass", () => {
+    expect(needsFoam(map(["...", "...", "..."]), 1, 1)).toBe(false);
+  });
+
+  it("foams a tile whose only water neighbour is diagonal", () => {
+    // The regression this exists for: the blob bleeds ~9px past the tile on every side, so a
+    // diagonal step in a coastline shows water in the corner. Checking only the four orthogonals
+    // (as landMask does) leaves a bite missing there.
+    const m = map(["#..", "...", "..."]);
+    expect(landMask(m, 1, 1)).toBe(0b1111);
+    expect(needsFoam(m, 1, 1)).toBe(true);
+  });
+
+  it("foams land running off the edge of the map", () => {
+    // Off-map reads as water, so a coast at the border is still a coast.
+    expect(needsFoam(map(["...", "...", "..."]), 0, 0)).toBe(true);
+  });
+});
 
 describe("the land mask", () => {
   // N=1, E=2, S=4, W=8. A bit is set when that neighbour is land.

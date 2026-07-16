@@ -29,10 +29,13 @@ These derivatives are released under the same CC0 / public domain equivalent ter
 No external runtime URLs are used.
 
 Additional runtime art lives under `tiny-swords/`: pre-cropped/derived sheets (quest-site
-resources, UI, etc.) built from the vendored **Tiny Swords** pack by Pixel Frog, whose complete
-source lives under `assets/vendor/tiny-swords/`. See
-`assets/vendor/tiny-swords/LICENSE.md` for what the pack is, where it came from, and under what
-terms it is used. Tiny Swords is the only third-party art pack this game draws from.
+resources, UI, etc.) built from the **Tiny Swords** packs by Pixel Frog, whose complete source
+lives under `assets/Tiny Swords (Free Pack)/`, `assets/Tiny Swords (Update 010)/` and
+`assets/Tiny Swords (Enemy Pack)/` (catalogued in `assets/index.json`). See `assets/LICENSE.md`
+for what the packs are, where they came from, and under what terms they are used.
+
+Tiny Swords is the only third-party art pack this game draws from — there is no `assets/vendor/`
+any more, and nothing under `assets/` that is not one of the three packs.
 
 Ambient music lives under `audio/`:
 
