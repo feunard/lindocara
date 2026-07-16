@@ -4,7 +4,7 @@
 
 import { env, runInDurableObject, SELF } from "cloudflare:test";
 import { expect } from "vitest";
-import type { PlayerClass, QuestChapter } from "../../src/shared/game.js";
+import { type PlayerClass, type QuestChapter, spawnPosition } from "../../src/shared/game.js";
 import {
   type CorpseSnapshot,
   type PlayerSnapshot,
@@ -26,6 +26,7 @@ import {
   replaceWorldCache,
   type WorldCache,
 } from "../../src/shared/world-delta.js";
+import { isKnownZone, zoneDefinition } from "../../src/shared/zones.js";
 
 export const ORIGIN = "https://lindocara.test";
 export const VERDANT_ROOM_KEY = "verdant-reach:main";
@@ -76,6 +77,26 @@ export async function testCharacter(
   expect(created.status).toBe(200);
   const body = (await created.json()) as { id: string };
 
+  // Zone first, position second: an explicit position must survive a subsequent zone move (the
+  // zone write is unconditional so existing tests keep meaning verdant-reach after character
+  // creation itself started resolving through D1).
+  const zoneId = options.zoneId ?? "verdant-reach";
+  const instanceId = options.instanceId ?? "main";
+  await env.DB.prepare("UPDATE character SET zone_id = ?, instance_id = ? WHERE id = ?")
+    .bind(zoneId, instanceId, body.id)
+    .run();
+  // Creation itself now spawns on the D1 front door (first map, else builtin) — sane for a
+  // brand-new D1-map character, but not for a test pinning the zone back to a catalogue zone:
+  // that zone's own terrain is what a restored position gets walkability-checked against, and the
+  // D1 front door's spawn point has no reason to land anywhere near it. Give a catalogue-zone
+  // character a spawn from its own zone instead, exactly like character creation itself did
+  // before it started resolving through D1 — unless the test asks for a specific position.
+  if (!options.position && isKnownZone(zoneId)) {
+    const seeded = spawnPosition(body.id, zoneDefinition(zoneId).terrain);
+    await env.DB.prepare("UPDATE character SET x = ?, y = ? WHERE id = ?")
+      .bind(seeded.x, seeded.y, body.id)
+      .run();
+  }
   if (options.position) {
     await env.DB.prepare("UPDATE character SET x = ?, y = ? WHERE id = ?")
       .bind(options.position.x, options.position.y, body.id)
@@ -115,11 +136,6 @@ export async function testCharacter(
           : JSON.stringify({ wardRunExpiresAt: options.wardRunExpiresAt }),
         body.id,
       )
-      .run();
-  }
-  if (options.zoneId !== undefined || options.instanceId !== undefined) {
-    await env.DB.prepare("UPDATE character SET zone_id = ?, instance_id = ? WHERE id = ?")
-      .bind(options.zoneId ?? "verdant-reach", options.instanceId ?? "main", body.id)
       .run();
   }
   return { cookie: pair, characterId: body.id };

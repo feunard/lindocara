@@ -11,7 +11,8 @@ import {
   normalizeAppearance,
   starterEquipmentFor,
 } from "../shared/character.js";
-import { maxHpForLevel, type PlayerClass, spawnPosition } from "../shared/game.js";
+import { maxHpForLevel, type PlayerClass } from "../shared/game.js";
+import { mapSpawnPoint } from "../shared/map-data.js";
 import { CLASS_SKILLS, isSkillUnlocked } from "../shared/skills.js";
 import { loadNormalizedCharacterState } from "./character-persistence.js";
 import {
@@ -23,6 +24,7 @@ import {
   type Db,
 } from "./db/index.js";
 import { HEALTH_POTION_ID, ownedItemId } from "./items.js";
+import { resolveMapFor } from "./maps.js";
 
 export const MAX_CHARACTERS_PER_ACCOUNT = 3;
 
@@ -94,7 +96,10 @@ export async function createCharacter(
   if (existing.length >= MAX_CHARACTERS_PER_ACCOUNT) return "limit_reached";
 
   const id = crypto.randomUUID();
-  const position = spawnPosition(id);
+  // "" is never a map id, so this is exactly "own map (never, it's new) → first map → builtin" —
+  // a fresh hero starts wherever the front door currently points.
+  const stored = await resolveMapFor(db, "");
+  const spawn = mapSpawnPoint(stored);
   const equipment = starterEquipmentFor(playerClass);
   const now = new Date();
   const equipmentIds = equipment.offHand
@@ -105,7 +110,10 @@ export async function createCharacter(
       id,
       accountId,
       name,
-      ...position,
+      zoneId: stored.id,
+      instanceId: "main",
+      x: spawn.x,
+      y: spawn.y,
       appearance: appearance.primaryColor,
       appearanceBody: appearance.body,
       appearancePrimaryColor: appearance.primaryColor,
@@ -176,7 +184,7 @@ export async function createCharacter(
     level: 1,
     class: playerClass,
     equipment,
-    zoneId: "verdant-reach",
+    zoneId: stored.id,
     instanceId: "main",
   };
 }

@@ -14,14 +14,16 @@ import {
   type PlayerClass,
   type TerrainGeometry,
 } from "../shared/game.js";
+import { terrainFromMap } from "../shared/map-data.js";
 import type { Inventory, QuestState } from "../shared/protocol.js";
 import { type ClassResourceState, initialResource } from "../shared/resources.js";
 import type { Vec2 } from "../shared/simulation.js";
 import { CLASS_SKILLS, isSkillUnlocked } from "../shared/skills.js";
-import { resolveZoneLocation } from "../shared/zones.js";
+import { isKnownZone, resolveZoneLocation } from "../shared/zones.js";
 import { loadNormalizedCharacterState } from "./character-persistence.js";
 import { type Character, character, type Db } from "./db/index.js";
 import { HEALTH_POTION_ID, ownedItemId } from "./items.js";
+import { BUILTIN_MAP, BUILTIN_MAP_ID, loadMap } from "./maps.js";
 
 export interface PlayerProfile extends Vec2 {
   id: string;
@@ -60,8 +62,28 @@ function lifeFromRow(
   return { life, corpse };
 }
 
+/**
+ * The same hybrid routing `#locateRoom` and `handleJoin` use, but for the one piece of it a
+ * profile load needs: the terrain to clamp a restored position (and a corpse) against.
+ *
+ * `resolveZoneLocation` alone is wrong here for a D1 map id: it never rejects an unknown zone, it
+ * silently hands back the DEFAULT catalogue zone's definition (a deliberate client-side safety net
+ * documented on `zoneDefinition`). Reusing that on the server made every D1-map character's
+ * restored position get walkability-checked against Verdant Reach's unrelated tilemap instead of
+ * its own map — passing or failing depending on what happens to occupy that pixel over there.
+ */
+async function terrainFor(
+  db: Db,
+  zoneId: string,
+  instanceId: string,
+): Promise<TerrainGeometry | undefined> {
+  if (isKnownZone(zoneId)) return resolveZoneLocation(zoneId, instanceId)?.definition.terrain;
+  const stored = zoneId === BUILTIN_MAP_ID ? BUILTIN_MAP : await loadMap(db, zoneId);
+  return stored ? terrainFromMap(stored) : undefined;
+}
+
 async function fromRow(db: Db, row: Character): Promise<PlayerProfile> {
-  const terrain = resolveZoneLocation(row.zoneId, row.instanceId)?.definition.terrain;
+  const terrain = await terrainFor(db, row.zoneId, row.instanceId);
   const position = clampRestoredPosition({ x: row.x, y: row.y }, row.id, terrain);
   const maxHp = maxHpForLevel(row.level);
   const normalized = await loadNormalizedCharacterState(db, row);

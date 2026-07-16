@@ -425,10 +425,10 @@ export class World extends DurableObject<Env> {
         // than looking the zone up in a table it compiled in — which is what lets a map live in D1
         // at all, and means a client can never disagree with collision it did not compute.
         tiles: encodeTileMap(location.definition.terrain.tiles),
-        // Empty until maps come from D1. Today's zones grow their trees out of `forest` cells in
-        // the tilemap above, so there is nothing standing on the ground that the ground does not
-        // already describe. A D1 map fills this in.
-        elements: [],
+        // Catalogue zones grow their trees out of `forest` cells in the tilemap above, so there is
+        // nothing standing on the ground that the ground does not already describe — `elements` is
+        // undefined for them. A D1 map's scenery lives here instead.
+        elements: location.definition.elements ?? [],
         width: location.definition.terrain.width,
         height: location.definition.terrain.height,
         playerSize: PLAYER_SIZE,

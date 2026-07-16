@@ -15,9 +15,10 @@ import {
   MAX_CHARACTERS_PER_ACCOUNT,
 } from "../src/server/characters.js";
 import { account, character, createDb, map, mapElement } from "../src/server/db/index.js";
+import { BUILTIN_MAP } from "../src/server/maps.js";
 import { acquireSessionEpoch, loadProfile, saveProfile } from "../src/server/profile.js";
 import { starterEquipmentFor } from "../src/shared/character.js";
-import { spawnPosition } from "../src/shared/game.js";
+import { mapSpawnPoint } from "../src/shared/map-data.js";
 
 describe("account and character tables", () => {
   // The pool does not isolate storage between tests. Truncate children before parents (FK).
@@ -418,7 +419,10 @@ describe("characters service", () => {
     );
     if (created === "limit_reached") throw new Error("unexpected cap");
     const row = await loadProfile(db, created.id);
-    expect(row).toMatchObject(spawnPosition(created.id));
+    // Creation resolves through D1 (Task 3): first map, else the built-in floor. No maps exist in
+    // this file's fixtures, so a fresh character lands on the built-in floor's own spawn — not a
+    // hash-based verdant-reach plaza point.
+    expect(row).toMatchObject(mapSpawnPoint(BUILTIN_MAP));
   });
 
   it("scopes list, ownership, and delete to the owning account", async () => {

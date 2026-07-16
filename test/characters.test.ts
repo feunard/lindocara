@@ -1,5 +1,11 @@
 import { env, SELF } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
+import { createAccount } from "../src/server/accounts.js";
+import { createCharacter } from "../src/server/characters.js";
+import { createDb } from "../src/server/db/index.js";
+import { createMap } from "../src/server/maps.js";
+import { loadProfile } from "../src/server/profile.js";
+import { DEFAULT_APPEARANCE } from "../src/shared/character.js";
 
 const ORIGIN = "https://lindocara.test";
 const appearance = (primaryColor: string) => ({ body: "wayfarer", primaryColor });
@@ -27,6 +33,10 @@ describe("character endpoints", () => {
   afterEach(async () => {
     await env.DB.exec("DELETE FROM character");
     await env.DB.exec("DELETE FROM account");
+    // Elements before maps (FK) — mirrors test/maps.test.ts's cleanup. The pool does not isolate
+    // storage between tests, so maps created directly against `db` below must not leak forward.
+    await env.DB.exec("DELETE FROM map_element");
+    await env.DB.exec("DELETE FROM map");
   });
 
   it("requires a session", async () => {
@@ -201,5 +211,42 @@ describe("character endpoints", () => {
     });
     expect(theft.status).toBe(404);
     expect(await (await characters(aliceCookie)).json()).toHaveLength(1);
+  });
+});
+
+describe("creation location resolves through D1", () => {
+  afterEach(async () => {
+    await env.DB.exec("DELETE FROM character");
+    await env.DB.exec("DELETE FROM account");
+    // Elements before maps (FK) — mirrors test/maps.test.ts's cleanup.
+    await env.DB.exec("DELETE FROM map_element");
+    await env.DB.exec("DELETE FROM map");
+  });
+
+  it("creates a character on the built-in floor when no map exists", async () => {
+    const db = createDb(env.DB);
+    const account = await createAccount(db, "nova_builtin", "12345678");
+    if (account === "username_taken") throw new Error("unexpected username collision");
+    const created = await createCharacter(db, account.id, "Nova", DEFAULT_APPEARANCE, "warrior");
+    if (created === "limit_reached") throw new Error("unexpected limit_reached");
+    const profile = await loadProfile(db, created.id);
+    expect(profile?.zoneId).toBe("builtin");
+    expect(profile?.instanceId).toBe("main");
+  });
+
+  it("creates a character on the first map when one exists", async () => {
+    const db = createDb(env.DB);
+    const stored = await createMap(db, {
+      name: "Home",
+      blocks: Array.from({ length: 15 }, () => ".".repeat(20)),
+      elements: [],
+      spawn: { col: 3, row: 3 },
+    });
+    const account = await createAccount(db, "nova_map", "12345678");
+    if (account === "username_taken") throw new Error("unexpected username collision");
+    const created = await createCharacter(db, account.id, "Nova", DEFAULT_APPEARANCE, "warrior");
+    if (created === "limit_reached") throw new Error("unexpected limit_reached");
+    const profile = await loadProfile(db, created.id);
+    expect(profile?.zoneId).toBe(stored.id);
   });
 });
