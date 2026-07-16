@@ -778,6 +778,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       attackRange: currentSelf ? CLASS_STATS[currentSelf.class].attackRange : 0,
       now,
       healthBars: getDisplaySettings().healthBars,
+      grid: getDisplaySettings().grid,
       ...(self ? { self } : {}),
     };
     renderer.render(sample, context);

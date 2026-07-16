@@ -65,14 +65,14 @@ kind of question that needs the human confirmation described above, not a guess 
 - `public/assets/lindocara/tiny-swords/` — pre-cropped/derived sheets and quest-site textures
   built from the same packs, served directly as static assets.
 
-An earlier `assets/vendor/tiny-swords/` directory held a partial, redundant fourth copy of the
-Free Pack. It was deleted once its six still-referenced files were confirmed byte-identical to
-their `assets/Tiny Swords (Free Pack)/` originals and the references repointed there. This file
-is the same licence record, moved up from that directory — it covers everything under `assets/`.
+There is no longer an `assets/vendor/` directory, and nothing outside these three packs. It used to
+hold two things:
 
-**Not covered by this file.** `assets/vendor/ocean_surface/clear+sea+water-2048x2048.png` is *not*
-a Tiny Swords asset and is not Pixel Frog's work. It arrived with the animated-water work
-(`ocean_surface.tscn`, see `src/client/game/terrain-visuals.ts`) and ships in the client bundle
-with **no recorded source or licence terms**. Whoever added it should record its provenance here
-or replace it; see `assets/Tiny Swords (Update 010)/Terrain/Water/Water.png` for the in-style
-alternative it displaced.
+- `vendor/tiny-swords/` — a partial, redundant fourth copy of the Free Pack. Deleted once its six
+  still-referenced files were confirmed byte-identical to their `assets/Tiny Swords (Free Pack)/`
+  originals and the references repointed there. This licence file is that directory's record,
+  moved up: it was never specific to the copy it happened to live in, and it covers all three packs.
+- `vendor/ocean_surface/` — a 3.6 MB photographic sea texture, not Pixel Frog's work and under no
+  recorded terms, which briefly drew the water. Removed: the water is Tiny Swords' own flat colour
+  plus its animated shoreline foam again, so nothing here needs a licence this file cannot vouch
+  for.

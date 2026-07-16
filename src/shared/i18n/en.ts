@@ -279,6 +279,7 @@ export const en = {
   "settings.health_bars_allies": "Allies only",
   "settings.health_bars_enemies": "Enemies only",
   "settings.health_bars_none": "None",
+  "settings.grid": "Show tile grid and hitboxes",
   "settings.resume": "Resume",
   "settings.close": "Close settings",
   "status.connecting": "connecting as {name}...",

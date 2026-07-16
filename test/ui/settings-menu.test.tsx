@@ -11,7 +11,7 @@ describe("SettingsMenu", () => {
   beforeEach(() => {
     setLocale("en");
     setAudioSettings({ muted: false, sfxVolume: 0.65, ambientVolume: 0.45 });
-    setDisplaySettings({ healthBars: "both" });
+    setDisplaySettings({ healthBars: "both", grid: false });
     useUiStore.setState({ settingsOpen: false, game: null });
   });
 
@@ -32,8 +32,23 @@ describe("SettingsMenu", () => {
     render(<SettingsMenu />);
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText("Settings")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("checkbox"));
+    // By name, not by being the only checkbox on the panel — it no longer is.
+    await userEvent.click(screen.getByRole("checkbox", { name: "Mute all sounds" }));
     expect(getAudioSettings().muted).toBe(true);
+  });
+
+  it("toggles the tile grid without disturbing the other display settings", async () => {
+    useUiStore.setState({ settingsOpen: true });
+    render(<SettingsMenu />);
+    const grid = screen.getByRole("checkbox", { name: "Show tile grid and hitboxes" });
+    expect(grid).not.toBeChecked();
+
+    await userEvent.click(grid);
+    expect(getDisplaySettings().grid).toBe(true);
+    expect(getDisplaySettings().healthBars).toBe("both");
+
+    await userEvent.click(grid);
+    expect(getDisplaySettings().grid).toBe(false);
   });
 
   it("closes via resume", async () => {

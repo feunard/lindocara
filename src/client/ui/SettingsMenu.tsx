@@ -113,6 +113,15 @@ export function SettingsMenu() {
             </select>
           </label>
 
+          <label className="settings-toggle">
+            <input
+              type="checkbox"
+              checked={display.grid}
+              onChange={(event) => setDisplaySettings({ grid: event.target.checked })}
+            />
+            <span>{t("settings.grid")}</span>
+          </label>
+
           <p className="settings-section-label">{t("settings.session")}</p>
           <div className="settings-session-actions">
             <button

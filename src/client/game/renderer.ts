@@ -7,11 +7,11 @@ import {
   Sprite,
   Text,
   Texture,
-  TilingSprite,
 } from "pixi.js";
 import type { MainHandItem, OffHandItem, PrimaryColor } from "../../shared/character.js";
 import { isSpirit } from "../../shared/death.js";
 import {
+  entityBox,
   hashSeed,
   type MonsterSpecies,
   type PlayerClass,
@@ -38,7 +38,7 @@ import {
 } from "../../shared/tilemap.js";
 import { DEFAULT_ZONE_ID, type ZoneId, zoneDefinition } from "../../shared/zones.js";
 import { onLocaleChange, t } from "../i18n.js";
-import { landTile, tileVisual } from "./autotile.js";
+import { landTile, needsFoam, tileVisual } from "./autotile.js";
 import { MAIN_HAND_ART, OFF_HAND_ART, PLAYER_ATLAS_FRAMES } from "./character-art.js";
 import { type HealthBarMode, shouldShowHealthBar } from "./display-settings.js";
 import {
@@ -50,19 +50,20 @@ import {
 import { MAX_ACTIVE_WORLD_EFFECTS, questSiteFeedback } from "./feedback.js";
 import type { SceneSample } from "./net.js";
 import type { CombatTarget } from "./targeting.js";
-import { pulseTint, terrainTintsAt, waterScrollOffsets } from "./terrain-visuals.js";
+import { foamFrameAt, pulseTint, terrainTintsAt } from "./terrain-visuals.js";
 import {
   allUnitSheets,
   TINY_SWORDS_BUILDINGS,
   TINY_SWORDS_EFFECT_SHEETS,
   TINY_SWORDS_EFFECTS,
+  TINY_SWORDS_FOAM_FRAME,
+  TINY_SWORDS_FOAM_FRAMES,
   TINY_SWORDS_QUEST_ART,
   TINY_SWORDS_SIGN_BOARD,
   TINY_SWORDS_TERRAIN,
   TINY_SWORDS_UNIT_FRAME,
   type UnitMotion,
   unitSheet,
-  WORLD_WATER_SURFACE,
 } from "./tiny-swords-art.js";
 import {
   type DecorTheme,
@@ -107,8 +108,13 @@ const ATLAS_IMAGE = "/assets/lindocara/atlas/world.png";
 const ATLAS_DATA = "/assets/lindocara/atlas/world.json";
 const STATIC_CULL_MARGIN = 180;
 const ENTITY_CULL_MARGIN = 120;
-const WATER_TEXTURE_SCALE = 0.5;
-const WATER_SECONDARY_ALPHA = 0.27;
+const GRID_LINE_COLOR = 0xffffff;
+const GRID_LINE_ALPHA = 0.18;
+/** Blocked cells and entity boxes, in the debug overlay the grid toggle turns on. Red is what you
+ *  cannot walk into; green is a body. */
+const GRID_SOLID_COLOR = 0xff3b30;
+const GRID_SOLID_ALPHA = 0.22;
+const HITBOX_COLOR = 0x30ff6a;
 
 interface AtlasData {
   frames: Record<string, { x: number; y: number; w: number; h: number }>;
@@ -119,10 +125,11 @@ interface ArtTextures {
   monsters: Record<MonsterSpecies, Record<UnitMotion, readonly Texture[]>>;
   keeper: Texture;
   /** The tilemap's ground truth. `land[row][col]` is a cell of the flat sheet's first 4x4
-   * autotile group; water is the continuous surface used by the authored scrolling material. */
+   * autotile group; `water` is the pack's flat BG colour and `foam` its eight shoreline frames. */
   terrain: {
     land: readonly (readonly Texture[])[];
     water: Texture;
+    foam: readonly Texture[];
   };
   props: {
     trees: Texture[];
@@ -155,6 +162,7 @@ export interface RenderContext {
   attackRange: number;
   now: number;
   healthBars: HealthBarMode;
+  grid: boolean;
 }
 
 interface EntityView<T extends { id: string }> {
@@ -198,12 +206,17 @@ interface AmbientView {
 }
 
 interface WaterTileView {
-  primary: TilingSprite;
-  secondary: TilingSprite;
+  surface: Sprite;
   x: number;
   y: number;
   baseTint: number;
   phase: number;
+}
+
+/** One foam blob, centred on a shoreline land tile. It carries no position of its own: the frame
+ *  it shows is global (see `foamFrameAt`) and where it sits is decided by `#updateTerrain`. */
+interface FoamTileView {
+  blob: Sprite;
 }
 
 interface StaticView {
@@ -350,14 +363,31 @@ async function loadArt(): Promise<ArtTextures> {
         }),
     );
   }
-  const [terrainFlatSheet, terrainWaterSurface] = await Promise.all([
+  const [terrainFlatSheet, terrainWaterSurface, terrainFoamSheet] = await Promise.all([
     Assets.load<Texture>(TINY_SWORDS_TERRAIN.flat),
-    Assets.load<Texture>(WORLD_WATER_SURFACE),
+    Assets.load<Texture>(TINY_SWORDS_TERRAIN.water),
+    Assets.load<Texture>(TINY_SWORDS_TERRAIN.foam),
   ]);
+  // All three are pixel art from the same pack, so all three sample nearest. The water is one flat
+  // colour and would look the same either way; it stays consistent so nothing here re-learns the
+  // linear sampling the photographic ocean surface used to need.
   terrainFlatSheet.source.style.scaleMode = "nearest";
-  // The ocean source is a continuous painted surface, not pixel art. Linear sampling preserves
-  // its caustics when 128px samples are reduced to the world's 64px tiles.
-  terrainWaterSurface.source.style.scaleMode = "linear";
+  terrainWaterSurface.source.style.scaleMode = "nearest";
+  terrainFoamSheet.source.style.scaleMode = "nearest";
+  const terrainFoam = Array.from(
+    { length: TINY_SWORDS_FOAM_FRAMES },
+    (_, frame) =>
+      new Texture({
+        source: terrainFoamSheet.source,
+        frame: new Rectangle(
+          frame * TINY_SWORDS_FOAM_FRAME,
+          0,
+          TINY_SWORDS_FOAM_FRAME,
+          TINY_SWORDS_FOAM_FRAME,
+        ),
+        label: `foam:${frame}`,
+      }),
+  );
   const buildings = await Promise.all(
     TINY_SWORDS_BUILDINGS.map((source) => Assets.load<Texture>(source)),
   );
@@ -424,6 +454,7 @@ async function loadArt(): Promise<ArtTextures> {
     terrain: {
       land: sliceAutotileSheet(terrainFlatSheet),
       water: terrainWaterSurface,
+      foam: terrainFoam,
     },
     props: {
       trees: [texture("prop.tree.large"), texture("prop.tree.round"), texture("prop.tree.small")],
@@ -578,7 +609,10 @@ export class Renderer {
   #world = new Container();
   #worldBackground = new Graphics();
   #waterTerrain = new Container();
+  #foamTerrain = new Container();
   #terrain = new Container();
+  #gridOverlay = new Graphics();
+  #hitboxOverlay = new Graphics();
   #groundDecor = new Container();
   #forestTreesLayer = new Container();
   #decorLayer = new Container();
@@ -614,6 +648,9 @@ export class Renderer {
   #terrainTiles: Sprite[] = [];
   #waterTilePool: WaterTileView[] = [];
   #waterTiles: WaterTileView[] = [];
+  #foamTilePool: FoamTileView[] = [];
+  #foamTiles: FoamTileView[] = [];
+  #showGrid = false;
   #terrainKey = "";
   /** Which zone's tilemap `#buildForestTrees`/`#buildDecor`/`#updateTerrain` currently read.
    *  Defaults to Verdant Reach so the very first paint (before any welcome) isn't blank; the
@@ -728,14 +765,23 @@ export class Renderer {
   #buildWorld(): void {
     this.#actors.sortableChildren = true;
     this.#resizeWorldBackground();
+    // Tiny Swords' own tilemap documentation stacks these as BG Color -> Water Foam -> Flat
+    // Ground, and the order is the whole trick: the foam blob is *wider* than its land tile, so
+    // the ground drawn over it clips it back to a rim hugging the coast. Put foam above the
+    // terrain and every island wears a halo instead of a shoreline.
     this.#world.addChild(
       this.#worldBackground,
       this.#waterTerrain,
+      this.#foamTerrain,
       this.#terrain,
+      this.#gridOverlay,
       this.#groundDecor,
       this.#structures,
       this.#ambient,
       this.#actors,
+      // Above the actors: a body box drawn under its own sprite would be exactly the thing you
+      // cannot see when you need it.
+      this.#hitboxOverlay,
       this.#worldLabels,
       this.#navigationDebug,
       this.#navigationDebugLabels,
@@ -761,18 +807,19 @@ export class Renderer {
   }
 
   #createWaterTile(): WaterTileView {
-    const makeLayer = (alpha: number) =>
-      new TilingSprite({
-        texture: this.art.terrain.water,
-        width: TILE_SIZE,
-        height: TILE_SIZE,
-        tileScale: { x: WATER_TEXTURE_SCALE, y: WATER_TEXTURE_SCALE },
-        alpha,
-      });
-    const primary = makeLayer(1);
-    const secondary = makeLayer(WATER_SECONDARY_ALPHA);
-    this.#waterTerrain.addChild(primary, secondary);
-    return { primary, secondary, x: 0, y: 0, baseTint: 0xffffff, phase: 0 };
+    const surface = new Sprite({
+      texture: this.art.terrain.water,
+      width: TILE_SIZE,
+      height: TILE_SIZE,
+    });
+    this.#waterTerrain.addChild(surface);
+    return { surface, x: 0, y: 0, baseTint: 0xffffff, phase: 0 };
+  }
+
+  #createFoamTile(): FoamTileView {
+    const blob = new Sprite({ texture: this.art.terrain.foam[0] ?? Texture.EMPTY, anchor: 0.5 });
+    this.#foamTerrain.addChild(blob);
+    return { blob };
   }
 
   /** Builds only the current zone's explicitly configured visual content. */
@@ -1635,7 +1682,10 @@ export class Renderer {
       this.#zoneHeight,
       TILE_SIZE,
     );
-    const key = `${this.#currentZoneId}:${startX}:${startY}:${columns}:${rows}`;
+    // `#showGrid` belongs in the key: this method early-returns when nothing has changed, so a
+    // toggle that is not part of the key would not repaint until the player happened to walk into
+    // a new tile window.
+    const key = `${this.#currentZoneId}:${startX}:${startY}:${columns}:${rows}:${this.#showGrid}`;
     if (key === this.#terrainKey) return;
     this.#terrainKey = key;
 
@@ -1645,11 +1695,10 @@ export class Renderer {
       this.#terrainTiles.push(tile);
       this.#terrain.addChild(tile);
     }
-    for (const view of this.#waterTilePool) {
-      view.primary.visible = false;
-      view.secondary.visible = false;
-    }
+    for (const view of this.#waterTilePool) view.surface.visible = false;
+    for (const view of this.#foamTilePool) view.blob.visible = false;
     this.#waterTiles = [];
+    this.#foamTiles = [];
     for (let index = 0; index < this.#terrainTiles.length; index++) {
       const tile = this.#terrainTiles[index];
       if (!tile) continue;
@@ -1682,6 +1731,17 @@ export class Renderer {
         tile.visible = true;
         tile.alpha = 1;
         tile.tint = tints.land;
+        if (needsFoam(tiles, col, tileRow)) {
+          const foam = this.#foamTilePool[this.#foamTiles.length] ?? this.#createFoamTile();
+          if (this.#foamTiles.length >= this.#foamTilePool.length) this.#foamTilePool.push(foam);
+          // Centred on the tile at the sheet's native size: the frame is 192px of mostly nothing
+          // around an ~82px blob, so an unscaled draw is what puts that blob 9px past a 64px tile.
+          // Scaling it to the tile would shrink the bleed to nothing and the shore would vanish.
+          foam.blob.visible = true;
+          foam.blob.position.set(x + TILE_SIZE / 2, y + TILE_SIZE / 2);
+          foam.blob.tint = tints.water;
+          this.#foamTiles.push(foam);
+        }
         continue;
       }
 
@@ -1692,20 +1752,71 @@ export class Renderer {
         water = this.#createWaterTile();
         this.#waterTilePool.push(water);
       }
-      const width = Math.min(TILE_SIZE, this.#zoneWidth - x);
-      const height = Math.min(TILE_SIZE, this.#zoneHeight - y);
-      for (const layer of [water.primary, water.secondary]) {
-        layer.visible = true;
-        layer.position.set(x, y);
-        layer.width = width;
-        layer.height = height;
-        layer.tint = tints.water;
-      }
+      water.surface.visible = true;
+      water.surface.position.set(x, y);
+      water.surface.width = Math.min(TILE_SIZE, this.#zoneWidth - x);
+      water.surface.height = Math.min(TILE_SIZE, this.#zoneHeight - y);
+      water.surface.tint = tints.water;
       water.x = x;
       water.y = y;
       water.baseTint = tints.water;
       water.phase = (col * 0.37 + tileRow * 0.61) % (Math.PI * 2);
       this.#waterTiles.push(water);
+    }
+    this.#drawGrid(startX, startY, columns, rows);
+  }
+
+  /** A debug overlay, drawn in world space so the lines sit exactly on the cells `tilemap.ts`
+   *  actually stores — a grid drawn in screen space would drift from the collision truth it is
+   *  there to reveal.
+   *
+   *  It reads `isSolidKind` rather than "is it drawn as water", because those are different
+   *  questions: a forest cell is grass with a tree on it and blocks you all the same. Shading what
+   *  the renderer *paints* would draw a pretty lie over the thing being debugged.
+   */
+  #drawGrid(startX: number, startY: number, columns: number, rows: number): void {
+    this.#gridOverlay.clear();
+    if (!this.#showGrid) return;
+    const tiles = this.#tiles;
+    for (let column = 0; column < columns; column += 1) {
+      for (let row = 0; row < rows; row += 1) {
+        const x = startX + column * TILE_SIZE;
+        const y = startY + row * TILE_SIZE;
+        const col = Math.floor(x / TILE_SIZE);
+        const tileRow = Math.floor(y / TILE_SIZE);
+        if (!isSolidKind(kindAt(tiles, col, tileRow))) continue;
+        this.#gridOverlay.rect(x, y, TILE_SIZE, TILE_SIZE);
+      }
+    }
+    this.#gridOverlay.fill({ color: GRID_SOLID_COLOR, alpha: GRID_SOLID_ALPHA });
+    for (let column = 0; column <= columns; column += 1) {
+      const x = startX + column * TILE_SIZE;
+      this.#gridOverlay.moveTo(x, startY).lineTo(x, startY + rows * TILE_SIZE);
+    }
+    for (let row = 0; row <= rows; row += 1) {
+      const y = startY + row * TILE_SIZE;
+      this.#gridOverlay.moveTo(startX, y).lineTo(startX + columns * TILE_SIZE, y);
+    }
+    this.#gridOverlay.stroke({ width: 1, color: GRID_LINE_COLOR, alpha: GRID_LINE_ALPHA });
+  }
+
+  /**
+   * Every body the simulation collides as a box, drawn where it actually is.
+   *
+   * Redrawn per frame rather than with the grid: bodies move and the terrain does not. The boxes
+   * come from `entityBox`, the same helper the rules use, so a sprite that looks off-centre from
+   * its box is telling the truth about the art, not about a bug in this overlay.
+   */
+  #drawHitboxes(sample: SceneSample): void {
+    this.#hitboxOverlay.clear();
+    if (!this.#showGrid) return;
+    const bodies = [...sample.players, ...sample.monsters, ...sample.guards];
+    for (const body of bodies) {
+      const box = entityBox({ x: body.x, y: body.y });
+      this.#hitboxOverlay.rect(box.x, box.y, box.width, box.height);
+    }
+    if (bodies.length > 0) {
+      this.#hitboxOverlay.stroke({ width: 1, color: HITBOX_COLOR, alpha: 0.85 });
     }
   }
 
@@ -2245,16 +2356,17 @@ export class Renderer {
   }
 
   #updateAmbient(now: number): void {
-    const waterPeriod = this.art.terrain.water.width * WATER_TEXTURE_SCALE;
-    const scroll = waterScrollOffsets(now, waterPeriod);
+    // The sea is one flat colour, so the only thing moving out there is the foam on the shore.
+    // Every blob shares a frame: it is one coastline, not a tile's worth of surf each.
+    const foamFrame = this.art.terrain.foam[foamFrameAt(now, this.art.terrain.foam.length)];
+    if (foamFrame) {
+      for (const view of this.#foamTiles) view.blob.texture = foamFrame;
+    }
     for (const view of this.#waterTiles) {
+      // The pulse is kept because a dead-flat colour reads as a hole in the map rather than water.
+      // It stays under a couple of percent; the shoreline is what should draw the eye.
       const shimmer = Math.sin(now / 1_100 + view.phase);
-      view.primary.tilePosition.set(scroll.primary.x - view.x, scroll.primary.y - view.y);
-      view.secondary.tilePosition.set(scroll.secondary.x - view.x, scroll.secondary.y - view.y);
-      view.primary.tint = pulseTint(view.baseTint, 1 + shimmer * 0.025);
-      view.secondary.tint = pulseTint(view.baseTint, 1.04 + shimmer * 0.025);
-      view.primary.alpha = 1;
-      view.secondary.alpha = WATER_SECONDARY_ALPHA + shimmer * 0.025;
+      view.surface.tint = pulseTint(view.baseTint, 1 + shimmer * 0.02);
     }
     for (const view of this.#ambientViews) {
       const visible = this.#isVisibleWorld(view.baseX, view.baseY, 80);
@@ -2358,8 +2470,10 @@ export class Renderer {
   render(sample: SceneSample, context: RenderContext): void {
     const now = context.now;
     this.#healthBarMode = context.healthBars;
+    this.#showGrid = context.grid;
     this.#followSelf(sample.players, now);
     this.#updateTerrain();
+    this.#drawHitboxes(sample);
     this.#updateStaticVisibility();
     const self = sample.players.find((player) => player.id === this.#selfId);
 

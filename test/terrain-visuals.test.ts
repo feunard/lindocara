@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  FOAM_CYCLE_MS,
+  foamFrameAt,
   pulseTint,
   terrainTintsAt,
-  waterScrollOffsets,
 } from "../src/client/game/terrain-visuals.js";
 import { WORLD_ZONES } from "../src/client/game/world-layout.js";
 
@@ -12,7 +13,9 @@ function brightness(color: number): number {
 
 describe("regional terrain palettes", () => {
   it("keeps zones without authored visuals neutral", () => {
-    expect(terrainTintsAt(100, 100, [])).toEqual({ land: 0xffffff, water: 0x5d899d });
+    // Both channels are modulation tints, so neutral is white on both: it reproduces Tiny Swords'
+    // authored flat sea rather than bending it towards a colour this project invented.
+    expect(terrainTintsAt(100, 100, [])).toEqual({ land: 0xffffff, water: 0xffffff });
   });
 
   it("darkens the marsh naturally relative to the sunlit meadow", () => {
@@ -28,33 +31,27 @@ describe("regional terrain palettes", () => {
     expect(brightness(dark.water)).toBeLessThan(brightness(light.water));
   });
 
-  it("animates the two authored water layers in different directions", () => {
-    const start = waterScrollOffsets(0, 1_024);
-    const afterOneSecond = waterScrollOffsets(1_000, 1_024);
-
-    expect(start).toEqual({ primary: { x: 0, y: 0 }, secondary: { x: 0, y: 0 } });
-    expect(afterOneSecond.primary.x).toBeCloseTo(15.36);
-    expect(afterOneSecond.primary.y).toBeCloseTo(1.024);
-    expect(afterOneSecond.secondary.x).toBeCloseTo(1_008.64);
-    expect(afterOneSecond.secondary.y).toBeCloseTo(1_003.52);
-    expect(afterOneSecond.primary.x).not.toBe(afterOneSecond.secondary.x);
+  it("walks the foam frames in order and loops", () => {
+    expect(foamFrameAt(0, 8)).toBe(0);
+    expect(foamFrameAt(FOAM_CYCLE_MS / 8, 8)).toBe(1);
+    expect(foamFrameAt(FOAM_CYCLE_MS / 2, 8)).toBe(4);
+    // The cycle closes: the frame after the last one is the first again, not a ninth.
+    expect(foamFrameAt(FOAM_CYCLE_MS, 8)).toBe(0);
+    expect(foamFrameAt(FOAM_CYCLE_MS * 3.5, 8)).toBe(4);
   });
 
-  it("wraps water motion on the texture period without accumulating unbounded offsets", () => {
-    expect(waterScrollOffsets(1_000_000, 0)).toEqual({
-      primary: { x: 0, y: 0 },
-      secondary: { x: 0, y: 0 },
-    });
-    const wrapped = waterScrollOffsets(1_000_000, 1_024);
-    for (const value of [
-      wrapped.primary.x,
-      wrapped.primary.y,
-      wrapped.secondary.x,
-      wrapped.secondary.y,
-    ]) {
-      expect(value).toBeGreaterThanOrEqual(0);
-      expect(value).toBeLessThan(1_024);
+  it("stays inside the sheet however long the world has been running", () => {
+    for (const elapsed of [0, 1, 999, 1_000_000, 86_400_000]) {
+      const frame = foamFrameAt(elapsed, 8);
+      expect(Number.isInteger(frame)).toBe(true);
+      expect(frame).toBeGreaterThanOrEqual(0);
+      expect(frame).toBeLessThan(8);
     }
+  });
+
+  it("does not index an empty sheet or run time backwards", () => {
+    expect(foamFrameAt(1_000, 0)).toBe(0);
+    expect(foamFrameAt(-5_000, 8)).toBe(0);
   });
 
   it("only makes the ambient water pulse subtly", () => {

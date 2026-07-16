@@ -285,6 +285,7 @@ export const fr: Record<keyof typeof en, string> = {
   "settings.health_bars_allies": "Alliés uniquement",
   "settings.health_bars_enemies": "Ennemis uniquement",
   "settings.health_bars_none": "Aucune",
+  "settings.grid": "Afficher la grille et les hitboxes",
   "settings.resume": "Reprendre",
   "settings.close": "Fermer les paramètres",
   "status.connecting": "connexion en tant que {name}...",

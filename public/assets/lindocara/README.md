@@ -34,9 +34,8 @@ lives under `assets/Tiny Swords (Free Pack)/`, `assets/Tiny Swords (Update 010)/
 `assets/Tiny Swords (Enemy Pack)/` (catalogued in `assets/index.json`). See `assets/LICENSE.md`
 for what the packs are, where they came from, and under what terms they are used.
 
-Tiny Swords is the only third-party *pixel-art* pack this game draws from. The one exception is
-`assets/vendor/ocean_surface/clear+sea+water-2048x2048.png`, a photographic water texture used by
-the animated water surface, which has no recorded source or licence — see `assets/LICENSE.md`.
+Tiny Swords is the only third-party art pack this game draws from — there is no `assets/vendor/`
+any more, and nothing under `assets/` that is not one of the three packs.
 
 Ambient music lives under `audio/`:
 
