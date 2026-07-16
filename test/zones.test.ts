@@ -45,8 +45,29 @@ describe("zone catalogue", () => {
     expect(isValidInstanceId(instanceId)).toBe(false);
   });
 
-  it("rejects unknown zones instead of silently routing them to Verdant Reach", () => {
-    expect(resolveZoneLocation("unknown-zone", "main")).toBeNull();
+  // New contract: a room id is any non-empty string <=64 chars now (a map is a D1 row with a
+  // uuid id nobody can enumerate), so `resolveZoneLocation` no longer rejects an unknown zoneId —
+  // it resolves, falling back to the default zone's definition via `zoneDefinition`. Structural
+  // rejection (empty/oversize/non-string) is what's still pinned, by `isValidInstanceId`'s sibling
+  // checks above and by `zoneDefinition`'s own fallback test below.
+  it("resolves an unknown zone id instead of rejecting it, falling back to the default definition", () => {
+    const location = resolveZoneLocation("unknown-zone", "main");
+    expect(location).toMatchObject({
+      zoneId: "unknown-zone",
+      instanceId: "main",
+      roomKey: "unknown-zone:main",
+      definition: ZONES[DEFAULT_ZONE_ID],
+    });
+  });
+
+  it.each([
+    "",
+    "a".repeat(65),
+    42,
+    null,
+    undefined,
+  ])("still rejects a structurally invalid zone id (%j)", (zoneId) => {
+    expect(resolveZoneLocation(zoneId, "main")).toBeNull();
   });
 
   // A cached browser bundle can be older than the server: `parseServerMessage` now rejects an

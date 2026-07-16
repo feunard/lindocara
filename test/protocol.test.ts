@@ -147,16 +147,27 @@ describe("server protocol", () => {
    *  is not a welcome. */
   const world = { zoneId: "verdant-reach", tiles: ["..", "##"], elements: [] };
 
-  it("only accepts a welcome whose world carries a zone the client actually knows", () => {
+  it("accepts any well-formed zone id, since terrain now travels in the welcome itself", () => {
     expect(parseServerMessage(JSON.stringify({ ...welcomeBase, world }))).toMatchObject({
       t: "welcome",
       world: { zoneId: "verdant-reach" },
     });
-    // A cached SPA build meeting a server that has since added a zone must drop the frame
-    // (and resync/reconnect) rather than hand an unrecognised id to zoneDefinition() downstream.
+    // New contract: a zoneId is wire data now, not a lookup key into a compiled-in catalogue — a
+    // map is a D1 row with a uuid id nobody can enumerate. `isZoneId` only checks that it's a
+    // non-empty string within the length bound, so an id the client has never heard of (e.g. a
+    // D1 map's uuid) is a normal welcome, not a dropped frame.
     expect(
       parseServerMessage(
         JSON.stringify({ ...welcomeBase, world: { ...world, zoneId: "some-future-zone" } }),
+      ),
+    ).toMatchObject({ t: "welcome", world: { zoneId: "some-future-zone" } });
+    // Structural rejection still holds: empty and oversize ids remain invalid.
+    expect(
+      parseServerMessage(JSON.stringify({ ...welcomeBase, world: { ...world, zoneId: "" } })),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify({ ...welcomeBase, world: { ...world, zoneId: "a".repeat(65) } }),
       ),
     ).toBeNull();
     expect(parseServerMessage(JSON.stringify({ ...welcomeBase, world: {} }))).toBeNull();

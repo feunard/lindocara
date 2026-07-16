@@ -528,16 +528,9 @@ describe("World", () => {
     client.close();
   });
 
-  it("rejects corrupt D1 locations and invalid instance ids without crashing", async () => {
-    const unknown = await testCharacter("unknown_zone");
-    await env.DB.prepare("UPDATE character SET zone_id = ? WHERE id = ?")
-      .bind("not-a-zone", unknown.characterId)
-      .run();
-    const unknownClient = await Client.joinCharacter(unknown);
-    expect(
-      (await until("unknown location close", () => unknownClient.closeInfo ?? undefined)).code,
-    ).toBe(WS_CLOSE.INVALID_LOCATION);
-
+  it("rejects an invalid instance id without crashing", async () => {
+    // New contract: `isValidInstanceId` is still checked first in handleJoin, ahead of the
+    // zoneId/map hybrid routing, so a corrupt instanceId still closes the socket outright.
     const invalid = await testCharacter("invalid_instance");
     await env.DB.prepare("UPDATE character SET instance_id = ? WHERE id = ?")
       .bind("main:other", invalid.characterId)
@@ -546,6 +539,24 @@ describe("World", () => {
     expect(
       (await until("invalid instance close", () => invalidClient.closeInfo ?? undefined)).code,
     ).toBe(WS_CLOSE.INVALID_LOCATION);
+  });
+
+  it("self-heals a corrupt zone id onto a fallback map instead of rejecting the join", async () => {
+    // New contract: a zoneId is only rejected structurally now (empty/oversize/non-string,
+    // see isZoneId). "not-a-zone" is a well-formed but unknown zone, so handleJoin's hybrid
+    // routing treats it as a D1 map id: isKnownZone() is false, resolveMapFor() falls back (own
+    // map -> first map -> builtin) and relocateProfile() persists the move. The join succeeds
+    // instead of closing with INVALID_LOCATION. Which fallback map is chosen is deliberately not
+    // asserted here — deeper fallback coverage belongs to a later task.
+    const unknown = await testCharacter("unknown_zone");
+    await env.DB.prepare("UPDATE character SET zone_id = ? WHERE id = ?")
+      .bind("not-a-zone", unknown.characterId)
+      .run();
+    const unknownClient = await Client.joinCharacter(unknown);
+    const welcome = await until("relocated welcome", () => unknownClient.welcome);
+    expect(welcome.selfId).toBeTruthy();
+    expect(unknownClient.closeInfo).toBeNull();
+    unknownClient.close();
   });
 
   it("enforces the technical room capacity and reconnects to the persisted test zone", async () => {
