@@ -102,7 +102,7 @@ describe("MapEditor", () => {
       "/api/maps/m2",
       expect.objectContaining({ method: "DELETE" }),
     );
-    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("Delete Frostfen?");
 
     await userEvent.click(screen.getByRole("button", { name: "Delete permanently" }));
     expect(mock).toHaveBeenCalledWith(
@@ -132,5 +132,24 @@ describe("MapEditor", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(useUiStore.getState().screen).toBe("characters");
+  });
+
+  it("never bricks on a failed load: shows the error and keeps Back usable", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("network down")));
+    render(<MapEditor />);
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(useUiStore.getState().screen).toBe("characters");
+  });
+
+  it("redirects to the auth screen when the session has expired", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse({ error: "session_expired" }, 401)),
+    );
+    render(<MapEditor />);
+
+    await waitFor(() => expect(useUiStore.getState().screen).toBe("auth"));
   });
 });

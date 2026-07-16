@@ -481,6 +481,11 @@
   padding-top: 2rem;
 }
 
+.roster-header__actions {
+  display: flex;
+  gap: 0.55rem;
+}
+
 .roster-grid {
   width: min(1240px, calc(100% - 2rem));
   margin: 1rem auto;

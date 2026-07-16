@@ -28,6 +28,13 @@ const MAX_COLS = 100;
 const MIN_ROWS = 15;
 const MAX_ROWS = 100;
 
+/** The two codes `requireSession` (src/server/index.ts) answers with when the account behind the
+ *  cookie is gone or the cookie itself is absent — both mean "log in again", never "this map
+ *  request failed". */
+function isSessionError(code: string): boolean {
+  return code === "session_expired" || code === "unauthorized";
+}
+
 /**
  * List mode only (Task 9): fetch, create, delete, and flag the front door. Opening a map sets
  * `selected` and shows a stub panel — the obvious seam Task 10 fills in with the real painting
@@ -51,11 +58,26 @@ export function MapEditor() {
     refresh();
   }, []);
 
+  /** A session problem leaves the screen entirely, exactly like `CharacterSelect`'s initial
+   *  fetch does (store.ts's `setScreen("auth")`). Anything else becomes a visible error rather
+   *  than silence: returns true when the caller should stop (session gone), false otherwise. */
+  function fail(caught: unknown): boolean {
+    const code = errorCode(caught);
+    if (isSessionError(code)) {
+      setScreen("auth");
+      return true;
+    }
+    setError(code);
+    return false;
+  }
+
   async function refresh(): Promise<void> {
     try {
       setMaps(await fetchMaps());
     } catch (caught) {
-      setError(errorCode(caught));
+      // A failure here must never leave `maps` null: that is the one state the render below
+      // treats as "still loading" and renders nothing for — no error, no Back, stranded.
+      if (!fail(caught)) setMaps((current) => current ?? []);
     }
   }
 
@@ -67,7 +89,7 @@ export function MapEditor() {
       await refresh();
       setSelected(created);
     } catch (caught) {
-      setError(errorCode(caught));
+      fail(caught);
     }
   }
 
@@ -75,7 +97,7 @@ export function MapEditor() {
     try {
       setSelected(await fetchMap(id));
     } catch (caught) {
-      setError(errorCode(caught));
+      fail(caught);
     }
   }
 
@@ -85,7 +107,7 @@ export function MapEditor() {
       setConfirmingId(null);
       await refresh();
     } catch (caught) {
-      setError(errorCode(caught));
+      fail(caught);
       setConfirmingId(null);
     }
   }
@@ -95,7 +117,7 @@ export function MapEditor() {
       await flagFirstMapApi(id);
       await refresh();
     } catch (caught) {
-      setError(errorCode(caught));
+      fail(caught);
     }
   }
 
