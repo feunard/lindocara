@@ -15,6 +15,10 @@ const CLOUD_THREE = new URL(
   "../../../assets/Tiny Swords (Free Pack)/Terrain/Decorations/Clouds/Clouds_05.png",
   import.meta.url,
 ).href;
+const BRIDGE = new URL(
+  "../../../assets/Tiny Swords (Update 010)/Terrain/Bridge/Bridge_All.png",
+  import.meta.url,
+).href;
 const FOAM_TILES = Array.from({ length: 72 }, (_, index) => `menu-foam-${index}`);
 
 /** Decorative Tiny Swords diorama shared by the account and roster screens. */
@@ -31,7 +35,9 @@ export function TinySwordsMenuScene({ variant }: TinySwordsMenuSceneProps) {
       <div className="menu-scene__hills menu-scene__hills--far" />
       <div className="menu-scene__hills menu-scene__hills--near" />
       <div className="menu-scene__ground" />
-      <div className="menu-scene__path" />
+      <span className="menu-scene__bridge">
+        <img src={BRIDGE} alt="" />
+      </span>
       <div className="menu-scene__water" />
       <div className="menu-scene__foam-bank">
         {FOAM_TILES.map((id) => (
