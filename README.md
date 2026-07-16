@@ -38,9 +38,11 @@ equivalent terms.
 
 No external runtime URLs are used.
 
-The world also uses the bundled **Tiny Swords** pack under `assets/vendor/tiny-swords`: faction
-buildings, units, particles and UI art are bundled by Vite into the client. Heartroot now mixes
-blue, red, yellow and purple roof families deliberately by district; direction boards use the
+The world also uses the **Tiny Swords** packs by Pixel Frog, under `assets/Tiny Swords (Free
+Pack)`, `assets/Tiny Swords (Update 010)` and `assets/Tiny Swords (Enemy Pack)` — the three packs
+as downloaded, catalogued file-by-file in `assets/index.json` and covered by `assets/LICENSE.md`.
+Faction buildings, units, particles and UI art are bundled by Vite into the client. Heartroot now
+mixes blue, red, yellow and purple roof families deliberately by district; direction boards use the
 pack's parchment banner art rather than generated placeholder shapes.
 
 ## Quick start

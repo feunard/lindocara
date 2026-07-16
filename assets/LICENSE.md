@@ -42,11 +42,11 @@ purchase receipt/email from the original download. This file is a pointer to tha
 substitute for it.
 
 **What this game actually ships.** This is *not* a pack that ships only derived, in-engine sheets —
-some raw pack files ship verbatim. `src/client/game/tiny-swords-art.ts` references several
-building and banner textures straight from `assets/vendor/tiny-swords/` via
-`new URL("../../../assets/vendor/tiny-swords/...", import.meta.url)`, and Vite's client build
-copies each of those into the deployed bundle content-hashed but **byte-identical** to the
-vendored original — verified by building the client and comparing checksums: e.g. `Buildings/Red
+some raw pack files ship verbatim. `src/client/game/tiny-swords-art.ts` references five building
+textures and one banner straight from `assets/Tiny Swords (Free Pack)/` via
+`new URL("../../../assets/Tiny Swords (Free Pack)/...", import.meta.url)`, and Vite's client build
+copies each of those into the deployed bundle content-hashed but **byte-identical** to the pack
+original — verified by building the client and comparing checksums: e.g. `Buildings/Red
 Buildings/House1.png` matches `dist/client/assets/House1-*.png`, and `UI
 Elements/.../Banners/Banner.png` matches `dist/client/assets/Banner-*.png`. Those sit alongside the
 separately pre-cropped/derived sheets served from `public/assets/lindocara/tiny-swords/`, which
@@ -56,7 +56,23 @@ kind of question that needs the human confirmation described above, not a guess 
 
 **Where it lives in this repo.**
 
-- `assets/vendor/tiny-swords/` — the vendored source pack, bundled by Vite via `import.meta.url`
-  (see `src/client/game/tiny-swords-art.ts`).
+- `assets/Tiny Swords (Free Pack)/`, `assets/Tiny Swords (Update 010)/`,
+  `assets/Tiny Swords (Enemy Pack)/` — the three packs as downloaded, the source of truth. A few
+  files are bundled straight from here by Vite via `import.meta.url` (see
+  `src/client/game/tiny-swords-art.ts`); the rest are the source for the derived sheets below.
+- `assets/index.json` — generated catalogue of all 730 PNGs across the three packs (dimensions,
+  alpha bounding box, inferred frame counts). Metadata about the pack, not pack content.
 - `public/assets/lindocara/tiny-swords/` — pre-cropped/derived sheets and quest-site textures
-  built from the same pack, served directly as static assets.
+  built from the same packs, served directly as static assets.
+
+An earlier `assets/vendor/tiny-swords/` directory held a partial, redundant fourth copy of the
+Free Pack. It was deleted once its six still-referenced files were confirmed byte-identical to
+their `assets/Tiny Swords (Free Pack)/` originals and the references repointed there. This file
+is the same licence record, moved up from that directory — it covers everything under `assets/`.
+
+**Not covered by this file.** `assets/vendor/ocean_surface/clear+sea+water-2048x2048.png` is *not*
+a Tiny Swords asset and is not Pixel Frog's work. It arrived with the animated-water work
+(`ocean_surface.tscn`, see `src/client/game/terrain-visuals.ts`) and ships in the client bundle
+with **no recorded source or licence terms**. Whoever added it should record its provenance here
+or replace it; see `assets/Tiny Swords (Update 010)/Terrain/Water/Water.png` for the in-style
+alternative it displaced.

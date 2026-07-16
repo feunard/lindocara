@@ -30,26 +30,30 @@ export const TINY_SWORDS_BUILDINGS = [
   `${TINY_SWORDS_ROOT}/buildings/Monastery.png`,
   `${TINY_SWORDS_ROOT}/buildings/Tower.png`,
   `${TINY_SWORDS_ROOT}/buildings/Castle.png`,
-  new URL("../../../assets/vendor/tiny-swords/Buildings/Red Buildings/House1.png", import.meta.url)
-    .href,
   new URL(
-    "../../../assets/vendor/tiny-swords/Buildings/Yellow Buildings/Barracks.png",
+    "../../../assets/Tiny Swords (Free Pack)/Buildings/Red Buildings/House1.png",
     import.meta.url,
   ).href,
   new URL(
-    "../../../assets/vendor/tiny-swords/Buildings/Purple Buildings/Monastery.png",
+    "../../../assets/Tiny Swords (Free Pack)/Buildings/Yellow Buildings/Barracks.png",
     import.meta.url,
   ).href,
-  new URL("../../../assets/vendor/tiny-swords/Buildings/Red Buildings/House3.png", import.meta.url)
-    .href,
   new URL(
-    "../../../assets/vendor/tiny-swords/Buildings/Yellow Buildings/House2.png",
+    "../../../assets/Tiny Swords (Free Pack)/Buildings/Purple Buildings/Monastery.png",
+    import.meta.url,
+  ).href,
+  new URL(
+    "../../../assets/Tiny Swords (Free Pack)/Buildings/Red Buildings/House3.png",
+    import.meta.url,
+  ).href,
+  new URL(
+    "../../../assets/Tiny Swords (Free Pack)/Buildings/Yellow Buildings/House2.png",
     import.meta.url,
   ).href,
 ] as const;
 
 export const TINY_SWORDS_SIGN_BOARD = new URL(
-  "../../../assets/vendor/tiny-swords/UI Elements/UI Elements/Banners/Banner.png",
+  "../../../assets/Tiny Swords (Free Pack)/UI Elements/UI Elements/Banners/Banner.png",
   import.meta.url,
 ).href;
 
