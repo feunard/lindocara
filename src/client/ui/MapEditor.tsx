@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { MapData } from "../../shared/map-data.js";
 import {
   authErrorText,
   createMapApi,
@@ -14,6 +15,7 @@ import {
 import type { EditorMap, EditorTool } from "../game/editor-state.js";
 import { blankMap } from "../game/editor-state.js";
 import { openMapEditorStage } from "../game/map-editor-stage.js";
+import { startMapPreview } from "../game/map-preview.js";
 import { t, useLocale } from "../i18n.js";
 import { type MapEditorStageHandle, useUiStore } from "../store.js";
 import { Button } from "./pixelact-ui/button/index.js";
@@ -82,32 +84,78 @@ function MapEditorStage({ map, onExit }: { map: MapPayload; onExit: () => void }
   const setScreen = useUiStore((state) => state.setScreen);
   const setMapEditor = useUiStore((state) => state.setMapEditor);
   const handleRef = useRef<MapEditorStageHandle | null>(null);
+  // The live `EditorMap` captured when Preview is pressed. It carries the unsaved edits across the
+  // preview round-trip: the stage is disposed for the sandbox and reopened from this, not from the
+  // `map` prop, so painting survives the walk.
+  const editedRef = useRef<EditorMap | null>(null);
   const [toolKey, setToolKey] = useState<ToolKey>("grass");
   const [variant, setVariant] = useState(0);
   const [name, setName] = useState(map.name);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
 
-  // Opening is async (it loads textures): if this screen unmounts before the stage resolves, the
-  // stage still gets disposed. Re-runs only when the opened map's identity changes.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional per-map open, stable setters
+  // The painting stage. Not mounted while previewing — the sandbox owns the one `#stage` app then —
+  // and reopened from the captured edits when the preview ends. Opening is async (it loads textures):
+  // if this screen unmounts or a preview starts before the stage resolves, it is still disposed.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional per-map open, stable refs/setters
   useEffect(() => {
+    if (previewing) return;
     let cancelled = false;
-    openMapEditorStage(toEditorMap(map), () => setError(null)).then((handle) => {
-      if (cancelled) {
-        handle.dispose();
-        return;
-      }
-      handleRef.current = handle;
-      setMapEditor(handle);
-    });
+    openMapEditorStage(editedRef.current ?? toEditorMap(map), () => setError(null)).then(
+      (handle) => {
+        if (cancelled) {
+          handle.dispose();
+          return;
+        }
+        handleRef.current = handle;
+        setMapEditor(handle);
+      },
+    );
     return () => {
       cancelled = true;
       handleRef.current?.dispose();
       handleRef.current = null;
       setMapEditor(null);
     };
-  }, [map]);
+  }, [map, previewing]);
+
+  // The sandbox walk. Only while previewing: dispose (above) has released the shared `#stage` app, so
+  // the preview builds its throwaway warrior on the clean canvas. Esc (window keydown) ends it, which
+  // re-runs the effect above to reopen the editor with the edits intact.
+  useEffect(() => {
+    if (!previewing) return;
+    const edited = editedRef.current;
+    if (!edited) return;
+    const data: MapData = { blocks: edited.blocks, elements: edited.elements, spawn: edited.spawn };
+    let stopped = false;
+    let preview: { stop(): void } | null = null;
+    startMapPreview(data).then((started) => {
+      if (stopped) {
+        started.stop();
+        return;
+      }
+      preview = started;
+    });
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== "Escape") return;
+      event.preventDefault();
+      setPreviewing(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      stopped = true;
+      window.removeEventListener("keydown", onKeyDown);
+      preview?.stop();
+    };
+  }, [previewing]);
+
+  function startPreview(): void {
+    const handle = handleRef.current;
+    if (!handle) return;
+    editedRef.current = handle.current();
+    setPreviewing(true);
+  }
 
   function selectTool(key: ToolKey): void {
     setToolKey(key);
@@ -140,6 +188,8 @@ function MapEditorStage({ map, onExit }: { map: MapPayload; onExit: () => void }
       setSaving(false);
     }
   }
+
+  if (previewing) return <MapPreviewHint />;
 
   return (
     <div className="map-editor-toolbar">
@@ -176,12 +226,26 @@ function MapEditorStage({ map, onExit }: { map: MapPayload; onExit: () => void }
         <Button type="button" onClick={() => void save()} disabled={saving}>
           {t("editor.save")}
         </Button>
+        <Button type="button" variant="secondary" onClick={startPreview}>
+          {t("editor.preview")}
+        </Button>
         <Button type="button" variant="secondary" onClick={onExit}>
           {t("editor.back")}
         </Button>
       </div>
 
       {error && <p role="alert">{authErrorText(error)}</p>}
+    </div>
+  );
+}
+
+/** While a preview runs, the toolbar is hidden — the sandbox owns the whole canvas — and only this
+ *  hint floats over it, telling the builder how to get back. */
+function MapPreviewHint() {
+  useLocale();
+  return (
+    <div className="map-editor-preview-hint" role="status">
+      {t("editor.preview.hint")}
     </div>
   );
 }

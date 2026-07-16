@@ -957,6 +957,13 @@ export class Renderer {
 
   /** Builds only the current zone's explicitly configured visual content. */
   #buildWorldFurniture(): void {
+    // A wire map (a D1 zone, and the map-editor preview) has no authored furniture: its zone id is
+    // unknown, so `#buildNpc`/`#buildQuestSites` would resolve `zoneDefinition` to the Verdant Reach
+    // fallback and stamp that zone's quest keepers and rune sites onto an unrelated map. The
+    // set-piece/landmark/label/ambient builders read `#visuals` (EMPTY for a wire map) and are
+    // already no-ops; standing the whole thing down keeps the two catalogue-driven builders honest
+    // too — same reason `#buildForestTrees`/`#buildDecor` defer to the element list here.
+    if (this.#mapElements !== null) return;
     this.#buildSetPieces();
     this.#buildLandmarks();
     this.#buildQuestSites();

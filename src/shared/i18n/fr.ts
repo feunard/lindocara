@@ -465,7 +465,9 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.first": "Porte d'entrée",
   "editor.back": "Retour",
   "editor.save": "Enregistrer",
-  "editor.preview": "La peinture arrive dans une prochaine mise à jour.",
+  "editor.preview": "Aperçu",
+  "editor.preview.hint":
+    "Parcourez votre carte avec un guerrier de niveau 1. Appuyez sur Échap pour revenir à l'édition.",
   "editor.tool.grass": "Herbe",
   "editor.tool.water": "Eau",
   "editor.tool.tree": "Arbre",

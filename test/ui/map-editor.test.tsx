@@ -23,6 +23,17 @@ vi.mock("../../src/client/game/map-editor-stage.js", () => ({
   openMapEditorStage: stageMock.openMapEditorStage,
 }));
 
+// The preview is a real Pixi renderer walking a throwaway warrior — untestable in jsdom. A fake
+// starter stands in so the tests can assert the button hands it `current()` and Esc stops it.
+const previewMock = vi.hoisted(() => ({
+  startMapPreview: vi.fn(),
+  stop: vi.fn(),
+}));
+
+vi.mock("../../src/client/game/map-preview.js", () => ({
+  startMapPreview: previewMock.startMapPreview,
+}));
+
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(body === undefined ? null : JSON.stringify(body), {
     status,
@@ -111,6 +122,9 @@ describe("MapEditor", () => {
       setName: stageMock.setName,
       dispose: stageMock.dispose,
     });
+    previewMock.startMapPreview.mockReset();
+    previewMock.stop.mockReset();
+    previewMock.startMapPreview.mockResolvedValue({ stop: previewMock.stop });
   });
 
   /** Opens the first map (m1) into the painting stage and waits until the stage handle is wired,
@@ -263,6 +277,37 @@ describe("MapEditor", () => {
         expect.objectContaining({ method: "PUT", body: JSON.stringify(edited) }),
       ),
     );
+  });
+
+  it("previews the stage's current map, then Esc returns to editing with edits intact", async () => {
+    const edited = {
+      name: "Verdant Reach",
+      blocks: Array.from({ length: 30 }, () => ".".repeat(40)),
+      elements: [{ col: 2, row: 3, kind: "tree", variant: 1 }],
+      spawn: { col: 20, row: 15 },
+    };
+    stageMock.current.mockReturnValue(edited);
+    vi.stubGlobal("fetch", fetchMock());
+    render(<MapEditor />);
+    await openFirstMap();
+
+    // Preview starts the sandbox with the current map (its name stripped to MapData) and hides
+    // the toolbar.
+    await userEvent.click(screen.getByRole("button", { name: "Preview" }));
+    await waitFor(() =>
+      expect(previewMock.startMapPreview).toHaveBeenCalledWith({
+        blocks: edited.blocks,
+        elements: edited.elements,
+        spawn: edited.spawn,
+      }),
+    );
+    expect(screen.queryByRole("button", { name: "Water" })).not.toBeInTheDocument();
+
+    // Esc stops the preview and reopens the editor from the captured edits — not the pristine map.
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(previewMock.stop).toHaveBeenCalled());
+    await screen.findByRole("button", { name: "Water" });
+    expect(stageMock.openMapEditorStage).toHaveBeenLastCalledWith(edited, expect.any(Function));
   });
 
   it("disposes the stage and returns to the list via Back", async () => {
