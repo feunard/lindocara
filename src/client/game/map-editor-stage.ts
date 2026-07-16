@@ -11,12 +11,13 @@
  * React never touches anything in this module but the returned `MapEditorStageHandle`: the toolbar
  * is React, the canvas is Pixi, and the two only meet at `setTool`/`current`/`setName`/`dispose`.
  */
-import { Application, Assets, Container, Graphics, Sprite, type Texture } from "pixi.js";
+import { type Application, Assets, Container, Graphics, Sprite, type Texture } from "pixi.js";
 import { bakeCollision } from "../../shared/map-data.js";
 import { kindAt, TILE_SIZE, type TileMap } from "../../shared/tilemap.js";
 import { landTile, needsFoam, tileVisual } from "./autotile.js";
 import type { EditorMap, EditorTool } from "./editor-state.js";
 import { applyTool } from "./editor-state.js";
+import { acquireStageApp } from "./stage-application.js";
 import { foamFrameAt } from "./terrain-visuals.js";
 import {
   sliceAutotileSheet,
@@ -159,47 +160,25 @@ function inertHandle(map: EditorMap): MapEditorStageHandle {
   };
 }
 
-// The single Pixi Application bound to #stage for the page's life. Pixi 8 cannot re-init a WebGL
-// context on a canvas a prior Application already destroyed — the second `app.init` hangs — so the
-// editor creates its Application exactly once and reuses it across every open, the same way the
-// world renderer keeps one Application for a whole game session. `dispose()` tears down the painted
-// world but leaves this app attached to the canvas, ready to build the next map into.
-let sharedApp: Application | null = null;
-let sharedAppPromise: Promise<Application> | null = null;
-
+// The single Pixi Application bound to #stage now lives in stage-application.ts, created once and
+// shared with the world renderer: playing the game after visiting the editor (no reload) reuses that
+// one app instead of racing a second one onto the canvas. This stays a thin delegate so the build
+// and dispose serialization below reads exactly as before.
 function ensureStageApp(canvas: HTMLCanvasElement): Promise<Application> {
-  if (sharedApp) return Promise.resolve(sharedApp);
-  if (!sharedAppPromise) {
-    sharedAppPromise = (async () => {
-      const app = new Application();
-      await app.init({
-        canvas,
-        background: 0x0a1f1a,
-        resizeTo: window,
-        antialias: false,
-        autoDensity: true,
-        resolution: Math.min(2, window.devicePixelRatio || 1),
-      });
-      // Native DOM pointer/keyboard events carry screen coordinates directly; Pixi's own event
-      // system would add nothing here and cost a hit test per move.
-      app.stage.eventMode = "none";
-      sharedApp = app;
-      return app;
-    })();
-  }
-  return sharedAppPromise;
+  return acquireStageApp(canvas);
 }
 
 /**
  * Opens the painting stage on `#stage` and returns the handle React drives it with. Opens are
  * serialized so only one map is ever mounted on the shared Application at a time, and StrictMode's
  * throwaway first mount builds nothing. `dispose()` tears down the painted world but leaves the
- * Application on the canvas for the next open, because Pixi 8 cannot re-init a destroyed canvas.
+ * shared Application on the canvas for the next consumer, because Pixi 8 cannot re-init a destroyed
+ * canvas.
  *
- * Known limitation: this Application lingers on `#stage` for the page's life, so playing the game
- * after visiting the editor without a reload would put a second renderer on the same canvas. The
- * editor's own open/reopen cycle is unaffected; sharing one renderer between game and editor is a
- * follow-up (see docs/plans/2026-07-16-map-editor-remaining.md).
+ * The Application is the page-wide singleton owned by stage-application.ts, so leaving the editor and
+ * playing the game (no reload) hands that same app to the world renderer rather than putting a second
+ * renderer on the canvas. This stage owns only its own root container, listeners and ticker callback
+ * and removes exactly those in `destroy()`, which is what makes that handoff clean.
  */
 export function openMapEditorStage(
   initial: EditorMap,

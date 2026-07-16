@@ -1,5 +1,5 @@
 import {
-  Application,
+  type Application,
   Assets,
   Container,
   Graphics,
@@ -7,6 +7,7 @@ import {
   Sprite,
   Text,
   Texture,
+  type Ticker,
   TilingSprite,
 } from "pixi.js";
 import type { MainHandItem, OffHandItem, PrimaryColor } from "../../shared/character.js";
@@ -50,6 +51,7 @@ import {
 } from "./enemy-art.js";
 import { MAX_ACTIVE_WORLD_EFFECTS, questSiteFeedback } from "./feedback.js";
 import type { SceneSample } from "./net.js";
+import { acquireStageApp } from "./stage-application.js";
 import type { CombatTarget } from "./targeting.js";
 import {
   foamFrameAt,
@@ -95,7 +97,6 @@ import { cameraAxisOffset, tileWindowForBounds, type WorldBounds } from "./world
 
 const COLORS = {
   grass: 0x173f32,
-  void: 0x050b0d,
   npc: 0xf6c85f,
   hp: 0xe85454,
   hpBack: 0x251f26,
@@ -687,6 +688,12 @@ function reconcile<T extends { id: string }>(
 
 export class Renderer {
   #app: Application;
+  /** The ticker callbacks this renderer added, kept so `destroy()` can remove exactly its own from
+   *  the shared Application's ticker without touching another consumer's or stopping the app. */
+  #frameCallbacks: Array<(ticker: Ticker) => void> = [];
+  /** Unsubscribes this renderer's locale listener; called in `destroy()` so a discarded renderer
+   *  does not keep restyling text nodes it no longer owns. */
+  #localeUnsub: () => void;
   #world = new Container();
   #worldBackground = new Graphics();
   #waterTerrain = new Container();
@@ -763,22 +770,16 @@ export class Renderer {
     private readonly art: ArtTextures,
   ) {
     this.#app = app;
-    onLocaleChange(() => {
+    this.#localeUnsub = onLocaleChange(() => {
       for (const entry of this.#localizedTexts) entry.node.text = entry.compute();
     });
   }
 
   static async create(canvas: HTMLCanvasElement): Promise<Renderer> {
-    const app = new Application();
-    await app.init({
-      canvas,
-      background: COLORS.void,
-      resizeTo: window,
-      antialias: false,
-      autoDensity: true,
-      resolution: Math.min(2, window.devicePixelRatio || 1),
-    });
-
+    // The one Application on #stage, shared with the map editor. It is created once per page and its
+    // init options (background COLORS.void, resize-to-window, no antialias, capped resolution) now
+    // live in stage-application.ts; this consumer only builds its own world onto the returned stage.
+    const app = await acquireStageApp(canvas);
     const renderer = new Renderer(app, await loadArt());
     renderer.#buildWorld();
     return renderer;
@@ -2877,10 +2878,23 @@ export class Renderer {
   }
 
   onFrame(callback: (nowMs: number, deltaSeconds: number) => void): void {
-    this.#app.ticker.add((ticker) => callback(performance.now(), ticker.deltaMS / 1000));
+    const tick = (ticker: Ticker): void => callback(performance.now(), ticker.deltaMS / 1000);
+    this.#frameCallbacks.push(tick);
+    this.#app.ticker.add(tick);
   }
 
+  /**
+   * Detaches this renderer from the shared `#stage` Application without destroying it. The app is
+   * owned by stage-application.ts and outlives any single renderer, so a later consumer (the editor,
+   * a map preview) can build a fresh scene on the same canvas — destroying the app here would leave
+   * the canvas un-re-initializable under Pixi 8. Removes only what this renderer added: its ticker
+   * callbacks, its locale listener and its world container.
+   */
   destroy(): void {
-    this.#app.destroy(true, { children: true });
+    for (const tick of this.#frameCallbacks) this.#app.ticker.remove(tick);
+    this.#frameCallbacks = [];
+    this.#localeUnsub();
+    this.#app.stage.removeChild(this.#world);
+    this.#world.destroy({ children: true });
   }
 }
