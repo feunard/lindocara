@@ -156,18 +156,48 @@ describe("authoritative world geometry", () => {
       ...landmarkColliders,
     ]);
 
+    // A forest is no longer a solid slab. It is trunks with an open canopy row above each, so its
+    // middle can legitimately be a cell you stand in, under the branches. Every OTHER obstacle —
+    // walls, rivers, cliffs, buildings — is still solid through and through.
+    const forestRects = new Set(
+      TERRAIN_BLOCKERS.filter((blocker) => blocker.kind === "forest").map(
+        (blocker) => blocker.rect,
+      ),
+    );
     for (const obstacle of OBSTACLES) {
       expectValidRect(obstacle);
       // Not the corner: the tile grid coarsens a wall's edge by up to one cell, and a corner
       // pixel of a small collider can land in a cell that rounds the other way. The middle of
       // every obstacle is still solidly inside the wall regardless of which way the grid rounds.
-      expect(
-        isWalkable({
-          x: obstacle.x + obstacle.width / 2 - PLAYER_SIZE / 2,
-          y: obstacle.y + obstacle.height / 2 - PLAYER_SIZE / 2,
-        }),
-      ).toBe(false);
+      if (!forestRects.has(obstacle)) {
+        expect(
+          isWalkable({
+            x: obstacle.x + obstacle.width / 2 - PLAYER_SIZE / 2,
+            y: obstacle.y + obstacle.height / 2 - PLAYER_SIZE / 2,
+          }),
+        ).toBe(false);
+      }
       expect(Math.min(obstacle.width, obstacle.height)).toBeGreaterThan(PLAYER_SPEED * TICK_DT);
+    }
+  });
+
+  // Standing under the eaves is the point; strolling through the wood is not. The canopy rows are
+  // open, but the trunk row under each one still stops you, so a forest remains a boundary.
+  it("lets you stand under a canopy but never walk through the forest", () => {
+    const forests = TERRAIN_BLOCKERS.filter((blocker) => blocker.kind === "forest");
+    expect(forests.length).toBeGreaterThan(0);
+    for (const forest of forests) {
+      const { rect } = forest;
+      if (rect.height < TILE_SIZE * 3) continue;
+      const x = rect.x + rect.width / 2 - PLAYER_SIZE / 2;
+      let blocked = false;
+      for (let y = rect.y; y <= rect.y + rect.height - PLAYER_SIZE; y += PLAYER_SIZE / 2) {
+        if (!isWalkable({ x, y })) {
+          blocked = true;
+          break;
+        }
+      }
+      expect(blocked, `${forest.id} must still stop a player crossing it`).toBe(true);
     }
   });
 

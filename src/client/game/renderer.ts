@@ -29,14 +29,7 @@ import type {
   QuestState,
 } from "../../shared/protocol.js";
 import { PLAYER_SIZE } from "../../shared/simulation.js";
-import {
-  isLandKind,
-  isSolidKind,
-  kindAt,
-  kindAtPoint,
-  TILE_SIZE,
-  type TileMap,
-} from "../../shared/tilemap.js";
+import { isSolidKind, kindAt, TILE_SIZE, type TileMap } from "../../shared/tilemap.js";
 import {
   DEFAULT_ZONE_ID,
   type PortalDefinition,
@@ -94,6 +87,9 @@ const COLORS = {
   hp: 0xe85454,
   hpBack: 0x251f26,
   label: 0xf4f0df,
+  /** Only the outline behind world labels now. Every ellipse "shadow" under a prop, a building and
+   *  an actor is gone: Tiny Swords draws its own shadow into each sprite, so the added ones were a
+   *  second, differently-shaped shadow sitting under the real one. */
   shadow: 0x07120f,
   selfRing: 0xf6c85f,
   lootPotion: 0xe66ea8,
@@ -138,14 +134,20 @@ const PORTAL_RING_COLOR = 0x9b7dff;
  *
  * The offsets place the *character*, not the frame. Measured from `Warrior_Blue.png` frame 0: the
  * body sits at bbox (63,45)-(141,136) inside the 192 frame, so its centre is x=102 and its feet are
- * y=136. The actor's own body is 32px wide with its shadow on y=31, so the sprite shifts by
- * (16 - 102) and (31 - 136) to stand the character on that shadow rather than hang the frame off it.
+ * y=136. The actor's own body is 32px wide and its ground line is y=31, so the sprite shifts by
+ * (16 - 102) and (31 - 136) to stand the character on the ground rather than hang the frame off it.
  */
 const UNIT_OFFSET_X = 16 - 102;
 const UNIT_OFFSET_Y = 31 - 136;
 
 interface AtlasData {
   frames: Record<string, { x: number; y: number; w: number; h: number }>;
+}
+
+/** A prop and the one number you need to stand it on a cell: how much empty frame sits under it. */
+interface PropArt {
+  texture: Texture;
+  foot: number;
 }
 
 interface ArtTextures {
@@ -160,7 +162,7 @@ interface ArtTextures {
     foam: readonly Texture[];
   };
   props: {
-    trees: Texture[];
+    trees: PropArt[];
     ruins: Texture[];
     rocks: Texture[];
     mushrooms: Texture[];
@@ -521,10 +523,13 @@ async function loadArt(): Promise<ArtTextures> {
       foam: terrainFoam,
     },
     props: {
-      // Pixel Frog's trees, at Pixel Frog's size. Frame 0 of each sway strip: the props already
-      // move via `#ambientViews`' procedural sway, so playing the sheets too would be two
-      // animations fighting over one tree. The sheets are sliced and ready when that is worth doing.
-      trees: treeFrames.map((frames) => frames[0] ?? Texture.EMPTY),
+      // Pixel Frog's trees, at Pixel Frog's size, carrying the foot offset that stands them on a
+      // cell. Frame 0 of each sway strip: the sheets are sliced and ready when animating them is
+      // worth doing.
+      trees: TINY_SWORDS_TREES.map((sheet, index) => ({
+        texture: treeFrames[index]?.[0] ?? Texture.EMPTY,
+        foot: sheet.foot,
+      })),
       ruins: [
         texture("prop.ruin.gate"),
         texture("prop.ruin.wall"),
@@ -655,10 +660,6 @@ function placeTile(
   tile.position.set(x, y);
   tile.width = width;
   tile.height = height;
-}
-
-function createSoftShadow(width: number, height: number, alpha = 0.36): Graphics {
-  return new Graphics().ellipse(0, 0, width / 2, height / 2).fill({ color: COLORS.shadow, alpha });
 }
 
 function reconcile<T extends { id: string }>(
@@ -965,28 +966,37 @@ export class Renderer {
    * `hashSeed`, and it goes through the same static pool as every other prop in `#groundDecor`,
    * so `#updateStaticVisibility` culls it for free.
    */
+  /**
+   * One tree per trunk cell, standing on the grid.
+   *
+   * A `forest` cell *is* a tree — `build-map.ts` already thinned the forest to trunks with an open
+   * canopy row above each, so there is no second list of tree positions to keep in step with
+   * collision. What you collide with and what you see are the same cell, by construction.
+   *
+   * Nothing here is jittered or randomly sized. The old version nudged every tree by up to ±6px and
+   * scaled it 0.9–1.3x, which is what made a forest look like scattered noise instead of trees: at
+   * native size the art already tiles, and moving it off the grid only breaks the one thing making
+   * it read. The single seeded choice left is *which* of the two sheets, so a treeline is not one
+   * tree stamped in a row.
+   */
   #buildForestTrees(): void {
     const tiles = this.#tiles;
     for (let row = 0; row < tiles.rows; row++) {
       for (let col = 0; col < tiles.cols; col++) {
         if (kindAt(tiles, col, row) !== "forest") continue;
-        const seed = hashSeed(`forest:${col}:${row}`);
-        const centerX = col * TILE_SIZE + TILE_SIZE / 2;
-        const centerY = row * TILE_SIZE + TILE_SIZE / 2;
-        // Jitter is small on purpose: a canopy can overhang into a neighbouring cell, but the
-        // trunk — what you actually collide with — must stay inside the solid cell it was drawn
-        // for, or a player would stop before or inside a tree that visually isn't there.
-        const x = centerX + (seeded(seed + 2) - 0.5) * TILE_SIZE * 0.2;
-        const y = centerY + (seeded(seed + 5) - 0.5) * TILE_SIZE * 0.2;
-        const size = TILE_SIZE * (0.9 + seeded(seed + 8) * 0.4);
+        const variant = hashSeed(`forest:${col}:${row}`) % this.art.props.trees.length;
+        const tree = this.art.props.trees[variant];
+        if (!tree) continue;
+        const x = col * TILE_SIZE + TILE_SIZE / 2;
+        // The bottom of the trunk's own cell, pushed down by the sheet's empty footer so the tree
+        // stands on the cell rather than hovering over it.
+        const y = (row + 1) * TILE_SIZE + tree.foot;
         const container = new Container();
         container.position.set(x, y);
-        container.addChild(createSoftShadow(size * 0.72, size * 0.24, 0.3));
-        const prop = createPropSprite(pickTexture(this.art.props.trees, seed));
-        prop.anchor.set(0.5, 1);
+        const prop = createPropSprite(tree.texture);
         prop.tint = 0xcbd8ae;
         container.addChild(prop);
-        this.#registerStatic(container, x, y, size, this.#forestTreesLayer);
+        this.#registerStatic(container, x, y, TILE_SIZE * 2, this.#forestTreesLayer);
       }
     }
   }
@@ -1008,31 +1018,14 @@ export class Renderer {
    * is small enough or already understood as walk-through set dressing, so it is not held to that
    * rule — only the water check applies to it.
    */
-  #decorTexture(
-    theme: DecorTheme,
-    seed: number,
-  ): { texture: Texture; size: number; tint: number; solid: boolean } {
+  #decorTexture(theme: DecorTheme, seed: number): { texture: Texture; tint: number } {
+    // No trees here, ever. A tree is a forest cell — `#buildForestTrees` draws exactly one per
+    // trunk, so a decor pass that also scattered trees would stack a second tree on a cell that
+    // already has one, which is the rule this whole system exists to enforce. Decor is ground
+    // clutter: what grows *between* the trees.
     if (theme === "forest") {
-      if (seed % 9 === 0)
-        return {
-          texture: pickTexture(this.art.props.mushrooms, seed),
-          size: 22,
-          tint: 0xd8e8b8,
-          solid: false,
-        };
-      if (seed % 7 === 0)
-        return {
-          texture: pickTexture(this.art.props.rocks, seed),
-          size: 28,
-          tint: 0xc8d2af,
-          solid: false,
-        };
-      return {
-        texture: pickTexture(this.art.props.trees, seed),
-        size: 54 + seeded(seed + 6) * 38,
-        tint: 0xd4dfb6,
-        solid: true,
-      };
+      const pool = seed % 3 === 0 ? this.art.props.mushrooms : this.art.props.leaves;
+      return { texture: pickTexture(pool, seed), tint: 0xd8e8b8 };
     }
     if (theme === "marsh" || theme === "wet") {
       const pool =
@@ -1041,63 +1034,42 @@ export class Renderer {
           : seed % 7 === 0
             ? [this.art.props.log, this.art.props.stump]
             : this.art.props.tufts;
-      return {
-        texture: pickTexture(pool, seed),
-        size: seed % 7 === 0 ? 34 : 20 + seeded(seed + 5) * 14,
-        tint: 0xbfd2b0,
-        solid: false,
-      };
+      return { texture: pickTexture(pool, seed), tint: 0xbfd2b0 };
     }
     if (theme === "ruin" || theme === "gate") {
-      const pool = seed % 6 === 0 ? this.art.props.ruins.slice(0, 2) : this.art.props.rocks;
-      return {
-        texture: pickTexture(pool, seed),
-        size: seed % 6 === 0 ? 52 : 24 + seeded(seed + 5) * 24,
-        tint: 0xcacbb4,
-        solid: false,
-      };
+      return { texture: pickTexture(this.art.props.rocks, seed), tint: 0xcacbb4 };
     }
     if (theme === "farm") {
-      const pool =
-        seed % 5 === 0 ? [this.art.props.fence, this.art.props.log] : this.art.props.tufts;
-      return {
-        texture: pickTexture(pool, seed),
-        size: seed % 5 === 0 ? 42 : 18 + seeded(seed + 5) * 10,
-        tint: 0xe0d1a5,
-        solid: false,
-      };
+      const pool = seed % 5 === 0 ? this.art.props.roots : this.art.props.tufts;
+      return { texture: pickTexture(pool, seed), tint: 0xe0d1a5 };
     }
     if (theme === "road") {
-      const pool = seed % 5 === 0 ? [this.art.props.fence] : this.art.props.rocks;
-      return {
-        texture: pickTexture(pool, seed),
-        size: seed % 5 === 0 ? 38 : 20 + seeded(seed + 5) * 14,
-        tint: 0xd8cfaa,
-        solid: false,
-      };
+      return { texture: pickTexture(this.art.props.rocks, seed), tint: 0xd8cfaa };
     }
-    const isTree = seed % 6 === 0;
-    const pool = isTree
-      ? this.art.props.trees
-      : [...this.art.props.tufts, ...this.art.props.leaves];
-    return {
-      texture: pickTexture(pool, seed),
-      size: isTree ? 52 + seeded(seed + 5) * 26 : 18 + seeded(seed + 5) * 10,
-      tint: theme === "village" ? 0xe5dbb7 : 0xe9e1b8,
-      solid: isTree,
-    };
+    const pool = seed % 4 === 0 ? this.art.props.leaves : this.art.props.tufts;
+    return { texture: pickTexture(pool, seed), tint: theme === "village" ? 0xe5dbb7 : 0xe9e1b8 };
   }
 
   #buildDecor(): void {
     const tiles = this.#tiles;
     const safeZone = this.#visuals.safeZone;
+    /** Cells already holding a prop, so a region cannot stack two on one square. */
+    const taken = new Set<string>();
     for (const region of this.#visuals.decorRegions) {
       for (let index = 0; index < region.count; index++) {
         const seed = region.seed + index * 19;
         const angle = seeded(seed + 3) * Math.PI * 2;
         const radius = Math.sqrt(seeded(seed + 9));
-        const x = region.x + Math.cos(angle) * region.radiusX * radius;
-        const y = region.y + Math.sin(angle) * region.radiusY * radius;
+        // The region still *chooses* where clutter clusters, but the cell it lands on is the grid's
+        // to decide: snap to the cell that point falls in and draw on that cell's centre line.
+        // Nothing sits at a pixel nobody chose.
+        const col = Math.floor((region.x + Math.cos(angle) * region.radiusX * radius) / TILE_SIZE);
+        const row = Math.floor((region.y + Math.sin(angle) * region.radiusY * radius) / TILE_SIZE);
+        const cell = `${col}:${row}`;
+        // One prop per cell. Two bushes on one square is the same mistake as two trees on one.
+        if (taken.has(cell)) continue;
+        const x = col * TILE_SIZE + TILE_SIZE / 2;
+        const y = (row + 1) * TILE_SIZE;
         if (x < 120 || y < 120 || x > this.#zoneWidth - 120 || y > this.#zoneHeight - 120) continue;
         if (roadStrength(x, y, this.#visuals.roads) > 0) continue;
         if (this.#nearLandmark(x, y, 70)) continue;
@@ -1109,25 +1081,19 @@ export class Renderer {
           y < safeZone.y + safeZone.height - 110;
         if (inSquare) continue;
 
-        const selection = this.#decorTexture(region.theme, seed);
-        // What you see must be what you collide with: a prop floating over water is a lie, and
-        // so is a "solid" tree standing on ground a player can walk straight through. The tile
-        // grid — not the pre-image rects this scatter used to trust — is the one truth for both.
-        const kind = kindAtPoint(tiles, x, y);
-        if (!isLandKind(kind)) continue;
-        if (selection.solid && !isSolidKind(kind)) continue;
+        // Clutter grows on open ground. `forest` cells are trunks and already hold a tree; water is
+        // water. What you see must be what you collide with, and the tile grid is the one truth.
+        const kind = kindAt(tiles, col, row);
+        if (kind !== "grass") continue;
 
+        taken.add(cell);
+        const selection = this.#decorTexture(region.theme, seed);
         const container = new Container();
         container.position.set(x, y);
-        if (selection.size > 34) {
-          container.addChild(createSoftShadow(selection.size * 0.76, selection.size * 0.25, 0.24));
-        }
         const prop = createPropSprite(selection.texture);
-        prop.anchor.set(0.5, 1);
         prop.tint = selection.tint;
-        prop.alpha = 0.78 + seeded(seed + 11) * 0.2;
         container.addChild(prop);
-        this.#registerStatic(container, x, y, selection.size + 22, this.#decorLayer);
+        this.#registerStatic(container, x, y, TILE_SIZE * 2, this.#decorLayer);
       }
     }
   }
@@ -1169,7 +1135,6 @@ export class Renderer {
   #buildRoadSign(poi: PointOfInterest): void {
     const sign = new Container();
     sign.position.set(poi.x, poi.y);
-    sign.addChild(createSoftShadow(76, 16, 0.34));
     const board = createPropSprite(this.art.signBoard);
     board.anchor.set(0.5, 1);
     board.position.set(0, 0);
@@ -1361,8 +1326,6 @@ export class Renderer {
       if (landmark.kind === "sacred_tree") {
         container.addChild(
           new Graphics()
-            .ellipse(landmark.width / 2, landmark.height - 28, landmark.width * 0.4, 34)
-            .fill({ color: COLORS.shadow, alpha: 0.42 })
             .circle(landmark.width / 2, landmark.height * 0.54, landmark.width * 0.42)
             .stroke({ width: 4, color: 0xf0d98b, alpha: 0.18 }),
         );
@@ -1376,17 +1339,12 @@ export class Renderer {
           sprite.rotation = (root - 3) * 0.18;
           container.addChild(sprite);
         }
-        const tree = createPropSprite(pickTexture(this.art.props.trees, 0));
+        const tree = createPropSprite(this.art.props.trees[0]?.texture ?? Texture.EMPTY);
         tree.anchor.set(0.5, 1);
         tree.position.set(landmark.width / 2, landmark.height);
         tree.tint = 0xf0e5b1;
         container.addChild(tree);
       } else if (landmark.kind === "dungeon_gate") {
-        container.addChild(
-          new Graphics()
-            .ellipse(landmark.width / 2, landmark.height - 12, landmark.width * 0.48, 30)
-            .fill({ color: COLORS.shadow, alpha: 0.55 }),
-        );
         for (let part = 0; part < 5; part++) {
           const prop = createPropSprite(pickTexture(this.art.props.ruins, part < 2 ? 1 : 0));
           prop.anchor.set(0.5, 1);
@@ -1399,8 +1357,6 @@ export class Renderer {
       } else if (landmark.kind === "graveyard") {
         container.addChild(
           new Graphics()
-            .ellipse(landmark.width / 2, landmark.height - 5, landmark.width * 0.43, 18)
-            .fill({ color: COLORS.shadow, alpha: 0.3 })
             .ellipse(landmark.width / 2, landmark.height + 32, landmark.width * 0.48, 22)
             .fill({ color: 0x324348, alpha: 0.16 }),
         );
@@ -1425,11 +1381,6 @@ export class Renderer {
         this.#addTorch(container, landmark.width + 18, landmark.height + 14);
       } else {
         const isBuilding = landmark.kind === "building" || landmark.kind === "farm";
-        container.addChild(
-          new Graphics()
-            .ellipse(landmark.width / 2, landmark.height - 12, landmark.width * 0.46, 24)
-            .fill({ color: COLORS.shadow, alpha: isBuilding ? 0.48 : 0.4 }),
-        );
         const pool = isBuilding ? this.art.buildings : this.art.props.ruins;
         const artIndex = isBuilding ? (CITY_BUILDING_ART[landmark.id] ?? index) : index;
         const prop = createPropSprite(pickTexture(pool, artIndex));
@@ -1520,11 +1471,6 @@ export class Renderer {
       const container = new Container();
       container.position.set(site.x, site.y);
       container.zIndex = site.y + PLAYER_SIZE;
-      container.addChild(
-        new Graphics()
-          .ellipse(0, 8, site.kind === "ward" ? 34 : 24, site.kind === "ward" ? 11 : 8)
-          .fill({ color: COLORS.shadow, alpha: 0.5 }),
-      );
       const signal = new Graphics()
         .circle(0, -18, 30)
         .stroke({ width: 3, color: 0xffdf77, alpha: 0.9 })
@@ -1907,7 +1853,6 @@ export class Renderer {
     const actor = new Container();
     actor.pivot.set(16, 17);
     actor.position.set(16, 17);
-    const shadow = new Graphics().ellipse(16, 31, 16, 6).fill({ color: COLORS.shadow, alpha: 0.6 });
     const animations = playerAnimations(player, this.art.units);
     const unitSprite = new Sprite(animations.idle[0]);
     unitSprite.width = TINY_SWORDS_UNIT_FRAME;
@@ -1922,7 +1867,7 @@ export class Renderer {
       .stroke({ width: 3, color: 0x7dd8ff, alpha: 0.95 });
     targetRing.visible = false;
     const flash = new Graphics().roundRect(3, -8, 28, 40, 10).fill({ color: 0xffffff, alpha: 0 });
-    actor.addChild(shadow, selfRing, targetRing);
+    actor.addChild(selfRing, targetRing);
     actor.addChild(unitSprite, flash);
     container.addChild(actor);
     const hp = new Graphics();
@@ -1971,9 +1916,6 @@ export class Renderer {
     actor.pivot.set(18, 20);
     actor.position.set(18, 20);
     const metrics = ENEMY_RENDER_METRICS[monster.species];
-    const shadow = new Graphics()
-      .ellipse(18, 33, metrics.shadowWidth, metrics.shadowHeight)
-      .fill({ color: COLORS.shadow, alpha: 0.42 });
     const targetRing = new Graphics()
       .ellipse(18, 33, metrics.shadowWidth + 5, metrics.shadowHeight + 4)
       .stroke({ width: 3, color: 0xff6b62, alpha: 0.95 });
@@ -1985,7 +1927,7 @@ export class Renderer {
     unitSprite.anchor.set(0.5, 1);
     unitSprite.position.set(18, metrics.spriteY);
     const flash = new Graphics().ellipse(18, 18, 25, 21).fill({ color: 0xffffff, alpha: 0 });
-    actor.addChild(shadow, targetRing, unitSprite, flash);
+    actor.addChild(targetRing, unitSprite, flash);
     container.addChild(actor);
     const hp = new Graphics();
     hp.label = "hp";
@@ -2052,9 +1994,6 @@ export class Renderer {
       { class: "warrior", appearance: { body: "wayfarer", primaryColor: "moss" } },
       this.art.units,
     );
-    const shadow = new Graphics()
-      .ellipse(16, 31, 18, 7)
-      .fill({ color: COLORS.shadow, alpha: 0.62 });
     const ring = new Graphics()
       .ellipse(16, 31, 20, 8)
       .stroke({ width: 2, color: 0xf6c85f, alpha: 0.55 });
@@ -2069,7 +2008,7 @@ export class Renderer {
     unitSprite.width = TINY_SWORDS_UNIT_FRAME;
     unitSprite.height = TINY_SWORDS_UNIT_FRAME;
     unitSprite.position.set(UNIT_OFFSET_X, UNIT_OFFSET_Y);
-    actor.addChild(shadow, ring, targetRing, unitSprite);
+    actor.addChild(ring, targetRing, unitSprite);
     container.addChild(actor);
     const hp = new Graphics();
     hp.label = "hp";
@@ -2113,9 +2052,6 @@ export class Renderer {
     const actor = new Container();
     actor.pivot.set(18, 20);
 
-    const shadow = new Graphics()
-      .ellipse(16, 30, 20, 7)
-      .fill({ color: COLORS.shadow, alpha: 0.45 });
     const frames = playerAnimations(corpse, this.art.units);
     // Your body is the same sprite you were standing up in, so it is the same size. This one is
     // anchored rather than offset — it lies rotated over its own grave — so only the size changes.
@@ -2136,7 +2072,7 @@ export class Renderer {
       .stroke({ width: 1, color: 0xa8dcff, alpha: 0.28 });
     wisp.position.set(18, 2);
 
-    container.addChild(shadow, actor, wisp);
+    container.addChild(actor, wisp);
     this.#actors.addChild(container);
     return { container, data: corpse, actor, flash: wisp, phase: phaseFor(corpse.id) };
   }

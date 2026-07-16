@@ -45,24 +45,43 @@ export interface DecorSheet {
   /** Width and height of one frame. Sheets are single-row horizontal strips. */
   readonly frame: number;
   readonly frames: number;
+  /** Empty pixels between the object's base and the bottom of its frame. A sheet drawn with its
+   *  frame flush to the ground floats by exactly this much; subtract it to stand the object on the
+   *  cell instead of the frame. Measured from the sheet, not guessed. */
+  readonly foot: number;
 }
 
 const TERRAIN_ROOT = `${TINY_SWORDS_ROOT}/terrain`;
 const DECO_ROOT = `${TINY_SWORDS_ROOT}/deco`;
 
-/** Trees sway on their own: 6 frames at 256px for the big two, 8 at 192px for the smaller pair. */
+/**
+ * The forest's trees — `Tree3` and `Tree4` only, and that is a measurement, not a preference.
+ *
+ * A forest cell is one tree standing on two grid squares: a solid trunk, and the canopy above it
+ * you walk under. Only these two are drawn to fit that. Measured from their own sheets:
+ *
+ * | sheet | content    | tiles     |
+ * | ----- | ---------- | --------- |
+ * | Tree3 | 90x146     | 1.4 x 2.3 |
+ * | Tree4 | 80x122     | 1.2 x 1.9 |
+ * | Tree1 | 219x190    | 3.4 x 3.0 |
+ * | Tree2 | 213x244    | 3.3 x 3.8 |
+ *
+ * Tree1/Tree2 are three-and-a-half tiles wide. Put one on a 64px cell and it covers its
+ * neighbours whole — which is exactly what the forest looked like before this. They are feature
+ * trees for a landmark, not forest fill, and they are left out here until something places them
+ * deliberately.
+ */
 export const TINY_SWORDS_TREES: readonly DecorSheet[] = [
-  { source: `${TERRAIN_ROOT}/Tree1.png`, frame: 256, frames: 6 },
-  { source: `${TERRAIN_ROOT}/Tree2.png`, frame: 256, frames: 6 },
-  { source: `${TERRAIN_ROOT}/Tree3.png`, frame: 192, frames: 8 },
-  { source: `${TERRAIN_ROOT}/Tree4.png`, frame: 192, frames: 8 },
+  { source: `${TERRAIN_ROOT}/Tree3.png`, frame: 192, frames: 8, foot: 22 },
+  { source: `${TERRAIN_ROOT}/Tree4.png`, frame: 192, frames: 8, foot: 24 },
 ] as const;
 
 export const TINY_SWORDS_BUSHES: readonly DecorSheet[] = [
-  { source: `${TERRAIN_ROOT}/Bushe1.png`, frame: 128, frames: 8 },
-  { source: `${TERRAIN_ROOT}/Bushe2.png`, frame: 128, frames: 8 },
-  { source: `${TERRAIN_ROOT}/Bushe3.png`, frame: 128, frames: 8 },
-  { source: `${TERRAIN_ROOT}/Bushe4.png`, frame: 128, frames: 8 },
+  { source: `${TERRAIN_ROOT}/Bushe1.png`, frame: 128, frames: 8, foot: 49 },
+  { source: `${TERRAIN_ROOT}/Bushe2.png`, frame: 128, frames: 8, foot: 52 },
+  { source: `${TERRAIN_ROOT}/Bushe3.png`, frame: 128, frames: 8, foot: 44 },
+  { source: `${TERRAIN_ROOT}/Bushe4.png`, frame: 128, frames: 8, foot: 49 },
 ] as const;
 
 /** Still sprites — no strip, no frames. */

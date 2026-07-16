@@ -164,13 +164,37 @@ describe("the generated Verdant Reach tilemap", () => {
     }
   });
 
-  // Slice 1 labelled every solid cell "water" because the generator only had an untyped rect list.
-  // Restoring the kinds must change what each cell LOOKS like and nothing about what it DOES.
-  // If this fails, collision moved a second time and the whole slice is unsafe.
-  it("keeps the solid mask bit-identical to the collision the game already ships", () => {
+  // This used to demand the solid mask be bit-identical to the rect union. It no longer can be, and
+  // that is the point: a forest is now trunks with an open canopy row above each, so you can stand
+  // in under the branches instead of colliding with a wall of leaves.
+  //
+  // The guarantee is therefore narrower but still exact — collision may only ever OPEN, only on a
+  // canopy cell, and only directly above a trunk. Water and buildings must not move by one cell.
+  // If this fails, something other than the forest thinning changed collision.
+  it("opens collision only where a canopy sits over a trunk, and nowhere else", () => {
     const SOLID_BEFORE = solidMaskFromSlice1();
     const solidNow = VERDANT_REACH_TILES.kinds.map((kind) => (isSolidKind(kind) ? 1 : 0));
-    expect(solidNow).toEqual(SOLID_BEFORE);
+    expect(solidNow.length).toBe(SOLID_BEFORE.length);
+
+    let opened = 0;
+    for (let index = 0; index < solidNow.length; index++) {
+      if (solidNow[index] === SOLID_BEFORE[index]) continue;
+      const col = index % VERDANT_REACH_TILES.cols;
+      const row = Math.floor(index / VERDANT_REACH_TILES.cols);
+      const where = `cell ${col},${row}`;
+
+      // Never the other way: nothing that was walkable may start blocking.
+      expect(SOLID_BEFORE[index], `${where} must have been solid`).toBe(1);
+      expect(solidNow[index], `${where} must now be open`).toBe(0);
+      // It opened because it is a canopy: grass, with the tree it belongs to directly below.
+      expect(kindAt(VERDANT_REACH_TILES, col, row), `${where} is a canopy`).toBe("grass");
+      expect(kindAt(VERDANT_REACH_TILES, col, row + 1), `${where} stands over a trunk`).toBe(
+        "forest",
+      );
+      opened++;
+    }
+    // The thinning must actually have run. Zero would mean this test proves nothing.
+    expect(opened).toBeGreaterThan(0);
   });
 
   it("labels the forests as forest, the water as water, and the ground under buildings as building", () => {
