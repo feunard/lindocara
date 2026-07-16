@@ -90,6 +90,16 @@ export interface GameHandle {
   attachWorldMap(canvas: HTMLCanvasElement | null): void;
 }
 
+/**
+ * Task 9 ships list mode only (fetch, create, delete, flag the front door) — no canvas exists
+ * yet, so this is a placeholder just big enough to give the store slot a type. Task 10 owns the
+ * real stage: attaching the paint canvas, tool selection, and whatever else the editing surface
+ * needs, extending this interface rather than replacing the slot.
+ */
+export interface MapEditorStageHandle {
+  dispose(): void;
+}
+
 export interface ReconnectState {
   kind: "transition" | "network";
   attempt: number;
@@ -97,7 +107,7 @@ export interface ReconnectState {
 }
 
 interface UiState {
-  screen: "boot" | "auth" | "characters" | "game";
+  screen: "boot" | "auth" | "characters" | "game" | "map-editor";
   characters: CharacterSummary[] | null;
   self: SelfHud | null;
   selfState: SelfState | null;
@@ -127,6 +137,7 @@ interface UiState {
   worldSize: { width: number; height: number } | null;
   reconnect: ReconnectState | null;
   game: GameHandle | null;
+  mapEditor: MapEditorStageHandle | null;
 
   setScreen(screen: UiState["screen"]): void;
   setCharacters(characters: CharacterSummary[] | null): void;
@@ -152,6 +163,7 @@ interface UiState {
   setWorldSize(size: { width: number; height: number } | null): void;
   setReconnect(reconnect: ReconnectState | null): void;
   setGame(game: GameHandle | null): void;
+  setMapEditor(mapEditor: MapEditorStageHandle | null): void;
   /** Everything a terminal disconnect must clear before character select is usable again: the
    *  handle, the reconnect banner, and every full-screen overlay flag. Miss one and it survives
    *  into the next character's session, already open over a world that has not welcomed it. */
@@ -253,6 +265,7 @@ export const useUiStore = create<UiState>((set) => ({
   worldSize: null,
   reconnect: null,
   game: null,
+  mapEditor: null,
 
   setScreen: (screen) => set({ screen }),
   setCharacters: (characters) => set({ characters }),
@@ -333,6 +346,7 @@ export const useUiStore = create<UiState>((set) => ({
   setWorldSize: (worldSize) => set({ worldSize }),
   setReconnect: (reconnect) => set({ reconnect }),
   setGame: (game) => set({ game }),
+  setMapEditor: (mapEditor) => set({ mapEditor }),
   resetToCharacterSelect: () =>
     set({
       game: null,

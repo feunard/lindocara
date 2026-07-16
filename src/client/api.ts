@@ -1,6 +1,7 @@
 import type { CharacterAppearance, Equipment } from "../shared/character.js";
 import type { PlayerClass } from "../shared/game.js";
 import type { MessageKey } from "../shared/i18n/index.js";
+import type { MapElement } from "../shared/map-data.js";
 import { t } from "./i18n.js";
 
 export interface Me {
@@ -49,6 +50,33 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 export const fetchMe = () => api<Me>("/api/me").catch(() => null);
 export const fetchCharacters = () => api<CharacterSummary[]>("/api/characters");
 
+export interface MapSummary {
+  id: string;
+  name: string;
+  isFirst: boolean;
+}
+
+export interface MapPayload {
+  id: string;
+  name: string;
+  blocks: string[];
+  elements: MapElement[];
+  spawn: { col: number; row: number };
+}
+
+/** What create/update send: everything but the server-minted id. */
+export type MapSaveInput = Omit<MapPayload, "id">;
+
+export const fetchMaps = () => api<MapSummary[]>("/api/maps");
+export const fetchMap = (id: string) => api<MapPayload>(`/api/maps/${id}`);
+export const createMapApi = (input: MapSaveInput) =>
+  api<MapPayload>("/api/maps", { method: "POST", body: JSON.stringify(input) });
+export const updateMapApi = (id: string, input: MapSaveInput) =>
+  api<MapPayload>(`/api/maps/${id}`, { method: "PUT", body: JSON.stringify(input) });
+export const deleteMapApi = (id: string) => api<void>(`/api/maps/${id}`, { method: "DELETE" });
+export const flagFirstMapApi = (id: string) =>
+  api<void>(`/api/maps/${id}/first`, { method: "POST" });
+
 /** Stable machine codes (from ApiError, or synthesized client-side) mapped to i18n keys. */
 export const ERROR_KEYS: Record<string, MessageKey> = {
   username_taken: "auth.error.username_taken",
@@ -62,6 +90,13 @@ export const ERROR_KEYS: Record<string, MessageKey> = {
   invalid_class: "chars.error.invalid_class",
   session_expired: "auth.error.session_expired",
   presence_error: "auth.error.presence",
+  map_placement: "editor.error.placement",
+  map_spawn: "editor.error.spawn",
+  map_size: "editor.error.size",
+  map_name: "editor.error.name",
+  map_invalid: "editor.error.invalid",
+  map_not_found: "editor.error.not_found",
+  last_map: "editor.error.last_map",
 };
 
 export function errorCode(error: unknown): string {

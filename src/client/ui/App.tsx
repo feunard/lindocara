@@ -14,6 +14,7 @@ import { Minimap } from "./hud/Minimap.js";
 import { TargetFrame } from "./hud/TargetFrame.js";
 import { InteriorOverlay } from "./InteriorOverlay.js";
 import { LocaleToggle } from "./LocaleToggle.js";
+import { MapEditor } from "./MapEditor.js";
 import { MobileControls } from "./MobileControls.js";
 import { Prompt } from "./Prompt.js";
 import { SettingsMenu } from "./SettingsMenu.js";
@@ -39,6 +40,7 @@ export function App() {
       <StatusBar />
       {screen === "auth" && <AuthScreen />}
       {screen === "characters" && <CharacterSelect onPlay={play} />}
+      {screen === "map-editor" && <MapEditor />}
       {screen === "game" && (
         <>
           <Hud />

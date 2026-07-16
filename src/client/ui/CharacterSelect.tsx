@@ -55,9 +55,14 @@ export function CharacterSelect({ onPlay }: { onPlay(character: CharacterSummary
           <h1>{t("chars.title")}</h1>
           <p>{t("chars.roster.subtitle")}</p>
         </div>
-        <Button type="button" variant="secondary" onClick={() => void logout()}>
-          {t("chars.logout")}
-        </Button>
+        <div className="roster-header__actions">
+          <Button type="button" variant="secondary" onClick={() => setScreen("map-editor")}>
+            {t("chars.mapEditor")}
+          </Button>
+          <Button type="button" variant="secondary" onClick={() => void logout()}>
+            {t("chars.logout")}
+          </Button>
+        </div>
       </header>
 
       <section className="roster-grid" aria-label={t("chars.title")}>
