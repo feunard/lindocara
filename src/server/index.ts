@@ -10,7 +10,13 @@ import { normalizeAppearance } from "../shared/character.js";
 import { WS_CLOSE } from "../shared/close-codes.js";
 import { isValidClass } from "../shared/game.js";
 import { isUuid } from "../shared/identifiers.js";
-import { isValidInstanceId } from "../shared/zones.js";
+import { mapSpawnPoint } from "../shared/map-data.js";
+import {
+  isKnownZone,
+  isValidInstanceId,
+  resolveZoneLocation,
+  type ZoneLocation,
+} from "../shared/zones.js";
 import { accountExists, createAccount, verifyCredentials } from "./accounts.js";
 import {
   characterOwnedBy,
@@ -21,8 +27,8 @@ import {
   listCharacters,
 } from "./characters.js";
 import { createDb } from "./db/index.js";
-import { resolveMapFor } from "./maps.js";
-import { loadProfile } from "./profile.js";
+import { resolveMapFor, type StoredMap } from "./maps.js";
+import { loadProfile, relocateProfile } from "./profile.js";
 import {
   clearSessionCookie,
   createSession,
@@ -186,14 +192,23 @@ async function handleJoin(request: Request, env: Env, url: URL): Promise<Respons
   if (!owned) return json({ error: "forbidden" }, { status: 403 });
   const profile = await loadProfile(createDb(env.DB), owned.id);
   if (!profile) return json({ error: "not_found" }, { status: 404 });
-  // D1 owns where a map is, so D1 owns where a character is. `resolveMapFor` never throws: their
-  // own map, or the front door if it was deleted under them, or the built-in floor on an empty
-  // database. A character with a broken location still has to be able to log in.
-  const stored = await resolveMapFor(createDb(env.DB), profile.zoneId);
   if (!isValidInstanceId(profile.instanceId)) {
     return closedWebSocket(WS_CLOSE.INVALID_LOCATION, "invalid character location");
   }
-  const location = locationFromMap(stored, profile.instanceId);
+  // Hybrid routing: a catalogue id keeps its compiled-in zone — content, quests, tests and all.
+  // Anything else is a D1 map id, resolved HERE and only here; the room trusts what it was
+  // admitted for. `resolveMapFor` never throws: own map, or the front door, or the built-in floor.
+  let location: ZoneLocation;
+  let fallbackMap: StoredMap | null = null;
+  if (isKnownZone(profile.zoneId)) {
+    const legacy = resolveZoneLocation(profile.zoneId, profile.instanceId);
+    if (!legacy) return closedWebSocket(WS_CLOSE.INVALID_LOCATION, "invalid character location");
+    location = legacy;
+  } else {
+    const stored = await resolveMapFor(createDb(env.DB), profile.zoneId);
+    fallbackMap = stored.id !== profile.zoneId ? stored : null;
+    location = locationFromMap(stored, fallbackMap ? "main" : profile.instanceId);
+  }
 
   const connectionId = crypto.randomUUID();
   let sessionEpoch: number;
@@ -215,6 +230,18 @@ async function handleJoin(request: Request, env: Env, url: URL): Promise<Respons
       }),
     );
     return closedWebSocket(WS_CLOSE.PRESENCE_ERROR, "presence acquisition failed");
+  }
+
+  if (fallbackMap) {
+    // The requirement "their map is gone → move to the first map" is a real move: persist it under
+    // the lease we just acquired, or the room will (rightly) refuse the profile/location mismatch.
+    const spawn = mapSpawnPoint(fallbackMap);
+    const moved = await relocateProfile(
+      createDb(env.DB),
+      { id: owned.id, sessionEpoch },
+      { zoneId: fallbackMap.id, instanceId: "main", x: spawn.x, y: spawn.y },
+    );
+    if (!moved) return closedWebSocket(WS_CLOSE.PRESENCE_ERROR, "relocation lost the lease");
   }
 
   const stub = env.WORLD.getByName(location.roomKey);

@@ -69,15 +69,17 @@ import {
 import { encodeTileMap } from "../shared/tilemap-codec.js";
 import { replaceWorldCache } from "../shared/world-delta.js";
 import {
+  isKnownZone,
   isValidInstanceId,
   type PortalDefinition,
+  resolveZoneLocation,
   type ZoneDefinition,
   type ZoneLocation,
 } from "../shared/zones.js";
 import { claimQuestReward, consumeOwnedItem } from "./character-persistence.js";
 import { createDb } from "./db/index.js";
 import { HEALTH_POTION_ID } from "./items.js";
-import { resolveMapFor } from "./maps.js";
+import { BUILTIN_MAP, BUILTIN_MAP_ID, loadMap } from "./maps.js";
 import { loadProfile, saveProfile } from "./profile.js";
 import {
   guardedDamage,
@@ -178,16 +180,11 @@ export class World extends DurableObject<Env> {
       for (const ws of ctx.getWebSockets()) {
         const attachment = ws.deserializeAttachment() as Attachment | null;
         if (!attachment) continue;
-        // Waking from hibernation with live sockets: the map has to come back from D1 like it did
-        // on admission, because it is no longer something this build has compiled in. We are inside
-        // blockConcurrencyWhile, so awaiting here is what it is for.
+        // Waking from hibernation with live sockets: the room re-resolves exactly what it was
+        // admitted for. We are inside blockConcurrencyWhile, so awaiting here is what it is for.
         const zoneId = attachment.zoneId ?? null;
         const instanceId = attachment.instanceId ?? "main";
-        const stored =
-          zoneId === null || !isValidInstanceId(instanceId)
-            ? null
-            : await resolveMapFor(createDb(env.DB), zoneId);
-        const location = stored === null ? null : locationFromMap(stored, instanceId);
+        const location = await this.#locateRoom(zoneId, instanceId);
         if (!location) {
           ws.close(WS_CLOSE.PRESENCE_LOST, "invalid character location");
           continue;
@@ -260,6 +257,22 @@ export class World extends DurableObject<Env> {
     for (const monster of this.#monsters) this.#monsterGrid.insert(monster);
   }
 
+  /**
+   * Exact-id room location. Catalogue zones come from the compiled catalogue; a D1 map id loads
+   * THAT map — never `resolveMapFor`. The fallback belongs at the front door: a room that silently
+   * re-resolves is a room that can disagree with the lease it was admitted under.
+   */
+  async #locateRoom(
+    zoneId: string | null,
+    instanceId: string | null,
+  ): Promise<ZoneLocation | null> {
+    if (zoneId === null || !isValidInstanceId(instanceId)) return null;
+    if (isKnownZone(zoneId)) return resolveZoneLocation(zoneId, instanceId);
+    const stored =
+      zoneId === BUILTIN_MAP_ID ? BUILTIN_MAP : await loadMap(createDb(this.env.DB), zoneId);
+    return stored === null ? null : locationFromMap(stored, instanceId);
+  }
+
   #zone(): ZoneDefinition {
     if (!this.#location) throw new Error("world was not initialized with a zone");
     return this.#location.definition;
@@ -326,12 +339,7 @@ export class World extends DurableObject<Env> {
     // The room loads its own map rather than trusting the header to describe it. The header only
     // says WHICH map; D1 says what it is. `roomKey` must still match, so a header cannot point a
     // room at a map it was not admitted for.
-    const stored =
-      zoneId === null || !isValidInstanceId(instanceId)
-        ? null
-        : await resolveMapFor(createDb(this.env.DB), zoneId);
-    const location =
-      stored === null || instanceId === null ? null : locationFromMap(stored, instanceId);
+    const location = await this.#locateRoom(zoneId, instanceId);
     if (!location || location.roomKey !== roomKey) {
       return this.#closedSocket(WS_CLOSE.INVALID_LOCATION, "room.invalid_location");
     }
@@ -1241,14 +1249,12 @@ export class World extends DurableObject<Env> {
     portal: PortalDefinition,
     now: number,
   ): Promise<void> {
-    // A portal names a destination map; D1 says whether it still exists. `resolveMapFor` falls back
-    // to the front door rather than stranding anyone at a gate to a map somebody deleted.
-    const destinationMap = isValidInstanceId(portal.destination.instanceId)
-      ? await resolveMapFor(createDb(this.env.DB), portal.destination.zoneId)
-      : null;
-    const destination = destinationMap
-      ? locationFromMap(destinationMap, portal.destination.instanceId)
-      : null;
+    // A portal only ever names a catalogue zone this session — content pointing at a D1 map is not
+    // a thing a portal does today, so this stays the pure lookup `main` uses, no D1 round trip.
+    const destination = resolveZoneLocation(
+      portal.destination.zoneId,
+      portal.destination.instanceId,
+    );
     if (!destination || player.transitioning) {
       this.#send(ws, { t: "event", code: "zone.transition_denied", tone: "bad" });
       return;
