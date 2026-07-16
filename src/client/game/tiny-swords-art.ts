@@ -29,6 +29,75 @@ export const TINY_SWORDS_FOAM_FRAME = 192;
 export const TINY_SWORDS_FOAM_FRAMES = 8;
 
 /**
+ * The pack's own props, at the pack's own sizes.
+ *
+ * **Every frame size here is deliberate and must not be "fitted" to a box.** Tiny Swords is drawn
+ * as one coherent set against a 64px grid: a unit frame is 192, a big tree 256, a bush 128, a
+ * pebble 64. Those numbers *are* the scale system — draw each at its native size and a knight
+ * stands correctly against a tree without anyone choosing a number. Scale them to fit arbitrary
+ * boxes and you have thrown away the only thing making the art agree with itself, and no amount of
+ * per-prop tuning gets it back.
+ *
+ * Measured, not guessed — `assets/index.json` records the sheet dimensions and frame runs.
+ */
+export interface DecorSheet {
+  readonly source: string;
+  /** Width and height of one frame. Sheets are single-row horizontal strips. */
+  readonly frame: number;
+  readonly frames: number;
+}
+
+const TERRAIN_ROOT = `${TINY_SWORDS_ROOT}/terrain`;
+const DECO_ROOT = `${TINY_SWORDS_ROOT}/deco`;
+
+/** Trees sway on their own: 6 frames at 256px for the big two, 8 at 192px for the smaller pair. */
+export const TINY_SWORDS_TREES: readonly DecorSheet[] = [
+  { source: `${TERRAIN_ROOT}/Tree1.png`, frame: 256, frames: 6 },
+  { source: `${TERRAIN_ROOT}/Tree2.png`, frame: 256, frames: 6 },
+  { source: `${TERRAIN_ROOT}/Tree3.png`, frame: 192, frames: 8 },
+  { source: `${TERRAIN_ROOT}/Tree4.png`, frame: 192, frames: 8 },
+] as const;
+
+export const TINY_SWORDS_BUSHES: readonly DecorSheet[] = [
+  { source: `${TERRAIN_ROOT}/Bushe1.png`, frame: 128, frames: 8 },
+  { source: `${TERRAIN_ROOT}/Bushe2.png`, frame: 128, frames: 8 },
+  { source: `${TERRAIN_ROOT}/Bushe3.png`, frame: 128, frames: 8 },
+  { source: `${TERRAIN_ROOT}/Bushe4.png`, frame: 128, frames: 8 },
+] as const;
+
+/** Still sprites — no strip, no frames. */
+export const TINY_SWORDS_ROCKS: readonly string[] = [
+  `${TERRAIN_ROOT}/Rock1.png`,
+  `${TERRAIN_ROOT}/Rock2.png`,
+  `${TERRAIN_ROOT}/Rock3.png`,
+  `${TERRAIN_ROOT}/Rock4.png`,
+] as const;
+
+/** 192x256, with the stump itself sitting at the BOTTOM of the frame — it shares the felled tree's
+ *  framing so the two line up. Anchor it like a tree, not like a 192x256 box of stump. */
+export const TINY_SWORDS_STUMPS: readonly string[] = [
+  `${TERRAIN_ROOT}/Stump 1.png`,
+  `${TERRAIN_ROOT}/Stump 2.png`,
+  `${TERRAIN_ROOT}/Stump 3.png`,
+  `${TERRAIN_ROOT}/Stump 4.png`,
+] as const;
+
+/** `Deco/01..18`, all 64px unless noted. Named by what they actually are — the pack numbers them. */
+export const TINY_SWORDS_DECO = {
+  mushrooms: [`${DECO_ROOT}/01.png`, `${DECO_ROOT}/02.png`, `${DECO_ROOT}/03.png`],
+  pebbles: [`${DECO_ROOT}/04.png`, `${DECO_ROOT}/05.png`, `${DECO_ROOT}/06.png`],
+  shrubs: [
+    `${DECO_ROOT}/07.png`,
+    `${DECO_ROOT}/08.png`,
+    `${DECO_ROOT}/09.png`,
+    `${DECO_ROOT}/10.png`,
+    `${DECO_ROOT}/11.png`,
+  ],
+  pumpkins: [`${DECO_ROOT}/12.png`, `${DECO_ROOT}/13.png`],
+  bones: [`${DECO_ROOT}/14.png`, `${DECO_ROOT}/15.png`],
+} as const;
+
+/**
  * Deliberately curated across Tiny Swords factions: roof colour gives each city district an
  * identity while the shared silhouettes/palette keep the town visually coherent.
  */
@@ -62,10 +131,15 @@ export const TINY_SWORDS_BUILDINGS = [
   ).href,
 ] as const;
 
-export const TINY_SWORDS_SIGN_BOARD = new URL(
-  "../../../assets/Tiny Swords (Free Pack)/UI Elements/UI Elements/Banners/Banner.png",
-  import.meta.url,
-).href;
+/**
+ * The pack's own roadside signpost (`Deco/17`), 64x128.
+ *
+ * This was `UI Elements/Banners/Banner.png` — which is 448x448 and belongs in a menu, not staked in
+ * a field. It only ever looked right because it was scaled to 126x72 on the way in; once every prop
+ * draws at native size, a UI asset in the world is a blank parchment slab four tiles wide. The deco
+ * signpost is the thing Pixel Frog drew for this job, and it is already at world scale.
+ */
+export const TINY_SWORDS_SIGN_BOARD = `${TINY_SWORDS_ROOT}/deco/17.png`;
 
 /**
  * Quest-site resources (wood/gold/meat), cropped from the same Tiny Swords Terrain/Resources

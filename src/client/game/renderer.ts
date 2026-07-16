@@ -59,14 +59,20 @@ import type { CombatTarget } from "./targeting.js";
 import { foamFrameAt, pulseTint, terrainTintsAt } from "./terrain-visuals.js";
 import {
   allUnitSheets,
+  type DecorSheet,
   TINY_SWORDS_BUILDINGS,
+  TINY_SWORDS_BUSHES,
+  TINY_SWORDS_DECO,
   TINY_SWORDS_EFFECT_SHEETS,
   TINY_SWORDS_EFFECTS,
   TINY_SWORDS_FOAM_FRAME,
   TINY_SWORDS_FOAM_FRAMES,
   TINY_SWORDS_QUEST_ART,
+  TINY_SWORDS_ROCKS,
   TINY_SWORDS_SIGN_BOARD,
+  TINY_SWORDS_STUMPS,
   TINY_SWORDS_TERRAIN,
+  TINY_SWORDS_TREES,
   TINY_SWORDS_UNIT_FRAME,
   type UnitMotion,
   unitSheet,
@@ -122,6 +128,21 @@ const GRID_SOLID_COLOR = 0xff3b30;
 const GRID_SOLID_ALPHA = 0.22;
 const HITBOX_COLOR = 0x30ff6a;
 const PORTAL_RING_COLOR = 0x9b7dff;
+
+/**
+ * A unit is drawn at its native 192px frame, like every other Tiny Swords sprite.
+ *
+ * It used to be forced to 96 — half scale — which made a knight about half a tile tall standing
+ * beside a house drawn at full size. That is the whole "map and units don't match" problem: the
+ * pack is already in proportion with itself, and shrinking one class of sprite is what broke it.
+ *
+ * The offsets place the *character*, not the frame. Measured from `Warrior_Blue.png` frame 0: the
+ * body sits at bbox (63,45)-(141,136) inside the 192 frame, so its centre is x=102 and its feet are
+ * y=136. The actor's own body is 32px wide with its shadow on y=31, so the sprite shifts by
+ * (16 - 102) and (31 - 136) to stand the character on that shadow rather than hang the frame off it.
+ */
+const UNIT_OFFSET_X = 16 - 102;
+const UNIT_OFFSET_Y = 31 - 136;
 
 interface AtlasData {
   frames: Record<string, { x: number; y: number; w: number; h: number }>;
@@ -395,6 +416,42 @@ async function loadArt(): Promise<ArtTextures> {
         label: `foam:${frame}`,
       }),
   );
+  // Every prop below is loaded at its native size and never resampled: `nearest` keeps the pixels
+  // square, and nothing scales them afterwards. See `createPropSprite`.
+  const loadStills = async (sources: readonly string[]): Promise<Texture[]> => {
+    const loaded = await Promise.all(sources.map((source) => Assets.load<Texture>(source)));
+    for (const item of loaded) item.source.style.scaleMode = "nearest";
+    return loaded;
+  };
+  const loadStrip = async (sheet: DecorSheet): Promise<Texture[]> => {
+    const loaded = await Assets.load<Texture>(sheet.source);
+    loaded.source.style.scaleMode = "nearest";
+    return Array.from(
+      { length: sheet.frames },
+      (_, frame) =>
+        new Texture({
+          source: loaded.source,
+          frame: new Rectangle(frame * sheet.frame, 0, sheet.frame, sheet.frame),
+          label: `${sheet.source}:${frame}`,
+        }),
+    );
+  };
+  const [treeFrames, bushFrames, rockTextures, stumpTextures] = await Promise.all([
+    Promise.all(TINY_SWORDS_TREES.map(loadStrip)),
+    Promise.all(TINY_SWORDS_BUSHES.map(loadStrip)),
+    loadStills(TINY_SWORDS_ROCKS),
+    loadStills(TINY_SWORDS_STUMPS),
+  ]);
+  const decoEntries = await Promise.all(
+    Object.entries(TINY_SWORDS_DECO).map(
+      async ([name, sources]) => [name, await loadStills(sources)] as const,
+    ),
+  );
+  const decoTextures = Object.fromEntries(decoEntries) as Record<
+    keyof typeof TINY_SWORDS_DECO,
+    Texture[]
+  >;
+
   const buildings = await Promise.all(
     TINY_SWORDS_BUILDINGS.map((source) => Assets.load<Texture>(source)),
   );
@@ -464,7 +521,10 @@ async function loadArt(): Promise<ArtTextures> {
       foam: terrainFoam,
     },
     props: {
-      trees: [texture("prop.tree.large"), texture("prop.tree.round"), texture("prop.tree.small")],
+      // Pixel Frog's trees, at Pixel Frog's size. Frame 0 of each sway strip: the props already
+      // move via `#ambientViews`' procedural sway, so playing the sheets too would be two
+      // animations fighting over one tree. The sheets are sliced and ready when that is worth doing.
+      trees: treeFrames.map((frames) => frames[0] ?? Texture.EMPTY),
       ruins: [
         texture("prop.ruin.gate"),
         texture("prop.ruin.wall"),
@@ -475,15 +535,17 @@ async function loadArt(): Promise<ArtTextures> {
         texture("prop.hut.vines"),
         texture("prop.hut.dark"),
       ],
-      rocks: [texture("prop.rock.a"), texture("prop.rock.b"), texture("prop.rock.c")],
-      mushrooms: [texture("prop.mushroom.a"), texture("prop.mushroom.b")],
-      stump: texture("prop.stump"),
-      log: texture("prop.log"),
-      fence: texture("prop.fence"),
-      tufts: [texture("prop.grass.tuft")],
-      leaves: [texture("prop.leaf")],
-      roots: [texture("prop.root")],
-      torch: texture("prop.torch"),
+      rocks: [...rockTextures, ...decoTextures.pebbles],
+      mushrooms: decoTextures.mushrooms,
+      stump: stumpTextures[0] ?? Texture.EMPTY,
+      log: stumpTextures[1] ?? Texture.EMPTY,
+      // No Tiny Swords fence, and inventing one would be the only non-pack sprite left in the
+      // world. A shrub reads as a verge just as well and is the artist's own.
+      fence: decoTextures.shrubs[0] ?? Texture.EMPTY,
+      tufts: decoTextures.shrubs,
+      leaves: bushFrames.map((frames) => frames[0] ?? Texture.EMPTY),
+      roots: decoTextures.bones,
+      torch: decoTextures.pumpkins[0] ?? Texture.EMPTY,
     },
     mainHands: {
       weathered_sword: texture("weapon.sword"),
@@ -556,10 +618,22 @@ function monsterAnimations(
   return result;
 }
 
-function createFittedSprite(texture: Texture, maxWidth: number, maxHeight: number): Sprite {
+/**
+ * A prop at the size Pixel Frog drew it.
+ *
+ * This replaces a `createPropSprite(texture)` that scaled every prop to fit
+ * an arbitrary box — rocks into 22x18, a shelter into 84x78. That is the one thing you must not do
+ * to this pack. Tiny Swords is drawn as a single coherent set against a 64px grid, so a unit frame
+ * (192), a tree (256) and a pebble (64) are already in proportion with each other and with the
+ * ground. Native scale is not a detail here; it is the whole reason the art agrees with itself.
+ *
+ * Anchored at the bottom centre because these things stand on the ground: their footprint is the
+ * bottom of the frame, and a sheet with headroom above the object (the stumps have ~200px of it)
+ * would float if it were centred.
+ */
+function createPropSprite(texture: Texture): Sprite {
   const sprite = new Sprite(texture);
-  const scale = Math.min(maxWidth / texture.width, maxHeight / texture.height);
-  sprite.scale.set(scale);
+  sprite.anchor.set(0.5, 1);
   return sprite;
 }
 
@@ -908,7 +982,7 @@ export class Renderer {
         const container = new Container();
         container.position.set(x, y);
         container.addChild(createSoftShadow(size * 0.72, size * 0.24, 0.3));
-        const prop = createFittedSprite(pickTexture(this.art.props.trees, seed), size, size);
+        const prop = createPropSprite(pickTexture(this.art.props.trees, seed));
         prop.anchor.set(0.5, 1);
         prop.tint = 0xcbd8ae;
         container.addChild(prop);
@@ -1048,7 +1122,7 @@ export class Renderer {
         if (selection.size > 34) {
           container.addChild(createSoftShadow(selection.size * 0.76, selection.size * 0.25, 0.24));
         }
-        const prop = createFittedSprite(selection.texture, selection.size, selection.size);
+        const prop = createPropSprite(selection.texture);
         prop.anchor.set(0.5, 1);
         prop.tint = selection.tint;
         prop.alpha = 0.78 + seeded(seed + 11) * 0.2;
@@ -1084,7 +1158,7 @@ export class Renderer {
     );
     for (let index = 0; index < 8; index++) {
       const angle = (index / 8) * Math.PI * 2;
-      const stone = createFittedSprite(pickTexture(this.art.props.rocks, index), 22, 18);
+      const stone = createPropSprite(pickTexture(this.art.props.rocks, index));
       stone.anchor.set(0.5, 1);
       stone.position.set(Math.cos(angle) * 78, Math.sin(angle) * 48);
       square.addChild(stone);
@@ -1096,7 +1170,7 @@ export class Renderer {
     const sign = new Container();
     sign.position.set(poi.x, poi.y);
     sign.addChild(createSoftShadow(76, 16, 0.34));
-    const board = createFittedSprite(this.art.signBoard, 126, 72);
+    const board = createPropSprite(this.art.signBoard);
     board.anchor.set(0.5, 1);
     board.position.set(0, 0);
     sign.addChild(board);
@@ -1132,12 +1206,10 @@ export class Renderer {
     for (let index = 0; index < 18; index++) {
       const angle = (index / 18) * Math.PI * 2 + seeded(index + 70) * 0.08;
       const radius = 164 + seeded(index + 80) * 22;
-      const prop = createFittedSprite(
+      const prop = createPropSprite(
         index % 3 === 0
           ? pickTexture(this.art.props.rocks, index)
           : pickTexture(this.art.props.tufts, index),
-        index % 3 === 0 ? 23 : 18,
-        index % 3 === 0 ? 18 : 18,
       );
       prop.anchor.set(0.5, 1);
       prop.position.set(Math.cos(angle) * radius, Math.sin(angle) * radius);
@@ -1212,7 +1284,7 @@ export class Renderer {
         .stroke({ width: 2, color: 0xb9dbca, alpha: 0.24 }),
     );
     for (let index = 0; index < 9; index++) {
-      const rock = createFittedSprite(pickTexture(this.art.props.rocks, index), 30, 24);
+      const rock = createPropSprite(pickTexture(this.art.props.rocks, index));
       rock.anchor.set(0.5, 1);
       rock.position.set(-104 + index * 26, Math.sin(index * 1.7) * 18);
       ford.addChild(rock);
@@ -1237,7 +1309,7 @@ export class Renderer {
       [38, 8, 0.7],
       [0, 35, 1.55],
     ] as const) {
-      const log = createFittedSprite(this.art.props.log, 34, 42);
+      const log = createPropSprite(this.art.props.log);
       log.anchor.set(0.5);
       log.position.set(x, y);
       log.rotation = rotation;
@@ -1247,7 +1319,7 @@ export class Renderer {
       [-118, -52],
       [112, -38],
     ] as const) {
-      const shelter = createFittedSprite(pickTexture(this.art.props.ruins, 5), 84, 78);
+      const shelter = createPropSprite(pickTexture(this.art.props.ruins, 5));
       shelter.anchor.set(0.5, 1);
       shelter.position.set(x, y);
       camp.addChild(shelter);
@@ -1268,10 +1340,8 @@ export class Renderer {
     for (let index = 0; index < 14; index++) {
       const angle = (index / 14) * Math.PI * 2;
       const radius = 54 + seeded(index + 410) * 44;
-      const prop = createFittedSprite(
+      const prop = createPropSprite(
         index % 4 === 0 ? this.art.props.stump : pickTexture(this.art.props.mushrooms, index),
-        index % 4 === 0 ? 34 : 22,
-        index % 4 === 0 ? 38 : 24,
       );
       prop.anchor.set(0.5, 1);
       prop.position.set(Math.cos(angle) * radius, Math.sin(angle) * radius);
@@ -1297,11 +1367,7 @@ export class Renderer {
             .stroke({ width: 4, color: 0xf0d98b, alpha: 0.18 }),
         );
         for (let root = 0; root < 7; root++) {
-          const sprite = createFittedSprite(
-            pickTexture(this.art.props.roots, root),
-            30 + root * 2,
-            30 + root * 2,
-          );
+          const sprite = createPropSprite(pickTexture(this.art.props.roots, root));
           sprite.anchor.set(0.5, 1);
           sprite.position.set(
             landmark.width / 2 + (root - 3) * 25,
@@ -1310,11 +1376,7 @@ export class Renderer {
           sprite.rotation = (root - 3) * 0.18;
           container.addChild(sprite);
         }
-        const tree = createFittedSprite(
-          pickTexture(this.art.props.trees, 0),
-          landmark.width,
-          landmark.height,
-        );
+        const tree = createPropSprite(pickTexture(this.art.props.trees, 0));
         tree.anchor.set(0.5, 1);
         tree.position.set(landmark.width / 2, landmark.height);
         tree.tint = 0xf0e5b1;
@@ -1326,11 +1388,7 @@ export class Renderer {
             .fill({ color: COLORS.shadow, alpha: 0.55 }),
         );
         for (let part = 0; part < 5; part++) {
-          const prop = createFittedSprite(
-            pickTexture(this.art.props.ruins, part < 2 ? 1 : 0),
-            landmark.width * (part === 2 ? 0.36 : 0.23),
-            landmark.height * (part === 2 ? 0.9 : 0.74),
-          );
+          const prop = createPropSprite(pickTexture(this.art.props.ruins, part < 2 ? 1 : 0));
           prop.anchor.set(0.5, 1);
           prop.position.set((landmark.width * part) / 4, landmark.height);
           prop.tint = 0xbfc6b0;
@@ -1347,22 +1405,14 @@ export class Renderer {
             .fill({ color: 0x324348, alpha: 0.16 }),
         );
         // 4 is the Monastery in TINY_SWORDS_BUILDINGS — the closest thing the pack has to a chapel.
-        const chapel = createFittedSprite(
-          pickTexture(this.art.buildings, 4),
-          landmark.width,
-          landmark.height,
-        );
+        const chapel = createPropSprite(pickTexture(this.art.buildings, 4));
         chapel.anchor.set(0.5, 1);
         chapel.position.set(landmark.width / 2, landmark.height);
         chapel.tint = 0xc3cfdb;
         container.addChild(chapel);
         // Headstones in the yard below the chapel, where the spirit anchor sits.
         for (let stone = 0; stone < 6; stone++) {
-          const headstone = createFittedSprite(
-            pickTexture(this.art.props.rocks, index + stone),
-            26,
-            30,
-          );
+          const headstone = createPropSprite(pickTexture(this.art.props.rocks, index + stone));
           headstone.anchor.set(0.5, 1);
           headstone.position.set(
             8 + stone * ((landmark.width - 16) / 5),
@@ -1382,11 +1432,7 @@ export class Renderer {
         );
         const pool = isBuilding ? this.art.buildings : this.art.props.ruins;
         const artIndex = isBuilding ? (CITY_BUILDING_ART[landmark.id] ?? index) : index;
-        const prop = createFittedSprite(
-          pickTexture(pool, artIndex),
-          landmark.width,
-          landmark.height,
-        );
+        const prop = createPropSprite(pickTexture(pool, artIndex));
         prop.anchor.set(0.5, 1);
         prop.position.set(landmark.width / 2, landmark.height);
         prop.tint = isBuilding
@@ -1408,7 +1454,7 @@ export class Renderer {
   }
 
   #addTorch(container: Container, x: number, y: number): void {
-    const torch = createFittedSprite(this.art.props.torch, 22, 34);
+    const torch = createPropSprite(this.art.props.torch);
     torch.anchor.set(0.5, 1);
     torch.position.set(x, y);
     container.addChild(torch);
@@ -1488,7 +1534,7 @@ export class Renderer {
       container.addChild(signal);
       if (site.kind === "resource") {
         const texture = this.art.questResources[site.art as keyof typeof TINY_SWORDS_QUEST_ART];
-        const sprite = createFittedSprite(texture, 58, 58);
+        const sprite = createPropSprite(texture);
         sprite.anchor.set(0.5, 1);
         sprite.position.set(0, 12);
         container.addChild(sprite);
@@ -1507,7 +1553,7 @@ export class Renderer {
         glyph.position.set(0, -14);
         container.addChild(glyph);
       } else {
-        const tower = createFittedSprite(pickTexture(this.art.buildings, 5), 82, 112);
+        const tower = createPropSprite(pickTexture(this.art.buildings, 5));
         tower.anchor.set(0.5, 1);
         tower.position.set(0, 12);
         tower.tint = 0xd9c5a2;
@@ -1864,9 +1910,9 @@ export class Renderer {
     const shadow = new Graphics().ellipse(16, 31, 16, 6).fill({ color: COLORS.shadow, alpha: 0.6 });
     const animations = playerAnimations(player, this.art.units);
     const unitSprite = new Sprite(animations.idle[0]);
-    unitSprite.width = 96;
-    unitSprite.height = 96;
-    unitSprite.position.set(-32, -43);
+    unitSprite.width = TINY_SWORDS_UNIT_FRAME;
+    unitSprite.height = TINY_SWORDS_UNIT_FRAME;
+    unitSprite.position.set(UNIT_OFFSET_X, UNIT_OFFSET_Y);
     const selfRing = new Graphics();
     if (player.id === this.#selfId) {
       selfRing.ellipse(16, 31, 18, 7).stroke({ width: 2, color: COLORS.selfRing, alpha: 0.82 });
@@ -2016,10 +2062,13 @@ export class Renderer {
       .ellipse(16, 31, 23, 9)
       .stroke({ width: 3, color: 0x7dd8ff, alpha: 0.95 });
     targetRing.visible = false;
+    // A guard is a Tiny Swords unit like any other: same sheet, same frame, so the same native size
+    // and the same measured offsets. It was 102 while players were 96 — two different wrong answers
+    // to a question that has one right one.
     const unitSprite = new Sprite(animations.idle[0]);
-    unitSprite.width = 102;
-    unitSprite.height = 102;
-    unitSprite.position.set(-35, -48);
+    unitSprite.width = TINY_SWORDS_UNIT_FRAME;
+    unitSprite.height = TINY_SWORDS_UNIT_FRAME;
+    unitSprite.position.set(UNIT_OFFSET_X, UNIT_OFFSET_Y);
     actor.addChild(shadow, ring, targetRing, unitSprite);
     container.addChild(actor);
     const hp = new Graphics();
@@ -2068,9 +2117,11 @@ export class Renderer {
       .ellipse(16, 30, 20, 7)
       .fill({ color: COLORS.shadow, alpha: 0.45 });
     const frames = playerAnimations(corpse, this.art.units);
+    // Your body is the same sprite you were standing up in, so it is the same size. This one is
+    // anchored rather than offset — it lies rotated over its own grave — so only the size changes.
     const body = new Sprite(frames.idle[0]);
-    body.width = 96;
-    body.height = 96;
+    body.width = TINY_SWORDS_UNIT_FRAME;
+    body.height = TINY_SWORDS_UNIT_FRAME;
     body.anchor.set(0.5, 0.85);
     body.position.set(18, 30);
     body.rotation = 1.35;
