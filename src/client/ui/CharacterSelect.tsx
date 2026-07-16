@@ -5,6 +5,7 @@ import { useUiStore } from "../store.js";
 import { CharacterCreator } from "./CharacterCreator.js";
 import { CharacterPreview } from "./CharacterPreview.js";
 import { Button } from "./pixelact-ui/button/index.js";
+import { TinySwordsMenuScene } from "./TinySwordsMenuScene.js";
 
 export function CharacterSelect({ onPlay }: { onPlay(character: CharacterSummary): void }) {
   useLocale();
@@ -13,6 +14,8 @@ export function CharacterSelect({ onPlay }: { onPlay(character: CharacterSummary
   const setScreen = useUiStore((state) => state.setScreen);
   const [creating, setCreating] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [previewingId, setPreviewingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (characters !== null) return;
@@ -47,8 +50,12 @@ export function CharacterSelect({ onPlay }: { onPlay(character: CharacterSummary
   }
 
   const deleting = characters.find((character) => character.id === confirmingId);
+  const activeId = characters.some((character) => character.id === selectedId)
+    ? selectedId
+    : (characters[0]?.id ?? null);
   return (
     <main className="roster-shell">
+      <TinySwordsMenuScene variant="courtyard" />
       <header className="roster-header">
         <div>
           <span className="eyebrow">{t("chars.roster.eyebrow")}</span>
@@ -65,25 +72,44 @@ export function CharacterSelect({ onPlay }: { onPlay(character: CharacterSummary
         </div>
       </header>
 
-      <section className="roster-grid" aria-label={t("chars.title")}>
+      <section className="roster-grid" aria-label={t("chars.title")} data-count={characters.length}>
         {characters.map((character) => (
-          <article key={character.id} className="roster-card framed">
-            <div className="roster-card__preview">
-              <CharacterPreview
-                appearance={character.appearance}
-                equipment={character.equipment}
-                compact
-                label={t("chars.preview.label", {
-                  class: t(`class.${character.class}`),
-                  color: t(`appearance.${character.appearance.primaryColor}`),
-                })}
-              />
-            </div>
-            <div className="roster-card__identity">
-              <span>{t("hud.level", { level: character.level })}</span>
-              <h2>{character.name}</h2>
-              <p>{t(`class.${character.class}`)}</p>
-            </div>
+          <article
+            key={character.id}
+            className={`roster-card framed${activeId === character.id ? " roster-card--selected" : ""}`}
+            onMouseEnter={() => {
+              setSelectedId(character.id);
+              setPreviewingId(character.id);
+            }}
+            onMouseLeave={() => setPreviewingId(null)}
+            onFocusCapture={() => setSelectedId(character.id)}
+          >
+            <button
+              type="button"
+              className="roster-card__select"
+              aria-label={character.name}
+              aria-pressed={activeId === character.id}
+              onClick={() => setSelectedId(character.id)}
+            >
+              <span className="roster-card__banner" aria-hidden="true" />
+              <span className="roster-card__preview">
+                <CharacterPreview
+                  appearance={character.appearance}
+                  equipment={character.equipment}
+                  compact
+                  motion={previewingId === character.id ? "attack" : "idle"}
+                  label={t("chars.preview.label", {
+                    class: t(`class.${character.class}`),
+                    color: t(`appearance.${character.appearance.primaryColor}`),
+                  })}
+                />
+              </span>
+              <span className="roster-card__identity">
+                <span>{t("hud.level", { level: character.level })}</span>
+                <strong>{character.name}</strong>
+                <small>{t(`class.${character.class}`)}</small>
+              </span>
+            </button>
             <dl>
               <div>
                 <dt>{t("chars.weapon")}</dt>

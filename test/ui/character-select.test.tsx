@@ -86,6 +86,17 @@ describe("CharacterSelect", () => {
     expect(onPlay).toHaveBeenCalledWith(three[1]);
   });
 
+  it("moves the active squad position with keyboard-compatible character buttons", async () => {
+    useUiStore.setState({ characters: three });
+    render(<CharacterSelect onPlay={() => undefined} />);
+
+    expect(screen.getByRole("button", { name: "One" })).toHaveAttribute("aria-pressed", "true");
+    const second = screen.getByRole("button", { name: "Two" });
+    expect(second).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(second);
+    expect(second).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("changes class and appearance with immediate visual feedback", async () => {
     useUiStore.setState({ characters: [] });
     render(<CharacterSelect onPlay={() => undefined} />);
