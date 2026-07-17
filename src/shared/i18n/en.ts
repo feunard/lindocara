@@ -554,4 +554,19 @@ export const en = {
   "adventure.bindings.end": "End of the adventure",
   "adventure.bindings.unbound": "Choose a destination",
   "adventure.incomplete": "Set a start, bind every exit, and end the adventure at least once.",
+
+  // Parties home
+  "parties.title": "Cooperative parties",
+  "parties.refresh": "Refresh",
+  "parties.create.title": "Start a party",
+  "parties.create.none": "Create an adventure first.",
+  "parties.create.adventure": "Adventure",
+  "parties.create.name": "Party name (optional)",
+  "parties.create.submit": "Create party",
+  "parties.enter": "Enter",
+  "parties.join": "Join",
+  "parties.full": "Full",
+  "parties.completed": "Finished",
+  "parties.slots": "{used}/{max} players",
+  "parties.delete.title": "Delete {name}?",
 } as const satisfies Record<string, string>;

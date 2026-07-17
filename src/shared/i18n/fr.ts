@@ -566,4 +566,19 @@ export const fr: Record<keyof typeof en, string> = {
   "adventure.bindings.unbound": "Choisir une destination",
   "adventure.incomplete":
     "Définis un départ, relie chaque sortie et termine l'aventure au moins une fois.",
+
+  // Parties (accueil)
+  "parties.title": "Parties coopératives",
+  "parties.refresh": "Actualiser",
+  "parties.create.title": "Créer une partie",
+  "parties.create.none": "Crée d'abord une aventure.",
+  "parties.create.adventure": "Aventure",
+  "parties.create.name": "Nom de la partie (facultatif)",
+  "parties.create.submit": "Créer la partie",
+  "parties.enter": "Entrer",
+  "parties.join": "Rejoindre",
+  "parties.full": "Complète",
+  "parties.completed": "Terminée",
+  "parties.slots": "{used}/{max} joueurs",
+  "parties.delete.title": "Supprimer {name} ?",
 };

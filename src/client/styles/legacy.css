@@ -1962,3 +1962,39 @@ kbd {
   border-color: rgb(243 201 106 / 80%);
   background: rgb(58 24 24 / 92%);
 }
+
+/* Party colour swatches, shown on a party listing card. Same hexes as ColorPicker's SWATCH.
+   A <fieldset> (see PartiesScreen.tsx) so the group has a real accessible role for aria-label;
+   reset its default border/padding so it lays out as a plain row of dots. */
+.party-colours {
+  display: flex;
+  justify-content: center;
+  gap: 0.35rem;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.party-colour {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid rgb(38 28 18 / 68%);
+  border-radius: 50%;
+}
+
+.party-colour--blue {
+  background: #3b82f6;
+}
+
+.party-colour--red {
+  background: #ef4444;
+}
+
+.party-colour--yellow {
+  background: #eab308;
+}
+
+.party-colour--purple {
+  background: #a855f7;
+}
