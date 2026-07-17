@@ -14,18 +14,21 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest run -c vitest.ui.config.ts",
+    "test:catalog": "vitest run -c vitest.catalog.config.ts",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "loadtest": "node scripts/loadtest.mjs",
     "map:build": "tsx scripts/build-map.ts",
     "map:check": "npm run map:build && git diff --exit-code -- src/shared/zones/verdant-reach-tiles.ts src/shared/zones/mmo-test-zone-tiles.ts src/shared/zones/sunken-isles-tiles.ts",
+    "catalog:build": "tsx scripts/build-tiny-swords-catalog.ts",
+    "catalog:check": "tsx scripts/check-tiny-swords-catalog.ts && npm run test:catalog",
     "format": "biome format --write .",
     "typecheck": "tsc -p tsconfig.client.json && tsc -p tsconfig.worker.json && tsc -p tsconfig.node.json",
     "cf-typegen": "wrangler types ./src/worker-configuration.d.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "wrangler d1 migrations apply lindocara --local",
     "db:migrate:remote": "wrangler d1 migrations apply lindocara --remote",
-    "check": "npm run map:check && npm run lint && npm run typecheck && npm run test && npm run test:ui"
+    "check": "npm run catalog:check && npm run map:check && npm run lint && npm run typecheck && npm run test && npm run test:ui"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.3",

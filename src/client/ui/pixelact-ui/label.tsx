@@ -5,7 +5,7 @@ import "./styles/styles.css";
 
 // Vendored from github.com/pixelact-ui/pixelact-ui (components/ui/pixelact-ui/label.tsx),
 // with its base shadcn/ui Label inlined. Not a Task 2 restyle touchpoint — untouched from
-// upstream, "inherits tokens". MIT-licensed upstream; modifications for lindocara's garrison skin.
+// upstream, "inherits tokens". MIT-licensed upstream; modifications for lindocara's Tiny Swords skin.
 export interface LabelProps extends React.ComponentProps<typeof LabelPrimitive.Root> {}
 
 function Label({ className, ...props }: LabelProps) {

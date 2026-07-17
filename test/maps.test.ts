@@ -19,6 +19,12 @@ import { MAX_MAP_ELEMENTS } from "../src/shared/map-data.js";
 // A one-cell water pocket at (1,1)/(2,1) stands in for "the sea" below; everything else is grass.
 const MAP_COLS = 20;
 const MAP_ROWS = 15;
+const TREE = "resource.terrain-resources-wood-trees.tree3" as const;
+const TREE_ALT = "resource.terrain-resources-wood-trees.tree4" as const;
+const BUSH = "decoration.terrain-decorations-bushes.bushe1" as const;
+const STONE = "decoration.terrain-decorations-rocks.rock1" as const;
+const STONE_ALT = "decoration.terrain-decorations-rocks.rock2" as const;
+const CASTLE = "building.buildings-blue-buildings.castle" as const;
 function validBlocks(): string[] {
   const blocks = [".".repeat(MAP_COLS), `.##${".".repeat(MAP_COLS - 3)}`];
   while (blocks.length < MAP_ROWS) blocks.push(".".repeat(MAP_COLS));
@@ -159,8 +165,7 @@ describe("maps", () => {
       const tooMany = Array.from({ length: MAX_MAP_ELEMENTS + 1 }, (_, i) => ({
         col: i % MAP_COLS,
         row: i % MAP_ROWS,
-        kind: "bush" as const,
-        variant: 0,
+        assetId: BUSH,
       }));
       await expect(createMap(db, { ...validInput, elements: tooMany })).rejects.toThrow(
         /^elements:/,
@@ -172,7 +177,7 @@ describe("maps", () => {
     it("refuses a tree in the sea", async () => {
       const db = createDb(env.DB);
       await expect(
-        createMap(db, { ...validInput, elements: [{ col: 1, row: 1, kind: "tree", variant: 0 }] }),
+        createMap(db, { ...validInput, elements: [{ col: 1, row: 1, assetId: TREE }] }),
       ).rejects.toThrow(/placement/);
     });
 
@@ -180,7 +185,7 @@ describe("maps", () => {
       const db = createDb(env.DB);
       const ok = await createMap(db, {
         ...validInput,
-        elements: [{ col: 1, row: 1, kind: "stone", variant: 0 }],
+        elements: [{ col: 1, row: 1, assetId: STONE }],
       });
       expect(ok.elements).toHaveLength(1);
     });
@@ -195,20 +200,54 @@ describe("maps", () => {
       await expect(
         createMap(db, {
           ...validInput,
-          elements: [{ col: 0, row: 0, kind: "tree", variant: 0 }],
-          spawn: { col: 0, row: 0 },
+          elements: [{ col: 3, row: 3, assetId: TREE }],
+          spawn: { col: 3, row: 3 },
         }),
       ).rejects.toThrow(/spawn/);
     });
 
-    it("lets a hero spawn on a bush, which does not collide", async () => {
+    it("refuses scenery covering the spawn even when it does not collide", async () => {
       const db = createDb(env.DB);
-      const ok = await createMap(db, {
-        ...validInput,
-        elements: [{ col: 0, row: 0, kind: "bush", variant: 0 }],
-        spawn: { col: 0, row: 0 },
-      });
-      expect(ok.id).toBeTruthy();
+      await expect(
+        createMap(db, {
+          ...validInput,
+          elements: [{ col: 3, row: 3, assetId: BUSH }],
+          spawn: { col: 3, row: 3 },
+        }),
+      ).rejects.toThrow(/spawn/);
+    });
+
+    it("refuses an unknown or non-editor catalogue asset", async () => {
+      const db = createDb(env.DB);
+      await expect(
+        createMap(db, {
+          ...validInput,
+          elements: [{ col: 4, row: 4, assetId: "ui.cursor.default" as never }],
+        }),
+      ).rejects.toThrow(/unknown asset/);
+    });
+
+    it("refuses a multi-cell building that exceeds the map", async () => {
+      const db = createDb(env.DB);
+      await expect(
+        createMap(db, {
+          ...validInput,
+          elements: [{ col: MAP_COLS - 1, row: MAP_ROWS - 1, assetId: CASTLE }],
+        }),
+      ).rejects.toThrow(/bounds/);
+    });
+
+    it("refuses overlapping visual footprints", async () => {
+      const db = createDb(env.DB);
+      await expect(
+        createMap(db, {
+          ...validInput,
+          elements: [
+            { col: 4, row: 4, assetId: STONE },
+            { col: 4, row: 4, assetId: STONE_ALT },
+          ],
+        }),
+      ).rejects.toThrow(/overlaps/);
     });
   });
 
@@ -219,31 +258,61 @@ describe("maps", () => {
         ...validInput,
         // Clear of the spawn at (0,0) — a tree standing on it is refused, and rightly so.
         elements: [
-          { col: 2, row: 0, kind: "tree", variant: 2 },
-          { col: 1, row: 1, kind: "stone", variant: 1 },
+          { col: 4, row: 3, assetId: TREE_ALT },
+          { col: 1, row: 1, assetId: STONE_ALT },
         ],
       });
       const loaded = await loadMap(db, created.id);
       expect(loaded?.blocks).toEqual(validInput.blocks);
       expect(loaded?.spawn).toEqual(validInput.spawn);
       expect(loaded?.elements).toHaveLength(2);
-      expect(loaded?.elements.find((e) => e.kind === "tree")?.variant).toBe(2);
+      expect(loaded?.elements.find((e) => e.assetId === TREE_ALT)?.assetId).toBe(TREE_ALT);
     });
 
     it("replaces elements wholesale on update", async () => {
       const db = createDb(env.DB);
       const created = await createMap(db, {
         ...validInput,
-        elements: [{ col: 2, row: 0, kind: "tree", variant: 0 }],
+        elements: [{ col: 4, row: 3, assetId: TREE }],
       });
       await updateMap(db, created.id, {
         ...validInput,
         name: "Renamed",
-        elements: [{ col: 3, row: 3, kind: "bush", variant: 0 }],
+        elements: [{ col: 3, row: 3, assetId: BUSH }],
       });
       const loaded = await loadMap(db, created.id);
       expect(loaded?.name).toBe("Renamed");
-      expect(loaded?.elements).toEqual([{ col: 3, row: 3, kind: "bush", variant: 0 }]);
+      expect(loaded?.elements).toEqual([{ col: 3, row: 3, assetId: BUSH }]);
+    });
+
+    it("converts a legacy row only as part of a successful whole-map update", async () => {
+      const db = createDb(env.DB);
+      const created = await createMap(db, validInput);
+      await env.DB.prepare(
+        "INSERT INTO map_element (map_id, col, row, kind, variant) VALUES (?, 4, 3, 'tree', 1)",
+      )
+        .bind(created.id)
+        .run();
+
+      const loaded = await loadMap(db, created.id);
+      expect(loaded?.elements).toEqual([{ col: 4, row: 3, assetId: TREE_ALT }]);
+      if (!loaded) throw new Error("legacy map missing");
+
+      await expect(updateMap(db, created.id, { ...loaded, name: "" })).rejects.toThrow(/^name:/);
+      const untouched = await env.DB.prepare(
+        "SELECT kind FROM map_element WHERE map_id = ? AND col = 4 AND row = 3",
+      )
+        .bind(created.id)
+        .first<{ kind: string }>();
+      expect(untouched?.kind).toBe("tree");
+
+      await updateMap(db, created.id, { ...loaded, name: "Converted" });
+      const converted = await env.DB.prepare(
+        "SELECT kind FROM map_element WHERE map_id = ? AND col = 4 AND row = 3",
+      )
+        .bind(created.id)
+        .first<{ kind: string }>();
+      expect(converted?.kind).toBe(TREE_ALT);
     });
   });
 

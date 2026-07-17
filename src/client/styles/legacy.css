@@ -126,7 +126,7 @@ button {
   background: linear-gradient(180deg, #a9db8f, #6ea875);
   color: #092016;
   font-weight: 800;
-  cursor: pointer;
+  cursor: var(--tiny-cursor-link, pointer);
 }
 
 button:disabled {
@@ -171,7 +171,7 @@ button:disabled {
 }
 .character-card--new {
   justify-content: center;
-  cursor: pointer;
+  cursor: var(--tiny-cursor-link, pointer);
   opacity: 0.7;
 }
 .character-card .danger {
@@ -206,7 +206,7 @@ button:disabled {
   width: auto;
   height: auto;
   padding: 6px 10px;
-  cursor: pointer;
+  cursor: var(--tiny-cursor-link, pointer);
 }
 #appearance-picker input {
   margin-right: 6px;
@@ -245,7 +245,7 @@ button:disabled {
   border-radius: 7px;
   background:
     linear-gradient(rgb(18 42 32 / 18%), rgb(18 42 32 / 48%)),
-    url("/assets/lindocara/tiny-swords/ui/Banner_Slots.png") center / cover;
+    var(--tiny-slot) center / cover;
   box-shadow:
     0 0 0 1px #291d13,
     inset 0 0 0 2px rgb(242 210 137 / 28%),
@@ -347,17 +347,17 @@ button:disabled {
   display: inline-block;
   width: 1rem;
   aspect-ratio: 1;
-  background: url("/assets/lindocara/atlas/hud.png") 0 0 / 6rem 1rem no-repeat;
+  background: var(--tiny-icon-quest) center / contain no-repeat;
   image-rendering: pixelated;
 }
 
 .panel-icon--oath {
-  background-position: -1rem 0;
+  background-image: var(--tiny-icon-oath);
 }
 
 .panel-icon--sword,
 .panel-icon--pack {
-  background-position: -2rem 0;
+  background-image: var(--tiny-icon-sword);
 }
 
 .quest,
@@ -496,28 +496,20 @@ button:disabled {
   width: 1.45rem;
   height: 1.45rem;
   border-radius: 5px;
-  background:
-    url("/assets/lindocara/atlas/hud.png") 0 50% / 7.32rem 1.22rem no-repeat,
-    rgb(89 153 108 / 16%);
+  background: var(--tiny-icon-sword) center / contain no-repeat;
   image-rendering: pixelated;
 }
 
 .item-icon--potion {
-  background-position:
-    -3.66rem 50%,
-    0 0;
+  background-image: var(--tiny-icon-potion);
 }
 
 .item-icon--gold {
-  background-position:
-    -4.88rem 50%,
-    0 0;
+  background-image: var(--tiny-icon-gold);
 }
 
 .item-icon--crystal {
-  background-position:
-    -6.1rem 50%,
-    0 0;
+  background-image: var(--tiny-icon-crystal);
 }
 
 .item-icon--sword {
@@ -672,7 +664,7 @@ kbd {
     600 0.56rem ui-monospace,
     monospace;
   text-transform: none;
-  cursor: pointer;
+  cursor: var(--tiny-cursor-link, pointer);
 }
 
 .chat-time-toggle-active {
@@ -697,7 +689,7 @@ kbd {
   font:
     600 0.58rem ui-monospace,
     monospace;
-  cursor: pointer;
+  cursor: var(--tiny-cursor-link, pointer);
 }
 
 .chat-filter-active {
@@ -723,7 +715,7 @@ kbd {
   font:
     600 0.62rem ui-monospace,
     monospace;
-  cursor: pointer;
+  cursor: var(--tiny-cursor-link, pointer);
   box-shadow: 0 6px 16px rgb(0 0 0 / 35%);
   animation: prompt-in 180ms ease-out;
 }
@@ -911,7 +903,7 @@ kbd {
   border: 2px solid var(--panel-border, #3b2f26);
   background: #2a231c;
   color: #e8d5b7;
-  cursor: pointer;
+  cursor: var(--tiny-cursor-link, pointer);
 }
 
 #event-log {
@@ -1209,7 +1201,7 @@ kbd {
   font:
     0.74rem / 1.3 Inter,
     sans-serif;
-  cursor: pointer;
+  cursor: var(--tiny-cursor-link, pointer);
 }
 
 .settings-toggle input {
@@ -1258,7 +1250,7 @@ kbd {
 
 .settings-row input[type="range"]:disabled {
   opacity: 0.45;
-  cursor: not-allowed;
+  cursor: var(--tiny-cursor-unavailable, not-allowed);
 }
 
 .settings-session-actions {
@@ -1401,7 +1393,7 @@ kbd {
   border-radius: 0;
   background:
     linear-gradient(rgb(5 20 17 / 88%), rgb(5 20 17 / 92%)),
-    url("/assets/lindocara/tiny-swords/ui/Banner_Slots.png") center / cover no-repeat;
+    var(--tiny-slot) center / cover no-repeat;
   backdrop-filter: blur(5px);
 }
 
@@ -1417,10 +1409,10 @@ kbd {
   border-radius: 0;
   background:
     linear-gradient(rgb(44 71 51 / 72%), rgb(13 39 31 / 88%)),
-    url("/assets/lindocara/tiny-swords/ui/Banner_Slots.png") center / 100% 100% no-repeat;
+    var(--tiny-slot) center / 100% 100% no-repeat;
   image-rendering: pixelated;
   color: #f5e6bd;
-  cursor: pointer;
+  cursor: var(--tiny-cursor-link, pointer);
 }
 
 .skill-slot:hover:not(:disabled),
@@ -1431,7 +1423,7 @@ kbd {
 }
 
 .skill-slot:disabled {
-  cursor: default;
+  cursor: var(--tiny-cursor-default, default);
 }
 
 .skill-slot.cooling {
@@ -1797,7 +1789,7 @@ kbd {
   .mobile-utility__potion {
     width: 1.5rem;
     height: 1.5rem;
-    background: url("/assets/lindocara/atlas/hud.png") -4.5rem 50% / 9rem 1.5rem no-repeat;
+    background: var(--tiny-icon-potion) center / contain no-repeat;
     image-rendering: pixelated;
   }
 
@@ -1963,7 +1955,7 @@ kbd {
     0.75rem ui-monospace,
     monospace;
   letter-spacing: 0.05em;
-  cursor: pointer;
+  cursor: var(--tiny-cursor-link, pointer);
 }
 
 .death-release:hover {

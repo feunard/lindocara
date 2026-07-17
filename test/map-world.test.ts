@@ -33,8 +33,8 @@ const islandInput: MapInput = {
   name: "Island",
   blocks: islandBlocks(),
   elements: [
-    { col: 5, row: 5, kind: "tree", variant: 0 },
-    { col: 6, row: 5, kind: "stone", variant: 1 },
+    { col: 5, row: 5, assetId: "resource.terrain-resources-wood-trees.tree3" },
+    { col: 7, row: 5, assetId: "decoration.terrain-decorations-rocks.rock2" },
   ],
   spawn: { col: 2, row: 2 },
 };

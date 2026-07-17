@@ -1,11 +1,5 @@
-import { cn } from "@/lib/utils.js";
-
-const FILLS: Record<"hp" | "xp" | "quest" | "mana", string> = {
-  hp: "bg-gradient-to-b from-[#f0796b] to-[#bd494e]",
-  xp: "bg-gradient-to-b from-[#f0d060] to-[#b89a30]",
-  quest: "bg-gradient-to-b from-[#7fb069] to-[#557d43]",
-  mana: "bg-gradient-to-b from-[#68c6f0] to-[#3268bd]",
-};
+const VARIANTS = ["hp", "xp", "quest", "mana"] as const;
+type BarVariant = (typeof VARIANTS)[number];
 
 export function Bar({
   value,
@@ -14,7 +8,7 @@ export function Bar({
 }: {
   value: number;
   max: number;
-  variant?: keyof typeof FILLS;
+  variant?: BarVariant;
 }) {
   const ratio = max > 0 ? Math.min(1, Math.max(0, value / max)) : 0;
   return (
@@ -23,13 +17,12 @@ export function Bar({
       aria-valuenow={value}
       aria-valuemin={0}
       aria-valuemax={max}
-      className="h-3 w-full border-2 border-black/70 bg-black/50"
+      className="tiny-bar"
+      data-variant={variant}
     >
-      <div
-        data-fill
-        className={cn("h-full", FILLS[variant])}
-        style={{ width: `${ratio * 100}%` }}
-      />
+      <div data-fill className="tiny-bar__clip" style={{ width: `${ratio * 100}%` }}>
+        <div className="tiny-bar__fill" />
+      </div>
     </div>
   );
 }

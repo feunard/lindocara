@@ -139,23 +139,7 @@
   position: absolute;
   inset: 0 0 38%;
   overflow: hidden;
-  background:
-    linear-gradient(180deg, rgb(255 239 176 / 18%), transparent 32%),
-    linear-gradient(#438b91, #76beb1 62%, #acd18f);
-}
-
-.menu-scene__sun {
-  position: absolute;
-  top: 9%;
-  left: 18%;
-  width: clamp(4rem, 8vw, 7rem);
-  aspect-ratio: 1;
-  border: 0.5rem solid rgb(255 235 146 / 20%);
-  border-radius: 50%;
-  background: #ffe69b;
-  box-shadow:
-    0 0 0 1rem rgb(255 232 138 / 9%),
-    0 0 5rem #fff0a1;
+  background: #76beb1;
 }
 
 .menu-scene__cloud {
@@ -194,46 +178,11 @@
   animation-duration: 74s;
 }
 
-.menu-scene__hills {
-  position: absolute;
-  left: -5%;
-  width: 110%;
-  border-radius: 50% 50% 0 0;
-  transform-origin: bottom;
-}
-
-.menu-scene__hills--far {
-  bottom: 37%;
-  height: 30%;
-  background:
-    radial-gradient(ellipse at 15% 100%, #4f8b63 0 31%, transparent 32%),
-    radial-gradient(ellipse at 45% 100%, #568f64 0 38%, transparent 39%),
-    radial-gradient(ellipse at 76% 100%, #477a59 0 34%, transparent 35%);
-  opacity: 0.82;
-}
-
-.menu-scene__hills--near {
-  bottom: 26%;
-  height: 26%;
-  background:
-    radial-gradient(ellipse at 5% 100%, #356a48 0 35%, transparent 36%),
-    radial-gradient(ellipse at 34% 100%, #3c744b 0 43%, transparent 44%),
-    radial-gradient(ellipse at 72% 100%, #2e6445 0 45%, transparent 46%),
-    radial-gradient(ellipse at 100% 100%, #386f48 0 35%, transparent 36%);
-}
-
 .menu-scene__ground {
   position: absolute;
   inset: 52% 0 13%;
   z-index: 2;
-  background:
-    radial-gradient(circle at 12% 22%, #88b84e 0 0.18rem, transparent 0.22rem),
-    radial-gradient(circle at 72% 48%, #5e963d 0 0.15rem, transparent 0.2rem),
-    linear-gradient(#79ad4b, #4f8b3e);
-  background-size:
-    4rem 3rem,
-    5rem 4rem,
-    auto;
+  background: #79ad4b;
 }
 
 .menu-scene__bridge {
@@ -267,36 +216,6 @@
   overflow: hidden;
   background: #47aba9;
   box-shadow: inset 0 0.25rem rgb(207 244 202 / 52%);
-}
-
-.menu-scene__water::before,
-.menu-scene__water::after {
-  content: "";
-  position: absolute;
-  inset: -50% -10%;
-  will-change: transform;
-}
-
-.menu-scene__water::before {
-  background: repeating-linear-gradient(
-    170deg,
-    transparent 0 0.55rem,
-    rgb(207 248 220 / 22%) 0.62rem 0.75rem,
-    transparent 0.82rem 1.5rem
-  );
-  background-size: 96px 32px;
-  opacity: 0.62;
-  animation: menu-water-flow-primary 8s linear infinite;
-}
-
-.menu-scene__water::after {
-  background:
-    radial-gradient(ellipse at 25% 50%, rgb(218 251 226 / 22%) 0 9%, transparent 12%),
-    radial-gradient(ellipse at 75% 50%, rgb(27 121 127 / 16%) 0 8%, transparent 11%);
-  background-size: 64px 24px;
-  mix-blend-mode: soft-light;
-  opacity: 0.8;
-  animation: menu-water-flow-secondary 12s linear infinite;
 }
 
 .menu-scene__foam-bank {
@@ -335,7 +254,7 @@
   left: 0;
   z-index: 2;
   height: 0.55rem;
-  background: linear-gradient(#77ad49, #4f873e);
+  background: #77ad49;
   box-shadow: 0 0.2rem 0 rgb(44 117 95 / 32%);
 }
 
@@ -528,18 +447,6 @@
   }
 }
 
-@keyframes menu-water-flow-primary {
-  to {
-    transform: translate3d(96px, 0, 0);
-  }
-}
-
-@keyframes menu-water-flow-secondary {
-  to {
-    transform: translate3d(-64px, -24px, 0);
-  }
-}
-
 @keyframes menu-dust-wander {
   0%,
   100% {
@@ -594,8 +501,7 @@
   padding: 1.5rem;
   display: grid;
   grid-template-rows: auto minmax(280px, 1fr) auto auto;
-  background:
-    linear-gradient(rgb(8 30 24 / 90%), rgb(4 18 15 / 95%)), url("../assets/hud/wood.png");
+  background: linear-gradient(rgb(8 30 24 / 90%), rgb(4 18 15 / 95%)), var(--tiny-panel-carved);
 }
 
 .creator-preview-copy p,
@@ -825,7 +731,7 @@
   gap: 0.65rem;
   border: 2px solid rgb(93 67 32 / 28%);
   background: rgb(255 248 224 / 34%);
-  cursor: pointer;
+  cursor: var(--tiny-cursor-link, pointer);
   transition:
     transform 140ms ease,
     border-color 140ms ease,
@@ -901,7 +807,7 @@
   align-items: center;
   gap: 0.55rem;
   border: 2px solid rgb(93 67 32 / 24%);
-  cursor: pointer;
+  cursor: var(--tiny-cursor-link, pointer);
 }
 
 .creator-swatches label.selected {
@@ -1062,8 +968,7 @@
   flex-direction: column;
   border-width: 11px;
   border-image-width: 11px;
-  background:
-    linear-gradient(rgb(8 29 24 / 88%), rgb(5 18 15 / 95%)), url("../assets/hud/wood.png");
+  background: linear-gradient(rgb(8 29 24 / 88%), rgb(5 18 15 / 95%)), var(--tiny-panel-carved);
   color: #efe4cc;
   box-shadow: 0 18px 35px rgb(0 0 0 / 38%);
   transform: translateY(0) rotateX(0);
@@ -1102,7 +1007,7 @@
   border: 0;
   background: transparent;
   color: inherit;
-  cursor: pointer;
+  cursor: var(--tiny-cursor-link, pointer);
 }
 
 .roster-card__banner {
@@ -1196,7 +1101,7 @@
   border-style: dashed;
   background: radial-gradient(circle, rgb(159 205 127 / 12%), transparent 45%), rgb(6 24 20 / 78%);
   color: #f0dfb6;
-  cursor: pointer;
+  cursor: var(--tiny-cursor-link, pointer);
 }
 
 .roster-card--new > span {
@@ -1211,7 +1116,7 @@
 }
 
 .roster-card--new:disabled {
-  cursor: not-allowed;
+  cursor: var(--tiny-cursor-unavailable, not-allowed);
   filter: grayscale(0.8);
 }
 

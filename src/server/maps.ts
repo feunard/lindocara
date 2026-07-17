@@ -14,12 +14,18 @@ import { asc, eq, sql } from "drizzle-orm";
 import {
   bakeCollision,
   canPlaceElement,
+  elementCoversCell,
+  elementFitsMap,
+  elementPlacementCells,
+  elementsOverlap,
   isElementKind,
+  legacyElementAssetId,
   MAX_MAP_ELEMENTS,
   type MapData,
   type MapElement,
 } from "../shared/map-data.js";
 import { isSolidKind, kindAt } from "../shared/tilemap.js";
+import { isEditorAssetId } from "../shared/tiny-swords-catalog.js";
 import { type Db, map, mapElement } from "./db/index.js";
 
 export const BUILTIN_MAP_ID = "builtin";
@@ -100,11 +106,24 @@ export function validateMapInput(input: MapInput): MapData & { name: string } {
   }
   const data: MapData = { blocks: input.blocks, elements: input.elements, spawn: input.spawn };
   const ground = bakeCollision({ ...data, elements: [] });
-  for (const element of input.elements) {
-    if (!isElementKind(element.kind)) throw new Error(`placement: unknown element ${element.kind}`);
-    const under = kindAt(ground, element.col, element.row);
-    if (!canPlaceElement(element.kind, under)) {
-      throw new Error(`placement: ${element.kind} cannot stand on ${under}`);
+  for (const [index, element] of input.elements.entries()) {
+    if (!isEditorAssetId(element.assetId)) {
+      throw new Error(`placement: unknown asset ${String(element.assetId)}`);
+    }
+    if (!elementFitsMap(element, ground.cols, ground.rows)) {
+      throw new Error(`placement: ${element.assetId} exceeds map bounds`);
+    }
+    for (const cell of elementPlacementCells(element)) {
+      const under = kindAt(ground, cell.col, cell.row);
+      if (!canPlaceElement(element.assetId, under)) {
+        throw new Error(`placement: ${element.assetId} cannot stand on ${under}`);
+      }
+    }
+    if (elementCoversCell(element, input.spawn.col, input.spawn.row)) {
+      throw new Error("spawn: cannot be covered by scenery");
+    }
+    if (input.elements.slice(0, index).some((other) => elementsOverlap(other, element))) {
+      throw new Error(`placement: ${element.assetId} overlaps another element`);
     }
   }
   const baked = bakeCollision(data);
@@ -128,11 +147,13 @@ function toStoredMap(row: typeof map.$inferSelect, elements: MapElement[]): Stor
 async function elementsOf(db: Db, mapId: string): Promise<MapElement[]> {
   const rows = await db.select().from(mapElement).where(eq(mapElement.mapId, mapId));
   return rows.flatMap((row): MapElement[] =>
-    isElementKind(row.kind)
-      ? [{ col: row.col, row: row.row, kind: row.kind, variant: row.variant }]
-      : // A kind this build does not know is scenery it cannot draw. Drop the element rather than
-        // fail the whole map: one bad row must not make a world unenterable.
-        [],
+    isEditorAssetId(row.kind)
+      ? [{ col: row.col, row: row.row, assetId: row.kind }]
+      : isElementKind(row.kind)
+        ? [{ col: row.col, row: row.row, assetId: legacyElementAssetId(row.kind, row.variant) }]
+        : // A kind this build does not know is scenery it cannot draw. Drop the element rather than
+          // fail the whole map: one bad row must not make a world unenterable.
+          [],
   );
 }
 
@@ -158,8 +179,8 @@ function elementRows(mapId: string, elements: readonly MapElement[]) {
     mapId,
     col: element.col,
     row: element.row,
-    kind: element.kind,
-    variant: element.variant,
+    kind: element.assetId,
+    variant: 0,
   }));
 }
 

@@ -9,7 +9,10 @@
       "!.wrangler",
       "!src/worker-configuration.d.ts",
       "!migrations/meta",
-      "!assets/index.json"
+      "!assets/index.json",
+      "!assets/lindocara-asset-catalog.json",
+      "!public/assets/lindocara/tiny-swords/catalog.json",
+      "!src/shared/tiny-swords-catalog.generated.ts"
     ]
   },
   "formatter": {

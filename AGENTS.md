@@ -1,7 +1,9 @@
 # lindocara — agent & contributor guide
 
-A compact MMO vertical slice on Cloudflare Workers. One authoritative room contains players,
-terrain, Warden Mira, roaming slimes, combat, loot, progression, a quest, and local chat.
+A modern cooperative RPG adventure creator on Cloudflare Workers, targeting solo play through
+four-player sessions. The current authoritative vertical slice contains players, terrain, Warden
+Mira, roaming monsters, combat, loot, progression, quests, local chat and a D1-backed map editor.
+Those systems are foundations for authored multi-map adventures, not a commitment to MMO scale.
 
 ## Commands
 
@@ -26,12 +28,13 @@ The one rule that matters: **the server decides outcomes.** Clients send movemen
 intent, never positions, damage, health, heals, inventory, XP, deaths, loot, or quest
 completion.
 
-### MMO multizone migration
+### Current multizone foundation
 
 Before changing world routing, room ownership, character location persistence, or splitting
-`world.ts`, read [`docs/mmo-migration-plan.md`](./docs/mmo-migration-plan.md). It records the
-verified current flows, migration order, D1 changes, duplicate-character risks, rollback strategy,
-and acceptance criteria for each future step.
+`world.ts`, read [`docs/adventure-runtime-architecture.md`](./docs/adventure-runtime-architecture.md)
+and the historical [`docs/mmo-migration-plan.md`](./docs/mmo-migration-plan.md). The latter records
+verified current flows, D1 changes, duplicate-character risks and rollback strategy; its MMO scale
+target is historical, while its fencing and routing analysis remains valid.
 
 ```
 src/shared/     platform-free. Imports nothing from Cloudflare or the DOM.
@@ -423,9 +426,10 @@ sits still may be clamped, not broken.
 **`import.meta.env.DEV` exposes `window.__lindocara`** (`self()`, `all()`) for measuring input
 latency and interpolation from outside the app. It is stripped from production builds.
 
-**The room is intentionally one Durable Object today.** The next scale boundary is deterministic
-room routing in `server/index.ts`, not a larger global object. Keep room-local simulation in
-`World` so sharding later is a routing change rather than a gameplay rewrite.
+**A running adventure room is intentionally one Durable Object today.** The next product boundary
+is a `GameSession` that pins an adventure version and admits at most four players, while preserving
+deterministic routing in `server/index.ts`. Keep room-local simulation in `World` so multi-map
+sessions and later loaded-map strategies remain routing changes rather than gameplay rewrites.
 
 **Server events are codes, not sentences.** `{ t: "event", code, params }` — the client owns
 all wording via `src/shared/i18n/`. Never add an English string to a `#send` in `world.ts`; add

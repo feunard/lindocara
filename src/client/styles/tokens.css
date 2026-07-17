@@ -1,7 +1,7 @@
-/* Design tokens. Fonts follow garrison (display for headings/buttons, UI for body);
+/* Design tokens. Vendored fonts remain the accessible text layer over Tiny Swords imagery;
  * everything below is swappable without touching components.
  *
- * Fonts are vendored verbatim from garrison (src/assets/fonts/, OFL licensed — see the
+ * Fonts predate the art migration (src/assets/fonts/, OFL licensed — see the
  * OFL.txt alongside each family) so the look does not depend on a CDN or system font
  * availability. The stacks below are the fallback if a woff2 fails to load.
  */

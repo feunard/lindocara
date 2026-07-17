@@ -14,7 +14,9 @@
 import { type Application, Assets, Container, Graphics, Sprite, type Texture } from "pixi.js";
 import { bakeCollision } from "../../shared/map-data.js";
 import { kindAt, TILE_SIZE, type TileMap } from "../../shared/tilemap.js";
+import type { EditorAssetId } from "../../shared/tiny-swords-catalog.js";
 import { landTile, needsFoam, tileVisual } from "./autotile.js";
+import { type EditorAssetArt, loadAllEditorAssetArt } from "./editor-asset-art.js";
 import type { EditorMap, EditorTool } from "./editor-state.js";
 import { applyTool } from "./editor-state.js";
 import { acquireStageApp } from "./stage-application.js";
@@ -22,12 +24,9 @@ import { foamFrameAt } from "./terrain-visuals.js";
 import {
   sliceAutotileSheet,
   sliceStrip,
-  TINY_SWORDS_BUSHES,
   TINY_SWORDS_FOAM_FRAME,
   TINY_SWORDS_FOAM_FRAMES,
-  TINY_SWORDS_ROCKS,
   TINY_SWORDS_TERRAIN,
-  TINY_SWORDS_TREES,
 } from "./tiny-swords-art.js";
 
 /**
@@ -60,11 +59,6 @@ function clamp(value: number, min: number, max: number): number {
 
 /** A stored `variant` folded into `[0, length)`, sign-safe — the same fold `renderer.ts` applies to
  *  a wire element, so the editor previews the sprite the world will draw. */
-function wrapVariant(variant: number, length: number): number {
-  if (length <= 0) return 0;
-  return ((Math.trunc(variant) % length) + length) % length;
-}
-
 /** Which frame of an idle sway strip the whole scene is on, global like the foam so every tree of a
  *  kind breathes together instead of shimmering out of phase. */
 function swayFrameAt(elapsedMs: number, frames: number): number {
@@ -77,11 +71,7 @@ interface StageTextures {
   land: Texture[][];
   water: Texture;
   foam: Texture[];
-  /** One sway strip per tree/bush sheet; `[sheetIndex][frame]`. */
-  trees: Texture[][];
-  bushes: Texture[][];
-  /** Still stones, one per rock sheet. */
-  stones: Texture[];
+  editorAssets: Map<EditorAssetId, EditorAssetArt>;
 }
 
 async function loadStageTextures(): Promise<StageTextures> {
@@ -95,28 +85,11 @@ async function loadStageTextures(): Promise<StageTextures> {
   waterTexture.source.style.scaleMode = "nearest";
   foamSheet.source.style.scaleMode = "nearest";
 
-  const treeSheets = await Promise.all(
-    TINY_SWORDS_TREES.map((sheet) => Assets.load<Texture>(sheet.source)),
-  );
-  const bushSheets = await Promise.all(
-    TINY_SWORDS_BUSHES.map((sheet) => Assets.load<Texture>(sheet.source)),
-  );
-  const stones = await Promise.all(TINY_SWORDS_ROCKS.map((source) => Assets.load<Texture>(source)));
-  for (const texture of [...treeSheets, ...bushSheets, ...stones]) {
-    texture.source.style.scaleMode = "nearest";
-  }
-
   return {
     land: sliceAutotileSheet(flatSheet),
     water: waterTexture,
     foam: sliceStrip(foamSheet, TINY_SWORDS_FOAM_FRAME, TINY_SWORDS_FOAM_FRAMES),
-    trees: TINY_SWORDS_TREES.map((sheet, index) =>
-      sliceStrip(treeSheets[index] ?? flatSheet, sheet.frame, sheet.frames),
-    ),
-    bushes: TINY_SWORDS_BUSHES.map((sheet, index) =>
-      sliceStrip(bushSheets[index] ?? flatSheet, sheet.frame, sheet.frames),
-    ),
-    stones,
+    editorAssets: await loadAllEditorAssetArt(),
   };
 }
 
@@ -202,6 +175,7 @@ async function buildSession(
   // Explicitly typed so the non-null narrowing survives into the deferred handles (dispose et al.)
   // that capture it, which control-flow narrowing alone does not carry across a closure boundary.
   const canvas: HTMLCanvasElement = found;
+  canvas.dataset.cursor = "paint";
 
   // Tear down the previous session's world before building this one — this runs inside the
   // serialized chain, so only ever one map is mounted on the shared app's stage at a time.
@@ -224,9 +198,19 @@ async function buildSession(
   const waterLayer = new Container();
   const foamLayer = new Container();
   const landLayer = new Container();
-  const elementLayer = new Container();
+  const groundElementLayer = new Container();
+  const objectElementLayer = new Container();
+  const canopyElementLayer = new Container();
   const markerLayer = new Container();
-  world.addChild(waterLayer, foamLayer, landLayer, elementLayer, markerLayer);
+  world.addChild(
+    waterLayer,
+    foamLayer,
+    landLayer,
+    groundElementLayer,
+    objectElementLayer,
+    canopyElementLayer,
+    markerLayer,
+  );
   app.stage.addChild(world);
 
   // Rebuilt every redraw; the ticker retextures these in place so the coastline and the trees are
@@ -258,7 +242,15 @@ async function buildSession(
   }
 
   function redraw(): void {
-    for (const layer of [waterLayer, foamLayer, landLayer, elementLayer, markerLayer]) {
+    for (const layer of [
+      waterLayer,
+      foamLayer,
+      landLayer,
+      groundElementLayer,
+      objectElementLayer,
+      canopyElementLayer,
+      markerLayer,
+    ]) {
       for (const child of layer.removeChildren()) child.destroy();
     }
     foamSprites = [];
@@ -317,27 +309,20 @@ async function buildSession(
     for (const element of ordered) {
       const x = element.col * TILE_SIZE + TILE_SIZE / 2;
       const base = (element.row + 1) * TILE_SIZE;
-      if (element.kind === "stone") {
-        const texture = textures.stones[wrapVariant(element.variant, textures.stones.length)];
-        if (!texture) continue;
-        const sprite = new Sprite(texture);
-        sprite.anchor.set(0.5, 1);
-        sprite.position.set(x, base);
-        elementLayer.addChild(sprite);
-        continue;
-      }
-      const strips = element.kind === "tree" ? textures.trees : textures.bushes;
-      const sheets = element.kind === "tree" ? TINY_SWORDS_TREES : TINY_SWORDS_BUSHES;
-      const index = wrapVariant(element.variant, strips.length);
-      const frames = strips[index];
-      const sheet = sheets[index];
-      const first = frames?.[0];
-      if (!frames || !sheet || !first) continue;
+      const art = textures.editorAssets.get(element.assetId);
+      const first = art?.frames[0];
+      if (!art || !first) continue;
       const sprite = new Sprite(first);
-      sprite.anchor.set(0.5, 1);
-      sprite.position.set(x, base + sheet.foot);
-      elementLayer.addChild(sprite);
-      swaySprites.push({ sprite, frames });
+      sprite.anchor.set(art.definition.anchor.x, art.definition.anchor.y);
+      sprite.position.set(x, base + art.definition.footOffset);
+      const layer =
+        art.definition.editor.renderLayer === "ground"
+          ? groundElementLayer
+          : art.definition.editor.renderLayer === "canopy"
+            ? canopyElementLayer
+            : objectElementLayer;
+      layer.addChild(sprite);
+      if (art.frames.length > 1) swaySprites.push({ sprite, frames: [...art.frames] });
     }
   }
 
@@ -390,12 +375,13 @@ async function buildSession(
   }
 
   function isPanTrigger(event: PointerEvent): boolean {
-    return event.button === 2 || (event.button === 0 && spaceHeld);
+    return event.button === 2 || (event.button === 0 && (spaceHeld || tool.kind === "pan"));
   }
 
   const onPointerDown = (event: PointerEvent): void => {
     if (isPanTrigger(event)) {
       panning = true;
+      canvas.dataset.cursor = "move";
       panLastX = event.clientX;
       panLastY = event.clientY;
       return;
@@ -422,6 +408,7 @@ async function buildSession(
   const stopStroke = (): void => {
     painting = false;
     panning = false;
+    canvas.dataset.cursor = tool.kind === "pan" ? "move" : "paint";
   };
 
   const onWheel = (event: WheelEvent): void => {
@@ -486,6 +473,7 @@ async function buildSession(
     window.removeEventListener("pointerup", stopStroke);
     window.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("keyup", onKeyUp);
+    delete canvas.dataset.cursor;
     // Only this map's display tree goes; the Application, its canvas and the Assets-cached textures
     // (shared with the world renderer) stay, so the next open reuses them instead of re-initializing.
     app.stage.removeChild(world);
@@ -498,6 +486,7 @@ async function buildSession(
   return {
     setTool(next) {
       tool = next;
+      canvas.dataset.cursor = tool.kind === "pan" ? "move" : "paint";
     },
     current() {
       return map;

@@ -277,7 +277,7 @@ export const mapElement = sqliteTable(
       .references(() => map.id, { onDelete: "cascade" }),
     col: integer("col").notNull(),
     row: integer("row").notNull(),
-    /** 'tree' | 'bush' | 'stone' — validated against ELEMENT_RULES on write, not here. */
+    /** Stable Tiny Swords editor asset id; legacy tree/bush/stone rows are normalized on read. */
     kind: text("kind").notNull(),
     variant: integer("variant").notNull().default(0),
   },
