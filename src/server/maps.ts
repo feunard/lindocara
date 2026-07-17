@@ -29,7 +29,7 @@ import {
 } from "../shared/map-data.js";
 import { isSolidKind, kindAt } from "../shared/tilemap.js";
 import { isEditorAssetId } from "../shared/tiny-swords-catalog.js";
-import { type Db, map, mapElement } from "./db/index.js";
+import { adventureMap, type Db, map, mapElement } from "./db/index.js";
 
 export const BUILTIN_MAP_ID = "builtin";
 
@@ -331,6 +331,13 @@ export async function setFirstMap(db: Db, id: string): Promise<void> {
 export async function deleteMap(db: Db, id: string): Promise<void> {
   const [row] = await db.select().from(map).where(eq(map.id, id)).limit(1);
   if (!row) throw new Error("not_found: no such map");
+
+  const used = await db
+    .select({ adventureId: adventureMap.adventureId })
+    .from(adventureMap)
+    .where(eq(adventureMap.mapId, id))
+    .limit(1);
+  if (used.length > 0) throw new Error("referenced: an adventure still uses this map");
 
   const results = await db.$client.batch([
     // Hand the flag to the earliest survivor, but only when this row is the one carrying it and a

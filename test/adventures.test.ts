@@ -12,7 +12,7 @@ import {
   updateAdventure,
 } from "../src/server/adventures.js";
 import { account, createDb } from "../src/server/db/index.js";
-import { createMap, type MapInput } from "../src/server/maps.js";
+import { createMap, deleteMap, type MapInput } from "../src/server/maps.js";
 import type { AdventureInput } from "../src/shared/adventure.js";
 
 const COLS = 20;
@@ -131,5 +131,22 @@ describe("adventure CRUD", () => {
 
     await deleteAdventure(db, "owner", created.id);
     expect(await loadAdventure(db, "owner", created.id)).toBeNull();
+  });
+});
+
+describe("map deletion guard", () => {
+  it("refuses deleting a map an adventure still uses", async () => {
+    const db = createDb(env.DB);
+    await seedAccount("owner");
+    const mapA = await createMap(db, mapInput("A"));
+    const mapB = await createMap(db, mapInput("B"));
+    const spare = await createMap(db, mapInput("Spare"));
+    const created = await createAdventure(db, "owner", inputFor([mapA.id, mapB.id]));
+
+    await expect(deleteMap(db, mapA.id)).rejects.toThrow(/^referenced:/);
+    await deleteMap(db, spare.id); // unreferenced maps still delete
+
+    await deleteAdventure(db, "owner", created.id);
+    await deleteMap(db, mapA.id); // and referenced ones do once the adventure is gone
   });
 });

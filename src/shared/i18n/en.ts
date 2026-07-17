@@ -477,6 +477,7 @@ export const en = {
   "editor.error.invalid": "That map data is invalid.",
   "editor.error.not_found": "That map no longer exists.",
   "editor.error.last_map": "The last map cannot be deleted.",
+  "editor.error.referenced": "An adventure still uses this map.",
   "editor.error.elements": "A map can hold at most 400 things.",
   "editor.error.markers": "A marker is misplaced or malformed.",
   "editor.error.too_large": "That map is too large to save.",

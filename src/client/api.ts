@@ -99,6 +99,7 @@ export const ERROR_KEYS: Record<string, MessageKey> = {
   last_map: "editor.error.last_map",
   map_elements: "editor.error.elements",
   map_markers: "editor.error.markers",
+  map_referenced: "editor.error.referenced",
   request_too_large: "editor.error.too_large",
 };
 
