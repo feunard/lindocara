@@ -69,10 +69,12 @@ export function PartiesScreen() {
     if (!adventureId) return;
     setError(null);
     try {
-      await createPartyApi({ adventureId, name: name.trim() || null, color: colour });
+      const created = await createPartyApi({ adventureId, name: name.trim() || null, color: colour });
       const list = await fetchParties();
       setParties(list);
-      const mine = list.find((party) => party.adventureId === adventureId && party.mine);
+      // Match by the id we just minted, not by adventure: a caller may host several parties of the
+      // same adventure ("comme plusieurs serveurs"), so adventureId is not unique to this one.
+      const mine = list.find((party) => party.id === created.id);
       if (mine) enter(mine);
     } catch (caught) {
       fail(caught);
