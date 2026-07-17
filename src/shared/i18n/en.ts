@@ -521,6 +521,12 @@ export const en = {
   "party.error.full": "That party is full.",
   "party.error.already_member": "You are already in that party.",
 
+  // Hero API errors
+  "hero.error.invalid": "That hero data is invalid.",
+  "hero.error.not_found": "That hero no longer exists.",
+  "hero.error.not_member": "You are not a member of that party.",
+  "hero.error.cap": "You already have three heroes in this party.",
+
   // Adventure editor
   "adventure.title": "Adventure editor",
   "adventure.new": "New adventure",

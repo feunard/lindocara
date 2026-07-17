@@ -141,6 +141,10 @@ export const ERROR_KEYS: Record<string, MessageKey> = {
   party_full: "party.error.full",
   party_already_member: "party.error.already_member",
   adventure_referenced: "adventure.error.referenced",
+  hero_invalid: "hero.error.invalid",
+  hero_not_found: "hero.error.not_found",
+  hero_not_member: "hero.error.not_member",
+  hero_cap: "hero.error.cap",
 };
 
 export function errorCode(error: unknown): string {

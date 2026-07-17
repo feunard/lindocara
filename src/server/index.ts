@@ -10,6 +10,7 @@ import { parseAdventureInput } from "../shared/adventure.js";
 import { normalizeAppearance } from "../shared/character.js";
 import { WS_CLOSE } from "../shared/close-codes.js";
 import { isValidClass } from "../shared/game.js";
+import { parseCreateHeroInput } from "../shared/hero.js";
 import { isUuid } from "../shared/identifiers.js";
 import { mapSpawnPoint, parseMapData } from "../shared/map-data.js";
 import { parseCreatePartyInput, parseJoinPartyInput } from "../shared/party.js";
@@ -36,6 +37,7 @@ import {
   listCharacters,
 } from "./characters.js";
 import { createDb } from "./db/index.js";
+import { createHero, deleteHero, listHeroes } from "./heroes.js";
 import {
   createMap,
   deleteMap,
@@ -475,6 +477,16 @@ function partyErrorResponse(error: unknown): Response {
   throw error;
 }
 
+/** `heroes.ts` throws "prefix: message" — the prefix is the machine code. */
+function heroErrorResponse(error: unknown): Response {
+  const message = error instanceof Error ? error.message : "";
+  const code = message.split(":")[0];
+  if (code === "not_found") return json({ error: "hero_not_found" }, { status: 404 });
+  if (code === "not_member") return json({ error: "hero_not_member" }, { status: 403 });
+  if (code === "cap") return json({ error: "hero_cap" }, { status: 409 });
+  throw error;
+}
+
 async function handleListAdventures(request: Request, env: Env, url: URL): Promise<Response> {
   const auth = await requireSession(request, env, url);
   if (auth instanceof Response) return auth;
@@ -599,6 +611,55 @@ async function handleDeleteParty(
   }
 }
 
+async function handleListHeroes(
+  request: Request,
+  env: Env,
+  url: URL,
+  partyId: string,
+): Promise<Response> {
+  const auth = await requireSession(request, env, url);
+  if (auth instanceof Response) return auth;
+  return json(await listHeroes(createDb(env.DB), auth.session.id, partyId));
+}
+
+async function handleCreateHero(
+  request: Request,
+  env: Env,
+  url: URL,
+  partyId: string,
+): Promise<Response> {
+  const auth = await requireSession(request, env, url);
+  if (auth instanceof Response) return auth;
+  const parsed = await readJson(request);
+  if (parsed instanceof Response) return parsed;
+  const input = parseCreateHeroInput(parsed.value);
+  if (!input) return json({ error: "hero_invalid" }, { status: 400 });
+  try {
+    return json(await createHero(createDb(env.DB), auth.session.id, partyId, input), {
+      status: 201,
+    });
+  } catch (error) {
+    return heroErrorResponse(error);
+  }
+}
+
+async function handleDeleteHero(
+  request: Request,
+  env: Env,
+  url: URL,
+  partyId: string,
+  heroId: string,
+): Promise<Response> {
+  const auth = await requireSession(request, env, url);
+  if (auth instanceof Response) return auth;
+  try {
+    await deleteHero(createDb(env.DB), auth.session.id, partyId, heroId);
+    return new Response(null, { status: 204 });
+  } catch (error) {
+    return heroErrorResponse(error);
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -690,6 +751,19 @@ export default {
     const partyRoute = url.pathname.match(/^\/api\/parties\/([A-Za-z0-9-]{1,64})$/);
     if (partyRoute?.[1] && request.method === "DELETE") {
       return handleDeleteParty(request, env, url, partyRoute[1]);
+    }
+
+    const heroListRoute = url.pathname.match(/^\/api\/parties\/([A-Za-z0-9-]{1,64})\/heroes$/);
+    if (heroListRoute?.[1]) {
+      const partyId = heroListRoute[1];
+      if (request.method === "GET") return handleListHeroes(request, env, url, partyId);
+      if (request.method === "POST") return handleCreateHero(request, env, url, partyId);
+    }
+    const heroItemRoute = url.pathname.match(
+      /^\/api\/parties\/([A-Za-z0-9-]{1,64})\/heroes\/([A-Za-z0-9-]{1,64})$/,
+    );
+    if (heroItemRoute?.[1] && heroItemRoute[2] && request.method === "DELETE") {
+      return handleDeleteHero(request, env, url, heroItemRoute[1], heroItemRoute[2]);
     }
 
     return json({ error: "not found" }, { status: 404 });

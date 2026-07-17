@@ -532,6 +532,12 @@ export const fr: Record<keyof typeof en, string> = {
   "party.error.full": "Cette partie est complète.",
   "party.error.already_member": "Tu es déjà dans cette partie.",
 
+  // Erreurs de l'API des héros
+  "hero.error.invalid": "Ces données de héros sont invalides.",
+  "hero.error.not_found": "Ce héros n'existe plus.",
+  "hero.error.not_member": "Tu n'es pas membre de cette partie.",
+  "hero.error.cap": "Tu as déjà trois héros dans cette partie.",
+
   // Éditeur d'aventures
   "adventure.title": "Éditeur d'aventures",
   "adventure.new": "Nouvelle aventure",
