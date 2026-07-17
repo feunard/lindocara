@@ -123,7 +123,20 @@ export async function joinParty(
   if (members.some((member) => member.color === color)) {
     throw new Error("color_taken: that colour is taken");
   }
-  await db.insert(partyMember).values({ partyId, accountId, color });
+  // Atomic cap backstop: the length check above is a friendly fast-path, but two concurrent joins
+  // could both pass it before either inserts. This conditional insert writes only while the live
+  // count is still under the cap, so a party can never exceed maxPlayers under a race (mirrors
+  // deleteMap's last-map guard). PK(partyId,accountId) and UNIQUE(partyId,color) are the matching
+  // DB backstops for the already_member and color_taken fences.
+  const result = await db.$client
+    .prepare(
+      `INSERT INTO party_member (party_id, account_id, color, joined_at)
+         SELECT ?, ?, ?, (unixepoch() * 1000)
+         WHERE (SELECT count(*) FROM party_member WHERE party_id = ?) < ?`,
+    )
+    .bind(partyId, accountId, color, partyId, row.maxPlayers)
+    .run();
+  if ((result.meta.changes ?? 0) === 0) throw new Error("full: party is full");
 }
 
 export async function deleteParty(db: Db, accountId: string, partyId: string): Promise<void> {
