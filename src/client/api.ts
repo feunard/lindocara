@@ -1,3 +1,4 @@
+import type { AdventureGraph, AdventureInput } from "../shared/adventure.js";
 import type { CharacterAppearance, Equipment } from "../shared/character.js";
 import type { PlayerClass } from "../shared/game.js";
 import type { MessageKey } from "../shared/i18n/index.js";
@@ -77,6 +78,31 @@ export const updateMapApi = (id: string, input: MapSaveInput) =>
 export const deleteMapApi = (id: string) => api<void>(`/api/maps/${id}`, { method: "DELETE" });
 export const flagFirstMapApi = (id: string) =>
   api<void>(`/api/maps/${id}/first`, { method: "POST" });
+
+export interface AdventureSummary {
+  id: string;
+  title: string;
+  maxPlayers: number;
+}
+
+export interface AdventurePayload {
+  id: string;
+  accountId: string;
+  title: string;
+  maxPlayers: number;
+  version: number;
+  mapIds: string[];
+  graph: AdventureGraph;
+}
+
+export const fetchAdventures = () => api<AdventureSummary[]>("/api/adventures");
+export const fetchAdventure = (id: string) => api<AdventurePayload>(`/api/adventures/${id}`);
+export const createAdventureApi = (input: AdventureInput) =>
+  api<AdventurePayload>("/api/adventures", { method: "POST", body: JSON.stringify(input) });
+export const updateAdventureApi = (id: string, input: AdventureInput) =>
+  api<AdventurePayload>(`/api/adventures/${id}`, { method: "PUT", body: JSON.stringify(input) });
+export const deleteAdventureApi = (id: string) =>
+  api<void>(`/api/adventures/${id}`, { method: "DELETE" });
 
 /** Stable machine codes (from ApiError, or synthesized client-side) mapped to i18n keys. */
 export const ERROR_KEYS: Record<string, MessageKey> = {

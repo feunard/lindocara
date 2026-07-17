@@ -1,0 +1,92 @@
+import { describe, expect, it } from "vitest";
+import {
+  type AdventureDraft,
+  addMember,
+  bindExit,
+  type DraftMemberInfo,
+  draftComplete,
+  draftFromAdventure,
+  emptyDraft,
+  removeMember,
+  setStart,
+  toAdventureInput,
+} from "../src/client/adventure-draft.js";
+
+const A: DraftMemberInfo = { mapId: "map-a", name: "A", entryIds: ["door"], exitIds: ["east"] };
+const B: DraftMemberInfo = { mapId: "map-b", name: "B", entryIds: ["west"], exitIds: ["boss"] };
+
+function fullDraft(): AdventureDraft {
+  let draft = emptyDraft();
+  draft = { ...draft, title: "Donjon", maxPlayers: 2 };
+  draft = addMember(draft, A) as AdventureDraft;
+  draft = addMember(draft, B) as AdventureDraft;
+  draft = setStart(draft, "map-a", "door") as AdventureDraft;
+  draft = bindExit(draft, "map-a", "east", { mapId: "map-b", entryId: "west" }) as AdventureDraft;
+  draft = bindExit(draft, "map-b", "boss", "end") as AdventureDraft;
+  return draft;
+}
+
+describe("adventure draft", () => {
+  it("adding a member creates one unbound binding row per exit", () => {
+    const draft = addMember(emptyDraft(), A);
+    expect(draft?.bindings).toEqual([{ mapId: "map-a", exitId: "east", dest: null }]);
+    expect(addMember(draft as AdventureDraft, A)).toBeNull(); // duplicate refused
+  });
+
+  it("completes only when start, every binding and one end are set", () => {
+    const draft = fullDraft();
+    expect(draftComplete(draft)).toBe(true);
+    expect(draftComplete({ ...draft, start: null })).toBe(false);
+    expect(draftComplete({ ...draft, title: "  " })).toBe(false);
+    const unbound = bindExit(draft, "map-a", "east", null) as AdventureDraft;
+    expect(draftComplete(unbound)).toBe(false);
+    const endless = bindExit(draft, "map-b", "boss", {
+      mapId: "map-a",
+      entryId: "door",
+    }) as AdventureDraft;
+    expect(draftComplete(endless)).toBe(false); // no end left
+  });
+
+  it("produces the exact AdventureInput wire shape", () => {
+    expect(toAdventureInput(fullDraft())).toEqual({
+      title: "Donjon",
+      maxPlayers: 2,
+      mapIds: ["map-a", "map-b"],
+      graph: {
+        start: { mapId: "map-a", entryId: "door" },
+        links: [
+          { mapId: "map-a", exitId: "east", dest: { mapId: "map-b", entryId: "west" } },
+          { mapId: "map-b", exitId: "boss", dest: "end" },
+        ],
+      },
+    });
+    expect(toAdventureInput(emptyDraft())).toBeNull();
+  });
+
+  it("removing a member clears its bindings, dangling destinations and the start", () => {
+    const removed = removeMember(fullDraft(), "map-b");
+    expect(removed.members.map((m) => m.mapId)).toEqual(["map-a"]);
+    expect(removed.bindings).toEqual([{ mapId: "map-a", exitId: "east", dest: null }]);
+    const noStart = removeMember(fullDraft(), "map-a");
+    expect(noStart.start).toBeNull();
+  });
+
+  it("refuses starts and destinations that name unknown maps or entries", () => {
+    const draft = fullDraft();
+    expect(setStart(draft, "map-c", "door")).toBeNull();
+    expect(setStart(draft, "map-a", "ghost")).toBeNull();
+    expect(bindExit(draft, "map-a", "east", { mapId: "map-b", entryId: "ghost" })).toBeNull();
+    expect(bindExit(draft, "map-a", "ghost", "end")).toBeNull();
+  });
+
+  it("rebuilds a draft from a stored adventure", () => {
+    const stored = toAdventureInput(fullDraft());
+    if (!stored) throw new Error("expected a complete draft");
+    const infos = new Map([
+      ["map-a", A],
+      ["map-b", B],
+    ]);
+    const rebuilt = draftFromAdventure({ ...stored, mapIds: [...stored.mapIds] }, infos);
+    expect(rebuilt).toEqual(fullDraft());
+  });
+});
