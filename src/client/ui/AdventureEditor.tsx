@@ -249,7 +249,7 @@ export function AdventureEditor() {
               .filter((member) => member.entryIds.length > 0)
               .map((member) => (
                 <option key={member.mapId} value={member.mapId}>
-                  {member.name} ({member.mapId})
+                  {member.name}
                 </option>
               ))}
           </select>
@@ -278,9 +278,7 @@ export function AdventureEditor() {
             const selectId = `binding-${binding.mapId}-${binding.exitId}`;
             return (
               <div key={selectId} className="adventure-binding">
-                <span>
-                  {owner?.name} ({owner?.mapId})
-                </span>
+                <span>{owner?.name}</span>
                 <Label htmlFor={selectId}>{binding.exitId}</Label>
                 <select
                   id={selectId}

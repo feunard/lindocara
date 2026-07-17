@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "../../src/client/i18n.js";
@@ -90,10 +90,10 @@ describe("AdventureEditor", () => {
 
     await userEvent.selectOptions(await screen.findByLabelText("Add a map"), "m1");
     await userEvent.click(screen.getByRole("button", { name: "Add" }));
-    await screen.findByText("Verdant");
+    await within(screen.getByRole("region", { name: "Maps" })).findByText("Verdant");
     await userEvent.selectOptions(screen.getByLabelText("Add a map"), "m2");
     await userEvent.click(screen.getByRole("button", { name: "Add" }));
-    await screen.findByText("Frostfen");
+    await within(screen.getByRole("region", { name: "Maps" })).findByText("Frostfen");
 
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
 
