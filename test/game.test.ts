@@ -27,10 +27,12 @@ import {
   hasLineOfSight,
   healAmountFor,
   INTERACTION_RANGE,
+  isMonsterSpecies,
   isValidClass,
   isWalkable,
   MONSTER_AGGRO_RANGE,
   MONSTER_SPAWNS,
+  MONSTER_SPECIES_KIND,
   MONSTER_STATS,
   maxHpForLevel,
   nearestCemetery,
@@ -684,5 +686,20 @@ describe("the Tiny Swords bestiary", () => {
     expect(skullIds).toContain("ruins-bone-guard");
     expect(skullIds).toContain("ruins-bone-crusader");
     expect(skullIds).toContain("ruins-bone-warden");
+  });
+});
+
+describe("monster species table", () => {
+  it("maps every species to the kind used by the compiled spawns", () => {
+    for (const spawn of MONSTER_SPAWNS) {
+      expect(MONSTER_SPECIES_KIND[spawn.species]).toBe(spawn.kind);
+    }
+  });
+
+  it("recognizes species and rejects everything else", () => {
+    expect(isMonsterSpecies("mire_troll")).toBe(true);
+    expect(isMonsterSpecies("dragon")).toBe(false);
+    expect(isMonsterSpecies(7)).toBe(false);
+    expect(isMonsterSpecies(null)).toBe(false);
   });
 });

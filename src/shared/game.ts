@@ -50,6 +50,23 @@ export type MonsterSpecies =
   | "mire_troll"
   | "gate_troll";
 
+/** One authored field (species) decides the stats row (kind). Markers store only the species. */
+export const MONSTER_SPECIES_KIND: Record<MonsterSpecies, MonsterKind> = {
+  spear_goblin: "goblin",
+  torch_goblin: "goblin",
+  gnoll_marauder: "gnoll",
+  skull_guard: "skull",
+  skull_crusader: "skull",
+  skull_warden: "skull",
+  minotaur_brute: "minotaur",
+  mire_troll: "troll",
+  gate_troll: "troll",
+};
+
+export function isMonsterSpecies(value: unknown): value is MonsterSpecies {
+  return typeof value === "string" && value in MONSTER_SPECIES_KIND;
+}
+
 export interface MonsterSpawn extends Vec2 {
   id: string;
   kind: MonsterKind;
