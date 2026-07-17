@@ -1,7 +1,7 @@
 import type { CharacterAppearance, Equipment } from "../shared/character.js";
 import type { PlayerClass } from "../shared/game.js";
 import type { MessageKey } from "../shared/i18n/index.js";
-import type { MapElement } from "../shared/map-data.js";
+import type { MapElement, MapMarkers } from "../shared/map-data.js";
 import { t } from "./i18n.js";
 
 export interface Me {
@@ -62,6 +62,7 @@ export interface MapPayload {
   blocks: string[];
   elements: MapElement[];
   spawn: { col: number; row: number };
+  markers: MapMarkers;
 }
 
 /** What create/update send: everything but the server-minted id. */

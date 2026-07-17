@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { MapData } from "../../shared/map-data.js";
+import { EMPTY_MARKERS, type MapData } from "../../shared/map-data.js";
 import type { EditorAssetId } from "../../shared/tiny-swords-catalog.js";
 import {
   authErrorText,
@@ -44,7 +44,13 @@ function isSessionError(code: string): boolean {
 }
 
 function toEditorMap(map: MapPayload): EditorMap {
-  return { name: map.name, blocks: map.blocks, elements: map.elements, spawn: map.spawn };
+  return {
+    name: map.name,
+    blocks: map.blocks,
+    elements: map.elements,
+    spawn: map.spawn,
+    markers: map.markers ?? EMPTY_MARKERS,
+  };
 }
 
 const TOOL_KEYS = ["grass", "water", "eraser", "spawn", "pan"] as const;

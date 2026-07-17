@@ -3,6 +3,7 @@
 import {
   bakeCollision,
   canPlaceElement,
+  EMPTY_MARKERS,
   elementCoversCell,
   elementFitsMap,
   elementPlacementCells,
@@ -10,6 +11,7 @@ import {
   MAX_MAP_ELEMENTS,
   type MapData,
   type MapElement,
+  type MapMarkers,
 } from "../../shared/map-data.js";
 import { isSolidKind, kindAt } from "../../shared/tilemap.js";
 import type { EditorAssetId } from "../../shared/tiny-swords-catalog.js";
@@ -19,6 +21,7 @@ export interface EditorMap {
   blocks: string[];
   elements: MapElement[];
   spawn: { col: number; row: number };
+  markers: MapMarkers;
 }
 
 export type EditorTool =
@@ -37,11 +40,12 @@ export function blankMap(name: string, cols: number, rows: number): EditorMap {
     blocks,
     elements: [],
     spawn: { col: Math.floor(cols / 2), row: Math.floor(rows / 2) },
+    markers: EMPTY_MARKERS,
   };
 }
 
 function toMapData(map: EditorMap): MapData {
-  return { blocks: map.blocks, elements: map.elements, spawn: map.spawn };
+  return { blocks: map.blocks, elements: map.elements, spawn: map.spawn, markers: map.markers };
 }
 
 function isWalkableCell(map: EditorMap, col: number, row: number): boolean {

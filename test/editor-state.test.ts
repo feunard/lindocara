@@ -5,7 +5,7 @@ import {
   type EditorMap,
   type EditorTool,
 } from "../src/client/game/editor-state.js";
-import { MAX_MAP_ELEMENTS, type MapElement } from "../src/shared/map-data.js";
+import { EMPTY_MARKERS, MAX_MAP_ELEMENTS, type MapElement } from "../src/shared/map-data.js";
 
 const TREE = "resource.terrain-resources-wood-trees.tree3" as const;
 const BUSH = "decoration.terrain-decorations-bushes.bushe1" as const;
@@ -222,5 +222,27 @@ describe("applyTool: bounds", () => {
     expect(applyTool(map, tool, 0, -1)).toBeNull();
     expect(applyTool(map, tool, 20, 0)).toBeNull();
     expect(applyTool(map, tool, 0, 15)).toBeNull();
+  });
+});
+
+describe("markers on the editor map", () => {
+  it("blankMap starts with empty markers", () => {
+    expect(blankMap("m", 20, 15).markers).toEqual(EMPTY_MARKERS);
+  });
+
+  it("every tool application preserves markers it did not touch", () => {
+    const base = blankMap("m", 20, 15);
+    const withMarkers: EditorMap = {
+      ...base,
+      markers: {
+        entries: [{ id: "door", col: 2, row: 2 }],
+        exits: [{ id: "gate", col: 4, row: 4 }],
+        monsterSpawns: [],
+      },
+    };
+    const painted = applyTool(withMarkers, { kind: "block", block: "water" }, 9, 9);
+    expect(painted?.markers).toEqual(withMarkers.markers);
+    const moved = applyTool(withMarkers, { kind: "spawn" }, 8, 8);
+    expect(moved?.markers).toEqual(withMarkers.markers);
   });
 });

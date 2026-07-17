@@ -7,6 +7,7 @@ import { useUiStore } from "../../src/client/store.js";
 import { CharacterSelect } from "../../src/client/ui/CharacterSelect.js";
 import { MapEditor } from "../../src/client/ui/MapEditor.js";
 import { starterEquipmentFor } from "../../src/shared/character.js";
+import { EMPTY_MARKERS } from "../../src/shared/map-data.js";
 
 // The painting stage is Pixi on a real canvas — untestable in jsdom and not this suite's subject.
 // A fake handle stands in for it so the tests exercise the toolbar's own behaviour: which tool is
@@ -57,6 +58,12 @@ const twoMaps: MapSummary[] = [
   { id: "m2", name: "Frostfen", isFirst: false },
 ];
 
+const MARKERS = {
+  entries: [{ id: "door", col: 1, row: 1 }],
+  exits: [{ id: "gate", col: 2, row: 2 }],
+  monsterSpawns: [],
+};
+
 function payloadFor(summary: MapSummary): MapPayload {
   return {
     id: summary.id,
@@ -64,6 +71,7 @@ function payloadFor(summary: MapSummary): MapPayload {
     blocks: Array.from({ length: 30 }, () => ".".repeat(40)),
     elements: [],
     spawn: { col: 20, row: 15 },
+    markers: MARKERS,
   };
 }
 
@@ -81,6 +89,7 @@ function fetchMock(maps: MapSummary[] = twoMaps) {
         blocks: Array.from({ length: 30 }, () => ".".repeat(40)),
         elements: [],
         spawn: { col: 20, row: 15 },
+        markers: EMPTY_MARKERS,
       };
       list.push({ id: created.id, name: created.name, isFirst: false });
       return Promise.resolve(jsonResponse(created, 201));
@@ -269,6 +278,7 @@ describe("MapEditor", () => {
         { col: 2, row: 3, assetId: "resource.terrain-resources-wood-trees.tree4" as const },
       ],
       spawn: { col: 20, row: 15 },
+      markers: MARKERS,
     };
     stageMock.current.mockReturnValue(edited);
     const mock = fetchMock();
