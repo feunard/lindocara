@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   bakeCollision,
   canPlaceElement,
+  EMPTY_MARKERS,
   type MapData,
   mapSpawnPoint,
   parseMapData,
+  parseMapMarkers,
   terrainFromMap,
 } from "../src/shared/map-data.js";
 import { isSolidKind, kindAt, TILE_SIZE } from "../src/shared/tilemap.js";
@@ -157,5 +159,82 @@ describe("terrainFromMap", () => {
       x: 2 * TILE_SIZE + TILE_SIZE / 2,
       y: 2 * TILE_SIZE + TILE_SIZE / 2,
     });
+  });
+});
+
+describe("map markers", () => {
+  const GOOD = {
+    entries: [{ id: "front-door", col: 1, row: 1 }],
+    exits: [{ id: "cave", col: 2, row: 2 }],
+    monsterSpawns: [{ col: 3, row: 1, species: "spear_goblin", patrolRadius: 96 }],
+  };
+
+  it("parses a well-formed marker collection", () => {
+    expect(parseMapMarkers(GOOD, 4, 4)).toEqual(GOOD);
+  });
+
+  it("defaults an absent collection to empty", () => {
+    expect(parseMapMarkers(undefined, 4, 4)).toEqual(EMPTY_MARKERS);
+  });
+
+  it("rejects malformed markers instead of throwing", () => {
+    const bad: unknown[] = [
+      null,
+      "markers",
+      {
+        entries: [{ id: "x", col: 9, row: 0 }],
+        exits: [],
+        monsterSpawns: [],
+      }, // out of bounds
+      {
+        entries: [{ id: "UPPER", col: 0, row: 0 }],
+        exits: [],
+        monsterSpawns: [],
+      }, // id pattern
+      {
+        entries: [
+          { id: "a", col: 0, row: 0 },
+          { id: "a", col: 1, row: 1 },
+        ],
+        exits: [],
+        monsterSpawns: [],
+      }, // dup id
+      {
+        entries: [],
+        exits: [],
+        monsterSpawns: [{ col: 0, row: 0, species: "dragon", patrolRadius: 96 }],
+      },
+      {
+        entries: [],
+        exits: [],
+        monsterSpawns: [{ col: 0, row: 0, species: "mire_troll", patrolRadius: 8 }],
+      },
+      {
+        entries: [],
+        exits: [],
+        monsterSpawns: [{ col: 0, row: 0, species: "mire_troll", patrolRadius: 4096 }],
+      },
+      {
+        entries: Array.from({ length: 9 }, (_, i) => ({
+          id: `e${i}`,
+          col: 0,
+          row: 0,
+        })),
+        exits: [],
+        monsterSpawns: [],
+      },
+    ];
+    for (const value of bad) expect(parseMapMarkers(value, 4, 4)).toBeNull();
+  });
+
+  it("rides through parseMapData and defaults when absent", () => {
+    const base = {
+      blocks: ["....", "....", "....", "...."],
+      elements: [],
+      spawn: { col: 0, row: 0 },
+    };
+    expect(parseMapData(base)?.markers).toEqual(EMPTY_MARKERS);
+    expect(parseMapData({ ...base, markers: GOOD })?.markers).toEqual(GOOD);
+    expect(parseMapData({ ...base, markers: { entries: "no" } })).toBeNull();
   });
 });

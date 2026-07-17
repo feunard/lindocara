@@ -10,6 +10,7 @@
  */
 
 import type { Rect, TerrainGeometry } from "./game.js";
+import { isMonsterSpecies, type MonsterSpecies } from "./game.js";
 import { TILE_SIZE, type TileKind, type TileMap } from "./tilemap.js";
 import { decodeTileMap } from "./tilemap-codec.js";
 import { type EditorAssetId, editorAsset, isEditorAssetId } from "./tiny-swords-catalog.js";
@@ -30,10 +31,51 @@ export interface LegacyMapElement {
   variant: number;
 }
 
+export interface EntryMarker {
+  id: string;
+  col: number;
+  row: number;
+}
+
+export interface ExitMarker {
+  id: string;
+  col: number;
+  row: number;
+}
+
+export interface MonsterSpawnMarker {
+  col: number;
+  row: number;
+  species: MonsterSpecies;
+  patrolRadius: number;
+}
+
+/**
+ * Functional markers are deliberately not MapElements: they carry no catalogue asset, no
+ * footprint and no collision. Entries/exits are spatial anchors whose meaning (destinations)
+ * lives in the adventure graph, never here.
+ */
+export interface MapMarkers {
+  entries: readonly EntryMarker[];
+  exits: readonly ExitMarker[];
+  monsterSpawns: readonly MonsterSpawnMarker[];
+}
+
+export const EMPTY_MARKERS: MapMarkers = { entries: [], exits: [], monsterSpawns: [] };
+
+export const MAX_MAP_ENTRIES = 8;
+export const MAX_MAP_EXITS = 8;
+export const MAX_MAP_MONSTER_SPAWNS = 32;
+export const MIN_PATROL_RADIUS = 32;
+export const MAX_PATROL_RADIUS = 768;
+export const MARKER_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
+
 export interface MapData {
   blocks: readonly string[];
   elements: readonly MapElement[];
   spawn: { col: number; row: number };
+  /** Absent on legacy payloads; parseMapData always fills it (EMPTY_MARKERS when omitted). */
+  markers?: MapMarkers;
 }
 
 /**
@@ -67,6 +109,55 @@ export const MAX_MAP_ELEMENTS = 400;
 
 export function isElementKind(value: unknown): value is ElementKind {
   return typeof value === "string" && (ELEMENT_KINDS as readonly string[]).includes(value);
+}
+
+function parseAnchoredMarkers(
+  value: unknown,
+  max: number,
+  cols: number,
+  rows: number,
+): { id: string; col: number; row: number }[] | null {
+  if (!Array.isArray(value) || value.length > max) return null;
+  const seen = new Set<string>();
+  const parsed: { id: string; col: number; row: number }[] = [];
+  for (const raw of value) {
+    if (typeof raw !== "object" || raw === null) return null;
+    const { id, col, row } = raw as Record<string, unknown>;
+    if (typeof id !== "string" || !MARKER_ID_PATTERN.test(id) || seen.has(id)) return null;
+    if (!Number.isSafeInteger(col) || !Number.isSafeInteger(row)) return null;
+    const c = col as number;
+    const r = row as number;
+    if (c < 0 || c >= cols || r < 0 || r >= rows) return null;
+    seen.add(id);
+    parsed.push({ id, col: c, row: r });
+  }
+  return parsed;
+}
+
+export function parseMapMarkers(value: unknown, cols: number, rows: number): MapMarkers | null {
+  if (value === undefined) return EMPTY_MARKERS;
+  if (typeof value !== "object" || value === null) return null;
+  const record = value as Record<string, unknown>;
+  const entries = parseAnchoredMarkers(record.entries, MAX_MAP_ENTRIES, cols, rows);
+  const exits = parseAnchoredMarkers(record.exits, MAX_MAP_EXITS, cols, rows);
+  if (!entries || !exits) return null;
+  const spawnsRaw = record.monsterSpawns;
+  if (!Array.isArray(spawnsRaw) || spawnsRaw.length > MAX_MAP_MONSTER_SPAWNS) return null;
+  const monsterSpawns: MonsterSpawnMarker[] = [];
+  for (const raw of spawnsRaw) {
+    if (typeof raw !== "object" || raw === null) return null;
+    const { col, row, species, patrolRadius } = raw as Record<string, unknown>;
+    if (!Number.isSafeInteger(col) || !Number.isSafeInteger(row)) return null;
+    const c = col as number;
+    const r = row as number;
+    if (c < 0 || c >= cols || r < 0 || r >= rows) return null;
+    if (!isMonsterSpecies(species)) return null;
+    if (!Number.isSafeInteger(patrolRadius)) return null;
+    const radius = patrolRadius as number;
+    if (radius < MIN_PATROL_RADIUS || radius > MAX_PATROL_RADIUS) return null;
+    monsterSpawns.push({ col: c, row: r, species, patrolRadius: radius });
+  }
+  return { entries, exits, monsterSpawns };
 }
 
 export function legacyElementAssetId(kind: ElementKind, variant: number): EditorAssetId {
@@ -236,9 +327,13 @@ export function parseMapData(value: unknown): MapData | null {
   if ((spawnCol as number) < 0 || (spawnCol as number) >= cols) return null;
   if ((spawnRow as number) < 0 || (spawnRow as number) >= rows) return null;
 
+  const markers = parseMapMarkers(record.markers, cols, rows);
+  if (!markers) return null;
+
   return {
     blocks: blocks as string[],
     elements: parsed,
     spawn: { col: spawnCol as number, row: spawnRow as number },
+    markers,
   };
 }
