@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { MapData } from "../../shared/map-data.js";
+import type { EditorAssetId } from "../../shared/tiny-swords-catalog.js";
 import {
   authErrorText,
   createMapApi,
@@ -19,6 +20,7 @@ import { startMapPreview } from "../game/map-preview.js";
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
 import { AssetBrowser } from "./AssetBrowser.js";
+import { EditorAssetPalette } from "./EditorAssetPalette.js";
 import { Button } from "./pixelact-ui/button/index.js";
 import { Input } from "./pixelact-ui/input.js";
 import { Label } from "./pixelact-ui/label.js";
@@ -45,33 +47,21 @@ function toEditorMap(map: MapPayload): EditorMap {
   return { name: map.name, blocks: map.blocks, elements: map.elements, spawn: map.spawn };
 }
 
-/** The toolbar's buttons, in order. Element tools carry no variant here: the current variant is
- *  folded in when a button is clicked, so one counter cycles whichever element kind is selected. */
-const TOOL_KEYS = ["grass", "water", "tree", "bush", "stone", "eraser", "spawn"] as const;
+const TOOL_KEYS = ["grass", "water", "eraser", "spawn", "pan"] as const;
 type ToolKey = (typeof TOOL_KEYS)[number];
 
-function isElementTool(key: ToolKey): boolean {
-  return key === "tree" || key === "bush" || key === "stone";
-}
-
-/** The `EditorTool` a toolbar button stands for, with the live `variant` folded into element tools
- *  so the stage draws (and `applyTool` validates) the currently selected sprite. */
-function toolFor(key: ToolKey, variant: number): EditorTool {
+function toolFor(key: ToolKey): EditorTool {
   switch (key) {
     case "grass":
       return { kind: "block", block: "grass" };
     case "water":
       return { kind: "block", block: "water" };
-    case "tree":
-      return { kind: "element", element: "tree", variant };
-    case "bush":
-      return { kind: "element", element: "bush", variant };
-    case "stone":
-      return { kind: "element", element: "stone", variant };
     case "eraser":
       return { kind: "eraser" };
     case "spawn":
       return { kind: "spawn" };
+    case "pan":
+      return { kind: "pan" };
   }
 }
 
@@ -88,8 +78,9 @@ function MapEditorStage({ map, onExit }: { map: MapPayload; onExit: () => void }
   // preview round-trip: the stage is disposed for the sandbox and reopened from this, not from the
   // `map` prop, so painting survives the walk.
   const editedRef = useRef<EditorMap | null>(null);
-  const [toolKey, setToolKey] = useState<ToolKey>("grass");
-  const [variant, setVariant] = useState(0);
+  const [toolKey, setToolKey] = useState<ToolKey | null>("grass");
+  const [selectedAsset, setSelectedAsset] = useState<EditorAssetId | null>(null);
+  const [elementCount, setElementCount] = useState(map.elements.length);
   const [name, setName] = useState(map.name);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -101,7 +92,10 @@ function MapEditorStage({ map, onExit }: { map: MapPayload; onExit: () => void }
   useEffect(() => {
     if (previewing) return;
     let cancelled = false;
-    openMapEditorStage(editedRef.current ?? toEditorMap(map), () => setError(null))
+    openMapEditorStage(editedRef.current ?? toEditorMap(map), (changed) => {
+      setError(null);
+      setElementCount(changed.elements.length);
+    })
       .then((handle) => {
         if (cancelled) {
           handle.dispose();
@@ -165,13 +159,14 @@ function MapEditorStage({ map, onExit }: { map: MapPayload; onExit: () => void }
 
   function selectTool(key: ToolKey): void {
     setToolKey(key);
-    handleRef.current?.setTool(toolFor(key, variant));
+    setSelectedAsset(null);
+    handleRef.current?.setTool(toolFor(key));
   }
 
-  function cycleVariant(): void {
-    const next = variant + 1;
-    setVariant(next);
-    if (isElementTool(toolKey)) handleRef.current?.setTool(toolFor(toolKey, next));
+  function selectAsset(assetId: EditorAssetId): void {
+    setToolKey(null);
+    setSelectedAsset(assetId);
+    handleRef.current?.setTool({ kind: "element", assetId });
   }
 
   function rename(value: string): void {
@@ -211,15 +206,13 @@ function MapEditorStage({ map, onExit }: { map: MapPayload; onExit: () => void }
             {t(`editor.tool.${key}`)}
           </Button>
         ))}
-        <Button
-          type="button"
-          variant="secondary"
-          disabled={!isElementTool(toolKey)}
-          onClick={cycleVariant}
-        >
-          {t("editor.tool.variant")}
-        </Button>
       </div>
+
+      <EditorAssetPalette
+        selected={selectedAsset}
+        elementCount={elementCount}
+        onSelect={selectAsset}
+      />
 
       <div className="map-editor-toolbar__meta">
         <Label htmlFor="map-editor-edit-name">{t("editor.name")}</Label>

@@ -7884,7 +7884,8 @@ export const GENERATED_EDITOR_ASSETS = [
       "renderLayer": "object",
       "category": "rocks",
       "allowedTerrain": [
-        "grass"
+        "grass",
+        "water"
       ],
       "collisionFootprint": [
         {
@@ -7927,7 +7928,8 @@ export const GENERATED_EDITOR_ASSETS = [
       "renderLayer": "object",
       "category": "rocks",
       "allowedTerrain": [
-        "grass"
+        "grass",
+        "water"
       ],
       "collisionFootprint": [
         {
@@ -7970,7 +7972,8 @@ export const GENERATED_EDITOR_ASSETS = [
       "renderLayer": "object",
       "category": "rocks",
       "allowedTerrain": [
-        "grass"
+        "grass",
+        "water"
       ],
       "collisionFootprint": [
         {
@@ -8013,7 +8016,8 @@ export const GENERATED_EDITOR_ASSETS = [
       "renderLayer": "object",
       "category": "rocks",
       "allowedTerrain": [
-        "grass"
+        "grass",
+        "water"
       ],
       "collisionFootprint": [
         {

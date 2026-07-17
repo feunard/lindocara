@@ -292,7 +292,9 @@ function editorMetadata(
     return {
       ...common,
       category: "rocks",
-      allowedTerrain: raw.category.includes("Water") ? ["grass", "water"] : ["grass"],
+      // The legacy editor allowed its four dry rock variants in shallows. Preserve that authored
+      // map behavior while also exposing the pack's dedicated water-rock families.
+      allowedTerrain: ["grass", "water"],
       collisionFootprint: bottomCollision(frameWidth),
     };
   }

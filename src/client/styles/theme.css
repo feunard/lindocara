@@ -366,6 +366,98 @@ select:disabled {
   animation: asset-strip-y var(--asset-duration) steps(var(--asset-frames)) infinite;
 }
 
+.editor-palette {
+  position: fixed;
+  z-index: 24;
+  top: 6.5rem;
+  bottom: 1rem;
+  left: 1rem;
+  width: min(26rem, calc(100vw - 2rem));
+  overflow: auto;
+  padding: 0.75rem;
+  border: 16px solid transparent;
+  border-image-source: var(--tiny-panel-carved);
+  border-image-slice: 64 fill;
+  border-image-width: 16px;
+  color: #f8edcf;
+  background: rgb(5 24 20 / 94%);
+  image-rendering: pixelated;
+}
+
+.editor-palette__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.editor-palette details {
+  margin-top: 0.65rem;
+}
+
+.editor-palette summary {
+  padding: 0.35rem 0;
+  font-family: var(--font-display);
+}
+
+.editor-palette__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.editor-asset-choice {
+  position: relative;
+  min-width: 0;
+  min-height: 8rem;
+  padding: 0.35rem;
+  display: grid;
+  grid-template-rows: 4.5rem auto auto;
+  gap: 0.15rem;
+  border: 2px solid rgb(222 208 152 / 36%);
+  background: rgb(9 42 35 / 88%);
+  color: #f8edcf;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.editor-asset-choice[data-selected] {
+  border-color: #fff2a6;
+  box-shadow: 0 0 0 2px #4da78d;
+}
+
+.editor-asset-choice__preview {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.editor-asset-choice__preview img {
+  display: block;
+  max-width: 100%;
+  max-height: 4.5rem;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.editor-asset-choice strong,
+.editor-asset-choice small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.editor-asset-choice__collision {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.2rem;
+  padding: 0.1rem 0.2rem;
+  background: #8b3f32;
+  color: #fff2d0;
+  font-size: 0.58rem;
+}
+
 @keyframes asset-strip-x {
   to {
     translate: calc(-1 * var(--asset-distance)) 0;
@@ -381,5 +473,14 @@ select:disabled {
 @media (max-width: 760px) {
   .asset-browser__filters {
     grid-template-columns: 1fr;
+  }
+
+  .editor-palette {
+    top: auto;
+    right: 0.5rem;
+    bottom: 0.5rem;
+    left: 0.5rem;
+    width: auto;
+    max-height: 48vh;
   }
 }

@@ -235,25 +235,29 @@ describe("MapEditor", () => {
     );
   });
 
-  it("cycles the selected element's variant", async () => {
+  it("searches the catalogue palette and selects visible variants directly", async () => {
     vi.stubGlobal("fetch", fetchMock());
     render(<MapEditor />);
     await openFirstMap();
 
-    await userEvent.click(screen.getByRole("button", { name: "Tree" }));
+    const search = screen.getByRole("searchbox", { name: "Search placeable assets" });
+    await userEvent.type(search, "tree3");
+    const treeThree = screen.getByRole("button", { name: /tree3grasssolid/i });
+    expect(treeThree).toHaveAttribute("data-collision", "true");
+    await userEvent.click(treeThree);
     await waitFor(() =>
       expect(stageMock.setTool).toHaveBeenCalledWith({
         kind: "element",
-        element: "tree",
-        variant: 0,
+        assetId: "resource.terrain-resources-wood-trees.tree3",
       }),
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "Variant" }));
+    await userEvent.clear(search);
+    await userEvent.type(search, "tree4");
+    await userEvent.click(screen.getByRole("button", { name: /tree4grasssolid/i }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({
       kind: "element",
-      element: "tree",
-      variant: 1,
+      assetId: "resource.terrain-resources-wood-trees.tree4",
     });
   });
 
@@ -261,7 +265,9 @@ describe("MapEditor", () => {
     const edited = {
       name: "Verdant Reach",
       blocks: Array.from({ length: 30 }, () => ".".repeat(40)),
-      elements: [{ col: 2, row: 3, kind: "tree", variant: 1 }],
+      elements: [
+        { col: 2, row: 3, assetId: "resource.terrain-resources-wood-trees.tree4" as const },
+      ],
       spawn: { col: 20, row: 15 },
     };
     stageMock.current.mockReturnValue(edited);
@@ -283,7 +289,9 @@ describe("MapEditor", () => {
     const edited = {
       name: "Verdant Reach",
       blocks: Array.from({ length: 30 }, () => ".".repeat(40)),
-      elements: [{ col: 2, row: 3, kind: "tree", variant: 1 }],
+      elements: [
+        { col: 2, row: 3, assetId: "resource.terrain-resources-wood-trees.tree4" as const },
+      ],
       spawn: { col: 20, row: 15 },
     };
     stageMock.current.mockReturnValue(edited);

@@ -33,6 +33,7 @@ import type {
 } from "../../shared/protocol.js";
 import { PLAYER_SIZE } from "../../shared/simulation.js";
 import { isSolidKind, kindAt, TILE_SIZE, type TileMap } from "../../shared/tilemap.js";
+import type { EditorAssetId } from "../../shared/tiny-swords-catalog.js";
 import {
   DEFAULT_ZONE_ID,
   type PortalDefinition,
@@ -43,6 +44,7 @@ import { onLocaleChange, t } from "../i18n.js";
 import { landTile, needsFoam, tileVisual } from "./autotile.js";
 import { MAIN_HAND_ART, OFF_HAND_ART, PLAYER_ATLAS_FRAMES } from "./character-art.js";
 import { type HealthBarMode, shouldShowHealthBar } from "./display-settings.js";
+import { type EditorAssetArt, loadAllEditorAssetArt } from "./editor-asset-art.js";
 import {
   ENEMY_RENDER_METRICS,
   type EnemyArt,
@@ -205,6 +207,7 @@ interface ArtTextures {
   effects: Record<keyof typeof TINY_SWORDS_EFFECTS, Texture>;
   effectFrames: Record<keyof typeof TINY_SWORDS_EFFECT_SHEETS, readonly Texture[]>;
   questResources: Record<keyof typeof TINY_SWORDS_QUEST_ART, Texture>;
+  editorAssets: Map<EditorAssetId, EditorAssetArt>;
 }
 
 export interface RenderContext {
@@ -492,6 +495,7 @@ async function loadArt(): Promise<ArtTextures> {
   for (const resource of Object.values(questResources)) resource.source.style.scaleMode = "nearest";
 
   return {
+    editorAssets: await loadAllEditorAssetArt(),
     players: {
       azure: texture(PLAYER_ATLAS_FRAMES.azure.name),
       ember: texture(PLAYER_ATLAS_FRAMES.ember.name),
@@ -643,11 +647,6 @@ function pickTexture(textures: readonly Texture[], index: number): Texture {
  * range, so a negative or absurd variant must still land on a real sprite rather than read
  * `undefined` — `%` alone keeps the sign in JS, so this wraps it positive.
  */
-function variantIndex(variant: number, length: number): number {
-  if (length <= 0) return 0;
-  return ((Math.trunc(variant) % length) + length) % length;
-}
-
 function placeTile(
   tile: Sprite,
   texture: Texture,
@@ -1083,25 +1082,17 @@ export class Renderer {
     for (const element of ordered) {
       const x = element.col * TILE_SIZE + TILE_SIZE / 2;
       const base = (element.row + 1) * TILE_SIZE;
-      if (element.kind === "stone") {
-        const texture =
-          this.art.props.stones[variantIndex(element.variant, this.art.props.stones.length)];
-        if (!texture) continue;
-        const container = new Container();
-        container.position.set(x, base);
-        container.addChild(createPropSprite(texture));
-        this.#registerStatic(container, x, base, TILE_SIZE * 2, this.#decorLayer);
-        continue;
-      }
-      const pool = element.kind === "tree" ? this.art.props.trees : this.art.props.bushes;
-      const prop = pool[variantIndex(element.variant, pool.length)];
-      if (!prop) continue;
-      // Pushed down by the sheet's empty footer so the object stands on its cell, not over it.
-      const y = base + prop.foot;
+      const art = this.art.editorAssets.get(element.assetId);
+      const texture = art?.frames[0];
+      if (!art || !texture) continue;
+      const y = base + art.definition.footOffset;
       const container = new Container();
       container.position.set(x, y);
-      container.addChild(createPropSprite(prop.texture));
-      const layer = element.kind === "tree" ? this.#forestTreesLayer : this.#decorLayer;
+      const sprite = new Sprite(texture);
+      sprite.anchor.set(art.definition.anchor.x, art.definition.anchor.y);
+      container.addChild(sprite);
+      const layer =
+        art.definition.editor.renderLayer === "canopy" ? this.#forestTreesLayer : this.#decorLayer;
       this.#registerStatic(container, x, y, TILE_SIZE * 2, layer);
     }
   }

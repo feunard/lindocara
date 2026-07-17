@@ -8,6 +8,12 @@ import {
   terrainFromMap,
 } from "../src/shared/map-data.js";
 import { isSolidKind, kindAt, TILE_SIZE } from "../src/shared/tilemap.js";
+import { editorAsset } from "../src/shared/tiny-swords-catalog.js";
+
+const TREE = "resource.terrain-resources-wood-trees.tree3" as const;
+const TREE_ALT = "resource.terrain-resources-wood-trees.tree4" as const;
+const BUSH = "decoration.terrain-decorations-bushes.bushe1" as const;
+const STONE = "decoration.terrain-decorations-rocks.rock1" as const;
 
 const MAP: MapData = {
   blocks: ["....", ".##.", "....", "...."],
@@ -26,8 +32,8 @@ describe("baking a map's collision", () => {
     const tiles = bakeCollision({
       ...MAP,
       elements: [
-        { col: 0, row: 0, kind: "tree", variant: 0 },
-        { col: 3, row: 0, kind: "bush", variant: 0 },
+        { col: 0, row: 0, assetId: TREE },
+        { col: 3, row: 0, assetId: BUSH },
       ],
     });
     expect(isSolidKind(kindAt(tiles, 0, 0))).toBe(true);
@@ -37,7 +43,7 @@ describe("baking a map's collision", () => {
   it("leaves a stone on water solid — it was already water", () => {
     const tiles = bakeCollision({
       ...MAP,
-      elements: [{ col: 1, row: 1, kind: "stone", variant: 0 }],
+      elements: [{ col: 1, row: 1, assetId: STONE }],
     });
     expect(isSolidKind(kindAt(tiles, 1, 1))).toBe(true);
     // Still water, not "forest": a stone does not turn the sea into land, and the renderer must
@@ -46,7 +52,7 @@ describe("baking a map's collision", () => {
   });
 
   it("does not mutate the map it was handed", () => {
-    const elements = [{ col: 0, row: 0, kind: "tree", variant: 0 } as const];
+    const elements = [{ col: 0, row: 0, assetId: TREE } as const];
     const source: MapData = { ...MAP, elements };
     bakeCollision(source);
     expect(source.blocks).toEqual(["....", ".##.", "....", "...."]);
@@ -56,15 +62,21 @@ describe("baking a map's collision", () => {
 
 describe("placement rules", () => {
   it("refuses a tree or a bush on water, and allows a stone there", () => {
-    expect(canPlaceElement("tree", "water")).toBe(false);
-    expect(canPlaceElement("bush", "water")).toBe(false);
-    expect(canPlaceElement("stone", "water")).toBe(true);
+    expect(canPlaceElement(TREE, "water")).toBe(false);
+    expect(canPlaceElement(BUSH, "water")).toBe(false);
+    expect(canPlaceElement(STONE, "water")).toBe(true);
   });
 
   it("allows all three on grass", () => {
-    for (const kind of ["tree", "bush", "stone"] as const) {
-      expect(canPlaceElement(kind, "grass")).toBe(true);
+    for (const assetId of [TREE, BUSH, STONE] as const) {
+      expect(canPlaceElement(assetId, "grass")).toBe(true);
     }
+  });
+
+  it("reads the same placement metadata exposed to client and server code", () => {
+    expect(editorAsset(TREE)?.editor.allowedTerrain).toEqual(["grass"]);
+    expect(canPlaceElement(TREE, "grass")).toBe(true);
+    expect(canPlaceElement(TREE, "water")).toBe(false);
   });
 });
 
@@ -76,7 +88,7 @@ describe("parsing a map off the wire", () => {
       spawn: { col: 0, row: 0 },
     });
     expect(map).not.toBe(null);
-    expect(map?.elements[0]?.kind).toBe("tree");
+    expect(map?.elements[0]?.assetId).toBe(TREE_ALT);
   });
 
   // Every one of these would otherwise reach decodeTileMap and throw on the first paint.
@@ -92,6 +104,16 @@ describe("parsing a map off the wire", () => {
       {
         blocks: [".."],
         elements: [{ col: 0, row: 0, kind: "dragon", variant: 0 }],
+        spawn: { col: 0, row: 0 },
+      },
+      {
+        blocks: [".."],
+        elements: [{ col: 0, row: 0, assetId: "ui.cursor.default" }],
+        spawn: { col: 0, row: 0 },
+      },
+      {
+        blocks: [".."],
+        elements: [{ col: 0, row: 0, assetId: "decoration.unknown" }],
         spawn: { col: 0, row: 0 },
       },
       {
@@ -116,7 +138,7 @@ describe("parsing a map off the wire", () => {
 describe("terrainFromMap", () => {
   const data = {
     blocks: ["####", "#..#", "#..#", "####"],
-    elements: [{ col: 1, row: 1, kind: "tree" as const, variant: 0 }],
+    elements: [{ col: 1, row: 1, assetId: TREE }],
     spawn: { col: 2, row: 2 },
   };
 

@@ -7,6 +7,12 @@ import {
 } from "../src/client/game/editor-state.js";
 import { MAX_MAP_ELEMENTS, type MapElement } from "../src/shared/map-data.js";
 
+const TREE = "resource.terrain-resources-wood-trees.tree3" as const;
+const BUSH = "decoration.terrain-decorations-bushes.bushe1" as const;
+const STONE = "decoration.terrain-decorations-rocks.rock1" as const;
+const SMALL_DECOR = "decoration.deco.01" as const;
+const SMALL_DECOR_ALT = "decoration.deco.02" as const;
+
 describe("blankMap", () => {
   it("starts all grass, spawn centred", () => {
     const map = blankMap("m", 20, 15);
@@ -39,7 +45,7 @@ describe("applyTool: block", () => {
 
   it("painting water under a tree removes it (a tree cannot stand on water)", () => {
     let map = blankMap("m", 20, 15);
-    const treeTool: EditorTool = { kind: "element", element: "tree", variant: 0 };
+    const treeTool: EditorTool = { kind: "element", assetId: TREE };
     const withTree = applyTool(map, treeTool, 3, 4);
     expect(withTree).not.toBeNull();
     map = withTree as EditorMap;
@@ -54,7 +60,7 @@ describe("applyTool: block", () => {
 
   it("painting water under a stone keeps it (a stone stands in the shallows)", () => {
     let map = blankMap("m", 20, 15);
-    const stoneTool: EditorTool = { kind: "element", element: "stone", variant: 0 };
+    const stoneTool: EditorTool = { kind: "element", assetId: STONE };
     const withStone = applyTool(map, stoneTool, 3, 4);
     expect(withStone).not.toBeNull();
     map = withStone as EditorMap;
@@ -63,7 +69,7 @@ describe("applyTool: block", () => {
     const next = applyTool(map, waterTool, 3, 4);
     expect(next).not.toBeNull();
     expect(next).not.toBe(map);
-    expect(next?.elements).toEqual([{ col: 3, row: 4, kind: "stone", variant: 0 }]);
+    expect(next?.elements).toEqual([{ col: 3, row: 4, assetId: STONE }]);
     expect(map.elements).toEqual(beforeElements);
   });
 
@@ -82,7 +88,7 @@ describe("applyTool: element", () => {
     const withWater = applyTool(map, waterTool, 3, 4);
     expect(withWater).not.toBeNull();
     map = withWater as EditorMap;
-    const treeTool: EditorTool = { kind: "element", element: "tree", variant: 0 };
+    const treeTool: EditorTool = { kind: "element", assetId: TREE };
     const next = applyTool(map, treeTool, 3, 4);
     expect(next).toBeNull();
   });
@@ -94,32 +100,32 @@ describe("applyTool: element", () => {
     expect(withWater).not.toBeNull();
     map = withWater as EditorMap;
     const beforeElements = map.elements.slice();
-    const stoneTool: EditorTool = { kind: "element", element: "stone", variant: 0 };
+    const stoneTool: EditorTool = { kind: "element", assetId: STONE };
     const next = applyTool(map, stoneTool, 3, 4);
     expect(next).not.toBeNull();
     expect(next).not.toBe(map);
-    expect(next?.elements).toEqual([{ col: 3, row: 4, kind: "stone", variant: 0 }]);
+    expect(next?.elements).toEqual([{ col: 3, row: 4, assetId: STONE }]);
     expect(map.elements).toEqual(beforeElements);
   });
 
   it("replaces the existing element on an occupied cell (one per cell)", () => {
     let map = blankMap("m", 20, 15);
-    const bushTool: EditorTool = { kind: "element", element: "bush", variant: 0 };
+    const bushTool: EditorTool = { kind: "element", assetId: BUSH };
     const withBush = applyTool(map, bushTool, 3, 4);
     expect(withBush).not.toBeNull();
     map = withBush as EditorMap;
     const beforeElements = map.elements.slice();
-    const treeTool: EditorTool = { kind: "element", element: "tree", variant: 2 };
+    const treeTool: EditorTool = { kind: "element", assetId: TREE };
     const next = applyTool(map, treeTool, 3, 4);
     expect(next).not.toBeNull();
     expect(next).not.toBe(map);
-    expect(next?.elements).toEqual([{ col: 3, row: 4, kind: "tree", variant: 2 }]);
+    expect(next?.elements).toEqual([{ col: 3, row: 4, assetId: TREE }]);
     expect(map.elements).toEqual(beforeElements);
   });
 
   it("refuses placing a colliding element on the spawn cell", () => {
     const map = blankMap("m", 20, 15);
-    const treeTool: EditorTool = { kind: "element", element: "tree", variant: 0 };
+    const treeTool: EditorTool = { kind: "element", assetId: TREE };
     const next = applyTool(map, treeTool, map.spawn.col, map.spawn.row);
     expect(next).toBeNull();
   });
@@ -131,27 +137,28 @@ describe("applyTool: element", () => {
     const elements: MapElement[] = Array.from({ length: MAX_MAP_ELEMENTS }, (_, i) => ({
       col: i % 100,
       row: Math.floor(i / 100),
-      kind: "bush",
-      variant: 0,
+      assetId: SMALL_DECOR,
     }));
     const full: EditorMap = { ...base, elements };
 
     // A new cell is refused: it would be element 401.
-    const treeTool: EditorTool = { kind: "element", element: "tree", variant: 0 };
+    const treeTool: EditorTool = { kind: "element", assetId: TREE };
     expect(applyTool(full, treeTool, 10, 10)).toBeNull();
 
     // Replacing an element already on a cell is fine — the count does not grow.
-    const replaced = applyTool(full, treeTool, 0, 0);
+    const replaced = applyTool(full, { kind: "element", assetId: SMALL_DECOR_ALT }, 10, 2);
     expect(replaced).not.toBeNull();
     expect(replaced?.elements).toHaveLength(MAX_MAP_ELEMENTS);
-    expect(replaced?.elements.find((e) => e.col === 0 && e.row === 0)?.kind).toBe("tree");
+    expect(replaced?.elements.find((e) => e.col === 10 && e.row === 2)?.assetId).toBe(
+      SMALL_DECOR_ALT,
+    );
   });
 });
 
 describe("applyTool: eraser", () => {
   it("removes the element at the cell", () => {
     let map = blankMap("m", 20, 15);
-    const bushTool: EditorTool = { kind: "element", element: "bush", variant: 0 };
+    const bushTool: EditorTool = { kind: "element", assetId: BUSH };
     const withBush = applyTool(map, bushTool, 3, 4);
     expect(withBush).not.toBeNull();
     map = withBush as EditorMap;
@@ -197,7 +204,7 @@ describe("applyTool: spawn", () => {
 
   it("refuses moving the spawn under a colliding element", () => {
     let map = blankMap("m", 20, 15);
-    const treeTool: EditorTool = { kind: "element", element: "tree", variant: 0 };
+    const treeTool: EditorTool = { kind: "element", assetId: TREE };
     const withTree = applyTool(map, treeTool, 5, 6);
     expect(withTree).not.toBeNull();
     map = withTree as EditorMap;

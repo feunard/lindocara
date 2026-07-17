@@ -12,11 +12,18 @@
 import type { Rect, TerrainGeometry } from "./game.js";
 import { TILE_SIZE, type TileKind, type TileMap } from "./tilemap.js";
 import { decodeTileMap } from "./tilemap-codec.js";
+import { type EditorAssetId, editorAsset, isEditorAssetId } from "./tiny-swords-catalog.js";
 
 export const ELEMENT_KINDS = ["tree", "bush", "stone"] as const;
 export type ElementKind = (typeof ELEMENT_KINDS)[number];
 
 export interface MapElement {
+  col: number;
+  row: number;
+  assetId: EditorAssetId;
+}
+
+export interface LegacyMapElement {
   col: number;
   row: number;
   kind: ElementKind;
@@ -29,29 +36,43 @@ export interface MapData {
   spawn: { col: number; row: number };
 }
 
-/** What an element may stand on, and whether you bump into it. */
-export const ELEMENT_RULES: Readonly<
-  Record<ElementKind, { on: readonly TileKind[]; collides: boolean }>
-> = {
-  tree: { on: ["grass"], collides: true },
-  bush: { on: ["grass"], collides: false },
-  /** A stone in the shallows. Water is already solid, so allowing this changes nothing about
-   *  collision — it is a placement permission, not a collision rule. */
-  stone: { on: ["grass", "water"], collides: true },
-};
-
 /**
  * The most elements one map may carry. A 100x100 map's blocks alone are ~10.4 KB, so without a
  * cap on the count a few hundred elements push the body past the 32 KiB `/api/maps` limit and 413
  * with no useful message. Enforced on the server (`validateMapInput`) and refused up front by the
- * editor (`applyTool`) so a builder never paints past what will save. Lives here, beside
- * `ELEMENT_RULES`, because both the server and the browser editor read it and neither may import
- * the other.
+ * editor (`applyTool`) so a builder never paints past what will save. Lives beside the shared
+ * catalogue lookup because both server and browser read it and neither may import the other.
  */
+/** Stable replacements for maps written before catalogue ids existed. */
+export const LEGACY_ELEMENT_ASSETS = {
+  tree: [
+    "resource.terrain-resources-wood-trees.tree3",
+    "resource.terrain-resources-wood-trees.tree4",
+  ],
+  bush: [
+    "decoration.terrain-decorations-bushes.bushe1",
+    "decoration.terrain-decorations-bushes.bushe2",
+    "decoration.terrain-decorations-bushes.bushe3",
+    "decoration.terrain-decorations-bushes.bushe4",
+  ],
+  stone: [
+    "decoration.terrain-decorations-rocks.rock1",
+    "decoration.terrain-decorations-rocks.rock2",
+    "decoration.terrain-decorations-rocks.rock3",
+    "decoration.terrain-decorations-rocks.rock4",
+  ],
+} as const satisfies Readonly<Record<ElementKind, readonly EditorAssetId[]>>;
+
 export const MAX_MAP_ELEMENTS = 400;
 
 export function isElementKind(value: unknown): value is ElementKind {
   return typeof value === "string" && (ELEMENT_KINDS as readonly string[]).includes(value);
+}
+
+export function legacyElementAssetId(kind: ElementKind, variant: number): EditorAssetId {
+  const choices = LEGACY_ELEMENT_ASSETS[kind];
+  const index = ((Math.trunc(variant) % choices.length) + choices.length) % choices.length;
+  return choices[index] ?? choices[0];
 }
 
 /** Where a hero appears: the centre of the map's one spawn cell. */
@@ -74,8 +95,48 @@ export function terrainFromMap(data: MapData): TerrainGeometry {
   return { width, height, obstacles: [], spawnPoints: [mapSpawnPoint(data)], safeZone, tiles };
 }
 
-export function canPlaceElement(kind: ElementKind, on: TileKind): boolean {
-  return ELEMENT_RULES[kind].on.includes(on);
+export function canPlaceElement(assetId: EditorAssetId, on: TileKind): boolean {
+  const asset = editorAsset(assetId);
+  return asset?.editor.allowedTerrain.some((terrain) => terrain === on) ?? false;
+}
+
+export function elementCells(
+  element: MapElement,
+  footprint: "visual" | "collision" = "visual",
+): { col: number; row: number }[] {
+  const asset = editorAsset(element.assetId);
+  if (!asset) return [];
+  const offsets =
+    footprint === "collision" ? asset.editor.collisionFootprint : asset.editor.visualFootprint;
+  return offsets.map((offset) => ({
+    col: element.col + offset.col,
+    row: element.row + offset.row,
+  }));
+}
+
+export function elementCoversCell(element: MapElement, col: number, row: number): boolean {
+  return elementCells(element).some((cell) => cell.col === col && cell.row === row);
+}
+
+/** Cells whose ground type constrains placement. Canopies may overhang shoreline; solid bases and
+ * walkable bridge decks must stand on terrain allowed by the catalogue. */
+export function elementPlacementCells(element: MapElement): { col: number; row: number }[] {
+  const asset = editorAsset(element.assetId);
+  if (!asset) return [];
+  if (asset.editor.terrainOverride) return elementCells(element);
+  const collision = elementCells(element, "collision");
+  return collision.length > 0 ? collision : [{ col: element.col, row: element.row }];
+}
+
+export function elementFitsMap(element: MapElement, cols: number, rows: number): boolean {
+  return elementCells(element).every(
+    (cell) => cell.col >= 0 && cell.row >= 0 && cell.col < cols && cell.row < rows,
+  );
+}
+
+export function elementsOverlap(left: MapElement, right: MapElement): boolean {
+  const occupied = new Set(elementCells(left).map((cell) => `${cell.col}:${cell.row}`));
+  return elementCells(right).some((cell) => occupied.has(`${cell.col}:${cell.row}`));
 }
 
 /**
@@ -92,10 +153,18 @@ export function bakeCollision(map: MapData): TileMap {
   const tiles = decodeTileMap(map.blocks);
   const kinds = [...tiles.kinds];
   for (const element of map.elements) {
-    if (!ELEMENT_RULES[element.kind].collides) continue;
-    const index = element.row * tiles.cols + element.col;
-    if (kinds[index] !== "grass") continue;
-    kinds[index] = "forest";
+    const asset = editorAsset(element.assetId);
+    if (asset?.editor.terrainOverride !== "walkable") continue;
+    for (const cell of elementCells(element)) {
+      const index = cell.row * tiles.cols + cell.col;
+      if (kinds[index] === "water") kinds[index] = "grass";
+    }
+  }
+  for (const element of map.elements) {
+    for (const cell of elementCells(element, "collision")) {
+      const index = cell.row * tiles.cols + cell.col;
+      if (kinds[index] === "grass") kinds[index] = "forest";
+    }
   }
   return { ...tiles, kinds };
 }
@@ -113,16 +182,14 @@ export function parseMapElements(value: unknown): MapElement[] | null {
   for (const raw of value) {
     if (typeof raw !== "object" || raw === null) return null;
     const item = raw as Record<string, unknown>;
-    const { col, row, variant } = item;
+    const { col, row } = item;
     if (!Number.isSafeInteger(col) || !Number.isSafeInteger(row)) return null;
-    if (!Number.isSafeInteger(variant)) return null;
-    if (!isElementKind(item.kind)) return null;
-    parsed.push({
-      col: col as number,
-      row: row as number,
-      kind: item.kind,
-      variant: variant as number,
-    });
+    let assetId: EditorAssetId;
+    if (isEditorAssetId(item.assetId)) assetId = item.assetId;
+    else if (isElementKind(item.kind) && Number.isSafeInteger(item.variant)) {
+      assetId = legacyElementAssetId(item.kind, item.variant as number);
+    } else return null;
+    parsed.push({ col: col as number, row: row as number, assetId });
   }
   return parsed;
 }
@@ -153,23 +220,13 @@ export function parseMapData(value: unknown): MapData | null {
   }
   const rows = blocks.length;
 
-  if (!Array.isArray(elements)) return null;
-  const parsed: MapElement[] = [];
-  for (const raw of elements) {
-    if (typeof raw !== "object" || raw === null) return null;
-    const item = raw as Record<string, unknown>;
-    const { col, row, variant } = item;
-    if (!Number.isSafeInteger(col) || !Number.isSafeInteger(row)) return null;
-    if (!Number.isSafeInteger(variant)) return null;
-    if (!isElementKind(item.kind)) return null;
-    if ((col as number) < 0 || (col as number) >= cols) return null;
-    if ((row as number) < 0 || (row as number) >= rows) return null;
-    parsed.push({
-      col: col as number,
-      row: row as number,
-      kind: item.kind,
-      variant: variant as number,
-    });
+  const parsed = parseMapElements(elements);
+  if (!parsed) return null;
+  // Wire compatibility checks the legacy anchor only. New writes receive the stricter full visual
+  // footprint validation in server/maps.ts; old edge trees must remain readable.
+  for (const element of parsed) {
+    if (element.col < 0 || element.col >= cols || element.row < 0 || element.row >= rows)
+      return null;
   }
 
   if (typeof spawn !== "object" || spawn === null) return null;

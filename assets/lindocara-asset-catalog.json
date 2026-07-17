@@ -26363,7 +26363,8 @@
         "renderLayer": "object",
         "category": "rocks",
         "allowedTerrain": [
-          "grass"
+          "grass",
+          "water"
         ],
         "collisionFootprint": [
           {
@@ -26409,7 +26410,8 @@
         "renderLayer": "object",
         "category": "rocks",
         "allowedTerrain": [
-          "grass"
+          "grass",
+          "water"
         ],
         "collisionFootprint": [
           {
@@ -26455,7 +26457,8 @@
         "renderLayer": "object",
         "category": "rocks",
         "allowedTerrain": [
-          "grass"
+          "grass",
+          "water"
         ],
         "collisionFootprint": [
           {
@@ -26501,7 +26504,8 @@
         "renderLayer": "object",
         "category": "rocks",
         "allowedTerrain": [
-          "grass"
+          "grass",
+          "water"
         ],
         "collisionFootprint": [
           {

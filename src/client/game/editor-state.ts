@@ -1,24 +1,18 @@
-/**
- * The browser editor's rulebook — and only that. Every placement decision here is answered by
- * calling the exact same functions `validateMapInput` (server/maps.ts) calls: `ELEMENT_RULES`
- * (indirectly, through `canPlaceElement`), `bakeCollision`, `isSolidKind`, `kindAt`. Retyping any
- * of those rules here would let the editor preview one answer and the server enforce another —
- * exactly the "two copies that should agree" trap `shared/simulation.ts` exists to avoid for
- * movement.
- *
- * `applyTool` is pure copy-and-mutate: a change returns a new `EditorMap` and leaves the one it
- * was given untouched, a no-op (the eraser on an empty cell) returns the SAME reference, and a
- * refused edit returns `null`. Callers can tell all three apart without inspecting content.
- */
+/** Pure map-editor mutations. Placement, footprints and collision all come from the shared
+ * catalogue, so the browser and authoritative map API cannot disagree. */
 import {
   bakeCollision,
   canPlaceElement,
-  type ElementKind,
+  elementCoversCell,
+  elementFitsMap,
+  elementPlacementCells,
+  elementsOverlap,
   MAX_MAP_ELEMENTS,
   type MapData,
   type MapElement,
 } from "../../shared/map-data.js";
 import { isSolidKind, kindAt } from "../../shared/tilemap.js";
+import type { EditorAssetId } from "../../shared/tiny-swords-catalog.js";
 
 export interface EditorMap {
   name: string;
@@ -29,14 +23,13 @@ export interface EditorMap {
 
 export type EditorTool =
   | { kind: "block"; block: "grass" | "water" }
-  | { kind: "element"; element: ElementKind; variant: number }
+  | { kind: "element"; assetId: EditorAssetId }
   | { kind: "eraser" }
-  | { kind: "spawn" };
+  | { kind: "spawn" }
+  | { kind: "pan" };
 
-/** The only two block characters a map may contain (see `shared/tilemap-codec.ts`). */
 const BLOCK_CHAR: Record<"grass" | "water", string> = { grass: ".", water: "#" };
 
-/** All grass, spawn at the centre — the same starting point every new map gets. */
 export function blankMap(name: string, cols: number, rows: number): EditorMap {
   const blocks = Array.from({ length: rows }, () => ".".repeat(cols));
   return {
@@ -51,11 +44,8 @@ function toMapData(map: EditorMap): MapData {
   return { blocks: map.blocks, elements: map.elements, spawn: map.spawn };
 }
 
-/** Walkability of one cell in a candidate map's FULL bake — ground plus colliding elements,
- *  exactly what a hero would actually stand on. */
 function isWalkableCell(map: EditorMap, col: number, row: number): boolean {
-  const baked = bakeCollision(toMapData(map));
-  return !isSolidKind(kindAt(baked, col, row));
+  return !isSolidKind(kindAt(bakeCollision(toMapData(map)), col, row));
 }
 
 function withBlock(blocks: string[], col: number, row: number, char: string): string[] {
@@ -65,14 +55,24 @@ function withBlock(blocks: string[], col: number, row: number, char: string): st
 }
 
 function withoutElementAt(elements: MapElement[], col: number, row: number): MapElement[] {
-  return elements.filter((element) => element.col !== col || element.row !== row);
+  return elements.filter((element) => !elementCoversCell(element, col, row));
 }
 
-/** Refuses an edit that leaves the spawn cell unwalkable in `next`'s full bake — the spawn is
- *  only ever a problem when the edit lands on it, so callers pass the cell they just touched. */
-function keepsSpawnWalkable(next: EditorMap, col: number, row: number): boolean {
-  if (col !== next.spawn.col || row !== next.spawn.row) return true;
-  return isWalkableCell(next, col, row);
+function keepsSpawnClear(map: EditorMap): boolean {
+  return (
+    isWalkableCell(map, map.spawn.col, map.spawn.row) &&
+    !map.elements.some((element) => elementCoversCell(element, map.spawn.col, map.spawn.row))
+  );
+}
+
+function placementTerrainValid(map: EditorMap, element: MapElement): boolean {
+  const ground = bakeCollision({ blocks: map.blocks, elements: [], spawn: map.spawn });
+  if (!elementFitsMap(element, ground.cols, ground.rows)) return false;
+  // Every occupied visual cell must satisfy the asset's catalogue terrain rule. This also validates
+  // multi-cell buildings and both bridge orientations, rather than checking only their anchor.
+  return elementPlacementCells(element).every((cell) =>
+    canPlaceElement(element.assetId, kindAt(ground, cell.col, cell.row)),
+  );
 }
 
 export function applyTool(
@@ -88,48 +88,38 @@ export function applyTool(
   switch (tool.kind) {
     case "block": {
       const blocks = withBlock(map.blocks, col, row, BLOCK_CHAR[tool.block]);
-      // Water drowns anything that cannot stand in it (a tree, a bush); a stone stays, since it
-      // stands in the shallows just as well as on grass. Painting grass never strands an element:
-      // every `ELEMENT_RULES.on` list includes grass.
-      const elements =
-        tool.block === "water"
-          ? map.elements.filter(
-              (element) =>
-                element.col !== col ||
-                element.row !== row ||
-                canPlaceElement(element.kind, "water"),
-            )
-          : map.elements;
-      const next: EditorMap = { ...map, blocks, elements };
-      if (!keepsSpawnWalkable(next, col, row)) return null;
-      return next;
+      const candidate: EditorMap = { ...map, blocks };
+      const elements = candidate.elements.filter(
+        (element) =>
+          !elementCoversCell(element, col, row) || placementTerrainValid(candidate, element),
+      );
+      const next = { ...candidate, elements };
+      return keepsSpawnClear(next) ? next : null;
     }
     case "element": {
-      // Ground only — exactly `validateMapInput`'s `bakeCollision({ ...data, elements: [] })` —
-      // so an element's own presence never affects what it may itself stand on.
-      const ground = bakeCollision({ blocks: map.blocks, elements: [], spawn: map.spawn });
-      const under = kindAt(ground, col, row);
-      if (!canPlaceElement(tool.element, under)) return null;
-      // At the cap: refuse a new element, but still allow replacing one already on this cell — the
-      // count does not grow. The server enforces the same ceiling; refusing here keeps a builder from
-      // painting past what will save.
-      const replacing = map.elements.some((element) => element.col === col && element.row === row);
-      if (!replacing && map.elements.length >= MAX_MAP_ELEMENTS) return null;
-      const placed: MapElement = { col, row, kind: tool.element, variant: tool.variant };
-      const elements = [...withoutElementAt(map.elements, col, row), placed];
-      const next: EditorMap = { ...map, elements };
-      if (!keepsSpawnWalkable(next, col, row)) return null;
-      return next;
+      const placed: MapElement = { col, row, assetId: tool.assetId };
+      if (!placementTerrainValid(map, placed)) return null;
+      if (elementCoversCell(placed, map.spawn.col, map.spawn.row)) return null;
+      const sameAnchor = map.elements.filter(
+        (element) => element.col === col && element.row === row,
+      );
+      const retained = map.elements.filter((element) => element.col !== col || element.row !== row);
+      if (retained.some((element) => elementsOverlap(element, placed))) return null;
+      if (sameAnchor.length === 0 && map.elements.length >= MAX_MAP_ELEMENTS) return null;
+      const next = { ...map, elements: [...retained, placed] };
+      return keepsSpawnClear(next) ? next : null;
     }
     case "eraser": {
-      const present = map.elements.some((element) => element.col === col && element.row === row);
-      if (!present) return map;
-      return { ...map, elements: withoutElementAt(map.elements, col, row) };
+      const elements = withoutElementAt(map.elements, col, row);
+      return elements.length === map.elements.length ? map : { ...map, elements };
     }
     case "spawn": {
+      if (map.elements.some((element) => elementCoversCell(element, col, row))) return null;
       if (!isWalkableCell(map, col, row)) return null;
       return { ...map, spawn: { col, row } };
     }
+    case "pan":
+      return map;
     default:
       throw new Error(`unknown editor tool: ${JSON.stringify(tool)}`);
   }
