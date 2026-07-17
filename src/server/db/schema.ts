@@ -377,6 +377,42 @@ export const partyMember = sqliteTable(
   ],
 );
 
+export const hero = sqliteTable(
+  "hero",
+  {
+    /** Server-minted uuid. A client never supplies this. */
+    id: text("id").primaryKey(),
+    partyId: text("party_id")
+      .notNull()
+      .references(() => party.id, { onDelete: "cascade" }),
+    accountId: text("account_id")
+      .notNull()
+      .references(() => account.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    class: text("class", { enum: ["warrior", "ranger", "priest"] })
+      .notNull()
+      .default("warrior"),
+    /** The D1 map the hero is on; starts at the adventure's start map. */
+    mapId: text("map_id").notNull(),
+    x: real("x").notNull(),
+    y: real("y").notNull(),
+    level: integer("level").notNull().default(1),
+    xp: integer("xp").notNull().default(0),
+    hp: integer("hp").notNull().default(100),
+    sessionEpoch: integer("session_epoch").notNull().default(0),
+    /** Death is persistent, mirroring `character`. `corpseX/Y` are null exactly when life is alive. */
+    life: text("life", { enum: ["alive", "corpse", "ghost"] })
+      .notNull()
+      .default("alive"),
+    corpseX: real("corpse_x"),
+    corpseY: real("corpse_y"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
+  },
+  (table) => [index("hero_party_account_idx").on(table.partyId, table.accountId)],
+);
+
 export type Adventure = typeof adventure.$inferSelect;
 export type Party = typeof party.$inferSelect;
 export type PartyMember = typeof partyMember.$inferSelect;
+export type Hero = typeof hero.$inferSelect;
