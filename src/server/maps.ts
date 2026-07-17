@@ -11,6 +11,7 @@
  * any logged-in player. The API is the only place these can actually be enforced.
  */
 import { asc, eq, sql } from "drizzle-orm";
+import { type AdventureGraph, parseAdventureGraph } from "../shared/adventure.js";
 import {
   bakeCollision,
   canPlaceElement,
@@ -29,7 +30,7 @@ import {
 } from "../shared/map-data.js";
 import { isSolidKind, kindAt } from "../shared/tilemap.js";
 import { isEditorAssetId } from "../shared/tiny-swords-catalog.js";
-import { adventureMap, type Db, map, mapElement } from "./db/index.js";
+import { adventure, adventureMap, type Db, map, mapElement } from "./db/index.js";
 
 export const BUILTIN_MAP_ID = "builtin";
 
@@ -280,6 +281,40 @@ export async function updateMap(db: Db, id: string, input: MapInput): Promise<St
   const data = validateMapInput(input);
   const existing = await loadMap(db, id);
   if (!existing) throw new Error("not_found: no such map");
+  const references = await db
+    .select({ title: adventure.title, graph: adventure.graph })
+    .from(adventureMap)
+    .innerJoin(adventure, eq(adventureMap.adventureId, adventure.id))
+    .where(eq(adventureMap.mapId, id));
+  if (references.length > 0) {
+    const markers = data.markers ?? EMPTY_MARKERS;
+    const entryIds = new Set(markers.entries.map((marker) => marker.id));
+    const exitIds = new Set(markers.exits.map((marker) => marker.id));
+    for (const row of references) {
+      let graph: AdventureGraph | null = null;
+      try {
+        graph = parseAdventureGraph(JSON.parse(row.graph));
+      } catch {
+        graph = null;
+      }
+      if (!graph) continue;
+      if (graph.start.mapId === id && !entryIds.has(graph.start.entryId)) {
+        throw new Error(
+          `referenced: adventure "${row.title}" starts at entry ${graph.start.entryId}`,
+        );
+      }
+      for (const link of graph.links) {
+        if (link.mapId === id && !exitIds.has(link.exitId)) {
+          throw new Error(`referenced: adventure "${row.title}" binds exit ${link.exitId}`);
+        }
+        if (link.dest !== "end" && link.dest.mapId === id && !entryIds.has(link.dest.entryId)) {
+          throw new Error(
+            `referenced: adventure "${row.title}" arrives at entry ${link.dest.entryId}`,
+          );
+        }
+      }
+    }
+  }
   const first = blocksFirstRow(input.blocks);
   const updateRow = db
     .update(map)

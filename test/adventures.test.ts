@@ -12,7 +12,7 @@ import {
   updateAdventure,
 } from "../src/server/adventures.js";
 import { account, createDb } from "../src/server/db/index.js";
-import { createMap, deleteMap, type MapInput } from "../src/server/maps.js";
+import { createMap, deleteMap, type MapInput, updateMap } from "../src/server/maps.js";
 import type { AdventureInput } from "../src/shared/adventure.js";
 
 const COLS = 20;
@@ -148,5 +148,53 @@ describe("map deletion guard", () => {
 
     await deleteAdventure(db, "owner", created.id);
     await deleteMap(db, mapA.id); // and referenced ones do once the adventure is gone
+  });
+});
+
+describe("marker reference guard", () => {
+  it("refuses removing bound markers from a referenced map, allows additions", async () => {
+    const db = createDb(env.DB);
+    await seedAccount("owner");
+    const mapA = await createMap(db, mapInput("A"));
+    const mapB = await createMap(db, mapInput("B"));
+    const created = await createAdventure(db, "owner", inputFor([mapA.id, mapB.id]));
+
+    // removing A's bound exit "gate" → refused
+    await expect(
+      updateMap(db, mapA.id, {
+        ...mapInput("A"),
+        markers: { entries: [{ id: "door", col: 5, row: 5 }], exits: [], monsterSpawns: [] },
+      }),
+    ).rejects.toThrow(/^referenced:/);
+
+    // removing B's entry "door" (destination of A's gate) → refused
+    await expect(
+      updateMap(db, mapB.id, {
+        ...mapInput("B"),
+        markers: { entries: [], exits: [{ id: "gate", col: 7, row: 7 }], monsterSpawns: [] },
+      }),
+    ).rejects.toThrow(/^referenced:/);
+
+    // adding a marker while keeping the bound ones → allowed
+    const grown = await updateMap(db, mapA.id, {
+      ...mapInput("A"),
+      markers: {
+        entries: [
+          { id: "door", col: 5, row: 5 },
+          { id: "side", col: 3, row: 3 },
+        ],
+        exits: [{ id: "gate", col: 7, row: 7 }],
+        monsterSpawns: [],
+      },
+    });
+    expect(grown.markers?.entries).toHaveLength(2);
+
+    // once the adventure is gone, removal is free
+    await deleteAdventure(db, "owner", created.id);
+    const bare = await updateMap(db, mapA.id, {
+      ...mapInput("A"),
+      markers: { entries: [], exits: [], monsterSpawns: [] },
+    });
+    expect(bare.markers).toEqual({ entries: [], exits: [], monsterSpawns: [] });
   });
 });
