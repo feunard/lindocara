@@ -11,8 +11,8 @@ import {
   parseAdventureGraph,
   validateAdventure,
 } from "../shared/adventure.js";
-import { EMPTY_MARKERS, parseMapMarkers } from "../shared/map-data.js";
 import { adventure, adventureMap, type Db, map } from "./db/index.js";
+import { markersOfRow } from "./maps.js";
 
 export interface StoredAdventure {
   id: string;
@@ -27,19 +27,12 @@ export interface StoredAdventure {
 async function markerIdsFor(db: Db, mapIds: readonly string[]): Promise<Map<string, MapMarkerIds>> {
   if (mapIds.length === 0) return new Map();
   const rows = await db
-    .select()
+    .select({ id: map.id, markers: map.markers, cols: map.cols, rows: map.rows })
     .from(map)
     .where(inArray(map.id, [...mapIds]));
   const byMap = new Map<string, MapMarkerIds>();
   for (const row of rows) {
-    let markers = EMPTY_MARKERS;
-    if (row.markers) {
-      try {
-        markers = parseMapMarkers(JSON.parse(row.markers), row.cols, row.rows) ?? EMPTY_MARKERS;
-      } catch {
-        markers = EMPTY_MARKERS;
-      }
-    }
+    const markers = markersOfRow(row);
     byMap.set(row.id, {
       entryIds: markers.entries.map((m) => m.id),
       exitIds: markers.exits.map((m) => m.id),

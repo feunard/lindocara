@@ -92,7 +92,7 @@ function decodeBlocks(blocks: string): string[] {
 }
 
 /** NULL rather than an empty-array JSON string: legacy rows and freshly-emptied ones both read
- *  back as EMPTY_MARKERS via `storedMarkers`, so the column stays NULL until a map actually has
+ *  back as EMPTY_MARKERS via `markersOfRow`, so the column stays NULL until a map actually has
  *  markers worth persisting. */
 function markersJson(markers: MapMarkers | undefined): string | null {
   if (
@@ -176,9 +176,13 @@ export function validateMapInput(input: MapInput): MapData & { name: string } {
   return { ...data, markers, name };
 }
 
-/** Corrupt or unknown JSON degrades to empty, like `elementsOf` drops unknown element kinds
- *  rather than failing the whole map. */
-function storedMarkers(row: typeof map.$inferSelect): MapMarkers {
+/** Corrupt or unknown JSON degrades the whole blob to empty, unlike `elementsOf`, which drops only
+ *  the individual bad rows and keeps the rest of the map. */
+export function markersOfRow(row: {
+  markers: string | null;
+  cols: number;
+  rows: number;
+}): MapMarkers {
   if (!row.markers) return EMPTY_MARKERS;
   try {
     return parseMapMarkers(JSON.parse(row.markers), row.cols, row.rows) ?? EMPTY_MARKERS;
@@ -194,7 +198,7 @@ function toStoredMap(row: typeof map.$inferSelect, elements: MapElement[]): Stor
     blocks: decodeBlocks(row.blocks),
     elements,
     spawn: { col: row.spawnCol, row: row.spawnRow },
-    markers: storedMarkers(row),
+    markers: markersOfRow(row),
   };
 }
 

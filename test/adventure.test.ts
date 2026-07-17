@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   type AdventureInput,
+  type AdventureLink,
+  MAX_ADVENTURE_LINKS,
+  MAX_ADVENTURE_MAPS,
   type MapMarkerIds,
+  parseAdventureGraph,
   parseAdventureInput,
   validateAdventure,
 } from "../src/shared/adventure.js";
@@ -26,6 +30,14 @@ function goodInput(): AdventureInput {
   };
 }
 
+function distinctMapIds(count: number): string[] {
+  return Array.from({ length: count }, (_, index) => `map-${index}`);
+}
+
+function repeatedLinks(count: number): AdventureLink[] {
+  return Array.from({ length: count }, () => ({ mapId: "map-a", exitId: "east", dest: "end" }));
+}
+
 describe("parseAdventureInput", () => {
   it("round-trips a well-formed body", () => {
     expect(parseAdventureInput(goodInput())).toEqual(goodInput());
@@ -45,6 +57,44 @@ describe("parseAdventureInput", () => {
       },
     ];
     for (const value of bad) expect(parseAdventureInput(value)).toBeNull();
+  });
+
+  it("accepts exactly MAX_ADVENTURE_MAPS mapIds and rejects one more", () => {
+    const atLimit = { ...goodInput(), mapIds: distinctMapIds(MAX_ADVENTURE_MAPS) };
+    expect(parseAdventureInput(atLimit)).not.toBeNull();
+
+    const overLimit = { ...goodInput(), mapIds: distinctMapIds(MAX_ADVENTURE_MAPS + 1) };
+    expect(parseAdventureInput(overLimit)).toBeNull();
+  });
+});
+
+describe("parseAdventureGraph", () => {
+  it("returns the parsed graph for a well-formed value", () => {
+    const { graph } = goodInput();
+    expect(parseAdventureGraph(graph)).toEqual(graph);
+  });
+
+  it("accepts exactly MAX_ADVENTURE_LINKS links and rejects one more, without deduping repeats", () => {
+    const start = goodInput().graph.start;
+
+    const atLimit = parseAdventureGraph({ start, links: repeatedLinks(MAX_ADVENTURE_LINKS) });
+    expect(atLimit).not.toBeNull();
+    expect(atLimit?.links).toHaveLength(MAX_ADVENTURE_LINKS);
+
+    const overLimit = parseAdventureGraph({
+      start,
+      links: repeatedLinks(MAX_ADVENTURE_LINKS + 1),
+    });
+    expect(overLimit).toBeNull();
+  });
+
+  it("rejects corrupt shapes", () => {
+    const { start } = goodInput().graph;
+    expect(parseAdventureGraph(null)).toBeNull();
+    expect(parseAdventureGraph({ start, links: "x" })).toBeNull();
+    expect(
+      parseAdventureGraph({ start, links: [{ mapId: "map-a", exitId: "east", dest: 7 }] }),
+    ).toBeNull();
   });
 });
 
