@@ -3,6 +3,7 @@ import type { CharacterSummary } from "../api.js";
 import { fetchMe } from "../api.js";
 import { startGame } from "../game/session.js";
 import { useUiStore } from "../store.js";
+import { AdventureEditor } from "./AdventureEditor.js";
 import { AuthScreen } from "./AuthScreen.js";
 import { CharacterSelect } from "./CharacterSelect.js";
 import { Chat } from "./Chat.js";
@@ -41,6 +42,7 @@ export function App() {
       {screen === "auth" && <AuthScreen />}
       {screen === "characters" && <CharacterSelect onPlay={play} />}
       {screen === "map-editor" && <MapEditor />}
+      {screen === "adventures" && <AdventureEditor />}
       {screen === "game" && (
         <>
           <Hud />

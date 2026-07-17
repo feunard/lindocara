@@ -97,7 +97,7 @@ export interface ReconnectState {
 }
 
 interface UiState {
-  screen: "boot" | "auth" | "characters" | "game" | "map-editor";
+  screen: "boot" | "auth" | "characters" | "game" | "map-editor" | "adventures";
   characters: CharacterSummary[] | null;
   self: SelfHud | null;
   selfState: SelfState | null;

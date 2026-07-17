@@ -85,6 +85,7 @@ export const en = {
   "chars.appearance": "Palette",
   "chars.slots": "{count}/{max} slots used",
   "chars.mapEditor": "Map editor",
+  "chars.adventures": "Adventures",
   "appearance.azure": "Azure",
   "appearance.ember": "Ember",
   "appearance.moss": "Gold",
@@ -510,4 +511,25 @@ export const en = {
   "adventure.error.graph":
     "Every exit must lead somewhere, and at least one must end the adventure.",
   "adventure.error.not_found": "That adventure no longer exists.",
+
+  // Adventure editor
+  "adventure.title": "Adventure editor",
+  "adventure.new": "New adventure",
+  "adventure.name": "Title",
+  "adventure.players": "Max players",
+  "adventure.players.count": "{count} players max",
+  "adventure.edit": "Edit",
+  "adventure.refresh": "Refresh",
+  "adventure.delete.title": "Delete {name}?",
+  "adventure.maps.title": "Maps",
+  "adventure.maps.add": "Add",
+  "adventure.maps.add.label": "Add a map",
+  "adventure.maps.remove": "Remove",
+  "adventure.start.title": "Start",
+  "adventure.start.map": "Starting map",
+  "adventure.start.entry": "Entry",
+  "adventure.bindings.title": "Exits",
+  "adventure.bindings.end": "End of the adventure",
+  "adventure.bindings.unbound": "Choose a destination",
+  "adventure.incomplete": "Set a start, bind every exit, and end the adventure at least once.",
 } as const satisfies Record<string, string>;

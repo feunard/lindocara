@@ -83,6 +83,7 @@ export const fr: Record<keyof typeof en, string> = {
   "chars.appearance": "Palette",
   "chars.slots": "{count}/{max} emplacements utilisés",
   "chars.mapEditor": "Éditeur de cartes",
+  "chars.adventures": "Aventures",
   "appearance.azure": "Azur",
   "appearance.ember": "Braise",
   "appearance.moss": "Or",
@@ -521,4 +522,26 @@ export const fr: Record<keyof typeof en, string> = {
   "adventure.error.graph":
     "Chaque sortie doit mener quelque part, et au moins une doit conclure l'aventure.",
   "adventure.error.not_found": "Cette aventure n'existe plus.",
+
+  // Éditeur d'aventures
+  "adventure.title": "Éditeur d'aventures",
+  "adventure.new": "Nouvelle aventure",
+  "adventure.name": "Titre",
+  "adventure.players": "Joueurs max",
+  "adventure.players.count": "{count} joueurs max",
+  "adventure.edit": "Modifier",
+  "adventure.refresh": "Actualiser",
+  "adventure.delete.title": "Supprimer {name} ?",
+  "adventure.maps.title": "Cartes",
+  "adventure.maps.add": "Ajouter",
+  "adventure.maps.add.label": "Ajouter une carte",
+  "adventure.maps.remove": "Retirer",
+  "adventure.start.title": "Départ",
+  "adventure.start.map": "Carte de départ",
+  "adventure.start.entry": "Entrée",
+  "adventure.bindings.title": "Sorties",
+  "adventure.bindings.end": "Fin de l'aventure",
+  "adventure.bindings.unbound": "Choisir une destination",
+  "adventure.incomplete":
+    "Définis un départ, relie chaque sortie et termine l'aventure au moins une fois.",
 };

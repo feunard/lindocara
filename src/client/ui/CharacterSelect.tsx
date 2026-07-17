@@ -66,6 +66,9 @@ export function CharacterSelect({ onPlay }: { onPlay(character: CharacterSummary
           <Button type="button" variant="secondary" onClick={() => setScreen("map-editor")}>
             {t("chars.mapEditor")}
           </Button>
+          <Button type="button" variant="secondary" onClick={() => setScreen("adventures")}>
+            {t("chars.adventures")}
+          </Button>
           <Button type="button" variant="secondary" onClick={() => void logout()}>
             {t("chars.logout")}
           </Button>
