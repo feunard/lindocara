@@ -107,16 +107,6 @@ export function PartiesScreen() {
 
   if (parties === null || adventures === null) return null;
   const deleting = parties.find((party) => party.id === confirmingId);
-  // Hide adventures the caller already has a party in from the create dropdown: starting a
-  // second concurrent party for the same adventure would just duplicate the one they can already
-  // Enter below, and (when the adventure's title is reused as a party's display name) an
-  // unnamed party's card heading and the dropdown option would otherwise render identical text.
-  const startedAdventureIds = new Set(
-    parties.filter((party) => party.mine).map((party) => party.adventureId),
-  );
-  const availableAdventures = adventures.filter(
-    (adventure) => !startedAdventureIds.has(adventure.id),
-  );
 
   return (
     <main className="roster-shell">
@@ -149,7 +139,7 @@ export function PartiesScreen() {
               onChange={(event) => setAdventureId(event.currentTarget.value)}
             >
               <option value="">—</option>
-              {availableAdventures.map((adventure) => (
+              {adventures.map((adventure) => (
                 <option key={adventure.id} value={adventure.id}>
                   {adventure.title}
                 </option>

@@ -82,7 +82,8 @@ describe("PartiesScreen", () => {
     });
     render(<PartiesScreen />);
 
-    const row = await screen.findByText("Donjon");
+    const region = await screen.findByRole("region", { name: "Cooperative parties" });
+    const row = await within(region).findByText("Donjon");
     const card = row.closest("article");
     if (!card) throw new Error("expected a party card");
     expect(within(card).getByRole("button", { name: "Enter" })).toBeInTheDocument();
