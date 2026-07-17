@@ -330,4 +330,53 @@ export const adventureMap = sqliteTable(
   ],
 );
 
+export const party = sqliteTable(
+  "party",
+  {
+    /** Server-minted uuid. A client never supplies this. */
+    id: text("id").primaryKey(),
+    /** restrict: a party pins its adventure; deleting a referenced adventure is refused. */
+    adventureId: text("adventure_id")
+      .notNull()
+      .references(() => adventure.id, { onDelete: "restrict" }),
+    /** Pinned at creation so later adventure edits never move a live party's version or cap. */
+    adventureVersion: integer("adventure_version").notNull(),
+    maxPlayers: integer("max_players").notNull(),
+    hostAccountId: text("host_account_id")
+      .notNull()
+      .references(() => account.id, { onDelete: "cascade" }),
+    name: text("name"),
+    status: text("status", { enum: ["open", "completed"] })
+      .notNull()
+      .default("open"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
+  },
+  (table) => [
+    index("party_adventure_idx").on(table.adventureId),
+    index("party_host_idx").on(table.hostAccountId),
+  ],
+);
+
+export const partyMember = sqliteTable(
+  "party_member",
+  {
+    partyId: text("party_id")
+      .notNull()
+      .references(() => party.id, { onDelete: "cascade" }),
+    accountId: text("account_id")
+      .notNull()
+      .references(() => account.id, { onDelete: "cascade" }),
+    color: text("color", { enum: ["blue", "red", "yellow", "purple"] }).notNull(),
+    joinedAt: integer("joined_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
+  },
+  (table) => [
+    primaryKey({ columns: [table.partyId, table.accountId] }),
+    uniqueIndex("party_member_colour_unique").on(table.partyId, table.color),
+    index("party_member_account_idx").on(table.accountId),
+  ],
+);
+
 export type Adventure = typeof adventure.$inferSelect;
+export type Party = typeof party.$inferSelect;
+export type PartyMember = typeof partyMember.$inferSelect;

@@ -11,7 +11,7 @@ import {
   parseAdventureGraph,
   validateAdventure,
 } from "../shared/adventure.js";
-import { adventure, adventureMap, type Db, map } from "./db/index.js";
+import { adventure, adventureMap, type Db, map, party } from "./db/index.js";
 import { markersOfRow } from "./maps.js";
 
 export interface StoredAdventure {
@@ -149,6 +149,12 @@ export async function updateAdventure(
 export async function deleteAdventure(db: Db, accountId: string, id: string): Promise<void> {
   const row = await ownedRow(db, accountId, id);
   if (!row) throw new Error("not_found: no such adventure");
+  const used = await db
+    .select({ partyId: party.id })
+    .from(party)
+    .where(eq(party.adventureId, id))
+    .limit(1);
+  if (used.length > 0) throw new Error("referenced: a party still uses this adventure");
   await db.batch([
     db.delete(adventureMap).where(eq(adventureMap.adventureId, id)),
     db.delete(adventure).where(eq(adventure.id, id)),

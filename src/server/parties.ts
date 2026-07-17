@@ -1,0 +1,136 @@
+/**
+ * Parties: live playthroughs of an adventure, like private servers. This boundary owns the D1
+ * reads and writes; a party is created only from an adventure the caller owns, and pins that
+ * adventure's version and player cap so later edits can't move them under a running party.
+ */
+import { eq, inArray } from "drizzle-orm";
+import type { CreatePartyInput, PartyColor } from "../shared/party.js";
+import { loadAdventure } from "./adventures.js";
+import { adventure, type Db, party, partyMember } from "./db/index.js";
+
+export interface PartyListing {
+  id: string;
+  name: string | null;
+  adventureId: string;
+  adventureTitle: string;
+  maxPlayers: number;
+  status: "open" | "completed";
+  hostAccountId: string;
+  colors: PartyColor[];
+}
+
+export interface StoredParty {
+  id: string;
+  adventureId: string;
+  adventureVersion: number;
+  maxPlayers: number;
+  hostAccountId: string;
+  name: string | null;
+  status: "open" | "completed";
+}
+
+function toStored(row: typeof party.$inferSelect): StoredParty {
+  return {
+    id: row.id,
+    adventureId: row.adventureId,
+    adventureVersion: row.adventureVersion,
+    maxPlayers: row.maxPlayers,
+    hostAccountId: row.hostAccountId,
+    name: row.name,
+    status: row.status,
+  };
+}
+
+async function loadPartyRow(db: Db, partyId: string): Promise<typeof party.$inferSelect | null> {
+  const rows = await db.select().from(party).where(eq(party.id, partyId)).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function createParty(
+  db: Db,
+  accountId: string,
+  input: CreatePartyInput,
+): Promise<StoredParty> {
+  const adv = await loadAdventure(db, accountId, input.adventureId);
+  if (!adv) throw new Error("adventure: no such adventure");
+  const id = crypto.randomUUID();
+  const row = {
+    id,
+    adventureId: adv.id,
+    adventureVersion: adv.version,
+    maxPlayers: adv.maxPlayers,
+    hostAccountId: accountId,
+    name: input.name,
+    status: "open" as const,
+  };
+  await db.batch([
+    db.insert(party).values(row),
+    db.insert(partyMember).values({ partyId: id, accountId, color: input.color }),
+  ]);
+  const stored = await loadPartyRow(db, id);
+  if (!stored) throw new Error("not_found: party vanished mid-create");
+  return toStored(stored);
+}
+
+export async function listPublicParties(db: Db): Promise<PartyListing[]> {
+  const rows = await db
+    .select({
+      id: party.id,
+      name: party.name,
+      adventureId: party.adventureId,
+      adventureTitle: adventure.title,
+      maxPlayers: party.maxPlayers,
+      status: party.status,
+      hostAccountId: party.hostAccountId,
+    })
+    .from(party)
+    .innerJoin(adventure, eq(party.adventureId, adventure.id));
+  if (rows.length === 0) return [];
+  const members = await db
+    .select({ partyId: partyMember.partyId, color: partyMember.color })
+    .from(partyMember)
+    .where(
+      inArray(
+        partyMember.partyId,
+        rows.map((row) => row.id),
+      ),
+    );
+  const coloursByParty = new Map<string, PartyColor[]>();
+  for (const member of members) {
+    const list = coloursByParty.get(member.partyId) ?? [];
+    list.push(member.color);
+    coloursByParty.set(member.partyId, list);
+  }
+  return rows.map((row) => ({ ...row, colors: coloursByParty.get(row.id) ?? [] }));
+}
+
+export async function joinParty(
+  db: Db,
+  accountId: string,
+  partyId: string,
+  color: PartyColor,
+): Promise<void> {
+  const row = await loadPartyRow(db, partyId);
+  if (!row) throw new Error("not_found: no such party");
+  const members = await db
+    .select({ accountId: partyMember.accountId, color: partyMember.color })
+    .from(partyMember)
+    .where(eq(partyMember.partyId, partyId));
+  if (members.some((member) => member.accountId === accountId)) {
+    throw new Error("already_member: already in this party");
+  }
+  if (members.length >= row.maxPlayers) throw new Error("full: party is full");
+  if (members.some((member) => member.color === color)) {
+    throw new Error("color_taken: that colour is taken");
+  }
+  await db.insert(partyMember).values({ partyId, accountId, color });
+}
+
+export async function deleteParty(db: Db, accountId: string, partyId: string): Promise<void> {
+  const row = await loadPartyRow(db, partyId);
+  if (!row || row.hostAccountId !== accountId) throw new Error("not_found: no such party");
+  await db.batch([
+    db.delete(partyMember).where(eq(partyMember.partyId, partyId)),
+    db.delete(party).where(eq(party.id, partyId)),
+  ]);
+}
