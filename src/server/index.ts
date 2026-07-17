@@ -558,7 +558,7 @@ async function handleDeleteAdventure(
 async function handleListParties(request: Request, env: Env, url: URL): Promise<Response> {
   const auth = await requireSession(request, env, url);
   if (auth instanceof Response) return auth;
-  return json(await listPublicParties(createDb(env.DB)));
+  return json(await listPublicParties(createDb(env.DB), auth.session.id));
 }
 
 async function handleCreateParty(request: Request, env: Env, url: URL): Promise<Response> {

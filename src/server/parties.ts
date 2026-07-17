@@ -17,6 +17,8 @@ export interface PartyListing {
   status: "open" | "completed";
   hostAccountId: string;
   colors: PartyColor[];
+  mine: boolean;
+  myColor: PartyColor | null;
 }
 
 export interface StoredParty {
@@ -72,7 +74,7 @@ export async function createParty(
   return toStored(stored);
 }
 
-export async function listPublicParties(db: Db): Promise<PartyListing[]> {
+export async function listPublicParties(db: Db, accountId: string): Promise<PartyListing[]> {
   const rows = await db
     .select({
       id: party.id,
@@ -87,7 +89,11 @@ export async function listPublicParties(db: Db): Promise<PartyListing[]> {
     .innerJoin(adventure, eq(party.adventureId, adventure.id));
   if (rows.length === 0) return [];
   const members = await db
-    .select({ partyId: partyMember.partyId, color: partyMember.color })
+    .select({
+      partyId: partyMember.partyId,
+      accountId: partyMember.accountId,
+      color: partyMember.color,
+    })
     .from(partyMember)
     .where(
       inArray(
@@ -96,12 +102,19 @@ export async function listPublicParties(db: Db): Promise<PartyListing[]> {
       ),
     );
   const coloursByParty = new Map<string, PartyColor[]>();
+  const mineByParty = new Map<string, PartyColor>();
   for (const member of members) {
     const list = coloursByParty.get(member.partyId) ?? [];
     list.push(member.color);
     coloursByParty.set(member.partyId, list);
+    if (member.accountId === accountId) mineByParty.set(member.partyId, member.color);
   }
-  return rows.map((row) => ({ ...row, colors: coloursByParty.get(row.id) ?? [] }));
+  return rows.map((row) => ({
+    ...row,
+    colors: coloursByParty.get(row.id) ?? [],
+    mine: mineByParty.has(row.id),
+    myColor: mineByParty.get(row.id) ?? null,
+  }));
 }
 
 export async function joinParty(

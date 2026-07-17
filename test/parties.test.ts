@@ -93,7 +93,7 @@ describe("createParty", () => {
       name: "Chez Nico",
       status: "open",
     });
-    const listing = await listPublicParties(db);
+    const listing = await listPublicParties(db, "owner");
     expect(listing).toHaveLength(1);
     expect(listing[0]).toMatchObject({ id: party.id, adventureTitle: "Donjon", colors: ["red"] });
   });
@@ -122,7 +122,7 @@ describe("joinParty", () => {
     await expect(joinParty(db, "p2", party.id, "blue")).rejects.toThrow(/^color_taken:/);
 
     await joinParty(db, "p2", party.id, "yellow");
-    const listing = await listPublicParties(db);
+    const listing = await listPublicParties(db, "host");
     expect(listing[0]?.colors.sort()).toEqual(["blue", "yellow"]);
 
     // cap is 2, already full
@@ -141,7 +141,7 @@ describe("deleteParty", () => {
 
     await expect(deleteParty(db, "rival", party.id)).rejects.toThrow(/^not_found:/);
     await deleteParty(db, "host", party.id);
-    expect(await listPublicParties(db)).toEqual([]);
+    expect(await listPublicParties(db, "host")).toEqual([]);
   });
 });
 
@@ -179,7 +179,25 @@ describe("joinParty concurrency", () => {
     expect((rejected[0] as PromiseRejectedResult).reason).toMatchObject({
       message: expect.stringMatching(/^full:/),
     });
-    const listing = await listPublicParties(db);
+    const listing = await listPublicParties(db, "host");
     expect(listing[0]?.colors).toHaveLength(2); // cap respected: exactly maxPlayers members
+  });
+});
+
+describe("listPublicParties caller annotation", () => {
+  it("marks the caller's own party and colour", async () => {
+    const db = createDb(env.DB);
+    await seedAccount("host");
+    await seedAccount("guest");
+    const adventureId = await seedAdventure("host");
+    const party = await createParty(db, "host", { adventureId, name: null, color: "blue" });
+    await joinParty(db, "guest", party.id, "red");
+
+    const asHost = await listPublicParties(db, "host");
+    expect(asHost[0]).toMatchObject({ mine: true, myColor: "blue" });
+    const asGuest = await listPublicParties(db, "guest");
+    expect(asGuest[0]).toMatchObject({ mine: true, myColor: "red" });
+    const asStranger = await listPublicParties(db, "nobody");
+    expect(asStranger[0]).toMatchObject({ mine: false, myColor: null });
   });
 });

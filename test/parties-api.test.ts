@@ -193,4 +193,24 @@ describe("party lifecycle over the wire", () => {
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ error: "party_full" });
   });
+
+  it("annotates the listing with the caller's membership", async () => {
+    const host = await register();
+    const adventureId = await seedAdventure(host);
+    await authed("/api/parties", host, {
+      method: "POST",
+      body: JSON.stringify({ adventureId, color: "blue" }),
+    });
+    const mineRes = await authed("/api/parties", host, {});
+    expect(((await mineRes.json()) as { mine: boolean; myColor: string }[])[0]).toMatchObject({
+      mine: true,
+      myColor: "blue",
+    });
+    const stranger = await register();
+    const theirs = await authed("/api/parties", stranger, {});
+    expect(((await theirs.json()) as { mine: boolean }[])[0]).toMatchObject({
+      mine: false,
+      myColor: null,
+    });
+  });
 });

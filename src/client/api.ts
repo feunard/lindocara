@@ -3,6 +3,7 @@ import type { CharacterAppearance, Equipment } from "../shared/character.js";
 import type { PlayerClass } from "../shared/game.js";
 import type { MessageKey } from "../shared/i18n/index.js";
 import type { MapElement, MapMarkers } from "../shared/map-data.js";
+import type { PartyColor } from "../shared/party.js";
 import { t } from "./i18n.js";
 
 export interface Me {
@@ -103,6 +104,63 @@ export const updateAdventureApi = (id: string, input: AdventureInput) =>
   api<AdventurePayload>(`/api/adventures/${id}`, { method: "PUT", body: JSON.stringify(input) });
 export const deleteAdventureApi = (id: string) =>
   api<void>(`/api/adventures/${id}`, { method: "DELETE" });
+
+export interface PartyListing {
+  id: string;
+  name: string | null;
+  adventureId: string;
+  adventureTitle: string;
+  maxPlayers: number;
+  status: "open" | "completed";
+  hostAccountId: string;
+  colors: PartyColor[];
+  mine: boolean;
+  myColor: PartyColor | null;
+}
+
+export interface StoredParty {
+  id: string;
+  adventureId: string;
+  adventureVersion: number;
+  maxPlayers: number;
+  hostAccountId: string;
+  name: string | null;
+  status: "open" | "completed";
+}
+
+export interface StoredHero {
+  id: string;
+  partyId: string;
+  accountId: string;
+  name: string;
+  class: PlayerClass;
+  mapId: string;
+  x: number;
+  y: number;
+  level: number;
+  xp: number;
+  hp: number;
+  life: "alive" | "corpse" | "ghost";
+}
+
+export const fetchParties = () => api<PartyListing[]>("/api/parties");
+export const createPartyApi = (input: {
+  adventureId: string;
+  name?: string | null;
+  color: PartyColor;
+}) => api<StoredParty>("/api/parties", { method: "POST", body: JSON.stringify(input) });
+export const joinPartyApi = (partyId: string, color: PartyColor) =>
+  api<void>(`/api/parties/${partyId}/join`, { method: "POST", body: JSON.stringify({ color }) });
+export const deletePartyApi = (partyId: string) =>
+  api<void>(`/api/parties/${partyId}`, { method: "DELETE" });
+export const fetchHeroes = (partyId: string) => api<StoredHero[]>(`/api/parties/${partyId}/heroes`);
+export const createHeroApi = (partyId: string, input: { name: string; class: PlayerClass }) =>
+  api<StoredHero>(`/api/parties/${partyId}/heroes`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+export const deleteHeroApi = (partyId: string, heroId: string) =>
+  api<void>(`/api/parties/${partyId}/heroes/${heroId}`, { method: "DELETE" });
 
 /** Stable machine codes (from ApiError, or synthesized client-side) mapped to i18n keys. */
 export const ERROR_KEYS: Record<string, MessageKey> = {
