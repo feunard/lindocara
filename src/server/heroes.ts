@@ -4,7 +4,7 @@
  * start entry so a later admission step can spawn it directly. Colour is never stored — it comes
  * from the owner's party_member slot.
  */
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import type { PlayerClass } from "../shared/game.js";
 import type { CreateHeroInput } from "../shared/hero.js";
 import { MAX_HEROES_PER_PARTY } from "../shared/hero.js";
@@ -108,7 +108,8 @@ export async function listHeroes(
   const rows = await db
     .select()
     .from(hero)
-    .where(and(eq(hero.partyId, partyId), eq(hero.accountId, accountId)));
+    .where(and(eq(hero.partyId, partyId), eq(hero.accountId, accountId)))
+    .orderBy(asc(hero.createdAt));
   return rows.map(toStored);
 }
 

@@ -4,7 +4,8 @@
  */
 import type { PlayerClass } from "./game.js";
 
-/** Kept in step with PlayerClass by `satisfies`: a new class must be added here to compile. */
+/** `satisfies` rejects a listed class that isn't a `PlayerClass`; it does NOT enforce
+ *  exhaustiveness — a new class added to `PlayerClass` stays absent here until added by hand. */
 export const HERO_CLASSES = [
   "warrior",
   "ranger",
