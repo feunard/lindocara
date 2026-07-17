@@ -12,6 +12,7 @@ import { WS_CLOSE } from "../shared/close-codes.js";
 import { isValidClass } from "../shared/game.js";
 import { isUuid } from "../shared/identifiers.js";
 import { mapSpawnPoint, parseMapData } from "../shared/map-data.js";
+import { parseCreatePartyInput, parseJoinPartyInput } from "../shared/party.js";
 import {
   isKnownZone,
   isValidInstanceId,
@@ -46,6 +47,7 @@ import {
   setFirstMap,
   updateMap,
 } from "./maps.js";
+import { createParty, deleteParty, joinParty, listPublicParties } from "./parties.js";
 import { loadProfile, relocateProfile } from "./profile.js";
 import {
   clearSessionCookie,
@@ -454,8 +456,21 @@ function adventureErrorResponse(error: unknown): Response {
   const message = error instanceof Error ? error.message : "";
   const code = message.split(":")[0];
   if (code === "not_found") return json({ error: "adventure_not_found" }, { status: 404 });
+  if (code === "referenced") return json({ error: "adventure_referenced" }, { status: 409 });
   if (code === "title" || code === "players" || code === "maps" || code === "graph") {
     return json({ error: `adventure_${code}` }, { status: 400 });
+  }
+  throw error;
+}
+
+/** `parties.ts` throws "prefix: message" — the prefix is the machine code. */
+function partyErrorResponse(error: unknown): Response {
+  const message = error instanceof Error ? error.message : "";
+  const code = message.split(":")[0];
+  if (code === "not_found") return json({ error: "party_not_found" }, { status: 404 });
+  if (code === "adventure") return json({ error: "party_adventure" }, { status: 404 });
+  if (code === "already_member" || code === "full" || code === "color_taken") {
+    return json({ error: `party_${code}` }, { status: 409 });
   }
   throw error;
 }
@@ -525,6 +540,62 @@ async function handleDeleteAdventure(
     return new Response(null, { status: 204 });
   } catch (error) {
     return adventureErrorResponse(error);
+  }
+}
+
+async function handleListParties(request: Request, env: Env, url: URL): Promise<Response> {
+  const auth = await requireSession(request, env, url);
+  if (auth instanceof Response) return auth;
+  return json(await listPublicParties(createDb(env.DB)));
+}
+
+async function handleCreateParty(request: Request, env: Env, url: URL): Promise<Response> {
+  const auth = await requireSession(request, env, url);
+  if (auth instanceof Response) return auth;
+  const parsed = await readJson(request);
+  if (parsed instanceof Response) return parsed;
+  const input = parseCreatePartyInput(parsed.value);
+  if (!input) return json({ error: "party_invalid" }, { status: 400 });
+  try {
+    return json(await createParty(createDb(env.DB), auth.session.id, input), { status: 201 });
+  } catch (error) {
+    return partyErrorResponse(error);
+  }
+}
+
+async function handleJoinParty(
+  request: Request,
+  env: Env,
+  url: URL,
+  id: string,
+): Promise<Response> {
+  const auth = await requireSession(request, env, url);
+  if (auth instanceof Response) return auth;
+  const parsed = await readJson(request);
+  if (parsed instanceof Response) return parsed;
+  const input = parseJoinPartyInput(parsed.value);
+  if (!input) return json({ error: "party_invalid" }, { status: 400 });
+  try {
+    await joinParty(createDb(env.DB), auth.session.id, id, input.color);
+    return new Response(null, { status: 204 });
+  } catch (error) {
+    return partyErrorResponse(error);
+  }
+}
+
+async function handleDeleteParty(
+  request: Request,
+  env: Env,
+  url: URL,
+  id: string,
+): Promise<Response> {
+  const auth = await requireSession(request, env, url);
+  if (auth instanceof Response) return auth;
+  try {
+    await deleteParty(createDb(env.DB), auth.session.id, id);
+    return new Response(null, { status: 204 });
+  } catch (error) {
+    return partyErrorResponse(error);
   }
 }
 
@@ -604,6 +675,21 @@ export default {
       if (request.method === "GET") return handleGetAdventure(request, env, url, id);
       if (request.method === "PUT") return handleUpdateAdventure(request, env, url, id);
       if (request.method === "DELETE") return handleDeleteAdventure(request, env, url, id);
+    }
+
+    if (url.pathname === "/api/parties" && request.method === "GET") {
+      return handleListParties(request, env, url);
+    }
+    if (url.pathname === "/api/parties" && request.method === "POST") {
+      return handleCreateParty(request, env, url);
+    }
+    const partyJoinRoute = url.pathname.match(/^\/api\/parties\/([A-Za-z0-9-]{1,64})\/join$/);
+    if (partyJoinRoute?.[1] && request.method === "POST") {
+      return handleJoinParty(request, env, url, partyJoinRoute[1]);
+    }
+    const partyRoute = url.pathname.match(/^\/api\/parties\/([A-Za-z0-9-]{1,64})$/);
+    if (partyRoute?.[1] && request.method === "DELETE") {
+      return handleDeleteParty(request, env, url, partyRoute[1]);
     }
 
     return json({ error: "not found" }, { status: 404 });

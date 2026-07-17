@@ -134,6 +134,13 @@ export const ERROR_KEYS: Record<string, MessageKey> = {
   adventure_maps: "adventure.error.maps",
   adventure_graph: "adventure.error.graph",
   adventure_not_found: "adventure.error.not_found",
+  party_invalid: "party.error.invalid",
+  party_not_found: "party.error.not_found",
+  party_adventure: "party.error.adventure",
+  party_color_taken: "party.error.color_taken",
+  party_full: "party.error.full",
+  party_already_member: "party.error.already_member",
+  adventure_referenced: "adventure.error.referenced",
 };
 
 export function errorCode(error: unknown): string {

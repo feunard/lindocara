@@ -522,6 +522,15 @@ export const fr: Record<keyof typeof en, string> = {
   "adventure.error.graph":
     "Chaque sortie doit mener quelque part, et au moins une doit conclure l'aventure.",
   "adventure.error.not_found": "Cette aventure n'existe plus.",
+  "adventure.error.referenced": "Une partie utilise encore cette aventure.",
+
+  // Erreurs de l'API des parties
+  "party.error.invalid": "Ces données de partie sont invalides.",
+  "party.error.not_found": "Cette partie n'existe plus.",
+  "party.error.adventure": "Cette aventure n'existe plus.",
+  "party.error.color_taken": "Cette couleur est déjà prise.",
+  "party.error.full": "Cette partie est complète.",
+  "party.error.already_member": "Tu es déjà dans cette partie.",
 
   // Éditeur d'aventures
   "adventure.title": "Éditeur d'aventures",

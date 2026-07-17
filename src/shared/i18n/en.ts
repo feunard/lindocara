@@ -511,6 +511,15 @@ export const en = {
   "adventure.error.graph":
     "Every exit must lead somewhere, and at least one must end the adventure.",
   "adventure.error.not_found": "That adventure no longer exists.",
+  "adventure.error.referenced": "A party still uses this adventure.",
+
+  // Party API errors
+  "party.error.invalid": "That party data is invalid.",
+  "party.error.not_found": "That party no longer exists.",
+  "party.error.adventure": "That adventure no longer exists.",
+  "party.error.color_taken": "That colour is already taken.",
+  "party.error.full": "That party is full.",
+  "party.error.already_member": "You are already in that party.",
 
   // Adventure editor
   "adventure.title": "Adventure editor",
