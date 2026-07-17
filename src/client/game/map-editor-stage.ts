@@ -202,6 +202,7 @@ async function buildSession(
   // Explicitly typed so the non-null narrowing survives into the deferred handles (dispose et al.)
   // that capture it, which control-flow narrowing alone does not carry across a closure boundary.
   const canvas: HTMLCanvasElement = found;
+  canvas.dataset.cursor = "paint";
 
   // Tear down the previous session's world before building this one — this runs inside the
   // serialized chain, so only ever one map is mounted on the shared app's stage at a time.
@@ -396,6 +397,7 @@ async function buildSession(
   const onPointerDown = (event: PointerEvent): void => {
     if (isPanTrigger(event)) {
       panning = true;
+      canvas.dataset.cursor = "move";
       panLastX = event.clientX;
       panLastY = event.clientY;
       return;
@@ -422,6 +424,7 @@ async function buildSession(
   const stopStroke = (): void => {
     painting = false;
     panning = false;
+    canvas.dataset.cursor = "paint";
   };
 
   const onWheel = (event: WheelEvent): void => {
@@ -486,6 +489,7 @@ async function buildSession(
     window.removeEventListener("pointerup", stopStroke);
     window.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("keyup", onKeyUp);
+    delete canvas.dataset.cursor;
     // Only this map's display tree goes; the Application, its canvas and the Assets-cached textures
     // (shared with the world renderer) stay, so the next open reuses them instead of re-initializing.
     app.stage.removeChild(world);

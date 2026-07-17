@@ -1,6 +1,6 @@
 import {
   GENERATED_EDITOR_ASSETS,
-  GENERATED_TINY_SWORDS_UI_IDS,
+  GENERATED_TINY_SWORDS_UI_ASSETS,
 } from "./tiny-swords-catalog.generated.js";
 
 export const TINY_SWORDS_PACKS = [
@@ -145,6 +145,13 @@ export interface TinySwordsCatalogFile {
   entries: TinySwordsCatalogEntry[];
 }
 
+export interface CatalogAssetRef {
+  id: string;
+  sourcePath: string;
+  hotspot?: CursorHotspot;
+  slice?: UiSlice;
+}
+
 export const EDITOR_ASSETS = GENERATED_EDITOR_ASSETS;
 export type EditorAssetId = (typeof EDITOR_ASSETS)[number]["id"];
 
@@ -160,4 +167,4 @@ export function editorAsset(value: string): EditorAssetDefinition | null {
   return EDITOR_ASSET_BY_ID.get(value) ?? null;
 }
 
-export const TINY_SWORDS_UI_IDS = GENERATED_TINY_SWORDS_UI_IDS;
+export const TINY_SWORDS_UI = GENERATED_TINY_SWORDS_UI_ASSETS;

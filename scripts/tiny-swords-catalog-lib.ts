@@ -665,40 +665,91 @@ function idForPath(catalog: TinySwordsCatalogFile, suffix: string): string {
   return entry.id;
 }
 
-export function uiIds(catalog: TinySwordsCatalogFile) {
-  const id = (suffix: string) => idForPath(catalog, suffix);
+function refForPath(catalog: TinySwordsCatalogFile, suffix: string) {
+  const id = idForPath(catalog, suffix);
+  const entry = catalog.entries.find((candidate) => candidate.id === id);
+  if (!entry) throw new Error(`catalogue UI id missing: ${id}`);
+  return {
+    id,
+    sourcePath: entry.sourcePath,
+    ...(entry.ui?.hotspot ? { hotspot: entry.ui.hotspot } : {}),
+    ...(entry.ui?.slice ? { slice: entry.ui.slice } : {}),
+  };
+}
+
+export function uiAssets(catalog: TinySwordsCatalogFile) {
+  const ref = (suffix: string) => refForPath(catalog, suffix);
   return {
     button: {
       blue: {
-        normal: id("UI/Buttons/Button_Blue_3Slides.png"),
-        hover: id("UI/Buttons/Button_Hover_3Slides.png"),
-        pressed: id("UI/Buttons/Button_Blue_3Slides_Pressed.png"),
-        disabled: id("UI/Buttons/Button_Disable_3Slides.png"),
+        normal: ref("UI/Buttons/Button_Blue_3Slides.png"),
+        hover: ref("UI/Buttons/Button_Hover_3Slides.png"),
+        pressed: ref("UI/Buttons/Button_Blue_3Slides_Pressed.png"),
+        disabled: ref("UI/Buttons/Button_Disable_3Slides.png"),
       },
       red: {
-        normal: id("UI/Buttons/Button_Red_3Slides.png"),
-        hover: id("UI/Buttons/Button_Hover_3Slides.png"),
-        pressed: id("UI/Buttons/Button_Red_3Slides_Pressed.png"),
-        disabled: id("UI/Buttons/Button_Disable_3Slides.png"),
+        normal: ref("UI/Buttons/Button_Red_3Slides.png"),
+        hover: ref("UI/Buttons/Button_Hover_3Slides.png"),
+        pressed: ref("UI/Buttons/Button_Red_3Slides_Pressed.png"),
+        disabled: ref("UI/Buttons/Button_Disable_3Slides.png"),
       },
     },
     panel: {
-      carved: id("UI/Banners/Carved_9Slides.png"),
-      paper: id("UI Elements/UI Elements/Papers/RegularPaper.png"),
+      carved: ref("UI/Banners/Carved_9Slides.png"),
+      paper: ref("UI Elements/UI Elements/Papers/RegularPaper.png"),
+    },
+    control: {
+      checkbox: {
+        normal: ref("UI Elements/UI Elements/Buttons/SmallBlueSquareButton_Regular.png"),
+        checked: ref("UI Elements/UI Elements/Buttons/SmallBlueSquareButton_Pressed.png"),
+      },
+      rangeThumb: ref("UI Elements/UI Elements/Buttons/TinyRoundBlueButton.png"),
+      iconButton: {
+        normal: ref("UI Elements/UI Elements/Buttons/SmallBlueSquareButton_Regular.png"),
+        pressed: ref("UI Elements/UI Elements/Buttons/SmallBlueSquareButton_Pressed.png"),
+        danger: ref("UI Elements/UI Elements/Buttons/SmallRedSquareButton_Regular.png"),
+      },
+      slot: ref("UI Elements/UI Elements/Banners/Banner_Slots.png"),
+      icon: {
+        quest: ref("UI Elements/UI Elements/Icons/Icon_01.png"),
+        oath: ref("UI Elements/UI Elements/Icons/Icon_02.png"),
+        sword: ref("UI Elements/UI Elements/Icons/Icon_03.png"),
+        potion: ref("UI Elements/UI Elements/Icons/Icon_04.png"),
+        gold: ref("UI Elements/UI Elements/Icons/Icon_05.png"),
+        crystal: ref("UI Elements/UI Elements/Icons/Icon_06.png"),
+      },
     },
     cursor: {
-      default: id("UI Elements/UI Elements/Cursors/Cursor_01.png"),
-      link: id("UI Elements/UI Elements/Cursors/Cursor_02.png"),
-      interact: id("UI Elements/UI Elements/Cursors/Cursor_02.png"),
-      move: id("UI Elements/UI Elements/Cursors/Cursor_02.png"),
-      paint: id("UI/Pointers/01.png"),
-      unavailable: id("UI Elements/UI Elements/Cursors/Cursor_03.png"),
+      default: ref("UI Elements/UI Elements/Cursors/Cursor_01.png"),
+      link: ref("UI Elements/UI Elements/Cursors/Cursor_02.png"),
+      interact: ref("UI Elements/UI Elements/Cursors/Cursor_02.png"),
+      move: ref("UI Elements/UI Elements/Cursors/Cursor_02.png"),
+      paint: ref("UI/Pointers/01.png"),
+      unavailable: ref("UI Elements/UI Elements/Cursors/Cursor_03.png"),
     },
     bar: {
-      largeBase: id("UI Elements/UI Elements/Bars/BigBar_Base.png"),
-      largeFill: id("UI Elements/UI Elements/Bars/BigBar_Fill.png"),
-      smallBase: id("UI Elements/UI Elements/Bars/SmallBar_Base.png"),
-      smallFill: id("UI Elements/UI Elements/Bars/SmallBar_Fill.png"),
+      largeBase: ref("UI Elements/UI Elements/Bars/BigBar_Base.png"),
+      largeFill: ref("UI Elements/UI Elements/Bars/BigBar_Fill.png"),
+      smallBase: ref("UI Elements/UI Elements/Bars/SmallBar_Base.png"),
+      smallFill: ref("UI Elements/UI Elements/Bars/SmallBar_Fill.png"),
+    },
+    scene: {
+      cloudOne: ref("Terrain/Decorations/Clouds/Clouds_01.png"),
+      cloudTwo: ref("Terrain/Decorations/Clouds/Clouds_02.png"),
+      cloudThree: ref("Terrain/Decorations/Clouds/Clouds_05.png"),
+      bridge: ref("Terrain/Bridge/Bridge_All.png"),
+      foam: ref("Terrain/Water/Foam/Foam.png"),
+      houseOne: ref("Buildings/Blue Buildings/House1.png"),
+      houseThree: ref("Buildings/Blue Buildings/House3.png"),
+      tower: ref("Buildings/Blue Buildings/Tower.png"),
+      castle: ref("Buildings/Blue Buildings/Castle.png"),
+      treeThree: ref("Terrain/Resources/Wood/Trees/Tree3.png"),
+      treeFour: ref("Terrain/Resources/Wood/Trees/Tree4.png"),
+      rockTwo: ref("Terrain/Decorations/Rocks/Rock2.png"),
+      bush: ref("Deco/09.png"),
+      sign: ref("Deco/17.png"),
+      fire: ref("Particle FX/Fire_01.png"),
+      dust: ref("Particle FX/Dust_01.png"),
     },
   } as const;
 }
@@ -726,8 +777,8 @@ export function clientCatalogJson(catalog: TinySwordsCatalogFile): string {
 
 export function generatedSharedSource(catalog: TinySwordsCatalogFile): string {
   const definitions = editorDefinitions(catalog);
-  const selectedUi = uiIds(catalog);
-  return `/* Generated by scripts/build-tiny-swords-catalog.ts. Run npm run catalog:build. */\nimport type { EditorAssetDefinition } from "./tiny-swords-catalog.js";\n\nexport const GENERATED_EDITOR_ASSETS = ${JSON.stringify(definitions, null, 2)} as const satisfies readonly EditorAssetDefinition[];\n\nexport const GENERATED_TINY_SWORDS_UI_IDS = ${JSON.stringify(selectedUi, null, 2)} as const;\n`;
+  const selectedUi = uiAssets(catalog);
+  return `/* Generated by scripts/build-tiny-swords-catalog.ts. Run npm run catalog:build. */\nimport type { EditorAssetDefinition } from "./tiny-swords-catalog.js";\n\nexport const GENERATED_EDITOR_ASSETS = ${JSON.stringify(definitions, null, 2)} as const satisfies readonly EditorAssetDefinition[];\n\nexport const GENERATED_TINY_SWORDS_UI_ASSETS = ${JSON.stringify(selectedUi, null, 2)} as const;\n`;
 }
 
 export function sourceCatalogJson(catalog: TinySwordsCatalogFile): string {

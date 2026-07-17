@@ -10731,37 +10731,294 @@ export const GENERATED_EDITOR_ASSETS = [
   }
 ] as const satisfies readonly EditorAssetDefinition[];
 
-export const GENERATED_TINY_SWORDS_UI_IDS = {
+export const GENERATED_TINY_SWORDS_UI_ASSETS = {
   "button": {
     "blue": {
-      "normal": "ui.button.blue.normal.3-slice",
-      "hover": "ui.button.shared.hover.3-slice",
-      "pressed": "ui.button.blue.pressed.3-slice",
-      "disabled": "ui.button.shared.disabled.3-slice"
+      "normal": {
+        "id": "ui.button.blue.normal.3-slice",
+        "sourcePath": "Tiny Swords (Update 010)/UI/Buttons/Button_Blue_3Slides.png",
+        "slice": {
+          "type": "three",
+          "left": 64,
+          "right": 64
+        }
+      },
+      "hover": {
+        "id": "ui.button.shared.hover.3-slice",
+        "sourcePath": "Tiny Swords (Update 010)/UI/Buttons/Button_Hover_3Slides.png",
+        "slice": {
+          "type": "three",
+          "left": 64,
+          "right": 64
+        }
+      },
+      "pressed": {
+        "id": "ui.button.blue.pressed.3-slice",
+        "sourcePath": "Tiny Swords (Update 010)/UI/Buttons/Button_Blue_3Slides_Pressed.png",
+        "slice": {
+          "type": "three",
+          "left": 64,
+          "right": 64
+        }
+      },
+      "disabled": {
+        "id": "ui.button.shared.disabled.3-slice",
+        "sourcePath": "Tiny Swords (Update 010)/UI/Buttons/Button_Disable_3Slides.png",
+        "slice": {
+          "type": "three",
+          "left": 64,
+          "right": 64
+        }
+      }
     },
     "red": {
-      "normal": "ui.button.red.normal.3-slice",
-      "hover": "ui.button.shared.hover.3-slice",
-      "pressed": "ui.button.red.pressed.3-slice",
-      "disabled": "ui.button.shared.disabled.3-slice"
+      "normal": {
+        "id": "ui.button.red.normal.3-slice",
+        "sourcePath": "Tiny Swords (Update 010)/UI/Buttons/Button_Red_3Slides.png",
+        "slice": {
+          "type": "three",
+          "left": 64,
+          "right": 64
+        }
+      },
+      "hover": {
+        "id": "ui.button.shared.hover.3-slice",
+        "sourcePath": "Tiny Swords (Update 010)/UI/Buttons/Button_Hover_3Slides.png",
+        "slice": {
+          "type": "three",
+          "left": 64,
+          "right": 64
+        }
+      },
+      "pressed": {
+        "id": "ui.button.red.pressed.3-slice",
+        "sourcePath": "Tiny Swords (Update 010)/UI/Buttons/Button_Red_3Slides_Pressed.png",
+        "slice": {
+          "type": "three",
+          "left": 64,
+          "right": 64
+        }
+      },
+      "disabled": {
+        "id": "ui.button.shared.disabled.3-slice",
+        "sourcePath": "Tiny Swords (Update 010)/UI/Buttons/Button_Disable_3Slides.png",
+        "slice": {
+          "type": "three",
+          "left": 64,
+          "right": 64
+        }
+      }
     }
   },
   "panel": {
-    "carved": "ui.banner.carved-9slides",
-    "paper": "ui.paper.regularpaper"
+    "carved": {
+      "id": "ui.banner.carved-9slides",
+      "sourcePath": "Tiny Swords (Update 010)/UI/Banners/Carved_9Slides.png",
+      "slice": {
+        "type": "nine",
+        "top": 64,
+        "right": 64,
+        "bottom": 64,
+        "left": 64
+      }
+    },
+    "paper": {
+      "id": "ui.paper.regularpaper",
+      "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Papers/RegularPaper.png"
+    }
+  },
+  "control": {
+    "checkbox": {
+      "normal": {
+        "id": "ui.button.small.blue.normal.square",
+        "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Buttons/SmallBlueSquareButton_Regular.png"
+      },
+      "checked": {
+        "id": "ui.button.small.blue.pressed.square",
+        "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Buttons/SmallBlueSquareButton_Pressed.png"
+      }
+    },
+    "rangeThumb": {
+      "id": "ui.button.tiny.blue.normal.round",
+      "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Buttons/TinyRoundBlueButton.png"
+    },
+    "iconButton": {
+      "normal": {
+        "id": "ui.button.small.blue.normal.square",
+        "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Buttons/SmallBlueSquareButton_Regular.png"
+      },
+      "pressed": {
+        "id": "ui.button.small.blue.pressed.square",
+        "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Buttons/SmallBlueSquareButton_Pressed.png"
+      },
+      "danger": {
+        "id": "ui.button.small.red.normal.square",
+        "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Buttons/SmallRedSquareButton_Regular.png"
+      }
+    },
+    "slot": {
+      "id": "ui.banner.banner-slots",
+      "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Banners/Banner_Slots.png"
+    },
+    "icon": {
+      "quest": {
+        "id": "ui.icon.normal.icon-01",
+        "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Icons/Icon_01.png"
+      },
+      "oath": {
+        "id": "ui.icon.normal.icon-02",
+        "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Icons/Icon_02.png"
+      },
+      "sword": {
+        "id": "ui.icon.normal.icon-03",
+        "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Icons/Icon_03.png"
+      },
+      "potion": {
+        "id": "ui.icon.normal.icon-04",
+        "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Icons/Icon_04.png"
+      },
+      "gold": {
+        "id": "ui.icon.normal.icon-05",
+        "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Icons/Icon_05.png"
+      },
+      "crystal": {
+        "id": "ui.icon.normal.icon-06",
+        "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Icons/Icon_06.png"
+      }
+    }
   },
   "cursor": {
-    "default": "ui.cursor.default",
-    "link": "ui.cursor.link",
-    "interact": "ui.cursor.link",
-    "move": "ui.cursor.link",
-    "paint": "ui.cursor.paint",
-    "unavailable": "ui.cursor.unavailable"
+    "default": {
+      "id": "ui.cursor.default",
+      "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Cursors/Cursor_01.png",
+      "hotspot": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    "link": {
+      "id": "ui.cursor.link",
+      "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Cursors/Cursor_02.png",
+      "hotspot": {
+        "x": 12,
+        "y": 4
+      }
+    },
+    "interact": {
+      "id": "ui.cursor.link",
+      "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Cursors/Cursor_02.png",
+      "hotspot": {
+        "x": 12,
+        "y": 4
+      }
+    },
+    "move": {
+      "id": "ui.cursor.link",
+      "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Cursors/Cursor_02.png",
+      "hotspot": {
+        "x": 12,
+        "y": 4
+      }
+    },
+    "paint": {
+      "id": "ui.cursor.paint",
+      "sourcePath": "Tiny Swords (Update 010)/UI/Pointers/01.png",
+      "hotspot": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    "unavailable": {
+      "id": "ui.cursor.unavailable",
+      "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Cursors/Cursor_03.png",
+      "hotspot": {
+        "x": 32,
+        "y": 32
+      }
+    }
   },
   "bar": {
-    "largeBase": "ui.bar.large.base",
-    "largeFill": "ui.bar.large.fill",
-    "smallBase": "ui.bar.small.base",
-    "smallFill": "ui.bar.small.fill"
+    "largeBase": {
+      "id": "ui.bar.large.base",
+      "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Bars/BigBar_Base.png"
+    },
+    "largeFill": {
+      "id": "ui.bar.large.fill",
+      "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Bars/BigBar_Fill.png"
+    },
+    "smallBase": {
+      "id": "ui.bar.small.base",
+      "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Bars/SmallBar_Base.png"
+    },
+    "smallFill": {
+      "id": "ui.bar.small.fill",
+      "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Bars/SmallBar_Fill.png"
+    }
+  },
+  "scene": {
+    "cloudOne": {
+      "id": "decoration.terrain-decorations-clouds.clouds-01",
+      "sourcePath": "Tiny Swords (Free Pack)/Terrain/Decorations/Clouds/Clouds_01.png"
+    },
+    "cloudTwo": {
+      "id": "decoration.terrain-decorations-clouds.clouds-02",
+      "sourcePath": "Tiny Swords (Free Pack)/Terrain/Decorations/Clouds/Clouds_02.png"
+    },
+    "cloudThree": {
+      "id": "decoration.terrain-decorations-clouds.clouds-05",
+      "sourcePath": "Tiny Swords (Free Pack)/Terrain/Decorations/Clouds/Clouds_05.png"
+    },
+    "bridge": {
+      "id": "terrain.terrain-bridge.bridge-all",
+      "sourcePath": "Tiny Swords (Update 010)/Terrain/Bridge/Bridge_All.png"
+    },
+    "foam": {
+      "id": "terrain.terrain-water-foam.foam",
+      "sourcePath": "Tiny Swords (Update 010)/Terrain/Water/Foam/Foam.png"
+    },
+    "houseOne": {
+      "id": "building.buildings-blue-buildings.house1",
+      "sourcePath": "Tiny Swords (Free Pack)/Buildings/Blue Buildings/House1.png"
+    },
+    "houseThree": {
+      "id": "building.buildings-blue-buildings.house3",
+      "sourcePath": "Tiny Swords (Free Pack)/Buildings/Blue Buildings/House3.png"
+    },
+    "tower": {
+      "id": "building.buildings-blue-buildings.tower",
+      "sourcePath": "Tiny Swords (Free Pack)/Buildings/Blue Buildings/Tower.png"
+    },
+    "castle": {
+      "id": "building.buildings-blue-buildings.castle",
+      "sourcePath": "Tiny Swords (Free Pack)/Buildings/Blue Buildings/Castle.png"
+    },
+    "treeThree": {
+      "id": "resource.terrain-resources-wood-trees.tree3",
+      "sourcePath": "Tiny Swords (Free Pack)/Terrain/Resources/Wood/Trees/Tree3.png"
+    },
+    "treeFour": {
+      "id": "resource.terrain-resources-wood-trees.tree4",
+      "sourcePath": "Tiny Swords (Free Pack)/Terrain/Resources/Wood/Trees/Tree4.png"
+    },
+    "rockTwo": {
+      "id": "decoration.terrain-decorations-rocks.rock2",
+      "sourcePath": "Tiny Swords (Free Pack)/Terrain/Decorations/Rocks/Rock2.png"
+    },
+    "bush": {
+      "id": "decoration.deco.09",
+      "sourcePath": "Tiny Swords (Update 010)/Deco/09.png"
+    },
+    "sign": {
+      "id": "decoration.deco.17",
+      "sourcePath": "Tiny Swords (Update 010)/Deco/17.png"
+    },
+    "fire": {
+      "id": "effect.particle-fx.fire-01",
+      "sourcePath": "Tiny Swords (Free Pack)/Particle FX/Fire_01.png"
+    },
+    "dust": {
+      "id": "effect.particle-fx.dust-01",
+      "sourcePath": "Tiny Swords (Free Pack)/Particle FX/Dust_01.png"
+    }
   }
 } as const;

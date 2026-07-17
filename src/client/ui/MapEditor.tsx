@@ -18,6 +18,7 @@ import { type MapEditorStageHandle, openMapEditorStage } from "../game/map-edito
 import { startMapPreview } from "../game/map-preview.js";
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
+import { AssetBrowser } from "./AssetBrowser.js";
 import { Button } from "./pixelact-ui/button/index.js";
 import { Input } from "./pixelact-ui/input.js";
 import { Label } from "./pixelact-ui/label.js";
@@ -371,6 +372,8 @@ export function MapEditor() {
       </header>
 
       {error && <p role="alert">{authErrorText(error)}</p>}
+
+      <AssetBrowser />
 
       <section className="roster-grid" aria-label={t("editor.title")}>
         {maps.map((map) => (
