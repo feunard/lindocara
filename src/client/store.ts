@@ -6,7 +6,7 @@ import type { MessageKey } from "../shared/i18n/index.js";
 import type { PartyState, QuestStatus, SelfState } from "../shared/protocol.js";
 import type { Input } from "../shared/simulation.js";
 import type { SkillSlot } from "../shared/skills.js";
-import type { CharacterSummary } from "./api.js";
+import type { CharacterSummary, PartyListing } from "./api.js";
 
 export interface LocalizedText {
   key: MessageKey;
@@ -97,7 +97,17 @@ export interface ReconnectState {
 }
 
 interface UiState {
-  screen: "boot" | "auth" | "characters" | "game" | "map-editor" | "adventures";
+  screen:
+    | "boot"
+    | "auth"
+    | "characters"
+    | "game"
+    | "map-editor"
+    | "adventures"
+    | "parties"
+    | "party";
+  accountId: string | null;
+  activeParty: PartyListing | null;
   characters: CharacterSummary[] | null;
   self: SelfHud | null;
   selfState: SelfState | null;
@@ -129,6 +139,8 @@ interface UiState {
   game: GameHandle | null;
 
   setScreen(screen: UiState["screen"]): void;
+  setAccountId(accountId: string | null): void;
+  setActiveParty(activeParty: PartyListing | null): void;
   setCharacters(characters: CharacterSummary[] | null): void;
   setSelf(self: SelfHud | null): void;
   setSelfState(state: SelfState): void;
@@ -231,6 +243,8 @@ export const useUiStore = create<UiState>((set) => ({
   // "boot" is a brief, invisible holding state while fetchMe() is in flight, so a logged-in
   // user does not see a flash of the auth screen before landing on characters.
   screen: "boot",
+  accountId: null,
+  activeParty: null,
   characters: null,
   self: null,
   selfState: null,
@@ -255,6 +269,8 @@ export const useUiStore = create<UiState>((set) => ({
   game: null,
 
   setScreen: (screen) => set({ screen }),
+  setAccountId: (accountId) => set({ accountId }),
+  setActiveParty: (activeParty) => set({ activeParty }),
   setCharacters: (characters) => set({ characters }),
   setSelf: (self) =>
     set((state) => {
@@ -342,5 +358,6 @@ export const useUiStore = create<UiState>((set) => ({
       settingsOpen: false,
       interiorDoorId: null,
       combatTarget: null,
+      activeParty: null,
     }),
 }));

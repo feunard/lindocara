@@ -1,5 +1,39 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { useUiStore } from "../../src/client/store.js";
+
+describe("launch navigation state", () => {
+  beforeEach(() => {
+    useUiStore.setState({ screen: "boot", accountId: null, activeParty: null });
+  });
+
+  it("navigates to the parties and party screens", () => {
+    useUiStore.getState().setScreen("parties");
+    expect(useUiStore.getState().screen).toBe("parties");
+    useUiStore.getState().setScreen("party");
+    expect(useUiStore.getState().screen).toBe("party");
+  });
+
+  it("tracks the account id and the active party", () => {
+    useUiStore.getState().setAccountId("acct-1");
+    expect(useUiStore.getState().accountId).toBe("acct-1");
+    const party = {
+      id: "p1",
+      name: null,
+      adventureId: "a1",
+      adventureTitle: "Donjon",
+      maxPlayers: 4,
+      status: "open" as const,
+      hostAccountId: "acct-1",
+      colors: ["blue" as const],
+      mine: true,
+      myColor: "blue" as const,
+    };
+    useUiStore.getState().setActiveParty(party);
+    expect(useUiStore.getState().activeParty?.id).toBe("p1");
+    useUiStore.getState().setActiveParty(null);
+    expect(useUiStore.getState().activeParty).toBeNull();
+  });
+});
 
 describe("ui store", () => {
   it("caps the event log at 6 and the chat at 50", () => {

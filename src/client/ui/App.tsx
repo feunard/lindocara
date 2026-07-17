@@ -25,10 +25,14 @@ import { WorldMap } from "./WorldMap.js";
 export function App() {
   const screen = useUiStore((s) => s.screen);
   const setScreen = useUiStore((s) => s.setScreen);
+  const setAccountId = useUiStore((s) => s.setAccountId);
 
   useEffect(() => {
-    fetchMe().then((me) => setScreen(me ? "characters" : "auth"));
-  }, [setScreen]);
+    fetchMe().then((me) => {
+      setAccountId(me?.id ?? null);
+      setScreen(me ? "characters" : "auth");
+    });
+  }, [setScreen, setAccountId]);
 
   function play(character: CharacterSummary) {
     setScreen("game");
