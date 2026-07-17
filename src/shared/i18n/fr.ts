@@ -507,4 +507,13 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.assets.available": "Disponible dans l’éditeur de cartes",
   "editor.assets.unavailable": "Navigateur uniquement",
   "editor.assets.more": "Afficher plus",
+
+  // Erreurs de l'API des aventures
+  "adventure.error.invalid": "Ces données d'aventure sont invalides.",
+  "adventure.error.title": "Le titre doit faire entre 1 et 48 caractères.",
+  "adventure.error.players": "Le nombre de joueurs doit être entre 1 et 4.",
+  "adventure.error.maps": "Une aventure demande de 1 à 16 cartes existantes.",
+  "adventure.error.graph":
+    "Chaque sortie doit mener quelque part, et au moins une doit conclure l'aventure.",
+  "adventure.error.not_found": "Cette aventure n'existe plus.",
 };

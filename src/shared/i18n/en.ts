@@ -496,4 +496,13 @@ export const en = {
   "editor.assets.available": "Available in the map editor",
   "editor.assets.unavailable": "Browser only",
   "editor.assets.more": "Show more",
+
+  // Adventure API errors
+  "adventure.error.invalid": "That adventure data is invalid.",
+  "adventure.error.title": "Adventure title must be 1-48 characters.",
+  "adventure.error.players": "Player count must be between 1 and 4.",
+  "adventure.error.maps": "An adventure needs 1 to 16 existing maps.",
+  "adventure.error.graph":
+    "Every exit must lead somewhere, and at least one must end the adventure.",
+  "adventure.error.not_found": "That adventure no longer exists.",
 } as const satisfies Record<string, string>;

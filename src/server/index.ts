@@ -6,6 +6,7 @@
  * call and this handler never has to think about serving files.
  */
 
+import { parseAdventureInput } from "../shared/adventure.js";
 import { normalizeAppearance } from "../shared/character.js";
 import { WS_CLOSE } from "../shared/close-codes.js";
 import { isValidClass } from "../shared/game.js";
@@ -18,6 +19,13 @@ import {
   type ZoneLocation,
 } from "../shared/zones.js";
 import { accountExists, createAccount, verifyCredentials } from "./accounts.js";
+import {
+  createAdventure,
+  deleteAdventure,
+  listAdventures,
+  loadAdventure,
+  updateAdventure,
+} from "./adventures.js";
 import {
   characterOwnedBy,
   createCharacter,
@@ -63,6 +71,8 @@ function json(body: unknown, init?: ResponseInit): Response {
 const MAX_API_JSON_BYTES = 4_096;
 // A 100x100 map is ~10 KB of blocks plus elements — the maps route gets its own, larger cap.
 const MAX_MAP_JSON_BYTES = 32_768;
+// An adventure body is ids and bindings only (no map payloads): 16 links × a few uuids each.
+const MAX_ADVENTURE_JSON_BYTES = 16_384;
 
 async function readJson(
   request: Request,
@@ -439,6 +449,85 @@ async function handleSetFirstMap(
   }
 }
 
+/** `adventures.ts`/`shared/adventure.ts` throw "prefix: message" — prefix is the machine code. */
+function adventureErrorResponse(error: unknown): Response {
+  const message = error instanceof Error ? error.message : "";
+  const code = message.split(":")[0];
+  if (code === "not_found") return json({ error: "adventure_not_found" }, { status: 404 });
+  if (code === "title" || code === "players" || code === "maps" || code === "graph") {
+    return json({ error: `adventure_${code}` }, { status: 400 });
+  }
+  throw error;
+}
+
+async function handleListAdventures(request: Request, env: Env, url: URL): Promise<Response> {
+  const auth = await requireSession(request, env, url);
+  if (auth instanceof Response) return auth;
+  return json(await listAdventures(createDb(env.DB), auth.session.id));
+}
+
+async function handleCreateAdventure(request: Request, env: Env, url: URL): Promise<Response> {
+  const auth = await requireSession(request, env, url);
+  if (auth instanceof Response) return auth;
+  const parsed = await readJson(request, MAX_ADVENTURE_JSON_BYTES);
+  if (parsed instanceof Response) return parsed;
+  const input = parseAdventureInput(parsed.value);
+  if (!input) return json({ error: "adventure_invalid" }, { status: 400 });
+  try {
+    return json(await createAdventure(createDb(env.DB), auth.session.id, input), { status: 201 });
+  } catch (error) {
+    return adventureErrorResponse(error);
+  }
+}
+
+async function handleGetAdventure(
+  request: Request,
+  env: Env,
+  url: URL,
+  id: string,
+): Promise<Response> {
+  const auth = await requireSession(request, env, url);
+  if (auth instanceof Response) return auth;
+  const stored = await loadAdventure(createDb(env.DB), auth.session.id, id);
+  if (!stored) return json({ error: "adventure_not_found" }, { status: 404 });
+  return json(stored);
+}
+
+async function handleUpdateAdventure(
+  request: Request,
+  env: Env,
+  url: URL,
+  id: string,
+): Promise<Response> {
+  const auth = await requireSession(request, env, url);
+  if (auth instanceof Response) return auth;
+  const parsed = await readJson(request, MAX_ADVENTURE_JSON_BYTES);
+  if (parsed instanceof Response) return parsed;
+  const input = parseAdventureInput(parsed.value);
+  if (!input) return json({ error: "adventure_invalid" }, { status: 400 });
+  try {
+    return json(await updateAdventure(createDb(env.DB), auth.session.id, id, input));
+  } catch (error) {
+    return adventureErrorResponse(error);
+  }
+}
+
+async function handleDeleteAdventure(
+  request: Request,
+  env: Env,
+  url: URL,
+  id: string,
+): Promise<Response> {
+  const auth = await requireSession(request, env, url);
+  if (auth instanceof Response) return auth;
+  try {
+    await deleteAdventure(createDb(env.DB), auth.session.id, id);
+    return new Response(null, { status: 204 });
+  } catch (error) {
+    return adventureErrorResponse(error);
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -501,6 +590,20 @@ export default {
     const firstRoute = url.pathname.match(/^\/api\/maps\/([A-Za-z0-9-]{1,64})\/first$/);
     if (firstRoute?.[1] && request.method === "POST") {
       return handleSetFirstMap(request, env, url, firstRoute[1]);
+    }
+
+    if (url.pathname === "/api/adventures" && request.method === "GET") {
+      return handleListAdventures(request, env, url);
+    }
+    if (url.pathname === "/api/adventures" && request.method === "POST") {
+      return handleCreateAdventure(request, env, url);
+    }
+    const adventureRoute = url.pathname.match(/^\/api\/adventures\/([A-Za-z0-9-]{1,64})$/);
+    if (adventureRoute?.[1]) {
+      const id = adventureRoute[1];
+      if (request.method === "GET") return handleGetAdventure(request, env, url, id);
+      if (request.method === "PUT") return handleUpdateAdventure(request, env, url, id);
+      if (request.method === "DELETE") return handleDeleteAdventure(request, env, url, id);
     }
 
     return json({ error: "not found" }, { status: 404 });

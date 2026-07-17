@@ -101,6 +101,12 @@ export const ERROR_KEYS: Record<string, MessageKey> = {
   map_markers: "editor.error.markers",
   map_referenced: "editor.error.referenced",
   request_too_large: "editor.error.too_large",
+  adventure_invalid: "adventure.error.invalid",
+  adventure_title: "adventure.error.title",
+  adventure_players: "adventure.error.players",
+  adventure_maps: "adventure.error.maps",
+  adventure_graph: "adventure.error.graph",
+  adventure_not_found: "adventure.error.not_found",
 };
 
 export function errorCode(error: unknown): string {
