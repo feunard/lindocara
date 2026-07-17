@@ -288,3 +288,46 @@ export const mapElement = sqliteTable(
     index("map_element_map_idx").on(table.mapId),
   ],
 );
+
+export const adventure = sqliteTable(
+  "adventure",
+  {
+    /** Server-minted uuid. A client never supplies this. */
+    id: text("id").primaryKey(),
+    accountId: text("account_id")
+      .notNull()
+      .references(() => account.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    maxPlayers: integer("max_players").notNull().default(4),
+    /** Reserved seam for immutable published versions; always 1 until then. */
+    version: integer("version").notNull().default(1),
+    /** JSON AdventureGraph: start anchor plus one binding per placed exit. */
+    graph: text("graph").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
+  },
+  (table) => [
+    index("adventure_account_idx").on(table.accountId),
+    check("adventure_max_players_range", sql`${table.maxPlayers} BETWEEN 1 AND 4`),
+  ],
+);
+
+export const adventureMap = sqliteTable(
+  "adventure_map",
+  {
+    adventureId: text("adventure_id")
+      .notNull()
+      .references(() => adventure.id, { onDelete: "cascade" }),
+    /** restrict: the database itself refuses deleting a map an adventure still uses. */
+    mapId: text("map_id")
+      .notNull()
+      .references(() => map.id, { onDelete: "restrict" }),
+    position: integer("position").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.adventureId, table.mapId] }),
+    index("adventure_map_map_idx").on(table.mapId),
+  ],
+);
+
+export type Adventure = typeof adventure.$inferSelect;
