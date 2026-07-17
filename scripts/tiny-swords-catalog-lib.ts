@@ -365,12 +365,14 @@ function uiMetadata(raw: RawAsset, id: string): TinySwordsCatalogEntry["ui"] | u
     };
   }
   if (raw.category.includes("Cursors")) {
-    if (raw.name === "Cursor_01") return { family, hotspot: { x: 0, y: 0 } };
-    if (raw.name === "Cursor_02") return { family, hotspot: { x: 12, y: 4 } };
-    if (raw.name === "Cursor_03") return { family, hotspot: { x: 32, y: 32 } };
+    // The 64x64 canvases pad the artwork with transparency; hotspots must point at the
+    // visible tip, not the empty corner. Measured from each PNG's opaque bounding box.
+    if (raw.name === "Cursor_01") return { family, hotspot: { x: 22, y: 17 } };
+    if (raw.name === "Cursor_02") return { family, hotspot: { x: 24, y: 17 } };
+    if (raw.name === "Cursor_03") return { family, hotspot: { x: 32, y: 31 } };
     return { family, componentOf: "ui.cursor.resize" };
   }
-  if (id === "ui.cursor.paint") return { family, hotspot: { x: 0, y: 0 } };
+  if (id === "ui.cursor.paint") return { family, hotspot: { x: 22, y: 17 } };
   return common;
 }
 

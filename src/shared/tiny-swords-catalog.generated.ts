@@ -10896,40 +10896,40 @@ export const GENERATED_TINY_SWORDS_UI_ASSETS = {
       "id": "ui.cursor.default",
       "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Cursors/Cursor_01.png",
       "hotspot": {
-        "x": 0,
-        "y": 0
+        "x": 22,
+        "y": 17
       }
     },
     "link": {
       "id": "ui.cursor.link",
       "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Cursors/Cursor_02.png",
       "hotspot": {
-        "x": 12,
-        "y": 4
+        "x": 24,
+        "y": 17
       }
     },
     "interact": {
       "id": "ui.cursor.link",
       "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Cursors/Cursor_02.png",
       "hotspot": {
-        "x": 12,
-        "y": 4
+        "x": 24,
+        "y": 17
       }
     },
     "move": {
       "id": "ui.cursor.link",
       "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Cursors/Cursor_02.png",
       "hotspot": {
-        "x": 12,
-        "y": 4
+        "x": 24,
+        "y": 17
       }
     },
     "paint": {
       "id": "ui.cursor.paint",
       "sourcePath": "Tiny Swords (Update 010)/UI/Pointers/01.png",
       "hotspot": {
-        "x": 0,
-        "y": 0
+        "x": 22,
+        "y": 17
       }
     },
     "unavailable": {
@@ -10937,7 +10937,7 @@ export const GENERATED_TINY_SWORDS_UI_ASSETS = {
       "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Cursors/Cursor_03.png",
       "hotspot": {
         "x": 32,
-        "y": 32
+        "y": 31
       }
     }
   },
