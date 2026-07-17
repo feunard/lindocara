@@ -8,7 +8,9 @@ import { MARKER_ID_PATTERN } from "./map-data.js";
 
 export const ADVENTURE_TITLE_MAX = 48;
 export const MAX_ADVENTURE_MAPS = 16;
-export const MAX_ADVENTURE_LINKS = 64;
+// MAX_ADVENTURE_MAPS (16) x MAX_MAP_EXITS (8) = 128, the maximum number of exits a
+// fully-saturated adventure can bind, so a complete valid graph can never exceed this cap.
+export const MAX_ADVENTURE_LINKS = 128;
 
 const MAP_ID_PATTERN = /^[A-Za-z0-9-]{1,64}$/;
 

@@ -175,6 +175,14 @@ describe("marker reference guard", () => {
       }),
     ).rejects.toThrow(/^referenced:/);
 
+    // removing A's start entry "door" → refused
+    await expect(
+      updateMap(db, mapA.id, {
+        ...mapInput("A"),
+        markers: { entries: [], exits: [{ id: "gate", col: 7, row: 7 }], monsterSpawns: [] },
+      }),
+    ).rejects.toThrow(/^referenced:/);
+
     // adding a marker while keeping the bound ones → allowed
     const grown = await updateMap(db, mapA.id, {
       ...mapInput("A"),
