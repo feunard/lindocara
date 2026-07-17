@@ -532,6 +532,13 @@ export const fr: Record<keyof typeof en, string> = {
   "party.error.full": "Cette partie est complète.",
   "party.error.already_member": "Tu es déjà dans cette partie.",
 
+  // Sélecteur de couleur de partie
+  "party.color.label": "Couleur",
+  "party.color.blue": "Bleu",
+  "party.color.red": "Rouge",
+  "party.color.yellow": "Jaune",
+  "party.color.purple": "Violet",
+
   // Erreurs de l'API des héros
   "hero.error.invalid": "Ces données de héros sont invalides.",
   "hero.error.not_found": "Ce héros n'existe plus.",

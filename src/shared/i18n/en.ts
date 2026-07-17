@@ -521,6 +521,13 @@ export const en = {
   "party.error.full": "That party is full.",
   "party.error.already_member": "You are already in that party.",
 
+  // Party colour picker
+  "party.color.label": "Colour",
+  "party.color.blue": "Blue",
+  "party.color.red": "Red",
+  "party.color.yellow": "Yellow",
+  "party.color.purple": "Purple",
+
   // Hero API errors
   "hero.error.invalid": "That hero data is invalid.",
   "hero.error.not_found": "That hero no longer exists.",
