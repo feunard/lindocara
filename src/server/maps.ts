@@ -14,6 +14,7 @@ import { asc, eq, sql } from "drizzle-orm";
 import {
   bakeCollision,
   canPlaceElement,
+  EMPTY_MARKERS,
   elementCoversCell,
   elementFitsMap,
   elementPlacementCells,
@@ -23,6 +24,8 @@ import {
   MAX_MAP_ELEMENTS,
   type MapData,
   type MapElement,
+  type MapMarkers,
+  parseMapMarkers,
 } from "../shared/map-data.js";
 import { isSolidKind, kindAt } from "../shared/tilemap.js";
 import { isEditorAssetId } from "../shared/tiny-swords-catalog.js";
@@ -57,6 +60,7 @@ export const BUILTIN_MAP: StoredMap = {
   ],
   elements: [],
   spawn: { col: 2, row: 2 },
+  markers: EMPTY_MARKERS,
 };
 
 export interface MapInput {
@@ -64,6 +68,9 @@ export interface MapInput {
   blocks: readonly string[];
   elements: readonly MapElement[];
   spawn: { col: number; row: number };
+  // `| undefined` (not just `?:`) so forwarding an already-optional `MapData.markers` read, or a
+  // test's explicit `markers: undefined`, type-checks under `exactOptionalPropertyTypes`.
+  markers?: MapMarkers | undefined;
 }
 
 /** A map small enough to fit on screen is also small enough to be a maze of one-tile corridors;
@@ -82,6 +89,21 @@ function encodeBlocks(blocks: readonly string[]): string {
 
 function decodeBlocks(blocks: string): string[] {
   return blocks.split("\n");
+}
+
+/** NULL rather than an empty-array JSON string: legacy rows and freshly-emptied ones both read
+ *  back as EMPTY_MARKERS via `storedMarkers`, so the column stays NULL until a map actually has
+ *  markers worth persisting. */
+function markersJson(markers: MapMarkers | undefined): string | null {
+  if (
+    !markers ||
+    (markers.entries.length === 0 &&
+      markers.exits.length === 0 &&
+      markers.monsterSpawns.length === 0)
+  ) {
+    return null;
+  }
+  return JSON.stringify(markers);
 }
 
 /**
@@ -130,8 +152,39 @@ export function validateMapInput(input: MapInput): MapData & { name: string } {
   if (isSolidKind(kindAt(baked, input.spawn.col, input.spawn.row))) {
     throw new Error("spawn: must be a cell a hero can stand on");
   }
+  const markers = parseMapMarkers(input.markers, baked.cols, baked.rows);
+  if (!markers) throw new Error("markers: malformed marker payload");
+  const walkable = (col: number, row: number) => !isSolidKind(kindAt(baked, col, row));
+  for (const entry of markers.entries) {
+    if (!walkable(entry.col, entry.row))
+      throw new Error(`markers: entry ${entry.id} must stand on walkable ground`);
+  }
+  const blockedCells = new Set(markers.entries.map((m) => `${m.col},${m.row}`));
+  blockedCells.add(`${input.spawn.col},${input.spawn.row}`);
+  for (const exit of markers.exits) {
+    if (!walkable(exit.col, exit.row))
+      throw new Error(`markers: exit ${exit.id} must stand on walkable ground`);
+    if (blockedCells.has(`${exit.col},${exit.row}`)) {
+      throw new Error(`markers: exit ${exit.id} may not share a cell with the spawn or an entry`);
+    }
+  }
+  for (const spawn of markers.monsterSpawns) {
+    if (!walkable(spawn.col, spawn.row))
+      throw new Error("markers: monster spawns must stand on walkable ground");
+  }
   // Trimmed, not raw: the name that passed validation is the name that gets stored.
-  return { ...data, name };
+  return { ...data, markers, name };
+}
+
+/** Corrupt or unknown JSON degrades to empty, like `elementsOf` drops unknown element kinds
+ *  rather than failing the whole map. */
+function storedMarkers(row: typeof map.$inferSelect): MapMarkers {
+  if (!row.markers) return EMPTY_MARKERS;
+  try {
+    return parseMapMarkers(JSON.parse(row.markers), row.cols, row.rows) ?? EMPTY_MARKERS;
+  } catch {
+    return EMPTY_MARKERS;
+  }
 }
 
 function toStoredMap(row: typeof map.$inferSelect, elements: MapElement[]): StoredMap {
@@ -141,6 +194,7 @@ function toStoredMap(row: typeof map.$inferSelect, elements: MapElement[]): Stor
     blocks: decodeBlocks(row.blocks),
     elements,
     spawn: { col: row.spawnCol, row: row.spawnRow },
+    markers: storedMarkers(row),
   };
 }
 
@@ -196,6 +250,7 @@ export async function createMap(db: Db, input: MapInput): Promise<StoredMap> {
     blocks: encodeBlocks(input.blocks),
     spawnCol: input.spawn.col,
     spawnRow: input.spawn.row,
+    markers: markersJson(data.markers),
     // The front door is decided by the database at insert time, never by a read-then-write: the very
     // first row to exist wins. Two concurrent creates on an empty table cannot both flag themselves,
     // because SQLite serializes the writes and the second's CASE sees the first's committed row.
@@ -231,6 +286,7 @@ export async function updateMap(db: Db, id: string, input: MapInput): Promise<St
       blocks: encodeBlocks(input.blocks),
       spawnCol: input.spawn.col,
       spawnRow: input.spawn.row,
+      markers: markersJson(data.markers),
       updatedAt: new Date(),
     })
     .where(eq(map.id, id));

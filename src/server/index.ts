@@ -334,7 +334,8 @@ function mapErrorResponse(error: unknown): Response {
     code === "spawn" ||
     code === "size" ||
     code === "name" ||
-    code === "elements"
+    code === "elements" ||
+    code === "markers"
   ) {
     return json({ error: `map_${code}` }, { status: 400 });
   }
@@ -348,7 +349,13 @@ function parseMapBody(body: unknown): MapInput | null {
   if (typeof name !== "string") return null;
   const data = parseMapData(body);
   if (!data) return null;
-  return { name, blocks: data.blocks, elements: data.elements, spawn: data.spawn };
+  return {
+    name,
+    blocks: data.blocks,
+    elements: data.elements,
+    spawn: data.spawn,
+    markers: data.markers,
+  };
 }
 
 async function handleListMaps(request: Request, env: Env, url: URL): Promise<Response> {

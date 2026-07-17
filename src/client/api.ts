@@ -98,6 +98,7 @@ export const ERROR_KEYS: Record<string, MessageKey> = {
   map_not_found: "editor.error.not_found",
   last_map: "editor.error.last_map",
   map_elements: "editor.error.elements",
+  map_markers: "editor.error.markers",
   request_too_large: "editor.error.too_large",
 };
 

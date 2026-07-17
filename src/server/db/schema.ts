@@ -258,6 +258,8 @@ export const map = sqliteTable("map", {
   blocks: text("blocks").notNull(),
   spawnCol: integer("spawn_col").notNull(),
   spawnRow: integer("spawn_row").notNull(),
+  /** JSON MapMarkers (entries/exits/monster spawns); NULL for maps saved before markers existed. */
+  markers: text("markers"),
   /** Exactly one map carries this: where a hero lands when their own map is gone. Deleting it
    *  moves the flag rather than leaving the world without a front door. */
   isFirst: integer("is_first").notNull().default(0),

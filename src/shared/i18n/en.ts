@@ -478,6 +478,7 @@ export const en = {
   "editor.error.not_found": "That map no longer exists.",
   "editor.error.last_map": "The last map cannot be deleted.",
   "editor.error.elements": "A map can hold at most 400 things.",
+  "editor.error.markers": "A marker is misplaced or malformed.",
   "editor.error.too_large": "That map is too large to save.",
   "editor.assets.title": "Tiny Swords asset browser",
   "editor.assets.search": "Search assets",

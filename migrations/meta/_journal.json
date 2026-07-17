@@ -85,6 +85,13 @@
       "when": 1784216275367,
       "tag": "0011_windy_purifiers",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1784303561734,
+      "tag": "0012_skinny_starfox",
+      "breakpoints": true
     }
   ]
 }
