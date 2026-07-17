@@ -1,5 +1,6 @@
 /** Pure map-editor mutations. Placement, footprints and collision all come from the shared
  * catalogue, so the browser and authoritative map API cannot disagree. */
+import type { MonsterSpecies } from "../../shared/game.js";
 import {
   bakeCollision,
   canPlaceElement,
@@ -9,9 +10,14 @@ import {
   elementPlacementCells,
   elementsOverlap,
   MAX_MAP_ELEMENTS,
+  MAX_MAP_ENTRIES,
+  MAX_MAP_EXITS,
+  MAX_MAP_MONSTER_SPAWNS,
+  MAX_PATROL_RADIUS,
   type MapData,
   type MapElement,
   type MapMarkers,
+  MIN_PATROL_RADIUS,
 } from "../../shared/map-data.js";
 import { isSolidKind, kindAt } from "../../shared/tilemap.js";
 import type { EditorAssetId } from "../../shared/tiny-swords-catalog.js";
@@ -29,7 +35,10 @@ export type EditorTool =
   | { kind: "element"; assetId: EditorAssetId }
   | { kind: "eraser" }
   | { kind: "spawn" }
-  | { kind: "pan" };
+  | { kind: "pan" }
+  | { kind: "marker-entry" }
+  | { kind: "marker-exit" }
+  | { kind: "marker-monster"; species: MonsterSpecies; patrolRadius: number };
 
 const BLOCK_CHAR: Record<"grass" | "water", string> = { grass: ".", water: "#" };
 
@@ -69,6 +78,36 @@ function keepsSpawnClear(map: EditorMap): boolean {
   );
 }
 
+export function mintMarkerId(prefix: "entry" | "exit", taken: readonly string[]): string {
+  const used = new Set(taken);
+  let n = 1;
+  while (used.has(`${prefix}-${n}`)) n += 1;
+  return `${prefix}-${n}`;
+}
+
+function cellTaken(
+  list: readonly { col: number; row: number }[],
+  col: number,
+  row: number,
+): boolean {
+  return list.some((item) => item.col === col && item.row === row);
+}
+
+/**
+ * Markers are load-bearing (adventure graphs bind their ids), so unlike decorative elements they
+ * are never silently dropped: any result that would leave a marker on solid ground, or an exit on
+ * the spawn or an entry cell, is refused outright. Mirrors the server's validateMapInput rules.
+ */
+function keepsMarkersValid(map: EditorMap): boolean {
+  const tiles = bakeCollision(toMapData(map));
+  const markers = map.markers;
+  const all = [...markers.entries, ...markers.exits, ...markers.monsterSpawns];
+  if (all.some((marker) => isSolidKind(kindAt(tiles, marker.col, marker.row)))) return false;
+  const blocked = new Set(markers.entries.map((entry) => `${entry.col},${entry.row}`));
+  blocked.add(`${map.spawn.col},${map.spawn.row}`);
+  return markers.exits.every((exit) => !blocked.has(`${exit.col},${exit.row}`));
+}
+
 function placementTerrainValid(map: EditorMap, element: MapElement): boolean {
   const ground = bakeCollision({ blocks: map.blocks, elements: [], spawn: map.spawn });
   if (!elementFitsMap(element, ground.cols, ground.rows)) return false;
@@ -98,7 +137,7 @@ export function applyTool(
           !elementCoversCell(element, col, row) || placementTerrainValid(candidate, element),
       );
       const next = { ...candidate, elements };
-      return keepsSpawnClear(next) ? next : null;
+      return keepsSpawnClear(next) && keepsMarkersValid(next) ? next : null;
     }
     case "element": {
       const placed: MapElement = { col, row, assetId: tool.assetId };
@@ -111,16 +150,71 @@ export function applyTool(
       if (retained.some((element) => elementsOverlap(element, placed))) return null;
       if (sameAnchor.length === 0 && map.elements.length >= MAX_MAP_ELEMENTS) return null;
       const next = { ...map, elements: [...retained, placed] };
-      return keepsSpawnClear(next) ? next : null;
+      return keepsSpawnClear(next) && keepsMarkersValid(next) ? next : null;
     }
     case "eraser": {
       const elements = withoutElementAt(map.elements, col, row);
-      return elements.length === map.elements.length ? map : { ...map, elements };
+      const markers = map.markers;
+      const entries = markers.entries.filter((m) => m.col !== col || m.row !== row);
+      const exits = markers.exits.filter((m) => m.col !== col || m.row !== row);
+      const monsterSpawns = markers.monsterSpawns.filter((m) => m.col !== col || m.row !== row);
+      const untouched =
+        elements.length === map.elements.length &&
+        entries.length === markers.entries.length &&
+        exits.length === markers.exits.length &&
+        monsterSpawns.length === markers.monsterSpawns.length;
+      return untouched ? map : { ...map, elements, markers: { entries, exits, monsterSpawns } };
     }
     case "spawn": {
       if (map.elements.some((element) => elementCoversCell(element, col, row))) return null;
       if (!isWalkableCell(map, col, row)) return null;
-      return { ...map, spawn: { col, row } };
+      const next = { ...map, spawn: { col, row } };
+      return keepsMarkersValid(next) ? next : null;
+    }
+    case "marker-entry": {
+      const markers = map.markers;
+      if (cellTaken(markers.entries, col, row)) return null;
+      if (markers.entries.length >= MAX_MAP_ENTRIES) return null;
+      const entry = {
+        id: mintMarkerId(
+          "entry",
+          markers.entries.map((m) => m.id),
+        ),
+        col,
+        row,
+      };
+      const next = { ...map, markers: { ...markers, entries: [...markers.entries, entry] } };
+      return keepsMarkersValid(next) ? next : null;
+    }
+    case "marker-exit": {
+      const markers = map.markers;
+      if (cellTaken(markers.exits, col, row)) return null;
+      if (markers.exits.length >= MAX_MAP_EXITS) return null;
+      const exit = {
+        id: mintMarkerId(
+          "exit",
+          markers.exits.map((m) => m.id),
+        ),
+        col,
+        row,
+      };
+      const next = { ...map, markers: { ...markers, exits: [...markers.exits, exit] } };
+      return keepsMarkersValid(next) ? next : null;
+    }
+    case "marker-monster": {
+      if (
+        !Number.isSafeInteger(tool.patrolRadius) ||
+        tool.patrolRadius < MIN_PATROL_RADIUS ||
+        tool.patrolRadius > MAX_PATROL_RADIUS
+      ) {
+        return null;
+      }
+      const markers = map.markers;
+      const retained = markers.monsterSpawns.filter((s) => s.col !== col || s.row !== row);
+      if (retained.length >= MAX_MAP_MONSTER_SPAWNS) return null;
+      const spawn = { col, row, species: tool.species, patrolRadius: tool.patrolRadius };
+      const next = { ...map, markers: { ...markers, monsterSpawns: [...retained, spawn] } };
+      return keepsMarkersValid(next) ? next : null;
     }
     case "pan":
       return map;

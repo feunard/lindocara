@@ -4,8 +4,14 @@ import {
   blankMap,
   type EditorMap,
   type EditorTool,
+  mintMarkerId,
 } from "../src/client/game/editor-state.js";
-import { EMPTY_MARKERS, MAX_MAP_ELEMENTS, type MapElement } from "../src/shared/map-data.js";
+import {
+  EMPTY_MARKERS,
+  MAX_MAP_ELEMENTS,
+  MAX_MAP_ENTRIES,
+  type MapElement,
+} from "../src/shared/map-data.js";
 
 const TREE = "resource.terrain-resources-wood-trees.tree3" as const;
 const BUSH = "decoration.terrain-decorations-bushes.bushe1" as const;
@@ -244,5 +250,74 @@ describe("markers on the editor map", () => {
     expect(painted?.markers).toEqual(withMarkers.markers);
     const moved = applyTool(withMarkers, { kind: "spawn" }, 8, 8);
     expect(moved?.markers).toEqual(withMarkers.markers);
+  });
+});
+
+describe("applyTool: markers", () => {
+  const base = blankMap("m", 20, 15);
+
+  it("places entries and exits with minted unique ids", () => {
+    const one = applyTool(base, { kind: "marker-entry" }, 2, 2);
+    expect(one?.markers.entries).toEqual([{ id: "entry-1", col: 2, row: 2 }]);
+    const two = applyTool(one as EditorMap, { kind: "marker-entry" }, 3, 3);
+    expect(two?.markers.entries.map((e) => e.id)).toEqual(["entry-1", "entry-2"]);
+    const exit = applyTool(two as EditorMap, { kind: "marker-exit" }, 5, 5);
+    expect(exit?.markers.exits).toEqual([{ id: "exit-1", col: 5, row: 5 }]);
+  });
+
+  it("mints the smallest free suffix", () => {
+    expect(mintMarkerId("entry", ["entry-1", "entry-3"])).toBe("entry-2");
+    expect(mintMarkerId("exit", [])).toBe("exit-1");
+  });
+
+  it("refuses markers on water, exits on spawn or entry cells, and duplicates on one cell", () => {
+    const wet = applyTool(base, { kind: "block", block: "water" }, 2, 2);
+    expect(applyTool(wet as EditorMap, { kind: "marker-entry" }, 2, 2)).toBeNull();
+    expect(applyTool(base, { kind: "marker-exit" }, base.spawn.col, base.spawn.row)).toBeNull();
+    const entry = applyTool(base, { kind: "marker-entry" }, 4, 4) as EditorMap;
+    expect(applyTool(entry, { kind: "marker-exit" }, 4, 4)).toBeNull();
+    expect(applyTool(entry, { kind: "marker-entry" }, 4, 4)).toBeNull();
+  });
+
+  it("enforces the entry cap", () => {
+    let map: EditorMap = base;
+    for (let i = 0; i < MAX_MAP_ENTRIES; i += 1) {
+      map = applyTool(map, { kind: "marker-entry" }, i + 1, 1) as EditorMap;
+    }
+    expect(applyTool(map, { kind: "marker-entry" }, 1, 5)).toBeNull();
+  });
+
+  it("places monster spawns, replaces on the same cell, validates the radius", () => {
+    const placed = applyTool(
+      base,
+      { kind: "marker-monster", species: "spear_goblin", patrolRadius: 96 },
+      6,
+      6,
+    );
+    expect(placed?.markers.monsterSpawns).toEqual([
+      { col: 6, row: 6, species: "spear_goblin", patrolRadius: 96 },
+    ]);
+    const replaced = applyTool(
+      placed as EditorMap,
+      { kind: "marker-monster", species: "mire_troll", patrolRadius: 128 },
+      6,
+      6,
+    );
+    expect(replaced?.markers.monsterSpawns).toEqual([
+      { col: 6, row: 6, species: "mire_troll", patrolRadius: 128 },
+    ]);
+    expect(
+      applyTool(base, { kind: "marker-monster", species: "spear_goblin", patrolRadius: 8 }, 6, 6),
+    ).toBeNull();
+  });
+
+  it("eraser removes markers, spawn and paint refuse to invalidate them", () => {
+    const entry = applyTool(base, { kind: "marker-entry" }, 4, 4) as EditorMap;
+    const erased = applyTool(entry, { kind: "eraser" }, 4, 4);
+    expect(erased?.markers.entries).toEqual([]);
+    expect(applyTool(entry, { kind: "eraser" }, 9, 9)).toBe(entry); // no-op keeps the same reference
+    expect(applyTool(entry, { kind: "block", block: "water" }, 4, 4)).toBeNull(); // would drown the entry
+    const exit = applyTool(base, { kind: "marker-exit" }, 7, 7) as EditorMap;
+    expect(applyTool(exit, { kind: "spawn" }, 7, 7)).toBeNull(); // spawn may not land on an exit
   });
 });
