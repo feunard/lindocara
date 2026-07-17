@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { EMPTY_MARKERS, type MapData } from "../../shared/map-data.js";
+import { MONSTER_SPECIES_KIND, type MonsterSpecies } from "../../shared/game.js";
+import {
+  EMPTY_MARKERS,
+  MAX_PATROL_RADIUS,
+  type MapData,
+  MIN_PATROL_RADIUS,
+} from "../../shared/map-data.js";
 import type { EditorAssetId } from "../../shared/tiny-swords-catalog.js";
 import {
   authErrorText,
@@ -53,23 +59,8 @@ function toEditorMap(map: MapPayload): EditorMap {
   };
 }
 
-const TOOL_KEYS = ["grass", "water", "eraser", "spawn", "pan"] as const;
+const TOOL_KEYS = ["grass", "water", "eraser", "spawn", "entry", "exit", "monster", "pan"] as const;
 type ToolKey = (typeof TOOL_KEYS)[number];
-
-function toolFor(key: ToolKey): EditorTool {
-  switch (key) {
-    case "grass":
-      return { kind: "block", block: "grass" };
-    case "water":
-      return { kind: "block", block: "water" };
-    case "eraser":
-      return { kind: "eraser" };
-    case "spawn":
-      return { kind: "spawn" };
-    case "pan":
-      return { kind: "pan" };
-  }
-}
 
 /**
  * Editing mode: the React toolbar over the Pixi painting stage. React owns the tool selection, the
@@ -91,6 +82,38 @@ function MapEditorStage({ map, onExit }: { map: MapPayload; onExit: () => void }
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [previewing, setPreviewing] = useState(false);
+  const [species, setSpecies] = useState<MonsterSpecies>("spear_goblin");
+  const [radius, setRadius] = useState(96);
+
+  function toolFor(key: ToolKey): EditorTool {
+    switch (key) {
+      case "grass":
+        return { kind: "block", block: "grass" };
+      case "water":
+        return { kind: "block", block: "water" };
+      case "eraser":
+        return { kind: "eraser" };
+      case "spawn":
+        return { kind: "spawn" };
+      case "entry":
+        return { kind: "marker-entry" };
+      case "exit":
+        return { kind: "marker-exit" };
+      case "monster":
+        return { kind: "marker-monster", species, patrolRadius: radius };
+      case "pan":
+        return { kind: "pan" };
+    }
+  }
+
+  // The monster marker tool bundles its species/radius into the pushed tool, so a change to either
+  // control while that tool is active must re-push — otherwise the stage keeps painting spawns with
+  // whatever species/radius were selected when the tool button was last clicked.
+  useEffect(() => {
+    if (toolKey === "monster") {
+      handleRef.current?.setTool({ kind: "marker-monster", species, patrolRadius: radius });
+    }
+  }, [species, radius, toolKey]);
 
   // The painting stage. Not mounted while previewing — the sandbox owns the one `#stage` app then —
   // and reopened from the captured edits when the preview ends. Opening is async (it loads textures):
@@ -213,6 +236,32 @@ function MapEditorStage({ map, onExit }: { map: MapPayload; onExit: () => void }
           </Button>
         ))}
       </div>
+
+      {toolKey === "monster" && (
+        <div className="map-editor-toolbar__monster">
+          <Label htmlFor="editor-species">{t("editor.markers.species")}</Label>
+          <select
+            id="editor-species"
+            value={species}
+            onChange={(event) => setSpecies(event.currentTarget.value as MonsterSpecies)}
+          >
+            {(Object.keys(MONSTER_SPECIES_KIND) as MonsterSpecies[]).map((option) => (
+              <option key={option} value={option}>
+                {t(`monster.${option}`)}
+              </option>
+            ))}
+          </select>
+          <Label htmlFor="editor-radius">{t("editor.markers.radius")}</Label>
+          <Input
+            id="editor-radius"
+            type="number"
+            min={MIN_PATROL_RADIUS}
+            max={MAX_PATROL_RADIUS}
+            value={radius}
+            onChange={(event) => setRadius(Number(event.currentTarget.value))}
+          />
+        </div>
+      )}
 
       <EditorAssetPalette
         selected={selectedAsset}

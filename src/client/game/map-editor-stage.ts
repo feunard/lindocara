@@ -52,6 +52,9 @@ const SWAY_CYCLE_MS = 1_400;
 
 const SPAWN_MARKER_COLOR = 0xffd54a;
 const SPAWN_MARKER_OUTLINE = 0x2a1a05;
+const ENTRY_MARKER_COLOR = 0x6fd44c;
+const EXIT_MARKER_COLOR = 0x9a6cf0;
+const MONSTER_MARKER_COLOR = 0xd9484a;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -299,6 +302,7 @@ async function buildSession(
 
     drawElements();
     drawSpawnMarker();
+    drawMarkers();
   }
 
   /** Props, painted the way `renderer.ts`'s `#buildMapElements` does: y-sorted so a lower tree
@@ -326,11 +330,11 @@ async function buildSession(
     }
   }
 
-  /** A gold diamond on the spawn cell — a marker the brief leaves to taste, chosen to read clearly
-   *  over both grass and water without hiding what is under it. */
-  function drawSpawnMarker(): void {
-    const cx = map.spawn.col * TILE_SIZE + TILE_SIZE / 2;
-    const cy = map.spawn.row * TILE_SIZE + TILE_SIZE / 2;
+  /** A colored diamond centred on a cell — the one shape every editor marker (spawn, entry, exit,
+   *  monster spawn) renders as, distinguished only by fill color. */
+  function drawDiamond(col: number, row: number, color: number): void {
+    const cx = col * TILE_SIZE + TILE_SIZE / 2;
+    const cy = row * TILE_SIZE + TILE_SIZE / 2;
     const marker = new Graphics();
     marker
       .moveTo(cx, cy - 22)
@@ -338,9 +342,33 @@ async function buildSession(
       .lineTo(cx, cy + 22)
       .lineTo(cx - 17, cy)
       .closePath()
-      .fill({ color: SPAWN_MARKER_COLOR, alpha: 0.85 })
+      .fill({ color, alpha: 0.85 })
       .stroke({ width: 3, color: SPAWN_MARKER_OUTLINE, alpha: 0.9 });
     markerLayer.addChild(marker);
+  }
+
+  /** A gold diamond on the spawn cell — a marker the brief leaves to taste, chosen to read clearly
+   *  over both grass and water without hiding what is under it. */
+  function drawSpawnMarker(): void {
+    drawDiamond(map.spawn.col, map.spawn.row, SPAWN_MARKER_COLOR);
+  }
+
+  /** Editor-only overlays: adventure graphs bind these cells, so they must be visible while editing. */
+  function drawMarkers(): void {
+    for (const entry of map.markers.entries) drawDiamond(entry.col, entry.row, ENTRY_MARKER_COLOR);
+    for (const exit of map.markers.exits) drawDiamond(exit.col, exit.row, EXIT_MARKER_COLOR);
+    for (const spawn of map.markers.monsterSpawns) {
+      drawDiamond(spawn.col, spawn.row, MONSTER_MARKER_COLOR);
+      const ring = new Graphics();
+      ring
+        .circle(
+          spawn.col * TILE_SIZE + TILE_SIZE / 2,
+          spawn.row * TILE_SIZE + TILE_SIZE / 2,
+          spawn.patrolRadius,
+        )
+        .stroke({ width: 2, color: MONSTER_MARKER_COLOR, alpha: 0.35 });
+      markerLayer.addChild(ring);
+    }
   }
 
   // ── Pointer: paint, or pan the camera ─────────────────────────────────────────────────────────

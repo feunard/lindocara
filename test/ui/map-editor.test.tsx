@@ -337,4 +337,28 @@ describe("MapEditor", () => {
     await waitFor(() => expect(stageMock.dispose).toHaveBeenCalled());
     expect(await screen.findByText("Frostfen")).toBeInTheDocument();
   });
+
+  it("selects marker tools and forwards monster species and radius to the stage", async () => {
+    vi.stubGlobal("fetch", fetchMock());
+    render(<MapEditor />);
+    await openFirstMap();
+
+    await userEvent.click(screen.getByRole("button", { name: "Entry" }));
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "marker-entry" });
+
+    await userEvent.click(screen.getByRole("button", { name: "Exit" }));
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "marker-exit" });
+
+    await userEvent.click(screen.getByRole("button", { name: "Monster" }));
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({
+      kind: "marker-monster",
+      species: "spear_goblin",
+      patrolRadius: 96,
+    });
+
+    await userEvent.selectOptions(screen.getByLabelText("Species"), "mire_troll");
+    expect(stageMock.setTool).toHaveBeenLastCalledWith(
+      expect.objectContaining({ kind: "marker-monster", species: "mire_troll" }),
+    );
+  });
 });
