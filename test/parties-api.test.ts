@@ -163,4 +163,34 @@ describe("party lifecycle over the wire", () => {
     expect(missing.status).toBe(404);
     expect(await missing.json()).toEqual({ error: "party_adventure" });
   });
+
+  it("refuses deleting an adventure a party references, over the wire", async () => {
+    const host = await register();
+    const adventureId = await seedAdventure(host);
+    const created = await authed("/api/parties", host, {
+      method: "POST",
+      body: JSON.stringify({ adventureId, color: "blue" }),
+    });
+    expect(created.status).toBe(201);
+    const res = await authed(`/api/adventures/${adventureId}`, host, { method: "DELETE" });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "adventure_referenced" });
+  });
+
+  it("answers party_full when the cap is already reached", async () => {
+    const host = await register();
+    const adventureId = await seedAdventure(host, 1); // cap 1 → the host's auto-join fills it
+    const created = await authed("/api/parties", host, {
+      method: "POST",
+      body: JSON.stringify({ adventureId, color: "blue" }),
+    });
+    const party = (await created.json()) as { id: string };
+    const guest = await register();
+    const res = await authed(`/api/parties/${party.id}/join`, guest, {
+      method: "POST",
+      body: JSON.stringify({ color: "red" }),
+    });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "party_full" });
+  });
 });

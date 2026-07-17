@@ -157,3 +157,29 @@ describe("adventure delete guard", () => {
     await deleteAdventure(db, "host", adventureId); // free once no party references it
   });
 });
+
+describe("joinParty concurrency", () => {
+  it("never exceeds the cap when two accounts race for the last slot", async () => {
+    const db = createDb(env.DB);
+    await seedAccount("host");
+    await seedAccount("p2");
+    await seedAccount("p3");
+    const adventureId = await seedAdventure("host", 2);
+    const party = await createParty(db, "host", { adventureId, name: null, color: "blue" });
+    // host holds slot 1; p2 and p3 both race for the single remaining slot, distinct
+    // accounts and colours so only the cap fence can reject either.
+    const results = await Promise.allSettled([
+      joinParty(db, "p2", party.id, "red"),
+      joinParty(db, "p3", party.id, "yellow"),
+    ]);
+    const fulfilled = results.filter((r) => r.status === "fulfilled");
+    const rejected = results.filter((r) => r.status === "rejected");
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect((rejected[0] as PromiseRejectedResult).reason).toMatchObject({
+      message: expect.stringMatching(/^full:/),
+    });
+    const listing = await listPublicParties(db);
+    expect(listing[0]?.colors).toHaveLength(2); // cap respected: exactly maxPlayers members
+  });
+});
