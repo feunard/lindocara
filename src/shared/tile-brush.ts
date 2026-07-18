@@ -13,6 +13,7 @@
 import { edge16Mask, run4Mask, type SameNeighbour } from "./autotile.js";
 import type { TileLayer } from "./tile-layer-codec.js";
 import { autotileId, decodeTileId, EMPTY_TILE, type Tileset } from "./tileset.js";
+import { CLIFF_WALL_SLOT, elevationOfSlot, GRASS_SLOTS } from "./tilesets/tiny-swords.js";
 
 function indexOf(layer: TileLayer, col: number, row: number): number {
   return row * layer.cols + col;
@@ -96,4 +97,66 @@ export function resolveWholeLayer(layer: TileLayer, tileset: Tileset): TileLayer
     }
   }
   return { ...layer, ids };
+}
+
+/** Which elevation level a ground cell stands at. Empty and off-map read as -1: lower than any
+ *  authored level, so a cliff at the map's edge still gets its face. */
+function elevationAt(ground: TileLayer, col: number, row: number): number {
+  return elevationOfSlot(slotAt(ground, col, row));
+}
+
+/**
+ * Paint one cell of ground at `level`, and maintain the cliff face beneath it.
+ *
+ * The wall is an ordinary tile whose tileset entry says `passable: false`, which is the entire
+ * reason three-level elevation costs nothing in the movement code: a cliff face is a cell you
+ * cannot walk into, not a direction you cannot cross.
+ *
+ * One wall row per drop regardless of the level difference, matching the wireframe. The sheet's
+ * second wall row stays available for a later proportional cliff.
+ */
+export function paintElevation(
+  layers: readonly TileLayer[],
+  tileset: Tileset,
+  level: number,
+  col: number,
+  row: number,
+): TileLayer[] {
+  const slot = GRASS_SLOTS[level];
+  if (slot === undefined) return [...layers];
+  const ground = layers[0];
+  const walls = layers[1];
+  if (!ground || !walls) return [...layers];
+
+  const paintedGround = paintAutotile(ground, tileset, slot, col, row);
+
+  // Every cell whose wall may have changed: the one below what was just painted, and the one below
+  // the painted cell itself (its own face may now be buried by higher ground above it).
+  let paintedWalls = walls;
+  for (const target of [
+    { col, row: row + 1 },
+    { col, row },
+  ]) {
+    paintedWalls = syncWall(paintedGround, paintedWalls, tileset, target.col, target.row);
+  }
+  return [paintedGround, paintedWalls, ...layers.slice(2)];
+}
+
+/** A cell carries a wall exactly when the ground directly above it stands higher than it does. */
+function syncWall(
+  ground: TileLayer,
+  walls: TileLayer,
+  tileset: Tileset,
+  col: number,
+  row: number,
+): TileLayer {
+  if (col < 0 || row < 0 || col >= walls.cols || row >= walls.rows) return walls;
+  const above = elevationAt(ground, col, row - 1);
+  const here = elevationAt(ground, col, row);
+  const wanted = above > 0 && above > here;
+  const has = slotAt(walls, col, row) === CLIFF_WALL_SLOT;
+  if (wanted === has) return walls;
+  return wanted
+    ? paintAutotile(walls, tileset, CLIFF_WALL_SLOT, col, row)
+    : eraseTile(walls, tileset, col, row);
 }
