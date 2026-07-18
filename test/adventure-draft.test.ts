@@ -17,7 +17,7 @@ import {
 
 const VISUAL_INFO = {
   revision: 1,
-  blocks: ["...."],
+  solid: ["...."],
   monsterCount: 0,
   entryLabels: {},
   exitLabels: {},

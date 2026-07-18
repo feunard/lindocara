@@ -10,7 +10,6 @@ import {
   type Ticker,
   TilingSprite,
 } from "pixi.js";
-import { autotileOffset, autotileVariantCount } from "../../shared/autotile.js";
 import type { MainHandItem, OffHandItem, PrimaryColor } from "../../shared/character.js";
 import { isSpirit } from "../../shared/death.js";
 import {
@@ -35,13 +34,7 @@ import type {
 import { PLAYER_SIZE } from "../../shared/simulation.js";
 import { emptyLayer, parseTileLayer, type TileLayer } from "../../shared/tile-layer-codec.js";
 import { isSolidKind, kindAt, TILE_SIZE, type TileMap } from "../../shared/tilemap.js";
-import {
-  type Autotile,
-  decodeTileId,
-  type FixedTile,
-  type TilePriority,
-  type Tileset,
-} from "../../shared/tileset.js";
+import type { TilePriority, Tileset } from "../../shared/tileset.js";
 import {
   TINY_SWORDS_SHEET_COLS,
   TINY_SWORDS_SHEET_ROWS,
@@ -80,6 +73,7 @@ import {
   waterSurfaceRect,
   writeWaterScrollOffsets,
 } from "./terrain-visuals.js";
+import { tileDrawAt } from "./tile-draw.js";
 import {
   allUnitSheets,
   type DecorSheet,
@@ -356,33 +350,9 @@ function landTexture(
   return texture;
 }
 
-/** An autotile's variant offset applied to its group origin — the one place the two are added. */
-function offsetCell(
-  origin: { col: number; row: number },
-  offset: { col: number; row: number },
-): { col: number; row: number } {
-  return { col: origin.col + offset.col, row: origin.row + offset.row };
-}
-
-/**
- * The sheet cell for one autotile ref, or `undefined` when the variant is outside what its kind
- * can produce.
- *
- * `tileIdInTileset` (`shared/tileset.ts`) is supposed to keep an out-of-range `run4` variant from
- * ever reaching a saved map or a wire frame — but this runs on every cell of every repaint, for ids
- * that already survived that check once and are trusted from then on. Belt and braces: degrading
- * here too means a gap in that upstream guard, a legacy row from before it existed, or a bug this
- * function itself doesn't have yet, still can't reach `autotileOffset`'s throw from inside the
- * ticker callback and kill the render loop. Exported so this arithmetic — no Pixi in it — is
- * testable without a live canvas.
- */
-export function autotileSheetCell(
-  autotile: Autotile,
-  variant: number,
-): { col: number; row: number } | undefined {
-  if (variant >= autotileVariantCount(autotile.kind)) return undefined;
-  return offsetCell(autotile.origin, autotileOffset(autotile.kind, variant));
-}
+/** Re-exported from `tile-draw.ts`, which the editor stage draws with too. Kept exported here
+ *  because this arithmetic — no Pixi in it — is testable without a live canvas. */
+export { autotileSheetCell } from "./tile-draw.js";
 
 function centerOf(entity: { x: number; y: number }): { x: number; y: number } {
   return { x: entity.x + PLAYER_SIZE / 2, y: entity.y + PLAYER_SIZE / 2 };
@@ -2092,29 +2062,11 @@ export class Renderer {
     const tileset = this.#tileset;
     if (!tileset) return;
     for (const layer of this.#layers) {
-      if (col < 0 || col >= layer.cols || row < 0 || row >= layer.rows) continue;
-      const ref = decodeTileId(layer.ids[row * layer.cols + col] ?? 0);
-      if (ref.kind === "empty") continue;
-      // Resolved in one branch each, not a pair of ternaries: an `Autotile` and a `FixedTile` share
-      // no cell fields, so narrowing has to carry from the ref to the entry in the same step.
-      let entry: Autotile | FixedTile | undefined;
-      let cell: { col: number; row: number } | undefined;
-      if (ref.kind === "autotile") {
-        const autotile = tileset.autotiles[ref.slot];
-        if (!autotile) continue;
-        const resolvedCell = autotileSheetCell(autotile, ref.variant);
-        if (!resolvedCell) continue;
-        entry = autotile;
-        cell = resolvedCell;
-      } else {
-        const fixed = tileset.fixed[ref.index];
-        if (!fixed) continue;
-        entry = fixed;
-        cell = { col: fixed.col, row: fixed.row };
-      }
-      const texture = this.art.terrain.tileset[cell.row]?.[cell.col];
+      const draw = tileDrawAt(tileset, layer, col, row);
+      if (!draw) continue;
+      const texture = this.art.terrain.tileset[draw.cell.row]?.[draw.cell.col];
       if (!texture) continue;
-      const sprite = this.#acquireTile(entry.priority);
+      const sprite = this.#acquireTile(draw.priority);
       placeTile(
         sprite,
         texture,
@@ -2126,7 +2078,7 @@ export class Renderer {
       sprite.alpha = 1;
       // The tileset's own tint, not the zone's regional one: elevation shading is baked into the
       // entry, and an authored map has no regional palette to bend toward in the first place.
-      sprite.tint = entry.tint ?? 0xffffff;
+      sprite.tint = draw.tint;
     }
   }
 

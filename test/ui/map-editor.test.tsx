@@ -78,9 +78,8 @@ const twoMaps: MapSummary[] = [
 ];
 
 /** 40x30 of flat grass, encoded exactly as the API sends it: three run-length layer strings. */
-const OPEN_LAYERS = layersFromBlocks(Array.from({ length: 30 }, () => ".".repeat(40))).layers.map(
-  encodeTileLayer,
-);
+const OPEN_TILE_LAYERS = layersFromBlocks(Array.from({ length: 30 }, () => ".".repeat(40))).layers;
+const OPEN_LAYERS = OPEN_TILE_LAYERS.map(encodeTileLayer);
 
 const MARKERS = {
   entries: [{ id: "door", col: 1, row: 1 }],
@@ -369,7 +368,7 @@ describe("MapEditor", () => {
   it("saves the stage's current map to the update endpoint", async () => {
     const edited = {
       name: "Verdant Reach",
-      blocks: Array.from({ length: 30 }, () => ".".repeat(40)),
+      layers: OPEN_TILE_LAYERS,
       elements: [
         { col: 2, row: 3, assetId: "resource.terrain-resources-wood-trees.tree4" as const },
       ],
@@ -395,7 +394,7 @@ describe("MapEditor", () => {
   it("previews the stage's current map, then Esc returns to editing with edits intact", async () => {
     const edited = {
       name: "Verdant Reach",
-      blocks: Array.from({ length: 30 }, () => ".".repeat(40)),
+      layers: OPEN_TILE_LAYERS,
       elements: [
         { col: 2, row: 3, assetId: "resource.terrain-resources-wood-trees.tree4" as const },
       ],
@@ -430,6 +429,24 @@ describe("MapEditor", () => {
     await userEvent.click(screen.getByRole("button", { name: "Back" }));
     await waitFor(() => expect(stageMock.dispose).toHaveBeenCalled());
     expect(await screen.findByText("Frostfen")).toBeInTheDocument();
+  });
+
+  it("selects the elevation tool and forwards its level to the stage", async () => {
+    vi.stubGlobal("fetch", fetchMock());
+    render(<MapEditor />);
+    await openFirstMap();
+
+    await userEvent.click(screen.getByRole("button", { name: "Elevation" }));
+    await waitFor(() =>
+      expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "elevation", level: 1 }),
+    );
+
+    // Changing the level while the tool is active must re-push it, or the stage keeps painting the
+    // level that was selected when the button was clicked.
+    await userEvent.selectOptions(screen.getByLabelText("Level"), "2");
+    await waitFor(() =>
+      expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "elevation", level: 2 }),
+    );
   });
 
   it("selects marker tools and forwards monster species and radius to the stage", async () => {

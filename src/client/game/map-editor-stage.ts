@@ -14,9 +14,14 @@
 import { type Application, Assets, Container, Graphics, Sprite, type Texture } from "pixi.js";
 import type { MonsterSpecies } from "../../shared/game.js";
 import { bakeCollision } from "../../shared/map-data.js";
-import { kindAt, TILE_SIZE, type TileMap } from "../../shared/tilemap.js";
+import { TILE_SIZE, type TileMap } from "../../shared/tilemap.js";
+import {
+  TINY_SWORDS_SHEET_COLS,
+  TINY_SWORDS_SHEET_ROWS,
+  TINY_SWORDS_TILESET,
+} from "../../shared/tilesets/tiny-swords.js";
 import type { EditorAssetId } from "../../shared/tiny-swords-catalog.js";
-import { landTile, needsFoam, tileVisual } from "./autotile.js";
+import { needsFoam } from "./autotile.js";
 import { catalogElementFrameAt, createCatalogElementView } from "./catalog-element-render.js";
 import {
   type EditorAssetArt,
@@ -29,6 +34,7 @@ import {
   commitEditorHistory,
   createEditorHistory,
   deleteSelection,
+  editorMapSize,
   isEditorHistoryDirty,
   markEditorHistorySaved,
   moveSelection,
@@ -42,9 +48,10 @@ import {
 } from "./editor-state.js";
 import { acquireStageApp } from "./stage-application.js";
 import { foamFrameAt } from "./terrain-visuals.js";
+import { tileDrawAt } from "./tile-draw.js";
 import {
-  sliceAutotileSheet,
   sliceStrip,
+  sliceTilesetSheet,
   TINY_SWORDS_FOAM_FRAME,
   TINY_SWORDS_FOAM_FRAMES,
   TINY_SWORDS_TERRAIN,
@@ -96,26 +103,27 @@ function clamp(value: number, min: number, max: number): number {
 /** A stored `variant` folded into `[0, length)`, sign-safe — the same fold `renderer.ts` applies to
  *  a wire element, so the editor previews the sprite the world will draw. */
 interface StageTextures {
-  /** `land[row][col]` of the flat sheet's first 4x4 group — indexed straight by `landTile()`. */
-  land: Texture[][];
+  /** The whole `Tilemap_color1.png` grid, `[row][col]` — the same slice the world renderer
+   *  indexes a frozen tile id into, so both draw an authored map from one sheet layout. */
+  tileset: Texture[][];
   water: Texture;
   foam: Texture[];
   editorAssets: Map<EditorAssetId, EditorAssetArt>;
 }
 
 async function loadStageTextures(assetIds: Iterable<EditorAssetId>): Promise<StageTextures> {
-  const [flatSheet, waterTexture, foamSheet] = await Promise.all([
-    Assets.load<Texture>(TINY_SWORDS_TERRAIN.flat),
+  const [tilesetSheet, waterTexture, foamSheet] = await Promise.all([
+    Assets.load<Texture>(TINY_SWORDS_TERRAIN.tileset),
     Assets.load<Texture>(TINY_SWORDS_TERRAIN.water),
     Assets.load<Texture>(TINY_SWORDS_TERRAIN.foam),
   ]);
   // Pixel art, every one: nearest keeps the tiles square exactly as the world renderer does.
-  flatSheet.source.style.scaleMode = "nearest";
+  tilesetSheet.source.style.scaleMode = "nearest";
   waterTexture.source.style.scaleMode = "nearest";
   foamSheet.source.style.scaleMode = "nearest";
 
   return {
-    land: sliceAutotileSheet(flatSheet),
+    tileset: sliceTilesetSheet(tilesetSheet, TINY_SWORDS_SHEET_COLS, TINY_SWORDS_SHEET_ROWS),
     water: waterTexture,
     foam: sliceStrip(foamSheet, TINY_SWORDS_FOAM_FRAME, TINY_SWORDS_FOAM_FRAMES),
     editorAssets: await loadEditorAssetArts(assetIds),
@@ -267,8 +275,8 @@ async function buildSession(
   let foamSprites: Sprite[] = [];
   let swaySprites: { sprite: Sprite; frames: Texture[] }[] = [];
 
-  const mapCols = (): number => map.blocks[0]?.length ?? 0;
-  const mapRows = (): number => map.blocks.length;
+  const mapCols = (): number => editorMapSize(map).cols;
+  const mapRows = (): number => editorMapSize(map).rows;
 
   function clampCamera(): void {
     const scale = world.scale.x;
@@ -318,22 +326,32 @@ async function buildSession(
 
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
-        if (tileVisual(kindAt(tiles, col, row)) !== "land") continue;
         const x = col * TILE_SIZE;
         const y = row * TILE_SIZE;
-        const cell = landTile(tiles, col, row);
-        const texture = textures.land[cell.row]?.[cell.col];
-        if (!texture) continue;
-        const tile = new Sprite(texture);
-        tile.position.set(x, y);
-        tile.width = TILE_SIZE;
-        tile.height = TILE_SIZE;
-        landLayer.addChild(tile);
+        // Every layer that has something to say about this cell, in order, through the same
+        // `tileDrawAt` the world renderer paints with — the editor cannot resolve a tile id
+        // differently from the game it is previewing.
+        let drewAnything = false;
+        for (const layer of map.layers) {
+          const draw = tileDrawAt(TINY_SWORDS_TILESET, layer, col, row);
+          if (!draw) continue;
+          const texture = textures.tileset[draw.cell.row]?.[draw.cell.col];
+          if (!texture) continue;
+          const tile = new Sprite(texture);
+          tile.position.set(x, y);
+          tile.width = TILE_SIZE;
+          tile.height = TILE_SIZE;
+          tile.tint = draw.tint;
+          landLayer.addChild(tile);
+          drewAnything = true;
+        }
 
-        if (needsFoam(tiles, col, row)) {
+        // Foam reads the baked tilemap, not the layers: a cliff face meeting the sea is not ground,
+        // but it is still where the water meets something, and that is where the rim belongs.
+        if (drewAnything && needsFoam(tiles, col, row)) {
           // Native 192px frame centred on the 64px cell: the ~82px blob bleeds ~9px past the tile,
           // and that bleed IS the shoreline. Scaling it to the tile would erase the shore.
-          const blob = new Sprite(textures.foam[0] ?? texture);
+          const blob = new Sprite(textures.foam[0] ?? textures.water);
           blob.anchor.set(0.5);
           blob.position.set(x + TILE_SIZE / 2, y + TILE_SIZE / 2);
           foamLayer.addChild(blob);

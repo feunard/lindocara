@@ -26,7 +26,13 @@ import {
   updateMapApi,
 } from "../api.js";
 import type { EditorMap, EditorSelection, EditorTool } from "../game/editor-state.js";
-import { blankMap, blocksFromMapPayload, toMapData, toSaveInput } from "../game/editor-state.js";
+import {
+  blankMap,
+  editorLayersFromPayload,
+  solidMaskFromMapPayload,
+  toMapData,
+  toSaveInput,
+} from "../game/editor-state.js";
 import { type MapEditorStageHandle, openMapEditorStage } from "../game/map-editor-stage.js";
 import { startMapPreview } from "../game/map-preview.js";
 import { t, useLocale } from "../i18n.js";
@@ -55,7 +61,7 @@ function isSessionError(code: string): boolean {
 function toEditorMap(map: MapPayload): EditorMap {
   return {
     name: map.name,
-    blocks: blocksFromMapPayload(map),
+    layers: editorLayersFromPayload(map),
     elements: map.elements,
     spawn: map.spawn,
     markers: map.markers ?? EMPTY_MARKERS,
@@ -65,6 +71,7 @@ function toEditorMap(map: MapPayload): EditorMap {
 const TOOL_KEYS = [
   "select",
   "grass",
+  "elevation",
   "water",
   "eraser",
   "spawn",
@@ -106,6 +113,7 @@ function MapEditorStage({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [previewing, setPreviewing] = useState(false);
+  const [level, setLevel] = useState<0 | 1 | 2>(1);
   const [species, setSpecies] = useState<MonsterSpecies>("spear_goblin");
   const [radius, setRadius] = useState(96);
   const [stageStatus, setStageStatus] = useState<StageStatus>("loading");
@@ -120,6 +128,8 @@ function MapEditorStage({
         return { kind: "select" };
       case "grass":
         return { kind: "block", block: "grass" };
+      case "elevation":
+        return { kind: "elevation", level };
       case "water":
         return { kind: "block", block: "water" };
       case "eraser":
@@ -147,6 +157,16 @@ function MapEditorStage({
       handleRef.current?.setTool(tool);
     }
   }, [species, radius, toolKey]);
+
+  // The elevation tool bundles its level the same way, and needs the same re-push: changing the
+  // level while the tool is active must not keep painting the level it was selected with.
+  useEffect(() => {
+    if (toolKey === "elevation") {
+      const tool: EditorTool = { kind: "elevation", level };
+      pendingToolRef.current = tool;
+      handleRef.current?.setTool(tool);
+    }
+  }, [level, toolKey]);
 
   // The painting stage. Not mounted while previewing — the sandbox owns the one `#stage` app then —
   // and reopened from the captured edits when the preview ends. Opening is async (it loads textures):
@@ -349,6 +369,23 @@ function MapEditorStage({
           </TinyButton>
         ))}
       </div>
+
+      {toolKey === "elevation" && (
+        <div className="map-editor-toolbar__elevation">
+          <TinyLabel htmlFor="editor-elevation-level">{t("editor.tool.level")}</TinyLabel>
+          <TinyFieldSelect
+            id="editor-elevation-level"
+            value={String(level)}
+            onChange={(event) => setLevel(Number(event.currentTarget.value) as 0 | 1 | 2)}
+          >
+            {[0, 1, 2].map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </TinyFieldSelect>
+        </div>
+      )}
 
       {toolKey === "monster" && (
         <div className="map-editor-toolbar__monster">
@@ -672,7 +709,7 @@ export function MapEditor() {
       mapId: map.id,
       name: map.name,
       revision: map.revision,
-      blocks: blocksFromMapPayload(map),
+      solid: solidMaskFromMapPayload(map),
       monsterCount: map.markers.monsterSpawns.length,
       entryIds: map.markers.entries.map((marker) => marker.id),
       exitIds: map.markers.exits.map((marker) => marker.id),

@@ -129,17 +129,34 @@ export function paintElevation(
   if (!ground || !walls) return [...layers];
 
   const paintedGround = paintAutotile(ground, tileset, slot, col, row);
+  return syncElevationWalls([paintedGround, walls, ...layers.slice(2)], tileset, col, row);
+}
 
-  // Every cell whose wall may have changed: the one below what was just painted, and the one below
-  // the painted cell itself (its own face may now be buried by higher ground above it).
-  let paintedWalls = walls;
+/**
+ * Bring layer 1's cliff faces back into agreement with layer 0 around one ground cell.
+ *
+ * Every write to the ground has to run this, not only `paintElevation`: erasing a raised cell also
+ * orphans the face it was casting, and a stale wall is an invisible collider.
+ */
+export function syncElevationWalls(
+  layers: readonly TileLayer[],
+  tileset: Tileset,
+  col: number,
+  row: number,
+): TileLayer[] {
+  const ground = layers[0];
+  const walls = layers[1];
+  if (!ground || !walls) return [...layers];
+  // Every cell whose wall may have changed: the one below what was just written, and the written
+  // cell itself (its own face may now be buried by higher ground above it).
+  let painted = walls;
   for (const target of [
     { col, row: row + 1 },
     { col, row },
   ]) {
-    paintedWalls = syncWall(paintedGround, paintedWalls, tileset, target.col, target.row);
+    painted = syncWall(ground, painted, tileset, target.col, target.row);
   }
-  return [paintedGround, paintedWalls, ...layers.slice(2)];
+  return [ground, painted, ...layers.slice(2)];
 }
 
 /** A cell carries a wall exactly when the ground directly above it stands higher than it does. */
