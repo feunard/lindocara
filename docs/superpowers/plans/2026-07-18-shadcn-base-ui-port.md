@@ -16,7 +16,12 @@
 - Biome requires semicolons and double quotes. Stock shadcn output has no semicolons, so `npm run lint:fix` runs after every `shadcn add`.
 - `npm run check` must pass at the end of every task that touches code.
 - Player-facing screens must not change appearance. The `data-tiny-*` assertions in the button test are the regression evidence.
-- Never touch `src/server/`, `src/shared/`, `src/client/game/`, protocol, or the database. Another agent is working on the game engine concurrently.
+- Never touch `src/server/`, `src/shared/`, `src/client/game/`, protocol, or the database.
+- **This plan executes in the `feature/shadcn-base-ui` worktree, not on `main`.** Another agent is concurrently deleting `CharacterCreator.tsx`, `CharacterPreview.tsx`, `CharacterSelect.tsx`, `TinyBanner.tsx`, `TinyDialog.tsx`, `TinyTooltip.tsx` and `test/ui/character-select.test.tsx` on `main` as part of the admission-cutover dead-code purge. Known merge resolutions, to be applied when this branch merges — not now:
+  - `TinyBanner`/`TinyDialog`/`TinyTooltip`: both sides delete. Resolve as delete.
+  - `CharacterCreator.tsx` / `CharacterSelect.tsx` / `CharacterPreview.tsx`: this branch edits imports, `main` deletes the file. **Resolve as delete — their removal wins.** Do not resurrect these files.
+  - `test/ui/character-select.test.tsx`: resolve as delete.
+  Inside this worktree the files still exist and must keep compiling, so Task 3 still rewrites their imports. That is expected throwaway work, not wasted effort — it keeps the branch green.
 - Do not add English strings to any component. All player-facing copy stays in `src/shared/i18n/`.
 
 ---
@@ -164,7 +169,7 @@ and replace this line:
 with:
 
 ```tsx
-        "focus-visible:ring-2 focus-visible:[--tw-ring-color:var(--gold)]",
+        "focus-visible:ring-2 focus-visible:ring-[var(--gold)]",
         "disabled:cursor-not-allowed disabled:opacity-40",
 ```
 
