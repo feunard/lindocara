@@ -92,8 +92,11 @@ save queue. Modules under `src/server/world/` are concrete domain systems, not a
 - `connection-system.ts` maintains socket/player indexes and connection rate windows.
 - `movement-system.ts` consumes at most one command per tick, advances players, updates the player
   grid and schedules movement-adjacent maintenance.
-- `combat-system.ts` contains target selection and damage calculations; `skill-system.ts` contains
-  skill targeting and collision-resolved mobility helpers.
+- `combat-action-system.ts` owns the authoritative anticipation/impact/recovery timeline and
+  guarantees one resolution per action. `projectile-system.ts` advances bounded swept projectiles,
+  resolves terrain/entity contacts and removes them on impact, expiry or owner departure.
+- `combat-system.ts` retains narrow damage helpers, while `skill-system.ts` owns
+  collision-resolved mobility and line-of-sight helpers. Player combat never selects an entity.
 - `monster-system.ts` advances monster AI, respawns and guards. Guard kills remain a separate path
   that cannot grant player rewards.
 - `quest-system.ts` exposes zone-owned quest ordering; quest mutations and interzone handoff remain
@@ -173,11 +176,26 @@ a browser *and* in workerd.
 
 ### Classes
 
-`CLASS_STATS` in `shared/game.ts` is the one balance table — attack damage, attack range, and
-(for priests) heal amount, heal range, and heal cooldown all read from it, for both the server's
-validation and the client's UI. The server validates class, range, cooldown, and targeting for
-every action; `{ t: "heal" }` is intent like any other, resolved server-side into the most
-injured ally in range or `heal.nobody` if there is none.
+`CLASS_STATS` in `shared/game.ts` and `CLASS_SKILLS` in `shared/skills.ts` are the balance tables for
+damage scaling and skill values. `PLAYER_ACTIONS` in `shared/combat-actions.ts` supplies the active
+frame, recovery and projectile geometry. The server validates class, unlock level, resource cost,
+cooldown, direction, collision and every resulting damage or heal.
+
+### Directional action combat
+
+Player combat has no target selection. The only offensive intents are `{ t: "attack" }` and
+`{ t: "skill", slot }`; neither may carry an entity id, hit position, damage, heal or impact.
+The last non-zero movement accepted by the server becomes the player's facing and remains stable
+while idle. Starting an action freezes that direction, spends its cooldown/resource immediately,
+and broadcasts only visual timing. Missing is valid and still consumes the cooldown.
+
+Actions have anticipation, one active frame and recovery. Melee origin follows the actor until the
+active frame; projectile origin is frozen when the projectile spawns. Projectiles use swept terrain
+and entity collision, so a fast projectile cannot tunnel between ticks. Monster threat may choose
+whom the AI pursues, but a monster freezes its strike direction at wind-up and damages only actors
+still inside its capsule at the active frame. See
+[`docs/directional-action-combat.md`](./docs/directional-action-combat.md) for skill geometry,
+timings, limits and Tiny Swords mappings.
 
 ### Death is a state machine, not a timer
 

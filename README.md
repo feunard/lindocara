@@ -96,9 +96,11 @@ All of this hangs on `step(position, input, dt)` and `resolveTerrain()` in `src/
 pure functions that the server and the client both call. Reconciliation is only correct because
 movement and collision are literally the same code on both sides.
 
-The same rule applies to combat and progression: the browser asks to attack, interact, use a
-potion, or chat. The Durable Object validates distance, cooldown, inventory, health, quest state,
-and rewards. The client never sends positions, damage, XP, loot, deaths, or quest completion.
+The same rule applies to combat and progression: the browser asks to use a skill, interact, use a
+potion, or chat. It never selects a combat entity. The Durable Object freezes the hero's last
+server-validated movement direction, runs anticipation/impact/recovery, advances swept projectiles,
+and decides collisions, damage, healing, threat and rewards. The client never sends positions,
+victims, impacts, damage, healing, XP, loot, deaths, or quest completion.
 
 Movement lives in `src/shared/simulation.ts`; map geometry, collision, combat constants, and
 progression formulas live in `src/shared/game.ts`. They are platform-free and directly tested.
@@ -108,10 +110,12 @@ progression formulas live in `src/shared/game.ts`. They are platform-free and di
 | Input | Action |
 | --- | --- |
 | WASD / arrows | Move |
-| Space | Attack the closest monster in range |
-| F | Mend the most injured ally in range (priest) |
+| Space / 1 | Directional basic action |
+| 2–5 | Class skills in the hero's facing direction |
 | E | Interact with Warden Mira |
 | Q | Use a potion |
+| R | Release a corpse as a ghost |
+| M | Open the map |
 | Enter | Focus chat |
 | FR/EN button | Switch language |
 
@@ -132,10 +136,12 @@ quest, interaction, presence and transition messages stay in the event log. Orde
 longer pulse the expected answer: their distinct glyphs and the quest clue communicate the rule,
 while success/error feedback appears only after interaction.
 
-Each party hero is one of three classes, picked inside its saved party: the warrior hits hard at
-short range, the ranger hits softer from far away, and the priest hits softest of all but can mend
-the most injured ally in range. A member's persistent colour slot selects the matching Tiny Swords
-unit variant.
+Each party hero is one of three classes, picked inside its saved party: the warrior strikes frontal
+arcs and nearby zones, the ranger fires physical projectiles, and the priest combines a directional
+magic bolt with self, projectile and area healing. Attacking empty space is valid; enemies can move
+out before the active frame and projectiles can miss or hit terrain. A member's persistent colour
+slot selects the matching Tiny Swords unit variant. Tab is intentionally unbound and reserved for a
+future mechanic; it no longer cycles combat targets.
 
 ## Database
 
