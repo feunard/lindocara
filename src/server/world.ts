@@ -25,6 +25,7 @@ import {
   hasLineOfSight,
   healAmountFor,
   INTERACTION_RANGE,
+  LOOT_EXPIRY_MS,
   MONSTER_AGGRO_RANGE,
   MONSTER_ATTACK_RANGE,
   MONSTER_RESPAWN_MS,
@@ -80,6 +81,7 @@ import {
 } from "../shared/zones.js";
 import { loadAdventure } from "./adventures.js";
 import { claimQuestReward, consumeOwnedItem } from "./character-persistence.js";
+import { presenceTiming } from "./character-presence.js";
 import { createDb, party } from "./db/index.js";
 import { loadHeroProfile, saveHeroProfile } from "./hero-profile.js";
 import { HEALTH_POTION_ID } from "./items.js";
@@ -185,9 +187,12 @@ export class World extends DurableObject<Env> {
   #observability = createRoomObservability();
   #seenCharacterIds = new Set<string>();
   #occupiedExitByPlayerId = new Map<string, string>();
+  /** How often this room re-asserts its players' leases. Read once from `Env`, never from a client. */
+  readonly #presenceHeartbeatMs: number;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
+    this.#presenceHeartbeatMs = presenceTiming(env).heartbeatMs;
     ctx.blockConcurrencyWhile(async () => {
       for (const ws of ctx.getWebSockets()) {
         try {
@@ -1240,7 +1245,7 @@ export class World extends DurableObject<Env> {
           amount: kind === "gold" ? 4 : 1,
           x: monster.x + 8,
           y: monster.y + 8,
-          expiresAt: now + 30_000,
+          expiresAt: now + LOOT_EXPIRY_MS,
           ownerId: recipient.id,
         };
         this.#loot.push(droppedLoot);
@@ -2038,6 +2043,7 @@ export class World extends DurableObject<Env> {
       playerGrid: this.#playerGrid,
       zone: this.#zone(),
       now,
+      presenceHeartbeatMs: this.#presenceHeartbeatMs,
       writeAttachment,
       writeD1,
       waitUntil: (promise) => this.ctx.waitUntil(promise),
@@ -2310,6 +2316,10 @@ export class World extends DurableObject<Env> {
   }
 
   #addPlayer(ws: WebSocket, player: Player): void {
+    // `newPlayer` arms the first heartbeat against the compiled-in default because it is pure and
+    // has no `Env`. The room owns the real clock, so re-arm here — the one place both admission
+    // and hibernation restore funnel through.
+    player.nextPresenceHeartbeatAt = Date.now() + this.#presenceHeartbeatMs;
     addPlayer(this.#players, this.#socketByPlayerId, this.#playerGrid, ws, player);
   }
 

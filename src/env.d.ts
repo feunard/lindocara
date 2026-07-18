@@ -14,4 +14,12 @@ interface Env {
   SESSION_SECRET: string;
   /** Optional local-only navigation overlay gate. Keep unset in production. */
   NAVIGATION_DEBUG?: string;
+  /**
+   * Test-only presence lease clock, in milliseconds. Both are absent in production and in
+   * `wrangler.jsonc`, so `presenceTiming()` falls back to `PRESENCE_TTL_MS` /
+   * `PRESENCE_HEARTBEAT_MS` and nothing changes. They shorten the lease so the fencing tests can
+   * prove a room invalidates itself without sleeping through a real 30-second lease.
+   */
+  PRESENCE_TTL_MS_OVERRIDE?: string;
+  PRESENCE_HEARTBEAT_MS_OVERRIDE?: string;
 }

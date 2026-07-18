@@ -3,7 +3,6 @@ import { resolveTerrain } from "../../shared/game.js";
 import { regenerateResource } from "../../shared/resources.js";
 import { NO_INPUT, step, TICK_DT } from "../../shared/simulation.js";
 import type { ZoneDefinition } from "../../shared/zones.js";
-import { PRESENCE_HEARTBEAT_MS } from "../character-presence.js";
 import type { SpatialGrid } from "./spatial-grid.js";
 import { MAX_STARVED_TICKS, type PlayerRuntime, toAttachment } from "./world-runtime.js";
 
@@ -12,6 +11,8 @@ export interface MovementSystemContext {
   playerGrid: SpatialGrid<PlayerRuntime>;
   zone: ZoneDefinition;
   now: number;
+  /** The room's lease heartbeat interval. Owned by `World`, which reads it once from `Env`. */
+  presenceHeartbeatMs: number;
   writeAttachment: boolean;
   writeD1: boolean;
   waitUntil(promise: Promise<unknown>): void;
@@ -31,7 +32,7 @@ export function advancePlayers(context: MovementSystemContext): void {
       player.dirty = true;
     }
     if (context.now >= player.nextPresenceHeartbeatAt) {
-      player.nextPresenceHeartbeatAt = context.now + PRESENCE_HEARTBEAT_MS;
+      player.nextPresenceHeartbeatAt = context.now + context.presenceHeartbeatMs;
       context.waitUntil(context.renewPresence(player));
     }
     if (player.life !== "corpse") {

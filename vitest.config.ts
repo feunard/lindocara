@@ -22,6 +22,13 @@ export default defineConfig({
           // a throwaway value for tests; the crypto is what's under test, not the key.
           SESSION_SECRET: "test-secret-do-not-use-in-production",
           TEST_MIGRATIONS: migrations,
+          // A short lease clock, so the presence-fencing tests can prove a room invalidates
+          // itself in half a second instead of sleeping through the production 30s/10s pair.
+          // The 12.5:1 ratio is far safer than production's 3:1 — a heartbeat would have to be
+          // 4.6s late to drop a live lease — and every test in the suite runs on it, which is
+          // what keeps the override itself covered.
+          PRESENCE_TTL_MS_OVERRIDE: "5000",
+          PRESENCE_HEARTBEAT_MS_OVERRIDE: "400",
         },
       },
     }),
@@ -29,12 +36,7 @@ export default defineConfig({
   test: {
     name: "lindocara",
     include: ["test/**/*.test.ts"],
-    // mission-2a drives the legacy `?character=` admission path, which no client reaches any
-    // more (see docs/superpowers/specs/2026-07-18-admission-cutover-design.md step 6). It costs
-    // ~59s of the suite's ~122s because its lease tests wait on the real 30s PRESENCE_TTL_MS.
-    // Disabled on request until either the TTL is injectable or its five unique shared-runtime
-    // invariants are ported to the hero harness. Re-enable by deleting this exclude.
-    exclude: ["test/mission-2a.test.ts", "**/node_modules/**", "**/dist/**"],
+    exclude: ["**/node_modules/**", "**/dist/**"],
     setupFiles: ["./test/setup.ts"],
     // World and CharacterPresence Durable Objects are process-wide singletons in workerd.
     // Parallel test files would share live rooms and flake on capacity, combat, and loot.

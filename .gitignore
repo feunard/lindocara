@@ -25,3 +25,5 @@ dist/
 # Agent worktrees and local agent state. Worktree contents are checkouts of this
 # same repo — tracking them would commit the repo into itself.
 .claude/
+
+wireframes

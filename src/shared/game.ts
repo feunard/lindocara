@@ -722,6 +722,8 @@ export const MONSTER_ATTACK_COOLDOWN_MS = 900;
 export const MONSTER_RESPAWN_MS = 6_000;
 export const INTERACTION_RANGE = 92;
 export const LOOT_PICKUP_RANGE = 46;
+/** How long a dropped stack waits on the ground before `loot-system` sweeps it away. */
+export const LOOT_EXPIRY_MS = 30_000;
 export const QUEST_KILL_TARGET = 3;
 
 export function rectsOverlap(a: Rect, b: Rect): boolean {

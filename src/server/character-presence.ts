@@ -13,6 +13,37 @@ import { acquireSessionEpoch, handoffProfileLocation } from "./profile.js";
 export const PRESENCE_TTL_MS = 30_000;
 export const PRESENCE_HEARTBEAT_MS = 10_000;
 
+export interface PresenceTiming {
+  /** How long an acquired or renewed lease stays valid. */
+  ttlMs: number;
+  /** How often a room re-asserts the lease of every player it owns. */
+  heartbeatMs: number;
+}
+
+function overrideMs(raw: string | undefined, fallback: number): number {
+  if (raw === undefined) return fallback;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+/**
+ * The lease clock, read once per Durable Object out of `Env`.
+ *
+ * Both overrides are absent in production and in `wrangler.jsonc`, so this returns the two
+ * constants above and behaviour is byte-for-byte unchanged. They exist because the fencing tests
+ * verify the *logic* — that a room which cannot renew invalidates itself — not the numeric value
+ * of the timeout, and a test suite has no business sleeping through a 30-second lease to prove it.
+ *
+ * This is deliberately a pure function of `Env` rather than a mutable module global: a lease clock
+ * belongs to one Durable Object, and nothing a client sends can reach a Worker binding.
+ */
+export function presenceTiming(env: Env): PresenceTiming {
+  return {
+    ttlMs: overrideMs(env.PRESENCE_TTL_MS_OVERRIDE, PRESENCE_TTL_MS),
+    heartbeatMs: overrideMs(env.PRESENCE_HEARTBEAT_MS_OVERRIDE, PRESENCE_HEARTBEAT_MS),
+  };
+}
+
 export interface PresenceLease {
   characterId: string;
   connectionId: string;
@@ -75,9 +106,12 @@ function validIdentity(value: string): boolean {
 /** One deterministic coordinator per character. D1 owns the monotone epoch; this DO owns its lease. */
 export class CharacterPresence extends DurableObject<Env> {
   #operations: Promise<void> = Promise.resolve();
+  /** This coordinator's lease length, fixed for its lifetime. Never derived from a client. */
+  readonly #ttlMs: number;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
+    this.#ttlMs = presenceTiming(env).ttlMs;
     this.ctx.storage.sql.exec(`
       CREATE TABLE IF NOT EXISTS active_presence (
         singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
@@ -142,7 +176,7 @@ export class CharacterPresence extends DurableObject<Env> {
         if (current && current.expiresAt <= now) this.#clear();
         return false;
       }
-      const expiresAt = now + PRESENCE_TTL_MS;
+      const expiresAt = now + this.#ttlMs;
       this.ctx.storage.sql.exec(
         "UPDATE active_presence SET expires_at = ? WHERE singleton = 1",
         expiresAt,
@@ -296,7 +330,7 @@ export class CharacterPresence extends DurableObject<Env> {
       ...request,
       sessionEpoch,
       acquiredAt: now,
-      expiresAt: now + PRESENCE_TTL_MS,
+      expiresAt: now + this.#ttlMs,
     };
     this.ctx.storage.sql.exec(
       `INSERT OR REPLACE INTO active_presence
@@ -353,7 +387,7 @@ export class CharacterPresence extends DurableObject<Env> {
       zoneId: request.zoneId,
       instanceId: request.instanceId,
       acquiredAt: now,
-      expiresAt: now + PRESENCE_TTL_MS,
+      expiresAt: now + this.#ttlMs,
     };
     this.ctx.storage.sql.exec(
       `UPDATE active_presence
