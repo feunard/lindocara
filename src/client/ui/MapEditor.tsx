@@ -603,9 +603,9 @@ export function MapEditor() {
     void open(returnContext.mapId);
   }, [maps, returnContext, selected]);
 
-  /** A session problem leaves the screen entirely, exactly like `CharacterSelect`'s initial
-   *  fetch does (store.ts's `setScreen("auth")`). Anything else becomes a visible error rather
-   *  than silence: returns true when the caller should stop (session gone), false otherwise. */
+  /** A session problem leaves the screen entirely (store.ts's `setScreen("auth")`). Anything
+   *  else becomes a visible error rather than silence: returns true when the caller should stop
+   *  (session gone), false otherwise. */
   function fail(caught: unknown): boolean {
     const code = errorCode(caught);
     if (isSessionError(code)) {

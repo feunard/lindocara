@@ -2,12 +2,10 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { emptyDraft } from "../../src/client/adventure-draft.js";
-import type { CharacterSummary, MapPayload, MapSummary } from "../../src/client/api.js";
+import type { MapPayload, MapSummary } from "../../src/client/api.js";
 import { setLocale } from "../../src/client/i18n.js";
 import { useUiStore } from "../../src/client/store.js";
-import { CharacterSelect } from "../../src/client/ui/CharacterSelect.js";
 import { MapEditor } from "../../src/client/ui/MapEditor.js";
-import { starterEquipmentFor } from "../../src/shared/character.js";
 import { EMPTY_MARKERS } from "../../src/shared/map-data.js";
 
 // The painting stage is Pixi on a real canvas — untestable in jsdom and not this suite's subject.
@@ -69,17 +67,6 @@ function jsonResponse(body: unknown, status = 200): Response {
     headers: { "Content-Type": "application/json" },
   });
 }
-
-const oneCharacter: CharacterSummary[] = [
-  {
-    id: "1",
-    name: "One",
-    appearance: { body: "wayfarer", primaryColor: "azure" },
-    equipment: starterEquipmentFor("warrior"),
-    level: 1,
-    class: "warrior",
-  },
-];
 
 const twoMaps: MapSummary[] = [
   { id: "m1", name: "Verdant Reach", revision: 1, isFirst: true },
@@ -160,7 +147,6 @@ describe("MapEditor", () => {
     setLocale("en");
     useUiStore.setState({
       screen: "map-editor",
-      characters: null,
       adventureEditorSession: null,
       editorReturnContext: null,
     });
@@ -179,15 +165,6 @@ describe("MapEditor", () => {
     await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(1));
     await screen.findByRole("button", { name: "Water" });
   }
-
-  it("is reachable from character select via a Map editor button", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse([])));
-    useUiStore.setState({ screen: "characters", characters: oneCharacter });
-    render(<CharacterSelect onPlay={() => undefined} />);
-
-    await userEvent.click(screen.getByRole("button", { name: "Map editor" }));
-    expect(useUiStore.getState().screen).toBe("map-editor");
-  });
 
   it("lists fetched maps with a first-map marker and a create form defaulting to 40x30", async () => {
     vi.stubGlobal("fetch", fetchMock());

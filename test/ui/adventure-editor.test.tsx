@@ -81,7 +81,6 @@ describe("AdventureEditor", () => {
     setLocale("en");
     useUiStore.setState({
       screen: "adventures",
-      characters: null,
       adventureEditorSession: null,
       editorReturnContext: null,
     });
