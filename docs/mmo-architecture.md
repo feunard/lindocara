@@ -74,6 +74,11 @@ make its rewards idempotent.
 
 ## Threat, contribution, rewards, and parties
 
+Combat actions are directional and server-owned. Clients send an attack or skill slot without an
+entity id; the room freezes authoritative facing, resolves the active frame once, and advances
+swept projectiles against terrain and spatial indexes. Threat still chooses an internal monster AI
+opponent, but it does not expose or restore player targeting.
+
 Every monster owns bounded threat and contribution maps. Damage, useful healing, taunt, and initial
 proximity contribute through `src/shared/cooperation.ts`. Dead, disconnected, out-of-zone,
 distant, or expired entries are pruned. Highest valid threat wins deterministically; warrior taunt

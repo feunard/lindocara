@@ -5,6 +5,7 @@ import type {
   LootSnapshot,
   MonsterSnapshot,
   PlayerSnapshot,
+  ProjectileSnapshot,
   WorldView,
 } from "./protocol.js";
 
@@ -16,6 +17,7 @@ export interface WorldCache {
   guards: Map<string, GuardSnapshot>;
   loot: Map<string, LootSnapshot>;
   corpses: Map<string, CorpseSnapshot>;
+  projectiles: Map<string, ProjectileSnapshot>;
 }
 
 export interface WorldDeltaPayload {
@@ -24,6 +26,7 @@ export interface WorldDeltaPayload {
   guards: EntityDelta<GuardSnapshot>;
   loot: EntityDelta<LootSnapshot>;
   corpses: EntityDelta<CorpseSnapshot>;
+  projectiles: EntityDelta<ProjectileSnapshot>;
 }
 
 export function createWorldCache(view?: WorldView): WorldCache {
@@ -33,6 +36,7 @@ export function createWorldCache(view?: WorldView): WorldCache {
     guards: new Map(),
     loot: new Map(),
     corpses: new Map(),
+    projectiles: new Map(),
   };
   if (view) replaceWorldCache(cache, view);
   return cache;
@@ -44,6 +48,7 @@ export function replaceWorldCache(cache: WorldCache, view: WorldView): void {
   replaceMap(cache.guards, view.guards);
   replaceMap(cache.loot, view.loot);
   replaceMap(cache.corpses, view.corpses);
+  replaceMap(cache.projectiles, view.projectiles);
 }
 
 export function buildWorldDelta(cache: WorldCache, view: WorldView): WorldDeltaPayload {
@@ -53,6 +58,7 @@ export function buildWorldDelta(cache: WorldCache, view: WorldView): WorldDeltaP
     guards: diffMap(cache.guards, view.guards),
     loot: diffMap(cache.loot, view.loot),
     corpses: diffMap(cache.corpses, view.corpses),
+    projectiles: diffMap(cache.projectiles, view.projectiles),
   };
 }
 
@@ -62,7 +68,8 @@ export function applyWorldDelta(cache: WorldCache, delta: WorldDeltaPayload): Wo
     !applyEntityDelta(cache.monsters, delta.monsters) ||
     !applyEntityDelta(cache.guards, delta.guards) ||
     !applyEntityDelta(cache.loot, delta.loot) ||
-    !applyEntityDelta(cache.corpses, delta.corpses)
+    !applyEntityDelta(cache.corpses, delta.corpses) ||
+    !applyEntityDelta(cache.projectiles, delta.projectiles)
   ) {
     return null;
   }
@@ -76,14 +83,19 @@ export function worldViewFromCache(cache: WorldCache): WorldView {
     guards: [...cache.guards.values()],
     loot: [...cache.loot.values()],
     corpses: [...cache.corpses.values()],
+    projectiles: [...cache.projectiles.values()],
   };
 }
 
 export function countDeltaEntities(delta: WorldDeltaPayload): number {
-  return [delta.players, delta.monsters, delta.guards, delta.loot, delta.corpses].reduce(
-    (total, part) => total + part.upsert.length + part.remove.length,
-    0,
-  );
+  return [
+    delta.players,
+    delta.monsters,
+    delta.guards,
+    delta.loot,
+    delta.corpses,
+    delta.projectiles,
+  ].reduce((total, part) => total + part.upsert.length + part.remove.length, 0);
 }
 
 export function interpolateSnapshots<T extends { id: string; x: number; y: number }>(

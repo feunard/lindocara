@@ -43,6 +43,11 @@ export const COMBAT_SAMPLES = {
     volume: 0.14,
     playbackRate: 1.08,
   },
+  "monster.attack": {
+    src: `${ROOT}/warrior-cleave.ogg`,
+    volume: 0.12,
+    playbackRate: 0.82,
+  },
 } as const satisfies Record<string, SampleSpec>;
 
 export type CombatSampleKey = keyof typeof COMBAT_SAMPLES;

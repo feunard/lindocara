@@ -107,6 +107,8 @@ export async function startMapPreview(data: MapData): Promise<{ stop(): void }> 
     class: "warrior",
     equipment: starterEquipmentFor("warrior"),
     life: "alive",
+    facing: { x: 1, y: 0 },
+    action: null,
   };
 
   const tracker = trackInput();
@@ -132,13 +134,14 @@ export async function startMapPreview(data: MapData): Promise<{ stop(): void }> 
     const context: RenderContext = {
       self: moved,
       quest: PREVIEW_QUEST,
-      attackCooldownUntil: 0,
-      attackRange: 0,
       now,
       healthBars: "both",
       grid: false,
     };
-    renderer.render({ players: [moved], monsters: [], guards: [], loot: [], corpses: [] }, context);
+    renderer.render(
+      { players: [moved], monsters: [], guards: [], loot: [], corpses: [], projectiles: [] },
+      context,
+    );
   });
 
   // The editor's dispose (run just before this) paused the shared ticker; guarantee a running one so

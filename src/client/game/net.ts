@@ -22,6 +22,7 @@ import {
   type MonsterSnapshot,
   type PartyState,
   type PlayerSnapshot,
+  type ProjectileSnapshot,
   parseServerMessage,
   type SelfState,
   type ServerMessage,
@@ -57,6 +58,7 @@ interface BufferedSnapshot {
   monsters: MonsterSnapshot[];
   guards: GuardSnapshot[];
   loot: LootSnapshot[];
+  projectiles: ProjectileSnapshot[];
 }
 
 export interface SceneSample {
@@ -64,17 +66,17 @@ export interface SceneSample {
   monsters: MonsterSnapshot[];
   guards: GuardSnapshot[];
   loot: LootSnapshot[];
+  projectiles: ProjectileSnapshot[];
   /** Bodies do not move, so they are never interpolated — the newest word is the only word. */
   corpses: CorpseSnapshot[];
 }
 
 export interface Connection {
-  attack(targetId: string): void;
+  attack(): void;
   interact(): void;
   usePotion(): void;
-  heal(targetId: string): void;
   release(): void;
-  skill(slot: SkillSlot, targetId?: string): void;
+  skill(slot: SkillSlot): void;
   sendChat(text: string, channel?: "local" | "party"): void;
   partyCreate(): void;
   partyInvite(playerId: string): void;
@@ -177,13 +179,11 @@ export class WorldClient {
     socket.addEventListener("error", () => handlers.onClose(1006, "connection error"));
 
     return {
-      attack: (targetId) => this.#send({ t: "attack", targetId }),
+      attack: () => this.#send({ t: "attack" }),
       interact: () => this.#send({ t: "interact" }),
       usePotion: () => this.#send({ t: "use", item: "potion" }),
-      heal: (targetId) => this.#send({ t: "heal", targetId }),
       release: () => this.#send({ t: "release" }),
-      skill: (slot, targetId) =>
-        this.#send(targetId === undefined ? { t: "skill", slot } : { t: "skill", slot, targetId }),
+      skill: (slot) => this.#send({ t: "skill", slot }),
       sendChat: (text, channel = "local") => this.#send({ t: "chat", channel, text }),
       partyCreate: () => this.#send({ t: "party.create" }),
       partyInvite: (playerId) => this.#send({ t: "party.invite", playerId }),
@@ -217,7 +217,8 @@ export class WorldClient {
 
   sample(now: number): SceneSample {
     const newest = this.#buffer[this.#buffer.length - 1];
-    if (!newest) return { players: [], monsters: [], guards: [], loot: [], corpses: [] };
+    if (!newest)
+      return { players: [], monsters: [], guards: [], loot: [], corpses: [], projectiles: [] };
 
     const interpolated = { ...this.#sampleInterpolated(now, newest), corpses: this.#corpses };
     const self = this.#sampleSelf(now);
@@ -257,7 +258,13 @@ export class WorldClient {
       this.#lastWorldTick = message.tick;
       this.#receivedDelta = false;
       this.#resyncPending = false;
-      this.#push(message.players, message.monsters, message.guards, message.loot);
+      this.#push(
+        message.players,
+        message.monsters,
+        message.guards,
+        message.loot,
+        message.projectiles,
+      );
       const self = message.players.find((player) => player.id === message.selfId);
       if (self) {
         this.#selfSnapshot = self;
@@ -281,7 +288,13 @@ export class WorldClient {
       this.#lastWorldTick = message.tick;
       this.#receivedDelta = true;
       this.#corpses = view.corpses;
-      const receivedAt = this.#push(view.players, view.monsters, view.guards, view.loot);
+      const receivedAt = this.#push(
+        view.players,
+        view.monsters,
+        view.guards,
+        view.loot,
+        view.projectiles,
+      );
       this.#reconcile(view.players, receivedAt);
       return;
     }
@@ -297,6 +310,7 @@ export class WorldClient {
         message.monsters,
         message.guards,
         message.loot,
+        message.projectiles,
       );
       this.#reconcile(message.players, receivedAt);
       return;
@@ -333,9 +347,10 @@ export class WorldClient {
     monsters: MonsterSnapshot[],
     guards: GuardSnapshot[],
     loot: LootSnapshot[],
+    projectiles: ProjectileSnapshot[],
   ): number {
     const receivedAt = performance.now();
-    this.#buffer.push({ receivedAt, players, monsters, guards, loot });
+    this.#buffer.push({ receivedAt, players, monsters, guards, loot, projectiles });
     const cutoff = receivedAt - BUFFER_MS;
     while (this.#buffer.length > 2 && (this.#buffer[0]?.receivedAt ?? 0) < cutoff) {
       this.#buffer.shift();
@@ -425,6 +440,7 @@ export class WorldClient {
         monsters: newest.monsters,
         guards: newest.guards,
         loot: newest.loot,
+        projectiles: newest.projectiles,
       };
     }
 
@@ -435,6 +451,7 @@ export class WorldClient {
         monsters: newest.monsters,
         guards: newest.guards,
         loot: newest.loot,
+        projectiles: newest.projectiles,
       };
     }
 
@@ -455,6 +472,7 @@ export class WorldClient {
         monsters: newest.monsters,
         guards: newest.guards,
         loot: newest.loot,
+        projectiles: newest.projectiles,
       };
     }
     const span = newer.receivedAt - older.receivedAt;
@@ -466,6 +484,7 @@ export class WorldClient {
       monsters: interpolateSnapshots(older.monsters, newer.monsters, alpha),
       guards: interpolateSnapshots(older.guards, newer.guards, alpha),
       loot: newer.loot,
+      projectiles: interpolateSnapshots(older.projectiles, newer.projectiles, alpha),
     };
   }
 

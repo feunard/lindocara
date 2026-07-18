@@ -86,7 +86,6 @@ export function shouldShowHealthBar(
   mode: HealthBarMode,
   kind: "ally" | "enemy",
   distance: number,
-  targeted = false,
 ): boolean {
-  return targeted || (healthBarsEnabled(mode, kind) && distance <= HEALTH_BAR_PROXIMITY);
+  return healthBarsEnabled(mode, kind) && distance <= HEALTH_BAR_PROXIMITY;
 }

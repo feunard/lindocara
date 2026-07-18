@@ -10,42 +10,6 @@ import type { MonsterSpecies } from "../../shared/game.js";
 import { TINY_SWORDS_ROOT } from "./tiny-swords-art.js";
 
 const ROOT = `${TINY_SWORDS_ROOT}/enemies`;
-const SPEAR_GOBLIN_PORTRAIT = new URL(
-  "../../../assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemy Avatars/Spear Goblin.png",
-  import.meta.url,
-).href;
-const TORCH_GOBLIN_PORTRAIT = new URL(
-  "../../../assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemy Avatars/Torch Goblin.png",
-  import.meta.url,
-).href;
-const GNOLL_PORTRAIT = new URL(
-  "../../../assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemy Avatars/Enemy Avatars_10.png",
-  import.meta.url,
-).href;
-const SKULL_PORTRAIT = new URL(
-  "../../../assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemy Avatars/Enemy Avatars_01.png",
-  import.meta.url,
-).href;
-const MINOTAUR_PORTRAIT = new URL(
-  "../../../assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemy Avatars/Enemy Avatars_09.png",
-  import.meta.url,
-).href;
-const TROLL_PORTRAIT = new URL(
-  "../../../assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemy Avatars/Enemy Avatars_16.png",
-  import.meta.url,
-).href;
-
-export const ENEMY_PORTRAITS: Readonly<Record<MonsterSpecies, string>> = {
-  spear_goblin: SPEAR_GOBLIN_PORTRAIT,
-  torch_goblin: TORCH_GOBLIN_PORTRAIT,
-  gnoll_marauder: GNOLL_PORTRAIT,
-  skull_guard: SKULL_PORTRAIT,
-  skull_crusader: SKULL_PORTRAIT,
-  skull_warden: SKULL_PORTRAIT,
-  minotaur_brute: MINOTAUR_PORTRAIT,
-  mire_troll: TROLL_PORTRAIT,
-  gate_troll: TROLL_PORTRAIT,
-};
 
 export interface EnemySheet {
   readonly source: string;

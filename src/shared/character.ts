@@ -6,6 +6,10 @@ export type BodyVariant = (typeof BODY_VARIANTS)[number];
 export const PRIMARY_COLORS = ["azure", "ember", "moss", "violet"] as const;
 export type PrimaryColor = (typeof PRIMARY_COLORS)[number];
 
+export function isPrimaryColor(value: unknown): value is PrimaryColor {
+  return typeof value === "string" && (PRIMARY_COLORS as readonly string[]).includes(value);
+}
+
 /** The pack provides class sprites in four faction colors; creation stays intentionally simple. */
 export interface CharacterAppearance {
   body: BodyVariant;

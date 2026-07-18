@@ -22,7 +22,7 @@ import { isUuid } from "./identifiers.js";
 import type { ChatChannel } from "./interest.js";
 import { MAP_LAYERS, type MapElement, parseMapElements } from "./map-data.js";
 import type { ClassResourceState } from "./resources.js";
-import type { Input } from "./simulation.js";
+import type { Input, Vec2 } from "./simulation.js";
 import { isSkillSlot, type SkillSlot } from "./skills.js";
 import { parseTileMap } from "./tilemap-codec.js";
 import { tilesetById } from "./tilesets/tiny-swords.js";
@@ -69,6 +69,10 @@ export interface PlayerSnapshot {
   equipment: Equipment;
   /** Replaces the old `dead` boolean: death has three states, not two. */
   life: LifeState;
+  /** Last non-zero movement accepted by the authority. Standing still preserves this direction. */
+  facing: Vec2;
+  /** Present while anticipation, impact or recovery is still relevant to remote rendering. */
+  action: CombatActionSnapshot | null;
 }
 
 /** A body on the ground. Broadcast to everyone: the renderer draws it, a priest revives it. */
@@ -91,6 +95,8 @@ export interface MonsterSnapshot {
   hp: number;
   maxHp: number;
   dead: boolean;
+  facing: Vec2;
+  action: CombatActionSnapshot | null;
   navigationDebug?: NavigationDebugSnapshot;
 }
 
@@ -149,34 +155,57 @@ export interface PartyState {
   members: PartyMemberState[];
 }
 
-export type CombatAnimation =
-  | {
-      t: "animation";
-      actorKind: "player";
-      actorId: string;
-      action: "attack";
-      x: number;
-      y: number;
-      targetX?: number;
-      targetY?: number;
-    }
-  | {
-      t: "animation";
-      actorKind: "player";
-      actorId: string;
-      action: "skill";
-      skillId: string;
-      x: number;
-      y: number;
-    }
-  | {
-      t: "animation";
-      actorKind: "monster";
-      actorId: string;
-      action: "attack";
-      x: number;
-      y: number;
-    };
+export type CombatActionKind = "basic" | "skill" | "monster_attack";
+
+export interface CombatActionSnapshot {
+  id: string;
+  kind: CombatActionKind;
+  skillId?: string;
+  direction: Vec2;
+  startedAt: number;
+  impactAt: number;
+  recoveryEndsAt: number;
+  resolved: boolean;
+}
+
+export const PROJECTILE_KINDS = [
+  "arrow",
+  "piercing_arrow",
+  "volley_arrow",
+  "heartseeker",
+  "radiant_bolt",
+  "healing_light",
+] as const;
+export type ProjectileKind = (typeof PROJECTILE_KINDS)[number];
+
+/** Strictly visual projectile state. Damage, healing and target filters never cross the wire. */
+export interface ProjectileSnapshot {
+  id: string;
+  actionId: string;
+  ownerId: string;
+  /** Visual-only Tiny Swords faction, frozen when the authoritative projectile is spawned. */
+  color: PrimaryColor;
+  kind: ProjectileKind;
+  x: number;
+  y: number;
+  direction: Vec2;
+  radius: number;
+  spawnedAt: number;
+  expiresAt: number;
+}
+
+export interface CombatAnimation {
+  t: "animation";
+  actionId: string;
+  actorKind: "player" | "monster";
+  actorId: string;
+  action: "attack" | "skill";
+  skillId?: string;
+  direction: Vec2;
+  startedAt: number;
+  impactAt: number;
+  recoveryEndsAt: number;
+}
 
 export interface WorldInfo {
   /** Names the room. It is no longer enough to find the terrain with: a map can live in D1, so the
@@ -219,11 +248,10 @@ export interface WorldInfo {
 /** Sent by the browser. Actions contain intent only; every outcome is validated by the server. */
 export type ClientMessage =
   | { t: "input"; seq: number; input: Input }
-  | { t: "attack"; targetId: string }
+  | { t: "attack" }
   | { t: "interact" }
-  | { t: "heal"; targetId: string }
   | { t: "release" }
-  | { t: "skill"; slot: SkillSlot; targetId?: string }
+  | { t: "skill"; slot: SkillSlot }
   | { t: "use"; item: "potion" }
   | { t: "chat"; channel: ChatChannel; text: string }
   | { t: "party.create" }
@@ -244,8 +272,6 @@ export type EventTone = "info" | "good" | "bad";
  */
 export const EVENT_CODES = [
   "wake",
-  "combat.too_far",
-  "combat.blocked",
   "combat.hit",
   "combat.hurt",
   "monster.defeated",
@@ -266,8 +292,6 @@ export const EVENT_CODES = [
   "loot.picked",
   "heal.cast",
   "heal.received",
-  "heal.nobody",
-  "heal.blocked",
   "death.fallen",
   "death.released",
   "death.reclaimed",
@@ -276,7 +300,6 @@ export const EVENT_CODES = [
   "resurrect.nobody",
   "resurrect.not_priest",
   "skill.cast",
-  "skill.no_target",
   "skill.blocked",
   "skill.locked",
   "resource.insufficient",
@@ -314,6 +337,7 @@ export interface WorldView {
   guards: GuardSnapshot[];
   loot: LootSnapshot[];
   corpses: CorpseSnapshot[];
+  projectiles: ProjectileSnapshot[];
 }
 
 /** Sent by the Durable Object. */
@@ -328,6 +352,7 @@ export type ServerMessage =
       guards: GuardSnapshot[];
       loot: LootSnapshot[];
       corpses: CorpseSnapshot[];
+      projectiles: ProjectileSnapshot[];
       self: SelfState;
     }
   | {
@@ -338,6 +363,7 @@ export type ServerMessage =
       guards: EntityDelta<GuardSnapshot>;
       loot: EntityDelta<LootSnapshot>;
       corpses: EntityDelta<CorpseSnapshot>;
+      projectiles: EntityDelta<ProjectileSnapshot>;
     }
   | ({ t: "world.resync"; tick: number } & WorldView)
   | { t: "world.resync_required" }
@@ -352,7 +378,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function isTargetId(value: unknown): value is string {
+function isWireId(value: unknown): value is string {
   return (
     typeof value === "string" &&
     value.length >= 1 &&
@@ -361,13 +387,102 @@ function isTargetId(value: unknown): value is string {
   );
 }
 
-function isEntityDelta(value: unknown): boolean {
+function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  const allowed = new Set(keys);
+  return Object.keys(value).every((key) => allowed.has(key));
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function isDirection(value: unknown): value is Vec2 {
+  if (!isRecord(value) || !isFiniteNumber(value.x) || !isFiniteNumber(value.y)) return false;
+  const length = Math.hypot(value.x, value.y);
+  return length >= 0.999 && length <= 1.001;
+}
+
+function isActionSnapshot(value: unknown): value is CombatActionSnapshot {
+  if (value === null) return false;
+  if (
+    !isRecord(value) ||
+    !isWireId(value.id) ||
+    (value.kind !== "basic" && value.kind !== "skill" && value.kind !== "monster_attack") ||
+    !isDirection(value.direction) ||
+    !isFiniteNumber(value.startedAt) ||
+    !isFiniteNumber(value.impactAt) ||
+    !isFiniteNumber(value.recoveryEndsAt) ||
+    value.startedAt > value.impactAt ||
+    value.impactAt > value.recoveryEndsAt ||
+    typeof value.resolved !== "boolean"
+  ) {
+    return false;
+  }
+  return (
+    ((value.kind === "skill" || value.kind === "basic") &&
+      typeof value.skillId === "string" &&
+      value.skillId.length >= 1 &&
+      value.skillId.length <= 64) ||
+    (value.kind === "monster_attack" && value.skillId === undefined)
+  );
+}
+
+function isPlayerSnapshot(value: unknown): value is PlayerSnapshot {
+  return (
+    isRecord(value) &&
+    isWireId(value.id) &&
+    isFiniteNumber(value.x) &&
+    isFiniteNumber(value.y) &&
+    isDirection(value.facing) &&
+    (value.action === null || isActionSnapshot(value.action))
+  );
+}
+
+function isMonsterSnapshot(value: unknown): value is MonsterSnapshot {
+  return (
+    isRecord(value) &&
+    isWireId(value.id) &&
+    isFiniteNumber(value.x) &&
+    isFiniteNumber(value.y) &&
+    isDirection(value.facing) &&
+    (value.action === null || isActionSnapshot(value.action))
+  );
+}
+
+function isProjectileSnapshot(value: unknown): value is ProjectileSnapshot {
+  return (
+    isRecord(value) &&
+    isWireId(value.id) &&
+    isWireId(value.actionId) &&
+    isWireId(value.ownerId) &&
+    (value.color === "azure" ||
+      value.color === "ember" ||
+      value.color === "moss" ||
+      value.color === "violet") &&
+    typeof value.kind === "string" &&
+    (PROJECTILE_KINDS as readonly string[]).includes(value.kind) &&
+    isFiniteNumber(value.x) &&
+    isFiniteNumber(value.y) &&
+    isDirection(value.direction) &&
+    isFiniteNumber(value.radius) &&
+    value.radius > 0 &&
+    isFiniteNumber(value.spawnedAt) &&
+    isFiniteNumber(value.expiresAt) &&
+    value.spawnedAt <= value.expiresAt
+  );
+}
+
+function isBasicEntity(value: unknown): value is { id: string } {
+  return isRecord(value) && isWireId(value.id);
+}
+
+function isEntityDelta<T extends { id: string }>(
+  value: unknown,
+  validate: (entity: unknown) => entity is T,
+): boolean {
   if (!isRecord(value) || !Array.isArray(value.upsert) || !Array.isArray(value.remove))
     return false;
-  return (
-    value.upsert.every((entity) => isRecord(entity) && typeof entity.id === "string") &&
-    value.remove.every((id) => typeof id === "string")
-  );
+  return value.upsert.every(validate) && value.remove.every((id) => isWireId(id));
 }
 
 function parseInput(value: unknown): Input | null {
@@ -402,19 +517,14 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
     const input = parseInput(value.input);
     return input === null ? null : { t: "input", seq, input };
   }
-  if ((value.t === "attack" || value.t === "heal") && isTargetId(value.targetId))
-    return { t: value.t, targetId: value.targetId };
-  if (value.t === "interact" || value.t === "release") return { t: value.t };
-  if (
-    value.t === "skill" &&
-    isSkillSlot(value.slot) &&
-    (value.targetId === undefined || isTargetId(value.targetId))
-  ) {
-    return value.targetId === undefined
-      ? { t: "skill", slot: value.slot }
-      : { t: "skill", slot: value.slot, targetId: value.targetId };
+  if (value.t === "attack" && hasOnlyKeys(value, ["t"])) return { t: "attack" };
+  if ((value.t === "interact" || value.t === "release") && hasOnlyKeys(value, ["t"]))
+    return { t: value.t };
+  if (value.t === "skill" && isSkillSlot(value.slot) && hasOnlyKeys(value, ["t", "slot"])) {
+    return { t: "skill", slot: value.slot };
   }
-  if (value.t === "use" && value.item === "potion") return { t: "use", item: "potion" };
+  if (value.t === "use" && value.item === "potion" && hasOnlyKeys(value, ["t", "item"]))
+    return { t: "use", item: "potion" };
   if (value.t === "world.resync") return { t: "world.resync" };
   if (value.t === "navigation.debug" && typeof value.enabled === "boolean")
     return { t: "navigation.debug", enabled: value.enabled };
@@ -467,10 +577,17 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       value.world.layers.length === MAP_LAYERS &&
       value.world.layers.every((layer: unknown) => typeof layer === "string") &&
       Array.isArray(value.players) &&
+      value.players.every(isPlayerSnapshot) &&
       Array.isArray(value.monsters) &&
+      value.monsters.every(isMonsterSnapshot) &&
       Array.isArray(value.guards) &&
+      value.guards.every(isBasicEntity) &&
       Array.isArray(value.loot) &&
+      value.loot.every(isBasicEntity) &&
       Array.isArray(value.corpses) &&
+      value.corpses.every(isBasicEntity) &&
+      Array.isArray(value.projectiles) &&
+      value.projectiles.every(isProjectileSnapshot) &&
       isRecord(value.self)
     ) {
       return value as unknown as ServerMessage;
@@ -478,11 +595,12 @@ export function parseServerMessage(raw: string): ServerMessage | null {
     if (
       value.t === "world.delta" &&
       Number.isSafeInteger(value.tick) &&
-      isEntityDelta(value.players) &&
-      isEntityDelta(value.monsters) &&
-      isEntityDelta(value.guards) &&
-      isEntityDelta(value.loot) &&
-      isEntityDelta(value.corpses)
+      isEntityDelta(value.players, isPlayerSnapshot) &&
+      isEntityDelta(value.monsters, isMonsterSnapshot) &&
+      isEntityDelta(value.guards, isBasicEntity) &&
+      isEntityDelta(value.loot, isBasicEntity) &&
+      isEntityDelta(value.corpses, isBasicEntity) &&
+      isEntityDelta(value.projectiles, isProjectileSnapshot)
     ) {
       return value as unknown as ServerMessage;
     }
@@ -490,10 +608,17 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       value.t === "world.resync" &&
       Number.isSafeInteger(value.tick) &&
       Array.isArray(value.players) &&
+      value.players.every(isPlayerSnapshot) &&
       Array.isArray(value.monsters) &&
+      value.monsters.every(isMonsterSnapshot) &&
       Array.isArray(value.guards) &&
+      value.guards.every(isBasicEntity) &&
       Array.isArray(value.loot) &&
-      Array.isArray(value.corpses)
+      value.loot.every(isBasicEntity) &&
+      Array.isArray(value.corpses) &&
+      value.corpses.every(isBasicEntity) &&
+      Array.isArray(value.projectiles) &&
+      value.projectiles.every(isProjectileSnapshot)
     ) {
       return value as unknown as ServerMessage;
     }
@@ -520,23 +645,22 @@ export function parseServerMessage(raw: string): ServerMessage | null {
     if (
       value.t === "animation" &&
       (value.actorKind === "player" || value.actorKind === "monster") &&
-      isTargetId(value.actorId) &&
+      isWireId(value.actionId) &&
+      isWireId(value.actorId) &&
       (value.action === "attack" || (value.actorKind === "player" && value.action === "skill")) &&
-      typeof value.x === "number" &&
-      Number.isFinite(value.x) &&
-      typeof value.y === "number" &&
-      Number.isFinite(value.y) &&
-      (value.action !== "skill" ||
-        (typeof value.skillId === "string" &&
+      isDirection(value.direction) &&
+      isFiniteNumber(value.startedAt) &&
+      isFiniteNumber(value.impactAt) &&
+      isFiniteNumber(value.recoveryEndsAt) &&
+      value.startedAt <= value.impactAt &&
+      value.impactAt <= value.recoveryEndsAt &&
+      ((value.actorKind === "monster" &&
+        value.action === "attack" &&
+        value.skillId === undefined) ||
+        (value.actorKind === "player" &&
+          typeof value.skillId === "string" &&
           value.skillId.length >= 1 &&
-          value.skillId.length <= 64)) &&
-      (value.actorKind !== "player" || value.action !== "attack"
-        ? value.targetX === undefined && value.targetY === undefined
-        : (value.targetX === undefined && value.targetY === undefined) ||
-          (typeof value.targetX === "number" &&
-            Number.isFinite(value.targetX) &&
-            typeof value.targetY === "number" &&
-            Number.isFinite(value.targetY)))
+          value.skillId.length <= 64))
     ) {
       return value as unknown as ServerMessage;
     }

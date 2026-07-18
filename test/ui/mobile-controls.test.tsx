@@ -11,7 +11,6 @@ function gameHandle(): GameHandle {
     attack: vi.fn(),
     interact: vi.fn(),
     usePotion: vi.fn(),
-    heal: vi.fn(),
     release: vi.fn(),
     castSkill: vi.fn(),
     setMovement: vi.fn(),

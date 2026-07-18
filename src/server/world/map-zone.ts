@@ -20,9 +20,9 @@ const MAP_MAX_PLAYERS = 16;
 export function zoneFromMap(stored: StoredMap): ZoneDefinition {
   const monsters: MonsterSpawn[] = (stored.markers ?? EMPTY_MARKERS).monsterSpawns.map(
     (marker, index) => ({
-      // Entity ids cross the client-intent boundary when a hero targets this monster. Keep the
-      // deterministic id inside protocol.ts's target-id alphabet (`[A-Za-z0-9_-]`): colons would
-      // render correctly but make every authored-monster attack frame fail defensive parsing.
+      // Entity ids cross the wire in authoritative snapshots and impact events. Keep the
+      // deterministic id inside protocol.ts's wire-id alphabet (`[A-Za-z0-9_-]`): colons would
+      // render correctly but make every authored-monster animation fail defensive parsing.
       id: `${stored.id}-monster-${index}-${marker.col}-${marker.row}`,
       kind: MONSTER_SPECIES_KIND[marker.species],
       species: marker.species,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  isAcceptedBasicAttack,
+  healingEffectColor,
   MAX_ACTIVE_WORLD_EFFECTS,
   questSiteFeedback,
   shouldFloatEvent,
@@ -22,15 +22,16 @@ describe("world feedback readability", () => {
     expect(MAX_ACTIVE_WORLD_EFFECTS).toBeLessThanOrEqual(32);
   });
 
-  it("arms a basic attack only from its authoritative acceptance event", () => {
-    expect(isAcceptedBasicAttack("combat.hit", { basic: 1 })).toBe(true);
-    expect(isAcceptedBasicAttack("combat.hit", { amount: 12 })).toBe(false);
-    expect(isAcceptedBasicAttack("combat.too_far")).toBe(false);
-  });
-
   it("never reveals the expected puzzle site before interaction", () => {
     expect(questSiteFeedback(true, 40)).toEqual({ signalAlpha: 0, labelAlpha: 0.9 });
     expect(questSiteFeedback(true, 300)).toEqual({ signalAlpha: 0, labelAlpha: 0 });
     expect(questSiteFeedback(false, 40)).toEqual({ signalAlpha: 0, labelAlpha: 0 });
+  });
+
+  it("keeps the caster colour for healing VFX and safely rejects malformed values", () => {
+    expect(healingEffectColor("ember")).toBe("ember");
+    expect(healingEffectColor("violet")).toBe("violet");
+    expect(healingEffectColor("yellow")).toBe("azure");
+    expect(healingEffectColor(undefined)).toBe("azure");
   });
 });

@@ -21,7 +21,6 @@ const MOVEMENT_CONTROLS: Partial<Record<ControlId, keyof Input>> = {
 };
 
 const ACTION_CONTROLS = [
-  "target",
   "skill1",
   "skill2",
   "skill3",
@@ -112,22 +111,15 @@ export interface ActionHandlers {
   attack(): void;
   interact(): void;
   usePotion(): void;
-  heal(): void;
   release(): void;
   castSkill(slot: SkillSlot): void;
-  switchTarget(reverse: boolean): void;
   focusChat(): void;
   toggleMap(): void;
   toggleSettings(): void;
 }
 
-function invokeAction(
-  control: (typeof ACTION_CONTROLS)[number],
-  handlers: ActionHandlers,
-  reverse = false,
-): void {
-  if (control === "target") handlers.switchTarget(reverse);
-  else if (control === "skill1") handlers.castSkill(1);
+function invokeAction(control: (typeof ACTION_CONTROLS)[number], handlers: ActionHandlers): void {
+  if (control === "skill1") handlers.castSkill(1);
   else if (control === "skill2") handlers.castSkill(2);
   else if (control === "skill3") handlers.castSkill(3);
   else if (control === "skill4") handlers.castSkill(4);
@@ -166,7 +158,7 @@ export function trackActions(
     const control = keyboardControlForCode(event.code);
     if (!control || !ACTION_CONTROLS.includes(control as (typeof ACTION_CONTROLS)[number])) return;
     if (control !== "settings" && !actionsEnabled()) return;
-    invokeAction(control as (typeof ACTION_CONTROLS)[number], handlers, event.shiftKey);
+    invokeAction(control as (typeof ACTION_CONTROLS)[number], handlers);
     event.preventDefault();
   };
 

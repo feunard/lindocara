@@ -79,10 +79,8 @@ describe("input remapping", () => {
       attack: vi.fn(),
       interact,
       usePotion: vi.fn(),
-      heal: vi.fn(),
       release: vi.fn(),
       castSkill: vi.fn(),
-      switchTarget: vi.fn(),
       focusChat: vi.fn(),
       toggleMap: vi.fn(),
       toggleSettings: vi.fn(),
@@ -90,6 +88,26 @@ describe("input remapping", () => {
 
     fireEvent.keyDown(window, { code: "KeyK" });
     expect(interact).toHaveBeenCalledOnce();
+    stop();
+  });
+
+  it("leaves Tab unbound and never turns it into a combat selection", () => {
+    const handlers = {
+      attack: vi.fn(),
+      interact: vi.fn(),
+      usePotion: vi.fn(),
+      release: vi.fn(),
+      castSkill: vi.fn(),
+      focusChat: vi.fn(),
+      toggleMap: vi.fn(),
+      toggleSettings: vi.fn(),
+    };
+    const stop = trackActions(handlers);
+
+    fireEvent.keyDown(window, { code: "Tab" });
+
+    for (const handler of Object.values(handlers)) expect(handler).not.toHaveBeenCalled();
+    expect(Object.values(getInputSettings().keyboard).flat()).not.toContainEqual({ code: "Tab" });
     stop();
   });
 

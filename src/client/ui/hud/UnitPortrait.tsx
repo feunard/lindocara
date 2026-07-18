@@ -1,22 +1,12 @@
 import type { PortraitArt } from "../../store.js";
 
-export function UnitPortrait({
-  portrait,
-  size = "target",
-}: {
-  portrait: PortraitArt;
-  size?: "self" | "target";
-}) {
+export function UnitPortrait({ portrait }: { portrait: PortraitArt }) {
   return (
-    <div
-      className={`unit-portrait unit-portrait--${size} unit-portrait--${portrait.kind}`}
-      aria-hidden="true"
-      data-portrait-kind={portrait.kind}
-    >
+    <div className="unit-portrait unit-portrait--self" data-portrait-kind="unit" aria-hidden="true">
       <span
         style={{
           backgroundImage: `url("${portrait.source}")`,
-          backgroundSize: portrait.kind === "enemy" ? "contain" : `${portrait.frames * 100}% 100%`,
+          backgroundSize: `${portrait.frames * 100}% 100%`,
         }}
       />
     </div>

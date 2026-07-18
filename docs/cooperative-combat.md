@@ -4,6 +4,14 @@ Le Durable Object de la room reste l'unique autorité. Les tables de menace, les
 les groupes et les invitations sont en mémoire dans cette room ; aucun état mutable n'est partagé
 entre deux instances.
 
+Le joueur ne choisit jamais une cible de combat. Une attaque ou une compétence utilise la dernière
+orientation non nulle validée par le serveur, puis suit une chronologie anticipation, impact unique
+et récupération. Les arcs, capsules, zones et projectiles balayés déterminent les entités réellement
+touchées à la frame active. La « cible » mentionnée ci-dessous désigne uniquement le choix interne de
+l'IA de menace ou le bénéficiaire effectif d'un soin déjà résolu, jamais un identifiant fourni par
+le client. Le contrat complet est décrit dans
+[`directional-action-combat.md`](./directional-action-combat.md).
+
 ## Menace
 
 Chaque monstre conserve au plus 16 entrées. La menace initiale vaut
@@ -71,3 +79,8 @@ prêtre (100, +9/s).
 Le guerrier récupère aussi 12 % des dégâts infligés et 20 % des dégâts reçus ; le prêtre récupère
 12 % des soins utiles. La valeur courante est placée dans l'attachement WebSocket pour survivre à
 une éviction du Durable Object, mais n'est pas encore persistée dans D1.
+
+Les projectiles et dégâts de zone appellent les mêmes chemins de menace et de contribution que les
+anciens impacts directs. Une flèche perforante enregistre séparément les dégâts réellement appliqués
+à chaque monstre. Mend, Prayer et Divine Nova ne génèrent ressource, menace de soin et contribution
+que sur les PV réellement restaurés ; le sursoin reste nul.

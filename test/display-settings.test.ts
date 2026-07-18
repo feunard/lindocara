@@ -7,9 +7,4 @@ describe("world health bar visibility", () => {
     expect(shouldShowHealthBar("allies", "enemy", 1)).toBe(false);
     expect(shouldShowHealthBar("both", "enemy", HEALTH_BAR_PROXIMITY + 1)).toBe(false);
   });
-
-  it("always shows a selected unit regardless of distance or preferences", () => {
-    expect(shouldShowHealthBar("none", "ally", Number.POSITIVE_INFINITY, true)).toBe(true);
-    expect(shouldShowHealthBar("none", "enemy", Number.POSITIVE_INFINITY, true)).toBe(true);
-  });
 });

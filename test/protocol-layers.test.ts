@@ -34,6 +34,7 @@ function welcome(overrides: Record<string, unknown>) {
     guards: [],
     loot: [],
     corpses: [],
+    projectiles: [],
     self: {},
   };
 }
