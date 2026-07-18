@@ -6,11 +6,13 @@ import {
   createEditorHistory,
   type EditorMap,
   type EditorTool,
+  editorLayersFromPayload,
   isEditorHistoryDirty,
   markEditorHistorySaved,
   mintMarkerId,
   redoEditorHistory,
   setMarkerLabel,
+  toSaveInput,
   undoEditorHistory,
 } from "../src/client/game/editor-state.js";
 import {
@@ -19,6 +21,22 @@ import {
   MAX_MAP_ENTRIES,
   type MapElement,
 } from "../src/shared/map-data.js";
+import { slotAt } from "../src/shared/tile-brush.js";
+import { EMPTY_TILE } from "../src/shared/tileset.js";
+import { CLIFF_WALL_SLOT, GRASS_SLOTS } from "../src/shared/tilesets/tiny-swords.js";
+
+/** The ground slot at a cell, or -1 for the void. Every terrain assertion below reads this rather
+ *  than a raw id: the id carries an autotile variant the neighbourhood decides, and no test here is
+ *  about which edge variant was chosen. */
+function groundSlot(map: EditorMap, col: number, row: number): number {
+  const ground = map.layers[0];
+  return ground ? slotAt(ground, col, row) : -1;
+}
+
+function wallSlot(map: EditorMap, col: number, row: number): number {
+  const walls = map.layers[1];
+  return walls ? slotAt(walls, col, row) : -1;
+}
 
 const TREE = "resource.terrain-resources-wood-trees.tree3" as const;
 const BUSH = "decoration.terrain-decorations-bushes.bushe1" as const;
@@ -30,8 +48,16 @@ describe("blankMap", () => {
   it("starts all grass, spawn centred", () => {
     const map = blankMap("m", 20, 15);
     expect(map.name).toBe("m");
-    expect(map.blocks).toHaveLength(15);
-    for (const row of map.blocks) expect(row).toBe(".".repeat(20));
+    expect(map.layers).toHaveLength(3);
+    expect(map.layers[0]?.cols).toBe(20);
+    expect(map.layers[0]?.rows).toBe(15);
+    for (let row = 0; row < 15; row += 1) {
+      for (let col = 0; col < 20; col += 1) expect(groundSlot(map, col, row)).toBe(GRASS_SLOTS[0]);
+    }
+    // Nothing stands above the ground on a blank map.
+    for (const layer of map.layers.slice(1)) {
+      expect(layer.ids.every((id) => id === EMPTY_TILE)).toBe(true);
+    }
     expect(map.elements).toEqual([]);
     expect(map.spawn).toEqual({ col: 10, row: 7 });
   });
@@ -44,16 +70,19 @@ describe("applyTool: block", () => {
     const next = applyTool(map, tool, 3, 4);
     expect(next).not.toBeNull();
     expect(next).not.toBe(map);
-    const row = next?.blocks[4];
-    expect(row?.[3]).toBe("#");
-    // nowhere else on that row changed
-    expect(row?.slice(0, 3)).toBe("...");
-    expect(row?.slice(4)).toBe(".".repeat(16));
-    // the row above and below are untouched
-    expect(next?.blocks[3]).toBe(".".repeat(20));
-    expect(next?.blocks[5]).toBe(".".repeat(20));
+    const painted = next as EditorMap;
+    // Water is an empty ground cell, and only that cell emptied.
+    expect(groundSlot(painted, 3, 4)).toBe(-1);
+    for (const cell of [
+      { col: 2, row: 4 },
+      { col: 4, row: 4 },
+      { col: 3, row: 3 },
+      { col: 3, row: 5 },
+    ]) {
+      expect(groundSlot(painted, cell.col, cell.row)).toBe(GRASS_SLOTS[0]);
+    }
     // input untouched
-    expect(map.blocks[4]).toBe(".".repeat(20));
+    expect(groundSlot(map, 3, 4)).toBe(GRASS_SLOTS[0]);
   });
 
   it("painting water under a tree removes it (a tree cannot stand on water)", () => {
@@ -184,11 +213,105 @@ describe("applyTool: eraser", () => {
     expect(map.elements).toEqual(beforeElements);
   });
 
-  it("returns the SAME reference (not null) on an empty cell", () => {
+  it("clears the ground on a cell that holds no element or marker", () => {
     const map = blankMap("m", 20, 15);
     const eraserTool: EditorTool = { kind: "eraser" };
-    const next = applyTool(map, eraserTool, 3, 4);
-    expect(next).toBe(map);
+    const next = applyTool(map, eraserTool, 3, 4) as EditorMap;
+    expect(next).not.toBe(map);
+    expect(groundSlot(next, 3, 4)).toBe(-1);
+  });
+
+  it("returns the SAME reference on a cell that is already void", () => {
+    const map = applyTool(blankMap("m", 20, 15), { kind: "eraser" }, 3, 4) as EditorMap;
+    expect(applyTool(map, { kind: "eraser" }, 3, 4)).toBe(map);
+  });
+
+  it("does not carve ground mid-drag, but a click on the same cell still does", () => {
+    const map = blankMap("m", 20, 15);
+    const eraserTool: EditorTool = { kind: "eraser" };
+    // A drag cell (isStrokeStart = false) with nothing on it: refused, ground untouched.
+    expect(applyTool(map, eraserTool, 3, 4, false)).toBeNull();
+    expect(groundSlot(map, 3, 4)).toBe(GRASS_SLOTS[0]);
+    // A click on the same bare cell (default isStrokeStart = true) still falls through to terrain.
+    const clicked = applyTool(map, eraserTool, 3, 4) as EditorMap;
+    expect(clicked).not.toBe(map);
+    expect(groundSlot(clicked, 3, 4)).toBe(-1);
+  });
+
+  it("still removes an element mid-drag, without touching the ground beneath it", () => {
+    let map = blankMap("m", 20, 15);
+    const bushTool: EditorTool = { kind: "element", assetId: BUSH };
+    map = applyTool(map, bushTool, 3, 4) as EditorMap;
+    const eraserTool: EditorTool = { kind: "eraser" };
+    const next = applyTool(map, eraserTool, 3, 4, false) as EditorMap;
+    expect(next).not.toBeNull();
+    expect(next).not.toBe(map);
+    expect(next.elements).toEqual([]);
+    expect(groundSlot(next, 3, 4)).toBe(GRASS_SLOTS[0]);
+  });
+});
+
+describe("applyTool: elevation", () => {
+  it("raises the cell and casts a cliff wall on layer 1 in the cell below", () => {
+    const map = blankMap("m", 20, 15);
+    const next = applyTool(map, { kind: "elevation", level: 1 }, 5, 6) as EditorMap;
+    expect(next).not.toBeNull();
+    expect(groundSlot(next, 5, 6)).toBe(GRASS_SLOTS[1]);
+    expect(wallSlot(next, 5, 7)).toBe(CLIFF_WALL_SLOT);
+    // The raised cell itself carries no wall: nothing above it stands higher.
+    expect(wallSlot(next, 5, 6)).toBe(-1);
+  });
+
+  it("takes the wall away again when the ground drops back to level 0", () => {
+    const raised = applyTool(blankMap("m", 20, 15), { kind: "elevation", level: 1 }, 5, 6);
+    const flattened = applyTool(raised as EditorMap, { kind: "block", block: "grass" }, 5, 6);
+    expect(wallSlot(flattened as EditorMap, 5, 7)).toBe(-1);
+  });
+
+  it("takes the wall away when the raised ground is erased entirely", () => {
+    const raised = applyTool(blankMap("m", 20, 15), { kind: "elevation", level: 1 }, 5, 6);
+    const erased = applyTool(raised as EditorMap, { kind: "block", block: "water" }, 5, 6);
+    expect(groundSlot(erased as EditorMap, 5, 6)).toBe(-1);
+    expect(wallSlot(erased as EditorMap, 5, 7)).toBe(-1);
+  });
+
+  it("refuses a stroke whose cliff wall would land on the spawn", () => {
+    const map = blankMap("m", 20, 15);
+    // The wall lands one row below the raised cell, so raising the cell above the spawn would
+    // wall the spawn in — that is exactly the stroke `keepsSpawnClear` has to refuse.
+    expect(
+      applyTool(map, { kind: "elevation", level: 1 }, map.spawn.col, map.spawn.row - 1),
+    ).toBeNull();
+  });
+});
+
+/**
+ * The regression this whole task exists to prevent.
+ *
+ * A cliff wall lives on layer 1. The editor used to store a `.`/`#` block grid and project it onto
+ * layers at save time, and that projection could not represent layer 1 at all — so the first
+ * open-and-save round trip after an elevation stroke would have flattened every cliff back to water,
+ * silently, with no error and nothing to fail.
+ */
+describe("elevation survives a save/load round trip", () => {
+  it("keeps the cliff wall on layer 1 after toSaveInput -> parseMapData -> editor layers", () => {
+    const painted = applyTool(
+      blankMap("m", 20, 15),
+      { kind: "elevation", level: 1 },
+      5,
+      6,
+    ) as EditorMap;
+    expect(wallSlot(painted, 5, 7)).toBe(CLIFF_WALL_SLOT);
+
+    // Exactly what the Save button sends, and exactly what /api/maps/:id sends back.
+    const saved = toSaveInput(painted);
+    const reloaded: EditorMap = { ...painted, layers: editorLayersFromPayload(saved) };
+
+    expect(reloaded.layers).toHaveLength(3);
+    expect(groundSlot(reloaded, 5, 6)).toBe(GRASS_SLOTS[1]);
+    expect(wallSlot(reloaded, 5, 7)).toBe(CLIFF_WALL_SLOT);
+    expect(reloaded.layers[0]?.ids).toEqual(painted.layers[0]?.ids);
+    expect(reloaded.layers[1]?.ids).toEqual(painted.layers[1]?.ids);
   });
 });
 
@@ -376,7 +499,8 @@ describe("applyTool: markers", () => {
     const entry = applyTool(base, { kind: "marker-entry" }, 4, 4) as EditorMap;
     const erased = applyTool(entry, { kind: "eraser" }, 4, 4);
     expect(erased?.markers.entries).toEqual([]);
-    expect(applyTool(entry, { kind: "eraser" }, 9, 9)).toBe(entry); // no-op keeps the same reference
+    // The eraser falls through to the terrain on a bare cell, so 9,9 clears the ground there.
+    expect(groundSlot(applyTool(entry, { kind: "eraser" }, 9, 9) as EditorMap, 9, 9)).toBe(-1);
     expect(applyTool(entry, { kind: "block", block: "water" }, 4, 4)).toBeNull(); // would drown the entry
     const exit = applyTool(base, { kind: "marker-exit" }, 7, 7) as EditorMap;
     expect(applyTool(exit, { kind: "spawn" }, 7, 7)).toBeNull(); // spawn may not land on an exit

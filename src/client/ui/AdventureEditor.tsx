@@ -33,6 +33,7 @@ import {
   type MapSummary,
   updateAdventureApi,
 } from "../api.js";
+import { solidMaskFromMapPayload } from "../game/editor-state.js";
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
 
@@ -46,7 +47,7 @@ async function memberInfo(mapId: string): Promise<DraftMemberInfo> {
     mapId,
     name: payload.name,
     revision: payload.revision,
-    blocks: payload.blocks,
+    solid: solidMaskFromMapPayload(payload),
     monsterCount: payload.markers.monsterSpawns.length,
     entryIds: payload.markers.entries.map((marker) => marker.id),
     exitIds: payload.markers.exits.map((marker) => marker.id),
@@ -68,9 +69,9 @@ function markerName(labels: Readonly<Record<string, string>>, id: string): strin
 }
 
 function MapDraftThumbnail({ member }: { member: DraftMemberInfo }) {
-  const rows = member.blocks.length;
-  const cols = member.blocks[0]?.length ?? 0;
-  const water = member.blocks
+  const rows = member.solid.length;
+  const cols = member.solid[0]?.length ?? 0;
+  const water = member.solid
     .flatMap((row, rowIndex) =>
       [...row].flatMap((cell, colIndex) =>
         cell === "#" ? [`M${colIndex} ${rowIndex}h1v1h-1z`] : [],

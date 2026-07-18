@@ -520,6 +520,8 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.tool.tree": "Arbre",
   "editor.tool.bush": "Buisson",
   "editor.tool.stone": "Pierre",
+  "editor.tool.elevation": "Élévation",
+  "editor.tool.level": "Niveau",
   "editor.tool.eraser": "Gomme",
   "editor.tool.spawn": "Point d'apparition",
   "editor.tool.entry": "Entrée",

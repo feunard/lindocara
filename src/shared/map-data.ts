@@ -11,8 +11,10 @@
 
 import type { TerrainGeometry } from "./game.js";
 import { isMonsterSpecies, type MonsterSpecies } from "./game.js";
+import { parseTileLayer, type TileLayer } from "./tile-layer-codec.js";
 import { TILE_SIZE, type TileKind, type TileMap } from "./tilemap.js";
-import { decodeTileMap } from "./tilemap-codec.js";
+import { decodeTileId, EMPTY_TILE, type Tileset, tileIdInTileset } from "./tileset.js";
+import { tilesetById } from "./tilesets/tiny-swords.js";
 import { type EditorAssetId, editorAsset, isEditorAssetId } from "./tiny-swords-catalog.js";
 
 export const ELEMENT_KINDS = ["tree", "bush", "stone"] as const;
@@ -73,8 +75,14 @@ export const MAX_PATROL_RADIUS = 768;
 export const MARKER_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
 export const MARKER_LABEL_MAX = 48;
 
+export const MAP_LAYERS = 3;
+
 export interface MapData {
-  blocks: readonly string[];
+  tilesetId: string;
+  cols: number;
+  rows: number;
+  /** Exactly `MAP_LAYERS`. Index 0 is the ground; an empty ground cell is the void. */
+  layers: readonly TileLayer[];
   elements: readonly MapElement[];
   spawn: { col: number; row: number };
   /** Absent on legacy payloads; parseMapData always fills it (EMPTY_MARKERS when omitted). */
@@ -82,11 +90,13 @@ export interface MapData {
 }
 
 /**
- * The most elements one map may carry. A 100x100 map's blocks alone are ~10.4 KB, so without a
- * cap on the count a few hundred elements push the body past the 32 KiB `/api/maps` limit and 413
- * with no useful message. Enforced on the server (`validateMapInput`) and refused up front by the
- * editor (`applyTool`) so a builder never paints past what will save. Lives beside the shared
- * catalogue lookup because both server and browser read it and neither may import the other.
+ * The most elements one map may carry. Independent of the layer/body byte cap
+ * (`MAX_MAP_JSON_BYTES` in `server/index.ts`, sized against the tile layers, not this): a run-length
+ * layer already dominates that cap on its own, but leaving the element count unbounded would still
+ * let a few thousand elements push a legitimate body past it with no useful message. Enforced on
+ * the server (`validateMapInput`) and refused up front by the editor (`applyTool`) so a builder
+ * never paints past what will save. Lives beside the shared catalogue lookup because both server
+ * and browser read it and neither may import the other.
  */
 /** Stable replacements for maps written before catalogue ids existed. */
 export const LEGACY_ELEMENT_ASSETS = {
@@ -250,28 +260,66 @@ export function elementsOverlap(left: MapElement, right: MapElement): boolean {
   return elementCells(right).some((cell) => occupied.has(`${cell.col}:${cell.row}`));
 }
 
+/** Whether a tile blocks movement, resolved through the tileset. An empty cell blocks nothing —
+ *  on the ground layer it is the void, which the ground pass has already called water. */
+function tileBlocks(tileset: Tileset, id: number): boolean {
+  const ref = decodeTileId(id);
+  if (ref.kind === "empty") return false;
+  const entry = ref.kind === "autotile" ? tileset.autotiles[ref.slot] : tileset.fixed[ref.index];
+  // An id no tileset entry answers for is treated as solid: an unknown obstacle you cannot walk
+  // into is recoverable, an invisible hole you fall through is not.
+  return entry ? !entry.passable : true;
+}
+
 /**
  * The ground, plus everything standing on it that you bump into.
  *
- * Colliding elements are baked into the tilemap rather than taught to the collision code, so
- * `isWalkableBox`, `step` and `prediction.ts` never learn that elements exist. On the day terrain
- * starts arriving over the wire, exactly one thing changes.
- *
- * A colliding element becomes `forest` — the existing kind for "land you cannot walk through" — and
- * never overwrites water, which is already solid and should keep looking like water underneath.
+ * Unchanged in meaning from the `blocks` era: colliding things are baked into the tilemap rather
+ * than taught to the collision code, so `isWalkableBox`, `step` and `prediction.ts` never learn
+ * that layers or elements exist. Only the input changed.
  */
 export function bakeCollision(map: MapData): TileMap {
-  const tiles = decodeTileMap(map.blocks);
+  const tileset = tilesetById(map.tilesetId);
+  const cells = map.cols * map.rows;
+  const kinds: TileKind[] = new Array<TileKind>(cells).fill("water");
+  const ground = map.layers[0];
+  for (let index = 0; index < cells; index += 1) {
+    const id = ground?.ids[index] ?? EMPTY_TILE;
+    kinds[index] = id === EMPTY_TILE ? "water" : "grass";
+  }
+  for (const layer of map.layers) {
+    for (let index = 0; index < cells; index += 1) {
+      const id = layer.ids[index] ?? EMPTY_TILE;
+      if (id === EMPTY_TILE) continue;
+      // No tileset means no entry can answer for any id, so every drawn tile is solid — the same
+      // fail-closed posture `tileBlocks` takes one level down. Skipping the sweep instead would
+      // make an unknown-tileset map entirely walkable, which is the invisible-hole failure.
+      if (!tileset || tileBlocks(tileset, id)) kinds[index] = "forest";
+    }
+  }
+  const tiles: TileMap = { cols: map.cols, rows: map.rows, kinds };
+  return bakeElements(tiles, map.elements);
+}
+
+/** The element pass, unchanged: walkable overrides reclaim water, collision footprints become
+ *  forest. Split out only so `bakeCollision` reads as two steps rather than four loops. */
+function bakeElements(tiles: TileMap, elements: readonly MapElement[]): TileMap {
   const kinds = [...tiles.kinds];
-  for (const element of map.elements) {
+  for (const element of elements) {
     const asset = editorAsset(element.assetId);
     if (asset?.editor.terrainOverride !== "walkable") continue;
+    // Deliberate: a walkable override reclaims only "water", never a tile-authored solid. A bridge
+    // over water still works, because water is an empty ground cell. A bridge laid across a cliff
+    // face stays impassable. Accepted for this tranche rather than an oversight: letting scenery
+    // punch through authored terrain would make a cliff wall — the whole point of the layered
+    // model — cancellable by dropping one element on it. Revisit only with an explicit
+    // "overrides terrain" asset flag, not by widening this condition.
     for (const cell of elementCells(element)) {
       const index = cell.row * tiles.cols + cell.col;
       if (kinds[index] === "water") kinds[index] = "grass";
     }
   }
-  for (const element of map.elements) {
+  for (const element of elements) {
     for (const cell of elementCells(element, "collision")) {
       const index = cell.row * tiles.cols + cell.col;
       if (kinds[index] === "grass") kinds[index] = "forest";
@@ -305,38 +353,41 @@ export function parseMapElements(value: unknown): MapElement[] | null {
   return parsed;
 }
 
-/** The only two block characters a map may contain. Everything else is scenery standing on them. */
-const BLOCK_CHARS = new Set([".", "#"]);
-
 /**
  * Defensive, exactly like client intent already is.
  *
- * A malformed map that reaches `decodeTileMap` throws on the first paint — a ragged row, an unknown
- * character, an element hanging off the edge. This returns null instead and the frame is dropped.
- * `parseServerMessage` only checks its top level and casts what is nested (known debt, recorded in
- * docs/mmo-migration-plan.md §11); terrain is not a field to extend that habit to.
+ * A malformed map that reaches the renderer throws on the first paint — a short layer, an unknown
+ * tileset, a spawn off the edge. This returns null instead and the frame is dropped.
  */
 export function parseMapData(value: unknown): MapData | null {
   if (typeof value !== "object" || value === null) return null;
   const record = value as Record<string, unknown>;
-  const { blocks, elements, spawn } = record;
+  const { tilesetId, cols, rows, layers, elements, spawn } = record;
 
-  if (!Array.isArray(blocks) || blocks.length === 0) return null;
-  const first: unknown = blocks[0];
-  if (typeof first !== "string" || first.length === 0) return null;
-  const cols = first.length;
-  for (const row of blocks) {
-    if (typeof row !== "string" || row.length !== cols) return null;
-    for (const char of row) if (!BLOCK_CHARS.has(char)) return null;
+  if (typeof tilesetId !== "string") return null;
+  const tileset = tilesetById(tilesetId);
+  if (!tileset) return null;
+  if (!Number.isSafeInteger(cols) || !Number.isSafeInteger(rows)) return null;
+  const width = cols as number;
+  const height = rows as number;
+  if (width <= 0 || height <= 0) return null;
+
+  if (!Array.isArray(layers) || layers.length !== MAP_LAYERS) return null;
+  const parsedLayers: TileLayer[] = [];
+  for (const raw of layers) {
+    const layer = parseTileLayer(raw, width, height);
+    if (!layer) return null;
+    // `parseTileLayer` only knows the id SHAPE (a safe integer); it has no tileset to check the id
+    // against. An id no autotile slot or fixed-tile index in THIS tileset can answer for is refused
+    // here rather than silently baked as solid terrain later by `tileBlocks`.
+    if (layer.ids.some((id) => !tileIdInTileset(tileset, id))) return null;
+    parsedLayers.push(layer);
   }
-  const rows = blocks.length;
 
   const parsed = parseMapElements(elements);
   if (!parsed) return null;
-  // Wire compatibility checks the legacy anchor only. New writes receive the stricter full visual
-  // footprint validation in server/maps.ts; old edge trees must remain readable.
   for (const element of parsed) {
-    if (element.col < 0 || element.col >= cols || element.row < 0 || element.row >= rows)
+    if (element.col < 0 || element.col >= width || element.row < 0 || element.row >= height)
       return null;
   }
 
@@ -344,14 +395,17 @@ export function parseMapData(value: unknown): MapData | null {
   const spawnRecord = spawn as Record<string, unknown>;
   const { col: spawnCol, row: spawnRow } = spawnRecord;
   if (!Number.isSafeInteger(spawnCol) || !Number.isSafeInteger(spawnRow)) return null;
-  if ((spawnCol as number) < 0 || (spawnCol as number) >= cols) return null;
-  if ((spawnRow as number) < 0 || (spawnRow as number) >= rows) return null;
+  if ((spawnCol as number) < 0 || (spawnCol as number) >= width) return null;
+  if ((spawnRow as number) < 0 || (spawnRow as number) >= height) return null;
 
-  const markers = parseMapMarkers(record.markers, cols, rows);
+  const markers = parseMapMarkers(record.markers, width, height);
   if (!markers) return null;
 
   return {
-    blocks: blocks as string[],
+    tilesetId,
+    cols: width,
+    rows: height,
+    layers: parsedLayers,
     elements: parsed,
     spawn: { col: spawnCol as number, row: spawnRow as number },
     markers,

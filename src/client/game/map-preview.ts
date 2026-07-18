@@ -26,6 +26,7 @@ import { type MapData, mapSpawnPoint, terrainFromMap } from "../../shared/map-da
 import { MAX_ACCUMULATED_SECONDS } from "../../shared/prediction.js";
 import type { PlayerSnapshot, QuestState } from "../../shared/protocol.js";
 import { PLAYER_SPEED, step, TICK_DT, type Vec2 } from "../../shared/simulation.js";
+import { encodeTileLayer } from "../../shared/tile-layer-codec.js";
 import { t } from "../i18n.js";
 import { trackInput } from "./input.js";
 import { type RenderContext, Renderer } from "./renderer.js";
@@ -84,7 +85,13 @@ export async function startMapPreview(data: MapData): Promise<{ stop(): void }> 
 
   // A unique zone id every start, so `configureMapTerrain`'s same-zone short-circuit never skips a
   // rebuild when a previous preview left `#currentZoneId` set to an earlier `preview:*`.
-  renderer.configureMapTerrain(`preview:${generation}`, geometry.tiles, data.elements, generation);
+  // Re-encoded rather than handed over parsed: the renderer owns the one degrade policy for a
+  // malformed layer, and a preview must exercise the same path a welcome does. Once per preview
+  // build, never per frame.
+  renderer.configureMapTerrain(`preview:${generation}`, geometry.tiles, data.elements, generation, {
+    tilesetId: data.tilesetId,
+    layers: data.layers.map(encodeTileLayer),
+  });
   renderer.setSelfId(SELF_ID);
 
   const self: PlayerSnapshot = {

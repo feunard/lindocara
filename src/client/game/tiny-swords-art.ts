@@ -22,6 +22,7 @@ export const TINY_SWORDS_TERRAIN = {
   flat: `${TINY_SWORDS_ROOT}/terrain/Tilemap_Flat.png`,
   water: `${TINY_SWORDS_ROOT}/terrain/Water.png`,
   foam: `${TINY_SWORDS_ROOT}/terrain/Foam.png`,
+  tileset: `${TINY_SWORDS_ROOT}/terrain/Tilemap_color1.png`,
 };
 
 /** `Foam.png` is eight 192x192 frames; the blob itself is ~82px, centred. Drawn centred under a
@@ -46,6 +47,29 @@ export function sliceAutotileSheet(sheet: Texture): Texture[][] {
           source: sheet.source,
           frame: new Rectangle(col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE),
           label: `terrain.flat:${col}:${row}`,
+        }),
+    ),
+  );
+}
+
+/**
+ * A whole tileset sheet sliced into one `Texture` per cell, indexed `[row][col]`.
+ *
+ * `sliceAutotileSheet` reads only `Tilemap_Flat.png`'s first 4x4 group; a tileset's ids may land
+ * anywhere in `Tilemap_color1.png`'s 9x6 grid, so this slices the lot. Sliced once per sheet, never
+ * per frame. The grid's dimensions are the tileset's own (`TINY_SWORDS_SHEET_COLS/ROWS` in
+ * `shared/tilesets/tiny-swords.ts`) rather than a second copy here — they are the bound every
+ * declared id must resolve inside, and shared arithmetic must be able to name them.
+ */
+export function sliceTilesetSheet(sheet: Texture, cols: number, rows: number): Texture[][] {
+  return Array.from({ length: rows }, (_, row) =>
+    Array.from(
+      { length: cols },
+      (_, col) =>
+        new Texture({
+          source: sheet.source,
+          frame: new Rectangle(col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE),
+          label: `tileset:${col}:${row}`,
         }),
     ),
   );

@@ -50,6 +50,19 @@ src/shared/     platform-free. Imports nothing from Cloudflare or the DOM.
   prediction.ts pure reconcile()/prunePending(). Client-side prediction, as functions.
   i18n/         FR/EN dictionaries — data only; the server sends codes, never prose.
   zones.ts      typed zone catalogue, validation and deterministic room keys.
+  tileset.ts    the tile id space (autotile band, fixed-tile band) and tileset types. A tile
+                id's meaning — passable or not, drawn below or above characters — lives here,
+                authored once per tile, not per map cell.
+  autotile.ts   the `edge16` and `run4` neighbour-mask variant tables. Lives here rather than
+                the client because the paint-time brush, the map migration and the tests all
+                need the same tables the renderer uses.
+  tile-layer-codec.ts run-length codec for one tile layer; `parseTileLayer` never throws.
+  tile-brush.ts pure paint/erase/elevation brushes: they write an id and re-resolve the
+                neighbours whose variant it can change. The stored id IS the neighbour mask —
+                autotiling is a paint-time brush, not a storage format, so an author can freeze
+                a single hand-picked tile without the renderer overwriting it.
+  map-migrate.ts one-shot projection of the old `blocks` model into layers.
+  tilesets/     the shipped Tiny Swords tileset, as data.
 
 src/server/     runs in workerd.
   index.ts      Worker entry: /api/* only. Assets never reach it.
@@ -79,6 +92,8 @@ src/client/     runs in a browser.
   api.ts        fetch client; machine-code errors mapped to dictionary keys.
   game/         the game loop: net.ts (prediction), renderer.ts (PixiJS), input.ts,
                 sound.ts, session.ts (owns the store writes). No React in here.
+                tile-draw.ts holds the per-cell tile id → draw instruction arithmetic, shared
+                by the renderer and the editor stage so the two cannot drift.
   i18n.ts       locale state; useLocale() for React, t() for everyone.
 ```
 
@@ -319,8 +334,26 @@ reference their author's maps, their full graph is revalidated before a referenc
 and delete/edit operations cannot silently invalidate a saved adventure. Legacy ownerless rows are
 quarantined unless the migration can identify exactly one author.
 
-The welcome message includes `mapId + revision`, baked terrain and authored elements so prediction,
-renderer and mini-map share the same cache identity. The map editor is a WYSIWYG PixiJS stage that
+Terrain is three layers of frozen tile ids (`MapData.layers`, RPG Maker XP-shaped) over an authored
+`tilesetId`, not one `TileKind` character per cell. A tile's id is decided once, at paint time — the
+editor computes the autotile edge variant when you paint and freezes the result, which is what lets
+an author override a single tile by hand afterwards. What an id *means* — walkable or not, drawn
+behind or in front of characters — is a tileset property authored once per tile, never a per-cell
+one, so collision stays derivable from appearance through one indirection: `tile id → tileset →
+passable`. **On the wire, `WorldInfo.tiles` is baked collision truth and `WorldInfo.layers` is
+appearance only** — the same rule `elements` already follows. An agent that reads `layers` to decide
+walkability reintroduces exactly the silent desync this design exists to prevent; collision only
+ever comes from `tiles`/`resolveTerrain()`/`isWalkableBox`. Elevation needs no engine change — a
+cliff face is its own cells, impassable, one layer above the ground — but the wall is only ever cast
+on the drop's south face: a plateau adjacent horizontally to lower ground has no cliff and is
+walkable. Appearance and collision still agree, so this is a design narrowness, not a bug, but it is
+not a gameplay barrier either. See
+[`docs/superpowers/specs/2026-07-18-layered-map-model-design.md`](./docs/superpowers/specs/2026-07-18-layered-map-model-design.md)
+for the full model.
+
+The welcome message includes `mapId + revision`, baked collision tiles, appearance layers,
+`tilesetId` and authored elements so prediction, renderer and mini-map share the same cache
+identity. The map editor is a WYSIWYG PixiJS stage that
 shares placement/collision/catalog rendering rules with the runtime through `shared/map-data.ts` and
 `client/game/catalog-element-render.ts`. It has explicit loading/error state, grouped history,
 dirty navigation guards, selection/inspectors, stable marker ids with optional labels and complete

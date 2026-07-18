@@ -16,7 +16,8 @@ export interface DraftMemberInfo {
   mapId: string;
   name: string;
   revision: number;
-  blocks: readonly string[];
+  /** Display-only solid mask, one `#`/`.` per cell — the thumbnail, never a save. */
+  solid: readonly string[];
   monsterCount: number;
   entryIds: readonly string[];
   exitIds: readonly string[];

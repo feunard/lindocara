@@ -5,6 +5,7 @@
 import { env, SELF } from "cloudflare:test";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { SESSION_COOKIE } from "../src/server/session.js";
+import { layeredWireTerrain } from "./support/map-fixtures.js";
 
 const ORIGIN = "https://lindocara.test";
 const COLS = 20;
@@ -19,7 +20,7 @@ function blocks(): string[] {
 function mapBody(name: string): Record<string, unknown> {
   return {
     name,
-    blocks: blocks(),
+    ...layeredWireTerrain(blocks()),
     elements: [],
     spawn: { col: 0, row: 0 },
     markers: {

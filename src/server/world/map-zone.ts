@@ -9,6 +9,7 @@
 import { MONSTER_SPECIES_KIND, type MonsterSpawn } from "../../shared/game.js";
 import { EMPTY_MARKERS, terrainFromMap } from "../../shared/map-data.js";
 import { DEFAULT_ZONE_NAVIGATION } from "../../shared/navigation.js";
+import { encodeTileLayer } from "../../shared/tile-layer-codec.js";
 import { TILE_SIZE } from "../../shared/tilemap.js";
 import type { ZoneDefinition, ZoneLocation } from "../../shared/zones.js";
 import type { StoredMap } from "../maps.js";
@@ -50,6 +51,8 @@ export function zoneFromMap(stored: StoredMap): ZoneDefinition {
     elements: stored.elements,
     markers: stored.markers ?? EMPTY_MARKERS,
     revision: stored.revision,
+    tilesetId: stored.tilesetId,
+    layers: stored.layers.map(encodeTileLayer),
   };
 }
 

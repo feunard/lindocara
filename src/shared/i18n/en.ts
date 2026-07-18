@@ -505,6 +505,8 @@ export const en = {
   "editor.tool.tree": "Tree",
   "editor.tool.bush": "Bush",
   "editor.tool.stone": "Stone",
+  "editor.tool.elevation": "Elevation",
+  "editor.tool.level": "Level",
   "editor.tool.eraser": "Eraser",
   "editor.tool.spawn": "Spawn",
   "editor.tool.entry": "Entry",

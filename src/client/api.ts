@@ -53,11 +53,19 @@ export interface MapSummary {
   isFirst: boolean;
 }
 
+/**
+ * The wire shape of a map, both ways: `layers` is exactly three run-length encoded layer strings
+ * (`shared/tile-layer-codec.ts`), ground first, each `cols * rows` cells. `parseMapData` turns a
+ * payload straight into `MapData` — GET's response is a legal PUT body, no re-encode in between.
+ */
 export interface MapPayload {
   id: string;
   name: string;
   revision: number;
-  blocks: string[];
+  tilesetId: string;
+  cols: number;
+  rows: number;
+  layers: string[];
   elements: MapElement[];
   spawn: { col: number; row: number };
   markers: MapMarkers;

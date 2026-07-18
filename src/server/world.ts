@@ -79,8 +79,10 @@ import {
   type SkillSlot,
   skillFor,
 } from "../shared/skills.js";
+import { emptyLayer, encodeTileLayer } from "../shared/tile-layer-codec.js";
 import { TILE_SIZE } from "../shared/tilemap.js";
 import { encodeTileMap } from "../shared/tilemap-codec.js";
+import { TINY_SWORDS_TILESET_ID } from "../shared/tilesets/tiny-swords.js";
 import { replaceWorldCache } from "../shared/world-delta.js";
 import {
   isKnownZone,
@@ -181,6 +183,20 @@ import {
 } from "./world/world-runtime.js";
 
 export { type Attachment, positionFromAttachment } from "./world/world-runtime.js";
+
+/**
+ * The compiled catalogue zones predate layers and carry none — their terrain still comes straight
+ * out of `terrain.tiles`, as it always has. A welcome must still emit *something* shaped like the
+ * new field, so an absent zone-authored layer set becomes three empty layers sized to that zone's
+ * own grid, not a single module-wide constant: catalogue zones are not all the same size (compare
+ * `verdant-reach` and `sunken-isles`), so one fixed-size constant would be silently wrong for every
+ * zone but the one it was sized for. This is cheap — welcome is sent once per connection, not once
+ * per tick — so there is nothing to gain by caching it.
+ */
+function emptyEncodedLayers(cols: number, rows: number): readonly string[] {
+  const layer = encodeTileLayer(emptyLayer(cols, rows));
+  return [layer, layer, layer];
+}
 
 export class World extends DurableObject<Env> {
   #players = new Map<WebSocket, Player>();
@@ -545,6 +561,16 @@ export class World extends DurableObject<Env> {
         // nothing standing on the ground that the ground does not already describe — `elements` is
         // undefined for them. A D1 map's scenery lives here instead.
         elements: location.definition.elements ?? [],
+        tilesetId: location.definition.tilesetId ?? TINY_SWORDS_TILESET_ID,
+        // Appearance only, exactly like `elements` above — never a second source of collision.
+        // Catalogue zones predate layers and have none; ship three empty layers sized to this
+        // zone's own grid rather than one wrong-for-most-zones constant (see `emptyEncodedLayers`).
+        layers:
+          location.definition.layers ??
+          emptyEncodedLayers(
+            location.definition.terrain.tiles.cols,
+            location.definition.terrain.tiles.rows,
+          ),
         width: location.definition.terrain.width,
         height: location.definition.terrain.height,
         playerSize: PLAYER_SIZE,

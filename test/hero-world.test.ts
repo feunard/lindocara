@@ -1,10 +1,10 @@
 import { env, SELF } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
-import type { MapInput } from "../src/server/maps.js";
 import type { AdventureGraph } from "../src/shared/adventure.js";
 import { WS_CLOSE } from "../src/shared/close-codes.js";
 import { ATTACK_COOLDOWN_MS, MONSTER_STATS, maxHpForLevel } from "../src/shared/game.js";
 import { TILE_SIZE } from "../src/shared/tilemap.js";
+import { layeredWireTerrain } from "./support/map-fixtures.js";
 import {
   Client,
   tileCentre as centre,
@@ -12,6 +12,7 @@ import {
   heroRoomKey,
   ORIGIN,
   type TestAccount,
+  type TestMapBody,
   type TestParty,
   testAccount,
   testHero,
@@ -20,7 +21,7 @@ import {
   until,
 } from "./support/world-harness.js";
 
-function mapAInput(): MapInput {
+function mapAInput(): TestMapBody {
   return testMapInput("Placed monsters", {
     cols: 20,
     rows: 15,
@@ -30,7 +31,7 @@ function mapAInput(): MapInput {
   });
 }
 
-function mapBInput(): MapInput {
+function mapBInput(): TestMapBody {
   return testMapInput("The ending", {
     cols: 20,
     rows: 15,
@@ -39,7 +40,7 @@ function mapBInput(): MapInput {
   });
 }
 
-function prayerMapInput(): MapInput {
+function prayerMapInput(): TestMapBody {
   const map = testMapInput("Prayer line of sight", {
     cols: 20,
     rows: 15,
@@ -48,13 +49,15 @@ function prayerMapInput(): MapInput {
   });
   return {
     ...map,
-    blocks: map.blocks.map((row, index) =>
-      index === 2 ? `${row.slice(0, 3)}#${row.slice(4)}` : row,
+    ...layeredWireTerrain(
+      Array.from({ length: map.rows }, (_, row) =>
+        row === 2 ? `${".".repeat(3)}#${".".repeat(map.cols - 4)}` : ".".repeat(map.cols),
+      ),
     ),
   };
 }
 
-function novaMapInput(): MapInput {
+function novaMapInput(): TestMapBody {
   return testMapInput("Divine Nova", {
     cols: 20,
     rows: 15,
@@ -66,7 +69,7 @@ function novaMapInput(): MapInput {
 
 /** Two maps in a line: mapA's exit leads to mapB's entry, mapB's exit ends the adventure. */
 function twoMapAdventure(): {
-  maps: MapInput[];
+  maps: TestMapBody[];
   graph: (ids: readonly string[]) => AdventureGraph;
 } {
   return {
@@ -679,7 +682,7 @@ describe("party hero admission and authored runtime", () => {
  * persistent party — not the in-room `party.*` runtime, which no hero can ever build — is what
  * "who is in my party" has to mean when a monster pays out.
  */
-function rewardMapInput(): MapInput {
+function rewardMapInput(): TestMapBody {
   return testMapInput("Shared kill", {
     cols: 40,
     rows: 15,
@@ -774,7 +777,7 @@ describe("cooperative rewards inside a party room", () => {
  * refused for heroes, so the in-room party runtime is permanently empty here: a roster built from
  * it would leave every hero believing it adventures alone.
  */
-function rosterMapInput(): MapInput {
+function rosterMapInput(): TestMapBody {
   return testMapInput("Roster", {
     cols: 20,
     rows: 15,

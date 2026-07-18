@@ -22,7 +22,6 @@ import {
 } from "../src/server/character-presence.js";
 import { createDb } from "../src/server/db/index.js";
 import { loadHeroProfile, saveHeroProfile } from "../src/server/hero-profile.js";
-import type { MapInput } from "../src/server/maps.js";
 import type { Attachment } from "../src/server/world.js";
 import { WS_CLOSE } from "../src/shared/close-codes.js";
 import { NO_INPUT, PLAYER_SPEED, TICK_DT } from "../src/shared/simulation.js";
@@ -31,6 +30,7 @@ import {
   drainHeroRooms,
   heroRoomKey,
   type TestHero,
+  type TestMapBody,
   type TestParty,
   testHero,
   testMapInput,
@@ -39,7 +39,7 @@ import {
 } from "./support/world-harness.js";
 
 /** Wide and empty: no monster to move a hero's HP, and an exit far out of accidental reach. */
-function fencingMap(name: string): MapInput {
+function fencingMap(name: string): TestMapBody {
   return testMapInput(name, {
     cols: 40,
     rows: 30,

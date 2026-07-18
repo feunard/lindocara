@@ -9,6 +9,7 @@ import {
   elementFitsMap,
   elementPlacementCells,
   elementsOverlap,
+  MAP_LAYERS,
   MARKER_LABEL_MAX,
   MAX_MAP_ELEMENTS,
   MAX_MAP_ENTRIES,
@@ -19,20 +20,47 @@ import {
   type MapElement,
   type MapMarkers,
   MIN_PATROL_RADIUS,
+  parseMapData,
 } from "../../shared/map-data.js";
+import {
+  eraseTile,
+  paintElevation,
+  resolveWholeLayer,
+  syncElevationWalls,
+} from "../../shared/tile-brush.js";
+import { emptyLayer, encodeTileLayer, type TileLayer } from "../../shared/tile-layer-codec.js";
 import { isSolidKind, kindAt } from "../../shared/tilemap.js";
+import { autotileId } from "../../shared/tileset.js";
+import {
+  GRASS_SLOTS,
+  TINY_SWORDS_TILESET,
+  TINY_SWORDS_TILESET_ID,
+} from "../../shared/tilesets/tiny-swords.js";
 import type { EditorAssetId } from "../../shared/tiny-swords-catalog.js";
 
+/**
+ * A map open in the editor: the three tile layers themselves, exactly as they will be saved.
+ *
+ * It used to be a `.`/`#` block grid projected onto layers at save time. That projection cannot
+ * represent layer 1 at all, so the first elevation stroke would have been flattened back to water by
+ * the next open-and-save round trip — silently, with nothing to fail. The editor now owns the same
+ * model the server stores, and there is no projection left to lose anything.
+ */
 export interface EditorMap {
   name: string;
-  blocks: string[];
+  /** Exactly `MAP_LAYERS`, all the same size. Index 0 is the ground, index 1 the cliff faces. */
+  layers: TileLayer[];
   elements: MapElement[];
   spawn: { col: number; row: number };
   markers: MapMarkers;
 }
 
+/** Terrain strokes write the ground; only `paintElevation` reaches past it, and it owns the reach. */
+const GROUND_LAYER = 0;
+
 export type EditorTool =
   | { kind: "block"; block: "grass" | "water" }
+  | { kind: "elevation"; level: 0 | 1 | 2 }
   | { kind: "element"; assetId: EditorAssetId }
   | { kind: "eraser" }
   | { kind: "spawn" }
@@ -56,8 +84,16 @@ export interface EditorHistory {
   saved: string;
 }
 
+/**
+ * The identity a history snapshot and the dirty flag compare on.
+ *
+ * Layers are run-length encoded rather than stringified cell by cell: `isEditorHistoryDirty` runs on
+ * every stroke, and a 100x100 map is 30 000 ids. Runs collapse a mostly-uniform map to a few dozen
+ * characters, and they are exactly what gets saved, so two maps compare equal here precisely when
+ * they would be stored identically.
+ */
 function serializedMap(map: EditorMap): string {
-  return JSON.stringify(map);
+  return JSON.stringify({ ...map, layers: map.layers.map(encodeTileLayer) });
 }
 
 export function createEditorHistory(map: EditorMap): EditorHistory {
@@ -249,31 +285,106 @@ export function updateSelectedMonster(
   );
 }
 
-const BLOCK_CHAR: Record<"grass" | "water", string> = { grass: ".", water: "#" };
+/** A map's dimensions, read off the ground layer — the layers are the only size there is. */
+export function editorMapSize(map: EditorMap): { cols: number; rows: number } {
+  const ground = map.layers[GROUND_LAYER];
+  return { cols: ground?.cols ?? 0, rows: ground?.rows ?? 0 };
+}
 
+/** Flat grass everywhere on the ground, both upper layers empty. */
 export function blankMap(name: string, cols: number, rows: number): EditorMap {
-  const blocks = Array.from({ length: rows }, () => ".".repeat(cols));
+  const level0 = GRASS_SLOTS[0];
+  // Every cell is the same slot, so every mask is "all four neighbours match" — the interior
+  // variant. Filling with variant 0 and letting the brush's own resolver settle the edges keeps the
+  // one autotile resolution rule in `tile-brush.ts` rather than growing a second one here.
+  const filled: TileLayer = {
+    cols,
+    rows,
+    ids: new Array<number>(cols * rows).fill(autotileId(level0, 0)),
+  };
+  const ground = resolveWholeLayer(filled, TINY_SWORDS_TILESET);
+  const layers = [ground, ...Array.from({ length: MAP_LAYERS - 1 }, () => emptyLayer(cols, rows))];
   return {
     name,
-    blocks,
+    layers,
     elements: [],
     spawn: { col: Math.floor(cols / 2), row: Math.floor(rows / 2) },
     markers: EMPTY_MARKERS,
   };
 }
 
-function toMapData(map: EditorMap): MapData {
-  return { blocks: map.blocks, elements: map.elements, spawn: map.spawn, markers: map.markers };
+/** The editor's layers are the map's layers: no projection, nothing to lose. */
+export function toMapData(map: EditorMap): MapData {
+  const { cols, rows } = editorMapSize(map);
+  return {
+    tilesetId: TINY_SWORDS_TILESET_ID,
+    cols,
+    rows,
+    layers: map.layers,
+    elements: map.elements,
+    spawn: map.spawn,
+    markers: map.markers,
+  };
+}
+
+/**
+ * The editor's save body. Structurally `api.ts`'s `MapSaveInput` — spelled out here rather than
+ * imported so `client/game/` keeps depending on nothing above it.
+ */
+export function toSaveInput(map: EditorMap): {
+  name: string;
+  tilesetId: string;
+  cols: number;
+  rows: number;
+  layers: string[];
+  elements: MapElement[];
+  spawn: { col: number; row: number };
+  markers: MapMarkers;
+} {
+  const data = toMapData(map);
+  return {
+    name: map.name,
+    tilesetId: data.tilesetId,
+    cols: data.cols,
+    rows: data.rows,
+    layers: data.layers.map(encodeTileLayer),
+    elements: map.elements,
+    spawn: map.spawn,
+    markers: map.markers,
+  };
+}
+
+/**
+ * A map payload straight off `/api/maps/:id`, as the editor's own layers — used as-is, because they
+ * are already exactly what the editor edits and what the API stores.
+ *
+ * A payload this build cannot parse yields no layers rather than a throw on first paint; the screen
+ * then shows an empty map, the same degradation the old block projection had.
+ */
+export function editorLayersFromPayload(payload: unknown): TileLayer[] {
+  return parseMapData(payload)?.layers.map((layer) => ({ ...layer })) ?? [];
+}
+
+/**
+ * A solid/walkable mask of a stored map, one `#`/`.` character per cell.
+ *
+ * Display only — the AdventureEditor's SVG thumbnail — and deliberately not a round trip: it is
+ * derived on load and never written back, so its lossiness (a cliff face and deep water both read
+ * `#`) costs nothing. `EditorMap` itself no longer has any such projection.
+ */
+export function solidMaskFromMapPayload(payload: unknown): string[] {
+  const data = parseMapData(payload);
+  if (!data) return [];
+  const tiles = bakeCollision({ ...data, elements: [] });
+  return Array.from({ length: data.rows }, (_unused, row) =>
+    Array.from({ length: data.cols }, (_cell, col) =>
+      isSolidKind(kindAt(tiles, col, row)) ? "#" : ".",
+    ).join(""),
+  );
 }
 
 function isWalkableCell(map: EditorMap, col: number, row: number): boolean {
   return !isSolidKind(kindAt(bakeCollision(toMapData(map)), col, row));
-}
-
-function withBlock(blocks: string[], col: number, row: number, char: string): string[] {
-  return blocks.map((line, r) =>
-    r === row ? line.slice(0, col) + char + line.slice(col + 1) : line,
-  );
 }
 
 function withoutElementAt(elements: MapElement[], col: number, row: number): MapElement[] {
@@ -318,7 +429,7 @@ function keepsMarkersValid(map: EditorMap): boolean {
 }
 
 function placementTerrainValid(map: EditorMap, element: MapElement): boolean {
-  const ground = bakeCollision({ blocks: map.blocks, elements: [], spawn: map.spawn });
+  const ground = bakeCollision({ ...toMapData(map), elements: [] });
   if (!elementFitsMap(element, ground.cols, ground.rows)) return false;
   // Every occupied visual cell must satisfy the asset's catalogue terrain rule. This also validates
   // multi-cell buildings and both bridge orientations, rather than checking only their anchor.
@@ -327,26 +438,83 @@ function placementTerrainValid(map: EditorMap, element: MapElement): boolean {
   );
 }
 
+/** Two layer stacks hold the same ids. Compared cell by cell, not by reference: the brush returns
+ *  fresh arrays even when it changed nothing, and a stroke must not turn that into an edit. */
+function sameLayers(a: readonly TileLayer[], b: readonly TileLayer[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((layer, index) => {
+    const other = b[index];
+    if (!other || other.ids.length !== layer.ids.length) return false;
+    return layer.ids.every((id, cell) => other.ids[cell] === id);
+  });
+}
+
+/**
+ * Adopt a repainted layer stack, or refuse it.
+ *
+ * `cells` are the cells the stroke touched: an element standing on one of them is dropped when the
+ * new terrain no longer accepts it (a tree in fresh water), the same narrow rule the block tool had.
+ * A stroke that would drown the spawn or a marker is refused outright, because adventure graphs bind
+ * marker ids.
+ */
+function commitTerrain(
+  map: EditorMap,
+  layers: TileLayer[],
+  cells: readonly { col: number; row: number }[],
+): EditorMap | null {
+  if (sameLayers(map.layers, layers)) return map;
+  const candidate: EditorMap = { ...map, layers };
+  const elements = candidate.elements.filter(
+    (element) =>
+      !cells.some((cell) => elementCoversCell(element, cell.col, cell.row)) ||
+      placementTerrainValid(candidate, element),
+  );
+  const next = { ...candidate, elements };
+  return keepsSpawnClear(next) && keepsMarkersValid(next) ? next : null;
+}
+
+/** Clear the ground at one cell and let layer 1 catch up: erasing raised ground orphans the cliff
+ *  face it was casting, and a stale face is an invisible collider. */
+function erasedTerrain(map: EditorMap, col: number, row: number): TileLayer[] | null {
+  const ground = map.layers[GROUND_LAYER];
+  if (!ground) return null;
+  const erased = eraseTile(ground, TINY_SWORDS_TILESET, col, row);
+  return syncElevationWalls([erased, ...map.layers.slice(1)], TINY_SWORDS_TILESET, col, row);
+}
+
+/** The cells one elevation-aware stroke can change: the cell itself and the wall row beneath it. */
+function terrainStrokeCells(col: number, row: number): readonly { col: number; row: number }[] {
+  return [
+    { col, row },
+    { col, row: row + 1 },
+  ];
+}
+
 export function applyTool(
   map: EditorMap,
   tool: EditorTool,
   col: number,
   row: number,
+  isStrokeStart = true,
 ): EditorMap | null {
-  const rows = map.blocks.length;
-  const cols = map.blocks[0]?.length ?? 0;
+  const { cols, rows } = editorMapSize(map);
   if (col < 0 || row < 0 || col >= cols || row >= rows) return null;
 
   switch (tool.kind) {
     case "block": {
-      const blocks = withBlock(map.blocks, col, row, BLOCK_CHAR[tool.block]);
-      const candidate: EditorMap = { ...map, blocks };
-      const elements = candidate.elements.filter(
-        (element) =>
-          !elementCoversCell(element, col, row) || placementTerrainValid(candidate, element),
-      );
-      const next = { ...candidate, elements };
-      return keepsSpawnClear(next) && keepsMarkersValid(next) ? next : null;
+      // Grass goes through `paintElevation` at level 0 rather than a bare `paintAutotile`: painting
+      // flat ground under a raised cell must also take away the cliff face that cell was casting.
+      // Water is an erased ground cell — on layer 0 an empty cell *is* the sea.
+      const layers =
+        tool.block === "grass"
+          ? paintElevation(map.layers, TINY_SWORDS_TILESET, 0, col, row)
+          : erasedTerrain(map, col, row);
+      if (!layers) return null;
+      return commitTerrain(map, layers, terrainStrokeCells(col, row));
+    }
+    case "elevation": {
+      const layers = paintElevation(map.layers, TINY_SWORDS_TILESET, tool.level, col, row);
+      return commitTerrain(map, layers, terrainStrokeCells(col, row));
     }
     case "element": {
       const placed: MapElement = { col, row, assetId: tool.assetId };
@@ -361,6 +529,17 @@ export function applyTool(
       const next = { ...map, elements: [...retained, placed] };
       return keepsSpawnClear(next) && keepsMarkersValid(next) ? next : null;
     }
+    /**
+     * Erase whatever is on the cell, topmost first: an element or marker if there is one, otherwise
+     * the terrain. That last step is the same operation as the water tool — on the ground layer an
+     * empty cell *is* water — so a single click on a bare cell never does nothing.
+     *
+     * The terrain fall-through only fires on `isStrokeStart`: a drag must keep clearing elements and
+     * markers it passes over, but must not also carve the ground underneath them. Without this, an
+     * eraser stroke dragged across a clearing full of trees would leave behind a continuous water
+     * trail nobody asked for — the same result as the water tool, but as a surprising side effect of
+     * clearing decor. A deliberate single click on bare ground still erases it, same as before.
+     */
     case "eraser": {
       const elements = withoutElementAt(map.elements, col, row);
       const markers = map.markers;
@@ -372,7 +551,13 @@ export function applyTool(
         entries.length === markers.entries.length &&
         exits.length === markers.exits.length &&
         monsterSpawns.length === markers.monsterSpawns.length;
-      return untouched ? map : { ...map, elements, markers: { entries, exits, monsterSpawns } };
+      if (!untouched) {
+        return { ...map, elements, markers: { entries, exits, monsterSpawns } };
+      }
+      if (!isStrokeStart) return null;
+      const layers = erasedTerrain(map, col, row);
+      if (!layers) return null;
+      return commitTerrain(map, layers, terrainStrokeCells(col, row));
     }
     case "spawn": {
       if (map.elements.some((element) => elementCoversCell(element, col, row))) return null;

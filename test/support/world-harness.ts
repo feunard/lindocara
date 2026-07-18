@@ -4,10 +4,9 @@
 
 import { env, runInDurableObject, SELF } from "cloudflare:test";
 import { expect } from "vitest";
-import type { MapInput } from "../../src/server/maps.js";
 import type { AdventureGraph } from "../../src/shared/adventure.js";
 import { type PlayerClass, type QuestChapter, spawnPosition } from "../../src/shared/game.js";
-import type { MapMarkers } from "../../src/shared/map-data.js";
+import type { MapElement, MapMarkers } from "../../src/shared/map-data.js";
 import type { PartyColor } from "../../src/shared/party.js";
 import { PARTY_COLORS } from "../../src/shared/party.js";
 import {
@@ -33,6 +32,7 @@ import {
   type WorldCache,
 } from "../../src/shared/world-delta.js";
 import { isKnownZone, zoneDefinition } from "../../src/shared/zones.js";
+import { layeredWireTerrain } from "./map-fixtures.js";
 
 export const ORIGIN = "https://lindocara.test";
 export const VERDANT_ROOM_KEY = "verdant-reach:main";
@@ -184,6 +184,18 @@ export const TEST_ENTRY_ID = "door";
 /** The exit bound to "end". Far from the spawn: standing on it wins the adventure. */
 export const TEST_EXIT_ID = "finish";
 
+/** The `POST /api/maps` body a test authors. */
+export interface TestMapBody {
+  name: string;
+  tilesetId: string;
+  cols: number;
+  rows: number;
+  layers: string[];
+  elements: MapElement[];
+  spawn: { col: number; row: number };
+  markers: MapMarkers;
+}
+
 export interface TestMapOptions {
   cols?: number;
   rows?: number;
@@ -200,15 +212,18 @@ export function tileCentre(col: number, row: number): { x: number; y: number } {
 /**
  * An open playable map with one entry (on the spawn) and one exit in the far corner. A map with
  * no exit cannot be part of a valid adventure — the graph must be able to reach an ending.
+ *
+ * This is an HTTP *body*, not a `MapInput`: its three layers are the run-length encoded strings the
+ * wire carries, which `parseMapData` on the server turns back into `TileLayer`s.
  */
-export function testMapInput(name: string, options: TestMapOptions = {}): MapInput {
+export function testMapInput(name: string, options: TestMapOptions = {}): TestMapBody {
   const cols = options.cols ?? TEST_MAP_COLS;
   const rows = options.rows ?? TEST_MAP_ROWS;
   const spawn = options.spawn ?? { col: Math.floor(cols / 2), row: Math.floor(rows / 2) };
   const exit = options.exit ?? { col: cols - 2, row: rows - 2 };
   return {
     name,
-    blocks: Array.from({ length: rows }, () => ".".repeat(cols)),
+    ...layeredWireTerrain(Array.from({ length: rows }, () => ".".repeat(cols))),
     elements: [],
     spawn,
     markers: {
@@ -225,7 +240,7 @@ export interface TestPartyOptions {
   /** Open a second party on an adventure that already exists — two saves of one story. */
   adventure?: Pick<TestParty, "adventureId" | "mapIds" | "startMapId">;
   /** The adventure's maps, in order. Defaults to one `testMapInput`. */
-  maps?: readonly MapInput[];
+  maps?: readonly TestMapBody[];
   /** Built once the maps have ids. Defaults to "start on the first map, its exit ends it". */
   graph?: (mapIds: readonly string[]) => AdventureGraph;
   maxPlayers?: number;

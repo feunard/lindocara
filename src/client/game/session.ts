@@ -273,6 +273,7 @@ async function startGameIdentity(
           decodeTileMap(world.tiles),
           world.elements,
           world.revision,
+          { tilesetId: world.tilesetId, layers: world.layers },
         );
       }
       activeZoneId = world.zoneId;

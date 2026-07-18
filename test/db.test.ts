@@ -19,6 +19,7 @@ import { BUILTIN_MAP } from "../src/server/maps.js";
 import { acquireSessionEpoch, loadProfile, saveProfile } from "../src/server/profile.js";
 import { starterEquipmentFor } from "../src/shared/character.js";
 import { mapSpawnPoint } from "../src/shared/map-data.js";
+import { TINY_SWORDS_TILESET_ID } from "../src/shared/tilesets/tiny-swords.js";
 
 describe("account and character tables", () => {
   // The pool does not isolate storage between tests. Truncate children before parents (FK).
@@ -459,15 +460,18 @@ describe("the map tables", () => {
   });
 
   async function seedMap(id: string): Promise<void> {
-    await createDb(env.DB).insert(map).values({
-      id,
-      name: "Test",
-      cols: 4,
-      rows: 4,
-      blocks: "....\n....\n....\n....",
-      spawnCol: 0,
-      spawnRow: 0,
-    });
+    await createDb(env.DB)
+      .insert(map)
+      .values({
+        id,
+        name: "Test",
+        cols: 4,
+        rows: 4,
+        tilesetId: TINY_SWORDS_TILESET_ID,
+        layers: JSON.stringify(["0*16", "0*16", "0*16"]),
+        spawnCol: 0,
+        spawnRow: 0,
+      });
   }
 
   // "You can't set another tree on it" is the primary key, not a check anyone has to remember.

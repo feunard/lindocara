@@ -4,6 +4,8 @@ import {
   parseClientMessage,
   parseServerMessage,
 } from "../src/shared/protocol.js";
+import { emptyLayer, encodeTileLayer } from "../src/shared/tile-layer-codec.js";
+import { TINY_SWORDS_TILESET_ID } from "../src/shared/tilesets/tiny-swords.js";
 
 describe("client protocol", () => {
   const targetId = "33333333-3333-4333-8333-333333333333";
@@ -135,7 +137,15 @@ describe("server protocol", () => {
   };
   /** A world the client can actually collide against: terrain now travels, so a welcome without it
    *  is not a welcome. */
-  const world = { zoneId: "verdant-reach", revision: 0, tiles: ["..", "##"], elements: [] };
+  const layer = encodeTileLayer(emptyLayer(2, 2));
+  const world = {
+    zoneId: "verdant-reach",
+    revision: 0,
+    tiles: ["..", "##"],
+    elements: [],
+    tilesetId: TINY_SWORDS_TILESET_ID,
+    layers: [layer, layer, layer],
+  };
 
   it("accepts any well-formed zone id, since terrain now travels in the welcome itself", () => {
     expect(parseServerMessage(JSON.stringify({ ...welcomeBase, world }))).toMatchObject({
