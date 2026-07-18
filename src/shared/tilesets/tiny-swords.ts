@@ -28,6 +28,9 @@ const RAISED_2_TINT = 0xb8b8b8;
 export const GRASS_SLOTS: readonly [number, number, number] = [0, 1, 2];
 export const CLIFF_WALL_SLOT = 3;
 
+// Adding a second tileset, or growing `autotiles`/`fixed` here past what pushes an id's digit
+// width past 4, moves `MAX_MAP_JSON_BYTES` (server/index.ts) — its comment derives the cap from
+// this tileset's largest id.
 export const TINY_SWORDS_TILESET: Tileset = {
   id: TINY_SWORDS_TILESET_ID,
   autotiles: [

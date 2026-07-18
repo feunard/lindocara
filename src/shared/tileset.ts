@@ -22,6 +22,9 @@ export const AUTOTILE_SLOTS = 64;
 
 export const FIXED_BASE = 1 + AUTOTILE_SLOTS * VARIANTS_PER_AUTOTILE;
 
+/** Growing either constant grows every id's digit width, which `MAX_MAP_JSON_BYTES`
+ *  (server/index.ts) is sized against — see its comment before raising these. */
+
 /** Drawn behind characters, or in front of them — an XP tile priority, reduced to two values. */
 export type TilePriority = "below" | "above";
 

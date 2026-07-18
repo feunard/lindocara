@@ -7,9 +7,17 @@ import { env, SELF } from "cloudflare:test";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { BUILTIN_MAP_ID } from "../src/server/maps.js";
 import { SESSION_COOKIE } from "../src/server/session.js";
+import { MONSTER_SPECIES_KIND, type MonsterSpecies } from "../src/shared/game.js";
+import {
+  MARKER_LABEL_MAX,
+  MAX_MAP_ENTRIES,
+  MAX_MAP_EXITS,
+  MAX_MAP_MONSTER_SPAWNS,
+} from "../src/shared/map-data.js";
 import { encodeTileLayer, type TileLayer } from "../src/shared/tile-layer-codec.js";
 import { fixedId } from "../src/shared/tileset.js";
 import { TINY_SWORDS_TILESET_ID } from "../src/shared/tilesets/tiny-swords.js";
+import { EDITOR_ASSETS, editorAsset } from "../src/shared/tiny-swords-catalog.js";
 import { layeredWireTerrain } from "./support/map-fixtures.js";
 
 const ORIGIN = "https://lindocara.test";
@@ -340,14 +348,45 @@ describe("size caps over the wire", () => {
     expect(response.status).toBe(201);
   });
 
-  // `MAX_MAP_JSON_BYTES` (src/server/index.ts) is sized against this exact worst case: a 100x100
-  // map whose layers cannot run-length compress at all. Ids past what `tiny-swords` declares are
-  // now refused (`tileIdInTileset`, shared/tileset.ts), so the worst case is no longer an
-  // unreachable 16-digit id — it is the tileset's own largest ids, `fixedId(3)` and `fixedId(2)`,
-  // alternated across every cell so no two neighbours match and no run compresses. Under the old
-  // 32 KiB cap this body would 413 with no diagnostic the editor could explain, even though it is
-  // a legitimate map. It must be accepted.
-  it("accepts a near-worst-case, non-compressible 100x100 map that would have 413'd under the old 32 KiB cap", async () => {
+  // `MAX_MAP_JSON_BYTES` (src/server/index.ts) is sized against the enumerated worst case: max-
+  // length, non-compressible layers, `MAX_MAP_ELEMENTS` elements at the longest catalogue asset
+  // id, and the full entry/exit/monster-spawn marker complement at their id/label caps with the
+  // longest `MonsterSpecies` name. The old version of this test defaulted to `elements: []` and no
+  // markers, so it only ever posted ~150,050 bytes — nowhere near the 196,233-byte worst case or
+  // the 204,800 cap — and would have passed under any cap above ~150,060. It gave no protection
+  // against the failure mode it exists to prevent: someone shortening the element/marker
+  // arithmetic (a longer asset id, a longer species name, a raised `MAX_MAP_ELEMENTS`) and
+  // silently making the cap too tight for legitimate large maps once the painting brushes ship.
+  // This version actually builds that worst case as far as the real endpoint can be driven:
+  //  - the three tile layers, unchanged: `fixedId(3)`/`fixedId(2)` alternated across every cell so
+  //    no run compresses (both are passable ramps, so the whole grid bakes walkable);
+  //  - as many elements as one `createMap` call can actually persist (see
+  //    `ELEMENTS_PER_CREATE_CEILING` below — a real ceiling well short of `MAX_MAP_ELEMENTS`),
+  //    using the catalogue's longest asset id, laid out on a grid spaced by that asset's own
+  //    visual footprint so none overlap and none leave the map;
+  //  - the full marker complement (`MAX_MAP_ENTRIES` + `MAX_MAP_EXITS` + `MAX_MAP_MONSTER_SPAWNS`,
+  //    none of which hit that ceiling — see below), at 32-character ids, `MARKER_LABEL_MAX`-length
+  //    labels, and the longest `MonsterSpecies` name, placed on a row the element grid never
+  //    touches.
+  // Residual gap: measured 156,322 bytes against the enumerated 196,233 (39,911 bytes short) —
+  // short by the elements this fixture cannot place, not by anything `validateMapInput` refuses,
+  // and still a real improvement on the ~150,050 bytes the old fixture reached with no elements
+  // or markers at all. `elementRows`
+  // (server/maps.ts) inserts one `map_element` row per element in a single multi-row INSERT, 5
+  // bound parameters each (mapId, col, row, kind, variant — server/db/schema.ts). D1 enforces at
+  // most 100 bound parameters per query, so a single `createMap` call can carry at most
+  // `Math.floor(100 / 5)` = 20 elements before D1 itself refuses the batch with "too many SQL
+  // variables" — independently of `MAX_MAP_ELEMENTS` (400) and of this test. No existing test had
+  // ever created a map with more than a handful of elements, so nothing had exercised this before.
+  // Chunking the elements insert would fix it, but that is a separate, pre-existing bug from the
+  // byte cap this test protects, and out of scope here. Markers carry no equivalent ceiling: the
+  // whole `MapMarkers` value is one JSON string in the `map` row itself, not one row per marker.
+  // Under the old 32 KiB cap this body would already 413 with no diagnostic the editor could
+  // explain, even though it is a legitimate map. It must be accepted.
+  it("accepts a near-worst-case 100x100 map with maximal elements and markers that would have 413'd under the old 32 KiB cap", async () => {
+    // See the residual-gap note above: this is D1's real per-query bound-parameter ceiling
+    // (100) divided by the 5 parameters `elementRows` binds per element row, not `MAX_MAP_ELEMENTS`.
+    const ELEMENTS_PER_CREATE_CEILING = 20;
     const cols = 100;
     const rows = 100;
     const cells = cols * rows;
@@ -365,11 +404,92 @@ describe("size caps over the wire", () => {
     const elevation: TileLayer = { cols, rows, ids: alternating(0) };
     const objects: TileLayer = { cols, rows, ids: alternating(0) };
     const layers = [ground, elevation, objects].map(encodeTileLayer);
-    const bodyText = JSON.stringify(
-      mapBody({ name: "Worst Case", tilesetId: TINY_SWORDS_TILESET_ID, cols, rows, layers }),
+
+    // The longest asset id in the shipped catalogue, and its own visual footprint — used (not
+    // hardcoded) so this keeps working if the catalogue's longest id or its footprint changes.
+    const longestAssetId = EDITOR_ASSETS.reduce((longest, asset) =>
+      asset.id.length > longest.id.length ? asset : longest,
+    ).id;
+    const longestAsset = editorAsset(longestAssetId);
+    if (!longestAsset) throw new Error("expected the longest catalogue asset id to resolve");
+    const footprint = longestAsset.editor.visualFootprint;
+    const minColOffset = Math.min(...footprint.map((cell) => cell.col));
+    const maxColOffset = Math.max(...footprint.map((cell) => cell.col));
+    const minRowOffset = Math.min(...footprint.map((cell) => cell.row));
+    const maxRowOffset = Math.max(...footprint.map((cell) => cell.row));
+    // One empty cell of margin around the footprint's own bounding box is enough to guarantee no
+    // two placements' visual cells can ever collide, regardless of the footprint's exact shape.
+    const colStep = maxColOffset - minColOffset + 2;
+    const rowStep = maxRowOffset - minRowOffset + 2;
+    const colStart = Math.max(10, -minColOffset);
+    const rowStart = Math.max(10, -minRowOffset);
+
+    const elements: { col: number; row: number; assetId: string }[] = [];
+    const touchedRows = new Set<number>();
+    outer: for (let r = rowStart; r + maxRowOffset < rows; r += rowStep) {
+      for (let c = colStart; c + maxColOffset < cols; c += colStep) {
+        if (elements.length >= ELEMENTS_PER_CREATE_CEILING) break outer;
+        elements.push({ col: c, row: r, assetId: longestAssetId });
+      }
+      for (let rr = r + minRowOffset; rr <= r + maxRowOffset; rr += 1) touchedRows.add(rr);
+    }
+    if (elements.length < ELEMENTS_PER_CREATE_CEILING) {
+      throw new Error("fixture bug: could not fit ELEMENTS_PER_CREATE_CEILING on a 100x100 grid");
+    }
+    // A row the element grid never touches, for the marker complement below.
+    let freeRow = -1;
+    for (let r = rowStart; r < rows; r += 1) {
+      if (!touchedRows.has(r)) {
+        freeRow = r;
+        break;
+      }
+    }
+    if (freeRow < 0) throw new Error("fixture bug: no free row left for markers");
+
+    const longestSpecies = (Object.keys(MONSTER_SPECIES_KIND) as MonsterSpecies[]).reduce(
+      (longest, species) => (species.length > longest.length ? species : longest),
     );
-    // Sanity on the fixture itself: over the old cap, comfortably under the new one.
-    expect(bodyText.length).toBeGreaterThan(32_768);
+    const markerIdChar = (n: number): string => String.fromCharCode(97 + (n % 26));
+    const markerId = (prefix: string, index: number): string => {
+      let id = `${prefix}${index}`;
+      while (id.length < 32) id += markerIdChar(id.length);
+      return id.slice(0, 32);
+    };
+    const label = "l".repeat(MARKER_LABEL_MAX);
+    const entries = Array.from({ length: MAX_MAP_ENTRIES }, (_, i) => ({
+      id: markerId("entry-", i),
+      label,
+      col: 10 + i,
+      row: freeRow,
+    }));
+    const exits = Array.from({ length: MAX_MAP_EXITS }, (_, i) => ({
+      id: markerId("exit-", i),
+      label,
+      col: 20 + i,
+      row: freeRow,
+    }));
+    const monsterSpawns = Array.from({ length: MAX_MAP_MONSTER_SPAWNS }, (_, i) => ({
+      col: 30 + i,
+      row: freeRow,
+      species: longestSpecies,
+      patrolRadius: 768,
+    }));
+
+    const bodyText = JSON.stringify(
+      mapBody({
+        name: "W".repeat(48),
+        tilesetId: TINY_SWORDS_TILESET_ID,
+        cols,
+        rows,
+        layers,
+        elements,
+        markers: { entries, exits, monsterSpawns },
+      }),
+    );
+    // Sanity on the fixture itself: measurably past what the old (elements-less, marker-less)
+    // fixture reached (~150,050 bytes) — proving this one actually exercises the element and
+    // marker arithmetic — and still comfortably under the cap.
+    expect(bodyText.length).toBeGreaterThan(155_000);
     expect(bodyText.length).toBeLessThan(204_800);
 
     const response = await authed("/api/maps", { method: "POST", body: bodyText });
