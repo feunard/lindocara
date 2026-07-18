@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Input } from "@/ui/pixelact-ui/input.js";
-import { Kbd } from "@/ui/pixelact-ui/kbd.js";
+import { TinyInput } from "@/ui/tiny-swords/TinyInput.js";
+import { TinyKbd } from "@/ui/tiny-swords/TinyKbd.js";
 import { currentLocale, t, useLocale } from "../i18n.js";
 import { type ChatLine, useUiStore } from "../store.js";
 
@@ -344,7 +344,7 @@ export function Chat() {
               {t("chat.timestamps")}
             </button>
           )}
-          <Kbd>Enter</Kbd>
+          <TinyKbd>Enter</TinyKbd>
         </div>
       </div>
       {open && (
@@ -404,7 +404,7 @@ export function Chat() {
         )}
       </div>
       <form id="chat-form" onSubmit={submit}>
-        <Input
+        <TinyInput
           id="chat-input"
           ref={inputRef}
           value={value}

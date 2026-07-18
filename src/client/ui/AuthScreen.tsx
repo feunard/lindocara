@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Button } from "@/ui/pixelact-ui/button/index.js";
-import { Input } from "@/ui/pixelact-ui/input.js";
-import { Label } from "@/ui/pixelact-ui/label.js";
+import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
+import { TinyInput } from "@/ui/tiny-swords/TinyInput.js";
+import { TinyLabel } from "@/ui/tiny-swords/TinyLabel.js";
 import { api, authErrorText, errorCode, type Me } from "../api.js";
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
@@ -63,13 +63,13 @@ export function AuthScreen() {
               setError(null);
             }}
           />
-          <Button type="button" variant="secondary" onClick={() => setScreen("title")}>
+          <TinyButton type="button" variant="secondary" onClick={() => setScreen("title")}>
             {t("auth.back_title")}
-          </Button>
+          </TinyButton>
           <form key={tab} onSubmit={submit} className="auth-form flex flex-col gap-3">
             <div>
-              <Label htmlFor="auth-username">{t("auth.username")}</Label>
-              <Input
+              <TinyLabel htmlFor="auth-username">{t("auth.username")}</TinyLabel>
+              <TinyInput
                 id="auth-username"
                 name="username"
                 type="text"
@@ -81,8 +81,8 @@ export function AuthScreen() {
               />
             </div>
             <div>
-              <Label htmlFor="auth-password">{t("auth.password")}</Label>
-              <Input
+              <TinyLabel htmlFor="auth-password">{t("auth.password")}</TinyLabel>
+              <TinyInput
                 id="auth-password"
                 name="password"
                 type="password"
@@ -94,8 +94,8 @@ export function AuthScreen() {
             </div>
             {tab === "register" && (
               <div>
-                <Label htmlFor="auth-confirm">{t("auth.password_confirm")}</Label>
-                <Input
+                <TinyLabel htmlFor="auth-confirm">{t("auth.password_confirm")}</TinyLabel>
+                <TinyInput
                   id="auth-confirm"
                   name="confirm"
                   type="password"
@@ -106,9 +106,9 @@ export function AuthScreen() {
                 />
               </div>
             )}
-            <Button type="submit" disabled={busy}>
+            <TinyButton type="submit" disabled={busy}>
               {t(tab === "login" ? "auth.submit.login" : "auth.submit.register")}
-            </Button>
+            </TinyButton>
             {error && <p role="alert">{authErrorText(error)}</p>}
           </form>
         </section>

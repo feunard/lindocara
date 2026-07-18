@@ -1,4 +1,8 @@
 import { useEffect, useState } from "react";
+import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
+import { TinyFieldSelect } from "@/ui/tiny-swords/TinyFieldSelect.js";
+import { TinyInput } from "@/ui/tiny-swords/TinyInput.js";
+import { TinyLabel } from "@/ui/tiny-swords/TinyLabel.js";
 import type { ExitDestination } from "../../shared/adventure.js";
 import {
   type AdventureDraft,
@@ -31,10 +35,6 @@ import {
 } from "../api.js";
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
-import { Button } from "./pixelact-ui/button/index.js";
-import { Input } from "./pixelact-ui/input.js";
-import { Label } from "./pixelact-ui/label.js";
-import { Select } from "./pixelact-ui/select.js";
 
 function isSessionError(code: string): boolean {
   return code === "session_expired" || code === "unauthorized";
@@ -294,22 +294,22 @@ export function AdventureEditor() {
             <span className="eyebrow">{t("adventure.title")}</span>
             <h1>{draft.title.trim() || t("adventure.new")}</h1>
           </div>
-          <Button type="button" variant="secondary" onClick={() => remember(null)}>
+          <TinyButton type="button" variant="secondary" onClick={() => remember(null)}>
             {t("editor.back")}
-          </Button>
+          </TinyButton>
         </header>
         {error && <p role="alert">{authErrorText(error)}</p>}
 
         <section className="creator-panel">
-          <Label htmlFor="adventure-title">{t("adventure.name")}</Label>
-          <Input
+          <TinyLabel htmlFor="adventure-title">{t("adventure.name")}</TinyLabel>
+          <TinyInput
             id="adventure-title"
             type="text"
             value={draft.title}
             onChange={(event) => update({ ...draft, title: event.currentTarget.value })}
           />
-          <Label htmlFor="adventure-players">{t("adventure.players")}</Label>
-          <Input
+          <TinyLabel htmlFor="adventure-players">{t("adventure.players")}</TinyLabel>
+          <TinyInput
             id="adventure-players"
             type="number"
             min={1}
@@ -333,41 +333,41 @@ export function AdventureEditor() {
                   {t("adventure.maps.exits")} · {member.monsterCount} {t("adventure.maps.monsters")}
                 </span>
               </div>
-              <Button
+              <TinyButton
                 type="button"
                 variant="secondary"
                 onClick={() => openMapEditor(member.mapId, false)}
               >
                 {t("adventure.maps.edit")}
-              </Button>
-              <Button
+              </TinyButton>
+              <TinyButton
                 type="button"
                 variant="secondary"
                 onClick={() => update(moveMember(draft, member.mapId, -1))}
               >
                 {t("adventure.maps.up")}
-              </Button>
-              <Button
+              </TinyButton>
+              <TinyButton
                 type="button"
                 variant="secondary"
                 onClick={() => update(moveMember(draft, member.mapId, 1))}
               >
                 {t("adventure.maps.down")}
-              </Button>
-              <Button
+              </TinyButton>
+              <TinyButton
                 type="button"
                 variant="secondary"
                 onClick={() => update(removeMember(draft, member.mapId))}
               >
                 {t("adventure.maps.remove")}
-              </Button>
+              </TinyButton>
             </div>
           ))}
-          <Button type="button" onClick={() => openMapEditor(null, true)}>
+          <TinyButton type="button" onClick={() => openMapEditor(null, true)}>
             {t("adventure.maps.new")}
-          </Button>
-          <Label htmlFor="adventure-add-map">{t("adventure.maps.add.label")}</Label>
-          <Select
+          </TinyButton>
+          <TinyLabel htmlFor="adventure-add-map">{t("adventure.maps.add.label")}</TinyLabel>
+          <TinyFieldSelect
             id="adventure-add-map"
             value={addingMapId}
             onChange={(event) => setAddingMapId(event.currentTarget.value)}
@@ -378,16 +378,16 @@ export function AdventureEditor() {
                 {map.name}
               </option>
             ))}
-          </Select>
-          <Button type="button" onClick={() => void addMap()}>
+          </TinyFieldSelect>
+          <TinyButton type="button" onClick={() => void addMap()}>
             {t("adventure.maps.add")}
-          </Button>
+          </TinyButton>
         </section>
 
         <section className="creator-panel" aria-label={t("adventure.start.title")}>
           <h2>{t("adventure.start.title")}</h2>
-          <Label htmlFor="adventure-start-map">{t("adventure.start.map")}</Label>
-          <Select
+          <TinyLabel htmlFor="adventure-start-map">{t("adventure.start.map")}</TinyLabel>
+          <TinyFieldSelect
             id="adventure-start-map"
             value={draft.start?.mapId ?? ""}
             onChange={(event) => {
@@ -404,9 +404,9 @@ export function AdventureEditor() {
                   {member.name}
                 </option>
               ))}
-          </Select>
-          <Label htmlFor="adventure-start-entry">{t("adventure.start.entry")}</Label>
-          <Select
+          </TinyFieldSelect>
+          <TinyLabel htmlFor="adventure-start-entry">{t("adventure.start.entry")}</TinyLabel>
+          <TinyFieldSelect
             id="adventure-start-entry"
             value={draft.start?.entryId ?? ""}
             onChange={(event) => {
@@ -420,7 +420,7 @@ export function AdventureEditor() {
                 {markerName(startMap?.entryLabels ?? {}, entryId)}
               </option>
             ))}
-          </Select>
+          </TinyFieldSelect>
         </section>
 
         <section className="creator-panel" aria-label={t("adventure.bindings.title")}>
@@ -431,10 +431,10 @@ export function AdventureEditor() {
             return (
               <div key={selectId} className="adventure-binding">
                 <span>{owner?.name}</span>
-                <Label htmlFor={selectId}>
+                <TinyLabel htmlFor={selectId}>
                   {markerName(owner?.exitLabels ?? {}, binding.exitId)}
-                </Label>
-                <Select
+                </TinyLabel>
+                <TinyFieldSelect
                   id={selectId}
                   value={encodeDest(binding.dest)}
                   onChange={(event) =>
@@ -460,7 +460,7 @@ export function AdventureEditor() {
                       </option>
                     )),
                   )}
-                </Select>
+                </TinyFieldSelect>
               </div>
             );
           })}
@@ -497,14 +497,14 @@ export function AdventureEditor() {
           )}
         </section>
         {!draftComplete(draft) && <p>{t("adventure.incomplete")}</p>}
-        <Button
+        <TinyButton
           type="button"
           disabled={!draftComplete(draft) || saving}
           onClick={() => void save()}
         >
           {t("editor.save")}
-        </Button>
-        <Button
+        </TinyButton>
+        <TinyButton
           type="button"
           variant="secondary"
           disabled={
@@ -516,7 +516,7 @@ export function AdventureEditor() {
           onClick={() => void testAdventure()}
         >
           {t("adventure.test")}
-        </Button>
+        </TinyButton>
       </main>
     );
   }
@@ -530,12 +530,12 @@ export function AdventureEditor() {
           <h1>{t("adventure.title")}</h1>
         </div>
         <div>
-          <Button type="button" variant="secondary" onClick={() => void refresh()}>
+          <TinyButton type="button" variant="secondary" onClick={() => void refresh()}>
             {t("adventure.refresh")}
-          </Button>
-          <Button type="button" variant="secondary" onClick={() => setScreen("parties")}>
+          </TinyButton>
+          <TinyButton type="button" variant="secondary" onClick={() => setScreen("parties")}>
             {t("editor.back")}
-          </Button>
+          </TinyButton>
         </div>
       </header>
       {error && <p role="alert">{authErrorText(error)}</p>}
@@ -547,26 +547,26 @@ export function AdventureEditor() {
               <span>{t("adventure.players.count", { count: adventure.maxPlayers })}</span>
             </div>
             <div className="creator-actions">
-              <Button type="button" onClick={() => void openExisting(adventure.id)}>
+              <TinyButton type="button" onClick={() => void openExisting(adventure.id)}>
                 {t("adventure.edit")}
-              </Button>
-              <Button
+              </TinyButton>
+              <TinyButton
                 type="button"
                 variant="secondary"
                 onClick={() => setConfirmingId(adventure.id)}
               >
                 {t("editor.delete")}
-              </Button>
+              </TinyButton>
             </div>
           </article>
         ))}
       </section>
-      <Button
+      <TinyButton
         type="button"
         onClick={() => remember({ id: null, draftId: crypto.randomUUID(), draft: emptyDraft() })}
       >
         {t("adventure.new")}
-      </Button>
+      </TinyButton>
       {deleting && (
         <div className="delete-dialog-backdrop">
           <section
@@ -579,12 +579,12 @@ export function AdventureEditor() {
               {t("adventure.delete.title", { name: deleting.title })}
             </h2>
             <div className="delete-dialog__actions">
-              <Button type="button" variant="secondary" onClick={() => setConfirmingId(null)}>
+              <TinyButton type="button" variant="secondary" onClick={() => setConfirmingId(null)}>
                 {t("editor.delete.cancel")}
-              </Button>
-              <Button type="button" className="danger" onClick={() => void remove(deleting.id)}>
+              </TinyButton>
+              <TinyButton type="button" className="danger" onClick={() => void remove(deleting.id)}>
                 {t("editor.delete.confirm")}
-              </Button>
+              </TinyButton>
             </div>
           </section>
         </div>

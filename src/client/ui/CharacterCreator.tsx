@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
+import { TinyInput } from "@/ui/tiny-swords/TinyInput.js";
+import { TinyLabel } from "@/ui/tiny-swords/TinyLabel.js";
 import {
   DEFAULT_APPEARANCE,
   type PrimaryColor,
@@ -11,9 +14,6 @@ import { api, authErrorText, type CharacterSummary, errorCode } from "../api.js"
 import { skillIconSource } from "../game/tiny-swords-art.js";
 import { t, useLocale } from "../i18n.js";
 import { CharacterPreview, type PreviewMotion } from "./CharacterPreview.js";
-import { Button } from "./pixelact-ui/button/index.js";
-import { Input } from "./pixelact-ui/input.js";
-import { Label } from "./pixelact-ui/label.js";
 
 const DEFAULT_CLASS: PlayerClass = "warrior";
 const MOTIONS: PreviewMotion[] = ["idle", "walk", "attack"];
@@ -82,9 +82,9 @@ export function CharacterCreator({ onCancel, onCreated }: CharacterCreatorProps)
           <span className="eyebrow">{t("chars.create.eyebrow")}</span>
           <h1>{t("chars.create.title")}</h1>
         </div>
-        <Button type="button" variant="secondary" onClick={onCancel}>
+        <TinyButton type="button" variant="secondary" onClick={onCancel}>
           {t("chars.create.cancel")}
-        </Button>
+        </TinyButton>
       </header>
 
       <div className="creator-layout">
@@ -149,10 +149,10 @@ export function CharacterCreator({ onCancel, onCreated }: CharacterCreatorProps)
                     </button>
                   </div>
                 </div>
-                <Label className="creator-field-label" htmlFor="character-name">
+                <TinyLabel className="creator-field-label" htmlFor="character-name">
                   {t("chars.create.name")}
-                </Label>
-                <Input
+                </TinyLabel>
+                <TinyInput
                   id="character-name"
                   value={name}
                   onChange={(event) => setName(event.currentTarget.value)}
@@ -257,13 +257,13 @@ export function CharacterCreator({ onCancel, onCreated }: CharacterCreatorProps)
 
               <div className="creator-footer">
                 {error && <p role="alert">{authErrorText(error)}</p>}
-                <Button
+                <TinyButton
                   type="button"
                   disabled={!/^[A-Za-z0-9_-]{2,16}$/.test(name)}
                   onClick={() => setConfirming(true)}
                 >
                   {t("chars.create.review")}
-                </Button>
+                </TinyButton>
               </div>
             </>
           ) : (
@@ -301,12 +301,12 @@ export function CharacterCreator({ onCancel, onCreated }: CharacterCreatorProps)
               </dl>
               <p>{t("chars.create.confirm_copy")}</p>
               <div className="creator-confirm-actions">
-                <Button type="button" variant="secondary" onClick={() => setConfirming(false)}>
+                <TinyButton type="button" variant="secondary" onClick={() => setConfirming(false)}>
                   {t("chars.create.back")}
-                </Button>
-                <Button type="button" disabled={submitting} onClick={() => void create()}>
+                </TinyButton>
+                <TinyButton type="button" disabled={submitting} onClick={() => void create()}>
                   {submitting ? t("chars.create.creating") : t("chars.create.confirm")}
-                </Button>
+                </TinyButton>
               </div>
               {error && <p role="alert">{authErrorText(error)}</p>}
             </section>

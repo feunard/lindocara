@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { applyTinySwordsTheme } from "../../src/client/game/tiny-swords-assets.js";
 import { AssetBrowser, resetTinySwordsCatalogForTests } from "../../src/client/ui/AssetBrowser.js";
-import { Button } from "../../src/client/ui/pixelact-ui/button/index.js";
+import { TinyButton } from "../../src/client/ui/tiny-swords/TinyButton.js";
 import { TinyPanel } from "../../src/client/ui/tiny-swords/TinyPanel.js";
 import { TinyRange } from "../../src/client/ui/tiny-swords/TinyRange.js";
 
@@ -55,10 +55,10 @@ describe("Tiny Swords UI foundation", () => {
     const user = userEvent.setup();
     render(
       <>
-        <Button onClick={action}>Continue</Button>
-        <Button disabled onClick={action}>
+        <TinyButton onClick={action}>Continue</TinyButton>
+        <TinyButton disabled onClick={action}>
           Locked
-        </Button>
+        </TinyButton>
       </>,
     );
     const enabled = screen.getByRole("button", { name: "Continue" });

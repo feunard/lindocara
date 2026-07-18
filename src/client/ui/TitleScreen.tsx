@@ -1,6 +1,6 @@
+import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
-import { Button } from "./pixelact-ui/button/index.js";
 import { TinySwordsMenuScene } from "./TinySwordsMenuScene.js";
 
 export function TitleScreen() {
@@ -13,9 +13,9 @@ export function TitleScreen() {
         <span className="eyebrow">{t("title.eyebrow")}</span>
         <h1 id="lindocara-title">lindocara</h1>
         <p>{t("title.tagline")}</p>
-        <Button type="button" onClick={() => setScreen("auth")}>
+        <TinyButton type="button" onClick={() => setScreen("auth")}>
           {t("title.start")}
-        </Button>
+        </TinyButton>
       </section>
     </main>
   );

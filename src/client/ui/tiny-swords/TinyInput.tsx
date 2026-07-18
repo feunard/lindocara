@@ -6,12 +6,12 @@ import { cn } from "@/lib/utils.js";
 // brief change: the "Press Start 2P" pixel font becomes `--font-ui`, and the hard-edged
 // pixel box-shadow border becomes a 2px solid border derived from `--parchment-ink`, for use
 // on parchment surfaces. MIT-licensed upstream; modifications for lindocara's Tiny Swords skin.
-export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+export interface TinyInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   disabled?: boolean;
   className?: string;
 }
 
-const Input = React.forwardRef<HTMLInputElement, InputProps>(
+const Input = React.forwardRef<HTMLInputElement, TinyInputProps>(
   ({ className, disabled, ...props }, ref) => {
     return (
       <input
@@ -33,4 +33,4 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
 );
 Input.displayName = "Input";
 
-export { Input };
+export { Input as TinyInput };

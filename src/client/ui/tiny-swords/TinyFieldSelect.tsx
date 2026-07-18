@@ -2,11 +2,11 @@ import * as React from "react";
 import { cn } from "@/lib/utils.js";
 
 /** Accessible native select with the same Tiny Swords surface treatment as PixelAct inputs. */
-export interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
+export interface TinyFieldSelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   className?: string;
 }
 
-const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
+const Select = React.forwardRef<HTMLSelectElement, TinyFieldSelectProps>(
   ({ className, disabled, children, ...props }, ref) => (
     <select
       ref={ref}
@@ -28,4 +28,4 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
 );
 Select.displayName = "Select";
 
-export { Select };
+export { Select as TinyFieldSelect };

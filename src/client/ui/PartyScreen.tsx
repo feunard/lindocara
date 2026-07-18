@@ -1,4 +1,8 @@
 import { useEffect, useState } from "react";
+import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
+import { TinyFieldSelect } from "@/ui/tiny-swords/TinyFieldSelect.js";
+import { TinyInput } from "@/ui/tiny-swords/TinyInput.js";
+import { TinyLabel } from "@/ui/tiny-swords/TinyLabel.js";
 import type { PlayerClass } from "../../shared/game.js";
 import { HERO_CLASSES, MAX_HEROES_PER_PARTY } from "../../shared/hero.js";
 import {
@@ -12,10 +16,6 @@ import {
 import { startGameAsHero } from "../game/session.js";
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
-import { Button } from "./pixelact-ui/button/index.js";
-import { Input } from "./pixelact-ui/input.js";
-import { Label } from "./pixelact-ui/label.js";
-import { Select } from "./pixelact-ui/select.js";
 
 function isSessionError(code: string): boolean {
   return code === "session_expired" || code === "unauthorized";
@@ -106,9 +106,9 @@ export function PartyScreen() {
           <span className="eyebrow">{t("party.eyebrow")}</span>
           <h1>{party.name ?? party.adventureTitle}</h1>
         </div>
-        <Button type="button" variant="secondary" onClick={leave}>
+        <TinyButton type="button" variant="secondary" onClick={leave}>
           {t("party.roster.leave")}
-        </Button>
+        </TinyButton>
       </header>
       {error && <p role="alert">{authErrorText(error)}</p>}
 
@@ -121,12 +121,16 @@ export function PartyScreen() {
               <span>{t(`class.${hero.class}`)}</span>
             </div>
             <div className="roster-card__actions">
-              <Button type="button" onClick={() => play(hero)}>
+              <TinyButton type="button" onClick={() => play(hero)}>
                 {t("party.hero.play")}
-              </Button>
-              <Button type="button" variant="secondary" onClick={() => setConfirmingId(hero.id)}>
+              </TinyButton>
+              <TinyButton
+                type="button"
+                variant="secondary"
+                onClick={() => setConfirmingId(hero.id)}
+              >
                 {t("editor.delete")}
-              </Button>
+              </TinyButton>
             </div>
           </article>
         ))}
@@ -135,15 +139,15 @@ export function PartyScreen() {
       {heroes.length < MAX_HEROES_PER_PARTY && (
         <section className="roster-card framed" aria-label={t("party.create.title")}>
           <h2>{t("party.create.title")}</h2>
-          <Label htmlFor="hero-name">{t("party.create.name")}</Label>
-          <Input
+          <TinyLabel htmlFor="hero-name">{t("party.create.name")}</TinyLabel>
+          <TinyInput
             id="hero-name"
             type="text"
             value={name}
             onChange={(event) => setName(event.currentTarget.value)}
           />
-          <Label htmlFor="hero-class">{t("party.create.class")}</Label>
-          <Select
+          <TinyLabel htmlFor="hero-class">{t("party.create.class")}</TinyLabel>
+          <TinyFieldSelect
             id="hero-class"
             value={heroClass}
             onChange={(event) => setHeroClass(event.currentTarget.value as PlayerClass)}
@@ -153,10 +157,14 @@ export function PartyScreen() {
                 {t(`class.${option}`)}
               </option>
             ))}
-          </Select>
-          <Button type="button" disabled={name.trim().length === 0} onClick={() => void create()}>
+          </TinyFieldSelect>
+          <TinyButton
+            type="button"
+            disabled={name.trim().length === 0}
+            onClick={() => void create()}
+          >
             {t("party.create.submit")}
-          </Button>
+          </TinyButton>
         </section>
       )}
 
@@ -170,12 +178,12 @@ export function PartyScreen() {
           >
             <h2 id="delete-hero-title">{t("party.delete.title", { name: deleting.name })}</h2>
             <div className="delete-dialog__actions">
-              <Button type="button" variant="secondary" onClick={() => setConfirmingId(null)}>
+              <TinyButton type="button" variant="secondary" onClick={() => setConfirmingId(null)}>
                 {t("editor.delete.cancel")}
-              </Button>
-              <Button type="button" className="danger" onClick={() => void remove(deleting.id)}>
+              </TinyButton>
+              <TinyButton type="button" className="danger" onClick={() => void remove(deleting.id)}>
                 {t("editor.delete.confirm")}
-              </Button>
+              </TinyButton>
             </div>
           </section>
         </div>

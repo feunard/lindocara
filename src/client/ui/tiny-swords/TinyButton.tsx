@@ -2,7 +2,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { Slot } from "radix-ui";
 import type * as React from "react";
 import { cn } from "@/lib/utils.js";
-import { TINY_SWORDS_UI } from "../../../../shared/tiny-swords-catalog.js";
+import { TINY_SWORDS_UI } from "../../../shared/tiny-swords-catalog.js";
 
 // Accessible PixelAct/shadcn structure, skinned by Tiny Swords' authored 3-slice states. The data
 // attributes expose the stable semantic ids to tests and developer tools.
@@ -31,13 +31,13 @@ const pixelButtonVariants = cva(
   },
 );
 
-export interface ButtonProps
+export interface TinyButtonProps
   extends React.ComponentProps<"button">,
     VariantProps<typeof pixelButtonVariants> {
   asChild?: boolean;
 }
 
-function Button({ className, variant, size, asChild = false, ...props }: ButtonProps) {
+function Button({ className, variant, size, asChild = false, ...props }: TinyButtonProps) {
   const Comp = asChild ? Slot.Root : "button";
   const family = variant === "destructive" || variant === "warning" ? "red" : "blue";
   const assets = TINY_SWORDS_UI.button[family];
@@ -56,4 +56,4 @@ function Button({ className, variant, size, asChild = false, ...props }: ButtonP
   );
 }
 
-export { Button, pixelButtonVariants };
+export { Button as TinyButton, pixelButtonVariants as tinyButtonVariants };

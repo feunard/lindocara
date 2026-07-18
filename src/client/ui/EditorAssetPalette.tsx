@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { TinyInput } from "@/ui/tiny-swords/TinyInput.js";
 import { MAX_MAP_ELEMENTS } from "../../shared/map-data.js";
 import {
   EDITOR_ASSETS,
@@ -7,7 +8,6 @@ import {
 } from "../../shared/tiny-swords-catalog.js";
 import { tinySwordsSourceUrl } from "../game/tiny-swords-assets.js";
 import { t, useLocale } from "../i18n.js";
-import { Input } from "./pixelact-ui/input.js";
 
 interface EditorAssetPaletteProps {
   selected: EditorAssetId | null;
@@ -103,7 +103,7 @@ export function EditorAssetPalette({ selected, elementCount, onSelect }: EditorA
           {elementCount}/{MAX_MAP_ELEMENTS}
         </span>
       </header>
-      <Input
+      <TinyInput
         type="search"
         value={query}
         aria-label={t("editor.palette.search")}

@@ -1,4 +1,8 @@
 import { useEffect, useState } from "react";
+import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
+import { TinyFieldSelect } from "@/ui/tiny-swords/TinyFieldSelect.js";
+import { TinyInput } from "@/ui/tiny-swords/TinyInput.js";
+import { TinyLabel } from "@/ui/tiny-swords/TinyLabel.js";
 import type { PartyColor } from "../../shared/party.js";
 import {
   type AdventureSummary,
@@ -14,10 +18,6 @@ import {
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
 import { ColorPicker } from "./ColorPicker.js";
-import { Button } from "./pixelact-ui/button/index.js";
-import { Input } from "./pixelact-ui/input.js";
-import { Label } from "./pixelact-ui/label.js";
-import { Select } from "./pixelact-ui/select.js";
 
 function isSessionError(code: string): boolean {
   return code === "session_expired" || code === "unauthorized";
@@ -123,12 +123,12 @@ export function PartiesScreen() {
           <h1>{t("parties.title")}</h1>
         </div>
         <div>
-          <Button type="button" variant="secondary" onClick={() => void refresh()}>
+          <TinyButton type="button" variant="secondary" onClick={() => void refresh()}>
             {t("parties.refresh")}
-          </Button>
-          <Button type="button" variant="secondary" onClick={() => setScreen("adventures")}>
+          </TinyButton>
+          <TinyButton type="button" variant="secondary" onClick={() => setScreen("adventures")}>
             {t("parties.creator_tools")}
-          </Button>
+          </TinyButton>
         </div>
       </header>
       {error && <p role="alert">{authErrorText(error)}</p>}
@@ -154,9 +154,9 @@ export function PartiesScreen() {
               </div>
               <div className="roster-card__actions">
                 {party.mine ? (
-                  <Button type="button" onClick={() => enter(party)}>
+                  <TinyButton type="button" onClick={() => enter(party)}>
                     {t("parties.resume")}
-                  </Button>
+                  </TinyButton>
                 ) : party.colors.length < party.maxPlayers ? (
                   joiningId === party.id ? (
                     <ColorPicker
@@ -165,21 +165,21 @@ export function PartiesScreen() {
                       onPick={(chosen) => void join(party, chosen)}
                     />
                   ) : (
-                    <Button type="button" onClick={() => setJoiningId(party.id)}>
+                    <TinyButton type="button" onClick={() => setJoiningId(party.id)}>
                       {t("parties.join")}
-                    </Button>
+                    </TinyButton>
                   )
                 ) : (
                   <span>{t("parties.full")}</span>
                 )}
                 {party.hostAccountId === accountId && (
-                  <Button
+                  <TinyButton
                     type="button"
                     variant="secondary"
                     onClick={() => setConfirmingId(party.id)}
                   >
                     {t("editor.delete")}
-                  </Button>
+                  </TinyButton>
                 )}
               </div>
             </article>
@@ -192,8 +192,8 @@ export function PartiesScreen() {
           <p>{t("parties.create.none")}</p>
         ) : (
           <>
-            <Label htmlFor="party-adventure">{t("parties.create.adventure")}</Label>
-            <Select
+            <TinyLabel htmlFor="party-adventure">{t("parties.create.adventure")}</TinyLabel>
+            <TinyFieldSelect
               id="party-adventure"
               value={adventureId}
               onChange={(event) => setAdventureId(event.currentTarget.value)}
@@ -204,18 +204,18 @@ export function PartiesScreen() {
                   {adventure.title}
                 </option>
               ))}
-            </Select>
-            <Label htmlFor="party-name">{t("parties.create.name")}</Label>
-            <Input
+            </TinyFieldSelect>
+            <TinyLabel htmlFor="party-name">{t("parties.create.name")}</TinyLabel>
+            <TinyInput
               id="party-name"
               type="text"
               value={name}
               onChange={(event) => setName(event.currentTarget.value)}
             />
             <ColorPicker value={colour} taken={[]} onPick={setColour} />
-            <Button type="button" disabled={!adventureId} onClick={() => void create()}>
+            <TinyButton type="button" disabled={!adventureId} onClick={() => void create()}>
               {t("parties.create.submit")}
-            </Button>
+            </TinyButton>
           </>
         )}
       </section>
@@ -250,9 +250,9 @@ export function PartiesScreen() {
                       onPick={(chosen) => void join(party, chosen)}
                     />
                   ) : (
-                    <Button type="button" onClick={() => setJoiningId(party.id)}>
+                    <TinyButton type="button" onClick={() => setJoiningId(party.id)}>
                       {t("parties.join")}
-                    </Button>
+                    </TinyButton>
                   )
                 ) : (
                   <span>{t("parties.full")}</span>
@@ -274,12 +274,12 @@ export function PartiesScreen() {
               {t("parties.delete.title", { name: deleting.name ?? deleting.adventureTitle })}
             </h2>
             <div className="delete-dialog__actions">
-              <Button type="button" variant="secondary" onClick={() => setConfirmingId(null)}>
+              <TinyButton type="button" variant="secondary" onClick={() => setConfirmingId(null)}>
                 {t("editor.delete.cancel")}
-              </Button>
-              <Button type="button" className="danger" onClick={() => void remove(deleting.id)}>
+              </TinyButton>
+              <TinyButton type="button" className="danger" onClick={() => void remove(deleting.id)}>
                 {t("editor.delete.confirm")}
-              </Button>
+              </TinyButton>
             </div>
           </section>
         </div>

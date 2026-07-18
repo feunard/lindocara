@@ -1,4 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
+import { TinyFieldSelect } from "@/ui/tiny-swords/TinyFieldSelect.js";
+import { TinyInput } from "@/ui/tiny-swords/TinyInput.js";
+import { TinyLabel } from "@/ui/tiny-swords/TinyLabel.js";
 import { MONSTER_SPECIES_KIND, type MonsterSpecies } from "../../shared/game.js";
 import {
   EMPTY_MARKERS,
@@ -29,10 +33,6 @@ import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
 import { AssetBrowser } from "./AssetBrowser.js";
 import { EditorAssetPalette } from "./EditorAssetPalette.js";
-import { Button } from "./pixelact-ui/button/index.js";
-import { Input } from "./pixelact-ui/input.js";
-import { Label } from "./pixelact-ui/label.js";
-import { Select } from "./pixelact-ui/select.js";
 
 const DEFAULT_COLS = 40;
 const DEFAULT_ROWS = 30;
@@ -343,7 +343,7 @@ function MapEditorStage({
       )}
       <div className="map-editor-toolbar__tools">
         {TOOL_KEYS.map((key) => (
-          <Button
+          <TinyButton
             key={key}
             type="button"
             variant={toolKey === key ? "default" : "secondary"}
@@ -351,14 +351,14 @@ function MapEditorStage({
             onClick={() => selectTool(key)}
           >
             {t(`editor.tool.${key}`)}
-          </Button>
+          </TinyButton>
         ))}
       </div>
 
       {toolKey === "monster" && (
         <div className="map-editor-toolbar__monster">
-          <Label htmlFor="editor-species">{t("editor.markers.species")}</Label>
-          <Select
+          <TinyLabel htmlFor="editor-species">{t("editor.markers.species")}</TinyLabel>
+          <TinyFieldSelect
             id="editor-species"
             value={species}
             onChange={(event) => setSpecies(event.currentTarget.value as MonsterSpecies)}
@@ -368,9 +368,9 @@ function MapEditorStage({
                 {t(`monster.${option}`)}
               </option>
             ))}
-          </Select>
-          <Label htmlFor="editor-radius">{t("editor.markers.radius")}</Label>
-          <Input
+          </TinyFieldSelect>
+          <TinyLabel htmlFor="editor-radius">{t("editor.markers.radius")}</TinyLabel>
+          <TinyInput
             id="editor-radius"
             type="number"
             min={MIN_PATROL_RADIUS}
@@ -388,47 +388,47 @@ function MapEditorStage({
       />
 
       <div className="map-editor-toolbar__meta">
-        <Label htmlFor="map-editor-edit-name">{t("editor.name")}</Label>
-        <Input
+        <TinyLabel htmlFor="map-editor-edit-name">{t("editor.name")}</TinyLabel>
+        <TinyInput
           id="map-editor-edit-name"
           type="text"
           value={name}
           onChange={(event) => rename(event.currentTarget.value)}
         />
-        <Button
+        <TinyButton
           type="button"
           variant="secondary"
           onClick={undo}
           disabled={!canUndo || stageStatus !== "ready"}
         >
           {t("editor.undo")}
-        </Button>
-        <Button
+        </TinyButton>
+        <TinyButton
           type="button"
           variant="secondary"
           onClick={redo}
           disabled={!canRedo || stageStatus !== "ready"}
         >
           {t("editor.redo")}
-        </Button>
-        <Button
+        </TinyButton>
+        <TinyButton
           type="button"
           onClick={() => void save()}
           disabled={saving || stageStatus !== "ready"}
         >
           {t("editor.save")}
-        </Button>
-        <Button
+        </TinyButton>
+        <TinyButton
           type="button"
           variant="secondary"
           onClick={startPreview}
           disabled={stageStatus !== "ready"}
         >
           {t("editor.preview")}
-        </Button>
-        <Button type="button" variant="secondary" onClick={exitEditor}>
+        </TinyButton>
+        <TinyButton type="button" variant="secondary" onClick={exitEditor}>
           {t("editor.back")}
-        </Button>
+        </TinyButton>
         {dirty && <span role="status">{t("editor.unsaved")}</span>}
       </div>
 
@@ -441,8 +441,8 @@ function MapEditorStage({
               <p>
                 {t("editor.inspector.id")}: <code>{(selectedEntry ?? selectedExit)?.id}</code>
               </p>
-              <Label htmlFor="marker-label">{t("editor.inspector.label")}</Label>
-              <Input
+              <TinyLabel htmlFor="marker-label">{t("editor.inspector.label")}</TinyLabel>
+              <TinyInput
                 id="marker-label"
                 key={`${selection.kind}:${selection.kind === "entry" || selection.kind === "exit" ? selection.id : ""}`}
                 type="text"
@@ -468,8 +468,10 @@ function MapEditorStage({
           )}
           {selectedMonster && (
             <>
-              <Label htmlFor="selected-monster-species">{t("editor.markers.species")}</Label>
-              <Select
+              <TinyLabel htmlFor="selected-monster-species">
+                {t("editor.markers.species")}
+              </TinyLabel>
+              <TinyFieldSelect
                 id="selected-monster-species"
                 className="map-editor-select"
                 value={selectedMonster.species}
@@ -485,9 +487,9 @@ function MapEditorStage({
                     {t(`monster.${option}`)}
                   </option>
                 ))}
-              </Select>
-              <Label htmlFor="selected-monster-radius">{t("editor.markers.radius")}</Label>
-              <Input
+              </TinyFieldSelect>
+              <TinyLabel htmlFor="selected-monster-radius">{t("editor.markers.radius")}</TinyLabel>
+              <TinyInput
                 id="selected-monster-radius"
                 type="number"
                 min={MIN_PATROL_RADIUS}
@@ -504,8 +506,8 @@ function MapEditorStage({
           )}
           {selectedPosition && (
             <div className="map-editor-inspector__position">
-              <Label htmlFor="selected-col">{t("editor.cols")}</Label>
-              <Input
+              <TinyLabel htmlFor="selected-col">{t("editor.cols")}</TinyLabel>
+              <TinyInput
                 id="selected-col"
                 type="number"
                 min={0}
@@ -517,8 +519,8 @@ function MapEditorStage({
                   )
                 }
               />
-              <Label htmlFor="selected-row">{t("editor.rows")}</Label>
-              <Input
+              <TinyLabel htmlFor="selected-row">{t("editor.rows")}</TinyLabel>
+              <TinyInput
                 id="selected-row"
                 type="number"
                 min={0}
@@ -533,13 +535,13 @@ function MapEditorStage({
             </div>
           )}
           {selection.kind !== "spawn" && (
-            <Button
+            <TinyButton
               type="button"
               variant="destructive"
               onClick={() => handleRef.current?.deleteSelected()}
             >
               {t("editor.delete")}
-            </Button>
+            </TinyButton>
           )}
         </aside>
       )}
@@ -741,7 +743,7 @@ export function MapEditor() {
           <span className="eyebrow">{t("editor.title")}</span>
           <h1>{t("editor.title")}</h1>
         </div>
-        <Button
+        <TinyButton
           type="button"
           variant="secondary"
           onClick={() =>
@@ -749,7 +751,7 @@ export function MapEditor() {
           }
         >
           {t("editor.back")}
-        </Button>
+        </TinyButton>
       </header>
 
       {error && <p role="alert">{authErrorText(error)}</p>}
@@ -764,17 +766,21 @@ export function MapEditor() {
               {map.isFirst && <span>{t("editor.first")}</span>}
             </div>
             <div className="creator-actions">
-              <Button type="button" onClick={() => void open(map.id)}>
+              <TinyButton type="button" onClick={() => void open(map.id)}>
                 {t("editor.open")}
-              </Button>
+              </TinyButton>
               {!map.isFirst && (
-                <Button type="button" variant="secondary" onClick={() => void makeFirst(map.id)}>
+                <TinyButton
+                  type="button"
+                  variant="secondary"
+                  onClick={() => void makeFirst(map.id)}
+                >
                   {t("editor.makeFirst")}
-                </Button>
+                </TinyButton>
               )}
-              <Button type="button" variant="secondary" onClick={() => setConfirmingId(map.id)}>
+              <TinyButton type="button" variant="secondary" onClick={() => setConfirmingId(map.id)}>
                 {t("editor.delete")}
-              </Button>
+              </TinyButton>
             </div>
           </article>
         ))}
@@ -782,15 +788,15 @@ export function MapEditor() {
 
       <section className="creator-panel" aria-label={t("editor.new")}>
         <h2>{t("editor.new")}</h2>
-        <Label htmlFor="map-editor-name">{t("editor.name")}</Label>
-        <Input
+        <TinyLabel htmlFor="map-editor-name">{t("editor.name")}</TinyLabel>
+        <TinyInput
           id="map-editor-name"
           type="text"
           value={name}
           onChange={(event) => setName(event.currentTarget.value)}
         />
-        <Label htmlFor="map-editor-cols">{t("editor.cols")}</Label>
-        <Input
+        <TinyLabel htmlFor="map-editor-cols">{t("editor.cols")}</TinyLabel>
+        <TinyInput
           id="map-editor-cols"
           type="number"
           min={MIN_COLS}
@@ -798,8 +804,8 @@ export function MapEditor() {
           value={cols}
           onChange={(event) => setCols(Number(event.currentTarget.value))}
         />
-        <Label htmlFor="map-editor-rows">{t("editor.rows")}</Label>
-        <Input
+        <TinyLabel htmlFor="map-editor-rows">{t("editor.rows")}</TinyLabel>
+        <TinyInput
           id="map-editor-rows"
           type="number"
           min={MIN_ROWS}
@@ -807,9 +813,9 @@ export function MapEditor() {
           value={rows}
           onChange={(event) => setRows(Number(event.currentTarget.value))}
         />
-        <Button type="button" onClick={() => void create()}>
+        <TinyButton type="button" onClick={() => void create()}>
           {t("editor.save")}
-        </Button>
+        </TinyButton>
       </section>
 
       {deleting && (
@@ -822,12 +828,12 @@ export function MapEditor() {
           >
             <h2 id="delete-map-title">{t("editor.delete.title", { name: deleting.name })}</h2>
             <div className="delete-dialog__actions">
-              <Button type="button" variant="secondary" onClick={() => setConfirmingId(null)}>
+              <TinyButton type="button" variant="secondary" onClick={() => setConfirmingId(null)}>
                 {t("editor.delete.cancel")}
-              </Button>
-              <Button type="button" className="danger" onClick={() => void remove(deleting.id)}>
+              </TinyButton>
+              <TinyButton type="button" className="danger" onClick={() => void remove(deleting.id)}>
                 {t("editor.delete.confirm")}
-              </Button>
+              </TinyButton>
             </div>
           </section>
         </div>

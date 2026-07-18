@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { Kbd } from "@/ui/pixelact-ui/kbd.js";
+import { TinyKbd } from "@/ui/tiny-swords/TinyKbd.js";
 import {
   getInputSettings,
   keyboardBindingLabel,
@@ -19,15 +19,15 @@ export function HelpBar() {
 
   return (
     <div id="help">
-      <Kbd>{movement}</Kbd> {t("help.move")}
-      <Kbd>{key("target")}</Kbd> {t("help.target")}
-      <Kbd>{key("skill1")}</Kbd> {t("help.strike")}
-      <Kbd>{skills}</Kbd> {t("hud.abilities")}
-      <Kbd>{key("interact")}</Kbd> {t("help.commune")}
-      <Kbd>{key("potion")}</Kbd> {t("help.tonic")}
-      <Kbd>{key("release")}</Kbd> {t("help.release")}
-      <Kbd>{key("map")}</Kbd> {t("help.map")}
-      <Kbd>{key("settings")}</Kbd> {t("help.settings")}
+      <TinyKbd>{movement}</TinyKbd> {t("help.move")}
+      <TinyKbd>{key("target")}</TinyKbd> {t("help.target")}
+      <TinyKbd>{key("skill1")}</TinyKbd> {t("help.strike")}
+      <TinyKbd>{skills}</TinyKbd> {t("hud.abilities")}
+      <TinyKbd>{key("interact")}</TinyKbd> {t("help.commune")}
+      <TinyKbd>{key("potion")}</TinyKbd> {t("help.tonic")}
+      <TinyKbd>{key("release")}</TinyKbd> {t("help.release")}
+      <TinyKbd>{key("map")}</TinyKbd> {t("help.map")}
+      <TinyKbd>{key("settings")}</TinyKbd> {t("help.settings")}
     </div>
   );
 }

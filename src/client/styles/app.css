@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./tokens.css";
+@import "./tiny-swords-primitives.css";
 @import "./theme.css";
 @import "./legacy.css";
 @import "./character-creator.css";

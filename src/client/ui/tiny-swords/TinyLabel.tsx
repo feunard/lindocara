@@ -1,14 +1,14 @@
 import { Label as LabelPrimitive } from "radix-ui";
 import type * as React from "react";
 import { cn } from "@/lib/utils.js";
-import "./styles/styles.css";
 
 // Vendored from github.com/pixelact-ui/pixelact-ui (components/ui/pixelact-ui/label.tsx),
-// with its base shadcn/ui Label inlined. Not a Task 2 restyle touchpoint — untouched from
-// upstream, "inherits tokens". MIT-licensed upstream; modifications for lindocara's Tiny Swords skin.
-export interface LabelProps extends React.ComponentProps<typeof LabelPrimitive.Root> {}
+// with its base shadcn/ui Label inlined. Restyled for the Tiny Swords skin: it now reads the
+// explicit `--tiny-surface-ink` token (from Task 2) rather than inheriting shadcn's own tokens.
+// MIT-licensed upstream; modifications for lindocara's Tiny Swords skin.
+export interface TinyLabelProps extends React.ComponentProps<typeof LabelPrimitive.Root> {}
 
-function Label({ className, ...props }: LabelProps) {
+function Label({ className, ...props }: TinyLabelProps) {
   return (
     <LabelPrimitive.Root
       data-slot="label"
@@ -24,4 +24,4 @@ function Label({ className, ...props }: LabelProps) {
   );
 }
 
-export { Label };
+export { Label as TinyLabel };

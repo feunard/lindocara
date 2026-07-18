@@ -1,4 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
 import { logout } from "../api.js";
 import {
   getAudioSettings,
@@ -13,7 +14,6 @@ import {
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
 import { ControlsSettings } from "./ControlsSettings.js";
-import { Button } from "./pixelact-ui/button/index.js";
 import { TinyCheckbox } from "./tiny-swords/TinyCheckbox.js";
 import { TinyIconButton } from "./tiny-swords/TinyIconButton.js";
 import { TinyPanel } from "./tiny-swords/TinyPanel.js";
@@ -80,7 +80,7 @@ export function SettingsMenu({ inGame = false }: { inGame?: boolean }) {
 
         <div className="settings-tabs" role="tablist" aria-label={t("settings.categories")}>
           {(["audio", "interface", "controls"] as const).map((candidate) => (
-            <Button
+            <TinyButton
               key={candidate}
               type="button"
               size="sm"
@@ -89,7 +89,7 @@ export function SettingsMenu({ inGame = false }: { inGame?: boolean }) {
               onClick={() => setTab(candidate)}
             >
               {t(`settings.${candidate}`)}
-            </Button>
+            </TinyButton>
           ))}
         </div>
 
@@ -182,29 +182,33 @@ export function SettingsMenu({ inGame = false }: { inGame?: boolean }) {
             <div className="settings-pane settings-session-pane">
               <p className="settings-section-label">{t("settings.session")}</p>
               <div className="settings-session-actions">
-                <Button
+                <TinyButton
                   type="button"
                   onClick={() => (game ? game.switchCharacter() : window.location.reload())}
                 >
                   {t("hud.switch_character")}
-                </Button>
-                <Button
+                </TinyButton>
+                <TinyButton
                   type="button"
                   variant="destructive"
                   className="danger"
                   onClick={() => (game ? game.logout() : logout())}
                 >
                   {t("hud.logout")}
-                </Button>
+                </TinyButton>
               </div>
             </div>
           )}
         </div>
 
         <footer className="settings-footer">
-          <Button type="button" className="settings-resume" onClick={() => setSettingsOpen(false)}>
+          <TinyButton
+            type="button"
+            className="settings-resume"
+            onClick={() => setSettingsOpen(false)}
+          >
             {t(inGame ? "settings.resume" : "settings.done")}
-          </Button>
+          </TinyButton>
         </footer>
       </TinyPanel>
     </section>

@@ -1,10 +1,10 @@
 import type * as React from "react";
 import { cn } from "@/lib/utils.js";
-import "./styles/styles.css";
 
 // Vendored from github.com/pixelact-ui/pixelact-ui (components/ui/pixelact-ui/kbd.tsx). No
-// base shadcn/ui component to inline — self-contained. Not a Task 2 restyle touchpoint —
-// untouched from upstream, "inherits tokens". MIT-licensed upstream; Tiny Swords skin modifications.
+// base shadcn/ui component to inline — self-contained. Restyled for the Tiny Swords skin: it
+// now reads the explicit `--tiny-surface-sunken`/`--tiny-surface-sunken-ink` tokens (from Task 2)
+// rather than inheriting shadcn's own tokens. MIT-licensed upstream; Tiny Swords skin modifications.
 function Kbd({ className, ...props }: React.ComponentProps<"kbd">) {
   return (
     <kbd
@@ -21,14 +21,4 @@ function Kbd({ className, ...props }: React.ComponentProps<"kbd">) {
   );
 }
 
-function KbdGroup({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <kbd
-      data-slot="kbd-group"
-      className={cn("inline-flex items-center gap-1", className)}
-      {...props}
-    />
-  );
-}
-
-export { Kbd, KbdGroup };
+export { Kbd as TinyKbd };

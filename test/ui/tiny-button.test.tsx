@@ -1,10 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { Button } from "@/ui/pixelact-ui/button/index.js";
+import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
 
-describe("pixelact button", () => {
+describe("tiny button", () => {
   it("renders with the Tiny Swords frame and four authored states", () => {
-    render(<Button>Press Start</Button>);
+    render(<TinyButton>Press Start</TinyButton>);
     const button = screen.getByRole("button", { name: "Press Start" });
     expect(button).toHaveClass("tiny-button");
     expect(button).toHaveAttribute("data-tiny-normal");

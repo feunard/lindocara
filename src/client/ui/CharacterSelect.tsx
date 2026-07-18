@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
+import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
 import { api, type CharacterSummary, fetchCharacters, logout, MAX_CHARACTERS } from "../api.js";
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
 import { CharacterCreator } from "./CharacterCreator.js";
 import { CharacterPreview } from "./CharacterPreview.js";
-import { Button } from "./pixelact-ui/button/index.js";
 import { TinySwordsMenuScene } from "./TinySwordsMenuScene.js";
 
 export function CharacterSelect({ onPlay }: { onPlay(character: CharacterSummary): void }) {
@@ -64,21 +64,21 @@ export function CharacterSelect({ onPlay }: { onPlay(character: CharacterSummary
           <p>{t("chars.roster.subtitle")}</p>
         </div>
         <div className="roster-header__actions">
-          <Button type="button" variant="secondary" onClick={() => setSettingsOpen(true)}>
+          <TinyButton type="button" variant="secondary" onClick={() => setSettingsOpen(true)}>
             {t("chars.options")}
-          </Button>
-          <Button type="button" variant="secondary" onClick={() => setScreen("map-editor")}>
+          </TinyButton>
+          <TinyButton type="button" variant="secondary" onClick={() => setScreen("map-editor")}>
             {t("chars.mapEditor")}
-          </Button>
-          <Button type="button" variant="secondary" onClick={() => setScreen("adventures")}>
+          </TinyButton>
+          <TinyButton type="button" variant="secondary" onClick={() => setScreen("adventures")}>
             {t("chars.adventures")}
-          </Button>
-          <Button type="button" variant="secondary" onClick={() => setScreen("parties")}>
+          </TinyButton>
+          <TinyButton type="button" variant="secondary" onClick={() => setScreen("parties")}>
             {t("chars.parties")}
-          </Button>
-          <Button type="button" variant="secondary" onClick={() => void logout()}>
+          </TinyButton>
+          <TinyButton type="button" variant="secondary" onClick={() => void logout()}>
             {t("chars.logout")}
-          </Button>
+          </TinyButton>
         </div>
       </header>
 
@@ -131,16 +131,16 @@ export function CharacterSelect({ onPlay }: { onPlay(character: CharacterSummary
               </div>
             </dl>
             <div className="roster-card__actions">
-              <Button type="button" onClick={() => onPlay(character)}>
+              <TinyButton type="button" onClick={() => onPlay(character)}>
                 {t("chars.play")}
-              </Button>
-              <Button
+              </TinyButton>
+              <TinyButton
                 type="button"
                 variant="secondary"
                 onClick={() => setConfirmingId(character.id)}
               >
                 {t("chars.delete")}
-              </Button>
+              </TinyButton>
             </div>
           </article>
         ))}
@@ -169,12 +169,12 @@ export function CharacterSelect({ onPlay }: { onPlay(character: CharacterSummary
             <h2 id="delete-title">{t("chars.delete.title", { name: deleting.name })}</h2>
             <p>{t("chars.delete.copy")}</p>
             <div className="delete-dialog__actions">
-              <Button type="button" variant="secondary" onClick={() => setConfirmingId(null)}>
+              <TinyButton type="button" variant="secondary" onClick={() => setConfirmingId(null)}>
                 {t("chars.delete.cancel")}
-              </Button>
-              <Button type="button" className="danger" onClick={() => void remove(deleting.id)}>
+              </TinyButton>
+              <TinyButton type="button" className="danger" onClick={() => void remove(deleting.id)}>
                 {t("chars.delete.confirm")}
-              </Button>
+              </TinyButton>
             </div>
           </section>
         </div>

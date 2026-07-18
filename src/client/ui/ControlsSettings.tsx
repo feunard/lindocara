@@ -1,4 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
 import type { MessageKey } from "../../shared/i18n/index.js";
 import {
   type ControlId,
@@ -15,7 +16,6 @@ import {
   subscribeInputSettings,
 } from "../game/input-settings.js";
 import { t, useLocale } from "../i18n.js";
-import { Button } from "./pixelact-ui/button/index.js";
 import { TinySelect } from "./tiny-swords/TinySelect.js";
 
 type InputDevice = "keyboard" | "gamepad";
@@ -166,7 +166,7 @@ export function ControlsSettings() {
         role="tablist"
         aria-label={t("settings.controls.device")}
       >
-        <Button
+        <TinyButton
           type="button"
           size="sm"
           role="tab"
@@ -177,8 +177,8 @@ export function ControlsSettings() {
           }}
         >
           {t("settings.controls.keyboard")}
-        </Button>
-        <Button
+        </TinyButton>
+        <TinyButton
           type="button"
           size="sm"
           role="tab"
@@ -189,7 +189,7 @@ export function ControlsSettings() {
           }}
         >
           {t("settings.controls.gamepad")}
-        </Button>
+        </TinyButton>
       </div>
 
       {device === "gamepad" && (
@@ -259,18 +259,18 @@ export function ControlsSettings() {
 
       <div className="controls-actions">
         {capture && (
-          <Button type="button" size="sm" variant="secondary" onClick={() => setCapture(null)}>
+          <TinyButton type="button" size="sm" variant="secondary" onClick={() => setCapture(null)}>
             {t("settings.controls.cancel")}
-          </Button>
+          </TinyButton>
         )}
-        <Button
+        <TinyButton
           type="button"
           size="sm"
           variant="secondary"
           onClick={() => resetInputBindings(device)}
         >
           {t("settings.controls.reset")}
-        </Button>
+        </TinyButton>
       </div>
     </div>
   );

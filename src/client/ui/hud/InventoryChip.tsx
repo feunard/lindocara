@@ -1,4 +1,4 @@
-import { Kbd } from "@/ui/pixelact-ui/kbd.js";
+import { TinyKbd } from "@/ui/tiny-swords/TinyKbd.js";
 
 export function InventoryChip({
   icon,
@@ -25,7 +25,7 @@ export function InventoryChip({
         <small>{label}</small>
         <strong>{value}</strong>
       </span>
-      {hotkey && <Kbd>{hotkey}</Kbd>}
+      {hotkey && <TinyKbd>{hotkey}</TinyKbd>}
     </fieldset>
   );
 }

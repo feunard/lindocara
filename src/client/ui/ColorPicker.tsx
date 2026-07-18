@@ -1,6 +1,6 @@
+import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
 import { PARTY_COLORS, type PartyColor } from "../../shared/party.js";
 import { t, useLocale } from "../i18n.js";
-import { Button } from "./pixelact-ui/button/index.js";
 
 /** Hex per colour so swatches read even without art; kept minimal and legible. */
 const SWATCH: Record<PartyColor, string> = {
@@ -21,7 +21,7 @@ export function ColorPicker(props: {
       {PARTY_COLORS.map((color) => {
         const isTaken = props.taken.includes(color) && props.value !== color;
         return (
-          <Button
+          <TinyButton
             key={color}
             type="button"
             variant={props.value === color ? "default" : "secondary"}
@@ -31,7 +31,7 @@ export function ColorPicker(props: {
             style={{ borderLeft: `12px solid ${SWATCH[color]}` }}
           >
             {t(`party.color.${color}`)}
-          </Button>
+          </TinyButton>
         );
       })}
     </fieldset>
