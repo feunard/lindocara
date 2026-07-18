@@ -20,7 +20,8 @@
 - Tile id space: `EMPTY_TILE = 0`, `VARIANTS_PER_AUTOTILE = 16`, `AUTOTILE_SLOTS = 64`, `FIXED_BASE = 1025`.
 - One wall row per elevation drop, regardless of level difference.
 - `map_element` and the catalogue element system are **not** touched by this plan.
-- Run `npm run check` before any commit that touches more than pure shared code.
+- **Gating.** `npm run typecheck` must be green before *every* commit, without exception. Tasks 7-11 knowingly leave some test suites red while the model swings over; each of those tasks names the suites it expects to be failing, and a suite failing for any *other* reason is a stop. `npm run check` must be fully green at Task 12 and is the gate for the branch.
+- **No production data exists.** This is a POC: local D1 rows are disposable. Migrations do not need to preserve map content, and no backfill is required.
 - Tests live in `test/*.test.ts`, run in workerd, and import with `.js` extensions. The pool does not isolate storage: any test writing to D1 truncates in `afterEach`.
 
 ---
@@ -1319,7 +1320,11 @@ export function parseMapData(value: unknown): MapData | null {
 - [ ] **Step 6: Run the test**
 
 Run: `npx vitest run test/map-layers.test.ts`
-Expected: PASS, 3 tests. Other suites will fail to compile until Tasks 8-12 land — that is expected and is why this task's commit is not gated on `npm run check`.
+Expected: PASS, 3 tests.
+
+Then `npm run typecheck` — it must be green. `src/server/maps.ts` and the renderer still speak `blocks`, so expect type errors there; fix them by threading the new fields through rather than by casting, and if that grows beyond a few lines, stop and report it: it means Task 9's boundary is in the wrong place.
+
+These suites are expected to be red until their task lands, and no others: `maps.test.ts`, `maps-api.test.ts`, `map-data.test.ts`, `map-world.test.ts`, `map-markers.test.ts`, `map-terrain.test.ts`, `map-render-cache.test.ts`, `db.test.ts`, `world.test.ts`, `test/ui/map-editor.test.tsx`.
 
 - [ ] **Step 7: Commit**
 
@@ -1511,19 +1516,19 @@ npm run db:generate
 
 This writes `migrations/0017_*.sql` using the table-rebuild pattern (`PRAGMA foreign_keys=OFF`, `__new_map`, copy, drop, rename) that `0016_small_rocket_racer.sql` established.
 
-- [ ] **Step 3: Hand-write the backfill**
+- [ ] **Step 3: Check the generated SQL, and do not backfill**
 
-drizzle-kit cannot autotile. Append to the generated file, before the closing `PRAGMA foreign_keys=ON`, a placeholder that marks every pre-existing row for the code-side backfill:
+There is no production data — local rows are disposable POC content — so nothing needs preserving. Read the generated file and confirm it only rebuilds `map` with `tileset_id` and `layers` in place of `blocks`.
+
+Whatever the generated `INSERT ... SELECT` supplies for `layers` on carried-over rows must be a *valid* layer string rather than an empty one, because `decodeLayers` would otherwise mint empty layers on every load and hide the problem. Make it explicit:
 
 ```sql
--- Layers cannot be computed in SQL: the autotile variant of each cell depends on its neighbours.
--- Rows carried over from the `blocks` era are written with an empty ground layer and re-derived by
--- `layersFromBlocks` on first load; `blocks` is preserved in `legacy_blocks` until that runs.
-ALTER TABLE `map` ADD COLUMN `legacy_blocks` text;--> statement-breakpoint
-UPDATE `map` SET `legacy_blocks` = (SELECT old_map.`blocks` FROM `__old_map` AS old_map WHERE old_map.`id` = `map`.`id`);
+-- POC: no production maps exist. Rows carried over from the `blocks` era keep their size and lose
+-- their terrain; they are re-drawn in the editor, not migrated.
+UPDATE `map` SET `layers` = '["0*' || (`cols` * `rows`) || '","0*' || (`cols` * `rows`) || '","0*' || (`cols` * `rows`) || '"]' WHERE `layers` = '' OR `layers` IS NULL;
 ```
 
-Adjust the subquery to whatever the generated file names the old table. If the generated migration drops the old table before this point, move these two statements above the `DROP TABLE`.
+Do not add a `legacy_blocks` column: drizzle's rebuild pattern drops the original `map` before any `ALTER TABLE` you append could read it, so such a backfill would silently write NULL everywhere.
 
 - [ ] **Step 4: Apply and verify locally**
 
