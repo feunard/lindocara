@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { MapInput } from "../src/server/maps.js";
 import type { AdventureGraph } from "../src/shared/adventure.js";
 import { WS_CLOSE } from "../src/shared/close-codes.js";
-import { ATTACK_COOLDOWN_MS, maxHpForLevel } from "../src/shared/game.js";
+import { ATTACK_COOLDOWN_MS, MONSTER_STATS, maxHpForLevel } from "../src/shared/game.js";
 import {
   Client,
   tileCentre as centre,
@@ -147,6 +147,43 @@ describe("party hero admission and authored runtime", () => {
       return monster && monster.hp < placed.hp ? monster : undefined;
     });
     expect(damaged.hp).toBe(placed.hp - 16);
+  });
+
+  /**
+   * Combat on an authored map has to run in both directions. It did not: `terrainFromMap` used to
+   * declare the whole map a safe zone, and `monster-system` reads that rect as "monsters may not
+   * touch a player here" — so on every D1 map, i.e. the entire live gameplay path, no player ever
+   * entered a monster's threat table and `damagePlayer` was unreachable. Every existing test built
+   * its own `TerrainGeometry` by hand, so nothing exercised the geometry heroes actually play on.
+   */
+  it("lets a placed monster acquire threat, close in and wound a hero on an authored map", async () => {
+    const party = await seedParty("aggro");
+    const hero = await testHero("Bait", {
+      party,
+      class: "warrior",
+      position: centre(9, 8),
+    });
+
+    const client = await Client.joinHero(hero);
+    const welcome = await until("aggro welcome", () => client.welcome);
+    const placed = welcome.monsters[0];
+    if (!placed) throw new Error("expected an authored monster");
+    expect(welcome.players.find((player) => player.id === hero.heroId)?.hp).toBe(maxHpForLevel(1));
+
+    // Threat first: the monster must actually chase, not merely happen to stand on the hero.
+    const closed = await until("monster closes on the hero", () => {
+      const monster = client.latestSnapshot?.monsters.find((m) => m.id === placed.id);
+      const self = client.self();
+      if (!monster || !self) return undefined;
+      return Math.hypot(monster.x - self.x, monster.y - self.y) < 64 ? monster : undefined;
+    });
+    expect(closed.x).not.toBe(placed.x);
+
+    const wounded = await until("hero wounded by the placed monster", () => {
+      const self = client.self();
+      return self && self.hp < maxHpForLevel(1) ? self : undefined;
+    });
+    expect(wounded.hp).toBeLessThanOrEqual(maxHpForLevel(1) - MONSTER_STATS.goblin.damage);
   });
 
   it("isolates two parties playing the same adventure and fences duplicate hero connections", async () => {

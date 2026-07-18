@@ -26,7 +26,17 @@ export interface Rect {
 export interface TerrainGeometry extends WorldBounds {
   obstacles: readonly Rect[];
   spawnPoints: readonly Vec2[];
-  safeZone: Rect;
+  /**
+   * Where monsters may not touch a player — Heartroot's walls, and nothing else.
+   *
+   * `null` means "this world has no such place", which is the truth for every authored map: a map
+   * author has no way to declare one, and monsters there come only from spawns they placed. It is
+   * deliberately not a degenerate rect. `inRect` is an overlap test, so "empty" is a property of
+   * the *arithmetic* — a zero-size rect at the origin only fails to overlap because entities are
+   * clamped to non-negative coordinates elsewhere. Absence must not depend on an invariant living
+   * in another file; ask through `safeZoneShelters`.
+   */
+  safeZone: Rect | null;
   /** The collision truth — and, since Task 4, the line-of-sight truth too. `obstacles` survives
    *  only for the minimap, and goes away in a later slice. */
   tiles: TileMap;
@@ -794,6 +804,18 @@ export function inRect(position: Vec2, rect: Rect, size: number = PLAYER_SIZE): 
 }
 
 /**
+ * "Is this position inside a place monsters are not allowed to touch?" — the single question every
+ * caller of `terrain.safeZone` was really asking, asked once.
+ */
+export function safeZoneShelters(
+  position: Vec2,
+  geometry: TerrainGeometry,
+  size: number = PLAYER_SIZE,
+): boolean {
+  return geometry.safeZone !== null && inRect(position, geometry.safeZone, size);
+}
+
+/**
  * The single collision entry point. `resolveTerrain`, `step`'s callers, the navigation grid,
  * monster movement and mobility skills all reach the world through this one function — which is
  * why moving it onto tiles converts the entire game at once, and why free continuous movement is
@@ -834,8 +856,13 @@ export function hashSeed(seed: string): number {
 
 export function spawnPosition(seed = "", geometry: TerrainGeometry = VERDANT_REACH_TERRAIN): Vec2 {
   const index = seed.length === 0 ? 0 : hashSeed(seed) % geometry.spawnPoints.length;
-  const position = geometry.spawnPoints[index] ??
-    geometry.spawnPoints[0] ?? { x: geometry.safeZone.x, y: geometry.safeZone.y };
+  // Last resort for a geometry with no spawn points at all: the safe zone's corner if there is
+  // one, otherwise the world's. `terrainFromMap` always supplies exactly one spawn point, so an
+  // authored map never reaches either fallback.
+  const position =
+    geometry.spawnPoints[index] ??
+    geometry.spawnPoints[0] ??
+    (geometry.safeZone ? { x: geometry.safeZone.x, y: geometry.safeZone.y } : { x: 0, y: 0 });
   return { ...position };
 }
 

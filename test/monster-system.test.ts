@@ -18,11 +18,14 @@ import {
   MONSTER_ATTACK_COOLDOWN_MS,
   MONSTER_ATTACK_RANGE,
   pointDistance,
+  SAFE_ZONE,
+  safeZoneShelters,
   type TerrainGeometry,
 } from "../src/shared/game.js";
+import { EMPTY_MARKERS, type MapData, terrainFromMap } from "../src/shared/map-data.js";
 import { DEFAULT_ZONE_NAVIGATION } from "../src/shared/navigation.js";
-import { TICK_DT } from "../src/shared/simulation.js";
-import type { ZoneDefinition } from "../src/shared/zones.js";
+import { PLAYER_SIZE, TICK_DT } from "../src/shared/simulation.js";
+import { type ZoneDefinition, zoneDefinition } from "../src/shared/zones.js";
 import { tileMapFromRects } from "./support/tiles.js";
 
 /**
@@ -371,6 +374,129 @@ describe("monster navigation on the tile grid", () => {
       }
     }
     expect(reachedAtTick).toBeGreaterThan(-1);
+  });
+});
+
+/**
+ * The unit layer used to hand-roll every `TerrainGeometry`, so it could not see what
+ * `terrainFromMap` actually produced. These build their terrain the way a room does — through the
+ * real map baker — so the two can no longer drift apart.
+ */
+describe("authored-map geometry", () => {
+  const authoredMap: MapData = {
+    blocks: Array.from({ length: 15 }, () => ".".repeat(20)),
+    elements: [],
+    spawn: { col: 2, row: 2 },
+    markers: EMPTY_MARKERS,
+  };
+
+  function authoredZone(): ZoneDefinition {
+    const authoredTerrain = terrainFromMap(authoredMap);
+    return { ...zone, id: "map-id", terrain: authoredTerrain };
+  }
+
+  it("leaves no rect an authored map's entities can hide in", () => {
+    const terrainOfMap = terrainFromMap(authoredMap);
+    // Every cell centre, plus the four corners a clamped entity can actually reach. If any of
+    // these reads as "safe", monsters go back to being decorative on that map.
+    for (let row = 0; row < 15; row++) {
+      for (let col = 0; col < 20; col++) {
+        const point = { x: col * 64 + 32, y: row * 64 + 32 };
+        expect(safeZoneShelters(point, terrainOfMap)).toBe(false);
+      }
+    }
+    const maxX = terrainOfMap.width - PLAYER_SIZE;
+    const maxY = terrainOfMap.height - PLAYER_SIZE;
+    for (const corner of [
+      { x: 0, y: 0 },
+      { x: maxX, y: 0 },
+      { x: 0, y: maxY },
+      { x: maxX, y: maxY },
+    ]) {
+      expect(safeZoneShelters(corner, terrainOfMap)).toBe(false);
+    }
+  });
+
+  it("lets a monster acquire threat and attack a player standing on a bare authored map", () => {
+    const combatZone = authoredZone();
+    const player = targetPlayer(300, 300);
+    const socket = { id: "socket-authored" } as unknown as WebSocket;
+    const monster = createMonsters([
+      {
+        id: "authored-goblin",
+        kind: "goblin",
+        species: "spear_goblin",
+        zone: "route",
+        x: 300 + MONSTER_ATTACK_RANGE - 4,
+        y: 300,
+        patrolRadius: 40,
+      },
+    ])[0];
+    if (!monster) throw new Error("missing monster");
+
+    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
+    monsterGrid.insert(monster);
+    const damagePlayer = vi.fn();
+    const context: MonsterSystemContext = {
+      players: new Map([[socket, player]]),
+      monsters: [monster],
+      guards: [],
+      monsterGrid,
+      zone: combatZone,
+      tick: 0,
+      navigation: createNavigationRuntime(combatZone.terrain, combatZone.navigation),
+      damagePlayer,
+    };
+
+    advanceMonsters(context, MONSTER_ATTACK_COOLDOWN_MS + 100);
+
+    expect(monster.threat.has(player.id)).toBe(true);
+    expect(damagePlayer).toHaveBeenCalledTimes(1);
+    expect(damagePlayer.mock.calls[0]?.[2]).toBe(monster.damage);
+  });
+
+  it("still lets the catalogue's safe city disarm a monster standing right on top of a player", () => {
+    // The other half of the same rule: fixing authored maps must not disarm Heartroot, where the
+    // guards — not invulnerability — are the reason a monster inside the walls is a problem.
+    const cityZone = zoneDefinition("verdant-reach");
+    const shelter = { x: SAFE_ZONE.x + 100, y: SAFE_ZONE.y + 100 };
+    expect(safeZoneShelters(shelter, cityZone.terrain)).toBe(true);
+
+    const player = targetPlayer(shelter.x, shelter.y);
+    const socket = { id: "socket-city" } as unknown as WebSocket;
+    const monster = createMonsters([
+      {
+        id: "city-goblin",
+        kind: "goblin",
+        species: "spear_goblin",
+        zone: "route",
+        x: shelter.x + 8,
+        y: shelter.y,
+        patrolRadius: 40,
+      },
+    ])[0];
+    if (!monster) throw new Error("missing monster");
+    // Even threat that somehow already exists must be pruned while the player is sheltered.
+    monster.threat.set(player.id, { playerId: player.id, amount: 999, updatedAt: 0 });
+
+    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
+    monsterGrid.insert(monster);
+    const damagePlayer = vi.fn();
+    const context: MonsterSystemContext = {
+      players: new Map([[socket, player]]),
+      monsters: [monster],
+      guards: [],
+      monsterGrid,
+      zone: cityZone,
+      tick: 0,
+      navigation: createNavigationRuntime(cityZone.terrain, cityZone.navigation),
+      damagePlayer,
+    };
+
+    advanceMonsters(context, MONSTER_ATTACK_COOLDOWN_MS + 100);
+
+    expect(monster.threat.has(player.id)).toBe(false);
+    expect(damagePlayer).not.toHaveBeenCalled();
   });
 });
 

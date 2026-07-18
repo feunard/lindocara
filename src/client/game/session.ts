@@ -189,8 +189,11 @@ function updatePrompt(
         params: { name: t(`quest.site.${site.id}` as MessageKey) },
       };
     } else if (quest.status === "active") {
+      // "Go hunt outside the walls" only means something where there are walls. A world with no
+      // safe zone has no hub to be standing in, so the prompt never applies.
       const safeZone = zone.terrain.safeZone;
       const inHub =
+        safeZone !== null &&
         self.x >= safeZone.x &&
         self.x <= safeZone.x + safeZone.width &&
         self.y >= safeZone.y &&
