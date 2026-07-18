@@ -1,0 +1,638 @@
+# Instincts generated from https://github.com/feunard/lindocara
+# Generated: 2026-07-18T12:22:10.971Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: lindocara-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Commit Length
+
+## Action
+
+Write moderate-length commit messages (~51 characters)
+
+## Evidence
+
+- Average commit message length: 51 chars
+- Based on 11 commits
+
+---
+id: lindocara-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Naming Files
+
+## Action
+
+Use camelCase naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: camelCase
+
+---
+id: lindocara-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: lindocara-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: lindocara-test-separate
+trigger: "when writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Test Separate
+
+## Action
+
+Place tests in the tests/ or __tests__/ directory, mirroring src structure
+
+## Evidence
+
+- Separate test directory pattern detected
+- Tests live in dedicated test folders
+
+---
+id: lindocara-test-framework
+trigger: "when writing tests"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Test Framework
+
+## Action
+
+Use vitest as the test framework
+
+## Evidence
+
+- Test framework detected: vitest
+- File pattern: *.test.ts
+
+---
+id: lindocara-test-naming
+trigger: "when creating a test file"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Test Naming
+
+## Action
+
+Name test files using the pattern: *.test.ts
+
+## Evidence
+
+- File pattern: *.test.ts
+- Consistent across test files
+
+---
+id: lindocara-test-types
+trigger: "when planning tests for a feature"
+confidence: 0.7
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Test Types
+
+## Action
+
+Write unit, integration tests to match project standards
+
+## Evidence
+
+- Test types detected: unit, integration
+- Coverage config: no
+
+---
+id: lindocara-workflow-feature-development
+trigger: "when implementing a new feature"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Workflow Feature Development
+
+## Action
+
+Follow the feature-development workflow:
+1. Add feature implementation
+2. Add tests for feature
+3. Update documentation
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~14x per month
+- Files: src/client/game/*, src/client/ui/*, src/client/ui/pixelact-ui/*
+
+---
+id: lindocara-workflow-feature-development-with-tests-and-i18n
+trigger: "when doing feature development with tests and i18n"
+confidence: 0.65
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Workflow Feature Development With Tests And I18n
+
+## Action
+
+Follow the feature-development-with-tests-and-i18n workflow:
+1. Implement feature logic in src/client or src/server files
+2. Update or create related UI components in src/client/ui
+3. Update shared data or protocol in src/shared
+4. Update i18n files (src/shared/i18n/en.ts, src/shared/i18n/fr.ts)
+5. Write or update tests in test/ directory
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~3x per month
+- Files: src/client/ui/*.tsx, src/client/game/*.ts, src/client/store.ts
+
+---
+id: lindocara-workflow-database-schema-migration-and-validation-update
+trigger: "when doing database schema migration and validation update"
+confidence: 0.55
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Workflow Database Schema Migration And Validation Update
+
+## Action
+
+Follow the database-schema-migration-and-validation-update workflow:
+1. Edit database schema file (src/server/db/schema.ts)
+2. Generate and add migration SQL files (migrations/*.sql)
+3. Update migration metadata (migrations/meta/*.json)
+4. Update server logic to handle schema changes (src/server/*.ts)
+5. Update or add tests in test/ directory
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~1x per month
+- Files: src/server/db/schema.ts, migrations/*.sql, migrations/meta/*.json
+
+---
+id: lindocara-workflow-ui-editor-enhancement-with-style-update
+trigger: "when doing ui editor enhancement with style update"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Workflow Ui Editor Enhancement With Style Update
+
+## Action
+
+Follow the ui-editor-enhancement-with-style-update workflow:
+1. Update or create editor UI components in src/client/ui
+2. Update related state or logic in src/client/game or src/client/store.ts
+3. Modify or add styles in src/client/styles/*.css
+4. Update or add related tests in test/ui
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: src/client/ui/MapEditor.tsx, src/client/ui/AdventureEditor.tsx, src/client/game/*.ts
+
+---
+id: lindocara-workflow-documentation-update
+trigger: "when doing documentation update"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/feunard/lindocara
+---
+
+# Lindocara Workflow Documentation Update
+
+## Action
+
+Follow the documentation-update workflow:
+1. Edit or add markdown files in docs/ or root directory
+2. Update README or related documentation assets
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: docs/*.md, README.md, assets/README.md
+
+---
+id: lindocara-camelcase-files
+trigger: "When creating or renaming a file in the codebase"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Camelcase Files
+
+## Action
+
+Use camelCase for file names
+
+## Evidence
+
+- Pattern in namingConventions.files: camelCase
+
+---
+id: lindocara-camelcase-functions
+trigger: "When defining a function"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Camelcase Functions
+
+## Action
+
+Name the function using camelCase
+
+## Evidence
+
+- Pattern in namingConventions.functions: camelCase
+
+---
+id: lindocara-pascalcase-classes
+trigger: "When defining a class"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Pascalcase Classes
+
+## Action
+
+Name the class using PascalCase
+
+## Evidence
+
+- Pattern in namingConventions.classes: PascalCase
+
+---
+id: lindocara-screaming-snake-constants
+trigger: "When defining a constant"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Screaming Snake Constants
+
+## Action
+
+Name the constant using SCREAMING_SNAKE_CASE
+
+## Evidence
+
+- Pattern in namingConventions.constants: SCREAMING_SNAKE_CASE
+
+---
+id: lindocara-relative-imports
+trigger: "When importing modules"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Relative Imports
+
+## Action
+
+Use relative import paths
+
+## Evidence
+
+- Pattern in importStyle: relative
+
+---
+id: lindocara-named-exports
+trigger: "When exporting from a module"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Named Exports
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- Pattern in exportStyle: named
+
+---
+id: lindocara-vitest-file-pattern
+trigger: "When creating a test file"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Vitest File Pattern
+
+## Action
+
+Name the file with the pattern *.test.ts
+
+## Evidence
+
+- Pattern in testing.filePattern: *.test.ts
+
+---
+id: lindocara-vitest-framework
+trigger: "When writing tests"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Vitest Framework
+
+## Action
+
+Use the Vitest testing framework
+
+## Evidence
+
+- Pattern in testing.framework: vitest
+
+---
+id: lindocara-unit-integration-tests
+trigger: "When writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Unit Integration Tests
+
+## Action
+
+Write both unit and integration tests as appropriate
+
+## Evidence
+
+- Pattern in testing.testTypes: unit, integration
+
+---
+id: lindocara-commit-prefix-freeform
+trigger: "When writing a commit message"
+confidence: 0.7
+domain: git
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Commit Prefix Freeform
+
+## Action
+
+Use a freeform message, optionally starting with feat/fix/docs, but not enforcing a strict prefix
+
+## Evidence
+
+- Pattern in commits.prefixes: []
+- Seen in commit: docs audit playable adventure vertical slice
+
+---
+id: lindocara-commit-length
+trigger: "When writing a commit message"
+confidence: 0.8
+domain: git
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Commit Length
+
+## Action
+
+Keep the commit message concise, around 50 characters
+
+## Evidence
+
+- Pattern in commits.averageLength: 51
+
+---
+id: lindocara-feature-dev-workflow
+trigger: "When implementing a new feature"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Feature Dev Workflow
+
+## Action
+
+Implement feature logic, add tests, and update documentation in sequence
+
+## Evidence
+
+- Workflow: feature-development
+- Commit sequence: Add feature implementation, Add tests for feature, Update documentation
+
+---
+id: lindocara-feature-with-tests-i18n-workflow
+trigger: "When adding a new feature or major enhancement"
+confidence: 0.95
+domain: workflow
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Feature With Tests I18n Workflow
+
+## Action
+
+Implement feature logic, update/create UI, update shared data/protocol, update i18n files, and write/update tests
+
+## Evidence
+
+- Workflow: feature-development-with-tests-and-i18n
+- Steps and files involved in workflow
+
+---
+id: lindocara-db-migration-workflow
+trigger: "When changing the database schema"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Db Migration Workflow
+
+## Action
+
+Edit schema, generate migrations, update migration metadata, update server logic, and update/add tests
+
+## Evidence
+
+- Workflow: database-schema-migration-and-validation-update
+- Steps and files involved in workflow
+
+---
+id: lindocara-ui-editor-enhance-workflow
+trigger: "When enhancing or refactoring editor UI components"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Ui Editor Enhance Workflow
+
+## Action
+
+Update/create UI component, update related logic/state, modify/add styles, and update/add related tests
+
+## Evidence
+
+- Workflow: ui-editor-enhancement-with-style-update
+- Steps and files involved in workflow
+
+---
+id: lindocara-docs-update-workflow
+trigger: "When documenting new features or auditing the codebase"
+confidence: 0.85
+domain: workflow
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Docs Update Workflow
+
+## Action
+
+Edit/add markdown files in docs/ or root, and update README or documentation assets
+
+## Evidence
+
+- Workflow: documentation-update
+- Steps and files involved in workflow
+
+---
+id: lindocara-try-catch-errors
+trigger: "When handling errors in code"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Try Catch Errors
+
+## Action
+
+Use try-catch blocks for error handling
+
+## Evidence
+
+- Pattern in errorHandling.style: try-catch
+
+---
+id: lindocara-custom-error-classes
+trigger: "When defining custom errors"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: feunard/lindocara
+---
+
+# Lindocara Custom Error Classes
+
+## Action
+
+Create custom error classes
+
+## Evidence
+
+- Pattern in errorHandling.customErrorClasses: true
+
