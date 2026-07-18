@@ -1,8 +1,9 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getAudioSettings, setAudioSettings } from "../../src/client/game/audio-settings.js";
 import { getDisplaySettings, setDisplaySettings } from "../../src/client/game/display-settings.js";
+import { getInputSettings, resetInputBindings } from "../../src/client/game/input-settings.js";
 import { setLocale } from "../../src/client/i18n.js";
 import { useUiStore } from "../../src/client/store.js";
 import { SettingsMenu } from "../../src/client/ui/SettingsMenu.js";
@@ -12,12 +13,14 @@ describe("SettingsMenu", () => {
     setLocale("en");
     setAudioSettings({ muted: false, sfxVolume: 0.65, ambientVolume: 0.45 });
     setDisplaySettings({ healthBars: "both", grid: false });
+    resetInputBindings();
     useUiStore.setState({ settingsOpen: false, game: null });
   });
 
   it("chooses allied and enemy health bars independently", async () => {
     useUiStore.setState({ settingsOpen: true });
     render(<SettingsMenu />);
+    await userEvent.click(screen.getByRole("tab", { name: "Interface" }));
     await userEvent.selectOptions(screen.getByRole("combobox"), "enemies");
     expect(getDisplaySettings().healthBars).toBe("enemies");
   });
@@ -40,6 +43,7 @@ describe("SettingsMenu", () => {
   it("toggles the tile grid without disturbing the other display settings", async () => {
     useUiStore.setState({ settingsOpen: true });
     render(<SettingsMenu />);
+    await userEvent.click(screen.getByRole("tab", { name: "Interface" }));
     const grid = screen.getByRole("checkbox", { name: "Show tile grid and hitboxes" });
     expect(grid).not.toBeChecked();
 
@@ -53,9 +57,36 @@ describe("SettingsMenu", () => {
 
   it("closes via resume", async () => {
     useUiStore.setState({ settingsOpen: true });
-    render(<SettingsMenu />);
+    render(<SettingsMenu inGame />);
     await userEvent.click(screen.getByRole("button", { name: /resume/i }));
     expect(useUiStore.getState().settingsOpen).toBe(false);
+  });
+
+  it("keeps remapping behind the controls tab and captures a new key", async () => {
+    useUiStore.setState({ settingsOpen: true });
+    render(<SettingsMenu />);
+
+    expect(screen.queryByRole("button", { name: "Remap Move up" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: "Controls" }));
+    await userEvent.click(screen.getByRole("button", { name: "Remap Move up" }));
+    fireEvent.keyDown(window, { code: "KeyI" });
+
+    expect(getInputSettings().keyboard.moveUp).toEqual([{ code: "KeyI" }]);
+    expect(screen.getByRole("button", { name: "Remap Move up" })).toHaveTextContent("I");
+  });
+
+  it("shows familiar PS5 button names while preserving physical mappings", async () => {
+    useUiStore.setState({ settingsOpen: true });
+    render(<SettingsMenu />);
+
+    await userEvent.click(screen.getByRole("tab", { name: "Controls" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Controller" }));
+    await userEvent.selectOptions(screen.getByLabelText("Button labels"), "playstation");
+    await userEvent.click(screen.getByText("Combat & abilities"));
+
+    expect(
+      screen.getByRole("button", { name: "Remap Primary attack / ability 1" }),
+    ).toHaveTextContent("Cross");
   });
 
   it("owns the switch-character and logout actions instead of the player frame", async () => {
@@ -77,7 +108,7 @@ describe("SettingsMenu", () => {
         attachWorldMap: vi.fn(),
       },
     });
-    render(<SettingsMenu />);
+    render(<SettingsMenu inGame />);
     await userEvent.click(screen.getByRole("button", { name: "Switch character" }));
     await userEvent.click(screen.getByRole("button", { name: "Log out" }));
     expect(switchCharacter).toHaveBeenCalledOnce();

@@ -5,6 +5,7 @@ import { applyTinySwordsTheme } from "../../src/client/game/tiny-swords-assets.j
 import { AssetBrowser, resetTinySwordsCatalogForTests } from "../../src/client/ui/AssetBrowser.js";
 import { Button } from "../../src/client/ui/pixelact-ui/button/index.js";
 import { TinyPanel } from "../../src/client/ui/tiny-swords/TinyPanel.js";
+import { TinyRange } from "../../src/client/ui/tiny-swords/TinyRange.js";
 
 const entries = [
   {
@@ -80,6 +81,13 @@ describe("Tiny Swords UI foundation", () => {
     expect(root.style.getPropertyValue("--tiny-cursor-link")).toMatch(/, pointer$/);
     render(<TinyPanel data-testid="panel" />);
     expect(screen.getByTestId("panel")).toHaveAttribute("data-tiny-slice", "64 64 64 64");
+  });
+
+  it("assembles range tracks from the authored left, middle and right bar cells", () => {
+    render(<TinyRange aria-label="Volume" />);
+    const slider = screen.getByRole("slider", { name: "Volume" });
+    expect(slider).toHaveClass("tiny-range");
+    expect(slider.parentElement?.querySelector("[data-tiny-bar-track]")?.children).toHaveLength(3);
   });
 
   it("searches and filters the progressively loaded asset catalogue", async () => {

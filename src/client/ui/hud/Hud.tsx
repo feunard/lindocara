@@ -98,16 +98,8 @@ export function Hud() {
               {self.hp}/{self.maxHp}
             </span>
           </label>
-          {/* biome-ignore lint/a11y/noLabelWithoutControl: see above. */}
-          <label>
-            <span>{t("hud.spark")}</span>
-            <Bar value={selfState.xp} max={selfState.xpToNext} variant="xp" />
-            <span>
-              {selfState.xp}/{selfState.xpToNext}
-            </span>
-          </label>
           {selfState.resource && (
-            // biome-ignore lint/a11y/noLabelWithoutControl: read-only progress row, matching the two rows above.
+            // biome-ignore lint/a11y/noLabelWithoutControl: read-only progress row, matching the rows above/below.
             <label>
               <span>{t(`resource.${selfState.resource.kind}` as MessageKey)}</span>
               <Bar value={selfState.resource.current} max={selfState.resource.max} variant="mana" />
@@ -116,6 +108,14 @@ export function Hud() {
               </span>
             </label>
           )}
+          {/* biome-ignore lint/a11y/noLabelWithoutControl: see above. */}
+          <label>
+            <span>{t("hud.spark")}</span>
+            <Bar value={selfState.xp} max={selfState.xpToNext} variant="xp" />
+            <span>
+              {selfState.xp}/{selfState.xpToNext}
+            </span>
+          </label>
         </section>
 
         <section className="panel party">

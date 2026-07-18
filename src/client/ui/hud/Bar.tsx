@@ -1,3 +1,5 @@
+import { TinyBarTrack } from "../tiny-swords/TinyBarTrack.js";
+
 const VARIANTS = ["hp", "xp", "quest", "mana"] as const;
 type BarVariant = (typeof VARIANTS)[number];
 
@@ -20,8 +22,11 @@ export function Bar({
       className="tiny-bar"
       data-variant={variant}
     >
-      <div data-fill className="tiny-bar__clip" style={{ width: `${ratio * 100}%` }}>
-        <div className="tiny-bar__fill" />
+      <TinyBarTrack className="tiny-bar__track" />
+      <div className="tiny-bar__channel">
+        <div data-fill className="tiny-bar__clip" style={{ width: `${ratio * 100}%` }}>
+          <div className="tiny-bar__fill" />
+        </div>
       </div>
     </div>
   );

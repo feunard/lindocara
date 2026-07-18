@@ -12,6 +12,7 @@ export function CharacterSelect({ onPlay }: { onPlay(character: CharacterSummary
   const characters = useUiStore((state) => state.characters);
   const setCharacters = useUiStore((state) => state.setCharacters);
   const setScreen = useUiStore((state) => state.setScreen);
+  const setSettingsOpen = useUiStore((state) => state.setSettingsOpen);
   const [creating, setCreating] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -63,6 +64,9 @@ export function CharacterSelect({ onPlay }: { onPlay(character: CharacterSummary
           <p>{t("chars.roster.subtitle")}</p>
         </div>
         <div className="roster-header__actions">
+          <Button type="button" variant="secondary" onClick={() => setSettingsOpen(true)}>
+            {t("chars.options")}
+          </Button>
           <Button type="button" variant="secondary" onClick={() => setScreen("map-editor")}>
             {t("chars.mapEditor")}
           </Button>

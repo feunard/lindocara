@@ -8,6 +8,7 @@ describe("Bar", () => {
     const bar = screen.getByRole("progressbar");
     expect(bar).toHaveAttribute("aria-valuenow", "30");
     expect(bar).toHaveAttribute("aria-valuemax", "120");
+    expect(bar.querySelector("[data-tiny-bar-track]")?.children).toHaveLength(3);
     const fill = bar.querySelector("[data-fill]");
     expect(fill).toHaveStyle({ width: "25%" });
   });
