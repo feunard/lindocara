@@ -1823,7 +1823,20 @@ export class World extends DurableObject<Env> {
     try {
       const saved = await this.#savePlayer(player, ws, true);
       if (saved) {
-        await this.#presence(player).release(player.connectionId, player.sessionEpoch);
+        try {
+          await this.#presence(player).release(player.connectionId, player.sessionEpoch);
+        } catch (error) {
+          // A completed fenced save is still safe if the best-effort lease release fails: the
+          // short lease expires and a later acquisition advances the D1 epoch. Do not turn an RPC
+          // teardown/network failure during WebSocket close into an unhandled DO exception.
+          console.warn(
+            JSON.stringify({
+              event: "presence_release_failed",
+              identityKind: player.identityKind,
+              error: error instanceof Error ? error.message : "unknown",
+            }),
+          );
+        }
       }
     } finally {
       if (this.#players.get(ws) === player) this.#removePlayer(ws, player);
