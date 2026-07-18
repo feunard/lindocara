@@ -6,14 +6,36 @@ import {
   type DraftMemberInfo,
   draftComplete,
   draftFromAdventure,
+  draftValidationIssues,
   emptyDraft,
+  moveMember,
+  refreshMember,
   removeMember,
   setStart,
   toAdventureInput,
 } from "../src/client/adventure-draft.js";
 
-const A: DraftMemberInfo = { mapId: "map-a", name: "A", entryIds: ["door"], exitIds: ["east"] };
-const B: DraftMemberInfo = { mapId: "map-b", name: "B", entryIds: ["west"], exitIds: ["boss"] };
+const VISUAL_INFO = {
+  revision: 1,
+  blocks: ["...."],
+  monsterCount: 0,
+  entryLabels: {},
+  exitLabels: {},
+};
+const A: DraftMemberInfo = {
+  ...VISUAL_INFO,
+  mapId: "map-a",
+  name: "A",
+  entryIds: ["door"],
+  exitIds: ["east"],
+};
+const B: DraftMemberInfo = {
+  ...VISUAL_INFO,
+  mapId: "map-b",
+  name: "B",
+  entryIds: ["west"],
+  exitIds: ["boss"],
+};
 
 function fullDraft(): AdventureDraft {
   let draft = emptyDraft();
@@ -88,5 +110,39 @@ describe("adventure draft", () => {
     ]);
     const rebuilt = draftFromAdventure({ ...stored, mapIds: [...stored.mapIds] }, infos);
     expect(rebuilt).toEqual(fullDraft());
+  });
+
+  it("refreshes edited markers while preserving only still-valid links", () => {
+    const updatedB: DraftMemberInfo = {
+      ...B,
+      revision: 2,
+      entryIds: ["cellar"],
+      entryLabels: { cellar: "Cellar" },
+    };
+    const refreshed = refreshMember(fullDraft(), updatedB);
+    expect(refreshed.draft.members[1]).toEqual(updatedB);
+    expect(refreshed.draft.bindings[0]?.dest).toBeNull();
+    expect(refreshed.draft.bindings[1]?.dest).toBe("end");
+    expect(refreshed.invalidated).toEqual(["map-a:east"]);
+  });
+
+  it("keeps display ordering independent from graph destinations", () => {
+    const draft = fullDraft();
+    const moved = moveMember(draft, "map-b", -1);
+    expect(moved.members.map((member) => member.mapId)).toEqual(["map-b", "map-a"]);
+    expect(moved.bindings).toEqual(draft.bindings);
+  });
+
+  it("reports unreachable maps and an ending that exists only on an island", () => {
+    const island = bindExit(fullDraft(), "map-a", "east", "end") as AdventureDraft;
+    expect(draftValidationIssues(island)).toContainEqual({
+      code: "unreachable_map",
+      mapId: "map-b",
+    });
+    const endOnIsland = bindExit(island, "map-a", "east", {
+      mapId: "map-a",
+      entryId: "door",
+    }) as AdventureDraft;
+    expect(draftValidationIssues(endOnIsland)).toContainEqual({ code: "unreachable_end" });
   });
 });

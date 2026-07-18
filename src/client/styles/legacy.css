@@ -134,6 +134,30 @@ body::after {
   pointer-events: none;
 }
 
+.adventure-map-thumbnail {
+  width: 7rem;
+  height: 4.5rem;
+  flex: 0 0 auto;
+  border: 2px solid rgb(100 143 117 / 70%);
+  background: #6fa76b;
+  image-rendering: pixelated;
+}
+
+.adventure-member {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  padding-block: 0.6rem;
+}
+
+.adventure-member > div {
+  display: grid;
+  min-width: 12rem;
+  margin-right: auto;
+  gap: 0.25rem;
+}
+
 .panel {
   border: 1px solid var(--line);
   border-radius: 10px;

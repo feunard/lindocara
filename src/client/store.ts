@@ -6,7 +6,26 @@ import type { MessageKey } from "../shared/i18n/index.js";
 import type { PartyState, QuestStatus, SelfState } from "../shared/protocol.js";
 import type { Input } from "../shared/simulation.js";
 import type { SkillSlot } from "../shared/skills.js";
+import type { AdventureDraft } from "./adventure-draft.js";
 import type { CharacterSummary, PartyListing } from "./api.js";
+
+export type EditorReturnContext =
+  | { screen: "map-editor-list" }
+  | {
+      screen: "adventure";
+      adventureId: string | null;
+      draftId: string;
+      mapId: string | null;
+      addCreatedMap: boolean;
+    };
+
+export interface AdventureEditorSession {
+  adventureId: string | null;
+  draftId: string;
+  draft: AdventureDraft;
+  invalidatedLinks: string[];
+  savedDraft: string | null;
+}
 
 export interface LocalizedText {
   key: MessageKey;
@@ -108,6 +127,8 @@ interface UiState {
     | "party";
   accountId: string | null;
   activeParty: PartyListing | null;
+  editorReturnContext: EditorReturnContext | null;
+  adventureEditorSession: AdventureEditorSession | null;
   characters: CharacterSummary[] | null;
   self: SelfHud | null;
   selfState: SelfState | null;
@@ -141,6 +162,8 @@ interface UiState {
   setScreen(screen: UiState["screen"]): void;
   setAccountId(accountId: string | null): void;
   setActiveParty(activeParty: PartyListing | null): void;
+  setEditorReturnContext(context: EditorReturnContext | null): void;
+  setAdventureEditorSession(session: AdventureEditorSession | null): void;
   setCharacters(characters: CharacterSummary[] | null): void;
   setSelf(self: SelfHud | null): void;
   setSelfState(state: SelfState): void;
@@ -245,6 +268,8 @@ export const useUiStore = create<UiState>((set) => ({
   screen: "boot",
   accountId: null,
   activeParty: null,
+  editorReturnContext: null,
+  adventureEditorSession: null,
   characters: null,
   self: null,
   selfState: null,
@@ -271,6 +296,8 @@ export const useUiStore = create<UiState>((set) => ({
   setScreen: (screen) => set({ screen }),
   setAccountId: (accountId) => set({ accountId }),
   setActiveParty: (activeParty) => set({ activeParty }),
+  setEditorReturnContext: (editorReturnContext) => set({ editorReturnContext }),
+  setAdventureEditorSession: (adventureEditorSession) => set({ adventureEditorSession }),
   setCharacters: (characters) => set({ characters }),
   setSelf: (self) =>
     set((state) => {

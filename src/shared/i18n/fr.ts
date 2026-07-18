@@ -612,12 +612,20 @@ export const fr: Record<keyof typeof en, string> = {
   "adventure.players": "Joueurs max",
   "adventure.players.count": "{count} joueurs max",
   "adventure.edit": "Modifier",
+  "adventure.test": "Tester l’aventure",
   "adventure.refresh": "Actualiser",
   "adventure.delete.title": "Supprimer {name} ?",
   "adventure.maps.title": "Cartes",
   "adventure.maps.add": "Ajouter",
   "adventure.maps.add.label": "Ajouter une carte",
   "adventure.maps.remove": "Retirer",
+  "adventure.maps.new": "Nouvelle carte",
+  "adventure.maps.edit": "Modifier",
+  "adventure.maps.up": "Monter",
+  "adventure.maps.down": "Descendre",
+  "adventure.maps.entries": "entrées",
+  "adventure.maps.exits": "sorties",
+  "adventure.maps.monsters": "monstres",
   "adventure.start.title": "Départ",
   "adventure.start.map": "Carte de départ",
   "adventure.start.entry": "Entrée",
@@ -626,6 +634,17 @@ export const fr: Record<keyof typeof en, string> = {
   "adventure.bindings.unbound": "Choisir une destination",
   "adventure.incomplete":
     "Définis un départ, relie chaque sortie et termine l'aventure au moins une fois.",
+
+  "adventure.validation.title": "Validation de l’aventure",
+  "adventure.validation.valid": "Le graphe de l’aventure est jouable.",
+  "adventure.validation.missing_start": "L’entrée de départ est manquante.",
+  "adventure.validation.unbound_exit": "{map} : la sortie {exit} n’est pas reliée.",
+  "adventure.validation.unreachable_end": "Aucune fin n’est accessible depuis le départ.",
+  "adventure.validation.unreachable_map": "{map} n’est pas accessible depuis le départ.",
+  "adventure.validation.map_without_entry": "{map} n’a aucune entrée.",
+  "adventure.validation.map_without_exit": "{map} n’a aucune sortie.",
+  "adventure.validation.marker_changed":
+    "Une liaison enregistrée a été vidée car son marqueur a changé.",
 
   // Parties (accueil)
   "parties.title": "Parties coopératives",

@@ -8,6 +8,7 @@ import {
   MIN_PATROL_RADIUS,
 } from "../../shared/map-data.js";
 import { type EditorAssetId, editorAsset } from "../../shared/tiny-swords-catalog.js";
+import { type DraftMemberInfo, refreshMember } from "../adventure-draft.js";
 import {
   authErrorText,
   createMapApi,
@@ -80,7 +81,15 @@ type StageStatus = "loading" | "ready" | "error";
  * name and the Save/Back chrome; the stage owns the canvas. They meet only through the
  * `MapEditorStageHandle` — no React reaches into Pixi, no Pixi string reaches into React.
  */
-function MapEditorStage({ map, onExit }: { map: MapPayload; onExit: () => void }) {
+function MapEditorStage({
+  map,
+  onExit,
+  onSaved,
+}: {
+  map: MapPayload;
+  onExit: () => void;
+  onSaved?: (map: MapPayload) => void;
+}) {
   useLocale();
   const setScreen = useUiStore((state) => state.setScreen);
   const handleRef = useRef<MapEditorStageHandle | null>(null);
@@ -255,9 +264,10 @@ function MapEditorStage({ map, onExit }: { map: MapPayload; onExit: () => void }
     setSaving(true);
     setError(null);
     try {
-      await updateMapApi(map.id, handle.current());
+      const updated = await updateMapApi(map.id, handle.current());
       handle.markSaved();
       setDirty(false);
+      onSaved?.(updated);
     } catch (caught) {
       const code = errorCode(caught);
       if (isSessionError(code)) setScreen("auth");
@@ -557,6 +567,10 @@ function MapPreviewHint() {
 export function MapEditor() {
   useLocale();
   const setScreen = useUiStore((state) => state.setScreen);
+  const returnContext = useUiStore((state) => state.editorReturnContext);
+  const setReturnContext = useUiStore((state) => state.setEditorReturnContext);
+  const setAdventureEditorSession = useUiStore((state) => state.setAdventureEditorSession);
+  const autoOpenAttempted = useRef(false);
   const [maps, setMaps] = useState<MapSummary[] | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [selected, setSelected] = useState<MapPayload | null>(null);
@@ -571,6 +585,23 @@ export function MapEditor() {
   useEffect(() => {
     refresh();
   }, []);
+
+  // `open` intentionally closes over stable setters. Depending on the render-local function would
+  // repeat the request on every render.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: one contextual auto-open
+  useEffect(() => {
+    if (
+      maps === null ||
+      selected !== null ||
+      returnContext?.screen !== "adventure" ||
+      returnContext.mapId === null ||
+      autoOpenAttempted.current
+    ) {
+      return;
+    }
+    autoOpenAttempted.current = true;
+    void open(returnContext.mapId);
+  }, [maps, returnContext, selected]);
 
   /** A session problem leaves the screen entirely, exactly like `CharacterSelect`'s initial
    *  fetch does (store.ts's `setScreen("auth")`). Anything else becomes a visible error rather
@@ -600,6 +631,10 @@ export function MapEditor() {
     try {
       const created = await createMapApi(blankMap(name.trim(), cols, rows));
       setName("");
+      if (returnContext?.screen === "adventure" && returnContext.addCreatedMap) {
+        returnToAdventure(created);
+        return;
+      }
       await refresh();
       setSelected(created);
     } catch (caught) {
@@ -635,6 +670,47 @@ export function MapEditor() {
     }
   }
 
+  function draftMember(map: MapPayload): DraftMemberInfo {
+    return {
+      mapId: map.id,
+      name: map.name,
+      revision: map.revision,
+      blocks: map.blocks,
+      monsterCount: map.markers.monsterSpawns.length,
+      entryIds: map.markers.entries.map((marker) => marker.id),
+      exitIds: map.markers.exits.map((marker) => marker.id),
+      entryLabels: Object.fromEntries(
+        map.markers.entries.flatMap((marker) =>
+          marker.label ? [[marker.id, marker.label] as const] : [],
+        ),
+      ),
+      exitLabels: Object.fromEntries(
+        map.markers.exits.flatMap((marker) =>
+          marker.label ? [[marker.id, marker.label] as const] : [],
+        ),
+      ),
+    };
+  }
+
+  function returnToAdventure(updated?: MapPayload): void {
+    const context = useUiStore.getState().editorReturnContext;
+    const session = useUiStore.getState().adventureEditorSession;
+    if (context?.screen !== "adventure" || !session || session.draftId !== context.draftId) {
+      setSelected(null);
+      return;
+    }
+    if (updated) {
+      const refreshed = refreshMember(session.draft, draftMember(updated));
+      setAdventureEditorSession({
+        ...session,
+        draft: refreshed.draft,
+        invalidatedLinks: [...session.invalidatedLinks, ...refreshed.invalidated],
+      });
+    }
+    setReturnContext(null);
+    setScreen("adventures");
+  }
+
   // The painting stage draws onto the shared #stage canvas, which sits behind #root; the toolbar
   // is the only chrome, floated over it, so the map stays visible while you edit.
   if (selected) {
@@ -642,9 +718,14 @@ export function MapEditor() {
       <MapEditorStage
         map={selected}
         onExit={() => {
+          if (returnContext?.screen === "adventure") {
+            returnToAdventure();
+            return;
+          }
           setSelected(null);
           void refresh();
         }}
+        {...(returnContext?.screen === "adventure" ? { onSaved: returnToAdventure } : {})}
       />
     );
   }
@@ -660,7 +741,13 @@ export function MapEditor() {
           <span className="eyebrow">{t("editor.title")}</span>
           <h1>{t("editor.title")}</h1>
         </div>
-        <Button type="button" variant="secondary" onClick={() => setScreen("characters")}>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() =>
+            returnContext?.screen === "adventure" ? returnToAdventure() : setScreen("characters")
+          }
+        >
           {t("editor.back")}
         </Button>
       </header>

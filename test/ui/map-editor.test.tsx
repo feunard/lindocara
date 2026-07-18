@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { emptyDraft } from "../../src/client/adventure-draft.js";
 import type { CharacterSummary, MapPayload, MapSummary } from "../../src/client/api.js";
 import { setLocale } from "../../src/client/i18n.js";
 import { useUiStore } from "../../src/client/store.js";
@@ -157,7 +158,12 @@ function fetchMock(maps: MapSummary[] = twoMaps) {
 describe("MapEditor", () => {
   beforeEach(() => {
     setLocale("en");
-    useUiStore.setState({ screen: "map-editor", characters: null });
+    useUiStore.setState({
+      screen: "map-editor",
+      characters: null,
+      adventureEditorSession: null,
+      editorReturnContext: null,
+    });
     for (const fn of Object.values(stageMock)) fn.mockReset();
     stageMock.openMapEditorStage.mockResolvedValue(stageHandle());
     previewMock.startMapPreview.mockReset();
@@ -458,5 +464,36 @@ describe("MapEditor", () => {
     expect(stageMock.setTool).toHaveBeenLastCalledWith(
       expect.objectContaining({ kind: "marker-monster", species: "mire_troll" }),
     );
+  });
+
+  it("adds a map created from an adventure to the preserved draft and returns", async () => {
+    const draftId = "draft-1";
+    useUiStore.setState({
+      adventureEditorSession: {
+        adventureId: null,
+        draftId,
+        draft: { ...emptyDraft(), title: "Preserved" },
+        invalidatedLinks: [],
+        savedDraft: null,
+      },
+      editorReturnContext: {
+        screen: "adventure",
+        adventureId: null,
+        draftId,
+        mapId: null,
+        addCreatedMap: true,
+      },
+    });
+    vi.stubGlobal("fetch", fetchMock());
+    render(<MapEditor />);
+
+    await screen.findByText("Verdant Reach");
+    await userEvent.type(screen.getByLabelText("Name"), "Third map");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(useUiStore.getState().screen).toBe("adventures"));
+    expect(useUiStore.getState().adventureEditorSession?.draft.title).toBe("Preserved");
+    expect(useUiStore.getState().adventureEditorSession?.draft.members).toEqual([
+      expect.objectContaining({ mapId: "new", name: "New map" }),
+    ]);
   });
 });

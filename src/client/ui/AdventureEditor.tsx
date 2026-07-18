@@ -7,7 +7,9 @@ import {
   type DraftMemberInfo,
   draftComplete,
   draftFromAdventure,
+  draftValidationIssues,
   emptyDraft,
+  moveMember,
   removeMember,
   setStart,
   toAdventureInput,
@@ -16,12 +18,14 @@ import {
   type AdventureSummary,
   authErrorText,
   createAdventureApi,
+  createPartyApi,
   deleteAdventureApi,
   errorCode,
   fetchAdventure,
   fetchAdventures,
   fetchMap,
   fetchMaps,
+  fetchParties,
   type MapSummary,
   updateAdventureApi,
 } from "../api.js";
@@ -30,6 +34,7 @@ import { useUiStore } from "../store.js";
 import { Button } from "./pixelact-ui/button/index.js";
 import { Input } from "./pixelact-ui/input.js";
 import { Label } from "./pixelact-ui/label.js";
+import { Select } from "./pixelact-ui/select.js";
 
 function isSessionError(code: string): boolean {
   return code === "session_expired" || code === "unauthorized";
@@ -40,9 +45,50 @@ async function memberInfo(mapId: string): Promise<DraftMemberInfo> {
   return {
     mapId,
     name: payload.name,
+    revision: payload.revision,
+    blocks: payload.blocks,
+    monsterCount: payload.markers.monsterSpawns.length,
     entryIds: payload.markers.entries.map((marker) => marker.id),
     exitIds: payload.markers.exits.map((marker) => marker.id),
+    entryLabels: Object.fromEntries(
+      payload.markers.entries.flatMap((marker) =>
+        marker.label ? [[marker.id, marker.label] as const] : [],
+      ),
+    ),
+    exitLabels: Object.fromEntries(
+      payload.markers.exits.flatMap((marker) =>
+        marker.label ? [[marker.id, marker.label] as const] : [],
+      ),
+    ),
   };
+}
+
+function markerName(labels: Readonly<Record<string, string>>, id: string): string {
+  return labels[id] ?? id;
+}
+
+function MapDraftThumbnail({ member }: { member: DraftMemberInfo }) {
+  const rows = member.blocks.length;
+  const cols = member.blocks[0]?.length ?? 0;
+  const water = member.blocks
+    .flatMap((row, rowIndex) =>
+      [...row].flatMap((cell, colIndex) =>
+        cell === "#" ? [`M${colIndex} ${rowIndex}h1v1h-1z`] : [],
+      ),
+    )
+    .join("");
+  return (
+    <svg
+      className="adventure-map-thumbnail"
+      viewBox={`0 0 ${Math.max(1, cols)} ${Math.max(1, rows)}`}
+      role="img"
+      aria-label={member.name}
+      preserveAspectRatio="xMidYMid slice"
+    >
+      <rect width={cols} height={rows} fill="#6fa76b" />
+      <path d={water} fill="#4b9eb4" />
+    </svg>
+  );
 }
 
 /** "end" or "mapId::entryId" — both id alphabets exclude ":". */
@@ -63,13 +109,50 @@ function decodeDest(value: string): ExitDestination | null {
 export function AdventureEditor() {
   useLocale();
   const setScreen = useUiStore((state) => state.setScreen);
+  const setActiveParty = useUiStore((state) => state.setActiveParty);
+  const storedSession = useUiStore((state) => state.adventureEditorSession);
+  const setStoredSession = useUiStore((state) => state.setAdventureEditorSession);
+  const setEditorReturnContext = useUiStore((state) => state.setEditorReturnContext);
   const [adventures, setAdventures] = useState<AdventureSummary[] | null>(null);
   const [maps, setMaps] = useState<MapSummary[] | null>(null);
-  const [editing, setEditing] = useState<{ id: string | null; draft: AdventureDraft } | null>(null);
+  const [editing, setEditing] = useState<{
+    id: string | null;
+    draftId: string;
+    draft: AdventureDraft;
+  } | null>(
+    storedSession
+      ? {
+          id: storedSession.adventureId,
+          draftId: storedSession.draftId,
+          draft: storedSession.draft,
+        }
+      : null,
+  );
   const [addingMapId, setAddingMapId] = useState("");
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [savedDraft, setSavedDraft] = useState<string | null>(storedSession?.savedDraft ?? null);
   const [error, setError] = useState<string | null>(null);
+
+  function remember(
+    next: typeof editing,
+    invalidatedLinks: string[] = [],
+    saved = savedDraft,
+  ): void {
+    setEditing(next);
+    setStoredSession(
+      next
+        ? {
+            adventureId: next.id,
+            draftId: next.draftId,
+            draft: next.draft,
+            invalidatedLinks,
+            savedDraft: saved,
+          }
+        : null,
+    );
+  }
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only fetch
   useEffect(() => {
@@ -106,7 +189,10 @@ export function AdventureEditor() {
       const payload = await fetchAdventure(id);
       const infos = new Map<string, DraftMemberInfo>();
       for (const mapId of payload.mapIds) infos.set(mapId, await memberInfo(mapId));
-      setEditing({ id, draft: draftFromAdventure(payload, infos) });
+      const draft = draftFromAdventure(payload, infos);
+      const saved = JSON.stringify(draft);
+      setSavedDraft(saved);
+      remember({ id, draftId: crypto.randomUUID(), draft }, [], saved);
     } catch (caught) {
       fail(caught);
     }
@@ -118,7 +204,7 @@ export function AdventureEditor() {
     try {
       const info = await memberInfo(addingMapId);
       const draft = addMember(editing.draft, info);
-      if (draft) setEditing({ ...editing, draft });
+      if (draft) remember({ ...editing, draft });
       setAddingMapId("");
     } catch (caught) {
       fail(caught);
@@ -134,7 +220,7 @@ export function AdventureEditor() {
     try {
       if (editing.id === null) await createAdventureApi(input);
       else await updateAdventureApi(editing.id, input);
-      setEditing(null);
+      remember(null);
       await refresh();
     } catch (caught) {
       fail(caught);
@@ -154,14 +240,49 @@ export function AdventureEditor() {
     }
   }
 
+  async function testAdventure(): Promise<void> {
+    if (!editing?.id || testing || savedDraft !== JSON.stringify(editing.draft)) return;
+    setTesting(true);
+    setError(null);
+    try {
+      const created = await createPartyApi({
+        adventureId: editing.id,
+        name: `${editing.draft.title} · Test`,
+        color: "blue",
+      });
+      const listing = (await fetchParties()).find((party) => party.id === created.id);
+      if (!listing) throw new Error("party_not_found");
+      setActiveParty(listing);
+      setScreen("party");
+    } catch (caught) {
+      fail(caught);
+    } finally {
+      setTesting(false);
+    }
+  }
+
   function update(draft: AdventureDraft | null): void {
-    if (editing && draft) setEditing({ ...editing, draft });
+    if (editing && draft) remember({ ...editing, draft });
+  }
+
+  function openMapEditor(mapId: string | null, addCreatedMap: boolean): void {
+    if (!editing) return;
+    remember(editing, storedSession?.invalidatedLinks ?? []);
+    setEditorReturnContext({
+      screen: "adventure",
+      adventureId: editing.id,
+      draftId: editing.draftId,
+      mapId,
+      addCreatedMap,
+    });
+    setScreen("map-editor");
   }
 
   if (adventures === null || maps === null) return null;
 
   if (editing) {
     const draft = editing.draft;
+    const validationIssues = draftValidationIssues(draft);
     const available = maps.filter(
       (map) => !draft.members.some((member) => member.mapId === map.id),
     );
@@ -173,7 +294,7 @@ export function AdventureEditor() {
             <span className="eyebrow">{t("adventure.title")}</span>
             <h1>{draft.title.trim() || t("adventure.new")}</h1>
           </div>
-          <Button type="button" variant="secondary" onClick={() => setEditing(null)}>
+          <Button type="button" variant="secondary" onClick={() => remember(null)}>
             {t("editor.back")}
           </Button>
         </header>
@@ -204,7 +325,35 @@ export function AdventureEditor() {
           <h2>{t("adventure.maps.title")}</h2>
           {draft.members.map((member) => (
             <div key={member.mapId} className="adventure-member">
-              <span>{member.name}</span>
+              <MapDraftThumbnail member={member} />
+              <div>
+                <strong>{member.name}</strong>
+                <span>
+                  {member.entryIds.length} {t("adventure.maps.entries")} · {member.exitIds.length}{" "}
+                  {t("adventure.maps.exits")} · {member.monsterCount} {t("adventure.maps.monsters")}
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => openMapEditor(member.mapId, false)}
+              >
+                {t("adventure.maps.edit")}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => update(moveMember(draft, member.mapId, -1))}
+              >
+                {t("adventure.maps.up")}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => update(moveMember(draft, member.mapId, 1))}
+              >
+                {t("adventure.maps.down")}
+              </Button>
               <Button
                 type="button"
                 variant="secondary"
@@ -214,8 +363,11 @@ export function AdventureEditor() {
               </Button>
             </div>
           ))}
+          <Button type="button" onClick={() => openMapEditor(null, true)}>
+            {t("adventure.maps.new")}
+          </Button>
           <Label htmlFor="adventure-add-map">{t("adventure.maps.add.label")}</Label>
-          <select
+          <Select
             id="adventure-add-map"
             value={addingMapId}
             onChange={(event) => setAddingMapId(event.currentTarget.value)}
@@ -226,7 +378,7 @@ export function AdventureEditor() {
                 {map.name}
               </option>
             ))}
-          </select>
+          </Select>
           <Button type="button" onClick={() => void addMap()}>
             {t("adventure.maps.add")}
           </Button>
@@ -235,7 +387,7 @@ export function AdventureEditor() {
         <section className="roster-card framed" aria-label={t("adventure.start.title")}>
           <h2>{t("adventure.start.title")}</h2>
           <Label htmlFor="adventure-start-map">{t("adventure.start.map")}</Label>
-          <select
+          <Select
             id="adventure-start-map"
             value={draft.start?.mapId ?? ""}
             onChange={(event) => {
@@ -252,9 +404,9 @@ export function AdventureEditor() {
                   {member.name}
                 </option>
               ))}
-          </select>
+          </Select>
           <Label htmlFor="adventure-start-entry">{t("adventure.start.entry")}</Label>
-          <select
+          <Select
             id="adventure-start-entry"
             value={draft.start?.entryId ?? ""}
             onChange={(event) => {
@@ -265,10 +417,10 @@ export function AdventureEditor() {
             <option value="">—</option>
             {(startMap?.entryIds ?? []).map((entryId) => (
               <option key={entryId} value={entryId}>
-                {entryId}
+                {markerName(startMap?.entryLabels ?? {}, entryId)}
               </option>
             ))}
-          </select>
+          </Select>
         </section>
 
         <section className="roster-card framed" aria-label={t("adventure.bindings.title")}>
@@ -279,8 +431,10 @@ export function AdventureEditor() {
             return (
               <div key={selectId} className="adventure-binding">
                 <span>{owner?.name}</span>
-                <Label htmlFor={selectId}>{binding.exitId}</Label>
-                <select
+                <Label htmlFor={selectId}>
+                  {markerName(owner?.exitLabels ?? {}, binding.exitId)}
+                </Label>
+                <Select
                   id={selectId}
                   value={encodeDest(binding.dest)}
                   onChange={(event) =>
@@ -302,16 +456,46 @@ export function AdventureEditor() {
                         key={`${member.mapId}::${entryId}`}
                         value={`${member.mapId}::${entryId}`}
                       >
-                        {member.name} · {entryId}
+                        {member.name} · {markerName(member.entryLabels, entryId)}
                       </option>
                     )),
                   )}
-                </select>
+                </Select>
               </div>
             );
           })}
         </section>
 
+        <section className="roster-card framed" aria-label={t("adventure.validation.title")}>
+          <h2>{t("adventure.validation.title")}</h2>
+          {validationIssues.length === 0 && (storedSession?.invalidatedLinks.length ?? 0) === 0 ? (
+            <p>{t("adventure.validation.valid")}</p>
+          ) : (
+            <ul>
+              {validationIssues.map((issue) => {
+                const member =
+                  "mapId" in issue
+                    ? draft.members.find((candidate) => candidate.mapId === issue.mapId)
+                    : undefined;
+                const exit =
+                  issue.code === "unbound_exit"
+                    ? markerName(member?.exitLabels ?? {}, issue.exitId)
+                    : "";
+                return (
+                  <li key={`${issue.code}:${"mapId" in issue ? issue.mapId : ""}:${exit}`}>
+                    {t(`adventure.validation.${issue.code}`, {
+                      map: member?.name ?? "",
+                      exit,
+                    })}
+                  </li>
+                );
+              })}
+              {storedSession?.invalidatedLinks.map((link) => (
+                <li key={`invalidated:${link}`}>{t("adventure.validation.marker_changed")}</li>
+              ))}
+            </ul>
+          )}
+        </section>
         {!draftComplete(draft) && <p>{t("adventure.incomplete")}</p>}
         <Button
           type="button"
@@ -319,6 +503,19 @@ export function AdventureEditor() {
           onClick={() => void save()}
         >
           {t("editor.save")}
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={
+            editing.id === null ||
+            !draftComplete(draft) ||
+            savedDraft !== JSON.stringify(draft) ||
+            testing
+          }
+          onClick={() => void testAdventure()}
+        >
+          {t("adventure.test")}
         </Button>
       </main>
     );
@@ -364,7 +561,10 @@ export function AdventureEditor() {
           </article>
         ))}
       </section>
-      <Button type="button" onClick={() => setEditing({ id: null, draft: emptyDraft() })}>
+      <Button
+        type="button"
+        onClick={() => remember({ id: null, draftId: crypto.randomUUID(), draft: emptyDraft() })}
+      >
         {t("adventure.new")}
       </Button>
       {deleting && (

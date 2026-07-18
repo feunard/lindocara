@@ -8,6 +8,7 @@ import { AdventureEditor } from "../../src/client/ui/AdventureEditor.js";
 const MAP_A = {
   id: "m1",
   name: "Verdant",
+  revision: 1,
   blocks: ["...."],
   elements: [],
   spawn: { col: 0, row: 0 },
@@ -20,6 +21,7 @@ const MAP_A = {
 const MAP_B = {
   id: "m2",
   name: "Frostfen",
+  revision: 1,
   blocks: ["...."],
   elements: [],
   spawn: { col: 0, row: 0 },
@@ -77,7 +79,12 @@ function fetchMock() {
 describe("AdventureEditor", () => {
   beforeEach(() => {
     setLocale("en");
-    useUiStore.setState({ screen: "adventures", characters: null });
+    useUiStore.setState({
+      screen: "adventures",
+      characters: null,
+      adventureEditorSession: null,
+      editorReturnContext: null,
+    });
   });
 
   it("builds and saves a complete adventure", async () => {
@@ -150,5 +157,45 @@ describe("AdventureEditor", () => {
     expect(screen.getByRole("alertdialog")).toHaveTextContent("Delete Donjon?");
     await userEvent.click(screen.getByRole("button", { name: "Delete permanently" }));
     await waitFor(() => expect(screen.queryByText("Donjon")).not.toBeInTheDocument());
+  });
+
+  it("keeps the typed draft when opening a member map and returning", async () => {
+    vi.stubGlobal("fetch", fetchMock());
+    const rendered = render(<AdventureEditor />);
+    await userEvent.click(await screen.findByRole("button", { name: "New adventure" }));
+    await userEvent.type(screen.getByLabelText("Title"), "Preserved draft");
+    await userEvent.selectOptions(screen.getByLabelText("Add a map"), "m1");
+    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+    await within(screen.getByRole("region", { name: "Maps" })).findByText("Verdant");
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(useUiStore.getState().screen).toBe("map-editor");
+    expect(useUiStore.getState().editorReturnContext).toMatchObject({
+      screen: "adventure",
+      mapId: "m1",
+      addCreatedMap: false,
+    });
+    expect(useUiStore.getState().adventureEditorSession?.draft.title).toBe("Preserved draft");
+
+    rendered.unmount();
+    useUiStore.getState().setScreen("adventures");
+    render(<AdventureEditor />);
+    expect(await screen.findByDisplayValue("Preserved draft")).toBeInTheDocument();
+    expect(screen.getAllByText("Verdant").length).toBeGreaterThan(0);
+  });
+
+  it("opens new-map creation with an add-to-draft return intent", async () => {
+    vi.stubGlobal("fetch", fetchMock());
+    render(<AdventureEditor />);
+    await userEvent.click(await screen.findByRole("button", { name: "New adventure" }));
+    await userEvent.type(screen.getByLabelText("Title"), "Draft");
+
+    await userEvent.click(screen.getByRole("button", { name: "New map" }));
+    expect(useUiStore.getState().screen).toBe("map-editor");
+    expect(useUiStore.getState().editorReturnContext).toMatchObject({
+      screen: "adventure",
+      mapId: null,
+      addCreatedMap: true,
+    });
   });
 });
