@@ -87,6 +87,87 @@ export function eraseTile(layer: TileLayer, tileset: Tileset, col: number, row: 
   return withNeighboursResolved({ ...layer, ids }, tileset, col, row);
 }
 
+interface ClampedRect {
+  c0: number;
+  r0: number;
+  c1: number;
+  r1: number;
+}
+
+/** Corners accepted in either order, clamped to the layer. Null when nothing survives clamping. */
+function clampRect(
+  layer: TileLayer,
+  colA: number,
+  rowA: number,
+  colB: number,
+  rowB: number,
+): ClampedRect | null {
+  const c0 = Math.max(0, Math.min(colA, colB));
+  const c1 = Math.min(layer.cols - 1, Math.max(colA, colB));
+  const r0 = Math.max(0, Math.min(rowA, rowB));
+  const r1 = Math.min(layer.rows - 1, Math.max(rowA, rowB));
+  if (c0 > c1 || r0 > r1) return null;
+  return { c0, r0, c1, r1 };
+}
+
+/**
+ * Fill `rect` with `id`, then re-resolve every cell whose variant could have changed: the region
+ * itself plus its one-cell border (a neighbour just outside the region may now abut a different
+ * slot). One pass to write the ids, one to resolve — never per-cell recursion into the
+ * single-cell brush, which would re-resolve an interior cell up to five times.
+ *
+ * Unlike `syncWall`'s ambient wall upkeep, which since Task 2 refuses to touch a fixed tile, a
+ * rectangle is explicit authoring intent: a fixed tile inside the region is overwritten exactly
+ * like an autotile would be.
+ */
+function fillRect(layer: TileLayer, tileset: Tileset, rect: ClampedRect, id: number): TileLayer {
+  const ids = [...layer.ids];
+  for (let row = rect.r0; row <= rect.r1; row += 1) {
+    for (let col = rect.c0; col <= rect.c1; col += 1) {
+      ids[indexOf(layer, col, row)] = id;
+    }
+  }
+  const draft: TileLayer = { ...layer, ids };
+  const top = Math.max(0, rect.r0 - 1);
+  const bottom = Math.min(layer.rows - 1, rect.r1 + 1);
+  const left = Math.max(0, rect.c0 - 1);
+  const right = Math.min(layer.cols - 1, rect.c1 + 1);
+  for (let row = top; row <= bottom; row += 1) {
+    for (let col = left; col <= right; col += 1) {
+      const resolved = resolvedId(draft, tileset, col, row);
+      if (resolved !== null) ids[indexOf(draft, col, row)] = resolved;
+    }
+  }
+  return { ...layer, ids };
+}
+
+export function paintRectAutotile(
+  layer: TileLayer,
+  tileset: Tileset,
+  slot: number,
+  c0: number,
+  r0: number,
+  c1: number,
+  r1: number,
+): TileLayer {
+  const rect = clampRect(layer, c0, r0, c1, r1);
+  if (!rect) return layer;
+  return fillRect(layer, tileset, rect, autotileId(slot, 0));
+}
+
+export function eraseRect(
+  layer: TileLayer,
+  tileset: Tileset,
+  c0: number,
+  r0: number,
+  c1: number,
+  r1: number,
+): TileLayer {
+  const rect = clampRect(layer, c0, r0, c1, r1);
+  if (!rect) return layer;
+  return fillRect(layer, tileset, rect, EMPTY_TILE);
+}
+
 /** Every autotile cell re-resolved from scratch. The oracle the brush is tested against. */
 export function resolveWholeLayer(layer: TileLayer, tileset: Tileset): TileLayer {
   const ids = [...layer.ids];
