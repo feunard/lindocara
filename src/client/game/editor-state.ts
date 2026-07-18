@@ -23,8 +23,12 @@ import {
   parseMapData,
 } from "../../shared/map-data.js";
 import {
+  eraseRect,
   eraseTile,
+  floodFill,
   paintElevation,
+  paintRectAutotile,
+  paintStairs,
   resolveWholeLayer,
   syncElevationWalls,
 } from "../../shared/tile-brush.js";
@@ -53,10 +57,33 @@ export interface EditorMap {
   elements: MapElement[];
   spawn: { col: number; row: number };
   markers: MapMarkers;
+  /**
+   * The rect tool's drag anchor: optional and set only while a rect stroke is in flight. It carries
+   * both the first cell of the stroke and the layers exactly as they stood before the stroke touched
+   * them, so every subsequent cell of the same drag repaints the whole rectangle from that pristine
+   * copy rather than from the live preview. Painting from the live preview instead would leave stray
+   * cells behind whenever a drag shrinks back after growing — `fillRect` only ever writes into the
+   * rectangle it is given, it never clears cells a *previous*, larger rectangle touched.
+   *
+   * Deliberately excluded from `serializedMap`: it is stroke-local plumbing, not map content, and
+   * must never make the map read as dirty or unsaved on its own.
+   */
+  strokeAnchor?: { col: number; row: number; layers: TileLayer[] };
 }
 
 /** Terrain strokes write the ground; only `paintElevation` reaches past it, and it owns the reach. */
 const GROUND_LAYER = 0;
+
+/**
+ * What a rect or fill stroke paints. Deliberately the same vocabulary the single-cell `block` and
+ * `elevation` tools already use — rect/fill are shape modifiers over an existing terrain selection,
+ * not a new kind of content. Both are always ground-layer content (the spec's targeting rule: a
+ * terrain selection always targets the ground layer and its wall upkeep, whatever `activeLayer`
+ * says), so unlike the eraser, `activeLayer` never routes them elsewhere.
+ */
+export type RectFillContent =
+  | { kind: "block"; block: "grass" | "water" }
+  | { kind: "elevation"; level: 0 | 1 | 2 };
 
 export type EditorTool =
   | { kind: "block"; block: "grass" | "water" }
@@ -68,7 +95,10 @@ export type EditorTool =
   | { kind: "pan" }
   | { kind: "marker-entry" }
   | { kind: "marker-exit" }
-  | { kind: "marker-monster"; species: MonsterSpecies; patrolRadius: number };
+  | { kind: "marker-monster"; species: MonsterSpecies; patrolRadius: number }
+  | { kind: "rect"; content: RectFillContent }
+  | { kind: "fill"; content: RectFillContent }
+  | { kind: "stairs" };
 
 export type EditorSelection =
   | { kind: "element"; col: number; row: number }
@@ -82,6 +112,15 @@ export interface EditorHistory {
   present: EditorMap;
   future: EditorMap[];
   saved: string;
+  /**
+   * Which layer paint-adjacent tools (the eraser; rect/fill when a future selection is layer-free)
+   * target. Lives here, not on `EditorMap`, because it must survive undo/redo unchanged — undo
+   * reverts *content*, never which layer the author happens to be looking at — and because history
+   * snapshots already flow through every `commitEditorHistory`/`undoEditorHistory`/`redoEditorHistory`
+   * call via `{ ...history, ... }`, so it rides along for free without a bespoke carve-out in any of
+   * them.
+   */
+  activeLayer: 0 | 1 | 2;
 }
 
 /**
@@ -91,13 +130,24 @@ export interface EditorHistory {
  * every stroke, and a 100x100 map is 30 000 ids. Runs collapse a mostly-uniform map to a few dozen
  * characters, and they are exactly what gets saved, so two maps compare equal here precisely when
  * they would be stored identically.
+ *
+ * `strokeAnchor` is deliberately dropped before stringifying: it is in-flight rect-drag plumbing,
+ * not map content, and must never make a merely-in-progress stroke read as a content change, nor
+ * leak a stale pristine-layers copy into what "saved" or "present" are compared against.
  */
 function serializedMap(map: EditorMap): string {
-  return JSON.stringify({ ...map, layers: map.layers.map(encodeTileLayer) });
+  const { strokeAnchor: _strokeAnchor, ...rest } = map;
+  return JSON.stringify({ ...rest, layers: rest.layers.map(encodeTileLayer) });
 }
 
 export function createEditorHistory(map: EditorMap): EditorHistory {
-  return { past: [], present: map, future: [], saved: serializedMap(map) };
+  return { past: [], present: map, future: [], saved: serializedMap(map), activeLayer: 0 };
+}
+
+/** The one setter `activeLayer` needs: a plain field swap, no undo entry — switching which layer an
+ *  author is looking at is not an edit. */
+export function setActiveLayer(history: EditorHistory, layer: 0 | 1 | 2): EditorHistory {
+  return { ...history, activeLayer: layer };
 }
 
 /** Commit one semantic operation. A caller painting a stroke passes only its final map here. */
@@ -490,12 +540,148 @@ function terrainStrokeCells(col: number, row: number): readonly { col: number; r
   ];
 }
 
+/** The same idea as `terrainStrokeCells`, widened to a rectangle: every cell the region can change,
+ *  plus the wall row one below its bottom edge. */
+function terrainRectCells(
+  c0: number,
+  r0: number,
+  c1: number,
+  r1: number,
+): readonly { col: number; row: number }[] {
+  const cells: { col: number; row: number }[] = [];
+  for (let row = r0; row <= r1 + 1; row += 1) {
+    for (let col = c0; col <= c1; col += 1) cells.push({ col, row });
+  }
+  return cells;
+}
+
+/** `syncElevationWalls` for one cell, widened to a rectangle: every column in range, at every row
+ *  the region touched. `syncElevationWalls(_, _, col, row)` already checks both `row` and `row + 1`
+ *  per call, so looping `row` from `r0` to `r1` alone covers wall rows `r0` through `r1 + 1` — the
+ *  same span `terrainRectCells` accounts for. */
+function syncElevationWallsForRect(
+  layers: readonly TileLayer[],
+  c0: number,
+  r0: number,
+  c1: number,
+  r1: number,
+): TileLayer[] {
+  let next = [...layers];
+  for (let col = c0; col <= c1; col += 1) {
+    for (let row = r0; row <= r1; row += 1) {
+      next = syncElevationWalls(next, TINY_SWORDS_TILESET, col, row);
+    }
+  }
+  return next;
+}
+
+/** Corners accepted in either order, clamped to the map. Null when nothing survives clamping —
+ *  `clampRect` in `tile-brush.ts` does the identical job but is not exported, and both corners are
+ *  already bounds-checked by `applyTool`'s own guard before this ever runs, so this is a second,
+ *  cheap pass rather than the map's only defence. */
+function clampToMap(
+  map: EditorMap,
+  colA: number,
+  rowA: number,
+  colB: number,
+  rowB: number,
+): { c0: number; r0: number; c1: number; r1: number } | null {
+  const { cols, rows } = editorMapSize(map);
+  const c0 = Math.max(0, Math.min(colA, colB));
+  const c1 = Math.min(cols - 1, Math.max(colA, colB));
+  const r0 = Math.max(0, Math.min(rowA, rowB));
+  const r1 = Math.min(rows - 1, Math.max(rowA, rowB));
+  return c0 > c1 || r0 > r1 ? null : { c0, r0, c1, r1 };
+}
+
+/** The tightest rectangle bounding every cell where two same-shaped layers differ, or null when they
+ *  are identical. `floodFill`'s region is internal to it — this is how a caller who only gets the
+ *  painted layer back learns which wall rows might need to catch up. */
+function changedBounds(
+  before: TileLayer,
+  after: TileLayer,
+): { c0: number; r0: number; c1: number; r1: number } | null {
+  let c0 = Number.POSITIVE_INFINITY;
+  let r0 = Number.POSITIVE_INFINITY;
+  let c1 = Number.NEGATIVE_INFINITY;
+  let r1 = Number.NEGATIVE_INFINITY;
+  for (let row = 0; row < before.rows; row += 1) {
+    for (let col = 0; col < before.cols; col += 1) {
+      const index = row * before.cols + col;
+      if (before.ids[index] === after.ids[index]) continue;
+      if (col < c0) c0 = col;
+      if (col > c1) c1 = col;
+      if (row < r0) r0 = row;
+      if (row > r1) r1 = row;
+    }
+  }
+  return c1 < c0 ? null : { c0, r0, c1, r1 };
+}
+
+/** The autotile slot a terrain selection paints with, or null for water — water has no slot, it
+ *  erases instead, the same "empty ground is the sea" rule the single-cell block tool uses. */
+function contentSlot(content: RectFillContent): number | null {
+  if (content.kind === "elevation") return GRASS_SLOTS[content.level];
+  return content.block === "grass" ? GRASS_SLOTS[0] : null;
+}
+
+/** A rectangle of `content` on the ground layer: `paintRectAutotile` for grass/elevation,
+ *  `eraseRect` for water. */
+function paintRectContent(
+  ground: TileLayer,
+  content: RectFillContent,
+  c0: number,
+  r0: number,
+  c1: number,
+  r1: number,
+): TileLayer {
+  const slot = contentSlot(content);
+  return slot === null
+    ? eraseRect(ground, TINY_SWORDS_TILESET, c0, r0, c1, r1)
+    : paintRectAutotile(ground, TINY_SWORDS_TILESET, slot, c0, r0, c1, r1);
+}
+
+/** A flood fill of `content` on the ground layer, or null when the content has no fill primitive —
+ *  `floodFill` (`tile-brush.ts`) only ever fills toward a slot, so water (fill-to-empty) has no
+ *  expression here without a new shared brush, which is out of this task's scope. */
+function fillContent(
+  ground: TileLayer,
+  content: RectFillContent,
+  col: number,
+  row: number,
+): TileLayer | null {
+  const slot = contentSlot(content);
+  if (slot === null) return null;
+  return floodFill(ground, TINY_SWORDS_TILESET, slot, col, row);
+}
+
+/**
+ * Erase one cell of layer 1 or layer 2 directly — no wall upkeep, because only the ground's own
+ * elevation drives `syncElevationWalls`; a layer 1/2 cell holds no elevation of its own to react to.
+ * This is also why clearing a hand-placed ramp does not bring an ambient wall back on its own,
+ * matching `syncWall`'s "wall upkeep never overwrites a fixed tile" rule: an author who wants the
+ * wall back repaints the ground elevation, the same as the single-cell eraser already requires.
+ *
+ * Guarded the same way every other terrain write is, even though an erase can only ever remove a
+ * collider, never add one: consistency over cleverness.
+ */
+function eraseOnLayer(map: EditorMap, layer: 1 | 2, col: number, row: number): EditorMap | null {
+  const target = map.layers[layer];
+  if (!target) return null;
+  const erased = eraseTile(target, TINY_SWORDS_TILESET, col, row);
+  const layers = map.layers.map((existing, index) => (index === layer ? erased : existing));
+  if (sameLayers(map.layers, layers)) return map;
+  const next = { ...map, layers };
+  return keepsSpawnClear(next) && keepsMarkersValid(next) ? next : null;
+}
+
 export function applyTool(
   map: EditorMap,
   tool: EditorTool,
   col: number,
   row: number,
   isStrokeStart = true,
+  activeLayer: 0 | 1 | 2 = 0,
 ): EditorMap | null {
   const { cols, rows } = editorMapSize(map);
   if (col < 0 || row < 0 || col >= cols || row >= rows) return null;
@@ -515,6 +701,76 @@ export function applyTool(
     case "elevation": {
       const layers = paintElevation(map.layers, TINY_SWORDS_TILESET, tool.level, col, row);
       return commitTerrain(map, layers, terrainStrokeCells(col, row));
+    }
+    /**
+     * Anchors on stroke start, then every later cell of the same drag repaints the whole rectangle
+     * from that anchor's pristine layers — never from the live preview — so a drag that grows then
+     * shrinks leaves nothing behind outside the final rectangle. The stage commits history from its
+     * own pre-stroke snapshot to whatever this returns on the drag's last cell, so there is nothing
+     * further to do "on release": the last call already *is* the release.
+     *
+     * Always ground + wall upkeep, regardless of `activeLayer` — a terrain selection targets the
+     * ground layer whatever layer is active, the same rule the single-cell `block`/`elevation` tools
+     * already follow.
+     */
+    case "rect": {
+      if (isStrokeStart) return { ...map, strokeAnchor: { col, row, layers: map.layers } };
+      const anchor = map.strokeAnchor;
+      if (!anchor) return null;
+      const bounds = clampToMap(map, anchor.col, anchor.row, col, row);
+      if (!bounds) return null;
+      const ground = anchor.layers[GROUND_LAYER];
+      if (!ground) return null;
+      const painted = paintRectContent(
+        ground,
+        tool.content,
+        bounds.c0,
+        bounds.r0,
+        bounds.c1,
+        bounds.r1,
+      );
+      const layers = syncElevationWallsForRect(
+        [painted, ...anchor.layers.slice(1)],
+        bounds.c0,
+        bounds.r0,
+        bounds.c1,
+        bounds.r1,
+      );
+      return commitTerrain(
+        map,
+        layers,
+        terrainRectCells(bounds.c0, bounds.r0, bounds.c1, bounds.r1),
+      );
+    }
+    /** One click, one flood region. Same ground + wall-upkeep targeting as `rect`; `activeLayer`
+     *  never applies since the content is always terrain. */
+    case "fill": {
+      const ground = map.layers[GROUND_LAYER];
+      if (!ground) return null;
+      const painted = fillContent(ground, tool.content, col, row);
+      if (!painted) return null;
+      const bounds = changedBounds(ground, painted);
+      if (!bounds) return map;
+      const layers = syncElevationWallsForRect(
+        [painted, ...map.layers.slice(1)],
+        bounds.c0,
+        bounds.r0,
+        bounds.c1,
+        bounds.r1,
+      );
+      return commitTerrain(
+        map,
+        layers,
+        terrainRectCells(bounds.c0, bounds.r0, bounds.c1, bounds.r1),
+      );
+    }
+    /** Layer 1 by its own fixed rule, never `activeLayer` — a ramp is a wall-layer fixture no matter
+     *  which layer the author is looking at. `paintStairs` itself refuses (same-reference) an
+     *  out-of-bounds stamp; that refusal is passed straight through. */
+    case "stairs": {
+      const layers = paintStairs(map.layers, TINY_SWORDS_TILESET, col, row);
+      if (layers === map.layers) return null;
+      return { ...map, layers };
     }
     case "element": {
       const placed: MapElement = { col, row, assetId: tool.assetId };
@@ -539,6 +795,10 @@ export function applyTool(
      * eraser stroke dragged across a clearing full of trees would leave behind a continuous water
      * trail nobody asked for — the same result as the water tool, but as a surprising side effect of
      * clearing decor. A deliberate single click on bare ground still erases it, same as before.
+     *
+     * The terrain fall-through is "layer-free": it has no terrain selection of its own, so it is the
+     * one case the spec's targeting rule routes by `activeLayer` — ground (with wall upkeep) when
+     * `activeLayer` is 0, a plain single-layer clear on layer 1 or 2 otherwise.
      */
     case "eraser": {
       const elements = withoutElementAt(map.elements, col, row);
@@ -555,6 +815,7 @@ export function applyTool(
         return { ...map, elements, markers: { entries, exits, monsterSpawns } };
       }
       if (!isStrokeStart) return null;
+      if (activeLayer !== 0) return eraseOnLayer(map, activeLayer, col, row);
       const layers = erasedTerrain(map, col, row);
       if (!layers) return null;
       return commitTerrain(map, layers, terrainStrokeCells(col, row));
