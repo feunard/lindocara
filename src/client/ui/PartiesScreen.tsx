@@ -69,7 +69,11 @@ export function PartiesScreen() {
     if (!adventureId) return;
     setError(null);
     try {
-      const created = await createPartyApi({ adventureId, name: name.trim() || null, color: colour });
+      const created = await createPartyApi({
+        adventureId,
+        name: name.trim() || null,
+        color: colour,
+      });
       const list = await fetchParties();
       setParties(list);
       // Match by the id we just minted, not by adventure: a caller may host several parties of the
