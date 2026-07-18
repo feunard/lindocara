@@ -21,16 +21,53 @@ describe("authoritative combat visual cancellation", () => {
     expect(state).toEqual({});
   });
 
-  it("lets an authoritative null fence stale animation events without affecting new actions", () => {
+  it("accepts an animation before any snapshot is known", () => {
+    const authority = new CombatVisualAuthority();
+    expect(authority.acceptsAnimation("player-a", "action-a")).toBe(true);
+  });
+
+  it("accepts a fresh animation immediately after an authoritative null", () => {
+    const authority = new CombatVisualAuthority();
+    authority.recordSnapshot("player-a", null);
+    expect(authority.acceptsAnimation("player-a", "action-b")).toBe(true);
+  });
+
+  it("keeps an explicitly cancelled action blocked after an authoritative null", () => {
     const authority = new CombatVisualAuthority();
     authority.recordSnapshot("monster-a", "action-a");
     expect(authority.acceptsAnimation("monster-a", "action-a")).toBe(true);
     authority.recordSnapshot("monster-a", null);
     authority.cancel("action-a");
     expect(authority.acceptsAnimation("monster-a", "action-a")).toBe(false);
+  });
 
+  it("accepts only the action id already active in an authoritative snapshot", () => {
+    const authority = new CombatVisualAuthority();
     authority.recordSnapshot("monster-a", "action-b");
     expect(authority.acceptsAnimation("monster-a", "action-b")).toBe(true);
+    expect(authority.acceptsAnimation("monster-a", "action-c")).toBe(false);
+  });
+
+  it("accepts a new action after the previous id was cancelled", () => {
+    const authority = new CombatVisualAuthority();
+    authority.recordSnapshot("player-a", null);
+    authority.cancel("action-a");
+    expect(authority.acceptsAnimation("player-a", "action-a")).toBe(false);
+    expect(authority.acceptsAnimation("player-a", "action-b")).toBe(true);
+  });
+
+  it.each([
+    "death",
+    "transition",
+    "reconnection",
+  ])("never restores action-a after cancellation by %s", (reason) => {
+    const authority = new CombatVisualAuthority();
+    authority.recordSnapshot("player-a", "action-a");
+    authority.cancel("action-a");
+    authority.recordSnapshot("player-a", null);
+    if (reason !== "death") authority.clearSnapshots();
+    expect(authority.acceptsAnimation("player-a", "action-a")).toBe(false);
+    expect(authority.acceptsAnimation("player-a", "action-b")).toBe(true);
   });
 
   it("does not couple actor cancellation to authoritative projectile snapshots", () => {

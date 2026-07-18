@@ -23,7 +23,7 @@ export function clearVisualAction(state: MutableVisualActionState): string | nul
   return actionId;
 }
 
-/** Snapshot state fences older animation events; an authoritative null always wins. */
+/** Snapshot state fences conflicting animation events while explicit cancellation blocks stale ids. */
 export class CombatVisualAuthority {
   #snapshotActionIds = new Map<string, string | null>();
   #cancelledActionIds = new Set<string>();
@@ -33,9 +33,10 @@ export class CombatVisualAuthority {
   }
 
   acceptsAnimation(actorId: string, actionId: string): boolean {
+    const snapshotActionId = this.#snapshotActionIds.get(actorId);
     return (
       !this.#cancelledActionIds.has(actionId) &&
-      (!this.#snapshotActionIds.has(actorId) || this.#snapshotActionIds.get(actorId) === actionId)
+      (snapshotActionId === undefined || snapshotActionId === null || snapshotActionId === actionId)
     );
   }
 

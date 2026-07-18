@@ -1,11 +1,6 @@
 import { WS_CLOSE } from "../../shared/close-codes.js";
 import { isSpirit } from "../../shared/death.js";
-import {
-  ATTACK_COOLDOWN_MS,
-  INTERACTION_RANGE,
-  isMonsterSpecies,
-  pointDistance,
-} from "../../shared/game.js";
+import { INTERACTION_RANGE, isMonsterSpecies, pointDistance } from "../../shared/game.js";
 import type { MessageKey } from "../../shared/i18n/index.js";
 import type {
   CombatAnimation,
@@ -16,7 +11,7 @@ import type {
   SelfState,
 } from "../../shared/protocol.js";
 import { NO_INPUT, type Vec2 } from "../../shared/simulation.js";
-import { type SkillSlot, skillFor } from "../../shared/skills.js";
+import type { SkillSlot } from "../../shared/skills.js";
 import { decodeTileMap } from "../../shared/tilemap-codec.js";
 import { DEFAULT_ZONE_ID, isKnownZone, type ZoneId, zoneDefinition } from "../../shared/zones.js";
 import { type CharacterSummary, logout, type PartyListing, type StoredHero } from "../api.js";
@@ -337,6 +332,8 @@ async function startGameIdentity(
       if (code === "quest.site_harvested" && typeof params?.site === "string") {
         renderer.hideQuestSite(params.site, 15_000);
       }
+      // `skill.cast` remains visible through the event log and CombatAnimation owns its sound/art.
+      // It intentionally has no switch branch: only SelfState may update cooldown deadlines.
       switch (code) {
         case "level_up":
         case "quest.fulfilled":
@@ -345,18 +342,6 @@ async function startGameIdentity(
         case "heal.cast":
           renderer.playHealingImpact(healingEffectColor(params?.color), x, y);
           break;
-        case "skill.cast": {
-          const slot = params?.slot;
-          if (typeof slot === "number" && slot >= 1 && slot <= 5) {
-            const skillSlot = slot as SkillSlot;
-            const skill = skillFor(currentSelf?.class ?? identity.class, skillSlot);
-            useUiStore.getState().setSkillCooldown(skillSlot, performance.now() + skill.cooldownMs);
-            if (skillSlot === 1) {
-              useUiStore.getState().setAttackCooldownUntil(performance.now() + ATTACK_COOLDOWN_MS);
-            }
-          }
-          break;
-        }
         case "loot.picked":
         case "quest.accepted":
         case "quest.site_harvested":
