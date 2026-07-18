@@ -22,6 +22,7 @@ export const TINY_SWORDS_TERRAIN = {
   flat: `${TINY_SWORDS_ROOT}/terrain/Tilemap_Flat.png`,
   water: `${TINY_SWORDS_ROOT}/terrain/Water.png`,
   foam: `${TINY_SWORDS_ROOT}/terrain/Foam.png`,
+  tileset: `${TINY_SWORDS_ROOT}/terrain/Tilemap_color1.png`,
 };
 
 /** `Foam.png` is eight 192x192 frames; the blob itself is ~82px, centred. Drawn centred under a
