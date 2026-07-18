@@ -426,7 +426,7 @@ describe("party hero admission and authored runtime", () => {
   it("heals the priest and visible party allies with Prayer but not through a wall", {
     timeout: 15_000,
   }, async () => {
-    const party = await testParty("prayer", { maps: [prayerMapInput()] });
+    const party = await testParty("prayer", { maps: [prayerMapInput()], color: "red" });
     const priestHero = await testHero("Prayer", {
       party,
       account: party.host,
@@ -437,12 +437,14 @@ describe("party hero admission and authored runtime", () => {
     });
     const visibleHero = await testHero("Visible", {
       party,
+      color: "yellow",
       level: 7,
       hp: 40,
       position: centre(2, 4),
     });
     const blockedHero = await testHero("Blocked", {
       party,
+      color: "purple",
       level: 7,
       hp: 40,
       position: centre(4, 2),
@@ -463,13 +465,61 @@ describe("party hero admission and authored runtime", () => {
     });
     await scheduler.wait(300);
     expect(blocked.self()?.hp).toBe(40);
+    expect(
+      priest.received.find((message) => message.t === "event" && message.code === "heal.cast"),
+    ).toMatchObject({ params: { color: "ember" } });
+    expect(
+      visible.received.find((message) => message.t === "event" && message.code === "heal.received"),
+    ).toMatchObject({ params: { color: "ember" } });
     priest.close();
     visible.close();
     blocked.close();
   });
 
+  it("keeps a violet Mend projectile and its ally impact violet", { timeout: 15_000 }, async () => {
+    const party = await testParty("mend-colour", { color: "purple" });
+    const priestHero = await testHero("VioletMend", {
+      party,
+      account: party.host,
+      class: "priest",
+      level: 3,
+      hp: 40,
+      position: centre(2, 2),
+    });
+    const allyHero = await testHero("AzureAlly", {
+      party,
+      color: "blue",
+      level: 3,
+      hp: 40,
+      position: centre(4, 2),
+    });
+    const priest = await Client.joinHero(priestHero);
+    const ally = await Client.joinHero(allyHero);
+    await until("Mend colour party welcomed", () => priest.welcome && ally.welcome);
+
+    priest.skill(2);
+    const projectile = await until("violet healing projectile", () =>
+      ally.latestSnapshot?.projectiles.find(
+        (candidate) =>
+          candidate.ownerId === priestHero.heroId && candidate.kind === "healing_light",
+      ),
+    );
+    expect(projectile.color).toBe("violet");
+    const received = await until("violet Mend impact", () =>
+      ally.received.find((message) => message.t === "event" && message.code === "heal.received"),
+    );
+    expect(received).toMatchObject({ params: { color: "violet", name: "VioletMend" } });
+    await until("Mend colour state catches up", () => {
+      const caster = priest.self();
+      const target = ally.self();
+      return caster && target && caster.hp > 40 && target.hp > 40 ? true : undefined;
+    });
+    priest.close();
+    ally.close();
+  });
+
   it("resolves Divine Nova once per nearby ally and monster", { timeout: 15_000 }, async () => {
-    const party = await testParty("nova", { maps: [novaMapInput()] });
+    const party = await testParty("nova", { maps: [novaMapInput()], color: "red" });
     const priestHero = await testHero("Nova", {
       party,
       account: party.host,
@@ -480,6 +530,7 @@ describe("party hero admission and authored runtime", () => {
     });
     const allyHero = await testHero("NovaAlly", {
       party,
+      color: "yellow",
       level: 10,
       hp: 40,
       position: centre(2, 3),
@@ -511,6 +562,9 @@ describe("party hero admission and authored runtime", () => {
     expect(
       priest.received.filter((message) => message.t === "event" && message.code === "combat.hit"),
     ).toHaveLength(1);
+    expect(
+      ally.received.find((message) => message.t === "event" && message.code === "heal.received"),
+    ).toMatchObject({ params: { color: "ember" } });
     priest.close();
     ally.close();
   });

@@ -4,6 +4,7 @@ import type { MonsterSpecies, PlayerClass } from "../../shared/game.js";
 import type { ProjectileKind } from "../../shared/protocol.js";
 import { CLASS_SKILLS } from "../../shared/skills.js";
 import { type EnemySheet, TINY_SWORDS_ENEMIES } from "./enemy-art.js";
+import type { ServerCombatTimeline } from "./server-clock.js";
 import { TINY_SWORDS_ROOT } from "./tiny-swords-art.js";
 
 const HEX_SHAMAN_PROJECTILE_SOURCE = new URL(
@@ -50,28 +51,6 @@ export interface MonsterCombatArtDefinition {
   /** Zero-based contact/release frame measured from the species' attack strip. */
   activeFrame: number;
   impact: CombatSheetArt;
-}
-
-export interface ServerCombatTimeline {
-  startedAt: number;
-  impactAt: number;
-  recoveryEndsAt: number;
-}
-
-/**
- * Translate absolute server deadlines onto the browser's monotonic clock. Motion preferences may
- * change decorative presentation, but they never change these authoritative gameplay deadlines.
- */
-export function localCombatTimeline(
-  timeline: ServerCombatTimeline,
-  localNow: number,
-  serverNow: number,
-): ServerCombatTimeline {
-  return {
-    startedAt: localNow + (timeline.startedAt - serverNow),
-    impactAt: localNow + (timeline.impactAt - serverNow),
-    recoveryEndsAt: localNow + (timeline.recoveryEndsAt - serverNow),
-  };
 }
 
 /** Select a visual frame while pinning the declared contact frame to the server impact instant. */

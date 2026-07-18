@@ -1277,8 +1277,10 @@ describe("World", () => {
       (m) => m.t === "event" && m.code === "heal.cast" && m.params?.name === "wounded",
     );
     const received = wounded.received.find((m) => m.t === "event" && m.code === "heal.received");
-    expect(cast).toMatchObject({ params: { name: "wounded", amount: 41 } });
-    expect(received).toMatchObject({ params: { name: "mender", amount: 41 } });
+    expect(cast).toMatchObject({ params: { name: "wounded", amount: 41, color: "azure" } });
+    expect(received).toMatchObject({
+      params: { name: "mender", amount: 41, color: "azure" },
+    });
 
     priest.close();
     wounded.close();
@@ -1503,7 +1505,9 @@ describe("World", () => {
 
     expect(healed.hp).toBe(81);
     const received = visible.received.find((m) => m.t === "event" && m.code === "heal.received");
-    expect(received).toMatchObject({ params: { name: "los_priest", amount: 41 } });
+    expect(received).toMatchObject({
+      params: { name: "los_priest", amount: 41, color: "azure" },
+    });
 
     priest.close();
     visible.close();

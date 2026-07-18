@@ -24,13 +24,14 @@ import { t } from "../i18n.js";
 import { type LocalizedText, useUiStore } from "../store.js";
 import { clientCooldownDeadlines } from "./cooldown-sync.js";
 import { getDisplaySettings } from "./display-settings.js";
-import { shouldFloatEvent } from "./feedback.js";
+import { healingEffectColor, shouldFloatEvent } from "./feedback.js";
 import { trackActions, trackInput } from "./input.js";
 import { type InteriorDoor, nearestInterior } from "./interiors.js";
 import { MapSurface } from "./minimap-surface.js";
 import { type Connection, type ConnectionHandlers, WorldClient } from "./net.js";
 import { type PartyTargetResolution, resolvePartyTarget } from "./party.js";
 import { type RenderContext, Renderer } from "./renderer.js";
+import { ServerClock } from "./server-clock.js";
 import { GameSound } from "./sound.js";
 
 function required<T extends Element>(selector: string): T {
@@ -211,7 +212,8 @@ async function startGameIdentity(
   useUiStore.getState().setAdventureVictory(false);
   setStatus("status.connecting", { name: identity.name });
   const canvas = required<HTMLCanvasElement>("#stage");
-  const renderer = await Renderer.create(canvas);
+  const serverClock = new ServerClock();
+  const renderer = await Renderer.create(canvas, serverClock);
   let client = new WorldClient();
   let connection: Connection | null = null;
   let reconnectTimer: number | null = null;
@@ -238,12 +240,10 @@ async function startGameIdentity(
   let worldMapCanvas: HTMLCanvasElement | null = null;
 
   const applyAuthoritativeState = (state: SelfState) => {
+    const receivedAt = performance.now();
+    if (typeof state.serverNow === "number") serverClock.sample(state.serverNow, receivedAt);
     renderState(state);
-    const deadlines = clientCooldownDeadlines(
-      state.cooldowns,
-      state.serverNow ?? Date.now(),
-      performance.now(),
-    );
+    const deadlines = clientCooldownDeadlines(state.cooldowns, serverClock);
     const store = useUiStore.getState();
     store.setAttackCooldownUntil(deadlines.attackUntil);
     store.setHealCooldownUntil(deadlines.healUntil);
@@ -343,7 +343,7 @@ async function startGameIdentity(
           sound.levelUp();
           break;
         case "heal.cast":
-          renderer.playHealingImpact(currentSelf?.appearance.primaryColor ?? "azure", x, y);
+          renderer.playHealingImpact(healingEffectColor(params?.color), x, y);
           break;
         case "skill.cast": {
           const slot = params?.slot;
@@ -365,7 +365,7 @@ async function startGameIdentity(
           break;
         case "heal.received":
           sound.healReceived();
-          renderer.playHealingImpact(currentSelf?.appearance.primaryColor ?? "azure", x, y);
+          renderer.playHealingImpact(healingEffectColor(params?.color), x, y);
           break;
         case "player.down":
         case "death.fallen":

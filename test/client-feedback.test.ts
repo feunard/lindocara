@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  healingEffectColor,
   MAX_ACTIVE_WORLD_EFFECTS,
   questSiteFeedback,
   shouldFloatEvent,
@@ -25,5 +26,12 @@ describe("world feedback readability", () => {
     expect(questSiteFeedback(true, 40)).toEqual({ signalAlpha: 0, labelAlpha: 0.9 });
     expect(questSiteFeedback(true, 300)).toEqual({ signalAlpha: 0, labelAlpha: 0 });
     expect(questSiteFeedback(false, 40)).toEqual({ signalAlpha: 0, labelAlpha: 0 });
+  });
+
+  it("keeps the caster colour for healing VFX and safely rejects malformed values", () => {
+    expect(healingEffectColor("ember")).toBe("ember");
+    expect(healingEffectColor("violet")).toBe("violet");
+    expect(healingEffectColor("yellow")).toBe("azure");
+    expect(healingEffectColor(undefined)).toBe("azure");
   });
 });

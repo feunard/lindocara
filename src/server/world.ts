@@ -1181,7 +1181,11 @@ export class World extends DurableObject<Env> {
       this.#send(casterSocket, {
         t: "event",
         code: "heal.cast",
-        params: { name: target.nick, amount: actualAmount },
+        params: {
+          name: target.nick,
+          amount: actualAmount,
+          color: caster.appearance.primaryColor,
+        },
         tone: "good",
         x: target.x,
         y: target.y,
@@ -1190,7 +1194,11 @@ export class World extends DurableObject<Env> {
     this.#send(targetSocket, {
       t: "event",
       code: selfCast && targetSocket === casterSocket ? "heal.cast" : "heal.received",
-      params: { name: caster.nick, amount: actualAmount },
+      params: {
+        name: caster.nick,
+        amount: actualAmount,
+        color: caster.appearance.primaryColor,
+      },
       tone: "good",
       x: target.x,
       y: target.y,

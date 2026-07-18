@@ -121,6 +121,11 @@ sous forme désactivée. Les nouveaux tests couvriront :
 
 ## Risques principaux
 
+Correctifs de stabilisation après validation : le client partage désormais un seul échantillon
+`serverNow`/`performance.now()` entre cooldowns et animations, `action: null` clôt immédiatement le
+rendu et fence les anciens événements d'animation, les soins transportent la couleur validée du
+lanceur, et Radiant Bolt utilise 280 ms d'anticipation + 370 ms de récupération (650 ms au total).
+
 - divergence entre temps serveur et progression d'une feuille d'animation client ;
 - projectile rapide traversant terrain ou entité si seule sa position finale est testée ;
 - cooldown ou coût débité deux fois lors d'une retransmission ;

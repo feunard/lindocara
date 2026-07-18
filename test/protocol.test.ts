@@ -328,10 +328,11 @@ describe("event messages", () => {
 
   it("accepts the heal event codes", () => {
     for (const code of ["heal.cast", "heal.received"] as const) {
-      expect(parseServerMessage(JSON.stringify({ t: "event", code, tone: "good" }))).toMatchObject({
-        t: "event",
-        code,
-      });
+      expect(
+        parseServerMessage(
+          JSON.stringify({ t: "event", code, params: { color: "ember" }, tone: "good" }),
+        ),
+      ).toMatchObject({ t: "event", code, params: { color: "ember" } });
     }
   });
 });

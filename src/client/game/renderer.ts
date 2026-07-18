@@ -60,10 +60,10 @@ import {
   allCombatSheets,
   combatActionFrameIndex,
   combatArt,
-  localCombatTimeline,
   monsterCombatArt,
   projectileArt,
 } from "./combat-art.js";
+import { CombatVisualAuthority, clearVisualAction } from "./combat-visual-state.js";
 import { type HealthBarMode, shouldShowHealthBar } from "./display-settings.js";
 import { type EditorAssetArt, loadEditorAssetArts } from "./editor-asset-art.js";
 import {
@@ -75,6 +75,7 @@ import {
 import { MAX_ACTIVE_WORLD_EFFECTS, questSiteFeedback } from "./feedback.js";
 import { sameRenderedMap } from "./map-render-cache.js";
 import type { SceneSample } from "./net.js";
+import { ServerClock } from "./server-clock.js";
 import { acquireStageApp } from "./stage-application.js";
 import {
   foamFrameAt,
@@ -278,6 +279,7 @@ interface Effect {
   sprite?: Sprite;
   frames?: readonly Texture[];
   scaleGrowth: number;
+  actionId?: string;
 }
 
 interface AmbientView {
@@ -704,6 +706,7 @@ function reconcile<T extends { id: string }>(
   entities: readonly T[],
   create: (entity: T) => EntityView<T>,
   update: (view: EntityView<T>, entity: T) => void,
+  remove?: (view: EntityView<T>) => void,
 ): void {
   const present = new Set<string>();
   for (const entity of entities) {
@@ -718,6 +721,7 @@ function reconcile<T extends { id: string }>(
 
   for (const [id, view] of views) {
     if (present.has(id)) continue;
+    remove?.(view);
     view.container.destroy({ children: true });
     views.delete(id);
   }
@@ -833,10 +837,12 @@ export class Renderer {
   #cameraReady = false;
   #lastCameraAt = 0;
   #healthBarMode: HealthBarMode = "both";
+  #combatVisualAuthority = new CombatVisualAuthority();
 
   private constructor(
     app: Application,
     private readonly art: ArtTextures,
+    private readonly serverClock: ServerClock,
   ) {
     this.#app = app;
     this.#localeUnsub = onLocaleChange(() => {
@@ -844,12 +850,15 @@ export class Renderer {
     });
   }
 
-  static async create(canvas: HTMLCanvasElement): Promise<Renderer> {
+  static async create(
+    canvas: HTMLCanvasElement,
+    serverClock = new ServerClock(),
+  ): Promise<Renderer> {
     // The one Application on #stage, shared with the map editor. It is created once per page and its
     // init options (background COLORS.void, resize-to-window, no antialias, capped resolution) now
     // live in stage-application.ts; this consumer only builds its own world onto the returned stage.
     const app = await acquireStageApp(canvas);
-    const renderer = new Renderer(app, await loadArt());
+    const renderer = new Renderer(app, await loadArt(), serverClock);
     renderer.#buildWorld();
     return renderer;
   }
@@ -1035,6 +1044,7 @@ export class Renderer {
     this.#activeEffects = [];
     for (const view of this.#players.values()) this.#resetVisualAction(view);
     for (const view of this.#monsters.values()) this.#resetVisualAction(view);
+    this.#combatVisualAuthority.clearSnapshots();
   }
 
   diagnostics(): Record<string, number> {
@@ -2604,6 +2614,7 @@ export class Renderer {
     rise: number,
     frames?: readonly Texture[],
     scaleGrowth = 0.55,
+    actionId?: string,
   ): void {
     while (this.#activeEffects.length >= MAX_ACTIVE_WORLD_EFFECTS) {
       const oldest = this.#activeEffects.shift();
@@ -2621,6 +2632,7 @@ export class Renderer {
     };
     if (sprite) effect.sprite = sprite;
     if (frames) effect.frames = frames;
+    if (actionId) effect.actionId = actionId;
     this.#activeEffects.push(effect);
   }
 
@@ -2665,10 +2677,9 @@ export class Renderer {
       recoveryEndsAt: number;
     },
   ): void {
-    if (view.actionId === action.id) return;
+    if (!this.#combatVisualAuthority.acceptsAction(action.id)) return;
     const localNow = performance.now();
-    const serverNow = Date.now();
-    const localTimeline = localCombatTimeline(action, localNow, serverNow);
+    const localTimeline = this.serverClock.combatTimeline(action, localNow);
     view.actionId = action.id;
     if (action.skillId === undefined) delete view.actionSkillId;
     else view.actionSkillId = action.skillId;
@@ -2686,11 +2697,17 @@ export class Renderer {
     view: EntityView<T>,
     action: CombatActionSnapshot | null,
   ): void {
-    if (!action) return;
+    this.#combatVisualAuthority.recordSnapshot(view.data.id, action?.id ?? null);
+    if (!action) {
+      this.#resetVisualAction(view);
+      return;
+    }
     this.#setVisualAction(view, action);
   }
 
   playCombatAnimation(animation: CombatAnimation): void {
+    if (!this.#combatVisualAuthority.acceptsAnimation(animation.actorId, animation.actionId))
+      return;
     const action = {
       id: animation.actionId,
       ...(animation.skillId === undefined ? {} : { skillId: animation.skillId }),
@@ -2737,14 +2754,16 @@ export class Renderer {
   }
 
   #resetVisualAction<T extends PlayerSnapshot | MonsterSnapshot>(view: EntityView<T>): void {
-    delete view.actionId;
-    delete view.actionSkillId;
-    delete view.actionStartedAt;
-    delete view.actionImpactAt;
-    delete view.actionEndsAt;
-    delete view.actionDirection;
-    delete view.effectPlayedActionId;
-    delete view.guardVisualUntil;
+    const cancelledActionId = clearVisualAction(view);
+    this.#combatVisualAuthority.cancel(cancelledActionId);
+    if (cancelledActionId) {
+      for (let index = this.#activeEffects.length - 1; index >= 0; index--) {
+        const effect = this.#activeEffects[index];
+        if (!effect || effect.actionId !== cancelledActionId) continue;
+        effect.container.destroy({ children: true });
+        this.#activeEffects.splice(index, 1);
+      }
+    }
   }
 
   #updatePlayerActionArt(
@@ -2799,6 +2818,7 @@ export class Renderer {
           effect.anchor,
           position.x,
           position.y,
+          view.actionId,
         );
       }
       view.effectPlayedActionId = view.actionId;
@@ -2854,6 +2874,7 @@ export class Renderer {
     anchor: { x: number; y: number },
     x: number,
     y: number,
+    actionId?: string,
   ): void {
     const frames = this.art.combatFrames.get(source);
     const first = frames?.[0];
@@ -2861,7 +2882,7 @@ export class Renderer {
     const sprite = new Sprite(first);
     sprite.anchor.set(anchor.x, anchor.y);
     sprite.position.set(x, y);
-    this.#trackEffect(sprite, durationMs, 0, frames, 0);
+    this.#trackEffect(sprite, durationMs, 0, frames, 0, actionId);
   }
 
   playCombatImpact(
@@ -3131,6 +3152,7 @@ export class Renderer {
         view.lastHp = player.hp;
         view.wasDead = spirit;
       },
+      (view) => this.#resetVisualAction(view),
     );
 
     reconcile(
@@ -3217,6 +3239,7 @@ export class Renderer {
         view.lastHp = monster.hp;
         view.wasDead = monster.dead;
       },
+      (view) => this.#resetVisualAction(view),
     );
 
     if (import.meta.env.DEV) this.#drawNavigationDebug(sample.monsters);

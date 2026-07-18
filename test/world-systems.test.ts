@@ -9,6 +9,7 @@ import { movePlayerInDirection } from "../src/server/world/skill-system.js";
 import { SpatialGrid } from "../src/server/world/spatial-grid.js";
 import { newPlayer, type PlayerRuntime } from "../src/server/world/world-runtime.js";
 import { starterEquipmentFor } from "../src/shared/character.js";
+import { PLAYER_ACTIONS } from "../src/shared/combat-actions.js";
 import type { TerrainGeometry } from "../src/shared/game.js";
 import { tileMapFromRects } from "./support/tiles.js";
 
@@ -106,6 +107,29 @@ describe("isolated directional combat systems", () => {
     ).toBeNull();
     cancelCombatAction(actor);
     expect(actor.action).toBeNull();
+  });
+
+  it("accepts Radiant Bolt exactly when its 650 ms action timeline ends", () => {
+    const actor = player();
+    const definition = PLAYER_ACTIONS.priest[0];
+    if (!definition) throw new Error("missing Radiant Bolt action");
+    const options = {
+      kind: "basic" as const,
+      skillId: definition.skillId,
+      slot: 1,
+      direction: { x: 1, y: 0 },
+      anticipationMs: definition.anticipationMs,
+      recoveryMs: definition.recoveryMs,
+    };
+    const first = startCombatAction(actor, { ...options, now: 1_000 });
+    expect(first?.impactAt).toBe(1_280);
+    expect(first?.recoveryEndsAt).toBe(1_650);
+
+    advanceCombatActions([actor], 1_649, () => undefined);
+    expect(startCombatAction(actor, { ...options, now: 1_649 })).toBeNull();
+
+    advanceCombatActions([actor], 1_650, () => undefined);
+    expect(startCombatAction(actor, { ...options, now: 1_650 })).not.toBeNull();
   });
 
   it("resolves mobility in segments and does not cross a wall", () => {

@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   combatActionFrameIndex,
   combatArt,
-  localCombatTimeline,
   monsterCombatArt,
   projectileArt,
 } from "../../src/client/game/combat-art.js";
+import { ServerClock } from "../../src/client/game/server-clock.js";
 import { MONSTER_SPECIES_KIND, type MonsterSpecies } from "../../src/shared/game.js";
 
 describe("Tiny Swords directional combat art", () => {
@@ -90,12 +90,10 @@ describe("Tiny Swords directional combat art", () => {
       configurable: true,
       value: () => ({ matches: true, media: "(prefers-reduced-motion: reduce)" }),
     });
+    const clock = new ServerClock();
+    clock.sample(10_100, 500);
     expect(
-      localCombatTimeline(
-        { startedAt: 10_000, impactAt: 10_220, recoveryEndsAt: 10_650 },
-        500,
-        10_100,
-      ),
+      clock.combatTimeline({ startedAt: 10_000, impactAt: 10_220, recoveryEndsAt: 10_650 }, 999),
     ).toEqual({ startedAt: 400, impactAt: 620, recoveryEndsAt: 1_050 });
   });
 });

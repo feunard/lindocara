@@ -34,6 +34,13 @@ describe("i18n", () => {
     }
   });
 
+  it("keeps visual healer colour out of localized combat prose", () => {
+    for (const locale of ["en", "fr"] as const) {
+      expect(dictionaries[locale]["event.heal.cast"]).not.toContain("{color}");
+      expect(dictionaries[locale]["event.heal.received"]).not.toContain("{color}");
+    }
+  });
+
   it("has a monster name for every spawn and a label for every loot kind", () => {
     // Closes the hole where a new species/kind compiles green but renders "undefined" —
     // MONSTER_SPAWNS and the loot kinds are the source of truth, not the dictionaries.

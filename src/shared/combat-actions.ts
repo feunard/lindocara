@@ -117,7 +117,7 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
       skillId: "radiant_bolt",
       shape: "projectile",
       anticipationMs: 280,
-      recoveryMs: 420,
+      recoveryMs: 370,
       projectile: { kind: "radiant_bolt", speed: 480, radius: 8, pierce: 0 },
     },
     {

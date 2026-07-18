@@ -4,6 +4,7 @@ import {
   normalizeCombatCooldowns,
 } from "../../shared/cooldowns.js";
 import type { SkillSlot } from "../../shared/skills.js";
+import type { ServerClock } from "./server-clock.js";
 
 export interface ClientCooldownDeadlines {
   attackUntil: number;
@@ -14,12 +15,16 @@ export interface ClientCooldownDeadlines {
 /** Converts absolute server time into this page's monotonic performance clock. */
 export function clientCooldownDeadlines(
   value: CombatCooldownState | undefined,
-  serverNow: number,
-  clientNow: number,
+  clock: ServerClock,
 ): ClientCooldownDeadlines {
+  const sample = clock.currentSample();
+  if (!sample) {
+    return { attackUntil: 0, healUntil: 0, skills: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } };
+  }
+  const serverNow = sample.serverNow;
   const cooldowns = value ? normalizeCombatCooldowns(value, serverNow) : emptyCombatCooldowns();
   const localDeadline = (deadline: number) =>
-    deadline <= serverNow ? 0 : clientNow + (deadline - serverNow);
+    deadline <= serverNow ? 0 : (clock.toLocal(deadline) ?? 0);
   return {
     attackUntil: localDeadline(cooldowns.attackUntil),
     healUntil: localDeadline(cooldowns.healUntil),

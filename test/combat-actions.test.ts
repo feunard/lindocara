@@ -34,6 +34,21 @@ describe("directional class kit contract", () => {
     }
   });
 
+  it("aligns every slot-one action timeline with its 650 ms cooldown", () => {
+    expect(
+      (["warrior", "ranger", "priest"] as const).map((playerClass) => {
+        const action = PLAYER_ACTIONS[playerClass][0];
+        if (!action) throw new Error(`missing slot one action for ${playerClass}`);
+        return action.anticipationMs + action.recoveryMs;
+      }),
+    ).toEqual([650, 650, 650]);
+    expect(PLAYER_ACTIONS.priest[0]).toMatchObject({
+      skillId: "radiant_bolt",
+      anticipationMs: 280,
+      recoveryMs: 370,
+    });
+  });
+
   it("defines straight ranger shots, a projectile fan, and an unguided Heartseeker", () => {
     expect(PLAYER_ACTIONS.ranger[0]).toMatchObject({
       skillId: "quick_shot",

@@ -31,6 +31,12 @@ pas l'être une seconde fois.
 
 La mort, la transition de carte, la perte de présence ou la déconnexion annulent l'action en attente
 et les projectiles de l'ancien propriétaire. Une room déchargée ne conserve ni action ni projectile.
+Le client projette tous les timestamps avec un unique échantillon `SelfState.serverNow` /
+`performance.now()` partagé par les cooldowns et le renderer ; il ne suppose jamais que l'horloge
+murale du navigateur correspond à celle du Worker. Un snapshot autoritaire `action: null` annule
+immédiatement l'animation, le télégraphe et ses effets persistants, et empêche un ancien événement
+`CombatAnimation` de la restaurer. Les projectiles déjà créés restent gouvernés par leurs propres
+snapshots.
 
 | Classe | Compétence | Anticipation | Récupération | Résolution |
 | --- | --- | ---: | ---: | --- |
@@ -44,7 +50,7 @@ et les projectiles de l'ancien propriétaire. Une room déchargée ne conserve n
 | Rôdeur | Volley | 360 ms | 640 ms | Éventail de cinq flèches sur 36°, portée 160 |
 | Rôdeur | Dash | 120 ms | 380 ms | Déplacement arrière de 189 |
 | Rôdeur | Heartseeker | 360 ms | 700 ms | Flèche droite rapide, portée 230 |
-| Prêtre | Radiant Bolt | 280 ms | 420 ms | Projectile magique, portée 225 |
+| Prêtre | Radiant Bolt | 280 ms | 370 ms | Projectile magique, portée 225 ; total 650 ms |
 | Prêtre | Mend | 240 ms | 600 ms | Soin personnel immédiat + lumière de soin à la frame active |
 | Prêtre | Blink | 180 ms | 420 ms | Déplacement frontal de 110 |
 | Prêtre | Prayer | 320 ms | 640 ms | Soin allié en rayon 155 avec ligne de vue |
@@ -104,6 +110,11 @@ projectiles. Une room vide peut réinitialiser ses monstres, projectiles et loot
 - Prayer soigne le Prêtre et tous les alliés vivants et blessés dans le rayon avec ligne de vue.
 - Divine Nova soigne les alliés, Prêtre compris, et frappe chaque monstre du rayon une fois.
 
+Les événements `heal.cast` et `heal.received` transportent la couleur Tiny Swords validée du
+Prêtre (`azure`, `ember`, `moss` ou `violet`). Mend, Prayer, Divine Nova, l'auto-soin et le soin
+d'un allié gardent ainsi la couleur du lanceur jusque sur l'impact du destinataire ; une valeur
+absente ou invalide retombe sans erreur sur `azure` et n'est jamais interpolée dans le texte i18n.
+
 Seul le soin réellement restauré produit ressource, menace de soin et contribution. Le sursoin ne
 produit rien. La résurrection reste une interaction de proximité, pas une sélection.
 
@@ -157,7 +168,8 @@ Clavier : Space/1 puis 2–5. Manette : le stick gauche définit mouvement et fa
 compétence déclenchent sans sélection. Tactile : le joystick définit le facing et les cinq boutons
 ne portent aucun identifiant de cible. Aucun twin-stick n'est ajouté en V1.
 
-Le renderer convertit les échéances serveur en temps monotone local, aligne la frame de contact ou
+Le renderer convertit les échéances serveur avec le dernier échantillon monotone commun aux
+cooldowns, aligne la frame de contact ou
 de libération déclarée sur l'impact serveur, conserve l'animation jusqu'à la récupération, affiche
 les projectiles distants et détruit actions, trajectoires et sprites lors d'un changement de carte.
 `prefers-reduced-motion` peut réduire les ornements, mais ne participe jamais à la chronologie de
