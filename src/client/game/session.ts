@@ -845,6 +845,14 @@ async function startGameIdentity(
     (window as unknown as Record<string, unknown>).__lindocara = {
       all: () => client.sample(performance.now()),
       self: () => client.sample(performance.now()).players.find((p) => p.id === client.selfId),
+      targetNearest: () => {
+        const sample = client.sample(performance.now());
+        const self = sample.players.find((player) => player.id === client.selfId);
+        const target = cycleMonsterTarget(sample.monsters, self, undefined);
+        if (target) selectTarget(target);
+        return target;
+      },
+      attack: () => attack(),
       renderStats: () => renderer.diagnostics(),
     };
   }

@@ -1,7 +1,8 @@
 /**
  * Parties: live playthroughs of an adventure, like private servers. This boundary owns the D1
- * reads and writes; a party is created only from an adventure the caller owns, and pins that
- * adventure's version and player cap so later edits can't move them under a running party.
+ * reads and writes; a party is created only from an adventure the caller owns, and records its
+ * current version and player cap. Immutable published adventure versions remain a later boundary;
+ * this V1 still resolves the mutable adventure id at runtime.
  */
 import { and, eq, inArray } from "drizzle-orm";
 import type { CreatePartyInput, PartyColor } from "../shared/party.js";

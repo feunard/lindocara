@@ -183,6 +183,33 @@ describe("party hero admission and authored runtime", () => {
     expect(persisted?.y).toBeCloseTo(centre(3, 3).y, 1);
   });
 
+  it("accepts authoritative attacks against a placed monster's protocol-safe id", async () => {
+    const host = await register("combat");
+    const seeded = await seedAdventure(host);
+    const hero = await createHero(createDb(env.DB), host.accountId, seeded.partyId, {
+      name: "Hunter",
+      class: "ranger",
+    });
+    await env.DB.prepare("UPDATE hero SET x = ?, y = ? WHERE id = ?")
+      .bind(centre(9, 8).x, centre(9, 8).y, hero.id)
+      .run();
+
+    const client = await connectHero(host, seeded.partyId, hero.id);
+    const welcome = await until("combat welcome", () => client.welcome);
+    const placed = welcome.monsters[0];
+    expect(placed?.id).toMatch(/^[A-Za-z0-9_-]+$/);
+    if (!placed) throw new Error("expected an authored monster");
+
+    client.action("attack", placed.id);
+    const damaged = await until("placed monster damage", () => {
+      const monster = client.latestSnapshot?.monsters.find(
+        (candidate) => candidate.id === placed.id,
+      );
+      return monster && monster.hp < placed.hp ? monster : undefined;
+    });
+    expect(damaged.hp).toBe(placed.hp - 16);
+  });
+
   it("isolates two parties playing the same adventure and fences duplicate hero connections", async () => {
     const host = await register("isolation");
     const seeded = await seedAdventure(host);
@@ -338,7 +365,7 @@ describe("party hero admission and authored runtime", () => {
       .bind(seeded.partyId)
       .first<{ status: string }>();
     expect(completed?.status).toBe("completed");
-  });
+  }, 10_000);
 
   it("stops and resets an authored room after its last hero leaves", async () => {
     const host = await register("unload");

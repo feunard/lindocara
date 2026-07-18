@@ -2,11 +2,8 @@
  * A stored map, as the thing a room can actually run.
  *
  * `World` was written against a `ZoneDefinition`: terrain, plus the content standing on it. A D1
- * map is only the terrain half — blocks and the scenery on them — so this fills in the rest as
- * empty rather than teaching `World` a second shape of world.
- *
- * The content systems are not gone. A map made in the editor has no monsters because nobody placed
- * any, not because monsters were deleted; when the palette grows, this is where they arrive.
+ * map supplies terrain, scenery and authored markers, which are adapted into the existing
+ * `ZoneDefinition` shape rather than teaching `World` a second content model.
  */
 
 import { MONSTER_SPECIES_KIND, type MonsterSpawn } from "../../shared/game.js";
@@ -22,7 +19,10 @@ const MAP_MAX_PLAYERS = 16;
 export function zoneFromMap(stored: StoredMap): ZoneDefinition {
   const monsters: MonsterSpawn[] = (stored.markers ?? EMPTY_MARKERS).monsterSpawns.map(
     (marker, index) => ({
-      id: `${stored.id}:monster:${index}:${marker.col}:${marker.row}`,
+      // Entity ids cross the client-intent boundary when a hero targets this monster. Keep the
+      // deterministic id inside protocol.ts's target-id alphabet (`[A-Za-z0-9_-]`): colons would
+      // render correctly but make every authored-monster attack frame fail defensive parsing.
+      id: `${stored.id}-monster-${index}-${marker.col}-${marker.row}`,
       kind: MONSTER_SPECIES_KIND[marker.species],
       species: marker.species,
       zone: "route",
