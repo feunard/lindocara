@@ -125,9 +125,10 @@ Correctifs de stabilisation après validation : le client partage désormais un 
 `serverNow`/`performance.now()` entre cooldowns et animations, `action: null` clôt immédiatement le
 rendu et fence les anciens événements d'animation, les soins transportent la couleur validée du
 lanceur, et Radiant Bolt utilise 280 ms d'anticipation + 370 ms de récupération (650 ms au total).
-Un snapshot d'action nul autorise désormais immédiatement un nouvel identifiant non annulé, tandis
-que les identifiants annulés restent fenced. `skill.cast` ne réécrit plus les cooldowns du HUD :
-seul le prochain `SelfState` autoritaire peut les modifier.
+Les événements `CombatAnimation`, autoritaires et ordonnés, autorisent désormais immédiatement tout
+nouvel identifiant non annulé même si le dernier snapshot porte encore l'action précédente. Les
+identifiants annulés restent fenced. `skill.cast` ne réécrit plus les cooldowns du HUD : seul le
+prochain `SelfState` autoritaire peut les modifier.
 
 - divergence entre temps serveur et progression d'une feuille d'animation client ;
 - projectile rapide traversant terrain ou entité si seule sa position finale est testée ;

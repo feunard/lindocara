@@ -37,10 +37,10 @@ murale du navigateur correspond à celle du Worker. Un snapshot autoritaire `act
 immédiatement l'animation, le télégraphe et ses effets persistants, et empêche un ancien événement
 `CombatAnimation` de la restaurer. Les projectiles déjà créés restent gouvernés par leurs propres
 snapshots.
-Un snapshot `action: null` n'interdit toutefois pas le prochain identifiant inédit : sa nouvelle
-animation démarre dès l'événement, avant le snapshot réseau suivant. Seuls les identifiants
-explicitement annulés restent bloqués, et un snapshot portant déjà une autre action active continue
-de refuser les animations concurrentes.
+`CombatAnimation` est lui-même un message serveur ordonné : tout nouvel identifiant démarre donc
+dès l'événement, même si le dernier snapshot porte encore l'action précédente ou `action: null`.
+Seuls les identifiants explicitement annulés restent bloqués ; un snapshot `action: null` efface
+toujours immédiatement l'action visible et empêche cet ancien identifiant de revenir.
 
 | Classe | Compétence | Anticipation | Récupération | Résolution |
 | --- | --- | ---: | ---: | --- |

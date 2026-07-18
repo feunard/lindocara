@@ -41,11 +41,11 @@ describe("authoritative combat visual cancellation", () => {
     expect(authority.acceptsAnimation("monster-a", "action-a")).toBe(false);
   });
 
-  it("accepts only the action id already active in an authoritative snapshot", () => {
+  it("accepts the current and next ordered animations while the snapshot still has action-a", () => {
     const authority = new CombatVisualAuthority();
-    authority.recordSnapshot("monster-a", "action-b");
+    authority.recordSnapshot("monster-a", "action-a");
+    expect(authority.acceptsAnimation("monster-a", "action-a")).toBe(true);
     expect(authority.acceptsAnimation("monster-a", "action-b")).toBe(true);
-    expect(authority.acceptsAnimation("monster-a", "action-c")).toBe(false);
   });
 
   it("accepts a new action after the previous id was cancelled", () => {
@@ -76,5 +76,12 @@ describe("authoritative combat visual cancellation", () => {
     authority.recordSnapshot("player-a", null);
     authority.cancel("action-a");
     expect(projectiles).toEqual([{ id: "projectile-a", actionId: "action-a" }]);
+  });
+
+  it("accepts two consecutive authoritative animations without an intermediate snapshot", () => {
+    const authority = new CombatVisualAuthority();
+    authority.recordSnapshot("player-a", null);
+    expect(authority.acceptsAnimation("player-a", "action-a")).toBe(true);
+    expect(authority.acceptsAnimation("player-a", "action-b")).toBe(true);
   });
 });

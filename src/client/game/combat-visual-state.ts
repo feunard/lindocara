@@ -23,7 +23,7 @@ export function clearVisualAction(state: MutableVisualActionState): string | nul
   return actionId;
 }
 
-/** Snapshot state fences conflicting animation events while explicit cancellation blocks stale ids. */
+/** Ordered server animation events are accepted unless their action id was explicitly cancelled. */
 export class CombatVisualAuthority {
   #snapshotActionIds = new Map<string, string | null>();
   #cancelledActionIds = new Set<string>();
@@ -32,12 +32,8 @@ export class CombatVisualAuthority {
     this.#snapshotActionIds.set(actorId, actionId);
   }
 
-  acceptsAnimation(actorId: string, actionId: string): boolean {
-    const snapshotActionId = this.#snapshotActionIds.get(actorId);
-    return (
-      !this.#cancelledActionIds.has(actionId) &&
-      (snapshotActionId === undefined || snapshotActionId === null || snapshotActionId === actionId)
-    );
+  acceptsAnimation(_actorId: string, actionId: string): boolean {
+    return !this.#cancelledActionIds.has(actionId);
   }
 
   acceptsAction(actionId: string): boolean {
