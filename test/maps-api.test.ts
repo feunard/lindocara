@@ -7,6 +7,7 @@ import { env, SELF } from "cloudflare:test";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { BUILTIN_MAP_ID } from "../src/server/maps.js";
 import { SESSION_COOKIE } from "../src/server/session.js";
+import { encodeTileLayer, type TileLayer } from "../src/shared/tile-layer-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "../src/shared/tilesets/tiny-swords.js";
 import { layeredWireTerrain } from "./support/map-fixtures.js";
 
@@ -113,7 +114,21 @@ describe("create, list, get, update, delete", () => {
 
     const getRes = await authed(`/api/maps/${created.id}`);
     expect(getRes.status).toBe(200);
-    expect(await getRes.json()).toMatchObject({ id: created.id, name: "Round Trip" });
+    const fetched = await getRes.json();
+    expect(fetched).toMatchObject({ id: created.id, name: "Round Trip" });
+
+    // The invariant `src/server/index.ts:509-512` claims: a GET response is a legal PUT body,
+    // verbatim, with no re-encode step in between. Feed it straight back rather than re-deriving
+    // a fresh body — that is exactly the case that broke when `parseMapBody` used to flatten
+    // layers back to `blocks` before storing.
+    const echoRes = await authed(`/api/maps/${created.id}`, {
+      method: "PUT",
+      body: JSON.stringify(fetched),
+    });
+    expect(echoRes.status).toBe(200);
+    // Same content came back — only `revision` legitimately moved, because this PUT is itself a
+    // successful update.
+    expect(await echoRes.json()).toMatchObject({ id: created.id, name: "Round Trip" });
 
     const updateRes = await authed(`/api/maps/${created.id}`, {
       method: "PUT",
@@ -324,8 +339,43 @@ describe("size caps over the wire", () => {
     expect(response.status).toBe(201);
   });
 
-  it("413s a body over 32 KiB, padded via elements since name is capped at 48", async () => {
-    const elements = Array.from({ length: 2000 }, (_, i) => ({
+  // `MAX_MAP_JSON_BYTES` (src/server/index.ts) is sized against this exact worst case: a 100x100
+  // map whose layers cannot run-length compress at all. Two ids near `Number.MAX_SAFE_INTEGER`,
+  // alternated across every cell so no two neighbours match, push each layer close to the
+  // `cols * rows * 17 - 1` ceiling `parseTileLayer` actually allows. Under the old 32 KiB cap this
+  // body — ~510 KB once encoded — would 413 with no diagnostic the editor could explain, even
+  // though it is a legitimate map. It must now be accepted.
+  it("accepts a near-worst-case, non-compressible 100x100 map that would have 413'd under the old 32 KiB cap", async () => {
+    const cols = 100;
+    const rows = 100;
+    const cells = cols * rows;
+    const idA = Number.MAX_SAFE_INTEGER;
+    const idB = Number.MAX_SAFE_INTEGER - 1;
+    const alternating = (spawnOverride: number): number[] => {
+      const ids = Array.from({ length: cells }, (_, i) => (i % 2 === 0 ? idA : idB));
+      ids[0] = spawnOverride;
+      return ids;
+    };
+    // Spawn sits at (0, 0) — index 0. Ground gets a real passable grass tile id (1) there; the
+    // other two layers get EMPTY_TILE so the collision sweep skips them and the spawn stays
+    // walkable, exactly like an authored map would need.
+    const ground: TileLayer = { cols, rows, ids: alternating(1) };
+    const elevation: TileLayer = { cols, rows, ids: alternating(0) };
+    const objects: TileLayer = { cols, rows, ids: alternating(0) };
+    const layers = [ground, elevation, objects].map(encodeTileLayer);
+    const bodyText = JSON.stringify(
+      mapBody({ name: "Worst Case", tilesetId: TINY_SWORDS_TILESET_ID, cols, rows, layers }),
+    );
+    // Sanity on the fixture itself: over the old cap, comfortably under the new one.
+    expect(bodyText.length).toBeGreaterThan(32_768);
+    expect(bodyText.length).toBeLessThan(589_824);
+
+    const response = await authed("/api/maps", { method: "POST", body: bodyText });
+    expect(response.status).toBe(201);
+  });
+
+  it("413s a body over the new 576 KiB cap, padded via elements since name is capped at 48", async () => {
+    const elements = Array.from({ length: 13_000 }, (_, i) => ({
       col: 0,
       row: 0,
       kind: "tree",
@@ -339,7 +389,7 @@ describe("size caps over the wire", () => {
   });
 
   it("400s map_elements just over the element cap, before the body would 413", async () => {
-    // 401 in-bounds elements: small enough to clear the 32 KiB cap, so the element cap is what
+    // 401 in-bounds elements: small enough to clear the byte cap, so the element cap is what
     // answers — a legible 400 rather than a mute 413.
     const elements = Array.from({ length: 401 }, (_, i) => ({
       col: i % MAP_COLS,

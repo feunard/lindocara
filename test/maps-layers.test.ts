@@ -93,6 +93,20 @@ describe("maps stored as layers", () => {
     expect(() => validateMapInput({ ...bad, layers: [shrunk, shrunk, shrunk] })).toThrow(/layers/);
   });
 
+  it("refuses a layer whose declared cols x rows disagree with its actual ids count", () => {
+    // `cols`/`rows` match the map — the check above would let this through — but `ids` is one
+    // cell short. Sliced from a real, working layer (not a fresh all-zero array) so a decode that
+    // silently treats the missing tail as EMPTY_TILE cannot accidentally still leave the map
+    // playable and hide the bug.
+    const bad = input("Bad");
+    const [ground, elevation, objects] = bad.layers;
+    if (!ground || !elevation || !objects) throw new Error("expected three layers");
+    const truncated = { cols: ground.cols, rows: ground.rows, ids: ground.ids.slice(0, -1) };
+    expect(() => validateMapInput({ ...bad, layers: [truncated, elevation, objects] })).toThrow(
+      /layers/,
+    );
+  });
+
   it("refuses an unknown tileset", () => {
     expect(() => validateMapInput({ ...input("Bad"), tilesetId: "not-a-tileset" })).toThrow(
       /tileset/,

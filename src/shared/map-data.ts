@@ -90,11 +90,13 @@ export interface MapData {
 }
 
 /**
- * The most elements one map may carry. A 100x100 map's blocks alone are ~10.4 KB, so without a
- * cap on the count a few hundred elements push the body past the 32 KiB `/api/maps` limit and 413
- * with no useful message. Enforced on the server (`validateMapInput`) and refused up front by the
- * editor (`applyTool`) so a builder never paints past what will save. Lives beside the shared
- * catalogue lookup because both server and browser read it and neither may import the other.
+ * The most elements one map may carry. Independent of the layer/body byte cap
+ * (`MAX_MAP_JSON_BYTES` in `server/index.ts`, sized against the tile layers, not this): a run-length
+ * layer already dominates that cap on its own, but leaving the element count unbounded would still
+ * let a few thousand elements push a legitimate body past it with no useful message. Enforced on
+ * the server (`validateMapInput`) and refused up front by the editor (`applyTool`) so a builder
+ * never paints past what will save. Lives beside the shared catalogue lookup because both server
+ * and browser read it and neither may import the other.
  */
 /** Stable replacements for maps written before catalogue ids existed. */
 export const LEGACY_ELEMENT_ASSETS = {

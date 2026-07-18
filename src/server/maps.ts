@@ -122,17 +122,36 @@ function blankLayers(cols: number, rows: number): TileLayer[] {
   return [emptyLayer(cols, rows), emptyLayer(cols, rows), emptyLayer(cols, rows)];
 }
 
-/** Never throws: a row written by an older build, or corrupted, yields empty layers rather than
- *  failing every map the account owns. */
-function decodeLayers(text: string, cols: number, rows: number): TileLayer[] {
+function warnCorruptLayers(mapId: string, reason: string): void {
+  console.warn(JSON.stringify({ event: "map_layers_corrupt", mapId, reason }));
+}
+
+/** Never throws: a row written by an older build, or corrupted, degrades rather than failing
+ *  every map the account owns. The degrade is NOT a blank *playable* map — an all-`EMPTY_TILE`
+ *  ground layer bakes to all-`"water"` (`bakeCollision` in `shared/map-data.ts`), `isSolidKind`
+ *  calls water solid, and `terrainFromMap` hands `World` a room whose spawn point sits on solid
+ *  terrain. A hero routed there arrives stuck, with nothing in the protocol to explain why. The
+ *  `console.warn` naming the map id is the only diagnostic signal that exists for this today. */
+function decodeLayers(mapId: string, text: string, cols: number, rows: number): TileLayer[] {
   let raw: unknown;
   try {
     raw = JSON.parse(text);
   } catch {
+    warnCorruptLayers(mapId, "invalid_json");
     return blankLayers(cols, rows);
   }
-  if (!Array.isArray(raw) || raw.length !== MAP_LAYERS) return blankLayers(cols, rows);
-  return raw.map((entry) => parseTileLayer(entry, cols, rows) ?? emptyLayer(cols, rows));
+  if (!Array.isArray(raw) || raw.length !== MAP_LAYERS) {
+    warnCorruptLayers(mapId, "wrong_layer_count");
+    return blankLayers(cols, rows);
+  }
+  return raw.map((entry, index) => {
+    const layer = parseTileLayer(entry, cols, rows);
+    if (!layer) {
+      warnCorruptLayers(mapId, `layer_${index}_malformed`);
+      return emptyLayer(cols, rows);
+    }
+    return layer;
+  });
 }
 
 /** NULL rather than an empty-array JSON string: legacy rows and freshly-emptied ones both read
@@ -171,6 +190,9 @@ export function validateMapInput(input: MapInput): MapData & { name: string } {
   for (const layer of input.layers) {
     if (layer.cols !== cols || layer.rows !== rows) {
       throw new Error("layers: every layer must match the map size");
+    }
+    if (layer.ids.length !== cols * rows) {
+      throw new Error("layers: every layer's ids must match cols x rows");
     }
   }
   if (!tilesetById(input.tilesetId)) {
@@ -261,7 +283,7 @@ function toStoredMap(row: typeof map.$inferSelect, elements: MapElement[]): Stor
     tilesetId: row.tilesetId,
     cols: row.cols,
     rows: row.rows,
-    layers: decodeLayers(row.layers, row.cols, row.rows),
+    layers: decodeLayers(row.id, row.layers, row.cols, row.rows),
     elements,
     spawn: { col: row.spawnCol, row: row.spawnRow },
     markers: markersOfRow(row),

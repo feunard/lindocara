@@ -85,8 +85,23 @@ function json(body: unknown, init?: ResponseInit): Response {
 }
 
 const MAX_API_JSON_BYTES = 4_096;
-// A 100x100 map is ~10 KB of blocks plus elements — the maps route gets its own, larger cap.
-const MAX_MAP_JSON_BYTES = 32_768;
+/**
+ * The blocks-era ~10 KB estimate no longer applies: a run-length tile layer has no natural
+ * ceiling, and `parseTileLayer` (shared/tile-layer-codec.ts) is the actual contract for what one
+ * layer may claim — up to `cols * rows * (maxIdDigits + 1) - 1` characters, where `maxIdDigits`
+ * is `String(Number.MAX_SAFE_INTEGER).length` (16). At the 100x100 map-size cap that is
+ * 10,000 * 17 - 1 = 169,999 characters per layer. Three of those, JSON-quoted inside the `layers`
+ * array (2 quote chars per string, 2 commas, 2 brackets), cost
+ * 3 * (169,999 + 2) + 2 + 2 = 510,007 bytes.
+ *
+ * The rest of a maximal legal body adds to that: 400 elements (`MAX_MAP_ELEMENTS`) at up to
+ * 104 bytes each (the longest catalogue asset id is 72 characters) = 42,001 bytes; markers at
+ * their per-field caps (8 entries + 8 exits + 32 monster spawns, each with the longest id/label
+ * the shape allows) ~= 4,121 bytes; name/tilesetId/cols/rows/spawn add a few dozen more. The true
+ * worst case measures 556,297 bytes. 576 KiB (589,824 bytes) is the next clean number above that,
+ * leaving headroom without being a round number picked out of the air.
+ */
+const MAX_MAP_JSON_BYTES = 589_824;
 // An adventure body is ids and bindings only (no map payloads): 16 links × a few uuids each.
 const MAX_ADVENTURE_JSON_BYTES = 65_536;
 
