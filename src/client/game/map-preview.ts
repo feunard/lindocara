@@ -84,7 +84,7 @@ export async function startMapPreview(data: MapData): Promise<{ stop(): void }> 
 
   // A unique zone id every start, so `configureMapTerrain`'s same-zone short-circuit never skips a
   // rebuild when a previous preview left `#currentZoneId` set to an earlier `preview:*`.
-  renderer.configureMapTerrain(`preview:${generation}`, geometry.tiles, data.elements);
+  renderer.configureMapTerrain(`preview:${generation}`, geometry.tiles, data.elements, generation);
   renderer.setSelfId(SELF_ID);
 
   const self: PlayerSnapshot = {

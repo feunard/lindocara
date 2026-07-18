@@ -2191,6 +2191,32 @@ kbd {
   margin-top: 8px;
 }
 
+.victory-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 39;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(9 15 20 / 64%);
+  pointer-events: all;
+}
+
+.victory-overlay__panel {
+  width: min(440px, 100%);
+  padding: 30px;
+  border: 3px solid #e8c96f;
+  color: #fff2bd;
+  text-align: center;
+  background: #173326;
+  box-shadow: 0 12px 36px rgb(0 0 0 / 55%);
+}
+
+.victory-overlay__panel h2 {
+  margin: 0 0 10px;
+  color: #ffe38a;
+}
+
 .death-copy {
   max-width: 26rem;
   margin: 0;

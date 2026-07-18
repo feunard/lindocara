@@ -1,6 +1,5 @@
 import { Assets, Rectangle, Texture } from "pixi.js";
 import {
-  EDITOR_ASSETS,
   type EditorAssetDefinition,
   type EditorAssetId,
   editorAsset,
@@ -51,7 +50,10 @@ export function loadEditorAssetArt(assetId: EditorAssetId): Promise<EditorAssetA
   return loading;
 }
 
-export async function loadAllEditorAssetArt(): Promise<Map<EditorAssetId, EditorAssetArt>> {
-  const loaded = await Promise.all(EDITOR_ASSETS.map((asset) => loadEditorAssetArt(asset.id)));
+export async function loadEditorAssetArts(
+  assetIds: Iterable<EditorAssetId>,
+): Promise<Map<EditorAssetId, EditorAssetArt>> {
+  const unique = [...new Set(assetIds)];
+  const loaded = await Promise.all(unique.map((assetId) => loadEditorAssetArt(assetId)));
   return new Map(loaded.map((art) => [art.definition.id as EditorAssetId, art]));
 }

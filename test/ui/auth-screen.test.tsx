@@ -47,12 +47,12 @@ describe("AuthScreen", () => {
     );
   });
 
-  it("moves to the characters screen on successful login", async () => {
+  it("moves to the saved-parties home on successful login", async () => {
     stubFetch(200, { id: "a", username: "nico" });
     render(<AuthScreen />);
     await userEvent.type(screen.getByLabelText("Username"), "nico");
     await userEvent.type(screen.getByLabelText("Password"), "12345678");
     await userEvent.click(screen.getByRole("button", { name: "Enter the Hollow" }));
-    await vi.waitFor(() => expect(useUiStore.getState().screen).toBe("characters"));
+    await vi.waitFor(() => expect(useUiStore.getState().screen).toBe("parties"));
   });
 });

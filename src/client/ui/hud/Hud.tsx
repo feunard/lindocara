@@ -37,6 +37,7 @@ export function Hud() {
   const game = useUiStore((s) => s.game);
   const party = useUiStore((s) => s.party);
   const partyInvite = useUiStore((s) => s.partyInvite);
+  const activeParty = useUiStore((s) => s.activeParty);
 
   // Legacy juice (styles/legacy.css: .pulse / @keyframes panel-pulse) removed and re-added
   // the class on every state update, forcing a reflow in between so the animation could
@@ -122,7 +123,19 @@ export function Hud() {
           <div className="panel-title">
             <strong>{t("party.title")}</strong>
           </div>
-          {party ? (
+          {activeParty ? (
+            <div>
+              <strong>{activeParty.name ?? activeParty.adventureTitle}</strong>
+              <span>
+                {t("party.saved_session", {
+                  status:
+                    activeParty.status === "completed"
+                      ? t("parties.completed")
+                      : t("party.in_progress"),
+                })}
+              </span>
+            </div>
+          ) : party ? (
             party.members.map((member) => (
               <div key={member.id}>
                 <span>
@@ -137,7 +150,7 @@ export function Hud() {
               {t("party.create")}
             </button>
           )}
-          {party && (
+          {!activeParty && party && (
             <button
               type="button"
               onClick={() =>
@@ -147,7 +160,7 @@ export function Hud() {
               {party.leaderId === self.id ? t("party.dissolve") : t("party.leave")}
             </button>
           )}
-          {partyInvite && (
+          {!activeParty && partyInvite && (
             <div>
               <span>{t("party.invite_received", { name: partyInvite.from })}</span>
               <button type="button" onClick={() => game?.partyAccept?.(partyInvite.inviteId)}>

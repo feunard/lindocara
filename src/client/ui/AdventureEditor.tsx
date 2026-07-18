@@ -533,7 +533,7 @@ export function AdventureEditor() {
           <Button type="button" variant="secondary" onClick={() => void refresh()}>
             {t("adventure.refresh")}
           </Button>
-          <Button type="button" variant="secondary" onClick={() => setScreen("characters")}>
+          <Button type="button" variant="secondary" onClick={() => setScreen("parties")}>
             {t("editor.back")}
           </Button>
         </div>

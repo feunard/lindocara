@@ -143,10 +143,16 @@ export class WorldClient {
     return this.#selfId;
   }
 
-  connect(handlers: ConnectionHandlers, characterId: string): Connection {
+  connect(handlers: ConnectionHandlers, identityId: string, partyId?: string): Connection {
     const url = new URL("/api/ws", window.location.href);
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-    url.searchParams.set("character", characterId);
+    if (partyId) {
+      url.searchParams.set("party", partyId);
+      url.searchParams.set("hero", identityId);
+    } else {
+      // Rollback-only seam for the legacy character test harness.
+      url.searchParams.set("character", identityId);
+    }
     const socket = new WebSocket(url);
     this.#socket = socket;
 

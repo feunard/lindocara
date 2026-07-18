@@ -235,13 +235,13 @@ describe("MapEditor", () => {
     );
   });
 
-  it("returns to character select via Back", async () => {
+  it("returns to the saved-parties home via Back", async () => {
     vi.stubGlobal("fetch", fetchMock());
     render(<MapEditor />);
     await screen.findByText("Verdant Reach");
 
     await userEvent.click(screen.getByRole("button", { name: "Back" }));
-    expect(useUiStore.getState().screen).toBe("characters");
+    expect(useUiStore.getState().screen).toBe("parties");
   });
 
   it("never bricks on a failed load: shows the error and keeps Back usable", async () => {
@@ -250,7 +250,7 @@ describe("MapEditor", () => {
 
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Back" }));
-    expect(useUiStore.getState().screen).toBe("characters");
+    expect(useUiStore.getState().screen).toBe("parties");
   });
 
   it("redirects to the auth screen when the session has expired", async () => {
@@ -354,6 +354,9 @@ describe("MapEditor", () => {
     await userEvent.type(search, "tree3");
     const treeThree = screen.getByRole("button", { name: /tree3grasssolid/i });
     expect(treeThree).toHaveAttribute("data-collision", "true");
+    const preview = treeThree.querySelector("[data-frame-count='8']");
+    expect(preview).toBeInTheDocument();
+    expect(preview?.querySelector("img")).toBeNull();
     await userEvent.click(treeThree);
     await waitFor(() =>
       expect(stageMock.setTool).toHaveBeenCalledWith({

@@ -118,6 +118,7 @@ export interface ReconnectState {
 interface UiState {
   screen:
     | "boot"
+    | "title"
     | "auth"
     | "characters"
     | "game"
@@ -157,6 +158,7 @@ interface UiState {
    *  Verdant Reach's 16:9. */
   worldSize: { width: number; height: number } | null;
   reconnect: ReconnectState | null;
+  adventureVictory: boolean;
   game: GameHandle | null;
 
   setScreen(screen: UiState["screen"]): void;
@@ -186,11 +188,13 @@ interface UiState {
   setZoneNameKey(key: MessageKey): void;
   setWorldSize(size: { width: number; height: number } | null): void;
   setReconnect(reconnect: ReconnectState | null): void;
+  setAdventureVictory(visible: boolean): void;
   setGame(game: GameHandle | null): void;
   /** Everything a terminal disconnect must clear before character select is usable again: the
    *  handle, the reconnect banner, and every full-screen overlay flag. Miss one and it survives
    *  into the next character's session, already open over a world that has not welcomed it. */
   resetToCharacterSelect(): void;
+  resetToParty(): void;
 }
 
 let eventIdCounter = 0;
@@ -264,7 +268,7 @@ function combatTargetEqual(a: CombatTargetHud | null, b: CombatTargetHud | null)
 
 export const useUiStore = create<UiState>((set) => ({
   // "boot" is a brief, invisible holding state while fetchMe() is in flight, so a logged-in
-  // user does not see a flash of the auth screen before landing on characters.
+  // user does not see a flash of the title screen before landing on their saved parties.
   screen: "boot",
   accountId: null,
   activeParty: null,
@@ -291,6 +295,7 @@ export const useUiStore = create<UiState>((set) => ({
   zoneNameKey: null,
   worldSize: null,
   reconnect: null,
+  adventureVictory: false,
   game: null,
 
   setScreen: (screen) => set({ screen }),
@@ -375,6 +380,7 @@ export const useUiStore = create<UiState>((set) => ({
   setZoneNameKey: (zoneNameKey) => set({ zoneNameKey }),
   setWorldSize: (worldSize) => set({ worldSize }),
   setReconnect: (reconnect) => set({ reconnect }),
+  setAdventureVictory: (adventureVictory) => set({ adventureVictory }),
   setGame: (game) => set({ game }),
   resetToCharacterSelect: () =>
     set({
@@ -385,6 +391,18 @@ export const useUiStore = create<UiState>((set) => ({
       settingsOpen: false,
       interiorDoorId: null,
       combatTarget: null,
+      adventureVictory: false,
       activeParty: null,
+    }),
+  resetToParty: () =>
+    set({
+      game: null,
+      reconnect: null,
+      screen: "party",
+      mapOpen: false,
+      settingsOpen: false,
+      interiorDoorId: null,
+      combatTarget: null,
+      adventureVictory: false,
     }),
 }));

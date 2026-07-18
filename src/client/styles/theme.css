@@ -496,18 +496,19 @@ select:disabled {
 }
 
 .editor-asset-choice__preview {
+  position: relative;
   display: grid;
   place-items: center;
   overflow: hidden;
 }
 
-.editor-asset-choice__preview img {
+.editor-asset-choice__frame {
+  position: absolute;
+  top: 50%;
+  left: 50%;
   display: block;
-  max-width: 100%;
-  max-height: 4.5rem;
-  width: auto;
-  height: auto;
-  object-fit: contain;
+  background-repeat: no-repeat;
+  transform-origin: center;
   image-rendering: pixelated;
 }
 
@@ -552,4 +553,26 @@ select:disabled {
     width: auto;
     max-height: 48vh;
   }
+}
+.title-screen {
+  display: grid;
+  place-items: center;
+}
+
+.title-screen__panel {
+  position: relative;
+  z-index: 1;
+  width: min(38rem, calc(100vw - 2rem));
+  padding: 2.5rem;
+  text-align: center;
+}
+
+.title-screen__panel h1 {
+  margin: 0.35rem 0;
+  font-size: clamp(3rem, 10vw, 6rem);
+}
+
+.title-screen__panel p {
+  margin: 0 auto 1.5rem;
+  max-width: 34rem;
 }

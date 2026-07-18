@@ -17,6 +17,7 @@ import { ColorPicker } from "./ColorPicker.js";
 import { Button } from "./pixelact-ui/button/index.js";
 import { Input } from "./pixelact-ui/input.js";
 import { Label } from "./pixelact-ui/label.js";
+import { Select } from "./pixelact-ui/select.js";
 
 function isSessionError(code: string): boolean {
   return code === "session_expired" || code === "unauthorized";
@@ -125,12 +126,65 @@ export function PartiesScreen() {
           <Button type="button" variant="secondary" onClick={() => void refresh()}>
             {t("parties.refresh")}
           </Button>
-          <Button type="button" variant="secondary" onClick={() => setScreen("characters")}>
-            {t("editor.back")}
+          <Button type="button" variant="secondary" onClick={() => setScreen("adventures")}>
+            {t("parties.creator_tools")}
           </Button>
         </div>
       </header>
       {error && <p role="alert">{authErrorText(error)}</p>}
+
+      <section className="roster-grid" aria-label={t("parties.title")}>
+        <h2>{t("parties.my_saves")}</h2>
+        {parties.filter((party) => party.mine).length === 0 && <p>{t("parties.my_saves.empty")}</p>}
+        {parties
+          .filter((party) => party.mine)
+          .map((party) => (
+            <article key={party.id} className="roster-card framed">
+              <div className="roster-card__identity">
+                <h2>{party.name ?? party.adventureTitle}</h2>
+                <span>
+                  {t("parties.slots", { used: party.colors.length, max: party.maxPlayers })}
+                  {party.status === "completed" ? ` · ${t("parties.completed")}` : ""}
+                </span>
+                <fieldset className="party-colours" aria-label={t("party.color.label")}>
+                  {party.colors.map((colour) => (
+                    <span key={colour} className={`party-colour party-colour--${colour}`} />
+                  ))}
+                </fieldset>
+              </div>
+              <div className="roster-card__actions">
+                {party.mine ? (
+                  <Button type="button" onClick={() => enter(party)}>
+                    {t("parties.resume")}
+                  </Button>
+                ) : party.colors.length < party.maxPlayers ? (
+                  joiningId === party.id ? (
+                    <ColorPicker
+                      value={null}
+                      taken={party.colors}
+                      onPick={(chosen) => void join(party, chosen)}
+                    />
+                  ) : (
+                    <Button type="button" onClick={() => setJoiningId(party.id)}>
+                      {t("parties.join")}
+                    </Button>
+                  )
+                ) : (
+                  <span>{t("parties.full")}</span>
+                )}
+                {party.hostAccountId === accountId && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setConfirmingId(party.id)}
+                  >
+                    {t("editor.delete")}
+                  </Button>
+                )}
+              </div>
+            </article>
+          ))}
+      </section>
 
       <section className="roster-card framed" aria-label={t("parties.create.title")}>
         <h2>{t("parties.create.title")}</h2>
@@ -139,7 +193,7 @@ export function PartiesScreen() {
         ) : (
           <>
             <Label htmlFor="party-adventure">{t("parties.create.adventure")}</Label>
-            <select
+            <Select
               id="party-adventure"
               value={adventureId}
               onChange={(event) => setAdventureId(event.currentTarget.value)}
@@ -150,7 +204,7 @@ export function PartiesScreen() {
                   {adventure.title}
                 </option>
               ))}
-            </select>
+            </Select>
             <Label htmlFor="party-name">{t("parties.create.name")}</Label>
             <Input
               id="party-name"
@@ -166,49 +220,46 @@ export function PartiesScreen() {
         )}
       </section>
 
-      <section className="roster-grid" aria-label={t("parties.title")}>
-        {parties.map((party) => (
-          <article key={party.id} className="roster-card framed">
-            <div className="roster-card__identity">
-              <h2>{party.name ?? party.adventureTitle}</h2>
-              <span>
-                {t("parties.slots", { used: party.colors.length, max: party.maxPlayers })}
-                {party.status === "completed" ? ` · ${t("parties.completed")}` : ""}
-              </span>
-              <fieldset className="party-colours" aria-label={t("party.color.label")}>
-                {party.colors.map((colour) => (
-                  <span key={colour} className={`party-colour party-colour--${colour}`} />
-                ))}
-              </fieldset>
-            </div>
-            <div className="roster-card__actions">
-              {party.mine ? (
-                <Button type="button" onClick={() => enter(party)}>
-                  {t("parties.enter")}
-                </Button>
-              ) : party.colors.length < party.maxPlayers ? (
-                joiningId === party.id ? (
-                  <ColorPicker
-                    value={null}
-                    taken={party.colors}
-                    onPick={(chosen) => void join(party, chosen)}
-                  />
+      <section className="roster-grid" aria-label={t("parties.available")}>
+        <h2>{t("parties.available")}</h2>
+        {parties.filter((party) => !party.mine).length === 0 && (
+          <p>{t("parties.available.empty")}</p>
+        )}
+        {parties
+          .filter((party) => !party.mine)
+          .map((party) => (
+            <article key={party.id} className="roster-card framed">
+              <div className="roster-card__identity">
+                <h2>{party.name ?? party.adventureTitle}</h2>
+                <span>
+                  {t("parties.slots", { used: party.colors.length, max: party.maxPlayers })}
+                  {party.status === "completed" ? ` · ${t("parties.completed")}` : ""}
+                </span>
+                <fieldset className="party-colours" aria-label={t("party.color.label")}>
+                  {party.colors.map((usedColour) => (
+                    <span key={usedColour} className={`party-colour party-colour--${usedColour}`} />
+                  ))}
+                </fieldset>
+              </div>
+              <div className="roster-card__actions">
+                {party.colors.length < party.maxPlayers ? (
+                  joiningId === party.id ? (
+                    <ColorPicker
+                      value={null}
+                      taken={party.colors}
+                      onPick={(chosen) => void join(party, chosen)}
+                    />
+                  ) : (
+                    <Button type="button" onClick={() => setJoiningId(party.id)}>
+                      {t("parties.join")}
+                    </Button>
+                  )
                 ) : (
-                  <Button type="button" onClick={() => setJoiningId(party.id)}>
-                    {t("parties.join")}
-                  </Button>
-                )
-              ) : (
-                <span>{t("parties.full")}</span>
-              )}
-              {party.hostAccountId === accountId && (
-                <Button type="button" variant="secondary" onClick={() => setConfirmingId(party.id)}>
-                  {t("editor.delete")}
-                </Button>
-              )}
-            </div>
-          </article>
-        ))}
+                  <span>{t("parties.full")}</span>
+                )}
+              </div>
+            </article>
+          ))}
       </section>
 
       {deleting && (

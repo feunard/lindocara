@@ -72,7 +72,7 @@ describe("PartiesScreen", () => {
     expect(useUiStore.getState().activeParty?.id).toBe("p1");
   });
 
-  it("shows an Enter button for a party the caller belongs to", async () => {
+  it("presents an existing membership as a resumable save", async () => {
     const mock = fetchMock();
     vi.stubGlobal("fetch", mock);
     // seed one party owned by me via the create endpoint
@@ -86,6 +86,6 @@ describe("PartiesScreen", () => {
     const row = await within(region).findByText("Donjon");
     const card = row.closest("article");
     if (!card) throw new Error("expected a party card");
-    expect(within(card).getByRole("button", { name: "Enter" })).toBeInTheDocument();
+    expect(within(card).getByRole("button", { name: "Resume save" })).toBeInTheDocument();
   });
 });

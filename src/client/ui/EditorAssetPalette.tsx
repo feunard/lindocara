@@ -25,6 +25,12 @@ function AssetChoice({
   onSelect(assetId: EditorAssetId): void;
 }) {
   const collides = asset.editor.collisionFootprint.length > 0;
+  const crop =
+    asset.editor.sourceRect ??
+    (asset.frame
+      ? { x: 0, y: 0, width: asset.frame.width, height: asset.frame.height }
+      : { x: 0, y: 0, width: asset.width, height: asset.height });
+  const previewScale = Math.min(72 / crop.width, 72 / crop.height, 1);
   return (
     <button
       type="button"
@@ -35,8 +41,21 @@ function AssetChoice({
       title={`${asset.role} · ${asset.editor.allowedTerrain.join(", ")}`}
       onClick={() => onSelect(asset.id as EditorAssetId)}
     >
-      <span className="editor-asset-choice__preview" aria-hidden="true">
-        <img src={tinySwordsSourceUrl(asset.sourcePath)} alt="" loading="lazy" />
+      <span
+        className="editor-asset-choice__preview"
+        aria-hidden="true"
+        data-frame-count={asset.frame?.count ?? 1}
+      >
+        <span
+          className="editor-asset-choice__frame"
+          style={{
+            width: crop.width,
+            height: crop.height,
+            backgroundImage: `url("${tinySwordsSourceUrl(asset.sourcePath)}")`,
+            backgroundPosition: `${-crop.x}px ${-crop.y}px`,
+            transform: `translate(-50%, -50%) scale(${previewScale})`,
+          }}
+        />
       </span>
       <strong>{asset.id.split(".").at(-1)}</strong>
       <small>{asset.editor.allowedTerrain.join(" · ")}</small>

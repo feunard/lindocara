@@ -42,9 +42,10 @@ import {
 } from "../../shared/zones.js";
 import { onLocaleChange, t } from "../i18n.js";
 import { landTile, needsFoam, tileVisual } from "./autotile.js";
+import { catalogElementFrameAt, createCatalogElementView } from "./catalog-element-render.js";
 import { MAIN_HAND_ART, OFF_HAND_ART, PLAYER_ATLAS_FRAMES } from "./character-art.js";
 import { type HealthBarMode, shouldShowHealthBar } from "./display-settings.js";
-import { type EditorAssetArt, loadAllEditorAssetArt } from "./editor-asset-art.js";
+import { type EditorAssetArt, loadEditorAssetArts } from "./editor-asset-art.js";
 import {
   ENEMY_RENDER_METRICS,
   type EnemyArt,
@@ -52,6 +53,7 @@ import {
   TINY_SWORDS_ENEMIES,
 } from "./enemy-art.js";
 import { MAX_ACTIVE_WORLD_EFFECTS, questSiteFeedback } from "./feedback.js";
+import { sameRenderedMap } from "./map-render-cache.js";
 import type { SceneSample } from "./net.js";
 import { acquireStageApp } from "./stage-application.js";
 import type { CombatTarget } from "./targeting.js";
@@ -207,7 +209,6 @@ interface ArtTextures {
   effects: Record<keyof typeof TINY_SWORDS_EFFECTS, Texture>;
   effectFrames: Record<keyof typeof TINY_SWORDS_EFFECT_SHEETS, readonly Texture[]>;
   questResources: Record<keyof typeof TINY_SWORDS_QUEST_ART, Texture>;
-  editorAssets: Map<EditorAssetId, EditorAssetArt>;
 }
 
 export interface RenderContext {
@@ -495,7 +496,6 @@ async function loadArt(): Promise<ArtTextures> {
   for (const resource of Object.values(questResources)) resource.source.style.scaleMode = "nearest";
 
   return {
-    editorAssets: await loadAllEditorAssetArt(),
     players: {
       azure: texture(PLAYER_ATLAS_FRAMES.azure.name),
       ember: texture(PLAYER_ATLAS_FRAMES.ember.name),
@@ -743,11 +743,14 @@ export class Renderer {
    *  Defaults to Verdant Reach so the very first paint (before any welcome) isn't blank; the
    *  real zone lands via `configureZone` moments later, from the welcome's `zoneId`. */
   #currentZoneId: ZoneId = DEFAULT_ZONE_ID;
+  #currentMapRevision = zoneDefinition(DEFAULT_ZONE_ID).revision ?? 0;
   #tiles: TileMap = zoneDefinition(DEFAULT_ZONE_ID).terrain.tiles;
   /** A wire map's authored props, or `null` for a catalogue zone. When set, it is the ONLY prop
    *  truth: `#buildForestTrees` and `#buildDecor` stand down (a stone bakes to a `forest` cell, and
    *  the hash pass would grow a tree out of it), and `#buildMapElements` draws this list instead. */
   #mapElements: readonly MapElement[] | null = null;
+  #mapAssetArt = new Map<EditorAssetId, EditorAssetArt>();
+  #mapElementAnimations: Array<{ sprite: Sprite; frames: readonly Texture[] }> = [];
   /** Read from the shared catalogue, the same place `#tiles` comes from — not from the welcome.
    *  Swapped wholesale in `configureZone`, so a portal from the zone you left can never draw over
    *  the one you arrived in. */
@@ -810,9 +813,17 @@ export class Renderer {
    * zone the player portals into next.
    */
   configureZone(zoneId: ZoneId): void {
-    if (zoneId === this.#currentZoneId) return;
     const zone = zoneDefinition(zoneId);
+    const revision = zone.revision ?? 0;
+    if (
+      sameRenderedMap(
+        { mapId: zoneId, revision },
+        { mapId: this.#currentZoneId, revision: this.#currentMapRevision },
+      )
+    )
+      return;
     this.#currentZoneId = zoneId;
+    this.#currentMapRevision = revision;
     this.#tiles = zone.terrain.tiles;
     this.#portals = zone.portals;
     this.#visuals = visualConfigFor(zoneId);
@@ -821,6 +832,8 @@ export class Renderer {
     // A catalogue zone draws its props from the tile grid, not an element list — clearing this is
     // what keeps `#buildForestTrees`/`#buildDecor` on their normal path.
     this.#mapElements = null;
+    this.#mapAssetArt.clear();
+    this.#mapElementAnimations = [];
     this.#rebuildForZone();
   }
 
@@ -831,16 +844,53 @@ export class Renderer {
    * are no landmarks, roads or districts, so the visuals are empty and the rebuild is otherwise
    * identical to a catalogue zone's.
    */
-  configureMapTerrain(zoneId: string, tiles: TileMap, elements: readonly MapElement[]): void {
-    if (zoneId === this.#currentZoneId) return;
+  configureMapTerrain(
+    zoneId: string,
+    tiles: TileMap,
+    elements: readonly MapElement[],
+    revision: number,
+  ): void {
+    if (
+      sameRenderedMap(
+        { mapId: zoneId, revision },
+        { mapId: this.#currentZoneId, revision: this.#currentMapRevision },
+      )
+    )
+      return;
     this.#currentZoneId = zoneId;
+    this.#currentMapRevision = revision;
     this.#tiles = tiles;
     this.#portals = [];
     this.#visuals = EMPTY_ZONE_VISUALS;
     this.#zoneWidth = tiles.cols * TILE_SIZE;
     this.#zoneHeight = tiles.rows * TILE_SIZE;
     this.#mapElements = elements;
+    this.#mapAssetArt = new Map();
+    this.#mapElementAnimations = [];
     this.#rebuildForZone();
+    void this.#loadMapAssetArt(zoneId, revision, elements);
+  }
+
+  async #loadMapAssetArt(
+    zoneId: string,
+    revision: number,
+    elements: readonly MapElement[],
+  ): Promise<void> {
+    const loaded = await loadEditorAssetArts(elements.map((element) => element.assetId));
+    if (
+      this.#currentZoneId !== zoneId ||
+      this.#currentMapRevision !== revision ||
+      this.#mapElements !== elements
+    ) {
+      return;
+    }
+    this.#mapAssetArt = loaded;
+    for (const child of this.#forestTreesLayer.removeChildren()) child.destroy({ children: true });
+    for (const child of this.#decorLayer.removeChildren()) child.destroy({ children: true });
+    this.#mapElementAnimations = [];
+    this.#staticViews = this.#staticViews.filter((view) => view.container.parent !== null);
+    this.#buildMapElements(elements);
+    this.#updateStaticVisibility();
   }
 
   /**
@@ -853,6 +903,7 @@ export class Renderer {
     this.#teardownWorldFurniture();
     for (const child of this.#forestTreesLayer.removeChildren()) child.destroy({ children: true });
     for (const child of this.#decorLayer.removeChildren()) child.destroy({ children: true });
+    this.#mapElementAnimations = [];
     this.#cameraX = this.#zoneWidth / 2;
     this.#cameraY = this.#zoneHeight / 2;
     this.#cameraReady = false;
@@ -1080,20 +1131,15 @@ export class Renderer {
   #buildMapElements(elements: readonly MapElement[]): void {
     const ordered = [...elements].sort((a, b) => a.row - b.row || a.col - b.col);
     for (const element of ordered) {
-      const x = element.col * TILE_SIZE + TILE_SIZE / 2;
-      const base = (element.row + 1) * TILE_SIZE;
-      const art = this.art.editorAssets.get(element.assetId);
-      const texture = art?.frames[0];
-      if (!art || !texture) continue;
-      const y = base + art.definition.footOffset;
-      const container = new Container();
-      container.position.set(x, y);
-      const sprite = new Sprite(texture);
-      sprite.anchor.set(art.definition.anchor.x, art.definition.anchor.y);
-      container.addChild(sprite);
-      const layer =
-        art.definition.editor.renderLayer === "canopy" ? this.#forestTreesLayer : this.#decorLayer;
-      this.#registerStatic(container, x, y, TILE_SIZE * 2, layer);
+      const art = this.#mapAssetArt.get(element.assetId);
+      if (!art) continue;
+      const view = createCatalogElementView(element, art);
+      if (!view) continue;
+      const layer = view.layer === "canopy" ? this.#forestTreesLayer : this.#decorLayer;
+      this.#registerStatic(view.container, view.x, view.y, TILE_SIZE * 2, layer);
+      if (view.frames.length > 1) {
+        this.#mapElementAnimations.push({ sprite: view.sprite, frames: view.frames });
+      }
     }
   }
 
@@ -1789,7 +1835,7 @@ export class Renderer {
     // `#showGrid` belongs in the key: this method early-returns when nothing has changed, so a
     // toggle that is not part of the key would not repaint until the player happened to walk into
     // a new tile window.
-    const key = `${this.#currentZoneId}:${startX}:${startY}:${columns}:${rows}:${this.#showGrid}`;
+    const key = `${this.#currentZoneId}:${this.#currentMapRevision}:${startX}:${startY}:${columns}:${rows}:${this.#showGrid}`;
     if (key === this.#terrainKey) return;
     this.#terrainKey = key;
 
@@ -2594,6 +2640,10 @@ export class Renderer {
 
   render(sample: SceneSample, context: RenderContext): void {
     const now = context.now;
+    for (const animation of this.#mapElementAnimations) {
+      const frame = catalogElementFrameAt(now, animation.frames);
+      if (frame) animation.sprite.texture = frame;
+    }
     this.#healthBarMode = context.healthBars;
     this.#showGrid = context.grid;
     this.#followSelf(sample.players, now);

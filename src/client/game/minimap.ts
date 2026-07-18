@@ -39,6 +39,7 @@ export interface MapSize {
 /** The exact subset of a welcome's WorldInfo that `bakeWorldTexture` reads. */
 export interface BakedWorldKey extends MapBounds {
   zoneId: ZoneId;
+  revision: number;
 }
 
 /**
@@ -47,7 +48,12 @@ export interface BakedWorldKey extends MapBounds {
  * the baked footprint. No other welcome field influences the texture.
  */
 export function sameBakedWorld(a: BakedWorldKey, b: BakedWorldKey): boolean {
-  return a.zoneId === b.zoneId && a.width === b.width && a.height === b.height;
+  return (
+    a.zoneId === b.zoneId &&
+    a.revision === b.revision &&
+    a.width === b.width &&
+    a.height === b.height
+  );
 }
 
 /** World point to minimap pixel, centred on the viewer. Fixed north: the camera never rotates. */

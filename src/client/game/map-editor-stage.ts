@@ -17,7 +17,12 @@ import { bakeCollision } from "../../shared/map-data.js";
 import { kindAt, TILE_SIZE, type TileMap } from "../../shared/tilemap.js";
 import type { EditorAssetId } from "../../shared/tiny-swords-catalog.js";
 import { landTile, needsFoam, tileVisual } from "./autotile.js";
-import { type EditorAssetArt, loadAllEditorAssetArt } from "./editor-asset-art.js";
+import { catalogElementFrameAt, createCatalogElementView } from "./catalog-element-render.js";
+import {
+  type EditorAssetArt,
+  loadEditorAssetArt,
+  loadEditorAssetArts,
+} from "./editor-asset-art.js";
 import type { EditorMap, EditorSelection, EditorTool } from "./editor-state.js";
 import {
   applyTool,
@@ -77,10 +82,6 @@ export interface MapEditorStageState {
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 2;
 
-/** One full cycle of a tree/bush sway strip. Slower than the foam so the two do not beat against
- *  each other; the exact number only sets the tempo of the idle animation. */
-const SWAY_CYCLE_MS = 1_400;
-
 const SPAWN_MARKER_COLOR = 0xffd54a;
 const SPAWN_MARKER_OUTLINE = 0x2a1a05;
 const ENTRY_MARKER_COLOR = 0x6fd44c;
@@ -93,13 +94,6 @@ function clamp(value: number, min: number, max: number): number {
 
 /** A stored `variant` folded into `[0, length)`, sign-safe — the same fold `renderer.ts` applies to
  *  a wire element, so the editor previews the sprite the world will draw. */
-/** Which frame of an idle sway strip the whole scene is on, global like the foam so every tree of a
- *  kind breathes together instead of shimmering out of phase. */
-function swayFrameAt(elapsedMs: number, frames: number): number {
-  if (frames <= 0) return 0;
-  return Math.floor((Math.max(0, elapsedMs) / SWAY_CYCLE_MS) * frames) % frames;
-}
-
 interface StageTextures {
   /** `land[row][col]` of the flat sheet's first 4x4 group — indexed straight by `landTile()`. */
   land: Texture[][];
@@ -108,7 +102,7 @@ interface StageTextures {
   editorAssets: Map<EditorAssetId, EditorAssetArt>;
 }
 
-async function loadStageTextures(): Promise<StageTextures> {
+async function loadStageTextures(assetIds: Iterable<EditorAssetId>): Promise<StageTextures> {
   const [flatSheet, waterTexture, foamSheet] = await Promise.all([
     Assets.load<Texture>(TINY_SWORDS_TERRAIN.flat),
     Assets.load<Texture>(TINY_SWORDS_TERRAIN.water),
@@ -123,7 +117,7 @@ async function loadStageTextures(): Promise<StageTextures> {
     land: sliceAutotileSheet(flatSheet),
     water: waterTexture,
     foam: sliceStrip(foamSheet, TINY_SWORDS_FOAM_FRAME, TINY_SWORDS_FOAM_FRAMES),
-    editorAssets: await loadAllEditorAssetArt(),
+    editorAssets: await loadEditorAssetArts(assetIds),
   };
 }
 
@@ -230,7 +224,7 @@ async function buildSession(
   const app = await ensureStageApp(canvas);
   app.ticker.start();
 
-  const textures = await loadStageTextures();
+  const textures = await loadStageTextures(initial.elements.map((element) => element.assetId));
 
   let map = initial;
   let history = createEditorHistory(initial);
@@ -362,22 +356,19 @@ async function buildSession(
   function drawElements(): void {
     const ordered = [...map.elements].sort((a, b) => a.row - b.row || a.col - b.col);
     for (const element of ordered) {
-      const x = element.col * TILE_SIZE + TILE_SIZE / 2;
-      const base = (element.row + 1) * TILE_SIZE;
       const art = textures.editorAssets.get(element.assetId);
-      const first = art?.frames[0];
-      if (!art || !first) continue;
-      const sprite = new Sprite(first);
-      sprite.anchor.set(art.definition.anchor.x, art.definition.anchor.y);
-      sprite.position.set(x, base + art.definition.footOffset);
+      if (!art) continue;
+      const view = createCatalogElementView(element, art);
+      if (!view) continue;
       const layer =
-        art.definition.editor.renderLayer === "ground"
+        view.layer === "ground"
           ? groundElementLayer
-          : art.definition.editor.renderLayer === "canopy"
+          : view.layer === "canopy"
             ? canopyElementLayer
             : objectElementLayer;
-      layer.addChild(sprite);
-      if (art.frames.length > 1) swaySprites.push({ sprite, frames: [...art.frames] });
+      layer.addChild(view.container);
+      if (view.frames.length > 1)
+        swaySprites.push({ sprite: view.sprite, frames: [...view.frames] });
     }
   }
 
@@ -567,7 +558,7 @@ async function buildSession(
     const foamFrame = textures.foam[foamFrameAt(now, textures.foam.length)];
     if (foamFrame) for (const blob of foamSprites) blob.texture = foamFrame;
     for (const { sprite, frames } of swaySprites) {
-      const frame = frames[swayFrameAt(now, frames.length)];
+      const frame = catalogElementFrameAt(now, frames);
       if (frame) sprite.texture = frame;
     }
   };
@@ -614,9 +605,19 @@ async function buildSession(
     return true;
   };
 
+  const ensureAsset = (assetId: EditorAssetId): void => {
+    if (textures.editorAssets.has(assetId)) return;
+    void loadEditorAssetArt(assetId).then((art) => {
+      if (destroyed) return;
+      textures.editorAssets.set(assetId, art);
+      redraw();
+    });
+  };
+
   return {
     setTool(next) {
       tool = next;
+      if (next.kind === "element") ensureAsset(next.assetId);
       canvas.dataset.cursor =
         tool.kind === "pan" ? "move" : tool.kind === "select" ? "select" : "paint";
     },
@@ -672,6 +673,7 @@ async function buildSession(
     },
     setSelectedElementAsset(assetId) {
       if (selected?.kind !== "element") return false;
+      ensureAsset(assetId);
       return commitInspectorChange(updateSelectedElementAsset(map, selected, assetId));
     },
     setSelectedMonster(species, patrolRadius) {

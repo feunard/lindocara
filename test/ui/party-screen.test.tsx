@@ -68,6 +68,7 @@ describe("PartyScreen", () => {
     await userEvent.click(screen.getByRole("button", { name: "Create hero" }));
 
     expect(await screen.findByText("Mira")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument();
   });
 
   it("goes back to the parties list", async () => {

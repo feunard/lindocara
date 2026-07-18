@@ -21,7 +21,7 @@ import { NO_INPUT, type Vec2 } from "../../shared/simulation.js";
 import { type SkillSlot, skillFor } from "../../shared/skills.js";
 import { decodeTileMap } from "../../shared/tilemap-codec.js";
 import { DEFAULT_ZONE_ID, isKnownZone, type ZoneId, zoneDefinition } from "../../shared/zones.js";
-import { type CharacterSummary, logout } from "../api.js";
+import { type CharacterSummary, logout, type PartyListing, type StoredHero } from "../api.js";
 import { t } from "../i18n.js";
 import { type LocalizedText, useUiStore } from "../store.js";
 import { clientCooldownDeadlines } from "./cooldown-sync.js";
@@ -50,7 +50,6 @@ function required<T extends Element>(selector: string): T {
   return element;
 }
 
-const canvas = required<HTMLCanvasElement>("#stage");
 const sound = new GameSound();
 
 const PRIEST_HEAL = CLASS_STATS.priest.heal;
@@ -217,8 +216,13 @@ function addEvent(text: string, tone: "info" | "good" | "bad"): void {
 // Assumes it runs at most once per page life: the keydown/beforeunload listeners it
 // registers are never removed, and switchCharacter/logout tear the session down by
 // reloading the page rather than unwinding this function.
-export async function startGame(character: CharacterSummary): Promise<void> {
-  setStatus("status.connecting", { name: character.name });
+async function startGameIdentity(
+  identity: CharacterSummary | StoredHero,
+  persistentParty: PartyListing | null,
+): Promise<void> {
+  useUiStore.getState().setAdventureVictory(false);
+  setStatus("status.connecting", { name: identity.name });
+  const canvas = required<HTMLCanvasElement>("#stage");
   const renderer = await Renderer.create(canvas);
   let client = new WorldClient();
   let connection: Connection | null = null;
@@ -226,6 +230,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
   let reconnectAttempts = 0;
   let reconnectCancelled = false;
   let intentionallyClosed = false;
+  let ended = false;
   const input = trackInput();
   let stopActions: (() => void) | null = null;
   let questState: QuestState = {
@@ -261,7 +266,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       store.setSkillCooldown(slot, deadlines.skills[slot]);
     }
   };
-  const playerClass = () => currentSelf?.class ?? character.class;
+  const playerClass = () => currentSelf?.class ?? identity.class;
 
   const clearTarget = () => {
     combatTarget = null;
@@ -338,7 +343,12 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       if (isKnownZone(world.zoneId)) {
         renderer.configureZone(world.zoneId);
       } else {
-        renderer.configureMapTerrain(world.zoneId, decodeTileMap(world.tiles), world.elements);
+        renderer.configureMapTerrain(
+          world.zoneId,
+          decodeTileMap(world.tiles),
+          world.elements,
+          world.revision,
+        );
       }
       activeZoneId = world.zoneId;
       // The welcome carries the whole zone: dimensions, obstacles, safe zone, quest sites. Baking
@@ -404,8 +414,13 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       renderer.playMonsterAttack(animation.actorId);
     },
     onEvent: (code, params, tone, x, y) => {
-      const text = eventText(code, params, currentSelf?.class ?? character.class);
+      const text = eventText(code, params, currentSelf?.class ?? identity.class);
       if (shouldLogEvent(code)) addEvent(text, tone);
+      if (code === "adventure.victory") {
+        const store = useUiStore.getState();
+        store.setAdventureVictory(true);
+        if (store.activeParty) store.setActiveParty({ ...store.activeParty, status: "completed" });
+      }
       if (shouldFloatEvent(code)) {
         const compact =
           code === "combat.hit" || code === "combat.hurt"
@@ -419,7 +434,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
         renderer.hideQuestSite(params.site, 15_000);
       }
       if (code === "combat.hit" && x !== undefined && y !== undefined && client.selfId) {
-        renderer.playRangedHit(client.selfId, x, y, currentSelf?.class ?? character.class);
+        renderer.playRangedHit(client.selfId, x, y, currentSelf?.class ?? identity.class);
       }
       if (isAcceptedBasicAttack(code, params)) {
         attackCooldownUntil = performance.now() + ATTACK_COOLDOWN_MS;
@@ -440,7 +455,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
           // The server never consumes the cooldown on a whiff (heal.nobody), so arm the UI
           // bar only once a cast actually lands. Only priests ever receive heal.cast.
           useUiStore.getState().setHealCooldownUntil(performance.now() + PRIEST_HEAL_COOLDOWN_MS);
-          if ((currentSelf?.class ?? character.class) === "priest") {
+          if ((currentSelf?.class ?? identity.class) === "priest") {
             useUiStore.getState().setSkillCooldown(2, performance.now() + PRIEST_HEAL_COOLDOWN_MS);
           }
           sound.healCast();
@@ -450,11 +465,11 @@ export async function startGame(character: CharacterSummary): Promise<void> {
           const slot = params?.slot;
           if (typeof slot === "number" && slot >= 1 && slot <= 5) {
             const skillSlot = slot as SkillSlot;
-            const skill = skillFor(currentSelf?.class ?? character.class, skillSlot);
+            const skill = skillFor(currentSelf?.class ?? identity.class, skillSlot);
             useUiStore.getState().setSkillCooldown(skillSlot, performance.now() + skill.cooldownMs);
           }
           if (typeof params?.skill === "string") sound.skillCast(params.skill);
-          renderer.playSkillEffect(currentSelf?.class ?? character.class, x, y);
+          renderer.playSkillEffect(currentSelf?.class ?? identity.class, x, y);
           break;
         }
         case "loot.picked":
@@ -491,6 +506,8 @@ export async function startGame(character: CharacterSummary): Promise<void> {
   };
 
   const endGame = (key: MessageKey) => {
+    if (ended) return;
+    ended = true;
     if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
     reconnectTimer = null;
     input.stop();
@@ -498,11 +515,13 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     window.removeEventListener("pointerdown", unlockAudio);
     window.removeEventListener("keydown", unlockAudio);
     sound.stopAmbient();
+    renderer.destroy();
     setStatus("status.disconnected", { reason: t(key) });
     // Also clears mapOpen and settingsOpen: without that, either overlay survives a terminal
     // disconnect and reappears full-screen the instant the next character's world loads, over a
     // world that has not sent it a welcome yet.
-    useUiStore.getState().resetToCharacterSelect();
+    if (persistentParty) useUiStore.getState().resetToParty();
+    else useUiStore.getState().resetToCharacterSelect();
   };
 
   const cancelReconnect = () => {
@@ -559,7 +578,8 @@ export async function startGame(character: CharacterSummary): Promise<void> {
           scheduleReconnect(250 * 2 ** (reconnectAttempts - 1));
         },
       },
-      character.id,
+      identity.id,
+      persistentParty?.id,
     );
   };
 
@@ -651,7 +671,7 @@ export async function startGame(character: CharacterSummary): Promise<void> {
   };
   const castSkill = (slot: SkillSlot) => {
     if (interiorOpen()) return;
-    const playerClass = currentSelf?.class ?? character.class;
+    const playerClass = currentSelf?.class ?? identity.class;
     const skill = skillFor(playerClass, slot);
     if ((useUiStore.getState().skillCooldowns[slot] ?? 0) > performance.now()) return;
     if (slot === 1) {
@@ -681,7 +701,8 @@ export async function startGame(character: CharacterSummary): Promise<void> {
   const switchCharacter = () => {
     intentionallyClosed = true;
     connection?.close();
-    window.location.reload();
+    if (persistentParty) endGame("status.close.generic");
+    else window.location.reload();
   };
   const logoutAndReload = () => {
     intentionallyClosed = true;
@@ -827,4 +848,13 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       renderStats: () => renderer.diagnostics(),
     };
   }
+}
+
+/** Rollback-only legacy entrypoint. The post-login UI no longer calls it. */
+export function startGame(character: CharacterSummary): Promise<void> {
+  return startGameIdentity(character, null);
+}
+
+export function startGameAsHero(hero: StoredHero, party: PartyListing): Promise<void> {
+  return startGameIdentity(hero, party);
 }

@@ -31,7 +31,7 @@ export function AuthScreen() {
         method: "POST",
         body: JSON.stringify({ username: data.get("username"), password: data.get("password") }),
       });
-      setScreen("characters");
+      setScreen("parties");
     } catch (caught) {
       setError(errorCode(caught));
     } finally {
@@ -63,6 +63,9 @@ export function AuthScreen() {
               setError(null);
             }}
           />
+          <Button type="button" variant="secondary" onClick={() => setScreen("title")}>
+            {t("auth.back_title")}
+          </Button>
           <form key={tab} onSubmit={submit} className="auth-form flex flex-col gap-3">
             <div>
               <Label htmlFor="auth-username">{t("auth.username")}</Label>

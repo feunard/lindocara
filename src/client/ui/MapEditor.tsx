@@ -745,7 +745,7 @@ export function MapEditor() {
           type="button"
           variant="secondary"
           onClick={() =>
-            returnContext?.screen === "adventure" ? returnToAdventure() : setScreen("characters")
+            returnContext?.screen === "adventure" ? returnToAdventure() : setScreen("parties")
           }
         >
           {t("editor.back")}

@@ -143,6 +143,7 @@ describe("bakeZoneTerrain", () => {
 describe("sameBakedWorld", () => {
   const base: BakedWorldKey = {
     zoneId: "verdant-reach",
+    revision: 0,
     width: 4800,
     height: 2700,
   };
@@ -161,6 +162,10 @@ describe("sameBakedWorld", () => {
   it("is false when the footprint differs", () => {
     expect(sameBakedWorld(base, { ...base, width: 640 })).toBe(false);
     expect(sameBakedWorld(base, { ...base, height: 480 })).toBe(false);
+  });
+
+  it("does not reuse a texture after a map revision changes", () => {
+    expect(sameBakedWorld(base, { ...base, revision: 1 })).toBe(false);
   });
 
   it("reuses the texture when only non-baked welcome data changes", () => {
