@@ -33,8 +33,15 @@ describe("tile layer codec", () => {
     expect(parseTileLayer("0*9", 3, 3)).toEqual(emptyLayer(3, 3));
   });
 
-  it("rejects an over-long payload before splitting it", () => {
-    const oversized = `${"1,".repeat(1_000_000)}1`;
+  it("rejects a payload over the length ceiling even though it decodes to exactly the expected cells", () => {
+    // For a 3x3 layer expected = 9, and the ceiling is expected * 17 - 1 = 152 (17 =
+    // String(Number.MAX_SAFE_INTEGER).length + 1). Leading zeros are legal under `/^\d+$/`, and
+    // Number("00000000000000001") === 1 is still a safe integer, so a 17-character bare run can
+    // encode a single cell. Nine such runs joined by eight commas is 161 characters — over the
+    // ceiling — yet decode to exactly nine ids, one per run, so the per-run `ids.length + count
+    // > expected` guard never fires. Only the length ceiling can reject this payload.
+    const run = "00000000000000001";
+    const oversized = Array(9).fill(run).join(",");
     expect(parseTileLayer(oversized, 3, 3)).toBeNull();
   });
 
