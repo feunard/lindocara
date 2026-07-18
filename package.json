@@ -25,6 +25,7 @@
     "format": "biome format --write .",
     "typecheck": "tsc -p tsconfig.client.json && tsc -p tsconfig.worker.json && tsc -p tsconfig.node.json",
     "cf-typegen": "wrangler types ./src/worker-configuration.d.ts",
+    "ui:add": "shadcn add --path src/client/ui/components",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "wrangler d1 migrations apply lindocara --local",
     "db:migrate:remote": "wrangler d1 migrations apply lindocara --remote",
