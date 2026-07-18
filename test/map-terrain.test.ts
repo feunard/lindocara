@@ -11,14 +11,15 @@
  */
 import { describe, expect, it } from "vitest";
 import { landMask, needsFoam } from "../src/client/game/autotile.js";
+import { mapDataFromBlocks } from "../src/shared/legacy-blocks.js";
 import { bakeCollision, type MapData } from "../src/shared/map-data.js";
 
 /** A 4x3 grass island in open water — the shape every shoreline rule cares about. */
-const ISLAND: MapData = {
+const ISLAND: MapData = mapDataFromBlocks({
   blocks: ["######", "#....#", "#....#", "#....#", "######"],
   elements: [],
   spawn: { col: 2, row: 2 },
-};
+});
 
 describe("a D1 map's shoreline", () => {
   it("autotiles its edges instead of drawing one tile everywhere", () => {

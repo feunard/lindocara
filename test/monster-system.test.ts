@@ -22,6 +22,7 @@ import {
   safeZoneShelters,
   type TerrainGeometry,
 } from "../src/shared/game.js";
+import { mapDataFromBlocks } from "../src/shared/legacy-blocks.js";
 import { EMPTY_MARKERS, type MapData, terrainFromMap } from "../src/shared/map-data.js";
 import { DEFAULT_ZONE_NAVIGATION } from "../src/shared/navigation.js";
 import { PLAYER_SIZE, TICK_DT } from "../src/shared/simulation.js";
@@ -383,12 +384,12 @@ describe("monster navigation on the tile grid", () => {
  * real map baker — so the two can no longer drift apart.
  */
 describe("authored-map geometry", () => {
-  const authoredMap: MapData = {
+  const authoredMap: MapData = mapDataFromBlocks({
     blocks: Array.from({ length: 15 }, () => ".".repeat(20)),
     elements: [],
     spawn: { col: 2, row: 2 },
     markers: EMPTY_MARKERS,
-  };
+  });
 
   function authoredZone(): ZoneDefinition {
     const authoredTerrain = terrainFromMap(authoredMap);

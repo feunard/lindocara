@@ -35,6 +35,7 @@ import {
   redoEditorHistory,
   selectionAt,
   setMarkerLabel,
+  toMapData,
   undoEditorHistory,
   updateSelectedElementAsset,
   updateSelectedMonster,
@@ -304,11 +305,7 @@ async function buildSession(
     foamSprites = [];
     swaySprites = [];
 
-    const tiles: TileMap = bakeCollision({
-      blocks: map.blocks,
-      elements: map.elements,
-      spawn: map.spawn,
-    });
+    const tiles: TileMap = bakeCollision(toMapData(map));
     const cols = tiles.cols;
     const rows = tiles.rows;
 

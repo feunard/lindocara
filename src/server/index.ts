@@ -12,6 +12,7 @@ import { WS_CLOSE } from "../shared/close-codes.js";
 import { isValidClass } from "../shared/game.js";
 import { parseCreateHeroInput } from "../shared/hero.js";
 import { isUuid } from "../shared/identifiers.js";
+import { blocksFromMapData } from "../shared/legacy-blocks.js";
 import { EMPTY_MARKERS, mapSpawnPoint, parseMapData } from "../shared/map-data.js";
 import { parseCreatePartyInput, parseJoinPartyInput } from "../shared/party.js";
 import { TILE_SIZE } from "../shared/tilemap.js";
@@ -482,7 +483,7 @@ function parseMapBody(body: unknown): MapInput | null {
   if (!data) return null;
   return {
     name,
-    blocks: data.blocks,
+    blocks: blocksFromMapData(data),
     elements: data.elements,
     spawn: data.spawn,
     markers: data.markers,

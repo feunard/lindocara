@@ -16,6 +16,7 @@ import {
   parseAdventureGraph,
   validateAdventure,
 } from "../shared/adventure.js";
+import { mapDataFromBlocks } from "../shared/legacy-blocks.js";
 import {
   bakeCollision,
   canPlaceElement,
@@ -52,24 +53,28 @@ export interface StoredMap extends MapData {
  * Reachable only on an empty database: `deleteMap` refuses the last map, so nobody can delete their
  * way down to zero. This is the fresh-install case, not a delete outcome.
  */
+const BUILTIN_BLOCKS = [
+  "################",
+  "#..............#",
+  "#..............#",
+  "#....######....#",
+  "#....######....#",
+  "#..............#",
+  "#..............#",
+  "################",
+];
+
 export const BUILTIN_MAP: StoredMap = {
   id: BUILTIN_MAP_ID,
   accountId: null,
   name: "Nowhere",
   revision: 1,
-  blocks: [
-    "################",
-    "#..............#",
-    "#..............#",
-    "#....######....#",
-    "#....######....#",
-    "#..............#",
-    "#..............#",
-    "################",
-  ],
-  elements: [],
-  spawn: { col: 2, row: 2 },
-  markers: EMPTY_MARKERS,
+  ...mapDataFromBlocks({
+    blocks: BUILTIN_BLOCKS,
+    elements: [],
+    spawn: { col: 2, row: 2 },
+    markers: EMPTY_MARKERS,
+  }),
 };
 
 export interface MapInput {
@@ -135,7 +140,11 @@ export function validateMapInput(input: MapInput): MapData & { name: string } {
     // Caught here, before the body would silently blow past the 32 KiB `/api/maps` cap and 413.
     throw new Error(`elements: at most ${MAX_MAP_ELEMENTS}`);
   }
-  const data: MapData = { blocks: input.blocks, elements: input.elements, spawn: input.spawn };
+  const data: MapData = mapDataFromBlocks({
+    blocks: input.blocks,
+    elements: input.elements,
+    spawn: input.spawn,
+  });
   const ground = bakeCollision({ ...data, elements: [] });
   for (const [index, element] of input.elements.entries()) {
     if (!isEditorAssetId(element.assetId)) {
@@ -206,10 +215,12 @@ function toStoredMap(row: typeof map.$inferSelect, elements: MapElement[]): Stor
     accountId: row.accountId,
     name: row.name,
     revision: row.revision,
-    blocks: decodeBlocks(row.blocks),
-    elements,
-    spawn: { col: row.spawnCol, row: row.spawnRow },
-    markers: markersOfRow(row),
+    ...mapDataFromBlocks({
+      blocks: decodeBlocks(row.blocks),
+      elements,
+      spawn: { col: row.spawnCol, row: row.spawnRow },
+      markers: markersOfRow(row),
+    }),
   };
 }
 

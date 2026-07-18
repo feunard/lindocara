@@ -26,7 +26,7 @@ import {
   updateMapApi,
 } from "../api.js";
 import type { EditorMap, EditorSelection, EditorTool } from "../game/editor-state.js";
-import { blankMap } from "../game/editor-state.js";
+import { blankMap, toMapData } from "../game/editor-state.js";
 import { type MapEditorStageHandle, openMapEditorStage } from "../game/map-editor-stage.js";
 import { startMapPreview } from "../game/map-preview.js";
 import { t, useLocale } from "../i18n.js";
@@ -196,12 +196,7 @@ function MapEditorStage({
     if (!previewing) return;
     const edited = editedRef.current;
     if (!edited) return;
-    const data: MapData = {
-      blocks: edited.blocks,
-      elements: edited.elements,
-      spawn: edited.spawn,
-      markers: edited.markers,
-    };
+    const data: MapData = toMapData(edited);
     let stopped = false;
     let preview: { stop(): void } | null = null;
     // Esc during startup: `stopped` latches before `startMapPreview` resolves, so a preview that

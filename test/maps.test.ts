@@ -13,6 +13,7 @@ import {
   setFirstMap as setOwnedFirstMap,
   updateMap as updateOwnedMap,
 } from "../src/server/maps.js";
+import { blocksFromMapData } from "../src/shared/legacy-blocks.js";
 import { MAX_MAP_ELEMENTS } from "../src/shared/map-data.js";
 
 // Exactly the size floor (20x15): small enough to read at a glance, big enough to clear the caps.
@@ -283,7 +284,7 @@ describe("maps", () => {
         ],
       });
       const loaded = await loadMap(db, created.id);
-      expect(loaded?.blocks).toEqual(validInput.blocks);
+      expect(loaded && blocksFromMapData(loaded)).toEqual(validInput.blocks);
       expect(loaded?.spawn).toEqual(validInput.spawn);
       expect(loaded?.elements).toHaveLength(2);
       expect(loaded?.elements.find((e) => e.assetId === TREE_ALT)?.assetId).toBe(TREE_ALT);
@@ -318,7 +319,9 @@ describe("maps", () => {
       expect(loaded?.elements).toEqual([{ col: 4, row: 3, assetId: TREE_ALT }]);
       if (!loaded) throw new Error("legacy map missing");
 
-      await expect(updateMap(db, created.id, { ...loaded, name: "" })).rejects.toThrow(/^name:/);
+      await expect(
+        updateMap(db, created.id, { ...loaded, blocks: blocksFromMapData(loaded), name: "" }),
+      ).rejects.toThrow(/^name:/);
       const untouched = await env.DB.prepare(
         "SELECT kind FROM map_element WHERE map_id = ? AND col = 4 AND row = 3",
       )
@@ -326,7 +329,11 @@ describe("maps", () => {
         .first<{ kind: string }>();
       expect(untouched?.kind).toBe("tree");
 
-      await updateMap(db, created.id, { ...loaded, name: "Converted" });
+      await updateMap(db, created.id, {
+        ...loaded,
+        blocks: blocksFromMapData(loaded),
+        name: "Converted",
+      });
       const converted = await env.DB.prepare(
         "SELECT kind FROM map_element WHERE map_id = ? AND col = 4 AND row = 3",
       )

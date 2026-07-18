@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { blocksFromMapData, mapDataFromBlocks } from "../src/shared/legacy-blocks.js";
 import {
   bakeCollision,
   canPlaceElement,
@@ -18,11 +19,11 @@ const TREE_ALT = "resource.terrain-resources-wood-trees.tree4" as const;
 const BUSH = "decoration.terrain-decorations-bushes.bushe1" as const;
 const STONE = "decoration.terrain-decorations-rocks.rock1" as const;
 
-const MAP: MapData = {
+const MAP: MapData = mapDataFromBlocks({
   blocks: ["....", ".##.", "....", "...."],
   elements: [],
   spawn: { col: 0, row: 0 },
-};
+});
 
 describe("baking a map's collision", () => {
   it("keeps grass walkable and water solid", () => {
@@ -58,7 +59,7 @@ describe("baking a map's collision", () => {
     const elements = [{ col: 0, row: 0, assetId: TREE } as const];
     const source: MapData = { ...MAP, elements };
     bakeCollision(source);
-    expect(source.blocks).toEqual(["....", ".##.", "....", "...."]);
+    expect(blocksFromMapData(source)).toEqual(["....", ".##.", "....", "...."]);
     expect(source.elements).toEqual(elements);
   });
 });
@@ -139,11 +140,11 @@ describe("parsing a map off the wire", () => {
 });
 
 describe("terrainFromMap", () => {
-  const data = {
+  const data = mapDataFromBlocks({
     blocks: ["####", "#..#", "#..#", "####"],
     elements: [{ col: 1, row: 1, assetId: TREE }],
     spawn: { col: 2, row: 2 },
-  };
+  });
 
   it("builds geometry whose tiles are the baked map", () => {
     const terrain = terrainFromMap(data);

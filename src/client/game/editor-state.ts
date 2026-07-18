@@ -1,6 +1,7 @@
 /** Pure map-editor mutations. Placement, footprints and collision all come from the shared
  * catalogue, so the browser and authoritative map API cannot disagree. */
 import type { MonsterSpecies } from "../../shared/game.js";
+import { mapDataFromBlocks } from "../../shared/legacy-blocks.js";
 import {
   bakeCollision,
   canPlaceElement,
@@ -262,8 +263,9 @@ export function blankMap(name: string, cols: number, rows: number): EditorMap {
   };
 }
 
-function toMapData(map: EditorMap): MapData {
-  return { blocks: map.blocks, elements: map.elements, spawn: map.spawn, markers: map.markers };
+/** Mechanical bridge while the editor still stores `blocks`; see shared/legacy-blocks.ts. */
+export function toMapData(map: EditorMap): MapData {
+  return mapDataFromBlocks(map);
 }
 
 function isWalkableCell(map: EditorMap, col: number, row: number): boolean {
@@ -318,7 +320,7 @@ function keepsMarkersValid(map: EditorMap): boolean {
 }
 
 function placementTerrainValid(map: EditorMap, element: MapElement): boolean {
-  const ground = bakeCollision({ blocks: map.blocks, elements: [], spawn: map.spawn });
+  const ground = bakeCollision({ ...toMapData(map), elements: [] });
   if (!elementFitsMap(element, ground.cols, ground.rows)) return false;
   // Every occupied visual cell must satisfy the asset's catalogue terrain rule. This also validates
   // multi-cell buildings and both bridge orientations, rather than checking only their anchor.
