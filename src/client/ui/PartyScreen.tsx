@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { PlayerClass } from "../../shared/game.js";
-import { HERO_CLASSES } from "../../shared/hero.js";
+import { HERO_CLASSES, MAX_HEROES_PER_PARTY } from "../../shared/hero.js";
 import {
   authErrorText,
   createHeroApi,
@@ -36,6 +36,11 @@ export function PartyScreen() {
     if (!partyId) return;
     void refresh(partyId);
   }, [partyId]);
+
+  // A reload can land here with no active party; send the user back to the list.
+  useEffect(() => {
+    if (!party) setScreen("parties");
+  }, [party, setScreen]);
 
   function fail(caught: unknown): void {
     const code = errorCode(caught);
@@ -83,12 +88,7 @@ export function PartyScreen() {
     }
   }
 
-  if (!party) {
-    // No active party (e.g. a reload landed here): bounce to the list.
-    setScreen("parties");
-    return null;
-  }
-  if (heroes === null) return null;
+  if (!party || heroes === null) return null;
   const deleting = heroes.find((hero) => hero.id === confirmingId);
 
   return (
@@ -106,11 +106,9 @@ export function PartyScreen() {
 
       <section className="roster-grid" aria-label={t("party.heroes")}>
         {heroes.map((hero) => (
-          <article
-            key={hero.id}
-            className={`roster-card framed party-colour--${party.myColor ?? "blue"}`}
-          >
+          <article key={hero.id} className="roster-card framed">
             <div className="roster-card__identity">
+              <span className={`party-colour party-colour--${party.myColor ?? "blue"}`} />
               <h2>{hero.name}</h2>
               <span>{t(`class.${hero.class}`)}</span>
             </div>
@@ -123,7 +121,7 @@ export function PartyScreen() {
         ))}
       </section>
 
-      {heroes.length < 3 && (
+      {heroes.length < MAX_HEROES_PER_PARTY && (
         <section className="roster-card framed" aria-label={t("party.create.title")}>
           <h2>{t("party.create.title")}</h2>
           <Label htmlFor="hero-name">{t("party.create.name")}</Label>
