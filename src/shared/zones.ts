@@ -50,6 +50,14 @@ export interface ZoneDefinition {
   readonly markers?: MapMarkers;
   /** Authored map cache identity. Catalogue zones use 0. */
   readonly revision?: number;
+  /**
+   * Which tileset `layers` index into, and the three run-length encoded appearance layers
+   * themselves. Undefined for every catalogue zone — they predate layers and draw their terrain
+   * straight out of `terrain.tiles` (see `zoneFromMap` for the D1 map path that populates both).
+   * Appearance only, same as `elements`: never a second source of collision.
+   */
+  readonly tilesetId?: string;
+  readonly layers?: readonly string[];
 }
 
 /** A server-owned exit. The browser can only ask to interact near it. */

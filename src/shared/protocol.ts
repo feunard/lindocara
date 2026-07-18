@@ -20,11 +20,12 @@ import type {
 } from "./game.js";
 import { isUuid } from "./identifiers.js";
 import type { ChatChannel } from "./interest.js";
-import { type MapElement, parseMapElements } from "./map-data.js";
+import { MAP_LAYERS, type MapElement, parseMapElements } from "./map-data.js";
 import type { ClassResourceState } from "./resources.js";
 import type { Input } from "./simulation.js";
 import { isSkillSlot, type SkillSlot } from "./skills.js";
 import { parseTileMap } from "./tilemap-codec.js";
+import { tilesetById } from "./tilesets/tiny-swords.js";
 import { isZoneId, type ZoneId } from "./zones.js";
 
 /** One tick's worth of movement intent, stamped so the server can acknowledge it. */
@@ -195,6 +196,13 @@ export interface WorldInfo {
   tiles: string[];
   /** What to draw on the ground. Scenery only — collision is already in `tiles` above. */
   elements: readonly MapElement[];
+  /** Which tileset `layers` index into. */
+  tilesetId: string;
+  /**
+   * Appearance only. Collision is already in `tiles` above — exactly the rule `elements` follows,
+   * and the reason adding layers to the wire introduces no new invariant.
+   */
+  layers: readonly string[];
   width: number;
   height: number;
   playerSize: number;
@@ -451,6 +459,13 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       // one arriving on a socket. Drop the frame instead of crashing the first paint.
       parseTileMap(value.world.tiles) !== null &&
       parseMapElements(value.world.elements) !== null &&
+      // `layers` is appearance only — the same rule `elements` already follows — so validation only
+      // needs to confirm the shape is well-formed, never re-derive collision from it.
+      typeof value.world.tilesetId === "string" &&
+      tilesetById(value.world.tilesetId) !== null &&
+      Array.isArray(value.world.layers) &&
+      value.world.layers.length === MAP_LAYERS &&
+      value.world.layers.every((layer: unknown) => typeof layer === "string") &&
       Array.isArray(value.players) &&
       Array.isArray(value.monsters) &&
       Array.isArray(value.guards) &&
