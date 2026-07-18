@@ -5,6 +5,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { WS_CLOSE } from "../shared/close-codes.js";
+import { actionForClassSlot, MONSTER_ACTIONS } from "../shared/combat-actions.js";
 import {
   addThreat,
   isMeaningfulContribution,
@@ -16,6 +17,16 @@ import {
 } from "../shared/cooperation.js";
 import { canAct, canBeResurrected, RESURRECT_COOLDOWN_MS, resurrectHp } from "../shared/death.js";
 import {
+  circleIntersectsArc,
+  circleIntersectsCapsule,
+  firstSegmentImpact,
+  frontalArc,
+  normalizeDirection,
+  strikeCapsule,
+  sweptProjectileEntityImpact,
+  sweptProjectileTerrainImpact,
+} from "../shared/directional-combat.js";
+import {
   applyDamage,
   applyExperience,
   attackDamageFor,
@@ -23,11 +34,9 @@ import {
   CLASS_STATS,
   clampRestoredPosition,
   hasLineOfSight,
-  healAmountFor,
   INTERACTION_RANGE,
   LOOT_EXPIRY_MS,
   MONSTER_AGGRO_RANGE,
-  MONSTER_ATTACK_RANGE,
   MONSTER_RESPAWN_MS,
   type MonsterSpecies,
   maxHpForLevel,
@@ -43,6 +52,7 @@ import { LOCAL_CHAT_RADIUS, SPATIAL_CELL_SIZE, SPATIAL_EVENT_RADIUS } from "../s
 import {
   type ClientMessage,
   encodeServerMessage,
+  type ProjectileSnapshot,
   parseClientMessage,
   type SelfState,
   type ServerMessage,
@@ -62,6 +72,7 @@ import {
   type Vec2,
 } from "../shared/simulation.js";
 import {
+  CLASS_SKILLS,
   isSkillUnlocked,
   SKILL_UNLOCK_LEVEL,
   type SkillDefinition,
@@ -89,11 +100,11 @@ import { BUILTIN_MAP, BUILTIN_MAP_ID, loadMap } from "./maps.js";
 import { completeParty, loadPartyForRuntime } from "./parties.js";
 import { loadProfile, saveProfile } from "./profile.js";
 import {
-  attemptBasicAttack,
-  guardedDamage,
-  resolveAttackTarget,
-  resolveFriendlyTarget,
-} from "./world/combat-system.js";
+  advanceCombatActions,
+  cancelCombatAction,
+  startCombatAction,
+} from "./world/combat-action-system.js";
+import { guardedDamage } from "./world/combat-system.js";
 import { addPlayer, isRateLimited, removePlayer } from "./world/connection-system.js";
 import {
   beginRewardAttribution,
@@ -130,6 +141,12 @@ import {
   sendPartyChat,
 } from "./world/party-system.js";
 import { persistPlayer } from "./world/persistence-system.js";
+import {
+  advanceProjectiles,
+  projectileOrigin,
+  removeProjectilesByOwner,
+  spawnProjectile,
+} from "./world/projectile-system.js";
 import { nextQuestChapter, questDefinition } from "./world/quest-system.js";
 import { movePlayerInDirection } from "./world/skill-system.js";
 import {
@@ -143,6 +160,7 @@ import {
   ATTACHMENT_EVERY_TICKS,
   type Attachment,
   CHAT_MAX_LENGTH,
+  type CombatActionRuntime,
   combatCooldownsFromPlayer,
   createGuards,
   createMonsters,
@@ -155,6 +173,7 @@ import {
   type MonsterRuntime as Monster,
   newPlayer,
   type PlayerRuntime as Player,
+  type ProjectileRuntime as Projectile,
   profileFromAttachment,
   RESYNC_COOLDOWN_MS,
   toAttachment,
@@ -170,6 +189,7 @@ export class World extends DurableObject<Env> {
   #guards: Guard[] = [];
   #location: ZoneLocation | null = null;
   #loot: GroundLoot[] = [];
+  #projectiles: Projectile[] = [];
   #siteRespawnAt = new Map<string, number>();
   #profileSaves = new Map<string, Promise<boolean>>();
   #itemMutations = new Map<string, Promise<number | null>>();
@@ -603,6 +623,8 @@ export class World extends DurableObject<Env> {
     roomKey: string | null;
     playerIds: string[];
     monsters: { id: string; species: MonsterSpecies; patrolRadius: number }[];
+    projectiles: { id: string; ownerId: string; kind: ProjectileSnapshot["kind"] }[];
+    pendingSaves: number;
     tickActive: boolean;
   }> {
     return {
@@ -613,6 +635,12 @@ export class World extends DurableObject<Env> {
         species: monster.species,
         patrolRadius: monster.patrolRadius,
       })),
+      projectiles: this.#projectiles.map((projectile) => ({
+        id: projectile.id,
+        ownerId: projectile.ownerId,
+        kind: projectile.kind,
+      })),
+      pendingSaves: this.#profileSaves.size,
       tickActive: this.#loop !== null,
     };
   }
@@ -712,7 +740,7 @@ export class World extends DurableObject<Env> {
     // The dead act only through the two exits above. Chat is the one thing a spirit keeps.
     if (message.t !== "chat" && !canAct(player.life)) return;
     if (message.t === "attack") {
-      if (this.#attack(ws, player, message.targetId)) {
+      if (this.#startPlayerAction(ws, player, 1)) {
         await this.#checkpointCooldownsOrReject(ws, player);
       }
       return;
@@ -725,14 +753,8 @@ export class World extends DurableObject<Env> {
       await this.#usePotion(ws, player);
       return;
     }
-    if (message.t === "heal") {
-      if (this.#heal(ws, player, message.targetId)) {
-        await this.#checkpointCooldownsOrReject(ws, player);
-      }
-      return;
-    }
     if (message.t === "skill") {
-      if (this.#castSkill(ws, player, message.slot, message.targetId)) {
+      if (this.#startPlayerAction(ws, player, message.slot)) {
         await this.#checkpointCooldownsOrReject(ws, player);
       }
       return;
@@ -784,60 +806,7 @@ export class World extends DurableObject<Env> {
     };
   }
 
-  #attack(ws: WebSocket, player: Player, targetId: string): boolean {
-    const now = Date.now();
-    const stats = CLASS_STATS[player.class];
-    const attempt = attemptBasicAttack(
-      player,
-      this.#monsters,
-      targetId,
-      stats.attackRange,
-      now,
-      this.#zone().terrain,
-    );
-    if (attempt.kind === "unavailable") return false;
-    if (attempt.kind === "rejected") {
-      this.#send(ws, {
-        t: "event",
-        code: attempt.blockedInRange ? "combat.blocked" : "combat.too_far",
-        tone: "info",
-      });
-      return false;
-    }
-
-    const { target } = attempt;
-    this.#sendSpatialEvent(
-      {
-        t: "animation",
-        actorKind: "player",
-        actorId: player.id,
-        action: "attack",
-        x: player.x,
-        y: player.y,
-        targetX: target.x,
-        targetY: target.y,
-      },
-      player,
-    );
-
-    const damage = attackDamageFor(player.class, player.level);
-    const actualDamage = Math.min(target.hp, damage);
-    const result = applyDamage(target.hp, damage);
-    target.hp = result.hp;
-    this.#recordDamage(player, target, actualDamage, now);
-    this.#send(ws, {
-      t: "event",
-      code: "combat.hit",
-      params: { species: target.species, damage, basic: 1 },
-      tone: "info",
-      x: target.x,
-      y: target.y,
-    });
-    if (result.killed) this.#defeatMonster(ws, player, target, now);
-    return true;
-  }
-
-  #castSkill(ws: WebSocket, player: Player, slot: SkillSlot, targetId?: string): boolean {
+  #startPlayerAction(ws: WebSocket, player: Player, slot: SkillSlot): boolean {
     const skill = skillFor(player.class, slot);
     if (!isSkillUnlocked(player.level, slot)) {
       this.#send(ws, {
@@ -853,138 +822,32 @@ export class World extends DurableObject<Env> {
       this.#send(ws, { t: "event", code: "resource.insufficient", tone: "info" });
       return false;
     }
-    if (skill.effect === "attack") {
-      if (targetId) return this.#attack(ws, player, targetId);
-      else
-        this.#send(ws, {
-          t: "event",
-          code: "skill.no_target",
-          params: { skill: skill.id },
-          tone: "info",
-        });
-      return false;
-    }
-    if (skill.effect === "single_heal") {
-      if (targetId) return this.#heal(ws, player, targetId, resourceCost);
-      else
-        this.#send(ws, {
-          t: "event",
-          code: "skill.no_target",
-          params: { skill: skill.id },
-          tone: "info",
-        });
-      return false;
-    }
-
     const now = Date.now();
-    if (!canAct(player.life) || (player.skillCooldowns[slot - 1] ?? 0) > now) return false;
+    if (!canAct(player.life)) return false;
+    if (slot === 1 && now - player.lastAttackAt < skill.cooldownMs) return false;
+    if (skill.id === "mend" && now - player.lastHealAt < skill.cooldownMs) return false;
+    if (slot !== 1 && (player.skillCooldowns[slot - 1] ?? 0) > now) return false;
+    const definition = actionForClassSlot(player.class, slot);
+    const action = startCombatAction(player, {
+      kind: slot === 1 ? "basic" : "skill",
+      skillId: skill.id,
+      slot,
+      direction: player.facing,
+      now,
+      anticipationMs: definition.anticipationMs,
+      recoveryMs: definition.recoveryMs,
+    });
+    if (!action) return false;
 
-    let cast = false;
-    if (skill.effect === "teleport") {
-      cast = this.#movePlayerInDirection(player, player.facing, skill.distance ?? 0);
-    } else if (skill.effect === "dash") {
-      cast = this.#movePlayerInDirection(
-        player,
-        { x: -player.facing.x, y: -player.facing.y },
-        skill.distance ?? 0,
-      );
-    } else if (skill.effect === "charge") {
-      const selection = targetId
-        ? resolveAttackTarget(
-            player,
-            this.#monsters,
-            targetId,
-            skill.range,
-            now,
-            this.#zone().terrain,
-          )
-        : { target: undefined, blockedInRange: false };
-      const { target } = selection;
-      if (target) {
-        const distance = Math.max(0, pointDistance(player, target) - MONSTER_ATTACK_RANGE + 8);
-        this.#movePlayerInDirection(
-          player,
-          {
-            x: target.x - player.x,
-            y: target.y - player.y,
-          },
-          Math.min(skill.distance ?? 0, distance),
-        );
-        this.#skillDamage(ws, player, target, skill, now);
-        cast = true;
-      } else if (selection.blockedInRange) {
-        this.#send(ws, {
-          t: "event",
-          code: "skill.blocked",
-          params: { skill: skill.id },
-          tone: "info",
-        });
-        return false;
-      }
-    } else if (skill.effect === "guard") {
-      player.guardUntil = now + (skill.durationMs ?? 0);
-      player.guardReduction = skill.reduction ?? 0;
-      cast = true;
-    } else if (skill.effect === "single_damage") {
-      const selection = targetId
-        ? resolveAttackTarget(
-            player,
-            this.#monsters,
-            targetId,
-            skill.range,
-            now,
-            this.#zone().terrain,
-          )
-        : { target: undefined, blockedInRange: false };
-      const { target } = selection;
-      if (target) {
-        this.#skillDamage(ws, player, target, skill, now);
-        cast = true;
-      } else if (selection.blockedInRange) {
-        this.#send(ws, {
-          t: "event",
-          code: "skill.blocked",
-          params: { skill: skill.id },
-          tone: "info",
-        });
-        return false;
-      }
-    } else if (skill.effect === "area_damage") {
-      const targets = this.#monsters.filter(
-        (monster) =>
-          monster.deadUntil <= now &&
-          withinRange(player, monster, skill.radius ?? skill.range) &&
-          hasLineOfSight(player, monster, this.#zone().terrain.tiles),
-      );
-      for (const target of targets) this.#skillDamage(ws, player, target, skill, now);
-      cast = true;
-    } else if (skill.effect === "area_heal") {
-      this.#areaHeal(ws, player, skill);
-      cast = true;
-    } else if (skill.effect === "nova") {
-      const targets = this.#monsters.filter(
-        (monster) =>
-          monster.deadUntil <= now &&
-          withinRange(player, monster, skill.radius ?? skill.range) &&
-          hasLineOfSight(player, monster, this.#zone().terrain.tiles),
-      );
-      for (const target of targets) this.#skillDamage(ws, player, target, skill, now);
-      this.#areaHeal(ws, player, skill);
-      cast = true;
-    }
-
-    if (!cast) {
-      this.#send(ws, {
-        t: "event",
-        code: "skill.no_target",
-        params: { skill: skill.id },
-        tone: "info",
-      });
-      return false;
-    }
-    player.skillCooldowns[slot - 1] = now + skill.cooldownMs;
+    if (slot === 1) player.lastAttackAt = now;
+    else player.skillCooldowns[slot - 1] = now + skill.cooldownMs;
+    if (skill.id === "mend") player.lastHealAt = now;
     spendResource(player.resource, resourceCost);
     player.dirty = true;
+    if (skill.id === "mend") {
+      const selfPower = (skill.selfPower ?? skill.power) + Math.max(0, player.level - 1) * 3;
+      this.#healPlayer(ws, player, ws, player, selfPower, now, true);
+    }
     this.#sendState(ws, player);
     this.#send(ws, {
       t: "event",
@@ -997,16 +860,203 @@ export class World extends DurableObject<Env> {
     this.#sendSpatialEvent(
       {
         t: "animation",
+        actionId: action.id,
         actorKind: "player",
         actorId: player.id,
-        action: "skill",
+        action: slot === 1 ? "attack" : "skill",
         skillId: skill.id,
-        x: player.x,
-        y: player.y,
+        direction: { ...action.direction },
+        startedAt: action.startedAt,
+        impactAt: action.impactAt,
+        recoveryEndsAt: action.recoveryEndsAt,
       },
       player,
     );
     return true;
+  }
+
+  #resolvePlayerAction(player: Player, action: CombatActionRuntime, now: number): void {
+    if (!player.authorized || player.transitioning || !canAct(player.life)) return;
+    const socket = this.#socketByPlayerId.get(player.id);
+    const slot = action.slot;
+    if (!socket || slot === undefined || slot < 1 || slot > 5) return;
+    const skill = skillFor(player.class, slot as SkillSlot);
+    const definition = actionForClassSlot(player.class, slot);
+    const center = { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 };
+
+    if (definition.shape === "arc") {
+      const arc = frontalArc(
+        center,
+        action.direction,
+        skill.range,
+        definition.halfAngleRadians ?? Math.PI / 3,
+      );
+      for (const monster of this.#monsterGrid.queryRadius(center, skill.range + PLAYER_SIZE)) {
+        if (
+          monster.deadUntil > now ||
+          !circleIntersectsArc(
+            {
+              center: { x: monster.x + PLAYER_SIZE / 2, y: monster.y + PLAYER_SIZE / 2 },
+              radius: PLAYER_SIZE / 2,
+            },
+            arc,
+          ) ||
+          !hasLineOfSight(player, monster, this.#zone().terrain.tiles)
+        )
+          continue;
+        this.#damageMonster(socket, player, monster, skill, now, true);
+      }
+      return;
+    }
+    if (definition.shape === "charge") {
+      this.#resolveShieldBash(socket, player, action, skill, now);
+      return;
+    }
+    if (definition.shape === "guard") {
+      player.guardUntil = now + (skill.durationMs ?? 0);
+      player.guardReduction = skill.reduction ?? 0;
+      return;
+    }
+    if (definition.shape === "dash") {
+      this.#movePlayerInDirection(
+        player,
+        { x: -action.direction.x, y: -action.direction.y },
+        skill.distance ?? 0,
+      );
+      return;
+    }
+    if (definition.shape === "teleport") {
+      this.#movePlayerInDirection(player, action.direction, skill.distance ?? 0);
+      return;
+    }
+    if (definition.shape === "projectile" || definition.shape === "volley") {
+      this.#spawnPlayerProjectiles(player, action, skill, definition, "monsters", now);
+      return;
+    }
+    if (definition.shape === "heal_projectile") {
+      this.#spawnPlayerProjectiles(player, action, skill, definition, "wounded_allies", now);
+      return;
+    }
+    if (definition.shape === "area_damage" || definition.shape === "nova") {
+      const radius = skill.radius ?? skill.range;
+      for (const monster of this.#monsterGrid.queryRadius(center, radius + PLAYER_SIZE)) {
+        if (
+          monster.deadUntil <= now &&
+          withinRange(player, monster, radius) &&
+          hasLineOfSight(player, monster, this.#zone().terrain.tiles)
+        )
+          this.#damageMonster(socket, player, monster, skill, now, false);
+      }
+    }
+    if (definition.shape === "area_heal" || definition.shape === "nova") {
+      this.#areaHeal(socket, player, skill, now);
+    }
+  }
+
+  #resolveShieldBash(
+    ws: WebSocket,
+    player: Player,
+    action: CombatActionRuntime,
+    skill: SkillDefinition,
+    now: number,
+  ): void {
+    const distance = skill.distance ?? 0;
+    const start = { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 };
+    const end = {
+      x: start.x + action.direction.x * distance,
+      y: start.y + action.direction.y * distance,
+    };
+    const terrainImpact = sweptProjectileTerrainImpact(
+      start,
+      end,
+      PLAYER_SIZE / 2,
+      this.#zone().terrain.tiles,
+    );
+    const midpoint = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+    const monsterImpacts = this.#monsterGrid
+      .queryRadius(midpoint, distance / 2 + PLAYER_SIZE)
+      .filter((monster) => monster.deadUntil <= now)
+      .map((monster) => ({
+        monster,
+        impact: sweptProjectileEntityImpact(
+          start,
+          end,
+          PLAYER_SIZE / 2,
+          {
+            center: { x: monster.x + PLAYER_SIZE / 2, y: monster.y + PLAYER_SIZE / 2 },
+            radius: PLAYER_SIZE / 2,
+          },
+          monster.id,
+        ),
+      }))
+      .filter(
+        (entry): entry is { monster: Monster; impact: NonNullable<typeof entry.impact> } =>
+          entry.impact !== null,
+      );
+    const first = firstSegmentImpact([
+      terrainImpact,
+      ...monsterImpacts.map(({ impact }) => impact),
+    ]);
+    const travel = Math.max(0, distance * (first?.fraction ?? 1) - 1);
+    this.#movePlayerInDirection(player, action.direction, travel);
+    if (first?.kind === "entity") {
+      const target = monsterImpacts.find(({ impact }) => impact.id === first.id)?.monster;
+      if (target) this.#damageMonster(ws, player, target, skill, now, false);
+    } else if (first?.kind === "terrain") {
+      this.#send(ws, {
+        t: "event",
+        code: "skill.blocked",
+        params: { skill: skill.id },
+        tone: "info",
+        x: first.point.x,
+        y: first.point.y,
+      });
+    }
+  }
+
+  #spawnPlayerProjectiles(
+    player: Player,
+    action: CombatActionRuntime,
+    skill: SkillDefinition,
+    definition: ReturnType<typeof actionForClassSlot>,
+    targetFilter: "monsters" | "wounded_allies",
+    now: number,
+  ): void {
+    const projectileDefinition = definition.projectile;
+    if (!projectileDefinition) return;
+    const count = Math.max(1, projectileDefinition.count ?? 1);
+    const spread = projectileDefinition.spreadRadians ?? 0;
+    const activationHitEntityIds = count > 1 ? new Set<string>() : undefined;
+    for (let index = 0; index < count; index++) {
+      const offset = count === 1 ? 0 : -spread / 2 + (spread * index) / (count - 1);
+      const cosine = Math.cos(offset);
+      const sine = Math.sin(offset);
+      const direction = normalizeDirection({
+        x: action.direction.x * cosine - action.direction.y * sine,
+        y: action.direction.x * sine + action.direction.y * cosine,
+      });
+      const power =
+        targetFilter === "wounded_allies"
+          ? (skill.allyPower ?? skill.power) + Math.max(0, player.level - 1) * 3
+          : skill.slot === 1
+            ? attackDamageFor(player.class, player.level)
+            : skill.power + Math.max(0, player.level - 1) * 2;
+      spawnProjectile(this.#projectiles, {
+        actionId: action.id,
+        owner: player,
+        roomKey: player.roomKey,
+        origin: projectileOrigin(player, direction, projectileDefinition.radius),
+        direction,
+        definition: projectileDefinition,
+        range: skill.range,
+        power,
+        targetFilter,
+        sourceSkillId: skill.id,
+        basic: skill.slot === 1,
+        now,
+        ...(activationHitEntityIds ? { activationHitEntityIds } : {}),
+      });
+    }
   }
 
   #movePlayerInDirection(player: Player, direction: Vec2, distance: number): boolean {
@@ -1019,14 +1069,21 @@ export class World extends DurableObject<Env> {
     );
   }
 
-  #skillDamage(
+  #damageMonster(
     ws: WebSocket,
     player: Player,
     target: Monster,
     skill: SkillDefinition,
     now: number,
+    basic: boolean,
+    frozenPower?: number,
   ): void {
-    const damage = skill.power + Math.max(0, player.level - 1) * 2;
+    if (target.deadUntil > now) return;
+    const damage =
+      frozenPower ??
+      (basic
+        ? attackDamageFor(player.class, player.level)
+        : skill.power + Math.max(0, player.level - 1) * 2);
     const actualDamage = Math.min(target.hp, damage);
     const result = applyDamage(target.hp, damage);
     target.hp = result.hp;
@@ -1041,50 +1098,93 @@ export class World extends DurableObject<Env> {
         now,
       );
     }
-    this.#send(ws, {
-      t: "event",
-      code: "combat.hit",
-      params: { species: target.species, damage },
-      tone: "info",
-      x: target.x,
-      y: target.y,
-    });
+    this.#sendSpatialEvent(
+      {
+        t: "event",
+        code: "combat.hit",
+        params: {
+          species: target.species,
+          damage: actualDamage,
+          skill: skill.id,
+          actorId: player.id,
+          ...(basic ? { basic: 1 } : {}),
+        },
+        tone: "info",
+        x: target.x,
+        y: target.y,
+      },
+      target,
+    );
     if (result.killed) this.#defeatMonster(ws, player, target, now);
   }
 
-  #areaHeal(ws: WebSocket, player: Player, skill: SkillDefinition): number {
+  #areaHeal(ws: WebSocket, player: Player, skill: SkillDefinition, now: number): number {
     let healed = 0;
     for (const [targetSocket, target] of this.#players) {
-      if (target.life !== "alive" || pointDistance(player, target) > (skill.radius ?? skill.range))
+      if (
+        target.life !== "alive" ||
+        !this.#areCombatAllies(player, target) ||
+        pointDistance(player, target) > (skill.radius ?? skill.range)
+      )
         continue;
       if (!hasLineOfSight(player, target, this.#zone().terrain.tiles)) continue;
-      const maxHp = maxHpForLevel(target.level);
-      if (target.hp >= maxHp) continue;
       const amount = skill.power + Math.max(0, player.level - 1) * 2;
-      const actualAmount = Math.min(amount, maxHp - target.hp);
-      target.hp = Math.min(maxHp, target.hp + amount);
-      target.dirty = true;
-      healed += 1;
-      this.#recordUsefulHeal(player, target, actualAmount, Date.now());
-      this.#send(targetSocket, {
+      if (this.#healPlayer(ws, player, targetSocket, target, amount, now, target === player) > 0)
+        healed += 1;
+    }
+    return healed;
+  }
+
+  #healPlayer(
+    casterSocket: WebSocket,
+    caster: Player,
+    targetSocket: WebSocket,
+    target: Player,
+    amount: number,
+    now: number,
+    selfCast: boolean,
+  ): number {
+    if (target.life !== "alive" || !this.#areCombatAllies(caster, target)) return 0;
+    const maxHp = maxHpForLevel(target.level);
+    const actualAmount = Math.min(Math.max(0, amount), Math.max(0, maxHp - target.hp));
+    if (actualAmount <= 0) return 0;
+    target.hp += actualAmount;
+    target.dirty = true;
+    this.#recordUsefulHeal(caster, target, actualAmount, now);
+    if (targetSocket !== casterSocket) {
+      this.#send(casterSocket, {
         t: "event",
-        code: targetSocket === ws ? "heal.cast" : "heal.received",
-        params: { name: player.nick, amount },
+        code: "heal.cast",
+        params: { name: target.nick, amount: actualAmount },
         tone: "good",
         x: target.x,
         y: target.y,
       });
-      this.#sendState(targetSocket, target);
     }
-    for (const guard of this.#guards) {
-      if (pointDistance(player, guard) > (skill.radius ?? skill.range)) continue;
-      if (!hasLineOfSight(player, guard, this.#zone().terrain.tiles)) continue;
-      if (guard.hp >= guard.maxHp) continue;
-      const amount = skill.power + Math.max(0, player.level - 1) * 2;
-      guard.hp = Math.min(guard.maxHp, guard.hp + amount);
-      healed += 1;
+    this.#send(targetSocket, {
+      t: "event",
+      code: selfCast && targetSocket === casterSocket ? "heal.cast" : "heal.received",
+      params: { name: caster.nick, amount: actualAmount },
+      tone: "good",
+      x: target.x,
+      y: target.y,
+    });
+    this.#sendState(targetSocket, target);
+    return actualAmount;
+  }
+
+  #areCombatAllies(a: Player, b: Player): boolean {
+    if (a.id === b.id) return true;
+    if (a.identityKind === "hero" || b.identityKind === "hero") {
+      return (
+        a.identityKind === "hero" &&
+        b.identityKind === "hero" &&
+        a.partyId !== null &&
+        a.partyId === b.partyId
+      );
     }
-    return healed;
+    const partyId = this.#partyByPlayerId.get(a.id);
+    return partyId !== undefined && partyId === this.#partyByPlayerId.get(b.id);
   }
 
   #recordDamage(player: Player, monster: Monster, amount: number, now: number): void {
@@ -1185,6 +1285,7 @@ export class World extends DurableObject<Env> {
 
   #defeatMonster(_ws: WebSocket, player: Player, monster: Monster, now: number): void {
     if (!beginRewardAttribution(monster)) return;
+    cancelCombatAction(monster);
     monster.deadUntil = now + MONSTER_RESPAWN_MS;
     const directlyEligible = [...monster.contributions.values()]
       .filter((contribution) => {
@@ -1288,98 +1389,6 @@ export class World extends DurableObject<Env> {
         params: { progress: player.quest.progress, target },
         tone: "good",
       });
-  }
-
-  #heal(
-    ws: WebSocket,
-    player: Player,
-    targetId: string,
-    resourceCost = skillResourceCost("priest", 2),
-  ): boolean {
-    const heal = CLASS_STATS[player.class].heal;
-    if (!heal) return false;
-    if (!canSpendResource(player.resource, resourceCost)) {
-      this.#send(ws, { t: "event", code: "resource.insufficient", tone: "info" });
-      return false;
-    }
-    const now = Date.now();
-    if (!canAct(player.life) || now - player.lastHealAt < heal.cooldownMs) return false;
-
-    const selection = resolveFriendlyTarget(
-      this.#socketByPlayerId,
-      this.#players,
-      this.#guards,
-      targetId,
-    );
-    const target = selection?.target;
-    const playerTarget = selection?.kind === "player" ? selection.target : undefined;
-    const targetSocket = selection?.kind === "player" ? selection.socket : undefined;
-    const targetMaxHp = selection?.maxHp;
-    const inRange = Boolean(
-      target &&
-        (!playerTarget || playerTarget.life === "alive") &&
-        pointDistance(player, target) <= heal.range,
-    );
-    const blocked = Boolean(
-      target && inRange && !hasLineOfSight(player, target, this.#zone().terrain.tiles),
-    );
-    const healable = Boolean(
-      target && targetMaxHp !== undefined && target.hp < targetMaxHp && inRange && !blocked,
-    );
-    if (!target || targetMaxHp === undefined || !healable) {
-      // No cooldown consumed on a whiff — pressing F at full health must not punish.
-      this.#send(ws, {
-        t: "event",
-        code: blocked ? "heal.blocked" : "heal.nobody",
-        tone: "info",
-      });
-      return false;
-    }
-
-    player.lastHealAt = now;
-    spendResource(player.resource, resourceCost);
-    const amount = healAmountFor(player.level);
-    const actualAmount = Math.min(amount, targetMaxHp - target.hp);
-    target.hp = Math.min(targetMaxHp, target.hp + amount);
-    if (playerTarget) {
-      this.#recordUsefulHeal(player, playerTarget, actualAmount, now);
-      playerTarget.dirty = true;
-    }
-    player.dirty = true;
-    this.#send(ws, {
-      t: "event",
-      code: "heal.cast",
-      params: playerTarget
-        ? { name: playerTarget.nick, amount }
-        : { nameKey: "npc.city_guard.name", amount },
-      tone: "good",
-      x: target.x,
-      y: target.y,
-    });
-    this.#sendSpatialEvent(
-      {
-        t: "animation",
-        actorKind: "player",
-        actorId: player.id,
-        action: "skill",
-        skillId: "mend",
-        x: target.x,
-        y: target.y,
-      },
-      player,
-    );
-    if (playerTarget && targetSocket && targetSocket !== ws) {
-      this.#send(targetSocket, {
-        t: "event",
-        code: "heal.received",
-        params: { name: player.nick, amount },
-        tone: "good",
-      });
-    }
-    this.#sendState(ws, player);
-    if (playerTarget && targetSocket && targetSocket !== ws)
-      this.#sendState(targetSocket, playerTarget);
-    return true;
   }
 
   async #interact(ws: WebSocket, player: Player): Promise<void> {
@@ -1486,6 +1495,8 @@ export class World extends DurableObject<Env> {
     player.authorized = false;
     player.lastInput = NO_INPUT;
     player.queue = [];
+    cancelCombatAction(player);
+    removeProjectilesByOwner(this.#projectiles, player.id);
     player.lastTransitionAt = now;
 
     if (!(await this.#checkpointCooldowns(player))) {
@@ -1560,6 +1571,8 @@ export class World extends DurableObject<Env> {
     player.lastTransitionAt = now;
     player.lastInput = NO_INPUT;
     player.queue = [];
+    cancelCombatAction(player);
+    removeProjectilesByOwner(this.#projectiles, player.id);
 
     if (link.dest === "end") {
       try {
@@ -2053,6 +2066,26 @@ export class World extends DurableObject<Env> {
       savePlayer: (player, socket) => this.#savePlayer(player, socket),
     });
     this.#detectAdventureExits(now);
+    advanceCombatActions(this.#players.values(), now, (player, action) =>
+      this.#resolvePlayerAction(player, action, now),
+    );
+    advanceProjectiles(
+      {
+        projectiles: this.#projectiles,
+        terrain: this.#zone().terrain,
+        monsters: this.#monsters,
+        players: this.#players,
+        monsterGrid: this.#monsterGrid,
+        playerGrid: this.#playerGrid,
+        canHeal: (owner, target) => this.#areCombatAllies(owner, target),
+        damageMonster: (projectile, monster, impactAt) =>
+          this.#projectileDamage(projectile, monster, impactAt),
+        healPlayer: (projectile, socket, target, impactAt) =>
+          this.#projectileHeal(projectile, socket, target, impactAt),
+        blocked: (projectile, point) => this.#projectileBlocked(projectile, point),
+      },
+      now,
+    );
     if (writeAttachment) {
       for (const [socket, player] of this.#players) {
         if (player.authorized && player.resource) this.#sendState(socket, player);
@@ -2067,16 +2100,13 @@ export class World extends DurableObject<Env> {
       zone: this.#zone(),
       tick: this.#tick,
       navigation: this.#navigationRuntime(),
-      damagePlayer: (
-        socket: WebSocket,
-        player: Player,
-        damage: number,
-        species: MonsterSpecies,
-        monsterId: string,
-        attackedAt: number,
-      ) => this.#damagePlayer(socket, player, damage, species, monsterId, attackedAt),
+      startAttack: (monster: Monster, target: Player, attackedAt: number) =>
+        this.#startMonsterAttack(monster, target, attackedAt),
     };
     advanceMonsters(monsterContext, now);
+    advanceCombatActions(this.#monsters, now, (monster, action) =>
+      this.#resolveMonsterAction(monster, action, now),
+    );
     advanceGuards(monsterContext, now);
     processExpiredLoot(this.#loot, this.#lootGrid, now);
     if (this.#tick % NETWORK_TICKS_PER_SNAPSHOT === 0) {
@@ -2147,6 +2177,147 @@ export class World extends DurableObject<Env> {
     );
   }
 
+  #projectileOwner(projectile: Projectile): { socket: WebSocket; player: Player } | null {
+    const socket = this.#socketByPlayerId.get(projectile.ownerId);
+    const player = socket ? this.#players.get(socket) : undefined;
+    if (
+      !socket ||
+      !player?.authorized ||
+      player.transitioning ||
+      player.roomKey !== projectile.roomKey ||
+      player.partyId !== projectile.ownerPartyId
+    )
+      return null;
+    return { socket, player };
+  }
+
+  #projectileDamage(projectile: Projectile, monster: Monster, now: number): void {
+    const owner = this.#projectileOwner(projectile);
+    if (!owner || !canAct(owner.player.life)) return;
+    const skill = CLASS_SKILLS[owner.player.class].find(
+      (candidate) => candidate.id === projectile.sourceSkillId,
+    );
+    if (!skill) return;
+    this.#damageMonster(
+      owner.socket,
+      owner.player,
+      monster,
+      skill,
+      now,
+      projectile.basic,
+      projectile.power,
+    );
+  }
+
+  #projectileHeal(
+    projectile: Projectile,
+    targetSocket: WebSocket,
+    target: Player,
+    now: number,
+  ): void {
+    const owner = this.#projectileOwner(projectile);
+    if (!owner || !canAct(owner.player.life) || !this.#areCombatAllies(owner.player, target))
+      return;
+    this.#healPlayer(
+      owner.socket,
+      owner.player,
+      targetSocket,
+      target,
+      projectile.power,
+      now,
+      false,
+    );
+  }
+
+  #projectileBlocked(projectile: Projectile, point: Vec2): void {
+    const owner = this.#projectileOwner(projectile);
+    if (!owner) return;
+    this.#send(owner.socket, {
+      t: "event",
+      code: "skill.blocked",
+      params: { skill: projectile.sourceSkillId },
+      tone: "info",
+      x: point.x,
+      y: point.y,
+    });
+  }
+
+  #startMonsterAttack(monster: Monster, target: Player | Guard, now: number): void {
+    if (monster.deadUntil > now || monster.action) return;
+    const definition = MONSTER_ACTIONS[monster.species];
+    const direction = normalizeDirection(
+      { x: target.x - monster.x, y: target.y - monster.y },
+      monster.facing,
+    );
+    monster.facing = direction;
+    const action = startCombatAction(monster, {
+      kind: "monster_attack",
+      direction,
+      now,
+      anticipationMs: definition.anticipationMs,
+      recoveryMs: definition.recoveryMs,
+    });
+    if (!action) return;
+    this.#sendSpatialEvent(
+      {
+        t: "animation",
+        actionId: action.id,
+        actorKind: "monster",
+        actorId: monster.id,
+        action: "attack",
+        direction: { ...action.direction },
+        startedAt: action.startedAt,
+        impactAt: action.impactAt,
+        recoveryEndsAt: action.recoveryEndsAt,
+      },
+      monster,
+    );
+  }
+
+  #resolveMonsterAction(monster: Monster, action: CombatActionRuntime, now: number): void {
+    if (monster.deadUntil > now) return;
+    const definition = MONSTER_ACTIONS[monster.species];
+    const origin = { x: monster.x + PLAYER_SIZE / 2, y: monster.y + PLAYER_SIZE / 2 };
+    const hitbox = strikeCapsule(
+      origin,
+      action.direction,
+      definition.range,
+      definition.hitboxRadius,
+    );
+    for (const [socket, player] of this.#players) {
+      if (
+        !player.authorized ||
+        player.life !== "alive" ||
+        player.transitioning ||
+        !circleIntersectsCapsule(
+          {
+            center: { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 },
+            radius: PLAYER_SIZE / 2,
+          },
+          hitbox,
+        ) ||
+        !hasLineOfSight(monster, player, this.#zone().terrain.tiles)
+      )
+        continue;
+      this.#damagePlayer(socket, player, monster.damage, monster.species, monster.id, now);
+    }
+    for (const guard of this.#guards) {
+      if (
+        !circleIntersectsCapsule(
+          {
+            center: { x: guard.x + PLAYER_SIZE / 2, y: guard.y + PLAYER_SIZE / 2 },
+            radius: PLAYER_SIZE / 2,
+          },
+          hitbox,
+        ) ||
+        !hasLineOfSight(monster, guard, this.#zone().terrain.tiles)
+      )
+        continue;
+      // Guards remain service NPCs in V1, so combat may wound but never kill them.
+      guard.hp = Math.max(1, guard.hp - monster.damage);
+    }
+  }
+
   #damagePlayer(
     ws: WebSocket,
     player: Player,
@@ -2155,18 +2326,6 @@ export class World extends DurableObject<Env> {
     monsterId: string,
     now: number,
   ): void {
-    const attacker = this.#monsters.find((monster) => monster.id === monsterId);
-    this.#sendSpatialEvent(
-      {
-        t: "animation",
-        actorKind: "monster",
-        actorId: monsterId,
-        action: "attack",
-        x: attacker?.x ?? player.x,
-        y: attacker?.y ?? player.y,
-      },
-      attacker ?? player,
-    );
     const { amount: appliedDamage, result } = guardedDamage(player, damage, now);
     player.hp = result.hp;
     generateResource(player.class, player.resource, "damage_taken", appliedDamage);
@@ -2213,6 +2372,8 @@ export class World extends DurableObject<Env> {
     player.lastInput = NO_INPUT;
     player.queue = [];
     player.starvedTicks = 0;
+    cancelCombatAction(player);
+    removeProjectilesByOwner(this.#projectiles, player.id);
     player.dirty = true;
   }
 
@@ -2286,6 +2447,7 @@ export class World extends DurableObject<Env> {
         monsters: this.#monsters,
         guards: this.#guards,
         loot: this.#loot,
+        projectiles: this.#projectiles,
         playerGrid: this.#playerGrid,
         monsterGrid: this.#monsterGrid,
         lootGrid: this.#lootGrid,
@@ -2325,6 +2487,8 @@ export class World extends DurableObject<Env> {
 
   #removePlayer(ws: WebSocket, player: Player): void {
     this.#occupiedExitByPlayerId.delete(player.id);
+    cancelCombatAction(player);
+    removeProjectilesByOwner(this.#projectiles, player.id);
     removePlayerFromParties(this.#partyContext(), player.id);
     removePlayerCombatState(this.#monsters, player.id);
     removePlayer(this.#players, this.#socketByPlayerId, this.#playerGrid, ws, player);
@@ -2334,6 +2498,7 @@ export class World extends DurableObject<Env> {
   #unloadEmptyRoom(): void {
     this.#stopLoop();
     this.#loot = [];
+    this.#projectiles = [];
     this.#lootGrid.clear();
     this.#siteRespawnAt.clear();
     this.#parties.clear();

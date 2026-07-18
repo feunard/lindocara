@@ -9,7 +9,7 @@
   image-rendering: pixelated;
 }
 
-:where(.panel, .target-frame, .world-map-panel, .connection-overlay__panel) {
+:where(.panel, .world-map-panel, .connection-overlay__panel) {
   border: 12px solid transparent;
   border-image-source: var(--tiny-panel-carved);
   border-image-slice: 64 fill;

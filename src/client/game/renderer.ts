@@ -11,6 +11,7 @@ import {
   TilingSprite,
 } from "pixi.js";
 import type { MainHandItem, OffHandItem, PrimaryColor } from "../../shared/character.js";
+import { MONSTER_ACTIONS, PLAYER_ACTIONS } from "../../shared/combat-actions.js";
 import { isSpirit } from "../../shared/death.js";
 import {
   entityBox,
@@ -23,15 +24,19 @@ import {
 import type { MessageKey } from "../../shared/i18n/index.js";
 import type { MapElement } from "../../shared/map-data.js";
 import type {
+  CombatActionSnapshot,
+  CombatAnimation,
   CorpseSnapshot,
   GuardSnapshot,
   ItemKind,
   LootSnapshot,
   MonsterSnapshot,
   PlayerSnapshot,
+  ProjectileSnapshot,
   QuestState,
 } from "../../shared/protocol.js";
 import { PLAYER_SIZE } from "../../shared/simulation.js";
+import { CLASS_SKILLS } from "../../shared/skills.js";
 import { isSolidKind, kindAt, TILE_SIZE, type TileMap } from "../../shared/tilemap.js";
 import type { EditorAssetId } from "../../shared/tiny-swords-catalog.js";
 import {
@@ -44,6 +49,14 @@ import { onLocaleChange, t } from "../i18n.js";
 import { landTile, needsFoam, tileVisual } from "./autotile.js";
 import { catalogElementFrameAt, createCatalogElementView } from "./catalog-element-render.js";
 import { MAIN_HAND_ART, OFF_HAND_ART, PLAYER_ATLAS_FRAMES } from "./character-art.js";
+import {
+  allCombatSheets,
+  combatActionFrameIndex,
+  combatArt,
+  localCombatTimeline,
+  monsterCombatArt,
+  projectileArt,
+} from "./combat-art.js";
 import { type HealthBarMode, shouldShowHealthBar } from "./display-settings.js";
 import { type EditorAssetArt, loadEditorAssetArts } from "./editor-asset-art.js";
 import {
@@ -56,7 +69,6 @@ import { MAX_ACTIVE_WORLD_EFFECTS, questSiteFeedback } from "./feedback.js";
 import { sameRenderedMap } from "./map-render-cache.js";
 import type { SceneSample } from "./net.js";
 import { acquireStageApp } from "./stage-application.js";
-import type { CombatTarget } from "./targeting.js";
 import {
   foamFrameAt,
   pulseTint,
@@ -74,8 +86,6 @@ import {
   TINY_SWORDS_BUILDINGS,
   TINY_SWORDS_BUSHES,
   TINY_SWORDS_DECO,
-  TINY_SWORDS_EFFECT_SHEETS,
-  TINY_SWORDS_EFFECTS,
   TINY_SWORDS_FOAM_FRAME,
   TINY_SWORDS_FOAM_FRAMES,
   TINY_SWORDS_QUEST_ART,
@@ -206,16 +216,13 @@ interface ArtTextures {
   units: Record<string, readonly Texture[]>;
   buildings: Texture[];
   signBoard: Texture;
-  effects: Record<keyof typeof TINY_SWORDS_EFFECTS, Texture>;
-  effectFrames: Record<keyof typeof TINY_SWORDS_EFFECT_SHEETS, readonly Texture[]>;
+  combatFrames: Map<string, readonly Texture[]>;
   questResources: Record<keyof typeof TINY_SWORDS_QUEST_ART, Texture>;
 }
 
 export interface RenderContext {
   self?: PlayerSnapshot;
   quest: QuestState;
-  attackCooldownUntil: number;
-  attackRange: number;
   now: number;
   healthBars: HealthBarMode;
   grid: boolean;
@@ -228,19 +235,26 @@ interface EntityView<T extends { id: string }> {
   flash?: Graphics;
   weapon?: Container;
   alert?: Text;
-  targetRing?: Graphics;
   lastX?: number;
   lastY?: number;
   lastHp?: number;
   drawnHp?: number;
   drawnMaxHp?: number;
   movingUntil?: number;
-  attackUntil?: number;
   hitUntil?: number;
   wasDead?: boolean;
   phase?: number;
   unitSprite?: Sprite;
   unitAnimations?: Record<UnitMotion, readonly Texture[]>;
+  actionId?: string;
+  actionSkillId?: string;
+  actionStartedAt?: number;
+  actionImpactAt?: number;
+  actionEndsAt?: number;
+  actionDirection?: { x: number; y: number };
+  effectPlayedActionId?: string;
+  guardVisualUntil?: number;
+  createdAt?: number;
 }
 
 interface Effect {
@@ -251,6 +265,7 @@ interface Effect {
   baseY: number;
   sprite?: Sprite;
   frames?: readonly Texture[];
+  scaleGrowth: number;
 }
 
 interface AmbientView {
@@ -316,9 +331,10 @@ function sliceHorizontalSheet(
   source: Texture,
   frameWidth: number,
   frames: number,
+  frameHeight = source.height,
 ): readonly Texture[] {
   return Array.from({ length: frames }, (_, index) => {
-    const frame = new Rectangle(index * frameWidth, 0, frameWidth, source.height);
+    const frame = new Rectangle(index * frameWidth, 0, frameWidth, frameHeight);
     return new Texture({
       source: source.source,
       frame,
@@ -401,6 +417,21 @@ async function loadArt(): Promise<ArtTextures> {
         }),
     );
   }
+  const combatSheets = allCombatSheets();
+  const loadedCombatSheets = await Promise.all(
+    combatSheets.map((definition) => Assets.load<Texture>(definition.source)),
+  );
+  const combatFrames = new Map<string, readonly Texture[]>();
+  for (let index = 0; index < combatSheets.length; index++) {
+    const definition = combatSheets[index];
+    const sheet = loadedCombatSheets[index];
+    if (!definition || !sheet) continue;
+    sheet.source.style.scaleMode = "nearest";
+    combatFrames.set(
+      definition.source,
+      sliceHorizontalSheet(sheet, definition.frameWidth, definition.frames, definition.frameHeight),
+    );
+  }
   const [terrainFlatSheet, terrainWaterSurface, terrainFoamSheet] = await Promise.all([
     Assets.load<Texture>(TINY_SWORDS_TERRAIN.flat),
     Assets.load<Texture>(TINY_SWORDS_TERRAIN.water),
@@ -447,22 +478,6 @@ async function loadArt(): Promise<ArtTextures> {
   for (const building of buildings) building.source.style.scaleMode = "nearest";
   const signBoard = await Assets.load<Texture>(TINY_SWORDS_SIGN_BOARD);
   signBoard.source.style.scaleMode = "nearest";
-  const effectEntries = await Promise.all(
-    Object.entries(TINY_SWORDS_EFFECTS).map(
-      async ([name, source]) => [name, await Assets.load<Texture>(source)] as const,
-    ),
-  );
-  const effects = Object.fromEntries(effectEntries) as Record<
-    keyof typeof TINY_SWORDS_EFFECTS,
-    Texture
-  >;
-  for (const effect of Object.values(effects)) effect.source.style.scaleMode = "nearest";
-  const effectFrames = Object.fromEntries(
-    Object.entries(TINY_SWORDS_EFFECT_SHEETS).map(([name, sheet]) => {
-      const texture = effects[name as keyof typeof TINY_SWORDS_EFFECTS];
-      return [name, sliceHorizontalSheet(texture, sheet.frame, sheet.frames)] as const;
-    }),
-  ) as Record<keyof typeof TINY_SWORDS_EFFECT_SHEETS, readonly Texture[]>;
   const enemySheets = new Map<string, EnemySheet>();
   for (const art of Object.values(TINY_SWORDS_ENEMIES)) {
     for (const motion of ["idle", "run", "attack"] as const)
@@ -562,8 +577,7 @@ async function loadArt(): Promise<ArtTextures> {
     units,
     buildings,
     signBoard,
-    effects,
-    effectFrames,
+    combatFrames,
     questResources,
   };
 }
@@ -728,6 +742,7 @@ export class Renderer {
   #guards = new Map<string, EntityView<GuardSnapshot>>();
   #loot = new Map<string, EntityView<LootSnapshot>>();
   #corpses = new Map<string, EntityView<CorpseSnapshot>>();
+  #projectiles = new Map<string, EntityView<ProjectileSnapshot>>();
   #activeEffects: Effect[] = [];
   #ambientViews: AmbientView[] = [];
   #staticViews: StaticView[] = [];
@@ -764,8 +779,6 @@ export class Renderer {
   #cameraY = zoneDefinition(DEFAULT_ZONE_ID).terrain.height / 2;
   #cameraReady = false;
   #lastCameraAt = 0;
-  #target: CombatTarget | null = null;
-  #targetHandler: ((target: CombatTarget) => void) | null = null;
   #healthBarMode: HealthBarMode = "both";
 
   private constructor(
@@ -790,14 +803,6 @@ export class Renderer {
 
   setSelfId(id: string): void {
     this.#selfId = id;
-  }
-
-  setTargetHandler(handler: (target: CombatTarget) => void): void {
-    this.#targetHandler = handler;
-  }
-
-  setTarget(target: CombatTarget | null): void {
-    this.#target = target;
   }
 
   /**
@@ -902,6 +907,7 @@ export class Renderer {
    * standing over the new room.
    */
   #rebuildForZone(): void {
+    this.#clearTransientCombatViews();
     this.#teardownWorldFurniture();
     for (const child of this.#forestTreesLayer.removeChildren()) child.destroy({ children: true });
     for (const child of this.#decorLayer.removeChildren()) child.destroy({ children: true });
@@ -924,6 +930,15 @@ export class Renderer {
     this.#updateStaticVisibility();
   }
 
+  #clearTransientCombatViews(): void {
+    for (const view of this.#projectiles.values()) view.container.destroy({ children: true });
+    this.#projectiles.clear();
+    for (const effect of this.#activeEffects) effect.container.destroy({ children: true });
+    this.#activeEffects = [];
+    for (const view of this.#players.values()) this.#resetVisualAction(view);
+    for (const view of this.#monsters.values()) this.#resetVisualAction(view);
+  }
+
   diagnostics(): Record<string, number> {
     return {
       terrainPool: this.#terrainTiles.length,
@@ -933,7 +948,13 @@ export class Renderer {
       ambientTotal: this.#ambientViews.length,
       ambientVisible: this.#ambientViews.filter(({ container }) => container.visible).length,
       actorViews:
-        this.#players.size + this.#monsters.size + this.#guards.size + this.#loot.size + 1,
+        this.#players.size +
+        this.#monsters.size +
+        this.#guards.size +
+        this.#loot.size +
+        this.#projectiles.size +
+        1,
+      projectileViews: this.#projectiles.size,
       activeEffects: this.#activeEffects.length,
     };
   }
@@ -1982,7 +2003,7 @@ export class Renderer {
    */
   #drawHitboxes(sample: SceneSample): void {
     this.#hitboxOverlay.clear();
-    if (!this.#showGrid) return;
+    if (!import.meta.env.DEV || !this.#showGrid) return;
     const bodies = [...sample.players, ...sample.monsters, ...sample.guards];
     for (const body of bodies) {
       const box = entityBox({ x: body.x, y: body.y });
@@ -1990,6 +2011,65 @@ export class Renderer {
     }
     if (bodies.length > 0) {
       this.#hitboxOverlay.stroke({ width: 1, color: HITBOX_COLOR, alpha: 0.85 });
+    }
+    const localNow = performance.now();
+    for (const player of sample.players) {
+      const action = player.action;
+      const view = this.#players.get(player.id);
+      if (!action?.skillId) continue;
+      const definition = PLAYER_ACTIONS[player.class].find(
+        (candidate) => candidate.skillId === action.skillId,
+      );
+      const skill = CLASS_SKILLS[player.class].find((candidate) => candidate.id === action.skillId);
+      if (!definition || !skill) continue;
+      const origin = centerOf(player);
+      const active =
+        (view?.actionImpactAt ?? Number.POSITIVE_INFINITY) <= localNow &&
+        localNow <= (view?.actionImpactAt ?? Number.NEGATIVE_INFINITY) + 80;
+      const color = active ? 0xff453a : 0x47d7ff;
+      if (
+        definition.shape === "projectile" ||
+        definition.shape === "heal_projectile" ||
+        definition.shape === "volley" ||
+        definition.shape === "charge"
+      ) {
+        const range = skill.distance ?? skill.range;
+        this.#hitboxOverlay
+          .moveTo(origin.x, origin.y)
+          .lineTo(origin.x + action.direction.x * range, origin.y + action.direction.y * range)
+          .stroke({
+            width: Math.max(2, (definition.hitboxRadius ?? definition.projectile?.radius ?? 2) * 2),
+            color,
+            alpha: 0.5,
+          });
+      } else if (
+        definition.shape === "area_damage" ||
+        definition.shape === "area_heal" ||
+        definition.shape === "nova"
+      ) {
+        this.#hitboxOverlay
+          .circle(origin.x, origin.y, skill.radius ?? skill.range)
+          .stroke({ width: 2, color, alpha: 0.65 });
+      } else if (definition.shape === "arc") {
+        const range = skill.range;
+        const halfAngle = definition.halfAngleRadians ?? Math.PI / 3;
+        const heading = Math.atan2(action.direction.y, action.direction.x);
+        for (const angle of [heading - halfAngle, heading + halfAngle]) {
+          this.#hitboxOverlay
+            .moveTo(origin.x, origin.y)
+            .lineTo(origin.x + Math.cos(angle) * range, origin.y + Math.sin(angle) * range);
+        }
+        this.#hitboxOverlay.stroke({ width: 2, color, alpha: 0.65 });
+      }
+    }
+    for (const projectile of sample.projectiles) {
+      this.#hitboxOverlay
+        .moveTo(
+          projectile.x - projectile.direction.x * 32,
+          projectile.y - projectile.direction.y * 32,
+        )
+        .lineTo(projectile.x, projectile.y)
+        .stroke({ width: projectile.radius * 2, color: 0xffdf61, alpha: 0.55 });
     }
   }
 
@@ -2006,9 +2086,6 @@ export class Renderer {
 
   #createPlayer(player: PlayerSnapshot): EntityView<PlayerSnapshot> {
     const container = new Container();
-    container.eventMode = "static";
-    container.cursor = "pointer";
-    container.on("pointertap", () => this.#targetHandler?.({ kind: "player", id: player.id }));
     const actor = new Container();
     actor.pivot.set(16, 17);
     actor.position.set(16, 17);
@@ -2021,12 +2098,8 @@ export class Renderer {
     if (player.id === this.#selfId) {
       selfRing.ellipse(16, 31, 18, 7).stroke({ width: 2, color: COLORS.selfRing, alpha: 0.82 });
     }
-    const targetRing = new Graphics()
-      .ellipse(16, 31, 22, 9)
-      .stroke({ width: 3, color: 0x7dd8ff, alpha: 0.95 });
-    targetRing.visible = false;
     const flash = new Graphics().roundRect(3, -8, 28, 40, 10).fill({ color: 0xffffff, alpha: 0 });
-    actor.addChild(selfRing, targetRing);
+    actor.addChild(selfRing);
     actor.addChild(unitSprite, flash);
     container.addChild(actor);
     const hp = new Graphics();
@@ -2052,12 +2125,10 @@ export class Renderer {
       data: player,
       actor,
       flash,
-      targetRing,
       lastX: player.x,
       lastY: player.y,
       lastHp: player.hp,
       movingUntil: 0,
-      attackUntil: 0,
       hitUntil: 0,
       wasDead: isSpirit(player.life),
       phase: phaseFor(player.id),
@@ -2068,17 +2139,10 @@ export class Renderer {
 
   #createMonster(monster: MonsterSnapshot): EntityView<MonsterSnapshot> {
     const container = new Container();
-    container.eventMode = "static";
-    container.cursor = "pointer";
-    container.on("pointertap", () => this.#targetHandler?.({ kind: "monster", id: monster.id }));
     const actor = new Container();
     actor.pivot.set(18, 20);
     actor.position.set(18, 20);
     const metrics = ENEMY_RENDER_METRICS[monster.species];
-    const targetRing = new Graphics()
-      .ellipse(18, 33, metrics.shadowWidth + 5, metrics.shadowHeight + 4)
-      .stroke({ width: 3, color: 0xff6b62, alpha: 0.95 });
-    targetRing.visible = false;
     const animations = this.art.monsters[monster.species];
     const unitSprite = new Sprite(animations.idle[0]);
     unitSprite.width = metrics.spriteSize;
@@ -2086,7 +2150,7 @@ export class Renderer {
     unitSprite.anchor.set(0.5, 1);
     unitSprite.position.set(18, metrics.spriteY);
     const flash = new Graphics().ellipse(18, 18, 25, 21).fill({ color: 0xffffff, alpha: 0 });
-    actor.addChild(targetRing, unitSprite, flash);
+    actor.addChild(unitSprite, flash);
     container.addChild(actor);
     const hp = new Graphics();
     hp.label = "hp";
@@ -2127,12 +2191,10 @@ export class Renderer {
       actor,
       flash,
       alert,
-      targetRing,
       lastX: monster.x,
       lastY: monster.y,
       lastHp: monster.hp,
       movingUntil: 0,
-      attackUntil: 0,
       hitUntil: 0,
       wasDead: monster.dead,
       phase: phaseFor(monster.id),
@@ -2143,9 +2205,6 @@ export class Renderer {
 
   #createGuard(guard: GuardSnapshot): EntityView<GuardSnapshot> {
     const container = new Container();
-    container.eventMode = "static";
-    container.cursor = "pointer";
-    container.on("pointertap", () => this.#targetHandler?.({ kind: "guard", id: guard.id }));
     const actor = new Container();
     actor.pivot.set(16, 17);
     actor.position.set(16, 17);
@@ -2156,10 +2215,6 @@ export class Renderer {
     const ring = new Graphics()
       .ellipse(16, 31, 20, 8)
       .stroke({ width: 2, color: 0xf6c85f, alpha: 0.55 });
-    const targetRing = new Graphics()
-      .ellipse(16, 31, 23, 9)
-      .stroke({ width: 3, color: 0x7dd8ff, alpha: 0.95 });
-    targetRing.visible = false;
     // A guard is a Tiny Swords unit like any other: same sheet, same frame, so the same native size
     // and the same measured offsets. It was 102 while players were 96 — two different wrong answers
     // to a question that has one right one.
@@ -2167,7 +2222,7 @@ export class Renderer {
     unitSprite.width = TINY_SWORDS_UNIT_FRAME;
     unitSprite.height = TINY_SWORDS_UNIT_FRAME;
     unitSprite.position.set(UNIT_OFFSET_X, UNIT_OFFSET_Y);
-    actor.addChild(ring, targetRing, unitSprite);
+    actor.addChild(ring, unitSprite);
     container.addChild(actor);
     const hp = new Graphics();
     hp.label = "hp";
@@ -2193,14 +2248,12 @@ export class Renderer {
       container,
       data: guard,
       actor,
-      targetRing,
       unitSprite,
       unitAnimations: animations,
       lastX: guard.x,
       lastY: guard.y,
       lastHp: guard.hp,
       movingUntil: 0,
-      attackUntil: 0,
       phase: phaseFor(guard.id),
     };
   }
@@ -2257,6 +2310,27 @@ export class Renderer {
     return { container, data: loot, flash: glow, phase: phaseFor(loot.id) };
   }
 
+  #createProjectile(projectile: ProjectileSnapshot): EntityView<ProjectileSnapshot> {
+    const art = projectileArt(projectile.kind, projectile.color);
+    const frames = this.art.combatFrames.get(art.source) ?? [Texture.EMPTY];
+    const sprite = new Sprite(frames[0]);
+    sprite.anchor.set(art.anchor.x, art.anchor.y);
+    sprite.rotation =
+      Math.atan2(projectile.direction.y, projectile.direction.x) + art.rotationOffset;
+    const container = new Container();
+    container.addChild(sprite);
+    container.position.set(projectile.x, projectile.y);
+    container.zIndex = Math.round(projectile.y + PLAYER_SIZE / 2);
+    this.#actors.addChild(container);
+    return {
+      container,
+      data: projectile,
+      unitSprite: sprite,
+      phase: phaseFor(projectile.id),
+      createdAt: performance.now(),
+    };
+  }
+
   #drawHp(view: EntityView<{ id: string }>, hp: number, maxHp: number): void {
     if (view.drawnHp === hp && view.drawnMaxHp === maxHp) return;
     const child = view.container.getChildByLabel("hp");
@@ -2294,13 +2368,11 @@ export class Renderer {
         -42,
       );
       if (hp instanceof Graphics) {
-        const targeted = this.#target?.kind === "player" && this.#target.id === player.id;
         hp.alpha = !onScreen
           ? 0
           : local
             ? 0.92
-            : !isSpirit(player.life) &&
-                shouldShowHealthBar(this.#healthBarMode, "ally", distance, targeted)
+            : !isSpirit(player.life) && shouldShowHealthBar(this.#healthBarMode, "ally", distance)
               ? 0.9
               : 0;
       }
@@ -2349,6 +2421,7 @@ export class Renderer {
     duration: number,
     rise: number,
     frames?: readonly Texture[],
+    scaleGrowth = 0.55,
   ): void {
     while (this.#activeEffects.length >= MAX_ACTIVE_WORLD_EFFECTS) {
       const oldest = this.#activeEffects.shift();
@@ -2362,6 +2435,7 @@ export class Renderer {
       duration,
       rise,
       baseY: container.y,
+      scaleGrowth,
     };
     if (sprite) effect.sprite = sprite;
     if (frames) effect.frames = frames;
@@ -2375,13 +2449,6 @@ export class Renderer {
   }
 
   showWorldEvent(text: string, tone: "info" | "good" | "bad", x?: number, y?: number): void {
-    const attacker = text.match(/^You hit /) ? this.#selfId : text.match(/^(.+?) hits /)?.[1];
-    if (attacker === this.#selfId || (typeof attacker === "string" && attacker.length > 0)) {
-      for (const view of this.#players.values()) {
-        if (attacker === this.#selfId ? view.data.id === this.#selfId : view.data.nick === attacker)
-          view.attackUntil = performance.now() + 700;
-      }
-    }
     const position = this.#effectPosition(x, y);
     if (!this.#isVisibleWorld(position.x, position.y, 100)) return;
     const fill = tone === "bad" ? 0xff9b93 : tone === "good" ? 0x9ff0ad : COLORS.label;
@@ -2400,68 +2467,198 @@ export class Renderer {
     label.anchor.set(0.5, 1);
     label.position.set(position.x, position.y - 16);
     this.#trackEffect(label, compactAmount ? 720 : 1_100, compactAmount ? 38 : 25);
-    if (compactAmount || tone === "bad") this.#burst(position.x, position.y, fill, 5);
+    // Damage/heal numbers already receive their authoritative Tiny Swords contact effect. Keeping
+    // the old procedural burst as well made every real impact appear twice.
+    if (!compactAmount && tone === "bad") this.#burst(position.x, position.y, fill, 5);
   }
 
-  playAttack(playerId: string): void {
-    const view = this.#players.get(playerId);
-    if (!view) return;
-    view.attackUntil = performance.now() + 700;
-    const position = centerOf(view.data);
-    this.#addPulse(position.x, position.y, COLORS.selfRing, 44, 180);
-    this.#burst(position.x + 14, position.y, 0xffe0a0, 5);
-  }
-
-  /**
-   * `combat.hurt` carries `monsterId` — the id of the monster `advanceMonsters` actually resolved
-   * as the attacker, threaded through `#damagePlayer` all the way from the in-scope `monster`
-   * object at the call site. `#monsters` is already keyed by id, so this is a direct lookup, not a
-   * guess. It used to scan for the nearest live monster of the hit species to the victim's own
-   * position, which broke whenever two monsters of the same species were both within melee range
-   * of the same player — ordinary next to the safe zone, where `road-goblin-scout` and
-   * `city-edge-prowler` are both `spear_goblin` roughly 293px apart and share `MONSTER_AGGRO_RANGE`
-   * (210px). Distance-to-victim cannot tell such a pair apart; server-known identity can.
-   */
-  playMonsterAttack(monsterId: string): void {
-    const view = this.#monsters.get(monsterId);
-    if (!view || view.data.dead) return;
-    view.attackUntil = performance.now() + 700;
-  }
-
-  playPlayerSkill(playerId: string, x: number, y: number): void {
-    const view = this.#players.get(playerId);
-    if (!view) return;
-    view.attackUntil = performance.now() + 700;
-    this.playSkillEffect(view.data.class, x, y);
-  }
-
-  playRangedHit(
-    playerId: string,
-    targetX: number,
-    targetY: number,
-    playerClass: PlayerClass,
+  #setVisualAction<T extends PlayerSnapshot | MonsterSnapshot>(
+    view: EntityView<T>,
+    action: {
+      id: string;
+      skillId?: string;
+      direction: { x: number; y: number };
+      startedAt: number;
+      impactAt: number;
+      recoveryEndsAt: number;
+    },
   ): void {
-    if (playerClass === "warrior") return;
-    const view = this.#players.get(playerId);
-    if (!view) return;
-    const start = centerOf(view.data);
-    const target = { x: targetX + 16, y: targetY + 16 };
-    const angle = Math.atan2(target.y - start.y, target.x - start.x);
-    const color = playerClass === "ranger" ? 0xf3cf78 : 0xb9f5d8;
-    if (playerClass === "ranger") {
-      const arrow = createSprite(this.art.effects.arrow, 34, 34);
-      arrow.anchor.set(0.5);
-      arrow.rotation = angle;
-      arrow.position.set(target.x - Math.cos(angle) * 18, target.y - Math.sin(angle) * 18);
-      this.#trackEffect(arrow, 220, 0);
-    } else {
-      const projectile = new Graphics()
-        .moveTo(start.x, start.y)
-        .lineTo(target.x, target.y)
-        .stroke({ width: 4, color, alpha: 0.92 });
-      this.#trackEffect(projectile, 180, 0);
+    if (view.actionId === action.id) return;
+    const localNow = performance.now();
+    const serverNow = Date.now();
+    const localTimeline = localCombatTimeline(action, localNow, serverNow);
+    view.actionId = action.id;
+    if (action.skillId === undefined) delete view.actionSkillId;
+    else view.actionSkillId = action.skillId;
+    view.actionDirection = { ...action.direction };
+    view.actionStartedAt = localTimeline.startedAt;
+    view.actionImpactAt = localTimeline.impactAt;
+    view.actionEndsAt = localTimeline.recoveryEndsAt;
+    if (action.skillId === "iron_guard") {
+      const guard = CLASS_SKILLS.warrior.find((skill) => skill.id === "iron_guard");
+      view.guardVisualUntil = view.actionImpactAt + (guard?.durationMs ?? 0);
     }
-    this.#burst(target.x, target.y, color, playerClass === "ranger" ? 4 : 7);
+  }
+
+  #syncActionSnapshot<T extends PlayerSnapshot | MonsterSnapshot>(
+    view: EntityView<T>,
+    action: CombatActionSnapshot | null,
+  ): void {
+    if (!action) return;
+    this.#setVisualAction(view, action);
+  }
+
+  playCombatAnimation(animation: CombatAnimation): void {
+    const action = {
+      id: animation.actionId,
+      ...(animation.skillId === undefined ? {} : { skillId: animation.skillId }),
+      direction: animation.direction,
+      startedAt: animation.startedAt,
+      impactAt: animation.impactAt,
+      recoveryEndsAt: animation.recoveryEndsAt,
+    };
+    if (animation.actorKind === "player") {
+      const view = this.#players.get(animation.actorId);
+      if (view) this.#setVisualAction(view, action);
+      return;
+    }
+    const view = this.#monsters.get(animation.actorId);
+    if (view) this.#setVisualAction(view, action);
+  }
+
+  #actionFrame(
+    frames: readonly Texture[],
+    activeFrame: number,
+    startedAt: number,
+    impactAt: number,
+    endsAt: number,
+    now: number,
+  ): Texture | undefined {
+    return (
+      frames[
+        combatActionFrameIndex(
+          frames.length,
+          activeFrame,
+          { startedAt, impactAt, recoveryEndsAt: endsAt },
+          now,
+        )
+      ] ?? frames[0]
+    );
+  }
+
+  #clearExpiredAction<T extends PlayerSnapshot | MonsterSnapshot>(
+    view: EntityView<T>,
+    now: number,
+  ): void {
+    if ((view.actionEndsAt ?? 0) > now) return;
+    this.#resetVisualAction(view);
+  }
+
+  #resetVisualAction<T extends PlayerSnapshot | MonsterSnapshot>(view: EntityView<T>): void {
+    delete view.actionId;
+    delete view.actionSkillId;
+    delete view.actionStartedAt;
+    delete view.actionImpactAt;
+    delete view.actionEndsAt;
+    delete view.actionDirection;
+    delete view.effectPlayedActionId;
+    delete view.guardVisualUntil;
+  }
+
+  #updatePlayerActionArt(
+    view: EntityView<PlayerSnapshot>,
+    player: PlayerSnapshot,
+    now: number,
+  ): boolean {
+    const skillId = view.actionSkillId;
+    const actionActive =
+      Boolean(view.actionId && skillId) &&
+      typeof view.actionStartedAt === "number" &&
+      typeof view.actionEndsAt === "number" &&
+      view.actionEndsAt > now;
+    const guarding = skillId === "iron_guard" && (view.guardVisualUntil ?? 0) > now;
+    if (!actionActive && !guarding) {
+      this.#clearExpiredAction(view, now);
+      return false;
+    }
+    if (!skillId || !view.unitSprite) return false;
+    const art = combatArt(player.class, skillId, player.appearance.primaryColor);
+    const frames = this.art.combatFrames.get(art.caster.source);
+    if (!frames || frames.length === 0) return false;
+    const frame =
+      guarding && !actionActive
+        ? frames[Math.floor(now / 120) % frames.length]
+        : this.#actionFrame(
+            frames,
+            art.caster.activeFrame,
+            view.actionStartedAt ?? now,
+            view.actionImpactAt ?? now,
+            view.actionEndsAt ?? now + 1,
+            now,
+          );
+    if (frame) view.unitSprite.texture = frame;
+
+    if (
+      actionActive &&
+      view.actionId &&
+      view.effectPlayedActionId !== view.actionId &&
+      (view.actionImpactAt ?? Number.POSITIVE_INFINITY) <= now
+    ) {
+      const mobilityImpact =
+        skillId === "shield_bash" || skillId === "dash" || skillId === "blink"
+          ? art.impact
+          : undefined;
+      const effect = art.zone ?? mobilityImpact;
+      if (effect) {
+        const position = centerOf(player);
+        this.#playCombatSheet(
+          effect.source,
+          effect.durationMs,
+          effect.anchor,
+          position.x,
+          position.y,
+        );
+      }
+      view.effectPlayedActionId = view.actionId;
+    }
+    return true;
+  }
+
+  #updateMonsterActionArt(view: EntityView<MonsterSnapshot>, now: number): boolean {
+    const active =
+      Boolean(view.actionId) &&
+      typeof view.actionStartedAt === "number" &&
+      typeof view.actionEndsAt === "number" &&
+      view.actionEndsAt > now;
+    if (!active) {
+      this.#clearExpiredAction(view, now);
+      return false;
+    }
+    const speciesArt = monsterCombatArt(view.data.species);
+    const frames = view.unitAnimations?.attack;
+    if (!frames || !view.unitSprite) return false;
+    const frame = this.#actionFrame(
+      frames,
+      speciesArt.activeFrame,
+      view.actionStartedAt ?? now,
+      view.actionImpactAt ?? now,
+      view.actionEndsAt ?? now + 1,
+      now,
+    );
+    if (frame) view.unitSprite.texture = frame;
+    if (view.actor && (view.actionImpactAt ?? Number.POSITIVE_INFINITY) <= now) {
+      const progress = Math.max(
+        0,
+        Math.min(
+          1,
+          (now - (view.actionImpactAt ?? now)) /
+            Math.max(1, (view.actionEndsAt ?? now) - (view.actionImpactAt ?? now)),
+        ),
+      );
+      view.actor.x = 18 + Math.sin(progress * Math.PI) * 7 * (view.actionDirection?.x ?? 1);
+      view.actor.rotation = Math.sin(progress * Math.PI) * -0.16;
+    }
+    return true;
   }
 
   playInteraction(): void {
@@ -2469,23 +2666,47 @@ export class Renderer {
     this.#addPulse(position.x, position.y, COLORS.npc, 34, 220);
   }
 
-  playSkillEffect(playerClass: PlayerClass, x?: number, y?: number): void {
+  #playCombatSheet(
+    source: string,
+    durationMs: number,
+    anchor: { x: number; y: number },
+    x: number,
+    y: number,
+  ): void {
+    const frames = this.art.combatFrames.get(source);
+    const first = frames?.[0];
+    if (!frames || !first) return;
+    const sprite = new Sprite(first);
+    sprite.anchor.set(anchor.x, anchor.y);
+    sprite.position.set(x, y);
+    this.#trackEffect(sprite, durationMs, 0, frames, 0);
+  }
+
+  playCombatImpact(
+    playerId: string,
+    skillId: string,
+    x: number,
+    y: number,
+  ): PlayerClass | undefined {
+    const player = this.#players.get(playerId)?.data;
+    if (!player) return undefined;
+    const art = combatArt(player.class, skillId, player.appearance.primaryColor).impact;
+    if (!art) return player.class;
+    this.#playCombatSheet(art.source, art.durationMs, art.anchor, x + 16, y + 16);
+    return player.class;
+  }
+
+  playMonsterImpact(species: MonsterSpecies, x?: number, y?: number): void {
     const position = this.#effectPosition(x, y);
-    const sheetKey =
-      playerClass === "priest" ? "heal" : playerClass === "ranger" ? "dust" : "explosion";
-    const frames = this.art.effectFrames[sheetKey];
-    const first = frames[0];
-    if (!first) return;
-    const display = playerClass === "ranger" ? 56 : playerClass === "priest" ? 96 : 88;
-    const sprite = createSprite(first, display, display);
-    sprite.anchor.set(0.5);
-    sprite.position.set(position.x, position.y);
-    this.#trackEffect(
-      sprite,
-      playerClass === "ranger" ? 360 : 480,
-      playerClass === "priest" ? 6 : 4,
-      frames,
-    );
+    const art = monsterCombatArt(species).impact;
+    this.#playCombatSheet(art.source, art.durationMs, art.anchor, position.x + 16, position.y + 16);
+  }
+
+  playHealingImpact(color: PrimaryColor, x?: number, y?: number): void {
+    const position = this.#effectPosition(x, y);
+    const art = combatArt("priest", "mend", color).impact;
+    if (!art) return;
+    this.#playCombatSheet(art.source, art.durationMs, art.anchor, position.x + 16, position.y + 16);
   }
 
   #burst(x: number, y: number, color: number, count: number): void {
@@ -2516,7 +2737,7 @@ export class Renderer {
       }
       effect.container.alpha = 1 - progress;
       effect.container.y = effect.baseY - effect.rise * progress;
-      effect.container.scale.set(1 + progress * 0.55);
+      effect.container.scale.set(1 + progress * effect.scaleGrowth);
       if (progress < 1) continue;
       effect.container.destroy({ children: true });
       this.#activeEffects.splice(index, 1);
@@ -2577,14 +2798,6 @@ export class Renderer {
     }
   }
 
-  playAttackMiss(): void {
-    const self = this.#selfId ? this.#players.get(this.#selfId)?.data : undefined;
-    if (!self) return;
-    const position = centerOf(self);
-    this.#addPulse(position.x + 18, position.y + 8, 0xffb0a8, 28, 160);
-    this.#burst(position.x + 28, position.y + 12, 0xffc8c0, 4);
-  }
-
   /** A gathered quest resource is visually absent until its authoritative respawn window passes. */
   hideQuestSite(id: string, durationMs: number): void {
     const site = this.#questSites.find((candidate) => candidate.id === id);
@@ -2593,11 +2806,8 @@ export class Renderer {
 
   #drawOverlay(context: RenderContext): void {
     this.#overlay.clear();
-    const { self, now, quest, attackCooldownUntil, attackRange } = context;
+    const { self, now, quest } = context;
     if (!self || isSpirit(self.life)) return;
-
-    const center = centerOf(self);
-    const onCooldown = attackCooldownUntil > now;
     for (const npc of this.#questNpcs) {
       const npcDistance = pointDistance(self, npc);
       const current = npc.chapter === (quest.chapter ?? "three_offerings");
@@ -2622,22 +2832,40 @@ export class Renderer {
       site.label.alpha = feedback.labelAlpha;
     }
 
-    let nearest: MonsterSnapshot | undefined;
-    let nearestDistance = attackRange;
     for (const view of this.#monsters.values()) {
       const monster = view.data;
-      if (monster.dead) continue;
-      const distance = pointDistance(self, monster);
-      if (distance <= nearestDistance) {
-        nearest = monster;
-        nearestDistance = distance;
-      }
+      const impactAt = view.actionImpactAt;
+      const startedAt = view.actionStartedAt;
+      const direction = view.actionDirection;
+      if (
+        monster.dead ||
+        !view.actionId ||
+        impactAt === undefined ||
+        startedAt === undefined ||
+        !direction ||
+        impactAt <= now
+      )
+        continue;
+      const definition = MONSTER_ACTIONS[monster.species];
+      const origin = centerOf(monster);
+      const remaining = Math.max(0, impactAt - now);
+      const anticipation = Math.max(1, impactAt - startedAt);
+      const urgency = 1 - Math.min(1, remaining / anticipation);
+      const end = {
+        x: origin.x + direction.x * definition.range,
+        y: origin.y + direction.y * definition.range,
+      };
+      this.#overlay
+        .moveTo(origin.x, origin.y)
+        .lineTo(end.x, end.y)
+        .stroke({
+          width: Math.max(3, definition.hitboxRadius * 2),
+          color: 0xff665c,
+          alpha: 0.1 + urgency * 0.24,
+        })
+        .circle(end.x, end.y, definition.hitboxRadius)
+        .stroke({ width: 2, color: 0xffc2a8, alpha: 0.35 + urgency * 0.55 });
     }
-    if (!nearest) return;
-    const rangeAlpha = onCooldown ? 0.1 : 0.14 + Math.sin(now / 360) * 0.03;
-    this.#overlay
-      .circle(center.x, center.y, attackRange)
-      .stroke({ width: 1.5, color: onCooldown ? 0xffb0a8 : COLORS.selfRing, alpha: rangeAlpha });
   }
 
   render(sample: SceneSample, context: RenderContext): void {
@@ -2659,18 +2887,20 @@ export class Renderer {
       sample.players,
       (player) => this.#createPlayer(player),
       (view, player) => {
+        this.#syncActionSnapshot(view, player.action);
         const dx = player.x - (view.lastX ?? player.x);
         const dy = player.y - (view.lastY ?? player.y);
         if (Math.hypot(dx, dy) > 0.2) {
           view.movingUntil = now + 120;
-          if (view.actor && Math.abs(dx) > 0.1) view.actor.scale.x = dx < 0 ? -1 : 1;
         }
+        const horizontalFacing = view.actionDirection?.x ?? player.facing.x;
+        if (view.actor && Math.abs(horizontalFacing) > 0.01)
+          view.actor.scale.x = horizontalFacing < 0 ? -1 : 1;
         if (
           player.hp < (view.lastHp ?? player.hp) &&
           this.#isVisibleWorld(player.x, player.y, 80)
         ) {
           view.hitUntil = now + 190;
-          this.#burst(player.x + 16, player.y + 16, 0xff8178, 6);
         }
         const ghost = player.life === "ghost";
         const spirit = isSpirit(player.life);
@@ -2684,10 +2914,6 @@ export class Renderer {
         view.container.visible = visible;
         view.container.position.set(player.x, player.y);
         view.container.zIndex = Math.round(player.y + PLAYER_SIZE);
-        if (view.targetRing) {
-          view.targetRing.visible =
-            this.#target?.kind === "player" && this.#target.id === player.id;
-        }
         if (visible) {
           const moving = (view.movingUntil ?? 0) > now;
           const stride = Math.sin(now / 85 + (view.phase ?? 0));
@@ -2704,11 +2930,13 @@ export class Renderer {
             view.actor.tint = ghost ? 0x9fd8ff : 0xffffff;
           }
           if (view.unitSprite && view.unitAnimations) {
-            const motion: UnitMotion =
-              (view.attackUntil ?? 0) > now ? "attack" : moving ? "run" : "idle";
-            const frames = view.unitAnimations[motion];
-            const frame = frames[Math.floor(now / 95) % frames.length] ?? frames[0];
-            if (frame) view.unitSprite.texture = frame;
+            const actionRendered = this.#updatePlayerActionArt(view, player, now);
+            if (!actionRendered) {
+              const motion: UnitMotion = moving ? "run" : "idle";
+              const frames = view.unitAnimations[motion];
+              const frame = frames[Math.floor(now / 95) % frames.length] ?? frames[0];
+              if (frame) view.unitSprite.texture = frame;
+            }
           }
           if (view.flash) view.flash.alpha = (view.hitUntil ?? 0) > now ? 0.65 : 0;
           view.container.alpha = ghost ? 0.5 : 1;
@@ -2728,15 +2956,18 @@ export class Renderer {
       sample.monsters,
       (monster) => this.#createMonster(monster),
       (view, monster) => {
+        this.#syncActionSnapshot(view, monster.action);
         const dx = monster.x - (view.lastX ?? monster.x);
         const dy = monster.y - (view.lastY ?? monster.y);
         if (Math.hypot(dx, dy) > 0.15) view.movingUntil = now + 120;
+        const horizontalFacing = view.actionDirection?.x ?? monster.facing.x;
+        if (view.actor && Math.abs(horizontalFacing) > 0.01)
+          view.actor.scale.x = horizontalFacing < 0 ? -1 : 1;
         if (
           monster.hp < (view.lastHp ?? monster.hp) &&
           this.#isVisibleWorld(monster.x, monster.y, 80)
         ) {
           view.hitUntil = now + 210;
-          this.#burst(monster.x + 18, monster.y + 18, 0xffd078, 7);
         }
         if (!view.wasDead && monster.dead && this.#isVisibleWorld(monster.x, monster.y, 80)) {
           this.#burst(monster.x + 18, monster.y + 18, 0x93e07e, 12);
@@ -2751,8 +2982,6 @@ export class Renderer {
         view.container.visible = visible;
         view.container.position.set(monster.x, monster.y);
         view.container.zIndex = Math.round(monster.y + PLAYER_SIZE);
-        const targeted = this.#target?.kind === "monster" && this.#target.id === monster.id;
-        if (view.targetRing) view.targetRing.visible = targeted && !monster.dead;
         if (visible) {
           const moving = (view.movingUntil ?? 0) > now && !monster.dead;
           const bounce = Math.sin(now / (moving ? 105 : 360) + (view.phase ?? 0));
@@ -2761,23 +2990,23 @@ export class Renderer {
           const close = Boolean(self && !isSpirit(self.life) && !monster.dead && distance < 155);
           if (view.actor) {
             view.actor.y = 20 + bounce * (moving ? -2.3 : -1.1);
-            view.actor.scale.set(1 + bounce * 0.07, monster.dead ? 0.28 : 1 - bounce * 0.05);
+            const facingScale = view.actor.scale.x < 0 ? -1 : 1;
+            view.actor.scale.set(
+              facingScale * (1 + bounce * 0.07),
+              monster.dead ? 0.28 : 1 - bounce * 0.05,
+            );
             view.actor.alpha = monster.dead ? 0.28 : 1;
-            if ((view.attackUntil ?? 0) > now) {
-              const strike = 1 - ((view.attackUntil ?? now) - now) / 240;
-              view.actor.x = 18 + Math.sin(strike * Math.PI) * 7;
-              view.actor.rotation = Math.sin(strike * Math.PI) * -0.16;
-            } else {
-              view.actor.x = 18;
-              view.actor.rotation = 0;
-            }
+            view.actor.x = 18;
+            view.actor.rotation = 0;
           }
           if (view.unitSprite && view.unitAnimations) {
-            const motion: UnitMotion =
-              (view.attackUntil ?? 0) > now ? "attack" : moving ? "run" : "idle";
-            const frames = view.unitAnimations[motion];
-            const frame = frames[Math.floor(now / 95) % frames.length] ?? frames[0];
-            if (frame) view.unitSprite.texture = frame;
+            const actionRendered = this.#updateMonsterActionArt(view, now);
+            if (!actionRendered) {
+              const motion: UnitMotion = moving ? "run" : "idle";
+              const frames = view.unitAnimations[motion];
+              const frame = frames[Math.floor(now / 95) % frames.length] ?? frames[0];
+              if (frame) view.unitSprite.texture = frame;
+            }
           }
           if (view.flash) view.flash.alpha = (view.hitUntil ?? 0) > now ? 0.7 : 0;
           if (view.alert) {
@@ -2788,14 +3017,14 @@ export class Renderer {
           if (label instanceof Text) {
             const name = t(`monster.${monster.species}` as MessageKey);
             label.text = aggro ? `!  ${name}` : name;
-            label.alpha = monster.dead ? 0 : aggro || close || targeted ? 0.92 : 0;
+            label.alpha = monster.dead ? 0 : aggro || close ? 0.92 : 0;
           }
           this.#drawHp(view, monster.hp, monster.maxHp);
           const hp = view.container.getChildByLabel("hp");
           if (hp instanceof Graphics) {
             hp.alpha = monster.dead
               ? 0
-              : shouldShowHealthBar(context.healthBars, "enemy", distance, targeted)
+              : shouldShowHealthBar(context.healthBars, "enemy", distance)
                 ? 1
                 : 0;
           }
@@ -2826,8 +3055,6 @@ export class Renderer {
         view.container.visible = visible;
         view.container.position.set(guard.x, guard.y);
         view.container.zIndex = Math.round(guard.y + PLAYER_SIZE);
-        const targeted = this.#target?.kind === "guard" && this.#target.id === guard.id;
-        if (view.targetRing) view.targetRing.visible = targeted;
         if (visible && view.actor && view.unitSprite && view.unitAnimations) {
           const moving = (view.movingUntil ?? 0) > now;
           const motion: UnitMotion = guard.fighting ? "attack" : moving ? "run" : "idle";
@@ -2842,7 +3069,7 @@ export class Renderer {
           this.#drawHp(view, guard.hp, guard.maxHp);
           const hp = view.container.getChildByLabel("hp");
           if (hp instanceof Graphics) {
-            hp.alpha = shouldShowHealthBar(context.healthBars, "ally", distance, targeted) ? 1 : 0;
+            hp.alpha = shouldShowHealthBar(context.healthBars, "ally", distance) ? 1 : 0;
           }
         }
         view.data = guard;
@@ -2886,6 +3113,33 @@ export class Renderer {
           view.flash.alpha = 0.6 + Math.sin(now / 260 + (view.phase ?? 0)) * 0.22;
         }
         view.data = loot;
+      },
+    );
+
+    reconcile(
+      this.#projectiles,
+      sample.projectiles,
+      (projectile) => this.#createProjectile(projectile),
+      (view, projectile) => {
+        const visible = this.#isVisibleWorld(projectile.x, projectile.y, ENTITY_CULL_MARGIN);
+        view.container.visible = visible;
+        view.container.position.set(projectile.x, projectile.y);
+        view.container.zIndex = Math.round(projectile.y + PLAYER_SIZE / 2);
+        if (visible && view.unitSprite) {
+          const art = projectileArt(projectile.kind, projectile.color);
+          const frames = this.art.combatFrames.get(art.source);
+          if (frames && frames.length > 0) {
+            const elapsed = Math.max(0, now - (view.createdAt ?? now));
+            const frame =
+              frames[
+                Math.floor((elapsed / Math.max(1, art.durationMs)) * frames.length) % frames.length
+              ];
+            if (frame) view.unitSprite.texture = frame;
+          }
+          view.unitSprite.rotation =
+            Math.atan2(projectile.direction.y, projectile.direction.x) + art.rotationOffset;
+        }
+        view.data = projectile;
       },
     );
 

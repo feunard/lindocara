@@ -8,22 +8,47 @@ import {
   PLAYER_VISIBILITY_RADIUS,
 } from "../../shared/interest.js";
 import type {
+  CombatActionSnapshot,
   CorpseSnapshot,
   GuardSnapshot,
   LootSnapshot,
   MonsterSnapshot,
   PlayerSnapshot,
+  ProjectileSnapshot,
   WorldView,
 } from "../../shared/protocol.js";
 import { navigationDebug as navigationDebugSnapshot } from "./navigation-system.js";
 import { queryWithHysteresis, type SpatialGrid } from "./spatial-grid.js";
-import type { GroundLoot, GuardRuntime, MonsterRuntime, PlayerRuntime } from "./world-runtime.js";
+import type {
+  GroundLoot,
+  GuardRuntime,
+  MonsterRuntime,
+  PlayerRuntime,
+  ProjectileRuntime,
+} from "./world-runtime.js";
+
+function combatActionSnapshot(
+  action: PlayerRuntime["action"] | MonsterRuntime["action"],
+): CombatActionSnapshot | null {
+  if (!action) return null;
+  return {
+    id: action.id,
+    kind: action.kind,
+    ...(action.skillId === undefined ? {} : { skillId: action.skillId }),
+    direction: { ...action.direction },
+    startedAt: action.startedAt,
+    impactAt: action.impactAt,
+    recoveryEndsAt: action.recoveryEndsAt,
+    resolved: action.resolved,
+  };
+}
 
 export interface InterestSystemContext {
   players: Map<WebSocket, PlayerRuntime>;
   monsters: MonsterRuntime[];
   guards: GuardRuntime[];
   loot: GroundLoot[];
+  projectiles: ProjectileRuntime[];
   playerGrid: SpatialGrid<PlayerRuntime>;
   monsterGrid: SpatialGrid<MonsterRuntime>;
   lootGrid: SpatialGrid<GroundLoot>;
@@ -38,6 +63,7 @@ export function worldView(context: InterestSystemContext, viewer: PlayerRuntime)
     guards: guardSnapshots(context, viewer),
     loot: visibleLootSnapshots(context, viewer),
     corpses: corpseSnapshots(context, viewer),
+    projectiles: projectileSnapshots(context.projectiles),
   };
 }
 
@@ -55,6 +81,8 @@ export function playerSnapshot(player: PlayerRuntime): PlayerSnapshot {
     class: player.class,
     equipment: { ...player.equipment },
     life: player.life,
+    facing: { ...player.facing },
+    action: combatActionSnapshot(player.action),
   };
 }
 
@@ -119,6 +147,8 @@ function visibleMonsterSnapshots(
     hp: monster.hp,
     maxHp: monster.maxHp,
     dead: monster.deadUntil > now,
+    facing: { ...monster.facing },
+    action: combatActionSnapshot(monster.action),
     ...(context.navigationDebugAvailable && viewer.navigationDebug
       ? { navigationDebug: navigationDebugSnapshot(monster) }
       : {}),
@@ -163,4 +193,20 @@ function visibleLootSnapshots(
 
 export function canSeeLoot(loot: GroundLoot, viewerId: string): boolean {
   return loot.ownerId === undefined || loot.ownerId === viewerId;
+}
+
+function projectileSnapshots(projectiles: readonly ProjectileRuntime[]): ProjectileSnapshot[] {
+  return projectiles.map((projectile) => ({
+    id: projectile.id,
+    actionId: projectile.actionId,
+    ownerId: projectile.ownerId,
+    color: projectile.color,
+    kind: projectile.kind,
+    x: Math.round(projectile.x * 100) / 100,
+    y: Math.round(projectile.y * 100) / 100,
+    direction: { ...projectile.direction },
+    radius: projectile.radius,
+    spawnedAt: projectile.spawnedAt,
+    expiresAt: projectile.expiresAt,
+  }));
 }

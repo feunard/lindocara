@@ -1,7 +1,6 @@
 import type { PlayerClass } from "../../shared/game.js";
 import { getAudioSettings, subscribeAudioSettings } from "./audio-settings.js";
 import {
-  basicAttackSample,
   COMBAT_SAMPLES,
   type CombatSampleKey,
   castSampleForSkill,
@@ -43,10 +42,6 @@ export class GameSound {
     this.#ambientPlaying = false;
   }
 
-  basicAttack(playerClass: PlayerClass): void {
-    void this.#playKey(basicAttackSample(playerClass));
-  }
-
   skillCast(skillId: string): void {
     this.#lastCast = { skillId, at: performance.now() };
     const key = castSampleForSkill(skillId);
@@ -65,17 +60,12 @@ export class GameSound {
     void this.#playKey(impactSampleForClass(playerClass));
   }
 
-  healCast(): void {
-    this.#lastCast = { skillId: "mend", at: performance.now() };
-    void this.#playKey("priest.mend");
-  }
-
   healReceived(): void {
     void this.#playKey("priest.heal_received");
   }
 
-  attackMiss(playerClass: PlayerClass): void {
-    void this.#playKey(basicAttackSample(playerClass));
+  monsterAttack(): void {
+    void this.#playKey("monster.attack");
   }
 
   #bindVisibility(): void {

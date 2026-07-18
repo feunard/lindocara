@@ -130,11 +130,11 @@ export const fr: Record<keyof typeof en, string> = {
   "skill.warrior.cleave.name": "Fendoir",
   "skill.warrior.iron_guard.name": "Garde de fer",
   "skill.warrior.shield_bash.name": "Charge",
-  "skill.warrior.cleave.description": "Une frappe fiable contre l'ennemi le plus proche.",
+  "skill.warrior.cleave.description": "Une frappe fiable devant le héros.",
   "skill.warrior.iron_guard.description":
     "Réduit de moitié les dégâts reçus pendant un court instant.",
   "skill.warrior.shield_bash.description":
-    "Charge l'ennemi le plus proche puis le percute au bouclier.",
+    "Charge tout droit et percute le premier ennemi rencontré.",
   "skill.warrior.battle_cry.description": "Blesse tous les ennemis proches avec un cri de guerre.",
   "skill.warrior.whirlwind.description":
     "Tournoie parmi les ennemis proches pour de lourds dégâts de zone.",
@@ -144,19 +144,18 @@ export const fr: Record<keyof typeof en, string> = {
   "skill.ranger.piercing_arrow.name": "Flèche perforante",
   "skill.ranger.volley.name": "Volée",
   "skill.ranger.dash.name": "Désengagement",
-  "skill.ranger.quick_shot.description": "Un tir précis et rapide sur l'ennemi le plus proche.",
-  "skill.ranger.piercing_arrow.description": "Une flèche puissante à longue portée pour une cible.",
-  "skill.ranger.volley.description": "Une pluie de flèches sur une large zone.",
+  "skill.ranger.quick_shot.description": "Une flèche rapide dans la direction du héros.",
+  "skill.ranger.piercing_arrow.description": "Une flèche puissante qui traverse plusieurs ennemis.",
+  "skill.ranger.volley.description": "Un large éventail de flèches devant le héros.",
   "skill.ranger.dash.description":
     "Recule dans la direction opposée à votre dernier déplacement ; visez avec ZQSD/WASD.",
-  "skill.ranger.heartseeker.description":
-    "Un tir dévastateur contre l'ennemi distant le plus proche.",
+  "skill.ranger.heartseeker.description": "Un tir droit dévastateur qui peut manquer.",
   "skill.ranger.heartseeker.name": "Cherche-cœur",
   "skill.priest.radiant_bolt.name": "Trait radieux",
   "skill.priest.mend.name": "Soin",
   "skill.priest.blink.name": "Pas de Lumen",
-  "skill.priest.radiant_bolt.description": "Une frappe radieuse sur l'ennemi le plus proche.",
-  "skill.priest.mend.description": "Soigne l'allié le plus blessé à portée.",
+  "skill.priest.radiant_bolt.description": "Lance un trait radieux dans la direction du héros.",
+  "skill.priest.mend.description": "Soigne le prêtre et lance une lumière de soin vers un allié.",
   "skill.priest.blink.description":
     "Vous téléporte brièvement dans votre dernière direction de déplacement.",
   "skill.priest.prayer.description": "Soigne tous les alliés blessés autour de vous.",
@@ -266,7 +265,6 @@ export const fr: Record<keyof typeof en, string> = {
   "resource.mana": "MP",
   "skill.mana_cost": "{cost} mana",
   "help.move": "se déplacer",
-  "help.target": "cibler",
   "help.strike": "frapper",
   "help.commune": "communier",
   "help.tonic": "tonique",
@@ -324,7 +322,6 @@ export const fr: Record<keyof typeof en, string> = {
   "settings.controls.move_down": "Aller en bas",
   "settings.controls.move_left": "Aller à gauche",
   "settings.controls.move_right": "Aller à droite",
-  "settings.controls.target": "Cible suivante",
   "settings.controls.skill_1": "Attaque principale / compétence 1",
   "settings.controls.skill_2": "Compétence 2",
   "settings.controls.skill_3": "Compétence 3",
@@ -387,13 +384,6 @@ export const fr: Record<keyof typeof en, string> = {
   "monster.skull_warden": "Gardien du Chœur",
   "monster.mire_troll": "Troll du Marais",
   "monster.gate_troll": "Troll de la Porte",
-  "hud.target": "Cible actuelle",
-  "hud.target.hostile": "Cible ennemie",
-  "hud.target.friendly": "Cible alliée",
-  "hud.target.clear": "Désélectionner la cible",
-  "target.need_hostile": "Sélectionnez une cible ennemie (clic ou Tab).",
-  "target.need_friendly": "Sélectionnez un allié à soigner.",
-
   // Zones
   "zone.heartroot_crossing": "La Croisée du Cœur-Racine",
   "zone.old_road": "La Vieille Route",
@@ -442,8 +432,6 @@ export const fr: Record<keyof typeof en, string> = {
   // Événements serveur
   "event.wake":
     "Vous vous éveillez sous le Cœur-Racine. Elowen, marquée d'or, attend votre serment [E].",
-  "event.combat.too_far": "Trop loin — approchez-vous pour frapper.",
-  "event.combat.blocked": "La cible est à portée, mais le chemin est bloqué.",
   "event.combat.hit": "Vous frappez {species} : {damage} dégâts.",
   "event.combat.hurt": "{species} vous inflige {damage} dégâts.",
   "event.monster.defeated": "{species} vaincu : +{xp} XP.",
@@ -464,8 +452,6 @@ export const fr: Record<keyof typeof en, string> = {
   "event.loot.picked": "Ramassé : {amount} × {kind}.",
   "event.heal.cast": "Vous soignez {name} : +{amount} PV.",
   "event.heal.received": "{name} vous soigne : +{amount} PV.",
-  "event.heal.nobody": "Personne à soigner aux alentours.",
-  "event.heal.blocked": "Quelqu'un à portée a besoin de soins, mais le chemin est bloqué.",
   "event.death.fallen":
     "Vous êtes tombé. Attendez un prêtre, ou pressez [R] pour libérer votre esprit.",
   "event.death.released":
@@ -476,8 +462,7 @@ export const fr: Record<keyof typeof en, string> = {
   "event.resurrect.nobody": "Aucun corps assez proche à relever.",
   "event.resurrect.not_priest": "Seul un prêtre peut rappeler les morts.",
   "event.skill.cast": "{skill} activé.",
-  "event.skill.no_target": "Aucune cible valide pour {skill}.",
-  "event.skill.blocked": "Le chemin vers la cible est bloqué.",
+  "event.skill.blocked": "Le terrain bloque l'action.",
   "event.skill.locked": "{skill} se débloque au niveau {level}.",
   "event.resource.insufficient": "Mana insuffisant.",
   "event.party.created": "Groupe créé.",

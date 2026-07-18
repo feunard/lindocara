@@ -1,6 +1,7 @@
 import {
   normalizeAppearance,
   normalizeEquipment,
+  type PrimaryColor,
   starterEquipmentFor,
 } from "../../shared/character.js";
 import { type CombatCooldownState, normalizeCombatCooldowns } from "../../shared/cooldowns.js";
@@ -22,7 +23,13 @@ import {
 } from "../../shared/game.js";
 import { SPATIAL_CELL_SIZE } from "../../shared/interest.js";
 import type { MonsterNavigationState } from "../../shared/navigation.js";
-import type { Command, LootSnapshot, ServerMessage } from "../../shared/protocol.js";
+import type {
+  CombatActionKind,
+  Command,
+  LootSnapshot,
+  ProjectileKind,
+  ServerMessage,
+} from "../../shared/protocol.js";
 import { type ClassResourceState, initialResource } from "../../shared/resources.js";
 import { type Input, NO_INPUT, TICK_HZ, type Vec2 } from "../../shared/simulation.js";
 import { CLASS_SKILLS } from "../../shared/skills.js";
@@ -75,6 +82,44 @@ export interface PlayerInterest {
   loot: Set<string>;
 }
 
+export interface CombatActionRuntime {
+  id: string;
+  kind: CombatActionKind;
+  skillId?: string;
+  slot?: number;
+  direction: Vec2;
+  startedAt: number;
+  impactAt: number;
+  recoveryEndsAt: number;
+  resolved: boolean;
+}
+
+export type ProjectileTargetFilter = "monsters" | "wounded_allies";
+
+export interface ProjectileRuntime extends Vec2 {
+  id: string;
+  actionId: string;
+  ownerId: string;
+  ownerPartyId: string | null;
+  color: PrimaryColor;
+  roomKey: string;
+  kind: ProjectileKind;
+  targetFilter: ProjectileTargetFilter;
+  direction: Vec2;
+  speed: number;
+  radius: number;
+  rangeRemaining: number;
+  power: number;
+  pierceRemaining: number;
+  hitEntityIds: Set<string>;
+  spawnedAt: number;
+  expiresAt: number;
+  sourceSkillId: string;
+  basic: boolean;
+  /** Volley projectiles from one cast share this set so one monster receives its power once. */
+  activationHitEntityIds?: Set<string>;
+}
+
 export interface PlayerRuntime extends PlayerProfile {
   identityKind: "character" | "hero";
   partyId: string | null;
@@ -107,6 +152,7 @@ export interface PlayerRuntime extends PlayerProfile {
   network: WorldCache;
   resource?: ClassResourceState;
   navigationDebug: boolean;
+  action: CombatActionRuntime | null;
 }
 
 export interface MonsterRuntime extends Vec2 {
@@ -130,6 +176,8 @@ export interface MonsterRuntime extends Vec2 {
   contributions: Map<string, CombatContribution>;
   rewardsGranted: boolean;
   navigation: MonsterNavigationRuntime;
+  facing: Vec2;
+  action: CombatActionRuntime | null;
 }
 
 export interface MonsterNavigationRuntime {
@@ -318,6 +366,7 @@ export function newPlayer(
     network: createWorldCache(),
     ...(resource ? { resource } : {}),
     navigationDebug: false,
+    action: null,
     identityKind: "character",
     partyId: null,
   };
@@ -422,6 +471,8 @@ export function createMonsters(spawns: readonly MonsterSpawn[]): MonsterRuntime[
         abandonReason: null,
         directBlockedDestination: null,
       },
+      facing: { x: 1, y: 0 },
+      action: null,
     };
   });
 }

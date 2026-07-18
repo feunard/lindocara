@@ -1,3 +1,4 @@
+import { MONSTER_ACTIONS } from "../../shared/combat-actions.js";
 import {
   addThreat,
   CONTRIBUTION_EXPIRES_MS,
@@ -14,9 +15,7 @@ import {
   GUARD_SPEED,
   MONSTER_AGGRO_RANGE,
   MONSTER_ATTACK_COOLDOWN_MS,
-  MONSTER_ATTACK_RANGE,
   MONSTER_RESPAWN_MS,
-  type MonsterSpecies,
   pointDistance,
   resolveTerrain,
   safeZoneShelters,
@@ -43,14 +42,7 @@ export interface MonsterSystemContext {
   zone: ZoneDefinition;
   tick: number;
   navigation: NavigationRuntime;
-  damagePlayer(
-    socket: WebSocket,
-    player: PlayerRuntime,
-    damage: number,
-    species: MonsterSpecies,
-    monsterId: string,
-    now: number,
-  ): void;
+  startAttack(monster: MonsterRuntime, target: PlayerRuntime | GuardRuntime, now: number): void;
 }
 
 export function advanceMonsters(context: MonsterSystemContext, now: number): void {
@@ -71,6 +63,7 @@ export function advanceMonsters(context: MonsterSystemContext, now: number): voi
       monster.threat.clear();
       monster.contributions.clear();
       monster.rewardsGranted = false;
+      monster.action = null;
       resetMonsterNavigation(monster);
       context.monsterGrid.update(monster, previousPosition);
     }
@@ -127,17 +120,22 @@ export function advanceMonsters(context: MonsterSystemContext, now: number): voi
       : undefined;
 
     if (target) {
-      const [socket, player] = target;
+      const [, player] = target;
       const targetDistance = pointDistance(monster, player);
       const targetChanged = monster.navigation.targetId !== player.id;
-      if (targetDistance <= MONSTER_ATTACK_RANGE) {
+      if (monster.action && monster.action.recoveryEndsAt > now) {
+        monster.vx = 0;
+        monster.vy = 0;
+        continue;
+      }
+      if (targetDistance <= MONSTER_ACTIONS[monster.species].range) {
         monster.navigation.state = "chase";
         monster.navigation.destination = { x: player.x, y: player.y };
         monster.vx = 0;
         monster.vy = 0;
         if (now - monster.lastAttackAt >= MONSTER_ATTACK_COOLDOWN_MS) {
           monster.lastAttackAt = now;
-          context.damagePlayer(socket, player, monster.damage, monster.species, monster.id, now);
+          context.startAttack(monster, player, now);
         }
         continue;
       }
@@ -201,7 +199,7 @@ function navigateMonster(
     monster.navigation.directBlockedDestination = null;
   }
   // Whether the body can walk there in a straight line — not `hasLineOfSight`, which checks the
-  // two entities' centers and is right for combat targeting but wrong here: a body can clip a
+  // two entities' centers and is right for combat contact but wrong here: a body can clip a
   // wall's corner over a stretch too short for its center's line to ever cross a solid tile, and a
   // monster that keeps re-deciding "clear" from a slightly different spot near the same corner —
   // only to be shoved back by real (box) collision each time — ping-pongs there forever.
@@ -260,6 +258,7 @@ function moveMonsterDirect(
   }
   monster.vx = (dx / length) * monster.speed;
   monster.vy = (dy / length) * monster.speed;
+  monster.facing = { x: dx / length, y: dy / length };
   const travel = Math.min(monster.speed * TICK_DT, length);
   const desired = {
     x: monster.x + (dx / length) * travel,
@@ -317,13 +316,11 @@ export function advanceGuards(context: MonsterSystemContext, now: number): void 
       continue;
     }
     if (
-      targetDistance <= MONSTER_ATTACK_RANGE &&
+      targetDistance <= MONSTER_ACTIONS[target.species].range &&
       now - target.lastAttackAt >= MONSTER_ATTACK_COOLDOWN_MS
     ) {
       target.lastAttackAt = now;
-      // City guards remain available as service NPCs, but monsters can wound them enough for
-      // targeted and area healing to have a real authoritative effect.
-      guard.hp = Math.max(1, guard.hp - target.damage);
+      context.startAttack(target, guard, now);
     }
     if (now - guard.lastAttackAt < GUARD_ATTACK_COOLDOWN_MS) continue;
     guard.lastAttackAt = now;
@@ -331,6 +328,7 @@ export function advanceGuards(context: MonsterSystemContext, now: number): void 
     if (target.hp > 0) continue;
 
     target.deadUntil = now + MONSTER_RESPAWN_MS;
+    target.action = null;
     target.vx = 0;
     target.vy = 0;
   }

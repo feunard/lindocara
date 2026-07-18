@@ -54,19 +54,9 @@ export interface PartyInviteNotice {
   expiresAt: number;
 }
 
-export interface CombatTargetHud {
-  id: string;
-  kind: "monster" | "player" | "guard";
-  name: string;
-  hp: number;
-  maxHp: number;
-  portrait: PortraitArt;
-}
-
 export interface PortraitArt {
   source: string;
   frames: number;
-  kind: "unit" | "enemy";
 }
 
 /** What the HUD needs from the self snapshot — excludes x/y so it does not churn 60x/s. */
@@ -89,11 +79,9 @@ export interface GameHandle {
   interact(): void;
   usePotion(): void;
   release(): void;
-  heal(): void;
   castSkill(slot: SkillSlot): void;
   /** Virtual controls feed the same intent stream as the keyboard; never an authoritative position. */
   setMovement?(input: Input): void;
-  clearTarget?(): void;
   sendChat(text: string, channel?: "local" | "party"): void;
   partyCreate?(): void;
   partyInvite?(playerId: string): void;
@@ -139,7 +127,6 @@ interface UiState {
   chat: ChatLine[];
   party: PartyState | null;
   partyInvite: PartyInviteNotice | null;
-  combatTarget: CombatTargetHud | null;
   chatFocusRequest: number;
   attackCooldownUntil: number;
   healCooldownUntil: number;
@@ -175,7 +162,6 @@ interface UiState {
   addChat(from: string, text: string, channel?: "local" | "party"): void;
   setParty(party: PartyState | null): void;
   setPartyInvite(invite: PartyInviteNotice | null): void;
-  setCombatTarget(target: CombatTargetHud | null): void;
   requestChatFocus(): void;
   setAttackCooldownUntil(until: number): void;
   setHealCooldownUntil(until: number): void;
@@ -249,21 +235,6 @@ function localizedTextEqual(a: LocalizedText | null, b: LocalizedText | null): b
   return a.key === b.key && JSON.stringify(a.params) === JSON.stringify(b.params);
 }
 
-function combatTargetEqual(a: CombatTargetHud | null, b: CombatTargetHud | null): boolean {
-  if (a === null && b === null) return true;
-  if (a === null || b === null) return false;
-  return (
-    a.id === b.id &&
-    a.kind === b.kind &&
-    a.name === b.name &&
-    a.hp === b.hp &&
-    a.maxHp === b.maxHp &&
-    a.portrait.source === b.portrait.source &&
-    a.portrait.frames === b.portrait.frames &&
-    a.portrait.kind === b.portrait.kind
-  );
-}
-
 export const useUiStore = create<UiState>((set) => ({
   // "boot" is a brief, invisible holding state while fetchMe() is in flight, so a logged-in
   // user does not see a flash of the title screen before landing on their saved parties.
@@ -281,7 +252,6 @@ export const useUiStore = create<UiState>((set) => ({
   chat: [],
   party: null,
   partyInvite: null,
-  combatTarget: null,
   chatFocusRequest: 0,
   attackCooldownUntil: 0,
   healCooldownUntil: 0,
@@ -360,8 +330,6 @@ export const useUiStore = create<UiState>((set) => ({
       return { party };
     }),
   setPartyInvite: (partyInvite) => set({ partyInvite }),
-  setCombatTarget: (combatTarget) =>
-    set((state) => (combatTargetEqual(state.combatTarget, combatTarget) ? {} : { combatTarget })),
   requestChatFocus: () =>
     set((state) => ({
       chatFocusRequest: state.chatFocusRequest + 1,
@@ -386,7 +354,6 @@ export const useUiStore = create<UiState>((set) => ({
       mapOpen: false,
       settingsOpen: false,
       interiorDoorId: null,
-      combatTarget: null,
       adventureVictory: false,
       activeParty: null,
     }),
@@ -398,7 +365,6 @@ export const useUiStore = create<UiState>((set) => ({
       mapOpen: false,
       settingsOpen: false,
       interiorDoorId: null,
-      combatTarget: null,
       adventureVictory: false,
     }),
 }));
