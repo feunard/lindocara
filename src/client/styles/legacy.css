@@ -220,7 +220,8 @@ body::after {
   color: var(--green);
 }
 
-.map-editor-toolbar__monster {
+.map-editor-toolbar__monster,
+.map-editor-toolbar__elevation {
   display: flex;
   align-items: center;
   gap: 0.5rem;

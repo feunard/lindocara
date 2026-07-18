@@ -11,6 +11,7 @@ import { createMap, deleteMap, type MapInput } from "../src/server/maps.js";
 import { WS_CLOSE } from "../src/shared/close-codes.js";
 import { bakeCollision, mapSpawnPoint } from "../src/shared/map-data.js";
 import { encodeTileMap } from "../src/shared/tilemap-codec.js";
+import { layeredTerrain } from "./support/map-fixtures.js";
 import { Client, testCharacter, until } from "./support/world-harness.js";
 
 /** 20x15 respects the future size floor. A grass island in a one-cell-thick water border, with
@@ -31,7 +32,7 @@ function islandBlocks(): string[] {
 
 const islandInput: MapInput = {
   name: "Island",
-  blocks: islandBlocks(),
+  ...layeredTerrain(islandBlocks()),
   elements: [
     { col: 5, row: 5, assetId: "resource.terrain-resources-wood-trees.tree3" },
     { col: 7, row: 5, assetId: "decoration.terrain-decorations-rocks.rock2" },
@@ -41,7 +42,7 @@ const islandInput: MapInput = {
 
 const smallInput: MapInput = {
   name: "Small",
-  blocks: islandBlocks(),
+  ...layeredTerrain(islandBlocks()),
   elements: [],
   spawn: { col: 2, row: 2 },
 };

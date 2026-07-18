@@ -48,7 +48,8 @@ footprint overhangs the map; newly authored placements must satisfy the stricter
 
 - Elements have one anchor and no rotation, tint, arbitrary scale or per-instance animation state.
 - Overlap is deliberately conservative: any visual-footprint overlap is refused.
-- Terrain is still grass/water blocks; elevation is reserved for a later adventure phase.
+- Terrain is three layered tile ids over an authored tileset, with a three-level elevation brush;
+  see [`docs/superpowers/specs/2026-07-18-layered-map-model-design.md`](./superpowers/specs/2026-07-18-layered-map-model-design.md).
 - Static scenery and simple authored strips are placeable. Mobile units, AI, NPCs, events,
   dialogues, quests and complex interactive animation remain browser-only catalogue families.
 - The map remains a standalone object. Adventure-level map links, entry points and event graphs are

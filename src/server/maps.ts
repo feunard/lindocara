@@ -26,13 +26,23 @@ import {
   elementsOverlap,
   isElementKind,
   legacyElementAssetId,
+  MAP_LAYERS,
   MAX_MAP_ELEMENTS,
   type MapData,
   type MapElement,
   type MapMarkers,
   parseMapMarkers,
 } from "../shared/map-data.js";
+import { layersFromBlocks } from "../shared/map-migrate.js";
+import {
+  emptyLayer,
+  encodeTileLayer,
+  parseTileLayer,
+  type TileLayer,
+} from "../shared/tile-layer-codec.js";
 import { isSolidKind, kindAt } from "../shared/tilemap.js";
+import { tileIdInTileset } from "../shared/tileset.js";
+import { TINY_SWORDS_TILESET_ID, tilesetById } from "../shared/tilesets/tiny-swords.js";
 import { isEditorAssetId } from "../shared/tiny-swords-catalog.js";
 import { adventure, adventureMap, type Db, map, mapElement } from "./db/index.js";
 
@@ -52,21 +62,30 @@ export interface StoredMap extends MapData {
  * Reachable only on an empty database: `deleteMap` refuses the last map, so nobody can delete their
  * way down to zero. This is the fresh-install case, not a delete outcome.
  */
+const BUILTIN_BLOCKS = [
+  "################",
+  "#..............#",
+  "#..............#",
+  "#....######....#",
+  "#....######....#",
+  "#..............#",
+  "#..............#",
+  "################",
+];
+
+const BUILTIN_LAYERS = layersFromBlocks(BUILTIN_BLOCKS);
+
+/** Deliberately 16x8 — below `MAP_MIN_*`, so it could never pass `validateMapInput`. It is the
+ *  fallback room, not authored content. */
 export const BUILTIN_MAP: StoredMap = {
   id: BUILTIN_MAP_ID,
   accountId: null,
   name: "Nowhere",
   revision: 1,
-  blocks: [
-    "################",
-    "#..............#",
-    "#..............#",
-    "#....######....#",
-    "#....######....#",
-    "#..............#",
-    "#..............#",
-    "################",
-  ],
+  tilesetId: TINY_SWORDS_TILESET_ID,
+  cols: BUILTIN_LAYERS.cols,
+  rows: BUILTIN_LAYERS.rows,
+  layers: BUILTIN_LAYERS.layers,
   elements: [],
   spawn: { col: 2, row: 2 },
   markers: EMPTY_MARKERS,
@@ -74,7 +93,10 @@ export const BUILTIN_MAP: StoredMap = {
 
 export interface MapInput {
   name: string;
-  blocks: readonly string[];
+  tilesetId: string;
+  cols: number;
+  rows: number;
+  layers: readonly TileLayer[];
   elements: readonly MapElement[];
   spawn: { col: number; row: number };
   // `| undefined` (not just `?:`) so forwarding an already-optional `MapData.markers` read, or a
@@ -91,13 +113,46 @@ export const MAP_MIN_ROWS = 15;
 export const MAP_MAX_ROWS = 100;
 export const MAP_NAME_MAX = 48;
 
-/** Stored newline-joined; `decodeTileMap` wants one string per row. One format, two shapes. */
-function encodeBlocks(blocks: readonly string[]): string {
-  return blocks.join("\n");
+/** Stored as a JSON array of run-length encoded layer strings — one column, three layers, and no
+ *  second encoding for `tile-layer-codec.ts` to keep in step with. */
+function encodeLayers(layers: readonly TileLayer[]): string {
+  return JSON.stringify(layers.map(encodeTileLayer));
 }
 
-function decodeBlocks(blocks: string): string[] {
-  return blocks.split("\n");
+function blankLayers(cols: number, rows: number): TileLayer[] {
+  return [emptyLayer(cols, rows), emptyLayer(cols, rows), emptyLayer(cols, rows)];
+}
+
+function warnCorruptLayers(mapId: string, reason: string): void {
+  console.warn(JSON.stringify({ event: "map_layers_corrupt", mapId, reason }));
+}
+
+/** Never throws: a row written by an older build, or corrupted, degrades rather than failing
+ *  every map the account owns. The degrade is NOT a blank *playable* map — an all-`EMPTY_TILE`
+ *  ground layer bakes to all-`"water"` (`bakeCollision` in `shared/map-data.ts`), `isSolidKind`
+ *  calls water solid, and `terrainFromMap` hands `World` a room whose spawn point sits on solid
+ *  terrain. A hero routed there arrives stuck, with nothing in the protocol to explain why. The
+ *  `console.warn` naming the map id is the only diagnostic signal that exists for this today. */
+function decodeLayers(mapId: string, text: string, cols: number, rows: number): TileLayer[] {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    warnCorruptLayers(mapId, "invalid_json");
+    return blankLayers(cols, rows);
+  }
+  if (!Array.isArray(raw) || raw.length !== MAP_LAYERS) {
+    warnCorruptLayers(mapId, "wrong_layer_count");
+    return blankLayers(cols, rows);
+  }
+  return raw.map((entry, index) => {
+    const layer = parseTileLayer(entry, cols, rows);
+    if (!layer) {
+      warnCorruptLayers(mapId, `layer_${index}_malformed`);
+      return emptyLayer(cols, rows);
+    }
+    return layer;
+  });
 }
 
 /** NULL rather than an empty-array JSON string: legacy rows and freshly-emptied ones both read
@@ -126,16 +181,45 @@ export function validateMapInput(input: MapInput): MapData & { name: string } {
   if (name.length === 0 || name.length > MAP_NAME_MAX) {
     throw new Error("name: 1-48 characters");
   }
-  const cols = input.blocks[0]?.length ?? 0;
-  const rows = input.blocks.length;
+  const { cols, rows } = input;
   if (cols < MAP_MIN_COLS || cols > MAP_MAX_COLS || rows < MAP_MIN_ROWS || rows > MAP_MAX_ROWS) {
     throw new Error(`size: ${MAP_MIN_COLS}x${MAP_MIN_ROWS} to ${MAP_MAX_COLS}x${MAP_MAX_ROWS}`);
+  }
+  if (input.layers.length !== MAP_LAYERS) {
+    throw new Error(`layers: exactly ${MAP_LAYERS} required`);
+  }
+  for (const layer of input.layers) {
+    if (layer.cols !== cols || layer.rows !== rows) {
+      throw new Error("layers: every layer must match the map size");
+    }
+    if (layer.ids.length !== cols * rows) {
+      throw new Error("layers: every layer's ids must match cols x rows");
+    }
+  }
+  const tileset = tilesetById(input.tilesetId);
+  if (!tileset) {
+    throw new Error(`tileset: unknown tileset ${input.tilesetId}`);
+  }
+  for (const layer of input.layers) {
+    // Mirrors the wire-side check in `parseMapData` (shared/map-data.ts): an id no autotile slot or
+    // fixed-tile index in this tileset can answer for must be refused here, not baked as solid
+    // terrain by `bakeCollision` below with no diagnostic anyone could see.
+    if (layer.ids.some((id) => !tileIdInTileset(tileset, id))) {
+      throw new Error(`layers: contains an id unknown to tileset ${input.tilesetId}`);
+    }
   }
   if (input.elements.length > MAX_MAP_ELEMENTS) {
     // Caught here, before the body would silently blow past the 32 KiB `/api/maps` cap and 413.
     throw new Error(`elements: at most ${MAX_MAP_ELEMENTS}`);
   }
-  const data: MapData = { blocks: input.blocks, elements: input.elements, spawn: input.spawn };
+  const data: MapData = {
+    tilesetId: input.tilesetId,
+    cols,
+    rows,
+    layers: input.layers,
+    elements: input.elements,
+    spawn: input.spawn,
+  };
   const ground = bakeCollision({ ...data, elements: [] });
   for (const [index, element] of input.elements.entries()) {
     if (!isEditorAssetId(element.assetId)) {
@@ -206,7 +290,10 @@ function toStoredMap(row: typeof map.$inferSelect, elements: MapElement[]): Stor
     accountId: row.accountId,
     name: row.name,
     revision: row.revision,
-    blocks: decodeBlocks(row.blocks),
+    tilesetId: row.tilesetId,
+    cols: row.cols,
+    rows: row.rows,
+    layers: decodeLayers(row.id, row.layers, row.cols, row.rows),
     elements,
     spawn: { col: row.spawnCol, row: row.spawnRow },
     markers: markersOfRow(row),
@@ -283,17 +370,51 @@ function elementRows(mapId: string, elements: readonly MapElement[]) {
   }));
 }
 
+/**
+ * D1 refuses any single query bound to more than 100 parameters. A multi-row `INSERT` binds one
+ * parameter per column of `elementRows` above — mapId, col, row, kind, variant, five today — so one
+ * unchunked statement tops out around `100 / 5` = 20 rows, well under `MAX_MAP_ELEMENTS` (400): a
+ * map decorated with more than about twenty elements failed to save entirely, with nothing in
+ * `validateMapInput` to catch it first. The chunk size is derived from the real column count rather
+ * than a literal row number, so it keeps working if `mapElement` gains a column later, and it
+ * targets 60% of the cap rather than sitting on it, so that future growth doesn't immediately
+ * regress the headroom back onto the line.
+ */
+const D1_MAX_BOUND_PARAMETERS = 100;
+const MAP_ELEMENT_PARAMS_PER_ROW = 5; // mapId, col, row, kind, variant — mirrors `mapElement` in db/schema.ts
+const MAP_ELEMENT_CHUNK_ROWS = Math.floor(
+  (D1_MAX_BOUND_PARAMETERS * 0.6) / MAP_ELEMENT_PARAMS_PER_ROW,
+);
+
+function chunkRows<T>(rows: readonly T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < rows.length; i += size) {
+    chunks.push(rows.slice(i, i + size));
+  }
+  return chunks;
+}
+
+/** One `INSERT` per chunk so no single statement can cross D1's bound-parameter cap. Every chunk
+ *  still rides in the same `db.batch()` call as the rest of the write (see the callers), and D1
+ *  treats one `batch()` call as one transaction, so splitting the INSERT here does not create a
+ *  window where a map could persist with only some of its elements written. */
+function insertElementStatements(db: Db, mapId: string, elements: readonly MapElement[]) {
+  return chunkRows(elementRows(mapId, elements), MAP_ELEMENT_CHUNK_ROWS).map((rows) =>
+    db.insert(mapElement).values(rows),
+  );
+}
+
 export async function createMap(db: Db, accountId: string, input: MapInput): Promise<StoredMap> {
   const data = validateMapInput(input);
   const id = crypto.randomUUID();
-  const first = blocksFirstRow(input.blocks);
   const insertMap = db.insert(map).values({
     id,
     accountId,
     name: data.name,
-    cols: first.length,
-    rows: input.blocks.length,
-    blocks: encodeBlocks(input.blocks),
+    cols: input.cols,
+    rows: input.rows,
+    tilesetId: input.tilesetId,
+    layers: encodeLayers(input.layers),
     spawnCol: input.spawn.col,
     spawnRow: input.spawn.row,
     markers: markersJson(data.markers),
@@ -302,20 +423,15 @@ export async function createMap(db: Db, accountId: string, input: MapInput): Pro
     // because SQLite serializes the writes and the second's CASE sees the first's committed row.
     isFirst: sql`CASE WHEN (SELECT count(*) FROM ${map} WHERE ${map.accountId} = ${accountId}) = 0 THEN 1 ELSE 0 END`,
   });
-  if (input.elements.length > 0) {
+  const elementStatements = insertElementStatements(db, id, input.elements);
+  if (elementStatements.length > 0) {
     // One transaction: the map and its scenery arrive together, never a map with no elements yet that
-    // a room could load mid-create.
-    await db.batch([insertMap, db.insert(mapElement).values(elementRows(id, input.elements))]);
+    // a room could load mid-create. Every element chunk rides in this same batch.
+    await db.batch([insertMap, ...elementStatements]);
   } else {
     await insertMap;
   }
   return { id, accountId, revision: 1, ...data };
-}
-
-function blocksFirstRow(blocks: readonly string[]): string {
-  const first = blocks[0];
-  if (first === undefined) throw new Error("placement: a map needs at least one row");
-  return first;
 }
 
 export async function updateMap(
@@ -384,14 +500,14 @@ export async function updateMap(
       }
     }
   }
-  const first = blocksFirstRow(input.blocks);
   const updateRow = db
     .update(map)
     .set({
       name: data.name,
-      cols: first.length,
-      rows: input.blocks.length,
-      blocks: encodeBlocks(input.blocks),
+      cols: input.cols,
+      rows: input.rows,
+      tilesetId: input.tilesetId,
+      layers: encodeLayers(input.layers),
       spawnCol: input.spawn.col,
       spawnRow: input.spawn.row,
       markers: markersJson(data.markers),
@@ -401,16 +517,15 @@ export async function updateMap(
     .where(and(eq(map.id, id), eq(map.accountId, accountId)))
     .returning({ revision: map.revision });
   // Replace wholesale (diffing would only be a slower way to reach the same rows), but as ONE
-  // transaction: the new blocks and the new elements land together, so a room admitted mid-update can
+  // transaction: the new layers and the new elements land together, so a room admitted mid-update can
   // never load the new terrain paired with the old — or zero — elements.
   const clearElements = db.delete(mapElement).where(eq(mapElement.mapId, id));
+  const elementStatements = insertElementStatements(db, id, input.elements);
   let updatedRows: { revision: number }[];
-  if (input.elements.length > 0) {
-    [updatedRows] = await db.batch([
-      updateRow,
-      clearElements,
-      db.insert(mapElement).values(elementRows(id, input.elements)),
-    ]);
+  if (elementStatements.length > 0) {
+    // Every element chunk rides in this same batch, so a chunked write is exactly as atomic as the
+    // single-statement write it replaces (see `insertElementStatements`).
+    [updatedRows] = await db.batch([updateRow, clearElements, ...elementStatements]);
   } else {
     [updatedRows] = await db.batch([updateRow, clearElements]);
   }

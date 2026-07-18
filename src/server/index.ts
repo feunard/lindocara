@@ -14,6 +14,7 @@ import { parseCreateHeroInput } from "../shared/hero.js";
 import { isUuid } from "../shared/identifiers.js";
 import { EMPTY_MARKERS, mapSpawnPoint, parseMapData } from "../shared/map-data.js";
 import { parseCreatePartyInput, parseJoinPartyInput } from "../shared/party.js";
+import { encodeTileLayer } from "../shared/tile-layer-codec.js";
 import { TILE_SIZE } from "../shared/tilemap.js";
 import {
   isKnownZone,
@@ -84,8 +85,35 @@ function json(body: unknown, init?: ResponseInit): Response {
 }
 
 const MAX_API_JSON_BYTES = 4_096;
-// A 100x100 map is ~10 KB of blocks plus elements — the maps route gets its own, larger cap.
-const MAX_MAP_JSON_BYTES = 32_768;
+/**
+ * `parseTileLayer`'s own contract (shared/tile-layer-codec.ts) accepts an id up to
+ * `Number.MAX_SAFE_INTEGER` — it has no tileset to check against — but no *valid* map can ever
+ * carry one that large: `parseMapData` (shared/map-data.ts) and `validateMapInput`
+ * (server/maps.ts) both now reject any id `tileIdInTileset` (shared/tileset.ts) cannot resolve to
+ * a declared autotile slot or fixed-tile index. That turns "the id space" into "the ids this
+ * tileset actually ships", and this cap is sized against the latter.
+ *
+ * The shipped `tiny-swords` tileset declares 4 autotiles and 4 fixed tiles. The largest valid id
+ * is `fixedId(3) = FIXED_BASE + 3 = 1025 + 3 = 1028` (the largest autotile id,
+ * `autotileId(3, 15) = 1 + 3*16 + 15 = 64`, is smaller) — 4 digits, not the 16 an unbounded id
+ * would need.
+ *
+ * Worst-case layer: a run-length multiplier only ever shrinks the string, so the longest legal
+ * encoding is one bare, uncompressed run per cell (alternating between two 4-digit ids so no two
+ * neighbours share a run). At the 100x100 map-size cap (`MAP_MAX_COLS * MAP_MAX_ROWS` =
+ * 10,000 cells): 10,000 * 4 + (10,000 - 1) separating commas = 49,999 characters per layer. Three
+ * of those, JSON-quoted inside the `layers` array (2 quote chars per string, 2 commas, 2
+ * brackets): 3 * (49,999 + 2) + 2 + 2 = 150,007 bytes.
+ *
+ * The rest of a maximal legal body adds to that: 400 elements (`MAX_MAP_ELEMENTS`) at up to
+ * 105 bytes each (the longest catalogue asset id is 72 characters) = 42,001 bytes; markers at
+ * their per-field caps (8 entries + 8 exits + 32 monster spawns, each with a 32-character id and a
+ * 48-character label) = 4,057 bytes; name (`MAP_NAME_MAX`, 48 characters), tilesetId, cols/rows,
+ * spawn and the JSON envelope add the remaining 168 bytes. The true worst case measures
+ * 196,233 bytes. 200 KiB (204,800 bytes) is the next clean number with sensible headroom above
+ * that — not the 576 KiB an unreachable 16-digit id used to justify.
+ */
+const MAX_MAP_JSON_BYTES = 204_800;
 // An adventure body is ids and bindings only (no map payloads): 16 links × a few uuids each.
 const MAX_ADVENTURE_JSON_BYTES = 65_536;
 
@@ -470,11 +498,23 @@ function mapErrorResponse(error: unknown): Response {
   ) {
     return json({ error: `map_${code}` }, { status: 400 });
   }
+  // Unreachable from the wire — `parseMapData` rejects an unknown tileset and a layer count that is
+  // not three before create/update sees the body — but a semantic gate must never answer 500.
+  if (code === "tileset" || code === "layers") {
+    return json({ error: "map_invalid" }, { status: 400 });
+  }
   throw error;
 }
 
-/** Shape only — `parseMapData` already validates blocks/chars/bounds/spawn defensively, and
- *  `validateMapInput` inside create/update remains the one semantic gate. */
+/**
+ * Shape only — `parseMapData` already validates the tileset, the three run-length encoded layers,
+ * element bounds and the spawn defensively, and `validateMapInput` inside create/update remains the
+ * one semantic gate.
+ *
+ * Every layer the client authored is carried through untouched. There is deliberately no
+ * projection here: flattening layers back to a single occupancy grid before storing would discard
+ * everything on layers 1 and 2 — cliff walls above all — with no error anyone could see.
+ */
 function parseMapBody(body: unknown): MapInput | null {
   const name = (body as { name?: unknown } | null)?.name;
   if (typeof name !== "string") return null;
@@ -482,11 +522,23 @@ function parseMapBody(body: unknown): MapInput | null {
   if (!data) return null;
   return {
     name,
-    blocks: data.blocks,
+    tilesetId: data.tilesetId,
+    cols: data.cols,
+    rows: data.rows,
+    layers: data.layers,
     elements: data.elements,
     spawn: data.spawn,
     markers: data.markers,
   };
+}
+
+/**
+ * A stored map as it goes out over HTTP: layers as the same run-length encoded strings the client
+ * sends back. The wire is symmetric on purpose — a payload read from `GET /api/maps/:id` is a
+ * legal body for `PUT` without a re-encode step nobody would remember to keep in step.
+ */
+function mapResponseBody(stored: StoredMap): Record<string, unknown> {
+  return { ...stored, layers: stored.layers.map(encodeTileLayer) };
 }
 
 async function handleListMaps(request: Request, env: Env, url: URL): Promise<Response> {
@@ -503,7 +555,9 @@ async function handleCreateMap(request: Request, env: Env, url: URL): Promise<Re
   const input = parseMapBody(parsed.value);
   if (!input) return json({ error: "map_invalid" }, { status: 400 });
   try {
-    return json(await createMap(createDb(env.DB), auth.session.id, input), { status: 201 });
+    return json(mapResponseBody(await createMap(createDb(env.DB), auth.session.id, input)), {
+      status: 201,
+    });
   } catch (error) {
     return mapErrorResponse(error);
   }
@@ -515,7 +569,7 @@ async function handleGetMap(request: Request, env: Env, url: URL, id: string): P
   // The built-in floor is never a D1 row, so loadMap returns null for it — no special case needed.
   const stored = await loadOwnedMap(createDb(env.DB), auth.session.id, id);
   if (!stored) return json({ error: "map_not_found" }, { status: 404 });
-  return json(stored);
+  return json(mapResponseBody(stored));
 }
 
 async function handleUpdateMap(
@@ -531,7 +585,7 @@ async function handleUpdateMap(
   const input = parseMapBody(parsed.value);
   if (!input) return json({ error: "map_invalid" }, { status: 400 });
   try {
-    return json(await updateMap(createDb(env.DB), auth.session.id, id, input));
+    return json(mapResponseBody(await updateMap(createDb(env.DB), auth.session.id, id, input)));
   } catch (error) {
     return mapErrorResponse(error);
   }

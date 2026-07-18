@@ -6,6 +6,7 @@ import { createDb } from "../src/server/db/index.js";
 import { createMap } from "../src/server/maps.js";
 import { loadProfile } from "../src/server/profile.js";
 import { DEFAULT_APPEARANCE } from "../src/shared/character.js";
+import { layeredTerrain } from "./support/map-fixtures.js";
 
 const ORIGIN = "https://lindocara.test";
 const appearance = (primaryColor: string) => ({ body: "wayfarer", primaryColor });
@@ -240,7 +241,7 @@ describe("creation location resolves through D1", () => {
     if (account === "username_taken") throw new Error("unexpected username collision");
     const stored = await createMap(db, account.id, {
       name: "Home",
-      blocks: Array.from({ length: 15 }, () => ".".repeat(20)),
+      ...layeredTerrain(Array.from({ length: 15 }, () => ".".repeat(20))),
       elements: [],
       spawn: { col: 3, row: 3 },
     });

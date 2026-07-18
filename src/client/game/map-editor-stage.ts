@@ -14,9 +14,16 @@
 import { type Application, Assets, Container, Graphics, Sprite, type Texture } from "pixi.js";
 import type { MonsterSpecies } from "../../shared/game.js";
 import { bakeCollision } from "../../shared/map-data.js";
-import { kindAt, TILE_SIZE, type TileMap } from "../../shared/tilemap.js";
+import type { TileLayer } from "../../shared/tile-layer-codec.js";
+import { TILE_SIZE, type TileMap } from "../../shared/tilemap.js";
+import type { Tileset } from "../../shared/tileset.js";
+import {
+  TINY_SWORDS_SHEET_COLS,
+  TINY_SWORDS_SHEET_ROWS,
+  TINY_SWORDS_TILESET,
+} from "../../shared/tilesets/tiny-swords.js";
 import type { EditorAssetId } from "../../shared/tiny-swords-catalog.js";
-import { landTile, needsFoam, tileVisual } from "./autotile.js";
+import { needsFoam } from "./autotile.js";
 import { catalogElementFrameAt, createCatalogElementView } from "./catalog-element-render.js";
 import {
   type EditorAssetArt,
@@ -29,21 +36,24 @@ import {
   commitEditorHistory,
   createEditorHistory,
   deleteSelection,
+  editorMapSize,
   isEditorHistoryDirty,
   markEditorHistorySaved,
   moveSelection,
   redoEditorHistory,
   selectionAt,
   setMarkerLabel,
+  toMapData,
   undoEditorHistory,
   updateSelectedElementAsset,
   updateSelectedMonster,
 } from "./editor-state.js";
 import { acquireStageApp } from "./stage-application.js";
 import { foamFrameAt } from "./terrain-visuals.js";
+import { tileDrawAt } from "./tile-draw.js";
 import {
-  sliceAutotileSheet,
   sliceStrip,
+  sliceTilesetSheet,
   TINY_SWORDS_FOAM_FRAME,
   TINY_SWORDS_FOAM_FRAMES,
   TINY_SWORDS_TERRAIN,
@@ -92,29 +102,68 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+/**
+ * Draws one cell's worth of layers, routing each resolved tile into the container its own tileset
+ * entry's `priority` selects — `land` for "below", `above` for "above". Mirrors `renderer.ts`'s
+ * `#tilesBelow`/`#tilesAbove` split so the editor never draws a priority-"above" tile (a treetop, an
+ * upper cliff lip) on the wrong side of a prop from the game it is previewing.
+ *
+ * Exported and kept free of the Application/canvas the rest of this module needs, because
+ * `Container`/`Sprite` construct and accept children without a live renderer — a fixture tileset can
+ * pin the routing directly, which is not true of `openMapEditorStage` as a whole.
+ *
+ * Returns whether anything was drawn, which callers use to decide whether the cell needs foam.
+ */
+export function paintLandCell(
+  tileset: Tileset,
+  layers: readonly TileLayer[],
+  sheet: Texture[][],
+  col: number,
+  row: number,
+  land: Container,
+  above: Container,
+): boolean {
+  let drewAnything = false;
+  for (const layer of layers) {
+    const draw = tileDrawAt(tileset, layer, col, row);
+    if (!draw) continue;
+    const texture = sheet[draw.cell.row]?.[draw.cell.col];
+    if (!texture) continue;
+    const tile = new Sprite(texture);
+    tile.position.set(col * TILE_SIZE, row * TILE_SIZE);
+    tile.width = TILE_SIZE;
+    tile.height = TILE_SIZE;
+    tile.tint = draw.tint;
+    (draw.priority === "above" ? above : land).addChild(tile);
+    drewAnything = true;
+  }
+  return drewAnything;
+}
+
 /** A stored `variant` folded into `[0, length)`, sign-safe — the same fold `renderer.ts` applies to
  *  a wire element, so the editor previews the sprite the world will draw. */
 interface StageTextures {
-  /** `land[row][col]` of the flat sheet's first 4x4 group — indexed straight by `landTile()`. */
-  land: Texture[][];
+  /** The whole `Tilemap_color1.png` grid, `[row][col]` — the same slice the world renderer
+   *  indexes a frozen tile id into, so both draw an authored map from one sheet layout. */
+  tileset: Texture[][];
   water: Texture;
   foam: Texture[];
   editorAssets: Map<EditorAssetId, EditorAssetArt>;
 }
 
 async function loadStageTextures(assetIds: Iterable<EditorAssetId>): Promise<StageTextures> {
-  const [flatSheet, waterTexture, foamSheet] = await Promise.all([
-    Assets.load<Texture>(TINY_SWORDS_TERRAIN.flat),
+  const [tilesetSheet, waterTexture, foamSheet] = await Promise.all([
+    Assets.load<Texture>(TINY_SWORDS_TERRAIN.tileset),
     Assets.load<Texture>(TINY_SWORDS_TERRAIN.water),
     Assets.load<Texture>(TINY_SWORDS_TERRAIN.foam),
   ]);
   // Pixel art, every one: nearest keeps the tiles square exactly as the world renderer does.
-  flatSheet.source.style.scaleMode = "nearest";
+  tilesetSheet.source.style.scaleMode = "nearest";
   waterTexture.source.style.scaleMode = "nearest";
   foamSheet.source.style.scaleMode = "nearest";
 
   return {
-    land: sliceAutotileSheet(flatSheet),
+    tileset: sliceTilesetSheet(tilesetSheet, TINY_SWORDS_SHEET_COLS, TINY_SWORDS_SHEET_ROWS),
     water: waterTexture,
     foam: sliceStrip(foamSheet, TINY_SWORDS_FOAM_FRAME, TINY_SWORDS_FOAM_FRAMES),
     editorAssets: await loadEditorAssetArts(assetIds),
@@ -241,7 +290,11 @@ async function buildSession(
   };
 
   // Back-to-front: flat water, then foam bleeding out from the shore, then the opaque land tiles
-  // that hide the water and the middle of each foam blob, then props, then the spawn marker on top.
+  // that hide the water and the middle of each foam blob, then props, then any tile whose priority
+  // is "above" (mirrors renderer.ts's `#tilesAbove`, which paints after `#groundDecor`/`#structures`/
+  // `#actors` — a treetop or an upper cliff lip a character walks *behind*), then the editor's own
+  // spawn/marker icons on top of everything, same as the renderer keeps its labels/overlays above
+  // `#tilesAbove`.
   const world = new Container();
   const waterLayer = new Container();
   const foamLayer = new Container();
@@ -249,6 +302,7 @@ async function buildSession(
   const groundElementLayer = new Container();
   const objectElementLayer = new Container();
   const canopyElementLayer = new Container();
+  const aboveLandLayer = new Container();
   const markerLayer = new Container();
   world.addChild(
     waterLayer,
@@ -257,6 +311,7 @@ async function buildSession(
     groundElementLayer,
     objectElementLayer,
     canopyElementLayer,
+    aboveLandLayer,
     markerLayer,
   );
   app.stage.addChild(world);
@@ -266,8 +321,8 @@ async function buildSession(
   let foamSprites: Sprite[] = [];
   let swaySprites: { sprite: Sprite; frames: Texture[] }[] = [];
 
-  const mapCols = (): number => map.blocks[0]?.length ?? 0;
-  const mapRows = (): number => map.blocks.length;
+  const mapCols = (): number => editorMapSize(map).cols;
+  const mapRows = (): number => editorMapSize(map).rows;
 
   function clampCamera(): void {
     const scale = world.scale.x;
@@ -297,6 +352,7 @@ async function buildSession(
       groundElementLayer,
       objectElementLayer,
       canopyElementLayer,
+      aboveLandLayer,
       markerLayer,
     ]) {
       for (const child of layer.removeChildren()) child.destroy({ children: true });
@@ -304,11 +360,7 @@ async function buildSession(
     foamSprites = [];
     swaySprites = [];
 
-    const tiles: TileMap = bakeCollision({
-      blocks: map.blocks,
-      elements: map.elements,
-      spawn: map.spawn,
-    });
+    const tiles: TileMap = bakeCollision(toMapData(map));
     const cols = tiles.cols;
     const rows = tiles.rows;
 
@@ -321,22 +373,27 @@ async function buildSession(
 
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
-        if (tileVisual(kindAt(tiles, col, row)) !== "land") continue;
         const x = col * TILE_SIZE;
         const y = row * TILE_SIZE;
-        const cell = landTile(tiles, col, row);
-        const texture = textures.land[cell.row]?.[cell.col];
-        if (!texture) continue;
-        const tile = new Sprite(texture);
-        tile.position.set(x, y);
-        tile.width = TILE_SIZE;
-        tile.height = TILE_SIZE;
-        landLayer.addChild(tile);
+        // Every layer that has something to say about this cell, in order, through the same
+        // `tileDrawAt` the world renderer paints with — the editor cannot resolve a tile id
+        // differently from the game it is previewing.
+        const drewAnything = paintLandCell(
+          TINY_SWORDS_TILESET,
+          map.layers,
+          textures.tileset,
+          col,
+          row,
+          landLayer,
+          aboveLandLayer,
+        );
 
-        if (needsFoam(tiles, col, row)) {
+        // Foam reads the baked tilemap, not the layers: a cliff face meeting the sea is not ground,
+        // but it is still where the water meets something, and that is where the rim belongs.
+        if (drewAnything && needsFoam(tiles, col, row)) {
           // Native 192px frame centred on the 64px cell: the ~82px blob bleeds ~9px past the tile,
           // and that bleed IS the shoreline. Scaling it to the tile would erase the shore.
-          const blob = new Sprite(textures.foam[0] ?? texture);
+          const blob = new Sprite(textures.foam[0] ?? textures.water);
           blob.anchor.set(0.5);
           blob.position.set(x + TILE_SIZE / 2, y + TILE_SIZE / 2);
           foamLayer.addChild(blob);
@@ -432,7 +489,7 @@ async function buildSession(
     return { col: Math.floor(worldX / TILE_SIZE), row: Math.floor(worldY / TILE_SIZE) };
   }
 
-  function paintAt(clientX: number, clientY: number): void {
+  function paintAt(clientX: number, clientY: number, isStrokeStart: boolean): void {
     const { col, row } = cellAt(clientX, clientY);
     if (col === lastPaintedCol && row === lastPaintedRow) return;
     lastPaintedCol = col;
@@ -442,7 +499,7 @@ async function buildSession(
       notify();
       return;
     }
-    const next = applyTool(map, tool, col, row);
+    const next = applyTool(map, tool, col, row, isStrokeStart);
     // null → refused (does nothing visible); same reference → a no-op edit (eraser on empty).
     if (!next || next === map) return;
     map = next;
@@ -467,7 +524,7 @@ async function buildSession(
     strokeStart = map;
     lastPaintedCol = Number.NaN;
     lastPaintedRow = Number.NaN;
-    paintAt(event.clientX, event.clientY);
+    paintAt(event.clientX, event.clientY, true);
   };
 
   const onPointerMove = (event: PointerEvent): void => {
@@ -479,7 +536,7 @@ async function buildSession(
       clampCamera();
       return;
     }
-    if (painting) paintAt(event.clientX, event.clientY);
+    if (painting) paintAt(event.clientX, event.clientY, false);
   };
 
   const stopStroke = (): void => {

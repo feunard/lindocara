@@ -9,7 +9,7 @@ const MAP_A = {
   id: "m1",
   name: "Verdant",
   revision: 1,
-  blocks: ["...."],
+  solid: ["...."],
   elements: [],
   spawn: { col: 0, row: 0 },
   markers: {
@@ -22,7 +22,7 @@ const MAP_B = {
   id: "m2",
   name: "Frostfen",
   revision: 1,
-  blocks: ["...."],
+  solid: ["...."],
   elements: [],
   spawn: { col: 0, row: 0 },
   markers: {
