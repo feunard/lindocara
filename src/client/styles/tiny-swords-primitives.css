@@ -1,9 +1,10 @@
 /* Vendored verbatim from github.com/pixelact-ui/pixelact-ui
  * (components/ui/pixelact-ui/styles/styles.css). Supplies the shared pixel-art primitives
  * (font-face, pixel box-shadow variables, utility classes) that every Tiny Swords component
- * builds on — button, card, dialog, input, label, select and kbd. All of those components
- * read only the explicit `--tiny-surface*` tokens defined in tokens.css; none of them inherit
- * shadcn's own token set. MIT-licensed upstream; modifications for lindocara's skin.
+ * builds on — TinyButton, TinyInput, TinyLabel, TinyFieldSelect, TinyKbd, TinyPanel,
+ * TinyBarTrack, TinyRange, TinyCheckbox, TinySelect and TinyIconButton. All of those
+ * components read only the explicit `--tiny-surface*` tokens defined in tokens.css; none of
+ * them inherit shadcn's own token set. MIT-licensed upstream; modifications for lindocara's skin.
  */
 
 /* Self-hosted Press Start 2P font (SIL OFL 1.1 licensed from Google Fonts). */

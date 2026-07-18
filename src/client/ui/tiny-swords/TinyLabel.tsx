@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils.js";
 
 // Vendored from github.com/pixelact-ui/pixelact-ui (components/ui/pixelact-ui/label.tsx),
 // with its base shadcn/ui Label inlined. Restyled for the Tiny Swords skin: it now reads the
-// explicit `--tiny-surface-ink` token (from Task 2) rather than inheriting shadcn's own tokens.
+// explicit `--tiny-surface-ink` token from tokens.css rather than inheriting shadcn's own tokens.
 // MIT-licensed upstream; modifications for lindocara's Tiny Swords skin.
 export interface TinyLabelProps extends React.ComponentProps<typeof LabelPrimitive.Root> {}
 

@@ -3,8 +3,9 @@ import { cn } from "@/lib/utils.js";
 
 // Vendored from github.com/pixelact-ui/pixelact-ui (components/ui/pixelact-ui/kbd.tsx). No
 // base shadcn/ui component to inline — self-contained. Restyled for the Tiny Swords skin: it
-// now reads the explicit `--tiny-surface-sunken`/`--tiny-surface-sunken-ink` tokens (from Task 2)
-// rather than inheriting shadcn's own tokens. MIT-licensed upstream; Tiny Swords skin modifications.
+// now reads the explicit `--tiny-surface-sunken`/`--tiny-surface-sunken-ink` tokens from
+// tokens.css rather than inheriting shadcn's own tokens. MIT-licensed upstream; Tiny Swords skin
+// modifications.
 function Kbd({ className, ...props }: React.ComponentProps<"kbd">) {
   return (
     <kbd

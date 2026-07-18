@@ -21,6 +21,8 @@
   - `TinyBanner`/`TinyDialog`/`TinyTooltip`: both sides delete. Resolve as delete.
   - `CharacterCreator.tsx` / `CharacterSelect.tsx` / `CharacterPreview.tsx`: this branch edits imports, `main` deletes the file. **Resolve as delete — their removal wins.** Do not resurrect these files.
   - `test/ui/character-select.test.tsx`: resolve as delete.
+  `test/ui/map-editor.test.tsx` also imported `CharacterSelect`; `main` has already removed that
+  import, and this branch never touches that file, so it needs no conflict resolution.
   Inside this worktree the files still exist and must keep compiling, so Task 3 still rewrites their imports. That is expected throwaway work, not wasted effort — it keeps the branch green.
 - Do not add English strings to any component. All player-facing copy stays in `src/shared/i18n/`.
 

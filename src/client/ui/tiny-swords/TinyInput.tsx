@@ -2,10 +2,10 @@ import * as React from "react";
 import { cn } from "@/lib/utils.js";
 
 // Vendored from github.com/pixelact-ui/pixelact-ui (components/ui/pixelact-ui/input.tsx).
-// PixelAct's structure is kept as-is; only the two touchpoints called out in the Task 2
-// brief change: the "Press Start 2P" pixel font becomes `--font-ui`, and the hard-edged
-// pixel box-shadow border becomes a 2px solid border derived from `--parchment-ink`, for use
-// on parchment surfaces. MIT-licensed upstream; modifications for lindocara's Tiny Swords skin.
+// PixelAct's structure is kept as-is; only two touchpoints are restyled for lindocara's skin:
+// the "Press Start 2P" pixel font becomes `--font-ui`, and the hard-edged pixel box-shadow
+// border becomes a 2px solid border derived from `--parchment-ink`, for use on parchment
+// surfaces. MIT-licensed upstream; modifications for lindocara's Tiny Swords skin.
 export interface TinyInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   disabled?: boolean;
   className?: string;

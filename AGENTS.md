@@ -485,3 +485,7 @@ the same `Env`.
   unlayered `html, body` rule, never by editing the generated token blocks in `app.css`.
   The UI suite runs with `css: false`, so no test will catch a regression of this kind — check it
   in a browser.
+- Regenerating `label` (`npm run ui:add -- label -o`) re-trips Biome's `noLabelWithoutControl`:
+  stock shadcn's `Label` is a generic passthrough that spreads props, and Biome cannot see that
+  call sites supply the control. The agreed resolution is a scoped `biome-ignore` on the JSX
+  element, not an unconditional `for` attribute the component doesn't own.
