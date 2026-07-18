@@ -16,7 +16,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     return (
       <input
         className={cn(
-          "max-w-full bg-background p-2 text-foreground outline-none placeholder:text-sm md:placeholder:text-base",
+          "max-w-full p-2 outline-none placeholder:text-sm md:placeholder:text-base",
+          "[background-color:var(--tiny-surface)] [color:var(--tiny-surface-ink)]",
           "[font-family:var(--font-ui)]",
           "border-2 border-solid [border-color:color-mix(in_srgb,var(--parchment-ink)_55%,transparent)]",
           "disabled:opacity-40",

@@ -12,10 +12,12 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
       ref={ref}
       disabled={disabled}
       className={cn(
-        "max-w-full bg-background p-2 text-foreground outline-none",
+        "max-w-full p-2 outline-none",
+        "[background-color:var(--tiny-surface)] [color:var(--tiny-surface-ink)]",
         "[font-family:var(--font-ui)]",
         "border-2 border-solid [border-color:color-mix(in_srgb,var(--parchment-ink)_55%,transparent)]",
-        "focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40",
+        "focus-visible:ring-2 focus-visible:ring-[var(--gold)]",
+        "disabled:cursor-not-allowed disabled:opacity-40",
         className,
       )}
       {...props}
