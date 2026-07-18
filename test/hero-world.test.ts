@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { MapInput } from "../src/server/maps.js";
 import type { AdventureGraph } from "../src/shared/adventure.js";
 import { WS_CLOSE } from "../src/shared/close-codes.js";
+import { ATTACK_COOLDOWN_MS } from "../src/shared/game.js";
 import {
   Client,
   tileCentre as centre,
@@ -295,4 +296,99 @@ describe("party hero admission and authored runtime", () => {
       expect.objectContaining({ species: "torch_goblin", patrolRadius: 192 }),
     ]);
   });
+});
+
+/**
+ * A hero room is named `${partyId}:${mapId}` and admission refuses any other room key, so the
+ * persistent party — not the in-room `party.*` runtime, which no hero can ever build — is what
+ * "who is in my party" has to mean when a monster pays out.
+ */
+function rewardMapInput(): MapInput {
+  return testMapInput("Shared kill", {
+    cols: 40,
+    rows: 15,
+    spawn: { col: 2, row: 2 },
+    exit: { col: 38, row: 13 },
+    // The smallest legal patrol, so the goblin stays inside a level-10 warrior's reach.
+    monsterSpawns: [{ col: 10, row: 8, species: "torch_goblin", patrolRadius: 32 }],
+  });
+}
+
+describe("cooperative rewards inside a party room", () => {
+  it("splits experience with an idle hero party member but never loot or kill credit", async () => {
+    const party = await testParty("coopxp", { maps: [rewardMapInput()] });
+    // On top of the goblin: a level-10 warrior hits for 66, so one swing settles a 48 HP goblin.
+    const killerHero = await testHero("Striker", {
+      party,
+      account: party.host,
+      class: "warrior",
+      level: 10,
+      position: centre(10, 8),
+    });
+    // 576 px away: inside REWARD_DISTANCE (900) and outside MONSTER_AGGRO_RANGE (210), so this
+    // hero cannot even accumulate the proximity threat that would make it a contributor.
+    const idleHero = await testHero("Idler", {
+      party,
+      class: "warrior",
+      level: 10,
+      position: centre(19, 8),
+    });
+    // 1472 px away: a party member, but too far to be paid.
+    const farHero = await testHero("Distant", {
+      party,
+      class: "warrior",
+      level: 10,
+      position: centre(33, 8),
+    });
+
+    const killer = await Client.joinHero(killerHero);
+    const idle = await Client.joinHero(idleHero);
+    const far = await Client.joinHero(farHero);
+    await until("three heroes welcomed", () => killer.welcome && idle.welcome && far.welcome);
+    const monster = killer.welcome?.monsters[0];
+    if (!monster) throw new Error("expected the authored goblin");
+
+    let lastAttackAt = 0;
+    const killed = await until("the killer defeats the goblin", () => {
+      if (Date.now() - lastAttackAt >= ATTACK_COOLDOWN_MS) {
+        lastAttackAt = Date.now();
+        killer.action("attack", monster.id);
+      }
+      return killer.received.find(
+        (message) => message.t === "event" && message.code === "monster.defeated",
+      );
+    });
+
+    // A goblin is worth 28 XP. Two eligible heroes means 14 each — the killer keeping all 28 is
+    // exactly the symptom of the party never being consulted.
+    expect(killed).toMatchObject({ params: { xp: 14 } });
+    const shared = await until("the idle member shares the kill", () =>
+      idle.received.find((message) => message.t === "event" && message.code === "monster.defeated"),
+    );
+    expect(shared).toMatchObject({ params: { xp: 14 } });
+    await until("the idle member banks its share", () => idle.latestState?.xp === 14);
+
+    // Loot and quest credit are minted per recipient, so they stay with the contributor. Loot is
+    // only ever sent to its owner, so an empty list is proof of absence rather than of distance.
+    await scheduler.wait(1_000);
+    expect(idle.latestSnapshot?.loot ?? []).toEqual([]);
+    expect(
+      idle.received.some((message) => message.t === "event" && message.code === "loot.picked"),
+    ).toBe(false);
+    expect(
+      idle.received.some((message) => message.t === "event" && message.code.startsWith("quest.")),
+    ).toBe(false);
+    // The killer did earn a drop. It lands at the goblin's feet, where the killer is standing, so
+    // it is often collected the same tick it appears — accept either sighting.
+    expect(
+      (killer.latestSnapshot?.loot.length ?? 0) > 0 ||
+        killer.received.some((message) => message.t === "event" && message.code === "loot.picked"),
+    ).toBe(true);
+
+    // Distance still gates the party: standing in the next postcode earns nothing at all.
+    expect(
+      far.received.some((message) => message.t === "event" && message.code === "monster.defeated"),
+    ).toBe(false);
+    expect(far.latestState?.xp).toBe(0);
+  }, 20_000);
 });

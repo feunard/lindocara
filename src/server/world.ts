@@ -1111,6 +1111,29 @@ export class World extends DurableObject<Env> {
     }
   }
 
+  /**
+   * Who counts as "in my party" when a monster pays out.
+   *
+   * A hero room is named `${partyId}:${mapId}` and admission refuses any other room key, so every
+   * hero simulated here belongs to the same persistent party by construction. Heroes cannot build
+   * an in-room party either — `party.*` is refused for them — so the persistent party is the only
+   * membership there is. Characters keep the in-room runtime party they invited each other into.
+   */
+  #rewardPartyMemberIds(playerId: string): Iterable<string> {
+    const socket = this.#socketByPlayerId.get(playerId);
+    const player = socket ? this.#players.get(socket) : undefined;
+    if (player?.identityKind === "hero") {
+      const partyId = player.partyId;
+      if (partyId === null) return [];
+      return [...this.#players.values()]
+        .filter((other) => other.identityKind === "hero" && other.partyId === partyId)
+        .map((other) => other.id);
+    }
+    const runtimePartyId = this.#partyByPlayerId.get(playerId);
+    const party = runtimePartyId ? this.#parties.get(runtimePartyId) : undefined;
+    return party ? party.members : [];
+  }
+
   #defeatMonster(_ws: WebSocket, player: Player, monster: Monster, now: number): void {
     if (!beginRewardAttribution(monster)) return;
     monster.deadUntil = now + MONSTER_RESPAWN_MS;
@@ -1135,10 +1158,7 @@ export class World extends DurableObject<Env> {
 
     const eligible = new Set(directlyEligible);
     for (const contributorId of directlyEligible) {
-      const partyId = this.#partyByPlayerId.get(contributorId);
-      const party = partyId ? this.#parties.get(partyId) : undefined;
-      if (!party) continue;
-      for (const memberId of party.members) {
+      for (const memberId of this.#rewardPartyMemberIds(contributorId)) {
         const socket = this.#socketByPlayerId.get(memberId);
         const member = socket ? this.#players.get(socket) : undefined;
         if (
