@@ -4,6 +4,7 @@ import type { MapInput } from "../src/server/maps.js";
 import type { AdventureGraph } from "../src/shared/adventure.js";
 import { WS_CLOSE } from "../src/shared/close-codes.js";
 import { ATTACK_COOLDOWN_MS, MONSTER_STATS, maxHpForLevel } from "../src/shared/game.js";
+import { TILE_SIZE } from "../src/shared/tilemap.js";
 import {
   Client,
   tileCentre as centre,
@@ -35,6 +36,31 @@ function mapBInput(): MapInput {
     rows: 15,
     spawn: { col: 3, row: 3 },
     exit: { col: 5, row: 3 },
+  });
+}
+
+function prayerMapInput(): MapInput {
+  const map = testMapInput("Prayer line of sight", {
+    cols: 20,
+    rows: 15,
+    spawn: { col: 2, row: 2 },
+    exit: { col: 18, row: 13 },
+  });
+  return {
+    ...map,
+    blocks: map.blocks.map((row, index) =>
+      index === 2 ? `${row.slice(0, 3)}#${row.slice(4)}` : row,
+    ),
+  };
+}
+
+function novaMapInput(): MapInput {
+  return testMapInput("Divine Nova", {
+    cols: 20,
+    rows: 15,
+    spawn: { col: 3, row: 3 },
+    exit: { col: 18, row: 13 },
+    monsterSpawns: [{ col: 4, row: 3, species: "spear_goblin", patrolRadius: 32 }],
   });
 }
 
@@ -90,6 +116,108 @@ afterEach(async () => {
 });
 
 describe("party hero admission and authored runtime", () => {
+  it("accepts an empty Cleave and consumes its cooldown at launch", {
+    timeout: 10_000,
+  }, async () => {
+    const party = await testParty("cleave-whiff");
+    const hero = await testHero("Whiff", { party, account: party.host, class: "warrior" });
+    const client = await Client.joinHero(hero);
+    try {
+      const welcome = await until("empty cleave welcome", () => client.welcome);
+      expect(welcome.monsters).toEqual([]);
+
+      client.action("attack");
+      const animation = await until("empty cleave animation", () =>
+        client.received.find(
+          (message) =>
+            message.t === "animation" &&
+            message.actorId === hero.heroId &&
+            message.skillId === "cleave",
+        ),
+      );
+      if (animation.t !== "animation") throw new Error("expected cleave animation");
+      const cooldownState = await until("empty cleave cooldown", () =>
+        client.received.find(
+          (message) =>
+            message.t === "state" &&
+            (message.self.cooldowns?.attackUntil ?? 0) > (message.self.serverNow ?? 0),
+        ),
+      );
+      if (cooldownState.t !== "state") throw new Error("expected cooldown state");
+      expect(cooldownState.self.cooldowns?.attackUntil).toBe(
+        animation.startedAt + ATTACK_COOLDOWN_MS,
+      );
+
+      client.action("attack");
+      await scheduler.wait(100);
+      expect(
+        client.received.filter(
+          (message) => message.t === "animation" && message.skillId === "cleave",
+        ),
+      ).toHaveLength(1);
+      expect(
+        client.received.some((message) => message.t === "event" && message.code === "combat.hit"),
+      ).toBe(false);
+    } finally {
+      client.close();
+    }
+  });
+
+  it("resolves Cleave only at its active frame and never hits behind the hero", {
+    timeout: 10_000,
+  }, async () => {
+    const map = testMapInput("Cleave geometry", {
+      cols: 20,
+      rows: 15,
+      spawn: { col: 5, row: 5 },
+      exit: { col: 18, row: 13 },
+      monsterSpawns: [
+        { col: 6, row: 5, species: "spear_goblin", patrolRadius: 32 },
+        { col: 4, row: 5, species: "spear_goblin", patrolRadius: 32 },
+      ],
+    });
+    const party = await testParty("cleave-facing", { maps: [map] });
+    const hero = await testHero("Facing", {
+      party,
+      account: party.host,
+      class: "warrior",
+      position: centre(5, 5),
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      const welcome = await until("cleave geometry welcome", () => client.welcome);
+      const self = welcome.players.find((player) => player.id === hero.heroId);
+      if (!self) throw new Error("missing cleave hero");
+      const front = welcome.monsters.find((monster) => monster.x > self.x);
+      const behind = welcome.monsters.find((monster) => monster.x < self.x);
+      if (!front || !behind) throw new Error("missing front/back cleave fixtures");
+
+      client.action("attack");
+      await until("cleave start", () =>
+        client.received.find(
+          (message) => message.t === "animation" && message.skillId === "cleave",
+        ),
+      );
+      await scheduler.wait(100);
+      expect(
+        client.received.some((message) => message.t === "event" && message.code === "combat.hit"),
+      ).toBe(false);
+
+      await until("front monster cleaved", () => {
+        const monster = client.latestSnapshot?.monsters.find(
+          (candidate) => candidate.id === front.id,
+        );
+        return monster && monster.hp < front.hp ? monster : undefined;
+      });
+      await scheduler.wait(150);
+      expect(
+        client.latestSnapshot?.monsters.find((candidate) => candidate.id === behind.id)?.hp,
+      ).toBe(behind.hp);
+    } finally {
+      client.close();
+    }
+  });
+
   it("hydrates placed monsters and crosses an exit to the server-selected entry", async () => {
     const party = await seedParty("route");
     const hero = await testHero("Mira", {
@@ -125,21 +253,77 @@ describe("party hero admission and authored runtime", () => {
     expect(persisted?.y).toBeCloseTo(centre(3, 3).y, 1);
   });
 
-  it("accepts authoritative attacks against a placed monster's protocol-safe id", async () => {
+  it("cancels source-room projectiles during a map transition and does not restore them", {
+    timeout: 10_000,
+  }, async () => {
+    const party = await seedParty("projectile-transition");
+    const exit = centre(4, 2);
+    const hero = await testHero("Runner", {
+      party,
+      class: "ranger",
+      position: { x: 4 * TILE_SIZE - 2, y: exit.y },
+    });
+
+    const source = await Client.joinHero(hero);
+    await until("source welcome", () => source.welcome);
+    source.action("attack");
+    await until("source projectile", () =>
+      source.latestSnapshot?.projectiles.find((projectile) => projectile.ownerId === hero.heroId),
+    );
+    source.press("right");
+    const close = await until("transition with a projectile", () => source.closeInfo ?? undefined);
+    expect(close.code).toBe(WS_CLOSE.ZONE_TRANSITION);
+
+    const unloaded = await env.WORLD.getByName(hero.roomKey).roomDiagnostics();
+    expect(unloaded.projectiles).toEqual([]);
+    const destination = await Client.joinHero(hero);
+    const welcome = await until(
+      "destination welcome without a projectile",
+      () => destination.welcome,
+    );
+    expect(welcome.world.zoneId).toBe(party.mapB);
+    expect(welcome.projectiles).toEqual([]);
+    destination.close();
+  });
+
+  it("renders an authoritative arrow for party peers and ignores client-selected victims", {
+    timeout: 10_000,
+  }, async () => {
     const party = await seedParty("combat");
     const hero = await testHero("Hunter", {
       party,
+      account: party.host,
       class: "ranger",
-      position: centre(9, 8),
+      position: centre(7, 8),
+    });
+    const observerHero = await testHero("Observer", {
+      party,
+      class: "warrior",
+      position: centre(6, 8),
     });
 
     const client = await Client.joinHero(hero);
+    const observer = await Client.joinHero(observerHero);
     const welcome = await until("combat welcome", () => client.welcome);
+    await until("observer welcome", () => observer.welcome);
     const placed = welcome.monsters[0];
     expect(placed?.id).toMatch(/^[A-Za-z0-9_-]+$/);
     if (!placed) throw new Error("expected an authored monster");
 
-    client.action("attack", placed.id);
+    client.sendRaw(JSON.stringify({ t: "attack", targetId: placed.id }));
+    await scheduler.wait(100);
+    expect(client.latestSnapshot?.monsters.find((monster) => monster.id === placed.id)?.hp).toBe(
+      placed.hp,
+    );
+
+    client.action("attack");
+    const arrow = await until("party peer sees the arrow", () =>
+      observer.latestSnapshot?.projectiles.find(
+        (projectile) => projectile.ownerId === hero.heroId && projectile.kind === "arrow",
+      ),
+    );
+    expect(arrow.direction).toMatchObject({ x: 1, y: 0 });
+    expect(arrow.color).toBe("azure");
     const damaged = await until("placed monster damage", () => {
       const monster = client.latestSnapshot?.monsters.find(
         (candidate) => candidate.id === placed.id,
@@ -147,6 +331,17 @@ describe("party hero admission and authored runtime", () => {
       return monster && monster.hp < placed.hp ? monster : undefined;
     });
     expect(damaged.hp).toBe(placed.hp - 16);
+    const peerImpact = await until("party peer sees the authoritative impact", () =>
+      observer.received.find(
+        (message) =>
+          message.t === "event" &&
+          message.code === "combat.hit" &&
+          message.params?.actorId === hero.heroId,
+      ),
+    );
+    expect(peerImpact).toMatchObject({ params: { damage: 16, skill: "quick_shot" } });
+    client.close();
+    observer.close();
   });
 
   /**
@@ -186,10 +381,143 @@ describe("party hero admission and authored runtime", () => {
     expect(wounded.hp).toBeLessThanOrEqual(maxHpForLevel(1) - MONSTER_STATS.goblin.damage);
   });
 
-  it("isolates two parties playing the same adventure and fences duplicate hero connections", async () => {
+  it("lets a hero dodge a placed monster during its authoritative anticipation", {
+    timeout: 15_000,
+  }, async () => {
+    const party = await seedParty("dodge");
+    const hero = await testHero("Dodger", {
+      party,
+      class: "ranger",
+      position: centre(9, 8),
+    });
+    const client = await Client.joinHero(hero);
+    const welcome = await until("dodge welcome", () => client.welcome);
+    const initialHp = welcome.players.find((player) => player.id === hero.heroId)?.hp;
+    if (initialHp === undefined) throw new Error("expected the dodger's HP");
+
+    const animation = await until("monster anticipation", () =>
+      client.received.find(
+        (message) =>
+          message.t === "animation" &&
+          message.actorKind === "monster" &&
+          message.action === "attack",
+      ),
+    );
+    if (animation.t !== "animation") throw new Error("expected a monster animation");
+    expect(animation.startedAt).toBeLessThan(animation.impactAt);
+    expect(animation.direction.x).toBeLessThan(-0.8);
+
+    client.press("left");
+    await scheduler.wait(Math.max(100, animation.impactAt - Date.now() + 120));
+    client.release();
+    expect(client.self()?.hp).toBe(initialHp);
+    const attackingMonster = client.latestSnapshot?.monsters.find(
+      (monster) => monster.action?.id === animation.actionId,
+    );
+    if (attackingMonster?.action) {
+      expect(attackingMonster.action.direction).toEqual(animation.direction);
+    }
+    client.close();
+  });
+
+  it("heals the priest and visible party allies with Prayer but not through a wall", {
+    timeout: 15_000,
+  }, async () => {
+    const party = await testParty("prayer", { maps: [prayerMapInput()] });
+    const priestHero = await testHero("Prayer", {
+      party,
+      account: party.host,
+      class: "priest",
+      level: 7,
+      hp: 40,
+      position: centre(2, 2),
+    });
+    const visibleHero = await testHero("Visible", {
+      party,
+      level: 7,
+      hp: 40,
+      position: centre(2, 4),
+    });
+    const blockedHero = await testHero("Blocked", {
+      party,
+      level: 7,
+      hp: 40,
+      position: centre(4, 2),
+    });
+    const priest = await Client.joinHero(priestHero);
+    const visible = await Client.joinHero(visibleHero);
+    const blocked = await Client.joinHero(blockedHero);
+    await until(
+      "Prayer party welcomed",
+      () => priest.welcome && visible.welcome && blocked.welcome,
+    );
+
+    priest.skill(4);
+    await until("Prayer heals its visible recipients", () => {
+      const caster = priest.self();
+      const ally = visible.self();
+      return caster && ally && caster.hp > 40 && ally.hp > 40 ? { caster, ally } : undefined;
+    });
+    await scheduler.wait(300);
+    expect(blocked.self()?.hp).toBe(40);
+    priest.close();
+    visible.close();
+    blocked.close();
+  });
+
+  it("resolves Divine Nova once per nearby ally and monster", { timeout: 15_000 }, async () => {
+    const party = await testParty("nova", { maps: [novaMapInput()] });
+    const priestHero = await testHero("Nova", {
+      party,
+      account: party.host,
+      class: "priest",
+      level: 10,
+      hp: 40,
+      position: centre(3, 3),
+    });
+    const allyHero = await testHero("NovaAlly", {
+      party,
+      level: 10,
+      hp: 40,
+      position: centre(2, 3),
+    });
+    const priest = await Client.joinHero(priestHero);
+    const ally = await Client.joinHero(allyHero);
+    const welcome = await until("Nova party welcomed", () =>
+      priest.welcome && ally.welcome ? priest.welcome : undefined,
+    );
+    const monster = welcome.monsters[0];
+    if (!monster) throw new Error("expected Nova's monster");
+
+    priest.skill(5);
+    const result = await until("Nova heals and damages", () => {
+      const caster = priest.self();
+      const friend = ally.self();
+      const target = priest.latestSnapshot?.monsters.find((entry) => entry.id === monster.id);
+      return caster &&
+        friend &&
+        target &&
+        caster.hp > 40 &&
+        friend.hp > 40 &&
+        target.hp < monster.hp
+        ? { caster, friend, target }
+        : undefined;
+    });
+    expect(result.target.hp).toBe(monster.hp - 44);
+    await scheduler.wait(300);
+    expect(
+      priest.received.filter((message) => message.t === "event" && message.code === "combat.hit"),
+    ).toHaveLength(1);
+    priest.close();
+    ally.close();
+  });
+
+  it("isolates two parties playing the same adventure and fences duplicate hero connections", {
+    timeout: 15_000,
+  }, async () => {
     const party = await seedParty("isolation");
     const secondParty = await testParty("isolation2", { host: party.host, adventure: party });
-    const firstHero = await testHero("First", { party, class: "warrior" });
+    const firstHero = await testHero("First", { party, class: "ranger" });
     const secondHero = await testHero("Second", { party: secondParty, class: "ranger" });
 
     const first = await Client.joinHero(firstHero);
@@ -201,6 +529,17 @@ describe("party hero admission and authored runtime", () => {
     const secondRoom = await env.WORLD.getByName(secondHero.roomKey).roomDiagnostics();
     expect(firstRoom.playerIds).toEqual([firstHero.heroId]);
     expect(secondRoom.playerIds).toEqual([secondHero.heroId]);
+
+    first.action("attack");
+    const isolatedArrow = await until("first party owns its arrow", () =>
+      first.latestSnapshot?.projectiles.find(
+        (projectile) => projectile.ownerId === firstHero.heroId,
+      ),
+    );
+    expect(isolatedArrow.kind).toBe("arrow");
+    expect(second.latestSnapshot?.projectiles).toEqual([]);
+    const otherRoom = await env.WORLD.getByName(secondHero.roomKey).roomDiagnostics();
+    expect(otherRoom.projectiles).toEqual([]);
 
     const replacement = await Client.joinHero(firstHero);
     await until("replacement welcome", () => replacement.welcome);
@@ -389,7 +728,7 @@ describe("cooperative rewards inside a party room", () => {
     const killed = await until("the killer defeats the goblin", () => {
       if (Date.now() - lastAttackAt >= ATTACK_COOLDOWN_MS) {
         lastAttackAt = Date.now();
-        killer.action("attack", monster.id);
+        killer.action("attack");
       }
       return killer.received.find(
         (message) => message.t === "event" && message.code === "monster.defeated",

@@ -22,6 +22,8 @@ const player = (overrides: Partial<PlayerSnapshot> = {}): PlayerSnapshot => ({
   class: "warrior",
   equipment: { mainHand: "weathered_sword", offHand: "oak_shield" },
   life: "alive",
+  facing: { x: 1, y: 0 },
+  action: null,
   ...overrides,
 });
 
@@ -34,6 +36,8 @@ const monster = (overrides: Partial<MonsterSnapshot> = {}): MonsterSnapshot => (
   hp: 40,
   maxHp: 40,
   dead: false,
+  facing: { x: -1, y: 0 },
+  action: null,
   ...overrides,
 });
 
@@ -43,6 +47,7 @@ const view = (overrides: Partial<WorldView> = {}): WorldView => ({
   guards: [],
   loot: [{ id: "loot", kind: "gold", amount: 4, x: 210, y: 100 }],
   corpses: [],
+  projectiles: [],
   ...overrides,
 });
 
@@ -95,6 +100,7 @@ describe("differential world state", () => {
         guards: { upsert: [], remove: [] },
         loot: { upsert: [], remove: [] },
         corpses: { upsert: [], remove: [] },
+        projectiles: { upsert: [], remove: [] },
       }),
     ).toBeNull();
   });

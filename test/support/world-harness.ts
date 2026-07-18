@@ -449,6 +449,7 @@ export class Client {
           guards: message.guards,
           loot: message.loot,
           corpses: message.corpses,
+          projectiles: message.projectiles,
         };
       } else if (message.t === "world.delta") {
         const view = applyWorldDelta(this.#worldCache, message);
@@ -559,11 +560,9 @@ export class Client {
     this.#socket.send(payload);
   }
 
-  action(type: "attack" | "interact" | "heal", targetId?: string): void {
+  action(type: "attack" | "interact"): void {
     try {
-      this.#socket.send(
-        JSON.stringify(targetId === undefined ? { t: type } : { t: type, targetId }),
-      );
+      this.#socket.send(JSON.stringify({ t: type }));
     } catch {
       // The server may already have closed the connection.
     }
@@ -574,12 +573,8 @@ export class Client {
     this.#socket.send(JSON.stringify({ t: "release" }));
   }
 
-  skill(slot: number, targetId?: string): void {
-    this.#socket.send(
-      JSON.stringify(
-        targetId === undefined ? { t: "skill", slot } : { t: "skill", slot, targetId },
-      ),
-    );
+  skill(slot: number): void {
+    this.#socket.send(JSON.stringify({ t: "skill", slot }));
   }
 
   attemptAfterRevocation(payload: unknown): void {
@@ -694,7 +689,14 @@ export async function waitForRoomSockets(
       stub,
       (_instance, state) => state.getWebSockets().length,
     );
-    if (count <= maxSockets) return;
+    if (count <= maxSockets) {
+      const diagnostics = await stub.roomDiagnostics();
+      if (
+        diagnostics.playerIds.length <= maxSockets &&
+        (maxSockets > 0 || diagnostics.pendingSaves === 0)
+      )
+        return;
+    }
     await scheduler.wait(100);
   }
   throw new Error(`timed out waiting for ${roomKey} to have at most ${maxSockets} socket(s)`);

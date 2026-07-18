@@ -119,9 +119,9 @@ describe("party integration", () => {
     try {
       await formParty(killer, leech);
 
-      killer.action("attack", killer.nearestMonsterId());
+      killer.action("attack");
       await scheduler.wait(600);
-      killer.action("attack", killer.nearestMonsterId());
+      killer.action("attack");
 
       // The leech shares the kill: experience is split, so it still gets the event.
       await until("idle member shares the kill", () =>

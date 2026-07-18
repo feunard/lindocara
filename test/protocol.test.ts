@@ -22,14 +22,10 @@ describe("client protocol", () => {
       seq: 7,
       input: { up: true, down: false, left: false, right: true },
     });
-    expect(parseClientMessage(JSON.stringify({ t: "attack", targetId }))).toEqual({
-      t: "attack",
-      targetId,
-    });
-    expect(parseClientMessage(JSON.stringify({ t: "attack" }))).toBeNull();
-    expect(
-      parseClientMessage(JSON.stringify({ t: "attack", targetId: "road-goblin-scout" })),
-    ).toEqual({ t: "attack", targetId: "road-goblin-scout" });
+    expect(parseClientMessage(JSON.stringify({ t: "attack" }))).toEqual({ t: "attack" });
+    expect(parseClientMessage(JSON.stringify({ t: "attack", targetId }))).toBeNull();
+    expect(parseClientMessage(JSON.stringify({ t: "interact", targetId }))).toBeNull();
+    expect(parseClientMessage(JSON.stringify({ t: "use", item: "potion", targetId }))).toBeNull();
     expect(parseClientMessage(JSON.stringify({ t: "interact" }))).toEqual({ t: "interact" });
     expect(parseClientMessage(JSON.stringify({ t: "use", item: "potion" }))).toEqual({
       t: "use",
@@ -76,11 +72,8 @@ describe("client protocol", () => {
     expect(parseClientMessage(new ArrayBuffer(8))).toBeNull();
   });
 
-  it("parses the heal intent and rejects garbage variants", () => {
-    expect(parseClientMessage(JSON.stringify({ t: "heal", targetId }))).toEqual({
-      t: "heal",
-      targetId,
-    });
+  it("rejects the removed targeted heal intent", () => {
+    expect(parseClientMessage(JSON.stringify({ t: "heal", targetId }))).toBeNull();
     expect(parseClientMessage(JSON.stringify({ t: "heal" }))).toBeNull();
     expect(
       parseClientMessage(JSON.stringify({ t: "heal", targetId: "someone nearby" })),
@@ -93,11 +86,7 @@ describe("client protocol", () => {
       t: "skill",
       slot: 3,
     });
-    expect(parseClientMessage(JSON.stringify({ t: "skill", slot: 3, targetId }))).toEqual({
-      t: "skill",
-      slot: 3,
-      targetId,
-    });
+    expect(parseClientMessage(JSON.stringify({ t: "skill", slot: 3, targetId }))).toBeNull();
     expect(
       parseClientMessage(JSON.stringify({ t: "skill", slot: 3, targetId: "nearest target" })),
     ).toBeNull();
@@ -141,6 +130,7 @@ describe("server protocol", () => {
     guards: [],
     loot: [],
     corpses: [],
+    projectiles: [],
     self: {},
   };
   /** A world the client can actually collide against: terrain now travels, so a welcome without it
@@ -220,6 +210,7 @@ describe("server protocol", () => {
           guards: emptyDelta,
           loot: emptyDelta,
           corpses: emptyDelta,
+          projectiles: emptyDelta,
         }),
       ),
     ).toMatchObject({ t: "world.delta", tick: 12 });
@@ -233,6 +224,7 @@ describe("server protocol", () => {
           guards: emptyDelta,
           loot: emptyDelta,
           corpses: emptyDelta,
+          projectiles: emptyDelta,
         }),
       ),
     ).toBeNull();
@@ -246,9 +238,59 @@ describe("server protocol", () => {
           guards: [],
           loot: [],
           corpses: [],
+          projectiles: [],
         }),
       ),
     ).toMatchObject({ t: "world.resync", tick: 14 });
+
+    const projectile = {
+      id: "projectile-a",
+      actionId: "action-a",
+      ownerId: "hero-a",
+      color: "violet",
+      kind: "healing_light",
+      x: 10,
+      y: 20,
+      direction: { x: 1, y: 0 },
+      radius: 11,
+      spawnedAt: 1_000,
+      expiresAt: 2_000,
+    };
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          t: "world.resync",
+          tick: 15,
+          players: [],
+          monsters: [],
+          guards: [],
+          loot: [],
+          corpses: [],
+          projectiles: [projectile],
+        }),
+      ),
+    ).toMatchObject({ t: "world.resync", projectiles: [projectile] });
+    for (const malformed of [
+      { ...projectile, direction: { x: 0, y: 0 } },
+      { ...projectile, color: "green" },
+      { ...projectile, radius: 0 },
+      { ...projectile, expiresAt: 900 },
+    ]) {
+      expect(
+        parseServerMessage(
+          JSON.stringify({
+            t: "world.resync",
+            tick: 16,
+            players: [],
+            monsters: [],
+            guards: [],
+            loot: [],
+            corpses: [],
+            projectiles: [malformed],
+          }),
+        ),
+      ).toBeNull();
+    }
   });
 });
 
@@ -275,7 +317,7 @@ describe("event messages", () => {
   });
 
   it("accepts the heal event codes", () => {
-    for (const code of ["heal.cast", "heal.received", "heal.nobody"] as const) {
+    for (const code of ["heal.cast", "heal.received"] as const) {
       expect(parseServerMessage(JSON.stringify({ t: "event", code, tone: "good" }))).toMatchObject({
         t: "event",
         code,
@@ -288,20 +330,26 @@ describe("combat animation messages", () => {
   it("round-trips server-authored player and monster animations", () => {
     const player = encodeServerMessage({
       t: "animation",
+      actionId: "action-player-1",
       actorKind: "player",
       actorId: "player-1",
       action: "skill",
       skillId: "prayer",
-      x: 100,
-      y: 200,
+      direction: { x: 1, y: 0 },
+      startedAt: 100,
+      impactAt: 300,
+      recoveryEndsAt: 600,
     });
     const monster = encodeServerMessage({
       t: "animation",
+      actionId: "action-monster-1",
       actorKind: "monster",
       actorId: "goblin-1",
       action: "attack",
-      x: 120,
-      y: 210,
+      direction: { x: 0, y: 1 },
+      startedAt: 100,
+      impactAt: 550,
+      recoveryEndsAt: 1_050,
     });
     expect(parseServerMessage(player)).toMatchObject({ t: "animation", action: "skill" });
     expect(parseServerMessage(monster)).toMatchObject({ t: "animation", actorKind: "monster" });
@@ -312,11 +360,14 @@ describe("combat animation messages", () => {
       parseServerMessage(
         JSON.stringify({
           t: "animation",
+          actionId: "action-player-1",
           actorKind: "player",
           actorId: "player-1",
           action: "skill",
-          x: 10,
-          y: 20,
+          direction: { x: 1, y: 0 },
+          startedAt: 100,
+          impactAt: 300,
+          recoveryEndsAt: 600,
         }),
       ),
     ).toBeNull();
@@ -324,11 +375,14 @@ describe("combat animation messages", () => {
       parseServerMessage(
         JSON.stringify({
           t: "animation",
+          actionId: "action-monster-1",
           actorKind: "monster",
           actorId: "goblin-1",
           action: "attack",
-          x: null,
-          y: 20,
+          direction: { x: 0, y: 0 },
+          startedAt: 100,
+          impactAt: 550,
+          recoveryEndsAt: 1_050,
         }),
       ),
     ).toBeNull();
@@ -336,12 +390,14 @@ describe("combat animation messages", () => {
       parseServerMessage(
         JSON.stringify({
           t: "animation",
+          actionId: "action-player-1",
           actorKind: "player",
           actorId: "player-1",
           action: "attack",
-          x: 10,
-          y: 20,
-          targetX: 30,
+          direction: { x: 1, y: 0 },
+          startedAt: 600,
+          impactAt: 300,
+          recoveryEndsAt: 900,
         }),
       ),
     ).toBeNull();

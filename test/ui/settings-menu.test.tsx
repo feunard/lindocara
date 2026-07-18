@@ -98,7 +98,6 @@ describe("SettingsMenu", () => {
         attack: vi.fn(),
         interact: vi.fn(),
         usePotion: vi.fn(),
-        heal: vi.fn(),
         release: vi.fn(),
         castSkill: vi.fn(),
         sendChat: vi.fn(),
