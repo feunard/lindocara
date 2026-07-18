@@ -62,8 +62,8 @@ function adventureInput(mapIds: string[]): AdventureInput {
 /** Returns the party id and the start map id. */
 async function seedParty(hostId: string): Promise<{ partyId: string; startMapId: string }> {
   const db = createDb(env.DB);
-  const mapA = await createMap(db, mapInput("A"));
-  const mapB = await createMap(db, mapInput("B"));
+  const mapA = await createMap(db, hostId, mapInput("A"));
+  const mapB = await createMap(db, hostId, mapInput("B"));
   const adventure = await createAdventure(db, hostId, adventureInput([mapA.id, mapB.id]));
   const party = await createParty(db, hostId, {
     adventureId: adventure.id,

@@ -34,6 +34,7 @@ export const MMO_TEST_ROOM_KEY = "mmo-test-zone:main";
 
 export interface TestCharacter {
   cookie: string;
+  accountId: string;
   characterId: string;
 }
 
@@ -62,6 +63,7 @@ export async function testCharacter(
     body: JSON.stringify({ username, password: "12345678" }),
   });
   expect(registered.status).toBe(200);
+  const registeredBody = (await registered.clone().json()) as { id: string };
   const pair = registered.headers.get("Set-Cookie")?.split(";")[0];
   if (!pair) throw new Error("no session cookie issued");
 
@@ -138,7 +140,7 @@ export async function testCharacter(
       )
       .run();
   }
-  return { cookie: pair, characterId: body.id };
+  return { cookie: pair, accountId: registeredBody.id, characterId: body.id };
 }
 
 /**

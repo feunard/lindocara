@@ -10,8 +10,12 @@
  * Placement and spawn validation live here rather than in the browser because the editor is open to
  * any logged-in player. The API is the only place these can actually be enforced.
  */
-import { asc, eq, sql } from "drizzle-orm";
-import { type AdventureGraph, parseAdventureGraph } from "../shared/adventure.js";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import {
+  type AdventureGraph,
+  parseAdventureGraph,
+  validateAdventure,
+} from "../shared/adventure.js";
 import {
   bakeCollision,
   canPlaceElement,
@@ -36,7 +40,9 @@ export const BUILTIN_MAP_ID = "builtin";
 
 export interface StoredMap extends MapData {
   id: string;
+  accountId: string | null;
   name: string;
+  revision: number;
 }
 
 /**
@@ -48,7 +54,9 @@ export interface StoredMap extends MapData {
  */
 export const BUILTIN_MAP: StoredMap = {
   id: BUILTIN_MAP_ID,
+  accountId: null,
   name: "Nowhere",
+  revision: 1,
   blocks: [
     "################",
     "#..............#",
@@ -195,7 +203,9 @@ export function markersOfRow(row: {
 function toStoredMap(row: typeof map.$inferSelect, elements: MapElement[]): StoredMap {
   return {
     id: row.id,
+    accountId: row.accountId,
     name: row.name,
+    revision: row.revision,
     blocks: decodeBlocks(row.blocks),
     elements,
     spawn: { col: row.spawnCol, row: row.spawnRow },
@@ -222,13 +232,43 @@ export async function loadMap(db: Db, id: string): Promise<StoredMap | null> {
   return toStoredMap(row, await elementsOf(db, id));
 }
 
-export async function listMaps(db: Db): Promise<{ id: string; name: string; isFirst: boolean }[]> {
-  const rows = await db.select().from(map).orderBy(asc(map.createdAt));
-  return rows.map((row) => ({ id: row.id, name: row.name, isFirst: row.isFirst === 1 }));
+export async function loadOwnedMap(
+  db: Db,
+  accountId: string,
+  id: string,
+): Promise<StoredMap | null> {
+  const [row] = await db
+    .select()
+    .from(map)
+    .where(and(eq(map.id, id), eq(map.accountId, accountId)))
+    .limit(1);
+  if (!row) return null;
+  return toStoredMap(row, await elementsOf(db, id));
 }
 
-export async function firstMap(db: Db): Promise<StoredMap | null> {
-  const [row] = await db.select().from(map).where(eq(map.isFirst, 1)).limit(1);
+export async function listMaps(
+  db: Db,
+  accountId: string,
+): Promise<{ id: string; name: string; revision: number; isFirst: boolean }[]> {
+  const rows = await db
+    .select()
+    .from(map)
+    .where(eq(map.accountId, accountId))
+    .orderBy(asc(map.createdAt));
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    revision: row.revision,
+    isFirst: row.isFirst === 1,
+  }));
+}
+
+export async function firstMap(db: Db, accountId: string): Promise<StoredMap | null> {
+  const [row] = await db
+    .select()
+    .from(map)
+    .where(and(eq(map.accountId, accountId), eq(map.isFirst, 1)))
+    .limit(1);
   if (!row) return null;
   return toStoredMap(row, await elementsOf(db, row.id));
 }
@@ -243,12 +283,13 @@ function elementRows(mapId: string, elements: readonly MapElement[]) {
   }));
 }
 
-export async function createMap(db: Db, input: MapInput): Promise<StoredMap> {
+export async function createMap(db: Db, accountId: string, input: MapInput): Promise<StoredMap> {
   const data = validateMapInput(input);
   const id = crypto.randomUUID();
   const first = blocksFirstRow(input.blocks);
   const insertMap = db.insert(map).values({
     id,
+    accountId,
     name: data.name,
     cols: first.length,
     rows: input.blocks.length,
@@ -259,7 +300,7 @@ export async function createMap(db: Db, input: MapInput): Promise<StoredMap> {
     // The front door is decided by the database at insert time, never by a read-then-write: the very
     // first row to exist wins. Two concurrent creates on an empty table cannot both flag themselves,
     // because SQLite serializes the writes and the second's CASE sees the first's committed row.
-    isFirst: sql`CASE WHEN (SELECT count(*) FROM ${map}) = 0 THEN 1 ELSE 0 END`,
+    isFirst: sql`CASE WHEN (SELECT count(*) FROM ${map} WHERE ${map.accountId} = ${accountId}) = 0 THEN 1 ELSE 0 END`,
   });
   if (input.elements.length > 0) {
     // One transaction: the map and its scenery arrive together, never a map with no elements yet that
@@ -268,7 +309,7 @@ export async function createMap(db: Db, input: MapInput): Promise<StoredMap> {
   } else {
     await insertMap;
   }
-  return { id, ...data };
+  return { id, accountId, revision: 1, ...data };
 }
 
 function blocksFirstRow(blocks: readonly string[]): string {
@@ -277,41 +318,69 @@ function blocksFirstRow(blocks: readonly string[]): string {
   return first;
 }
 
-export async function updateMap(db: Db, id: string, input: MapInput): Promise<StoredMap> {
+export async function updateMap(
+  db: Db,
+  accountId: string,
+  id: string,
+  input: MapInput,
+): Promise<StoredMap> {
   const data = validateMapInput(input);
-  const existing = await loadMap(db, id);
+  const existing = await loadOwnedMap(db, accountId, id);
   if (!existing) throw new Error("not_found: no such map");
   const references = await db
-    .select({ title: adventure.title, graph: adventure.graph })
+    .select({
+      id: adventure.id,
+      accountId: adventure.accountId,
+      title: adventure.title,
+      maxPlayers: adventure.maxPlayers,
+      graph: adventure.graph,
+    })
     .from(adventureMap)
     .innerJoin(adventure, eq(adventureMap.adventureId, adventure.id))
     .where(eq(adventureMap.mapId, id));
   if (references.length > 0) {
-    const markers = data.markers ?? EMPTY_MARKERS;
-    const entryIds = new Set(markers.entries.map((marker) => marker.id));
-    const exitIds = new Set(markers.exits.map((marker) => marker.id));
     for (const row of references) {
+      if (row.accountId !== accountId) {
+        throw new Error(`referenced: adventure "${row.title}" belongs to another account`);
+      }
       let graph: AdventureGraph | null = null;
       try {
         graph = parseAdventureGraph(JSON.parse(row.graph));
       } catch {
         graph = null;
       }
-      if (!graph) continue;
-      if (graph.start.mapId === id && !entryIds.has(graph.start.entryId)) {
-        throw new Error(
-          `referenced: adventure "${row.title}" starts at entry ${graph.start.entryId}`,
+      if (!graph) throw new Error(`referenced: adventure "${row.title}" has a corrupt graph`);
+      const members = await db
+        .select({ mapId: adventureMap.mapId })
+        .from(adventureMap)
+        .where(eq(adventureMap.adventureId, row.id))
+        .orderBy(asc(adventureMap.position));
+      const mapIds = members.map((member) => member.mapId);
+      const markerRows = await db
+        .select({ id: map.id, markers: map.markers, cols: map.cols, rows: map.rows })
+        .from(map)
+        .where(inArray(map.id, mapIds));
+      const markersByMap = new Map(
+        markerRows.map((markerRow) => {
+          const markers =
+            markerRow.id === id ? (data.markers ?? EMPTY_MARKERS) : markersOfRow(markerRow);
+          return [
+            markerRow.id,
+            {
+              entryIds: markers.entries.map((marker) => marker.id),
+              exitIds: markers.exits.map((marker) => marker.id),
+            },
+          ] as const;
+        }),
+      );
+      try {
+        validateAdventure(
+          { title: row.title, maxPlayers: row.maxPlayers, mapIds, graph },
+          markersByMap,
         );
-      }
-      for (const link of graph.links) {
-        if (link.mapId === id && !exitIds.has(link.exitId)) {
-          throw new Error(`referenced: adventure "${row.title}" binds exit ${link.exitId}`);
-        }
-        if (link.dest !== "end" && link.dest.mapId === id && !entryIds.has(link.dest.entryId)) {
-          throw new Error(
-            `referenced: adventure "${row.title}" arrives at entry ${link.dest.entryId}`,
-          );
-        }
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : "invalid graph";
+        throw new Error(`referenced: adventure "${row.title}" would become invalid (${reason})`);
       }
     }
   }
@@ -326,35 +395,50 @@ export async function updateMap(db: Db, id: string, input: MapInput): Promise<St
       spawnCol: input.spawn.col,
       spawnRow: input.spawn.row,
       markers: markersJson(data.markers),
+      revision: sql`${map.revision} + 1`,
       updatedAt: new Date(),
     })
-    .where(eq(map.id, id));
+    .where(and(eq(map.id, id), eq(map.accountId, accountId)))
+    .returning({ revision: map.revision });
   // Replace wholesale (diffing would only be a slower way to reach the same rows), but as ONE
   // transaction: the new blocks and the new elements land together, so a room admitted mid-update can
   // never load the new terrain paired with the old — or zero — elements.
   const clearElements = db.delete(mapElement).where(eq(mapElement.mapId, id));
+  let updatedRows: { revision: number }[];
   if (input.elements.length > 0) {
-    await db.batch([
+    [updatedRows] = await db.batch([
       updateRow,
       clearElements,
       db.insert(mapElement).values(elementRows(id, input.elements)),
     ]);
   } else {
-    await db.batch([updateRow, clearElements]);
+    [updatedRows] = await db.batch([updateRow, clearElements]);
   }
-  return { id, ...data };
+  const updated = updatedRows[0];
+  if (!updated) throw new Error("not_found: map ownership changed mid-update");
+  return { id, accountId, revision: updated.revision, ...data };
 }
 
 /**
  * Hand the front-door flag to a chosen map. Exactly one map carries it, before and after — the
  * clear and the set are one `db.batch`, so a crash between them cannot leave zero maps flagged.
  */
-export async function setFirstMap(db: Db, id: string): Promise<void> {
-  const [row] = await db.select().from(map).where(eq(map.id, id)).limit(1);
+export async function setFirstMap(db: Db, accountId: string, id: string): Promise<void> {
+  const [row] = await db
+    .select()
+    .from(map)
+    .where(and(eq(map.id, id), eq(map.accountId, accountId)))
+    .limit(1);
   if (!row) throw new Error("not_found: no such map");
   await db.batch([
-    db.update(map).set({ isFirst: 0 }).where(eq(map.isFirst, 1)),
-    db.update(map).set({ isFirst: 1 }).where(eq(map.id, id)),
+    db
+      .update(map)
+      .set({ isFirst: 0 })
+      .where(and(eq(map.accountId, accountId), eq(map.isFirst, 1))),
+    db
+      .update(map)
+      .set({ isFirst: 1 })
+      .where(and(eq(map.accountId, accountId), eq(map.id, id))),
   ]);
 }
 
@@ -367,8 +451,12 @@ export async function setFirstMap(db: Db, id: string): Promise<void> {
  * committed delete, and `count(*) > 1` refuses it. The heir handover rides in the same transaction,
  * so there is never an instant with the flagged map gone and nothing carrying the flag.
  */
-export async function deleteMap(db: Db, id: string): Promise<void> {
-  const [row] = await db.select().from(map).where(eq(map.id, id)).limit(1);
+export async function deleteMap(db: Db, accountId: string, id: string): Promise<void> {
+  const [row] = await db
+    .select()
+    .from(map)
+    .where(and(eq(map.id, id), eq(map.accountId, accountId)))
+    .limit(1);
   if (!row) throw new Error("not_found: no such map");
 
   const used = await db
@@ -379,23 +467,32 @@ export async function deleteMap(db: Db, id: string): Promise<void> {
   if (used.length > 0) throw new Error("referenced: an adventure still uses this map");
 
   const results = await db.$client.batch([
-    // Hand the flag to the earliest survivor, but only when this row is the one carrying it and a
-    // survivor exists — the guard on `count(*) > 1` keeps it in step with the delete below.
+    db.$client
+      .prepare(
+        `DELETE FROM map_element WHERE map_id = ? AND (SELECT count(*) FROM map WHERE account_id = ?) > 1`,
+      )
+      .bind(id, accountId),
+    db.$client
+      .prepare(
+        `DELETE FROM map WHERE id = ? AND account_id = ? AND (SELECT count(*) FROM map WHERE account_id = ?) > 1`,
+      )
+      .bind(id, accountId, accountId),
+    // The old first row is gone before its successor is flagged, so the partial UNIQUE index never
+    // observes two first maps. A non-first delete leaves the existing flag alone via NOT EXISTS.
     db.$client
       .prepare(
         `UPDATE map SET is_first = 1
-           WHERE id = (SELECT id FROM map WHERE id <> ? ORDER BY created_at ASC, id ASC LIMIT 1)
-             AND (SELECT is_first FROM map WHERE id = ?) = 1
-             AND (SELECT count(*) FROM map) > 1`,
+           WHERE id = (
+             SELECT id FROM map WHERE account_id = ? ORDER BY created_at ASC, id ASC LIMIT 1
+           )
+             AND NOT EXISTS (
+               SELECT 1 FROM map WHERE account_id = ? AND is_first = 1
+             )`,
       )
-      .bind(id, id),
-    db.$client
-      .prepare(`DELETE FROM map_element WHERE map_id = ? AND (SELECT count(*) FROM map) > 1`)
-      .bind(id),
-    db.$client.prepare(`DELETE FROM map WHERE id = ? AND (SELECT count(*) FROM map) > 1`).bind(id),
+      .bind(accountId, accountId),
   ]);
-  // The guard on the final DELETE refused it: this was the last map, and nothing in the batch changed.
-  if ((results[2]?.meta.changes ?? 0) === 0) {
+  // The guarded DELETE refused it: this was the last owned map, and nothing in the batch changed.
+  if ((results[1]?.meta.changes ?? 0) === 0) {
     throw new Error("last_map: the world needs somewhere to be");
   }
 }
@@ -406,10 +503,10 @@ export async function deleteMap(db: Db, id: string): Promise<void> {
  *
  * Their own map, or the front door, or — only on an empty database — the built-in floor.
  */
-export async function resolveMapFor(db: Db, zoneId: string): Promise<StoredMap> {
-  const own = await loadMap(db, zoneId);
+export async function resolveMapFor(db: Db, accountId: string, zoneId: string): Promise<StoredMap> {
+  const own = await loadOwnedMap(db, accountId, zoneId);
   if (own) return own;
-  const first = await firstMap(db);
+  const first = await firstMap(db, accountId);
   if (first) return first;
   return BUILTIN_MAP;
 }

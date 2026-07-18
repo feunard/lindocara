@@ -246,26 +246,39 @@ export type CharacterQuest = typeof characterQuest.$inferSelect;
  * `tilemap-codec.ts` already reads, so there is no second format to keep in step with the first.
  * A 40x30 map is about 1.2 KB of text: diffable, and cheap enough to send in a welcome.
  *
- * There is no owner column on purpose. Any logged-in player may create and edit any map for now;
- * when that stops being true, this is where the column goes.
+ * Authored maps are private to their account. `accountId` remains nullable only so the ownership
+ * migration can quarantine historical rows whose author cannot be inferred without guessing;
+ * every application write supplies a real owner and no account-facing query exposes NULL rows.
  */
-export const map = sqliteTable("map", {
-  /** Server-minted uuid. A client never supplies this. */
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  cols: integer("cols").notNull(),
-  rows: integer("rows").notNull(),
-  blocks: text("blocks").notNull(),
-  spawnCol: integer("spawn_col").notNull(),
-  spawnRow: integer("spawn_row").notNull(),
-  /** JSON MapMarkers (entries/exits/monster spawns); NULL for maps saved before markers existed. */
-  markers: text("markers"),
-  /** Exactly one map carries this: where a hero lands when their own map is gone. Deleting it
-   *  moves the flag rather than leaving the world without a front door. */
-  isFirst: integer("is_first").notNull().default(0),
-  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
-});
+export const map = sqliteTable(
+  "map",
+  {
+    /** Server-minted uuid. A client never supplies this. */
+    id: text("id").primaryKey(),
+    accountId: text("account_id").references(() => account.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    cols: integer("cols").notNull(),
+    rows: integer("rows").notNull(),
+    blocks: text("blocks").notNull(),
+    spawnCol: integer("spawn_col").notNull(),
+    spawnRow: integer("spawn_row").notNull(),
+    /** JSON MapMarkers (entries/exits/monster spawns); NULL for maps saved before markers existed. */
+    markers: text("markers"),
+    /** Monotone authored-content revision. Cache identity is `(mapId, revision)`. */
+    revision: integer("revision").notNull().default(1),
+    /** Exactly one owned map carries this per account. Quarantined legacy rows are never selected. */
+    isFirst: integer("is_first").notNull().default(0),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
+  },
+  (table) => [
+    index("map_account_idx").on(table.accountId),
+    uniqueIndex("map_account_first_unique")
+      .on(table.accountId)
+      .where(sql`${table.isFirst} = 1 AND ${table.accountId} IS NOT NULL`),
+    check("map_revision_positive", sql`${table.revision} >= 1`),
+  ],
+);
 
 /**
  * One element per cell — and that is the primary key, not a rule somebody has to remember to check.

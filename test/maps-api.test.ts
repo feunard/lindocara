@@ -50,10 +50,10 @@ beforeAll(async () => {
   cookie = await register();
 });
 
-function authed(path: string, init: RequestInit = {}): Promise<Response> {
+function authed(path: string, init: RequestInit = {}, asCookie = cookie): Promise<Response> {
   return SELF.fetch(`${ORIGIN}${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", Cookie: cookie, ...(init.headers ?? {}) },
+    headers: { "Content-Type": "application/json", Cookie: asCookie, ...(init.headers ?? {}) },
   });
 }
 
@@ -125,6 +125,53 @@ describe("create, list, get, update, delete", () => {
     const afterDelete = await authed(`/api/maps/${created.id}`);
     expect(afterDelete.status).toBe(404);
     expect(await afterDelete.json()).toEqual({ error: "map_not_found" });
+  });
+
+  it("keeps maps private and hides foreign mutations as not found", async () => {
+    const created = (await (
+      await authed("/api/maps", {
+        method: "POST",
+        body: JSON.stringify(mapBody({ name: "Private" })),
+      })
+    ).json()) as { id: string };
+    const rival = await register();
+
+    expect(await (await authed("/api/maps", {}, rival)).json()).toEqual([]);
+    expect((await authed(`/api/maps/${created.id}`, {}, rival)).status).toBe(404);
+    expect(
+      (
+        await authed(
+          `/api/maps/${created.id}`,
+          { method: "PUT", body: JSON.stringify(mapBody({ name: "Stolen" })) },
+          rival,
+        )
+      ).status,
+    ).toBe(404);
+    expect((await authed(`/api/maps/${created.id}`, { method: "DELETE" }, rival)).status).toBe(404);
+    expect(await (await authed(`/api/maps/${created.id}`)).json()).toMatchObject({
+      name: "Private",
+      revision: 1,
+    });
+  });
+
+  it("increments revision only after a successful update", async () => {
+    const created = (await (
+      await authed("/api/maps", { method: "POST", body: JSON.stringify(mapBody()) })
+    ).json()) as { id: string; revision: number };
+    expect(created.revision).toBe(1);
+
+    const refused = await authed(`/api/maps/${created.id}`, {
+      method: "PUT",
+      body: JSON.stringify(mapBody({ name: " " })),
+    });
+    expect(refused.status).toBe(400);
+    expect(await (await authed(`/api/maps/${created.id}`)).json()).toMatchObject({ revision: 1 });
+
+    const updated = await authed(`/api/maps/${created.id}`, {
+      method: "PUT",
+      body: JSON.stringify(mapBody({ name: "Revision two" })),
+    });
+    expect(await updated.json()).toMatchObject({ revision: 2 });
   });
 });
 

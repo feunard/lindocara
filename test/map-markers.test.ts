@@ -4,7 +4,7 @@
  */
 import { env, SELF } from "cloudflare:test";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { createDb } from "../src/server/db/index.js";
+import { account, createDb } from "../src/server/db/index.js";
 import { createMap, loadMap, type MapInput, validateMapInput } from "../src/server/maps.js";
 import { SESSION_COOKIE } from "../src/server/session.js";
 import type { MapMarkers } from "../src/shared/map-data.js";
@@ -42,6 +42,7 @@ function input(overrides: Partial<MapInput> = {}): MapInput {
 afterEach(async () => {
   await env.DB.exec("DELETE FROM map_element");
   await env.DB.exec("DELETE FROM map");
+  await env.DB.exec("DELETE FROM account WHERE id = 'marker-owner'");
 });
 
 describe("validateMapInput marker rules", () => {
@@ -82,11 +83,18 @@ describe("validateMapInput marker rules", () => {
 describe("marker persistence", () => {
   it("round-trips markers through D1 and defaults legacy rows to empty", async () => {
     const db = createDb(env.DB);
-    const created = await createMap(db, input());
+    await db.insert(account).values({
+      id: "marker-owner",
+      username: "marker-owner",
+      passwordHash: "h",
+      passwordSalt: "s",
+      passwordIterations: 1,
+    });
+    const created = await createMap(db, "marker-owner", input());
     const loaded = await loadMap(db, created.id);
     expect(loaded?.markers).toEqual(markers());
 
-    const plain = await createMap(db, input({ name: "Plain", markers: undefined }));
+    const plain = await createMap(db, "marker-owner", input({ name: "Plain", markers: undefined }));
     const loadedPlain = await loadMap(db, plain.id);
     expect(loadedPlain?.markers).toEqual({ entries: [], exits: [], monsterSpawns: [] });
   });

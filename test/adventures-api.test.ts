@@ -194,9 +194,66 @@ describe("adventure lifecycle over the wire", () => {
 
     const rival = await register();
     expect(await (await authed("/api/adventures", {}, rival)).json()).toEqual([]);
+    const foreignMaps = await authed(
+      "/api/adventures",
+      { method: "POST", body: JSON.stringify(adventureBody(mapA, mapB)) },
+      rival,
+    );
+    expect(foreignMaps.status).toBe(400);
+    expect(await foreignMaps.json()).toEqual({ error: "adventure_maps" });
     expect((await authed(`/api/adventures/${created.id}`, {}, rival)).status).toBe(404);
     expect(
       (await authed(`/api/adventures/${created.id}`, { method: "DELETE" }, rival)).status,
     ).toBe(404);
+  });
+
+  it("accepts a realistic 16-map graph with all 128 exits through the HTTP boundary", async () => {
+    const mapIds: string[] = [];
+    for (let mapIndex = 0; mapIndex < 16; mapIndex += 1) {
+      const response = await authed("/api/maps", {
+        method: "POST",
+        body: JSON.stringify({
+          ...mapBody(`Max ${mapIndex}`),
+          markers: {
+            entries: [{ id: "entry", col: 1, row: 1 }],
+            exits: Array.from({ length: 8 }, (_, exitIndex) => ({
+              id: `exit-${exitIndex}`,
+              col: 2 + exitIndex,
+              row: 2,
+            })),
+            monsterSpawns: [],
+          },
+        }),
+      });
+      expect(response.status).toBe(201);
+      mapIds.push(((await response.json()) as { id: string }).id);
+    }
+
+    const links = mapIds.flatMap((mapId, mapIndex) =>
+      Array.from({ length: 8 }, (_, exitIndex) => ({
+        mapId,
+        exitId: `exit-${exitIndex}`,
+        dest:
+          exitIndex === 0 && mapIndex < mapIds.length - 1
+            ? { mapId: mapIds[mapIndex + 1], entryId: "entry" }
+            : "end",
+      })),
+    );
+    const body = {
+      title: "Maximum realistic graph",
+      maxPlayers: 4,
+      mapIds,
+      graph: { start: { mapId: mapIds[0], entryId: "entry" }, links },
+    };
+    expect(new TextEncoder().encode(JSON.stringify(body)).byteLength).toBeLessThan(65_536);
+
+    const response = await authed("/api/adventures", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    expect(response.status).toBe(201);
+    expect(((await response.json()) as { graph: { links: unknown[] } }).graph.links).toHaveLength(
+      128,
+    );
   });
 });

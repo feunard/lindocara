@@ -157,4 +157,46 @@ describe("validateAdventure", () => {
     };
     expect(() => validateAdventure(endless, MARKERS)).toThrow(/^graph:/);
   });
+
+  it("refuses an ending that cannot be reached from the start", () => {
+    const markers = new Map<string, MapMarkerIds>([
+      ["map-a", { entryIds: ["start"], exitIds: ["east"] }],
+      ["map-b", { entryIds: ["west-door"], exitIds: ["return"] }],
+      ["map-c", { entryIds: ["island"], exitIds: ["finish"] }],
+    ]);
+    const input: AdventureInput = {
+      title: "Endless loop",
+      maxPlayers: 4,
+      mapIds: ["map-a", "map-b", "map-c"],
+      graph: {
+        start: { mapId: "map-a", entryId: "start" },
+        links: [
+          { mapId: "map-a", exitId: "east", dest: { mapId: "map-b", entryId: "west-door" } },
+          { mapId: "map-b", exitId: "return", dest: { mapId: "map-a", entryId: "start" } },
+          { mapId: "map-c", exitId: "finish", dest: "end" },
+        ],
+      },
+    };
+    expect(() => validateAdventure(input, markers)).toThrow(/ending is reachable/);
+  });
+
+  it("reports a member-map island even when another reachable map ends the adventure", () => {
+    const markers = new Map<string, MapMarkerIds>([
+      ["map-a", { entryIds: ["start"], exitIds: ["finish"] }],
+      ["map-c", { entryIds: ["island"], exitIds: ["island-end"] }],
+    ]);
+    const input: AdventureInput = {
+      title: "Island",
+      maxPlayers: 4,
+      mapIds: ["map-a", "map-c"],
+      graph: {
+        start: { mapId: "map-a", entryId: "start" },
+        links: [
+          { mapId: "map-a", exitId: "finish", dest: "end" },
+          { mapId: "map-c", exitId: "island-end", dest: "end" },
+        ],
+      },
+    };
+    expect(() => validateAdventure(input, markers)).toThrow(/map map-c is unreachable/);
+  });
 });

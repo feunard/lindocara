@@ -3,7 +3,7 @@
  * and writes; every rule about what a valid adventure IS lives in shared/adventure.ts, and every
  * marker fact comes from the stored map payloads — never from the client's body.
  */
-import { asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import {
   type AdventureGraph,
   type AdventureInput,
@@ -24,12 +24,16 @@ export interface StoredAdventure {
   graph: AdventureGraph;
 }
 
-async function markerIdsFor(db: Db, mapIds: readonly string[]): Promise<Map<string, MapMarkerIds>> {
+async function markerIdsFor(
+  db: Db,
+  accountId: string,
+  mapIds: readonly string[],
+): Promise<Map<string, MapMarkerIds>> {
   if (mapIds.length === 0) return new Map();
   const rows = await db
     .select({ id: map.id, markers: map.markers, cols: map.cols, rows: map.rows })
     .from(map)
-    .where(inArray(map.id, [...mapIds]));
+    .where(and(eq(map.accountId, accountId), inArray(map.id, [...mapIds])));
   const byMap = new Map<string, MapMarkerIds>();
   for (const row of rows) {
     const markers = markersOfRow(row);
@@ -71,7 +75,7 @@ export async function createAdventure(
   accountId: string,
   input: AdventureInput,
 ): Promise<StoredAdventure> {
-  validateAdventure(input, await markerIdsFor(db, input.mapIds));
+  validateAdventure(input, await markerIdsFor(db, accountId, input.mapIds));
   const id = crypto.randomUUID();
   const row = {
     id,
@@ -127,7 +131,7 @@ export async function updateAdventure(
 ): Promise<StoredAdventure> {
   const row = await ownedRow(db, accountId, id);
   if (!row) throw new Error("not_found: no such adventure");
-  validateAdventure(input, await markerIdsFor(db, input.mapIds));
+  validateAdventure(input, await markerIdsFor(db, accountId, input.mapIds));
   await db.batch([
     db
       .update(adventure)

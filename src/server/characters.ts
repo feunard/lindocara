@@ -98,7 +98,7 @@ export async function createCharacter(
   const id = crypto.randomUUID();
   // "" is never a map id, so this is exactly "own map (never, it's new) → first map → builtin" —
   // a fresh hero starts wherever the front door currently points.
-  const stored = await resolveMapFor(db, "");
+  const stored = await resolveMapFor(db, accountId, "");
   const spawn = mapSpawnPoint(stored);
   const equipment = starterEquipmentFor(playerClass);
   const now = new Date();

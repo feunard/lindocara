@@ -117,7 +117,8 @@ export function validateAdventure(
   }
 
   const bound = new Set<string>();
-  let ends = 0;
+  const destinations = new Map<string, Set<string>>();
+  const endingMaps = new Set<string>();
   for (const link of links) {
     if (!members.has(link.mapId)) throw new Error(`graph: link from non-member map ${link.mapId}`);
     if (!(markersByMap.get(link.mapId)?.exitIds ?? []).includes(link.exitId)) {
@@ -128,12 +129,15 @@ export function validateAdventure(
       throw new Error(`graph: exit ${link.exitId} on map ${link.mapId} bound twice`);
     bound.add(key);
     if (link.dest === "end") {
-      ends += 1;
+      endingMaps.add(link.mapId);
       continue;
     }
     if (!members.has(link.dest.mapId) || !entryExists(link.dest.mapId, link.dest.entryId)) {
       throw new Error(`graph: exit ${link.exitId} leads to a missing map or entry`);
     }
+    const next = destinations.get(link.mapId) ?? new Set<string>();
+    next.add(link.dest.mapId);
+    destinations.set(link.mapId, next);
   }
   for (const mapId of input.mapIds) {
     for (const exitId of markersByMap.get(mapId)?.exitIds ?? []) {
@@ -142,5 +146,20 @@ export function validateAdventure(
       }
     }
   }
-  if (ends === 0) throw new Error("graph: at least one exit must end the adventure");
+  const reachable = new Set<string>([start.mapId]);
+  const pending = [start.mapId];
+  while (pending.length > 0) {
+    const current = pending.shift();
+    if (!current) continue;
+    for (const destination of destinations.get(current) ?? []) {
+      if (reachable.has(destination)) continue;
+      reachable.add(destination);
+      pending.push(destination);
+    }
+  }
+  if (![...endingMaps].some((mapId) => reachable.has(mapId))) {
+    throw new Error("graph: no adventure ending is reachable from the start");
+  }
+  const unreachable = input.mapIds.find((mapId) => !reachable.has(mapId));
+  if (unreachable) throw new Error(`graph: map ${unreachable} is unreachable from the start`);
 }

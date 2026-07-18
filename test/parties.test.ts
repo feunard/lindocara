@@ -58,8 +58,8 @@ function adventureInput(mapIds: string[], maxPlayers: number): AdventureInput {
 
 async function seedAdventure(accountId: string, maxPlayers = 4): Promise<string> {
   const db = createDb(env.DB);
-  const mapA = await createMap(db, mapInput("A"));
-  const mapB = await createMap(db, mapInput("B"));
+  const mapA = await createMap(db, accountId, mapInput("A"));
+  const mapB = await createMap(db, accountId, mapInput("B"));
   const created = await createAdventure(
     db,
     accountId,
@@ -181,6 +181,43 @@ describe("joinParty concurrency", () => {
     });
     const listing = await listPublicParties(db, "host");
     expect(listing[0]?.colors).toHaveLength(2); // cap respected: exactly maxPlayers members
+  });
+
+  it("classifies a concurrent colour collision as party_color_taken", async () => {
+    const db = createDb(env.DB);
+    await seedAccount("host");
+    await seedAccount("p2");
+    await seedAccount("p3");
+    const adventureId = await seedAdventure("host", 4);
+    const party = await createParty(db, "host", { adventureId, name: null, color: "blue" });
+
+    const outcomes = await Promise.allSettled([
+      joinParty(db, "p2", party.id, "red"),
+      joinParty(db, "p3", party.id, "red"),
+    ]);
+    expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
+    const rejected = outcomes.find(
+      (outcome): outcome is PromiseRejectedResult => outcome.status === "rejected",
+    );
+    expect(rejected?.reason).toMatchObject({ message: expect.stringMatching(/^color_taken:/) });
+  });
+
+  it("classifies two concurrent joins from one account as party_already_member", async () => {
+    const db = createDb(env.DB);
+    await seedAccount("host");
+    await seedAccount("racer");
+    const adventureId = await seedAdventure("host", 4);
+    const party = await createParty(db, "host", { adventureId, name: null, color: "blue" });
+
+    const outcomes = await Promise.allSettled([
+      joinParty(db, "racer", party.id, "red"),
+      joinParty(db, "racer", party.id, "yellow"),
+    ]);
+    expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
+    const rejected = outcomes.find(
+      (outcome): outcome is PromiseRejectedResult => outcome.status === "rejected",
+    );
+    expect(rejected?.reason).toMatchObject({ message: expect.stringMatching(/^already_member:/) });
   });
 });
 

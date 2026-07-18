@@ -55,12 +55,14 @@ export const fetchCharacters = () => api<CharacterSummary[]>("/api/characters");
 export interface MapSummary {
   id: string;
   name: string;
+  revision: number;
   isFirst: boolean;
 }
 
 export interface MapPayload {
   id: string;
   name: string;
+  revision: number;
   blocks: string[];
   elements: MapElement[];
   spawn: { col: number; row: number };
@@ -68,7 +70,7 @@ export interface MapPayload {
 }
 
 /** What create/update send: everything but the server-minted id. */
-export type MapSaveInput = Omit<MapPayload, "id">;
+export type MapSaveInput = Omit<MapPayload, "id" | "revision">;
 
 export const fetchMaps = () => api<MapSummary[]>("/api/maps");
 export const fetchMap = (id: string) => api<MapPayload>(`/api/maps/${id}`);

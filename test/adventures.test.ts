@@ -11,12 +11,23 @@ import {
   loadAdventure,
   updateAdventure,
 } from "../src/server/adventures.js";
-import { account, createDb } from "../src/server/db/index.js";
-import { createMap, deleteMap, type MapInput, updateMap } from "../src/server/maps.js";
+import { account, createDb, type Db } from "../src/server/db/index.js";
+import {
+  createMap as createOwnedMap,
+  deleteMap as deleteOwnedMap,
+  loadOwnedMap,
+  type MapInput,
+  updateMap as updateOwnedMap,
+} from "../src/server/maps.js";
 import type { AdventureInput } from "../src/shared/adventure.js";
 
 const COLS = 20;
 const ROWS = 15;
+const OWNER = "owner";
+
+const createMap = (db: Db, input: MapInput) => createOwnedMap(db, OWNER, input);
+const deleteMap = (db: Db, id: string) => deleteOwnedMap(db, OWNER, id);
+const updateMap = (db: Db, id: string, input: MapInput) => updateOwnedMap(db, OWNER, id, input);
 
 function blocks(): string[] {
   const rows: string[] = [];
@@ -152,7 +163,7 @@ describe("map deletion guard", () => {
 });
 
 describe("marker reference guard", () => {
-  it("refuses removing bound markers from a referenced map, allows additions", async () => {
+  it("revalidates the whole adventure before accepting a referenced-map update", async () => {
     const db = createDb(env.DB);
     await seedAccount("owner");
     const mapA = await createMap(db, mapInput("A"));
@@ -196,6 +207,26 @@ describe("marker reference guard", () => {
       },
     });
     expect(grown.markers?.entries).toHaveLength(2);
+
+    // A new exit would be unbound in the already-saved adventure, so the map change is refused
+    // and its monotone revision does not move.
+    await expect(
+      updateMap(db, mapA.id, {
+        ...mapInput("A"),
+        markers: {
+          entries: [
+            { id: "door", col: 5, row: 5 },
+            { id: "side", col: 3, row: 3 },
+          ],
+          exits: [
+            { id: "gate", col: 7, row: 7 },
+            { id: "unbound", col: 9, row: 9 },
+          ],
+          monsterSpawns: [],
+        },
+      }),
+    ).rejects.toThrow(/^referenced:.*unbound/);
+    expect((await loadOwnedMap(db, OWNER, mapA.id))?.revision).toBe(grown.revision);
 
     // once the adventure is gone, removal is free
     await deleteAdventure(db, "owner", created.id);

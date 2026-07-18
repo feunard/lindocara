@@ -1,17 +1,17 @@
 import { env } from "cloudflare:test";
-import { afterEach, describe, expect, it } from "vitest";
-import { createDb } from "../src/server/db/index.js";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { account, createDb, type Db } from "../src/server/db/index.js";
 import {
   BUILTIN_MAP_ID,
-  createMap,
-  deleteMap,
-  firstMap,
-  listMaps,
+  createMap as createOwnedMap,
+  deleteMap as deleteOwnedMap,
+  firstMap as firstOwnedMap,
+  listMaps as listOwnedMaps,
   loadMap,
   type MapInput,
-  resolveMapFor,
-  setFirstMap,
-  updateMap,
+  resolveMapFor as resolveOwnedMapFor,
+  setFirstMap as setOwnedFirstMap,
+  updateMap as updateOwnedMap,
 } from "../src/server/maps.js";
 import { MAX_MAP_ELEMENTS } from "../src/shared/map-data.js";
 
@@ -25,6 +25,15 @@ const BUSH = "decoration.terrain-decorations-bushes.bushe1" as const;
 const STONE = "decoration.terrain-decorations-rocks.rock1" as const;
 const STONE_ALT = "decoration.terrain-decorations-rocks.rock2" as const;
 const CASTLE = "building.buildings-blue-buildings.castle" as const;
+const OWNER = "maps-owner";
+
+const createMap = (db: Db, input: MapInput) => createOwnedMap(db, OWNER, input);
+const deleteMap = (db: Db, id: string) => deleteOwnedMap(db, OWNER, id);
+const firstMap = (db: Db) => firstOwnedMap(db, OWNER);
+const listMaps = (db: Db) => listOwnedMaps(db, OWNER);
+const resolveMapFor = (db: Db, zoneId: string) => resolveOwnedMapFor(db, OWNER, zoneId);
+const setFirstMap = (db: Db, id: string) => setOwnedFirstMap(db, OWNER, id);
+const updateMap = (db: Db, id: string, input: MapInput) => updateOwnedMap(db, OWNER, id, input);
 function validBlocks(): string[] {
   const blocks = [".".repeat(MAP_COLS), `.##${".".repeat(MAP_COLS - 3)}`];
   while (blocks.length < MAP_ROWS) blocks.push(".".repeat(MAP_COLS));
@@ -43,10 +52,21 @@ function inputNamed(name: string): MapInput {
 }
 
 describe("maps", () => {
+  beforeEach(async () => {
+    await createDb(env.DB).insert(account).values({
+      id: OWNER,
+      username: OWNER,
+      passwordHash: "h",
+      passwordSalt: "s",
+      passwordIterations: 1,
+    });
+  });
+
   // The pool does not isolate storage between tests. Elements before maps (FK).
   afterEach(async () => {
     await env.DB.exec("DELETE FROM map_element");
     await env.DB.exec("DELETE FROM map");
+    await env.DB.exec("DELETE FROM account");
   });
 
   describe("the floor", () => {

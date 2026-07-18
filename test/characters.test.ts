@@ -236,14 +236,14 @@ describe("creation location resolves through D1", () => {
 
   it("creates a character on the first map when one exists", async () => {
     const db = createDb(env.DB);
-    const stored = await createMap(db, {
+    const account = await createAccount(db, "nova_map", "12345678");
+    if (account === "username_taken") throw new Error("unexpected username collision");
+    const stored = await createMap(db, account.id, {
       name: "Home",
       blocks: Array.from({ length: 15 }, () => ".".repeat(20)),
       elements: [],
       spawn: { col: 3, row: 3 },
     });
-    const account = await createAccount(db, "nova_map", "12345678");
-    if (account === "username_taken") throw new Error("unexpected username collision");
     const created = await createCharacter(db, account.id, "Nova", DEFAULT_APPEARANCE, "warrior");
     if (created === "limit_reached") throw new Error("unexpected limit_reached");
     const profile = await loadProfile(db, created.id);

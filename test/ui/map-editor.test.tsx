@@ -54,8 +54,8 @@ const oneCharacter: CharacterSummary[] = [
 ];
 
 const twoMaps: MapSummary[] = [
-  { id: "m1", name: "Verdant Reach", isFirst: true },
-  { id: "m2", name: "Frostfen", isFirst: false },
+  { id: "m1", name: "Verdant Reach", revision: 1, isFirst: true },
+  { id: "m2", name: "Frostfen", revision: 1, isFirst: false },
 ];
 
 const MARKERS = {
@@ -68,6 +68,7 @@ function payloadFor(summary: MapSummary): MapPayload {
   return {
     id: summary.id,
     name: summary.name,
+    revision: summary.revision,
     blocks: Array.from({ length: 30 }, () => ".".repeat(40)),
     elements: [],
     spawn: { col: 20, row: 15 },
@@ -86,12 +87,18 @@ function fetchMock(maps: MapSummary[] = twoMaps) {
       const created: MapPayload = {
         id: "new",
         name: "New map",
+        revision: 1,
         blocks: Array.from({ length: 30 }, () => ".".repeat(40)),
         elements: [],
         spawn: { col: 20, row: 15 },
         markers: EMPTY_MARKERS,
       };
-      list.push({ id: created.id, name: created.name, isFirst: false });
+      list.push({
+        id: created.id,
+        name: created.name,
+        revision: created.revision,
+        isFirst: false,
+      });
       return Promise.resolve(jsonResponse(created, 201));
     }
     const idMatch = url.match(/^\/api\/maps\/([^/]+)$/);

@@ -57,8 +57,11 @@ describe("D1 maps end-to-end", () => {
 
   it("welcomes a character onto their D1 map with its tiles and elements", async () => {
     const db = createDb(env.DB);
-    const stored = await createMap(db, islandInput);
-    const session = await testCharacter("mapper", { zoneId: stored.id });
+    const session = await testCharacter("mapper");
+    const stored = await createMap(db, session.accountId, islandInput);
+    await env.DB.prepare("UPDATE character SET zone_id = ? WHERE id = ?")
+      .bind(stored.id, session.characterId)
+      .run();
     const client = await Client.joinCharacter(session);
     try {
       const welcome = await until("mapper welcome", () => client.welcome);
@@ -72,10 +75,13 @@ describe("D1 maps end-to-end", () => {
 
   it("relocates a character whose map was deleted to the first map, at its spawn", async () => {
     const db = createDb(env.DB);
-    const first = await createMap(db, { ...smallInput, name: "First" });
-    const gone = await createMap(db, { ...smallInput, name: "Gone" });
-    const session = await testCharacter("relocatee", { zoneId: gone.id });
-    await deleteMap(db, gone.id);
+    const session = await testCharacter("relocatee");
+    const first = await createMap(db, session.accountId, { ...smallInput, name: "First" });
+    const gone = await createMap(db, session.accountId, { ...smallInput, name: "Gone" });
+    await env.DB.prepare("UPDATE character SET zone_id = ? WHERE id = ?")
+      .bind(gone.id, session.characterId)
+      .run();
+    await deleteMap(db, session.accountId, gone.id);
 
     const client = await Client.joinCharacter(session);
     try {
@@ -110,8 +116,11 @@ describe("D1 maps end-to-end", () => {
 
   it("returns to the same map and position across a disconnect", async () => {
     const db = createDb(env.DB);
-    const stored = await createMap(db, smallInput);
-    const session = await testCharacter("returner", { zoneId: stored.id });
+    const session = await testCharacter("returner");
+    const stored = await createMap(db, session.accountId, smallInput);
+    await env.DB.prepare("UPDATE character SET zone_id = ? WHERE id = ?")
+      .bind(stored.id, session.characterId)
+      .run();
 
     const first = await Client.joinCharacter(session);
     await until("returner welcome", () => first.welcome);

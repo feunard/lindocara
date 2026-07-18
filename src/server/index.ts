@@ -42,7 +42,7 @@ import {
   createMap,
   deleteMap,
   listMaps,
-  loadMap,
+  loadOwnedMap,
   type MapInput,
   resolveMapFor,
   type StoredMap,
@@ -76,7 +76,7 @@ const MAX_API_JSON_BYTES = 4_096;
 // A 100x100 map is ~10 KB of blocks plus elements — the maps route gets its own, larger cap.
 const MAX_MAP_JSON_BYTES = 32_768;
 // An adventure body is ids and bindings only (no map payloads): 16 links × a few uuids each.
-const MAX_ADVENTURE_JSON_BYTES = 16_384;
+const MAX_ADVENTURE_JSON_BYTES = 65_536;
 
 async function readJson(
   request: Request,
@@ -234,7 +234,7 @@ async function handleJoin(request: Request, env: Env, url: URL): Promise<Respons
     if (!legacy) return closedWebSocket(WS_CLOSE.INVALID_LOCATION, "invalid character location");
     location = legacy;
   } else {
-    const stored = await resolveMapFor(createDb(env.DB), profile.zoneId);
+    const stored = await resolveMapFor(createDb(env.DB), session.id, profile.zoneId);
     fallbackMap = stored.id !== profile.zoneId ? stored : null;
     location = locationFromMap(stored, fallbackMap ? "main" : profile.instanceId);
   }
@@ -376,7 +376,7 @@ function parseMapBody(body: unknown): MapInput | null {
 async function handleListMaps(request: Request, env: Env, url: URL): Promise<Response> {
   const auth = await requireSession(request, env, url);
   if (auth instanceof Response) return auth;
-  return json(await listMaps(createDb(env.DB)));
+  return json(await listMaps(createDb(env.DB), auth.session.id));
 }
 
 async function handleCreateMap(request: Request, env: Env, url: URL): Promise<Response> {
@@ -387,7 +387,7 @@ async function handleCreateMap(request: Request, env: Env, url: URL): Promise<Re
   const input = parseMapBody(parsed.value);
   if (!input) return json({ error: "map_invalid" }, { status: 400 });
   try {
-    return json(await createMap(createDb(env.DB), input), { status: 201 });
+    return json(await createMap(createDb(env.DB), auth.session.id, input), { status: 201 });
   } catch (error) {
     return mapErrorResponse(error);
   }
@@ -397,7 +397,7 @@ async function handleGetMap(request: Request, env: Env, url: URL, id: string): P
   const auth = await requireSession(request, env, url);
   if (auth instanceof Response) return auth;
   // The built-in floor is never a D1 row, so loadMap returns null for it — no special case needed.
-  const stored = await loadMap(createDb(env.DB), id);
+  const stored = await loadOwnedMap(createDb(env.DB), auth.session.id, id);
   if (!stored) return json({ error: "map_not_found" }, { status: 404 });
   return json(stored);
 }
@@ -415,7 +415,7 @@ async function handleUpdateMap(
   const input = parseMapBody(parsed.value);
   if (!input) return json({ error: "map_invalid" }, { status: 400 });
   try {
-    return json(await updateMap(createDb(env.DB), id, input));
+    return json(await updateMap(createDb(env.DB), auth.session.id, id, input));
   } catch (error) {
     return mapErrorResponse(error);
   }
@@ -430,7 +430,7 @@ async function handleDeleteMap(
   const auth = await requireSession(request, env, url);
   if (auth instanceof Response) return auth;
   try {
-    await deleteMap(createDb(env.DB), id);
+    await deleteMap(createDb(env.DB), auth.session.id, id);
     return new Response(null, { status: 204 });
   } catch (error) {
     return mapErrorResponse(error);
@@ -446,7 +446,7 @@ async function handleSetFirstMap(
   const auth = await requireSession(request, env, url);
   if (auth instanceof Response) return auth;
   try {
-    await setFirstMap(createDb(env.DB), id);
+    await setFirstMap(createDb(env.DB), auth.session.id, id);
     return new Response(null, { status: 204 });
   } catch (error) {
     return mapErrorResponse(error);

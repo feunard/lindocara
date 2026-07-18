@@ -143,13 +143,29 @@ export async function joinParty(
   // DB backstops for the already_member and color_taken fences.
   const result = await db.$client
     .prepare(
-      `INSERT INTO party_member (party_id, account_id, color, joined_at)
+      `INSERT OR IGNORE INTO party_member (party_id, account_id, color, joined_at)
          SELECT ?, ?, ?, (unixepoch() * 1000)
          WHERE (SELECT count(*) FROM party_member WHERE party_id = ?) < ?`,
     )
     .bind(partyId, accountId, color, partyId, row.maxPlayers)
     .run();
-  if ((result.meta.changes ?? 0) === 0) throw new Error("full: party is full");
+  if ((result.meta.changes ?? 0) > 0) return;
+
+  // `OR IGNORE` turns both uniqueness fences into a zero-change result. Classify against the
+  // state that won the serialized SQLite write so concurrent callers always receive a stable
+  // business error, never a driver-specific UNIQUE exception.
+  const after = await db
+    .select({ accountId: partyMember.accountId, color: partyMember.color })
+    .from(partyMember)
+    .where(eq(partyMember.partyId, partyId));
+  if (after.some((member) => member.accountId === accountId)) {
+    throw new Error("already_member: already in this party");
+  }
+  if (after.some((member) => member.color === color)) {
+    throw new Error("color_taken: that colour is taken");
+  }
+  if (after.length >= row.maxPlayers) throw new Error("full: party is full");
+  throw new Error("full: party admission lost its atomic guard");
 }
 
 export async function deleteParty(db: Db, accountId: string, partyId: string): Promise<void> {
