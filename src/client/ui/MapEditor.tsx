@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { MONSTER_SPECIES_KIND, type MonsterSpecies } from "../../shared/game.js";
 import {
   EMPTY_MARKERS,
+  MARKER_LABEL_MAX,
   MAX_PATROL_RADIUS,
   type MapData,
   MIN_PATROL_RADIUS,
 } from "../../shared/map-data.js";
-import type { EditorAssetId } from "../../shared/tiny-swords-catalog.js";
+import { type EditorAssetId, editorAsset } from "../../shared/tiny-swords-catalog.js";
 import {
   authErrorText,
   createMapApi,
@@ -19,7 +20,7 @@ import {
   type MapSummary,
   updateMapApi,
 } from "../api.js";
-import type { EditorMap, EditorTool } from "../game/editor-state.js";
+import type { EditorMap, EditorSelection, EditorTool } from "../game/editor-state.js";
 import { blankMap } from "../game/editor-state.js";
 import { type MapEditorStageHandle, openMapEditorStage } from "../game/map-editor-stage.js";
 import { startMapPreview } from "../game/map-preview.js";
@@ -30,6 +31,7 @@ import { EditorAssetPalette } from "./EditorAssetPalette.js";
 import { Button } from "./pixelact-ui/button/index.js";
 import { Input } from "./pixelact-ui/input.js";
 import { Label } from "./pixelact-ui/label.js";
+import { Select } from "./pixelact-ui/select.js";
 
 const DEFAULT_COLS = 40;
 const DEFAULT_ROWS = 30;
@@ -59,8 +61,19 @@ function toEditorMap(map: MapPayload): EditorMap {
   };
 }
 
-const TOOL_KEYS = ["grass", "water", "eraser", "spawn", "entry", "exit", "monster", "pan"] as const;
+const TOOL_KEYS = [
+  "select",
+  "grass",
+  "water",
+  "eraser",
+  "spawn",
+  "entry",
+  "exit",
+  "monster",
+  "pan",
+] as const;
 type ToolKey = (typeof TOOL_KEYS)[number];
+type StageStatus = "loading" | "ready" | "error";
 
 /**
  * Editing mode: the React toolbar over the Pixi painting stage. React owns the tool selection, the
@@ -71,6 +84,8 @@ function MapEditorStage({ map, onExit }: { map: MapPayload; onExit: () => void }
   useLocale();
   const setScreen = useUiStore((state) => state.setScreen);
   const handleRef = useRef<MapEditorStageHandle | null>(null);
+  const pendingToolRef = useRef<EditorTool>({ kind: "block", block: "grass" });
+  const nameRef = useRef(map.name);
   // The live `EditorMap` captured when Preview is pressed. It carries the unsaved edits across the
   // preview round-trip: the stage is disposed for the sandbox and reopened from this, not from the
   // `map` prop, so painting survives the walk.
@@ -84,9 +99,16 @@ function MapEditorStage({ map, onExit }: { map: MapPayload; onExit: () => void }
   const [previewing, setPreviewing] = useState(false);
   const [species, setSpecies] = useState<MonsterSpecies>("spear_goblin");
   const [radius, setRadius] = useState(96);
+  const [stageStatus, setStageStatus] = useState<StageStatus>("loading");
+  const [dirty, setDirty] = useState(false);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const [selection, setSelection] = useState<EditorSelection | null>(null);
 
   function toolFor(key: ToolKey): EditorTool {
     switch (key) {
+      case "select":
+        return { kind: "select" };
       case "grass":
         return { kind: "block", block: "grass" };
       case "water":
@@ -111,7 +133,9 @@ function MapEditorStage({ map, onExit }: { map: MapPayload; onExit: () => void }
   // whatever species/radius were selected when the tool button was last clicked.
   useEffect(() => {
     if (toolKey === "monster") {
-      handleRef.current?.setTool({ kind: "marker-monster", species, patrolRadius: radius });
+      const tool: EditorTool = { kind: "marker-monster", species, patrolRadius: radius };
+      pendingToolRef.current = tool;
+      handleRef.current?.setTool(tool);
     }
   }, [species, radius, toolKey]);
 
@@ -121,9 +145,14 @@ function MapEditorStage({ map, onExit }: { map: MapPayload; onExit: () => void }
   useEffect(() => {
     if (previewing) return;
     let cancelled = false;
-    openMapEditorStage(editedRef.current ?? toEditorMap(map), (changed) => {
+    setStageStatus("loading");
+    openMapEditorStage(editedRef.current ?? toEditorMap(map), (changed, state) => {
       setError(null);
       setElementCount(changed.elements.length);
+      setDirty(state.dirty);
+      setCanUndo(state.canUndo);
+      setCanRedo(state.canRedo);
+      setSelection(state.selection);
     })
       .then((handle) => {
         if (cancelled) {
@@ -131,12 +160,18 @@ function MapEditorStage({ map, onExit }: { map: MapPayload; onExit: () => void }
           return;
         }
         handleRef.current = handle;
+        handle.setName(nameRef.current);
+        handle.setTool(pendingToolRef.current);
+        setStageStatus("ready");
       })
       .catch((caught) => {
         // A failed stage build (WebGL/texture load) must not strand the screen with a blank canvas
         // and no way out: surface the error and leave the toolbar's Back usable, exactly like the
         // list view's failed load. Save no-ops while the handle is null.
-        if (!cancelled) setError(errorCode(caught));
+        if (!cancelled) {
+          setStageStatus("error");
+          setError(errorCode(caught));
+        }
       });
     return () => {
       cancelled = true;
@@ -152,7 +187,12 @@ function MapEditorStage({ map, onExit }: { map: MapPayload; onExit: () => void }
     if (!previewing) return;
     const edited = editedRef.current;
     if (!edited) return;
-    const data: MapData = { blocks: edited.blocks, elements: edited.elements, spawn: edited.spawn };
+    const data: MapData = {
+      blocks: edited.blocks,
+      elements: edited.elements,
+      spawn: edited.spawn,
+      markers: edited.markers,
+    };
     let stopped = false;
     let preview: { stop(): void } | null = null;
     // Esc during startup: `stopped` latches before `startMapPreview` resolves, so a preview that
@@ -187,20 +227,26 @@ function MapEditorStage({ map, onExit }: { map: MapPayload; onExit: () => void }
   }
 
   function selectTool(key: ToolKey): void {
+    const tool = toolFor(key);
     setToolKey(key);
     setSelectedAsset(null);
-    handleRef.current?.setTool(toolFor(key));
+    pendingToolRef.current = tool;
+    handleRef.current?.setTool(tool);
   }
 
   function selectAsset(assetId: EditorAssetId): void {
     setToolKey(null);
     setSelectedAsset(assetId);
-    handleRef.current?.setTool({ kind: "element", assetId });
+    const tool: EditorTool = { kind: "element", assetId };
+    pendingToolRef.current = tool;
+    handleRef.current?.setTool(tool);
   }
 
   function rename(value: string): void {
+    nameRef.current = value;
     setName(value);
-    handleRef.current?.setName(value);
+    if (handleRef.current) handleRef.current.setName(value);
+    else setDirty(value !== map.name);
   }
 
   async function save(): Promise<void> {
@@ -210,6 +256,8 @@ function MapEditorStage({ map, onExit }: { map: MapPayload; onExit: () => void }
     setError(null);
     try {
       await updateMapApi(map.id, handle.current());
+      handle.markSaved();
+      setDirty(false);
     } catch (caught) {
       const code = errorCode(caught);
       if (isSessionError(code)) setScreen("auth");
@@ -219,10 +267,70 @@ function MapEditorStage({ map, onExit }: { map: MapPayload; onExit: () => void }
     }
   }
 
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent): void => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+
+  function exitEditor(): void {
+    if (dirty && !window.confirm(t("editor.unsaved.confirm"))) return;
+    onExit();
+  }
+
+  function undo(): void {
+    handleRef.current?.undo();
+  }
+
+  function redo(): void {
+    handleRef.current?.redo();
+  }
+
+  const currentMap = handleRef.current?.current() ?? editedRef.current ?? toEditorMap(map);
+  const selectedEntry =
+    selection?.kind === "entry"
+      ? currentMap.markers.entries.find((marker) => marker.id === selection.id)
+      : undefined;
+  const selectedExit =
+    selection?.kind === "exit"
+      ? currentMap.markers.exits.find((marker) => marker.id === selection.id)
+      : undefined;
+  const selectedMonster =
+    selection?.kind === "monster"
+      ? currentMap.markers.monsterSpawns.find(
+          (marker) => marker.col === selection.col && marker.row === selection.row,
+        )
+      : undefined;
+  const selectedElement =
+    selection?.kind === "element"
+      ? currentMap.elements.find(
+          (element) => element.col === selection.col && element.row === selection.row,
+        )
+      : undefined;
+  const selectedPosition =
+    selectedEntry ??
+    selectedExit ??
+    selectedMonster ??
+    (selection?.kind === "spawn" ? currentMap.spawn : selectedElement);
+
   if (previewing) return <MapPreviewHint />;
 
   return (
-    <div className="map-editor-toolbar">
+    <div className="map-editor-toolbar" data-dirty={dirty}>
+      {stageStatus === "loading" && (
+        <p className="map-editor-toolbar__status" role="status">
+          {t("editor.stage.loading")}
+        </p>
+      )}
+      {stageStatus === "error" && (
+        <p className="map-editor-toolbar__status" role="alert">
+          {t("editor.stage.error")}
+        </p>
+      )}
       <div className="map-editor-toolbar__tools">
         {TOOL_KEYS.map((key) => (
           <Button
@@ -240,7 +348,7 @@ function MapEditorStage({ map, onExit }: { map: MapPayload; onExit: () => void }
       {toolKey === "monster" && (
         <div className="map-editor-toolbar__monster">
           <Label htmlFor="editor-species">{t("editor.markers.species")}</Label>
-          <select
+          <Select
             id="editor-species"
             value={species}
             onChange={(event) => setSpecies(event.currentTarget.value as MonsterSpecies)}
@@ -250,7 +358,7 @@ function MapEditorStage({ map, onExit }: { map: MapPayload; onExit: () => void }
                 {t(`monster.${option}`)}
               </option>
             ))}
-          </select>
+          </Select>
           <Label htmlFor="editor-radius">{t("editor.markers.radius")}</Label>
           <Input
             id="editor-radius"
@@ -277,16 +385,154 @@ function MapEditorStage({ map, onExit }: { map: MapPayload; onExit: () => void }
           value={name}
           onChange={(event) => rename(event.currentTarget.value)}
         />
-        <Button type="button" onClick={() => void save()} disabled={saving}>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={undo}
+          disabled={!canUndo || stageStatus !== "ready"}
+        >
+          {t("editor.undo")}
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={redo}
+          disabled={!canRedo || stageStatus !== "ready"}
+        >
+          {t("editor.redo")}
+        </Button>
+        <Button
+          type="button"
+          onClick={() => void save()}
+          disabled={saving || stageStatus !== "ready"}
+        >
           {t("editor.save")}
         </Button>
-        <Button type="button" variant="secondary" onClick={startPreview}>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={startPreview}
+          disabled={stageStatus !== "ready"}
+        >
           {t("editor.preview")}
         </Button>
-        <Button type="button" variant="secondary" onClick={onExit}>
+        <Button type="button" variant="secondary" onClick={exitEditor}>
           {t("editor.back")}
         </Button>
+        {dirty && <span role="status">{t("editor.unsaved")}</span>}
       </div>
+
+      {selection && (
+        <aside className="map-editor-inspector" aria-label={t("editor.inspector.title")}>
+          <h2>{t("editor.inspector.title")}</h2>
+          <p>{t(`editor.inspector.${selection.kind}`)}</p>
+          {(selectedEntry || selectedExit) && (
+            <>
+              <p>
+                {t("editor.inspector.id")}: <code>{(selectedEntry ?? selectedExit)?.id}</code>
+              </p>
+              <Label htmlFor="marker-label">{t("editor.inspector.label")}</Label>
+              <Input
+                id="marker-label"
+                key={`${selection.kind}:${selection.kind === "entry" || selection.kind === "exit" ? selection.id : ""}`}
+                type="text"
+                maxLength={MARKER_LABEL_MAX}
+                defaultValue={(selectedEntry ?? selectedExit)?.label ?? ""}
+                onBlur={(event) =>
+                  handleRef.current?.setSelectedMarkerLabel(event.currentTarget.value)
+                }
+              />
+            </>
+          )}
+          {selectedElement && (
+            <>
+              <p>{selectedElement.assetId}</p>
+              <p>{editorAsset(selectedElement.assetId)?.category ?? ""}</p>
+              <p>{editorAsset(selectedElement.assetId)?.editor.renderLayer ?? "object"}</p>
+              <p>
+                {editorAsset(selectedElement.assetId)?.editor.collisionFootprint.length
+                  ? t("editor.palette.collision")
+                  : t("editor.inspector.walkable")}
+              </p>
+            </>
+          )}
+          {selectedMonster && (
+            <>
+              <Label htmlFor="selected-monster-species">{t("editor.markers.species")}</Label>
+              <Select
+                id="selected-monster-species"
+                className="map-editor-select"
+                value={selectedMonster.species}
+                onChange={(event) =>
+                  handleRef.current?.setSelectedMonster(
+                    event.currentTarget.value as MonsterSpecies,
+                    selectedMonster.patrolRadius,
+                  )
+                }
+              >
+                {(Object.keys(MONSTER_SPECIES_KIND) as MonsterSpecies[]).map((option) => (
+                  <option key={option} value={option}>
+                    {t(`monster.${option}`)}
+                  </option>
+                ))}
+              </Select>
+              <Label htmlFor="selected-monster-radius">{t("editor.markers.radius")}</Label>
+              <Input
+                id="selected-monster-radius"
+                type="number"
+                min={MIN_PATROL_RADIUS}
+                max={MAX_PATROL_RADIUS}
+                defaultValue={selectedMonster.patrolRadius}
+                onBlur={(event) =>
+                  handleRef.current?.setSelectedMonster(
+                    selectedMonster.species,
+                    Number(event.currentTarget.value),
+                  )
+                }
+              />
+            </>
+          )}
+          {selectedPosition && (
+            <div className="map-editor-inspector__position">
+              <Label htmlFor="selected-col">{t("editor.cols")}</Label>
+              <Input
+                id="selected-col"
+                type="number"
+                min={0}
+                defaultValue={selectedPosition.col}
+                onBlur={(event) =>
+                  handleRef.current?.moveSelected(
+                    Number(event.currentTarget.value),
+                    selectedPosition.row,
+                  )
+                }
+              />
+              <Label htmlFor="selected-row">{t("editor.rows")}</Label>
+              <Input
+                id="selected-row"
+                type="number"
+                min={0}
+                defaultValue={selectedPosition.row}
+                onBlur={(event) =>
+                  handleRef.current?.moveSelected(
+                    selectedPosition.col,
+                    Number(event.currentTarget.value),
+                  )
+                }
+              />
+            </div>
+          )}
+          {selection.kind !== "spawn" && (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => handleRef.current?.deleteSelected()}
+            >
+              {t("editor.delete")}
+            </Button>
+          )}
+        </aside>
+      )}
 
       {error && <p role="alert">{authErrorText(error)}</p>}
     </div>

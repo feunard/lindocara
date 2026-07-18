@@ -12,13 +12,28 @@
  * is React, the canvas is Pixi, and the two only meet at `setTool`/`current`/`setName`/`dispose`.
  */
 import { type Application, Assets, Container, Graphics, Sprite, type Texture } from "pixi.js";
+import type { MonsterSpecies } from "../../shared/game.js";
 import { bakeCollision } from "../../shared/map-data.js";
 import { kindAt, TILE_SIZE, type TileMap } from "../../shared/tilemap.js";
 import type { EditorAssetId } from "../../shared/tiny-swords-catalog.js";
 import { landTile, needsFoam, tileVisual } from "./autotile.js";
 import { type EditorAssetArt, loadAllEditorAssetArt } from "./editor-asset-art.js";
-import type { EditorMap, EditorTool } from "./editor-state.js";
-import { applyTool } from "./editor-state.js";
+import type { EditorMap, EditorSelection, EditorTool } from "./editor-state.js";
+import {
+  applyTool,
+  commitEditorHistory,
+  createEditorHistory,
+  deleteSelection,
+  isEditorHistoryDirty,
+  markEditorHistorySaved,
+  moveSelection,
+  redoEditorHistory,
+  selectionAt,
+  setMarkerLabel,
+  undoEditorHistory,
+  updateSelectedElementAsset,
+  updateSelectedMonster,
+} from "./editor-state.js";
 import { acquireStageApp } from "./stage-application.js";
 import { foamFrameAt } from "./terrain-visuals.js";
 import {
@@ -38,7 +53,23 @@ export interface MapEditorStageHandle {
   setTool(tool: EditorTool): void;
   current(): EditorMap;
   setName(name: string): void;
+  undo(): void;
+  redo(): void;
+  markSaved(): void;
+  selected(): EditorSelection | null;
+  setSelectedMarkerLabel(label: string): boolean;
+  moveSelected(col: number, row: number): boolean;
+  setSelectedElementAsset(assetId: EditorAssetId): boolean;
+  setSelectedMonster(species: MonsterSpecies, patrolRadius: number): boolean;
+  deleteSelected(): boolean;
   dispose(): void;
+}
+
+export interface MapEditorStageState {
+  canUndo: boolean;
+  canRedo: boolean;
+  dirty: boolean;
+  selection: EditorSelection | null;
 }
 
 /** Camera zoom is clamped to this range, both to keep pixels legible and to stop the map sailing
@@ -132,6 +163,15 @@ function inertHandle(map: EditorMap): MapEditorStageHandle {
     setTool() {},
     current: () => map,
     setName() {},
+    undo() {},
+    redo() {},
+    markSaved() {},
+    selected: () => null,
+    setSelectedMarkerLabel: () => false,
+    moveSelected: () => false,
+    setSelectedElementAsset: () => false,
+    setSelectedMonster: () => false,
+    deleteSelected: () => false,
     dispose() {},
   };
 }
@@ -158,7 +198,7 @@ function ensureStageApp(canvas: HTMLCanvasElement): Promise<Application> {
  */
 export function openMapEditorStage(
   initial: EditorMap,
-  onChange: (map: EditorMap) => void,
+  onChange: (map: EditorMap, state: MapEditorStageState) => void,
 ): Promise<MapEditorStageHandle> {
   const generation = ++openGeneration;
   return enqueue(() => buildSession(initial, onChange, generation));
@@ -166,7 +206,7 @@ export function openMapEditorStage(
 
 async function buildSession(
   initial: EditorMap,
-  onChange: (map: EditorMap) => void,
+  onChange: (map: EditorMap, state: MapEditorStageState) => void,
   generation: number,
 ): Promise<MapEditorStageHandle> {
   // A newer open already superseded this one before the chain reached it: build nothing, bind no
@@ -193,7 +233,18 @@ async function buildSession(
   const textures = await loadStageTextures();
 
   let map = initial;
+  let history = createEditorHistory(initial);
+  let selected: EditorSelection | null = null;
   let tool: EditorTool = { kind: "block", block: "grass" };
+
+  const notify = (): void => {
+    onChange(map, {
+      canUndo: history.past.length > 0,
+      canRedo: history.future.length > 0,
+      dirty: isEditorHistoryDirty(history, map),
+      selection: selected,
+    });
+  };
 
   // Back-to-front: flat water, then foam bleeding out from the shore, then the opaque land tiles
   // that hide the water and the middle of each foam blob, then props, then the spawn marker on top.
@@ -381,6 +432,7 @@ async function buildSession(
   // every pointermove event.
   let lastPaintedCol = Number.NaN;
   let lastPaintedRow = Number.NaN;
+  let strokeStart: EditorMap | null = null;
 
   function cellAt(clientX: number, clientY: number): { col: number; row: number } {
     const rect = canvas.getBoundingClientRect();
@@ -394,12 +446,17 @@ async function buildSession(
     if (col === lastPaintedCol && row === lastPaintedRow) return;
     lastPaintedCol = col;
     lastPaintedRow = row;
+    if (tool.kind === "select") {
+      selected = selectionAt(map, col, row);
+      notify();
+      return;
+    }
     const next = applyTool(map, tool, col, row);
     // null → refused (does nothing visible); same reference → a no-op edit (eraser on empty).
     if (!next || next === map) return;
     map = next;
     redraw();
-    onChange(map);
+    notify();
   }
 
   function isPanTrigger(event: PointerEvent): boolean {
@@ -416,6 +473,7 @@ async function buildSession(
     }
     if (event.button !== 0) return;
     painting = true;
+    strokeStart = map;
     lastPaintedCol = Number.NaN;
     lastPaintedRow = Number.NaN;
     paintAt(event.clientX, event.clientY);
@@ -434,9 +492,15 @@ async function buildSession(
   };
 
   const stopStroke = (): void => {
+    if (strokeStart && strokeStart !== map) {
+      history = commitEditorHistory({ ...history, present: strokeStart }, map);
+      notify();
+    }
+    strokeStart = null;
     painting = false;
     panning = false;
-    canvas.dataset.cursor = tool.kind === "pan" ? "move" : "paint";
+    canvas.dataset.cursor =
+      tool.kind === "pan" ? "move" : tool.kind === "select" ? "select" : "paint";
   };
 
   const onWheel = (event: WheelEvent): void => {
@@ -457,6 +521,32 @@ async function buildSession(
 
   const onContextMenu = (event: Event): void => event.preventDefault();
   const onKeyDown = (event: KeyboardEvent): void => {
+    if ((event.ctrlKey || event.metaKey) && event.code === "KeyZ") {
+      event.preventDefault();
+      stopStroke();
+      if (event.shiftKey) {
+        history = redoEditorHistory(history);
+      } else {
+        history = undoEditorHistory(history);
+      }
+      map = { ...history.present, name: map.name };
+      history = { ...history, present: map };
+      selected = null;
+      redraw();
+      notify();
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && event.code === "KeyY") {
+      event.preventDefault();
+      stopStroke();
+      history = redoEditorHistory(history);
+      map = { ...history.present, name: map.name };
+      history = { ...history, present: map };
+      selected = null;
+      redraw();
+      notify();
+      return;
+    }
     if (event.code === "Space") spaceHeld = true;
   };
   const onKeyUp = (event: KeyboardEvent): void => {
@@ -511,10 +601,24 @@ async function buildSession(
   const session: StageSession = { destroy };
   activeSession = session;
 
+  const commitInspectorChange = (
+    next: EditorMap | null,
+    nextSelection: EditorSelection | null = selected,
+  ): boolean => {
+    if (!next || next === map) return false;
+    history = commitEditorHistory({ ...history, present: map }, next);
+    map = next;
+    selected = nextSelection;
+    redraw();
+    notify();
+    return true;
+  };
+
   return {
     setTool(next) {
       tool = next;
-      canvas.dataset.cursor = tool.kind === "pan" ? "move" : "paint";
+      canvas.dataset.cursor =
+        tool.kind === "pan" ? "move" : tool.kind === "select" ? "select" : "paint";
     },
     current() {
       return map;
@@ -522,7 +626,62 @@ async function buildSession(
     setName(name) {
       if (name === map.name) return;
       map = { ...map, name };
-      onChange(map);
+      notify();
+    },
+    undo() {
+      stopStroke();
+      const next = undoEditorHistory(history);
+      if (next === history) return;
+      history = next;
+      map = { ...history.present, name: map.name };
+      history = { ...history, present: map };
+      selected = null;
+      redraw();
+      notify();
+    },
+    redo() {
+      stopStroke();
+      const next = redoEditorHistory(history);
+      if (next === history) return;
+      history = next;
+      map = { ...history.present, name: map.name };
+      history = { ...history, present: map };
+      selected = null;
+      redraw();
+      notify();
+    },
+    markSaved() {
+      history = markEditorHistorySaved(history, map);
+      notify();
+    },
+    selected() {
+      return selected;
+    },
+    setSelectedMarkerLabel(label) {
+      if (!selected || (selected.kind !== "entry" && selected.kind !== "exit")) return false;
+      return commitInspectorChange(setMarkerLabel(map, selected, label));
+    },
+    moveSelected(col, row) {
+      if (!selected) return false;
+      const previous = selected;
+      const nextSelection: EditorSelection =
+        previous.kind === "element" || previous.kind === "monster"
+          ? { ...previous, col, row }
+          : previous;
+      return commitInspectorChange(moveSelection(map, previous, col, row), nextSelection);
+    },
+    setSelectedElementAsset(assetId) {
+      if (selected?.kind !== "element") return false;
+      return commitInspectorChange(updateSelectedElementAsset(map, selected, assetId));
+    },
+    setSelectedMonster(species, patrolRadius) {
+      if (selected?.kind !== "monster") return false;
+      return commitInspectorChange(updateSelectedMonster(map, selected, species, patrolRadius));
+    },
+    deleteSelected() {
+      if (!selected || selected.kind === "spawn") return false;
+      const next = deleteSelection(map, selected);
+      return commitInspectorChange(next, null);
     },
     dispose() {
       // Serialized like open: a dispose must not race a queued open onto the shared canvas. Idempotent

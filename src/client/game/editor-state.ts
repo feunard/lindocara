@@ -9,6 +9,7 @@ import {
   elementFitsMap,
   elementPlacementCells,
   elementsOverlap,
+  MARKER_LABEL_MAX,
   MAX_MAP_ELEMENTS,
   MAX_MAP_ENTRIES,
   MAX_MAP_EXITS,
@@ -35,10 +36,218 @@ export type EditorTool =
   | { kind: "element"; assetId: EditorAssetId }
   | { kind: "eraser" }
   | { kind: "spawn" }
+  | { kind: "select" }
   | { kind: "pan" }
   | { kind: "marker-entry" }
   | { kind: "marker-exit" }
   | { kind: "marker-monster"; species: MonsterSpecies; patrolRadius: number };
+
+export type EditorSelection =
+  | { kind: "element"; col: number; row: number }
+  | { kind: "entry"; id: string }
+  | { kind: "exit"; id: string }
+  | { kind: "monster"; col: number; row: number }
+  | { kind: "spawn" };
+
+export interface EditorHistory {
+  past: EditorMap[];
+  present: EditorMap;
+  future: EditorMap[];
+  saved: string;
+}
+
+function serializedMap(map: EditorMap): string {
+  return JSON.stringify(map);
+}
+
+export function createEditorHistory(map: EditorMap): EditorHistory {
+  return { past: [], present: map, future: [], saved: serializedMap(map) };
+}
+
+/** Commit one semantic operation. A caller painting a stroke passes only its final map here. */
+export function commitEditorHistory(history: EditorHistory, next: EditorMap): EditorHistory {
+  if (next === history.present || serializedMap(next) === serializedMap(history.present)) {
+    return history;
+  }
+  return { ...history, past: [...history.past, history.present], present: next, future: [] };
+}
+
+export function undoEditorHistory(history: EditorHistory): EditorHistory {
+  const previous = history.past[history.past.length - 1];
+  if (!previous) return history;
+  return {
+    ...history,
+    past: history.past.slice(0, -1),
+    present: previous,
+    future: [history.present, ...history.future],
+  };
+}
+
+export function redoEditorHistory(history: EditorHistory): EditorHistory {
+  const next = history.future[0];
+  if (!next) return history;
+  return {
+    ...history,
+    past: [...history.past, history.present],
+    present: next,
+    future: history.future.slice(1),
+  };
+}
+
+export function markEditorHistorySaved(
+  history: EditorHistory,
+  current = history.present,
+): EditorHistory {
+  return { ...history, saved: serializedMap(current) };
+}
+
+export function isEditorHistoryDirty(history: EditorHistory, current = history.present): boolean {
+  return history.saved !== serializedMap(current);
+}
+
+export function selectionAt(map: EditorMap, col: number, row: number): EditorSelection | null {
+  const entry = map.markers.entries.find((marker) => marker.col === col && marker.row === row);
+  if (entry) return { kind: "entry", id: entry.id };
+  const exit = map.markers.exits.find((marker) => marker.col === col && marker.row === row);
+  if (exit) return { kind: "exit", id: exit.id };
+  const monster = map.markers.monsterSpawns.find(
+    (marker) => marker.col === col && marker.row === row,
+  );
+  if (monster) return { kind: "monster", col, row };
+  const element = map.elements.find((candidate) => elementCoversCell(candidate, col, row));
+  if (element) return { kind: "element", col: element.col, row: element.row };
+  if (map.spawn.col === col && map.spawn.row === row) return { kind: "spawn" };
+  return null;
+}
+
+export function setMarkerLabel(
+  map: EditorMap,
+  selection: Extract<EditorSelection, { kind: "entry" | "exit" }>,
+  label: string,
+): EditorMap | null {
+  const normalized = label.trim();
+  if (normalized.length > MARKER_LABEL_MAX) return null;
+  const update = (marker: { id: string; label?: string; col: number; row: number }) => {
+    if (marker.id !== selection.id) return marker;
+    if (normalized.length === 0) {
+      return { id: marker.id, col: marker.col, row: marker.row };
+    }
+    return { ...marker, label: normalized };
+  };
+  return selection.kind === "entry"
+    ? { ...map, markers: { ...map.markers, entries: map.markers.entries.map(update) } }
+    : { ...map, markers: { ...map.markers, exits: map.markers.exits.map(update) } };
+}
+
+export function deleteSelection(map: EditorMap, selection: EditorSelection): EditorMap {
+  switch (selection.kind) {
+    case "element":
+      return {
+        ...map,
+        elements: map.elements.filter(
+          (element) => element.col !== selection.col || element.row !== selection.row,
+        ),
+      };
+    case "entry":
+      return {
+        ...map,
+        markers: {
+          ...map.markers,
+          entries: map.markers.entries.filter((marker) => marker.id !== selection.id),
+        },
+      };
+    case "exit":
+      return {
+        ...map,
+        markers: {
+          ...map.markers,
+          exits: map.markers.exits.filter((marker) => marker.id !== selection.id),
+        },
+      };
+    case "monster":
+      return {
+        ...map,
+        markers: {
+          ...map.markers,
+          monsterSpawns: map.markers.monsterSpawns.filter(
+            (marker) => marker.col !== selection.col || marker.row !== selection.row,
+          ),
+        },
+      };
+    case "spawn":
+      return map;
+  }
+}
+
+export function moveSelection(
+  map: EditorMap,
+  selection: EditorSelection,
+  col: number,
+  row: number,
+): EditorMap | null {
+  switch (selection.kind) {
+    case "element": {
+      const element = map.elements.find(
+        (candidate) => candidate.col === selection.col && candidate.row === selection.row,
+      );
+      if (!element) return null;
+      const without = deleteSelection(map, selection);
+      return applyTool(without, { kind: "element", assetId: element.assetId }, col, row);
+    }
+    case "entry": {
+      const entries = map.markers.entries.map((marker) =>
+        marker.id === selection.id ? { ...marker, col, row } : marker,
+      );
+      const next = { ...map, markers: { ...map.markers, entries } };
+      return keepsMarkersValid(next) ? next : null;
+    }
+    case "exit": {
+      const exits = map.markers.exits.map((marker) =>
+        marker.id === selection.id ? { ...marker, col, row } : marker,
+      );
+      const next = { ...map, markers: { ...map.markers, exits } };
+      return keepsMarkersValid(next) ? next : null;
+    }
+    case "monster": {
+      const marker = map.markers.monsterSpawns.find(
+        (candidate) => candidate.col === selection.col && candidate.row === selection.row,
+      );
+      if (!marker) return null;
+      return applyTool(
+        deleteSelection(map, selection),
+        { kind: "marker-monster", ...marker },
+        col,
+        row,
+      );
+    }
+    case "spawn":
+      return applyTool(map, { kind: "spawn" }, col, row);
+  }
+}
+
+export function updateSelectedElementAsset(
+  map: EditorMap,
+  selection: Extract<EditorSelection, { kind: "element" }>,
+  assetId: EditorAssetId,
+): EditorMap | null {
+  const without = deleteSelection(map, selection);
+  return applyTool(without, { kind: "element", assetId }, selection.col, selection.row);
+}
+
+export function updateSelectedMonster(
+  map: EditorMap,
+  selection: Extract<EditorSelection, { kind: "monster" }>,
+  species: MonsterSpecies,
+  patrolRadius: number,
+): EditorMap | null {
+  const without = deleteSelection(map, selection);
+  return applyTool(
+    without,
+    { kind: "marker-monster", species, patrolRadius },
+    selection.col,
+    selection.row,
+  );
+}
 
 const BLOCK_CHAR: Record<"grass" | "water", string> = { grass: ".", water: "#" };
 
@@ -171,6 +380,8 @@ export function applyTool(
       const next = { ...map, spawn: { col, row } };
       return keepsMarkersValid(next) ? next : null;
     }
+    case "select":
+      return map;
     case "marker-entry": {
       const markers = map.markers;
       if (cellTaken(markers.entries, col, row)) return null;

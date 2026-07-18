@@ -2,9 +2,16 @@ import { describe, expect, it } from "vitest";
 import {
   applyTool,
   blankMap,
+  commitEditorHistory,
+  createEditorHistory,
   type EditorMap,
   type EditorTool,
+  isEditorHistoryDirty,
+  markEditorHistorySaved,
   mintMarkerId,
+  redoEditorHistory,
+  setMarkerLabel,
+  undoEditorHistory,
 } from "../src/client/game/editor-state.js";
 import {
   EMPTY_MARKERS,
@@ -250,6 +257,60 @@ describe("markers on the editor map", () => {
     expect(painted?.markers).toEqual(withMarkers.markers);
     const moved = applyTool(withMarkers, { kind: "spawn" }, 8, 8);
     expect(moved?.markers).toEqual(withMarkers.markers);
+  });
+});
+
+describe("editor history", () => {
+  it("undoes and redoes one committed operation", () => {
+    const base = blankMap("m", 20, 15);
+    const painted = applyTool(base, { kind: "block", block: "water" }, 1, 1) as EditorMap;
+    const committed = commitEditorHistory(createEditorHistory(base), painted);
+
+    expect(committed.past).toHaveLength(1);
+    expect(isEditorHistoryDirty(committed)).toBe(true);
+    const undone = undoEditorHistory(committed);
+    expect(undone.present).toEqual(base);
+    expect(isEditorHistoryDirty(undone)).toBe(false);
+    expect(redoEditorHistory(undone).present).toEqual(painted);
+  });
+
+  it("records a continuous painted stroke as one operation when only its final map is committed", () => {
+    const base = blankMap("m", 20, 15);
+    let stroke = base;
+    for (let col = 1; col <= 4; col += 1) {
+      stroke = applyTool(stroke, { kind: "block", block: "water" }, col, 1) as EditorMap;
+    }
+
+    const history = commitEditorHistory(createEditorHistory(base), stroke);
+    expect(history.past).toHaveLength(1);
+    expect(undoEditorHistory(history).present).toEqual(base);
+  });
+
+  it("resets dirty state only at the saved revision", () => {
+    const base = blankMap("m", 20, 15);
+    const painted = applyTool(base, { kind: "block", block: "water" }, 1, 1) as EditorMap;
+    const committed = commitEditorHistory(createEditorHistory(base), painted);
+    const saved = markEditorHistorySaved(committed);
+    expect(isEditorHistoryDirty(saved)).toBe(false);
+    expect(isEditorHistoryDirty(undoEditorHistory(saved))).toBe(true);
+  });
+});
+
+describe("marker labels", () => {
+  it("keeps stable ids while trimming, changing and clearing labels", () => {
+    const base = applyTool(blankMap("m", 20, 15), { kind: "marker-entry" }, 2, 2) as EditorMap;
+    const labelled = setMarkerLabel(base, { kind: "entry", id: "entry-1" }, "  North gate  ");
+    expect(labelled?.markers.entries).toEqual([
+      { id: "entry-1", label: "North gate", col: 2, row: 2 },
+    ]);
+    expect(
+      setMarkerLabel(labelled as EditorMap, { kind: "entry", id: "entry-1" }, "")?.markers.entries,
+    ).toEqual([{ id: "entry-1", col: 2, row: 2 }]);
+  });
+
+  it("rejects labels longer than the shared maximum", () => {
+    const base = applyTool(blankMap("m", 20, 15), { kind: "marker-exit" }, 2, 2) as EditorMap;
+    expect(setMarkerLabel(base, { kind: "exit", id: "exit-1" }, "x".repeat(49))).toBeNull();
   });
 });
 

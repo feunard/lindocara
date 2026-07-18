@@ -74,6 +74,44 @@ body::after {
   margin-left: auto;
 }
 
+.map-editor-toolbar__status {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--green);
+}
+
+.map-editor-toolbar__monster {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.map-editor-inspector {
+  position: fixed;
+  top: 9rem;
+  right: 1rem;
+  width: min(22rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 10rem);
+  overflow: auto;
+  padding: 1rem;
+  border: 2px solid rgb(100 143 117 / 80%);
+  border-radius: 8px;
+  background: rgb(6 22 18 / 96%);
+  box-shadow: 0 12px 36px rgb(0 0 0 / 45%);
+}
+
+.map-editor-inspector h2,
+.map-editor-inspector p {
+  margin: 0 0 0.75rem;
+}
+
+.map-editor-inspector__position {
+  display: grid;
+  grid-template-columns: auto minmax(4rem, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .map-editor-toolbar [role="alert"] {
   flex-basis: 100%;
   margin: 0;
@@ -120,6 +158,12 @@ button {
   border-radius: 8px;
   background: rgb(5 24 20 / 88%);
   color: #f5f0df;
+}
+
+.map-editor-inspector input,
+.map-editor-inspector select {
+  width: 100%;
+  margin-bottom: 0.75rem;
 }
 
 button {

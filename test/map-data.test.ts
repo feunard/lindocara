@@ -3,6 +3,7 @@ import {
   bakeCollision,
   canPlaceElement,
   EMPTY_MARKERS,
+  MARKER_LABEL_MAX,
   type MapData,
   mapSpawnPoint,
   parseMapData,
@@ -171,6 +172,40 @@ describe("map markers", () => {
 
   it("parses a well-formed marker collection", () => {
     expect(parseMapMarkers(GOOD, 4, 4)).toEqual(GOOD);
+  });
+
+  it("normalizes optional marker labels without changing stable ids", () => {
+    expect(
+      parseMapMarkers(
+        {
+          entries: [{ id: "front-door", label: "  Front door  ", col: 1, row: 1 }],
+          exits: [{ id: "cave", label: "", col: 2, row: 2 }],
+          monsterSpawns: [],
+        },
+        4,
+        4,
+      ),
+    ).toEqual({
+      entries: [{ id: "front-door", label: "Front door", col: 1, row: 1 }],
+      exits: [{ id: "cave", col: 2, row: 2 }],
+      monsterSpawns: [],
+    });
+  });
+
+  it("rejects non-string or overlong marker labels", () => {
+    for (const label of [42, "x".repeat(MARKER_LABEL_MAX + 1)]) {
+      expect(
+        parseMapMarkers(
+          {
+            entries: [{ id: "front-door", label, col: 1, row: 1 }],
+            exits: [],
+            monsterSpawns: [],
+          },
+          4,
+          4,
+        ),
+      ).toBeNull();
+    }
   });
 
   it("defaults an absent collection to empty", () => {

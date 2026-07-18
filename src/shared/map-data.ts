@@ -33,12 +33,14 @@ export interface LegacyMapElement {
 
 export interface EntryMarker {
   id: string;
+  label?: string;
   col: number;
   row: number;
 }
 
 export interface ExitMarker {
   id: string;
+  label?: string;
   col: number;
   row: number;
 }
@@ -69,6 +71,7 @@ export const MAX_MAP_MONSTER_SPAWNS = 32;
 export const MIN_PATROL_RADIUS = 32;
 export const MAX_PATROL_RADIUS = 768;
 export const MARKER_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
+export const MARKER_LABEL_MAX = 48;
 
 export interface MapData {
   blocks: readonly string[];
@@ -116,20 +119,27 @@ function parseAnchoredMarkers(
   max: number,
   cols: number,
   rows: number,
-): { id: string; col: number; row: number }[] | null {
+): { id: string; label?: string; col: number; row: number }[] | null {
   if (!Array.isArray(value) || value.length > max) return null;
   const seen = new Set<string>();
-  const parsed: { id: string; col: number; row: number }[] = [];
+  const parsed: { id: string; label?: string; col: number; row: number }[] = [];
   for (const raw of value) {
     if (typeof raw !== "object" || raw === null) return null;
-    const { id, col, row } = raw as Record<string, unknown>;
+    const { id, label, col, row } = raw as Record<string, unknown>;
     if (typeof id !== "string" || !MARKER_ID_PATTERN.test(id) || seen.has(id)) return null;
     if (!Number.isSafeInteger(col) || !Number.isSafeInteger(row)) return null;
     const c = col as number;
     const r = row as number;
     if (c < 0 || c >= cols || r < 0 || r >= rows) return null;
+    if (label !== undefined && typeof label !== "string") return null;
+    const normalizedLabel = typeof label === "string" ? label.trim() : "";
+    if (normalizedLabel.length > MARKER_LABEL_MAX) return null;
     seen.add(id);
-    parsed.push({ id, col: c, row: r });
+    parsed.push(
+      normalizedLabel.length > 0
+        ? { id, label: normalizedLabel, col: c, row: r }
+        : { id, col: c, row: r },
+    );
   }
   return parsed;
 }

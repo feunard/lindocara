@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CharacterSummary, MapPayload, MapSummary } from "../../src/client/api.js";
@@ -17,12 +17,39 @@ const stageMock = vi.hoisted(() => ({
   setTool: vi.fn(),
   setName: vi.fn(),
   current: vi.fn(),
+  undo: vi.fn(),
+  redo: vi.fn(),
+  markSaved: vi.fn(),
+  selected: vi.fn(),
+  setSelectedMarkerLabel: vi.fn(),
+  moveSelected: vi.fn(),
+  setSelectedElementAsset: vi.fn(),
+  setSelectedMonster: vi.fn(),
+  deleteSelected: vi.fn(),
   dispose: vi.fn(),
 }));
 
 vi.mock("../../src/client/game/map-editor-stage.js", () => ({
   openMapEditorStage: stageMock.openMapEditorStage,
 }));
+
+function stageHandle() {
+  return {
+    setTool: stageMock.setTool,
+    current: stageMock.current,
+    setName: stageMock.setName,
+    undo: stageMock.undo,
+    redo: stageMock.redo,
+    markSaved: stageMock.markSaved,
+    selected: stageMock.selected,
+    setSelectedMarkerLabel: stageMock.setSelectedMarkerLabel,
+    moveSelected: stageMock.moveSelected,
+    setSelectedElementAsset: stageMock.setSelectedElementAsset,
+    setSelectedMonster: stageMock.setSelectedMonster,
+    deleteSelected: stageMock.deleteSelected,
+    dispose: stageMock.dispose,
+  };
+}
 
 // The preview is a real Pixi renderer walking a throwaway warrior — untestable in jsdom. A fake
 // starter stands in so the tests can assert the button hands it `current()` and Esc stops it.
@@ -132,12 +159,7 @@ describe("MapEditor", () => {
     setLocale("en");
     useUiStore.setState({ screen: "map-editor", characters: null });
     for (const fn of Object.values(stageMock)) fn.mockReset();
-    stageMock.openMapEditorStage.mockResolvedValue({
-      setTool: stageMock.setTool,
-      current: stageMock.current,
-      setName: stageMock.setName,
-      dispose: stageMock.dispose,
-    });
+    stageMock.openMapEditorStage.mockResolvedValue(stageHandle());
     previewMock.startMapPreview.mockReset();
     previewMock.stop.mockReset();
     previewMock.startMapPreview.mockResolvedValue({ stop: previewMock.stop });
@@ -251,6 +273,72 @@ describe("MapEditor", () => {
     );
   });
 
+  it("disables save and preview while Pixi is loading, then applies the pending tool", async () => {
+    let resolveStage: ((value: ReturnType<typeof stageHandle>) => void) | undefined;
+    stageMock.openMapEditorStage.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveStage = resolve;
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock());
+    render(<MapEditor />);
+
+    await screen.findByText("Verdant Reach");
+    await userEvent.click(screen.getAllByRole("button", { name: "Open" })[0] as HTMLElement);
+    expect(await screen.findByText("Loading the Tiny Swords map stage…")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Preview" })).toBeDisabled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Water" }));
+    expect(stageMock.setTool).not.toHaveBeenCalled();
+    await act(async () => resolveStage?.(stageHandle()));
+    await waitFor(() =>
+      expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "block", block: "water" }),
+    );
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+  });
+
+  it("forwards undo and redo once the stage reports available history", async () => {
+    vi.stubGlobal("fetch", fetchMock());
+    render(<MapEditor />);
+    await openFirstMap();
+    const callback = stageMock.openMapEditorStage.mock.calls[0]?.[1];
+    act(() => {
+      callback?.(payloadFor(twoMaps[0] as MapSummary), {
+        canUndo: true,
+        canRedo: true,
+        dirty: true,
+        selection: null,
+      });
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await userEvent.click(screen.getByRole("button", { name: "Redo" }));
+    expect(stageMock.undo).toHaveBeenCalledTimes(1);
+    expect(stageMock.redo).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks before leaving a dirty map and keeps editing when cancelled", async () => {
+    vi.stubGlobal("fetch", fetchMock());
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<MapEditor />);
+    await openFirstMap();
+    const callback = stageMock.openMapEditorStage.mock.calls[0]?.[1];
+    act(() => {
+      callback?.(payloadFor(twoMaps[0] as MapSummary), {
+        canUndo: true,
+        canRedo: false,
+        dirty: true,
+        selection: null,
+      });
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(confirm).toHaveBeenCalledWith("Leave this map and discard the unsaved changes?");
+    expect(screen.getByRole("button", { name: "Water" })).toBeInTheDocument();
+  });
+
   it("searches the catalogue palette and selects visible variants directly", async () => {
     vi.stubGlobal("fetch", fetchMock());
     render(<MapEditor />);
@@ -300,6 +388,7 @@ describe("MapEditor", () => {
         expect.objectContaining({ method: "PUT", body: JSON.stringify(edited) }),
       ),
     );
+    expect(stageMock.markSaved).toHaveBeenCalledTimes(1);
   });
 
   it("previews the stage's current map, then Esc returns to editing with edits intact", async () => {
@@ -310,6 +399,7 @@ describe("MapEditor", () => {
         { col: 2, row: 3, assetId: "resource.terrain-resources-wood-trees.tree4" as const },
       ],
       spawn: { col: 20, row: 15 },
+      markers: MARKERS,
     };
     stageMock.current.mockReturnValue(edited);
     vi.stubGlobal("fetch", fetchMock());
@@ -324,6 +414,7 @@ describe("MapEditor", () => {
         blocks: edited.blocks,
         elements: edited.elements,
         spawn: edited.spawn,
+        markers: edited.markers,
       }),
     );
     expect(screen.queryByRole("button", { name: "Water" })).not.toBeInTheDocument();
