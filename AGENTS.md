@@ -5,6 +5,12 @@ four-player sessions. The current authoritative vertical slice contains players,
 Mira, roaming monsters, combat, loot, progression, quests, local chat and a D1-backed map editor.
 Those systems are foundations for authored multi-map adventures, not a commitment to MMO scale.
 
+The primary UX is title → login → resumable parties/saves. Creating a new party then selects an
+adventure; hero creation/selection happens inside that party. Adventure/map authoring is a secondary
+creator-tools route. Never make `CharacterSelect` the post-login screen again. Player/game UI may
+use strong Tiny Swords chrome; creator editors must stay dense, sober and keyboard-efficient using
+the existing React/Radix primitives, with Tiny Swords limited to previews and restrained accents.
+
 ## Commands
 
 | Command | What it does |
@@ -28,9 +34,9 @@ The one rule that matters: **the server decides outcomes.** Clients send movemen
 intent, never positions, damage, health, heals, inventory, XP, deaths, loot, or quest
 completion.
 
-### Current multizone foundation
+### Current party-adventure foundation
 
-Before changing world routing, room ownership, character location persistence, or splitting
+Before changing world routing, room ownership, hero location persistence, or splitting
 `world.ts`, read [`docs/adventure-runtime-architecture.md`](./docs/adventure-runtime-architecture.md)
 and the historical [`docs/mmo-migration-plan.md`](./docs/mmo-migration-plan.md). The latter records
 verified current flows, D1 changes, duplicate-character risks and rollback strategy; its MMO scale
@@ -48,20 +54,22 @@ src/shared/     platform-free. Imports nothing from Cloudflare or the DOM.
 src/server/     runs in workerd.
   index.ts      Worker entry: /api/* only. Assets never reach it.
   session.ts    HMAC-signed cookie carrying the account identity. accounts.ts owns
-                username/password (PBKDF2), characters.ts owns the roster.
+                username/password (PBKDF2).
   accounts.ts   register/login: username uniqueness, password hashing and verification.
-  characters.ts roster CRUD and ownership checks, scoped to the caller's account.
+  maps.ts/adventures.ts/parties.ts/heroes.ts own the primary authored/save flow.
   password.ts   PBKDF2 password hashing.
-  profile.ts    D1 profile load/create/save boundary, fenced by sessionEpoch.
-  character-presence.ts deterministic per-character lease and connection authority.
+  hero-profile.ts D1 hero core-profile load/save boundary, fenced by sessionEpoch.
+  hero-presence.ts deterministic per-hero lease and connection authority.
+  game-session.ts party coordinator: room routing and cross-map broadcasts.
   world.ts      Durable Object adapter and room owner: admission, WebSocket lifecycle and tick order.
+  profile.ts/character-presence.ts/characters.ts remain rollback-only character seams.
   world/        explicit-dependency systems used by World; no module-level mutable room state.
   db/           D1 schema + Drizzle.
 
 src/client/     runs in a browser.
   main.tsx      React entry; mounts <App/> beside the canvas.
-  ui/           React components: screens, HUD, chat, overlays. PixelAct UI copies
-                (restyled) under ui/pixelact-ui/.
+  ui/           React components: screens, HUD, chat, overlays and creator tools. Player UI keeps
+                the Tiny Swords skin; editors use compact React/Radix tool surfaces.
   store.ts      zustand bridge: the game session writes, React reads. Text state is
                 i18n keys + params, never rendered strings.
   api.ts        fetch client; machine-code errors mapped to dictionary keys.
@@ -229,29 +237,27 @@ npm run db:migrate      # apply locally
 npm run cf-typegen      # only if you changed bindings, not the schema
 ```
 
-Objects, equipment, skills and multi-quest progression use the normalized tables documented in
-[`docs/persistence-model.md`](./docs/persistence-model.md). `character` still owns core stats,
-location, fencing epoch and currencies. Do not read or write the legacy potion/equipment/quest
-columns from new code: they remain only as rollback-compatible schema. All owned-item mutations
-must enforce character ownership, positive quantity, slot/class compatibility and the current
-`sessionEpoch`; quest rewards must use the one-time claim path.
+Objects, equipment, skills and multi-quest progression use the normalized character tables
+documented in [`docs/persistence-model.md`](./docs/persistence-model.md), but they are not yet the
+party-hero persistence boundary. For the primary flow, `hero` owns map, position, core stats, life,
+corpse position and fencing epoch; starter inventory/equipment/skills/quests are session-only.
+Do not silently point character-owned normalized rows at heroes. A later explicit migration must
+add hero ownership and fencing before those systems become durable for party heroes.
 
 Deploying applies migrations to production **before** shipping the code, so a column always
 exists before the code that reads it.
 
-One `account` row per registered user (`username` unique, stored lowercase). Up to three
-`character` rows per account, each the persistent roster entry a player picks at character
-select. The character row — position, level, XP, HP, appearance, inventory, and quest state —
-is what the world loads before the WebSocket is accepted and saves back; `name` is deliberately
-not unique, since the account, not the name, is the identity. Dirty profiles are saved every
-five seconds and on disconnect.
+One `account` row exists per registered user (`username` unique, stored lowercase). The primary
+post-login screen lists persistent parties as resumable saves. Each `hero` belongs to one account
+and one party and is selected inside that party; the old three-character account roster remains
+for rollback only and must not be reintroduced into `App` as the normal launch route. Dirty hero
+profiles are saved every five seconds, on disconnect and at map transitions.
 
-### Character presence and save fencing
+### Hero presence and save fencing
 
-`CharacterPresence` is a SQLite-backed Durable Object addressed with
-`CHARACTER_PRESENCE.getByName(characterId)`. D1 is the single monotone source of
-`character.session_epoch`; the presence DO stores only the active lease (`connectionId`, epoch,
-room, zone, instance, timestamps).
+`HeroPresence` is a SQLite-backed Durable Object addressed with
+`HERO_PRESENCE.getByName(heroId)`. D1 is the single monotone source of `hero.session_epoch`; the
+presence DO stores only the active lease (`connectionId`, epoch, room, zone, instance, timestamps).
 
 - Acquisition freezes and saves the previous owner while its epoch is still valid, increments the
   D1 epoch atomically, then installs the new lease.
@@ -259,46 +265,45 @@ room, zone, instance, timestamps).
   do not call the presence DO per command or tick.
 - Normal disconnect saves with `WHERE id = ? AND session_epoch = ?`, releases the matching lease,
   then removes the runtime player.
-- A stale save changes no row, logs `stale_character_save_rejected`, invalidates local authority,
+- A stale save changes no row, logs a stale-save diagnostic, invalidates local authority,
   and closes the socket with `WS_CLOSE.PRESENCE_LOST`.
-- `ward_run_expires_at` is an absolute D1/attachment deadline. Never reconstruct it from a new
-  connection time or a tick counter.
+- Inventory, equipment, resource, skill and quest state are reinitialized for each hero session in
+  this slice; do not describe those fields as durable hero data yet.
 
-Interzone handoff uses the same epoch fence: freeze source actions, save the source, then let
-`CharacterPresence.handoff()` conditionally write destination location and epoch N+1 in one D1
-statement. Only then remove/close the source socket with `WS_CLOSE.ZONE_TRANSITION`. The client
-reconnects; `index.ts` reads the destination from D1 and grants a fresh lease. Never add a portal
-without a server-owned catalogue destination and integration tests for the stale source save.
+Adventure-map handoff uses the same epoch fence: freeze source actions, save the source, then let
+`HeroPresence.handoff()` conditionally write destination map/position and epoch N+1. Only then
+remove/close the source socket with `WS_CLOSE.ZONE_TRANSITION`. The client reconnects with only its
+party/hero identity; `index.ts` reads the destination from D1. `CharacterPresence` retains the old
+compiled-zone equivalent as a rollback seam.
 
-### Zone routing and room isolation
+### Party routing and room isolation
 
-`src/shared/zones.ts` is the only place that declares a zone. It validates the persisted
-`zoneId`/`instanceId`, resolves the immutable terrain/content definition, and builds
-`zoneId:instanceId`. `index.ts` reads that location from D1 after ownership verification; query
-parameters and WebSocket messages never select a room.
+The primary WebSocket route is `/api/ws?party=<partyId>&hero=<heroId>`. `index.ts` verifies account,
+membership, hero ownership and adventure-map membership, then reads the authoritative map and
+position from D1. No query parameter or client message may select a destination map or position.
 
-`World` validates the internal room headers against the catalogue before admission, then owns only
-that zone's players, monsters, loot, quests, timers and chat. Respect `maxPlayers`: a full room
-closes with `WS_CLOSE.ROOM_FULL`. `verdant-reach:main` preserves the current map; the compact
-`mmo-test-zone` has a collision obstacle and paired return portal for handoff coverage. Rooms
-remain isolated; portal interaction is only an intent, never a client-selected destination.
+`GameSession` is addressed by `partyId` and coordinates its room directory and party-wide
+broadcasts. Simulation is currently sharded into `World` objects addressed by `partyId:mapId`;
+each owns only that room's players, monsters, loot, timers, navigation and local chat. Persistent
+party chat and victory fan out through `GameSession`. This sharded implementation preserves the
+session isolation invariant, although converging the rooms into one multi-room Durable Object
+remains a possible later topology change. Compiled catalogue zones remain rollback/test content.
 
 ### Maps and the editor
 
-Maps live in D1 (`src/server/maps.ts`): CRUD, an `is_first` flag with atomic handoff, a refusal to
-delete the last map, and `BUILTIN_MAP` as the floor under an empty database. Create, update and
-delete are each one guarded `db.batch`, so two concurrent writers cannot double-flag the front door,
-zero the world, or admit a room to a half-updated map. Routing is hybrid —
-catalogue zone ids keep their compiled-in content; any other id is a D1 map id resolved once, in
-`index.ts`'s `handleJoin` (own map, else the first map, else the built-in floor), with a fallback
-persisted as an epoch-fenced `relocateProfile` before `World.#locateRoom` ever loads the exact
-admitted id. The welcome message bakes tiles and elements onto the wire so the client can predict
-and render an unknown zone id without importing the catalogue. The launch screen's map editor is a
-WYSIWYG PixiJS stage that shares placement and collision rules with the server through
-`shared/map-data.ts`'s `canPlaceElement`/`bakeCollision` (`client/game/editor-state.ts`); its
-`/api/maps` routes cap bodies at `MAX_MAP_JSON_BYTES` (32 KiB) and reject more than `MAX_MAP_ELEMENTS`
-(400) elements with a legible `map_elements` before that cap would mutely 413, and its live preview is
-a client-only sandbox running the same shared `step()`. See
+Maps live in D1 (`src/server/maps.ts`) and are private to their author account. Every successful
+content/name update increments a monotone `revision`; failed updates do not. Adventures may only
+reference their author's maps, their full graph is revalidated before a referenced map mutation,
+and delete/edit operations cannot silently invalidate a saved adventure. Legacy ownerless rows are
+quarantined unless the migration can identify exactly one author.
+
+The welcome message includes `mapId + revision`, baked terrain and authored elements so prediction,
+renderer and mini-map share the same cache identity. The map editor is a WYSIWYG PixiJS stage that
+shares placement/collision/catalog rendering rules with the runtime through `shared/map-data.ts` and
+`client/game/catalog-element-render.ts`. It has explicit loading/error state, grouped history,
+dirty navigation guards, selection/inspectors, stable marker ids with optional labels and complete
+marker preview. Editor controls are compact React/Radix tool surfaces; Tiny Swords belongs in asset
+previews rather than oversized editor chrome. See
 [`docs/superpowers/specs/2026-07-16-map-editor-design.md`](./docs/superpowers/specs/2026-07-16-map-editor-design.md)
 and [`docs/superpowers/plans/2026-07-16-map-editor.md`](./docs/superpowers/plans/2026-07-16-map-editor.md)
 for the full spec and plan.
@@ -342,19 +347,21 @@ only intersecting cells; corpse and guard scans are intentionally retained becau
 small and bounded. The `local` and `party` chat channels are implemented; protocol types still
 reserve future `guild`, `global`, and `whisper` names.
 
-### Cooperative combat and temporary parties
+### Cooperative combat and persistent parties
 
 `shared/cooperation.ts` owns the pure bounded-threat, contribution eligibility, taunt and XP-split
 rules. `shared/resources.ts` is the single class-resource table. Room-owned mutable maps remain in
 `World`; `world/monster-system.ts` selects and prunes threat, `world/contribution-system.ts` fences
-reward attribution, `world/interest-system.ts` filters personal loot, and `world/party-system.ts`
-validates temporary group lifecycle and party chat.
+reward attribution and `world/interest-system.ts` filters personal loot. `world/party-system.ts`
+still contains the old room-local group mechanic for rollback character sessions; hero sessions
+must not expose its create/invite/dissolve UI. Their `party` chat means the persistent D1 party and
+is routed by `GameSession` across map rooms.
 
 Useful healing means actual missing HP restored; overhealing never creates threat or contribution.
 Personal loot is protected twice: it is omitted from every other player's AOI/delta and collection
-also checks `ownerId`. Parties are room-local and non-persistent, so disconnects and zone handoffs
-remove membership and combat state. See [`docs/cooperative-combat.md`](./docs/cooperative-combat.md)
-for formulas, reward rules, network messages, lifecycle, and resource costs.
+also checks `ownerId`. Persistent party membership and colour survive disconnects and handoffs;
+temporary combat contribution state remains room-local. See
+[`docs/cooperative-combat.md`](./docs/cooperative-combat.md) for formulas and resource costs.
 
 ### Monster navigation
 
@@ -426,10 +433,10 @@ sits still may be clamped, not broken.
 **`import.meta.env.DEV` exposes `window.__lindocara`** (`self()`, `all()`) for measuring input
 latency and interpolation from outside the app. It is stripped from production builds.
 
-**A running adventure room is intentionally one Durable Object today.** The next product boundary
-is a `GameSession` that pins an adventure version and admits at most four players, while preserving
-deterministic routing in `server/index.ts`. Keep room-local simulation in `World` so multi-map
-sessions and later loaded-map strategies remain routing changes rather than gameplay rewrites.
+**A running party is isolated by `partyId`.** `GameSession` owns party-wide coordination while each
+active `partyId:mapId` `World` owns room-local simulation. Empty rooms stop ticking and reset
+temporary monsters/loot. Do not route authored maps by `mapId` alone or bypass the coordinator for
+party-wide chat/victory. A future one-object multi-room consolidation must preserve these boundaries.
 
 **Server events are codes, not sentences.** `{ t: "event", code, params }` — the client owns
 all wording via `src/shared/i18n/`. Never add an English string to a `#send` in `world.ts`; add

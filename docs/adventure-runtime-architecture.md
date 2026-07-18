@@ -1,23 +1,25 @@
 # Adventure runtime architecture
 
-This document fixes the domain boundaries the current map editor must grow toward. It is an
-architecture contract, not an instruction to implement the complete runtime in the catalogue and
-static-scenery milestone.
+This document fixes the domain boundaries the playable adventure runtime grows toward. It contains
+both the current vertical-slice topology and future contracts; future immutable publishing, events,
+dialogue and quests must extend these boundaries rather than create a second runtime.
 
 ## Principles
 
 - The server remains authoritative for movement, actions, state transitions and persistence.
-- An adventure definition is versioned authored content; a game session is mutable runtime state.
-- A saved game references the exact adventure version it was created from.
+- An adventure definition is authored content; future published versions are immutable while a
+  game session is mutable runtime state.
+- V1 parties reference the mutable adventure id. Pinning an exact immutable publication is the next
+  persistence boundary, not a property the current slice claims to have.
 - Stable identifiers cross persistence and network boundaries. Source paths and array indexes do
   not.
 - Shared and per-player state are explicit. Events and quests never infer their scope from where a
   value happened to be stored.
-- The existing `sessionEpoch` fence continues to protect character writes and inter-room handoffs.
+- The existing `sessionEpoch` pattern protects party-hero writes and inter-room handoffs.
 - One live session admits at most four players. MMO population and public-world sharding are not
   product requirements.
 
-## Adventure
+## Adventure target contract
 
 An `Adventure` is the author-owned container for a complete work.
 
@@ -36,8 +38,8 @@ interface Adventure {
 }
 ```
 
-Published versions are immutable snapshots. Editing a published adventure creates a draft for the
-next version so active sessions and saves cannot silently change underneath their players.
+Published versions will be immutable snapshots. Editing a published adventure will create a draft
+for the next version so active sessions and saves cannot silently change underneath their players.
 
 ## AdventureMap
 
@@ -100,29 +102,34 @@ A `GameSession` is the live authoritative playthrough.
 interface GameSession {
   id: string;
   adventureId: string;
-  adventureVersion: number;
+  adventureVersion: number; // future immutable publication boundary
   hostAccountId: string;
   maxPlayers: 1 | 2 | 3 | 4;
   visibility: "private" | "invite" | "friends";
   inviteCodeHash?: string;
-  presentCharacterIds: string[];
+  presentHeroIds: string[];
   loadedMapIds: string[];
   sharedState: SessionState;
 }
 ```
 
-The first implementation should keep one authoritative Durable Object per session and load only the
-active map(s) required by its players. Whether players may occupy different maps simultaneously is a
-later policy decision; the data model must not encode "one current map forever". Join-in-progress
-admission verifies the account, invite policy, four-player cap, adventure version and character
-lease before exposing state.
+The current implementation addresses one `GameSession` coordinator by `partyId`. It holds the
+party-wide room directory and fan-out boundary; active simulation rooms are sharded into `World`
+Durable Objects addressed by `partyId:mapId`. Players may occupy different maps simultaneously.
+This is intentionally documented rather than described as a single internal multi-room object: a
+later consolidation may move those room collections into the coordinator, but must preserve party
+isolation, room-local simulation, cross-room party chat/victory and empty-room unloading.
+
+Join-in-progress admission verifies the account, D1 party membership, four-player cap, hero
+ownership, adventure, saved map membership and hero lease before exposing state. The client supplies
+only `(partyId, heroId)`, never the current/destination map or an authoritative position.
 
 ## AdventureSave
 
 An `AdventureSave` is a crash-safe snapshot/checkpoint of a session. It records:
 
 - session id, adventure id and exact adventure version;
-- participating accounts/characters and their persistent progression references;
+- participating accounts/heroes and their persistent progression references;
 - present map and position for each player;
 - shared and individual typed variables;
 - triggered one-shot events and repeat counters;
@@ -135,6 +142,41 @@ Resume creates a new live lease over this state. D1 commits the durable checkpoi
 storage may cache active state but is not the only copy. Saves use a monotone revision and idempotency
 key so an interrupted write leaves either the old complete checkpoint or the new complete checkpoint,
 never a mixture.
+
+## Implemented playable slice (July 2026)
+
+The D1 `party` row is the V1 saved game. Membership, unique member colour, party status and heroes
+are durable. A hero persists its map, position, level, XP, HP, life state, corpse position and
+monotone epoch. `HeroPresence` owns its connection lease and fenced transition saves. Inventory,
+equipment, skills, class resources and quests are currently initialized per hero session; ground
+loot and monsters may reset when an empty room unloads. These are explicit V1 limits, not implied
+durability.
+
+Authored map `monsterSpawns` are converted server-side into deterministic room monster definitions.
+Species, stats, cell-centre spawn, patrol radius, combat, navigation, death, loot and respawn all
+reuse the existing authoritative systems. A map without markers creates no authored monsters.
+
+After movement, the server detects a living hero occupying an exit cell and resolves exactly one
+edge from the loaded adventure graph. A normal edge loads the destination map, finds its stable
+entry id, saves the centered destination under the epoch fence and reconnects the socket with a full
+world baseline. Exit occupancy and transition-in-progress guards prevent tick loops. An `END` edge
+idempotently marks the party completed and broadcasts victory through `GameSession`; the socket can
+remain connected so play may continue.
+
+The client cache identity for authored worlds is `(mapId, revision)`. Renderer and mini-map rebuild
+on revision changes, destroy prior map sprites/animation callbacks on transitions, and reuse shared
+asset textures. Normal play loads only assets referenced by the current map. The editor additionally
+loads referenced/selected assets and visible palette thumbnails rather than preloading the complete
+catalogue.
+
+The product flow is title, login, resumable parties, hero selection inside a party, then play.
+Creating a new party selects an adventure. Creator tools are a secondary route. Player-facing UI
+uses Tiny Swords strongly; adventure and map editors are dense React/Radix tools with compact lists,
+forms and inspectors, using Tiny Swords primarily for content previews.
+
+The account-character roster, `profile.ts`, `CharacterPresence`, compiled-zone admission and the
+`?character=` WebSocket seam remain in source and schema for rollback and historical tests. `App`
+does not route users through them, and no primary Play button calls `startGame(character)`.
 
 ## Compatibility with today's map model
 

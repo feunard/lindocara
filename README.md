@@ -5,11 +5,12 @@ and designed for one to four players. Builders will assemble complete adventures
 maps, authored scenery and, in later milestones, events, dialogue, quests, conditions and
 cinematics. Players will be able to start alone, join a running game, save it and resume it later.
 
-The current playable vertical slice is **Verdant Reach**. It already proves useful foundations:
-server-authoritative movement and combat, client prediction, persistent characters, maps stored in
-D1, an in-game WYSIWYG map editor, quests, loot and local cooperative synchronization. Those
-systems are being evolved into the adventure creator; they are not being discarded with the former
-MMO product direction. The whole UI is localized in French and English, with a live toggle.
+The primary flow is now a persistent authored adventure: title, login, saved parties, party heroes,
+then the authoritative game runtime. A creator can connect account-owned maps into an adventure,
+place monsters and entry/exit markers, create a party for one to four players, and resume each
+hero's last map, position and core stats later. The compiled **Verdant Reach** content and the old
+account-character roster remain compatibility foundations, not the product entry point. The whole
+UI is localized in French and English, with a live toggle.
 
 **Live:** [lindocara.alepha.dev](https://lindocara.alepha.dev)
 
@@ -18,19 +19,21 @@ MMO product direction. The whole UI is localized in French and English, with a l
 TypeScript · Vite · PixiJS · React 19 · Tailwind v4 · Radix/PixelAct UI · Zustand ·
 Cloudflare Workers + Durable Objects · D1 + Drizzle ORM · Biome · Vitest
 
-The HUD, screens, overlays and editor use accessible React/Radix structure. Tiny Swords is the
-visual source of truth for their pixel-art skin as well as the game world. The PixiJS canvas
-underneath stays outside React; components communicate with game code only through narrow handles
-and the Zustand store.
+The HUD, player screens and overlays use accessible React/Radix structure with a strong Tiny Swords
+identity. Map and adventure editors deliberately use denser, sober tool surfaces: compact forms,
+lists, panels and inspectors take priority over pixel-art chrome, while Tiny Swords remains visible
+in asset previews and map thumbnails. The PixiJS canvas stays outside React; components communicate
+with game code only through narrow handles and the Zustand store.
 
-## Assets and license
+## Asset provenance
 
 The three **Tiny Swords** packs by Pixel Frog are LindoCara's visual source of truth for terrain,
 buildings, characters, enemies, resources, effects, cursors and all interface chrome. Their source
 files live under `assets/Tiny Swords (Free Pack)`, `assets/Tiny Swords (Update 010)` and
 `assets/Tiny Swords (Enemy Pack)`. `assets/index.json` is the generated technical inventory;
-`assets/lindocara-asset-catalog.json` is the semantic catalogue used by the product. See
-`assets/LICENSE.md` for the recorded licence status.
+`assets/lindocara-asset-catalog.json` is the semantic catalogue used by the product. The repository
+does not restate licence terms for these packs: consult the original purchase/download terms before
+redistributing them or distributing a build. See `assets/README.md` for the neutral provenance note.
 
 No external runtime asset URLs are used. Legacy atlas entries remain only where the Tiny Swords UI
 migration report explicitly documents a temporary exception.
@@ -129,19 +132,20 @@ quest, interaction, presence and transition messages stay in the event log. Orde
 longer pulse the expected answer: their distinct glyphs and the quest clue communicate the rule,
 while success/error feedback appears only after interaction.
 
-Each character is one of three classes, picked at creation: the warrior hits hard at short
-range, the ranger hits softer from far away, and the priest hits softest of all but can mend
-the most injured ally in range.
+Each party hero is one of three classes, picked inside its saved party: the warrior hits hard at
+short range, the ranger hits softer from far away, and the priest hits softest of all but can mend
+the most injured ally in range. A member's persistent colour slot selects the matching Tiny Swords
+unit variant.
 
 ## Database
 
-A D1 database (`lindocara`) stores accounts and characters through Drizzle. One `account` row
-per registered user (`username` unique, stored lowercase, password PBKDF2-hashed), and up to
-three `character` rows per account — zone/instance, position, appearance, HP, level, XP,
-inventory, quest progress, the absolute ward-run deadline, creation time, and last-seen time —
-one of which you pick at character select. The
-active room remains in the Durable Object for low-latency simulation and writes dirty
-characters periodically and on disconnect.
+A D1 database (`lindocara`) stores accounts, account-owned revisioned maps, adventures, persistent
+parties/members and heroes through Drizzle. The party is the saved playthrough; a hero belongs to
+both that party and its account. Hero map, position, level, XP, HP, life/corpse state and fencing
+epoch are saved periodically, on disconnect and at transitions. Inventory, equipment, skills and
+quests are initialized for each hero session in this first slice and are not yet complete save data.
+The legacy `character` tables remain for rollback compatibility but are not reachable from the
+normal post-login UI.
 
 ```bash
 npm run db:generate   # schema change -> migrations/NNNN_name.sql
@@ -174,31 +178,30 @@ on the same Cloudflare account as the Worker.
 
 Registering or logging in verifies a username/password against the `account` table, then the
 Worker signs `{ id, username, iat }` with an HMAC and hands it back as an `HttpOnly` cookie.
-The Durable Object never sees a password — it trusts the identity only because the Worker
-verified that signature first, and only ever learns which character to load after the Worker
-has separately checked that the session's account owns it.
+The Durable Object never sees a password. For the primary WebSocket route
+`/api/ws?party=<partyId>&hero=<heroId>`, the Worker verifies the account, party membership, hero
+ownership, adventure, saved map and position before admission. The browser never supplies a map or
+authoritative position.
 
-Before admission, a deterministic `CharacterPresence` Durable Object acquires a 30-second lease
-for that character and assigns a new D1-backed `sessionEpoch`. The room renews it every 10 seconds.
-A newer connection replaces the previous one, and every profile save is conditional on the epoch,
-so a late room can never overwrite the current position, progression, inventory, or quest state.
+A deterministic `HeroPresence` Durable Object acquires the hero lease and advances its D1-backed
+epoch. A newer connection replaces the previous one, and every core profile save is conditional on
+that epoch, so a stale room cannot overwrite the current hero. `CharacterPresence` and the old
+`?character=` path remain isolated rollback/test seams only.
 
 ## Maps, rooms and sessions
 
-The server reads each character's map location from D1 and routes its WebSocket to a deterministic
-Durable Object room. The browser cannot choose the room or authoritative position. Compiled zones
-still host the current vertical slice and test fixtures; D1 maps host creator-authored terrain and
-scenery. This hybrid is a migration boundary, not the future product model.
+`GameSession` is addressed by `partyId`. It coordinates the party-wide room directory and broadcasts
+while authoritative simulation is sharded into `World` rooms addressed by `partyId:mapId`. This
+keeps two parties on the same authored map completely isolated and lets players in one party occupy
+different maps. A room owns its players, authored monsters, loot, local chat, timer and navigation;
+when empty it stops ticking and may reset monsters and ground loot.
 
-Rooms isolate players, chat, monsters, loot, timers, commands, and snapshots. Each zone declares
-its own maximum room capacity. Adding a zone means adding an immutable entry in
-`src/shared/zones.ts`; adding an instance means persisting a valid instance id for a character.
-
-Portals are server-owned catalogue entries. An interaction is accepted only in range of the portal;
-the browser never supplies a destination. The source room freezes actions, saves under its current
-epoch, then `CharacterPresence` atomically writes `zoneId`, `instanceId`, `x`, `y` and the next
-epoch in D1. It closes with `ZONE_TRANSITION`; the browser reconnects with bounded backoff, and
-the Worker resolves the destination from D1. A late source save is rejected by its old epoch.
+The server resolves exits only from the saved adventure graph. It loads the destination map and
+entry, persists the centered destination position under the hero epoch, hands off presence, closes
+with `ZONE_TRANSITION`, and lets the browser reconnect from D1. Reaching an `END` edge marks the
+party completed idempotently and broadcasts victory to every connected party room; clients cannot
+request either a destination or completion. Compiled zones and character routing remain a migration
+boundary for rollback and historical tests.
 
 Swapping in real OAuth means changing how a session is minted. The cookie, the Worker, and
 the Durable Object all keep working.
@@ -210,7 +213,8 @@ with 256 px cells. `welcome` contains the complete initial area; subsequent `wor
 contain only changed or removed entities for that recipient. The local player is always
 included. Enter radii are 900 px for players, 850 px for monsters, 650 px for loot and 900 px for
 guards/corpses; a 96 px exit margin prevents border flicker. Local chat reaches 700 px and spatial
-events reach 850 px. Other chat channel names are reserved by the protocol but not implemented.
+events reach 850 px. Persistent party chat crosses map rooms through `GameSession`; local chat never
+does. Guild/global/whisper names remain protocol reservations.
 
 Queries visit only the cells intersecting a radius, so their approximate cost is the nearby
 entities plus a small fixed cell count, rather than every entity in the room for every player.
