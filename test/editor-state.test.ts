@@ -225,6 +225,30 @@ describe("applyTool: eraser", () => {
     const map = applyTool(blankMap("m", 20, 15), { kind: "eraser" }, 3, 4) as EditorMap;
     expect(applyTool(map, { kind: "eraser" }, 3, 4)).toBe(map);
   });
+
+  it("does not carve ground mid-drag, but a click on the same cell still does", () => {
+    const map = blankMap("m", 20, 15);
+    const eraserTool: EditorTool = { kind: "eraser" };
+    // A drag cell (isStrokeStart = false) with nothing on it: refused, ground untouched.
+    expect(applyTool(map, eraserTool, 3, 4, false)).toBeNull();
+    expect(groundSlot(map, 3, 4)).toBe(GRASS_SLOTS[0]);
+    // A click on the same bare cell (default isStrokeStart = true) still falls through to terrain.
+    const clicked = applyTool(map, eraserTool, 3, 4) as EditorMap;
+    expect(clicked).not.toBe(map);
+    expect(groundSlot(clicked, 3, 4)).toBe(-1);
+  });
+
+  it("still removes an element mid-drag, without touching the ground beneath it", () => {
+    let map = blankMap("m", 20, 15);
+    const bushTool: EditorTool = { kind: "element", assetId: BUSH };
+    map = applyTool(map, bushTool, 3, 4) as EditorMap;
+    const eraserTool: EditorTool = { kind: "eraser" };
+    const next = applyTool(map, eraserTool, 3, 4, false) as EditorMap;
+    expect(next).not.toBeNull();
+    expect(next).not.toBe(map);
+    expect(next.elements).toEqual([]);
+    expect(groundSlot(next, 3, 4)).toBe(GRASS_SLOTS[0]);
+  });
 });
 
 describe("applyTool: elevation", () => {

@@ -495,6 +495,7 @@ export function applyTool(
   tool: EditorTool,
   col: number,
   row: number,
+  isStrokeStart = true,
 ): EditorMap | null {
   const { cols, rows } = editorMapSize(map);
   if (col < 0 || row < 0 || col >= cols || row >= rows) return null;
@@ -531,7 +532,13 @@ export function applyTool(
     /**
      * Erase whatever is on the cell, topmost first: an element or marker if there is one, otherwise
      * the terrain. That last step is the same operation as the water tool — on the ground layer an
-     * empty cell *is* water — so the eraser never stops short on a bare cell and does nothing.
+     * empty cell *is* water — so a single click on a bare cell never does nothing.
+     *
+     * The terrain fall-through only fires on `isStrokeStart`: a drag must keep clearing elements and
+     * markers it passes over, but must not also carve the ground underneath them. Without this, an
+     * eraser stroke dragged across a clearing full of trees would leave behind a continuous water
+     * trail nobody asked for — the same result as the water tool, but as a surprising side effect of
+     * clearing decor. A deliberate single click on bare ground still erases it, same as before.
      */
     case "eraser": {
       const elements = withoutElementAt(map.elements, col, row);
@@ -547,6 +554,7 @@ export function applyTool(
       if (!untouched) {
         return { ...map, elements, markers: { entries, exits, monsterSpawns } };
       }
+      if (!isStrokeStart) return null;
       const layers = erasedTerrain(map, col, row);
       if (!layers) return null;
       return commitTerrain(map, layers, terrainStrokeCells(col, row));

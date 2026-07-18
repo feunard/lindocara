@@ -84,6 +84,17 @@ describe("tileDrawAt", () => {
     };
     expect(tileDrawAt(TINY_SWORDS_TILESET, grid, 2, 0)).toBeNull();
     expect(tileDrawAt(TINY_SWORDS_TILESET, grid, 0, -1)).toBeNull();
+    // (col=-1, row=1) is the seam `renderer.ts` computes from a negative camera-relative `startX`:
+    // a bare `row * cols + col` folds it to index 1, which is *inside* the array and, on this grid,
+    // non-empty — so without the `col < 0` guard this would silently return the previous row's tile
+    // instead of nothing. `grid`'s own index 1 is EMPTY_TILE, which would pass either way, so this
+    // needs its own fixture where the wrapped index actually resolves to a tile.
+    const wrapGrid: TileLayer = {
+      cols: 2,
+      rows: 2,
+      ids: [EMPTY_TILE, autotileId(GRASS_SLOTS[0], 0), EMPTY_TILE, EMPTY_TILE],
+    };
+    expect(tileDrawAt(TINY_SWORDS_TILESET, wrapGrid, -1, 1)).toBeNull();
     expect(tileDrawAt(TINY_SWORDS_TILESET, layerOf(autotileId(60, 0)), 0, 0)).toBeNull();
   });
 });
