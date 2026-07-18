@@ -168,6 +168,11 @@ function syncWall(
   row: number,
 ): TileLayer {
   if (col < 0 || row < 0 || col >= walls.cols || row >= walls.rows) return walls;
+  // A fixed tile (a ramp) is a hand placement, not ambient wall upkeep's to touch — neither
+  // painting a wall over it nor erasing it counts as agreement with what the elevation demands.
+  // An author who wants the wall back erases the ramp first.
+  if (decodeTileId(walls.ids[indexOf(walls, col, row)] ?? EMPTY_TILE).kind === "fixed")
+    return walls;
   const above = elevationAt(ground, col, row - 1);
   const here = elevationAt(ground, col, row);
   const wanted = above > 0 && above > here;
