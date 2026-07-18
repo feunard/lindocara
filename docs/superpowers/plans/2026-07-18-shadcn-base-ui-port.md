@@ -402,10 +402,14 @@ Expected: all PASS, with no edits needed in `map-editor.test.tsx`, `party-screen
 
 - [ ] **Step 9: Commit**
 
+Stage explicit paths only. Another agent is committing to `src/server/` and `src/client/game/` on this branch concurrently; `git add -A` would sweep their in-progress work into this commit.
+
 ```bash
-git add -A src/client test/ui
+git add src/client/ui src/client/styles test/ui
 git commit -m "refactor absorb pixelact primitives into tiny swords superset"
 ```
+
+Run `git status --short` before committing and confirm nothing outside `src/client/ui/`, `src/client/styles/` or `test/ui/` is staged.
 
 ---
 
@@ -571,10 +575,14 @@ This step is not optional. The UI suite runs with `css: false` and therefore can
 
 - [ ] **Step 11: Commit**
 
+Stage explicit paths only, for the same reason as Task 3.
+
 ```bash
-git add -A
+git add components.json package.json package-lock.json index.html src/client/styles src/client/ui/components test/ui
 git commit -m "feat install stock shadcn base ui foundation"
 ```
+
+Run `git status --short` before committing and confirm nothing under `src/server/`, `src/shared/` or `src/client/game/` is staged.
 
 ---
 
