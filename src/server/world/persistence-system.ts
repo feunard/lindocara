@@ -1,11 +1,13 @@
 import type { Db } from "../db/index.js";
-import { loadProfile, saveProfile } from "../profile.js";
+import type { PlayerProfile, SaveableProfile } from "../profile.js";
 import { type PlayerRuntime, toProfile } from "./world-runtime.js";
 
 export interface PersistenceSystemContext {
   db: Db;
   pendingSaves: Map<string, Promise<boolean>>;
   rejectStaleSave(socket: WebSocket, player: PlayerRuntime): void;
+  loadProfile(id: string): Promise<PlayerProfile | null>;
+  saveProfile(profile: SaveableProfile): Promise<boolean>;
 }
 
 export function persistPlayer(
@@ -26,13 +28,13 @@ export function persistPlayer(
   const save = start.then(async () => {
     const current = toProfile(player);
     if (force) {
-      const latest = await loadProfile(context.db, current.id);
+      const latest = await context.loadProfile(current.id);
       if (latest) {
         current.zoneId = latest.zoneId;
         current.instanceId = latest.instanceId;
       }
     }
-    const accepted = await saveProfile(context.db, current);
+    const accepted = await context.saveProfile(current);
     if (!accepted) context.rejectStaleSave(socket, player);
     return accepted;
   });

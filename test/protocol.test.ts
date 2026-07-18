@@ -145,7 +145,7 @@ describe("server protocol", () => {
   };
   /** A world the client can actually collide against: terrain now travels, so a welcome without it
    *  is not a welcome. */
-  const world = { zoneId: "verdant-reach", tiles: ["..", "##"], elements: [] };
+  const world = { zoneId: "verdant-reach", revision: 0, tiles: ["..", "##"], elements: [] };
 
   it("accepts any well-formed zone id, since terrain now travels in the welcome itself", () => {
     expect(parseServerMessage(JSON.stringify({ ...welcomeBase, world }))).toMatchObject({
@@ -184,6 +184,8 @@ describe("server protocol", () => {
       { ...world, tiles: ["xx", "xx"] }, // not a tile character
       { ...world, tiles: "…" },
       { ...world, elements: undefined },
+      { ...world, revision: -1 },
+      { ...world, revision: 1.5 },
       { ...world, elements: "nope" },
       { ...world, elements: [{ col: 0, row: 0, kind: "dragon", variant: 0 }] },
       { ...world, elements: [{ col: 0.5, row: 0, kind: "tree", variant: 0 }] },

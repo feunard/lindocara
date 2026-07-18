@@ -19,7 +19,9 @@
   "durable_objects": {
     "bindings": [
       { "name": "WORLD", "class_name": "World" },
-      { "name": "CHARACTER_PRESENCE", "class_name": "CharacterPresence" }
+      { "name": "CHARACTER_PRESENCE", "class_name": "CharacterPresence" },
+      { "name": "HERO_PRESENCE", "class_name": "HeroPresence" },
+      { "name": "GAME_SESSION", "class_name": "GameSession" }
     ]
   },
 
@@ -37,7 +39,9 @@
   // the Workers free plan.
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["World"] },
-    { "tag": "v2", "new_sqlite_classes": ["CharacterPresence"] }
+    { "tag": "v2", "new_sqlite_classes": ["CharacterPresence"] },
+    { "tag": "v3", "new_sqlite_classes": ["HeroPresence"] },
+    { "tag": "v4", "new_sqlite_classes": ["GameSession"] }
   ],
 
   "observability": {

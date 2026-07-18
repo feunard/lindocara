@@ -9,8 +9,10 @@
  * any, not because monsters were deleted; when the palette grows, this is where they arrive.
  */
 
-import { terrainFromMap } from "../../shared/map-data.js";
+import { MONSTER_SPECIES_KIND, type MonsterSpawn } from "../../shared/game.js";
+import { EMPTY_MARKERS, terrainFromMap } from "../../shared/map-data.js";
 import { DEFAULT_ZONE_NAVIGATION } from "../../shared/navigation.js";
+import { TILE_SIZE } from "../../shared/tilemap.js";
 import type { ZoneDefinition, ZoneLocation } from "../../shared/zones.js";
 import type { StoredMap } from "../maps.js";
 
@@ -18,6 +20,17 @@ import type { StoredMap } from "../maps.js";
 const MAP_MAX_PLAYERS = 16;
 
 export function zoneFromMap(stored: StoredMap): ZoneDefinition {
+  const monsters: MonsterSpawn[] = (stored.markers ?? EMPTY_MARKERS).monsterSpawns.map(
+    (marker, index) => ({
+      id: `${stored.id}:monster:${index}:${marker.col}:${marker.row}`,
+      kind: MONSTER_SPECIES_KIND[marker.species],
+      species: marker.species,
+      zone: "route",
+      x: marker.col * TILE_SIZE + TILE_SIZE / 2,
+      y: marker.row * TILE_SIZE + TILE_SIZE / 2,
+      patrolRadius: marker.patrolRadius,
+    }),
+  );
   return {
     id: stored.id,
     // The name is the map's own, typed by whoever drew it — so it is not an i18n key and must not
@@ -30,11 +43,13 @@ export function zoneFromMap(stored: StoredMap): ZoneDefinition {
     terrain: terrainFromMap(stored),
     quests: [],
     questSites: [],
-    monsters: [],
+    monsters,
     guards: [],
     portals: [],
     navigation: { ...DEFAULT_ZONE_NAVIGATION },
     elements: stored.elements,
+    markers: stored.markers ?? EMPTY_MARKERS,
+    revision: stored.revision,
   };
 }
 

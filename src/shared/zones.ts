@@ -11,7 +11,7 @@ import {
   type TerrainGeometry,
   VERDANT_REACH_TERRAIN,
 } from "./game.js";
-import type { MapElement } from "./map-data.js";
+import type { MapElement, MapMarkers } from "./map-data.js";
 import { DEFAULT_ZONE_NAVIGATION, type ZoneNavigationDefinition } from "./navigation.js";
 import type { Vec2 } from "./simulation.js";
 import { MMO_TEST_ZONE_TILES } from "./zones/mmo-test-zone-tiles.js";
@@ -46,6 +46,10 @@ export interface ZoneDefinition {
   navigation: ZoneNavigationDefinition;
   /** Scenery placed by the map editor. Undefined for every catalogue zone — none of them are D1 maps. */
   readonly elements?: readonly MapElement[];
+  /** Functional authored anchors. They stay server-side; clients receive only visual state. */
+  readonly markers?: MapMarkers;
+  /** Authored map cache identity. Catalogue zones use 0. */
+  readonly revision?: number;
 }
 
 /** A server-owned exit. The browser can only ask to interact near it. */

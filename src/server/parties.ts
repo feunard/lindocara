@@ -3,7 +3,7 @@
  * reads and writes; a party is created only from an adventure the caller owns, and pins that
  * adventure's version and player cap so later edits can't move them under a running party.
  */
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { CreatePartyInput, PartyColor } from "../shared/party.js";
 import { loadAdventure } from "./adventures.js";
 import { adventure, type Db, party, partyMember } from "./db/index.js";
@@ -46,6 +46,40 @@ function toStored(row: typeof party.$inferSelect): StoredParty {
 async function loadPartyRow(db: Db, partyId: string): Promise<typeof party.$inferSelect | null> {
   const rows = await db.select().from(party).where(eq(party.id, partyId)).limit(1);
   return rows[0] ?? null;
+}
+
+export async function loadPartyForMember(
+  db: Db,
+  accountId: string,
+  partyId: string,
+): Promise<StoredParty | null> {
+  const row = await db
+    .select({ party })
+    .from(party)
+    .innerJoin(
+      partyMember,
+      and(eq(partyMember.partyId, party.id), eq(partyMember.accountId, accountId)),
+    )
+    .where(eq(party.id, partyId))
+    .get();
+  return row ? toStored(row.party) : null;
+}
+
+/** Runtime-only lookup: admission has already established membership at the Worker boundary. */
+export async function loadPartyForRuntime(db: Db, partyId: string): Promise<StoredParty | null> {
+  const row = await loadPartyRow(db, partyId);
+  return row ? toStored(row) : null;
+}
+
+/** Idempotent victory fence. `true` means this call performed the one open -> completed change. */
+export async function completeParty(db: Db, partyId: string): Promise<boolean> {
+  const completed = await db
+    .update(party)
+    .set({ status: "completed", updatedAt: new Date() })
+    .where(and(eq(party.id, partyId), eq(party.status, "open")))
+    .returning({ id: party.id })
+    .get();
+  return completed !== undefined;
 }
 
 export async function createParty(

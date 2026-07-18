@@ -108,6 +108,23 @@ export class CharacterPresence extends DurableObject<Env> {
     `);
   }
 
+  /** Identity-specific D1 fence. HeroPresence overrides these two seams and reuses lease logic. */
+  protected acquireIdentityEpoch(identityId: string): Promise<number | null> {
+    return acquireSessionEpoch(createDb(this.env.DB), identityId);
+  }
+
+  protected handoffIdentityLocation(
+    identityId: string,
+    sessionEpoch: number,
+    destination: Pick<HandoffPresence, "zoneId" | "instanceId" | "x" | "y">,
+  ): Promise<number | null> {
+    return handoffProfileLocation(
+      createDb(this.env.DB),
+      { id: identityId, sessionEpoch },
+      destination,
+    );
+  }
+
   acquire(request: AcquirePresence): Promise<PresenceLease> {
     return this.#serialized(() => this.#acquire(request));
   }
@@ -271,7 +288,7 @@ export class CharacterPresence extends DurableObject<Env> {
       );
     }
 
-    const sessionEpoch = await acquireSessionEpoch(createDb(this.env.DB), request.characterId);
+    const sessionEpoch = await this.acquireIdentityEpoch(request.characterId);
     if (sessionEpoch === null) throw new Error("unknown character");
 
     const now = Date.now();
@@ -320,9 +337,9 @@ export class CharacterPresence extends DurableObject<Env> {
       return null;
     }
 
-    const nextEpoch = await handoffProfileLocation(
-      createDb(this.env.DB),
-      { id: current.characterId, sessionEpoch: current.sessionEpoch },
+    const nextEpoch = await this.handoffIdentityLocation(
+      current.characterId,
+      current.sessionEpoch,
       request,
     );
     if (nextEpoch === null) return null;

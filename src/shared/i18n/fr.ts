@@ -1,12 +1,17 @@
 import type { en } from "./en.js";
 
 export const fr: Record<keyof typeof en, string> = {
+  "title.eyebrow": "Créateur d'aventures RPG coopératives",
+  "title.tagline":
+    "Créez des mondes. Partagez une sauvegarde. Incarnez les héros qui terminent l'histoire.",
+  "title.start": "Commencer",
   // Écran de connexion
   "auth.eyebrow": "Un petit monde en ligne",
   "auth.subtitle": "La Combe Sauvage",
   "auth.tagline":
     "Éveillez-vous sous le Cœur-Racine. Prêtez le serment d'Elowen. Affrontez l'étrange vie du Bois-Crépuscule.",
   "auth.tab.login": "Connexion",
+  "auth.back_title": "Retour au titre",
   "auth.tab.register": "Créer un compte",
   "auth.username": "Nom d'utilisateur",
   "auth.password": "Mot de passe",
@@ -494,6 +499,11 @@ export const fr: Record<keyof typeof en, string> = {
   "event.zone.transition_cooldown": "La porte doit reprendre son souffle avant un autre passage.",
   "event.zone.transition_failed":
     "Le passage a échoué. Votre dernière position sûre est conservée.",
+  "event.adventure.victory":
+    "Aventure terminée ! La sauvegarde de votre partie est marquée comme accomplie.",
+  "adventure.victory.title": "Victoire !",
+  "adventure.victory.copy": "Votre partie a terminé l'aventure. Vous pouvez continuer à explorer.",
+  "adventure.victory.continue": "Continuer à jouer",
 
   // Éditeur de cartes (mode liste ; la peinture arrive avec la scène dans une tâche future)
   "editor.title": "Éditeur de cartes",
@@ -648,6 +658,10 @@ export const fr: Record<keyof typeof en, string> = {
 
   // Parties (accueil)
   "parties.title": "Parties coopératives",
+  "parties.my_saves": "Mes aventures sauvegardées",
+  "parties.my_saves.empty": "Aucune aventure sauvegardée. Créez-en une ci-dessous.",
+  "parties.available": "Parties disponibles",
+  "parties.available.empty": "Aucune autre partie n'est disponible pour le moment.",
   "parties.refresh": "Actualiser",
   "parties.create.title": "Créer une partie",
   "parties.create.none": "Crée d'abord une aventure.",
@@ -655,9 +669,13 @@ export const fr: Record<keyof typeof en, string> = {
   "parties.create.name": "Nom de la partie (facultatif)",
   "parties.create.submit": "Créer la partie",
   "parties.enter": "Entrer",
+  "parties.resume": "Reprendre la sauvegarde",
+  "parties.creator_tools": "Outils de création",
   "parties.join": "Rejoindre",
   "parties.full": "Complète",
   "parties.completed": "Terminée",
+  "party.in_progress": "En cours",
+  "party.saved_session": "Partie persistante · {status}",
   "parties.slots": "{used}/{max} joueurs",
   "parties.delete.title": "Supprimer {name} ?",
 
@@ -665,6 +683,7 @@ export const fr: Record<keyof typeof en, string> = {
   "party.eyebrow": "Partie",
   "party.roster.leave": "Quitter",
   "party.heroes": "Tes héros",
+  "party.hero.play": "Jouer",
   "party.create.title": "Nouveau héros",
   "party.create.name": "Nom du héros",
   "party.create.class": "Classe",

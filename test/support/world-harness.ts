@@ -300,6 +300,10 @@ export class Client {
     this.#socket.send(JSON.stringify({ t: "chat", channel: "local", text }));
   }
 
+  partyChat(text: string): void {
+    this.#socket.send(JSON.stringify({ t: "chat", channel: "party", text }));
+  }
+
   requestResync(): void {
     this.#socket.send(JSON.stringify({ t: "world.resync" }));
   }

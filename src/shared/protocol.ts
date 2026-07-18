@@ -182,6 +182,7 @@ export interface WorldInfo {
    *  terrain travels below instead of being looked up. `zoneNameKey` is prose (an i18n key) and must
    *  never be reverse-matched back into a zone — this is the one field for identity. */
   zoneId: ZoneId;
+  revision: number;
   zoneNameKey: string;
   /**
    * The terrain itself, one character per cell, already baked.
@@ -288,6 +289,7 @@ export const EVENT_CODES = [
   "zone.transition_denied",
   "zone.transition_cooldown",
   "zone.transition_failed",
+  "adventure.victory",
 ] as const;
 export type EventCode = (typeof EVENT_CODES)[number];
 export type EventParams = Record<string, string | number>;
@@ -440,6 +442,9 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       // reaches this client, drop the frame — like any other malformed message — rather than
       // hand an unrecognised zoneId to zoneDefinition() a frame later.
       isZoneId(value.world.zoneId) &&
+      typeof value.world.revision === "number" &&
+      Number.isSafeInteger(value.world.revision) &&
+      value.world.revision >= 0 &&
       // The terrain arrives as data now, so it gets checked like data. `decodeTileMap` throws on a
       // ragged row or an unknown character — fine for a map read off disk at build time, fatal for
       // one arriving on a socket. Drop the frame instead of crashing the first paint.

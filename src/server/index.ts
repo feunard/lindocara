@@ -12,8 +12,9 @@ import { WS_CLOSE } from "../shared/close-codes.js";
 import { isValidClass } from "../shared/game.js";
 import { parseCreateHeroInput } from "../shared/hero.js";
 import { isUuid } from "../shared/identifiers.js";
-import { mapSpawnPoint, parseMapData } from "../shared/map-data.js";
+import { EMPTY_MARKERS, mapSpawnPoint, parseMapData } from "../shared/map-data.js";
 import { parseCreatePartyInput, parseJoinPartyInput } from "../shared/party.js";
+import { TILE_SIZE } from "../shared/tilemap.js";
 import {
   isKnownZone,
   isValidInstanceId,
@@ -37,11 +38,13 @@ import {
   listCharacters,
 } from "./characters.js";
 import { createDb } from "./db/index.js";
-import { createHero, deleteHero, listHeroes } from "./heroes.js";
+import { loadHeroProfile, relocateHero } from "./hero-profile.js";
+import { createHero, deleteHero, listHeroes, loadOwnedHero } from "./heroes.js";
 import {
   createMap,
   deleteMap,
   listMaps,
+  loadMap,
   loadOwnedMap,
   type MapInput,
   resolveMapFor,
@@ -49,7 +52,13 @@ import {
   setFirstMap,
   updateMap,
 } from "./maps.js";
-import { createParty, deleteParty, joinParty, listPublicParties } from "./parties.js";
+import {
+  createParty,
+  deleteParty,
+  joinParty,
+  listPublicParties,
+  loadPartyForMember,
+} from "./parties.js";
 import { loadProfile, relocateProfile } from "./profile.js";
 import {
   clearSessionCookie,
@@ -66,6 +75,8 @@ import {
 import { locationFromMap } from "./world/map-zone.js";
 
 export { CharacterPresence } from "./character-presence.js";
+export { GameSession } from "./game-session.js";
+export { HeroPresence } from "./hero-presence.js";
 export { World } from "./world.js";
 
 function json(body: unknown, init?: ResponseInit): Response {
@@ -196,7 +207,7 @@ async function handleLogin(request: Request, env: Env, url: URL): Promise<Respon
   return sessionResponse(account, env, url);
 }
 
-async function handleJoin(request: Request, env: Env, url: URL): Promise<Response> {
+async function handleJoinCharacter(request: Request, env: Env, url: URL): Promise<Response> {
   if (request.headers.get("Upgrade") !== "websocket") {
     return new Response("expected a websocket upgrade", { status: 426 });
   }
@@ -287,6 +298,111 @@ async function handleJoin(request: Request, env: Env, url: URL): Promise<Respons
       },
     }),
   );
+}
+
+async function handleJoinHero(request: Request, env: Env, url: URL): Promise<Response> {
+  if (request.headers.get("Upgrade") !== "websocket") {
+    return new Response("expected a websocket upgrade", { status: 426 });
+  }
+  const token = readSessionCookie(request);
+  if (!token) return json({ error: "unauthorized" }, { status: 401 });
+  const session = await verifySessionState(token, env.SESSION_SECRET);
+  if (session === "expired") return closedWebSocket(WS_CLOSE.SESSION_EXPIRED, "session expired");
+  if (!session) return json({ error: "unauthorized" }, { status: 401 });
+  const db = createDb(env.DB);
+  if (!(await accountExists(db, session.id))) {
+    return closedWebSocket(WS_CLOSE.SESSION_EXPIRED, "session expired");
+  }
+
+  const partyId = url.searchParams.get("party");
+  const heroId = url.searchParams.get("hero");
+  if (!partyId || !heroId) return json({ error: "missing_hero" }, { status: 400 });
+  if (!isUuid(partyId) || !isUuid(heroId)) return json({ error: "invalid_hero" }, { status: 400 });
+  const partyRow = await loadPartyForMember(db, session.id, partyId);
+  if (!partyRow) return json({ error: "forbidden" }, { status: 403 });
+  const owned = await loadOwnedHero(db, session.id, partyId, heroId);
+  if (!owned) return json({ error: "forbidden" }, { status: 403 });
+  const adventure = await loadAdventure(db, partyRow.hostAccountId, partyRow.adventureId);
+  if (!adventure) return closedWebSocket(WS_CLOSE.INVALID_LOCATION, "party adventure missing");
+
+  let mapId = owned.mapId;
+  let stored = adventure.mapIds.includes(mapId) ? await loadMap(db, mapId) : null;
+  let fallbackPosition: { x: number; y: number } | null = null;
+  if (!stored) {
+    mapId = adventure.graph.start.mapId;
+    stored = await loadMap(db, mapId);
+    if (!stored) return closedWebSocket(WS_CLOSE.INVALID_LOCATION, "adventure start missing");
+    const entry = (stored.markers ?? EMPTY_MARKERS).entries.find(
+      (marker) => marker.id === adventure.graph.start.entryId,
+    );
+    fallbackPosition = entry
+      ? {
+          x: entry.col * TILE_SIZE + TILE_SIZE / 2,
+          y: entry.row * TILE_SIZE + TILE_SIZE / 2,
+        }
+      : mapSpawnPoint(stored);
+  }
+
+  const roomKey = `${partyId}:${mapId}`;
+  const connectionId = crypto.randomUUID();
+  let sessionEpoch: number;
+  try {
+    const lease = await env.HERO_PRESENCE.getByName(heroId).acquire({
+      characterId: heroId,
+      connectionId,
+      roomKey,
+      zoneId: mapId,
+      instanceId: "main",
+    });
+    sessionEpoch = lease.sessionEpoch;
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: "hero_presence_acquisition_failed",
+        heroId,
+        partyId,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
+    return closedWebSocket(WS_CLOSE.PRESENCE_ERROR, "presence acquisition failed");
+  }
+
+  if (fallbackPosition) {
+    const moved = await relocateHero(
+      db,
+      { id: heroId, sessionEpoch },
+      { mapId, ...fallbackPosition },
+    );
+    if (!moved) return closedWebSocket(WS_CLOSE.PRESENCE_ERROR, "relocation lost the lease");
+  }
+  const profile = await loadHeroProfile(db, heroId);
+  if (!profile || profile.sessionEpoch !== sessionEpoch || profile.zoneId !== mapId) {
+    return closedWebSocket(WS_CLOSE.PRESENCE_ERROR, "hero profile changed during admission");
+  }
+
+  return env.GAME_SESSION.getByName(partyId).fetch(
+    new Request(request, {
+      headers: {
+        Upgrade: "websocket",
+        "x-identity-kind": "hero",
+        "x-hero-id": heroId,
+        "x-party-id": partyId,
+        "x-connection-id": connectionId,
+        "x-session-epoch": String(sessionEpoch),
+        "x-room-key": roomKey,
+        "x-zone-id": mapId,
+        "x-instance-id": "main",
+      },
+    }),
+  );
+}
+
+async function handleJoin(request: Request, env: Env, url: URL): Promise<Response> {
+  if (url.searchParams.has("hero") || url.searchParams.has("party")) {
+    return handleJoinHero(request, env, url);
+  }
+  // Kept only as a rollback/test seam while the legacy character data remains recoverable.
+  return handleJoinCharacter(request, env, url);
 }
 
 async function handleListCharacters(request: Request, env: Env, url: URL): Promise<Response> {

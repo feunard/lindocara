@@ -18,6 +18,7 @@ import {
   type MonsterSpecies,
   maxHpForLevel,
   spawnPosition,
+  type TerrainGeometry,
 } from "../../shared/game.js";
 import { SPATIAL_CELL_SIZE } from "../../shared/interest.js";
 import type { MonsterNavigationState } from "../../shared/navigation.js";
@@ -64,6 +65,8 @@ export interface Attachment extends Vec2 {
   instanceId?: string;
   wardRunExpiresAt?: number | null;
   resource?: ClassResourceState;
+  identityKind?: "character" | "hero";
+  partyId?: string | null;
 }
 
 export interface PlayerInterest {
@@ -73,6 +76,8 @@ export interface PlayerInterest {
 }
 
 export interface PlayerRuntime extends PlayerProfile {
+  identityKind: "character" | "hero";
+  partyId: string | null;
   queue: Command[];
   lastInput: Input;
   ack: number;
@@ -248,6 +253,8 @@ export function toAttachment(player: PlayerRuntime): Attachment {
     lastSeq: player.lastSeq,
     connectionId: player.connectionId,
     roomKey: player.roomKey,
+    identityKind: player.identityKind,
+    partyId: player.partyId,
   };
 }
 
@@ -311,6 +318,8 @@ export function newPlayer(
     network: createWorldCache(),
     ...(resource ? { resource } : {}),
     navigationDebug: false,
+    identityKind: "character",
+    partyId: null,
   };
 }
 
@@ -331,13 +340,16 @@ export function combatCooldownsFromPlayer(
   );
 }
 
-export function profileFromAttachment(attachment: Attachment): PlayerProfile {
+export function profileFromAttachment(
+  attachment: Attachment,
+  terrain?: TerrainGeometry,
+): PlayerProfile {
   const level = attachment.level ?? 1;
   const playerClass = attachment.class ?? "warrior";
   return {
     id: attachment.id,
     nick: attachment.nick,
-    ...clampRestoredPosition(attachment, attachment.id),
+    ...clampRestoredPosition(attachment, attachment.id, terrain),
     level,
     xp: attachment.xp ?? 0,
     appearance: normalizeAppearance(attachment.appearance),

@@ -3,6 +3,7 @@
  * moves entities, applies damage, grants loot/XP, advances quests, and persists player profiles.
  */
 import { DurableObject } from "cloudflare:workers";
+import { eq } from "drizzle-orm";
 import { WS_CLOSE } from "../shared/close-codes.js";
 import {
   addThreat,
@@ -66,6 +67,7 @@ import {
   type SkillSlot,
   skillFor,
 } from "../shared/skills.js";
+import { TILE_SIZE } from "../shared/tilemap.js";
 import { encodeTileMap } from "../shared/tilemap-codec.js";
 import { replaceWorldCache } from "../shared/world-delta.js";
 import {
@@ -76,10 +78,13 @@ import {
   type ZoneDefinition,
   type ZoneLocation,
 } from "../shared/zones.js";
+import { loadAdventure } from "./adventures.js";
 import { claimQuestReward, consumeOwnedItem } from "./character-persistence.js";
-import { createDb } from "./db/index.js";
+import { createDb, party } from "./db/index.js";
+import { loadHeroProfile, saveHeroProfile } from "./hero-profile.js";
 import { HEALTH_POTION_ID } from "./items.js";
 import { BUILTIN_MAP, BUILTIN_MAP_ID, loadMap } from "./maps.js";
+import { completeParty, loadPartyForRuntime } from "./parties.js";
 import { loadProfile, saveProfile } from "./profile.js";
 import {
   attemptBasicAttack,
@@ -150,6 +155,7 @@ import {
   profileFromAttachment,
   RESYNC_COOLDOWN_MS,
   toAttachment,
+  toProfile,
 } from "./world/world-runtime.js";
 
 export { type Attachment, positionFromAttachment } from "./world/world-runtime.js";
@@ -175,6 +181,7 @@ export class World extends DurableObject<Env> {
   #navigation: NavigationRuntime | null = null;
   #observability = createRoomObservability();
   #seenCharacterIds = new Set<string>();
+  #occupiedExitByPlayerId = new Map<string, string>();
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -200,6 +207,26 @@ export class World extends DurableObject<Env> {
     });
   }
 
+  #presenceFor(id: string, identityKind: "character" | "hero") {
+    return identityKind === "hero"
+      ? this.env.HERO_PRESENCE.getByName(id)
+      : this.env.CHARACTER_PRESENCE.getByName(id);
+  }
+
+  #presence(player: Player) {
+    return this.#presenceFor(player.id, player.identityKind);
+  }
+
+  #loadProfile(id: string, identityKind: "character" | "hero") {
+    const db = createDb(this.env.DB);
+    return identityKind === "hero" ? loadHeroProfile(db, id) : loadProfile(db, id);
+  }
+
+  #saveProfile(player: Player, profile = toProfile(player)) {
+    const db = createDb(this.env.DB);
+    return player.identityKind === "hero" ? saveHeroProfile(db, profile) : saveProfile(db, profile);
+  }
+
   async #restoreWebSocket(ws: WebSocket): Promise<void> {
     const attachment = ws.deserializeAttachment() as Attachment | null;
     if (!attachment) {
@@ -212,6 +239,7 @@ export class World extends DurableObject<Env> {
     const location = await this.#locateRoom(
       attachment.zoneId ?? null,
       attachment.instanceId ?? "main",
+      attachment.partyId ?? null,
     );
     if (!location) {
       ws.close(WS_CLOSE.PRESENCE_LOST, "invalid character location");
@@ -225,9 +253,11 @@ export class World extends DurableObject<Env> {
     }
     let connectionId = attachment.connectionId;
     let sessionEpoch = attachment.sessionEpoch;
+    const identityKind = attachment.identityKind ?? "character";
+    const presence = this.#presenceFor(attachment.id, identityKind);
     if (!connectionId || !sessionEpoch) {
       connectionId = crypto.randomUUID();
-      const lease = await this.env.CHARACTER_PRESENCE.getByName(attachment.id).acquire({
+      const lease = await presence.acquire({
         characterId: attachment.id,
         connectionId,
         roomKey,
@@ -235,27 +265,22 @@ export class World extends DurableObject<Env> {
         instanceId: location.instanceId,
       });
       sessionEpoch = lease.sessionEpoch;
-    } else if (
-      !(await this.env.CHARACTER_PRESENCE.getByName(attachment.id).isAuthorized(
-        connectionId,
-        sessionEpoch,
-        roomKey,
-      ))
-    ) {
+    } else if (!(await presence.isAuthorized(connectionId, sessionEpoch, roomKey))) {
       ws.close(WS_CLOSE.PRESENCE_LOST, "presence expired");
       return;
     }
-    const profile = profileFromAttachment({
-      ...attachment,
-      connectionId,
-      sessionEpoch,
-    });
+    const profile = profileFromAttachment(
+      {
+        ...attachment,
+        connectionId,
+        sessionEpoch,
+      },
+      location.definition.terrain,
+    );
     const position = clampRestoredPosition(profile, profile.id, location.definition.terrain);
     profile.x = position.x;
     profile.y = position.y;
-    const restoredCooldowns = await this.env.CHARACTER_PRESENCE.getByName(
-      attachment.id,
-    ).readCooldowns(connectionId, sessionEpoch);
+    const restoredCooldowns = await presence.readCooldowns(connectionId, sessionEpoch);
     if (restoredCooldowns === null) {
       ws.close(WS_CLOSE.PRESENCE_LOST, "presence expired");
       return;
@@ -269,6 +294,8 @@ export class World extends DurableObject<Env> {
       attachment.resource,
       restoredCooldowns,
     );
+    player.identityKind = identityKind;
+    player.partyId = attachment.partyId ?? null;
     ws.serializeAttachment(toAttachment(player));
     this.#addPlayer(ws, player);
     this.#seenCharacterIds.add(player.id);
@@ -298,12 +325,26 @@ export class World extends DurableObject<Env> {
   async #locateRoom(
     zoneId: string | null,
     instanceId: string | null,
+    partyId: string | null = null,
   ): Promise<ZoneLocation | null> {
     if (zoneId === null || !isValidInstanceId(instanceId)) return null;
     if (isKnownZone(zoneId)) return resolveZoneLocation(zoneId, instanceId);
     const stored =
       zoneId === BUILTIN_MAP_ID ? BUILTIN_MAP : await loadMap(createDb(this.env.DB), zoneId);
-    return stored === null ? null : locationFromMap(stored, instanceId);
+    if (stored === null) return null;
+    const location = locationFromMap(stored, instanceId);
+    if (!partyId) return location;
+    const partyRow = await createDb(this.env.DB)
+      .select({ maxPlayers: party.maxPlayers })
+      .from(party)
+      .where(eq(party.id, partyId))
+      .get();
+    if (!partyRow) return null;
+    return {
+      ...location,
+      roomKey: `${partyId}:${stored.id}`,
+      definition: { ...location.definition, maxPlayers: partyRow.maxPlayers },
+    };
   }
 
   #zone(): ZoneDefinition {
@@ -353,7 +394,12 @@ export class World extends DurableObject<Env> {
       }
       return new Response("expected a websocket upgrade", { status: 426 });
     }
-    const id = request.headers.get("x-character-id");
+    const identityKind = request.headers.get("x-identity-kind") === "hero" ? "hero" : "character";
+    const id =
+      identityKind === "hero"
+        ? request.headers.get("x-hero-id")
+        : request.headers.get("x-character-id");
+    const partyId = identityKind === "hero" ? request.headers.get("x-party-id") : null;
     const connectionId = request.headers.get("x-connection-id");
     const roomKey = request.headers.get("x-room-key");
     const zoneId = request.headers.get("x-zone-id");
@@ -372,18 +418,18 @@ export class World extends DurableObject<Env> {
     // The room loads its own map rather than trusting the header to describe it. The header only
     // says WHICH map; D1 says what it is. `roomKey` must still match, so a header cannot point a
     // room at a map it was not admitted for.
-    const location = await this.#locateRoom(zoneId, instanceId);
+    const location = await this.#locateRoom(zoneId, instanceId, partyId);
     if (!location || location.roomKey !== roomKey) {
       return this.#closedSocket(WS_CLOSE.INVALID_LOCATION, "room.invalid_location");
     }
     this.#configure(location);
 
-    const presence = this.env.CHARACTER_PRESENCE.getByName(id);
+    const presence = this.#presenceFor(id, identityKind);
     if (!(await presence.isAuthorized(connectionId, sessionEpoch, roomKey))) {
       return new Response("presence lost", { status: 409 });
     }
 
-    const profile = await loadProfile(createDb(this.env.DB), id);
+    const profile = await this.#loadProfile(id, identityKind);
     if (!profile) return new Response("unknown character", { status: 404 });
     if (profile.sessionEpoch !== sessionEpoch) {
       return new Response("presence epoch mismatch", { status: 409 });
@@ -424,7 +470,11 @@ export class World extends DurableObject<Env> {
     // admission, rather than waiting for the five-second dirty flush and exposing a stale D1 row
     // to another room.
     if (positionChanged || wardRunExpired) {
-      if (!(await saveProfile(createDb(this.env.DB), profile))) {
+      const accepted =
+        identityKind === "hero"
+          ? await saveHeroProfile(createDb(this.env.DB), profile)
+          : await saveProfile(createDb(this.env.DB), profile);
+      if (!accepted) {
         await presence.release(connectionId, sessionEpoch);
         return new Response("presence epoch mismatch", { status: 409 });
       }
@@ -432,6 +482,8 @@ export class World extends DurableObject<Env> {
     const { 0: client, 1: server } = new WebSocketPair();
     this.ctx.acceptWebSocket(server);
     const player = newPlayer(profile, connectionId, roomKey, 0, 0, undefined, restoredCooldowns);
+    player.identityKind = identityKind;
+    player.partyId = partyId;
     player.dirty = false;
     server.serializeAttachment(toAttachment(player));
     if (this.#seenCharacterIds.has(player.id)) this.#observability.reconnections += 1;
@@ -455,6 +507,7 @@ export class World extends DurableObject<Env> {
       selfId: id,
       world: {
         zoneId: location.zoneId,
+        revision: location.definition.revision ?? 0,
         zoneNameKey: location.definition.nameKey,
         // The terrain, baked and shipped. The client collides against exactly these bytes rather
         // than looking the zone up in a table it compiled in — which is what lets a map live in D1
@@ -526,6 +579,34 @@ export class World extends DurableObject<Env> {
 
   override async webSocketError(ws: WebSocket): Promise<void> {
     await this.#drop(ws);
+  }
+
+  /** Called only by the party's GameSession coordinator. */
+  async broadcastParty(partyId: string, message: ServerMessage): Promise<void> {
+    for (const [socket, player] of this.#players) {
+      if (player.identityKind === "hero" && player.partyId === partyId && player.authorized) {
+        this.#send(socket, message);
+      }
+    }
+  }
+
+  /** Internal observability seam for room-isolation and authored-spawn integration tests. */
+  async roomDiagnostics(): Promise<{
+    roomKey: string | null;
+    playerIds: string[];
+    monsters: { id: string; species: MonsterSpecies; patrolRadius: number }[];
+    tickActive: boolean;
+  }> {
+    return {
+      roomKey: this.#location?.roomKey ?? null,
+      playerIds: [...this.#players.values()].filter((player) => player.authorized).map((p) => p.id),
+      monsters: this.#monsters.map((monster) => ({
+        id: monster.id,
+        species: monster.species,
+        patrolRadius: monster.patrolRadius,
+      })),
+      tickActive: this.#loop !== null,
+    };
   }
 
   /** Called only by the per-character presence coordinator. */
@@ -613,6 +694,10 @@ export class World extends DurableObject<Env> {
       return;
     }
     if (message.t.startsWith("party.")) {
+      if (player.identityKind === "hero") {
+        this.#send(ws, { t: "event", code: "party.invalid", tone: "bad" });
+        return;
+      }
       this.#handlePartyMessage(ws, player, message);
       return;
     }
@@ -648,7 +733,14 @@ export class World extends DurableObject<Env> {
     const text = message.text.trim().replaceAll(/\s+/g, " ");
     if (text.length === 0 || text.length > CHAT_MAX_LENGTH) return;
     if (message.channel === "party") {
-      if (!sendPartyChat(this.#partyContext(), player, text))
+      if (player.identityKind === "hero" && player.partyId) {
+        await this.env.GAME_SESSION.getByName(player.partyId).broadcast(player.partyId, {
+          t: "chat",
+          channel: "party",
+          from: player.nick,
+          text,
+        });
+      } else if (!sendPartyChat(this.#partyContext(), player, text))
         this.#send(ws, { t: "event", code: "party.invalid", tone: "bad" });
     } else this.#sendLocalChat(player, text);
   }
@@ -1333,7 +1425,7 @@ export class World extends DurableObject<Env> {
     }
     const saved = await this.#savePlayer(player, ws, true);
     if (!saved) return;
-    const next = await this.env.CHARACTER_PRESENCE.getByName(player.id).handoff({
+    const next = await this.#presence(player).handoff({
       characterId: player.id,
       connectionId: player.connectionId,
       sessionEpoch: player.sessionEpoch,
@@ -1359,6 +1451,124 @@ export class World extends DurableObject<Env> {
       ws.close(WS_CLOSE.ZONE_TRANSITION, "zone transition");
     } catch {
       // A network interruption still leaves the destination persisted and recoverable.
+    }
+    if (this.#players.size === 0) this.#stopLoop();
+  }
+
+  /** Resolve an authored exit from the stored adventure graph; the client supplies no target. */
+  async #transitionAdventureExit(
+    ws: WebSocket,
+    player: Player,
+    exitId: string,
+    now: number,
+  ): Promise<void> {
+    const partyId = player.partyId;
+    if (
+      player.identityKind !== "hero" ||
+      !partyId ||
+      player.life !== "alive" ||
+      player.transitioning
+    ) {
+      return;
+    }
+    const db = createDb(this.env.DB);
+    const storedParty = await loadPartyForRuntime(db, partyId);
+    if (!storedParty || !player.authorized) return;
+    const authoredAdventure = await loadAdventure(
+      db,
+      storedParty.hostAccountId,
+      storedParty.adventureId,
+    );
+    const link = authoredAdventure?.graph.links.find(
+      (candidate) => candidate.mapId === this.#location?.zoneId && candidate.exitId === exitId,
+    );
+    if (!authoredAdventure || !link) {
+      this.#send(ws, { t: "event", code: "zone.transition_denied", tone: "bad" });
+      return;
+    }
+
+    player.transitioning = true;
+    player.lastTransitionAt = now;
+    player.lastInput = NO_INPUT;
+    player.queue = [];
+
+    if (link.dest === "end") {
+      try {
+        if (!(await this.#checkpointCooldowns(player))) {
+          this.#rejectStaleSave(ws, player);
+          return;
+        }
+        if (!(await this.#savePlayer(player, ws, true))) return;
+        const firstCompletion = await completeParty(db, partyId);
+        if (firstCompletion) {
+          await this.env.GAME_SESSION.getByName(partyId).broadcast(partyId, {
+            t: "event",
+            code: "adventure.victory",
+            tone: "good",
+          });
+        }
+      } finally {
+        if (player.authorized) player.transitioning = false;
+      }
+      return;
+    }
+
+    const destinationAnchor = link.dest;
+    if (!authoredAdventure.mapIds.includes(destinationAnchor.mapId)) {
+      player.transitioning = false;
+      this.#send(ws, { t: "event", code: "zone.transition_denied", tone: "bad" });
+      return;
+    }
+    const destinationMap = await loadMap(db, destinationAnchor.mapId);
+    const entry = destinationMap?.markers?.entries.find(
+      (candidate) => candidate.id === destinationAnchor.entryId,
+    );
+    if (!destinationMap || !entry) {
+      player.transitioning = false;
+      this.#send(ws, { t: "event", code: "zone.transition_failed", tone: "bad" });
+      return;
+    }
+    const destination = locationFromMap(destinationMap, "main");
+    const spawn = clampRestoredPosition(
+      {
+        x: entry.col * TILE_SIZE + TILE_SIZE / 2,
+        y: entry.row * TILE_SIZE + TILE_SIZE / 2,
+      },
+      player.id,
+      destination.definition.terrain,
+    );
+    const destinationRoomKey = `${partyId}:${destinationMap.id}`;
+
+    player.authorized = false;
+    if (!(await this.#checkpointCooldowns(player))) {
+      this.#rejectStaleSave(ws, player);
+      return;
+    }
+    const saved = await this.#savePlayer(player, ws, true);
+    if (!saved) return;
+    const next = await this.#presence(player).handoff({
+      characterId: player.id,
+      connectionId: player.connectionId,
+      sessionEpoch: player.sessionEpoch,
+      sourceRoomKey: player.roomKey,
+      destinationRoomKey,
+      zoneId: destinationMap.id,
+      instanceId: "main",
+      x: spawn.x,
+      y: spawn.y,
+    });
+    if (!next) {
+      this.#rejectStaleSave(ws, player);
+      return;
+    }
+    player.disconnecting = true;
+    this.#removePlayer(ws, player);
+    this.#observability.transitions += 1;
+    this.#send(ws, { t: "event", code: "zone.transition", tone: "good" });
+    try {
+      ws.close(WS_CLOSE.ZONE_TRANSITION, "adventure map transition");
+    } catch {
+      // The fenced destination is already durable; reconnect resumes there.
     }
     if (this.#players.size === 0) this.#stopLoop();
   }
@@ -1563,6 +1773,9 @@ export class World extends DurableObject<Env> {
     const previous = this.#itemMutations.get(player.id) ?? Promise.resolve(null);
     const run = async () => {
       if (!player.authorized || player.inventory.potions <= 0) return null;
+      // Hero inventory is intentionally session-only in this slice. Core hero stats are still
+      // fenced and persisted; inventory will move to its own normalized boundary later.
+      if (player.identityKind === "hero") return player.inventory.potions - 1;
       const db = createDb(this.env.DB);
       // The room holds the truth: potions looted since the last periodic flush exist only in
       // memory. Decrementing a stale D1 row would return a quantity below what the player
@@ -1610,10 +1823,7 @@ export class World extends DurableObject<Env> {
     try {
       const saved = await this.#savePlayer(player, ws, true);
       if (saved) {
-        await this.env.CHARACTER_PRESENCE.getByName(player.id).release(
-          player.connectionId,
-          player.sessionEpoch,
-        );
+        await this.#presence(player).release(player.connectionId, player.sessionEpoch);
       }
     } finally {
       if (this.#players.get(ws) === player) this.#removePlayer(ws, player);
@@ -1627,6 +1837,8 @@ export class World extends DurableObject<Env> {
         db: createDb(this.env.DB),
         pendingSaves: this.#profileSaves,
         rejectStaleSave: (socket, stalePlayer) => this.#rejectStaleSave(socket, stalePlayer),
+        loadProfile: (id) => this.#loadProfile(id, player.identityKind),
+        saveProfile: (profile) => this.#saveProfile(player, profile),
       },
       player,
       ws,
@@ -1645,7 +1857,7 @@ export class World extends DurableObject<Env> {
   }
 
   #checkpointCooldowns(player: Player): Promise<boolean> {
-    return this.env.CHARACTER_PRESENCE.getByName(player.id).checkpointCooldowns(
+    return this.#presence(player).checkpointCooldowns(
       player.connectionId,
       player.sessionEpoch,
       combatCooldownsFromPlayer(player),
@@ -1757,6 +1969,7 @@ export class World extends DurableObject<Env> {
       collectLoot: (socket, player) => this.#collectLoot(socket, player),
       savePlayer: (player, socket) => this.#savePlayer(player, socket),
     });
+    this.#detectAdventureExits(now);
     if (writeAttachment) {
       for (const [socket, player] of this.#players) {
         if (player.authorized && player.resource) this.#sendState(socket, player);
@@ -1791,6 +2004,38 @@ export class World extends DurableObject<Env> {
     this.#flushQueuedResyncs(now);
   }
 
+  #detectAdventureExits(now: number): void {
+    const exits = this.#zone().markers?.exits ?? [];
+    if (exits.length === 0) return;
+    for (const [socket, player] of this.#players) {
+      if (
+        player.identityKind !== "hero" ||
+        player.life !== "alive" ||
+        !player.authorized ||
+        player.transitioning
+      ) {
+        this.#occupiedExitByPlayerId.delete(player.id);
+        continue;
+      }
+      const col = Math.floor(player.x / TILE_SIZE);
+      const row = Math.floor(player.y / TILE_SIZE);
+      const exit = exits.find((candidate) => candidate.col === col && candidate.row === row);
+      if (!exit) {
+        this.#occupiedExitByPlayerId.delete(player.id);
+        continue;
+      }
+      const key = `${this.#location?.zoneId ?? ""}:${exit.id}`;
+      if (
+        this.#occupiedExitByPlayerId.get(player.id) === key ||
+        now - player.lastTransitionAt < 750
+      ) {
+        continue;
+      }
+      this.#occupiedExitByPlayerId.set(player.id, key);
+      this.ctx.waitUntil(this.#transitionAdventureExit(socket, player, exit.id, now));
+    }
+  }
+
   /**
    * Pays back the resyncs the cooldown deferred. A client that asks for a resync stops applying
    * deltas until one arrives, so a silently dropped request freezes its world until it reconnects.
@@ -1808,10 +2053,7 @@ export class World extends DurableObject<Env> {
 
   async #renewPresence(player: Player): Promise<void> {
     if (!player.authorized) return;
-    const renewed = await this.env.CHARACTER_PRESENCE.getByName(player.id).renew(
-      player.connectionId,
-      player.sessionEpoch,
-    );
+    const renewed = await this.#presence(player).renew(player.connectionId, player.sessionEpoch);
     if (renewed || !player.authorized) return;
     await this.invalidatePresence(
       player.id,
@@ -1903,7 +2145,10 @@ export class World extends DurableObject<Env> {
   /** Release is one-way and deliberate. It is what closes the door on a priest saving you. */
   #release(ws: WebSocket, player: Player): void {
     if (player.life !== "corpse" || player.corpse === null) return;
-    const cemetery = nearestCemetery(player.corpse);
+    const cemetery =
+      player.identityKind === "hero"
+        ? (this.#zone().terrain.spawnPoints[0] ?? nearestCemetery(player.corpse))
+        : nearestCemetery(player.corpse);
     const previousPosition = { x: player.x, y: player.y };
     player.life = "ghost";
     player.x = cemetery.x;
@@ -1991,9 +2236,31 @@ export class World extends DurableObject<Env> {
   }
 
   #removePlayer(ws: WebSocket, player: Player): void {
+    this.#occupiedExitByPlayerId.delete(player.id);
     removePlayerFromParties(this.#partyContext(), player.id);
     removePlayerCombatState(this.#monsters, player.id);
     removePlayer(this.#players, this.#socketByPlayerId, this.#playerGrid, ws, player);
+    if (this.#players.size === 0) this.#unloadEmptyRoom();
+  }
+
+  #unloadEmptyRoom(): void {
+    this.#stopLoop();
+    this.#loot = [];
+    this.#lootGrid.clear();
+    this.#siteRespawnAt.clear();
+    this.#parties.clear();
+    this.#partyByPlayerId.clear();
+    this.#partyInvites.clear();
+    this.#monsters = this.#location ? createMonsters(this.#location.definition.monsters) : [];
+    this.#guards = this.#location ? createGuards(this.#location.definition.guards) : [];
+    this.#monsterGrid.clear();
+    for (const monster of this.#monsters) this.#monsterGrid.insert(monster);
+    this.#navigation = this.#location
+      ? createNavigationRuntime(
+          this.#location.definition.terrain,
+          this.#location.definition.navigation,
+        )
+      : null;
   }
 
   #sendLocalChat(sender: Player, text: string): void {

@@ -113,6 +113,20 @@ export async function listHeroes(
   return rows.map(toStored);
 }
 
+export async function loadOwnedHero(
+  db: Db,
+  accountId: string,
+  partyId: string,
+  heroId: string,
+): Promise<StoredHero | null> {
+  const row = await db
+    .select()
+    .from(hero)
+    .where(and(eq(hero.id, heroId), eq(hero.partyId, partyId), eq(hero.accountId, accountId)))
+    .get();
+  return row ? toStored(row) : null;
+}
+
 export async function deleteHero(
   db: Db,
   accountId: string,

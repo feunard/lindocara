@@ -4,12 +4,16 @@
  */
 
 export const en = {
+  "title.eyebrow": "Cooperative RPG adventure creator",
+  "title.tagline": "Create worlds. Share a save. Become the heroes who finish the story.",
+  "title.start": "Start",
   // Auth screen
   "auth.eyebrow": "A tiny online world",
   "auth.subtitle": "Everwild Hollow",
   "auth.tagline":
     "Wake beneath the Heartroot. Swear Elowen's oath. Face the strange life of the Gloamwood.",
   "auth.tab.login": "Log in",
+  "auth.back_title": "Back to title",
   "auth.tab.register": "Create account",
   "auth.username": "Username",
   "auth.password": "Password",
@@ -482,6 +486,10 @@ export const en = {
   "event.zone.transition_denied": "The gate cannot be used right now.",
   "event.zone.transition_cooldown": "The gate needs a moment before another crossing.",
   "event.zone.transition_failed": "The crossing failed. Your last safe location was kept.",
+  "event.adventure.victory": "Adventure complete! Your party's save has been marked finished.",
+  "adventure.victory.title": "Victory!",
+  "adventure.victory.copy": "Your party completed the adventure. You may keep exploring.",
+  "adventure.victory.continue": "Keep playing",
 
   // Map editor (list mode; painting arrives with the stage in a later task)
   "editor.title": "Map editor",
@@ -632,6 +640,10 @@ export const en = {
 
   // Parties home
   "parties.title": "Cooperative parties",
+  "parties.my_saves": "My saved adventures",
+  "parties.my_saves.empty": "No saved adventure yet. Start one below.",
+  "parties.available": "Available parties",
+  "parties.available.empty": "No other party is available right now.",
   "parties.refresh": "Refresh",
   "parties.create.title": "Start a party",
   "parties.create.none": "Create an adventure first.",
@@ -639,9 +651,13 @@ export const en = {
   "parties.create.name": "Party name (optional)",
   "parties.create.submit": "Create party",
   "parties.enter": "Enter",
+  "parties.resume": "Resume save",
+  "parties.creator_tools": "Creator tools",
   "parties.join": "Join",
   "parties.full": "Full",
   "parties.completed": "Finished",
+  "party.in_progress": "In progress",
+  "party.saved_session": "Persistent party · {status}",
   "parties.slots": "{used}/{max} players",
   "parties.delete.title": "Delete {name}?",
 
@@ -649,6 +665,7 @@ export const en = {
   "party.eyebrow": "Party",
   "party.roster.leave": "Leave",
   "party.heroes": "Your heroes",
+  "party.hero.play": "Play",
   "party.create.title": "New hero",
   "party.create.name": "Hero name",
   "party.create.class": "Class",
