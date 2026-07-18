@@ -1,6 +1,18 @@
 # Admission cutover design (hero replaces character in the running game)
 
-Status: designed, not yet implemented. Persistence decision (2026-07-18): **core stats only** —
+Status (verified against the code 2026-07-18): **steps 1-5 implemented, step 6 not started.**
+- 1 `hero-profile.ts`, 2 `HeroPresence` DO + `wrangler.jsonc` migration `v3`, 5 client — done.
+- 3 `handleJoin` — hero branch done (`index.ts:303`), but `:405` still falls through to
+  `handleJoinCharacter`; the character route stays reachable server-side.
+- 4 `world.ts` — took **option (b)**, the dual-path `identityKind` branch, not the recommended (a).
+  Measured cost: 25 lines of 2314 (1.1%), concentrated in the helper block at `world.ts:210-229`.
+  Removing it later is a ~60-line edit, not a rewrite.
+- 6 test harness — **not started.** `world-harness.ts` still exposes only `testCharacter`/
+  `joinCharacter`; `hero-world.test.ts` grew its own local `connectHero` (`:107`) instead.
+  `world.test.ts` (16 uses), `mission-2a.test.ts` (14), `map-world.test.ts` (5) and
+  `party-world.test.ts` (via `Client.join`) all still admit through `?character=`.
+
+Persistence decision (2026-07-18): **core stats only** —
 a hero persists position/level/xp/hp/life/corpse/epoch (columns the `hero` table already has);
 inventory, equipment, quests and skills are session-only (seeded from class starters each entry,
 not saved). Repointing the normalized model to heroes (persistent loot/gear) is a later bite.

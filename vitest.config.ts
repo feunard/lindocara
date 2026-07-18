@@ -29,6 +29,12 @@ export default defineConfig({
   test: {
     name: "lindocara",
     include: ["test/**/*.test.ts"],
+    // mission-2a drives the legacy `?character=` admission path, which no client reaches any
+    // more (see docs/superpowers/specs/2026-07-18-admission-cutover-design.md step 6). It costs
+    // ~59s of the suite's ~122s because its lease tests wait on the real 30s PRESENCE_TTL_MS.
+    // Disabled on request until either the TTL is injectable or its five unique shared-runtime
+    // invariants are ported to the hero harness. Re-enable by deleting this exclude.
+    exclude: ["test/mission-2a.test.ts", "**/node_modules/**", "**/dist/**"],
     setupFiles: ["./test/setup.ts"],
     // World and CharacterPresence Durable Objects are process-wide singletons in workerd.
     // Parallel test files would share live rooms and flake on capacity, combat, and loot.

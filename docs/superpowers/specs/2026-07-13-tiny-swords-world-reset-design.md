@@ -1,7 +1,8 @@
 # Tiny Swords world reset — design
 
 **Date:** 2026-07-13
-**Status:** approved, not yet implemented
+**Status:** implemented (verified 2026-07-18 — 28 files under `src/` reference the Tiny Swords
+catalogue/assets).
 
 A global reset of lindocara's world: a tile grid replaces hand-authored rectangles, the real Tiny
 Swords art replaces procedurally tinted squares, and every foreign asset pack is deleted.

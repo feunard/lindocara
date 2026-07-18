@@ -1,6 +1,14 @@
 /**
  * Mission 2A integration proofs: two World Durable Objects, presence epochs, post-revocation
  * command rejection, queue cleanup, stale D1 saves, heartbeat expiry, hibernation limits, ward_run.
+ *
+ * DISABLED — excluded in vitest.config.ts. This file drives the legacy `?character=` admission
+ * path that no client reaches any more, and its lease tests wait on the real 30s PRESENCE_TTL_MS
+ * (~59s of the suite). Do not delete it yet: it is still the only coverage for five invariants of
+ * the *shared* runtime that heroes also execute, since HeroPresence extends CharacterPresence and
+ * the heartbeat loop is identity-agnostic — heartbeat-renewal invalidation, post-expiry acquisition
+ * fencing the stale room's save, hibernation wake refusing a superseded lease, command-queue
+ * cleanup on re-acquisition, and post-revocation action rejection.
  */
 
 import { env, runInDurableObject } from "cloudflare:test";

@@ -1,7 +1,8 @@
 # Minimap and world map — design
 
 **Date:** 2026-07-13
-**Status:** approved, not yet implemented
+**Status:** implemented (verified 2026-07-18 — `src/client/ui/WorldMap.tsx` plus minimap state in
+`store.ts`/`App.tsx`; 10 files reference it).
 
 A World-of-Warcraft-style minimap in the top-right corner, plus a full-world map on `M`.
 
