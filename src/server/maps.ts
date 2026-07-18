@@ -370,6 +370,40 @@ function elementRows(mapId: string, elements: readonly MapElement[]) {
   }));
 }
 
+/**
+ * D1 refuses any single query bound to more than 100 parameters. A multi-row `INSERT` binds one
+ * parameter per column of `elementRows` above — mapId, col, row, kind, variant, five today — so one
+ * unchunked statement tops out around `100 / 5` = 20 rows, well under `MAX_MAP_ELEMENTS` (400): a
+ * map decorated with more than about twenty elements failed to save entirely, with nothing in
+ * `validateMapInput` to catch it first. The chunk size is derived from the real column count rather
+ * than a literal row number, so it keeps working if `mapElement` gains a column later, and it
+ * targets 60% of the cap rather than sitting on it, so that future growth doesn't immediately
+ * regress the headroom back onto the line.
+ */
+const D1_MAX_BOUND_PARAMETERS = 100;
+const MAP_ELEMENT_PARAMS_PER_ROW = 5; // mapId, col, row, kind, variant — mirrors `mapElement` in db/schema.ts
+const MAP_ELEMENT_CHUNK_ROWS = Math.floor(
+  (D1_MAX_BOUND_PARAMETERS * 0.6) / MAP_ELEMENT_PARAMS_PER_ROW,
+);
+
+function chunkRows<T>(rows: readonly T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < rows.length; i += size) {
+    chunks.push(rows.slice(i, i + size));
+  }
+  return chunks;
+}
+
+/** One `INSERT` per chunk so no single statement can cross D1's bound-parameter cap. Every chunk
+ *  still rides in the same `db.batch()` call as the rest of the write (see the callers), and D1
+ *  treats one `batch()` call as one transaction, so splitting the INSERT here does not create a
+ *  window where a map could persist with only some of its elements written. */
+function insertElementStatements(db: Db, mapId: string, elements: readonly MapElement[]) {
+  return chunkRows(elementRows(mapId, elements), MAP_ELEMENT_CHUNK_ROWS).map((rows) =>
+    db.insert(mapElement).values(rows),
+  );
+}
+
 export async function createMap(db: Db, accountId: string, input: MapInput): Promise<StoredMap> {
   const data = validateMapInput(input);
   const id = crypto.randomUUID();
@@ -389,10 +423,11 @@ export async function createMap(db: Db, accountId: string, input: MapInput): Pro
     // because SQLite serializes the writes and the second's CASE sees the first's committed row.
     isFirst: sql`CASE WHEN (SELECT count(*) FROM ${map} WHERE ${map.accountId} = ${accountId}) = 0 THEN 1 ELSE 0 END`,
   });
-  if (input.elements.length > 0) {
+  const elementStatements = insertElementStatements(db, id, input.elements);
+  if (elementStatements.length > 0) {
     // One transaction: the map and its scenery arrive together, never a map with no elements yet that
-    // a room could load mid-create.
-    await db.batch([insertMap, db.insert(mapElement).values(elementRows(id, input.elements))]);
+    // a room could load mid-create. Every element chunk rides in this same batch.
+    await db.batch([insertMap, ...elementStatements]);
   } else {
     await insertMap;
   }
@@ -485,13 +520,12 @@ export async function updateMap(
   // transaction: the new layers and the new elements land together, so a room admitted mid-update can
   // never load the new terrain paired with the old — or zero — elements.
   const clearElements = db.delete(mapElement).where(eq(mapElement.mapId, id));
+  const elementStatements = insertElementStatements(db, id, input.elements);
   let updatedRows: { revision: number }[];
-  if (input.elements.length > 0) {
-    [updatedRows] = await db.batch([
-      updateRow,
-      clearElements,
-      db.insert(mapElement).values(elementRows(id, input.elements)),
-    ]);
+  if (elementStatements.length > 0) {
+    // Every element chunk rides in this same batch, so a chunked write is exactly as atomic as the
+    // single-statement write it replaces (see `insertElementStatements`).
+    [updatedRows] = await db.batch([updateRow, clearElements, ...elementStatements]);
   } else {
     [updatedRows] = await db.batch([updateRow, clearElements]);
   }

@@ -13,7 +13,7 @@ import {
   setFirstMap as setOwnedFirstMap,
   updateMap as updateOwnedMap,
 } from "../src/server/maps.js";
-import { MAX_MAP_ELEMENTS } from "../src/shared/map-data.js";
+import { MAX_MAP_ELEMENTS, type MapElement } from "../src/shared/map-data.js";
 import { fixedId } from "../src/shared/tileset.js";
 import { layeredTerrain } from "./support/map-fixtures.js";
 
@@ -51,6 +51,26 @@ const validInput: MapInput = {
 
 function inputNamed(name: string): MapInput {
   return { ...validInput, name };
+}
+
+/** A grid of single-cell rocks big enough to blow past D1's 100-bound-parameter cap on a single
+ *  `INSERT` (roughly 20 rows at 5 params each) — up to `MAX_MAP_ELEMENTS`, every cell distinct so
+ *  none overlap, all grass so `rock1`'s `allowedTerrain` accepts every cell, and never the spawn. */
+function rockGrid(count: number, spawn: { col: number; row: number }): MapElement[] {
+  const cols = 20;
+  const elements: MapElement[] = [];
+  for (let row = 0; elements.length < count; row++) {
+    for (let col = 0; col < cols && elements.length < count; col++) {
+      if (col === spawn.col && row === spawn.row) continue;
+      elements.push({ col, row, assetId: STONE });
+    }
+  }
+  return elements;
+}
+
+function rockGridBlocks(elementCount: number, cols = 20): string[] {
+  const rows = Math.ceil((elementCount + 1) / cols) + 1; // +1 spawn cell, +1 row of headroom
+  return Array.from({ length: Math.max(rows, MAP_ROWS) }, () => ".".repeat(cols));
 }
 
 describe("maps", () => {
@@ -354,6 +374,61 @@ describe("maps", () => {
         .bind(created.id)
         .first<{ kind: string }>();
       expect(converted?.kind).toBe(TREE_ALT);
+    });
+
+    // Regression: D1 refuses a single query bound to more than 100 parameters, and a multi-row
+    // `INSERT` into `map_element` binds 5 per row, so an unchunked write topped out around 20
+    // elements — far below `MAX_MAP_ELEMENTS`. Bisected against the real Worker and D1: 20 elements
+    // succeeded, 21 failed, consistently. This drives the real D1 binding through `createMap` at the
+    // actual cap to prove the chunked insert clears it.
+    it("creates a map at the element cap, across a chunked D1 insert", async () => {
+      const db = createDb(env.DB);
+      const spawn = { col: 0, row: 0 };
+      const elements = rockGrid(MAX_MAP_ELEMENTS, spawn);
+      expect(elements).toHaveLength(MAX_MAP_ELEMENTS);
+
+      const created = await createMap(db, {
+        name: "Rocks",
+        ...layeredTerrain(rockGridBlocks(MAX_MAP_ELEMENTS)),
+        elements,
+        spawn,
+      });
+      expect(created.elements).toHaveLength(MAX_MAP_ELEMENTS);
+
+      const loaded = await loadMap(db, created.id);
+      const key = (e: { col: number; row: number; assetId: string }) =>
+        `${e.col}:${e.row}:${e.assetId}`;
+      expect(loaded?.elements).toHaveLength(MAX_MAP_ELEMENTS);
+      expect(new Set(loaded?.elements.map(key))).toEqual(new Set(elements.map(key)));
+    });
+
+    // Same defect, the other write path: `updateMap` deletes and reinserts every element, so a
+    // fix that only chunked `createMap` would still fail here.
+    it("updates a map past the single-statement element limit, across a chunked D1 insert", async () => {
+      const db = createDb(env.DB);
+      const spawn = { col: 0, row: 0 };
+      const small = rockGrid(3, spawn);
+      const created = await createMap(db, {
+        name: "Small",
+        ...layeredTerrain(rockGridBlocks(3)),
+        elements: small,
+        spawn,
+      });
+
+      const grown = rockGrid(60, spawn); // comfortably past the ~20-row single-statement limit
+      const updated = await updateMap(db, created.id, {
+        ...layeredTerrain(rockGridBlocks(60)),
+        name: "Grown",
+        elements: grown,
+        spawn,
+      });
+      expect(updated.elements).toHaveLength(60);
+
+      const loaded = await loadMap(db, created.id);
+      const key = (e: { col: number; row: number; assetId: string }) =>
+        `${e.col}:${e.row}:${e.assetId}`;
+      expect(loaded?.elements).toHaveLength(60);
+      expect(new Set(loaded?.elements.map(key))).toEqual(new Set(grown.map(key)));
     });
   });
 
