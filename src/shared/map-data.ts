@@ -13,7 +13,7 @@ import type { TerrainGeometry } from "./game.js";
 import { isMonsterSpecies, type MonsterSpecies } from "./game.js";
 import { parseTileLayer, type TileLayer } from "./tile-layer-codec.js";
 import { TILE_SIZE, type TileKind, type TileMap } from "./tilemap.js";
-import { decodeTileId, EMPTY_TILE, type Tileset } from "./tileset.js";
+import { decodeTileId, EMPTY_TILE, type Tileset, tileIdInTileset } from "./tileset.js";
 import { tilesetById } from "./tilesets/tiny-swords.js";
 import { type EditorAssetId, editorAsset, isEditorAssetId } from "./tiny-swords-catalog.js";
 
@@ -364,7 +364,9 @@ export function parseMapData(value: unknown): MapData | null {
   const record = value as Record<string, unknown>;
   const { tilesetId, cols, rows, layers, elements, spawn } = record;
 
-  if (typeof tilesetId !== "string" || !tilesetById(tilesetId)) return null;
+  if (typeof tilesetId !== "string") return null;
+  const tileset = tilesetById(tilesetId);
+  if (!tileset) return null;
   if (!Number.isSafeInteger(cols) || !Number.isSafeInteger(rows)) return null;
   const width = cols as number;
   const height = rows as number;
@@ -375,6 +377,10 @@ export function parseMapData(value: unknown): MapData | null {
   for (const raw of layers) {
     const layer = parseTileLayer(raw, width, height);
     if (!layer) return null;
+    // `parseTileLayer` only knows the id SHAPE (a safe integer); it has no tileset to check the id
+    // against. An id no autotile slot or fixed-tile index in THIS tileset can answer for is refused
+    // here rather than silently baked as solid terrain later by `tileBlocks`.
+    if (layer.ids.some((id) => !tileIdInTileset(tileset, id))) return null;
     parsedLayers.push(layer);
   }
 

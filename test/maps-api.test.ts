@@ -8,6 +8,7 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { BUILTIN_MAP_ID } from "../src/server/maps.js";
 import { SESSION_COOKIE } from "../src/server/session.js";
 import { encodeTileLayer, type TileLayer } from "../src/shared/tile-layer-codec.js";
+import { fixedId } from "../src/shared/tileset.js";
 import { TINY_SWORDS_TILESET_ID } from "../src/shared/tilesets/tiny-swords.js";
 import { layeredWireTerrain } from "./support/map-fixtures.js";
 
@@ -340,17 +341,18 @@ describe("size caps over the wire", () => {
   });
 
   // `MAX_MAP_JSON_BYTES` (src/server/index.ts) is sized against this exact worst case: a 100x100
-  // map whose layers cannot run-length compress at all. Two ids near `Number.MAX_SAFE_INTEGER`,
-  // alternated across every cell so no two neighbours match, push each layer close to the
-  // `cols * rows * 17 - 1` ceiling `parseTileLayer` actually allows. Under the old 32 KiB cap this
-  // body — ~510 KB once encoded — would 413 with no diagnostic the editor could explain, even
-  // though it is a legitimate map. It must now be accepted.
+  // map whose layers cannot run-length compress at all. Ids past what `tiny-swords` declares are
+  // now refused (`tileIdInTileset`, shared/tileset.ts), so the worst case is no longer an
+  // unreachable 16-digit id — it is the tileset's own largest ids, `fixedId(3)` and `fixedId(2)`,
+  // alternated across every cell so no two neighbours match and no run compresses. Under the old
+  // 32 KiB cap this body would 413 with no diagnostic the editor could explain, even though it is
+  // a legitimate map. It must be accepted.
   it("accepts a near-worst-case, non-compressible 100x100 map that would have 413'd under the old 32 KiB cap", async () => {
     const cols = 100;
     const rows = 100;
     const cells = cols * rows;
-    const idA = Number.MAX_SAFE_INTEGER;
-    const idB = Number.MAX_SAFE_INTEGER - 1;
+    const idA = fixedId(3);
+    const idB = fixedId(2);
     const alternating = (spawnOverride: number): number[] => {
       const ids = Array.from({ length: cells }, (_, i) => (i % 2 === 0 ? idA : idB));
       ids[0] = spawnOverride;
@@ -368,14 +370,14 @@ describe("size caps over the wire", () => {
     );
     // Sanity on the fixture itself: over the old cap, comfortably under the new one.
     expect(bodyText.length).toBeGreaterThan(32_768);
-    expect(bodyText.length).toBeLessThan(589_824);
+    expect(bodyText.length).toBeLessThan(204_800);
 
     const response = await authed("/api/maps", { method: "POST", body: bodyText });
     expect(response.status).toBe(201);
   });
 
-  it("413s a body over the new 576 KiB cap, padded via elements since name is capped at 48", async () => {
-    const elements = Array.from({ length: 13_000 }, (_, i) => ({
+  it("413s a body over the new 200 KiB cap, padded via elements since name is capped at 48", async () => {
+    const elements = Array.from({ length: 5_000 }, (_, i) => ({
       col: 0,
       row: 0,
       kind: "tree",

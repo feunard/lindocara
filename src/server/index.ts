@@ -86,22 +86,34 @@ function json(body: unknown, init?: ResponseInit): Response {
 
 const MAX_API_JSON_BYTES = 4_096;
 /**
- * The blocks-era ~10 KB estimate no longer applies: a run-length tile layer has no natural
- * ceiling, and `parseTileLayer` (shared/tile-layer-codec.ts) is the actual contract for what one
- * layer may claim — up to `cols * rows * (maxIdDigits + 1) - 1` characters, where `maxIdDigits`
- * is `String(Number.MAX_SAFE_INTEGER).length` (16). At the 100x100 map-size cap that is
- * 10,000 * 17 - 1 = 169,999 characters per layer. Three of those, JSON-quoted inside the `layers`
- * array (2 quote chars per string, 2 commas, 2 brackets), cost
- * 3 * (169,999 + 2) + 2 + 2 = 510,007 bytes.
+ * `parseTileLayer`'s own contract (shared/tile-layer-codec.ts) accepts an id up to
+ * `Number.MAX_SAFE_INTEGER` — it has no tileset to check against — but no *valid* map can ever
+ * carry one that large: `parseMapData` (shared/map-data.ts) and `validateMapInput`
+ * (server/maps.ts) both now reject any id `tileIdInTileset` (shared/tileset.ts) cannot resolve to
+ * a declared autotile slot or fixed-tile index. That turns "the id space" into "the ids this
+ * tileset actually ships", and this cap is sized against the latter.
+ *
+ * The shipped `tiny-swords` tileset declares 4 autotiles and 4 fixed tiles. The largest valid id
+ * is `fixedId(3) = FIXED_BASE + 3 = 1025 + 3 = 1028` (the largest autotile id,
+ * `autotileId(3, 15) = 1 + 3*16 + 15 = 64`, is smaller) — 4 digits, not the 16 an unbounded id
+ * would need.
+ *
+ * Worst-case layer: a run-length multiplier only ever shrinks the string, so the longest legal
+ * encoding is one bare, uncompressed run per cell (alternating between two 4-digit ids so no two
+ * neighbours share a run). At the 100x100 map-size cap (`MAP_MAX_COLS * MAP_MAX_ROWS` =
+ * 10,000 cells): 10,000 * 4 + (10,000 - 1) separating commas = 49,999 characters per layer. Three
+ * of those, JSON-quoted inside the `layers` array (2 quote chars per string, 2 commas, 2
+ * brackets): 3 * (49,999 + 2) + 2 + 2 = 150,007 bytes.
  *
  * The rest of a maximal legal body adds to that: 400 elements (`MAX_MAP_ELEMENTS`) at up to
- * 104 bytes each (the longest catalogue asset id is 72 characters) = 42,001 bytes; markers at
- * their per-field caps (8 entries + 8 exits + 32 monster spawns, each with the longest id/label
- * the shape allows) ~= 4,121 bytes; name/tilesetId/cols/rows/spawn add a few dozen more. The true
- * worst case measures 556,297 bytes. 576 KiB (589,824 bytes) is the next clean number above that,
- * leaving headroom without being a round number picked out of the air.
+ * 105 bytes each (the longest catalogue asset id is 72 characters) = 42,001 bytes; markers at
+ * their per-field caps (8 entries + 8 exits + 32 monster spawns, each with a 32-character id and a
+ * 48-character label) = 4,057 bytes; name (`MAP_NAME_MAX`, 48 characters), tilesetId, cols/rows,
+ * spawn and the JSON envelope add the remaining 168 bytes. The true worst case measures
+ * 196,233 bytes. 200 KiB (204,800 bytes) is the next clean number with sensible headroom above
+ * that — not the 576 KiB an unreachable 16-digit id used to justify.
  */
-const MAX_MAP_JSON_BYTES = 589_824;
+const MAX_MAP_JSON_BYTES = 204_800;
 // An adventure body is ids and bindings only (no map payloads): 16 links × a few uuids each.
 const MAX_ADVENTURE_JSON_BYTES = 65_536;
 

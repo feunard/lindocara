@@ -138,6 +138,12 @@ describe("parsing a map off the wire", () => {
         wire({ layers: [encodeTileLayer(emptyLayer(2, 1)), BLANK, BLANK] }),
       ],
       ["a layer whose size disagrees with cols/rows", wire({ cols: 3 })],
+      [
+        "a layer id past what the tileset declares",
+        wire({
+          layers: [encodeTileLayer({ cols: 2, rows: 2, ids: [9999, 0, 0, 0] }), BLANK, BLANK],
+        }),
+      ],
       ["elements that are not an array", wire({ elements: "nope" })],
       [
         "an unknown element kind",

@@ -41,6 +41,7 @@ import {
   type TileLayer,
 } from "../shared/tile-layer-codec.js";
 import { isSolidKind, kindAt } from "../shared/tilemap.js";
+import { tileIdInTileset } from "../shared/tileset.js";
 import { TINY_SWORDS_TILESET_ID, tilesetById } from "../shared/tilesets/tiny-swords.js";
 import { isEditorAssetId } from "../shared/tiny-swords-catalog.js";
 import { adventure, adventureMap, type Db, map, mapElement } from "./db/index.js";
@@ -195,8 +196,17 @@ export function validateMapInput(input: MapInput): MapData & { name: string } {
       throw new Error("layers: every layer's ids must match cols x rows");
     }
   }
-  if (!tilesetById(input.tilesetId)) {
+  const tileset = tilesetById(input.tilesetId);
+  if (!tileset) {
     throw new Error(`tileset: unknown tileset ${input.tilesetId}`);
+  }
+  for (const layer of input.layers) {
+    // Mirrors the wire-side check in `parseMapData` (shared/map-data.ts): an id no autotile slot or
+    // fixed-tile index in this tileset can answer for must be refused here, not baked as solid
+    // terrain by `bakeCollision` below with no diagnostic anyone could see.
+    if (layer.ids.some((id) => !tileIdInTileset(tileset, id))) {
+      throw new Error(`layers: contains an id unknown to tileset ${input.tilesetId}`);
+    }
   }
   if (input.elements.length > MAX_MAP_ELEMENTS) {
     // Caught here, before the body would silently blow past the 32 KiB `/api/maps` cap and 413.

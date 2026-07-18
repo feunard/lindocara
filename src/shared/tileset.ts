@@ -86,3 +86,21 @@ export function decodeTileId(id: number): TileRef {
     variant: offset % VARIANTS_PER_AUTOTILE,
   };
 }
+
+/**
+ * Whether a tileset actually declares this id, rather than merely being in-shape for the id space.
+ *
+ * `decodeTileId` alone cannot answer this — it has no tileset to check bounds against, which is
+ * exactly why a slot or index past what a tileset declares used to reach `tileBlocks`
+ * (`shared/map-data.ts`) and get baked as solid terrain: an id pointing at nothing was silently
+ * treated as an obstacle instead of being refused. Callers that DO hold a resolved `Tileset` —
+ * `parseMapData` and `validateMapInput` — use this to reject that id outright, at the one place
+ * both the wire parser and the write-path validator can name every id a map may legally contain.
+ */
+export function tileIdInTileset(tileset: Tileset, id: number): boolean {
+  if (id === EMPTY_TILE) return true;
+  const ref = decodeTileId(id);
+  if (ref.kind === "autotile") return ref.slot < tileset.autotiles.length;
+  if (ref.kind === "fixed") return ref.index < tileset.fixed.length;
+  return false;
+}

@@ -6,8 +6,10 @@ import {
   EMPTY_TILE,
   FIXED_BASE,
   fixedId,
+  tileIdInTileset,
   VARIANTS_PER_AUTOTILE,
 } from "../src/shared/tileset.js";
+import { TINY_SWORDS_TILESET } from "../src/shared/tilesets/tiny-swords.js";
 
 describe("tile id space", () => {
   it("reserves zero for an empty cell", () => {
@@ -42,5 +44,44 @@ describe("tile id space", () => {
   it("reads a negative or fractional id as empty rather than throwing", () => {
     expect(decodeTileId(-1)).toEqual({ kind: "empty" });
     expect(decodeTileId(1.5)).toEqual({ kind: "empty" });
+  });
+});
+
+describe("tileIdInTileset", () => {
+  it("accepts the empty tile regardless of what the tileset declares", () => {
+    expect(tileIdInTileset(TINY_SWORDS_TILESET, EMPTY_TILE)).toBe(true);
+  });
+
+  it("accepts every slot and variant of a declared autotile", () => {
+    for (let slot = 0; slot < TINY_SWORDS_TILESET.autotiles.length; slot += 1) {
+      for (let variant = 0; variant < VARIANTS_PER_AUTOTILE; variant += 1) {
+        expect(tileIdInTileset(TINY_SWORDS_TILESET, autotileId(slot, variant))).toBe(true);
+      }
+    }
+  });
+
+  it("accepts every declared fixed-tile index", () => {
+    for (let index = 0; index < TINY_SWORDS_TILESET.fixed.length; index += 1) {
+      expect(tileIdInTileset(TINY_SWORDS_TILESET, fixedId(index))).toBe(true);
+    }
+  });
+
+  it("rejects an autotile slot the tileset does not declare", () => {
+    // tiny-swords ships 4 autotiles (slots 0-3); slot 4 is in-shape for the id space but
+    // unresolvable against this tileset.
+    expect(
+      tileIdInTileset(TINY_SWORDS_TILESET, autotileId(TINY_SWORDS_TILESET.autotiles.length, 0)),
+    ).toBe(false);
+  });
+
+  it("rejects a fixed-tile index the tileset does not declare", () => {
+    expect(tileIdInTileset(TINY_SWORDS_TILESET, fixedId(TINY_SWORDS_TILESET.fixed.length))).toBe(
+      false,
+    );
+  });
+
+  it("rejects an id nowhere near either declared range", () => {
+    expect(tileIdInTileset(TINY_SWORDS_TILESET, 9999)).toBe(false);
+    expect(tileIdInTileset(TINY_SWORDS_TILESET, Number.MAX_SAFE_INTEGER)).toBe(false);
   });
 });

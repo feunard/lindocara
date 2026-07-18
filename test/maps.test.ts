@@ -14,6 +14,7 @@ import {
   updateMap as updateOwnedMap,
 } from "../src/server/maps.js";
 import { MAX_MAP_ELEMENTS } from "../src/shared/map-data.js";
+import { fixedId } from "../src/shared/tileset.js";
 import { layeredTerrain } from "./support/map-fixtures.js";
 
 // Exactly the size floor (20x15): small enough to read at a glance, big enough to clear the caps.
@@ -197,6 +198,19 @@ describe("maps", () => {
       await expect(createMap(db, { ...validInput, elements: tooMany })).rejects.toThrow(
         /^elements:/,
       );
+    });
+
+    it("refuses a layer id the tileset cannot resolve", async () => {
+      const db = createDb(env.DB);
+      const [ground, elevation, objects] = validInput.layers;
+      if (!ground || !elevation || !objects) throw new Error("fixture missing a layer");
+      // One past the last declared fixed tile: in-shape for the id space (a safe integer), but
+      // unresolvable against tiny-swords, which is exactly the case `tileIdInTileset` exists to
+      // refuse rather than let `bakeCollision` silently treat it as solid terrain.
+      const badGround = { ...ground, ids: [fixedId(4), ...ground.ids.slice(1)] };
+      await expect(
+        createMap(db, { ...validInput, layers: [badGround, elevation, objects] }),
+      ).rejects.toThrow(/^layers:/);
     });
   });
 
