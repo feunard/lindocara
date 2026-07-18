@@ -10,7 +10,7 @@ import {
   type Ticker,
   TilingSprite,
 } from "pixi.js";
-import { autotileOffset } from "../../shared/autotile.js";
+import { autotileOffset, autotileVariantCount } from "../../shared/autotile.js";
 import type { MainHandItem, OffHandItem, PrimaryColor } from "../../shared/character.js";
 import { isSpirit } from "../../shared/death.js";
 import {
@@ -362,6 +362,26 @@ function offsetCell(
   offset: { col: number; row: number },
 ): { col: number; row: number } {
   return { col: origin.col + offset.col, row: origin.row + offset.row };
+}
+
+/**
+ * The sheet cell for one autotile ref, or `undefined` when the variant is outside what its kind
+ * can produce.
+ *
+ * `tileIdInTileset` (`shared/tileset.ts`) is supposed to keep an out-of-range `run4` variant from
+ * ever reaching a saved map or a wire frame — but this runs on every cell of every repaint, for ids
+ * that already survived that check once and are trusted from then on. Belt and braces: degrading
+ * here too means a gap in that upstream guard, a legacy row from before it existed, or a bug this
+ * function itself doesn't have yet, still can't reach `autotileOffset`'s throw from inside the
+ * ticker callback and kill the render loop. Exported so this arithmetic — no Pixi in it — is
+ * testable without a live canvas.
+ */
+export function autotileSheetCell(
+  autotile: Autotile,
+  variant: number,
+): { col: number; row: number } | undefined {
+  if (variant >= autotileVariantCount(autotile.kind)) return undefined;
+  return offsetCell(autotile.origin, autotileOffset(autotile.kind, variant));
 }
 
 function centerOf(entity: { x: number; y: number }): { x: number; y: number } {
@@ -1996,6 +2016,21 @@ export class Renderer {
     }
     for (const view of this.#foamTilePool) view.blob.visible = false;
     this.#foamTiles = [];
+    // This is `false` only when `#adoptLayers` bailed out on an unknown tileset, leaving `#layers`
+    // the literal `[]` it starts as — so the loop below falls through to the derived autotile pass
+    // over `tiles`, which still paints land, because with no tileset there is nothing else left to
+    // read a cell from.
+    //
+    // It stays `true` when every layer parsed but came back malformed: `#adoptLayers` maps each bad
+    // layer to `emptyLayer(...)`, not to nothing, so `#layers.length` still equals the appearance's
+    // declared layer count and every cell below resolves to `{ kind: "empty" }` and draws nothing —
+    // the map renders as bare sea, not the derived pass.
+    //
+    // Both are intentional, not an oversight one of them should match: an unknown tileset means
+    // there is no tileset to read a cell, a priority or a tint from at all, so falling back to
+    // derived terrain is the only data left to draw. Three malformed layers under a *known* tileset
+    // did parse — they just said "empty" for every cell — and falling back the same way would make
+    // an authored, legitimately empty layer indistinguishable from a corrupted one.
     const layered = this.#layers.length > 0;
     for (let index = 0; index < columns * rows; index++) {
       const column = index % columns;
@@ -2047,10 +2082,11 @@ export class Renderer {
    * One cell of an authored map: every layer that has something to say about it, in order, each
    * routed to the container its own tileset entry asks for.
    *
-   * An id nothing can answer for — an empty cell, a slot past what the tileset declares, a sheet
-   * cell outside the sliced grid — draws nothing rather than throwing. This runs inside a repaint,
-   * and a frame is the worst possible place to discover a bad id; the parse-time warning in
-   * `#adoptLayers` is where a broken map is reported.
+   * An id nothing can answer for — an empty cell, a slot past what the tileset declares, a variant
+   * its autotile's kind can't produce (`autotileSheetCell`), a sheet cell outside the sliced grid —
+   * draws nothing rather than throwing. This runs inside a repaint, and a frame is the worst
+   * possible place to discover a bad id; the parse-time warning in `#adoptLayers` is where a broken
+   * map is reported.
    */
   #paintLayeredCell(col: number, row: number, x: number, y: number): void {
     const tileset = this.#tileset;
@@ -2066,8 +2102,10 @@ export class Renderer {
       if (ref.kind === "autotile") {
         const autotile = tileset.autotiles[ref.slot];
         if (!autotile) continue;
+        const resolvedCell = autotileSheetCell(autotile, ref.variant);
+        if (!resolvedCell) continue;
         entry = autotile;
-        cell = offsetCell(autotile.origin, autotileOffset(autotile.kind, ref.variant));
+        cell = resolvedCell;
       } else {
         const fixed = tileset.fixed[ref.index];
         if (!fixed) continue;

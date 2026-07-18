@@ -11,6 +11,7 @@
  * decode rule covers both, which is worth more than the density lost to `run4` autotiles using
  * four of their sixteen variant slots.
  */
+import { autotileVariantCount } from "./autotile.js";
 
 /** An empty cell. On the ground layer this reads as water — the void — when collision is baked. */
 export const EMPTY_TILE = 0;
@@ -103,7 +104,17 @@ export function decodeTileId(id: number): TileRef {
 export function tileIdInTileset(tileset: Tileset, id: number): boolean {
   if (id === EMPTY_TILE) return true;
   const ref = decodeTileId(id);
-  if (ref.kind === "autotile") return ref.slot < tileset.autotiles.length;
+  if (ref.kind === "autotile") {
+    const autotile = tileset.autotiles[ref.slot];
+    // A slot the tileset does not declare is rejected outright; a slot it does declare still needs
+    // its variant checked against what that autotile's *kind* can produce. `run4` reserves a full
+    // 16-wide block like every other autotile (see `VARIANTS_PER_AUTOTILE`) but only fills its first
+    // four — ids naming variant 4..15 of a `run4` slot are in-shape for the id space and pass every
+    // other check on this path, yet have no entry in `RUN4_LUT` and throw inside `autotileOffset`.
+    // Rejecting them here, at the one place both the wire parser and the write-path validator call,
+    // is what makes them unrepresentable instead of merely unrendered.
+    return autotile !== undefined && ref.variant < autotileVariantCount(autotile.kind);
+  }
   if (ref.kind === "fixed") return ref.index < tileset.fixed.length;
   return false;
 }

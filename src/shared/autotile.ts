@@ -68,3 +68,16 @@ export function autotileOffset(kind: AutotileKind, mask: number): { col: number;
   if (!offset) throw new Error(`no ${kind} variant for mask ${mask}`);
   return offset;
 }
+
+/**
+ * How many variants a kind's table actually holds — `edge16Mask`'s full sixteen, or `run4Mask`'s
+ * four. A stored tile id carries its variant as a bare number with no kind attached, so nothing
+ * about the id space itself stops `run4`'s block from claiming all sixteen slots `edge16` uses; the
+ * kind is the only thing that says which four of those sixteen are real. Reading it off
+ * `RUN4_LUT.length`/`EDGE16_LUT.length` rather than repeating "4" and "16" here means a third kind
+ * only has to add its own table — every caller that bounds a variant against its kind, including
+ * this one, stays correct without being touched.
+ */
+export function autotileVariantCount(kind: AutotileKind): number {
+  return kind === "run4" ? RUN4_LUT.length : EDGE16_LUT.length;
+}

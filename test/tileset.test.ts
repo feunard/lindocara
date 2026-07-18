@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { autotileVariantCount } from "../src/shared/autotile.js";
 import {
   AUTOTILE_SLOTS,
   autotileId,
@@ -9,7 +10,7 @@ import {
   tileIdInTileset,
   VARIANTS_PER_AUTOTILE,
 } from "../src/shared/tileset.js";
-import { TINY_SWORDS_TILESET } from "../src/shared/tilesets/tiny-swords.js";
+import { CLIFF_WALL_SLOT, TINY_SWORDS_TILESET } from "../src/shared/tilesets/tiny-swords.js";
 
 describe("tile id space", () => {
   it("reserves zero for an empty cell", () => {
@@ -52,11 +53,28 @@ describe("tileIdInTileset", () => {
     expect(tileIdInTileset(TINY_SWORDS_TILESET, EMPTY_TILE)).toBe(true);
   });
 
-  it("accepts every slot and variant of a declared autotile", () => {
+  it("accepts every legal variant of a declared autotile", () => {
+    // Bounded per slot's kind, not a flat sweep to `VARIANTS_PER_AUTOTILE`: `run4` (the cliff wall,
+    // slot `CLIFF_WALL_SLOT`) only fills the first four of its reserved sixteen — see the "rejects"
+    // case below for the other twelve.
     for (let slot = 0; slot < TINY_SWORDS_TILESET.autotiles.length; slot += 1) {
-      for (let variant = 0; variant < VARIANTS_PER_AUTOTILE; variant += 1) {
+      const autotile = TINY_SWORDS_TILESET.autotiles[slot];
+      const variants = autotile ? autotileVariantCount(autotile.kind) : VARIANTS_PER_AUTOTILE;
+      for (let variant = 0; variant < variants; variant += 1) {
         expect(tileIdInTileset(TINY_SWORDS_TILESET, autotileId(slot, variant))).toBe(true);
       }
+    }
+  });
+
+  it("rejects a run4 variant beyond its four legal masks", () => {
+    // tiny-swords' cliff wall (CLIFF_WALL_SLOT) is `run4`: masks 0-3 are real, but the id space
+    // reserves a full 16-wide block for every autotile, so ids naming variant 4..15 of this slot are
+    // in-shape and pass every check that does not know the slot's *kind* — the exact hole that let
+    // ids 53..64 reach `autotileOffset` and throw instead of being refused upstream.
+    for (let variant = 4; variant < VARIANTS_PER_AUTOTILE; variant += 1) {
+      expect(tileIdInTileset(TINY_SWORDS_TILESET, autotileId(CLIFF_WALL_SLOT, variant))).toBe(
+        false,
+      );
     }
   });
 
