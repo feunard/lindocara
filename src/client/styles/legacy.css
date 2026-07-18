@@ -45,6 +45,145 @@ body::after {
   touch-action: none;
 }
 
+/* Authoring surfaces deliberately use a dense product-tool treatment. Player-facing menus keep
+   the Tiny Swords skin, while map/adventure editors prioritize working area, scanning and keyboard
+   use. The controls retain the existing accessible React/Radix structure. */
+.creator-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+  overflow: auto;
+  padding: 1.25rem max(1rem, calc((100vw - 72rem) / 2));
+  background: #0b1518;
+  color: #edf3f1;
+}
+
+.creator-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #2f4145;
+}
+
+.creator-header h1,
+.creator-panel h2 {
+  margin: 0;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.creator-header h1 {
+  font-size: clamp(1.35rem, 3vw, 2rem);
+}
+
+.creator-grid {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.creator-panel {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid #34494d;
+  border-radius: 0.5rem;
+  background: #111f22;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 24%);
+}
+
+.creator-list-item {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.creator-item__identity {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.creator-item__identity h2 {
+  font-size: 1rem;
+}
+
+.creator-actions,
+.creator-header > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.creator-shell .tiny-button.tiny-button,
+.creator-surface .tiny-button.tiny-button,
+.creator-dialog .tiny-button.tiny-button {
+  min-width: 0;
+  min-height: 2.25rem;
+  height: auto;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid #4b6267;
+  border-radius: 0.375rem;
+  background: #1b3034;
+  color: #edf3f1;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.82rem;
+  line-height: 1.1;
+  letter-spacing: normal;
+  text-shadow: none;
+  text-transform: none;
+  image-rendering: auto;
+}
+
+.creator-shell .tiny-button.tiny-button:hover:not(:disabled),
+.creator-surface .tiny-button.tiny-button:hover:not(:disabled),
+.creator-dialog .tiny-button.tiny-button:hover:not(:disabled) {
+  border-color: #78a2aa;
+  background: #254248;
+}
+
+.creator-shell .tiny-button.tiny-button[aria-pressed="true"],
+.creator-surface .tiny-button.tiny-button[aria-pressed="true"] {
+  border-color: #88c999;
+  background: #315e45;
+  translate: none;
+}
+
+.creator-shell .tiny-button.tiny-button:is([data-variant="destructive"], .danger),
+.creator-surface .tiny-button.tiny-button:is([data-variant="destructive"], .danger),
+.creator-dialog .tiny-button.tiny-button:is([data-variant="destructive"], .danger) {
+  border-color: #9d625d;
+  background: #512b2b;
+  color: #ffe8e4;
+}
+
+.creator-shell label,
+.creator-surface label {
+  margin: 0;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+.creator-dialog {
+  color: #edf3f1;
+}
+
+@media (max-width: 44rem) {
+  .creator-header,
+  .creator-list-item {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .creator-header {
+    display: grid;
+  }
+}
+
 /* The map editor's painting toolbar floats over the shared #stage canvas (which sits behind #root):
    a positioned bar with a z-index so it paints above the fixed canvas, leaving the rest of the
    viewport clear for the pointer to reach the stage and paint. */
@@ -200,6 +339,19 @@ button {
 button:disabled {
   opacity: 0.5;
   cursor: progress;
+}
+
+.creator-shell input,
+.creator-shell select,
+.creator-surface input,
+.creator-surface select {
+  min-height: 2.25rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid #4b6267;
+  border-radius: 0.375rem;
+  background: #0c181b;
+  color: #edf3f1;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
 }
 
 #locale-toggle {

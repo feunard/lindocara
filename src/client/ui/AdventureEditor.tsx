@@ -288,8 +288,8 @@ export function AdventureEditor() {
     );
     const startMap = draft.members.find((member) => member.mapId === draft.start?.mapId);
     return (
-      <main className="roster-shell">
-        <header className="roster-header">
+      <main className="creator-shell">
+        <header className="creator-header">
           <div>
             <span className="eyebrow">{t("adventure.title")}</span>
             <h1>{draft.title.trim() || t("adventure.new")}</h1>
@@ -300,7 +300,7 @@ export function AdventureEditor() {
         </header>
         {error && <p role="alert">{authErrorText(error)}</p>}
 
-        <section className="roster-card framed">
+        <section className="creator-panel">
           <Label htmlFor="adventure-title">{t("adventure.name")}</Label>
           <Input
             id="adventure-title"
@@ -321,7 +321,7 @@ export function AdventureEditor() {
           />
         </section>
 
-        <section className="roster-card framed" aria-label={t("adventure.maps.title")}>
+        <section className="creator-panel" aria-label={t("adventure.maps.title")}>
           <h2>{t("adventure.maps.title")}</h2>
           {draft.members.map((member) => (
             <div key={member.mapId} className="adventure-member">
@@ -384,7 +384,7 @@ export function AdventureEditor() {
           </Button>
         </section>
 
-        <section className="roster-card framed" aria-label={t("adventure.start.title")}>
+        <section className="creator-panel" aria-label={t("adventure.start.title")}>
           <h2>{t("adventure.start.title")}</h2>
           <Label htmlFor="adventure-start-map">{t("adventure.start.map")}</Label>
           <Select
@@ -423,7 +423,7 @@ export function AdventureEditor() {
           </Select>
         </section>
 
-        <section className="roster-card framed" aria-label={t("adventure.bindings.title")}>
+        <section className="creator-panel" aria-label={t("adventure.bindings.title")}>
           <h2>{t("adventure.bindings.title")}</h2>
           {draft.bindings.map((binding) => {
             const owner = draft.members.find((member) => member.mapId === binding.mapId);
@@ -466,7 +466,7 @@ export function AdventureEditor() {
           })}
         </section>
 
-        <section className="roster-card framed" aria-label={t("adventure.validation.title")}>
+        <section className="creator-panel" aria-label={t("adventure.validation.title")}>
           <h2>{t("adventure.validation.title")}</h2>
           {validationIssues.length === 0 && (storedSession?.invalidatedLinks.length ?? 0) === 0 ? (
             <p>{t("adventure.validation.valid")}</p>
@@ -523,8 +523,8 @@ export function AdventureEditor() {
 
   const deleting = adventures.find((adventure) => adventure.id === confirmingId);
   return (
-    <main className="roster-shell">
-      <header className="roster-header">
+    <main className="creator-shell">
+      <header className="creator-header">
         <div>
           <span className="eyebrow">{t("adventure.title")}</span>
           <h1>{t("adventure.title")}</h1>
@@ -539,14 +539,14 @@ export function AdventureEditor() {
         </div>
       </header>
       {error && <p role="alert">{authErrorText(error)}</p>}
-      <section className="roster-grid" aria-label={t("adventure.title")}>
+      <section className="creator-grid" aria-label={t("adventure.title")}>
         {adventures.map((adventure) => (
-          <article key={adventure.id} className="roster-card framed">
-            <div className="roster-card__identity">
+          <article key={adventure.id} className="creator-panel creator-list-item">
+            <div className="creator-item__identity">
               <h2>{adventure.title}</h2>
               <span>{t("adventure.players.count", { count: adventure.maxPlayers })}</span>
             </div>
-            <div className="roster-card__actions">
+            <div className="creator-actions">
               <Button type="button" onClick={() => void openExisting(adventure.id)}>
                 {t("adventure.edit")}
               </Button>
@@ -570,7 +570,7 @@ export function AdventureEditor() {
       {deleting && (
         <div className="delete-dialog-backdrop">
           <section
-            className="delete-dialog parchment framed"
+            className="delete-dialog creator-dialog creator-panel"
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="delete-adventure-title"

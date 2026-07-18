@@ -330,7 +330,7 @@ function MapEditorStage({
   if (previewing) return <MapPreviewHint />;
 
   return (
-    <div className="map-editor-toolbar" data-dirty={dirty}>
+    <div className="map-editor-toolbar creator-surface" data-dirty={dirty}>
       {stageStatus === "loading" && (
         <p className="map-editor-toolbar__status" role="status">
           {t("editor.stage.loading")}
@@ -735,8 +735,8 @@ export function MapEditor() {
   const deleting = maps.find((map) => map.id === confirmingId);
 
   return (
-    <main className="roster-shell">
-      <header className="roster-header">
+    <main className="creator-shell">
+      <header className="creator-header">
         <div>
           <span className="eyebrow">{t("editor.title")}</span>
           <h1>{t("editor.title")}</h1>
@@ -756,14 +756,14 @@ export function MapEditor() {
 
       <AssetBrowser />
 
-      <section className="roster-grid" aria-label={t("editor.title")}>
+      <section className="creator-grid" aria-label={t("editor.title")}>
         {maps.map((map) => (
-          <article key={map.id} className="roster-card framed">
-            <div className="roster-card__identity">
+          <article key={map.id} className="creator-panel creator-list-item">
+            <div className="creator-item__identity">
               <h2>{map.name}</h2>
               {map.isFirst && <span>{t("editor.first")}</span>}
             </div>
-            <div className="roster-card__actions">
+            <div className="creator-actions">
               <Button type="button" onClick={() => void open(map.id)}>
                 {t("editor.open")}
               </Button>
@@ -780,7 +780,7 @@ export function MapEditor() {
         ))}
       </section>
 
-      <section className="roster-card framed" aria-label={t("editor.new")}>
+      <section className="creator-panel" aria-label={t("editor.new")}>
         <h2>{t("editor.new")}</h2>
         <Label htmlFor="map-editor-name">{t("editor.name")}</Label>
         <Input
@@ -815,7 +815,7 @@ export function MapEditor() {
       {deleting && (
         <div className="delete-dialog-backdrop">
           <section
-            className="delete-dialog parchment framed"
+            className="delete-dialog creator-dialog creator-panel"
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="delete-map-title"
