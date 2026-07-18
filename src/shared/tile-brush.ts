@@ -168,6 +168,123 @@ export function eraseRect(
   return fillRect(layer, tileset, rect, EMPTY_TILE);
 }
 
+/**
+ * Whether `col,row` belongs to the same flood-fill region as the start cell, given `startRef` — the
+ * decoded id the fill began on. An autotile region is every cell sharing that slot; an empty region
+ * is every empty cell; a fixed tile matches nothing at all, because the region rule below never asks
+ * this function about a fixed start in the first place — its region is exactly the one cell clicked,
+ * even when the next cell over happens to be a fixed tile of the identical index.
+ */
+function sameRegion(
+  layer: TileLayer,
+  startRef: { kind: "autotile"; slot: number } | { kind: "empty" },
+  col: number,
+  row: number,
+): boolean {
+  if (!inBounds(layer, col, row)) return false;
+  const ref = decodeTileId(layer.ids[indexOf(layer, col, row)] ?? EMPTY_TILE);
+  if (startRef.kind === "empty") return ref.kind === "empty";
+  return ref.kind === "autotile" && ref.slot === startRef.slot;
+}
+
+/**
+ * Every cell of the start cell's flood-fill region, found with an explicit stack — never recursion,
+ * because a 100x100 map is 10,000 cells and workerd's stack is not the budget to spend on that.
+ *
+ * The cap below is not reachable by a correct visited-set: each cell is marked visited the moment it
+ * is pushed, so no cell is ever pushed twice and the walk does at most `cells` pops. It exists so
+ * that a *broken* visited-set — the classic bug where two neighbours keep re-queueing each other —
+ * fails fast and loud instead of spinning forever; JS is single-threaded, so an actual infinite loop
+ * here would hang the whole process, not just this call, and no test timeout can preempt it.
+ */
+function floodRegion(
+  layer: TileLayer,
+  startRef: { kind: "autotile"; slot: number } | { kind: "empty" },
+  col: number,
+  row: number,
+): { col: number; row: number }[] {
+  const cap = layer.cols * layer.rows * 4;
+  const visited = new Set<number>([indexOf(layer, col, row)]);
+  const stack: { col: number; row: number }[] = [{ col, row }];
+  const region: { col: number; row: number }[] = [];
+  let steps = 0;
+  while (stack.length > 0) {
+    steps += 1;
+    if (steps > cap) throw new Error("floodFill exceeded its safety cap — visited set is broken");
+    const cell = stack.pop();
+    if (!cell) break;
+    region.push(cell);
+    const neighbours: readonly { col: number; row: number }[] = [
+      { col: cell.col, row: cell.row - 1 },
+      { col: cell.col + 1, row: cell.row },
+      { col: cell.col, row: cell.row + 1 },
+      { col: cell.col - 1, row: cell.row },
+    ];
+    for (const next of neighbours) {
+      if (!inBounds(layer, next.col, next.row)) continue;
+      const idx = indexOf(layer, next.col, next.row);
+      if (visited.has(idx)) continue;
+      if (!sameRegion(layer, startRef, next.col, next.row)) continue;
+      visited.add(idx);
+      stack.push(next);
+    }
+  }
+  return region;
+}
+
+/**
+ * Fill the contiguous 4-neighbour region sharing the start cell's slot — empty counts as a slot of
+ * its own, and a fixed tile is a region of exactly one cell, always replaced. Filling a region with
+ * its own slot is a genuine no-op (same reference back); filling empty is never a no-op, because
+ * empty is not the slot being painted.
+ *
+ * Same two-pass shape as `fillRect`: write every region cell first, then re-resolve the region plus
+ * its one-cell border, since a mask only ever reads a neighbour's slot and every write below keeps
+ * each already-resolved cell's slot fixed — only its variant moves — so reading the same mutating
+ * array back for a later cell in this second pass is safe, not a hazard.
+ */
+export function floodFill(
+  layer: TileLayer,
+  tileset: Tileset,
+  slot: number,
+  col: number,
+  row: number,
+): TileLayer {
+  if (!inBounds(layer, col, row)) return layer;
+  const startRef = decodeTileId(layer.ids[indexOf(layer, col, row)] ?? EMPTY_TILE);
+  if (startRef.kind === "autotile" && startRef.slot === slot) return layer;
+
+  const region: { col: number; row: number }[] =
+    startRef.kind === "fixed" ? [{ col, row }] : floodRegion(layer, startRef, col, row);
+
+  const ids = [...layer.ids];
+  const fillId = autotileId(slot, 0);
+  for (const cell of region) {
+    ids[indexOf(layer, cell.col, cell.row)] = fillId;
+  }
+  const draft: TileLayer = { ...layer, ids };
+
+  const resolveVisited = new Set<number>();
+  for (const cell of region) {
+    const border: readonly { col: number; row: number }[] = [
+      { col: cell.col, row: cell.row },
+      { col: cell.col, row: cell.row - 1 },
+      { col: cell.col + 1, row: cell.row },
+      { col: cell.col, row: cell.row + 1 },
+      { col: cell.col - 1, row: cell.row },
+    ];
+    for (const target of border) {
+      if (!inBounds(draft, target.col, target.row)) continue;
+      const idx = indexOf(draft, target.col, target.row);
+      if (resolveVisited.has(idx)) continue;
+      resolveVisited.add(idx);
+      const resolved = resolvedId(draft, tileset, target.col, target.row);
+      if (resolved !== null) ids[idx] = resolved;
+    }
+  }
+  return { ...layer, ids };
+}
+
 /** Every autotile cell re-resolved from scratch. The oracle the brush is tested against. */
 export function resolveWholeLayer(layer: TileLayer, tileset: Tileset): TileLayer {
   const ids = [...layer.ids];
