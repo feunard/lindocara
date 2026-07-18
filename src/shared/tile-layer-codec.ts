@@ -50,6 +50,16 @@ export function parseTileLayer(value: unknown, cols: number, rows: number): Tile
   if (!Number.isSafeInteger(cols) || !Number.isSafeInteger(rows)) return null;
   if (cols <= 0 || rows <= 0 || cols * rows > MAX_CELLS) return null;
   const expected = cols * rows;
+  /**
+   * `split(",")` allocates an array sized to `value`'s own length before a single run is checked
+   * against `expected`, so a corrupted row must be rejected by length alone, before `split` runs.
+   * A run-length multiplier only ever shrinks the string, so the longest legitimate encoding of
+   * `expected` cells is one bare, uncompressed run per cell; each id is at most
+   * `Number.MAX_SAFE_INTEGER` wide, since anything longer fails `Number.isSafeInteger` below
+   * anyway. That bounds the ceiling without a magic number.
+   */
+  const maxIdDigits = String(Number.MAX_SAFE_INTEGER).length;
+  if (value.length > expected * (maxIdDigits + 1) - 1) return null;
   const ids: number[] = [];
   for (const run of value.split(",")) {
     const star = run.indexOf("*");
@@ -58,7 +68,9 @@ export function parseTileLayer(value: unknown, cols: number, rows: number): Tile
     if (!/^\d+$/.test(idText) || !/^\d+$/.test(countText)) return null;
     const id = Number(idText);
     const count = Number(countText);
-    if (count < 1 || ids.length + count > expected) return null;
+    // An id past Number.MAX_SAFE_INTEGER loses precision; re-encoding it would render exponential
+    // notation that this parser cannot read back, silently breaking the round trip.
+    if (count < 1 || !Number.isSafeInteger(id) || ids.length + count > expected) return null;
     for (let step = 0; step < count; step += 1) ids.push(id);
   }
   if (ids.length !== expected) return null;

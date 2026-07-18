@@ -32,4 +32,13 @@ describe("tile layer codec", () => {
     expect(parseTileLayer(42, 3, 3)).toBeNull();
     expect(parseTileLayer("0*9", 3, 3)).toEqual(emptyLayer(3, 3));
   });
+
+  it("rejects an over-long payload before splitting it", () => {
+    const oversized = `${"1,".repeat(1_000_000)}1`;
+    expect(parseTileLayer(oversized, 3, 3)).toBeNull();
+  });
+
+  it("rejects an id past Number.MAX_SAFE_INTEGER", () => {
+    expect(parseTileLayer("99999999999999999999999999*9", 3, 3)).toBeNull();
+  });
 });
