@@ -299,7 +299,7 @@ async function buildSession(
       canopyElementLayer,
       markerLayer,
     ]) {
-      for (const child of layer.removeChildren()) child.destroy();
+      for (const child of layer.removeChildren()) child.destroy({ children: true });
     }
     foamSprites = [];
     swaySprites = [];

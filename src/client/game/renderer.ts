@@ -687,6 +687,7 @@ function reconcile<T extends { id: string }>(
 
 export class Renderer {
   #app: Application;
+  #destroyed = false;
   /** The ticker callbacks this renderer added, kept so `destroy()` can remove exactly its own from
    *  the shared Application's ticker without touching another consumer's or stopping the app. */
   #frameCallbacks: Array<(ticker: Ticker) => void> = [];
@@ -878,6 +879,7 @@ export class Renderer {
   ): Promise<void> {
     const loaded = await loadEditorAssetArts(elements.map((element) => element.assetId));
     if (
+      this.#destroyed ||
       this.#currentZoneId !== zoneId ||
       this.#currentMapRevision !== revision ||
       this.#mapElements !== elements
@@ -2939,6 +2941,8 @@ export class Renderer {
    * callbacks, its locale listener and its world container.
    */
   destroy(): void {
+    if (this.#destroyed) return;
+    this.#destroyed = true;
     for (const tick of this.#frameCallbacks) this.#app.ticker.remove(tick);
     this.#frameCallbacks = [];
     this.#localeUnsub();
