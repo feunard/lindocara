@@ -742,7 +742,7 @@ export function MapEditor() {
       });
     }
     setReturnContext(null);
-    setScreen("adventures");
+    setScreen("adventure-editor");
   }
 
   // The painting stage draws onto the shared #stage canvas, which sits behind #root; the toolbar

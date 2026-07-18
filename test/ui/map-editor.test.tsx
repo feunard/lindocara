@@ -160,7 +160,7 @@ describe("MapEditor", () => {
   beforeEach(() => {
     setLocale("en");
     useUiStore.setState({
-      screen: "map-editor",
+      screen: "adventure-editor",
       adventureEditorSession: null,
       editorReturnContext: null,
     });
@@ -497,7 +497,7 @@ describe("MapEditor", () => {
     await screen.findByText("Verdant Reach");
     await userEvent.type(screen.getByLabelText("Name"), "Third map");
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(useUiStore.getState().screen).toBe("adventures"));
+    await waitFor(() => expect(useUiStore.getState().screen).toBe("adventure-editor"));
     expect(useUiStore.getState().adventureEditorSession?.draft.title).toBe("Preserved");
     expect(useUiStore.getState().adventureEditorSession?.draft.members).toEqual([
       expect.objectContaining({ mapId: "new", name: "New map" }),

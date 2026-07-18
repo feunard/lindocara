@@ -80,7 +80,7 @@ describe("AdventureEditor", () => {
   beforeEach(() => {
     setLocale("en");
     useUiStore.setState({
-      screen: "adventures",
+      screen: "adventure-editor",
       adventureEditorSession: null,
       editorReturnContext: null,
     });
@@ -168,7 +168,7 @@ describe("AdventureEditor", () => {
     await within(screen.getByRole("region", { name: "Maps" })).findByText("Verdant");
 
     await userEvent.click(screen.getByRole("button", { name: "Edit" }));
-    expect(useUiStore.getState().screen).toBe("map-editor");
+    expect(useUiStore.getState().screen).toBe("adventure-editor");
     expect(useUiStore.getState().editorReturnContext).toMatchObject({
       screen: "adventure",
       mapId: "m1",
@@ -177,7 +177,7 @@ describe("AdventureEditor", () => {
     expect(useUiStore.getState().adventureEditorSession?.draft.title).toBe("Preserved draft");
 
     rendered.unmount();
-    useUiStore.getState().setScreen("adventures");
+    useUiStore.getState().setScreen("adventure-editor");
     render(<AdventureEditor />);
     expect(await screen.findByDisplayValue("Preserved draft")).toBeInTheDocument();
     expect(screen.getAllByText("Verdant").length).toBeGreaterThan(0);
@@ -190,7 +190,7 @@ describe("AdventureEditor", () => {
     await userEvent.type(screen.getByLabelText("Title"), "Draft");
 
     await userEvent.click(screen.getByRole("button", { name: "New map" }));
-    expect(useUiStore.getState().screen).toBe("map-editor");
+    expect(useUiStore.getState().screen).toBe("adventure-editor");
     expect(useUiStore.getState().editorReturnContext).toMatchObject({
       screen: "adventure",
       mapId: null,

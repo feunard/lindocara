@@ -122,8 +122,7 @@ interface UiState {
     | "auth"
     | "characters"
     | "game"
-    | "map-editor"
-    | "adventures"
+    | "adventure-editor"
     | "parties"
     | "party";
   accountId: string | null;

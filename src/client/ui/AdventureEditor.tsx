@@ -276,7 +276,7 @@ export function AdventureEditor() {
       mapId,
       addCreatedMap,
     });
-    setScreen("map-editor");
+    setScreen("adventure-editor");
   }
 
   if (adventures === null || maps === null) return null;

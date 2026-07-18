@@ -126,7 +126,11 @@ export function PartiesScreen() {
           <TinyButton type="button" variant="secondary" onClick={() => void refresh()}>
             {t("parties.refresh")}
           </TinyButton>
-          <TinyButton type="button" variant="secondary" onClick={() => setScreen("adventures")}>
+          <TinyButton
+            type="button"
+            variant="secondary"
+            onClick={() => setScreen("adventure-editor")}
+          >
             {t("parties.creator_tools")}
           </TinyButton>
         </div>

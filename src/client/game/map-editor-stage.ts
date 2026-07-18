@@ -42,6 +42,7 @@ import {
   moveSelection,
   redoEditorHistory,
   selectionAt,
+  setActiveLayer,
   setMarkerLabel,
   toMapData,
   undoEditorHistory,
@@ -66,6 +67,10 @@ import {
  */
 export interface MapEditorStageHandle {
   setTool(tool: EditorTool): void;
+  /** Which layer the paint-adjacent tools (eraser; rect/fill when their selection is layer-free)
+   *  write to. Lives on `EditorHistory`, survives undo/redo, and is threaded into every `applyTool`
+   *  call from `paintAt`. React owns the displayed value and pushes it down here. */
+  setActiveLayer(layer: 0 | 1 | 2): void;
   current(): EditorMap;
   setName(name: string): void;
   undo(): void;
@@ -204,6 +209,7 @@ function enqueue<T>(job: () => Promise<T> | T): Promise<T> {
 function inertHandle(map: EditorMap): MapEditorStageHandle {
   return {
     setTool() {},
+    setActiveLayer() {},
     current: () => map,
     setName() {},
     undo() {},
@@ -499,7 +505,7 @@ async function buildSession(
       notify();
       return;
     }
-    const next = applyTool(map, tool, col, row, isStrokeStart);
+    const next = applyTool(map, tool, col, row, isStrokeStart, history.activeLayer);
     // null → refused (does nothing visible); same reference → a no-op edit (eraser on empty).
     if (!next || next === map) return;
     map = next;
@@ -677,6 +683,9 @@ async function buildSession(
       if (next.kind === "element") ensureAsset(next.assetId);
       canvas.dataset.cursor =
         tool.kind === "pan" ? "move" : tool.kind === "select" ? "select" : "paint";
+    },
+    setActiveLayer(layer) {
+      history = setActiveLayer(history, layer);
     },
     current() {
       return map;

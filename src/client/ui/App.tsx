@@ -1,18 +1,17 @@
 import { useEffect } from "react";
 import { fetchMe } from "../api.js";
 import { useUiStore } from "../store.js";
-import { AdventureEditor } from "./AdventureEditor.js";
 import { AuthScreen } from "./AuthScreen.js";
 import { Chat } from "./Chat.js";
 import { ConnectionOverlay } from "./ConnectionOverlay.js";
 import { EventLog } from "./EventLog.js";
+import { AdventureEditorScreen } from "./editor/AdventureEditorScreen.js";
 import { HelpBar } from "./HelpBar.js";
 import { Hud } from "./hud/Hud.js";
 import { Minimap } from "./hud/Minimap.js";
 import { TargetFrame } from "./hud/TargetFrame.js";
 import { InteriorOverlay } from "./InteriorOverlay.js";
 import { LocaleToggle } from "./LocaleToggle.js";
-import { MapEditor } from "./MapEditor.js";
 import { MobileControls } from "./MobileControls.js";
 import { PartiesScreen } from "./PartiesScreen.js";
 import { PartyScreen } from "./PartyScreen.js";
@@ -41,8 +40,7 @@ export function App() {
       <StatusBar />
       {screen === "title" && <TitleScreen />}
       {screen === "auth" && <AuthScreen />}
-      {screen === "map-editor" && <MapEditor />}
-      {screen === "adventures" && <AdventureEditor />}
+      {screen === "adventure-editor" && <AdventureEditorScreen />}
       {screen === "parties" && <PartiesScreen />}
       {screen === "party" && <PartyScreen />}
       {screen === "game" && (
