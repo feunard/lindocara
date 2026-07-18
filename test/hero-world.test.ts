@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { MapInput } from "../src/server/maps.js";
 import type { AdventureGraph } from "../src/shared/adventure.js";
 import { WS_CLOSE } from "../src/shared/close-codes.js";
-import { ATTACK_COOLDOWN_MS } from "../src/shared/game.js";
+import { ATTACK_COOLDOWN_MS, maxHpForLevel } from "../src/shared/game.js";
 import {
   Client,
   tileCentre as centre,
@@ -390,5 +390,133 @@ describe("cooperative rewards inside a party room", () => {
       far.received.some((message) => message.t === "event" && message.code === "monster.defeated"),
     ).toBe(false);
     expect(far.latestState?.xp).toBe(0);
+  }, 20_000);
+});
+
+/**
+ * The party roster a hero sees is the persistent party its room is named after. `party.*` is
+ * refused for heroes, so the in-room party runtime is permanently empty here: a roster built from
+ * it would leave every hero believing it adventures alone.
+ */
+function rosterMapInput(): MapInput {
+  return testMapInput("Roster", {
+    cols: 20,
+    rows: 15,
+    spawn: { col: 2, row: 2 },
+    exit: { col: 18, row: 13 },
+  });
+}
+
+describe("party state inside a hero room", () => {
+  it("lists every hero of the persistent party sharing the room", async () => {
+    const party = await testParty("roster", { maps: [rosterMapInput()] });
+    const firstHero = await testHero("Ana", {
+      party,
+      account: party.host,
+      level: 10,
+      position: centre(2, 2),
+    });
+    const secondHero = await testHero("Bo", { party, level: 10, position: centre(4, 2) });
+
+    const first = await Client.joinHero(firstHero);
+    const second = await Client.joinHero(secondHero);
+    await until("both heroes welcomed", () => first.welcome && second.welcome);
+    const firstId = first.welcome?.selfId;
+    const secondId = second.welcome?.selfId;
+    if (!firstId || !secondId) throw new Error("expected both heroes to know their own id");
+
+    const expected = [firstId, secondId].sort();
+    for (const [label, client] of [
+      ["the first hero", first],
+      ["the second hero", second],
+    ] as const) {
+      const roster = await until(`${label} sees the whole party`, () =>
+        client.received.find(
+          (message) => message.t === "party.state" && message.party?.members.length === 2,
+        ),
+      );
+      if (roster.t !== "party.state" || !roster.party) throw new Error("expected a party state");
+      expect(roster.party.id).toBe(party.partyId);
+      expect(roster.party.members.map((member) => member.id).sort()).toEqual(expected);
+      expect(roster.party.members.map((member) => member.nick).sort()).toEqual(["Ana", "Bo"]);
+      for (const member of roster.party.members) {
+        expect(member.maxHp).toBe(maxHpForLevel(10));
+        expect(member.hp).toBe(maxHpForLevel(10));
+        expect(member.life).toBe("alive");
+      }
+    }
+  }, 20_000);
+
+  it("keeps a member's health bar live rather than freezing it at admission", async () => {
+    const party = await testParty("wounded", { maps: [rosterMapInput()] });
+    const watcherHero = await testHero("Watcher", {
+      party,
+      account: party.host,
+      level: 10,
+      position: centre(2, 2),
+    });
+    // Wounded before it ever connects, so the roster has somewhere to move to.
+    const woundedHero = await testHero("Wounded", {
+      party,
+      level: 10,
+      hp: 50,
+      position: centre(4, 2),
+    });
+
+    const watcher = await Client.joinHero(watcherHero);
+    const wounded = await Client.joinHero(woundedHero);
+    await until("both heroes welcomed", () => watcher.welcome && wounded.welcome);
+    const woundedId = wounded.welcome?.selfId;
+    if (!woundedId) throw new Error("expected the wounded hero to know its own id");
+
+    const before = await until("the watcher sees its ally wounded", () =>
+      watcher.received.find(
+        (message) =>
+          message.t === "party.state" &&
+          message.party?.members.some((member) => member.id === woundedId && member.hp === 50),
+      ),
+    );
+    if (before.t !== "party.state") throw new Error("expected a party state");
+
+    // A potion is an authoritative heal: the server decides how much and tells the room.
+    wounded.usePotion();
+    const after = await until("the watcher sees the potion land", () =>
+      watcher.received.find(
+        (message) =>
+          message.t === "party.state" &&
+          message.party?.members.some((member) => member.id === woundedId && member.hp > 50),
+      ),
+    );
+    if (after.t !== "party.state" || !after.party) throw new Error("expected a party state");
+    const healed = after.party.members.find((member) => member.id === woundedId);
+    expect(healed?.hp).toBeGreaterThan(50);
+    expect(healed?.hp).toBeLessThanOrEqual(maxHpForLevel(10));
+  }, 20_000);
+
+  it("re-sends the roster only when it changes", async () => {
+    const party = await testParty("quiet", { maps: [rosterMapInput()] });
+    const firstHero = await testHero("Still", {
+      party,
+      account: party.host,
+      level: 10,
+      position: centre(2, 2),
+    });
+    const secondHero = await testHero("Statue", { party, level: 10, position: centre(4, 2) });
+
+    const first = await Client.joinHero(firstHero);
+    const second = await Client.joinHero(secondHero);
+    await until("both heroes welcomed", () => first.welcome && second.welcome);
+    await until("the roster lists both heroes", () =>
+      first.received.find(
+        (message) => message.t === "party.state" && message.party?.members.length === 2,
+      ),
+    );
+
+    // Nothing about an idle party changes, but the tick loop runs 10 network ticks a second. A
+    // roster rebroadcast per tick would show up here as a pile of identical messages.
+    const before = first.received.filter((message) => message.t === "party.state").length;
+    await scheduler.wait(1_500);
+    const after = first.received.filter((message) => message.t === "party.state").length;
+    expect(after).toBe(before);
   }, 20_000);
 });

@@ -207,24 +207,48 @@ function removeMember(context: PartySystemContext, party: PartyRuntime, playerId
   broadcastPartyState(context, party);
 }
 
+function memberState(player: PlayerRuntime): PartyState["members"][number] {
+  return {
+    id: player.id,
+    nick: player.nick,
+    hp: player.hp,
+    maxHp: maxHpForLevel(player.level),
+    life: player.life,
+  };
+}
+
 function partyState(context: PartySystemContext, party: PartyRuntime): PartyState {
   return {
     id: party.id,
     leaderId: party.leaderId,
     members: [...party.members].sort().flatMap((id) => {
       const player = context.playersById.get(id);
-      return player
-        ? [
-            {
-              id,
-              nick: player.nick,
-              hp: player.hp,
-              maxHp: maxHpForLevel(player.level),
-              life: player.life,
-            },
-          ]
-        : [];
+      return player ? [memberState(player)] : [];
     }),
+  };
+}
+
+/**
+ * The roster a hero sees: the persistent party its room is named after.
+ *
+ * A hero room is keyed `${partyId}:${mapId}` and admission refuses any other room key, so every
+ * hero simulated here belongs to the same persistent party by construction. Heroes cannot build an
+ * in-room party either — `party.*` is refused for them — so `parties`/`partyByPlayerId` stay
+ * permanently empty in a hero room and a roster read from them would say "you adventure alone".
+ *
+ * `leaderId` is deliberately empty. A persistent party's leader is its host ACCOUNT
+ * (`party.host_account_id`), and `PartyState.leaderId` is a player id; one account may own up to
+ * `MAX_HEROES_PER_PARTY` heroes and may have none of them in this room, so no hero here faithfully
+ * stands for it. Naming an arbitrary one would invent a leader the persistent model does not have.
+ *
+ * Members are the heroes in THIS room. A party spread over several maps has one room per map and
+ * no room can see another's occupants; fanning a party-wide roster out is `GameSession`'s job.
+ */
+export function heroPartyState(partyId: string, members: readonly PlayerRuntime[]): PartyState {
+  return {
+    id: partyId,
+    leaderId: "",
+    members: [...members].sort((a, b) => a.id.localeCompare(b.id)).map(memberState),
   };
 }
 
