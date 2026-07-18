@@ -20,11 +20,6 @@ export interface CharacterSummary {
   equipment: Equipment;
 }
 
-/** The client can only create as many characters as the server's per-account cap allows.
- *  Kept in sync with `MAX_CHARACTERS_PER_ACCOUNT` in `src/server/characters.ts` — not
- *  imported, since client code must not import server code. */
-export const MAX_CHARACTERS = 3;
-
 /** API errors carry stable machine codes the UI maps to i18n keys. */
 export class ApiError extends Error {
   constructor(readonly code: string) {
@@ -50,7 +45,6 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const fetchMe = () => api<Me>("/api/me").catch(() => null);
-export const fetchCharacters = () => api<CharacterSummary[]>("/api/characters");
 
 export interface MapSummary {
   id: string;

@@ -151,7 +151,10 @@ describe("terrainFromMap", () => {
     expect(terrain.height).toBe(4 * TILE_SIZE);
     expect(terrain.tiles).toEqual(bakeCollision(data));
     expect(terrain.obstacles).toEqual([]);
-    expect(terrain.safeZone).toEqual({ x: 0, y: 0, width: 4 * TILE_SIZE, height: 4 * TILE_SIZE });
+    // This used to pin the whole map as a safe zone, which is what made every placed monster
+    // harmless on every authored map: `monster-system` reads that rect as "monsters may not touch
+    // a player here". An authored map has no way to declare such a place, so it has none.
+    expect(terrain.safeZone).toBeNull();
     expect(terrain.spawnPoints).toEqual([mapSpawnPoint(data)]);
   });
 

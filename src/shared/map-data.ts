@@ -9,7 +9,7 @@
  * reason.
  */
 
-import type { Rect, TerrainGeometry } from "./game.js";
+import type { TerrainGeometry } from "./game.js";
 import { isMonsterSpecies, type MonsterSpecies } from "./game.js";
 import { TILE_SIZE, type TileKind, type TileMap } from "./tilemap.js";
 import { decodeTileMap } from "./tilemap-codec.js";
@@ -192,8 +192,18 @@ export function terrainFromMap(data: MapData): TerrainGeometry {
   const tiles = bakeCollision(data);
   const width = tiles.cols * TILE_SIZE;
   const height = tiles.rows * TILE_SIZE;
-  const safeZone: Rect = { x: 0, y: 0, width, height };
-  return { width, height, obstacles: [], spawnPoints: [mapSpawnPoint(data)], safeZone, tiles };
+  // No safe zone: an authored map has no way to declare one, and `monster-system` reads that rect
+  // as "monsters may not touch a player here". Declaring the whole map safe — as this used to —
+  // made every placed monster permanently harmless on the only maps a hero can play. Spawn
+  // protection on an authored map is the author's job: place spawns away from the entry.
+  return {
+    width,
+    height,
+    obstacles: [],
+    spawnPoints: [mapSpawnPoint(data)],
+    safeZone: null,
+    tiles,
+  };
 }
 
 export function canPlaceElement(assetId: EditorAssetId, on: TileKind): boolean {

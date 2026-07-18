@@ -12,7 +12,6 @@ import {
   GUARD_DAMAGE,
   GUARD_DETECTION_RANGE,
   GUARD_SPEED,
-  inRect,
   MONSTER_AGGRO_RANGE,
   MONSTER_ATTACK_COOLDOWN_MS,
   MONSTER_ATTACK_RANGE,
@@ -20,6 +19,7 @@ import {
   type MonsterSpecies,
   pointDistance,
   resolveTerrain,
+  safeZoneShelters,
 } from "../../shared/game.js";
 import { PLAYER_SIZE, TICK_DT, type Vec2 } from "../../shared/simulation.js";
 import { isPathWalkable } from "../../shared/tilemap.js";
@@ -82,7 +82,7 @@ export function advanceMonsters(context: MonsterSystemContext, now: number): voi
       if (
         !player?.authorized ||
         player.life !== "alive" ||
-        inRect(player, context.zone.terrain.safeZone) ||
+        safeZoneShelters(player, context.zone.terrain) ||
         now - entry.updatedAt > THREAT_EXPIRES_MS ||
         tooFar
       ) {
@@ -98,7 +98,7 @@ export function advanceMonsters(context: MonsterSystemContext, now: number): voi
 
     for (const candidate of players) {
       const player = candidate[1];
-      if (inRect(player, context.zone.terrain.safeZone)) continue;
+      if (safeZoneShelters(player, context.zone.terrain)) continue;
       if (
         monster.navigation.unreachableTargetId === player.id &&
         monster.navigation.unreachableUntil > now
@@ -291,12 +291,16 @@ function resetMonsterNavigation(monster: MonsterRuntime): void {
 }
 
 export function advanceGuards(context: MonsterSystemContext, now: number): void {
-  const safeZone = context.zone.terrain.safeZone;
+  const terrain = context.zone.terrain;
   for (const guard of context.guards) {
     let target: MonsterRuntime | undefined;
     let targetDistance = GUARD_DETECTION_RANGE;
     for (const monster of context.monsters) {
-      if (monster.deadUntil > now || !inRect(monster, safeZone)) continue;
+      // A guard's whole job is "get this thing out of the city". Where there is no city — every
+      // authored map — nothing is ever inside one, so a guard finds no target and walks home.
+      // Authored maps carry no guards at all today, so this loop is empty there; the check states
+      // the rule anyway rather than leaning on that.
+      if (monster.deadUntil > now || !safeZoneShelters(monster, terrain)) continue;
       const distance = pointDistance(guard, monster);
       if (distance >= targetDistance) continue;
       target = monster;
@@ -342,9 +346,14 @@ function moveGuardToward(context: MonsterSystemContext, guard: GuardRuntime, tar
     x: guard.x + (dx / distance) * Math.min(maxTravel, distance),
     y: guard.y + (dy / distance) * Math.min(maxTravel, distance),
   };
+  // Guards are kept inside their city as well as inside their patrol ring. With no city there is
+  // no rect to clamp to — the patrol radius below is then the only leash, which is the correct
+  // remaining one.
   const safe = context.zone.terrain.safeZone;
-  desired.x = Math.max(safe.x, Math.min(safe.x + safe.width - PLAYER_SIZE, desired.x));
-  desired.y = Math.max(safe.y, Math.min(safe.y + safe.height - PLAYER_SIZE, desired.y));
+  if (safe) {
+    desired.x = Math.max(safe.x, Math.min(safe.x + safe.width - PLAYER_SIZE, desired.x));
+    desired.y = Math.max(safe.y, Math.min(safe.y + safe.height - PLAYER_SIZE, desired.y));
+  }
   const fromHome = Math.hypot(desired.x - guard.homeX, desired.y - guard.homeY);
   if (fromHome > guard.patrolRadius) {
     desired.x = guard.homeX + ((desired.x - guard.homeX) / fromHome) * guard.patrolRadius;

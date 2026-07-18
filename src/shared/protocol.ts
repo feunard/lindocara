@@ -199,7 +199,8 @@ export interface WorldInfo {
   height: number;
   playerSize: number;
   obstacles: Rect[];
-  safeZone: Rect;
+  /** `null` on an authored map, which has no place monsters are forbidden to enter. */
+  safeZone: Rect | null;
   questNpc: NpcDefinition;
   questNpcs: NpcDefinition[];
   questSites: QuestSite[];

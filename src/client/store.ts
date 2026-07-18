@@ -7,7 +7,7 @@ import type { PartyState, QuestStatus, SelfState } from "../shared/protocol.js";
 import type { Input } from "../shared/simulation.js";
 import type { SkillSlot } from "../shared/skills.js";
 import type { AdventureDraft } from "./adventure-draft.js";
-import type { CharacterSummary, PartyListing } from "./api.js";
+import type { PartyListing } from "./api.js";
 
 export type EditorReturnContext =
   | { screen: "map-editor-list" }
@@ -130,7 +130,6 @@ interface UiState {
   activeParty: PartyListing | null;
   editorReturnContext: EditorReturnContext | null;
   adventureEditorSession: AdventureEditorSession | null;
-  characters: CharacterSummary[] | null;
   self: SelfHud | null;
   selfState: SelfState | null;
   questStatus: QuestStatus;
@@ -166,7 +165,6 @@ interface UiState {
   setActiveParty(activeParty: PartyListing | null): void;
   setEditorReturnContext(context: EditorReturnContext | null): void;
   setAdventureEditorSession(session: AdventureEditorSession | null): void;
-  setCharacters(characters: CharacterSummary[] | null): void;
   setSelf(self: SelfHud | null): void;
   setSelfState(state: SelfState): void;
   setQuestStatus(status: QuestStatus): void;
@@ -274,7 +272,6 @@ export const useUiStore = create<UiState>((set) => ({
   activeParty: null,
   editorReturnContext: null,
   adventureEditorSession: null,
-  characters: null,
   self: null,
   selfState: null,
   questStatus: "available",
@@ -303,7 +300,6 @@ export const useUiStore = create<UiState>((set) => ({
   setActiveParty: (activeParty) => set({ activeParty }),
   setEditorReturnContext: (editorReturnContext) => set({ editorReturnContext }),
   setAdventureEditorSession: (adventureEditorSession) => set({ adventureEditorSession }),
-  setCharacters: (characters) => set({ characters }),
   setSelf: (self) =>
     set((state) => {
       if (selfHudEqual(state.self, self)) return {};

@@ -116,6 +116,7 @@ import {
   broadcastPartyStateIfChanged,
   createParty,
   dissolveParty,
+  heroPartyState,
   inviteToParty,
   kickPartyMember,
   leaveParty,
@@ -178,6 +179,8 @@ export class World extends DurableObject<Env> {
   #parties = new Map<string, PartyRuntime>();
   #partyByPlayerId = new Map<string, string>();
   #partyInvites = new Map<string, PartyInviteRuntime>();
+  /** Per persistent party, the last hero roster actually sent — the hero half of `lastBroadcast`. */
+  #heroPartyBroadcasts = new Map<string, string>();
   #navigation: NavigationRuntime | null = null;
   #observability = createRoomObservability();
   #seenCharacterIds = new Set<string>();
@@ -1111,6 +1114,70 @@ export class World extends DurableObject<Env> {
     }
   }
 
+  /**
+   * The heroes of one persistent party that this room is currently simulating.
+   *
+   * A hero room is named `${partyId}:${mapId}` and admission refuses any other room key, so every
+   * hero simulated here belongs to the same persistent party by construction. Heroes cannot build
+   * an in-room party either — `party.*` is refused for them — so the persistent party is the only
+   * membership there is. This is the single answer to "who is in my party" on the hero side:
+   * rewards and the roster must never disagree about it. A party spread over several maps has one
+   * room per map, and a room only ever knows its own occupants.
+   */
+  #heroPartyMembers(partyId: string): Player[] {
+    return [...this.#players.values()].filter(
+      (player) => player.identityKind === "hero" && player.partyId === partyId && player.authorized,
+    );
+  }
+
+  /**
+   * Who counts as "in my party" when a monster pays out. Heroes read the persistent party;
+   * characters keep the in-room runtime party they invited each other into.
+   */
+  #rewardPartyMemberIds(playerId: string): Iterable<string> {
+    const socket = this.#socketByPlayerId.get(playerId);
+    const player = socket ? this.#players.get(socket) : undefined;
+    if (player?.identityKind === "hero") {
+      const partyId = player.partyId;
+      if (partyId === null) return [];
+      return this.#heroPartyMembers(partyId).map((other) => other.id);
+    }
+    const runtimePartyId = this.#partyByPlayerId.get(playerId);
+    const party = runtimePartyId ? this.#parties.get(runtimePartyId) : undefined;
+    return party ? party.members : [];
+  }
+
+  /**
+   * The hero half of `broadcastPartyStateIfChanged`. `#parties` is permanently empty in a hero
+   * room, so the tick loop's runtime-party pass sends nothing; this rebuilds the roster from the
+   * persistent party instead, and is gated on the last payload actually sent so an idle party
+   * costs nothing at 10 Hz.
+   */
+  #broadcastHeroPartyStates(): void {
+    const membersByParty = new Map<string, Player[]>();
+    for (const player of this.#players.values()) {
+      if (player.identityKind !== "hero" || !player.authorized) continue;
+      const partyId = player.partyId;
+      if (partyId === null) continue;
+      const members = membersByParty.get(partyId);
+      if (members) members.push(player);
+      else membersByParty.set(partyId, [player]);
+    }
+    for (const partyId of this.#heroPartyBroadcasts.keys()) {
+      if (!membersByParty.has(partyId)) this.#heroPartyBroadcasts.delete(partyId);
+    }
+    for (const [partyId, members] of membersByParty) {
+      const state = heroPartyState(partyId, members);
+      const encoded = JSON.stringify(state);
+      if (this.#heroPartyBroadcasts.get(partyId) === encoded) continue;
+      this.#heroPartyBroadcasts.set(partyId, encoded);
+      for (const member of members) {
+        const socket = this.#socketByPlayerId.get(member.id);
+        if (socket) this.#send(socket, { t: "party.state", party: state });
+      }
+    }
+  }
+
   #defeatMonster(_ws: WebSocket, player: Player, monster: Monster, now: number): void {
     if (!beginRewardAttribution(monster)) return;
     monster.deadUntil = now + MONSTER_RESPAWN_MS;
@@ -1135,10 +1202,7 @@ export class World extends DurableObject<Env> {
 
     const eligible = new Set(directlyEligible);
     for (const contributorId of directlyEligible) {
-      const partyId = this.#partyByPlayerId.get(contributorId);
-      const party = partyId ? this.#parties.get(partyId) : undefined;
-      if (!party) continue;
-      for (const memberId of party.members) {
+      for (const memberId of this.#rewardPartyMemberIds(contributorId)) {
         const socket = this.#socketByPlayerId.get(memberId);
         const member = socket ? this.#players.get(socket) : undefined;
         if (
@@ -2013,6 +2077,7 @@ export class World extends DurableObject<Env> {
       this.#sendWorldDeltas();
       const context = this.#partyContext();
       for (const party of this.#parties.values()) broadcastPartyStateIfChanged(context, party);
+      this.#broadcastHeroPartyStates();
     }
     this.#flushQueuedResyncs(now);
   }
@@ -2264,6 +2329,7 @@ export class World extends DurableObject<Env> {
     this.#parties.clear();
     this.#partyByPlayerId.clear();
     this.#partyInvites.clear();
+    this.#heroPartyBroadcasts.clear();
     this.#monsters = this.#location ? createMonsters(this.#location.definition.monsters) : [];
     this.#guards = this.#location ? createGuards(this.#location.definition.guards) : [];
     this.#monsterGrid.clear();
