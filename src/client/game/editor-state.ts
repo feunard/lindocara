@@ -59,16 +59,23 @@ export interface EditorMap {
   markers: MapMarkers;
   /**
    * The rect tool's drag anchor: optional and set only while a rect stroke is in flight. It carries
-   * both the first cell of the stroke and the layers exactly as they stood before the stroke touched
-   * them, so every subsequent cell of the same drag repaints the whole rectangle from that pristine
-   * copy rather than from the live preview. Painting from the live preview instead would leave stray
-   * cells behind whenever a drag shrinks back after growing — `fillRect` only ever writes into the
-   * rectangle it is given, it never clears cells a *previous*, larger rectangle touched.
+   * the first cell of the stroke and both the layers and the elements exactly as they stood before
+   * the stroke touched them, so every subsequent cell of the same drag repaints the whole rectangle,
+   * and re-derives which elements it invalidates, from that pristine copy rather than from the live
+   * preview. Painting terrain from the live preview instead would leave stray cells behind whenever a
+   * drag shrinks back after growing — `fillRect` only ever writes into the rectangle it is given, it
+   * never clears cells a *previous*, larger rectangle touched. Dropping elements from the live preview
+   * has the mirror problem: an element the drag passed over once (a tree a growing-then-shrinking
+   * water rectangle briefly covered) would stay dropped even after the final rectangle no longer
+   * covers its cell, because each frame's drop was folded into the live map instead of re-derived from
+   * this pristine snapshot. Markers and spawn need no anchor of their own: `commitTerrain` never
+   * drops them, it only refuses a rectangle outright when it would leave one on solid ground, and that
+   * refusal already reads the untouched, stroke-invariant `markers`/`spawn` off the live map.
    *
    * Deliberately excluded from `serializedMap`: it is stroke-local plumbing, not map content, and
    * must never make the map read as dirty or unsaved on its own.
    */
-  strokeAnchor?: { col: number; row: number; layers: TileLayer[] };
+  strokeAnchor?: { col: number; row: number; layers: TileLayer[]; elements: MapElement[] };
 }
 
 /** Terrain strokes write the ground; only `paintElevation` reaches past it, and it owns the reach. */
@@ -506,15 +513,23 @@ function sameLayers(a: readonly TileLayer[], b: readonly TileLayer[]): boolean {
  * new terrain no longer accepts it (a tree in fresh water), the same narrow rule the block tool had.
  * A stroke that would drown the spawn or a marker is refused outright, because adventure graphs bind
  * marker ids.
+ *
+ * `sourceElements` defaults to the live map's elements, which is exactly right for the single-cell
+ * tools: each of their strokes is one independent mutation, so folding one frame's drop into the next
+ * frame's input is the intended behaviour. The rect tool instead passes its anchor's pristine
+ * elements, because its frames are not independent — they are repeated redraws of one in-flight
+ * rectangle — so every frame must re-derive its drops from the same pristine set the anchor recorded,
+ * never from what an earlier, larger or differently-shaped frame of the *same* drag already dropped.
  */
 function commitTerrain(
   map: EditorMap,
   layers: TileLayer[],
   cells: readonly { col: number; row: number }[],
+  sourceElements: readonly MapElement[] = map.elements,
 ): EditorMap | null {
   if (sameLayers(map.layers, layers)) return map;
   const candidate: EditorMap = { ...map, layers };
-  const elements = candidate.elements.filter(
+  const elements = sourceElements.filter(
     (element) =>
       !cells.some((cell) => elementCoversCell(element, cell.col, cell.row)) ||
       placementTerrainValid(candidate, element),
@@ -714,7 +729,9 @@ export function applyTool(
      * already follow.
      */
     case "rect": {
-      if (isStrokeStart) return { ...map, strokeAnchor: { col, row, layers: map.layers } };
+      if (isStrokeStart) {
+        return { ...map, strokeAnchor: { col, row, layers: map.layers, elements: map.elements } };
+      }
       const anchor = map.strokeAnchor;
       if (!anchor) return null;
       const bounds = clampToMap(map, anchor.col, anchor.row, col, row);
@@ -740,6 +757,7 @@ export function applyTool(
         map,
         layers,
         terrainRectCells(bounds.c0, bounds.r0, bounds.c1, bounds.r1),
+        anchor.elements,
       );
     }
     /** One click, one flood region. Same ground + wall-upkeep targeting as `rect`; `activeLayer`

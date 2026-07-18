@@ -22,7 +22,7 @@ import {
   MAX_MAP_ENTRIES,
   type MapElement,
 } from "../src/shared/map-data.js";
-import { paintRectAutotile, paintStairs, slotAt } from "../src/shared/tile-brush.js";
+import { eraseRect, paintRectAutotile, paintStairs, slotAt } from "../src/shared/tile-brush.js";
 import type { TileLayer } from "../src/shared/tile-layer-codec.js";
 import { autotileId, EMPTY_TILE } from "../src/shared/tileset.js";
 import {
@@ -309,6 +309,31 @@ describe("applyTool: rect", () => {
     const base = blankMap("m", 20, 15);
     const tool: EditorTool = { kind: "rect", content: { kind: "block", block: "grass" } };
     expect(applyTool(base, tool, 3, 3, false)).toBeNull();
+  });
+
+  it("does not permanently drop an element the drag passed over but the final rectangle excludes", () => {
+    const base = blankMap("m", 20, 15);
+    const withTree = applyTool(base, { kind: "element", assetId: TREE }, 5, 5) as EditorMap;
+    expect(withTree).not.toBeNull();
+
+    const tool: EditorTool = { kind: "rect", content: { kind: "block", block: "water" } };
+    let map = applyTool(withTree, tool, 1, 1, true) as EditorMap;
+    map = applyTool(map, tool, 5, 5, false) as EditorMap; // drag out over the tree
+    // Mid-drag, the rectangle covers the tree's cell with water, which a tree cannot stand on.
+    expect(map.elements).toEqual([]);
+    map = applyTool(map, tool, 2, 2, false) as EditorMap; // shrink back and release here
+
+    // The final rectangle never touched (5, 5): the tree must survive.
+    expect(map.elements).toEqual([{ col: 5, row: 5, assetId: TREE }]);
+    const expectedGround = eraseRect(
+      withTree.layers[0] as TileLayer,
+      TINY_SWORDS_TILESET,
+      1,
+      1,
+      2,
+      2,
+    );
+    expect(map.layers[0]).toEqual(expectedGround);
   });
 });
 
