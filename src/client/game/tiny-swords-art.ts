@@ -52,6 +52,29 @@ export function sliceAutotileSheet(sheet: Texture): Texture[][] {
   );
 }
 
+/**
+ * A whole tileset sheet sliced into one `Texture` per cell, indexed `[row][col]`.
+ *
+ * `sliceAutotileSheet` reads only `Tilemap_Flat.png`'s first 4x4 group; a tileset's ids may land
+ * anywhere in `Tilemap_color1.png`'s 9x6 grid, so this slices the lot. Sliced once per sheet, never
+ * per frame. The grid's dimensions are the tileset's own (`TINY_SWORDS_SHEET_COLS/ROWS` in
+ * `shared/tilesets/tiny-swords.ts`) rather than a second copy here — they are the bound every
+ * declared id must resolve inside, and shared arithmetic must be able to name them.
+ */
+export function sliceTilesetSheet(sheet: Texture, cols: number, rows: number): Texture[][] {
+  return Array.from({ length: rows }, (_, row) =>
+    Array.from(
+      { length: cols },
+      (_, col) =>
+        new Texture({
+          source: sheet.source,
+          frame: new Rectangle(col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE),
+          label: `tileset:${col}:${row}`,
+        }),
+    ),
+  );
+}
+
 /** One horizontal strip of `frames` square `frameSize` cells (foam, a tree or bush's sway) sliced
  *  into a `Texture` each. The same arithmetic `loadArt` runs for its own strips, shared here so the
  *  editor stage does not grow a second copy of it. */

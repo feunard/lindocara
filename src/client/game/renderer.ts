@@ -10,6 +10,7 @@ import {
   type Ticker,
   TilingSprite,
 } from "pixi.js";
+import { autotileOffset } from "../../shared/autotile.js";
 import type { MainHandItem, OffHandItem, PrimaryColor } from "../../shared/character.js";
 import { isSpirit } from "../../shared/death.js";
 import {
@@ -32,7 +33,20 @@ import type {
   QuestState,
 } from "../../shared/protocol.js";
 import { PLAYER_SIZE } from "../../shared/simulation.js";
+import { emptyLayer, parseTileLayer, type TileLayer } from "../../shared/tile-layer-codec.js";
 import { isSolidKind, kindAt, TILE_SIZE, type TileMap } from "../../shared/tilemap.js";
+import {
+  type Autotile,
+  decodeTileId,
+  type FixedTile,
+  type TilePriority,
+  type Tileset,
+} from "../../shared/tileset.js";
+import {
+  TINY_SWORDS_SHEET_COLS,
+  TINY_SWORDS_SHEET_ROWS,
+  tilesetById,
+} from "../../shared/tilesets/tiny-swords.js";
 import type { EditorAssetId } from "../../shared/tiny-swords-catalog.js";
 import {
   DEFAULT_ZONE_ID,
@@ -71,6 +85,7 @@ import {
   type DecorSheet,
   sliceAutotileSheet,
   sliceStrip,
+  sliceTilesetSheet,
   TINY_SWORDS_BUILDINGS,
   TINY_SWORDS_BUSHES,
   TINY_SWORDS_DECO,
@@ -175,11 +190,14 @@ interface ArtTextures {
   monsters: Record<MonsterSpecies, Record<UnitMotion, readonly Texture[]>>;
   keeper: Texture;
   /** The tilemap's ground truth. `land[row][col]` is a cell of the flat sheet's first 4x4
-   * autotile group; `water` is the pack's flat BG colour and `foam` its eight shoreline frames. */
+   * autotile group; `water` is the pack's flat BG colour and `foam` its eight shoreline frames.
+   * `tileset[row][col]` is the whole 9x6 `Tilemap_color1.png` grid a frozen tile id indexes into —
+   * `land` survives only for the compiled catalogue zones, which carry no layers. */
   terrain: {
     land: readonly (readonly Texture[])[];
     water: Texture;
     foam: readonly Texture[];
+    tileset: readonly (readonly Texture[])[];
   };
   props: {
     trees: PropArt[];
@@ -338,6 +356,14 @@ function landTexture(
   return texture;
 }
 
+/** An autotile's variant offset applied to its group origin — the one place the two are added. */
+function offsetCell(
+  origin: { col: number; row: number },
+  offset: { col: number; row: number },
+): { col: number; row: number } {
+  return { col: origin.col + offset.col, row: origin.row + offset.row };
+}
+
 function centerOf(entity: { x: number; y: number }): { x: number; y: number } {
   return { x: entity.x + PLAYER_SIZE / 2, y: entity.y + PLAYER_SIZE / 2 };
 }
@@ -401,11 +427,14 @@ async function loadArt(): Promise<ArtTextures> {
         }),
     );
   }
-  const [terrainFlatSheet, terrainWaterSurface, terrainFoamSheet] = await Promise.all([
-    Assets.load<Texture>(TINY_SWORDS_TERRAIN.flat),
-    Assets.load<Texture>(TINY_SWORDS_TERRAIN.water),
-    Assets.load<Texture>(TINY_SWORDS_TERRAIN.foam),
-  ]);
+  const [terrainFlatSheet, terrainWaterSurface, terrainFoamSheet, terrainTilesetSheet] =
+    await Promise.all([
+      Assets.load<Texture>(TINY_SWORDS_TERRAIN.flat),
+      Assets.load<Texture>(TINY_SWORDS_TERRAIN.water),
+      Assets.load<Texture>(TINY_SWORDS_TERRAIN.foam),
+      Assets.load<Texture>(TINY_SWORDS_TERRAIN.tileset),
+    ]);
+  terrainTilesetSheet.source.style.scaleMode = "nearest";
   // All three are pixel art from the same pack, so all three sample nearest. The water is one flat
   // colour and would look the same either way; it stays consistent so nothing here re-learns the
   // linear sampling the photographic ocean surface used to need.
@@ -508,6 +537,11 @@ async function loadArt(): Promise<ArtTextures> {
       land: sliceAutotileSheet(terrainFlatSheet),
       water: terrainWaterSurface,
       foam: terrainFoam,
+      tileset: sliceTilesetSheet(
+        terrainTilesetSheet,
+        TINY_SWORDS_SHEET_COLS,
+        TINY_SWORDS_SHEET_ROWS,
+      ),
     },
     props: {
       // Pixel Frog's trees, at Pixel Frog's size, carrying the foot offset that stands them on a
@@ -698,7 +732,12 @@ export class Renderer {
   #worldBackground = new Graphics();
   #waterTerrain = new Container();
   #foamTerrain = new Container();
-  #terrain = new Container();
+  /** Ground tiles a character walks in front of. Everything the compiled catalogue draws lands
+   *  here too — priority is a tileset property, and a catalogue zone has no tileset. */
+  #tilesBelow = new Container();
+  /** Tiles a character walks *behind*, drawn immediately after `#actors`. That placement is the
+   *  whole point of per-tile priority: it is what lets a head pass under a treetop. */
+  #tilesAbove = new Container();
   #gridOverlay = new Graphics();
   #hitboxOverlay = new Graphics();
   #groundDecor = new Container();
@@ -733,7 +772,20 @@ export class Renderer {
   #staticViews: StaticView[] = [];
   #worldTextViews: WorldTextView[] = [];
   #localizedTexts: Array<{ node: Text; compute: () => string }> = [];
-  #terrainTiles: Sprite[] = [];
+  /**
+   * The tile sprite pools, one per priority container.
+   *
+   * A cell now draws up to `MAP_LAYERS` sprites instead of exactly one, so the pool can no longer be
+   * indexed by cell. Each repaint resets the cursors, hands out sprites in scan order and hides the
+   * unused tail; a sprite never changes parent, so the pooling stays the cheap thing it was. Draw
+   * order inside a container is child order, which is acquisition order — ground, then the two
+   * layers above it, for each cell in turn. Cells never overlap, so only the within-cell order
+   * matters.
+   */
+  #belowTiles: Sprite[] = [];
+  #belowUsed = 0;
+  #aboveTiles: Sprite[] = [];
+  #aboveUsed = 0;
   #waterSurface?: WaterSurfaceView;
   readonly #waterScroll = waterScrollOffsets(0, 1);
   #foamTilePool: FoamTileView[] = [];
@@ -746,6 +798,17 @@ export class Renderer {
   #currentZoneId: ZoneId = DEFAULT_ZONE_ID;
   #currentMapRevision = zoneDefinition(DEFAULT_ZONE_ID).revision ?? 0;
   #tiles: TileMap = zoneDefinition(DEFAULT_ZONE_ID).terrain.tiles;
+  /**
+   * The frozen appearance of an authored map: three parsed layers of tile ids, and the tileset they
+   * index into. **Appearance only** — `#tiles` above stays the single collision truth, exactly the
+   * rule `#mapElements` already follows. Nothing here may be read for walkability or geometry.
+   *
+   * Empty for a compiled catalogue zone, which predates layers and ships three empty ones. That is
+   * the discriminator `#updateTerrain` switches on: no layers means the old derived ground pass,
+   * which is the only thing keeping the rollback zones from rendering as bare sea.
+   */
+  #layers: readonly TileLayer[] = [];
+  #tileset: Tileset | null = null;
   /** A wire map's authored props, or `null` for a catalogue zone. When set, it is the ONLY prop
    *  truth: `#buildForestTrees` and `#buildDecor` stand down (a stone bakes to a `forest` cell, and
    *  the hash pass would grow a tree out of it), and `#buildMapElements` draws this list instead. */
@@ -826,6 +889,10 @@ export class Renderer {
     this.#currentZoneId = zoneId;
     this.#currentMapRevision = revision;
     this.#tiles = zone.terrain.tiles;
+    // A catalogue zone predates layers and ships three empty ones, which would paint nothing at
+    // all. Clearing these is what keeps it on the derived ground pass.
+    this.#layers = [];
+    this.#tileset = null;
     this.#portals = zone.portals;
     this.#visuals = visualConfigFor(zoneId);
     this.#zoneWidth = zone.terrain.width;
@@ -850,6 +917,7 @@ export class Renderer {
     tiles: TileMap,
     elements: readonly MapElement[],
     revision: number,
+    appearance?: { tilesetId: string; layers: readonly string[] },
   ): void {
     if (
       sameRenderedMap(
@@ -861,6 +929,7 @@ export class Renderer {
     this.#currentZoneId = zoneId;
     this.#currentMapRevision = revision;
     this.#tiles = tiles;
+    this.#adoptLayers(zoneId, tiles, appearance);
     this.#portals = [];
     this.#visuals = EMPTY_ZONE_VISUALS;
     this.#zoneWidth = tiles.cols * TILE_SIZE;
@@ -870,6 +939,45 @@ export class Renderer {
     this.#mapElementAnimations = [];
     this.#rebuildForZone();
     void this.#loadMapAssetArt(zoneId, revision, elements);
+  }
+
+  /**
+   * Parses a welcome's appearance layers once, here, and never inside a frame.
+   *
+   * Degrades the way the server's `decodeLayers` (`server/maps.ts`) does, and for the same reason: a
+   * layer that fails to parse is one layer, not the whole world. A malformed one becomes an empty
+   * layer and the other two still draw, so a corrupted decoration layer cannot blank the ground a
+   * player is standing on. `console.warn` naming the map and the layer index is the only diagnostic
+   * signal that exists for this — the protocol has no code for "your scenery is broken", and
+   * inventing a player-facing one would say nothing a player could act on.
+   *
+   * An unresolvable tileset drops *all* layers and falls back to the derived ground pass, which
+   * still paints land: with no tileset there is no entry to read a cell, a priority or a tint from,
+   * so every id would resolve to nothing and the map would render as bare sea.
+   *
+   * Doing this at configure time is what makes the robustness claim hold: by the time
+   * `#updateTerrain` runs, `#layers` is either well-formed or empty, and no frame can throw.
+   */
+  #adoptLayers(
+    zoneId: string,
+    tiles: TileMap,
+    appearance: { tilesetId: string; layers: readonly string[] } | undefined,
+  ): void {
+    this.#layers = [];
+    this.#tileset = null;
+    if (!appearance) return;
+    const tileset = tilesetById(appearance.tilesetId);
+    if (!tileset) {
+      console.warn(`renderer: map ${zoneId} names unknown tileset "${appearance.tilesetId}"`);
+      return;
+    }
+    this.#tileset = tileset;
+    this.#layers = appearance.layers.map((encoded, index) => {
+      const layer = parseTileLayer(encoded, tiles.cols, tiles.rows);
+      if (layer) return layer;
+      console.warn(`renderer: map ${zoneId} layer ${index} is malformed; drawing it empty`);
+      return emptyLayer(tiles.cols, tiles.rows);
+    });
   }
 
   async #loadMapAssetArt(
@@ -926,7 +1034,8 @@ export class Renderer {
 
   diagnostics(): Record<string, number> {
     return {
-      terrainPool: this.#terrainTiles.length,
+      terrainPool: this.#belowTiles.length + this.#aboveTiles.length,
+      terrainPoolAbove: this.#aboveTiles.length,
       waterObjects: this.#waterTerrain.children.length,
       staticTotal: this.#staticViews.length,
       staticVisible: this.#staticViews.filter(({ container }) => container.visible).length,
@@ -950,12 +1059,16 @@ export class Renderer {
       this.#worldBackground,
       this.#waterTerrain,
       this.#foamTerrain,
-      this.#terrain,
+      this.#tilesBelow,
       this.#gridOverlay,
       this.#groundDecor,
       this.#structures,
       this.#ambient,
       this.#actors,
+      // Immediately after the actors, and that is the entire point of per-tile priority: an
+      // `above` tile is a treetop, an awning, an upper cliff lip — something a character walks
+      // *behind*. One place further down this list and a head would clip through every one of them.
+      this.#tilesAbove,
       // Above the actors: a body box drawn under its own sprite would be exactly the thing you
       // cannot see when you need it.
       this.#hitboxOverlay,
@@ -1813,17 +1926,26 @@ export class Renderer {
   }
 
   /**
-   * Paints the visible window straight from the tilemap — the same `TileMap` collision reads —
-   * so what is drawn and what is walkable cannot disagree. `tileVisual` decides the ground bucket
-   * for every kind explicitly (grass, plateau, forest, building and bridge all draw as autotiled
-   * grass from `landTile`'s neighbourhood lookup today; water draws as water) — see its doc comment
-   * for why that is an exhaustive table and not `isLandKind`'s boolean catch-all. A `forest` cell's
-   * tree is a separate, static prop (`#buildForestTrees`) layered above this, and a `building` cell
-   * gets nothing extra here — its house is already on `#structures` from the zone visuals.
+   * Paints the visible window.
    *
-   * The sprite pool, the visible-bounds culling and the `#terrainKey` early-out are unchanged from
-   * the procedural renderer this replaces; only the source of truth and the cell size (32 -> the
-   * real 64px `TILE_SIZE`) are new.
+   * An authored map is drawn from **frozen ids**: the variant was decided when the map was painted,
+   * so this reads `#layers` and looks the cell up in the tileset. The mask computation that used to
+   * happen here per cell, per repaint, is gone — it belongs to the brush, not the renderer, and a
+   * renderer that re-derives it is a second opinion nothing keeps in step with the first.
+   *
+   * A compiled catalogue zone carries no layers and keeps the old derived pass, which paints from
+   * the `TileMap` itself via `tileVisual`/`landTile`. That is the whole reason the two live side by
+   * side: the catalogue is rollback content, and it would otherwise render as bare sea.
+   *
+   * Both passes share the water and foam work above them, and `needsFoam` reads the baked `tiles` in
+   * both — deliberately. Foam belongs where the water actually meets something, so a cliff standing
+   * at the shore gets its rim at the wall's own cell.
+   *
+   * `#layers` is appearance only. Nothing below reads it for walkability, geometry or collision;
+   * `#tiles` remains the single truth for all three, exactly the rule `#mapElements` follows.
+   *
+   * The sprite pool, the visible-bounds culling and the `#terrainKey` early-out are unchanged; only
+   * the per-cell decision, and the fact that a cell may now produce more than one sprite, are new.
    */
   #updateTerrain(): void {
     const tiles = this.#tiles;
@@ -1841,12 +1963,8 @@ export class Renderer {
     if (key === this.#terrainKey) return;
     this.#terrainKey = key;
 
-    const needed = columns * rows;
-    while (this.#terrainTiles.length < needed) {
-      const tile = new Sprite(Texture.EMPTY);
-      this.#terrainTiles.push(tile);
-      this.#terrain.addChild(tile);
-    }
+    this.#belowUsed = 0;
+    this.#aboveUsed = 0;
     const waterRect = waterSurfaceRect(
       startX,
       startY,
@@ -1878,27 +1996,23 @@ export class Renderer {
     }
     for (const view of this.#foamTilePool) view.blob.visible = false;
     this.#foamTiles = [];
-    for (let index = 0; index < this.#terrainTiles.length; index++) {
-      const tile = this.#terrainTiles[index];
-      if (!tile) continue;
-      if (index >= needed) {
-        tile.visible = false;
-        continue;
-      }
-      tile.visible = true;
+    const layered = this.#layers.length > 0;
+    for (let index = 0; index < columns * rows; index++) {
       const column = index % columns;
       const row = Math.floor(index / columns);
       const x = startX + column * TILE_SIZE;
       const y = startY + row * TILE_SIZE;
       const col = Math.floor(x / TILE_SIZE);
       const tileRow = Math.floor(y / TILE_SIZE);
-      const land = tileVisual(kindAt(tiles, col, tileRow)) === "land";
       const tints = terrainTintsAt(
         x + TILE_SIZE / 2,
         y + TILE_SIZE / 2,
         this.#visuals.worldRegions,
       );
-      if (land) {
+      if (layered) {
+        this.#paintLayeredCell(col, tileRow, x, y);
+      } else if (tileVisual(kindAt(tiles, col, tileRow)) === "land") {
+        const tile = this.#acquireTile("below");
         placeTile(
           tile,
           landTexture(this.art.terrain.land, landTile(tiles, col, tileRow)),
@@ -1907,26 +2021,104 @@ export class Renderer {
           Math.min(TILE_SIZE, this.#zoneWidth - x),
           Math.min(TILE_SIZE, this.#zoneHeight - y),
         );
-        tile.visible = true;
         tile.alpha = 1;
         tile.tint = tints.land;
-        if (needsFoam(tiles, col, tileRow)) {
-          const foam = this.#foamTilePool[this.#foamTiles.length] ?? this.#createFoamTile();
-          if (this.#foamTiles.length >= this.#foamTilePool.length) this.#foamTilePool.push(foam);
-          // Centred on the tile at the sheet's native size: the frame is 192px of mostly nothing
-          // around an ~82px blob, so an unscaled draw is what puts that blob 9px past a 64px tile.
-          // Scaling it to the tile would shrink the bleed to nothing and the shore would vanish.
-          foam.blob.visible = true;
-          foam.blob.position.set(x + TILE_SIZE / 2, y + TILE_SIZE / 2);
-          foam.blob.tint = tints.water;
-          this.#foamTiles.push(foam);
-        }
-        continue;
       }
-
-      tile.visible = false;
+      // Foam reads the baked `tiles` in both passes, and that is the point: a cliff wall meeting
+      // the sea is not a land *tile*, but it is where the water meets something, and that is where
+      // the rim belongs.
+      if (needsFoam(tiles, col, tileRow)) {
+        const foam = this.#foamTilePool[this.#foamTiles.length] ?? this.#createFoamTile();
+        if (this.#foamTiles.length >= this.#foamTilePool.length) this.#foamTilePool.push(foam);
+        // Centred on the tile at the sheet's native size: the frame is 192px of mostly nothing
+        // around an ~82px blob, so an unscaled draw is what puts that blob 9px past a 64px tile.
+        // Scaling it to the tile would shrink the bleed to nothing and the shore would vanish.
+        foam.blob.visible = true;
+        foam.blob.position.set(x + TILE_SIZE / 2, y + TILE_SIZE / 2);
+        foam.blob.tint = tints.water;
+        this.#foamTiles.push(foam);
+      }
     }
+    this.#hideUnusedTiles();
     this.#drawGrid(startX, startY, columns, rows);
+  }
+
+  /**
+   * One cell of an authored map: every layer that has something to say about it, in order, each
+   * routed to the container its own tileset entry asks for.
+   *
+   * An id nothing can answer for — an empty cell, a slot past what the tileset declares, a sheet
+   * cell outside the sliced grid — draws nothing rather than throwing. This runs inside a repaint,
+   * and a frame is the worst possible place to discover a bad id; the parse-time warning in
+   * `#adoptLayers` is where a broken map is reported.
+   */
+  #paintLayeredCell(col: number, row: number, x: number, y: number): void {
+    const tileset = this.#tileset;
+    if (!tileset) return;
+    for (const layer of this.#layers) {
+      if (col < 0 || col >= layer.cols || row < 0 || row >= layer.rows) continue;
+      const ref = decodeTileId(layer.ids[row * layer.cols + col] ?? 0);
+      if (ref.kind === "empty") continue;
+      // Resolved in one branch each, not a pair of ternaries: an `Autotile` and a `FixedTile` share
+      // no cell fields, so narrowing has to carry from the ref to the entry in the same step.
+      let entry: Autotile | FixedTile | undefined;
+      let cell: { col: number; row: number } | undefined;
+      if (ref.kind === "autotile") {
+        const autotile = tileset.autotiles[ref.slot];
+        if (!autotile) continue;
+        entry = autotile;
+        cell = offsetCell(autotile.origin, autotileOffset(autotile.kind, ref.variant));
+      } else {
+        const fixed = tileset.fixed[ref.index];
+        if (!fixed) continue;
+        entry = fixed;
+        cell = { col: fixed.col, row: fixed.row };
+      }
+      const texture = this.art.terrain.tileset[cell.row]?.[cell.col];
+      if (!texture) continue;
+      const sprite = this.#acquireTile(entry.priority);
+      placeTile(
+        sprite,
+        texture,
+        x,
+        y,
+        Math.min(TILE_SIZE, this.#zoneWidth - x),
+        Math.min(TILE_SIZE, this.#zoneHeight - y),
+      );
+      sprite.alpha = 1;
+      // The tileset's own tint, not the zone's regional one: elevation shading is baked into the
+      // entry, and an authored map has no regional palette to bend toward in the first place.
+      sprite.tint = entry.tint ?? 0xffffff;
+    }
+  }
+
+  /** Hands out the next pooled sprite for a priority, growing that container's pool on demand. */
+  #acquireTile(priority: TilePriority): Sprite {
+    const above = priority === "above";
+    const pool = above ? this.#aboveTiles : this.#belowTiles;
+    const index = above ? this.#aboveUsed++ : this.#belowUsed++;
+    const existing = pool[index];
+    if (existing) {
+      existing.visible = true;
+      return existing;
+    }
+    const sprite = new Sprite(Texture.EMPTY);
+    pool.push(sprite);
+    (above ? this.#tilesAbove : this.#tilesBelow).addChild(sprite);
+    return sprite;
+  }
+
+  /** The tail of each pool that this repaint did not need. Hidden rather than destroyed — the next
+   *  window is very likely to want them back. */
+  #hideUnusedTiles(): void {
+    for (let index = this.#belowUsed; index < this.#belowTiles.length; index += 1) {
+      const sprite = this.#belowTiles[index];
+      if (sprite) sprite.visible = false;
+    }
+    for (let index = this.#aboveUsed; index < this.#aboveTiles.length; index += 1) {
+      const sprite = this.#aboveTiles[index];
+      if (sprite) sprite.visible = false;
+    }
   }
 
   /** A debug overlay, drawn in world space so the lines sit exactly on the cells `tilemap.ts`

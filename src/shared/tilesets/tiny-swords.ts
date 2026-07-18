@@ -13,6 +13,16 @@ import type { Tileset } from "../tileset.js";
 
 export const TINY_SWORDS_TILESET_ID = "tiny-swords";
 
+/**
+ * The atlas grid every `origin`/`col`/`row` below is a coordinate in.
+ *
+ * Here rather than beside the client's slicer because it is the bound the ids must respect, and the
+ * test that proves no declared slot and variant resolves outside the sheet is shared arithmetic: it
+ * must be able to name this without importing PixiJS.
+ */
+export const TINY_SWORDS_SHEET_COLS = 9;
+export const TINY_SWORDS_SHEET_ROWS = 6;
+
 const ATLAS = "tilemap-color1";
 
 /**
