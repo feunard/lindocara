@@ -86,6 +86,7 @@ export const en = {
   "chars.slots": "{count}/{max} slots used",
   "chars.mapEditor": "Map editor",
   "chars.adventures": "Adventures",
+  "chars.parties": "Cooperative parties",
   "appearance.azure": "Azure",
   "appearance.ember": "Ember",
   "appearance.moss": "Gold",
@@ -569,4 +570,14 @@ export const en = {
   "parties.completed": "Finished",
   "parties.slots": "{used}/{max} players",
   "parties.delete.title": "Delete {name}?",
+
+  // Party roster (hero screen)
+  "party.eyebrow": "Party",
+  "party.roster.leave": "Leave",
+  "party.heroes": "Your heroes",
+  "party.create.title": "New hero",
+  "party.create.name": "Hero name",
+  "party.create.class": "Class",
+  "party.create.submit": "Create hero",
+  "party.delete.title": "Delete {name}?",
 } as const satisfies Record<string, string>;

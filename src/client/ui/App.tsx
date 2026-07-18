@@ -17,6 +17,8 @@ import { InteriorOverlay } from "./InteriorOverlay.js";
 import { LocaleToggle } from "./LocaleToggle.js";
 import { MapEditor } from "./MapEditor.js";
 import { MobileControls } from "./MobileControls.js";
+import { PartiesScreen } from "./PartiesScreen.js";
+import { PartyScreen } from "./PartyScreen.js";
 import { Prompt } from "./Prompt.js";
 import { SettingsMenu } from "./SettingsMenu.js";
 import { StatusBar } from "./StatusBar.js";
@@ -47,6 +49,8 @@ export function App() {
       {screen === "characters" && <CharacterSelect onPlay={play} />}
       {screen === "map-editor" && <MapEditor />}
       {screen === "adventures" && <AdventureEditor />}
+      {screen === "parties" && <PartiesScreen />}
+      {screen === "party" && <PartyScreen />}
       {screen === "game" && (
         <>
           <Hud />

@@ -1,0 +1,176 @@
+import { useEffect, useState } from "react";
+import type { PlayerClass } from "../../shared/game.js";
+import { HERO_CLASSES } from "../../shared/hero.js";
+import {
+  authErrorText,
+  createHeroApi,
+  deleteHeroApi,
+  errorCode,
+  fetchHeroes,
+  type StoredHero,
+} from "../api.js";
+import { t, useLocale } from "../i18n.js";
+import { useUiStore } from "../store.js";
+import { Button } from "./pixelact-ui/button/index.js";
+import { Input } from "./pixelact-ui/input.js";
+import { Label } from "./pixelact-ui/label.js";
+
+function isSessionError(code: string): boolean {
+  return code === "session_expired" || code === "unauthorized";
+}
+
+export function PartyScreen() {
+  useLocale();
+  const party = useUiStore((s) => s.activeParty);
+  const setScreen = useUiStore((s) => s.setScreen);
+  const setActiveParty = useUiStore((s) => s.setActiveParty);
+  const [heroes, setHeroes] = useState<StoredHero[] | null>(null);
+  const [name, setName] = useState("");
+  const [heroClass, setHeroClass] = useState<PlayerClass>("warrior");
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const partyId = party?.id ?? null;
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refetch when the party changes
+  useEffect(() => {
+    if (!partyId) return;
+    void refresh(partyId);
+  }, [partyId]);
+
+  function fail(caught: unknown): void {
+    const code = errorCode(caught);
+    if (isSessionError(code)) setScreen("auth");
+    else setError(code);
+  }
+
+  async function refresh(id: string): Promise<void> {
+    setError(null);
+    try {
+      setHeroes(await fetchHeroes(id));
+    } catch (caught) {
+      fail(caught);
+      setHeroes((current) => current ?? []);
+    }
+  }
+
+  function leave(): void {
+    setActiveParty(null);
+    setScreen("parties");
+  }
+
+  async function create(): Promise<void> {
+    if (!partyId || name.trim().length === 0) return;
+    setError(null);
+    try {
+      await createHeroApi(partyId, { name: name.trim(), class: heroClass });
+      setName("");
+      await refresh(partyId);
+    } catch (caught) {
+      fail(caught);
+    }
+  }
+
+  async function remove(heroId: string): Promise<void> {
+    if (!partyId) return;
+    setError(null);
+    try {
+      await deleteHeroApi(partyId, heroId);
+      setConfirmingId(null);
+      await refresh(partyId);
+    } catch (caught) {
+      fail(caught);
+      setConfirmingId(null);
+    }
+  }
+
+  if (!party) {
+    // No active party (e.g. a reload landed here): bounce to the list.
+    setScreen("parties");
+    return null;
+  }
+  if (heroes === null) return null;
+  const deleting = heroes.find((hero) => hero.id === confirmingId);
+
+  return (
+    <main className="roster-shell">
+      <header className="roster-header">
+        <div>
+          <span className="eyebrow">{t("party.eyebrow")}</span>
+          <h1>{party.name ?? party.adventureTitle}</h1>
+        </div>
+        <Button type="button" variant="secondary" onClick={leave}>
+          {t("party.roster.leave")}
+        </Button>
+      </header>
+      {error && <p role="alert">{authErrorText(error)}</p>}
+
+      <section className="roster-grid" aria-label={t("party.heroes")}>
+        {heroes.map((hero) => (
+          <article
+            key={hero.id}
+            className={`roster-card framed party-colour--${party.myColor ?? "blue"}`}
+          >
+            <div className="roster-card__identity">
+              <h2>{hero.name}</h2>
+              <span>{t(`class.${hero.class}`)}</span>
+            </div>
+            <div className="roster-card__actions">
+              <Button type="button" variant="secondary" onClick={() => setConfirmingId(hero.id)}>
+                {t("editor.delete")}
+              </Button>
+            </div>
+          </article>
+        ))}
+      </section>
+
+      {heroes.length < 3 && (
+        <section className="roster-card framed" aria-label={t("party.create.title")}>
+          <h2>{t("party.create.title")}</h2>
+          <Label htmlFor="hero-name">{t("party.create.name")}</Label>
+          <Input
+            id="hero-name"
+            type="text"
+            value={name}
+            onChange={(event) => setName(event.currentTarget.value)}
+          />
+          <Label htmlFor="hero-class">{t("party.create.class")}</Label>
+          <select
+            id="hero-class"
+            value={heroClass}
+            onChange={(event) => setHeroClass(event.currentTarget.value as PlayerClass)}
+          >
+            {HERO_CLASSES.map((option) => (
+              <option key={option} value={option}>
+                {t(`class.${option}`)}
+              </option>
+            ))}
+          </select>
+          <Button type="button" disabled={name.trim().length === 0} onClick={() => void create()}>
+            {t("party.create.submit")}
+          </Button>
+        </section>
+      )}
+
+      {deleting && (
+        <div className="delete-dialog-backdrop">
+          <section
+            className="delete-dialog parchment framed"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-hero-title"
+          >
+            <h2 id="delete-hero-title">{t("party.delete.title", { name: deleting.name })}</h2>
+            <div className="delete-dialog__actions">
+              <Button type="button" variant="secondary" onClick={() => setConfirmingId(null)}>
+                {t("editor.delete.cancel")}
+              </Button>
+              <Button type="button" className="danger" onClick={() => void remove(deleting.id)}>
+                {t("editor.delete.confirm")}
+              </Button>
+            </div>
+          </section>
+        </div>
+      )}
+    </main>
+  );
+}

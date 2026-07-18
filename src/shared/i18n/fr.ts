@@ -84,6 +84,7 @@ export const fr: Record<keyof typeof en, string> = {
   "chars.slots": "{count}/{max} emplacements utilisés",
   "chars.mapEditor": "Éditeur de cartes",
   "chars.adventures": "Aventures",
+  "chars.parties": "Parties coopératives",
   "appearance.azure": "Azur",
   "appearance.ember": "Braise",
   "appearance.moss": "Or",
@@ -581,4 +582,14 @@ export const fr: Record<keyof typeof en, string> = {
   "parties.completed": "Terminée",
   "parties.slots": "{used}/{max} joueurs",
   "parties.delete.title": "Supprimer {name} ?",
+
+  // Effectif de la partie (écran des héros)
+  "party.eyebrow": "Partie",
+  "party.roster.leave": "Quitter",
+  "party.heroes": "Tes héros",
+  "party.create.title": "Nouveau héros",
+  "party.create.name": "Nom du héros",
+  "party.create.class": "Classe",
+  "party.create.submit": "Créer le héros",
+  "party.delete.title": "Supprimer {name} ?",
 };
