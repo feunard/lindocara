@@ -7,6 +7,8 @@ import { env, SELF } from "cloudflare:test";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { BUILTIN_MAP_ID } from "../src/server/maps.js";
 import { SESSION_COOKIE } from "../src/server/session.js";
+import { TINY_SWORDS_TILESET_ID } from "../src/shared/tilesets/tiny-swords.js";
+import { layeredWireTerrain } from "./support/map-fixtures.js";
 
 const ORIGIN = "https://lindocara.test";
 
@@ -23,7 +25,7 @@ function validBlocks(): string[] {
 function mapBody(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     name: "Test Map",
-    blocks: validBlocks(),
+    ...layeredWireTerrain(validBlocks()),
     elements: [],
     spawn: { col: 0, row: 0 },
     ...overrides,
@@ -95,9 +97,10 @@ describe("create, list, get, update, delete", () => {
     });
     expect(createRes.status).toBe(201);
     const created = (await createRes.json()) as { id: string };
+    // The response is a legal PUT body: same encoded layers back out as went in.
     expect(created).toMatchObject({
       name: "Round Trip",
-      blocks: validBlocks(),
+      ...layeredWireTerrain(validBlocks()),
       elements: [],
       spawn: { col: 0, row: 0 },
     });
@@ -189,7 +192,7 @@ describe("validation", () => {
     const tiny = Array.from({ length: 5 }, () => ".".repeat(5));
     const response = await authed("/api/maps", {
       method: "POST",
-      body: JSON.stringify(mapBody({ blocks: tiny, spawn: { col: 0, row: 0 } })),
+      body: JSON.stringify(mapBody({ ...layeredWireTerrain(tiny), spawn: { col: 0, row: 0 } })),
     });
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "map_size" });
@@ -209,7 +212,10 @@ describe("validation", () => {
       method: "POST",
       body: JSON.stringify({
         name: "Bad Shape",
-        blocks: "nope",
+        tilesetId: TINY_SWORDS_TILESET_ID,
+        cols: 20,
+        rows: 15,
+        layers: "nope",
         elements: [],
         spawn: { col: 0, row: 0 },
       }),
@@ -311,7 +317,9 @@ describe("size caps over the wire", () => {
     const blocks = Array.from({ length: 100 }, () => ".".repeat(100));
     const response = await authed("/api/maps", {
       method: "POST",
-      body: JSON.stringify(mapBody({ name: "Maximal", blocks, spawn: { col: 0, row: 0 } })),
+      body: JSON.stringify(
+        mapBody({ name: "Maximal", ...layeredWireTerrain(blocks), spawn: { col: 0, row: 0 } }),
+      ),
     });
     expect(response.status).toBe(201);
   });

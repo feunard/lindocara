@@ -20,6 +20,7 @@ import {
   updateMap as updateOwnedMap,
 } from "../src/server/maps.js";
 import type { AdventureInput } from "../src/shared/adventure.js";
+import { layeredTerrain } from "./support/map-fixtures.js";
 
 const COLS = 20;
 const ROWS = 15;
@@ -38,7 +39,7 @@ function blocks(): string[] {
 function mapInput(name: string): MapInput {
   return {
     name,
-    blocks: blocks(),
+    ...layeredTerrain(blocks()),
     elements: [],
     spawn: { col: 0, row: 0 },
     markers: {

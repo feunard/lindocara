@@ -285,12 +285,14 @@ export function bakeCollision(map: MapData): TileMap {
     const id = ground?.ids[index] ?? EMPTY_TILE;
     kinds[index] = id === EMPTY_TILE ? "water" : "grass";
   }
-  if (tileset) {
-    for (const layer of map.layers) {
-      for (let index = 0; index < cells; index += 1) {
-        const id = layer.ids[index] ?? EMPTY_TILE;
-        if (id !== EMPTY_TILE && tileBlocks(tileset, id)) kinds[index] = "forest";
-      }
+  for (const layer of map.layers) {
+    for (let index = 0; index < cells; index += 1) {
+      const id = layer.ids[index] ?? EMPTY_TILE;
+      if (id === EMPTY_TILE) continue;
+      // No tileset means no entry can answer for any id, so every drawn tile is solid — the same
+      // fail-closed posture `tileBlocks` takes one level down. Skipping the sweep instead would
+      // make an unknown-tileset map entirely walkable, which is the invisible-hole failure.
+      if (!tileset || tileBlocks(tileset, id)) kinds[index] = "forest";
     }
   }
   const tiles: TileMap = { cols: map.cols, rows: map.rows, kinds };
@@ -304,6 +306,12 @@ function bakeElements(tiles: TileMap, elements: readonly MapElement[]): TileMap 
   for (const element of elements) {
     const asset = editorAsset(element.assetId);
     if (asset?.editor.terrainOverride !== "walkable") continue;
+    // Deliberate: a walkable override reclaims only "water", never a tile-authored solid. A bridge
+    // over water still works, because water is an empty ground cell. A bridge laid across a cliff
+    // face stays impassable. Accepted for this tranche rather than an oversight: letting scenery
+    // punch through authored terrain would make a cliff wall — the whole point of the layered
+    // model — cancellable by dropping one element on it. Revisit only with an explicit
+    // "overrides terrain" asset flag, not by widening this condition.
     for (const cell of elementCells(element)) {
       const index = cell.row * tiles.cols + cell.col;
       if (kinds[index] === "water") kinds[index] = "grass";

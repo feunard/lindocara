@@ -12,9 +12,9 @@ import { WS_CLOSE } from "../shared/close-codes.js";
 import { isValidClass } from "../shared/game.js";
 import { parseCreateHeroInput } from "../shared/hero.js";
 import { isUuid } from "../shared/identifiers.js";
-import { blocksFromMapData } from "../shared/legacy-blocks.js";
 import { EMPTY_MARKERS, mapSpawnPoint, parseMapData } from "../shared/map-data.js";
 import { parseCreatePartyInput, parseJoinPartyInput } from "../shared/party.js";
+import { encodeTileLayer } from "../shared/tile-layer-codec.js";
 import { TILE_SIZE } from "../shared/tilemap.js";
 import {
   isKnownZone,
@@ -471,11 +471,23 @@ function mapErrorResponse(error: unknown): Response {
   ) {
     return json({ error: `map_${code}` }, { status: 400 });
   }
+  // Unreachable from the wire — `parseMapData` rejects an unknown tileset and a layer count that is
+  // not three before create/update sees the body — but a semantic gate must never answer 500.
+  if (code === "tileset" || code === "layers") {
+    return json({ error: "map_invalid" }, { status: 400 });
+  }
   throw error;
 }
 
-/** Shape only — `parseMapData` already validates blocks/chars/bounds/spawn defensively, and
- *  `validateMapInput` inside create/update remains the one semantic gate. */
+/**
+ * Shape only — `parseMapData` already validates the tileset, the three run-length encoded layers,
+ * element bounds and the spawn defensively, and `validateMapInput` inside create/update remains the
+ * one semantic gate.
+ *
+ * Every layer the client authored is carried through untouched. There is deliberately no
+ * projection here: flattening layers back to a single occupancy grid before storing would discard
+ * everything on layers 1 and 2 — cliff walls above all — with no error anyone could see.
+ */
 function parseMapBody(body: unknown): MapInput | null {
   const name = (body as { name?: unknown } | null)?.name;
   if (typeof name !== "string") return null;
@@ -483,11 +495,23 @@ function parseMapBody(body: unknown): MapInput | null {
   if (!data) return null;
   return {
     name,
-    blocks: blocksFromMapData(data),
+    tilesetId: data.tilesetId,
+    cols: data.cols,
+    rows: data.rows,
+    layers: data.layers,
     elements: data.elements,
     spawn: data.spawn,
     markers: data.markers,
   };
+}
+
+/**
+ * A stored map as it goes out over HTTP: layers as the same run-length encoded strings the client
+ * sends back. The wire is symmetric on purpose — a payload read from `GET /api/maps/:id` is a
+ * legal body for `PUT` without a re-encode step nobody would remember to keep in step.
+ */
+function mapResponseBody(stored: StoredMap): Record<string, unknown> {
+  return { ...stored, layers: stored.layers.map(encodeTileLayer) };
 }
 
 async function handleListMaps(request: Request, env: Env, url: URL): Promise<Response> {
@@ -504,7 +528,9 @@ async function handleCreateMap(request: Request, env: Env, url: URL): Promise<Re
   const input = parseMapBody(parsed.value);
   if (!input) return json({ error: "map_invalid" }, { status: 400 });
   try {
-    return json(await createMap(createDb(env.DB), auth.session.id, input), { status: 201 });
+    return json(mapResponseBody(await createMap(createDb(env.DB), auth.session.id, input)), {
+      status: 201,
+    });
   } catch (error) {
     return mapErrorResponse(error);
   }
@@ -516,7 +542,7 @@ async function handleGetMap(request: Request, env: Env, url: URL, id: string): P
   // The built-in floor is never a D1 row, so loadMap returns null for it — no special case needed.
   const stored = await loadOwnedMap(createDb(env.DB), auth.session.id, id);
   if (!stored) return json({ error: "map_not_found" }, { status: 404 });
-  return json(stored);
+  return json(mapResponseBody(stored));
 }
 
 async function handleUpdateMap(
@@ -532,7 +558,7 @@ async function handleUpdateMap(
   const input = parseMapBody(parsed.value);
   if (!input) return json({ error: "map_invalid" }, { status: 400 });
   try {
-    return json(await updateMap(createDb(env.DB), auth.session.id, id, input));
+    return json(mapResponseBody(await updateMap(createDb(env.DB), auth.session.id, id, input)));
   } catch (error) {
     return mapErrorResponse(error);
   }

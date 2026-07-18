@@ -1,7 +1,6 @@
 /** Pure map-editor mutations. Placement, footprints and collision all come from the shared
  * catalogue, so the browser and authoritative map API cannot disagree. */
 import type { MonsterSpecies } from "../../shared/game.js";
-import { mapDataFromBlocks } from "../../shared/legacy-blocks.js";
 import {
   bakeCollision,
   canPlaceElement,
@@ -20,8 +19,12 @@ import {
   type MapElement,
   type MapMarkers,
   MIN_PATROL_RADIUS,
+  parseMapData,
 } from "../../shared/map-data.js";
+import { layersFromBlocks } from "../../shared/map-migrate.js";
+import { encodeTileLayer } from "../../shared/tile-layer-codec.js";
 import { isSolidKind, kindAt } from "../../shared/tilemap.js";
+import { TINY_SWORDS_TILESET_ID } from "../../shared/tilesets/tiny-swords.js";
 import type { EditorAssetId } from "../../shared/tiny-swords-catalog.js";
 
 export interface EditorMap {
@@ -263,9 +266,77 @@ export function blankMap(name: string, cols: number, rows: number): EditorMap {
   };
 }
 
-/** Mechanical bridge while the editor still stores `blocks`; see shared/legacy-blocks.ts. */
+/**
+ * The editor's transitional model, projected onto the real one.
+ *
+ * `EditorMap` still stores a two-character block grid; Task 12 replaces it with the three tile
+ * layers themselves. Until then this is the *one* place the projection happens, and it delegates to
+ * the same `layersFromBlocks` the D1 migration uses, so a map drawn here and a map migrated there
+ * cannot resolve their autotile edges differently.
+ */
 export function toMapData(map: EditorMap): MapData {
-  return mapDataFromBlocks(map);
+  const { cols, rows, layers } = layersFromBlocks(map.blocks);
+  return {
+    tilesetId: TINY_SWORDS_TILESET_ID,
+    cols,
+    rows,
+    layers,
+    elements: map.elements,
+    spawn: map.spawn,
+    markers: map.markers,
+  };
+}
+
+/**
+ * The editor's save body. Structurally `api.ts`'s `MapSaveInput` — spelled out here rather than
+ * imported so `client/game/` keeps depending on nothing above it.
+ */
+export function toSaveInput(map: EditorMap): {
+  name: string;
+  tilesetId: string;
+  cols: number;
+  rows: number;
+  layers: string[];
+  elements: MapElement[];
+  spawn: { col: number; row: number };
+  markers: MapMarkers;
+} {
+  const data = toMapData(map);
+  return {
+    name: map.name,
+    tilesetId: data.tilesetId,
+    cols: data.cols,
+    rows: data.rows,
+    layers: data.layers.map(encodeTileLayer),
+    elements: map.elements,
+    spawn: map.spawn,
+    markers: map.markers,
+  };
+}
+
+/**
+ * The inverse, for loading a stored map back into the block editor: a cell is `#` when the map's
+ * own terrain makes it solid and `.` otherwise, read off `bakeCollision` with elements excluded so
+ * a tree does not become a wall you cannot paint away.
+ *
+ * Lossy, knowingly and only here: a cliff wall comes back as water, and re-saving would store it as
+ * water. That is the reason `EditorMap` is temporary. It is never the *server's* projection — the
+ * API stores exactly the layers it is sent.
+ */
+function blocksFromMapData(data: MapData): string[] {
+  const tiles = bakeCollision({ ...data, elements: [] });
+  return Array.from({ length: data.rows }, (_unused, row) =>
+    Array.from({ length: data.cols }, (_cell, col) =>
+      isSolidKind(kindAt(tiles, col, row)) ? "#" : ".",
+    ).join(""),
+  );
+}
+
+/** A map payload straight off `/api/maps/:id`, projected into the block grid the editor still
+ *  draws. A payload this build cannot parse yields no rows rather than a throw on first paint. */
+export function blocksFromMapPayload(payload: unknown): string[] {
+  const data = parseMapData(payload);
+  return data ? blocksFromMapData(data) : [];
 }
 
 function isWalkableCell(map: EditorMap, col: number, row: number): boolean {

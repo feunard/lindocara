@@ -22,11 +22,11 @@ import {
   safeZoneShelters,
   type TerrainGeometry,
 } from "../src/shared/game.js";
-import { mapDataFromBlocks } from "../src/shared/legacy-blocks.js";
 import { EMPTY_MARKERS, type MapData, terrainFromMap } from "../src/shared/map-data.js";
 import { DEFAULT_ZONE_NAVIGATION } from "../src/shared/navigation.js";
 import { PLAYER_SIZE, TICK_DT } from "../src/shared/simulation.js";
 import { type ZoneDefinition, zoneDefinition } from "../src/shared/zones.js";
+import { mapDataFromBlocks } from "./support/map-fixtures.js";
 import { tileMapFromRects } from "./support/tiles.js";
 
 /**

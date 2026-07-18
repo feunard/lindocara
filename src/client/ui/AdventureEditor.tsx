@@ -33,6 +33,7 @@ import {
   type MapSummary,
   updateAdventureApi,
 } from "../api.js";
+import { blocksFromMapPayload } from "../game/editor-state.js";
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
 
@@ -46,7 +47,7 @@ async function memberInfo(mapId: string): Promise<DraftMemberInfo> {
     mapId,
     name: payload.name,
     revision: payload.revision,
-    blocks: payload.blocks,
+    blocks: blocksFromMapPayload(payload),
     monsterCount: payload.markers.monsterSpawns.length,
     entryIds: payload.markers.entries.map((marker) => marker.id),
     exitIds: payload.markers.exits.map((marker) => marker.id),

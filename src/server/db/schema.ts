@@ -240,11 +240,12 @@ export type CharacterSkill = typeof characterSkill.$inferSelect;
 export type CharacterQuest = typeof characterQuest.$inferSelect;
 
 /**
- * A map is terrain, not a zone: blocks, the things standing on them, and where you arrive.
+ * A map is terrain, not a zone: tile layers, the things standing on them, and where you arrive.
  *
- * `blocks` is one character per cell, row-major, newline-joined — the same encoding
- * `tilemap-codec.ts` already reads, so there is no second format to keep in step with the first.
- * A 40x30 map is about 1.2 KB of text: diffable, and cheap enough to send in a welcome.
+ * `layers` is a JSON array of exactly three run-length encoded layer strings (`tile-layer-codec.ts`),
+ * ground first, each `cols * rows` cells. `cols` and `rows` are the only source of a layer's shape,
+ * so a layer string is meaningless without them. Runs keep a mostly-uniform 40x30 map around a
+ * kilobyte: diffable, readable in a failing test, and cheap enough to send in a welcome.
  *
  * Authored maps are private to their account. `accountId` remains nullable only so the ownership
  * migration can quarantine historical rows whose author cannot be inferred without guessing;
@@ -259,7 +260,10 @@ export const map = sqliteTable(
     name: text("name").notNull(),
     cols: integer("cols").notNull(),
     rows: integer("rows").notNull(),
-    blocks: text("blocks").notNull(),
+    /** Tileset the layer ids index into. */
+    tilesetId: text("tileset_id").notNull().default("tiny-swords"),
+    /** JSON array of exactly three run-length encoded tile layers. Ground first. */
+    layers: text("layers").notNull(),
     spawnCol: integer("spawn_col").notNull(),
     spawnRow: integer("spawn_row").notNull(),
     /** JSON MapMarkers (entries/exits/monster spawns); NULL for maps saved before markers existed. */

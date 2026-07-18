@@ -8,6 +8,7 @@ import { account, createDb } from "../src/server/db/index.js";
 import { createMap, loadMap, type MapInput, validateMapInput } from "../src/server/maps.js";
 import { SESSION_COOKIE } from "../src/server/session.js";
 import type { MapMarkers } from "../src/shared/map-data.js";
+import { layeredTerrain, layeredWireTerrain } from "./support/map-fixtures.js";
 
 const ORIGIN = "https://lindocara.test";
 const COLS = 20;
@@ -31,7 +32,7 @@ function markers(overrides: Partial<MapMarkers> = {}): MapMarkers {
 function input(overrides: Partial<MapInput> = {}): MapInput {
   return {
     name: "Marked",
-    blocks: blocks(),
+    ...layeredTerrain(blocks()),
     elements: [],
     spawn: { col: 0, row: 0 },
     markers: markers(),
@@ -119,7 +120,7 @@ describe("markers over the wire", () => {
       headers: { "Content-Type": "application/json", Cookie: cookie },
       body: JSON.stringify({
         name: "Wire",
-        blocks: blocks(),
+        ...layeredWireTerrain(blocks()),
         elements: [],
         spawn: { col: 0, row: 0 },
         markers: markers(),
@@ -133,7 +134,7 @@ describe("markers over the wire", () => {
       headers: { "Content-Type": "application/json", Cookie: cookie },
       body: JSON.stringify({
         name: "Wire",
-        blocks: blocks(),
+        ...layeredWireTerrain(blocks()),
         elements: [],
         spawn: { col: 0, row: 0 },
         markers: markers({ entries: [{ id: "wet", col: 1, row: 1 }] }),

@@ -11,8 +11,8 @@
  */
 import { describe, expect, it } from "vitest";
 import { landMask, needsFoam } from "../src/client/game/autotile.js";
-import { mapDataFromBlocks } from "../src/shared/legacy-blocks.js";
 import { bakeCollision, type MapData } from "../src/shared/map-data.js";
+import { mapDataFromBlocks } from "./support/map-fixtures.js";
 
 /** A 4x3 grass island in open water — the shape every shoreline rule cares about. */
 const ISLAND: MapData = mapDataFromBlocks({

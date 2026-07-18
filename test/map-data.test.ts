@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { blocksFromMapData, mapDataFromBlocks } from "../src/shared/legacy-blocks.js";
 import {
   bakeCollision,
   canPlaceElement,
@@ -11,8 +10,15 @@ import {
   parseMapMarkers,
   terrainFromMap,
 } from "../src/shared/map-data.js";
+import { layersFromBlocks } from "../src/shared/map-migrate.js";
+import { emptyLayer, encodeTileLayer } from "../src/shared/tile-layer-codec.js";
 import { isSolidKind, kindAt, TILE_SIZE } from "../src/shared/tilemap.js";
+import { TINY_SWORDS_TILESET_ID } from "../src/shared/tilesets/tiny-swords.js";
 import { editorAsset } from "../src/shared/tiny-swords-catalog.js";
+import { mapDataFromBlocks } from "./support/map-fixtures.js";
+
+/** Stand-in when a `layersFromBlocks` index read has to be narrowed. */
+const EMPTY_2X2 = emptyLayer(2, 2);
 
 const TREE = "resource.terrain-resources-wood-trees.tree3" as const;
 const TREE_ALT = "resource.terrain-resources-wood-trees.tree4" as const;
@@ -59,7 +65,7 @@ describe("baking a map's collision", () => {
     const elements = [{ col: 0, row: 0, assetId: TREE } as const];
     const source: MapData = { ...MAP, elements };
     bakeCollision(source);
-    expect(blocksFromMapData(source)).toEqual(["....", ".##.", "....", "...."]);
+    expect(source.layers).toEqual(MAP.layers);
     expect(source.elements).toEqual(elements);
   });
 });
@@ -85,56 +91,80 @@ describe("placement rules", () => {
 });
 
 describe("parsing a map off the wire", () => {
-  it("accepts a well-formed map", () => {
-    const map = parseMapData({
-      blocks: ["..", "##"],
-      elements: [{ col: 0, row: 0, kind: "tree", variant: 1 }],
+  // A 2x2 map, layered exactly as an HTTP body carries it: three run-length strings, ground first.
+  const GROUND = encodeTileLayer(layersFromBlocks(["..", "##"]).layers[0] ?? EMPTY_2X2);
+  const BLANK = encodeTileLayer(EMPTY_2X2);
+
+  function wire(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      tilesetId: TINY_SWORDS_TILESET_ID,
+      cols: 2,
+      rows: 2,
+      layers: [GROUND, BLANK, BLANK],
+      elements: [],
       spawn: { col: 0, row: 0 },
-    });
+      ...overrides,
+    };
+  }
+
+  it("accepts a well-formed map", () => {
+    const map = parseMapData(wire({ elements: [{ col: 0, row: 0, kind: "tree", variant: 1 }] }));
     expect(map).not.toBe(null);
     expect(map?.elements[0]?.assetId).toBe(TREE_ALT);
+    expect(map?.layers).toHaveLength(3);
+    expect(map?.layers[0]?.ids).toEqual(layersFromBlocks(["..", "##"]).layers[0]?.ids);
   });
 
-  // Every one of these would otherwise reach decodeTileMap and throw on the first paint.
+  /**
+   * Every one of these would otherwise reach the renderer and throw on the first paint. Each case
+   * is a *well-formed* map with exactly one thing wrong, so it can only fail for the reason it
+   * names — an earlier rewrite fed `blocks` bodies here, which all died on the missing tilesetId
+   * before reaching their own subject and asserted nothing.
+   */
   it("rejects malformed terrain instead of throwing", () => {
-    const bad: unknown[] = [
-      null,
-      "nope",
-      {},
-      { blocks: [], elements: [], spawn: { col: 0, row: 0 } },
-      { blocks: ["..", "###"], elements: [], spawn: { col: 0, row: 0 } },
-      { blocks: ["xx"], elements: [], spawn: { col: 0, row: 0 } },
-      { blocks: [".."], elements: "nope", spawn: { col: 0, row: 0 } },
-      {
-        blocks: [".."],
-        elements: [{ col: 0, row: 0, kind: "dragon", variant: 0 }],
-        spawn: { col: 0, row: 0 },
-      },
-      {
-        blocks: [".."],
-        elements: [{ col: 0, row: 0, assetId: "ui.cursor.default" }],
-        spawn: { col: 0, row: 0 },
-      },
-      {
-        blocks: [".."],
-        elements: [{ col: 0, row: 0, assetId: "decoration.unknown" }],
-        spawn: { col: 0, row: 0 },
-      },
-      {
-        blocks: [".."],
-        elements: [{ col: 99, row: 0, kind: "tree", variant: 0 }],
-        spawn: { col: 0, row: 0 },
-      },
-      {
-        blocks: [".."],
-        elements: [{ col: -1, row: 0, kind: "tree", variant: 0 }],
-        spawn: { col: 0, row: 0 },
-      },
-      { blocks: [".."], elements: [], spawn: { col: 99, row: 0 } },
-      { blocks: [".."], elements: [], spawn: null },
+    const bad: [string, unknown][] = [
+      ["not an object", null],
+      ["a string", "nope"],
+      ["an empty object", {}],
+      ["an unknown tileset", wire({ tilesetId: "not-a-tileset" })],
+      ["a non-string tileset", wire({ tilesetId: 7 })],
+      ["a zero-sized map", wire({ cols: 0 })],
+      ["a non-integer size", wire({ rows: 1.5 })],
+      ["two layers instead of three", wire({ layers: [GROUND, BLANK] })],
+      ["four layers instead of three", wire({ layers: [GROUND, BLANK, BLANK, BLANK] })],
+      ["a layer that is not a string", wire({ layers: [GROUND, BLANK, { ids: [] }] })],
+      [
+        "a layer shorter than the map",
+        wire({ layers: [encodeTileLayer(emptyLayer(2, 1)), BLANK, BLANK] }),
+      ],
+      ["a layer whose size disagrees with cols/rows", wire({ cols: 3 })],
+      ["elements that are not an array", wire({ elements: "nope" })],
+      [
+        "an unknown element kind",
+        wire({ elements: [{ col: 0, row: 0, kind: "dragon", variant: 0 }] }),
+      ],
+      [
+        "a non-editor asset id",
+        wire({ elements: [{ col: 0, row: 0, assetId: "ui.cursor.default" }] }),
+      ],
+      [
+        "an unknown asset id",
+        wire({ elements: [{ col: 0, row: 0, assetId: "decoration.unknown" }] }),
+      ],
+      [
+        "an element past the right edge",
+        wire({ elements: [{ col: 99, row: 0, kind: "tree", variant: 0 }] }),
+      ],
+      [
+        "an element at a negative column",
+        wire({ elements: [{ col: -1, row: 0, kind: "tree", variant: 0 }] }),
+      ],
+      ["a spawn off the map", wire({ spawn: { col: 99, row: 0 } })],
+      ["a null spawn", wire({ spawn: null })],
+      ["malformed markers", wire({ markers: { entries: "no" } })],
     ];
-    for (const value of bad) {
-      expect(parseMapData(value), JSON.stringify(value)).toBe(null);
+    for (const [why, value] of bad) {
+      expect(parseMapData(value), why).toBe(null);
     }
   });
 });
@@ -267,8 +297,12 @@ describe("map markers", () => {
   });
 
   it("rides through parseMapData and defaults when absent", () => {
+    const open = layersFromBlocks(["....", "....", "....", "...."]);
     const base = {
-      blocks: ["....", "....", "....", "...."],
+      tilesetId: TINY_SWORDS_TILESET_ID,
+      cols: open.cols,
+      rows: open.rows,
+      layers: open.layers.map(encodeTileLayer),
       elements: [],
       spawn: { col: 0, row: 0 },
     };

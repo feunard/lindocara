@@ -16,7 +16,6 @@ import {
   parseAdventureGraph,
   validateAdventure,
 } from "../shared/adventure.js";
-import { mapDataFromBlocks } from "../shared/legacy-blocks.js";
 import {
   bakeCollision,
   canPlaceElement,
@@ -27,13 +26,22 @@ import {
   elementsOverlap,
   isElementKind,
   legacyElementAssetId,
+  MAP_LAYERS,
   MAX_MAP_ELEMENTS,
   type MapData,
   type MapElement,
   type MapMarkers,
   parseMapMarkers,
 } from "../shared/map-data.js";
+import { layersFromBlocks } from "../shared/map-migrate.js";
+import {
+  emptyLayer,
+  encodeTileLayer,
+  parseTileLayer,
+  type TileLayer,
+} from "../shared/tile-layer-codec.js";
 import { isSolidKind, kindAt } from "../shared/tilemap.js";
+import { TINY_SWORDS_TILESET_ID, tilesetById } from "../shared/tilesets/tiny-swords.js";
 import { isEditorAssetId } from "../shared/tiny-swords-catalog.js";
 import { adventure, adventureMap, type Db, map, mapElement } from "./db/index.js";
 
@@ -64,22 +72,30 @@ const BUILTIN_BLOCKS = [
   "################",
 ];
 
+const BUILTIN_LAYERS = layersFromBlocks(BUILTIN_BLOCKS);
+
+/** Deliberately 16x8 — below `MAP_MIN_*`, so it could never pass `validateMapInput`. It is the
+ *  fallback room, not authored content. */
 export const BUILTIN_MAP: StoredMap = {
   id: BUILTIN_MAP_ID,
   accountId: null,
   name: "Nowhere",
   revision: 1,
-  ...mapDataFromBlocks({
-    blocks: BUILTIN_BLOCKS,
-    elements: [],
-    spawn: { col: 2, row: 2 },
-    markers: EMPTY_MARKERS,
-  }),
+  tilesetId: TINY_SWORDS_TILESET_ID,
+  cols: BUILTIN_LAYERS.cols,
+  rows: BUILTIN_LAYERS.rows,
+  layers: BUILTIN_LAYERS.layers,
+  elements: [],
+  spawn: { col: 2, row: 2 },
+  markers: EMPTY_MARKERS,
 };
 
 export interface MapInput {
   name: string;
-  blocks: readonly string[];
+  tilesetId: string;
+  cols: number;
+  rows: number;
+  layers: readonly TileLayer[];
   elements: readonly MapElement[];
   spawn: { col: number; row: number };
   // `| undefined` (not just `?:`) so forwarding an already-optional `MapData.markers` read, or a
@@ -96,13 +112,27 @@ export const MAP_MIN_ROWS = 15;
 export const MAP_MAX_ROWS = 100;
 export const MAP_NAME_MAX = 48;
 
-/** Stored newline-joined; `decodeTileMap` wants one string per row. One format, two shapes. */
-function encodeBlocks(blocks: readonly string[]): string {
-  return blocks.join("\n");
+/** Stored as a JSON array of run-length encoded layer strings — one column, three layers, and no
+ *  second encoding for `tile-layer-codec.ts` to keep in step with. */
+function encodeLayers(layers: readonly TileLayer[]): string {
+  return JSON.stringify(layers.map(encodeTileLayer));
 }
 
-function decodeBlocks(blocks: string): string[] {
-  return blocks.split("\n");
+function blankLayers(cols: number, rows: number): TileLayer[] {
+  return [emptyLayer(cols, rows), emptyLayer(cols, rows), emptyLayer(cols, rows)];
+}
+
+/** Never throws: a row written by an older build, or corrupted, yields empty layers rather than
+ *  failing every map the account owns. */
+function decodeLayers(text: string, cols: number, rows: number): TileLayer[] {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return blankLayers(cols, rows);
+  }
+  if (!Array.isArray(raw) || raw.length !== MAP_LAYERS) return blankLayers(cols, rows);
+  return raw.map((entry) => parseTileLayer(entry, cols, rows) ?? emptyLayer(cols, rows));
 }
 
 /** NULL rather than an empty-array JSON string: legacy rows and freshly-emptied ones both read
@@ -131,20 +161,33 @@ export function validateMapInput(input: MapInput): MapData & { name: string } {
   if (name.length === 0 || name.length > MAP_NAME_MAX) {
     throw new Error("name: 1-48 characters");
   }
-  const cols = input.blocks[0]?.length ?? 0;
-  const rows = input.blocks.length;
+  const { cols, rows } = input;
   if (cols < MAP_MIN_COLS || cols > MAP_MAX_COLS || rows < MAP_MIN_ROWS || rows > MAP_MAX_ROWS) {
     throw new Error(`size: ${MAP_MIN_COLS}x${MAP_MIN_ROWS} to ${MAP_MAX_COLS}x${MAP_MAX_ROWS}`);
+  }
+  if (input.layers.length !== MAP_LAYERS) {
+    throw new Error(`layers: exactly ${MAP_LAYERS} required`);
+  }
+  for (const layer of input.layers) {
+    if (layer.cols !== cols || layer.rows !== rows) {
+      throw new Error("layers: every layer must match the map size");
+    }
+  }
+  if (!tilesetById(input.tilesetId)) {
+    throw new Error(`tileset: unknown tileset ${input.tilesetId}`);
   }
   if (input.elements.length > MAX_MAP_ELEMENTS) {
     // Caught here, before the body would silently blow past the 32 KiB `/api/maps` cap and 413.
     throw new Error(`elements: at most ${MAX_MAP_ELEMENTS}`);
   }
-  const data: MapData = mapDataFromBlocks({
-    blocks: input.blocks,
+  const data: MapData = {
+    tilesetId: input.tilesetId,
+    cols,
+    rows,
+    layers: input.layers,
     elements: input.elements,
     spawn: input.spawn,
-  });
+  };
   const ground = bakeCollision({ ...data, elements: [] });
   for (const [index, element] of input.elements.entries()) {
     if (!isEditorAssetId(element.assetId)) {
@@ -215,12 +258,13 @@ function toStoredMap(row: typeof map.$inferSelect, elements: MapElement[]): Stor
     accountId: row.accountId,
     name: row.name,
     revision: row.revision,
-    ...mapDataFromBlocks({
-      blocks: decodeBlocks(row.blocks),
-      elements,
-      spawn: { col: row.spawnCol, row: row.spawnRow },
-      markers: markersOfRow(row),
-    }),
+    tilesetId: row.tilesetId,
+    cols: row.cols,
+    rows: row.rows,
+    layers: decodeLayers(row.layers, row.cols, row.rows),
+    elements,
+    spawn: { col: row.spawnCol, row: row.spawnRow },
+    markers: markersOfRow(row),
   };
 }
 
@@ -297,14 +341,14 @@ function elementRows(mapId: string, elements: readonly MapElement[]) {
 export async function createMap(db: Db, accountId: string, input: MapInput): Promise<StoredMap> {
   const data = validateMapInput(input);
   const id = crypto.randomUUID();
-  const first = blocksFirstRow(input.blocks);
   const insertMap = db.insert(map).values({
     id,
     accountId,
     name: data.name,
-    cols: first.length,
-    rows: input.blocks.length,
-    blocks: encodeBlocks(input.blocks),
+    cols: input.cols,
+    rows: input.rows,
+    tilesetId: input.tilesetId,
+    layers: encodeLayers(input.layers),
     spawnCol: input.spawn.col,
     spawnRow: input.spawn.row,
     markers: markersJson(data.markers),
@@ -321,12 +365,6 @@ export async function createMap(db: Db, accountId: string, input: MapInput): Pro
     await insertMap;
   }
   return { id, accountId, revision: 1, ...data };
-}
-
-function blocksFirstRow(blocks: readonly string[]): string {
-  const first = blocks[0];
-  if (first === undefined) throw new Error("placement: a map needs at least one row");
-  return first;
 }
 
 export async function updateMap(
@@ -395,14 +433,14 @@ export async function updateMap(
       }
     }
   }
-  const first = blocksFirstRow(input.blocks);
   const updateRow = db
     .update(map)
     .set({
       name: data.name,
-      cols: first.length,
-      rows: input.blocks.length,
-      blocks: encodeBlocks(input.blocks),
+      cols: input.cols,
+      rows: input.rows,
+      tilesetId: input.tilesetId,
+      layers: encodeLayers(input.layers),
       spawnCol: input.spawn.col,
       spawnRow: input.spawn.row,
       markers: markersJson(data.markers),
@@ -412,7 +450,7 @@ export async function updateMap(
     .where(and(eq(map.id, id), eq(map.accountId, accountId)))
     .returning({ revision: map.revision });
   // Replace wholesale (diffing would only be a slower way to reach the same rows), but as ONE
-  // transaction: the new blocks and the new elements land together, so a room admitted mid-update can
+  // transaction: the new layers and the new elements land together, so a room admitted mid-update can
   // never load the new terrain paired with the old — or zero — elements.
   const clearElements = db.delete(mapElement).where(eq(mapElement.mapId, id));
   let updatedRows: { revision: number }[];

@@ -13,8 +13,8 @@ import {
   setFirstMap as setOwnedFirstMap,
   updateMap as updateOwnedMap,
 } from "../src/server/maps.js";
-import { blocksFromMapData } from "../src/shared/legacy-blocks.js";
 import { MAX_MAP_ELEMENTS } from "../src/shared/map-data.js";
+import { layeredTerrain } from "./support/map-fixtures.js";
 
 // Exactly the size floor (20x15): small enough to read at a glance, big enough to clear the caps.
 // A one-cell water pocket at (1,1)/(2,1) stands in for "the sea" below; everything else is grass.
@@ -43,7 +43,7 @@ function validBlocks(): string[] {
 
 const validInput: MapInput = {
   name: "Valid",
-  blocks: validBlocks(),
+  ...layeredTerrain(validBlocks()),
   elements: [],
   spawn: { col: 0, row: 0 },
 };
@@ -158,9 +158,15 @@ describe("maps", () => {
   describe("input caps", () => {
     it("refuses maps outside the size caps", async () => {
       const db = createDb(env.DB);
-      const tiny = { ...validInput, blocks: Array.from({ length: 5 }, () => ".".repeat(5)) };
+      const tiny = {
+        ...validInput,
+        ...layeredTerrain(Array.from({ length: 5 }, () => ".".repeat(5))),
+      };
       await expect(createMap(db, tiny)).rejects.toThrow(/^size:/);
-      const huge = { ...validInput, blocks: Array.from({ length: 101 }, () => ".".repeat(101)) };
+      const huge = {
+        ...validInput,
+        ...layeredTerrain(Array.from({ length: 101 }, () => ".".repeat(101))),
+      };
       await expect(createMap(db, huge)).rejects.toThrow(/^size:/);
     });
 
@@ -284,7 +290,7 @@ describe("maps", () => {
         ],
       });
       const loaded = await loadMap(db, created.id);
-      expect(loaded && blocksFromMapData(loaded)).toEqual(validInput.blocks);
+      expect(loaded?.layers).toEqual(layeredTerrain(validBlocks()).layers);
       expect(loaded?.spawn).toEqual(validInput.spawn);
       expect(loaded?.elements).toHaveLength(2);
       expect(loaded?.elements.find((e) => e.assetId === TREE_ALT)?.assetId).toBe(TREE_ALT);
@@ -319,9 +325,7 @@ describe("maps", () => {
       expect(loaded?.elements).toEqual([{ col: 4, row: 3, assetId: TREE_ALT }]);
       if (!loaded) throw new Error("legacy map missing");
 
-      await expect(
-        updateMap(db, created.id, { ...loaded, blocks: blocksFromMapData(loaded), name: "" }),
-      ).rejects.toThrow(/^name:/);
+      await expect(updateMap(db, created.id, { ...loaded, name: "" })).rejects.toThrow(/^name:/);
       const untouched = await env.DB.prepare(
         "SELECT kind FROM map_element WHERE map_id = ? AND col = 4 AND row = 3",
       )
@@ -329,11 +333,7 @@ describe("maps", () => {
         .first<{ kind: string }>();
       expect(untouched?.kind).toBe("tree");
 
-      await updateMap(db, created.id, {
-        ...loaded,
-        blocks: blocksFromMapData(loaded),
-        name: "Converted",
-      });
+      await updateMap(db, created.id, { ...loaded, name: "Converted" });
       const converted = await env.DB.prepare(
         "SELECT kind FROM map_element WHERE map_id = ? AND col = 4 AND row = 3",
       )

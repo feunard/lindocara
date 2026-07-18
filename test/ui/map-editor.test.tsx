@@ -3,10 +3,14 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { emptyDraft } from "../../src/client/adventure-draft.js";
 import type { MapPayload, MapSummary } from "../../src/client/api.js";
+import { toMapData, toSaveInput } from "../../src/client/game/editor-state.js";
 import { setLocale } from "../../src/client/i18n.js";
 import { useUiStore } from "../../src/client/store.js";
 import { MapEditor } from "../../src/client/ui/MapEditor.js";
 import { EMPTY_MARKERS } from "../../src/shared/map-data.js";
+import { layersFromBlocks } from "../../src/shared/map-migrate.js";
+import { encodeTileLayer } from "../../src/shared/tile-layer-codec.js";
+import { TINY_SWORDS_TILESET_ID } from "../../src/shared/tilesets/tiny-swords.js";
 
 // The painting stage is Pixi on a real canvas — untestable in jsdom and not this suite's subject.
 // A fake handle stands in for it so the tests exercise the toolbar's own behaviour: which tool is
@@ -73,6 +77,11 @@ const twoMaps: MapSummary[] = [
   { id: "m2", name: "Frostfen", revision: 1, isFirst: false },
 ];
 
+/** 40x30 of flat grass, encoded exactly as the API sends it: three run-length layer strings. */
+const OPEN_LAYERS = layersFromBlocks(Array.from({ length: 30 }, () => ".".repeat(40))).layers.map(
+  encodeTileLayer,
+);
+
 const MARKERS = {
   entries: [{ id: "door", col: 1, row: 1 }],
   exits: [{ id: "gate", col: 2, row: 2 }],
@@ -84,7 +93,10 @@ function payloadFor(summary: MapSummary): MapPayload {
     id: summary.id,
     name: summary.name,
     revision: summary.revision,
-    blocks: Array.from({ length: 30 }, () => ".".repeat(40)),
+    tilesetId: TINY_SWORDS_TILESET_ID,
+    cols: 40,
+    rows: 30,
+    layers: OPEN_LAYERS,
     elements: [],
     spawn: { col: 20, row: 15 },
     markers: MARKERS,
@@ -103,7 +115,10 @@ function fetchMock(maps: MapSummary[] = twoMaps) {
         id: "new",
         name: "New map",
         revision: 1,
-        blocks: Array.from({ length: 30 }, () => ".".repeat(40)),
+        tilesetId: TINY_SWORDS_TILESET_ID,
+        cols: 40,
+        rows: 30,
+        layers: OPEN_LAYERS,
         elements: [],
         spawn: { col: 20, row: 15 },
         markers: EMPTY_MARKERS,
@@ -371,7 +386,7 @@ describe("MapEditor", () => {
     await waitFor(() =>
       expect(mock).toHaveBeenCalledWith(
         "/api/maps/m1",
-        expect.objectContaining({ method: "PUT", body: JSON.stringify(edited) }),
+        expect.objectContaining({ method: "PUT", body: JSON.stringify(toSaveInput(edited)) }),
       ),
     );
     expect(stageMock.markSaved).toHaveBeenCalledTimes(1);
@@ -396,12 +411,7 @@ describe("MapEditor", () => {
     // the toolbar.
     await userEvent.click(screen.getByRole("button", { name: "Preview" }));
     await waitFor(() =>
-      expect(previewMock.startMapPreview).toHaveBeenCalledWith({
-        blocks: edited.blocks,
-        elements: edited.elements,
-        spawn: edited.spawn,
-        markers: edited.markers,
-      }),
+      expect(previewMock.startMapPreview).toHaveBeenCalledWith(toMapData(edited)),
     );
     expect(screen.queryByRole("button", { name: "Water" })).not.toBeInTheDocument();
 

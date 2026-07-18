@@ -26,7 +26,7 @@ import {
   updateMapApi,
 } from "../api.js";
 import type { EditorMap, EditorSelection, EditorTool } from "../game/editor-state.js";
-import { blankMap, toMapData } from "../game/editor-state.js";
+import { blankMap, blocksFromMapPayload, toMapData, toSaveInput } from "../game/editor-state.js";
 import { type MapEditorStageHandle, openMapEditorStage } from "../game/map-editor-stage.js";
 import { startMapPreview } from "../game/map-preview.js";
 import { t, useLocale } from "../i18n.js";
@@ -55,7 +55,7 @@ function isSessionError(code: string): boolean {
 function toEditorMap(map: MapPayload): EditorMap {
   return {
     name: map.name,
-    blocks: map.blocks,
+    blocks: blocksFromMapPayload(map),
     elements: map.elements,
     spawn: map.spawn,
     markers: map.markers ?? EMPTY_MARKERS,
@@ -259,7 +259,7 @@ function MapEditorStage({
     setSaving(true);
     setError(null);
     try {
-      const updated = await updateMapApi(map.id, handle.current());
+      const updated = await updateMapApi(map.id, toSaveInput(handle.current()));
       handle.markSaved();
       setDirty(false);
       onSaved?.(updated);
@@ -626,7 +626,7 @@ export function MapEditor() {
   async function create(): Promise<void> {
     setError(null);
     try {
-      const created = await createMapApi(blankMap(name.trim(), cols, rows));
+      const created = await createMapApi(toSaveInput(blankMap(name.trim(), cols, rows)));
       setName("");
       if (returnContext?.screen === "adventure" && returnContext.addCreatedMap) {
         returnToAdventure(created);
@@ -672,7 +672,7 @@ export function MapEditor() {
       mapId: map.id,
       name: map.name,
       revision: map.revision,
-      blocks: map.blocks,
+      blocks: blocksFromMapPayload(map),
       monsterCount: map.markers.monsterSpawns.length,
       entryIds: map.markers.entries.map((marker) => marker.id),
       exitIds: map.markers.exits.map((marker) => marker.id),
