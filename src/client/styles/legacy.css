@@ -4,7 +4,7 @@
   color: #f4f0df;
   --line: rgb(163 211 177 / 32%);
   --green: #8bd59d;
-  --muted: #a9bcae;
+  --legacy-muted: #a9bcae;
   --skill-bar-bottom: 1rem;
   --skill-bar-height: 5.3rem;
   --skill-bar-gap: 0.55rem;
@@ -539,7 +539,7 @@ button:disabled {
   grid-template-columns: 2rem 1fr 3rem;
   align-items: center;
   gap: 0.35rem;
-  color: var(--muted);
+  color: var(--legacy-muted);
   font:
     0.5rem ui-monospace,
     monospace;
@@ -640,7 +640,7 @@ button:disabled {
 }
 
 .target-frame__identity > span {
-  color: var(--muted);
+  color: var(--legacy-muted);
   font-size: 0.55rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -744,7 +744,7 @@ button:disabled {
 }
 
 .item-copy small {
-  color: var(--muted);
+  color: var(--legacy-muted);
   font-size: 0.5rem;
 }
 
