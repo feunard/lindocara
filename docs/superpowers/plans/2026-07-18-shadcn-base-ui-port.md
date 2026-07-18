@@ -597,10 +597,17 @@ The two-tree rule is invisible from the code alone, and CLAUDE.md is the file th
 
 **Files:**
 - Modify: `CLAUDE.md`
+- Modify: `package.json`
 
 **Interfaces:**
 - Consumes: everything above.
-- Produces: nothing consumed by code.
+- Produces: an `npm run ui:add` script.
+
+Two findings from Task 4 must be recorded here, because both are currently written down only in an ephemeral task report that nobody adding a component in six months would open:
+
+**A. `shadcn add` needs an explicit `--path`.** The CLI's alias resolver only reads a file literally named `tsconfig.json`. This repo deliberately keeps its `paths` mapping in `tsconfig.client.json` (the "Three tsconfigs, not one" design), so the root `tsconfig.json` has no `paths` and the CLI silently writes components into a literal `./@/ui/components/` directory. Anyone running `npx shadcn@latest add <x>` without `--path` will reproduce this.
+
+**B. Stock shadcn's `@layer base` sets `body` colour directly.** `body { @apply bg-background text-foreground }` is a direct declaration on `body`, and a direct declaration beats inheritance from `:root` regardless of CSS layer. That silently repainted every unstyled string in the app from `#f4f0df` to near-white until `legacy.css`'s unlayered `html, body` rule was given an explicit `color`. The UI suite runs with `css: false` and cannot catch this class of bug.
 
 - [ ] **Step 1: Update the client architecture section**
 
@@ -615,22 +622,55 @@ In `CLAUDE.md`, under the `src/client/` tree listing, replace the `ui/` line wit
                 never a shadcn token, so the two trees can be restyled independently.
 ```
 
-- [ ] **Step 2: Add the rule to Conventions**
+- [ ] **Step 2: Add the wrapper script**
+
+In `package.json`, add to `scripts`, immediately after `"cf-typegen"`:
+
+```json
+    "ui:add": "shadcn add --path src/client/ui/components",
+```
+
+This exists so nobody has to remember finding A. `npm run ui:add -- dialog tabs` is the supported way to pull a component.
+
+- [ ] **Step 3: Add the rules to Conventions**
 
 Append to the `## Conventions` list:
 
 ```markdown
 - Two component trees, one rule each. Player/game UI uses `ui/tiny-swords/`; creator tools and
   any non-game surface use stock shadcn from `ui/components/`. Never import a Tiny component
-  into an editor to "match the theme", and never hand-edit `ui/components/` — run
-  `npx shadcn@latest add <name>` then `npm run lint:fix`. See
+  into an editor to "match the theme", and never hand-edit `ui/components/`. See
   `docs/superpowers/specs/2026-07-18-shadcn-base-ui-port-design.md`.
+- Add a shadcn component with `npm run ui:add -- <name>`, then `npm run lint:fix` (stock output
+  has no semicolons; Biome requires them). Do **not** call `npx shadcn@latest add` directly: the
+  CLI resolves aliases only from a file named `tsconfig.json`, and this repo's `paths` live in
+  `tsconfig.client.json`, so without `--path` it writes into a literal `./@/ui/components/`
+  directory.
+- Stock shadcn's `@layer base` sets `body { background-color; color }` **directly**, which beats
+  anything `legacy.css` inherits from `:root` — CSS layers only compete with declarations on the
+  same element. If game text ever turns near-white, that is why; fix it in `legacy.css`'s
+  unlayered `html, body` rule, never by editing the generated token blocks in `app.css`.
+  The UI suite runs with `css: false`, so no test will catch a regression of this kind — check it
+  in a browser.
 ```
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Verify the script works end to end**
+
+Run: `npm run ui:add -- separator && npm run lint:fix && npm run typecheck`
+Expected: `src/client/ui/components/separator.tsx` is created (NOT `./@/ui/components/separator.tsx`), and typecheck passes.
+
+Then remove it again — Task 4 fixed the component set for step 1 at button/input/label, and `separator` is not part of it:
 
 ```bash
-git add CLAUDE.md
+rm src/client/ui/components/separator.tsx
+```
+
+Run `git status --short` and confirm no stray `@` directory was created. If one was, the script is wrong — fix the script, do not delete-and-move-on.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add CLAUDE.md package.json
 git commit -m "docs record the two component tree rule"
 ```
 
