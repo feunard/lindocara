@@ -13,6 +13,7 @@
  * along each tile's edge, so two adjacent edge tiles close cleanly around a concave corner.
  * Verified before this was written — see docs/screenshots/autotile-proof.png.
  */
+import { EDGE16_LUT } from "../../shared/autotile.js";
 import { isLandKind, kindAt, type TileKind, type TileMap } from "../../shared/tilemap.js";
 
 /** N=1, E=2, S=4, W=8. A bit is set when that neighbour is land. */
@@ -47,25 +48,9 @@ export function needsFoam(map: TileMap, col: number, row: number): boolean {
   return false;
 }
 
-/** Indexed by the mask above. Coordinates are cells of `Tilemap_Flat.png`'s first 4x4 group. */
-export const AUTOTILE_LUT: readonly { col: number; row: number }[] = [
-  { col: 3, row: 3 }, //  0  alone
-  { col: 3, row: 2 }, //  1  N          — the foot of a column
-  { col: 0, row: 3 }, //  2  E          — the left end of a row
-  { col: 0, row: 2 }, //  3  N+E        — a bottom-left corner
-  { col: 3, row: 0 }, //  4  S          — the head of a column
-  { col: 3, row: 1 }, //  5  N+S        — the middle of a column
-  { col: 0, row: 0 }, //  6  E+S        — a top-left corner
-  { col: 0, row: 1 }, //  7  N+E+S      — a left edge
-  { col: 2, row: 3 }, //  8  W          — the right end of a row
-  { col: 2, row: 2 }, //  9  N+W        — a bottom-right corner
-  { col: 1, row: 3 }, // 10  E+W        — the middle of a row
-  { col: 1, row: 2 }, // 11  N+E+W      — a bottom edge
-  { col: 2, row: 0 }, // 12  S+W        — a top-right corner
-  { col: 2, row: 1 }, // 13  N+S+W      — a right edge
-  { col: 1, row: 0 }, // 14  E+S+W      — a top edge
-  { col: 1, row: 1 }, // 15  all        — plain fill
-];
+/** Re-exported so the renderer keeps one import site while the table itself lives in `shared/`,
+ *  where the editor brush and the migration also read it. */
+export const AUTOTILE_LUT = EDGE16_LUT;
 
 export function landTile(map: TileMap, col: number, row: number): { col: number; row: number } {
   const tile = AUTOTILE_LUT[landMask(map, col, row)];
