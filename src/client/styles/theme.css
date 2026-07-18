@@ -168,13 +168,70 @@
   opacity: 0.55;
 }
 
-.tiny-range {
-  appearance: none;
+.tiny-range-shell {
+  --tiny-track-cap-size: 2rem;
+  position: relative;
+  display: block;
   width: 100%;
   height: 2rem;
+}
+
+.tiny-bar-track {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns:
+    var(--tiny-track-cap-size, 1.25rem) minmax(0, 1fr)
+    var(--tiny-track-cap-size, 1.25rem);
+  pointer-events: none;
+  image-rendering: pixelated;
+}
+
+.tiny-bar-track__cap,
+.tiny-bar-track__middle {
+  min-width: 0;
+  background-image: var(--tiny-bar-small-base);
+  background-repeat: no-repeat;
+  background-size: 500% 100%;
+}
+
+.tiny-bar-track__cap--start {
+  background-position: left center;
+}
+
+.tiny-bar-track__middle {
+  background-position: center;
+}
+
+.tiny-bar-track__cap--end {
+  background-position: right center;
+}
+
+.tiny-range-track {
+  z-index: 0;
+}
+
+.tiny-range {
+  appearance: none;
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 2rem;
+  margin: 0;
   border: 0;
-  background: var(--tiny-bar-small-base) center / 100% 2rem no-repeat;
+  background: transparent;
   cursor: var(--tiny-cursor-link, pointer);
+}
+
+.tiny-range::-webkit-slider-runnable-track {
+  border: 0;
+  background: transparent;
+}
+
+.tiny-range::-moz-range-track {
+  border: 0;
+  background: transparent;
 }
 
 .tiny-range::-webkit-slider-thumb {
@@ -194,7 +251,7 @@
   image-rendering: pixelated;
 }
 
-.tiny-range:disabled {
+.tiny-range-shell:has(.tiny-range:disabled) {
   cursor: var(--tiny-cursor-unavailable, not-allowed);
   opacity: 0.55;
 }
@@ -213,17 +270,29 @@
 }
 
 .tiny-bar {
+  --tiny-track-cap-size: 1.25rem;
   position: relative;
   width: 100%;
   height: 1.25rem;
   overflow: hidden;
-  background: var(--tiny-bar-small-base) center / 100% 100% no-repeat;
   image-rendering: pixelated;
+}
+
+.tiny-bar__track {
+  z-index: 1;
+}
+
+.tiny-bar__channel {
+  position: absolute;
+  z-index: 2;
+  inset: 0 var(--tiny-track-cap-size);
+  overflow: hidden;
 }
 
 .tiny-bar__clip {
   position: absolute;
   inset: 0 auto 0 0;
+  height: 100%;
   overflow: hidden;
 }
 

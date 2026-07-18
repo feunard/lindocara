@@ -688,35 +688,58 @@ export async function startGame(character: CharacterSummary): Promise<void> {
     connection?.close();
     void logout();
   };
-
-  stopActions = trackActions({
-    attack,
-    interact,
-    usePotion,
-    heal,
-    release,
-    castSkill,
-    switchTarget: (reverse) => {
-      const sample = client.sample(performance.now());
-      const self = sample.players.find((player) => player.id === client.selfId);
-      const next = cycleMonsterTarget(
-        sample.monsters,
-        self,
-        combatTarget?.kind === "monster" ? combatTarget.id : undefined,
-        reverse,
-      );
-      if (next) selectTarget(next);
-      else clearTarget();
-    },
-    focusChat: () => {
+  const toggleSettings = () => {
+    if (interiorOpen()) {
+      closeInterior();
       input.reset();
-      useUiStore.getState().requestChatFocus();
+      return;
+    }
+    if (useUiStore.getState().mapOpen) {
+      useUiStore.getState().setMapOpen(false);
+      input.reset();
+      return;
+    }
+    if (combatTarget) {
+      clearTarget();
+      return;
+    }
+    const nextOpen = !settingsOpen();
+    useUiStore.getState().setSettingsOpen(nextOpen);
+    if (nextOpen) input.reset();
+  };
+
+  stopActions = trackActions(
+    {
+      attack,
+      interact,
+      usePotion,
+      heal,
+      release,
+      castSkill,
+      switchTarget: (reverse) => {
+        const sample = client.sample(performance.now());
+        const self = sample.players.find((player) => player.id === client.selfId);
+        const next = cycleMonsterTarget(
+          sample.monsters,
+          self,
+          combatTarget?.kind === "monster" ? combatTarget.id : undefined,
+          reverse,
+        );
+        if (next) selectTarget(next);
+        else clearTarget();
+      },
+      focusChat: () => {
+        input.reset();
+        useUiStore.getState().requestChatFocus();
+      },
+      toggleMap: () => {
+        const store = useUiStore.getState();
+        store.setMapOpen(!store.mapOpen);
+      },
+      toggleSettings,
     },
-    toggleMap: () => {
-      const store = useUiStore.getState();
-      store.setMapOpen(!store.mapOpen);
-    },
-  });
+    () => !gameplayPaused(),
+  );
 
   useUiStore.getState().setGame({
     attack,
@@ -767,36 +790,6 @@ export async function startGame(character: CharacterSummary): Promise<void> {
       worldMapCanvas = canvas;
       mapSurface?.attachWorldMap(canvas);
     },
-  });
-
-  window.addEventListener("keydown", (event) => {
-    if (event.code !== "Escape") return;
-    if (event.target instanceof HTMLInputElement) {
-      event.target.blur();
-      event.preventDefault();
-      return;
-    }
-    if (interiorOpen()) {
-      closeInterior();
-      input.reset();
-      event.preventDefault();
-      return;
-    }
-    if (useUiStore.getState().mapOpen) {
-      useUiStore.getState().setMapOpen(false);
-      input.reset();
-      event.preventDefault();
-      return;
-    }
-    if (combatTarget) {
-      clearTarget();
-      event.preventDefault();
-      return;
-    }
-    const nextOpen = !settingsOpen();
-    useUiStore.getState().setSettingsOpen(nextOpen);
-    if (nextOpen) input.reset();
-    event.preventDefault();
   });
 
   renderer.onFrame((now, dt) => {

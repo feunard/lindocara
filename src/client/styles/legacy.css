@@ -1136,7 +1136,7 @@ kbd {
 }
 
 .settings-panel {
-  width: min(24rem, calc(100vw - 2rem));
+  width: min(40rem, calc(100vw - 2rem));
   max-height: calc(100dvh - 2rem);
   border: 1px solid rgb(207 180 101 / 42%);
   border-radius: 8px;
@@ -1181,6 +1181,40 @@ kbd {
   display: grid;
   gap: 0.85rem;
   padding: 0.85rem 0.72rem 0.95rem;
+}
+
+.settings-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+  padding: 0.55rem 0.72rem;
+  border-bottom: 1px solid rgb(207 180 101 / 18%);
+  background: rgb(18 31 24 / 82%);
+}
+
+.settings-tabs .tiny-button {
+  width: 100%;
+  min-width: 0;
+  color: #d5c69f;
+  opacity: 0.72;
+}
+
+.settings-tabs .tiny-button[aria-selected="true"] {
+  color: #fff0c9;
+  opacity: 1;
+  filter: drop-shadow(0 2px 5px rgb(0 0 0 / 45%));
+}
+
+.settings-pane {
+  display: grid;
+  gap: 0.85rem;
+  min-height: 9rem;
+}
+
+.settings-session-pane {
+  min-height: 0;
+  padding-top: 0.15rem;
+  border-top: 1px solid rgb(207 180 101 / 18%);
 }
 
 .settings-section-label {
@@ -1251,6 +1285,140 @@ kbd {
 .settings-row input[type="range"]:disabled {
   opacity: 0.45;
   cursor: var(--tiny-cursor-unavailable, not-allowed);
+}
+
+.controls-settings {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.controls-device-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+}
+
+.controls-device-tabs .tiny-button {
+  width: 100%;
+  color: #d7c9aa;
+  opacity: 0.7;
+}
+
+.controls-device-tabs .tiny-button[aria-selected="true"] {
+  color: #fff2ce;
+  opacity: 1;
+}
+
+.controller-profile {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, 0.55fr) minmax(10rem, 1fr);
+  align-items: center;
+  gap: 0.4rem 0.75rem;
+  padding: 0.6rem;
+  border: 1px solid rgb(207 180 101 / 22%);
+  border-radius: 5px;
+  background: rgb(8 20 16 / 46%);
+  color: #d9cba8;
+  font:
+    0.7rem / 1.3 Inter,
+    sans-serif;
+}
+
+.controller-profile .controller-status {
+  grid-column: 1 / -1;
+  color: #bcae8e;
+}
+
+.controller-profile .controller-status--online {
+  color: #a8dca5;
+}
+
+.controls-hint {
+  margin: 0;
+  color: #bdb298;
+  font:
+    0.68rem / 1.45 Inter,
+    sans-serif;
+}
+
+.controls-groups {
+  display: grid;
+  gap: 0.42rem;
+}
+
+.controls-group {
+  overflow: hidden;
+  border: 1px solid rgb(207 180 101 / 23%);
+  border-radius: 5px;
+  background: rgb(7 18 14 / 43%);
+}
+
+.controls-group summary {
+  padding: 0.55rem 0.65rem;
+  background: linear-gradient(90deg, rgb(101 74 38 / 48%), rgb(17 31 23 / 72%));
+  color: #e6d49f;
+  font:
+    700 0.67rem Georgia,
+    serif;
+  text-transform: uppercase;
+  cursor: var(--tiny-cursor-link, pointer);
+}
+
+.controls-group[open] summary {
+  border-bottom: 1px solid rgb(207 180 101 / 18%);
+}
+
+.controls-bindings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: rgb(207 180 101 / 11%);
+}
+
+.control-binding-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(7.25rem, auto);
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 2.75rem;
+  padding: 0.38rem 0.48rem;
+  background: #182018;
+  color: #ddd2b7;
+  font:
+    0.68rem / 1.2 Inter,
+    sans-serif;
+}
+
+.control-binding {
+  min-height: 1.85rem;
+  padding: 0.25rem 0.45rem;
+  border: 1px solid rgb(209 187 125 / 45%);
+  border-radius: 4px;
+  background: linear-gradient(#343b2f, #1d251d);
+  color: #fff0bd;
+  font:
+    700 0.63rem ui-monospace,
+    monospace;
+  cursor: var(--tiny-cursor-link, pointer);
+}
+
+.control-binding:hover,
+.control-binding:focus-visible {
+  border-color: #e4c86f;
+  outline: none;
+  filter: brightness(1.14);
+}
+
+.control-binding--listening {
+  border-color: #ffe48a;
+  background: linear-gradient(#80662d, #49381e);
+  animation: quest-timer-pulse 750ms ease-in-out infinite alternate;
+}
+
+.controls-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.45rem;
 }
 
 .settings-session-actions {
@@ -1823,6 +1991,27 @@ kbd {
 }
 
 @media (max-width: 600px) {
+  .settings-tabs .tiny-button {
+    padding-inline: 0.35rem;
+    font-size: 0.66rem;
+  }
+
+  .controls-bindings {
+    grid-template-columns: 1fr;
+  }
+
+  .controller-profile {
+    grid-template-columns: 1fr;
+  }
+
+  .controller-profile .controller-status {
+    grid-column: 1;
+  }
+
+  .control-binding-row {
+    grid-template-columns: minmax(0, 1fr) minmax(6.8rem, auto);
+  }
+
   .target-frame {
     top: 4.85rem;
     width: calc(100vw - 0.9rem);

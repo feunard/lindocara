@@ -179,7 +179,7 @@ describe("Hud", () => {
       },
     });
     render(<Hud />);
-    expect(screen.getByText("Mana")).toBeInTheDocument();
+    expect(screen.getByText("MP")).toBeInTheDocument();
     expect(screen.getByText("45/100")).toBeInTheDocument();
     expect(screen.getByText("Ally")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Disband party" })).toBeInTheDocument();

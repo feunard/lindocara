@@ -54,11 +54,11 @@ export function App() {
           <HelpBar />
           <InteriorOverlay />
           <WorldMap />
-          <SettingsMenu />
           <MobileControls />
           <ConnectionOverlay />
         </>
       )}
+      <SettingsMenu inGame={screen === "game"} />
     </>
   );
 }

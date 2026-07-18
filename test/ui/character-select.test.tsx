@@ -86,6 +86,14 @@ describe("CharacterSelect", () => {
     expect(onPlay).toHaveBeenCalledWith(three[1]);
   });
 
+  it("opens options from the character roster", async () => {
+    useUiStore.setState({ characters: three, settingsOpen: false });
+    render(<CharacterSelect onPlay={() => undefined} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Options" }));
+    expect(useUiStore.getState().settingsOpen).toBe(true);
+  });
+
   it("moves the active squad position with keyboard-compatible character buttons", async () => {
     useUiStore.setState({ characters: three });
     render(<CharacterSelect onPlay={() => undefined} />);
