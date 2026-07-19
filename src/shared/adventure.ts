@@ -4,6 +4,7 @@
  * a client can request "use this exit" but the server resolves where it leads from this graph.
  * Pure rules only: D1 lookups live in server/adventures.ts.
  */
+import { type AdventureRegistry, parseAdventureRegistry } from "./adventure-state.js";
 import { MARKER_ID_PATTERN } from "./map-data.js";
 
 export const ADVENTURE_TITLE_MAX = 48;
@@ -32,6 +33,11 @@ export interface AdventureInput {
   maxPlayers: number;
   mapIds: readonly string[];
   graph: AdventureGraph;
+  /** The switch/variable registry, when the client sends one. `undefined` means "leave the stored
+   *  registry untouched" — a PUT that omits it never wipes the column — so only a body that carries
+   *  `registry` writes it. `activePageIndex` reads any orphaned id as false/0 (the fail-closed
+   *  default), so shrinking a registry out from under a condition is safe. */
+  registry?: AdventureRegistry;
 }
 
 /** The marker ids of one member map, as Task 5 reads them from the stored payload. */
@@ -84,7 +90,21 @@ export function parseAdventureInput(value: unknown): AdventureInput | null {
   }
   const graph = parseAdventureGraph(record.graph);
   if (!graph) return null;
-  return { title, maxPlayers: maxPlayers as number, mapIds: mapIds as string[], graph };
+  // Absent registry stays undefined (the store leaves the column alone); a present-but-malformed
+  // registry rejects the whole body rather than silently defaulting to empty.
+  let registry: AdventureRegistry | undefined;
+  if (record.registry !== undefined) {
+    const parsed = parseAdventureRegistry(record.registry);
+    if (!parsed) return null;
+    registry = parsed;
+  }
+  return {
+    title,
+    maxPlayers: maxPlayers as number,
+    mapIds: mapIds as string[],
+    graph,
+    ...(registry !== undefined ? { registry } : {}),
+  };
 }
 
 /** Throws "title:|players:|maps:|graph:" — the prefix is the machine code, per server convention. */

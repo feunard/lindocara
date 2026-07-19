@@ -224,6 +224,48 @@ describe("adventure registry", () => {
     const shrunk = await updateAdventureRegistry(db, "owner", created.id, EMPTY_REGISTRY);
     expect(shrunk).toEqual(EMPTY_REGISTRY);
   });
+
+  it("createAdventure persists a registry carried on the input", async () => {
+    const db = createDb(env.DB);
+    await seedAccount("owner");
+    const mapA = await createMap(db, mapInput("A"));
+    const mapB = await createMap(db, mapInput("B"));
+    const registry = { switches: [{ id: "0001", name: "Porte" }], variables: [] };
+    const created = await createAdventure(db, "owner", {
+      ...inputFor([mapA.id, mapB.id]),
+      registry,
+    });
+    expect(created.registry).toEqual(registry);
+    expect((await loadAdventure(db, "owner", created.id))?.registry).toEqual(registry);
+  });
+
+  it("the adventure PUT carries the registry end to end, and omitting it preserves the stored one", async () => {
+    const db = createDb(env.DB);
+    await seedAccount("owner");
+    const mapA = await createMap(db, mapInput("A"));
+    const mapB = await createMap(db, mapInput("B"));
+    const created = await createAdventure(db, "owner", inputFor([mapA.id, mapB.id]));
+
+    // A PUT that carries a registry writes it.
+    const registry = {
+      switches: [{ id: "0001", name: "Porte" }],
+      variables: [{ id: "0001", name: "Or" }],
+    };
+    await updateAdventure(db, "owner", created.id, {
+      ...inputFor([mapA.id, mapB.id]),
+      registry,
+    });
+    expect((await loadAdventure(db, "owner", created.id))?.registry).toEqual(registry);
+
+    // A later PUT that OMITS the registry must not wipe the stored one.
+    await updateAdventure(db, "owner", created.id, {
+      ...inputFor([mapA.id, mapB.id]),
+      title: "Renommé",
+    });
+    const loaded = await loadAdventure(db, "owner", created.id);
+    expect(loaded?.title).toBe("Renommé");
+    expect(loaded?.registry).toEqual(registry);
+  });
 });
 
 describe("map deletion guard", () => {

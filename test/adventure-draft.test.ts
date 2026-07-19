@@ -81,6 +81,7 @@ describe("adventure draft", () => {
           { mapId: "map-b", exitId: "boss", dest: "end" },
         ],
       },
+      registry: { switches: [], variables: [] },
     });
     expect(toAdventureInput(emptyDraft())).toBeNull();
   });

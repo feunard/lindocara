@@ -54,6 +54,29 @@ export interface AdventureRegistry {
 
 export const EMPTY_REGISTRY: AdventureRegistry = { switches: [], variables: [] };
 
+/** The largest 4-digit ordinal an id can name. Well above `MAX_REGISTRY_SWITCHES`/`VARIABLES`
+ *  (200), so a registry within its size cap can never exhaust the id space. */
+const MAX_REGISTRY_ORDINAL = 9999;
+
+/**
+ * The next id for a new entry: one past the highest ordinal already in the list, zero-padded to the
+ * 4-digit wire shape. MONOTONE, not gap-filling — deleting id `0002` from `{0001,0002,0003}` mints
+ * `0004`, never reuses `0002`, because a registry id is identity: an event page references it by
+ * string, so a reused id would silently redirect an orphaned condition onto a brand-new entry.
+ * Returns `null` when the highest ordinal is already `9999` (no monotone id is left); callers gate
+ * the add affordance on that and on the per-list size cap.
+ */
+export function mintRegistryId(entries: readonly RegistryEntry[]): string | null {
+  let highest = 0;
+  for (const entry of entries) {
+    const ordinal = Number.parseInt(entry.id, 10);
+    if (Number.isInteger(ordinal) && ordinal > highest) highest = ordinal;
+  }
+  const next = highest + 1;
+  if (next > MAX_REGISTRY_ORDINAL) return null;
+  return String(next).padStart(4, "0");
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

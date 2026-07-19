@@ -103,9 +103,10 @@ export async function createAdventure(
     title: input.title.trim(),
     maxPlayers: input.maxPlayers,
     graph: JSON.stringify(input.graph),
-    // registry omitted: a new adventure always starts from the column DEFAULT '', which reads
-    // back as EMPTY_REGISTRY. The database dialog (a later tranche) grows it afterwards via
-    // updateAdventureRegistry.
+    // A body that carries a registry writes it at create time; one that omits it falls to the
+    // column DEFAULT '' (reads back as EMPTY_REGISTRY). The database dialog also grows it later
+    // through the adventure PUT.
+    ...(input.registry !== undefined ? { registry: JSON.stringify(input.registry) } : {}),
   };
   await db.batch([
     db.insert(adventure).values(row),
@@ -162,6 +163,9 @@ export async function updateAdventure(
         title: input.title.trim(),
         maxPlayers: input.maxPlayers,
         graph: JSON.stringify(input.graph),
+        // Only a body that carries a registry rewrites the column; omitting it preserves the
+        // stored registry so an unrelated adventure PUT never wipes the switches/variables.
+        ...(input.registry !== undefined ? { registry: JSON.stringify(input.registry) } : {}),
         updatedAt: new Date(),
       })
       .where(eq(adventure.id, id)),

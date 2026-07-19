@@ -5,6 +5,7 @@ import type { AdventureDraft, DraftMemberInfo } from "../../src/client/adventure
 import { setLocale, t } from "../../src/client/i18n.js";
 import { useUiStore } from "../../src/client/store.js";
 import { AdventureSettingsDialog } from "../../src/client/ui/editor/AdventureSettingsDialog.js";
+import { EMPTY_REGISTRY } from "../../src/shared/adventure-state.js";
 import { layersFromBlocks } from "../../src/shared/map-migrate.js";
 import { encodeTileLayer } from "../../src/shared/tile-layer-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "../../src/shared/tilesets/tiny-swords.js";
@@ -129,6 +130,7 @@ describe("AdventureSettingsDialog", () => {
       members: [member("m1", "Verdant", "door", "east")],
       start: { mapId: "m1", entryId: "door" },
       bindings: [{ mapId: "m1", exitId: "east", dest: "end" }],
+      registry: EMPTY_REGISTRY,
     };
     seedSession(complete, "adv-1");
     const mock = backend();
@@ -167,6 +169,7 @@ describe("AdventureSettingsDialog", () => {
       members: [member("m1", "Verdant", "door", "east")],
       start: { mapId: "m1", entryId: "door" },
       bindings: [{ mapId: "m1", exitId: "east", dest: "end" }],
+      registry: EMPTY_REGISTRY,
     };
     seedSession(complete, "adv-1");
     const mock = backend();
@@ -201,6 +204,7 @@ describe("AdventureSettingsDialog", () => {
       members: [member("m1", "Verdant", "door", "gate")],
       start: { mapId: "m1", entryId: "door" },
       bindings: [{ mapId: "m1", exitId: "gate", dest: null }],
+      registry: EMPTY_REGISTRY,
     };
     seedSession(withUnbound, "adv-1");
     vi.stubGlobal("fetch", backend());
@@ -260,6 +264,8 @@ describe("AdventureSettingsDialog", () => {
             { mapId: "m2", exitId: "boss", dest: "end" },
           ],
         },
+        // The draft now carries a registry, so the adventure save body includes it end to end.
+        registry: { switches: [], variables: [] },
       });
     });
   });

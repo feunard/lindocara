@@ -11,6 +11,7 @@ import {
   type ExitDestination,
   MAX_ADVENTURE_MAPS,
 } from "../shared/adventure.js";
+import { type AdventureRegistry, EMPTY_REGISTRY } from "../shared/adventure-state.js";
 
 export interface DraftMemberInfo {
   mapId: string;
@@ -37,6 +38,9 @@ export interface AdventureDraft {
   members: DraftMemberInfo[];
   start: { mapId: string; entryId: string } | null;
   bindings: DraftBinding[];
+  /** The switch/variable registry, authored in `RegistryDialog` and persisted on the adventure
+   *  PUT. Never gates graph completeness — it rides the same save but is independent of it. */
+  registry: AdventureRegistry;
 }
 
 export type AdventureDraftIssue =
@@ -48,7 +52,14 @@ export type AdventureDraftIssue =
   | { code: "map_without_exit"; mapId: string };
 
 export function emptyDraft(): AdventureDraft {
-  return { title: "", maxPlayers: 4, members: [], start: null, bindings: [] };
+  return {
+    title: "",
+    maxPlayers: 4,
+    members: [],
+    start: null,
+    bindings: [],
+    registry: EMPTY_REGISTRY,
+  };
 }
 
 export function addMember(draft: AdventureDraft, info: DraftMemberInfo): AdventureDraft | null {
@@ -239,11 +250,20 @@ export function toAdventureInput(draft: AdventureDraft): AdventureInput | null {
     maxPlayers: draft.maxPlayers,
     mapIds: draft.members.map((member) => member.mapId),
     graph: { start: draft.start, links },
+    registry: draft.registry,
   };
 }
 
 export function draftFromAdventure(
-  payload: { title: string; maxPlayers: number; mapIds: readonly string[]; graph: AdventureGraph },
+  payload: {
+    title: string;
+    maxPlayers: number;
+    mapIds: readonly string[];
+    graph: AdventureGraph;
+    /** Optional so a caller round-tripping through `AdventureInput` (registry optional) still fits;
+     *  a payload without one rebuilds an empty registry. */
+    registry?: AdventureRegistry;
+  },
   infos: ReadonlyMap<string, DraftMemberInfo>,
 ): AdventureDraft {
   const members = payload.mapIds.flatMap((mapId) => {
@@ -266,5 +286,6 @@ export function draftFromAdventure(
     members,
     start: payload.graph.start,
     bindings,
+    registry: payload.registry ?? EMPTY_REGISTRY,
   };
 }

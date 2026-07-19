@@ -118,7 +118,17 @@ export class GameSession extends DurableObject<Env> {
       clearTimeout(this.#saveTimer);
       this.#saveTimer = null;
     }
-    await this.#flushSave(partyId);
+    // The party-empty flush can race a teardown that drops the party row (an FK the save depends
+    // on): swallow and log rather than reject `roomEmptied`, mirroring the debounced path's catch.
+    await this.#flushSave(partyId).catch((error) => {
+      console.error(
+        JSON.stringify({
+          event: "party_adventure_state_flush_failed",
+          partyId,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    });
   }
 
   /**

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultEventPage } from "../../src/client/game/editor-state.js";
 import { setLocale, t } from "../../src/client/i18n.js";
 import { EventDialog } from "../../src/client/ui/editor/EventDialog.js";
+import { type AdventureRegistry, EMPTY_REGISTRY } from "../../src/shared/adventure-state.js";
 import type { MapEvent } from "../../src/shared/map-events.js";
 
 /** A fresh single-page event to seed the dialog draft with, at the given ordinal/cell. */
@@ -19,11 +20,19 @@ function seedEvent(overrides: Partial<MapEvent> = {}): MapEvent {
   };
 }
 
-function renderDialog(event: MapEvent) {
+function renderDialog(event: MapEvent, registry: AdventureRegistry = EMPTY_REGISTRY) {
   const onCommit = vi.fn();
   const onDelete = vi.fn();
   const onCancel = vi.fn();
-  render(<EventDialog event={event} onCommit={onCommit} onDelete={onDelete} onCancel={onCancel} />);
+  render(
+    <EventDialog
+      event={event}
+      registry={registry}
+      onCommit={onCommit}
+      onDelete={onDelete}
+      onCancel={onCancel}
+    />,
+  );
   return { onCommit, onDelete, onCancel };
 }
 
@@ -229,5 +238,73 @@ describe("EventDialog", () => {
     await user.click(within(confirm).getByRole("button", { name: t("editor.event.delete") }));
 
     expect(onDelete).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("EventDialog condition pickers over the registry", () => {
+  const registry = {
+    switches: [
+      { id: "0001", name: "Porte ouverte" },
+      { id: "0002", name: "Pont abaissé" },
+    ],
+    variables: [{ id: "0007", name: "Or" }],
+  };
+
+  beforeEach(() => setLocale("en"));
+
+  it("shows a Select over the registry switches (not free text) once it has entries", async () => {
+    const user = userEvent.setup();
+    renderDialog(seedEvent(), registry);
+
+    await user.click(screen.getByRole("checkbox", { name: t("editor.event.cond.switch") }));
+    // A combobox appears; the free-text input does NOT.
+    const select = screen.getByRole("combobox", { name: t("editor.event.cond.switch") });
+    expect(select.tagName).toBe("SELECT");
+    expect(
+      screen.queryByRole("textbox", { name: t("editor.event.cond.switch") }),
+    ).not.toBeInTheDocument();
+    // Options render as "0001 · name".
+    expect(within(select).getByRole("option", { name: "0001 · Porte ouverte" })).toBeDefined();
+    expect(within(select).getByRole("option", { name: "0002 · Pont abaissé" })).toBeDefined();
+    // No empty-registry hint.
+    expect(screen.queryByText(t("editor.event.cond.empty.hint"))).not.toBeInTheDocument();
+  });
+
+  it("falls back to a normalized text input with a hint when the registry is empty", async () => {
+    const user = userEvent.setup();
+    renderDialog(seedEvent(), { switches: [], variables: [] });
+
+    await user.click(screen.getByRole("checkbox", { name: t("editor.event.cond.switch") }));
+    expect(screen.getByRole("textbox", { name: t("editor.event.cond.switch") })).toBeDefined();
+    expect(
+      screen.queryByRole("combobox", { name: t("editor.event.cond.switch") }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(t("editor.event.cond.empty.hint"))).toBeVisible();
+  });
+
+  it("writes the picked entry's ID, not its name, into the committed page", async () => {
+    // Mutation proof (b): a picker that writes the option's NAME instead of its id fails here —
+    // the committed condSwitchId would be "Pont abaissé", never "0002".
+    const user = userEvent.setup();
+    const { onCommit } = renderDialog(seedEvent(), registry);
+
+    await user.click(screen.getByRole("checkbox", { name: t("editor.event.cond.switch") }));
+    const select = screen.getByRole("combobox", { name: t("editor.event.cond.switch") });
+    await user.selectOptions(select, "0002");
+    await user.click(screen.getByRole("button", { name: t("editor.event.save") }));
+
+    const committed = onCommit.mock.calls[0]?.[0] as MapEvent;
+    expect(committed.pages[0]?.condSwitchId).toBe("0002");
+  });
+
+  it("seeds the first registry entry when a condition is switched on", async () => {
+    const user = userEvent.setup();
+    const { onCommit } = renderDialog(seedEvent(), registry);
+
+    await user.click(screen.getByRole("checkbox", { name: t("editor.event.cond.variable") }));
+    await user.click(screen.getByRole("button", { name: t("editor.event.save") }));
+
+    const committed = onCommit.mock.calls[0]?.[0] as MapEvent;
+    expect(committed.pages[0]?.condVariableId).toBe("0007");
   });
 });

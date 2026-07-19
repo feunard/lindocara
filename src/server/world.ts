@@ -288,6 +288,7 @@ export class World extends DurableObject<Env> {
               error: error instanceof Error ? error.message : String(error),
             }),
           );
+          this.#recoverEventsAfterFailedStateRestore();
         }
       }
       if (this.#players.size > 0) this.#startLoop();
@@ -729,6 +730,24 @@ export class World extends DurableObject<Env> {
       });
     }
     this.#activeEvents = active;
+  }
+
+  /**
+   * The hibernation-restore recovery when the coordinator pull throws: fall back to the safe EMPTY
+   * snapshot and re-derive the active events from it, so always-on events (pages with no conditions)
+   * survive a failed pull instead of the room waking with no events at all. Extracted so the test
+   * seam below can exercise it — a ticking World cannot be evicted (`evictDurableObject` hangs on its
+   * `setInterval`), so the real constructor restore path is not reachable end-to-end in a test.
+   */
+  #recoverEventsAfterFailedStateRestore(): void {
+    this.#adventureState = EMPTY_ADVENTURE_STATE;
+    this.#evaluateActiveEvents();
+  }
+
+  /** Test seam standing in for the unreachable evict/restore: runs the exact recovery the
+   *  constructor's failed-pull catch runs. */
+  async recoverEventsAfterFailedStateRestoreForTest(): Promise<void> {
+    this.#recoverEventsAfterFailedStateRestore();
   }
 
   /** Called only by the party's GameSession coordinator. */

@@ -1,5 +1,6 @@
 import type * as React from "react";
 import { useState } from "react";
+import type { AdventureRegistry, RegistryEntry } from "../../../shared/adventure-state.js";
 import type { MessageKey } from "../../../shared/i18n/index.js";
 import {
   EVENT_NAME_MAX,
@@ -75,6 +76,59 @@ function FieldSelect(props: React.ComponentProps<"select">) {
   );
 }
 
+/** The default id a freshly enabled condition takes: the first registry entry of its kind when the
+ *  registry has any, else the `"0001"` wire-legal placeholder the free-text fallback expects. */
+function defaultConditionId(entries: readonly RegistryEntry[]): string {
+  return entries[0]?.id ?? "0001";
+}
+
+/**
+ * A condition's id field: a native `FieldSelect` over the registry (`0001 · name`) once the registry
+ * has entries, else the normalized free-text `Input` — the same blur-normalization tranche 3 built,
+ * kept for the empty-registry path. The select carries an extra option for the current value when it
+ * names nothing in the registry (an id orphaned by a since-deleted entry), so opening a page never
+ * silently rewrites its stored id.
+ */
+function ConditionIdField({
+  entries,
+  value,
+  ariaLabel,
+  onCommit,
+}: {
+  entries: readonly RegistryEntry[];
+  value: string;
+  ariaLabel: string;
+  onCommit(id: string): void;
+}) {
+  if (entries.length === 0) {
+    return (
+      <Input
+        aria-label={ariaLabel}
+        className="h-7 w-20 text-xs tabular-nums"
+        value={value}
+        onChange={(e) => onCommit(e.currentTarget.value)}
+        onBlur={() => onCommit(normalizeConditionId(value))}
+      />
+    );
+  }
+  const known = entries.some((entry) => entry.id === value);
+  return (
+    <FieldSelect
+      aria-label={ariaLabel}
+      className="h-7 w-44 text-xs"
+      value={value}
+      onChange={(e) => onCommit(e.currentTarget.value)}
+    >
+      {!known && <option value={value}>{value}</option>}
+      {entries.map((entry) => (
+        <option key={entry.id} value={entry.id}>
+          {entry.name ? `${entry.id} · ${entry.name}` : entry.id}
+        </option>
+      ))}
+    </FieldSelect>
+  );
+}
+
 /** A checkbox that enables one condition row: checking it seeds a default value, unchecking it clears
  *  the row to `null` (a variable clears both its id and threshold). Native input so it stays
  *  test-driveable and keyboard-efficient. */
@@ -107,6 +161,9 @@ function CheckRow({
 interface EventDialogProps {
   /** The draft seed: a deep copy of the event to edit, from `beginEventDraft`. */
   event: MapEvent;
+  /** The loaded adventure's switch/variable registry. Its entries drive the condition pickers; an
+   *  empty registry falls the id fields back to normalized free text with a hint. */
+  registry: AdventureRegistry;
   /** Commit the edited draft as one history entry. */
   onCommit(draft: MapEvent): void;
   /** Delete the event (its own history entry). */
@@ -124,7 +181,7 @@ interface EventDialogProps {
  *
  * The command column is the tranche-5 placeholder: a disabled pane, no list built yet.
  */
-export function EventDialog({ event, onCommit, onDelete, onCancel }: EventDialogProps) {
+export function EventDialog({ event, registry, onCommit, onDelete, onCancel }: EventDialogProps) {
   useLocale();
   const [draft, setDraft] = useState<MapEvent>(event);
   const [pageIndex, setPageIndex] = useState(0);
@@ -252,60 +309,72 @@ export function EventDialog({ event, onCommit, onDelete, onCancel }: EventDialog
               </h3>
               <CheckRow
                 checked={page.condSwitchId !== null}
-                onToggle={(on) => update({ condSwitchId: on ? "0001" : null })}
+                onToggle={(on) =>
+                  update({ condSwitchId: on ? defaultConditionId(registry.switches) : null })
+                }
                 label={t("editor.event.cond.switch")}
               >
-                <Input
-                  aria-label={t("editor.event.cond.switch")}
-                  className="h-7 w-20 text-xs tabular-nums"
-                  disabled={page.condSwitchId === null}
-                  value={page.condSwitchId ?? ""}
-                  onChange={(e) => update({ condSwitchId: e.currentTarget.value })}
-                  onBlur={() => {
-                    if (page.condSwitchId !== null)
-                      update({ condSwitchId: normalizeConditionId(page.condSwitchId) });
-                  }}
-                />
-                <span className="text-[12.5px] text-zinc-500">
-                  {t("editor.event.cond.switch.on")}
-                </span>
+                {page.condSwitchId !== null && (
+                  <>
+                    <ConditionIdField
+                      entries={registry.switches}
+                      value={page.condSwitchId}
+                      ariaLabel={t("editor.event.cond.switch")}
+                      onCommit={(id) => update({ condSwitchId: id })}
+                    />
+                    <span className="text-[12.5px] text-zinc-500">
+                      {t("editor.event.cond.switch.on")}
+                    </span>
+                  </>
+                )}
               </CheckRow>
+              {page.condSwitchId !== null && registry.switches.length === 0 && (
+                <p className="pl-6 text-[11px] text-zinc-400">
+                  {t("editor.event.cond.empty.hint")}
+                </p>
+              )}
               <CheckRow
                 checked={page.condVariableId !== null}
                 onToggle={(on) =>
                   update(
                     on
-                      ? { condVariableId: "0001", condVariableMin: 0 }
+                      ? {
+                          condVariableId: defaultConditionId(registry.variables),
+                          condVariableMin: 0,
+                        }
                       : { condVariableId: null, condVariableMin: null },
                   )
                 }
                 label={t("editor.event.cond.variable")}
               >
-                <Input
-                  aria-label={t("editor.event.cond.variable")}
-                  className="h-7 w-20 text-xs tabular-nums"
-                  disabled={page.condVariableId === null}
-                  value={page.condVariableId ?? ""}
-                  onChange={(e) => update({ condVariableId: e.currentTarget.value })}
-                  onBlur={() => {
-                    if (page.condVariableId !== null)
-                      update({ condVariableId: normalizeConditionId(page.condVariableId) });
-                  }}
-                />
-                <span className="text-[12.5px] text-zinc-500">≥</span>
-                <Input
-                  aria-label={t("editor.event.cond.variable.min")}
-                  type="number"
-                  className="h-7 w-20 text-xs tabular-nums"
-                  disabled={page.condVariableId === null}
-                  value={page.condVariableMin ?? 0}
-                  onChange={(e) => update({ condVariableMin: Number(e.currentTarget.value) })}
-                  onBlur={() => {
-                    if (page.condVariableMin !== null)
-                      update({ condVariableMin: normalizeConditionMin(page.condVariableMin) });
-                  }}
-                />
+                {page.condVariableId !== null && (
+                  <>
+                    <ConditionIdField
+                      entries={registry.variables}
+                      value={page.condVariableId}
+                      ariaLabel={t("editor.event.cond.variable")}
+                      onCommit={(id) => update({ condVariableId: id })}
+                    />
+                    <span className="text-[12.5px] text-zinc-500">≥</span>
+                    <Input
+                      aria-label={t("editor.event.cond.variable.min")}
+                      type="number"
+                      className="h-7 w-20 text-xs tabular-nums"
+                      value={page.condVariableMin ?? 0}
+                      onChange={(e) => update({ condVariableMin: Number(e.currentTarget.value) })}
+                      onBlur={() => {
+                        if (page.condVariableMin !== null)
+                          update({ condVariableMin: normalizeConditionMin(page.condVariableMin) });
+                      }}
+                    />
+                  </>
+                )}
               </CheckRow>
+              {page.condVariableId !== null && registry.variables.length === 0 && (
+                <p className="pl-6 text-[11px] text-zinc-400">
+                  {t("editor.event.cond.empty.hint")}
+                </p>
+              )}
               <CheckRow
                 checked={page.condSelfSwitch !== null}
                 onToggle={(on) => update({ condSelfSwitch: on ? "A" : null })}

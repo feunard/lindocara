@@ -1,4 +1,5 @@
 import type { AdventureGraph, AdventureInput } from "../shared/adventure.js";
+import type { AdventureRegistry } from "../shared/adventure-state.js";
 import type { CharacterAppearance, Equipment } from "../shared/character.js";
 import type { PlayerClass } from "../shared/game.js";
 import type { MessageKey } from "../shared/i18n/index.js";
@@ -102,6 +103,9 @@ export interface AdventurePayload {
   version: number;
   mapIds: string[];
   graph: AdventureGraph;
+  /** The switch/variable registry, editable through `RegistryDialog` and saved on the adventure
+   *  PUT. Empty for adventures whose registry was never authored. */
+  registry: AdventureRegistry;
 }
 
 export const fetchAdventures = () => api<AdventureSummary[]>("/api/adventures");

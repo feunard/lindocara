@@ -13,6 +13,7 @@ import {
   MAX_REGISTRY_SWITCHES,
   MAX_REGISTRY_VARIABLES,
   MAX_SELF_SWITCH_ENTRIES,
+  mintRegistryId,
   type PartyAdventureState,
   parseAdventureRegistry,
   parsePartyAdventureState,
@@ -331,5 +332,28 @@ describe("activePageIndex", () => {
     });
     expect(activePageIndex(ev, state({ switches: { "0001": true } }))).toBe(1);
     expect(activePageIndex(ev, state())).toBe(0);
+  });
+});
+
+describe("mintRegistryId", () => {
+  const entry = (id: string): RegistryEntry => ({ id, name: "" });
+
+  it("mints 0001 for an empty list", () => {
+    expect(mintRegistryId([])).toBe("0001");
+  });
+
+  it("is monotone: it skips existing ids and never reuses a gap", () => {
+    // Delete the middle of {0001,0002,0003} and mint again: the next id is 0004, one past the
+    // HIGHEST ordinal — never 0002 refilling the gap. A registry id is identity (an event page
+    // references it by string), so reusing a freed id would silently redirect an orphaned
+    // condition onto a brand-new entry. This is the mutation-proof target: a gap-filling mint
+    // returns "0002" here and fails.
+    expect(mintRegistryId([entry("0001"), entry("0003")])).toBe("0004");
+    expect(mintRegistryId([entry("0001"), entry("0002"), entry("0003")])).toBe("0004");
+    expect(mintRegistryId([entry("0005")])).toBe("0006");
+  });
+
+  it("returns null once the id space is exhausted at 9999", () => {
+    expect(mintRegistryId([entry("9999")])).toBeNull();
   });
 });

@@ -316,6 +316,40 @@ describe("adventure state runtime", () => {
     expect(await readPersistedState(heldFixture.party.partyId)).toBeNull();
   });
 
+  it("re-evaluates against the EMPTY snapshot when the hibernation restore pull fails", async () => {
+    // A ticking World cannot be evicted, so the constructor's failed-pull catch is exercised through
+    // its extracted recovery seam. With 0001 held true the gate shows page 2 at join; a failed
+    // restore falls the room back to EMPTY state, and the ALWAYS-ON page 1 must survive rather than
+    // the room waking with no events. Mutation proof: drop `#evaluateActiveEvents()` from the
+    // recovery and the room keeps page 2 here, failing the page-1 assertion.
+    const fixture = await seedFixture("restore-fail");
+    await seedPersistedState(fixture.party.partyId, {
+      switches: { "0001": true },
+      variables: {},
+      selfSwitches: {},
+    });
+    const hero = await testHero("Restore", { party: fixture.party, account: fixture.party.host });
+    const client = await Client.joinHero(hero);
+    await until("welcomed", () => client.welcome);
+
+    const room = env.WORLD.getByName(fixture.roomKeyA);
+    const before = await room.roomDiagnostics();
+    expect(before.activeEvents[0]?.graphicAssetId).toBe(PAGE2_GRAPHIC);
+
+    await room.recoverEventsAfterFailedStateRestoreForTest();
+
+    const after = await room.roomDiagnostics();
+    expect(after.activeEvents).toEqual([
+      {
+        id: fixture.eventIdA,
+        col: EVENT_COL,
+        row: EVENT_ROW,
+        graphicAssetId: PAGE1_GRAPHIC,
+        onTop: false,
+      },
+    ]);
+  });
+
   it("saves on party-empty and prunes an orphan self-switch", async () => {
     const fixture = await seedFixture("save");
     const orphanKey = `${crypto.randomUUID()}:A`;
