@@ -42,6 +42,7 @@ function mapBody(overrides: Record<string, unknown> = {}): Record<string, unknow
     name: "Test Map",
     ...layeredWireTerrain(validBlocks()),
     elements: [],
+    events: [],
     spawn: { col: 0, row: 0 },
     ...overrides,
   };
@@ -607,5 +608,22 @@ describe("size caps over the wire", () => {
     });
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "map_elements" });
+  });
+
+  it("rejects an event count exceeding the limit", async () => {
+    const events = Array.from({ length: MAX_EVENTS_PER_MAP + 1 }, (_, i) => ({
+      id: crypto.randomUUID(),
+      col: i % MAP_COLS,
+      row: i % MAP_ROWS,
+      name: `Event ${i}`,
+      ordinal: i + 1,
+      pages: [wirePage()],
+    }));
+    const response = await authed("/api/maps", {
+      method: "POST",
+      body: JSON.stringify(mapBody({ events })),
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "map_invalid" });
   });
 });

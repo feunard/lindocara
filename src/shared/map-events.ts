@@ -9,7 +9,7 @@
  * validation gap somewhere less honest. `docs/superpowers/specs/2026-07-19-map-events-design.md`
  * (Decisions 4 and 5) is the record of that choice.
  *
- * An event id is a server-minted uuid, stable across edits — the same policy as maps and
+ * An event id is a client-minted uuid, stable across edits — the same policy as maps and
  * adventures, and unlike the author-chosen slug policy `map-data.ts` markers use. Tranche 5's
  * commands will reference events, so a rename must never break a reference. `ordinal` is the
  * wireframe's friendly `EV001` display order; it is display only, never identity, and this parser
@@ -93,7 +93,7 @@ export interface MapEventPage {
 }
 
 export interface MapEvent {
-  /** Server-minted, stable across edits. See the file header before treating this as
+  /** Client-minted, stable across edits. See the file header before treating this as
    *  author-choosable the way marker ids are. */
   id: string;
   col: number;

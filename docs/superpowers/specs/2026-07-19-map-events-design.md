@@ -21,7 +21,7 @@ never contributes to `bakeCollision` in this tranche — walkability-by-event-op
 is runtime semantics that belongs to tranche 4+, and baking it now would create collision that
 nothing can yet honour.
 
-**2. Event ids are server-minted UUIDs, stable across edits.** Same policy as maps and adventures,
+**2. Event ids are client-minted UUIDs, stable across edits.** Same policy as maps and adventures,
 not the author-chosen slug policy markers use. Reasoning: tranche 5's commands will reference
 events; a rename must never break a reference, and UUIDs remove the uniqueness burden from the
 author. The editor displays the wireframe's friendly `EV001` ordinal, derived from creation order

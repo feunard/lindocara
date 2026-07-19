@@ -507,7 +507,8 @@ function mapErrorResponse(error: unknown): Response {
     code === "size" ||
     code === "name" ||
     code === "elements" ||
-    code === "markers"
+    code === "markers" ||
+    code === "events"
   ) {
     return json({ error: `map_${code}` }, { status: 400 });
   }
