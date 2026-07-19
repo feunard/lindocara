@@ -1,8 +1,13 @@
-import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { MessageKey } from "../../../shared/i18n/index.js";
 import { skillResourceCost } from "../../../shared/resources.js";
 import type { SkillSlot } from "../../../shared/skills.js";
 import { CLASS_SKILLS, isSkillUnlocked, SKILL_UNLOCK_LEVEL } from "../../../shared/skills.js";
+import {
+  getInputSettings,
+  keyboardBindingLabel,
+  subscribeInputSettings,
+} from "../../game/input-settings.js";
 import { skillIconArt } from "../../game/tiny-swords-art.js";
 import { t } from "../../i18n.js";
 import { useUiStore } from "../../store.js";
@@ -13,6 +18,11 @@ export function SkillBar() {
   const selfState = useUiStore((state) => state.selfState);
   const attackCooldownUntil = useUiStore((state) => state.attackCooldownUntil);
   const cooldowns = useUiStore((state) => state.skillCooldowns);
+  const inputSettings = useSyncExternalStore(
+    subscribeInputSettings,
+    getInputSettings,
+    getInputSettings,
+  );
   const [now, setNow] = useState(() => performance.now());
   const heldPointer = useRef<{ pointerId: number; slot: SkillSlot } | null>(null);
 
@@ -76,6 +86,9 @@ export function SkillBar() {
         const unavailable = !unlocked || cooling || lacksMana || blockedByGuard;
         const manaText = manaCost > 0 ? t("skill.mana_cost", { cost: manaCost }) : null;
         const icon = skillIconArt(self.class, skill.slot);
+        const control = `skill${skill.slot}` as const;
+        const keyBindings = inputSettings.keyboard[control];
+        const keyLabels = keyBindings.map(keyboardBindingLabel);
         const iconStyle = {
           backgroundImage: `url("${icon.source}")`,
           backgroundSize: `${icon.frames * 100}% 100%`,
@@ -105,14 +118,14 @@ export function SkillBar() {
             }}
             aria-pressed={guardToggle ? ironGuardActive : undefined}
             aria-label={`${skill.slot}. ${name}`}
-            aria-keyshortcuts={String(skill.slot)}
+            aria-keyshortcuts={keyBindings.map((binding) => binding.code).join(" ")}
             title={
               unlocked
                 ? `${name} — ${description} · ${skill.cooldownMs / 1000}s${manaText ? ` · ${manaText}` : ""}`
                 : `${name} — ${t("skill.unlock_at", { level: requiredLevel })}`
             }
           >
-            <span className="skill-slot__key">{skill.slot}</span>
+            <span className="skill-slot__key">{keyLabels.join(" / ")}</span>
             <span
               className={`skill-slot__icon skill-slot__icon--${icon.variant}`}
               style={iconStyle}

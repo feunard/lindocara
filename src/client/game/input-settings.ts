@@ -34,6 +34,7 @@ export interface InputSettings {
 }
 
 const STORAGE_KEY = "lindocara.input";
+const INPUT_BINDINGS_VERSION = 2;
 const GAMEPAD_AXIS_THRESHOLD = 0.55;
 const listeners = new Set<() => void>();
 
@@ -44,15 +45,16 @@ export const DEFAULT_INPUT_SETTINGS: InputSettings = {
     moveDown: [{ code: "KeyS" }, { code: "ArrowDown" }],
     moveLeft: [{ code: "KeyA" }, { code: "ArrowLeft" }],
     moveRight: [{ code: "KeyD" }, { code: "ArrowRight" }],
-    skill1: [{ code: "Space" }, { code: "Digit1" }],
-    skill2: [{ code: "Digit2" }, { code: "KeyF" }],
-    skill3: [{ code: "Digit3" }],
-    skill4: [{ code: "Digit4" }],
-    skill5: [{ code: "Digit5" }],
+    // Logical skill order (basic to ultimate), with the requested numpad mirror.
+    skill1: [{ code: "KeyO" }, { code: "Numpad5" }],
+    skill2: [{ code: "KeyM" }, { code: "Numpad3" }],
+    skill3: [{ code: "KeyL" }, { code: "Numpad2" }],
+    skill4: [{ code: "KeyK" }, { code: "Numpad1" }],
+    skill5: [{ code: "KeyJ" }, { code: "Numpad4" }],
     interact: [{ code: "KeyE" }],
     potion: [{ code: "KeyQ" }],
     release: [{ code: "KeyR" }],
-    map: [{ code: "KeyM" }],
+    map: [{ code: "KeyC" }],
     chat: [{ code: "Enter" }],
     settings: [{ code: "Escape" }],
   },
@@ -148,9 +150,9 @@ function loadSettings(): InputSettings {
   const fallback = cloneDefaults();
   if (typeof localStorage === "undefined") return fallback;
   try {
-    const parsed = JSON.parse(
-      localStorage.getItem(STORAGE_KEY) ?? "null",
-    ) as Partial<InputSettings> | null;
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null") as
+      | (Partial<InputSettings> & { version?: number })
+      | null;
     if (!parsed) return fallback;
     for (const id of CONTROL_IDS) {
       fallback.keyboard[id] = validKeyboardBindings(parsed.keyboard?.[id]) ?? fallback.keyboard[id];
@@ -158,6 +160,26 @@ function loadSettings(): InputSettings {
     }
     if (isControllerLayout(parsed.controllerLayout))
       fallback.controllerLayout = parsed.controllerLayout;
+    // Migrate only untouched legacy defaults. Explicit user remaps remain authoritative.
+    if (parsed.version !== INPUT_BINDINGS_VERSION) {
+      const legacy: Partial<Record<ControlId, readonly string[]>> = {
+        skill1: ["Space", "Digit1"],
+        skill2: ["Digit2", "KeyF"],
+        skill3: ["Digit3"],
+        skill4: ["Digit4"],
+        skill5: ["Digit5"],
+        map: ["KeyM"],
+      };
+      for (const id of ["skill1", "skill2", "skill3", "skill4", "skill5", "map"] as const) {
+        const stored = parsed.keyboard?.[id]?.map((binding) => binding.code);
+        const previous = legacy[id];
+        if (stored && previous && stored.join("|") === previous.join("|")) {
+          fallback.keyboard[id] = DEFAULT_INPUT_SETTINGS.keyboard[id].map((binding) => ({
+            ...binding,
+          }));
+        }
+      }
+    }
     return fallback;
   } catch {
     return fallback;
@@ -169,7 +191,10 @@ let settings = loadSettings();
 function commit(next: InputSettings): void {
   settings = next;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ version: INPUT_BINDINGS_VERSION, ...settings }),
+    );
   } catch {
     // Storage can be unavailable or full; the current page still uses the remap.
   }

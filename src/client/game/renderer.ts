@@ -133,7 +133,13 @@ import {
   type ZoneVisualConfig,
   zoneAt,
 } from "./world-layout.js";
-import { cameraAxisOffset, tileWindowForBounds, type WorldBounds } from "./world-view.js";
+import {
+  cameraAxisOffset,
+  gameCameraScale,
+  LOCAL_PLAYER_RENDER_SCALE,
+  tileWindowForBounds,
+  type WorldBounds,
+} from "./world-view.js";
 
 const COLORS = {
   grass: 0x173f32,
@@ -2010,10 +2016,7 @@ export class Renderer {
   }
 
   #cameraScale(): number {
-    return Math.max(
-      0.9,
-      Math.min(3.2, Math.min(this.#app.screen.width / 1220, this.#app.screen.height / 700)),
-    );
+    return gameCameraScale(this.#app.screen.width, this.#app.screen.height);
   }
 
   #followSelf(players: readonly PlayerSnapshot[], now: number): void {
@@ -3374,8 +3377,9 @@ export class Renderer {
                 now,
               );
         const horizontalFacing = view.actionDirection?.x ?? player.facing.x;
+        const actorScale = player.id === this.#selfId ? LOCAL_PLAYER_RENDER_SCALE : 1;
         if (view.actor && Math.abs(horizontalFacing) > 0.01)
-          view.actor.scale.x = horizontalFacing < 0 ? -1 : 1;
+          view.actor.scale.x = (horizontalFacing < 0 ? -1 : 1) * actorScale;
         if (
           player.hp < (view.lastHp ?? player.hp) &&
           this.#isVisibleWorld(player.x, player.y, 80)
@@ -3407,7 +3411,7 @@ export class Renderer {
               : 17 + (moving ? -Math.abs(stride) * 2.4 : idle * -0.8);
             view.actor.rotation = ghost ? drift * 0.03 : moving ? stride * 0.045 : idle * 0.012;
             view.actor.alpha = ghost ? 0.42 : 1;
-            view.actor.scale.y = 1;
+            view.actor.scale.y = actorScale;
             view.actor.tint = ghost ? 0x9fd8ff : 0xffffff;
           }
           if (view.unitSprite && view.unitAnimations) {

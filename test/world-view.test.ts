@@ -1,8 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { cameraAxisOffset, tileWindowForBounds } from "../src/client/game/world-view.js";
+import {
+  cameraAxisOffset,
+  GAME_CAMERA_ZOOM,
+  gameCameraScale,
+  LOCAL_PLAYER_RENDER_SCALE,
+  tileWindowForBounds,
+} from "../src/client/game/world-view.js";
 import { TILE_SIZE } from "../src/shared/tilemap.js";
 
 describe("multizone camera geometry", () => {
+  it("renders the local hero 30% smaller and zooms gameplay out by 20%", () => {
+    expect(LOCAL_PLAYER_RENDER_SCALE).toBe(0.7);
+    expect(GAME_CAMERA_ZOOM).toBe(0.8);
+    expect(gameCameraScale(1220, 700)).toBe(0.8);
+    expect(gameCameraScale(2440, 1400)).toBe(1.6);
+  });
+
   it("centres a zone that is smaller than the viewport", () => {
     expect(cameraAxisOffset(1280, 640, 1, 160)).toBe(320);
     expect(cameraAxisOffset(720, 480, 1, 160)).toBe(120);

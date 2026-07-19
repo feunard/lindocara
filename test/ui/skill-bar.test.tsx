@@ -63,6 +63,8 @@ describe("skill bar cooldowns", () => {
     expect(game.castSkill).toHaveBeenCalledWith(2);
     expect(primary.querySelector(".skill-slot__icon--quick-shot")).not.toBeNull();
     expect(secondary.querySelector(".skill-slot__icon--piercing-arrow")).not.toBeNull();
+    expect(primary.querySelector(".skill-slot__key")).toHaveTextContent("O / Num 5");
+    expect(secondary.querySelector(".skill-slot__key")).toHaveTextContent("M / Num 3");
   });
 
   it("keeps Iron Guard clickable while active and greys every other warrior action", () => {

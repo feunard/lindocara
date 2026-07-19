@@ -13,6 +13,11 @@ export function isLumenCloudInvulnerable(player: PlayerRuntime, now: number): bo
   );
 }
 
+/** Every authoritative damage path asks this single predicate before mutating HP. */
+export function isPlayerInvulnerable(player: PlayerRuntime, now: number): boolean {
+  return player.cheatInvulnerable || isLumenCloudInvulnerable(player, now);
+}
+
 export function guardedDamage(player: PlayerRuntime, damage: number) {
   const amount = player.guarding
     ? Math.max(1, Math.ceil(damage * (1 - player.guardReduction)))

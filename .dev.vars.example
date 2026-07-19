@@ -7,3 +7,5 @@
 #   npx wrangler secret put SESSION_SECRET
 SESSION_SECRET="dev-secret-not-for-production"
 NAVIGATION_DEBUG="false"
+# Local test commands such as /up10 and /nodead. Never set this in production.
+CHEATS_ENABLED="true"
