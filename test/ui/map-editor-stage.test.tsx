@@ -159,6 +159,9 @@ describe("paintEventCell", () => {
       row: 3,
       name: "",
       ordinal,
+      kind: "normal",
+      species: null,
+      patrolRadius: null,
       pages: [{ ...defaultEventPage(), graphicAssetId: graphic }],
     };
   }

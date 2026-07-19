@@ -506,7 +506,17 @@ describe("maps", () => {
       ordinal: number,
       pages: readonly MapEventPage[],
     ): MapEvent {
-      return { id: crypto.randomUUID(), col, row, name: `EV${ordinal}`, ordinal, pages };
+      return {
+        id: crypto.randomUUID(),
+        col,
+        row,
+        name: `EV${ordinal}`,
+        ordinal,
+        kind: "normal",
+        species: null,
+        patrolRadius: null,
+        pages,
+      };
     }
 
     // A single map body sized to hold the events under test, with room to spare.

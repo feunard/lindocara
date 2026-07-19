@@ -6,8 +6,13 @@ import { env, runInDurableObject, SELF } from "cloudflare:test";
 import { expect } from "vitest";
 import type { AdventureGraph } from "../../src/shared/adventure.js";
 import { type PlayerClass, type QuestChapter, spawnPosition } from "../../src/shared/game.js";
-import type { MapElement, MapMarkers } from "../../src/shared/map-data.js";
-import type { MapEvent } from "../../src/shared/map-events.js";
+import { EMPTY_MARKERS, type MapElement, type MapMarkers } from "../../src/shared/map-data.js";
+import {
+  entryEvents,
+  exitEvents,
+  functionalEvent,
+  type MapEvent,
+} from "../../src/shared/map-events.js";
 import type { PartyColor } from "../../src/shared/party.js";
 import { PARTY_COLORS } from "../../src/shared/party.js";
 import {
@@ -198,10 +203,6 @@ export async function testCharacter(
 
 export const TEST_MAP_COLS = 40;
 export const TEST_MAP_ROWS = 30;
-/** The entry an adventure starts on, and therefore where `createHero` places a new hero. */
-export const TEST_ENTRY_ID = "door";
-/** The exit bound to "end". Far from the spawn: standing on it wins the adventure. */
-export const TEST_EXIT_ID = "finish";
 
 /** The `POST /api/maps` body a test authors. */
 export interface TestMapBody {
@@ -232,8 +233,10 @@ export function tileCentre(col: number, row: number): { x: number; y: number } {
 }
 
 /**
- * An open playable map with one entry (on the spawn) and one exit in the far corner. A map with
- * no exit cannot be part of a valid adventure — the graph must be able to reach an ending.
+ * An open playable map with one entry EVENT (on the spawn) and one exit EVENT in the far corner
+ * (UX wave #12). A map with no exit cannot be part of a valid adventure — the graph must reach an
+ * ending. Markers are quarantined, so the body carries `EMPTY_MARKERS`; the entry/exit are typed
+ * events with client-minted uuids, and `mapAnchors` reads those uuids back for graph binding.
  *
  * This is an HTTP *body*, not a `MapInput`: its three layers are the run-length encoded strings the
  * wire carries, which `parseMapData` on the server turns back into `TileLayer`s.
@@ -243,18 +246,46 @@ export function testMapInput(name: string, options: TestMapOptions = {}): TestMa
   const rows = options.rows ?? TEST_MAP_ROWS;
   const spawn = options.spawn ?? { col: Math.floor(cols / 2), row: Math.floor(rows / 2) };
   const exit = options.exit ?? { col: cols - 2, row: rows - 2 };
+  let ordinal = 1;
+  const events: MapEvent[] = [
+    functionalEvent({ id: crypto.randomUUID(), ...spawn, ordinal: ordinal++, kind: "entry" }),
+    functionalEvent({ id: crypto.randomUUID(), ...exit, ordinal: ordinal++, kind: "exit" }),
+    ...(options.monsterSpawns ?? []).map((spawnMarker) =>
+      functionalEvent({
+        id: crypto.randomUUID(),
+        col: spawnMarker.col,
+        row: spawnMarker.row,
+        ordinal: ordinal++,
+        kind: "monster",
+        species: spawnMarker.species,
+        patrolRadius: spawnMarker.patrolRadius,
+      }),
+    ),
+    ...(options.events ?? []),
+  ];
   return {
     name,
     ...layeredWireTerrain(Array.from({ length: rows }, () => ".".repeat(cols))),
     elements: [],
-    events: options.events ?? [],
+    events,
     spawn,
-    markers: {
-      entries: [{ id: TEST_ENTRY_ID, ...spawn }],
-      exits: [{ id: TEST_EXIT_ID, ...exit }],
-      monsterSpawns: options.monsterSpawns ?? [],
-    },
+    markers: EMPTY_MARKERS,
   };
+}
+
+/** The uuids the adventure graph binds for one map body: its entry event and its exit event. */
+export interface MapAnchors {
+  mapId: string;
+  entryId: string;
+  exitId: string;
+}
+
+/** Read a stored map's entry/exit event uuids out of the body that authored it. */
+export function mapAnchors(mapId: string, body: TestMapBody): MapAnchors {
+  const entryId = entryEvents(body.events)[0]?.id;
+  const exitId = exitEvents(body.events)[0]?.id;
+  if (!entryId || !exitId) throw new Error("a test map needs one entry and one exit event");
+  return { mapId, entryId, exitId };
 }
 
 export interface TestPartyOptions {
@@ -264,8 +295,9 @@ export interface TestPartyOptions {
   adventure?: Pick<TestParty, "adventureId" | "mapIds" | "startMapId">;
   /** The adventure's maps, in order. Defaults to one `testMapInput`. */
   maps?: readonly TestMapBody[];
-  /** Built once the maps have ids. Defaults to "start on the first map, its exit ends it". */
-  graph?: (mapIds: readonly string[]) => AdventureGraph;
+  /** Built once the maps have ids and event uuids. Defaults to "start on the first map, its exit
+   *  ends it". Receives each map's entry/exit event uuids (UX wave #12 binds events, not markers). */
+  graph?: (anchors: readonly MapAnchors[]) => AdventureGraph;
   maxPlayers?: number;
   /** The host's party colour. Defaults to blue, i.e. the azure appearance. */
   color?: PartyColor;
@@ -318,21 +350,19 @@ export function heroRoomKey(partyId: string, mapId: string): string {
   return `${partyId}:${mapId}`;
 }
 
-function defaultGraph(mapIds: readonly string[]): AdventureGraph {
-  const [start] = mapIds;
+function defaultGraph(anchors: readonly MapAnchors[]): AdventureGraph {
+  const [start] = anchors;
   if (!start) throw new Error("an adventure needs at least one map");
-  const last = mapIds[mapIds.length - 1];
-  if (!last) throw new Error("an adventure needs at least one map");
   // One corridor: each map's exit leads to the next map's entry, and the last one ends it.
-  const links = mapIds.map((mapId, index) => {
-    const next = mapIds[index + 1];
+  const links = anchors.map((anchor, index) => {
+    const next = anchors[index + 1];
     return {
-      mapId,
-      exitId: TEST_EXIT_ID,
-      dest: next ? { mapId: next, entryId: TEST_ENTRY_ID } : ("end" as const),
+      mapId: anchor.mapId,
+      exitId: anchor.exitId,
+      dest: next ? { mapId: next.mapId, entryId: next.entryId } : ("end" as const),
     };
   });
-  return { start: { mapId: start, entryId: TEST_ENTRY_ID }, links };
+  return { start: { mapId: start.mapId, entryId: start.entryId }, links };
 }
 
 /** Register a host, author its maps and adventure, and open a party on it. */
@@ -384,6 +414,7 @@ async function testAdventure(
     200,
   );
   const mapIds: string[] = [];
+  const anchors: MapAnchors[] = [];
   for (const [index, input] of inputs.entries()) {
     const mapId =
       index === 0
@@ -398,8 +429,9 @@ async function testAdventure(
           ).id;
     await putAs(host, `/api/maps/${mapId}`, input, 200);
     mapIds.push(mapId);
+    anchors.push(mapAnchors(mapId, input));
   }
-  const graph = (options.graph ?? defaultGraph)(mapIds);
+  const graph = (options.graph ?? defaultGraph)(anchors);
   if (!graph.start) throw new Error("a playable adventure graph needs a start");
   await putAs(host, `/api/adventures/${adventure.id}`, { title, maxPlayers, graph }, 200);
   return { adventureId: adventure.id, mapIds, startMapId: graph.start.mapId };

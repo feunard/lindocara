@@ -12,11 +12,10 @@ import { WS_CLOSE } from "../shared/close-codes.js";
 import { isValidClass } from "../shared/game.js";
 import { parseCreateHeroInput } from "../shared/hero.js";
 import { isUuid } from "../shared/identifiers.js";
-import { EMPTY_MARKERS, mapSpawnPoint, parseMapData } from "../shared/map-data.js";
-import { parseMapEvents } from "../shared/map-events.js";
+import { mapSpawnPoint, parseMapData } from "../shared/map-data.js";
+import { eventCellCentre, parseMapEvents } from "../shared/map-events.js";
 import { parseCreatePartyInput, parseJoinPartyInput } from "../shared/party.js";
 import { encodeTileLayer } from "../shared/tile-layer-codec.js";
-import { TILE_SIZE } from "../shared/tilemap.js";
 import {
   isKnownZone,
   isValidInstanceId,
@@ -376,15 +375,10 @@ async function handleJoinHero(request: Request, env: Env, url: URL): Promise<Res
     mapId = start.mapId;
     stored = await loadMap(db, mapId);
     if (!stored) return closedWebSocket(WS_CLOSE.INVALID_LOCATION, "adventure start missing");
-    const entry = (stored.markers ?? EMPTY_MARKERS).entries.find(
-      (marker) => marker.id === start.entryId,
+    const entry = stored.events.find(
+      (event) => event.kind === "entry" && event.id === start.entryId,
     );
-    fallbackPosition = entry
-      ? {
-          x: entry.col * TILE_SIZE + TILE_SIZE / 2,
-          y: entry.row * TILE_SIZE + TILE_SIZE / 2,
-        }
-      : mapSpawnPoint(stored);
+    fallbackPosition = entry ? eventCellCentre(entry) : mapSpawnPoint(stored);
   }
 
   const roomKey = `${partyId}:${mapId}`;

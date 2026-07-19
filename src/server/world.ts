@@ -54,6 +54,7 @@ import {
   withinRange,
 } from "../shared/game.js";
 import { LOCAL_CHAT_RADIUS, SPATIAL_CELL_SIZE, SPATIAL_EVENT_RADIUS } from "../shared/interest.js";
+import { eventCellCentre, exitEvents } from "../shared/map-events.js";
 import {
   type ClientMessage,
   encodeServerMessage,
@@ -717,6 +718,10 @@ export class World extends DurableObject<Env> {
     }
     const active: ActiveWorldEvent[] = [];
     for (const event of events) {
+      // Only `normal` events have an appearance. Entry/exit/monster events (UX wave #12) are
+      // anchors/spawns consumed elsewhere (heroes/index start, exit detection, `zoneFromMap`
+      // monsters); they never become a drawn world event.
+      if (event.kind !== "normal") continue;
       const index = activePageIndex(event, this.#adventureState);
       if (index === null) continue;
       const page = event.pages[index];
@@ -1781,8 +1786,8 @@ export class World extends DurableObject<Env> {
       return;
     }
     const destinationMap = await loadMap(db, destinationAnchor.mapId);
-    const entry = destinationMap?.markers?.entries.find(
-      (candidate) => candidate.id === destinationAnchor.entryId,
+    const entry = destinationMap?.events.find(
+      (candidate) => candidate.kind === "entry" && candidate.id === destinationAnchor.entryId,
     );
     if (!destinationMap || !entry) {
       player.transitioning = false;
@@ -1791,10 +1796,7 @@ export class World extends DurableObject<Env> {
     }
     const destination = locationFromMap(destinationMap, "main");
     const spawn = clampRestoredPosition(
-      {
-        x: entry.col * TILE_SIZE + TILE_SIZE / 2,
-        y: entry.row * TILE_SIZE + TILE_SIZE / 2,
-      },
+      eventCellCentre(entry),
       player.id,
       destination.definition.terrain,
     );
@@ -2298,7 +2300,7 @@ export class World extends DurableObject<Env> {
   }
 
   #detectAdventureExits(now: number): void {
-    const exits = this.#zone().markers?.exits ?? [];
+    const exits = exitEvents(this.#zone().events ?? []);
     if (exits.length === 0) return;
     for (const [socket, player] of this.#players) {
       if (

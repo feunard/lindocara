@@ -844,6 +844,9 @@ describe("applyTool: eraser precedence event > element > marker", () => {
       row: 4,
       name: "",
       ordinal: 1,
+      kind: "normal",
+      species: null,
+      patrolRadius: null,
       pages: [defaultEventPage()],
     };
     const stacked: EditorMap = {

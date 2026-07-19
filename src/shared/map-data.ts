@@ -55,9 +55,11 @@ export interface MonsterSpawnMarker {
 }
 
 /**
- * Functional markers are deliberately not MapElements: they carry no catalogue asset, no
- * footprint and no collision. Entries/exits are spatial anchors whose meaning (destinations)
- * lives in the adventure graph, never here.
+ * QUARANTINED (UX wave #12 / Task 5): markers are dead. Entries, exits and monster spawns are now
+ * typed EVENTS (`kind` on `MapEvent`), read by the runtime and bound by the adventure graph. These
+ * types and their parser survive only so the `map.markers` column keeps decoding without a throw and
+ * the one-shot migration can read old rows; nothing functional reads a marker any more. Do not add a
+ * new marker — add an event kind. See `docs/superpowers/plans/2026-07-19-ux-wave.md` Task 5.
  */
 export interface MapMarkers {
   entries: readonly EntryMarker[];

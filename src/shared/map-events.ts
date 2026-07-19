@@ -15,8 +15,32 @@
  * wireframe's friendly `EV001` display order; it is display only, never identity, and this parser
  * only checks its shape, never its uniqueness.
  */
+import { isMonsterSpecies, type MonsterSpecies } from "./game.js";
 import { isUuid } from "./identifiers.js";
+import { MAX_PATROL_RADIUS, MIN_PATROL_RADIUS } from "./map-data.js";
+import { TILE_SIZE } from "./tilemap.js";
 import { type EditorAssetId, isEditorAssetId } from "./tiny-swords-catalog.js";
+
+/**
+ * UX wave #12: markers die, their meaning becomes a typed event. A `normal` event is the wireframe
+ * event from tranche 3 (pages, conditions, appearance); the other three kinds are the old functional
+ * markers reborn as addressable, uuid-identified events:
+ *
+ * - `entry`  — a spawn/arrival anchor the adventure graph binds by the EVENT's uuid.
+ * - `exit`   — a departure anchor the graph binds by the EVENT's uuid.
+ * - `monster` — a monster spawn: `species` + `patrolRadius` ride the event, nothing else.
+ *
+ * Entry/exit/monster events are single-page and conditions-disabled this tranche (see
+ * `parseMapEvents`): they are anchors, not scripted behaviour, so the pages/conditions machinery
+ * is hidden in the editor and refused by the parser. `docs/superpowers/plans/2026-07-19-ux-wave.md`
+ * Task 5 is the record of that choice.
+ */
+export const EVENT_KINDS = ["normal", "entry", "exit", "monster"] as const;
+export type EventKind = (typeof EVENT_KINDS)[number];
+
+export function isEventKind(value: unknown): value is EventKind {
+  return typeof value === "string" && (EVENT_KINDS as readonly string[]).includes(value);
+}
 
 export const EVENT_TRIGGERS = [
   "action",
@@ -95,15 +119,93 @@ export interface MapEventPage {
 }
 
 export interface MapEvent {
-  /** Client-minted, stable across edits. See the file header before treating this as
-   *  author-choosable the way marker ids are. */
+  /** Client-minted, stable across edits. This uuid is what the adventure graph binds for entry/exit
+   *  kinds — a rename must never break a reference. */
   id: string;
   col: number;
   row: number;
+  /** For entry/exit kinds this doubles as the marker label (optional, decorative). */
   name: string;
   /** Creation order, per map. Display only (the wireframe's `EV{ordinal}`); never identity. */
   ordinal: number;
+  /** UX wave #12. `normal` is the scripted event; entry/exit/monster are the reborn markers. */
+  kind: EventKind;
+  /** Set (and validated) iff `kind === "monster"`; `null` for every other kind. */
+  species: MonsterSpecies | null;
+  /** Set (in `[MIN_PATROL_RADIUS, MAX_PATROL_RADIUS]`) iff `kind === "monster"`; else `null`. */
+  patrolRadius: number | null;
   pages: readonly MapEventPage[];
+}
+
+/** The pixel centre of an event's one cell — where an entry/exit puts a hero, a monster spawns. */
+export function eventCellCentre(event: { col: number; row: number }): { x: number; y: number } {
+  return { x: event.col * TILE_SIZE + TILE_SIZE / 2, y: event.row * TILE_SIZE + TILE_SIZE / 2 };
+}
+
+export function entryEvents(events: readonly MapEvent[]): MapEvent[] {
+  return events.filter((event) => event.kind === "entry");
+}
+
+export function exitEvents(events: readonly MapEvent[]): MapEvent[] {
+  return events.filter((event) => event.kind === "exit");
+}
+
+export function monsterEvents(events: readonly MapEvent[]): MapEvent[] {
+  return events.filter((event) => event.kind === "monster");
+}
+
+/**
+ * A fresh event page, matching the wireframe's `defPage`: no graphic, all conditions cleared,
+ * movement Fixed at speed 4 / frequency 3, only Move-Anim on, and the Action trigger. Shared so the
+ * editor, the default map and the marker->event migration all mint the identical default page —
+ * there is one definition of "a blank page", not three.
+ */
+export function defaultEventPage(): MapEventPage {
+  return {
+    condSwitchId: null,
+    condVariableId: null,
+    condVariableMin: null,
+    condSelfSwitch: null,
+    graphicAssetId: null,
+    moveType: "fixed",
+    moveSpeed: 4,
+    moveFreq: 3,
+    optMoveAnim: true,
+    optStopAnim: false,
+    optDirFix: false,
+    optThrough: false,
+    optOnTop: false,
+    trigger: "action",
+  };
+}
+
+/**
+ * A functional (entry/exit/monster) event: one default page, conditions off. Monster kind carries
+ * `species`+`patrolRadius`; the others carry neither. The one place the server, the default map and
+ * the migration build these, so they cannot drift from what `parseMapEvents` accepts.
+ */
+export function functionalEvent(params: {
+  id: string;
+  col: number;
+  row: number;
+  ordinal: number;
+  kind: Exclude<EventKind, "normal">;
+  name?: string | undefined;
+  species?: MonsterSpecies | undefined;
+  patrolRadius?: number | undefined;
+}): MapEvent {
+  const isMonster = params.kind === "monster";
+  return {
+    id: params.id,
+    col: params.col,
+    row: params.row,
+    name: params.name ?? "",
+    ordinal: params.ordinal,
+    kind: params.kind,
+    species: isMonster ? (params.species ?? null) : null,
+    patrolRadius: isMonster ? (params.patrolRadius ?? null) : null,
+    pages: [defaultEventPage()],
+  };
 }
 
 /** Trims and bounds an event name; `null` on anything that cannot be one. An empty name is legal
@@ -228,8 +330,36 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
     if (parsedName === null) return null;
     if (!Number.isSafeInteger(ordinal) || (ordinal as number) < 0) return null;
 
+    // `kind` is a validated enum; an old client that predates typed events omits it and means
+    // `normal`. Everything below keeps `parseMapEvents` total — a bad kind, a monster without a
+    // species, or a functional anchor carrying pages it may not have is rejected outright.
+    const kind = record.kind === undefined ? "normal" : record.kind;
+    if (!isEventKind(kind)) return null;
+
+    // Monster events carry `species` + `patrolRadius`; every other kind must carry neither. A
+    // discriminated pair, checked here rather than deferred, so no unvalidated data slips past.
+    let species: MonsterSpecies | null = null;
+    let patrolRadius: number | null = null;
+    if (kind === "monster") {
+      if (!isMonsterSpecies(record.species)) return null;
+      species = record.species;
+      if (!Number.isSafeInteger(record.patrolRadius)) return null;
+      const radius = record.patrolRadius as number;
+      if (radius < MIN_PATROL_RADIUS || radius > MAX_PATROL_RADIUS) return null;
+      patrolRadius = radius;
+    } else if (
+      (record.species !== undefined && record.species !== null) ||
+      (record.patrolRadius !== undefined && record.patrolRadius !== null)
+    ) {
+      return null;
+    }
+
     const parsedPages = parseEventPages(pages);
     if (!parsedPages) return null;
+    // Entry/exit/monster are anchors, not scripts: exactly one page, conditions-disabled. The
+    // single page is a default page the editor never surfaces; refusing extra pages here keeps the
+    // "hidden in the UI" promise from being bypassed over the wire.
+    if (kind !== "normal" && parsedPages.length !== 1) return null;
 
     seenCells.add(cellKey);
     seenIds.add(id);
@@ -239,6 +369,9 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
       row: r,
       name: parsedName,
       ordinal: ordinal as number,
+      kind,
+      species,
+      patrolRadius,
       pages: parsedPages,
     });
   }

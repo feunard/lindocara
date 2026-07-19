@@ -15,6 +15,9 @@ function seedEvent(overrides: Partial<MapEvent> = {}): MapEvent {
     row: 4,
     name: "",
     ordinal: 1,
+    kind: "normal",
+    species: null,
+    patrolRadius: null,
     pages: [defaultEventPage()],
     ...overrides,
   };

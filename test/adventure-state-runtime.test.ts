@@ -60,6 +60,9 @@ function twoPageEvent(id: string): MapEvent {
     row: EVENT_ROW,
     name: "Gate",
     ordinal: 0,
+    kind: "normal",
+    species: null,
+    patrolRadius: null,
     pages: [
       page({ graphicAssetId: PAGE1_GRAPHIC }),
       page({ graphicAssetId: PAGE2_GRAPHIC, condSwitchId: "0001" }),
@@ -76,6 +79,9 @@ function vanishEvent(id: string): MapEvent {
     row: EVENT_ROW,
     name: "Vanish",
     ordinal: 1,
+    kind: "normal",
+    species: null,
+    patrolRadius: null,
     pages: [page({ graphicAssetId: PAGE1_GRAPHIC, condSwitchId: "0002" })],
   };
 }

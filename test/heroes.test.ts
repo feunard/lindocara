@@ -11,6 +11,8 @@ import { createHero, deleteHero, listHeroes } from "../src/server/heroes.js";
 import type { MapInput } from "../src/server/maps.js";
 import { createParty, joinParty } from "../src/server/parties.js";
 import type { AdventureInput } from "../src/shared/adventure.js";
+import { EMPTY_MARKERS } from "../src/shared/map-data.js";
+import { functionalEvent, type MapEvent } from "../src/shared/map-events.js";
 import { TILE_SIZE } from "../src/shared/tilemap.js";
 import { authorMap, seedAdventure } from "./support/adventure-fixtures.js";
 import { layeredTerrain } from "./support/map-fixtures.js";
@@ -18,23 +20,38 @@ import { layeredTerrain } from "./support/map-fixtures.js";
 const COLS = 20;
 const ROWS = 15;
 
+// UX wave #12: the graph binds entry/exit EVENT uuids. Map A and map B use distinct uuid families
+// because a `map_event` id is a global primary key.
+const ENTRY_A = "aaaaaaaa-0000-4000-8000-000000000001";
+const EXIT_A = "aaaaaaaa-0000-4000-8000-000000000002";
+const ENTRY_B = "bbbbbbbb-0000-4000-8000-000000000001";
+const EXIT_B = "bbbbbbbb-0000-4000-8000-000000000002";
+
 function blocks(): string[] {
   const rows: string[] = [];
   while (rows.length < ROWS) rows.push(".".repeat(COLS));
   return rows;
 }
 
-function mapInput(name: string): MapInput {
+function ev(id: string, kind: "entry" | "exit", col: number, row: number): MapEvent {
+  return functionalEvent({ id, col, row, ordinal: 0, kind });
+}
+
+function eventsB(): MapEvent[] {
+  return [ev(ENTRY_B, "entry", 5, 5), ev(EXIT_B, "exit", 7, 7)];
+}
+
+function mapInput(
+  name: string,
+  events: MapEvent[] = [ev(ENTRY_A, "entry", 5, 5), ev(EXIT_A, "exit", 7, 7)],
+): MapInput {
   return {
     name,
     ...layeredTerrain(blocks()),
     elements: [],
     spawn: { col: 0, row: 0 },
-    markers: {
-      entries: [{ id: "door", col: 5, row: 5 }],
-      exits: [{ id: "gate", col: 7, row: 7 }],
-      monsterSpawns: [],
-    },
+    markers: EMPTY_MARKERS,
+    events,
   };
 }
 
@@ -49,10 +66,10 @@ function adventureGraph(a: string, b: string): AdventureInput {
     title: "Donjon",
     maxPlayers: 4,
     graph: {
-      start: { mapId: a, entryId: "door" },
+      start: { mapId: a, entryId: ENTRY_A },
       links: [
-        { mapId: a, exitId: "gate", dest: { mapId: b, entryId: "door" } },
-        { mapId: b, exitId: "gate", dest: "end" },
+        { mapId: a, exitId: EXIT_A, dest: { mapId: b, entryId: ENTRY_B } },
+        { mapId: b, exitId: EXIT_B, dest: "end" },
       ],
     },
   };
@@ -63,7 +80,7 @@ async function seedParty(hostId: string): Promise<{ partyId: string; startMapId:
   const db = createDb(env.DB);
   const adventureId = await seedAdventure(db, hostId, "Donjon");
   const mapA = await authorMap(db, hostId, adventureId, mapInput("A"));
-  const mapB = await authorMap(db, hostId, adventureId, mapInput("B"));
+  const mapB = await authorMap(db, hostId, adventureId, mapInput("B", eventsB()));
   await updateAdventure(db, hostId, adventureId, adventureGraph(mapA.id, mapB.id));
   const party = await createParty(db, hostId, {
     adventureId,

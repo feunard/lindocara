@@ -10,7 +10,7 @@
  * cannot spawn and party admission refuses it until a real start is authored.
  */
 import { type AdventureRegistry, parseAdventureRegistry } from "./adventure-state.js";
-import { MARKER_ID_PATTERN } from "./map-data.js";
+import { isUuid } from "./identifiers.js";
 
 export const ADVENTURE_TITLE_MAX = 48;
 export const MAX_ADVENTURE_MAPS = 16;
@@ -55,7 +55,8 @@ export interface CreateAdventureInput {
   registry?: AdventureRegistry;
 }
 
-/** The marker ids of one member map, read from the stored payload. */
+/** UX wave #12: the graph binds the UUIDs of a map's entry/exit-kind EVENTS, not marker ids. These
+ *  are the uuids of that member map's entry-kind and exit-kind events. */
 export interface MapMarkerIds {
   entryIds: readonly string[];
   exitIds: readonly string[];
@@ -65,7 +66,8 @@ function parseAnchor(value: unknown): { mapId: string; entryId: string } | null 
   if (typeof value !== "object" || value === null) return null;
   const { mapId, entryId } = value as Record<string, unknown>;
   if (typeof mapId !== "string" || !MAP_ID_PATTERN.test(mapId)) return null;
-  if (typeof entryId !== "string" || !MARKER_ID_PATTERN.test(entryId)) return null;
+  // `entryId` is the uuid of an entry-kind event on `mapId` (was a marker id before UX wave #12).
+  if (!isUuid(entryId)) return null;
   return { mapId, entryId };
 }
 
@@ -85,7 +87,8 @@ export function parseAdventureGraph(value: unknown): AdventureGraph | null {
     if (typeof raw !== "object" || raw === null) return null;
     const { mapId, exitId, dest } = raw as Record<string, unknown>;
     if (typeof mapId !== "string" || !MAP_ID_PATTERN.test(mapId)) return null;
-    if (typeof exitId !== "string" || !MARKER_ID_PATTERN.test(exitId)) return null;
+    // `exitId` is the uuid of an exit-kind event on `mapId` (was a marker id before UX wave #12).
+    if (!isUuid(exitId)) return null;
     if (dest === "end") {
       links.push({ mapId, exitId, dest: "end" });
       continue;

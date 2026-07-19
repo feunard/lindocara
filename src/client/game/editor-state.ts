@@ -1089,6 +1089,9 @@ export function applyTool(
         row,
         name: "",
         ordinal: nextEventOrdinal(map.events),
+        kind: "normal",
+        species: null,
+        patrolRadius: null,
         // Page 1 adopts the tool's pending graphic (the palette's Événements picker); "none" leaves
         // the default page's null graphic, i.e. the blank placeholder on the overlay.
         pages: [{ ...defaultEventPage(), graphicAssetId: tool.graphic ?? null }],

@@ -10,6 +10,7 @@ import {
   tileCentre as centre,
   drainHeroRooms,
   heroRoomKey,
+  type MapAnchors,
   ORIGIN,
   type TestAccount,
   type TestMapBody,
@@ -67,21 +68,26 @@ function novaMapInput(): TestMapBody {
   });
 }
 
-/** Two maps in a line: mapA's exit leads to mapB's entry, mapB's exit ends the adventure. */
+/** Two maps in a line: mapA's exit leads to mapB's entry, mapB's exit ends the adventure. Binds the
+ *  maps' entry/exit EVENT uuids (UX wave #12), read back from the authored bodies via `anchors`. */
 function twoMapAdventure(): {
   maps: TestMapBody[];
-  graph: (ids: readonly string[]) => AdventureGraph;
+  graph: (anchors: readonly MapAnchors[]) => AdventureGraph;
 } {
   return {
     maps: [mapAInput(), mapBInput()],
-    graph: (ids) => {
-      const [mapA, mapB] = ids;
+    graph: (anchors) => {
+      const [mapA, mapB] = anchors;
       if (!mapA || !mapB) throw new Error("expected two seeded maps");
       return {
-        start: { mapId: mapA, entryId: "door" },
+        start: { mapId: mapA.mapId, entryId: mapA.entryId },
         links: [
-          { mapId: mapA, exitId: "finish", dest: { mapId: mapB, entryId: "door" } },
-          { mapId: mapB, exitId: "finish", dest: "end" },
+          {
+            mapId: mapA.mapId,
+            exitId: mapA.exitId,
+            dest: { mapId: mapB.mapId, entryId: mapB.entryId },
+          },
+          { mapId: mapB.mapId, exitId: mapB.exitId, dest: "end" },
         ],
       };
     },

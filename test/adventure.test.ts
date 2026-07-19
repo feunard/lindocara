@@ -11,9 +11,17 @@ import {
   validateAdventure,
 } from "../src/shared/adventure.js";
 
+// UX wave #12: `parseAdventureGraph` binds entry/exit EVENT uuids, so the round-trip fixtures use
+// real uuids. (`validateAdventure` itself never checks id shape — only membership — but its member
+// set must still agree with the graph, so `MARKERS` reuses these same uuids.)
+const START = "aaaaaaaa-0000-4000-8000-000000000001";
+const EAST = "aaaaaaaa-0000-4000-8000-000000000002";
+const WEST_DOOR = "bbbbbbbb-0000-4000-8000-000000000001";
+const BOSS_GATE = "bbbbbbbb-0000-4000-8000-000000000002";
+
 const MARKERS = new Map<string, MapMarkerIds>([
-  ["map-a", { entryIds: ["start"], exitIds: ["east"] }],
-  ["map-b", { entryIds: ["west-door"], exitIds: ["boss-gate"] }],
+  ["map-a", { entryIds: [START], exitIds: [EAST] }],
+  ["map-b", { entryIds: [WEST_DOOR], exitIds: [BOSS_GATE] }],
 ]);
 
 function goodInput(): AdventureInput {
@@ -21,10 +29,10 @@ function goodInput(): AdventureInput {
     title: "Donjon",
     maxPlayers: 4,
     graph: {
-      start: { mapId: "map-a", entryId: "start" },
+      start: { mapId: "map-a", entryId: START },
       links: [
-        { mapId: "map-a", exitId: "east", dest: { mapId: "map-b", entryId: "west-door" } },
-        { mapId: "map-b", exitId: "boss-gate", dest: "end" },
+        { mapId: "map-a", exitId: EAST, dest: { mapId: "map-b", entryId: WEST_DOOR } },
+        { mapId: "map-b", exitId: BOSS_GATE, dest: "end" },
       ],
     },
   };
@@ -40,7 +48,7 @@ function markersFor(count: number): Map<string, MapMarkerIds> {
 }
 
 function repeatedLinks(count: number): AdventureLink[] {
-  return Array.from({ length: count }, () => ({ mapId: "map-a", exitId: "east", dest: "end" }));
+  return Array.from({ length: count }, () => ({ mapId: "map-a", exitId: EAST, dest: "end" }));
 }
 
 describe("parseAdventureInput", () => {
@@ -174,8 +182,8 @@ describe("validateAdventure", () => {
     badEntry.graph = {
       ...badEntry.graph,
       links: [
-        { mapId: "map-a", exitId: "east", dest: { mapId: "map-b", entryId: "no-such-door" } },
-        { mapId: "map-b", exitId: "boss-gate", dest: "end" },
+        { mapId: "map-a", exitId: EAST, dest: { mapId: "map-b", entryId: "no-such-door" } },
+        { mapId: "map-b", exitId: BOSS_GATE, dest: "end" },
       ],
     };
     expect(() => validateAdventure(badEntry, MARKERS)).toThrow(/^graph:/);
@@ -186,8 +194,8 @@ describe("validateAdventure", () => {
     endless.graph = {
       ...endless.graph,
       links: [
-        { mapId: "map-a", exitId: "east", dest: { mapId: "map-b", entryId: "west-door" } },
-        { mapId: "map-b", exitId: "boss-gate", dest: { mapId: "map-a", entryId: "start" } },
+        { mapId: "map-a", exitId: EAST, dest: { mapId: "map-b", entryId: WEST_DOOR } },
+        { mapId: "map-b", exitId: BOSS_GATE, dest: { mapId: "map-a", entryId: START } },
       ],
     };
     expect(() => validateAdventure(endless, MARKERS)).toThrow(/^graph:/);

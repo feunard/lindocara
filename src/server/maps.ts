@@ -35,7 +35,14 @@ import {
   type MapMarkers,
   parseMapMarkers,
 } from "../shared/map-data.js";
-import { MAX_EVENTS_PER_MAP, type MapEvent, parseMapEvents } from "../shared/map-events.js";
+import {
+  entryEvents,
+  exitEvents,
+  functionalEvent,
+  MAX_EVENTS_PER_MAP,
+  type MapEvent,
+  parseMapEvents,
+} from "../shared/map-events.js";
 import { layersFromBlocks } from "../shared/map-migrate.js";
 import {
   emptyLayer,
@@ -154,6 +161,30 @@ export function defaultMapInput(name: string): MapInput {
     blocks.push(line);
   }
   const { layers } = layersFromBlocks(blocks);
+  const spawn = {
+    col: colStart + Math.floor(DEFAULT_MAP_LAND / 2),
+    row: rowStart + Math.floor(DEFAULT_MAP_LAND / 2),
+  };
+  // UX wave #12: the default map is born with a start-ENTRY event on the spawn cell and an end-EXIT
+  // event on a corner of the land block (walkable, and not the spawn cell). A freshly created
+  // adventure's graph binds these events' uuids — start -> the entry, the exit -> "end" — so the born
+  // graph is playable and passes `validateAdventure` on the very first save.
+  const events: MapEvent[] = [
+    functionalEvent({
+      id: crypto.randomUUID(),
+      col: spawn.col,
+      row: spawn.row,
+      ordinal: 1,
+      kind: "entry",
+    }),
+    functionalEvent({
+      id: crypto.randomUUID(),
+      col: colStart,
+      row: rowStart,
+      ordinal: 2,
+      kind: "exit",
+    }),
+  ];
   return {
     name,
     tilesetId: TINY_SWORDS_TILESET_ID,
@@ -161,39 +192,17 @@ export function defaultMapInput(name: string): MapInput {
     rows,
     layers,
     elements: [],
-    spawn: {
-      col: colStart + Math.floor(DEFAULT_MAP_LAND / 2),
-      row: rowStart + Math.floor(DEFAULT_MAP_LAND / 2),
-    },
+    spawn,
     markers: EMPTY_MARKERS,
-    events: [],
-  };
-}
-
-/** The default map's built-in markers (UX wave #2/#3): a start entry on the spawn cell and an exit
- *  on a corner of the land block. A freshly created adventure's graph binds these — start -> this
- *  entry, this exit -> "end" — so the born graph is playable and passes `validateAdventure` on the
- *  very first save. Both ids match `MARKER_ID_PATTERN`. */
-export const DEFAULT_MAP_ENTRY_ID = "start";
-export const DEFAULT_MAP_EXIT_ID = "exit";
-
-/** The entry (on the spawn cell) and exit (on a corner land cell) a default map is born with. The
- *  exit must be walkable and share no cell with the spawn/entry — a corner of the centred land block
- *  is both. */
-function defaultMapMarkers(input: MapInput): MapMarkers {
-  const colStart = Math.floor((input.cols - DEFAULT_MAP_LAND) / 2);
-  const rowStart = Math.floor((input.rows - DEFAULT_MAP_LAND) / 2);
-  return {
-    entries: [{ id: DEFAULT_MAP_ENTRY_ID, col: input.spawn.col, row: input.spawn.row }],
-    exits: [{ id: DEFAULT_MAP_EXIT_ID, col: colStart, row: rowStart }],
-    monsterSpawns: [],
+    events,
   };
 }
 
 /**
  * The map an adventure is born with (UX wave #2/#3): the 5x5 template plus the start-entry and
- * end-exit markers so the adventure's graph validates immediately. Returns the drizzle INSERT to
- * compose into the adventure's create batch (one transaction) and the `StoredMap` the caller hands
+ * end-exit EVENTS (UX wave #12) so the adventure's graph validates immediately. Returns the drizzle
+ * INSERTs to compose into the adventure's create batch (one transaction) — the map row and its event
+ * rows/pages — the entry/exit event uuids the born graph binds, and the `StoredMap` the caller hands
  * back to the client. The `is_first` flag is decided by the database at insert time exactly as
  * `createMap` does.
  */
@@ -202,14 +211,17 @@ export function prepareDefaultMap(
   accountId: string,
   adventureId: string,
   name: string,
-): { id: string; insert: BatchItem<"sqlite">; stored: StoredMap } {
-  const input: MapInput = {
-    ...defaultMapInput(name),
-    markers: defaultMapMarkers(defaultMapInput(name)),
-  };
+): {
+  id: string;
+  inserts: BatchItem<"sqlite">[];
+  entryEventId: string;
+  exitEventId: string;
+  stored: StoredMap;
+} {
+  const input = defaultMapInput(name);
   const data = validateMapInput(input);
   const id = crypto.randomUUID();
-  const insert = db.insert(map).values({
+  const mapInsert = db.insert(map).values({
     id,
     accountId,
     adventureId,
@@ -223,7 +235,18 @@ export function prepareDefaultMap(
     markers: markersJson(data.markers),
     isFirst: sql`CASE WHEN (SELECT count(*) FROM ${map} WHERE ${map.accountId} = ${accountId}) = 0 THEN 1 ELSE 0 END`,
   });
-  return { id, insert, stored: { id, accountId, adventureId, revision: 1, ...data } };
+  const entryEventId = entryEvents(data.events)[0]?.id;
+  const exitEventId = exitEvents(data.events)[0]?.id;
+  if (!entryEventId || !exitEventId) {
+    throw new Error("default map lost its start entry or end exit event");
+  }
+  return {
+    id,
+    inserts: [mapInsert, ...insertEventStatements(db, id, data.events)],
+    entryEventId,
+    exitEventId,
+    stored: { id, accountId, adventureId, revision: 1, ...data },
+  };
 }
 
 /** Stored as a JSON array of run-length encoded layer strings — one column, three layers, and no
@@ -358,35 +381,31 @@ export function validateMapInput(input: MapInput): MapData & { name: string; eve
   if (isSolidKind(kindAt(baked, input.spawn.col, input.spawn.row))) {
     throw new Error("spawn: must be a cell a hero can stand on");
   }
+  // Markers are QUARANTINED (UX wave #12): the column still round-trips, so the payload is still
+  // shape-checked, but nothing functional is validated against it — entries/exits/monster spawns are
+  // events now. `parseMapEvents` re-runs the full defensive shape check against THIS map's
+  // dimensions, so count (<= MAX_EVENTS_PER_MAP), in-bounds cells, unique cells, unique ids and the
+  // per-kind discriminant are all re-validated here rather than trusting a pre-parsed `input.events`.
   const markers = parseMapMarkers(input.markers, baked.cols, baked.rows);
   if (!markers) throw new Error("markers: malformed marker payload");
-  const walkable = (col: number, row: number) => !isSolidKind(kindAt(baked, col, row));
-  for (const entry of markers.entries) {
-    if (!walkable(entry.col, entry.row))
-      throw new Error(`markers: entry ${entry.id} must stand on walkable ground`);
-  }
-  const blockedCells = new Set(markers.entries.map((m) => `${m.col},${m.row}`));
-  blockedCells.add(`${input.spawn.col},${input.spawn.row}`);
-  for (const exit of markers.exits) {
-    if (!walkable(exit.col, exit.row))
-      throw new Error(`markers: exit ${exit.id} must stand on walkable ground`);
-    if (blockedCells.has(`${exit.col},${exit.row}`)) {
-      throw new Error(`markers: exit ${exit.id} may not share a cell with the spawn or an entry`);
-    }
-  }
-  for (const spawn of markers.monsterSpawns) {
-    if (!walkable(spawn.col, spawn.row))
-      throw new Error("markers: monster spawns must stand on walkable ground");
-  }
-  // Events float above collision — this tranche never bakes them into `bakeCollision` — so unlike
-  // scenery there is deliberately NO terrain-walkability or spawn-overlap check: an event may
-  // legitimately sit on the spawn cell, on an element, or on water, because they are different
-  // planes. `parseMapEvents` re-runs the full defensive shape check against THIS map's dimensions,
-  // so count (<= MAX_EVENTS_PER_MAP), in-bounds cells, unique cells and unique ids are all
-  // re-validated here rather than trusting a pre-parsed `input.events`.
   const events = parseMapEvents(input.events ?? [], cols, rows);
   if (!events) {
     throw new Error(`events: malformed, out of bounds, or more than ${MAX_EVENTS_PER_MAP} events`);
+  }
+  // A `normal` event floats above collision (it may sit on the spawn, on an element, on water — a
+  // different plane). A functional event is load-bearing: an entry/exit/monster on solid ground is a
+  // map nobody could play, so the old marker-walkability rules move here, keyed by kind. An exit may
+  // not share the spawn cell (a revolving-door on arrival); entry/exit share no cell by construction
+  // (one event per cell).
+  const walkable = (col: number, row: number) => !isSolidKind(kindAt(baked, col, row));
+  for (const event of events) {
+    if (event.kind === "normal") continue;
+    if (!walkable(event.col, event.row)) {
+      throw new Error(`events: ${event.kind} event must stand on walkable ground`);
+    }
+    if (event.kind === "exit" && event.col === input.spawn.col && event.row === input.spawn.row) {
+      throw new Error("events: an exit may not share the spawn cell");
+    }
   }
   // Trimmed, not raw: the name that passed validation is the name that gets stored.
   return { ...data, markers, name, events };
@@ -487,8 +506,22 @@ async function eventsOf(db: Db, mapId: string): Promise<MapEvent[]> {
   return eventRowsForMap.flatMap((row): MapEvent[] => {
     const pages = pagesByEvent.get(row.id);
     if (!pages || pages.length === 0) return [];
+    // A monster row missing its species/radius is a corrupt half-row: drop it rather than surface a
+    // monster event the parser would reject, the same "one bad row must not break the map" degrade.
+    const isMonster = row.kind === "monster";
+    if (isMonster && (row.species === null || row.patrolRadius === null)) return [];
     return [
-      { id: row.id, col: row.col, row: row.row, name: row.name, ordinal: row.ordinal, pages },
+      {
+        id: row.id,
+        col: row.col,
+        row: row.row,
+        name: row.name,
+        ordinal: row.ordinal,
+        kind: row.kind,
+        species: isMonster ? row.species : null,
+        patrolRadius: isMonster ? row.patrolRadius : null,
+        pages,
+      },
     ];
   });
 }
@@ -597,15 +630,15 @@ function insertElementStatements(db: Db, mapId: string, elements: readonly MapEl
 
 /**
  * Events and their pages ride the same batch as elements and hit the same D1 100-bound-parameter
- * cap. An event INSERT binds 6 parameters per row (id, map_id, col, row, name, ordinal — created_at
- * defaults), so an unchunked write of the 64-event maximum would bind 384 and D1 would refuse the
- * whole batch with `D1_ERROR: too many SQL variables`. A page INSERT binds 17 (id, event_id,
+ * cap. An event INSERT binds 9 parameters per row (id, map_id, col, row, name, ordinal, kind,
+ * species, patrol_radius — created_at defaults), so an unchunked write of the 64-event maximum would
+ * bind 576 and D1 would refuse the whole batch. A page INSERT binds 17 (id, event_id,
  * position, four condition columns, graphic_asset_id, three move columns, five opt columns,
  * trigger), and the 64x8 = 512-page maximum would bind 8,704. Both chunk sizes derive from the real
  * column count and target 60% of the cap, matching the element rule above so a later column keeps
  * headroom instead of regressing onto the line.
  */
-const MAP_EVENT_PARAMS_PER_ROW = 6; // id, mapId, col, row, name, ordinal — mirrors `mapEvent` (created_at defaults)
+const MAP_EVENT_PARAMS_PER_ROW = 9; // id, mapId, col, row, name, ordinal, kind, species, patrol_radius — mirrors `mapEvent` (created_at defaults)
 const MAP_EVENT_CHUNK_ROWS = Math.floor((D1_MAX_BOUND_PARAMETERS * 0.6) / MAP_EVENT_PARAMS_PER_ROW);
 const MAP_EVENT_PAGE_PARAMS_PER_ROW = 17; // id, eventId, position, 4 cond, graphic, 3 move, 5 opt, trigger — mirrors `mapEventPage`
 const MAP_EVENT_PAGE_CHUNK_ROWS = Math.floor(
@@ -620,6 +653,9 @@ function eventRows(mapId: string, events: readonly MapEvent[]) {
     row: event.row,
     name: event.name,
     ordinal: event.ordinal,
+    kind: event.kind,
+    species: event.species,
+    patrolRadius: event.patrolRadius,
   }));
 }
 
@@ -654,7 +690,7 @@ function eventPageRows(events: readonly MapEvent[]) {
  *  batch. Every chunk rides in the caller's `db.batch()` (one transaction), so an event never
  *  persists with only some of its pages, and a chunked write is exactly as atomic as a single
  *  statement would be. */
-function insertEventStatements(db: Db, mapId: string, events: readonly MapEvent[]) {
+export function insertEventStatements(db: Db, mapId: string, events: readonly MapEvent[]) {
   const parents = chunkRows(eventRows(mapId, events), MAP_EVENT_CHUNK_ROWS).map((rows) =>
     db.insert(mapEvent).values(rows),
   );
@@ -755,23 +791,33 @@ export async function updateMap(
         graph = null;
       }
       if (!graph) throw new Error(`referenced: adventure "${owner.title}" has a corrupt graph`);
+      // The graph binds entry/exit EVENT uuids now (UX wave #12). This map's anchors come from the
+      // events being saved (`data.events`); every OTHER member map's from its stored `map_event` rows.
       const memberRows = await db
-        .select({ id: map.id, markers: map.markers, cols: map.cols, rows: map.rows })
+        .select({ id: map.id })
         .from(map)
         .where(eq(map.adventureId, existing.adventureId));
-      const markersByMap = new Map<string, MapMarkerIds>(
-        memberRows.map((memberRow) => {
-          const markers =
-            memberRow.id === id ? (data.markers ?? EMPTY_MARKERS) : markersOfRow(memberRow);
-          return [
-            memberRow.id,
-            {
-              entryIds: markers.entries.map((marker) => marker.id),
-              exitIds: markers.exits.map((marker) => marker.id),
-            },
-          ] as const;
-        }),
-      );
+      const markersByMap = new Map<string, MapMarkerIds>();
+      for (const memberRow of memberRows) {
+        markersByMap.set(memberRow.id, { entryIds: [], exitIds: [] });
+      }
+      const otherIds = memberRows.map((row) => row.id).filter((memberId) => memberId !== id);
+      if (otherIds.length > 0) {
+        const eventRows = await db
+          .select({ mapId: mapEvent.mapId, id: mapEvent.id, kind: mapEvent.kind })
+          .from(mapEvent)
+          .where(inArray(mapEvent.mapId, otherIds));
+        for (const event of eventRows) {
+          const anchors = markersByMap.get(event.mapId);
+          if (!anchors) continue;
+          if (event.kind === "entry") (anchors.entryIds as string[]).push(event.id);
+          else if (event.kind === "exit") (anchors.exitIds as string[]).push(event.id);
+        }
+      }
+      markersByMap.set(id, {
+        entryIds: entryEvents(data.events).map((event) => event.id),
+        exitIds: exitEvents(data.events).map((event) => event.id),
+      });
       try {
         validateAdventure(
           { title: owner.title, maxPlayers: owner.maxPlayers, graph },

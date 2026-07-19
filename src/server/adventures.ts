@@ -8,7 +8,7 @@
  * A freshly created adventure is an empty draft: no maps, `EMPTY_GRAPH`. Maps are created under it
  * afterward (`createMap`), and the graph is authored through `updateAdventure` once maps exist.
  */
-import { asc, eq, sql } from "drizzle-orm";
+import { asc, eq, inArray, sql } from "drizzle-orm";
 import {
   type AdventureGraph,
   type AdventureInput,
@@ -23,14 +23,8 @@ import {
   EMPTY_REGISTRY,
   parseAdventureRegistry,
 } from "../shared/adventure-state.js";
-import { adventure, type Db, map, party } from "./db/index.js";
-import {
-  DEFAULT_MAP_ENTRY_ID,
-  DEFAULT_MAP_EXIT_ID,
-  markersOfRow,
-  prepareDefaultMap,
-  type StoredMap,
-} from "./maps.js";
+import { adventure, type Db, map, mapEvent, party } from "./db/index.js";
+import { prepareDefaultMap, type StoredMap } from "./maps.js";
 
 export interface StoredAdventure {
   id: string;
@@ -52,29 +46,38 @@ function storedRegistry(raw: string): AdventureRegistry {
   return registry;
 }
 
-/** Every map the adventure owns (its members), oldest first, with just the columns markers need. */
-async function ownedMapRows(db: Db, adventureId: string) {
-  return db
-    .select({ id: map.id, markers: map.markers, cols: map.cols, rows: map.rows })
-    .from(map)
-    .where(eq(map.adventureId, adventureId))
-    .orderBy(asc(map.createdAt));
-}
-
-/** The marker ids of every map the adventure owns — the member set `validateAdventure` checks the
- *  graph against. A graph naming a map outside this set is, by construction, a foreign reference. */
+/**
+ * The entry/exit-EVENT uuids of every map the adventure owns (UX wave #12) — the member set
+ * `validateAdventure` checks the graph against. Every owned map appears (even one with no events yet),
+ * so a graph naming a map outside this set is, by construction, a foreign reference. Reads the
+ * `map_event` rows directly, filtered by kind, rather than the quarantined `map.markers` column.
+ */
 export async function markerIdsFor(
   db: Db,
   adventureId: string,
 ): Promise<Map<string, MapMarkerIds>> {
-  const rows = await ownedMapRows(db, adventureId);
-  const byMap = new Map<string, MapMarkerIds>();
-  for (const row of rows) {
-    const markers = markersOfRow(row);
-    byMap.set(row.id, {
-      entryIds: markers.entries.map((m) => m.id),
-      exitIds: markers.exits.map((m) => m.id),
-    });
+  const mapRows = await db
+    .select({ id: map.id })
+    .from(map)
+    .where(eq(map.adventureId, adventureId))
+    .orderBy(asc(map.createdAt));
+  const byMap = new Map<string, { entryIds: string[]; exitIds: string[] }>();
+  for (const row of mapRows) byMap.set(row.id, { entryIds: [], exitIds: [] });
+  if (mapRows.length === 0) return byMap;
+  const eventRows = await db
+    .select({ mapId: mapEvent.mapId, id: mapEvent.id, kind: mapEvent.kind })
+    .from(mapEvent)
+    .where(
+      inArray(
+        mapEvent.mapId,
+        mapRows.map((row) => row.id),
+      ),
+    );
+  for (const event of eventRows) {
+    const anchors = byMap.get(event.mapId);
+    if (!anchors) continue;
+    if (event.kind === "entry") anchors.entryIds.push(event.id);
+    else if (event.kind === "exit") anchors.exitIds.push(event.id);
   }
   return byMap;
 }
@@ -145,23 +148,16 @@ export async function createAdventureWithDefaultMap(
   const adventureId = crypto.randomUUID();
   const prepared = prepareDefaultMap(db, accountId, adventureId, title);
   const graph: AdventureGraph = {
-    start: { mapId: prepared.id, entryId: DEFAULT_MAP_ENTRY_ID },
-    links: [{ mapId: prepared.id, exitId: DEFAULT_MAP_EXIT_ID, dest: "end" }],
+    start: { mapId: prepared.id, entryId: prepared.entryEventId },
+    links: [{ mapId: prepared.id, exitId: prepared.exitEventId, dest: "end" }],
   };
-  // Derive the marker set from the map that was actually prepared (not hardcoded ids): if the
-  // default map ever loses its start entry or end-bound exit, this throws here rather than persisting
-  // an adventure whose first save would 400.
-  const markers = prepared.stored.markers ?? { entries: [], exits: [], monsterSpawns: [] };
+  // Derive the anchor set from the entry/exit EVENTS the map was actually prepared with (UX wave
+  // #12): if the default map ever loses its start entry or end-bound exit, this throws here rather
+  // than persisting an adventure whose first save would 400.
   validateAdventure(
     { title, maxPlayers: input.maxPlayers, graph },
     new Map([
-      [
-        prepared.id,
-        {
-          entryIds: markers.entries.map((entry) => entry.id),
-          exitIds: markers.exits.map((exit) => exit.id),
-        },
-      ],
+      [prepared.id, { entryIds: [prepared.entryEventId], exitIds: [prepared.exitEventId] }],
     ]),
   );
   // The adventure row is inserted before its map so the map's `adventure_id` foreign key resolves
@@ -175,7 +171,7 @@ export async function createAdventureWithDefaultMap(
       graph: JSON.stringify(graph),
       ...(input.registry !== undefined ? { registry: JSON.stringify(input.registry) } : {}),
     }),
-    prepared.insert,
+    ...prepared.inserts,
   ]);
   const stored = await loadAdventure(db, accountId, adventureId);
   if (!stored) throw new Error("not_found: adventure vanished mid-create");

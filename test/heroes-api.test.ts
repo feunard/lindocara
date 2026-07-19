@@ -5,11 +5,20 @@
 import { env, SELF } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
 import { SESSION_COOKIE } from "../src/server/session.js";
+import { EMPTY_MARKERS } from "../src/shared/map-data.js";
+import { functionalEvent, type MapEvent } from "../src/shared/map-events.js";
 import { layeredWireTerrain } from "./support/map-fixtures.js";
 
 const ORIGIN = "https://lindocara.test";
 const COLS = 20;
 const ROWS = 15;
+
+// UX wave #12: the graph binds entry/exit EVENT uuids. Map A and map B use distinct uuid families
+// because a `map_event` id is a global primary key.
+const ENTRY_A = "aaaaaaaa-0000-4000-8000-000000000001";
+const EXIT_A = "aaaaaaaa-0000-4000-8000-000000000002";
+const ENTRY_B = "bbbbbbbb-0000-4000-8000-000000000001";
+const EXIT_B = "bbbbbbbb-0000-4000-8000-000000000002";
 
 function blocks(): string[] {
   const rows: string[] = [];
@@ -17,17 +26,25 @@ function blocks(): string[] {
   return rows;
 }
 
-function mapBody(name: string): Record<string, unknown> {
+function ev(id: string, kind: "entry" | "exit", col: number, row: number): MapEvent {
+  return functionalEvent({ id, col, row, ordinal: 0, kind });
+}
+
+function eventsB(): MapEvent[] {
+  return [ev(ENTRY_B, "entry", 5, 5), ev(EXIT_B, "exit", 7, 7)];
+}
+
+function mapBody(
+  name: string,
+  events: MapEvent[] = [ev(ENTRY_A, "entry", 5, 5), ev(EXIT_A, "exit", 7, 7)],
+): Record<string, unknown> {
   return {
     name,
     ...layeredWireTerrain(blocks()),
     elements: [],
     spawn: { col: 0, row: 0 },
-    markers: {
-      entries: [{ id: "door", col: 5, row: 5 }],
-      exits: [{ id: "gate", col: 7, row: 7 }],
-      monsterSpawns: [],
-    },
+    markers: EMPTY_MARKERS,
+    events,
   };
 }
 
@@ -75,17 +92,20 @@ async function seedParty(cookie: string): Promise<string> {
   });
   const mapB = ((await b.json()) as { id: string }).id;
   await authed(`/api/maps/${mapA}`, cookie, { method: "PUT", body: JSON.stringify(mapBody("A")) });
-  await authed(`/api/maps/${mapB}`, cookie, { method: "PUT", body: JSON.stringify(mapBody("B")) });
+  await authed(`/api/maps/${mapB}`, cookie, {
+    method: "PUT",
+    body: JSON.stringify(mapBody("B", eventsB())),
+  });
   await authed(`/api/adventures/${adventureId}`, cookie, {
     method: "PUT",
     body: JSON.stringify({
       title: "Donjon",
       maxPlayers: 4,
       graph: {
-        start: { mapId: mapA, entryId: "door" },
+        start: { mapId: mapA, entryId: ENTRY_A },
         links: [
-          { mapId: mapA, exitId: "gate", dest: { mapId: mapB, entryId: "door" } },
-          { mapId: mapB, exitId: "gate", dest: "end" },
+          { mapId: mapA, exitId: EXIT_A, dest: { mapId: mapB, entryId: ENTRY_B } },
+          { mapId: mapB, exitId: EXIT_B, dest: "end" },
         ],
       },
     }),

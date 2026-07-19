@@ -18,11 +18,22 @@ import { account, createDb, type Db, party } from "../src/server/db/index.js";
 import { deleteMap as deleteOwnedMap, loadOwnedMap, updateMap } from "../src/server/maps.js";
 import type { AdventureGraph } from "../src/shared/adventure.js";
 import { EMPTY_REGISTRY } from "../src/shared/adventure-state.js";
+import { EMPTY_MARKERS } from "../src/shared/map-data.js";
+import { entryEvents, functionalEvent, type MapEvent } from "../src/shared/map-events.js";
 import { authorMap, seedAdventure } from "./support/adventure-fixtures.js";
 import { layeredTerrain } from "./support/map-fixtures.js";
 
 const COLS = 20;
 const ROWS = 15;
+
+// UX wave #12: the graph binds entry/exit EVENT uuids. These are stable across re-authoring a map so
+// a graph bound to them keeps matching when the marker-guard test rewrites a map's events.
+const ENTRY_A = "aaaaaaaa-0000-4000-8000-000000000001";
+const EXIT_A = "aaaaaaaa-0000-4000-8000-000000000002";
+const SIDE_A = "aaaaaaaa-0000-4000-8000-000000000003";
+const UNBOUND_A = "aaaaaaaa-0000-4000-8000-000000000004";
+const ENTRY_B = "bbbbbbbb-0000-4000-8000-000000000001";
+const EXIT_B = "bbbbbbbb-0000-4000-8000-000000000002";
 
 function blocks(): string[] {
   const rows: string[] = [];
@@ -30,18 +41,31 @@ function blocks(): string[] {
   return rows;
 }
 
-function mapInput(name: string) {
+function ev(id: string, kind: "entry" | "exit", col: number, row: number): MapEvent {
+  return functionalEvent({ id, col, row, ordinal: 0, kind });
+}
+
+/** A map body carrying explicit entry/exit events (default: entry@5,5 + exit@7,7). */
+function mapInput(
+  name: string,
+  events: MapEvent[] = [ev(ENTRY_A, "entry", 5, 5), ev(EXIT_A, "exit", 7, 7)],
+) {
   return {
     name,
     ...layeredTerrain(blocks()),
     elements: [],
     spawn: { col: 0, row: 0 },
-    markers: {
-      entries: [{ id: "door", col: 5, row: 5 }],
-      exits: [{ id: "gate", col: 7, row: 7 }],
-      monsterSpawns: [],
-    },
+    markers: EMPTY_MARKERS,
+    events,
   };
+}
+
+/** Map A's events, map B's events — distinct uuids so the two rows never collide on the event pk. */
+function eventsA(extra: MapEvent[] = []): MapEvent[] {
+  return [ev(ENTRY_A, "entry", 5, 5), ev(EXIT_A, "exit", 7, 7), ...extra];
+}
+function eventsB(): MapEvent[] {
+  return [ev(ENTRY_B, "entry", 5, 5), ev(EXIT_B, "exit", 7, 7)];
 }
 
 async function seedAccount(id: string): Promise<void> {
@@ -50,13 +74,13 @@ async function seedAccount(id: string): Promise<void> {
     .values({ id, username: id, passwordHash: "h", passwordSalt: "s", passwordIterations: 1 });
 }
 
-/** A two-map corridor: A.gate -> B.door, B.gate -> end. */
+/** A two-map corridor: A.exit -> B.entry, B.exit -> end (bound by event uuids). */
 function corridorGraph(mapA: string, mapB: string): AdventureGraph {
   return {
-    start: { mapId: mapA, entryId: "door" },
+    start: { mapId: mapA, entryId: ENTRY_A },
     links: [
-      { mapId: mapA, exitId: "gate", dest: { mapId: mapB, entryId: "door" } },
-      { mapId: mapB, exitId: "gate", dest: "end" },
+      { mapId: mapA, exitId: EXIT_A, dest: { mapId: mapB, entryId: ENTRY_B } },
+      { mapId: mapB, exitId: EXIT_B, dest: "end" },
     ],
   };
 }
@@ -64,8 +88,8 @@ function corridorGraph(mapA: string, mapB: string): AdventureGraph {
 /** The whole adventure-first flow: draft, author two maps inside it, save the corridor graph. */
 async function buildAdventure(db: Db, owner: string) {
   const advId = await seedAdventure(db, owner, "Donjon");
-  const mapA = await authorMap(db, owner, advId, mapInput("A"));
-  const mapB = await authorMap(db, owner, advId, mapInput("B"));
+  const mapA = await authorMap(db, owner, advId, mapInput("A", eventsA()));
+  const mapB = await authorMap(db, owner, advId, mapInput("B", eventsB()));
   const adv = await updateAdventure(db, owner, advId, {
     title: "Donjon",
     maxPlayers: 2,
@@ -117,8 +141,8 @@ describe("adventure CRUD", () => {
     const db = createDb(env.DB);
     await seedAccount("owner");
     const advId = await seedAdventure(db, "owner");
-    const mapA = await authorMap(db, "owner", advId, mapInput("A"));
-    const mapB = await authorMap(db, "owner", advId, mapInput("B"));
+    const mapA = await authorMap(db, "owner", advId, mapInput("A", eventsA()));
+    const mapB = await authorMap(db, "owner", advId, mapInput("B", eventsB()));
 
     // B's exit is left unbound (no ending reachable) — refused.
     await expect(
@@ -126,8 +150,8 @@ describe("adventure CRUD", () => {
         title: "Donjon",
         maxPlayers: 2,
         graph: {
-          start: { mapId: mapA.id, entryId: "door" },
-          links: [{ mapId: mapA.id, exitId: "gate", dest: { mapId: mapB.id, entryId: "door" } }],
+          start: { mapId: mapA.id, entryId: ENTRY_A },
+          links: [{ mapId: mapA.id, exitId: EXIT_A, dest: { mapId: mapB.id, entryId: ENTRY_B } }],
         },
       }),
     ).rejects.toThrow(/^graph:/);
@@ -137,7 +161,7 @@ describe("adventure CRUD", () => {
       updateAdventure(db, "owner", advId, {
         title: "Donjon",
         maxPlayers: 2,
-        graph: { start: { mapId: "ghostmap", entryId: "door" }, links: [] },
+        graph: { start: { mapId: "ghostmap", entryId: ENTRY_A }, links: [] },
       }),
     ).rejects.toThrow(/^graph:/);
   });
@@ -300,12 +324,11 @@ describe("map deletion guard", () => {
     const db = createDb(env.DB);
     await seedAccount("owner");
     const advId = await seedAdventure(db, "owner", "Donjon");
-    const mapA = await authorMap(db, "owner", advId, mapInput("A"));
-    const mapB = await authorMap(db, "owner", advId, mapInput("B"));
+    const mapA = await authorMap(db, "owner", advId, mapInput("A", eventsA()));
+    const mapB = await authorMap(db, "owner", advId, mapInput("B", eventsB()));
     // A spare map with no exits, never wired into the graph: allowed to coexist and to be deleted.
     const spare = await authorMap(db, "owner", advId, {
-      ...mapInput("Spare"),
-      markers: { entries: [{ id: "door", col: 5, row: 5 }], exits: [], monsterSpawns: [] },
+      ...mapInput("Spare", [ev("cccccccc-0000-4000-8000-000000000001", "entry", 5, 5)]),
     });
     await updateAdventure(db, "owner", advId, {
       title: "Donjon",
@@ -323,61 +346,42 @@ describe("marker reference guard", () => {
     const db = createDb(env.DB);
     await seedAccount("owner");
     const advId = await seedAdventure(db, "owner", "Donjon");
-    const mapA = await authorMap(db, "owner", advId, mapInput("A"));
-    const mapB = await authorMap(db, "owner", advId, mapInput("B"));
+    const mapA = await authorMap(db, "owner", advId, mapInput("A", eventsA()));
+    const mapB = await authorMap(db, "owner", advId, mapInput("B", eventsB()));
     await updateAdventure(db, "owner", advId, {
       title: "Donjon",
       maxPlayers: 2,
       graph: corridorGraph(mapA.id, mapB.id),
     });
 
-    // removing A's bound exit "gate" → refused
+    // removing A's bound exit event → refused
     await expect(
-      updateMap(db, "owner", mapA.id, {
-        ...mapInput("A"),
-        markers: { entries: [{ id: "door", col: 5, row: 5 }], exits: [], monsterSpawns: [] },
-      }),
+      updateMap(db, "owner", mapA.id, mapInput("A", [ev(ENTRY_A, "entry", 5, 5)])),
     ).rejects.toThrow(/^referenced:/);
 
-    // removing B's entry "door" (destination of A's gate) → refused
+    // removing B's entry event (destination of A's exit) → refused
     await expect(
-      updateMap(db, "owner", mapB.id, {
-        ...mapInput("B"),
-        markers: { entries: [], exits: [{ id: "gate", col: 7, row: 7 }], monsterSpawns: [] },
-      }),
+      updateMap(db, "owner", mapB.id, mapInput("B", [ev(EXIT_B, "exit", 7, 7)])),
     ).rejects.toThrow(/^referenced:/);
 
-    // adding a marker while keeping the bound ones → allowed
-    const grown = await updateMap(db, "owner", mapA.id, {
-      ...mapInput("A"),
-      markers: {
-        entries: [
-          { id: "door", col: 5, row: 5 },
-          { id: "side", col: 3, row: 3 },
-        ],
-        exits: [{ id: "gate", col: 7, row: 7 }],
-        monsterSpawns: [],
-      },
-    });
-    expect(grown.markers?.entries).toHaveLength(2);
+    // adding an entry event while keeping the bound ones → allowed
+    const grown = await updateMap(
+      db,
+      "owner",
+      mapA.id,
+      mapInput("A", eventsA([ev(SIDE_A, "entry", 3, 3)])),
+    );
+    expect(entryEvents(grown.events)).toHaveLength(2);
 
-    // A new unbound exit would break the saved graph, so the map change is refused and its monotone
-    // revision does not move.
+    // A new unbound exit event would break the saved graph, so the map change is refused and its
+    // monotone revision does not move.
     await expect(
-      updateMap(db, "owner", mapA.id, {
-        ...mapInput("A"),
-        markers: {
-          entries: [
-            { id: "door", col: 5, row: 5 },
-            { id: "side", col: 3, row: 3 },
-          ],
-          exits: [
-            { id: "gate", col: 7, row: 7 },
-            { id: "unbound", col: 9, row: 9 },
-          ],
-          monsterSpawns: [],
-        },
-      }),
+      updateMap(
+        db,
+        "owner",
+        mapA.id,
+        mapInput("A", eventsA([ev(SIDE_A, "entry", 3, 3), ev(UNBOUND_A, "exit", 9, 9)])),
+      ),
     ).rejects.toThrow(/^referenced:.*unbound/);
     expect((await loadOwnedMap(db, "owner", mapA.id))?.revision).toBe(grown.revision);
 

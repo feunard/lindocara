@@ -18,7 +18,8 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
-import { EVENT_TRIGGERS, MOVE_TYPES, SELF_SWITCHES } from "../../shared/map-events.js";
+import type { MonsterSpecies } from "../../shared/game.js";
+import { EVENT_KINDS, EVENT_TRIGGERS, MOVE_TYPES, SELF_SWITCHES } from "../../shared/map-events.js";
 import type { EditorAssetId } from "../../shared/tiny-swords-catalog.js";
 
 /** Milliseconds since the epoch, as SQLite integers. `unixepoch()` is seconds. */
@@ -336,9 +337,16 @@ export const mapEvent = sqliteTable(
       .references(() => map.id, { onDelete: "cascade" }),
     col: integer("col").notNull(),
     row: integer("row").notNull(),
+    /** Doubles as the entry/exit marker label for functional kinds; decorative for `normal`. */
     name: text("name").notNull(),
     /** Creation order, per map. Display only. */
     ordinal: integer("ordinal").notNull(),
+    /** UX wave #12: `normal` is the scripted event; entry/exit/monster are the reborn markers. */
+    kind: text("kind", { enum: EVENT_KINDS }).notNull().default("normal"),
+    /** Monster spawn, set iff `kind = 'monster'`. */
+    species: text("species").$type<MonsterSpecies>(),
+    /** Monster patrol radius (px), set iff `kind = 'monster'`. */
+    patrolRadius: integer("patrol_radius"),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
   },
   (table) => [

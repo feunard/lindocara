@@ -9,11 +9,25 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createAdventure } from "../src/server/adventures.js";
 import { createDb } from "../src/server/db/index.js";
 import { SESSION_COOKIE } from "../src/server/session.js";
+import { EMPTY_MARKERS } from "../src/shared/map-data.js";
+import {
+  entryEvents,
+  exitEvents,
+  functionalEvent,
+  type MapEvent,
+} from "../src/shared/map-events.js";
 import { layeredWireTerrain } from "./support/map-fixtures.js";
 
 const ORIGIN = "https://lindocara.test";
 const COLS = 20;
 const ROWS = 15;
+
+// UX wave #12: the graph binds entry/exit EVENT uuids. Map A and map B use distinct uuid families
+// because a `map_event` id is a global primary key — two maps must never reuse the same event uuid.
+const ENTRY_A = "aaaaaaaa-0000-4000-8000-000000000001";
+const EXIT_A = "aaaaaaaa-0000-4000-8000-000000000002";
+const ENTRY_B = "bbbbbbbb-0000-4000-8000-000000000001";
+const EXIT_B = "bbbbbbbb-0000-4000-8000-000000000002";
 
 function blocks(): string[] {
   const rows: string[] = [];
@@ -21,17 +35,26 @@ function blocks(): string[] {
   return rows;
 }
 
-function mapBody(name: string, markers?: Record<string, unknown>): Record<string, unknown> {
+function ev(id: string, kind: "entry" | "exit", col: number, row: number): MapEvent {
+  return functionalEvent({ id, col, row, ordinal: 0, kind });
+}
+
+function eventsA(): MapEvent[] {
+  return [ev(ENTRY_A, "entry", 5, 5), ev(EXIT_A, "exit", 7, 7)];
+}
+
+function eventsB(): MapEvent[] {
+  return [ev(ENTRY_B, "entry", 5, 5), ev(EXIT_B, "exit", 7, 7)];
+}
+
+function mapBody(name: string, events: MapEvent[] = eventsA()): Record<string, unknown> {
   return {
     name,
     ...layeredWireTerrain(blocks()),
     elements: [],
     spawn: { col: 0, row: 0 },
-    markers: markers ?? {
-      entries: [{ id: "door", col: 5, row: 5 }],
-      exits: [{ id: "gate", col: 7, row: 7 }],
-      monsterSpawns: [],
-    },
+    markers: EMPTY_MARKERS,
+    events,
   };
 }
 
@@ -97,10 +120,10 @@ async function authorMap(
 
 function corridorGraph(mapA: string, mapB: string): Record<string, unknown> {
   return {
-    start: { mapId: mapA, entryId: "door" },
+    start: { mapId: mapA, entryId: ENTRY_A },
     links: [
-      { mapId: mapA, exitId: "gate", dest: { mapId: mapB, entryId: "door" } },
-      { mapId: mapB, exitId: "gate", dest: "end" },
+      { mapId: mapA, exitId: EXIT_A, dest: { mapId: mapB, entryId: ENTRY_B } },
+      { mapId: mapB, exitId: EXIT_B, dest: "end" },
     ],
   };
 }
@@ -140,19 +163,24 @@ describe("adventure lifecycle over the wire", () => {
       graph: { start: unknown; links: unknown[] };
       defaultMap: {
         id: string;
-        markers: { entries: { id: string }[]; exits: { id: string }[] };
+        events: MapEvent[];
       };
     };
     expect(created).toMatchObject({ title: "Donjon", maxPlayers: 4, version: 1 });
-    // Atomic: exactly one default map, born with an entry on the spawn and an end-bound exit, and a
-    // graph that already points start -> that entry and binds the exit -> "end".
+    // Atomic: exactly one default map, born with an entry EVENT on the spawn and an end-bound exit
+    // EVENT (UX wave #12), and a graph that already points start -> that entry and binds the exit ->
+    // "end" by the events' uuids.
     expect(created.mapIds).toHaveLength(1);
     const mapId = created.mapIds[0];
-    expect(created.graph.start).toEqual({ mapId, entryId: "start" });
-    expect(created.graph.links).toEqual([{ mapId, exitId: "exit", dest: "end" }]);
+    const entries = entryEvents(created.defaultMap.events);
+    const exits = exitEvents(created.defaultMap.events);
+    expect(entries.map((e) => e.id)).toHaveLength(1);
+    expect(exits.map((e) => e.id)).toHaveLength(1);
+    const entryId = entries[0]?.id;
+    const exitId = exits[0]?.id;
+    expect(created.graph.start).toEqual({ mapId, entryId });
+    expect(created.graph.links).toEqual([{ mapId, exitId, dest: "end" }]);
     expect(created.defaultMap.id).toBe(mapId);
-    expect(created.defaultMap.markers.entries.map((m) => m.id)).toEqual(["start"]);
-    expect(created.defaultMap.markers.exits.map((m) => m.id)).toEqual(["exit"]);
 
     // The D1 rows exist: one adventure, exactly one map owned by it.
     const advRows = await env.DB.prepare("SELECT id FROM adventure WHERE id = ?")
@@ -169,7 +197,7 @@ describe("adventure lifecycle over the wire", () => {
     const advId = await createDraft();
 
     const mapA = await authorMap(advId, mapBody("A"));
-    const mapB = await authorMap(advId, mapBody("B"));
+    const mapB = await authorMap(advId, mapBody("B", eventsB()));
 
     const graphRes = await authed(`/api/adventures/${advId}`, {
       method: "PUT",
@@ -231,7 +259,7 @@ describe("adventure lifecycle over the wire", () => {
     // Graph validation is gated on the PUT, against the adventure's own maps.
     const advId = await createDraft();
     const mapA = await authorMap(advId, mapBody("A"));
-    const mapB = await authorMap(advId, mapBody("B"));
+    const mapB = await authorMap(advId, mapBody("B", eventsB()));
 
     const unbound = await authed(`/api/adventures/${advId}`, {
       method: "PUT",
@@ -239,8 +267,8 @@ describe("adventure lifecycle over the wire", () => {
         title: "Donjon",
         maxPlayers: 4,
         graph: {
-          start: { mapId: mapA, entryId: "door" },
-          links: [{ mapId: mapA, exitId: "gate", dest: { mapId: mapB, entryId: "door" } }],
+          start: { mapId: mapA, entryId: ENTRY_A },
+          links: [{ mapId: mapA, exitId: EXIT_A, dest: { mapId: mapB, entryId: ENTRY_B } }],
         },
       }),
     });
@@ -253,7 +281,7 @@ describe("adventure lifecycle over the wire", () => {
       body: JSON.stringify({
         title: "Donjon",
         maxPlayers: 4,
-        graph: { start: { mapId: "ghostmap", entryId: "door" }, links: [] },
+        graph: { start: { mapId: "ghostmap", entryId: ENTRY_A }, links: [] },
       }),
     });
     expect(foreign.status).toBe(400);
@@ -263,7 +291,7 @@ describe("adventure lifecycle over the wire", () => {
   it("hides other accounts' adventures and refuses referencing their maps", async () => {
     const advId = await createDraft();
     const mapA = await authorMap(advId, mapBody("A"));
-    const mapB = await authorMap(advId, mapBody("B"));
+    const mapB = await authorMap(advId, mapBody("B", eventsB()));
     await authed(`/api/adventures/${advId}`, {
       method: "PUT",
       body: JSON.stringify({ title: "Donjon", maxPlayers: 4, graph: corridorGraph(mapA, mapB) }),
@@ -309,34 +337,36 @@ describe("adventure lifecycle over the wire", () => {
 
   it("accepts a realistic 16-map graph with all 128 exits through the HTTP boundary", async () => {
     const advId = await createDraft();
-    const markers = {
-      entries: [{ id: "entry", col: 1, row: 1 }],
-      exits: Array.from({ length: 8 }, (_, exitIndex) => ({
-        id: `exit-${exitIndex}`,
-        col: 2 + exitIndex,
-        row: 2,
-      })),
-      monsterSpawns: [],
-    };
-    const mapIds: string[] = [];
+    // Each map carries one entry EVENT and eight exit EVENTS. Event uuids are minted per map and
+    // per event because a `map_event` id is a global primary key — all 144 must be distinct.
+    const maps: { id: string; entryId: string; exitIds: string[] }[] = [];
     for (let mapIndex = 0; mapIndex < 16; mapIndex += 1) {
-      mapIds.push(await authorMap(advId, mapBody(`Max ${mapIndex}`, markers)));
+      const entryId = crypto.randomUUID();
+      const exitIds = Array.from({ length: 8 }, () => crypto.randomUUID());
+      const events: MapEvent[] = [
+        functionalEvent({ id: entryId, col: 1, row: 1, ordinal: 1, kind: "entry" }),
+        ...exitIds.map((id, exitIndex) =>
+          functionalEvent({ id, col: 2 + exitIndex, row: 2, ordinal: 2 + exitIndex, kind: "exit" }),
+        ),
+      ];
+      const id = await authorMap(advId, mapBody(`Max ${mapIndex}`, events));
+      maps.push({ id, entryId, exitIds });
     }
 
-    const links = mapIds.flatMap((mapId, mapIndex) =>
-      Array.from({ length: 8 }, (_, exitIndex) => ({
-        mapId,
-        exitId: `exit-${exitIndex}`,
-        dest:
-          exitIndex === 0 && mapIndex < mapIds.length - 1
-            ? { mapId: mapIds[mapIndex + 1], entryId: "entry" }
-            : "end",
-      })),
-    );
+    const links = maps.flatMap((meta, mapIndex) => {
+      const next = maps[mapIndex + 1];
+      return meta.exitIds.map((exitId, exitIndex) => ({
+        mapId: meta.id,
+        exitId,
+        dest: exitIndex === 0 && next ? { mapId: next.id, entryId: next.entryId } : "end",
+      }));
+    });
+    const first = maps[0];
+    if (!first) throw new Error("expected at least one map");
     const body = {
       title: "Maximum realistic graph",
       maxPlayers: 4,
-      graph: { start: { mapId: mapIds[0], entryId: "entry" }, links },
+      graph: { start: { mapId: first.id, entryId: first.entryId }, links },
     };
     expect(new TextEncoder().encode(JSON.stringify(body)).byteLength).toBeLessThan(65_536);
 
