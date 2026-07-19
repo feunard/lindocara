@@ -45,12 +45,14 @@ const MOVE_SPEED_MAX = 5;
 const MOVE_FREQ_MAX = 4;
 
 /**
- * A switch or variable id, as this tranche has them: free 4-digit ordinals the author types by
- * hand (the wireframe's `0001`), because the switch/variable REGISTRY that would give them
- * meaning is tranche 4's deliverable. This checks only that an id is shaped like one of those
- * ordinals, never that it names anything real — there is nothing real yet to check against.
+ * A switch or variable id: a 4-digit ordinal (the wireframe's `0001`). This tranche only checks
+ * that an id is shaped like one of those ordinals, never that it names anything real — the
+ * switch/variable REGISTRY that gives ids meaning is `shared/adventure-state.ts` (tranche 4),
+ * which imports this exact pattern rather than keeping its own copy, so there is exactly one
+ * definition of "what a condition id looks like" for both an unvalidated page (this file) and a
+ * page checked against a real registry (that one).
  */
-const CONDITION_ID_PATTERN = /^\d{4}$/;
+export const CONDITION_ID_PATTERN = /^\d{4}$/;
 
 export function isEventTrigger(value: unknown): value is EventTrigger {
   return typeof value === "string" && (EVENT_TRIGGERS as readonly string[]).includes(value);

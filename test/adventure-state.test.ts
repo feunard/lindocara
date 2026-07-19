@@ -12,6 +12,7 @@ import {
   EMPTY_REGISTRY,
   MAX_REGISTRY_SWITCHES,
   MAX_REGISTRY_VARIABLES,
+  MAX_SELF_SWITCH_ENTRIES,
   type PartyAdventureState,
   parseAdventureRegistry,
   parsePartyAdventureState,
@@ -186,6 +187,16 @@ describe("parsePartyAdventureState: good payloads round-trip unchanged", () => {
     };
     expect(parsePartyAdventureState(value)).toEqual(value);
   });
+
+  it("accepts exactly MAX_SELF_SWITCH_ENTRIES self-switch entries", () => {
+    const selfSwitches: Record<string, boolean> = {};
+    for (let i = 0; i < MAX_SELF_SWITCH_ENTRIES; i++) {
+      const uuid = `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`;
+      selfSwitches[`${uuid}:A`] = true;
+    }
+    const value: PartyAdventureState = { switches: {}, variables: {}, selfSwitches };
+    expect(parsePartyAdventureState(value)).toEqual(value);
+  });
 });
 
 describe("parsePartyAdventureState: totality — every malformed field lands on null, never a throw", () => {
@@ -235,6 +246,15 @@ describe("parsePartyAdventureState: totality — every malformed field lands on 
       expect(parsePartyAdventureState(value)).toBeNull();
     });
   }
+
+  it("rejects more than MAX_SELF_SWITCH_ENTRIES self-switch entries", () => {
+    const selfSwitches: Record<string, boolean> = {};
+    for (let i = 0; i < MAX_SELF_SWITCH_ENTRIES + 1; i++) {
+      const uuid = `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`;
+      selfSwitches[`${uuid}:A`] = true;
+    }
+    expect(parsePartyAdventureState({ switches: {}, variables: {}, selfSwitches })).toBeNull();
+  });
 });
 
 describe("activePageIndex", () => {
@@ -297,5 +317,19 @@ describe("activePageIndex", () => {
     expect(
       activePageIndex(ev, state({ switches: { "0001": true }, variables: { "0002": 5 } })),
     ).toBe(0);
+  });
+
+  it("a bare page 1 loses to a conditioned page 2 once the condition holds, and wins once it doesn't", () => {
+    // The archetype XP authors actually use: an unconditional "default" page 1, overridden by a
+    // more specific page 2. A scanner that stops at the first BARE page walking top-down would
+    // return page 1 unconditionally and never even look at page 2 — this pins that it does not.
+    const ev = event({
+      pages: [
+        page(), // page 1: bare, no conditions — the fallback
+        page({ condSwitchId: "0001" }), // page 2: conditioned — the override
+      ],
+    });
+    expect(activePageIndex(ev, state({ switches: { "0001": true } }))).toBe(1);
+    expect(activePageIndex(ev, state())).toBe(0);
   });
 });

@@ -19,15 +19,19 @@
  * `null` out, never a throw.
  */
 import { isUuid } from "./identifiers.js";
-import { isSelfSwitch, type MapEvent, type MapEventPage } from "./map-events.js";
+import {
+  CONDITION_ID_PATTERN,
+  isSelfSwitch,
+  type MapEvent,
+  type MapEventPage,
+} from "./map-events.js";
 
 /**
- * Same 4-digit-ordinal shape `map-events.ts`'s (private) `CONDITION_ID_PATTERN` checks a page's
- * condition ids against. That file deliberately keeps its copy unexported — the registry it would
- * validate against didn't exist yet when it was written. It exists now; this is that registry's
- * id shape, kept as its own copy rather than reaching into `map-events.ts` for a private constant.
+ * The registry's id shape is the SAME shape `map-events.ts` checks a page's condition ids
+ * against — imported from there rather than kept as a second copy, now that the registry this
+ * pattern was always meant to validate against actually exists.
  */
-const REGISTRY_ID_PATTERN = /^\d{4}$/;
+const REGISTRY_ID_PATTERN = CONDITION_ID_PATTERN;
 
 /** Mint order, not display order — unlike `MapEvent.ordinal`, a registry id IS identity: pages
  *  reference it by string, so once minted it never changes shape or gets reused. */
@@ -144,10 +148,21 @@ function isSelfSwitchKey(key: string): boolean {
   return isUuid(key.slice(0, separator)) && isSelfSwitch(key.slice(separator + 1));
 }
 
+/** The most self-switch entries one party's live state may hold. A party's self-switches grow
+ *  unboundedly only in principle — every entry names one (event, letter) pair, and events are
+ *  themselves bounded per map — but nothing upstream caps the party-wide total across every map
+ *  an adventure owns, so this is the backstop against a corrupt or hostile row ballooning a D1
+ *  write. `adventure-state-store.ts`'s `savePartyAdventureState` prunes entries whose event no
+ *  longer exists (when the caller supplies the live id set); this is the harder ceiling that
+ *  applies regardless of whether a caller prunes. */
+export const MAX_SELF_SWITCH_ENTRIES = 512;
+
 function parseSelfSwitches(value: unknown): Record<string, boolean> | null {
   if (!isPlainObject(value)) return null;
+  const entries = Object.entries(value);
+  if (entries.length > MAX_SELF_SWITCH_ENTRIES) return null;
   const selfSwitches: Record<string, boolean> = {};
-  for (const [key, flag] of Object.entries(value)) {
+  for (const [key, flag] of entries) {
     if (!isSelfSwitchKey(key) || typeof flag !== "boolean") return null;
     selfSwitches[key] = flag;
   }
