@@ -83,7 +83,7 @@ export function Hud() {
       <DeathOverlay />
       <aside id="hud">
         <section className="panel identity">
-          <UnitPortrait portrait={playerPortrait(self.class, self.appearance)} size="self" />
+          <UnitPortrait portrait={playerPortrait(self.class, self.appearance)} />
           <div className="identity-copy">
             <strong>{self.nick}</strong>
             <span>{t("hud.level", { level: self.level })}</span>

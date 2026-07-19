@@ -10,6 +10,7 @@ import { type Attachment, positionFromAttachment } from "../src/server/world.js"
 import { WS_CLOSE } from "../src/shared/close-codes.js";
 import { CORPSE_RECLAIM_RANGE, RESURRECT_HP_RATIO } from "../src/shared/death.js";
 import {
+  ATTACK_COOLDOWN_MS,
   CEMETERIES,
   isWalkable,
   maxHpForLevel,
@@ -44,6 +45,27 @@ import {
   VERDANT_ROOM_KEY,
   waitForRoomSockets,
 } from "./support/world-harness.js";
+
+async function formRuntimeParty(leader: Client, member: Client): Promise<void> {
+  const leaderWelcome = await until("combat party leader welcome", () => leader.welcome);
+  const memberWelcome = await until("combat party member welcome", () => member.welcome);
+  leader.sendRaw(JSON.stringify({ t: "party.create" }));
+  await until("combat party created", () =>
+    leader.received.find((message) => message.t === "party.state" && message.party !== null),
+  );
+  leader.sendRaw(JSON.stringify({ t: "party.invite", playerId: memberWelcome.selfId }));
+  const invite = await until("combat party invitation", () =>
+    member.received.find((message) => message.t === "party.invite"),
+  );
+  if (invite.t !== "party.invite") throw new Error("invalid combat party invitation");
+  member.sendRaw(JSON.stringify({ t: "party.accept", inviteId: invite.inviteId }));
+  await until("combat party member joined", () =>
+    member.received.find(
+      (message) => message.t === "party.state" && message.party?.members.length === 2,
+    ),
+  );
+  expect(leaderWelcome.selfId).not.toBe(memberWelcome.selfId);
+}
 
 describe("World", () => {
   it("welcomes a player with the world dimensions and their own id", async () => {
@@ -415,9 +437,9 @@ describe("World", () => {
         () => hunter.welcome && observer.welcome && distant.welcome,
       );
 
-      hunter.action("attack", hunter.nearestMonsterId());
+      hunter.action("attack");
       await scheduler.wait(600);
-      hunter.action("attack", hunter.nearestMonsterId());
+      hunter.action("attack");
       const lootObserved = await until("main-room monster loot", () => {
         const snapshot = hunter.latestSnapshot;
         if (snapshot && snapshot.loot.length > 0) return true;
@@ -448,19 +470,23 @@ describe("World", () => {
   it("keeps a potion looted inside the D1 flush window", { timeout: 60_000 }, async () => {
     const drinker = await Client.join("potion_window", {
       zoneId: "verdant-reach",
-      position: { x: 1870, y: 820 },
-      level: 10,
-      hp: 150,
+      instanceId: "potion-window",
+      // Cleave is directional: stand just left of the authored goblin spawn rather than directly
+      // on top of it, so the default right-facing attack has a real frontal target.
+      position: { x: 1840, y: 820 },
+      level: 100,
+      hp: 1_000,
     });
     const welcome = await until("potion window welcome", () => drinker.welcome);
     expect(welcome.self.inventory.potions).toBe(2);
 
-    // A kill drops a potion on ticks divisible by four, and D1 only catches up every
-    // D1_SAVE_EVERY_TICKS. Land the killing blow on a potion tick early in a flush window, so
-    // the pickup and the drink both happen while D1 still says two.
-    const dropsPotionWellBeforeTheFlush = () => {
+    // D1 only catches up every D1_SAVE_EVERY_TICKS. Keep casting early in each flush window until
+    // an impact lands on a potion tick, so pickup and drink both happen while D1 still says two.
+    // Snapshot ticks arrive at half the simulation rate and may keep one parity forever; the
+    // authoritative active frame, not the launch snapshot, decides the loot tick.
+    const isEarlyInFlushWindow = () => {
       const tick = drinker.latestSnapshot?.tick;
-      return tick !== undefined && tick % 4 === 0 && tick % D1_SAVE_EVERY_TICKS <= 40;
+      return tick !== undefined && tick % D1_SAVE_EVERY_TICKS <= 40;
     };
     const potionPickups = () =>
       drinker.received.filter(
@@ -469,12 +495,21 @@ describe("World", () => {
           message.code === "loot.picked" &&
           message.params?.kind === "potion",
       ).length;
+    const lootPickups = () =>
+      drinker.received.filter((message) => message.t === "event" && message.code === "loot.picked")
+        .length;
 
     let lastAttackAt = 0;
+    let nextRespawnAttackAt = 0;
+    let targetWasDead = false;
     const deadline = Date.now() + 45_000;
     while (potionPickups() === 0 && Date.now() < deadline) {
       const dropped = drinker.latestSnapshot?.loot.find((item) => item.kind === "potion");
       const self = drinker.self();
+      const authoredTarget = drinker.latestSnapshot?.monsters.find(
+        (monster) => monster.id === "road-goblin-scout",
+      );
+      const target = authoredTarget && !authoredTarget.dead ? authoredTarget : undefined;
       if (dropped && self) {
         // The pickup radius is tighter than the attack range: walk onto the drop.
         const dx = dropped.x - self.x;
@@ -482,10 +517,39 @@ describe("World", () => {
         drinker.press(
           Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy > 0 ? "down" : "up",
         );
-      } else if (Date.now() - lastAttackAt > 600 && dropsPotionWellBeforeTheFlush()) {
+      } else if (target && self) {
+        if (targetWasDead) {
+          // Respawn is an exact multiple of four simulation ticks. Offset consecutive killing
+          // blows so the deterministic loot selector visits every tick phase instead of repeating
+          // the same non-potion drop forever.
+          nextRespawnAttackAt = Date.now() + (lootPickups() % 4) * TICK_DT * 1_000;
+          targetWasDead = false;
+        }
+        const dx = target.x - self.x;
+        const dy = target.y - self.y;
+        const direction =
+          Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy > 0 ? "down" : "up";
+        const facingTarget =
+          (direction === "right" && self.facing.x > 0.9) ||
+          (direction === "left" && self.facing.x < -0.9) ||
+          (direction === "down" && self.facing.y > 0.9) ||
+          (direction === "up" && self.facing.y < -0.9);
+        if (Math.hypot(dx, dy) > 24 || !facingTarget) {
+          drinker.press(direction);
+        } else {
+          drinker.release();
+          if (
+            Date.now() >= nextRespawnAttackAt &&
+            Date.now() - lastAttackAt > ATTACK_COOLDOWN_MS &&
+            isEarlyInFlushWindow()
+          ) {
+            drinker.action("attack");
+            lastAttackAt = Date.now();
+          }
+        }
+      } else {
+        if (authoredTarget?.dead) targetWasDead = true;
         drinker.release();
-        drinker.action("attack", drinker.nearestMonsterId());
-        lastAttackAt = Date.now();
       }
       await scheduler.wait(10);
     }
@@ -559,7 +623,9 @@ describe("World", () => {
     unknownClient.close();
   });
 
-  it("enforces the technical room capacity and reconnects to the persisted test zone", async () => {
+  it("enforces the technical room capacity and reconnects to the persisted test zone", {
+    timeout: 15_000,
+  }, async () => {
     await waitForRoomSockets(MMO_TEST_ROOM_KEY, 0);
     const first = await Client.join("capacity_one", { zoneId: "mmo-test-zone" });
     const second = await Client.join("capacity_two", { zoneId: "mmo-test-zone" });
@@ -1199,7 +1265,7 @@ describe("World", () => {
     const client = await Client.join("attack_spammer", { pump: false });
     await until("welcome", () => client.welcome);
 
-    for (let i = 0; i < 36; i++) client.action("attack", "unknown-target");
+    for (let i = 0; i < 36; i++) client.action("attack");
 
     const closed = await until(
       "invalid attack spam policy close",
@@ -1216,7 +1282,9 @@ describe("World", () => {
     expect(closed.code).toBe(1009);
   });
 
-  it("lets a priest mend the selected player in range, respecting cooldown", async () => {
+  it("lets a priest heal themself and a struck ally with Mend while respecting cooldown", {
+    timeout: 15_000,
+  }, async () => {
     // ~250px from the nearest SPAWN_POINTS grid cell — far enough that a straggler still
     // disconnecting from an earlier test (spawned somewhere on that grid, always inside
     // heal.range 130 of *itself* but not of here) cannot be closer than the wounded ally and
@@ -1225,49 +1293,57 @@ describe("World", () => {
       position: { x: 1150, y: 250 },
       class: "priest",
       level: 3,
+      hp: 40,
     });
-    const wounded = await Client.join("wounded", { position: { x: 1166, y: 250 }, hp: 40 });
+    const wounded = await Client.join("wounded", { position: { x: 1220, y: 250 }, hp: 40 });
     await until("both welcomes", () => priest.welcome && wounded.welcome);
+    await formRuntimeParty(priest, wounded);
 
-    priest.action("heal", wounded.welcome?.selfId);
+    priest.skill(2);
     await until("the wounded player to be mended", () => {
-      // Re-send: belt and suspenders in case the very first cast raced the join.
-      priest.action("heal", wounded.welcome?.selfId);
       const snapshot = wounded.self();
       return snapshot && snapshot.hp > 40 ? snapshot : undefined;
     });
 
     const healed = wounded.self();
     expect(healed?.hp).toBe(40 + 41); // healAmountFor(3)
+    expect(priest.self()?.hp).toBe(40 + 41);
 
     // Cooldown: an immediate second cast must not double-heal.
-    priest.action("heal", wounded.welcome?.selfId);
-    priest.action("heal", wounded.welcome?.selfId);
+    priest.skill(2);
+    priest.skill(2);
     await scheduler.wait(200);
     expect(wounded.self()?.hp).toBe(81);
+    expect(priest.self()?.hp).toBe(81);
 
-    const cast = priest.received.find((m) => m.t === "event" && m.code === "heal.cast");
+    const cast = priest.received.find(
+      (m) => m.t === "event" && m.code === "heal.cast" && m.params?.name === "wounded",
+    );
     const received = wounded.received.find((m) => m.t === "event" && m.code === "heal.received");
-    expect(cast).toMatchObject({ params: { name: "wounded", amount: 41 } });
-    expect(received).toMatchObject({ params: { name: "mender", amount: 41 } });
+    expect(cast).toMatchObject({ params: { name: "wounded", amount: 41, color: "azure" } });
+    expect(received).toMatchObject({
+      params: { name: "mender", amount: 41, color: "azure" },
+    });
 
     priest.close();
     wounded.close();
   });
 
-  it("lets a visible ranged attack hit a monster", async () => {
+  it("lets a visible directional arrow hit a monster", { timeout: 10_000 }, async () => {
     const ranger = await Client.join("sighter", {
       position: { x: 2140, y: 820 },
       class: "ranger",
+      instanceId: "directional-arrow",
     });
     const observer = await Client.join("sighter_observer", {
       position: { x: 2180, y: 820 },
+      instanceId: "directional-arrow",
     });
     try {
       await until("welcome", () => ranger.welcome && observer.welcome);
-      ranger.action("attack", ranger.nearestMonsterId());
+      ranger.action("attack");
       const hit = await until("combat hit", () => {
-        ranger.action("attack", ranger.nearestMonsterId());
+        ranger.action("attack");
         return ranger.received.find((m) => m.t === "event" && m.code === "combat.hit");
       });
       expect(hit).toMatchObject({ tone: "info" });
@@ -1280,7 +1356,13 @@ describe("World", () => {
             message.action === "attack",
         ),
       );
-      expect(animation).toMatchObject({ targetX: expect.any(Number), targetY: expect.any(Number) });
+      expect(animation).toMatchObject({
+        direction: { x: 1, y: 0 },
+        skillId: "quick_shot",
+        startedAt: expect.any(Number),
+        impactAt: expect.any(Number),
+        recoveryEndsAt: expect.any(Number),
+      });
     } finally {
       ranger.close();
       observer.close();
@@ -1299,7 +1381,7 @@ describe("World", () => {
     warrior.close();
   });
 
-  it("charges the nearest monster with the warrior shield bash", { timeout: 10_000 }, async () => {
+  it("charges straight ahead with warrior shield bash", { timeout: 10_000 }, async () => {
     const warrior = await Client.join("charger", {
       position: { x: 2140, y: 820 },
       level: 5,
@@ -1316,7 +1398,7 @@ describe("World", () => {
       return { self, target };
     });
 
-    warrior.skill(3, before.target.id);
+    warrior.skill(3);
     const cast = await until("charge cast", () =>
       warrior.received.find(
         (message) =>
@@ -1335,7 +1417,7 @@ describe("World", () => {
     warrior.close();
   });
 
-  it("casts an area attack without a selected target", async () => {
+  it("casts a directional Volley without a target", { timeout: 10_000 }, async () => {
     const ranger = await Client.join("area_volley", {
       position: { x: 1150, y: 250 },
       class: "ranger",
@@ -1372,7 +1454,7 @@ describe("World", () => {
     }
   });
 
-  it("casts an area heal without a selected target", async () => {
+  it("casts an area heal without a target", { timeout: 10_000 }, async () => {
     const priest = await Client.join("area_prayer", {
       position: { x: 1150, y: 250 },
       class: "priest",
@@ -1408,7 +1490,7 @@ describe("World", () => {
     priest.close();
   });
 
-  it("reports a blocked heal target in range", async () => {
+  it("blocks a directional healing projectile on terrain", { timeout: 10_000 }, async () => {
     const priest = await Client.join("blocked_heal", {
       position: { x: 480, y: 650 },
       class: "priest",
@@ -1416,6 +1498,7 @@ describe("World", () => {
     });
     const blocked = await Client.join("behind_tree", { position: { x: 590, y: 650 }, hp: 40 });
     await until("both welcomes", () => priest.welcome && blocked.welcome);
+    await formRuntimeParty(priest, blocked);
 
     const before = await until("blocked target initial snapshot", () => {
       const snapshot = blocked.latestSnapshot;
@@ -1424,11 +1507,11 @@ describe("World", () => {
     });
     expect(before.hp).toBe(40);
 
-    priest.action("heal", blocked.welcome?.selfId);
-    const event = await until("blocked heal event", () =>
-      priest.received.find((m) => m.t === "event" && m.code === "heal.blocked"),
+    priest.skill(2);
+    const event = await until("blocked healing projectile event", () =>
+      priest.received.find((m) => m.t === "event" && m.code === "skill.blocked"),
     );
-    expect(event).toMatchObject({ tone: "info" });
+    expect(event).toMatchObject({ params: { skill: "mend" }, tone: "info" });
 
     const after = await until("blocked target later snapshot", () => {
       const snapshot = blocked.latestSnapshot;
@@ -1441,34 +1524,43 @@ describe("World", () => {
     blocked.close();
   });
 
-  it("heals the selected visible target without switching to a lower-health ally", async () => {
+  it("heals the first wounded ally struck by Mend's directional projectile", {
+    timeout: 10_000,
+  }, async () => {
     const priest = await Client.join("los_priest", {
       position: { x: 480, y: 650 },
       class: "priest",
       level: 3,
     });
-    const blocked = await Client.join("los_blocked", { position: { x: 590, y: 650 }, hp: 10 });
     const visible = await Client.join("los_visible", { position: { x: 480, y: 760 }, hp: 40 });
-    await until("all welcomes", () => priest.welcome && blocked.welcome && visible.welcome);
+    await until("both welcomes", () => priest.welcome && visible.welcome);
+    await formRuntimeParty(priest, visible);
 
-    priest.action("heal", visible.welcome?.selfId);
+    priest.press("down");
+    await until("priest facing down", () => {
+      const self = priest.self();
+      return self && self.facing.y > 0.9 ? self : undefined;
+    });
+    priest.release();
+    priest.skill(2);
     const healed = await until("visible ally healed", () => {
-      priest.action("heal", visible.welcome?.selfId);
       const snapshot = visible.self();
       return snapshot && snapshot.hp > 40 ? snapshot : undefined;
     });
 
     expect(healed.hp).toBe(81);
-    expect(blocked.self()?.hp).toBe(10);
-    const cast = priest.received.find((m) => m.t === "event" && m.code === "heal.cast");
-    expect(cast).toMatchObject({ params: { name: "los_visible", amount: 41 } });
+    const received = visible.received.find((m) => m.t === "event" && m.code === "heal.received");
+    expect(received).toMatchObject({
+      params: { name: "los_priest", amount: 41, color: "azure" },
+    });
 
     priest.close();
-    blocked.close();
     visible.close();
   });
 
-  it("keeps a wounded ally beyond heal.range untouched", async () => {
+  it("keeps a wounded ally beyond Mend projectile range untouched", {
+    timeout: 10_000,
+  }, async () => {
     const priest = await Client.join("far_healer", {
       position: { x: 784, y: 450 },
       class: "priest",
@@ -1477,6 +1569,7 @@ describe("World", () => {
     // 200px away: past heal.range (130), well inside the snapshot view.
     const wounded = await Client.join("far_wounded", { position: { x: 984, y: 450 }, hp: 40 });
     await until("both welcomes", () => priest.welcome && wounded.welcome);
+    await formRuntimeParty(priest, wounded);
 
     const before = await until("far wounded initial snapshot", () => {
       const snapshot = wounded.latestSnapshot;
@@ -1485,11 +1578,13 @@ describe("World", () => {
     });
     expect(before.hp).toBe(40);
 
-    priest.action("heal", wounded.welcome?.selfId);
-    const nobody = await until("heal.nobody", () =>
-      priest.received.find((m) => m.t === "event" && m.code === "heal.nobody"),
+    priest.skill(2);
+    await until("Mend cast", () =>
+      priest.received.find(
+        (m) => m.t === "event" && m.code === "skill.cast" && m.params?.skill === "mend",
+      ),
     );
-    expect(nobody).toMatchObject({ tone: "info" });
+    await scheduler.wait(900);
 
     const after = await until("far wounded later snapshot", () => {
       const snapshot = wounded.latestSnapshot;
@@ -1502,7 +1597,7 @@ describe("World", () => {
     wounded.close();
   });
 
-  it("blocks a dead priest from casting heal", { timeout: 10_000 }, async () => {
+  it("blocks a dead priest from casting Mend", { timeout: 15_000 }, async () => {
     // The first road goblin patrols within 75px of its spawn, well inside the 210px aggro
     // range, so a player standing on the spawn point draws it reliably. One HP means the first
     // landed hit kills regardless of the species-specific damage table.
@@ -1530,8 +1625,8 @@ describe("World", () => {
 
     // Dead priests must not be able to cast: no cooldown check saves them, the intent is
     // dropped outright — the server never even sends heal.nobody.
-    priest.action("heal", ally.welcome?.selfId);
-    priest.action("heal", ally.welcome?.selfId);
+    priest.skill(2);
+    priest.skill(2);
     await scheduler.wait(300);
 
     expect(ally.self()?.hp).toBe(40);
@@ -1543,10 +1638,12 @@ describe("World", () => {
     ally.close();
   });
 
-  it("ignores heal intents from non-priests and out-of-range or full-health situations", async () => {
+  it("rejects legacy heal messages while allowing a full-health priest to cast Mend", {
+    timeout: 10_000,
+  }, async () => {
     const warrior = await Client.join("brute", { position: { x: 784, y: 450 } });
     await until("welcome", () => warrior.welcome);
-    warrior.action("heal", warrior.welcome?.selfId);
+    warrior.sendRaw(JSON.stringify({ t: "heal", targetId: warrior.welcome?.selfId }));
     await scheduler.wait(150);
     expect(warrior.received.some((m) => m.t === "event" && String(m.code).startsWith("heal"))).toBe(
       false,
@@ -1558,11 +1655,17 @@ describe("World", () => {
       level: 3,
     });
     await until("welcome", () => priest.welcome);
-    priest.action("heal", priest.welcome?.selfId); // selected target is already at full HP
-    const nobody = await until("heal.nobody", () =>
-      priest.received.find((m) => m.t === "event" && m.code === "heal.nobody"),
+    priest.skill(2);
+    const cast = await until("Mend cast", () =>
+      priest.received.find(
+        (m) => m.t === "event" && m.code === "skill.cast" && m.params?.skill === "mend",
+      ),
     );
-    expect(nobody).toMatchObject({ tone: "info" });
+    expect(cast).toMatchObject({ params: { skill: "mend", slot: 2 }, tone: "good" });
+    await scheduler.wait(900);
+    expect(priest.received.some((m) => m.t === "event" && String(m.code).startsWith("heal."))).toBe(
+      false,
+    );
 
     warrior.close();
     priest.close();
@@ -1659,7 +1762,7 @@ describe("death, ghosts, and the corpse run", () => {
     const fighter = await Client.join("attack_fighter", { position: KILL_ZONE });
     try {
       await until("observer and fighter welcomes", () => observer.welcome && fighter.welcome);
-      fighter.action("attack", fighter.nearestMonsterId());
+      fighter.action("attack");
       await until("monster attack animation", () =>
         observer.received.find(
           (message) =>
@@ -1775,8 +1878,8 @@ describe("death, ghosts, and the corpse run", () => {
     // Everything before this point includes the blow that killed us. Only what comes after counts.
     const mark = player.received.length;
 
-    player.action("attack", player.nearestMonsterId());
-    player.action("heal", player.welcome?.selfId);
+    player.action("attack");
+    player.sendRaw(JSON.stringify({ t: "heal", targetId: player.welcome?.selfId }));
     player.action("interact");
     player.usePotion();
     player.skill(3);
@@ -1790,8 +1893,6 @@ describe("death, ghosts, and the corpse run", () => {
           m.t === "event" &&
           (String(m.code).startsWith("heal.") ||
             String(m.code).startsWith("skill.") ||
-            m.code === "combat.too_far" ||
-            m.code === "combat.blocked" ||
             m.code === "combat.hit" ||
             m.code === "potion.used" ||
             m.code === "interact.nothing"),

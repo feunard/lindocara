@@ -26,17 +26,10 @@ export interface SkillDefinition {
   radius?: number;
   durationMs?: number;
   reduction?: number;
+  /** Mend V1 tunes the immediate self-heal independently from its directional ally projectile. */
+  selfPower?: number;
+  allyPower?: number;
   icon: string;
-}
-
-export type SkillTargetKind = "hostile" | "friendly" | "none";
-
-/** Targeting is part of the skill contract, not a client-side guess. Ground/self-centred effects
- * remain usable without a selected unit; only single-unit effects carry an entity id. */
-export function skillTargetKind(effect: SkillEffect): SkillTargetKind {
-  if (effect === "attack" || effect === "charge" || effect === "single_damage") return "hostile";
-  if (effect === "single_heal") return "friendly";
-  return "none";
 }
 
 export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition[]>> = {
@@ -150,6 +143,8 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       cooldownMs: 1_500,
       range: 130,
       power: 35,
+      selfPower: 35,
+      allyPower: 35,
       icon: "✚",
     },
     {

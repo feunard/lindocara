@@ -356,22 +356,10 @@ button:not(:where([data-slot], .editor-root *)):disabled {
   image-rendering: pixelated;
 }
 
-.unit-portrait--enemy > span {
-  inset: 1px;
-  background-position: center;
-}
-
 .unit-portrait--self {
   grid-row: 1 / span 2;
   width: 3.25rem;
   height: 3.25rem;
-}
-
-.unit-portrait--target {
-  grid-column: 1;
-  grid-row: 1 / span 2;
-  width: 3.75rem;
-  height: 3.75rem;
 }
 
 .identity-copy {
@@ -475,72 +463,6 @@ button:not(:where([data-slot], .editor-root *)):disabled {
 .combat {
   grid-column: 1;
   max-width: 13rem;
-}
-
-.target-frame {
-  position: fixed;
-  z-index: 5;
-  top: 0.7rem;
-  left: 50%;
-  translate: -50% 0;
-  display: grid;
-  grid-template-columns: 3.75rem minmax(9rem, 14rem) auto auto;
-  align-items: center;
-  gap: 0.35rem 0.55rem;
-  min-width: min(24rem, calc(100vw - 2rem));
-  padding: 0.48rem 0.58rem;
-  border-width: 2px;
-  background: linear-gradient(90deg, rgb(48 37 23 / 32%), transparent 32%), rgb(8 27 23 / 94%);
-  box-shadow:
-    0 0 0 1px rgb(35 22 15 / 80%),
-    0 9px 24px rgb(0 0 0 / 46%);
-  pointer-events: auto;
-}
-
-.target-frame__identity {
-  display: flex;
-  flex-direction: column;
-  grid-column: 2 / 4;
-}
-
-.target-frame__identity > span {
-  color: var(--legacy-muted);
-  font-size: 0.55rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.target-frame__identity > strong {
-  color: #f3ead6;
-}
-
-.target-frame .bar {
-  grid-column: 2;
-}
-
-.target-frame > span {
-  grid-column: 3;
-  color: #d9e4d9;
-  font:
-    0.62rem ui-monospace,
-    monospace;
-}
-
-.target-frame > button {
-  grid-column: 4;
-  grid-row: 1 / 3;
-  align-self: stretch;
-  min-width: 2rem;
-  padding: 0.2rem;
-}
-
-.target-frame--monster {
-  border-color: rgb(222 92 82 / 55%);
-}
-
-.target-frame--player,
-.target-frame--guard {
-  border-color: rgb(92 181 221 / 55%);
 }
 
 .inventory {
@@ -1833,19 +1755,6 @@ kbd {
     gap: 0.2rem;
   }
 
-  .target-frame {
-    top: 0.45rem;
-    min-width: 0;
-    width: min(20rem, calc(100vw - 15.5rem));
-    padding: 0.38rem 0.45rem;
-    grid-template-columns: 3.2rem minmax(6.5rem, 1fr) auto auto;
-  }
-
-  .unit-portrait--target {
-    width: 3.2rem;
-    height: 3.2rem;
-  }
-
   .skill-bar.panel {
     right: calc(0.55rem + var(--safe-right));
     bottom: calc(0.55rem + var(--safe-bottom));
@@ -2096,11 +2005,6 @@ kbd {
     grid-template-columns: minmax(0, 1fr) minmax(6.8rem, auto);
   }
 
-  .target-frame {
-    top: 4.85rem;
-    width: calc(100vw - 0.9rem);
-  }
-
   #event-log {
     top: 9.4rem;
   }
@@ -2109,11 +2013,6 @@ kbd {
 @media (max-width: 900px) and (max-height: 500px) {
   #hud {
     width: 12.5rem;
-  }
-
-  .target-frame {
-    top: 0.35rem;
-    width: min(18rem, calc(100vw - 27rem));
   }
 
   .mobile-joystick {

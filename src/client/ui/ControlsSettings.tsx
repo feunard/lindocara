@@ -46,7 +46,6 @@ const CONTROL_GROUPS: readonly ControlGroup[] = [
     id: "combat",
     label: "settings.controls.group.combat",
     controls: [
-      { id: "target", label: "settings.controls.target" },
       { id: "skill1", label: "settings.controls.skill_1" },
       { id: "skill2", label: "settings.controls.skill_2" },
       { id: "skill3", label: "settings.controls.skill_3" },

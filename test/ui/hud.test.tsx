@@ -31,6 +31,7 @@ describe("Hud", () => {
     });
     render(<Hud />);
     expect(document.querySelector('[data-portrait-kind="unit"]')).toBeInTheDocument();
+    expect(document.querySelector("#target-frame, .target-frame, [data-target-frame]")).toBeNull();
     expect(screen.getByText("Hero")).toBeInTheDocument();
     expect(screen.getByText("Level 3")).toBeInTheDocument();
     expect(screen.getByText("80/124")).toBeInTheDocument();
@@ -107,7 +108,7 @@ describe("Hud", () => {
     render(<Hud />);
     expect(screen.getByText(/WARD RUN: 1[45]s/)).toBeInTheDocument();
     expect(
-      screen.getByText("A reliable close-range strike against the nearest enemy."),
+      screen.getByText("A reliable close-range sweep in your facing direction."),
     ).toBeInTheDocument();
     expect(screen.getAllByText("Unlocks at level 5").length).toBeGreaterThan(0);
   });

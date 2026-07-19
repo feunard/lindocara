@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { clientCooldownDeadlines } from "../src/client/game/cooldown-sync.js";
+import { ServerClock } from "../src/client/game/server-clock.js";
 import { combatCooldownsFromPlayer, newPlayer } from "../src/server/world/world-runtime.js";
 import { starterEquipmentFor } from "../src/shared/character.js";
 import { emptyCombatCooldowns, normalizeCombatCooldowns } from "../src/shared/cooldowns.js";
@@ -61,10 +62,25 @@ describe("authoritative combat cooldown state", () => {
       },
       NOW,
     );
-    const local = clientCooldownDeadlines(state, NOW + 250, 40_000);
+    const clock = new ServerClock();
+    clock.sample(NOW + 250, 40_000);
+    const local = clientCooldownDeadlines(state, clock);
     expect(local.attackUntil).toBe(40_250);
     expect(local.healUntil).toBe(41_000);
     expect(local.skills[5]).toBe(49_750);
+
+    clock.sample(NOW + 500, 40_400);
+    const refreshed = clientCooldownDeadlines(
+      {
+        ...state,
+        attackUntil: NOW + 900,
+        skillCooldowns: [0, NOW + 2_000, 0, 0, NOW + 10_000],
+      },
+      clock,
+    );
+    expect(refreshed.attackUntil).toBe(40_800);
+    expect(refreshed.skills[2]).toBe(41_900);
+    expect(refreshed.skills[5]).toBe(49_900);
   });
 
   it("gives new characters available skills and restores a ten-second skill deadline", () => {

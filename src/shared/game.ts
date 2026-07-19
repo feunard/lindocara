@@ -715,7 +715,8 @@ export const MONSTER_STATS: Record<MonsterKind, MonsterStats> = {
 export const PLAYER_MAX_HP_BASE = 100;
 export const PLAYER_HP_PER_LEVEL = 12;
 
-export const ATTACK_COOLDOWN_MS = 550;
+/** Slot-one attack cadence shared by all three class kits. */
+export const ATTACK_COOLDOWN_MS = 650;
 export const MONSTER_AGGRO_RANGE = 210;
 export const MONSTER_ATTACK_RANGE = 42;
 export const MONSTER_ATTACK_COOLDOWN_MS = 900;
@@ -766,9 +767,10 @@ function centerOf(position: Vec2, size: number): Vec2 {
  * number as an artifact of the sample, not a property of the map.
  *
  * This checks the two entities' *centers*, not their bodies (see `addAxisCrossings`'s doc for why
- * a fixed sampling stride isn't used) — appropriate for combat targeting, which is deciding
- * whether one entity can perceive and hit another, not whether a body could walk the straight line
- * between them. `isPathWalkable` is the box-sweeping counterpart used for the latter.
+ * a fixed sampling stride isn't used). That is appropriate for deciding whether an
+ * already-resolved directional combat shape has unobstructed contact, not whether a body could
+ * walk the straight line between them. `isPathWalkable` is the box-sweeping counterpart used for
+ * body movement.
  */
 export function hasLineOfSight(
   from: Vec2,

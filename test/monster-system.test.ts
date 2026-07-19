@@ -106,7 +106,7 @@ function chasingMonster(): MonsterRuntime {
 }
 
 describe("monster navigation on the tile grid", () => {
-  it("lets a monster wound a guard before the guard defeats it", () => {
+  it("telegraphs a monster attack before the guard defeats it", () => {
     const combatTerrain: TerrainGeometry = {
       ...terrain,
       safeZone: { x: 0, y: 0, width: 640, height: 640 },
@@ -120,6 +120,7 @@ describe("monster navigation on the tile grid", () => {
     if (!guard) throw new Error("missing guard");
     const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
     monsterGrid.insert(monster);
+    const startAttack = vi.fn();
     const context: MonsterSystemContext = {
       players: new Map(),
       monsters: [monster],
@@ -128,12 +129,13 @@ describe("monster navigation on the tile grid", () => {
       zone: combatZone,
       tick: 0,
       navigation: createNavigationRuntime(combatTerrain, combatZone.navigation),
-      damagePlayer: vi.fn(),
+      startAttack,
     };
 
     advanceGuards(context, MONSTER_ATTACK_COOLDOWN_MS + 1);
 
-    expect(guard.hp).toBe(guard.maxHp - monster.damage);
+    expect(startAttack).toHaveBeenCalledWith(monster, guard, MONSTER_ATTACK_COOLDOWN_MS + 1);
+    expect(guard.hp).toBe(guard.maxHp);
     expect(monster.hp).toBe(0);
   });
 
@@ -158,7 +160,7 @@ describe("monster navigation on the tile grid", () => {
       zone,
       tick: 0,
       navigation: createNavigationRuntime(terrain, zone.navigation),
-      damagePlayer: vi.fn(),
+      startAttack: vi.fn(),
     };
 
     let reachedAtTick = -1;
@@ -241,7 +243,7 @@ describe("monster navigation on the tile grid", () => {
       zone: wallZone,
       tick: 0,
       navigation: createNavigationRuntime(wallTerrain, wallZone.navigation),
-      damagePlayer: vi.fn(),
+      startAttack: vi.fn(),
     };
 
     const startX = monster.x;
@@ -336,7 +338,7 @@ describe("monster navigation on the tile grid", () => {
       zone: wallZone,
       tick: 0,
       navigation,
-      damagePlayer: vi.fn(),
+      startAttack: vi.fn(),
     };
 
     advanceMonsters(context, 0);
@@ -437,7 +439,7 @@ describe("authored-map geometry", () => {
 
     const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
     monsterGrid.insert(monster);
-    const damagePlayer = vi.fn();
+    const startAttack = vi.fn();
     const context: MonsterSystemContext = {
       players: new Map([[socket, player]]),
       monsters: [monster],
@@ -446,14 +448,15 @@ describe("authored-map geometry", () => {
       zone: combatZone,
       tick: 0,
       navigation: createNavigationRuntime(combatZone.terrain, combatZone.navigation),
-      damagePlayer,
+      startAttack,
     };
 
     advanceMonsters(context, MONSTER_ATTACK_COOLDOWN_MS + 100);
 
     expect(monster.threat.has(player.id)).toBe(true);
-    expect(damagePlayer).toHaveBeenCalledTimes(1);
-    expect(damagePlayer.mock.calls[0]?.[2]).toBe(monster.damage);
+    expect(startAttack).toHaveBeenCalledTimes(1);
+    expect(startAttack.mock.calls[0]?.[0]).toBe(monster);
+    expect(startAttack.mock.calls[0]?.[1]).toBe(player);
   });
 
   it("still lets the catalogue's safe city disarm a monster standing right on top of a player", () => {
@@ -482,7 +485,7 @@ describe("authored-map geometry", () => {
 
     const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
     monsterGrid.insert(monster);
-    const damagePlayer = vi.fn();
+    const startAttack = vi.fn();
     const context: MonsterSystemContext = {
       players: new Map([[socket, player]]),
       monsters: [monster],
@@ -491,18 +494,18 @@ describe("authored-map geometry", () => {
       zone: cityZone,
       tick: 0,
       navigation: createNavigationRuntime(cityZone.terrain, cityZone.navigation),
-      damagePlayer,
+      startAttack,
     };
 
     advanceMonsters(context, MONSTER_ATTACK_COOLDOWN_MS + 100);
 
     expect(monster.threat.has(player.id)).toBe(false);
-    expect(damagePlayer).not.toHaveBeenCalled();
+    expect(startAttack).not.toHaveBeenCalled();
   });
 });
 
-describe("combat.hurt attacker identity", () => {
-  it("threads each attacking monster's own id into damagePlayer, not a same-species neighbour's", () => {
+describe("monster action attacker identity", () => {
+  it("starts each attacking monster's own action, not a same-species neighbour's", () => {
     // Mirrors the real hazard next to the safe zone: road-goblin-scout and city-edge-prowler are
     // both spear_goblin, close enough together that a client guessing the attacker from
     // distance-to-victim alone cannot reliably tell them apart. Placed symmetrically around the
@@ -540,7 +543,7 @@ describe("combat.hurt attacker identity", () => {
     monsterGrid.insert(monsterA);
     monsterGrid.insert(monsterB);
 
-    const damagePlayer = vi.fn();
+    const startAttack = vi.fn();
     const context: MonsterSystemContext = {
       players: new Map([[socket, player]]),
       monsters: [monsterA, monsterB],
@@ -549,15 +552,13 @@ describe("combat.hurt attacker identity", () => {
       zone,
       tick: 0,
       navigation: createNavigationRuntime(terrain, zone.navigation),
-      damagePlayer,
+      startAttack,
     };
 
     advanceMonsters(context, MONSTER_ATTACK_COOLDOWN_MS + 100);
 
-    expect(damagePlayer).toHaveBeenCalledTimes(2);
-    // Argument index 4 is `monsterId` — the identity the fix threads through. Each call must name
-    // its own monster, not the other one and not the same one twice.
-    const attackerIds = damagePlayer.mock.calls.map((call) => call[4]);
+    expect(startAttack).toHaveBeenCalledTimes(2);
+    const attackerIds = startAttack.mock.calls.map((call) => call[0]?.id);
     expect(attackerIds.sort()).toEqual(["goblin-a", "goblin-b"]);
   });
 });

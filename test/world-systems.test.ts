@@ -1,18 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
-  attemptBasicAttack,
-  resolveAttackTarget,
-  resolveFriendlyTarget,
-} from "../src/server/world/combat-system.js";
+  advanceCombatActions,
+  cancelCombatAction,
+  startCombatAction,
+} from "../src/server/world/combat-action-system.js";
+import { guardedDamage } from "../src/server/world/combat-system.js";
 import { movePlayerInDirection } from "../src/server/world/skill-system.js";
 import { SpatialGrid } from "../src/server/world/spatial-grid.js";
-import {
-  createGuards,
-  createMonsters,
-  newPlayer,
-  type PlayerRuntime,
-} from "../src/server/world/world-runtime.js";
+import { newPlayer, type PlayerRuntime } from "../src/server/world/world-runtime.js";
 import { starterEquipmentFor } from "../src/shared/character.js";
+import { PLAYER_ACTIONS } from "../src/shared/combat-actions.js";
 import type { TerrainGeometry } from "../src/shared/game.js";
 import { tileMapFromRects } from "./support/tiles.js";
 
@@ -54,155 +51,88 @@ function player(): PlayerRuntime {
   );
 }
 
-describe("isolated world systems", () => {
-  it("consumes the basic-attack cooldown only after accepting a living visible target", () => {
+describe("isolated directional combat systems", () => {
+  it("starts an action without an entity and resolves exactly once at its active frame", () => {
     const actor = player();
-    const monsters = createMonsters([
-      {
-        id: "visible",
-        kind: "goblin",
-        species: "spear_goblin",
-        zone: "route",
-        x: 40,
-        y: 10,
-        patrolRadius: 20,
-      },
-    ]);
-    expect(attemptBasicAttack(actor, monsters, "visible", 80, 1_000, terrain)).toMatchObject({
-      kind: "accepted",
-      target: { id: "visible" },
+    const action = startCombatAction(actor, {
+      kind: "basic",
+      skillId: "cleave",
+      slot: 1,
+      direction: { x: 3, y: 0 },
+      now: 1_000,
+      anticipationMs: 220,
+      recoveryMs: 430,
     });
-    expect(actor.lastAttackAt).toBe(1_000);
-    expect(attemptBasicAttack(actor, monsters, "visible", 80, 1_001, terrain)).toEqual({
-      kind: "unavailable",
+    expect(action).toMatchObject({
+      direction: { x: 1, y: 0 },
+      impactAt: 1_220,
+      recoveryEndsAt: 1_650,
+      resolved: false,
     });
+
+    const resolve = vi.fn();
+    advanceCombatActions([actor], 1_219, resolve);
+    expect(resolve).not.toHaveBeenCalled();
+    advanceCombatActions([actor], 1_220, resolve);
+    advanceCombatActions([actor], 1_400, resolve);
+    expect(resolve).toHaveBeenCalledTimes(1);
+    expect(actor.action?.resolved).toBe(true);
+    advanceCombatActions([actor], 1_650, resolve);
+    expect(actor.action).toBeNull();
   });
 
-  it("does not consume cooldown for far, blocked, dead or unknown targets", () => {
+  it("keeps direction frozen, rejects overlap, and supports explicit cancellation", () => {
     const actor = player();
-    const monsters = createMonsters([
-      {
-        id: "blocked",
-        kind: "goblin",
-        species: "spear_goblin",
-        zone: "route",
-        x: 100,
-        y: 10,
-        patrolRadius: 20,
-      },
-      {
-        id: "far",
-        kind: "goblin",
-        species: "spear_goblin",
-        zone: "route",
-        x: 250,
-        y: 10,
-        patrolRadius: 20,
-      },
-      {
-        id: "dead",
-        kind: "goblin",
-        species: "spear_goblin",
-        zone: "route",
-        x: 40,
-        y: 10,
-        patrolRadius: 20,
-      },
-    ]);
-    const dead = monsters.find((monster) => monster.id === "dead");
-    if (!dead) throw new Error("dead fixture missing");
-    dead.deadUntil = 2_000;
-
-    expect(attemptBasicAttack(actor, monsters, "far", 120, 1_000, terrain)).toEqual({
-      kind: "rejected",
-      blockedInRange: false,
+    const first = startCombatAction(actor, {
+      kind: "skill",
+      skillId: "shield_bash",
+      slot: 3,
+      direction: { x: 0, y: -1 },
+      now: 2_000,
+      anticipationMs: 180,
+      recoveryMs: 480,
     });
-    expect(attemptBasicAttack(actor, monsters, "blocked", 120, 1_000, terrain)).toEqual({
-      kind: "rejected",
-      blockedInRange: true,
-    });
-    expect(attemptBasicAttack(actor, monsters, "dead", 120, 1_000, terrain)).toEqual({
-      kind: "rejected",
-      blockedInRange: false,
-    });
-    expect(attemptBasicAttack(actor, monsters, "unknown", 120, 1_000, terrain)).toEqual({
-      kind: "rejected",
-      blockedInRange: false,
-    });
-    expect(actor.lastAttackAt).toBe(0);
-  });
-
-  it("accepts a valid attack immediately after a rejected one", () => {
-    const actor = player();
-    const monsters = createMonsters([
-      {
-        id: "visible-after-failure",
-        kind: "goblin",
-        species: "spear_goblin",
-        zone: "route",
-        x: 40,
-        y: 10,
-        patrolRadius: 20,
-      },
-    ]);
-    expect(attemptBasicAttack(actor, monsters, "missing", 80, 1_000, terrain).kind).toBe(
-      "rejected",
-    );
+    actor.facing = { x: 1, y: 0 };
+    expect(first?.direction).toEqual({ x: 0, y: -1 });
     expect(
-      attemptBasicAttack(actor, monsters, "visible-after-failure", 80, 1_000, terrain).kind,
-    ).toBe("accepted");
+      startCombatAction(actor, {
+        kind: "basic",
+        skillId: "cleave",
+        slot: 1,
+        direction: actor.facing,
+        now: 2_100,
+        anticipationMs: 220,
+        recoveryMs: 430,
+      }),
+    ).toBeNull();
+    cancelCombatAction(actor);
+    expect(actor.action).toBeNull();
   });
 
-  it("reports a line-of-sight-blocked attack without selecting the monster", () => {
+  it("accepts Radiant Bolt exactly when its 650 ms action timeline ends", () => {
     const actor = player();
-    const monsters = createMonsters([
-      {
-        id: "goblin-1",
-        kind: "goblin",
-        species: "spear_goblin",
-        zone: "route",
-        x: 80,
-        y: 10,
-        patrolRadius: 20,
-      },
-    ]);
+    const definition = PLAYER_ACTIONS.priest[0];
+    if (!definition) throw new Error("missing Radiant Bolt action");
+    const options = {
+      kind: "basic" as const,
+      skillId: definition.skillId,
+      slot: 1,
+      direction: { x: 1, y: 0 },
+      anticipationMs: definition.anticipationMs,
+      recoveryMs: definition.recoveryMs,
+    };
+    const first = startCombatAction(actor, { ...options, now: 1_000 });
+    expect(first?.impactAt).toBe(1_280);
+    expect(first?.recoveryEndsAt).toBe(1_650);
 
-    expect(resolveAttackTarget(actor, monsters, "goblin-1", 120, 1, terrain)).toEqual({
-      target: undefined,
-      blockedInRange: true,
-    });
+    advanceCombatActions([actor], 1_649, () => undefined);
+    expect(startCombatAction(actor, { ...options, now: 1_649 })).toBeNull();
+
+    advanceCombatActions([actor], 1_650, () => undefined);
+    expect(startCombatAction(actor, { ...options, now: 1_650 })).not.toBeNull();
   });
 
-  it("never substitutes a nearby monster for the requested target", () => {
-    const actor = player();
-    const monsters = createMonsters([
-      {
-        id: "nearby",
-        kind: "goblin",
-        species: "spear_goblin",
-        zone: "route",
-        x: 40,
-        y: 10,
-        patrolRadius: 20,
-      },
-      {
-        id: "requested-but-far",
-        kind: "goblin",
-        species: "spear_goblin",
-        zone: "route",
-        x: 250,
-        y: 10,
-        patrolRadius: 20,
-      },
-    ]);
-
-    expect(resolveAttackTarget(actor, monsters, "requested-but-far", 80, 1, terrain)).toEqual({
-      target: undefined,
-      blockedInRange: false,
-    });
-  });
-
-  it("resolves mobility skills in segments and does not cross a wall", () => {
+  it("resolves mobility in segments and does not cross a wall", () => {
     const actor = player();
     const grid = new SpatialGrid<PlayerRuntime>(64);
     grid.insert(actor);
@@ -212,13 +142,11 @@ describe("isolated world systems", () => {
     expect(grid.queryRadius(actor, 1)).toContain(actor);
   });
 
-  it("resolves guards as authoritative friendly heal targets with their own health", () => {
-    const guards = createGuards([{ id: "guard-west", x: 30, y: 30, patrolRadius: 100 }]);
-    const selection = resolveFriendlyTarget(new Map(), new Map(), guards, "guard-west");
-
-    expect(selection).toMatchObject({ kind: "guard", maxHp: 220 });
-    expect(selection?.target.hp).toBe(220);
-    if (selection) selection.target.hp -= 35;
-    expect(guards[0]?.hp).toBe(185);
+  it("preserves Iron Guard damage reduction", () => {
+    const actor = player();
+    actor.guardUntil = 5_000;
+    actor.guardReduction = 0.5;
+    expect(guardedDamage(actor, 25, 4_000)).toMatchObject({ amount: 13 });
+    expect(guardedDamage(actor, 25, 5_000)).toMatchObject({ amount: 25 });
   });
 });

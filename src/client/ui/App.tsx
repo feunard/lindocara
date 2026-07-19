@@ -9,7 +9,6 @@ import { AdventureEditorScreen } from "./editor/AdventureEditorScreen.js";
 import { HelpBar } from "./HelpBar.js";
 import { Hud } from "./hud/Hud.js";
 import { Minimap } from "./hud/Minimap.js";
-import { TargetFrame } from "./hud/TargetFrame.js";
 import { InteriorOverlay } from "./InteriorOverlay.js";
 import { LocaleToggle } from "./LocaleToggle.js";
 import { MobileControls } from "./MobileControls.js";
@@ -49,7 +48,6 @@ export function App() {
       {screen === "game" && (
         <>
           <Hud />
-          <TargetFrame />
           <Minimap />
           <Chat />
           <EventLog />

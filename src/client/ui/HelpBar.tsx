@@ -20,7 +20,6 @@ export function HelpBar() {
   return (
     <div id="help">
       <TinyKbd>{movement}</TinyKbd> {t("help.move")}
-      <TinyKbd>{key("target")}</TinyKbd> {t("help.target")}
       <TinyKbd>{key("skill1")}</TinyKbd> {t("help.strike")}
       <TinyKbd>{skills}</TinyKbd> {t("hud.abilities")}
       <TinyKbd>{key("interact")}</TinyKbd> {t("help.commune")}

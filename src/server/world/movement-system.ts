@@ -1,4 +1,5 @@
 import { canReclaim, speedForLife } from "../../shared/death.js";
+import { orientationFromMovement } from "../../shared/directional-combat.js";
 import { resolveTerrain } from "../../shared/game.js";
 import { regenerateResource } from "../../shared/resources.js";
 import { NO_INPUT, step, TICK_DT } from "../../shared/simulation.js";
@@ -39,12 +40,13 @@ export function advancePlayers(context: MovementSystemContext): void {
       const command = player.queue.shift();
       if (command) {
         player.lastInput = command.input;
-        const facingX = Number(command.input.right) - Number(command.input.left);
-        const facingY = Number(command.input.down) - Number(command.input.up);
-        if (facingX !== 0 || facingY !== 0) {
-          const length = Math.hypot(facingX, facingY);
-          player.facing = { x: facingX / length, y: facingY / length };
-        }
+        player.facing = orientationFromMovement(
+          {
+            x: Number(command.input.right) - Number(command.input.left),
+            y: Number(command.input.down) - Number(command.input.up),
+          },
+          player.facing,
+        );
         player.ack = command.seq;
         player.starvedTicks = 0;
       } else if (++player.starvedTicks > MAX_STARVED_TICKS) {

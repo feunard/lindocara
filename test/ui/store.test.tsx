@@ -36,6 +36,12 @@ describe("launch navigation state", () => {
 });
 
 describe("ui store", () => {
+  it("does not retain a combat target or a target mutation API", () => {
+    const state = useUiStore.getState();
+    expect("combatTarget" in state).toBe(false);
+    expect("setCombatTarget" in state).toBe(false);
+  });
+
   it("caps the event log at 6 and the chat at 50", () => {
     const store = useUiStore.getState();
     for (let i = 0; i < 9; i++) store.addEvent(`event ${i}`, "info");
@@ -55,7 +61,6 @@ describe("ui store", () => {
         attack: () => {},
         interact: () => {},
         usePotion: () => {},
-        heal: () => {},
         release: () => {},
         castSkill: () => {},
         sendChat: () => {},
@@ -69,14 +74,6 @@ describe("ui store", () => {
       mapOpen: true,
       settingsOpen: true,
       interiorDoorId: "warden-hut",
-      combatTarget: {
-        id: "enemy",
-        kind: "monster",
-        name: "Enemy",
-        hp: 1,
-        maxHp: 2,
-        portrait: { source: "/enemy.png", frames: 1, kind: "enemy" },
-      },
     });
 
     useUiStore.getState().resetToCharacterSelect();
@@ -88,7 +85,6 @@ describe("ui store", () => {
     expect(state.mapOpen).toBe(false);
     expect(state.settingsOpen).toBe(false);
     expect(state.interiorDoorId).toBeNull();
-    expect(state.combatTarget).toBeNull();
   });
 
   it("setSelf is referentially stable for equal values", () => {
@@ -107,21 +103,6 @@ describe("ui store", () => {
     const first = useUiStore.getState().self;
     useUiStore.getState().setSelf({ ...self });
     expect(useUiStore.getState().self).toBe(first);
-  });
-
-  it("does not churn the target frame for an unchanged snapshot", () => {
-    const target = {
-      id: "enemy",
-      kind: "monster" as const,
-      name: "Enemy",
-      hp: 20,
-      maxHp: 40,
-      portrait: { source: "/enemy.png", frames: 1, kind: "enemy" as const },
-    };
-    useUiStore.getState().setCombatTarget(target);
-    const first = useUiStore.getState().combatTarget;
-    useUiStore.getState().setCombatTarget({ ...target });
-    expect(useUiStore.getState().combatTarget).toBe(first);
   });
 
   it("ignores an unchanged party, so a 10Hz rebroadcast does not re-render the HUD", () => {

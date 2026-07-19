@@ -1,24 +1,17 @@
 import { WS_CLOSE } from "../../shared/close-codes.js";
 import { isSpirit } from "../../shared/death.js";
-import {
-  ATTACK_COOLDOWN_MS,
-  CLASS_STATS,
-  INTERACTION_RANGE,
-  pointDistance,
-} from "../../shared/game.js";
+import { INTERACTION_RANGE, isMonsterSpecies, pointDistance } from "../../shared/game.js";
 import type { MessageKey } from "../../shared/i18n/index.js";
 import type {
   CombatAnimation,
   EventCode,
   EventParams,
-  GuardSnapshot,
-  MonsterSnapshot,
   PlayerSnapshot,
   QuestState,
   SelfState,
 } from "../../shared/protocol.js";
 import { NO_INPUT, type Vec2 } from "../../shared/simulation.js";
-import { type SkillSlot, skillFor } from "../../shared/skills.js";
+import type { SkillSlot } from "../../shared/skills.js";
 import { decodeTileMap } from "../../shared/tilemap-codec.js";
 import { DEFAULT_ZONE_ID, isKnownZone, type ZoneId, zoneDefinition } from "../../shared/zones.js";
 import { type CharacterSummary, logout, type PartyListing, type StoredHero } from "../api.js";
@@ -26,23 +19,15 @@ import { t } from "../i18n.js";
 import { type LocalizedText, useUiStore } from "../store.js";
 import { clientCooldownDeadlines } from "./cooldown-sync.js";
 import { getDisplaySettings } from "./display-settings.js";
-import { isAcceptedBasicAttack, shouldFloatEvent } from "./feedback.js";
+import { healingEffectColor, shouldFloatEvent } from "./feedback.js";
 import { trackActions, trackInput } from "./input.js";
 import { type InteriorDoor, nearestInterior } from "./interiors.js";
 import { MapSurface } from "./minimap-surface.js";
 import { type Connection, type ConnectionHandlers, WorldClient } from "./net.js";
 import { type PartyTargetResolution, resolvePartyTarget } from "./party.js";
-import { guardPortrait, monsterPortrait, playerPortrait } from "./portrait-art.js";
 import { type RenderContext, Renderer } from "./renderer.js";
+import { ServerClock } from "./server-clock.js";
 import { GameSound } from "./sound.js";
-import {
-  type CombatTarget,
-  cycleMonsterTarget,
-  offensiveTarget,
-  resolveBasicAttackTarget,
-  resolveSkillTarget,
-  targetExists,
-} from "./targeting.js";
 
 function required<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -51,10 +36,6 @@ function required<T extends Element>(selector: string): T {
 }
 
 const sound = new GameSound();
-
-const PRIEST_HEAL = CLASS_STATS.priest.heal;
-if (!PRIEST_HEAL) throw new Error("priest heal stats missing");
-const PRIEST_HEAL_COOLDOWN_MS = PRIEST_HEAL.cooldownMs;
 
 /** The store is the single source of truth for whether the interior panel is open;
  *  InteriorOverlay renders it from `interiorDoorId`. */
@@ -226,7 +207,8 @@ async function startGameIdentity(
   useUiStore.getState().setAdventureVictory(false);
   setStatus("status.connecting", { name: identity.name });
   const canvas = required<HTMLCanvasElement>("#stage");
-  const renderer = await Renderer.create(canvas);
+  const serverClock = new ServerClock();
+  const renderer = await Renderer.create(canvas, serverClock);
   let client = new WorldClient();
   let connection: Connection | null = null;
   let reconnectTimer: number | null = null;
@@ -242,26 +224,21 @@ async function startGameIdentity(
     progress: 0,
     target: 3,
   };
-  let attackCooldownUntil = 0;
   let welcomed = false;
   let currentSelf: PlayerSnapshot | undefined;
   let selfCorpse: Vec2 | null = null;
   let mapSurface: MapSurface | null = null;
   let activeZoneId: ZoneId = DEFAULT_ZONE_ID;
-  let combatTarget: CombatTarget | null = null;
   // Remembered so a reconnect can re-attach them to a fresh surface: React mounted its canvases
   // once, and it will not re-run its effect just because the socket dropped.
   let minimapCanvas: HTMLCanvasElement | null = null;
   let worldMapCanvas: HTMLCanvasElement | null = null;
 
   const applyAuthoritativeState = (state: SelfState) => {
+    const receivedAt = performance.now();
+    if (typeof state.serverNow === "number") serverClock.sample(state.serverNow, receivedAt);
     renderState(state);
-    const deadlines = clientCooldownDeadlines(
-      state.cooldowns,
-      state.serverNow ?? Date.now(),
-      performance.now(),
-    );
-    attackCooldownUntil = deadlines.attackUntil;
+    const deadlines = clientCooldownDeadlines(state.cooldowns, serverClock);
     const store = useUiStore.getState();
     store.setAttackCooldownUntil(deadlines.attackUntil);
     store.setHealCooldownUntil(deadlines.healUntil);
@@ -271,72 +248,12 @@ async function startGameIdentity(
   };
   const playerClass = () => currentSelf?.class ?? identity.class;
 
-  const clearTarget = () => {
-    combatTarget = null;
-    renderer.setTarget(null);
-    useUiStore.getState().setCombatTarget(null);
-  };
-  const selectTarget = (target: CombatTarget) => {
-    combatTarget = target;
-    renderer.setTarget(target);
-  };
-  renderer.setTargetHandler(selectTarget);
-
-  const updateTargetHud = (
-    players: readonly PlayerSnapshot[],
-    monsters: readonly MonsterSnapshot[],
-    guards: readonly GuardSnapshot[],
-  ) => {
-    if (!combatTarget) return;
-    if (!targetExists(combatTarget, players, monsters, guards)) {
-      clearTarget();
-      return;
-    }
-    if (combatTarget.kind === "monster") {
-      const monster = monsters.find((candidate) => candidate.id === combatTarget?.id);
-      if (!monster) return;
-      useUiStore.getState().setCombatTarget({
-        id: monster.id,
-        kind: "monster",
-        name: t(`monster.${monster.species}` as MessageKey),
-        hp: monster.hp,
-        maxHp: monster.maxHp,
-        portrait: monsterPortrait(monster.species),
-      });
-      return;
-    }
-    if (combatTarget.kind === "guard") {
-      const guard = guards.find((candidate) => candidate.id === combatTarget?.id);
-      if (!guard) return;
-      useUiStore.getState().setCombatTarget({
-        id: guard.id,
-        kind: "guard",
-        name: t("npc.city_guard.name"),
-        hp: guard.hp,
-        maxHp: guard.maxHp,
-        portrait: guardPortrait(),
-      });
-      return;
-    }
-    const player = players.find((candidate) => candidate.id === combatTarget?.id);
-    if (!player) return;
-    useUiStore.getState().setCombatTarget({
-      id: player.id,
-      kind: "player",
-      name: player.nick,
-      hp: player.hp,
-      maxHp: player.maxHp,
-      portrait: playerPortrait(player.class, player.appearance),
-    });
-  };
-
   const unlockAudio = () => sound.unlock();
   window.addEventListener("pointerdown", unlockAudio);
   window.addEventListener("keydown", unlockAudio);
 
   const handlers: Omit<ConnectionHandlers, "onClose"> = {
     onWelcome: (selfId, world, state) => {
-      clearTarget();
       reconnectAttempts = 0;
       useUiStore.getState().setReconnect(null);
       renderer.setSelfId(selfId);
@@ -391,31 +308,9 @@ async function startGameIdentity(
     },
     onPartyState: (party) => useUiStore.getState().setParty(party),
     onAnimation: (animation: CombatAnimation) => {
-      if (animation.actorKind === "player") {
-        if (animation.action === "attack") {
-          renderer.playAttack(animation.actorId);
-          if (animation.actorId === client.selfId) {
-            sound.basicAttack(playerClass());
-            return;
-          }
-          const actor = client
-            .sample(performance.now())
-            .players.find((player) => player.id === animation.actorId);
-          if (actor && animation.targetX !== undefined && animation.targetY !== undefined) {
-            renderer.playRangedHit(
-              animation.actorId,
-              animation.targetX,
-              animation.targetY,
-              actor.class,
-            );
-          }
-        } else {
-          if (animation.actorId === client.selfId) return;
-          renderer.playPlayerSkill(animation.actorId, animation.x, animation.y);
-        }
-        return;
-      }
-      renderer.playMonsterAttack(animation.actorId);
+      renderer.playCombatAnimation(animation);
+      if (animation.actorKind === "monster") sound.monsterAttack();
+      else if (animation.skillId) sound.skillCast(animation.skillId);
     },
     onEvent: (code, params, tone, x, y) => {
       const text = eventText(code, params, currentSelf?.class ?? identity.class);
@@ -437,45 +332,16 @@ async function startGameIdentity(
       if (code === "quest.site_harvested" && typeof params?.site === "string") {
         renderer.hideQuestSite(params.site, 15_000);
       }
-      if (code === "combat.hit" && x !== undefined && y !== undefined && client.selfId) {
-        renderer.playRangedHit(client.selfId, x, y, currentSelf?.class ?? identity.class);
-      }
-      if (isAcceptedBasicAttack(code, params)) {
-        attackCooldownUntil = performance.now() + ATTACK_COOLDOWN_MS;
-        const store = useUiStore.getState();
-        store.setAttackCooldownUntil(attackCooldownUntil);
-        store.setSkillCooldown(1, performance.now() + skillFor(playerClass(), 1).cooldownMs);
-      }
+      // `skill.cast` remains visible through the event log and CombatAnimation owns its sound/art.
+      // It intentionally has no switch branch: only SelfState may update cooldown deadlines.
       switch (code) {
-        case "combat.too_far":
-          sound.attackMiss(playerClass());
-          renderer.playAttackMiss();
-          break;
         case "level_up":
         case "quest.fulfilled":
           sound.levelUp();
           break;
         case "heal.cast":
-          // The server never consumes the cooldown on a whiff (heal.nobody), so arm the UI
-          // bar only once a cast actually lands. Only priests ever receive heal.cast.
-          useUiStore.getState().setHealCooldownUntil(performance.now() + PRIEST_HEAL_COOLDOWN_MS);
-          if ((currentSelf?.class ?? identity.class) === "priest") {
-            useUiStore.getState().setSkillCooldown(2, performance.now() + PRIEST_HEAL_COOLDOWN_MS);
-          }
-          sound.healCast();
-          renderer.playSkillEffect("priest", x, y);
+          renderer.playHealingImpact(healingEffectColor(params?.color), x, y);
           break;
-        case "skill.cast": {
-          const slot = params?.slot;
-          if (typeof slot === "number" && slot >= 1 && slot <= 5) {
-            const skillSlot = slot as SkillSlot;
-            const skill = skillFor(currentSelf?.class ?? identity.class, skillSlot);
-            useUiStore.getState().setSkillCooldown(skillSlot, performance.now() + skill.cooldownMs);
-          }
-          if (typeof params?.skill === "string") sound.skillCast(params.skill);
-          renderer.playSkillEffect(currentSelf?.class ?? identity.class, x, y);
-          break;
-        }
         case "loot.picked":
         case "quest.accepted":
         case "quest.site_harvested":
@@ -484,6 +350,7 @@ async function startGameIdentity(
           break;
         case "heal.received":
           sound.healReceived();
+          renderer.playHealingImpact(healingEffectColor(params?.color), x, y);
           break;
         case "player.down":
         case "death.fallen":
@@ -498,10 +365,23 @@ async function startGameIdentity(
           sound.healReceived();
           break;
         case "combat.hit":
-          sound.combatImpact(playerClass());
+          if (typeof params?.skill === "string" && typeof x === "number" && typeof y === "number") {
+            const actorId = typeof params.actorId === "string" ? params.actorId : client.selfId;
+            const impactClass = actorId
+              ? renderer.playCombatImpact(actorId, params.skill, x, y)
+              : undefined;
+            sound.combatImpact(impactClass ?? playerClass());
+          }
+          break;
+        case "skill.blocked":
+          if (typeof params?.skill === "string" && typeof x === "number" && typeof y === "number")
+            if (client.selfId) renderer.playCombatImpact(client.selfId, params.skill, x, y);
           break;
         case "combat.hurt":
           sound.hit();
+          if (typeof params?.species === "string" && isMonsterSpecies(params.species)) {
+            renderer.playMonsterImpact(params.species, x, y);
+          }
           break;
         default:
           break;
@@ -597,35 +477,10 @@ async function startGameIdentity(
 
   openConnection();
 
-  const hostileTarget = (): Extract<CombatTarget, { kind: "monster" }> | null => {
-    const sample = client.sample(performance.now());
-    const self = sample.players.find((player) => player.id === client.selfId) ?? currentSelf;
-    const nearest = offensiveTarget(sample.monsters, self, combatTarget);
-    if (!nearest) return null;
-    selectTarget(nearest);
-    return nearest;
-  };
-
   const attack = (): boolean => {
     if (interiorOpen()) return false;
-    const sample = client.sample(performance.now());
-    const self = sample.players.find((player) => player.id === client.selfId) ?? currentSelf;
-    const target = resolveBasicAttackTarget(
-      sample.monsters,
-      self,
-      combatTarget,
-      CLASS_STATS[playerClass()].attackRange,
-    );
-    if (!target.ok) {
-      if (target.reason === "out_of_range") {
-        addEvent(t("event.combat.too_far"), "info");
-        return false;
-      }
-      addEvent(t("target.need_hostile"), "info");
-      return false;
-    }
     sound.unlock();
-    connection?.attack(target.target.id);
+    connection?.attack();
     return true;
   };
   const interact = () => {
@@ -659,15 +514,6 @@ async function startGameIdentity(
     sound.loot();
     connection?.usePotion();
   };
-  const heal = () => {
-    if (interiorOpen()) return;
-    if (combatTarget?.kind !== "player" && combatTarget?.kind !== "guard") {
-      addEvent(t("target.need_friendly"), "info");
-      return;
-    }
-    sound.unlock();
-    connection?.heal(combatTarget.id);
-  };
   const release = () => {
     if (interiorOpen()) return;
     sound.unlock();
@@ -675,32 +521,13 @@ async function startGameIdentity(
   };
   const castSkill = (slot: SkillSlot) => {
     if (interiorOpen()) return;
-    const playerClass = currentSelf?.class ?? identity.class;
-    const skill = skillFor(playerClass, slot);
     if ((useUiStore.getState().skillCooldowns[slot] ?? 0) > performance.now()) return;
     if (slot === 1) {
       attack();
       return;
     }
-    let selectedTarget = combatTarget;
-    const initialResolution = resolveSkillTarget(skill.effect, selectedTarget);
-    if (!initialResolution.ok && initialResolution.required === "hostile") {
-      selectedTarget = hostileTarget();
-    }
-    const target = resolveSkillTarget(skill.effect, selectedTarget);
-    if (!target.ok) {
-      addEvent(
-        t(target.required === "hostile" ? "target.need_hostile" : "target.need_friendly"),
-        "info",
-      );
-      return;
-    }
-    if (playerClass === "priest" && slot === 2) {
-      heal();
-      return;
-    }
     sound.unlock();
-    connection?.skill(slot, target.targetId);
+    connection?.skill(slot);
   };
   const switchCharacter = () => {
     intentionallyClosed = true;
@@ -724,10 +551,6 @@ async function startGameIdentity(
       input.reset();
       return;
     }
-    if (combatTarget) {
-      clearTarget();
-      return;
-    }
     const nextOpen = !settingsOpen();
     useUiStore.getState().setSettingsOpen(nextOpen);
     if (nextOpen) input.reset();
@@ -738,21 +561,8 @@ async function startGameIdentity(
       attack,
       interact,
       usePotion,
-      heal,
       release,
       castSkill,
-      switchTarget: (reverse) => {
-        const sample = client.sample(performance.now());
-        const self = sample.players.find((player) => player.id === client.selfId);
-        const next = cycleMonsterTarget(
-          sample.monsters,
-          self,
-          combatTarget?.kind === "monster" ? combatTarget.id : undefined,
-          reverse,
-        );
-        if (next) selectTarget(next);
-        else clearTarget();
-      },
       focusChat: () => {
         input.reset();
         useUiStore.getState().requestChatFocus();
@@ -770,11 +580,9 @@ async function startGameIdentity(
     attack,
     interact,
     usePotion,
-    heal,
     release,
     castSkill,
     setMovement: (movement) => input.setVirtual(movement),
-    clearTarget,
     sendChat: (text, channel) => connection?.sendChat(text, channel),
     partyCreate: () => connection?.partyCreate(),
     partyInvite: (query) => {
@@ -825,16 +633,12 @@ async function startGameIdentity(
     const door = nearestInterior(self, activeZoneId);
     const context: RenderContext = {
       quest: questState,
-      attackCooldownUntil,
-      attackRange: currentSelf ? CLASS_STATS[currentSelf.class].attackRange : 0,
       now,
       healthBars: getDisplaySettings().healthBars,
       grid: getDisplaySettings().grid,
       ...(self ? { self } : {}),
     };
     renderer.render(sample, context);
-    if (self && isSpirit(self.life) && combatTarget) clearTarget();
-    else updateTargetHud(sample.players, sample.monsters, sample.guards);
     mapSurface?.draw(sample, self, selfCorpse);
     renderPlayer(self, selfCorpse);
     updatePrompt(self, questState, door, activeZoneId);
@@ -849,13 +653,6 @@ async function startGameIdentity(
     (window as unknown as Record<string, unknown>).__lindocara = {
       all: () => client.sample(performance.now()),
       self: () => client.sample(performance.now()).players.find((p) => p.id === client.selfId),
-      targetNearest: () => {
-        const sample = client.sample(performance.now());
-        const self = sample.players.find((player) => player.id === client.selfId);
-        const target = cycleMonsterTarget(sample.monsters, self, undefined);
-        if (target) selectTarget(target);
-        return target;
-      },
       attack: () => attack(),
       renderStats: () => renderer.diagnostics(),
     };

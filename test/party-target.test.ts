@@ -16,6 +16,8 @@ function player(id: string, nick: string): PlayerSnapshot {
     class: "warrior",
     equipment: { mainHand: "weathered_sword", offHand: "oak_shield" },
     life: "alive",
+    facing: { x: 1, y: 0 },
+    action: null,
   };
 }
 
