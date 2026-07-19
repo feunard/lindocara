@@ -47,7 +47,11 @@ export interface MonsterSystemContext {
 
 export function advanceMonsters(context: MonsterSystemContext, now: number): void {
   const players = Array.from(context.players.entries()).filter(
-    ([, player]) => player.authorized && player.life === "alive",
+    ([, player]) =>
+      player.authorized &&
+      player.life === "alive" &&
+      player.forgottenUntil <= now &&
+      player.invisibleUntil <= now,
   );
   for (let index = 0; index < context.monsters.length; index++) {
     const monster = context.monsters[index];
@@ -75,6 +79,8 @@ export function advanceMonsters(context: MonsterSystemContext, now: number): voi
       if (
         !player?.authorized ||
         player.life !== "alive" ||
+        player.forgottenUntil > now ||
+        player.invisibleUntil > now ||
         safeZoneShelters(player, context.zone.terrain) ||
         now - entry.updatedAt > THREAT_EXPIRES_MS ||
         tooFar

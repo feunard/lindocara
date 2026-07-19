@@ -17,6 +17,12 @@ import {
   MONSTER_ACTIONS,
 } from "../shared/combat-actions.js";
 import {
+  CONSUMABLE_COOLDOWN_MS,
+  CONSUMABLES,
+  type ConsumableId,
+  normalizeConsumables,
+} from "../shared/consumables.js";
+import {
   addThreat,
   isMeaningfulContribution,
   REWARD_DISTANCE,
@@ -67,6 +73,7 @@ import {
 } from "../shared/game.js";
 import { LOCAL_CHAT_RADIUS, SPATIAL_CELL_SIZE, SPATIAL_EVENT_RADIUS } from "../shared/interest.js";
 import { eventCellCentre, exitEvents } from "../shared/map-events.js";
+import { merchantForTerrain } from "../shared/merchant.js";
 import {
   type ClientMessage,
   encodeServerMessage,
@@ -96,7 +103,13 @@ import {
   type SkillDefinition,
   type SkillSlot,
 } from "../shared/skills.js";
-import { skillWithTalents, talentEffect, unlockTalent } from "../shared/talents.js";
+import {
+  evolvedTalent,
+  skillWithTalents,
+  talentEffect,
+  talentEffects,
+  unlockTalent,
+} from "../shared/talents.js";
 import { emptyLayer, encodeTileLayer } from "../shared/tile-layer-codec.js";
 import { TILE_SIZE } from "../shared/tilemap.js";
 import { encodeTileMap } from "../shared/tilemap-codec.js";
@@ -403,6 +416,11 @@ export class World extends DurableObject<Env> {
     );
     player.identityKind = identityKind;
     player.partyId = attachment.partyId ?? null;
+    player.consumableCooldownUntil = attachment.consumableCooldownUntil ?? 0;
+    player.damageBoostUntil = attachment.damageBoostUntil ?? 0;
+    player.forgottenUntil = attachment.forgottenUntil ?? 0;
+    player.invisibleUntil = attachment.invisibleUntil ?? 0;
+    player.resurrectionAt = attachment.resurrectionAt ?? 0;
     ws.serializeAttachment(toAttachment(player));
     this.#addPlayer(ws, player);
     this.#seenCharacterIds.add(player.id);
@@ -660,6 +678,7 @@ export class World extends DurableObject<Env> {
           x: portal.x,
           y: portal.y,
         })),
+        merchant: merchantForTerrain(location.definition.terrain),
       },
       ...initialView,
       self: this.#selfState(player),
@@ -952,6 +971,12 @@ export class World extends DurableObject<Env> {
       this.#handlePartyMessage(ws, player, message);
       return;
     }
+    // The resurrection draught is the only item intentionally usable while lying as a corpse.
+    // The server still validates the exact life state and owns the delayed outcome.
+    if (message.t === "item.use") {
+      await this.#useConsumable(ws, player, message.item);
+      return;
+    }
     // The dead act only through the two exits above. Chat is the one thing a spirit keeps.
     if (message.t !== "chat" && !canAct(player.life)) return;
     if (message.t === "attack") {
@@ -965,7 +990,11 @@ export class World extends DurableObject<Env> {
       return;
     }
     if (message.t === "use") {
-      await this.#usePotion(ws, player);
+      await this.#useConsumable(ws, player, "health_potion");
+      return;
+    }
+    if (message.t === "merchant.buy") {
+      this.#buyConsumable(ws, player, message.item);
       return;
     }
     if (message.t === "skill") {
@@ -1141,6 +1170,9 @@ export class World extends DurableObject<Env> {
     });
     if (!action) return false;
 
+    // Attacking breaks invisibility only once the action has actually been accepted.
+    player.invisibleUntil = 0;
+
     if (slot === 1) player.lastAttackAt = now;
     else if (skill.id !== "iron_guard") player.skillCooldowns[slot - 1] = now + skill.cooldownMs;
     if (skill.id === "mend") player.lastHealAt = now;
@@ -1163,6 +1195,12 @@ export class World extends DurableObject<Env> {
         actorId: player.id,
         action: slot === 1 ? "attack" : "skill",
         skillId: skill.id,
+        ...(slot > 1 && talentEffects(player.class, player.talents, slot).length > 0
+          ? { talented: true as const }
+          : {}),
+        ...(slot > 1 && evolvedTalent(player.class, player.talents, slot)
+          ? { evolved: true as const }
+          : {}),
         direction: { ...action.direction },
         startedAt: action.startedAt,
         impactAt: action.impactAt,
@@ -1403,11 +1441,18 @@ export class World extends DurableObject<Env> {
     frozenPower?: number,
   ): void {
     if (target.deadUntil > now) return;
-    const damage =
+    const baseDamage =
       frozenPower ??
       (basic
         ? attackDamageFor(player.class, player.level)
         : skill.power + Math.max(0, player.level - 1) * 2);
+    const damage = Math.max(
+      1,
+      Math.round(
+        baseDamage *
+          (player.damageBoostUntil > now ? 1 + CONSUMABLES.damage_elixir.effectValue : 1),
+      ),
+    );
     const actualDamage = Math.min(target.hp, damage);
     const result = applyDamage(target.hp, damage);
     target.hp = result.hp;
@@ -1750,6 +1795,11 @@ export class World extends DurableObject<Env> {
       await this.#transition(ws, player, portal, now);
       return;
     }
+    const merchant = merchantForTerrain(this.#zone().terrain);
+    if (pointDistance(player, merchant) <= INTERACTION_RANGE) {
+      this.#send(ws, { t: "merchant.open" });
+      return;
+    }
     // A corpse is just one more thing you can be standing next to. The skill bar is full and
     // this codebase resolves every action as "the nearest valid thing in range"; so does this.
     const resurrection = this.#resurrectNearbyCorpse(ws, player, now);
@@ -2040,6 +2090,7 @@ export class World extends DurableObject<Env> {
 
     player.lastResurrectAt = now;
     target.life = "alive";
+    target.resurrectionAt = 0;
     target.corpse = null;
     target.hp = resurrectHp(target.level);
     this.#grantReviveGrace(target, now);
@@ -2185,16 +2236,102 @@ export class World extends DurableObject<Env> {
     await this.#savePlayer(player, ws);
   }
 
-  async #usePotion(ws: WebSocket, player: Player): Promise<void> {
-    const maxHp = maxHpForLevel(player.level);
-    if (!canAct(player.life) || player.inventory.potions <= 0 || player.hp >= maxHp) return;
-    const remaining = await this.#consumePotion(player, ws);
-    if (remaining === null) return;
-    player.inventory.potions = remaining;
-    player.hp = Math.min(maxHp, player.hp + 45);
+  async #useConsumable(ws: WebSocket, player: Player, item: ConsumableId): Promise<void> {
+    const now = Date.now();
+    const counts = normalizeConsumables(player.inventory.consumables, player.inventory.potions);
+    player.inventory.consumables = counts;
+    const resurrection = item === "resurrection_potion";
+    if ((resurrection && player.life !== "corpse") || (!resurrection && !canAct(player.life))) {
+      this.#send(ws, { t: "event", code: "item.invalid", params: { item }, tone: "info" });
+      return;
+    }
+    if (player.consumableCooldownUntil > now) {
+      this.#send(ws, {
+        t: "event",
+        code: "item.cooldown",
+        params: { seconds: Math.ceil((player.consumableCooldownUntil - now) / 1_000) },
+        tone: "info",
+      });
+      return;
+    }
+    if (counts[item] <= 0) {
+      this.#send(ws, { t: "event", code: "item.invalid", params: { item }, tone: "info" });
+      return;
+    }
+
+    const definition = CONSUMABLES[item];
+    if (item === "health_potion") {
+      const maxHp = maxHpForLevel(player.level);
+      if (player.hp >= maxHp) {
+        this.#send(ws, { t: "event", code: "item.invalid", params: { item }, tone: "info" });
+        return;
+      }
+      const remaining = await this.#consumePotion(player, ws);
+      if (remaining === null) return;
+      player.inventory.potions = remaining;
+      counts.health_potion = remaining;
+      player.hp = Math.min(maxHp, player.hp + definition.effectValue);
+    } else if (item === "mana_potion") {
+      if (player.resource?.kind !== "mana" || player.resource.current >= player.resource.max) {
+        this.#send(ws, { t: "event", code: "item.invalid", params: { item }, tone: "info" });
+        return;
+      }
+      counts[item] -= 1;
+      player.resource.current = Math.min(
+        player.resource.max,
+        player.resource.current + definition.effectValue,
+      );
+    } else {
+      counts[item] -= 1;
+      if (item === "damage_elixir") player.damageBoostUntil = now + definition.durationMs;
+      if (item === "oblivion_draught") {
+        player.forgottenUntil = now + definition.durationMs;
+        this.#forgetPlayer(player);
+      }
+      if (item === "invisibility_potion") {
+        player.invisibleUntil = now + definition.durationMs;
+        this.#forgetPlayer(player);
+      }
+      if (item === "resurrection_potion") player.resurrectionAt = now + definition.durationMs;
+    }
+
+    player.consumableCooldownUntil = now + CONSUMABLE_COOLDOWN_MS;
     player.dirty = true;
-    this.#send(ws, { t: "event", code: "potion.used", params: { heal: 45 }, tone: "good" });
+    this.#send(ws, { t: "event", code: "item.used", params: { item }, tone: "good" });
     this.#sendState(ws, player);
+  }
+
+  #buyConsumable(ws: WebSocket, player: Player, item: ConsumableId): void {
+    const merchant = merchantForTerrain(this.#zone().terrain);
+    if (pointDistance(player, merchant) > INTERACTION_RANGE) {
+      this.#send(ws, { t: "event", code: "item.invalid", params: { item }, tone: "bad" });
+      return;
+    }
+    const definition = CONSUMABLES[item];
+    if (player.inventory[definition.currency] < definition.price) {
+      this.#send(ws, {
+        t: "event",
+        code: "merchant.insufficient",
+        params: { currency: definition.currency },
+        tone: "bad",
+      });
+      return;
+    }
+    const counts = normalizeConsumables(player.inventory.consumables, player.inventory.potions);
+    player.inventory.consumables = counts;
+    player.inventory[definition.currency] -= definition.price;
+    counts[item] += 1;
+    if (item === "health_potion") player.inventory.potions = counts.health_potion;
+    player.dirty = true;
+    this.#send(ws, { t: "event", code: "merchant.purchased", params: { item }, tone: "good" });
+    this.#sendState(ws, player);
+  }
+
+  #forgetPlayer(player: Player): void {
+    for (const monster of this.#monsters) {
+      monster.threat.delete(player.id);
+      if (monster.navigation.targetId === player.id) monster.navigation.targetId = null;
+    }
   }
 
   #consumePotion(player: Player, ws: WebSocket): Promise<number | null> {
@@ -2397,6 +2534,8 @@ export class World extends DurableObject<Env> {
     const writeAttachment = this.#tick % ATTACHMENT_EVERY_TICKS === 0;
     const writeD1 = this.#tick % D1_SAVE_EVERY_TICKS === 0;
 
+    this.#advanceConsumableEffects(now);
+
     advancePlayers({
       players: this.#players,
       playerGrid: this.#playerGrid,
@@ -2471,6 +2610,27 @@ export class World extends DurableObject<Env> {
       this.#broadcastHeroPartyStates();
     }
     this.#flushQueuedResyncs(now);
+  }
+
+  #advanceConsumableEffects(now: number): void {
+    for (const [socket, player] of this.#players) {
+      if (player.resurrectionAt <= 0 || player.resurrectionAt > now) continue;
+      player.resurrectionAt = 0;
+      if (player.life !== "corpse") continue;
+      player.life = "alive";
+      player.corpse = null;
+      player.hp = resurrectHp(player.level);
+      this.#grantReviveGrace(player, now);
+      this.#freeze(player);
+      this.#send(socket, {
+        t: "event",
+        code: "item.resurrected",
+        tone: "good",
+        x: player.x,
+        y: player.y,
+      });
+      this.#sendState(socket, player);
+    }
   }
 
   #detectAdventureExits(now: number): void {
@@ -2703,6 +2863,8 @@ export class World extends DurableObject<Env> {
       if (
         !player.authorized ||
         player.life !== "alive" ||
+        player.forgottenUntil > now ||
+        player.invisibleUntil > now ||
         player.transitioning ||
         !circleIntersectsCapsule(
           {
@@ -2837,6 +2999,7 @@ export class World extends DurableObject<Env> {
 
   #cheatRevive(player: Player): void {
     player.life = "alive";
+    player.resurrectionAt = 0;
     player.corpse = null;
     player.hp = maxHpForLevel(player.level);
     this.#grantReviveGrace(player, Date.now());
@@ -2846,6 +3009,7 @@ export class World extends DurableObject<Env> {
   /** Release is one-way and deliberate. It is what closes the door on a priest saving you. */
   #release(ws: WebSocket, player: Player): void {
     if (player.life !== "corpse" || player.corpse === null) return;
+    player.resurrectionAt = 0;
     const cemetery =
       player.identityKind === "hero"
         ? (this.#zone().terrain.spawnPoints[0] ?? nearestCemetery(player.corpse))
@@ -2895,6 +3059,7 @@ export class World extends DurableObject<Env> {
   /** Walking your ghost onto your own body. Automatic within range, like loot. */
   #reclaimCorpse(ws: WebSocket, player: Player): void {
     player.life = "alive";
+    player.resurrectionAt = 0;
     player.corpse = null;
     player.hp = resurrectHp(player.level);
     this.#grantReviveGrace(player, Date.now());

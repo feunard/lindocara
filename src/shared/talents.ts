@@ -31,6 +31,7 @@ export type TalentLabel =
   | "execute"
   | "chain_heal"
   | "blink_heal"
+  | "evolution"
   | "mastery";
 
 export interface TalentNode {
@@ -117,7 +118,7 @@ function branch(
       slot,
       tier: 3,
       column: 0,
-      label: upgrades[3].label,
+      label: "evolution",
       root: false,
       requires: [firstId, secondId, thirdId],
       requiresAll: true,
@@ -155,19 +156,19 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
       { key: "impact", label: "power", effects: [power()] },
       { key: "onslaught", label: "range", effects: [range(), distance()] },
       { key: "readiness", label: "cooldown", effects: [cooldown()] },
-      { key: "mastery", label: "mastery", effects: [power(0.2), distance(0.1)] },
+      { key: "mastery", label: "mastery", effects: [power(0.3), distance(0.2)] },
     ]),
     ...branch("warrior", 4, [
       { key: "reach", label: "range", effects: [range(0.2)] },
       { key: "readiness", label: "cooldown", effects: [cooldown()] },
       { key: "command", label: "mastery", effects: [range(0.15)] },
-      { key: "mastery", label: "mastery", effects: [range(0.2), cooldown(0.08)] },
+      { key: "mastery", label: "mastery", effects: [range(0.35), cooldown(0.15)] },
     ]),
     ...branch("warrior", 5, [
       { key: "force", label: "power", effects: [power()] },
       { key: "reach", label: "range", effects: [range()] },
       { key: "readiness", label: "cooldown", effects: [cooldown()] },
-      { key: "mastery", label: "mastery", effects: [power(0.22)] },
+      { key: "mastery", label: "mastery", effects: [power(0.35), range(0.1)] },
     ]),
   ],
   ranger: [
@@ -188,7 +189,7 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
       {
         key: "mastery",
         label: "extra_projectiles",
-        effects: [{ kind: "extra_projectiles", value: 2 }],
+        effects: [{ kind: "extra_projectiles", value: 4 }],
       },
     ]),
     ...branch("ranger", 4, [
@@ -199,7 +200,7 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
         effects: [{ kind: "dash_invulnerability" }],
       },
       { key: "readiness", label: "cooldown", effects: [cooldown()] },
-      { key: "mastery", label: "mastery", effects: [distance(0.2), cooldown(0.08)] },
+      { key: "mastery", label: "mastery", effects: [distance(0.3), cooldown(0.12)] },
     ]),
     ...branch("ranger", 5, [
       { key: "force", label: "power", effects: [power()] },
@@ -227,19 +228,19 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
       { key: "distance", label: "distance", effects: [distance()] },
       { key: "renewal", label: "blink_heal", effects: [{ kind: "blink_heal", value: 20 }] },
       { key: "readiness", label: "cooldown", effects: [cooldown()] },
-      { key: "mastery", label: "mastery", effects: [distance(0.2), cooldown(0.08)] },
+      { key: "mastery", label: "mastery", effects: [distance(0.3), cooldown(0.12)] },
     ]),
     ...branch("priest", 4, [
       { key: "grace", label: "power", effects: [power()] },
       { key: "reach", label: "range", effects: [range()] },
       { key: "readiness", label: "cooldown", effects: [cooldown()] },
-      { key: "mastery", label: "mastery", effects: [power(0.2)] },
+      { key: "mastery", label: "mastery", effects: [power(0.3), range(0.15)] },
     ]),
     ...branch("priest", 5, [
       { key: "radiance", label: "power", effects: [power()] },
       { key: "reach", label: "range", effects: [range()] },
       { key: "readiness", label: "cooldown", effects: [cooldown()] },
-      { key: "mastery", label: "mastery", effects: [power(0.22)] },
+      { key: "mastery", label: "mastery", effects: [power(0.35), range(0.1)] },
     ]),
   ],
 };
@@ -259,6 +260,17 @@ export type TalentUnlockResult =
 
 export function talentNode(playerClass: PlayerClass, id: string): TalentNode | undefined {
   return CLASS_TALENTS[playerClass].find((node) => node.id === id);
+}
+
+export function evolvedTalent(
+  playerClass: PlayerClass,
+  selected: readonly string[],
+  slot: SkillSlot,
+): TalentNode | undefined {
+  const selectedIds = new Set(selected);
+  return CLASS_TALENTS[playerClass].find(
+    (node) => node.slot === slot && node.tier === 3 && selectedIds.has(node.id),
+  );
 }
 
 export function isTalentId(value: unknown): value is string {

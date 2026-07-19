@@ -1,6 +1,38 @@
 import type { en } from "./en.js";
 
 export const fr: Record<keyof typeof en, string> = {
+  "common.close": "Fermer",
+  "inventory.eyebrow": "Sac de voyage",
+  "inventory.title": "Inventaire",
+  "inventory.hint":
+    "Assignez un objet à l'un des trois raccourcis. Tous les consommables partagent un délai de 10 secondes.",
+  "inventory.controller_hint":
+    "Manette : LT utilise l'emplacement 1 · LT + croix bas/droite utilise 2/3 · LT + Retour ouvre le sac.",
+  "inventory.assign": "Assigner au raccourci",
+  "inventory.quickbar": "Objets rapides",
+  "inventory.use": "Utiliser {item}",
+  "inventory.empty": "Raccourci vide",
+  "merchant.eyebrow": "Fournitures du Cœur-Racine",
+  "merchant.title": "Ronce, marchand itinérant",
+  "merchant.world_label": "Ronce · Marchand",
+  "merchant.wallet": "Bourse",
+  "merchant.hint": "Les potions coûtent de l'or. Les préparations rares coûtent des cristaux.",
+  "merchant.owned": "Possédé : {count}",
+  "prompt.merchant": "[E] Commercer avec Ronce",
+  "consumable.health_potion.name": "Tonique du Cœur-Racine",
+  "consumable.health_potion.description": "Rend 45 points de vie.",
+  "consumable.mana_potion.name": "Fiole de Lumen",
+  "consumable.mana_potion.description": "Rend 45 points de mana au prêtre.",
+  "consumable.damage_elixir.name": "Élixir de sang-de-géant",
+  "consumable.damage_elixir.description": "+25 % de dégâts pendant 15 secondes.",
+  "consumable.oblivion_draught.name": "Breuvage d'oubli",
+  "consumable.oblivion_draught.description": "Les ennemis vous oublient pendant 8 secondes.",
+  "consumable.invisibility_potion.name": "Teinture du voile",
+  "consumable.invisibility_potion.description":
+    "Rend invisible pendant 8 secondes ; attaquer brise le voile.",
+  "consumable.resurrection_potion.name": "Cordial du phénix",
+  "consumable.resurrection_potion.description":
+    "Une fois à terre, ramène à la vie après 10 secondes.",
   "title.eyebrow": "Créateur d'aventures RPG coopératives",
   "title.tagline":
     "Créez des mondes. Partagez une sauvegarde. Incarnez les héros qui terminent l'histoire.",
@@ -277,6 +309,7 @@ export const fr: Record<keyof typeof en, string> = {
   "mobile.move": "Déplacer le personnage",
   "mobile.interact": "Interagir",
   "mobile.potion": "Utiliser un tonique",
+  "mobile.inventory": "Ouvrir l'inventaire",
   "mobile.map": "Ouvrir la carte du monde",
   "mobile.talents": "Ouvrir les talents",
   "mobile.chat": "Ouvrir le chat",
@@ -332,15 +365,23 @@ export const fr: Record<keyof typeof en, string> = {
   "settings.controls.skill_5": "Compétence 5",
   "settings.controls.interact": "Interagir",
   "settings.controls.potion": "Utiliser un tonique",
+  "settings.controls.item_1": "Objet rapide 1",
+  "settings.controls.item_2": "Objet rapide 2",
+  "settings.controls.item_3": "Objet rapide 3",
   "settings.controls.release": "Libérer l'esprit",
   "settings.controls.map": "Carte du monde",
   "settings.controls.talents": "Talents",
+  "settings.controls.inventory": "Inventaire",
   "settings.controls.chat": "Discussion",
   "settings.controls.settings": "Options / retour",
   "settings.controls.remap": "Changer la commande : {action}",
   "settings.controls.cancel": "Annuler l'écoute",
   "settings.controls.reset": "Valeurs par défaut",
   "talent.title": "Talents",
+  "talent.evolutions": "Évolutions",
+  "talent.status.active": "Actif",
+  "talent.status.available": "Disponible",
+  "talent.status.locked": "Verrouillé",
   "talent.close": "Fermer les talents",
   "talent.points": "{available} points disponibles sur {total}",
   "talent.hint":
@@ -384,9 +425,52 @@ export const fr: Record<keyof typeof en, string> = {
   "talent.node.blink_heal.name": "Lumière régénérante",
   "talent.node.blink_heal.description":
     "{skill} rend {value} points de vie lorsque vous réapparaissez.",
+  "talent.evolution.warrior.iron_guard.name": "Bastion inviolable",
+  "talent.evolution.warrior.iron_guard.description":
+    "Une garde absolue : parade parfaite sans dégâts et riposte renvoyant l'attaque.",
+  "talent.evolution.warrior.shield_bash.name": "Charge du colosse",
+  "talent.evolution.warrior.shield_bash.description":
+    "Une charge beaucoup plus longue et puissante, enveloppée d'un impact renforcé.",
+  "talent.evolution.warrior.battle_cry.name": "Défi du roi",
+  "talent.evolution.warrior.battle_cry.description":
+    "Un défi monumental qui provoque les ennemis sur une zone considérablement agrandie.",
+  "talent.evolution.warrior.whirlwind.name": "Tempête d'acier",
+  "talent.evolution.warrior.whirlwind.description":
+    "Le tourbillon devient une tempête plus large et dévastatrice aux effets démultipliés.",
+  "talent.evolution.ranger.piercing_arrow.name": "Flèche des échos",
+  "talent.evolution.ranger.piercing_arrow.description":
+    "La flèche perforante ricoche vers un second ennemi avec 60 % de sa puissance.",
+  "talent.evolution.ranger.volley.name": "Déluge de flèches",
+  "talent.evolution.ranger.volley.description":
+    "La volée libère quatre flèches supplémentaires dans un déluge spectaculaire.",
+  "talent.evolution.ranger.dash.name": "Pas du vent",
+  "talent.evolution.ranger.dash.description":
+    "Un déplacement plus long et plus fréquent, invulnérable pendant toute sa traversée.",
+  "talent.evolution.ranger.heartseeker.name": "Arrêt du cœur",
+  "talent.evolution.ranger.heartseeker.description":
+    "Un trait fatal qui inflige 35 % de dégâts supplémentaires aux cibles sous 35 % de vie.",
+  "talent.evolution.priest.mend.name": "Grâce bondissante",
+  "talent.evolution.priest.mend.description":
+    "Le soin rebondit vers un second allié blessé avec la moitié de sa puissance.",
+  "talent.evolution.priest.blink.name": "Transfiguration de Lumen",
+  "talent.evolution.priest.blink.description":
+    "Le nuage voyage plus loin, revient plus vite et restaure la vie à la réapparition.",
+  "talent.evolution.priest.prayer.name": "Sanctuaire vivant",
+  "talent.evolution.priest.prayer.description":
+    "La prière devient un vaste sanctuaire aux soins nettement amplifiés.",
+  "talent.evolution.priest.divine_nova.name": "Supernova divine",
+  "talent.evolution.priest.divine_nova.description":
+    "La nova éclate sur une zone plus large avec une puissance et des effets supérieurs.",
   "talent.node.mastery.name": "Maîtrise",
   "talent.node.mastery.description": "Améliore fortement les atouts principaux de {skill}.",
   "status.connecting": "connexion en tant que {name}...",
+  "loading.hero.eyebrow": "La compagnie prend la route",
+  "loading.hero.title": "{name} rejoint l'aventure",
+  "loading.hero.preparing": "Préparation des héros et de leurs équipements...",
+  "loading.hero.connecting": "Ouverture du passage vers votre groupe...",
+  "loading.hero.world": "Déploiement du monde, des monstres et de la carte...",
+  "loading.hero.ready": "Le combat vous attend !",
+  "loading.hero.progress": "Progression du chargement",
   "status.connected": "connecté - La Combe Sauvage",
   "status.connected_zone": "connecté - {zone}",
   "status.disconnected": "déconnecté - {reason}",
@@ -498,6 +582,12 @@ export const fr: Record<keyof typeof en, string> = {
   "event.quest.chapter_ready": "Objectif accompli. Retournez voir le gardien de quête.",
   "event.quest.site_harvested": "{site} récolté. Réapparition dans {seconds} secondes.",
   "event.potion.used": "Tonique du Cœur-Racine : +{heal} PV.",
+  "event.item.used": "{item} utilisé.",
+  "event.item.cooldown": "Les consommables seront prêts dans {seconds} s.",
+  "event.item.invalid": "Cet objet ne peut pas être utilisé maintenant.",
+  "event.item.resurrected": "Le breuvage de résurrection vous ramène à la vie.",
+  "event.merchant.purchased": "{item} acheté.",
+  "event.merchant.insufficient": "Vous n'avez pas assez de {currency}.",
   "event.player.down": "{name} a été terrassé.",
   "event.loot.picked": "Ramassé : {amount} × {kind}.",
   "event.heal.cast": "Vous soignez {name} : +{amount} PV.",

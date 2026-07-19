@@ -3,6 +3,7 @@ import type { MessageKey } from "../../../shared/i18n/index.js";
 import { skillResourceCost } from "../../../shared/resources.js";
 import type { SkillSlot } from "../../../shared/skills.js";
 import { CLASS_SKILLS, isSkillUnlocked, SKILL_UNLOCK_LEVEL } from "../../../shared/skills.js";
+import { evolvedTalent } from "../../../shared/talents.js";
 import {
   getInputSettings,
   keyboardBindingLabel,
@@ -83,8 +84,13 @@ export function SkillBar() {
         const cooldownUntil = skill.slot === 1 ? attackCooldownUntil : cooldowns[skill.slot];
         const remaining = Math.max(0, cooldownUntil - now);
         const cooling = remaining > 0;
-        const name = t(`skill.${self.class}.${skill.id}.name` as MessageKey);
-        const description = t(`skill.${self.class}.${skill.id}.description` as MessageKey);
+        const evolved = evolvedTalent(self.class, selfState?.talents?.selected ?? [], skill.slot);
+        const name = evolved
+          ? t(`talent.evolution.${self.class}.${skill.id}.name` as MessageKey)
+          : t(`skill.${self.class}.${skill.id}.name` as MessageKey);
+        const description = evolved
+          ? t(`talent.evolution.${self.class}.${skill.id}.description` as MessageKey)
+          : t(`skill.${self.class}.${skill.id}.description` as MessageKey);
         const requiredLevel = SKILL_UNLOCK_LEVEL[skill.slot];
         const unlocked = isSkillUnlocked(self.level, skill.slot);
         const manaCost = skillResourceCost(self.class, skill.slot);
@@ -115,7 +121,7 @@ export function SkillBar() {
           <button
             type="button"
             key={skill.id}
-            className={`skill-slot skill-slot--${skill.slot}${unavailable ? " cooling" : ""}${guardToggle && ironGuardActive ? " active" : ""}`}
+            className={`skill-slot skill-slot--${skill.slot}${unavailable ? " cooling" : ""}${guardToggle && ironGuardActive ? " active" : ""}${evolved ? " evolved" : ""}`}
             style={{ gridRow: layout.row, gridColumn: layout.column }}
             data-numpad={layout.numpad}
             disabled={!game || self.life !== "alive" || unavailable}

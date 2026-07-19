@@ -70,6 +70,13 @@ describe("ui store", () => {
         attachWorldMap: () => {},
       },
       reconnect: { kind: "network", attempt: 2, cancelReconnect: () => {} },
+      heroLoading: {
+        name: "Mira",
+        class: "priest",
+        color: "azure",
+        phase: "connecting",
+        progress: 48,
+      },
       screen: "game",
       mapOpen: true,
       settingsOpen: true,
@@ -81,6 +88,7 @@ describe("ui store", () => {
     const state = useUiStore.getState();
     expect(state.game).toBeNull();
     expect(state.reconnect).toBeNull();
+    expect(state.heroLoading).toBeNull();
     expect(state.screen).toBe("characters");
     expect(state.mapOpen).toBe(false);
     expect(state.settingsOpen).toBe(false);

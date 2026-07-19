@@ -42,10 +42,14 @@ export function MobileControls() {
   const mapOpen = useUiStore((state) => state.mapOpen);
   const settingsOpen = useUiStore((state) => state.settingsOpen);
   const talentsOpen = useUiStore((state) => state.talentsOpen);
+  const inventoryOpen = useUiStore((state) => state.inventoryOpen);
+  const merchantOpen = useUiStore((state) => state.merchantOpen);
   const chatFocusRequest = useUiStore((state) => state.chatFocusRequest);
   const setMapOpen = useUiStore((state) => state.setMapOpen);
   const setSettingsOpen = useUiStore((state) => state.setSettingsOpen);
   const setTalentsOpen = useUiStore((state) => state.setTalentsOpen);
+  const setInventoryOpen = useUiStore((state) => state.setInventoryOpen);
+  const setMerchantOpen = useUiStore((state) => state.setMerchantOpen);
   const requestChatFocus = useUiStore((state) => state.requestChatFocus);
   const activePointer = useRef<number | null>(null);
   const [thumb, setThumb] = useState({ x: 0, y: 0 });
@@ -59,11 +63,19 @@ export function MobileControls() {
   );
 
   useEffect(() => {
-    if (!mapOpen && !settingsOpen && !talentsOpen && chatFocusRequest === 0) return;
+    if (
+      !mapOpen &&
+      !settingsOpen &&
+      !talentsOpen &&
+      !inventoryOpen &&
+      !merchantOpen &&
+      chatFocusRequest === 0
+    )
+      return;
     activePointer.current = null;
     setThumb({ x: 0, y: 0 });
     game?.setMovement?.({ ...NO_INPUT });
-  }, [chatFocusRequest, game, mapOpen, settingsOpen, talentsOpen]);
+  }, [chatFocusRequest, game, inventoryOpen, mapOpen, merchantOpen, settingsOpen, talentsOpen]);
 
   if (!game || !self) return null;
   const drinkPotion = game.usePotion;
@@ -127,6 +139,21 @@ export function MobileControls() {
         </button>
         <button type="button" onClick={drinkPotion} aria-label={t("mobile.potion")}>
           <span className="mobile-utility__potion" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            openOverlay(() => {
+              setMapOpen(false);
+              setTalentsOpen(false);
+              setSettingsOpen(false);
+              setMerchantOpen(false);
+              setInventoryOpen(!inventoryOpen);
+            })
+          }
+          aria-label={t("mobile.inventory")}
+        >
+          <span aria-hidden="true">▣</span>
         </button>
         <button
           type="button"

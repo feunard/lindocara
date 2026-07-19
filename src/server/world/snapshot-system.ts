@@ -27,7 +27,10 @@ export function selfState(player: PlayerRuntime, questTarget?: number): SelfStat
   return {
     xp: player.xp,
     xpToNext: xpForNextLevel(player.level),
-    inventory: { ...player.inventory },
+    inventory: {
+      ...player.inventory,
+      ...(player.inventory.consumables ? { consumables: { ...player.inventory.consumables } } : {}),
+    },
     quest: {
       ...player.quest,
       chapter,
@@ -39,6 +42,13 @@ export function selfState(player: PlayerRuntime, questTarget?: number): SelfStat
     serverNow,
     cooldowns: combatCooldownsFromPlayer(player, serverNow),
     talents: talentState(player.class, player.level, player.talents),
+    consumableCooldownUntil: player.consumableCooldownUntil,
+    effects: {
+      damageUntil: player.damageBoostUntil,
+      forgottenUntil: player.forgottenUntil,
+      invisibleUntil: player.invisibleUntil,
+      resurrectionAt: player.resurrectionAt,
+    },
     ...(player.resource ? { resource: { ...player.resource } } : {}),
   };
 }

@@ -75,4 +75,24 @@ describe("class talents", () => {
       talentEffect("warrior", ["warrior.iron_guard.perfect"], "perfect_parry", 2),
     ).toMatchObject({ windowMs: 220 });
   });
+
+  it("gives every class a materially stronger named evolution", () => {
+    const warrior = skillWithTalents("warrior", ["warrior.shield_bash.mastery"], 3);
+    expect(warrior.power).toBeGreaterThan(CLASS_SKILLS.warrior[2]?.power ?? 0);
+    expect(warrior.distance).toBeGreaterThan(CLASS_SKILLS.warrior[2]?.distance ?? 0);
+
+    const ranger = skillWithTalents("ranger", ["ranger.dash.mastery"], 4);
+    expect(ranger.distance).toBeGreaterThan(CLASS_SKILLS.ranger[3]?.distance ?? 0);
+    expect(ranger.cooldownMs).toBeLessThan(CLASS_SKILLS.ranger[3]?.cooldownMs ?? Infinity);
+
+    const priest = skillWithTalents("priest", ["priest.prayer.mastery"], 4);
+    expect(priest.power).toBeGreaterThan(CLASS_SKILLS.priest[3]?.power ?? 0);
+    expect(priest.radius).toBeGreaterThan(CLASS_SKILLS.priest[3]?.radius ?? 0);
+  });
+
+  it("turns Volley into a seven-arrow deluge", () => {
+    expect(talentEffect("ranger", ["ranger.volley.mastery"], "extra_projectiles", 3)).toMatchObject(
+      { value: 4 },
+    );
+  });
 });

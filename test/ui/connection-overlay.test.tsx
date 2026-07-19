@@ -8,7 +8,30 @@ import { ConnectionOverlay } from "../../src/client/ui/ConnectionOverlay.js";
 describe("ConnectionOverlay", () => {
   beforeEach(() => {
     setLocale("en");
-    useUiStore.setState({ reconnect: null });
+    useUiStore.setState({ reconnect: null, heroLoading: null });
+  });
+
+  it("turns the initial hero connection into a phased Tiny Swords loading scene", () => {
+    useUiStore.setState({
+      heroLoading: {
+        name: "Mira",
+        class: "priest",
+        color: "violet",
+        phase: "world",
+        progress: 68,
+      },
+    });
+
+    const view = render(<ConnectionOverlay />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("Mira joins the adventure");
+    expect(screen.getByRole("status")).toHaveTextContent("Deploying the world");
+    expect(screen.getByRole("progressbar", { name: "Loading progress" })).toHaveAttribute(
+      "aria-valuenow",
+      "68",
+    );
+    expect(view.container.querySelector(".menu-scene--courtyard")).not.toBeNull();
+    expect(view.container.querySelectorAll(".hero-loading__actor")).toHaveLength(5);
   });
 
   it("distinguishes network reconnection from a zone transition", async () => {

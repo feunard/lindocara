@@ -1,6 +1,8 @@
 export interface MutableVisualActionState {
   actionId?: string;
   actionSkillId?: string;
+  actionTalented?: boolean;
+  actionEvolved?: boolean;
   actionStartedAt?: number;
   actionImpactAt?: number;
   actionChannelEndsAt?: number;
@@ -14,6 +16,8 @@ export function clearVisualAction(state: MutableVisualActionState): string | nul
   const actionId = state.actionId ?? null;
   delete state.actionId;
   delete state.actionSkillId;
+  delete state.actionTalented;
+  delete state.actionEvolved;
   delete state.actionStartedAt;
   delete state.actionImpactAt;
   delete state.actionChannelEndsAt;

@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import type { CharacterAppearance, Equipment } from "../shared/character.js";
+import type { CharacterAppearance, Equipment, PrimaryColor } from "../shared/character.js";
+import type { ConsumableId } from "../shared/consumables.js";
 import type { LifeState } from "../shared/death.js";
 import type { PlayerClass } from "../shared/game.js";
 import type { MessageKey } from "../shared/i18n/index.js";
@@ -75,6 +76,8 @@ export interface GameHandle {
   attack(): void;
   interact(): void;
   usePotion(): void;
+  useItem?(item: ConsumableId): void;
+  buyItem?(item: ConsumableId): void;
   release(): void;
   castSkill(slot: SkillSlot): void;
   releaseSkill?(slot: SkillSlot): void;
@@ -101,6 +104,16 @@ export interface ReconnectState {
   kind: "transition" | "network";
   attempt: number;
   cancelReconnect(): void;
+}
+
+export type HeroLoadingPhase = "preparing" | "connecting" | "world" | "ready";
+
+export interface HeroLoadingState {
+  name: string;
+  class: PlayerClass;
+  color: PrimaryColor;
+  phase: HeroLoadingPhase;
+  progress: number;
 }
 
 interface UiState {
@@ -133,6 +146,9 @@ interface UiState {
   settingsOpen: boolean;
   mapOpen: boolean;
   talentsOpen: boolean;
+  inventoryOpen: boolean;
+  merchantOpen: boolean;
+  quickItems: readonly [ConsumableId | null, ConsumableId | null, ConsumableId | null];
   /** The current zone's i18n key, carried by the welcome message. Null until the first
    *  welcome arrives; refreshed on every zone transition so the world map titles itself
    *  correctly after walking through a portal. */
@@ -143,6 +159,7 @@ interface UiState {
    *  Verdant Reach's 16:9. */
   worldSize: { width: number; height: number } | null;
   reconnect: ReconnectState | null;
+  heroLoading: HeroLoadingState | null;
   adventureVictory: boolean;
   game: GameHandle | null;
 
@@ -168,9 +185,13 @@ interface UiState {
   setSettingsOpen(open: boolean): void;
   setMapOpen(open: boolean): void;
   setTalentsOpen(open: boolean): void;
+  setInventoryOpen(open: boolean): void;
+  setMerchantOpen(open: boolean): void;
+  setQuickItem(index: 0 | 1 | 2, item: ConsumableId | null): void;
   setZoneNameKey(key: MessageKey): void;
   setWorldSize(size: { width: number; height: number } | null): void;
   setReconnect(reconnect: ReconnectState | null): void;
+  setHeroLoading(heroLoading: HeroLoadingState | null): void;
   setAdventureVictory(visible: boolean): void;
   setGame(game: GameHandle | null): void;
   /** Everything a terminal disconnect must clear before character select is usable again: the
@@ -259,9 +280,13 @@ export const useUiStore = create<UiState>((set) => ({
   settingsOpen: false,
   mapOpen: false,
   talentsOpen: false,
+  inventoryOpen: false,
+  merchantOpen: false,
+  quickItems: ["health_potion", "mana_potion", "invisibility_potion"],
   zoneNameKey: null,
   worldSize: null,
   reconnect: null,
+  heroLoading: null,
   adventureVictory: false,
   game: null,
 
@@ -341,18 +366,34 @@ export const useUiStore = create<UiState>((set) => ({
   setSettingsOpen: (open) => set({ settingsOpen: open }),
   setMapOpen: (open) => set({ mapOpen: open }),
   setTalentsOpen: (open) => set({ talentsOpen: open }),
+  setInventoryOpen: (open) => set({ inventoryOpen: open }),
+  setMerchantOpen: (open) => set({ merchantOpen: open }),
+  setQuickItem: (index, item) =>
+    set((state) => {
+      const quickItems = [...state.quickItems] as [
+        ConsumableId | null,
+        ConsumableId | null,
+        ConsumableId | null,
+      ];
+      quickItems[index] = item;
+      return { quickItems };
+    }),
   setZoneNameKey: (zoneNameKey) => set({ zoneNameKey }),
   setWorldSize: (worldSize) => set({ worldSize }),
   setReconnect: (reconnect) => set({ reconnect }),
+  setHeroLoading: (heroLoading) => set({ heroLoading }),
   setAdventureVictory: (adventureVictory) => set({ adventureVictory }),
   setGame: (game) => set({ game }),
   resetToCharacterSelect: () =>
     set({
       game: null,
       reconnect: null,
+      heroLoading: null,
       screen: "characters",
       mapOpen: false,
       talentsOpen: false,
+      inventoryOpen: false,
+      merchantOpen: false,
       settingsOpen: false,
       interiorDoorId: null,
       adventureVictory: false,
@@ -362,9 +403,12 @@ export const useUiStore = create<UiState>((set) => ({
     set({
       game: null,
       reconnect: null,
+      heroLoading: null,
       screen: "party",
       mapOpen: false,
       talentsOpen: false,
+      inventoryOpen: false,
+      merchantOpen: false,
       settingsOpen: false,
       interiorDoorId: null,
       adventureVictory: false,

@@ -23,6 +23,7 @@ import {
 } from "../../shared/game.js";
 import type { MessageKey } from "../../shared/i18n/index.js";
 import type { MapElement } from "../../shared/map-data.js";
+import type { MerchantDefinition } from "../../shared/merchant.js";
 import type {
   CombatActionSnapshot,
   CombatAnimation,
@@ -216,6 +217,7 @@ interface ArtTextures {
   players: Record<PrimaryColor, Texture>;
   monsters: Record<MonsterSpecies, Record<UnitMotion, readonly Texture[]>>;
   keeper: Texture;
+  merchant: readonly Texture[];
   /** The tilemap's ground truth. `land[row][col]` is a cell of the flat sheet's first 4x4
    * autotile group; `water` is the pack's flat BG colour and `foam` its eight shoreline frames.
    * `tileset[row][col]` is the whole 9x6 `Tilemap_color1.png` grid a frozen tile id indexes into —
@@ -283,6 +285,8 @@ interface EntityView<T extends { id: string }> {
   unitAnimations?: Record<UnitMotion, readonly Texture[]>;
   actionId?: string;
   actionSkillId?: string;
+  actionTalented?: boolean;
+  actionEvolved?: boolean;
   actionStartedAt?: number;
   actionImpactAt?: number;
   actionChannelEndsAt?: number;
@@ -399,6 +403,11 @@ function landTexture(
 /** Re-exported from `tile-draw.ts`, which the editor stage draws with too. Kept exported here
  *  because this arithmetic — no Pixi in it — is testable without a live canvas. */
 export { autotileSheetCell } from "./tile-draw.js";
+
+const MERCHANT_IDLE_SHEET = new URL(
+  "../../../assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Gnome/Gnome_Idle.png",
+  import.meta.url,
+).href;
 
 function centerOf(entity: { x: number; y: number }): { x: number; y: number } {
   return { x: entity.x + PLAYER_SIZE / 2, y: entity.y + PLAYER_SIZE / 2 };
@@ -558,6 +567,8 @@ async function loadArt(): Promise<ArtTextures> {
     Texture
   >;
   for (const resource of Object.values(questResources)) resource.source.style.scaleMode = "nearest";
+  const merchantSheet = await Assets.load<Texture>(MERCHANT_IDLE_SHEET);
+  merchantSheet.source.style.scaleMode = "nearest";
 
   return {
     players: {
@@ -568,6 +579,7 @@ async function loadArt(): Promise<ArtTextures> {
     },
     monsters,
     keeper: texture("npc.keeper"),
+    merchant: sliceHorizontalSheet(merchantSheet, 192, 8, 192),
     terrain: {
       land: sliceAutotileSheet(terrainFlatSheet),
       water: terrainWaterSurface,
@@ -876,6 +888,7 @@ export class Renderer {
   #mapElements: readonly MapElement[] | null = null;
   #mapAssetArt = new Map<EditorAssetId, EditorAssetArt>();
   #mapElementAnimations: Array<{ sprite: Sprite; frames: readonly Texture[] }> = [];
+  #merchantContainer: Container | null = null;
   /** Read from the shared catalogue, the same place `#tiles` comes from — not from the welcome.
    *  Swapped wholesale in `configureZone`, so a portal from the zone you left can never draw over
    *  the one you arrived in. */
@@ -995,6 +1008,39 @@ export class Renderer {
     this.#mapElementAnimations = [];
     this.#rebuildForZone();
     void this.#loadMapAssetArt(zoneId, revision, elements);
+  }
+
+  configureMerchant(merchant: MerchantDefinition): void {
+    if (this.#merchantContainer) {
+      this.#merchantContainer.destroy({ children: true });
+      this.#merchantContainer = null;
+    }
+    const container = new Container();
+    container.position.set(merchant.x + PLAYER_SIZE / 2, merchant.y + PLAYER_SIZE);
+    container.zIndex = merchant.y + PLAYER_SIZE;
+    container.addChild(new Graphics().ellipse(0, 0, 25, 8).fill({ color: 0x000000, alpha: 0.4 }));
+    container.addChild(new Graphics().circle(0, -34, 38).fill({ color: 0xffcf62, alpha: 0.09 }));
+    const sprite = createSprite(this.art.merchant[0] ?? Texture.EMPTY, 72, 72);
+    sprite.anchor.set(0.5, 1);
+    sprite.position.set(0, 4);
+    container.addChild(sprite);
+    const label = new Text({
+      text: t("merchant.world_label"),
+      style: {
+        fontFamily: "Georgia, serif",
+        fontSize: 12,
+        fill: 0xffdc72,
+        align: "center",
+        dropShadow: { color: 0x000000, alpha: 0.9, blur: 3, distance: 1 },
+      },
+    });
+    label.anchor.set(0.5, 1);
+    label.position.set(0, -66);
+    container.addChild(label);
+    this.#localizedTexts.push({ node: label, compute: () => t("merchant.world_label") });
+    this.#actors.addChild(container);
+    this.#merchantContainer = container;
+    this.#mapElementAnimations.push({ sprite, frames: this.art.merchant });
   }
 
   /**
@@ -2817,6 +2863,8 @@ export class Renderer {
     action: {
       id: string;
       skillId?: string;
+      talented?: true;
+      evolved?: true;
       direction: { x: number; y: number };
       startedAt: number;
       impactAt: number;
@@ -2827,9 +2875,14 @@ export class Renderer {
     if (!this.#combatVisualAuthority.acceptsAction(action.id)) return;
     const localNow = performance.now();
     const localTimeline = this.serverClock.combatTimeline(action, localNow);
+    const replacingAction = view.actionId !== action.id;
     view.actionId = action.id;
     if (action.skillId === undefined) delete view.actionSkillId;
     else view.actionSkillId = action.skillId;
+    if (action.talented === true) view.actionTalented = true;
+    else if (replacingAction) delete view.actionTalented;
+    if (action.evolved === true) view.actionEvolved = true;
+    else if (replacingAction) delete view.actionEvolved;
     view.actionDirection = { ...action.direction };
     view.actionStartedAt = localTimeline.startedAt;
     view.actionImpactAt = localTimeline.impactAt;
@@ -2860,6 +2913,8 @@ export class Renderer {
     const action = {
       id: animation.actionId,
       ...(animation.skillId === undefined ? {} : { skillId: animation.skillId }),
+      ...(animation.talented === true ? { talented: true as const } : {}),
+      ...(animation.evolved === true ? { evolved: true as const } : {}),
       direction: animation.direction,
       startedAt: animation.startedAt,
       impactAt: animation.impactAt,
@@ -2965,6 +3020,15 @@ export class Renderer {
         this.#playCombatSheet(effect, position.x, position.y, view.actionId);
         if (art.accent) this.#playCombatSheet(art.accent, position.x, position.y, view.actionId);
         this.#playActionFlourish(skillId, position.x, position.y, view.actionId);
+        if (view.actionTalented) {
+          this.#playTalentedFlourish(
+            art,
+            position.x,
+            position.y,
+            view.actionId,
+            view.actionEvolved === true,
+          );
+        }
         if (skillId === "prayer") {
           const radius = CLASS_SKILLS.priest.find((skill) => skill.id === "prayer")?.radius ?? 0;
           this.#playRangeIndicator(position.x, position.y, radius, 0x8df0aa, view.actionId);
@@ -3112,6 +3176,38 @@ export class Renderer {
       this.#playRangeIndicator(x, y, radius * 0.68, 0x8df0aa, actionId);
       this.#burst(x, y, 0xe6bdff, 14);
     }
+  }
+
+  /** Talent flourishes only echo the skill's own Tiny Swords sheet; no substitute is generated. */
+  #playTalentedFlourish(
+    art: ReturnType<typeof combatArt>,
+    x: number,
+    y: number,
+    actionId: string,
+    evolved: boolean,
+  ): void {
+    const asset = art.accent ?? art.zone ?? art.impact;
+    if (!asset) return;
+    this.#playCombatSheet({ ...asset, scale: (asset.scale ?? 1) * 1.28 }, x, y, actionId);
+    this.#playCombatSheet(
+      { ...asset, scale: (asset.scale ?? 1) * 0.72, durationMs: asset.durationMs * 0.82 },
+      x,
+      y,
+      actionId,
+    );
+    if (!evolved) return;
+    this.#playCombatSheet(
+      { ...asset, scale: (asset.scale ?? 1) * 1.68, durationMs: asset.durationMs * 1.18 },
+      x,
+      y,
+      actionId,
+    );
+    this.#playCombatSheet(
+      { ...asset, scale: (asset.scale ?? 1) * 1.02, durationMs: asset.durationMs * 1.35 },
+      x,
+      y,
+      actionId,
+    );
   }
 
   playCombatImpact(
@@ -3440,7 +3536,13 @@ export class Renderer {
             );
           }
           if (view.flash) view.flash.alpha = (view.hitUntil ?? 0) > now ? 0.65 : 0;
-          view.container.alpha = ghost ? 0.5 : 1;
+          view.container.alpha = ghost
+            ? 0.5
+            : player.invisible
+              ? player.id === this.#selfId
+                ? 0.28
+                : 0.06
+              : 1;
           // A ghost has no health to show; it has a body to find.
           this.#drawHp(view, ghost ? 0 : player.hp, player.maxHp);
         }
