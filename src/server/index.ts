@@ -121,11 +121,35 @@ const MAX_API_JSON_BYTES = 4_096;
  * = 2,952 bytes. `MAX_EVENTS_PER_MAP` = 64 of them: 64*2,952 + 63 commas + 2 brackets + the
  * `"events":` key = 189,001 bytes.
  *
- * Total enumerated worst case: 196,233 + 189,001 = 385,234 bytes. 400 KiB (409,600 bytes) is the
- * next clean number with sensible headroom (24,366 bytes, ~6%) above that — the 200 KiB cap the
- * pre-events body justified is no longer enough.
+ * Tranche 3's structural worst case: 196,233 + 189,001 = 385,234 bytes.
+ *
+ * Tranche 5 adds a `commands` program to every page (`shared/event-commands.ts`), and here the
+ * honest arithmetic breaks the "cap sits above the per-field worst case" property the tranches
+ * before it could keep. The naive fear — that nesting compounds, 200 commands at each of 8 depth
+ * levels — is wrong: `MAX_COMMANDS_PER_PAGE` (200) is counted RECURSIVELY, so a page holds at most
+ * 200 command nodes no matter how they nest. But the widest single node is a `choices` with a
+ * 200-char prompt and `MAX_CHOICE_OPTIONS` (4) options each with a 200-char label and an empty body
+ * — `{"t":"choices","prompt":"<200>","options":[{"label":"<200>","body":[]}, x4]}` = 1,131 bytes,
+ * and it counts as one node. A page packed with 200 of them is 200*1,131 + 199 commas + 2 brackets
+ * = 226,401 bytes of commands; with the `"commands":` key that is ~226,412 bytes ON TOP of the 352
+ * the page already justified. Across `MAX_EVENTS_PER_MAP` (64) x `MAX_PAGES_PER_EVENT` (8) = 512
+ * pages: 512 * 226,412 = 115,922,944 bytes. Total per-field worst case: 385,234 + 115,922,944 =
+ * ~116.3 MB, ~110.9 MiB.
+ *
+ * That exceeds a Cloudflare Worker's 128 MiB memory budget, so — unlike every prior tranche — the
+ * byte cap CANNOT be raised above the per-field worst case: `readJson` buffers the body, and a
+ * ~111 MiB request would pressure the isolate before parsing. The protective bound on command
+ * volume is therefore the PARSER's recursive `MAX_COMMANDS_PER_PAGE` and `MAX_COMMAND_DEPTH` caps
+ * (which stop a single page from running the interpreter away), not this byte cap. This cap is
+ * raised to 4 MiB — 10x the pre-commands 400 KiB — which holds the 385,234-byte structural worst
+ * case plus ~3.8 MiB of commands: room for ~34,000 max-width `choices` nodes, or every one of a
+ * 64-event map's ~512 pages carrying ~65 max-width commands, far past any realistic authored scene
+ * (an ambitiously scripted map runs to hundreds of KB, not megabytes). A pathological map that
+ * packs every page to the 200-node ceiling with max-width choices is rejected by SIZE here rather
+ * than accepted into memory — a deliberate, documented departure from the old "never 413 legal
+ * content" aspiration, forced by the runtime's memory reality.
  */
-const MAX_MAP_JSON_BYTES = 409_600;
+const MAX_MAP_JSON_BYTES = 4_194_304;
 // An adventure body is ids and bindings only (no map payloads): 16 links × a few uuids each.
 const MAX_ADVENTURE_JSON_BYTES = 65_536;
 

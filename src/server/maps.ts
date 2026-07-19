@@ -18,6 +18,7 @@ import {
   parseAdventureGraph,
   validateAdventure,
 } from "../shared/adventure.js";
+import { parseEventCommands } from "../shared/event-commands.js";
 import {
   bakeCollision,
   canPlaceElement,
@@ -467,6 +468,17 @@ async function elementsOf(db: Db, mapId: string): Promise<MapElement[]> {
   );
 }
 
+/** A page's `commands` TEXT blob back into a program. Corrupt or unknown JSON degrades to the empty
+ *  program rather than failing — a stored page always yields a playable (if inert) page, the same
+ *  degrade `decodeLayers`/`elementsOf` use for a row an older or broken build wrote. */
+function parseCommandsColumn(text: string): MapEvent["pages"][number]["commands"] {
+  try {
+    return parseEventCommands(JSON.parse(text)) ?? [];
+  } catch {
+    return [];
+  }
+}
+
 /** Events ordered by ordinal, each carrying its pages ordered by position. An event whose pages
  *  row set is somehow empty is dropped rather than surfaced as an invalid zero-page event — the
  *  same "one bad row must not break the map" degrade as `elementsOf`. The typed enum/`$type`
@@ -506,6 +518,10 @@ async function eventsOf(db: Db, mapId: string): Promise<MapEvent[]> {
       optThrough: page.optThrough,
       optOnTop: page.optOnTop,
       trigger: page.trigger,
+      // The column is JSON we wrote through `parseEventCommands`, so it parses back cleanly; a row
+      // corrupted by a hand-edit or an older build degrades to the empty program (a no-op page)
+      // rather than dropping the whole event — the "one bad row must not break the map" degrade.
+      commands: parseCommandsColumn(page.commands),
     });
     pagesByEvent.set(page.eventId, list);
   }
@@ -638,15 +654,17 @@ function insertElementStatements(db: Db, mapId: string, elements: readonly MapEl
  * Events and their pages ride the same batch as elements and hit the same D1 100-bound-parameter
  * cap. An event INSERT binds 9 parameters per row (id, map_id, col, row, name, ordinal, kind,
  * species, patrol_radius — created_at defaults), so an unchunked write of the 64-event maximum would
- * bind 576 and D1 would refuse the whole batch. A page INSERT binds 17 (id, event_id,
+ * bind 576 and D1 would refuse the whole batch. A page INSERT binds 18 (id, event_id,
  * position, four condition columns, graphic_asset_id, three move columns, five opt columns,
- * trigger), and the 64x8 = 512-page maximum would bind 8,704. Both chunk sizes derive from the real
- * column count and target 60% of the cap, matching the element rule above so a later column keeps
- * headroom instead of regressing onto the line.
+ * trigger, and tranche 5's `commands` blob — the whole program is ONE bound parameter, a JSON
+ * string, so a page's command volume never grows its parameter count), and the 64x8 = 512-page
+ * maximum would bind 9,216. Both chunk sizes derive from the real column count and target 60% of the
+ * cap, matching the element rule above so a later column keeps headroom instead of regressing onto
+ * the line.
  */
 const MAP_EVENT_PARAMS_PER_ROW = 9; // id, mapId, col, row, name, ordinal, kind, species, patrol_radius — mirrors `mapEvent` (created_at defaults)
 const MAP_EVENT_CHUNK_ROWS = Math.floor((D1_MAX_BOUND_PARAMETERS * 0.6) / MAP_EVENT_PARAMS_PER_ROW);
-const MAP_EVENT_PAGE_PARAMS_PER_ROW = 17; // id, eventId, position, 4 cond, graphic, 3 move, 5 opt, trigger — mirrors `mapEventPage`
+const MAP_EVENT_PAGE_PARAMS_PER_ROW = 18; // id, eventId, position, 4 cond, graphic, 3 move, 5 opt, trigger, commands — mirrors `mapEventPage`
 const MAP_EVENT_PAGE_CHUNK_ROWS = Math.floor(
   (D1_MAX_BOUND_PARAMETERS * 0.6) / MAP_EVENT_PAGE_PARAMS_PER_ROW,
 );
@@ -688,6 +706,9 @@ function eventPageRows(events: readonly MapEvent[]) {
       optThrough: page.optThrough,
       optOnTop: page.optOnTop,
       trigger: page.trigger,
+      // Stored as one JSON blob, the shape `parseCommandsColumn` reads back. Empty programs persist
+      // as `'[]'`, matching the column default so a never-authored page round-trips identically.
+      commands: JSON.stringify(page.commands),
     })),
   );
 }

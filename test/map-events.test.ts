@@ -37,6 +37,7 @@ function page(overrides: Partial<MapEventPage> = {}): MapEventPage {
     optThrough: false,
     optOnTop: false,
     trigger: "action",
+    commands: [],
     ...overrides,
   };
 }
@@ -191,6 +192,59 @@ describe("parseMapEvents: totality — every malformed field lands on null, neve
       expect(parseMapEvents(value, COLS, ROWS)).toBeNull();
     });
   }
+});
+
+describe("parseMapEvents: commands thread through pages", () => {
+  const program = [
+    { t: "say", text: "Bonjour", name: null },
+    {
+      t: "if",
+      cond: { type: "switch", switchId: "0001" },
+      then: [{ t: "changeGold", amount: 5 }],
+      else: [],
+    },
+  ];
+
+  it("round-trips a normal event page carrying a command program", () => {
+    const events = [event({ pages: [page({ commands: program as MapEventPage["commands"] })] })];
+    const parsed = parseMapEvents(events, COLS, ROWS);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.[0]?.pages[0]?.commands).toEqual(program);
+  });
+
+  it("defaults a page with no commands field to an empty program", () => {
+    // A page from a pre-tranche-5 client omits `commands` entirely; it means the empty program.
+    const { commands: _drop, ...pageWithout } = page();
+    const events = [event({ pages: [pageWithout as MapEventPage] })];
+    const parsed = parseMapEvents(events, COLS, ROWS);
+    expect(parsed?.[0]?.pages[0]?.commands).toEqual([]);
+  });
+
+  it("rejects a page whose commands program is malformed", () => {
+    const events = [
+      event({
+        pages: [page({ commands: [{ t: "nope" }] as unknown as MapEventPage["commands"] })],
+      }),
+    ];
+    expect(parseMapEvents(events, COLS, ROWS)).toBeNull();
+  });
+
+  it("rejects a non-normal (entry) event carrying a non-empty program", () => {
+    // Anchors are not scripts: a functional event smuggling commands over the wire is refused,
+    // exactly as it is refused extra pages.
+    const entry = event({
+      kind: "entry",
+      pages: [page({ commands: program as MapEventPage["commands"] })],
+    });
+    expect(parseMapEvents([entry], COLS, ROWS)).toBeNull();
+  });
+
+  it("accepts a non-normal (entry) event with an empty program", () => {
+    // Mutation-proof sanity: the rejection above is specifically the non-empty program, not the
+    // kind — the same entry event with `commands: []` parses fine.
+    const entry = event({ kind: "entry", pages: [page({ commands: [] })] });
+    expect(parseMapEvents([entry], COLS, ROWS)).not.toBeNull();
+  });
 });
 
 describe("mutation proofs", () => {

@@ -46,6 +46,22 @@
           }
         }
       }
+    },
+    {
+      "includes": [
+        "src/shared/event-commands.ts",
+        "src/shared/event-interpreter.ts",
+        "src/server/world/event-run-system.ts",
+        "src/client/ui/editor/EventCommandEditor.tsx",
+        "test/**"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noThenProperty": "off"
+          }
+        }
+      }
     }
   ],
   "javascript": {

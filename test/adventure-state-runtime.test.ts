@@ -48,6 +48,7 @@ function page(overrides: Partial<MapEventPage> = {}): MapEventPage {
     optThrough: false,
     optOnTop: false,
     trigger: "action",
+    commands: [],
     ...overrides,
   };
 }

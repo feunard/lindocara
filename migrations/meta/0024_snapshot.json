@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "5fc916ab-61ce-41f6-ace9-11d3d158a46b",
-  "prevId": "471fb1b8-8d22-4b0a-965b-66f26489df27",
+  "id": "46365455-8e65-4036-b2ee-ec045966149f",
+  "prevId": "6e966beb-55ce-4fe8-9f09-43ead6f0f99d",
   "tables": {
     "account": {
       "name": "account",
@@ -933,6 +933,14 @@
           "autoincrement": false,
           "default": 100
         },
+        "talents": {
+          "name": "talents",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
         "session_epoch": {
           "name": "session_epoch",
           "type": "integer",
@@ -1380,6 +1388,28 @@
           "notNull": true,
           "autoincrement": false
         },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'normal'"
+        },
+        "species": {
+          "name": "species",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "patrol_radius": {
+          "name": "patrol_radius",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -1547,6 +1577,14 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "commands": {
+          "name": "commands",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         }
       },
       "indexes": {

@@ -497,6 +497,7 @@ describe("maps", () => {
         optThrough: false,
         optOnTop: false,
         trigger: "action",
+        commands: [],
         ...overrides,
       };
     }

@@ -385,6 +385,12 @@ export const mapEventPage = sqliteTable(
     optThrough: integer("opt_through", { mode: "boolean" }).notNull(),
     optOnTop: integer("opt_on_top", { mode: "boolean" }).notNull(),
     trigger: text("trigger", { enum: EVENT_TRIGGERS }).notNull(),
+    /** Tranche 5: the page's authored command program, a JSON array parsed by `parseEventCommands`
+     *  (`shared/event-commands.ts`). Stored as one TEXT blob (not one row per command) so nested
+     *  bodies persist without a self-referential table; `'[]'` is the empty program a page carries
+     *  until authored, and the column default so every pre-tranche-5 page reads back as empty. Only
+     *  `normal` events carry commands — `parseMapEvents` refuses a non-empty program on other kinds. */
+    commands: text("commands").notNull().default("[]"),
   },
   (table) => [
     uniqueIndex("map_event_page_position_unique").on(table.eventId, table.position),

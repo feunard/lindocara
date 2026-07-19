@@ -1,0 +1,13 @@
+-- Tranche 5: a `normal` event page gains an authored command program. Additive only — one new
+-- TEXT column with a constant `'[]'` default, so every existing page (a `normal` event's or a
+-- functional anchor's single page) reads back as the empty program with no data transform. SQLite
+-- permits `ADD COLUMN ... NOT NULL` because the default is a constant. Proven to apply on a
+-- POPULATED pre-state (seeded map/event/page rows survive with commands = '[]').
+--
+-- The generator also emitted an `ALTER TABLE hero ADD talents ...` line here: a snapshot-lineage
+-- artifact, NOT a real schema change. `talents` was already added by migration 0021; the broken
+-- 0022 snapshot branched from 0020 (skipping 0021), so the 0022->0023 snapshot tip lost `talents`
+-- and the generator re-proposed it. Emitting it would fail with "duplicate column name" on any DB
+-- that ran 0021, so it is intentionally omitted. The 0024 snapshot carries the correct `hero`
+-- shape (talents included), reconciling the lineage at the tip for future generates.
+ALTER TABLE `map_event_page` ADD `commands` text DEFAULT '[]' NOT NULL;
