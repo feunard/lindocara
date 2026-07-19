@@ -2628,9 +2628,7 @@ export class Renderer {
     actor.scale.set(bodyScale);
 
     const frames = playerAnimations(corpse, this.art.units);
-    // Your body uses the same local-only scale as the hero who was standing here. Remote heroes
-    // remain full-size, matching their living renderer; the local corpse no longer jumps back to
-    // the atlas' 100% scale when the 70%-scale local avatar disappears.
+    // Every body keeps the same scale as its living hero on every client.
     const body = new Sprite(frames.idle[0]);
     body.width = TINY_SWORDS_UNIT_FRAME;
     body.height = TINY_SWORDS_UNIT_FRAME;

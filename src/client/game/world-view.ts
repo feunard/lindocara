@@ -12,12 +12,12 @@ export interface TileWindow {
   rows: number;
 }
 
-export const LOCAL_PLAYER_RENDER_SCALE = 0.7;
+export const PLAYER_RENDER_SCALE = 0.7;
 export const GAME_CAMERA_ZOOM = 0.8;
 
-/** Living avatar and corpse share the same local-only scale; both are keyed by the hero id. */
-export function playerRenderScale(playerId: string, selfId: string | null): number {
-  return playerId === selfId ? LOCAL_PLAYER_RENDER_SCALE : 1;
+/** Every living avatar and corpse uses one scale, regardless of which client is looking at it. */
+export function playerRenderScale(_playerId: string, _selfId: string | null): number {
+  return PLAYER_RENDER_SCALE;
 }
 
 export function gameCameraScale(viewportWidth: number, viewportHeight: number): number {
