@@ -577,6 +577,11 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.assets.more": "Afficher plus",
 
   // Habillage de l'éditeur d'aventure (menu/barre d'outils/barre d'état fusionnés, Tâche 7)
+  "editor.shell.brand": "Éditeur",
+  "editor.shell.load": "Charger une aventure…",
+  "editor.shell.quit": "Quitter l'éditeur",
+  "editor.load.title": "Charger une aventure",
+  "editor.load.empty": "Aucune aventure pour l'instant.",
   "editor.shell.exit.aria": "Quitter l'éditeur",
   "editor.shell.exit.confirm": "Quitter l'éditeur et abandonner les modifications ?",
   "editor.shell.deleteMap": "Supprimer la carte",

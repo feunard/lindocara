@@ -12,12 +12,14 @@ import {
 import type { EditorPaintTool } from "./EditorToolbar.js";
 
 interface EditorMenuBarProps {
-  adventureName: string;
   canUndo: boolean;
   canRedo: boolean;
   showGrid: boolean;
   showDim: boolean;
+  /** Quit the editor back to the parties screen (dirty-guarded), from File → « Quitter l'éditeur ». */
   onExit(): void;
+  /** Open the "Load an adventure" dialog, from File → « Charger une aventure ». */
+  onOpenLoad(): void;
   onNewMap(): void;
   onSave(): void;
   onDeleteMap(): void;
@@ -35,18 +37,19 @@ interface EditorMenuBarProps {
 }
 
 /**
- * The wireframe's 32px menu row: the adventure identity (doubling as the way back to the parties
- * home until the account menu lands) and the six menus. Jeu → « Base de données… » opens the
+ * The wireframe's 32px menu row: a static « Editor » brand chip (UX wave #16 — no longer the
+ * adventure name, and no longer clickable; leaving is File → « Quitter l'éditeur ») and the six
+ * menus. File → « Charger une aventure » opens the load dialog; Jeu → « Base de données… » opens the
  * registry editor. No account menu: the store carries no username/email to fill it, and inventing
  * that plumbing is out of scope.
  */
 export function EditorMenuBar({
-  adventureName,
   canUndo,
   canRedo,
   showGrid,
   showDim,
   onExit,
+  onOpenLoad,
   onNewMap,
   onSave,
   onDeleteMap,
@@ -65,17 +68,14 @@ export function EditorMenuBar({
   useLocale();
   return (
     <div className="flex h-8 flex-none items-stretch border-b border-zinc-200 bg-white px-1.5">
-      <button
-        type="button"
-        onClick={onExit}
-        aria-label={t("editor.shell.exit.aria")}
-        className="mr-1 flex items-center gap-2 rounded-md px-2 hover:bg-zinc-100"
-      >
+      {/* UX wave #16: a static brand chip, not a button. Leaving the editor is File → « Quitter
+          l'éditeur », never a click on the chip, and the adventure name is no longer shown here. */}
+      <div className="mr-1 flex items-center gap-2 px-2">
         <span className="flex size-4 items-center justify-center rounded bg-zinc-900 text-zinc-50">
           <Box className="size-2.5" />
         </span>
-        <span className="max-w-32 truncate text-[12.5px] font-semibold">{adventureName}</span>
-      </button>
+        <span className="text-[12.5px] font-semibold">{t("editor.shell.brand")}</span>
+      </div>
 
       <Menubar className="h-8 gap-0 rounded-none border-none bg-transparent p-0">
         <MenubarMenu>
@@ -85,6 +85,7 @@ export function EditorMenuBar({
               {t("editor.new")}
               <MenubarShortcut>⌘N</MenubarShortcut>
             </MenubarItem>
+            <MenubarItem onClick={onOpenLoad}>{t("editor.shell.load")}</MenubarItem>
             <MenubarItem onClick={onSave}>
               {t("editor.save")}
               <MenubarShortcut>⌘S</MenubarShortcut>
@@ -95,6 +96,8 @@ export function EditorMenuBar({
             <MenubarItem variant="destructive" onClick={onDeleteMap}>
               {t("editor.shell.deleteMap")}
             </MenubarItem>
+            <MenubarSeparator />
+            <MenubarItem onClick={onExit}>{t("editor.shell.quit")}</MenubarItem>
           </MenubarContent>
         </MenubarMenu>
 

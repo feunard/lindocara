@@ -135,6 +135,12 @@ export const MAP_NAME_MAX = 48;
 /** UX wave #7: every new map is a 5x5 block of grass, spawn dead centre, water everywhere else. */
 export const DEFAULT_MAP_LAND = 5;
 
+/** UX wave #16: the name the atomic adventure-create gives its born map. A fresh adventure owns zero
+ *  maps, so the lowest free `MapN` is unconditionally `Map1` — a constant, not a list to consult, so
+ *  the server stays dumb. Every subsequent map's `MapN` is computed client-side (`nextMapName`) and
+ *  sent as the name, exactly as the new-map dialog already sends a name today. */
+export const DEFAULT_FIRST_MAP_NAME = "Map1";
+
 /**
  * The one shape a new map is ever created in (#7): a `MAP_MIN_COLS x MAP_MIN_ROWS` field of water
  * with a centred `DEFAULT_MAP_LAND x DEFAULT_MAP_LAND` block of grass, spawn on that block's centre.

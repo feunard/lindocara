@@ -792,11 +792,14 @@ describe("AdventureEditorScreen shell", () => {
     await mountReady();
 
     // The new-map dialog now takes only a name: a map belongs to one adventure and the server builds
-    // a fixed 5x5 template, so the client no longer sends terrain or size — just adventure + name.
+    // a fixed 5x5 template, so the client no longer sends terrain or size — just adventure + name. The
+    // field is prefilled with the default MapN (UX wave #16); clear it to type a custom name.
     await userEvent.click(
       screen.getAllByRole("button", { name: t("editor.new") })[0] as HTMLElement,
     );
-    await userEvent.type(await screen.findByLabelText(t("editor.name")), "Third map");
+    const nameField = await screen.findByLabelText(t("editor.name"));
+    await userEvent.clear(nameField);
+    await userEvent.type(nameField, "Third map");
     await userEvent.click(screen.getByRole("button", { name: t("editor.shell.maps.create") }));
 
     await waitFor(() =>
@@ -975,6 +978,9 @@ describe("AdventureEditorScreen shell", () => {
         screen.getAllByRole("button", { name: t("editor.new") })[0] as HTMLElement,
       );
       const nameInput = await screen.findByLabelText(t("editor.name"));
+      // The field is prefilled with the default MapN (UX wave #16); clear it so the typed "r" is the
+      // whole value.
+      await userEvent.clear(nameInput);
 
       const before = stageMock.setTool.mock.calls.length;
       await userEvent.type(nameInput, "r");
@@ -1110,6 +1116,145 @@ describe("AdventureEditorScreen shell", () => {
       fireEvent.blur(host, { relatedTarget: elsewhere });
       expect(host).not.toHaveFocus();
       expect(elsewhere).toHaveFocus();
+    });
+  });
+
+  describe("editor chrome (UX wave #15/#16)", () => {
+    /** A second adventure `adv-2` (one map `m2b`) the load dialog can switch to, plus the standard
+     *  `adv-1` map backend so the shell mounts. */
+    function loadableBackend() {
+      const adv2 = {
+        id: "adv-2",
+        accountId: "acct",
+        title: "Second",
+        maxPlayers: 4,
+        version: 1,
+        mapIds: ["m2b"],
+        graph: { start: null, links: [] },
+        registry: { switches: [], variables: [] },
+      };
+      const m2b: MapSummary = {
+        id: "m2b",
+        name: "Map1",
+        revision: 1,
+        cols: 40,
+        rows: 30,
+        isFirst: true,
+      };
+      return vi.fn((url: string, init?: RequestInit) => {
+        const method = init?.method ?? "GET";
+        if (url.startsWith("/api/maps?adventure=") && method === "GET")
+          return Promise.resolve(jsonResponse(oneMap));
+        if (url === "/api/adventures" && method === "GET")
+          return Promise.resolve(
+            jsonResponse([
+              { id: "adv-1", title: "First", maxPlayers: 4, mapCount: 1, playable: true },
+              { id: "adv-2", title: "Second", maxPlayers: 4, mapCount: 1, playable: false },
+            ]),
+          );
+        if (url === "/api/adventures/adv-2" && method === "GET")
+          return Promise.resolve(jsonResponse(adv2));
+        if (url === "/api/maps/m2b" && method === "GET")
+          return Promise.resolve(jsonResponse(payloadFor(m2b)));
+        const idMatch = url.match(/^\/api\/maps\/([^/]+)$/);
+        const summary = idMatch?.[1] ? oneMap.find((m) => m.id === idMatch[1]) : undefined;
+        if (summary && method === "GET") return Promise.resolve(jsonResponse(payloadFor(summary)));
+        return Promise.resolve(jsonResponse({ error: "not_found" }, 404));
+      });
+    }
+
+    it("shows a static Editor brand chip, not a clickable exit button (UX wave #16)", async () => {
+      vi.stubGlobal("fetch", mapsFetchMock());
+      await mountReady();
+
+      // The brand text is present…
+      expect(screen.getByText(t("editor.shell.brand"))).toBeInTheDocument();
+      // …but it is not a button and there is no "exit" chip button any more.
+      expect(screen.queryByRole("button", { name: t("editor.shell.brand") })).toBeNull();
+      expect(screen.queryByRole("button", { name: t("editor.shell.exit.aria") })).toBeNull();
+    });
+
+    it("opens the Load-adventure dialog from the File menu and switching swaps the session", async () => {
+      vi.stubGlobal("fetch", loadableBackend());
+      await mountReady();
+
+      screen.getByRole("menuitem", { name: t("editor.shell.menu.file") }).focus();
+      await userEvent.keyboard("{Enter}");
+      await userEvent.click(await screen.findByRole("menuitem", { name: t("editor.shell.load") }));
+
+      // The dialog lists the account's adventures; open the second.
+      expect(await screen.findByText(t("editor.load.title"))).toBeInTheDocument();
+      const row = (await screen.findByText("Second")).closest("li");
+      if (!row) throw new Error("adventure row not found");
+      await userEvent.click(within(row).getByRole("button", { name: t("editor.picker.open") }));
+
+      await waitFor(() =>
+        expect(useUiStore.getState().adventureEditorSession?.adventureId).toBe("adv-2"),
+      );
+    });
+
+    it("guards a dirty switch from the Load dialog: cancel keeps the current adventure", async () => {
+      vi.stubGlobal("fetch", loadableBackend());
+      await mountReady();
+      markDirty();
+
+      screen.getByRole("menuitem", { name: t("editor.shell.menu.file") }).focus();
+      await userEvent.keyboard("{Enter}");
+      await userEvent.click(await screen.findByRole("menuitem", { name: t("editor.shell.load") }));
+      await screen.findByText(t("editor.load.title"));
+
+      const row = (await screen.findByText("Second")).closest("li");
+      if (!row) throw new Error("adventure row not found");
+      const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+      await userEvent.click(within(row).getByRole("button", { name: t("editor.picker.open") }));
+      expect(confirm).toHaveBeenCalledWith(t("editor.shell.exit.confirm"));
+      // Cancelled: still on adv-1.
+      expect(useUiStore.getState().adventureEditorSession?.adventureId).toBe("adv-1");
+      confirm.mockRestore();
+    });
+
+    it("Quit returns to the parties screen, dirty-guarded (cancel stays in the editor)", async () => {
+      vi.stubGlobal("fetch", mapsFetchMock());
+      await mountReady();
+      markDirty();
+
+      const openQuit = async () => {
+        screen.getByRole("menuitem", { name: t("editor.shell.menu.file") }).focus();
+        await userEvent.keyboard("{Enter}");
+        await userEvent.click(
+          await screen.findByRole("menuitem", { name: t("editor.shell.quit") }),
+        );
+      };
+
+      const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+      await openQuit();
+      expect(confirm).toHaveBeenCalledWith(t("editor.shell.exit.confirm"));
+      // Cancelled: still in the editor.
+      expect(useUiStore.getState().screen).toBe("adventure-editor");
+
+      confirm.mockReturnValue(true);
+      await openQuit();
+      expect(useUiStore.getState().screen).toBe("parties");
+      confirm.mockRestore();
+    });
+
+    it("closes the database dialog on Retour without unloading the editor (campaign fix)", async () => {
+      vi.stubGlobal("fetch", mapsFetchMock());
+      await mountReady();
+
+      screen.getByRole("menuitem", { name: t("editor.shell.menu.game") }).focus();
+      await userEvent.keyboard("{Enter}");
+      await userEvent.click(
+        await screen.findByRole("menuitem", { name: t("editor.shell.database") }),
+      );
+      expect(await screen.findByText(t("editor.registry.title"))).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: t("editor.back") }));
+      // The dialog closes…
+      await waitFor(() => expect(screen.queryByText(t("editor.registry.title"))).toBeNull());
+      // …and the editor SURVIVES: still mounted on adv-1, never unloaded to a bare/parties screen.
+      expect(useUiStore.getState().adventureEditorSession?.adventureId).toBe("adv-1");
+      expect(useUiStore.getState().screen).toBe("adventure-editor");
     });
   });
 });

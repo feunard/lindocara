@@ -564,6 +564,11 @@ export const en = {
   "editor.assets.more": "Show more",
 
   // Adventure editor shell (Task 7's merged menu/toolbar/status chrome)
+  "editor.shell.brand": "Editor",
+  "editor.shell.load": "Load an adventure…",
+  "editor.shell.quit": "Quit the editor",
+  "editor.load.title": "Load an adventure",
+  "editor.load.empty": "No adventures yet.",
   "editor.shell.exit.aria": "Exit the editor",
   "editor.shell.exit.confirm": "Leave the editor and discard the changes?",
   "editor.shell.deleteMap": "Delete map",

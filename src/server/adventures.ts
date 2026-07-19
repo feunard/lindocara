@@ -24,7 +24,7 @@ import {
   parseAdventureRegistry,
 } from "../shared/adventure-state.js";
 import { adventure, type Db, map, mapEvent, party } from "./db/index.js";
-import { prepareDefaultMap, type StoredMap } from "./maps.js";
+import { DEFAULT_FIRST_MAP_NAME, prepareDefaultMap, type StoredMap } from "./maps.js";
 
 export interface StoredAdventure {
   id: string;
@@ -146,7 +146,9 @@ export async function createAdventureWithDefaultMap(
   if (title.length === 0 || title.length > 48) throw new Error("title: 1-48 characters");
   if (input.maxPlayers < 1 || input.maxPlayers > 4) throw new Error("players: between 1 and 4");
   const adventureId = crypto.randomUUID();
-  const prepared = prepareDefaultMap(db, accountId, adventureId, title);
+  // The born map is named `Map1` (UX wave #16), never the adventure title: a fresh adventure has zero
+  // maps, so the lowest free `MapN` is unconditionally the first.
+  const prepared = prepareDefaultMap(db, accountId, adventureId, DEFAULT_FIRST_MAP_NAME);
   const graph: AdventureGraph = {
     start: { mapId: prepared.id, entryId: prepared.entryEventId },
     links: [{ mapId: prepared.id, exitId: prepared.exitEventId, dest: "end" }],

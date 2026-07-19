@@ -1,5 +1,6 @@
 import { Pencil, Plus, Settings2, Star, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { nextMapName } from "../../../shared/map-naming.js";
 import {
   createMapApi,
   deleteMapApi,
@@ -130,6 +131,14 @@ export function MapListPanel({
   useEffect(() => {
     void refresh();
   }, [refreshNonce, adventureId]);
+
+  // UX wave #16: a new map defaults to the lowest free `MapN` — never the adventure title. Prefill the
+  // dialog's name field each time it opens (the author can still rename before creating). Computed
+  // from the loaded list, so the server stays dumb and simply stores the name it is handed.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: seed the default only on the open transition, not on every list churn
+  useEffect(() => {
+    if (newMapOpen) setNewName(nextMapName(maps.map((map) => map.name)));
+  }, [newMapOpen]);
 
   async function create(): Promise<void> {
     if (!adventureId) return;

@@ -201,6 +201,43 @@ describe("MapListPanel", () => {
     confirm.mockRestore();
   });
 
+  it("defaults a new map's name to the lowest free MapN and sends it on create (UX wave #16)", async () => {
+    const mock = mapsBackend();
+    vi.stubGlobal("fetch", mock);
+    render(<Harness />);
+    await screen.findByRole("button", { name: "Frostfen" });
+
+    // The list holds "Verdant Reach"/"Frostfen" — neither a MapN — so the default is Map1.
+    await userEvent.click(screen.getByRole("button", { name: t("editor.new") }));
+    const nameField = await screen.findByLabelText(t("editor.name"));
+    expect(nameField).toHaveValue("Map1");
+
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.maps.create") }));
+    await waitFor(() =>
+      expect(mock).toHaveBeenCalledWith(
+        "/api/maps",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ adventureId: "adv-1", name: "Map1" }),
+        }),
+      ),
+    );
+  });
+
+  it("skips MapN names already taken (UX wave #16)", async () => {
+    const takenMaps: MapSummary[] = [
+      { id: "a", name: "Map1", revision: 1, cols: 40, rows: 30, isFirst: true },
+      { id: "b", name: "Map2", revision: 1, cols: 40, rows: 30, isFirst: false },
+    ];
+    vi.stubGlobal("fetch", mapsBackend(takenMaps));
+    render(<Harness />);
+    await screen.findByRole("button", { name: "Map2" });
+
+    await userEvent.click(screen.getByRole("button", { name: t("editor.new") }));
+    // Map1 and Map2 are taken, so the next default is Map3.
+    expect(await screen.findByLabelText(t("editor.name"))).toHaveValue("Map3");
+  });
+
   it("redirects to the auth screen when the session has expired", async () => {
     const onSessionExpired = vi.fn();
     vi.stubGlobal(

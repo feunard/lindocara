@@ -15,6 +15,7 @@ import { type EditorAssetId, editorAsset } from "../../../shared/tiny-swords-cat
 import { setStart } from "../../adventure-draft.js";
 import {
   authErrorText,
+  createAdventureApi,
   errorCode,
   fetchMap,
   fetchMaps,
@@ -34,19 +35,24 @@ import {
 import { type MapEditorStageHandle, openMapEditorStage } from "../../game/map-editor-stage.js";
 import { startMapPreview } from "../../game/map-preview.js";
 import { t, useLocale } from "../../i18n.js";
-import { useUiStore } from "../../store.js";
+import { type AdventureEditorSession, useUiStore } from "../../store.js";
 import { Button } from "../components/button.js";
 import { Input } from "../components/input.js";
 import { Label } from "../components/label.js";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../components/resizable.js";
-import { AdventurePicker } from "./AdventurePicker.js";
 import { AdventureSettingsDialog } from "./AdventureSettingsDialog.js";
 import { loadAdventureSession } from "./adventure-session.js";
 import { EditorMenuBar } from "./EditorMenuBar.js";
 import { EditorStatusBar } from "./EditorStatusBar.js";
 import { type EditorPaintTool, EditorToolbar, toolLabelText } from "./EditorToolbar.js";
 import { EventDialog } from "./EventDialog.js";
+import {
+  clearLastEditedAdventure,
+  readLastEditedAdventure,
+  writeLastEditedAdventure,
+} from "./editor-last-adventure.js";
 import { FirstSaveDialog } from "./FirstSaveDialog.js";
+import { LoadAdventureDialog } from "./LoadAdventureDialog.js";
 import { MapListPanel } from "./MapListPanel.js";
 import { RegistryDialog } from "./RegistryDialog.js";
 import { TerrainPalette } from "./TerrainPalette.js";
@@ -131,29 +137,85 @@ function paintToolFor(key: EditorPaintTool | "stairs", content: RectFillContent)
  */
 export function AdventureEditorScreen() {
   const session = useUiStore((state) => state.adventureEditorSession);
+  // UX wave #15: opening the editor opens THE EDITOR, never a picker page. A session with a real id
+  // mounts the shell straight away; otherwise the bootstrap resolves one (last-edited, else
+  // instant-create) behind a loading shell — never a flash of a list.
+  if (session?.adventureId) {
+    return <AdventureEditorInner key={session.adventureId} adventureId={session.adventureId} />;
+  }
+  return <EditorBootstrap />;
+}
+
+/** Resolve the adventure the editor opens on (UX wave #15): the last one this account edited, else a
+ *  freshly instant-created draft (remark 14's flow). A remembered id that is gone or forbidden falls
+ *  through to instant-create; a genuine session error is re-thrown so the caller redirects to auth. */
+async function bootstrapEditorSession(accountId: string | null): Promise<AdventureEditorSession> {
+  const lastId = readLastEditedAdventure(accountId);
+  if (lastId) {
+    try {
+      return await loadAdventureSession(lastId);
+    } catch (caught) {
+      if (isSessionError(errorCode(caught))) throw caught;
+      // Gone or forbidden: forget it and fall through to a fresh adventure.
+      clearLastEditedAdventure(accountId);
+    }
+  }
+  // No memory (or a stale id): create immediately with the localized default title + 4 players and
+  // land in the editor; the real name is asked at the first save (titleUntouched).
+  const created = await createAdventureApi({ title: t("adventure.default_title"), maxPlayers: 4 });
+  const loaded = await loadAdventureSession(created.id);
+  return { ...loaded, titleUntouched: true };
+}
+
+/** The editor's own loading shell while the bootstrap resolves the opening adventure. No picker, no
+ *  bare stage — just the light editor scope and a status line, so re-entry never flashes a list. */
+function EditorBootstrap() {
+  useLocale();
+  const accountId = useUiStore((state) => state.accountId);
   const setSession = useUiStore((state) => state.setAdventureEditorSession);
   const setScreen = useUiStore((state) => state.setScreen);
-  // UX wave #2: the editor opens on the adventure picker, never a bare stage. Only once an adventure
-  // is selected (a session with a real id) does the editor shell mount around it.
-  if (!session?.adventureId) {
-    return (
-      <AdventurePicker
-        onOpen={(loaded) => setSession(loaded)}
-        onExit={() => {
-          setSession(null);
-          setScreen("parties");
-        }}
-        onSessionExpired={() => setScreen("auth")}
-      />
-    );
-  }
-  return <AdventureEditorInner key={session.adventureId} adventureId={session.adventureId} />;
+  const [error, setError] = useState<string | null>(null);
+  const started = useRef(false);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: one bootstrap on mount
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    void (async () => {
+      try {
+        setSession(await bootstrapEditorSession(accountId));
+      } catch (caught) {
+        if (isSessionError(errorCode(caught))) setScreen("auth");
+        else setError(errorCode(caught));
+      }
+    })();
+  }, []);
+
+  return (
+    <div className="editor-root flex h-screen flex-col items-center justify-center gap-3 bg-zinc-50 text-zinc-950">
+      {error ? (
+        <>
+          <p role="alert" className="text-sm text-destructive">
+            {authErrorText(error)}
+          </p>
+          <Button variant="outline" size="sm" onClick={() => setScreen("parties")}>
+            {t("editor.shell.quit")}
+          </Button>
+        </>
+      ) : (
+        <p role="status" className="text-sm text-zinc-500">
+          {t("editor.shell.stage.loading")}
+        </p>
+      )}
+    </div>
+  );
 }
 
 function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   useLocale();
   const setScreen = useUiStore((state) => state.setScreen);
   const setSession = useUiStore((state) => state.setAdventureEditorSession);
+  const accountId = useUiStore((state) => state.accountId);
   // The starting map (UX wave #6) is the graph start's map — surfaced in the Cartes panel below.
   const startMapId = useUiStore(
     (state) => state.adventureEditorSession?.draft.start?.mapId ?? null,
@@ -233,6 +295,8 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [databaseOpen, setDatabaseOpen] = useState(false);
+  // UX wave #15: the "Load an adventure" dialog, reached from File → « Charger une aventure ».
+  const [loadOpen, setLoadOpen] = useState(false);
   // UX wave #14: a freshly created adventure is born with the default title, so its first explicit
   // save must prompt for the real name. Seeded once (this component is keyed by adventureId, so a new
   // adventure remounts it) from the picker's `titleUntouched` flag, then kept in local state so no
@@ -252,6 +316,34 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     const code = errorCode(caught);
     if (isSessionError(code)) setScreen("auth");
     else setError(code);
+  }
+
+  // UX wave #15: remember this as the last-edited adventure so the next editor open lands straight in
+  // it. This is the single write point — the bootstrap, the load dialog and the instant-create all
+  // reach the editor through this keyed component, so one mount-time write covers every path.
+  useEffect(() => {
+    writeLastEditedAdventure(accountId, adventureId);
+  }, [accountId, adventureId]);
+
+  // Load a different adventure (UX wave #15), from the File → « Charger une aventure » dialog. Guard
+  // unsaved edits first, then swap the session — a new adventureId remounts this component (it is
+  // keyed by it), resetting every room-local editor state cleanly.
+  function loadAdventure(id: string): void {
+    if (id === adventureId) {
+      setLoadOpen(false);
+      return;
+    }
+    if (dirty && !window.confirm(t("editor.shell.exit.confirm"))) return;
+    setError(null);
+    void (async () => {
+      try {
+        const loaded = await loadAdventureSession(id);
+        setSession(loaded);
+        setLoadOpen(false);
+      } catch (caught) {
+        fail(caught);
+      }
+    })();
   }
 
   // Load the map to edit once: the author's first map. Task 8's maps panel takes over selection;
@@ -676,7 +768,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     if (!force && dirty && !window.confirm(t("editor.shell.exit.confirm"))) {
       return;
     }
-    // Clear the session so re-entering the editor lands on the picker again (UX wave #2).
+    // Clear the session; the next editor open bootstraps a fresh opening adventure (UX wave #15).
     setSession(null);
     setScreen("parties");
   }
@@ -707,6 +799,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       confirmDeleteId !== null ||
       settingsOpen ||
       databaseOpen ||
+      loadOpen ||
       openEventId !== null ||
       firstSaveOpen
     )
@@ -786,7 +879,14 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   function handleContainerBlur(event: ReactFocusEvent<HTMLDivElement>): void {
     const related = event.relatedTarget;
     if (related !== null && related !== document.body) return;
-    if (newMapOpen || confirmDeleteId !== null || settingsOpen || databaseOpen || firstSaveOpen)
+    if (
+      newMapOpen ||
+      confirmDeleteId !== null ||
+      settingsOpen ||
+      databaseOpen ||
+      loadOpen ||
+      firstSaveOpen
+    )
       return;
     if (stageStatus !== "ready" || previewing) return;
     containerRef.current?.focus();
@@ -836,12 +936,12 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       className="editor-root flex h-screen flex-col overflow-hidden text-zinc-950 select-none outline-none"
     >
       <EditorMenuBar
-        adventureName={map?.name ?? t("editor.shell.adventureFallback")}
         canUndo={canUndo && stageStatus === "ready"}
         canRedo={canRedo && stageStatus === "ready"}
         showGrid={showGrid}
         showDim={showDim}
         onExit={() => exit()}
+        onOpenLoad={() => setLoadOpen(true)}
         onNewMap={() => setNewMapOpen(true)}
         onSave={() => void save()}
         onDeleteMap={() => setConfirmDeleteId(map?.id ?? null)}
@@ -1014,6 +1114,13 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       <RegistryDialog
         open={databaseOpen}
         onOpenChange={setDatabaseOpen}
+        onSessionExpired={() => setScreen("auth")}
+      />
+
+      <LoadAdventureDialog
+        open={loadOpen}
+        onOpenChange={setLoadOpen}
+        onPick={loadAdventure}
         onSessionExpired={() => setScreen("auth")}
       />
 
