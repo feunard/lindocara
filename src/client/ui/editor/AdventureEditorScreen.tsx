@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from "react";
 import { MONSTER_SPECIES_KIND, type MonsterSpecies } from "../../../shared/game.js";
 import {
   EMPTY_MARKERS,
@@ -138,6 +138,10 @@ export function AdventureEditorScreen() {
   // stage reopens from them rather than the pristine payload.
   const editedRef = useRef<EditorMap | null>(null);
   const autoOpened = useRef(false);
+  // The keyboard-shortcut host: shortcuts are bound here, never on `document`, so no other screen's
+  // typing risks being intercepted. It needs `tabIndex={-1}` to be programmatically focusable — see
+  // the focus effect below.
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   const [map, setMap] = useState<MapPayload | null>(null);
   const [toolKey, setToolKey] = useState<ToolKey | null>("pencil");
@@ -277,6 +281,15 @@ export function AdventureEditorScreen() {
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
+
+  // Claims focus for the shortcut host whenever its container (re)appears — on first mount and again
+  // every time the preview sandbox hands the screen back, since that branch unmounts this container
+  // entirely. `tabIndex={-1}` makes the div programmatically focusable without adding it to the tab
+  // order.
+  useEffect(() => {
+    if (previewing) return;
+    containerRef.current?.focus();
+  }, [previewing]);
 
   // The monster marker tool bundles its species/radius into the pushed tool, so changing either while
   // that tool is active must re-push it — otherwise the stage keeps stamping spawns with whatever
@@ -427,6 +440,71 @@ export function AdventureEditorScreen() {
     setScreen("parties");
   }
 
+  // ⌘S save, ⌘Z/⇧⌘Z undo/redo, 1/2/3 active layer, P/R/F/E/S tools, G grid — dispatched straight to
+  // the same actions the menu bar and toolbar call, never a parallel implementation. Inert while:
+  // - an input/textarea/select owns the keystroke (checked on `event.target`, since typing "r" into
+  //   the new-map name field must not switch tools);
+  // - any of the three dialogs this screen tracks is open — `newMapOpen`, `confirmDeleteId` and
+  //   `settingsOpen`. `event.target` checking alone cannot stand in for this: a dialog can be open
+  //   while the keydown's target is neither an input nor even inside the dialog at all — a button in
+  //   the (portaled) dialog, or focus that never left this container in the first place. Gating on
+  //   `settingsOpen` in particular is what stops ⌘S from firing this screen's map save while the
+  //   settings dialog is open with its own save action.
+  // - the stage has not finished opening (`stageStatus !== "ready"`), matching every other action in
+  //   this file guarding on stage readiness.
+  function handleShortcutKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
+    if (stageStatus !== "ready") return;
+    if (newMapOpen || confirmDeleteId !== null || settingsOpen) return;
+    const target = event.target;
+    if (target instanceof HTMLElement) {
+      const tag = target.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+    }
+
+    const key = event.key.toLowerCase();
+    if (event.metaKey && key === "s") {
+      event.preventDefault();
+      void save();
+      return;
+    }
+    if (event.metaKey && key === "z") {
+      event.preventDefault();
+      if (event.shiftKey) redo();
+      else undo();
+      return;
+    }
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    switch (key) {
+      case "1":
+        selectLayer(0);
+        return;
+      case "2":
+        selectLayer(1);
+        return;
+      case "3":
+        selectLayer(2);
+        return;
+      case "p":
+        selectTool("pencil");
+        return;
+      case "r":
+        selectTool("rect");
+        return;
+      case "f":
+        selectTool("fill");
+        return;
+      case "e":
+        selectTool("eraser");
+        return;
+      case "s":
+        selectTool("select");
+        return;
+      case "g":
+        toggleGrid();
+        return;
+    }
+  }
+
   const toolLabel = selectedAsset
     ? t("editor.inspector.element")
     : toolKey === null
@@ -461,7 +539,13 @@ export function AdventureEditorScreen() {
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-white text-zinc-950 select-none">
+    // biome-ignore lint/a11y/noStaticElementInteractions: shortcut-key host, not an interactive widget
+    <div
+      ref={containerRef}
+      tabIndex={-1}
+      onKeyDown={handleShortcutKeyDown}
+      className="flex h-screen flex-col overflow-hidden bg-white text-zinc-950 select-none outline-none"
+    >
       <EditorMenuBar
         adventureName={map?.name ?? t("editor.shell.adventureFallback")}
         canUndo={canUndo && stageStatus === "ready"}

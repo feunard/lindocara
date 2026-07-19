@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MapPayload, MapSummary } from "../../src/client/api.js";
@@ -535,6 +535,149 @@ describe("AdventureEditorScreen shell", () => {
         assetId: "resource.terrain-resources-wood-trees.tree3",
       }),
     );
+  });
+
+  describe("keyboard shortcuts", () => {
+    /** The shell's own root: the shortcut listener lives here, never on `document`, so every
+     *  shortcut test dispatches directly on it rather than on `window`/`document`. */
+    function shell(rendered: { container: HTMLElement }): HTMLElement {
+      return rendered.container.firstElementChild as HTMLElement;
+    }
+
+    it("dispatches the paint-tool, layer and grid shortcuts to the same actions the toolbar uses", async () => {
+      vi.stubGlobal("fetch", mapsFetchMock());
+      const rendered = await mountReady();
+      const host = shell(rendered);
+
+      fireEvent.keyDown(host, { key: "r" });
+      expect(stageMock.setTool).toHaveBeenLastCalledWith({
+        kind: "rect",
+        content: { kind: "block", block: "grass" },
+      });
+
+      fireEvent.keyDown(host, { key: "f" });
+      expect(stageMock.setTool).toHaveBeenLastCalledWith({
+        kind: "fill",
+        content: { kind: "block", block: "grass" },
+      });
+
+      fireEvent.keyDown(host, { key: "e" });
+      expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "eraser" });
+
+      fireEvent.keyDown(host, { key: "s" });
+      expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "select" });
+
+      fireEvent.keyDown(host, { key: "p" });
+      expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "block", block: "grass" });
+
+      fireEvent.keyDown(host, { key: "2" });
+      expect(stageMock.setActiveLayer).toHaveBeenLastCalledWith(1);
+      expect(screen.getByText(t("editor.shell.layer", { n: 2 }))).toBeInTheDocument();
+
+      const gridButton = screen.getByRole("button", { name: t("editor.shell.grid.aria") });
+      expect(gridButton).toHaveAttribute("aria-pressed", "true");
+      fireEvent.keyDown(host, { key: "g" });
+      expect(gridButton).toHaveAttribute("aria-pressed", "false");
+    });
+
+    it("forwards ⌘Z to undo and ⇧⌘Z to redo on the stage handle", async () => {
+      vi.stubGlobal("fetch", mapsFetchMock());
+      const rendered = await mountReady();
+      const host = shell(rendered);
+
+      fireEvent.keyDown(host, { key: "z", metaKey: true });
+      expect(stageMock.undo).toHaveBeenCalledTimes(1);
+      expect(stageMock.redo).not.toHaveBeenCalled();
+
+      fireEvent.keyDown(host, { key: "z", metaKey: true, shiftKey: true });
+      expect(stageMock.redo).toHaveBeenCalledTimes(1);
+      expect(stageMock.undo).toHaveBeenCalledTimes(1);
+    });
+
+    /** Counts only the map-save PUT — the settings dialog's own save hits a different endpoint
+     *  entirely, so this stays a precise assertion of "did the editor's own save fire", not a
+     *  proxy for "was fetch called at all". */
+    function mapSaveCalls(mock: ReturnType<typeof mapsBackend>): number {
+      return mock.mock.calls.filter(
+        ([url, init]) =>
+          url === "/api/maps/m1" && (init as RequestInit | undefined)?.method === "PUT",
+      ).length;
+    }
+
+    it("saves and prevents the browser save dialog on ⌘S", async () => {
+      const edited = {
+        name: "Verdant Reach",
+        layers: OPEN_TILE_LAYERS,
+        elements: [],
+        spawn: { col: 20, row: 15 },
+        markers: EMPTY_MARKERS,
+      };
+      stageMock.current.mockReturnValue(edited);
+      const mock = mapsBackend(twoMaps);
+      vi.stubGlobal("fetch", mock);
+      const rendered = await mountReady();
+      const host = shell(rendered);
+
+      const notCancelled = fireEvent.keyDown(host, { key: "s", metaKey: true });
+      // fireEvent returns the DOM dispatch result: false once preventDefault() was called on a
+      // cancelable event — exactly what must happen so the browser's own save dialog never opens.
+      expect(notCancelled).toBe(false);
+
+      await waitFor(() => expect(mapSaveCalls(mock)).toBe(1));
+      expect(stageMock.markSaved).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not switch tools while typing "r" into the new-map dialog\'s name input', async () => {
+      const mock = mapsBackend(twoMaps);
+      vi.stubGlobal("fetch", mock);
+      await mountReady();
+
+      await userEvent.click(
+        screen.getAllByRole("button", { name: t("editor.new") })[0] as HTMLElement,
+      );
+      const nameInput = await screen.findByLabelText(t("editor.name"));
+
+      const before = stageMock.setTool.mock.calls.length;
+      await userEvent.type(nameInput, "r");
+      expect(nameInput).toHaveValue("r");
+      expect(stageMock.setTool.mock.calls).toHaveLength(before);
+    });
+
+    // The new-map dialog above is doubly guarded: it is both a focused input *and* an open dialog,
+    // so it alone cannot prove the input-focus gate is what is doing the work — the dialog-open gate
+    // would still block the shortcut even without it. This test isolates the input-focus gate with a
+    // keydown targeted straight at a text input that is not inside any tracked dialog: the terrain
+    // palette's own search box, rendered straight into this screen's container (no portal). Dispatched
+    // with `fireEvent` rather than `userEvent.type`, because jsdom's click-driven focus resolution for
+    // this input is unreliable in this suite (confirmed independent of this change: the same gap
+    // reproduces on `main`) — `fireEvent.keyDown(search, ...)` sidesteps it by delivering an event
+    // whose `target` is genuinely `search`, exactly the condition the gate has to recognise.
+    it("does not switch tools on a keydown targeting the palette search box (no dialog open)", async () => {
+      vi.stubGlobal("fetch", mapsFetchMock());
+      await mountReady();
+
+      const search = screen.getByRole("searchbox", { name: t("editor.palette.search") });
+      const before = stageMock.setTool.mock.calls.length;
+      fireEvent.keyDown(search, { key: "r" });
+      expect(stageMock.setTool.mock.calls).toHaveLength(before);
+    });
+
+    it("does not fire the map save while the settings dialog is open", async () => {
+      const mock = mapsBackend(twoMaps);
+      vi.stubGlobal("fetch", mock);
+      const rendered = await mountReady();
+      const host = shell(rendered);
+
+      screen.getByRole("menuitem", { name: t("editor.shell.menu.file") }).focus();
+      await userEvent.keyboard("{Enter}");
+      await userEvent.click(
+        await screen.findByRole("menuitem", { name: t("editor.shell.settings") }),
+      );
+      await screen.findByRole("dialog");
+
+      fireEvent.keyDown(host, { key: "s", metaKey: true });
+      expect(mapSaveCalls(mock)).toBe(0);
+    });
   });
 });
 
