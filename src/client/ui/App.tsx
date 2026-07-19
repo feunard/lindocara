@@ -10,7 +10,9 @@ import { HelpBar } from "./HelpBar.js";
 import { Hud } from "./hud/Hud.js";
 import { Minimap } from "./hud/Minimap.js";
 import { InteriorOverlay } from "./InteriorOverlay.js";
+import { InventoryOverlay } from "./InventoryOverlay.js";
 import { LocaleToggle } from "./LocaleToggle.js";
+import { MerchantOverlay } from "./MerchantOverlay.js";
 import { MobileControls } from "./MobileControls.js";
 import { PartiesScreen } from "./PartiesScreen.js";
 import { PartyScreen } from "./PartyScreen.js";
@@ -55,6 +57,8 @@ export function App() {
           <Prompt />
           <HelpBar />
           <InteriorOverlay />
+          <InventoryOverlay />
+          <MerchantOverlay />
           <WorldMap />
           <TalentTree />
           <MobileControls />

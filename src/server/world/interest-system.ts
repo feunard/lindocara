@@ -84,6 +84,7 @@ export function playerSnapshot(player: PlayerRuntime): PlayerSnapshot {
     life: player.life,
     facing: { ...player.facing },
     guarding: player.guarding,
+    invisible: player.invisibleUntil > Date.now(),
     action: combatActionSnapshot(player.action),
   };
 }

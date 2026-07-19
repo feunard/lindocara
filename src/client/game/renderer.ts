@@ -23,6 +23,7 @@ import {
 } from "../../shared/game.js";
 import type { MessageKey } from "../../shared/i18n/index.js";
 import type { MapElement } from "../../shared/map-data.js";
+import type { MerchantDefinition } from "../../shared/merchant.js";
 import type {
   CombatActionSnapshot,
   CombatAnimation,
@@ -216,6 +217,7 @@ interface ArtTextures {
   players: Record<PrimaryColor, Texture>;
   monsters: Record<MonsterSpecies, Record<UnitMotion, readonly Texture[]>>;
   keeper: Texture;
+  merchant: readonly Texture[];
   /** The tilemap's ground truth. `land[row][col]` is a cell of the flat sheet's first 4x4
    * autotile group; `water` is the pack's flat BG colour and `foam` its eight shoreline frames.
    * `tileset[row][col]` is the whole 9x6 `Tilemap_color1.png` grid a frozen tile id indexes into —
@@ -402,6 +404,11 @@ function landTexture(
  *  because this arithmetic — no Pixi in it — is testable without a live canvas. */
 export { autotileSheetCell } from "./tile-draw.js";
 
+const MERCHANT_IDLE_SHEET = new URL(
+  "../../../assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Gnome/Gnome_Idle.png",
+  import.meta.url,
+).href;
+
 function centerOf(entity: { x: number; y: number }): { x: number; y: number } {
   return { x: entity.x + PLAYER_SIZE / 2, y: entity.y + PLAYER_SIZE / 2 };
 }
@@ -560,6 +567,8 @@ async function loadArt(): Promise<ArtTextures> {
     Texture
   >;
   for (const resource of Object.values(questResources)) resource.source.style.scaleMode = "nearest";
+  const merchantSheet = await Assets.load<Texture>(MERCHANT_IDLE_SHEET);
+  merchantSheet.source.style.scaleMode = "nearest";
 
   return {
     players: {
@@ -570,6 +579,7 @@ async function loadArt(): Promise<ArtTextures> {
     },
     monsters,
     keeper: texture("npc.keeper"),
+    merchant: sliceHorizontalSheet(merchantSheet, 192, 8, 192),
     terrain: {
       land: sliceAutotileSheet(terrainFlatSheet),
       water: terrainWaterSurface,
@@ -878,6 +888,7 @@ export class Renderer {
   #mapElements: readonly MapElement[] | null = null;
   #mapAssetArt = new Map<EditorAssetId, EditorAssetArt>();
   #mapElementAnimations: Array<{ sprite: Sprite; frames: readonly Texture[] }> = [];
+  #merchantContainer: Container | null = null;
   /** Read from the shared catalogue, the same place `#tiles` comes from — not from the welcome.
    *  Swapped wholesale in `configureZone`, so a portal from the zone you left can never draw over
    *  the one you arrived in. */
@@ -997,6 +1008,39 @@ export class Renderer {
     this.#mapElementAnimations = [];
     this.#rebuildForZone();
     void this.#loadMapAssetArt(zoneId, revision, elements);
+  }
+
+  configureMerchant(merchant: MerchantDefinition): void {
+    if (this.#merchantContainer) {
+      this.#merchantContainer.destroy({ children: true });
+      this.#merchantContainer = null;
+    }
+    const container = new Container();
+    container.position.set(merchant.x + PLAYER_SIZE / 2, merchant.y + PLAYER_SIZE);
+    container.zIndex = merchant.y + PLAYER_SIZE;
+    container.addChild(new Graphics().ellipse(0, 0, 25, 8).fill({ color: 0x000000, alpha: 0.4 }));
+    container.addChild(new Graphics().circle(0, -34, 38).fill({ color: 0xffcf62, alpha: 0.09 }));
+    const sprite = createSprite(this.art.merchant[0] ?? Texture.EMPTY, 72, 72);
+    sprite.anchor.set(0.5, 1);
+    sprite.position.set(0, 4);
+    container.addChild(sprite);
+    const label = new Text({
+      text: t("merchant.world_label"),
+      style: {
+        fontFamily: "Georgia, serif",
+        fontSize: 12,
+        fill: 0xffdc72,
+        align: "center",
+        dropShadow: { color: 0x000000, alpha: 0.9, blur: 3, distance: 1 },
+      },
+    });
+    label.anchor.set(0.5, 1);
+    label.position.set(0, -66);
+    container.addChild(label);
+    this.#localizedTexts.push({ node: label, compute: () => t("merchant.world_label") });
+    this.#actors.addChild(container);
+    this.#merchantContainer = container;
+    this.#mapElementAnimations.push({ sprite, frames: this.art.merchant });
   }
 
   /**
@@ -3492,7 +3536,13 @@ export class Renderer {
             );
           }
           if (view.flash) view.flash.alpha = (view.hitUntil ?? 0) > now ? 0.65 : 0;
-          view.container.alpha = ghost ? 0.5 : 1;
+          view.container.alpha = ghost
+            ? 0.5
+            : player.invisible
+              ? player.id === this.#selfId
+                ? 0.28
+                : 0.06
+              : 1;
           // A ghost has no health to show; it has a body to find.
           this.#drawHp(view, ghost ? 0 : player.hp, player.maxHp);
         }

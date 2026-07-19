@@ -4,6 +4,7 @@ import {
   type PrimaryColor,
   starterEquipmentFor,
 } from "../../shared/character.js";
+import { normalizeConsumables } from "../../shared/consumables.js";
 import { type CombatCooldownState, normalizeCombatCooldowns } from "../../shared/cooldowns.js";
 import type { CombatContribution, ThreatEntry } from "../../shared/cooperation.js";
 import { type LifeState, RESURRECT_COOLDOWN_MS } from "../../shared/death.js";
@@ -92,6 +93,11 @@ export interface Attachment extends Vec2 {
   resource?: ClassResourceState;
   identityKind?: "character" | "hero";
   partyId?: string | null;
+  consumableCooldownUntil?: number;
+  damageBoostUntil?: number;
+  forgottenUntil?: number;
+  invisibleUntil?: number;
+  resurrectionAt?: number;
 }
 
 export interface PlayerInterest {
@@ -186,6 +192,11 @@ export interface PlayerRuntime extends PlayerProfile {
   cheatInvulnerable: boolean;
   talents: string[];
   action: CombatActionRuntime | null;
+  consumableCooldownUntil: number;
+  damageBoostUntil: number;
+  forgottenUntil: number;
+  invisibleUntil: number;
+  resurrectionAt: number;
 }
 
 export interface MonsterRuntime extends Vec2 {
@@ -314,7 +325,10 @@ export function toProfile(player: PlayerRuntime): SaveableProfile {
     appearance: player.appearance,
     class: player.class,
     equipment: { ...player.equipment },
-    inventory: { ...player.inventory },
+    inventory: {
+      ...player.inventory,
+      consumables: normalizeConsumables(player.inventory.consumables, player.inventory.potions),
+    },
     quest: { ...player.quest },
     zoneId: player.zoneId,
     instanceId: player.instanceId,
@@ -337,6 +351,11 @@ export function toAttachment(player: PlayerRuntime): Attachment {
     roomKey: player.roomKey,
     identityKind: player.identityKind,
     partyId: player.partyId,
+    consumableCooldownUntil: player.consumableCooldownUntil,
+    damageBoostUntil: player.damageBoostUntil,
+    forgottenUntil: player.forgottenUntil,
+    invisibleUntil: player.invisibleUntil,
+    resurrectionAt: player.resurrectionAt,
   };
 }
 
@@ -367,7 +386,10 @@ export function newPlayer(
     appearance: { ...profile.appearance },
     equipment: { ...profile.equipment },
     corpse: profile.corpse === null ? null : { ...profile.corpse },
-    inventory: { ...profile.inventory },
+    inventory: {
+      ...profile.inventory,
+      consumables: normalizeConsumables(profile.inventory.consumables, profile.inventory.potions),
+    },
     quest: { ...profile.quest },
     queue: [],
     lastInput: NO_INPUT,
@@ -406,6 +428,11 @@ export function newPlayer(
     action: null,
     identityKind: "character",
     partyId: null,
+    consumableCooldownUntil: 0,
+    damageBoostUntil: 0,
+    forgottenUntil: 0,
+    invisibleUntil: 0,
+    resurrectionAt: 0,
   };
 }
 
@@ -447,6 +474,10 @@ export function profileFromAttachment(
       potions: attachment.inventory?.potions ?? 2,
       gold: attachment.inventory?.gold ?? 0,
       crystals: attachment.inventory?.crystals ?? 0,
+      consumables: normalizeConsumables(
+        attachment.inventory?.consumables,
+        attachment.inventory?.potions ?? 2,
+      ),
     },
     quest: {
       chapter: attachment.quest?.chapter ?? "three_offerings",

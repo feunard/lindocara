@@ -9,6 +9,7 @@ import { CooldownBar } from "./CooldownBar.js";
 import { DeathOverlay } from "./DeathOverlay.js";
 import { HealCooldownBar } from "./HealCooldownBar.js";
 import { InventoryChip } from "./InventoryChip.js";
+import { QuickItemBar } from "./QuickItemBar.js";
 import { SkillBar } from "./SkillBar.js";
 import { UnitPortrait } from "./UnitPortrait.js";
 
@@ -223,6 +224,7 @@ export function Hud() {
         </section>
       </aside>
       <SkillBar />
+      <QuickItemBar />
     </>
   );
 }

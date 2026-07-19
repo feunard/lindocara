@@ -28,9 +28,13 @@ const ACTION_CONTROLS = [
   "skill5",
   "interact",
   "potion",
+  "item1",
+  "item2",
+  "item3",
   "release",
   "map",
   "talents",
+  "inventory",
   "chat",
   "settings",
 ] as const satisfies readonly ControlId[];
@@ -112,12 +116,14 @@ export interface ActionHandlers {
   attack(): void;
   interact(): void;
   usePotion(): void;
+  useQuickItem?(index: 0 | 1 | 2): void;
   release(): void;
   castSkill(slot: SkillSlot): void;
   releaseSkill?(slot: SkillSlot): void;
   focusChat(): void;
   toggleMap(): void;
   toggleTalents?(): void;
+  toggleInventory?(): void;
   toggleSettings(): void;
 }
 
@@ -129,9 +135,13 @@ function invokeAction(control: (typeof ACTION_CONTROLS)[number], handlers: Actio
   else if (control === "skill5") handlers.castSkill(5);
   else if (control === "interact") handlers.interact();
   else if (control === "potion") handlers.usePotion();
+  else if (control === "item1") handlers.useQuickItem?.(0);
+  else if (control === "item2") handlers.useQuickItem?.(1);
+  else if (control === "item3") handlers.useQuickItem?.(2);
   else if (control === "release") handlers.release();
   else if (control === "map") handlers.toggleMap();
   else if (control === "talents") handlers.toggleTalents?.();
+  else if (control === "inventory") handlers.toggleInventory?.();
   else if (control === "chat") handlers.focusChat();
   else handlers.toggleSettings();
 }
@@ -171,7 +181,13 @@ export function trackActions(
     }
     const control = keyboardControlForCode(event.code);
     if (!control || !ACTION_CONTROLS.includes(control as (typeof ACTION_CONTROLS)[number])) return;
-    if (control !== "settings" && control !== "talents" && !actionsEnabled()) return;
+    if (
+      control !== "settings" &&
+      control !== "talents" &&
+      control !== "inventory" &&
+      !actionsEnabled()
+    )
+      return;
     const actionControl = control as (typeof ACTION_CONTROLS)[number];
     invokeAction(actionControl, handlers);
     const skillSlot = skillSlotForControl(actionControl);
@@ -187,21 +203,56 @@ export function trackActions(
   };
 
   let previousGamepad = new Set<ControlId>();
+  let previousGamepadCombo: string | null = null;
   let frame = 0;
   const pollGamepad = () => {
     const gamepad = firstConnectedGamepad();
     const pressed = new Set<ControlId>();
     if (gamepad) {
+      // Standard pads have no three spare face buttons. LT acts as a quick-item modifier:
+      // LT alone uses slot 1, LT + D-pad down/right uses slots 2/3, and LT + Back opens the bag.
+      // Individual mapped actions are suppressed for the chord so one press produces one intent.
+      const modifier = gamepad.buttons[6]?.pressed === true;
+      const inventoryChord = modifier && gamepad.buttons[8]?.pressed === true;
+      const quickIndex = !modifier
+        ? null
+        : gamepad.buttons[13]?.pressed
+          ? 1
+          : gamepad.buttons[15]?.pressed
+            ? 2
+            : gamepad.buttons[14]?.pressed
+              ? 0
+              : null;
+      const combo = inventoryChord
+        ? "inventory"
+        : quickIndex === null
+          ? null
+          : `item-${quickIndex}`;
+      if (combo && combo !== previousGamepadCombo) {
+        if (combo === "inventory") handlers.toggleInventory?.();
+        else if (actionsEnabled()) handlers.useQuickItem?.(quickIndex as 0 | 1 | 2);
+      }
+      previousGamepadCombo = combo;
       for (const control of ACTION_CONTROLS) {
         if (!gamepadControlPressed(control, gamepad)) continue;
         pressed.add(control);
         if (
+          (inventoryChord && (control === "potion" || control === "item1" || control === "map")) ||
+          (quickIndex !== null && (control === "potion" || control === "item1"))
+        )
+          continue;
+        if (
           !previousGamepad.has(control) &&
-          (control === "settings" || control === "talents" || actionsEnabled())
+          (control === "settings" ||
+            control === "talents" ||
+            control === "inventory" ||
+            actionsEnabled())
         ) {
           invokeAction(control, handlers);
         }
       }
+    } else {
+      previousGamepadCombo = null;
     }
     for (const control of previousGamepad) {
       if (pressed.has(control)) continue;

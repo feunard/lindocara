@@ -1,3 +1,4 @@
+import type { ConsumableId } from "../../shared/consumables.js";
 import { canMove, type LifeState, speedForLife } from "../../shared/death.js";
 import { resolveTerrain, type TerrainGeometry } from "../../shared/game.js";
 import {
@@ -81,6 +82,8 @@ export interface Connection {
   attack(): void;
   interact(): void;
   usePotion(): void;
+  useItem(item: ConsumableId): void;
+  buyItem(item: ConsumableId): void;
   release(): void;
   skill(slot: SkillSlot): void;
   releaseSkill(slot: SkillSlot): void;
@@ -103,6 +106,7 @@ export interface ConnectionHandlers {
   onChat(from: string, text: string, channel: "local" | "party"): void;
   onPartyInvite(inviteId: string, fromId: string, from: string, expiresAt: number): void;
   onPartyState(party: PartyState | null): void;
+  onMerchantOpen(): void;
   onAnimation(animation: CombatAnimation): void;
   onEvent(
     code: EventCode,
@@ -194,6 +198,8 @@ export class WorldClient {
       attack: () => this.#send({ t: "attack" }),
       interact: () => this.#send({ t: "interact" }),
       usePotion: () => this.#send({ t: "use", item: "potion" }),
+      useItem: (item) => this.#send({ t: "item.use", item }),
+      buyItem: (item) => this.#send({ t: "merchant.buy", item }),
       release: () => this.#send({ t: "release" }),
       skill: (slot) => this.#send({ t: "skill", slot }),
       releaseSkill: (slot) => this.#send({ t: "skill.release", slot }),
@@ -373,6 +379,10 @@ export class WorldClient {
     }
     if (message.t === "party.state") {
       handlers.onPartyState(message.party);
+      return;
+    }
+    if (message.t === "merchant.open") {
+      handlers.onMerchantOpen();
       return;
     }
     if (message.t === "animation") {

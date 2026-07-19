@@ -1,8 +1,10 @@
 import type { PrimaryColor } from "../../shared/character.js";
 import { WS_CLOSE } from "../../shared/close-codes.js";
+import type { ConsumableId } from "../../shared/consumables.js";
 import { isSpirit } from "../../shared/death.js";
 import { INTERACTION_RANGE, isMonsterSpecies, pointDistance } from "../../shared/game.js";
 import type { MessageKey } from "../../shared/i18n/index.js";
+import type { MerchantDefinition } from "../../shared/merchant.js";
 import type {
   CombatAnimation,
   EventCode,
@@ -53,8 +55,14 @@ function talentsOpen(): boolean {
 }
 
 function gameplayPaused(): boolean {
+  const store = useUiStore.getState();
   return (
-    interiorOpen() || settingsOpen() || talentsOpen() || useUiStore.getState().heroLoading !== null
+    interiorOpen() ||
+    settingsOpen() ||
+    talentsOpen() ||
+    store.inventoryOpen ||
+    store.merchantOpen ||
+    store.heroLoading !== null
   );
 }
 
@@ -128,6 +136,14 @@ function eventText(
   if (typeof resolved.kind === "string") {
     resolved.kind = t(`item.${resolved.kind}` as MessageKey);
   }
+  if (typeof resolved.item === "string") {
+    resolved.item = t(`consumable.${resolved.item}.name` as MessageKey);
+  }
+  if (typeof resolved.currency === "string") {
+    resolved.currency = t(
+      `item.${resolved.currency === "crystals" ? "crystal" : resolved.currency}` as MessageKey,
+    );
+  }
   if (typeof resolved.skill === "string" && playerClass) {
     resolved.skill = t(`skill.${playerClass}.${resolved.skill}.name` as MessageKey);
   }
@@ -157,13 +173,18 @@ function updatePrompt(
   quest: QuestState,
   interiorDoor: InteriorDoor | undefined,
   zoneId: ZoneId,
+  merchant: MerchantDefinition | null,
 ): void {
   let result: LocalizedText | null = null;
   // Prompt.tsx hides the floating prompt whenever the interior panel is open, so a
   // "close_interior" key here would never render - don't bother computing one. A D1 map has no
   // catalogue quests or interiors either, so `zoneDefinition`'s fallback-to-Verdant must not be
   // allowed to conjure a phantom quest prompt over a user map.
-  if (interiorOpen() || !self || isSpirit(self.life) || !isKnownZone(zoneId)) {
+  if (interiorOpen() || !self || isSpirit(self.life)) {
+    result = null;
+  } else if (merchant && pointDistance(self, merchant) <= INTERACTION_RANGE) {
+    result = { key: "prompt.merchant" };
+  } else if (!isKnownZone(zoneId)) {
     result = null;
   } else {
     const chapter = quest.chapter ?? "three_offerings";
@@ -276,6 +297,7 @@ async function startGameIdentity(
   let selfCorpse: Vec2 | null = null;
   let mapSurface: MapSurface | null = null;
   let activeZoneId: ZoneId = DEFAULT_ZONE_ID;
+  let currentMerchant: MerchantDefinition | null = null;
   // Remembered so a reconnect can re-attach them to a fresh surface: React mounted its canvases
   // once, and it will not re-run its effect just because the socket dropped.
   let minimapCanvas: HTMLCanvasElement | null = null;
@@ -328,6 +350,8 @@ async function startGameIdentity(
         );
       }
       activeZoneId = world.zoneId;
+      currentMerchant = world.merchant;
+      renderer.configureMerchant(world.merchant);
       // The welcome carries the whole zone: dimensions, obstacles, safe zone, quest sites. Baking
       // the texture measures 126-138ms warm — expensive enough that a reconnect landing back in
       // the same zone must reuse the existing bake rather than repaint an identical one. Only a
@@ -370,6 +394,15 @@ async function startGameIdentity(
       addEvent(t("party.invite_received", { name: from }), "info");
     },
     onPartyState: (party) => useUiStore.getState().setParty(party),
+    onMerchantOpen: () => {
+      const store = useUiStore.getState();
+      store.setMapOpen(false);
+      store.setTalentsOpen(false);
+      store.setSettingsOpen(false);
+      store.setInventoryOpen(false);
+      store.setMerchantOpen(true);
+      input.reset();
+    },
     onAnimation: (animation: CombatAnimation) => {
       renderer.playCombatAnimation(animation);
       if (animation.actorKind === "monster") sound.monsterAttack();
@@ -596,6 +629,12 @@ async function startGameIdentity(
     sound.loot();
     connection?.usePotion();
   };
+  const useItem = (item: ConsumableId) => {
+    if (interiorOpen()) return;
+    sound.unlock();
+    sound.loot();
+    connection?.useItem(item);
+  };
   const release = () => {
     if (interiorOpen()) return;
     sound.unlock();
@@ -644,6 +683,13 @@ async function startGameIdentity(
       input.reset();
       return;
     }
+    const overlayStore = useUiStore.getState();
+    if (overlayStore.inventoryOpen || overlayStore.merchantOpen) {
+      overlayStore.setInventoryOpen(false);
+      overlayStore.setMerchantOpen(false);
+      input.reset();
+      return;
+    }
     const nextOpen = !settingsOpen();
     useUiStore.getState().setSettingsOpen(nextOpen);
     if (nextOpen) input.reset();
@@ -654,6 +700,10 @@ async function startGameIdentity(
       attack,
       interact,
       usePotion,
+      useQuickItem: (index) => {
+        const item = useUiStore.getState().quickItems[index];
+        if (item) useItem(item);
+      },
       release,
       castSkill,
       releaseSkill,
@@ -664,13 +714,26 @@ async function startGameIdentity(
       toggleMap: () => {
         const store = useUiStore.getState();
         store.setTalentsOpen(false);
+        store.setInventoryOpen(false);
+        store.setMerchantOpen(false);
         store.setMapOpen(!store.mapOpen);
       },
       toggleTalents: () => {
         const store = useUiStore.getState();
         store.setMapOpen(false);
         store.setSettingsOpen(false);
+        store.setInventoryOpen(false);
+        store.setMerchantOpen(false);
         store.setTalentsOpen(!store.talentsOpen);
+        input.reset();
+      },
+      toggleInventory: () => {
+        const store = useUiStore.getState();
+        store.setMapOpen(false);
+        store.setTalentsOpen(false);
+        store.setSettingsOpen(false);
+        store.setMerchantOpen(false);
+        store.setInventoryOpen(!store.inventoryOpen);
         input.reset();
       },
       toggleSettings,
@@ -682,6 +745,8 @@ async function startGameIdentity(
     attack,
     interact,
     usePotion,
+    useItem,
+    buyItem: (item) => connection?.buyItem(item),
     release,
     castSkill,
     releaseSkill,
@@ -761,7 +826,7 @@ async function startGameIdentity(
     renderer.render(sample, context);
     mapSurface?.draw(sample, self, selfCorpse);
     renderPlayer(self, selfCorpse);
-    updatePrompt(self, questState, door, activeZoneId);
+    updatePrompt(self, questState, door, activeZoneId, currentMerchant);
   });
   window.addEventListener("beforeunload", () => {
     intentionallyClosed = true;

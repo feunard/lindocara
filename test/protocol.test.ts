@@ -33,6 +33,16 @@ describe("client protocol", () => {
       t: "use",
       item: "potion",
     });
+    expect(
+      parseClientMessage(JSON.stringify({ t: "item.use", item: "invisibility_potion" })),
+    ).toEqual({ t: "item.use", item: "invisibility_potion" });
+    expect(
+      parseClientMessage(JSON.stringify({ t: "merchant.buy", item: "damage_elixir" })),
+    ).toEqual({ t: "merchant.buy", item: "damage_elixir" });
+    expect(parseClientMessage(JSON.stringify({ t: "item.use", item: "admin_elixir" }))).toBeNull();
+    expect(
+      parseClientMessage(JSON.stringify({ t: "merchant.buy", item: "health_potion", price: 0 })),
+    ).toBeNull();
     expect(parseClientMessage(JSON.stringify({ t: "chat", text: "hello" }))).toEqual({
       t: "chat",
       channel: "local",
@@ -145,6 +155,12 @@ describe("client protocol", () => {
 });
 
 describe("server protocol", () => {
+  it("accepts only the exact merchant-open signal", () => {
+    expect(parseServerMessage(JSON.stringify({ t: "merchant.open" }))).toEqual({
+      t: "merchant.open",
+    });
+    expect(parseServerMessage(JSON.stringify({ t: "merchant.open", gold: 999 }))).toBeNull();
+  });
   it("rejects unknown or structurally incomplete messages", () => {
     expect(parseServerMessage(JSON.stringify({ t: "unknown" }))).toBeNull();
     expect(parseServerMessage(JSON.stringify({ t: "snapshot", players: [] }))).toBeNull();

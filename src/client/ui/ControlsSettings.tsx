@@ -53,6 +53,9 @@ const CONTROL_GROUPS: readonly ControlGroup[] = [
       { id: "skill5", label: "settings.controls.skill_5" },
       { id: "interact", label: "settings.controls.interact" },
       { id: "potion", label: "settings.controls.potion" },
+      { id: "item1", label: "settings.controls.item_1" },
+      { id: "item2", label: "settings.controls.item_2" },
+      { id: "item3", label: "settings.controls.item_3" },
       { id: "release", label: "settings.controls.release" },
     ],
   },
@@ -62,6 +65,7 @@ const CONTROL_GROUPS: readonly ControlGroup[] = [
     controls: [
       { id: "map", label: "settings.controls.map" },
       { id: "talents", label: "settings.controls.talents" },
+      { id: "inventory", label: "settings.controls.inventory" },
       { id: "chat", label: "settings.controls.chat" },
       { id: "settings", label: "settings.controls.settings" },
     ],

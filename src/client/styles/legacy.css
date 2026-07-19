@@ -1619,6 +1619,206 @@ kbd {
   backdrop-filter: blur(5px);
 }
 
+.quick-item-bar.panel {
+  position: fixed;
+  z-index: 34;
+  right: 1.1rem;
+  bottom: calc(var(--skill-bar-bottom) + var(--skill-bar-height) + 0.7rem);
+  display: flex;
+  gap: 0.35rem;
+  padding: 0.45rem;
+  pointer-events: auto;
+}
+
+/* biome-ignore lint/style/noDescendingSpecificity: game HUD is intentionally scoped below global legacy button rules. */
+.quick-item-bar button {
+  position: relative;
+  width: 3.25rem;
+  height: 3.25rem;
+  overflow: hidden;
+  border: 2px solid #8a6336;
+  border-radius: 0.35rem;
+  background: linear-gradient(#302a27, #151416);
+  color: #fff2c0;
+}
+
+.quick-item-bar button:not(:disabled):hover {
+  border-color: #ffd86b;
+  transform: translateY(-1px);
+}
+
+.quick-item-bar button:disabled {
+  filter: grayscale(0.65);
+  opacity: 0.7;
+}
+.quick-item-bar img {
+  width: 2.45rem;
+  height: 2.45rem;
+  image-rendering: pixelated;
+}
+.quick-item-bar b {
+  position: absolute;
+  right: 0.18rem;
+  bottom: 0.05rem;
+  font-size: 0.72rem;
+}
+.quick-item-bar em {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(10 8 13 / 72%);
+  color: white;
+  font-size: 1rem;
+  font-style: normal;
+  font-weight: 800;
+}
+.quick-item-bar__key {
+  position: absolute;
+  left: 0.2rem;
+  top: 0.06rem;
+  z-index: 1;
+  font-size: 0.68rem;
+}
+
+.item-overlay.panel {
+  position: fixed;
+  z-index: 85;
+  top: 50%;
+  left: 50%;
+  width: min(48rem, calc(100vw - 2rem));
+  max-height: min(43rem, calc(100vh - 2rem));
+  overflow: auto;
+  transform: translate(-50%, -50%);
+  padding: 1rem;
+  pointer-events: auto;
+  background: linear-gradient(145deg, rgb(31 29 28 / 97%), rgb(18 17 20 / 98%));
+  box-shadow: 0 1.4rem 4rem rgb(0 0 0 / 62%);
+}
+
+.item-overlay__header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.item-overlay__header > div:first-child {
+  margin-right: auto;
+}
+.item-overlay__header h2 {
+  margin: 0.1rem 0 0;
+  color: #ffe6a1;
+}
+.item-overlay__eyebrow {
+  color: #d9a94a;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.item-overlay__hint {
+  color: #c9c1b2;
+  margin: 0.7rem 0 1rem;
+}
+.item-overlay__hint--controller {
+  margin-top: -0.65rem;
+  color: #9eb8ab;
+  font-size: 0.75rem;
+}
+.item-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+.item-card {
+  display: grid;
+  grid-template-columns: 3.4rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 5.3rem;
+  padding: 0.55rem;
+  border: 1px solid rgb(216 168 81 / 38%);
+  border-radius: 0.35rem;
+  background: rgb(255 244 206 / 5%);
+}
+.item-card.selected {
+  border-color: #ffe071;
+  box-shadow: 0 0 0 1px rgb(255 224 113 / 35%);
+}
+.item-card__icon {
+  width: 3.2rem;
+  height: 3.2rem;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.item-card__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.item-card__copy strong {
+  color: #ffe7a6;
+}
+.item-card__copy span {
+  color: #c9c1b2;
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+.item-card__count {
+  color: #fff0bd;
+  white-space: nowrap;
+}
+.item-card__slots {
+  grid-column: 2 / 4;
+  display: flex;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: inventory slot buttons intentionally refine legacy button rules. */
+.item-card__slots button {
+  width: 2rem;
+  height: 1.7rem;
+  border: 1px solid #765933;
+  border-radius: 0.25rem;
+  background: #211e1d;
+  color: #d8c89c;
+}
+.item-card__slots button.active {
+  border-color: #ffe071;
+  background: #60451f;
+  color: white;
+}
+.item-card__slots button.selected {
+  outline: 2px solid #8ed7c3;
+  outline-offset: 1px;
+}
+.merchant-wallet {
+  display: flex;
+  gap: 0.65rem;
+  color: #ffe071;
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .item-grid {
+    grid-template-columns: 1fr;
+  }
+  .item-overlay.panel {
+    width: calc(100vw - 1rem);
+    max-height: calc(100vh - 1rem);
+    padding: 0.7rem;
+  }
+  .item-overlay__header {
+    flex-wrap: wrap;
+  }
+  .quick-item-bar.panel {
+    right: 0.45rem;
+    bottom: 6.4rem;
+    transform: scale(0.88);
+    transform-origin: right bottom;
+  }
+}
+
 .skill-slot {
   position: relative;
   width: 5rem;

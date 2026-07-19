@@ -6,6 +6,7 @@
  */
 
 import type { CharacterAppearance, Equipment, PrimaryColor } from "./character.js";
+import { type ConsumableCounts, type ConsumableId, isConsumableId } from "./consumables.js";
 import type { CombatCooldownState } from "./cooldowns.js";
 import type { LifeState } from "./death.js";
 import type {
@@ -21,6 +22,7 @@ import type {
 import { isUuid } from "./identifiers.js";
 import type { ChatChannel } from "./interest.js";
 import { MAP_LAYERS, type MapElement, parseMapElements } from "./map-data.js";
+import type { MerchantDefinition } from "./merchant.js";
 import type { ClassResourceState } from "./resources.js";
 import type { Input, Vec2 } from "./simulation.js";
 import { isSkillSlot, type SkillSlot } from "./skills.js";
@@ -45,6 +47,8 @@ export interface Inventory {
   potions: number;
   gold: number;
   crystals: number;
+  /** Session inventory for party heroes. Optional while older welcomes remain in flight. */
+  consumables?: ConsumableCounts;
 }
 
 export interface QuestState {
@@ -75,6 +79,8 @@ export interface PlayerSnapshot {
   facing: Vec2;
   /** True while the warrior has deliberately toggled Iron Guard on. */
   guarding?: boolean;
+  /** True while enemies cannot perceive this player. */
+  invisible?: boolean;
   /** Present while anticipation, impact or recovery is still relevant to remote rendering. */
   action: CombatActionSnapshot | null;
 }
@@ -145,6 +151,14 @@ export interface SelfState {
   cooldowns?: CombatCooldownState;
   /** Present on current servers; optional so an in-flight older welcome remains readable. */
   talents?: TalentState;
+  /** Absolute server deadline shared by every consumable. */
+  consumableCooldownUntil?: number;
+  effects?: {
+    damageUntil: number;
+    forgottenUntil: number;
+    invisibleUntil: number;
+    resurrectionAt: number;
+  };
 }
 
 export interface PartyMemberState {
@@ -277,6 +291,7 @@ export interface WorldInfo {
   questSites: QuestSite[];
   cemeteries: Cemetery[];
   portals: readonly { id: string; nameKey: string; x: number; y: number }[];
+  merchant: MerchantDefinition;
 }
 
 /** Sent by the browser. Actions contain intent only; every outcome is validated by the server. */
@@ -290,6 +305,8 @@ export type ClientMessage =
   | { t: "talent.unlock"; nodeId: string }
   | { t: "talent.reset" }
   | { t: "use"; item: "potion" }
+  | { t: "item.use"; item: ConsumableId }
+  | { t: "merchant.buy"; item: ConsumableId }
   | { t: "chat"; channel: ChatChannel; text: string }
   | { t: "party.create" }
   | { t: "party.invite"; playerId: string }
@@ -325,6 +342,12 @@ export const EVENT_CODES = [
   "quest.chapter_ready",
   "quest.site_harvested",
   "potion.used",
+  "item.used",
+  "item.cooldown",
+  "item.invalid",
+  "item.resurrected",
+  "merchant.purchased",
+  "merchant.insufficient",
   "player.down",
   "loot.picked",
   "heal.cast",
@@ -435,6 +458,7 @@ export type ServerMessage =
   | { t: "chat"; channel: ChatChannel; from: string; text: string }
   | { t: "party.invite"; inviteId: string; fromId: string; from: string; expiresAt: number }
   | { t: "party.state"; party: PartyState | null }
+  | { t: "merchant.open" }
   | CombatAnimation
   | { t: "event"; code: EventCode; params?: EventParams; tone: EventTone; x?: number; y?: number };
 
@@ -621,6 +645,13 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
   if (value.t === "talent.reset" && hasOnlyKeys(value, ["t"])) return { t: "talent.reset" };
   if (value.t === "use" && value.item === "potion" && hasOnlyKeys(value, ["t", "item"]))
     return { t: "use", item: "potion" };
+  if (
+    (value.t === "item.use" || value.t === "merchant.buy") &&
+    isConsumableId(value.item) &&
+    hasOnlyKeys(value, ["t", "item"])
+  ) {
+    return { t: value.t, item: value.item };
+  }
   if (value.t === "world.resync") return { t: "world.resync" };
   if (value.t === "navigation.debug" && typeof value.enabled === "boolean")
     return { t: "navigation.debug", enabled: value.enabled };
@@ -745,6 +776,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       return value as unknown as ServerMessage;
     if (value.t === "party.state" && (value.party === null || isRecord(value.party)))
       return value as unknown as ServerMessage;
+    if (value.t === "merchant.open" && hasOnlyKeys(value, ["t"])) return { t: "merchant.open" };
     if (
       value.t === "animation" &&
       (value.actorKind === "player" || value.actorKind === "monster") &&
