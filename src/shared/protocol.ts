@@ -291,7 +291,8 @@ export interface WorldInfo {
   questSites: QuestSite[];
   cemeteries: Cemetery[];
   portals: readonly { id: string; nameKey: string; x: number; y: number }[];
-  merchant: MerchantDefinition;
+  /** Reserved for an explicitly authored merchant; default and authored maps currently send null. */
+  merchant: MerchantDefinition | null;
 }
 
 /** Sent by the browser. Actions contain intent only; every outcome is validated by the server. */

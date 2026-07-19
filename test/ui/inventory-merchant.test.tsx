@@ -67,6 +67,8 @@ describe("merchant and inventory", () => {
     useUiStore.setState({ inventoryOpen: true, game: gameHandle() });
     render(<InventoryOverlay />);
 
+    expect(screen.getByLabelText("20 Sunmarks")).toBeInTheDocument();
+    expect(screen.getByLabelText("5 Gloam shards")).toBeInTheDocument();
     const manaCard = screen.getByText("Lumen phial").closest("article");
     if (!manaCard) throw new Error("mana card missing");
     await userEvent.click(within(manaCard).getByRole("button", { name: "3" }));
@@ -78,6 +80,8 @@ describe("merchant and inventory", () => {
     useUiStore.setState({ merchantOpen: true, game });
     render(<MerchantOverlay />);
 
+    expect(screen.getByLabelText("20 Sunmarks")).toBeInTheDocument();
+    expect(screen.getByLabelText("5 Gloam shards")).toBeInTheDocument();
     const healthCard = screen.getByText("Heartroot tonic").closest("article");
     if (!healthCard) throw new Error("health card missing");
     await userEvent.click(within(healthCard).getByRole("button", { name: /8/ }));

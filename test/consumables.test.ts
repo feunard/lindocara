@@ -5,10 +5,7 @@ import {
   normalizeConsumables,
   RESURRECTION_DELAY_MS,
 } from "../src/shared/consumables.js";
-import type { TerrainGeometry } from "../src/shared/game.js";
-import { merchantForTerrain } from "../src/shared/merchant.js";
-import { isWalkableBox } from "../src/shared/tilemap.js";
-import { tileMapFromRects } from "./support/tiles.js";
+import { merchantForRuntimeRoom } from "../src/shared/merchant.js";
 
 describe("consumable catalogue", () => {
   it("keeps restorative goods on gold and rare effects on crystals", () => {
@@ -38,18 +35,7 @@ describe("consumable catalogue", () => {
 });
 
 describe("runtime merchant placement", () => {
-  it("chooses a deterministic walkable position near the room spawn", () => {
-    const terrain: TerrainGeometry = {
-      width: 512,
-      height: 384,
-      spawnPoints: [{ x: 160, y: 160 }],
-      safeZone: null,
-      obstacles: [],
-      tiles: tileMapFromRects(512, 384, []),
-    };
-    const merchant = merchantForTerrain(terrain);
-    expect(merchant).toEqual(merchantForTerrain(terrain));
-    expect(isWalkableBox(terrain.tiles, merchant, 32)).toBe(true);
-    expect(Math.hypot(merchant.x - 160, merchant.y - 160)).toBeLessThanOrEqual(160);
+  it("does not synthesize a merchant before authored placement exists", () => {
+    expect(merchantForRuntimeRoom()).toBeNull();
   });
 });

@@ -84,6 +84,7 @@ describe("World", () => {
     });
     expect(welcome.world.questNpcs).toEqual(QUEST_DEFINITIONS.map((quest) => quest.giver));
     expect(welcome.world.questSites).toEqual(QUEST_SITES);
+    expect(welcome.world.merchant).toBeNull();
     const welcomedSelf = welcome.players.find((player) => player.id === welcome.selfId);
     if (!welcomedSelf) throw new Error("welcome omitted the local player");
     for (const monster of welcome.monsters) {
