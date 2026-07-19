@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MapPayload, MapSummary } from "../../src/client/api.js";
@@ -677,6 +677,100 @@ describe("AdventureEditorScreen shell", () => {
 
       fireEvent.keyDown(host, { key: "s", metaKey: true });
       expect(mapSaveCalls(mock)).toBe(0);
+    });
+
+    // MapListPanel's rename dialog is local, un-lifted state — this screen has no boolean flag for
+    // it the way it does for `newMapOpen`/`confirmDeleteId`/`settingsOpen`. Typing in the rename
+    // input is already caught by the INPUT-tag check, but once focus moves onto the dialog's own
+    // Cancel/Save button, only the `closest('[data-slot="dialog-content"]')` search stands between
+    // a shortcut and the map behind the (portaled) modal.
+    it("blocks shortcuts once focus reaches the rename dialog's own button, not just its input", async () => {
+      const mock = mapsBackend(twoMaps);
+      vi.stubGlobal("fetch", mock);
+      const rendered = await mountReady();
+      const host = shell(rendered);
+      await screen.findByRole("button", { name: "Frostfen" });
+
+      await userEvent.click(
+        screen.getByRole("button", { name: `${t("editor.shell.maps.rename")} Verdant Reach` }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      const cancelButton = within(dialog).getByRole("button", { name: t("editor.delete.cancel") });
+      cancelButton.focus();
+      expect(cancelButton).toHaveFocus();
+
+      // The stage-open effect already calls `setActiveLayer(0)` once while wiring the handle, so the
+      // gate is proven by an unchanged call count, not "never called at all".
+      const before = stageMock.setActiveLayer.mock.calls.length;
+      // React portal events still bubble to this screen's React ancestors, which is exactly why a
+      // shortcut fired at the dialog's button used to reach `handleShortcutKeyDown` at all.
+      fireEvent.keyDown(cancelButton, { key: "2" });
+      expect(stageMock.setActiveLayer.mock.calls).toHaveLength(before);
+
+      await userEvent.click(cancelButton);
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+      fireEvent.keyDown(host, { key: "2" });
+      expect(stageMock.setActiveLayer).toHaveBeenLastCalledWith(1);
+    });
+  });
+
+  describe("canvas focus loss recovery", () => {
+    /** The shell's own root: same helper as the keyboard-shortcuts block above. */
+    function shell(rendered: { container: HTMLElement }): HTMLElement {
+      return rendered.container.firstElementChild as HTMLElement;
+    }
+
+    it("refocuses the container after a real blur that lands nowhere, the way clicking the non-focusable #stage canvas does", async () => {
+      vi.stubGlobal("fetch", mapsFetchMock());
+      const rendered = await mountReady();
+      const host = shell(rendered);
+      // The mount effect already claimed focus for the container — confirm that, so the recovery
+      // asserted below is a genuine round-trip and not a no-op on an element that was never focused.
+      expect(host).toHaveFocus();
+
+      // jsdom's native `.blur()` reports `relatedTarget: null` here (verified independently of this
+      // change) rather than `document.body`, which is exactly the "focus went nowhere" signature a
+      // real click on the non-focusable canvas produces in a browser.
+      act(() => {
+        host.blur();
+      });
+      expect(host).toHaveFocus();
+    });
+
+    it("does not steal focus back from a dialog: a relatedTarget:null blur is a no-op while the settings dialog is open", async () => {
+      vi.stubGlobal("fetch", mapsFetchMock());
+      const rendered = await mountReady();
+      const host = shell(rendered);
+
+      screen.getByRole("menuitem", { name: t("editor.shell.menu.file") }).focus();
+      await userEvent.keyboard("{Enter}");
+      await userEvent.click(
+        await screen.findByRole("menuitem", { name: t("editor.shell.settings") }),
+      );
+      await screen.findByRole("dialog");
+
+      // Dispatched straight at the container regardless of where real focus currently sits (inside
+      // the dialog) — this isolates the dialog-open gate from the relatedTarget condition, which a
+      // `relatedTarget: null` blur would otherwise satisfy on its own.
+      fireEvent.blur(host, { relatedTarget: null });
+      expect(host).not.toHaveFocus();
+    });
+
+    it("does not refocus a blur whose relatedTarget is a real, concrete node, even with every dialog closed", async () => {
+      vi.stubGlobal("fetch", mapsFetchMock());
+      const rendered = await mountReady();
+      const host = shell(rendered);
+      const elsewhere = screen.getByRole("button", { name: t("editor.shell.grid.aria") });
+      elsewhere.focus();
+      expect(elsewhere).toHaveFocus();
+
+      // Base UI moves focus to a concrete node inside a dialog when one opens — never to `null` or
+      // `document.body` — so this is the condition that keeps the recovery from ever fighting a
+      // dialog's own focus management. Isolated here from the dialog-open flags, which are false.
+      fireEvent.blur(host, { relatedTarget: elsewhere });
+      expect(host).not.toHaveFocus();
+      expect(elsewhere).toHaveFocus();
     });
   });
 });

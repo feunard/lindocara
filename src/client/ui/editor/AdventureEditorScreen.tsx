@@ -1,4 +1,10 @@
-import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from "react";
+import {
+  type FocusEvent as ReactFocusEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { MONSTER_SPECIES_KIND, type MonsterSpecies } from "../../../shared/game.js";
 import {
   EMPTY_MARKERS,
@@ -450,11 +456,21 @@ export function AdventureEditorScreen() {
   //   the (portaled) dialog, or focus that never left this container in the first place. Gating on
   //   `settingsOpen` in particular is what stops ⌘S from firing this screen's map save while the
   //   settings dialog is open with its own save action.
+  // - the keydown's target is inside *any* dialog popup, tracked or not — `MapListPanel`'s rename
+  //   dialog is local, un-lifted state this screen has no flag for, so the three explicit booleans
+  //   above cannot gate it. Every shadcn `DialogContent` stamps `data-slot="dialog-content"` on its
+  //   popup regardless of portal target (`dialog.tsx`), so a `closest()` search for that attribute
+  //   catches the rename dialog today and future-proofs any later dialog this screen forgets to lift
+  //   into its own state. This is additive to the three flags above, not a replacement: the flags
+  //   still cover the "focus never left the container" case this `closest()` cannot see.
   // - the stage has not finished opening (`stageStatus !== "ready"`), matching every other action in
   //   this file guarding on stage readiness.
   function handleShortcutKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
     if (stageStatus !== "ready") return;
     if (newMapOpen || confirmDeleteId !== null || settingsOpen) return;
+    if (event.target instanceof Element && event.target.closest('[data-slot="dialog-content"]')) {
+      return;
+    }
     const target = event.target;
     if (target instanceof HTMLElement) {
       const tag = target.tagName;
@@ -505,6 +521,25 @@ export function AdventureEditorScreen() {
     }
   }
 
+  // Painting on `#stage` — React's sibling canvas, never React's to touch — blurs this container in
+  // a real browser: the canvas has no `tabindex` in `index.html`, so a click on it cannot receive
+  // focus itself, but per standard browser behaviour it still steals focus away from whatever *was*
+  // focused, landing on `document.body`. Shortcuts then go silently dead until the user clicks some
+  // chrome to refocus the container by hand. Recover from exactly that case and no other: refocus
+  // only when `relatedTarget` is `null` or `document.body`, because that is the one signature a
+  // genuine "focus went nowhere" blur has. A Radix/Base UI dialog opening always moves focus to a
+  // concrete node *inside* itself (never `null`/`body`), so this condition is what keeps a refocus
+  // here from ever fighting a dialog's own focus management — it is not a coincidence, it is the
+  // whole reason this is safe to do unconditionally on the relatedTarget check alone. The dialog-flag
+  // and stage-readiness checks mirror `handleShortcutKeyDown`'s own gates, for the same reasons.
+  function handleContainerBlur(event: ReactFocusEvent<HTMLDivElement>): void {
+    const related = event.relatedTarget;
+    if (related !== null && related !== document.body) return;
+    if (newMapOpen || confirmDeleteId !== null || settingsOpen) return;
+    if (stageStatus !== "ready" || previewing) return;
+    containerRef.current?.focus();
+  }
+
   const toolLabel = selectedAsset
     ? t("editor.inspector.element")
     : toolKey === null
@@ -544,6 +579,7 @@ export function AdventureEditorScreen() {
       ref={containerRef}
       tabIndex={-1}
       onKeyDown={handleShortcutKeyDown}
+      onBlur={handleContainerBlur}
       className="flex h-screen flex-col overflow-hidden bg-white text-zinc-950 select-none outline-none"
     >
       <EditorMenuBar
