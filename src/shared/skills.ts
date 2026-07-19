@@ -9,6 +9,7 @@ export type SkillEffect =
   | "dash"
   | "single_damage"
   | "area_damage"
+  | "area_taunt"
   | "guard"
   | "single_heal"
   | "area_heal"
@@ -48,7 +49,6 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       cooldownMs: 8_000,
       range: 0,
       power: 0,
-      durationMs: 3_500,
       reduction: 0.5,
       icon: "◆",
     },
@@ -65,11 +65,11 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
     {
       id: "battle_cry",
       slot: 4,
-      effect: "area_damage",
+      effect: "area_taunt",
       cooldownMs: 5_500,
       range: 105,
       radius: 105,
-      power: 16,
+      power: 0,
       icon: "※",
     },
     {
@@ -89,7 +89,7 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 1,
       effect: "attack",
       cooldownMs: ATTACK_COOLDOWN_MS,
-      range: 170,
+      range: 382.5,
       power: 0,
       icon: "➶",
     },
@@ -98,7 +98,7 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 2,
       effect: "single_damage",
       cooldownMs: 2_000,
-      range: 200,
+      range: 405,
       power: 29,
       icon: "➵",
     },
@@ -107,8 +107,8 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 3,
       effect: "area_damage",
       cooldownMs: 5_000,
-      range: 160,
-      radius: 160,
+      range: 324,
+      radius: 324,
       power: 17,
       icon: "⌁",
     },
@@ -127,7 +127,7 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 5,
       effect: "single_damage",
       cooldownMs: 8_500,
-      range: 230,
+      range: 517.5,
       power: 52,
       icon: "✦",
     },
@@ -138,7 +138,7 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 1,
       effect: "attack",
       cooldownMs: ATTACK_COOLDOWN_MS,
-      range: 225,
+      range: 337.5,
       power: 0,
       icon: "✧",
     },
@@ -147,7 +147,7 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 2,
       effect: "single_heal",
       cooldownMs: 1_500,
-      range: 130,
+      range: 195,
       power: 35,
       allyPower: 35,
       icon: "✚",
@@ -159,7 +159,7 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       cooldownMs: 8_000,
       range: 0,
       power: 0,
-      distance: 110,
+      distance: 247.5,
       icon: "◇",
     },
     {

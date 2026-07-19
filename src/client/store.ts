@@ -67,6 +67,8 @@ export interface SelfHud {
   class: PlayerClass;
   appearance: CharacterAppearance;
   equipment: Equipment;
+  /** Server-authoritative persistent Iron Guard posture. */
+  guarding?: boolean;
 }
 
 export interface GameHandle {
@@ -75,6 +77,7 @@ export interface GameHandle {
   usePotion(): void;
   release(): void;
   castSkill(slot: SkillSlot): void;
+  releaseSkill?(slot: SkillSlot): void;
   /** Virtual controls feed the same intent stream as the keyboard; never an authoritative position. */
   setMovement?(input: Input): void;
   sendChat(text: string, channel?: "local" | "party"): void;
@@ -189,6 +192,7 @@ function selfHudEqual(a: SelfHud | null, b: SelfHud | null): boolean {
     // Rounded to the metre by the writer, so a walking ghost re-renders the HUD ~1x/step.
     a.corpseDistance === b.corpseDistance &&
     a.class === b.class &&
+    a.guarding === b.guarding &&
     a.appearance.body === b.appearance.body &&
     a.appearance.primaryColor === b.appearance.primaryColor &&
     a.equipment.mainHand === b.equipment.mainHand &&

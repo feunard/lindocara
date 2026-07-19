@@ -6,6 +6,7 @@ export type DirectionalActionShape =
   | "guard"
   | "charge"
   | "area_damage"
+  | "area_taunt"
   | "projectile"
   | "volley"
   | "dash"
@@ -47,7 +48,9 @@ export interface MonsterActionDefinition {
 export const MAX_PROJECTILES_PER_PLAYER = 12;
 export const MAX_PROJECTILES_PER_ROOM = 48;
 export const MAX_PROJECTILE_LIFETIME_MS = 2_500;
-export const MAX_PROJECTILE_RANGE = 400;
+export const MAX_PROJECTILE_RANGE = 540;
+/** A held Lumen Step is bounded even if its release packet never arrives. */
+export const LUMEN_STEP_MAX_HOLD_MS = 2_500;
 
 /**
  * Timings are gameplay data because the authority resolves only at the active frame. Projectile
@@ -71,7 +74,7 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
       recoveryMs: 480,
       hitboxRadius: 18,
     },
-    { skillId: "battle_cry", shape: "area_damage", anticipationMs: 300, recoveryMs: 500 },
+    { skillId: "battle_cry", shape: "area_taunt", anticipationMs: 300, recoveryMs: 500 },
     { skillId: "whirlwind", shape: "area_damage", anticipationMs: 320, recoveryMs: 600 },
   ],
   ranger: [

@@ -45,6 +45,8 @@ export interface CombatArtDefinition {
   projectile?: CombatProjectileArt;
   impact?: CombatSheetArt;
   zone?: CombatSheetArt;
+  /** Optional second authored sheet layered over the primary zone sheet. */
+  accent?: CombatSheetArt;
   /** Records every deliberate approximation where the pack has no exact named animation. */
   fallback?: string;
 }
@@ -114,6 +116,7 @@ function unitSheet(
 
 const DUST = sheet(`${TINY_SWORDS_ROOT}/effects/Dust_02.png`, 64, 64, 10, 600, 1);
 const EXPLOSION = sheet(`${TINY_SWORDS_ROOT}/effects/Explosion_01.png`, 192, 192, 8, 620, 2);
+const EXPLOSION_BURST = sheet(`${TINY_SWORDS_ROOT}/effects/Explosion_02.png`, 192, 192, 10, 760, 2);
 const MAGIC_PROJECTILE = {
   ...sheet(HEX_SHAMAN_PROJECTILE_SOURCE, 128, 128, 3, 520, 1),
   rotationOffset: 0,
@@ -167,10 +170,10 @@ function arrow(color: PrimaryColor, kind: ProjectileKind): CombatProjectileArt {
   if (kind === "heartseeker")
     return {
       ...base,
-      durationMs: 900,
+      durationMs: 1_050,
       tint: 0xff557d,
-      scale: 1.38,
-      trail: { color: 0xff416c, length: 48, width: 5, glowRadius: 11 },
+      scale: 1.78,
+      trail: { color: 0xff416c, length: 72, width: 7, glowRadius: 16 },
     };
   return base;
 }
@@ -208,11 +211,17 @@ export function combatArt(
   if (playerClass === "warrior") {
     if (skillId === "iron_guard") return { caster };
     if (skillId === "shield_bash") return { caster, impact: styled(DUST, 0xffd66b, 1.3) };
-    if (skillId === "battle_cry" || skillId === "whirlwind")
+    if (skillId === "battle_cry")
       return {
         caster,
-        zone: EXPLOSION,
-        fallback: "Explosion_01 représente la zone : le pack ne fournit pas de cri ni de rotation.",
+        zone: styled(EXPLOSION_BURST, 0xff9f3f, 1.55),
+        accent: styled(DUST, 0xffd477, 2.05),
+      };
+    if (skillId === "whirlwind")
+      return {
+        caster,
+        zone: styled(EXPLOSION_BURST, 0xffdf72, 1.78),
+        accent: styled(EXPLOSION, 0xfff2bd, 1.42),
       };
     return { caster, impact: EXPLOSION };
   }
@@ -234,7 +243,12 @@ export function combatArt(
           : kind === "heartseeker"
             ? styled(MAGIC_IMPACT, 0xff557d, 1.18)
             : EXPLOSION;
-    return { caster, projectile: projectileArt(kind, color), impact };
+    return {
+      caster,
+      projectile: projectileArt(kind, color),
+      impact: kind === "heartseeker" ? styled(MAGIC_IMPACT, 0xff416c, 1.65) : impact,
+      ...(kind === "heartseeker" ? { zone: styled(MAGIC_IMPACT, 0xff557d, 1.18) } : {}),
+    };
   }
   if (skillId === "radiant_bolt")
     return {
@@ -252,8 +266,16 @@ export function combatArt(
   if (skillId === "blink") return { caster, impact: styled(DUST, 0xb48cff, 1.35) };
   return {
     caster,
-    zone: unitSheet(unitSource(color, "monk", "Heal_Effect.png"), 11, 760, 4),
-    ...(skillId === "divine_nova" ? { impact: EXPLOSION } : {}),
+    zone: {
+      ...unitSheet(unitSource(color, "monk", "Heal_Effect.png"), 11, 760, 4),
+      ...(skillId === "divine_nova" ? { tint: 0xc88cff, scale: 1.72 } : {}),
+    },
+    ...(skillId === "divine_nova"
+      ? {
+          impact: styled(EXPLOSION, 0xe1b0ff, 1.65),
+          accent: styled(EXPLOSION_BURST, 0xb875ff, 1.88),
+        }
+      : {}),
   };
 }
 
@@ -286,7 +308,7 @@ export function allCombatSheets(): CombatSheetArt[] {
     for (const playerClass of classes) {
       for (const skill of CLASS_SKILLS[playerClass]) {
         const art = combatArt(playerClass, skill.id, color);
-        for (const sheet of [art.caster, art.projectile, art.impact, art.zone]) {
+        for (const sheet of [art.caster, art.projectile, art.impact, art.zone, art.accent]) {
           if (sheet) unique.set(sheet.source, sheet);
         }
       }

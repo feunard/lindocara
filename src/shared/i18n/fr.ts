@@ -132,10 +132,11 @@ export const fr: Record<keyof typeof en, string> = {
   "skill.warrior.shield_bash.name": "Charge",
   "skill.warrior.cleave.description": "Une frappe fiable devant le héros.",
   "skill.warrior.iron_guard.description":
-    "Réduit de moitié les dégâts reçus pendant un court instant.",
+    "Active une posture qui réduit de moitié les dégâts reçus et bloque les autres techniques ; réutilisez-la pour la désactiver.",
   "skill.warrior.shield_bash.description":
     "Charge automatiquement l’ennemi visible le plus proche et percute le premier obstacle.",
-  "skill.warrior.battle_cry.description": "Blesse tous les ennemis proches avec un cri de guerre.",
+  "skill.warrior.battle_cry.description":
+    "Provoque tous les ennemis proches sans infliger de dégâts.",
   "skill.warrior.whirlwind.description":
     "Tournoie parmi les ennemis proches pour de lourds dégâts de zone.",
   "skill.warrior.battle_cry.name": "Cri de guerre",
@@ -158,7 +159,7 @@ export const fr: Record<keyof typeof en, string> = {
   "skill.priest.mend.description":
     "Lance une lumière verte qui soigne le premier allié blessé touché.",
   "skill.priest.blink.description":
-    "Vous téléporte brièvement dans votre dernière direction de déplacement.",
+    "Maintenez pour voyager en nuage invulnérable et changer de direction ; relâchez pour réapparaître.",
   "skill.priest.prayer.description": "Soigne tous les alliés blessés autour de vous.",
   "skill.priest.divine_nova.description":
     "Blesse les ennemis proches et soigne les alliés proches.",

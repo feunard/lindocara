@@ -3,10 +3,10 @@ export interface MutableVisualActionState {
   actionSkillId?: string;
   actionStartedAt?: number;
   actionImpactAt?: number;
+  actionChannelEndsAt?: number;
   actionEndsAt?: number;
   actionDirection?: { x: number; y: number };
   effectPlayedActionId?: string;
-  guardVisualUntil?: number;
 }
 
 /** Clears every actor-owned visual that could otherwise reach a future impact frame. */
@@ -16,10 +16,10 @@ export function clearVisualAction(state: MutableVisualActionState): string | nul
   delete state.actionSkillId;
   delete state.actionStartedAt;
   delete state.actionImpactAt;
+  delete state.actionChannelEndsAt;
   delete state.actionEndsAt;
   delete state.actionDirection;
   delete state.effectPlayedActionId;
-  delete state.guardVisualUntil;
   return actionId;
 }
 

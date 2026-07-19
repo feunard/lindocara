@@ -1,6 +1,7 @@
-import { type CSSProperties, useEffect, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import type { MessageKey } from "../../../shared/i18n/index.js";
 import { skillResourceCost } from "../../../shared/resources.js";
+import type { SkillSlot } from "../../../shared/skills.js";
 import { CLASS_SKILLS, isSkillUnlocked, SKILL_UNLOCK_LEVEL } from "../../../shared/skills.js";
 import { skillIconArt } from "../../game/tiny-swords-art.js";
 import { t } from "../../i18n.js";
@@ -13,6 +14,25 @@ export function SkillBar() {
   const attackCooldownUntil = useUiStore((state) => state.attackCooldownUntil);
   const cooldowns = useUiStore((state) => state.skillCooldowns);
   const [now, setNow] = useState(() => performance.now());
+  const heldPointer = useRef<{ pointerId: number; slot: SkillSlot } | null>(null);
+
+  useEffect(() => {
+    const releaseHeldPointer = (event: PointerEvent) => {
+      const held = heldPointer.current;
+      if (!held || held.pointerId !== event.pointerId) return;
+      heldPointer.current = null;
+      useUiStore.getState().game?.releaseSkill?.(held.slot);
+    };
+    window.addEventListener("pointerup", releaseHeldPointer);
+    window.addEventListener("pointercancel", releaseHeldPointer);
+    return () => {
+      window.removeEventListener("pointerup", releaseHeldPointer);
+      window.removeEventListener("pointercancel", releaseHeldPointer);
+      const held = heldPointer.current;
+      if (held) useUiStore.getState().game?.releaseSkill?.(held.slot);
+      heldPointer.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     const latestDeadline = Math.max(attackCooldownUntil, ...Object.values(cooldowns));
@@ -35,6 +55,7 @@ export function SkillBar() {
   }, [attackCooldownUntil, cooldowns]);
 
   if (!self) return null;
+  const ironGuardActive = self.class === "warrior" && self.guarding === true;
 
   return (
     <section className="skill-bar panel" aria-label={t("hud.abilities")}>
@@ -49,7 +70,10 @@ export function SkillBar() {
         const manaCost = skillResourceCost(self.class, skill.slot);
         const lacksMana =
           manaCost > 0 && (selfState?.resource?.current ?? Number.NEGATIVE_INFINITY) < manaCost;
-        const unavailable = !unlocked || cooling || lacksMana;
+        const guardToggle = self.class === "warrior" && skill.id === "iron_guard";
+        const heldSkill = self.class === "priest" && skill.id === "blink";
+        const blockedByGuard = ironGuardActive && !guardToggle;
+        const unavailable = !unlocked || cooling || lacksMana || blockedByGuard;
         const manaText = manaCost > 0 ? t("skill.mana_cost", { cost: manaCost }) : null;
         const icon = skillIconArt(self.class, skill.slot);
         const iconStyle = {
@@ -61,9 +85,25 @@ export function SkillBar() {
           <button
             type="button"
             key={skill.id}
-            className={unavailable ? "skill-slot cooling" : "skill-slot"}
+            className={`skill-slot${unavailable ? " cooling" : ""}${guardToggle && ironGuardActive ? " active" : ""}`}
             disabled={!game || self.life !== "alive" || unavailable}
-            onClick={() => game?.castSkill(skill.slot)}
+            onPointerDown={
+              heldSkill
+                ? (event) => {
+                    event.currentTarget.setPointerCapture?.(event.pointerId);
+                    heldPointer.current = { pointerId: event.pointerId, slot: skill.slot };
+                    game?.castSkill(skill.slot);
+                  }
+                : undefined
+            }
+            onClick={(event) => {
+              if (!heldSkill) game?.castSkill(skill.slot);
+              else if (event.detail === 0) {
+                game?.castSkill(skill.slot);
+                game?.releaseSkill?.(skill.slot);
+              }
+            }}
+            aria-pressed={guardToggle ? ironGuardActive : undefined}
             aria-label={`${skill.slot}. ${name}`}
             aria-keyshortcuts={String(skill.slot)}
             title={

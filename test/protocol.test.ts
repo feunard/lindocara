@@ -95,6 +95,11 @@ describe("client protocol", () => {
     expect(parseClientMessage(JSON.stringify({ t: "skill", slot: 0 }))).toBeNull();
     expect(parseClientMessage(JSON.stringify({ t: "skill", slot: 6 }))).toBeNull();
     expect(parseClientMessage(JSON.stringify({ t: "skill", slot: "3" }))).toBeNull();
+    expect(parseClientMessage(JSON.stringify({ t: "skill.release", slot: 3 }))).toEqual({
+      t: "skill.release",
+      slot: 3,
+    });
+    expect(parseClientMessage(JSON.stringify({ t: "skill.release", slot: 3, x: 999 }))).toBeNull();
   });
 
   it("accepts only server-minted UUIDs for party actions", () => {

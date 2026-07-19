@@ -1,12 +1,23 @@
+import { normalizeDirection } from "../../shared/directional-combat.js";
 import type { TerrainGeometry } from "../../shared/game.js";
 import { resolveTerrain } from "../../shared/game.js";
-import type { Vec2 } from "../../shared/simulation.js";
+import type { Input, Vec2 } from "../../shared/simulation.js";
 import type { SpatialGrid } from "./spatial-grid.js";
 import type { PlayerRuntime } from "./world-runtime.js";
 
 export interface ChargeCandidate extends Vec2 {
   id: string;
   deadUntil: number;
+}
+
+/** Current held movement, not historical facing. Null means a mobility cast stays in place. */
+export function heldMovementDirection(input: Input): Vec2 | null {
+  const direction = {
+    x: Number(input.right) - Number(input.left),
+    y: Number(input.down) - Number(input.up),
+  };
+  if (direction.x === 0 && direction.y === 0) return null;
+  return normalizeDirection(direction);
 }
 
 /** Selects a deterministic living target without ever accepting a client-provided entity id. */

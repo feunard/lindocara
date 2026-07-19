@@ -12,6 +12,7 @@ function gameHandle(): GameHandle {
     usePotion: vi.fn(),
     release: vi.fn(),
     castSkill: vi.fn(),
+    releaseSkill: vi.fn(),
     setMovement: vi.fn(),
     sendChat: vi.fn(),
     switchCharacter: vi.fn(),
@@ -62,5 +63,63 @@ describe("skill bar cooldowns", () => {
     expect(game.castSkill).toHaveBeenCalledWith(2);
     expect(primary.querySelector(".skill-slot__icon--quick-shot")).not.toBeNull();
     expect(secondary.querySelector(".skill-slot__icon--piercing-arrow")).not.toBeNull();
+  });
+
+  it("keeps Iron Guard clickable while active and greys every other warrior action", () => {
+    const game = gameHandle();
+    useUiStore.setState({
+      game,
+      self: {
+        nick: "Bulwark",
+        level: 10,
+        hp: 100,
+        maxHp: 100,
+        life: "alive",
+        corpseDistance: null,
+        class: "warrior",
+        appearance: { body: "wayfarer", primaryColor: "azure" },
+        equipment: { mainHand: "weathered_sword", offHand: "oak_shield" },
+        guarding: true,
+      },
+    });
+    render(<SkillBar />);
+
+    const guard = screen.getByRole("button", { name: "2. Iron Guard" });
+    expect(guard).toBeEnabled();
+    expect(guard).toHaveAttribute("aria-pressed", "true");
+    expect(guard).toHaveClass("active");
+    expect(screen.getByRole("button", { name: "1. Cleave" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "3. Shield Bash" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "4. Battle Cry" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "5. Whirlwind" })).toBeDisabled();
+
+    fireEvent.click(guard);
+    expect(game.castSkill).toHaveBeenCalledWith(2);
+  });
+
+  it("holds Lumen Step from pointer down until pointer up", () => {
+    const game = gameHandle();
+    useUiStore.setState({
+      game,
+      self: {
+        nick: "Cloudstep",
+        level: 10,
+        hp: 100,
+        maxHp: 100,
+        life: "alive",
+        corpseDistance: null,
+        class: "priest",
+        appearance: { body: "wayfarer", primaryColor: "violet" },
+        equipment: { mainHand: "heartwood_staff", offHand: null },
+      },
+    });
+    render(<SkillBar />);
+
+    const lumen = screen.getByRole("button", { name: "3. Lumen Step" });
+    fireEvent.pointerDown(lumen, { pointerId: 7 });
+    expect(game.castSkill).toHaveBeenCalledWith(3);
+    expect(game.releaseSkill).not.toHaveBeenCalled();
+    fireEvent.pointerUp(lumen, { pointerId: 7 });
+    expect(game.releaseSkill).toHaveBeenCalledWith(3);
   });
 });

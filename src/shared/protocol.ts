@@ -72,6 +72,8 @@ export interface PlayerSnapshot {
   life: LifeState;
   /** Last non-zero movement accepted by the authority. Standing still preserves this direction. */
   facing: Vec2;
+  /** True while the warrior has deliberately toggled Iron Guard on. */
+  guarding?: boolean;
   /** Present while anticipation, impact or recovery is still relevant to remote rendering. */
   action: CombatActionSnapshot | null;
 }
@@ -166,6 +168,8 @@ export interface CombatActionSnapshot {
   startedAt: number;
   impactAt: number;
   recoveryEndsAt: number;
+  /** Present once a held action has been released or has reached its authoritative bound. */
+  channelEndsAt?: number;
   resolved: boolean;
 }
 
@@ -275,6 +279,7 @@ export type ClientMessage =
   | { t: "interact" }
   | { t: "release" }
   | { t: "skill"; slot: SkillSlot }
+  | { t: "skill.release"; slot: SkillSlot }
   | { t: "use"; item: "potion" }
   | { t: "chat"; channel: ChatChannel; text: string }
   | { t: "party.create" }
@@ -440,6 +445,10 @@ function isActionSnapshot(value: unknown): value is CombatActionSnapshot {
     !isFiniteNumber(value.recoveryEndsAt) ||
     value.startedAt > value.impactAt ||
     value.impactAt > value.recoveryEndsAt ||
+    (value.channelEndsAt !== undefined &&
+      (!isFiniteNumber(value.channelEndsAt) ||
+        value.channelEndsAt < value.impactAt ||
+        value.channelEndsAt > value.recoveryEndsAt)) ||
     typeof value.resolved !== "boolean"
   ) {
     return false;
@@ -460,6 +469,7 @@ function isPlayerSnapshot(value: unknown): value is PlayerSnapshot {
     isFiniteNumber(value.x) &&
     isFiniteNumber(value.y) &&
     isDirection(value.facing) &&
+    (value.guarding === undefined || typeof value.guarding === "boolean") &&
     (value.action === null || isActionSnapshot(value.action))
   );
 }
@@ -564,6 +574,9 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
     return { t: value.t };
   if (value.t === "skill" && isSkillSlot(value.slot) && hasOnlyKeys(value, ["t", "slot"])) {
     return { t: "skill", slot: value.slot };
+  }
+  if (value.t === "skill.release" && isSkillSlot(value.slot) && hasOnlyKeys(value, ["t", "slot"])) {
+    return { t: "skill.release", slot: value.slot };
   }
   if (value.t === "use" && value.item === "potion" && hasOnlyKeys(value, ["t", "item"]))
     return { t: "use", item: "potion" };

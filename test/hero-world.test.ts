@@ -124,6 +124,202 @@ afterEach(async () => {
 });
 
 describe("party hero admission and authored runtime", () => {
+  it("toggles Iron Guard, blocks every other action, and starts cooldown on exit", {
+    timeout: 10_000,
+  }, async () => {
+    const party = await testParty("iron-guard-toggle");
+    const hero = await testHero("Bulwark", {
+      party,
+      account: party.host,
+      class: "warrior",
+      level: 10,
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      await until("iron guard welcome", () => client.welcome);
+      client.skill(2);
+      await until("iron guard active snapshot", () =>
+        client.self()?.guarding === true ? client.self() : undefined,
+      );
+
+      client.action("attack");
+      client.skill(3);
+      client.skill(4);
+      client.skill(5);
+      await scheduler.wait(700);
+      expect(
+        client.received.some(
+          (message) =>
+            message.t === "animation" &&
+            (message.skillId === "cleave" ||
+              message.skillId === "shield_bash" ||
+              message.skillId === "battle_cry" ||
+              message.skillId === "whirlwind"),
+        ),
+      ).toBe(false);
+
+      client.skill(2);
+      await until("iron guard disabled snapshot", () =>
+        client.self()?.guarding === false ? client.self() : undefined,
+      );
+      const cooldown = await until("iron guard exit cooldown", () => {
+        const state = client.latestState;
+        const deadline = state?.cooldowns?.skillCooldowns[1] ?? 0;
+        return deadline > (state?.serverNow ?? 0) ? deadline : undefined;
+      });
+      expect(cooldown).toBeGreaterThan(Date.now());
+
+      client.action("attack");
+      await until("cleave available after leaving guard", () =>
+        client.received.find(
+          (message) => message.t === "animation" && message.skillId === "cleave",
+        ),
+      );
+    } finally {
+      client.close();
+    }
+  });
+
+  it("uses Battle Cry as an area taunt without dealing damage", { timeout: 10_000 }, async () => {
+    const party = await testParty("battle-cry-taunt", { maps: [novaMapInput()] });
+    const hero = await testHero("Provoker", {
+      party,
+      account: party.host,
+      class: "warrior",
+      level: 10,
+      position: centre(3, 3),
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      const welcome = await until("battle cry welcome", () => client.welcome);
+      const monster = welcome.monsters[0];
+      if (!monster) throw new Error("expected Battle Cry monster");
+      const stub = env.WORLD.getByName(hero.roomKey);
+      const beforeThreat =
+        (await stub.roomDiagnostics()).monsters
+          .find((candidate) => candidate.id === monster.id)
+          ?.threat.find((entry) => entry.playerId === hero.heroId)?.amount ?? 0;
+
+      client.skill(4);
+      await scheduler.wait(500);
+      const afterThreat = (await stub.roomDiagnostics()).monsters
+        .find((candidate) => candidate.id === monster.id)
+        ?.threat.find((entry) => entry.playerId === hero.heroId)?.amount;
+      expect(afterThreat).toBeGreaterThanOrEqual(beforeThreat + 25);
+      const after = client.latestSnapshot?.monsters.find(
+        (candidate) => candidate.id === monster.id,
+      );
+      expect(after?.hp).toBe(monster.hp);
+      expect(
+        client.received.some(
+          (message) =>
+            message.t === "event" &&
+            message.code === "combat.hit" &&
+            message.params?.skill === "battle_cry",
+        ),
+      ).toBe(false);
+    } finally {
+      client.close();
+    }
+  });
+
+  it("keeps Lumen Step in place without held movement", { timeout: 10_000 }, async () => {
+    const party = await testParty("stationary-lumen");
+    const hero = await testHero("Stilllight", {
+      party,
+      account: party.host,
+      class: "priest",
+      level: 5,
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      const welcome = await until("stationary lumen welcome", () => client.welcome);
+      const before = welcome.players.find((player) => player.id === hero.heroId);
+      if (!before) throw new Error("missing stationary priest");
+
+      client.skill(3);
+      await until("stationary lumen animation", () =>
+        client.received.find((message) => message.t === "animation" && message.skillId === "blink"),
+      );
+      client.skillRelease(3);
+      await until("stationary lumen release", () => {
+        const action = client.self()?.action;
+        return action?.skillId === "blink" && action.channelEndsAt !== undefined
+          ? action
+          : undefined;
+      });
+      await scheduler.wait(750);
+      const after = client.self();
+      if (!after) throw new Error("missing priest after Lumen Step");
+      expect(after.x).toBeCloseTo(before.x, 2);
+      expect(after.y).toBeCloseTo(before.y, 2);
+    } finally {
+      client.close();
+    }
+  });
+
+  it("keeps Lumen Step held across direction changes and rematerializes only on release", {
+    timeout: 10_000,
+  }, async () => {
+    const party = await testParty("directed-lumen");
+    const hero = await testHero("Cloudstep", {
+      party,
+      account: party.host,
+      class: "priest",
+      level: 5,
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      await until("directed lumen welcome", () => client.welcome);
+      const start = client.self();
+      if (!start) throw new Error("missing directed priest");
+      client.press("right");
+      await until("right movement applied before Lumen Step", () => {
+        const current = client.self();
+        return current && current.x > start.x + 1 ? current : undefined;
+      });
+      const beforeCast = client.self();
+      if (!beforeCast) throw new Error("missing priest before directed Lumen Step");
+
+      client.skill(3);
+      await until("directed lumen animation", () =>
+        client.received.find((message) => message.t === "animation" && message.skillId === "blink"),
+      );
+      const afterRight = await until("rightward Lumen cloud movement", () => {
+        const current = client.self();
+        return current && current.x - beforeCast.x > 24 ? current : undefined;
+      });
+      expect(afterRight.action).toMatchObject({ skillId: "blink" });
+      expect(afterRight.action?.channelEndsAt).toBeUndefined();
+
+      client.press("down");
+      const afterTurn = await until("Lumen direction changes while still held", () => {
+        const current = client.self();
+        return current && current.y - afterRight.y > 24 ? current : undefined;
+      });
+      expect(afterTurn.action).toMatchObject({
+        skillId: "blink",
+        direction: { x: 0, y: 1 },
+      });
+      expect(afterTurn.action?.channelEndsAt).toBeUndefined();
+
+      client.skillRelease(3);
+      client.release();
+      const released = await until("Lumen release becomes authoritative", () => {
+        const action = client.self()?.action;
+        return action?.skillId === "blink" && action.channelEndsAt !== undefined
+          ? action
+          : undefined;
+      });
+      expect(released.channelEndsAt).toBeGreaterThanOrEqual(released.impactAt);
+      await until("Lumen recovery completes", () =>
+        client.self()?.action === null ? true : undefined,
+      );
+    } finally {
+      client.close();
+    }
+  });
+
   it("accepts an empty Cleave and consumes its cooldown at launch", {
     timeout: 10_000,
   }, async () => {
@@ -425,6 +621,63 @@ describe("party hero admission and authored runtime", () => {
       expect(attackingMonster.action.direction).toEqual(animation.direction);
     }
     client.close();
+  });
+
+  it("makes the active Lumen cloud immune to monster damage until release", {
+    timeout: 15_000,
+  }, async () => {
+    const party = await seedParty("lumen-invulnerability");
+    const hero = await testHero("Mist", {
+      party,
+      class: "priest",
+      level: 5,
+      position: centre(9, 8),
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      const welcome = await until("Lumen immunity welcome", () => client.welcome);
+      const initialHp = welcome.players.find((player) => player.id === hero.heroId)?.hp;
+      if (initialHp === undefined) throw new Error("expected Lumen priest HP");
+      const monsterAttack = await until("monster attacks Lumen priest", () =>
+        client.received.find(
+          (message) =>
+            message.t === "animation" &&
+            message.actorKind === "monster" &&
+            message.action === "attack",
+        ),
+      );
+      if (monsterAttack.t !== "animation") throw new Error("expected monster attack animation");
+
+      const hpBeforeCloud = client.self()?.hp;
+      if (hpBeforeCloud === undefined) throw new Error("expected HP before Lumen cloud");
+      const hurtBefore = client.received.filter(
+        (message) => message.t === "event" && message.code === "combat.hurt",
+      ).length;
+      client.skill(3);
+      await until("Lumen cloud active", () => {
+        const action = client.self()?.action;
+        return action?.skillId === "blink" && action.resolved ? action : undefined;
+      });
+      await scheduler.wait(Math.max(100, monsterAttack.impactAt - Date.now() + 150));
+      expect(client.self()?.hp).toBe(hpBeforeCloud);
+      expect(
+        client.received.filter(
+          (message) => message.t === "event" && message.code === "combat.hurt",
+        ),
+      ).toHaveLength(hurtBefore);
+
+      client.skillRelease(3);
+      await until("Lumen priest rematerializes", () =>
+        client.self()?.action === null ? true : undefined,
+      );
+      const wounded = await until("damage resumes after Lumen release", () => {
+        const self = client.self();
+        return self && self.hp < hpBeforeCloud ? self : undefined;
+      });
+      expect(wounded.hp).toBeLessThan(hpBeforeCloud);
+    } finally {
+      client.close();
+    }
   });
 
   it("heals the priest and visible party allies with Prayer but not through a wall", {

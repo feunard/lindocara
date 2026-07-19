@@ -71,7 +71,7 @@ describe("directional class kit contract", () => {
     const mend = CLASS_SKILLS.priest.find((skill) => skill.id === "mend");
     expect(mend).toMatchObject({
       cooldownMs: 1_500,
-      range: 130,
+      range: 195,
       power: 35,
       allyPower: 35,
     });
@@ -79,6 +79,24 @@ describe("directional class kit contract", () => {
       shape: "heal_projectile",
       projectile: { kind: "healing_light", pierce: 0 },
     });
+  });
+
+  it("applies the requested ranged and mobility range increases", () => {
+    expect(CLASS_SKILLS.ranger.map((skill) => skill.range)).toEqual([382.5, 405, 324, 0, 517.5]);
+    expect(CLASS_SKILLS.ranger[2]?.radius).toBe(324);
+    expect(CLASS_SKILLS.priest.slice(0, 2).map((skill) => skill.range)).toEqual([337.5, 195]);
+    expect(CLASS_SKILLS.priest[2]).toMatchObject({ id: "blink", distance: 247.5 });
+    expect(CLASS_SKILLS.warrior[1]).toMatchObject({
+      id: "iron_guard",
+      reduction: 0.5,
+    });
+    expect(CLASS_SKILLS.warrior[1]?.durationMs).toBeUndefined();
+    expect(CLASS_SKILLS.warrior[3]).toMatchObject({
+      id: "battle_cry",
+      effect: "area_taunt",
+      power: 0,
+    });
+    expect(PLAYER_ACTIONS.warrior[3]).toMatchObject({ shape: "area_taunt" });
   });
 
   it("gives every monster species a telegraphed active frame and bounded recovery", () => {
@@ -93,7 +111,7 @@ describe("directional class kit contract", () => {
   it("bounds projectile count, range, and lifetime defensively", () => {
     expect(MAX_PROJECTILES_PER_PLAYER).toBeLessThanOrEqual(12);
     expect(MAX_PROJECTILES_PER_ROOM).toBeLessThanOrEqual(48);
-    expect(MAX_PROJECTILE_RANGE).toBe(400);
+    expect(MAX_PROJECTILE_RANGE).toBe(540);
     expect(MAX_PROJECTILE_LIFETIME_MS).toBe(2_500);
   });
 });

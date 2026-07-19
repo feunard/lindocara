@@ -2,10 +2,15 @@ import { describe, expect, it, vi } from "vitest";
 import {
   advanceCombatActions,
   cancelCombatAction,
+  finishHeldCombatAction,
   startCombatAction,
 } from "../src/server/world/combat-action-system.js";
-import { guardedDamage } from "../src/server/world/combat-system.js";
-import { movePlayerInDirection, nearestChargeTarget } from "../src/server/world/skill-system.js";
+import { guardedDamage, isLumenCloudInvulnerable } from "../src/server/world/combat-system.js";
+import {
+  heldMovementDirection,
+  movePlayerInDirection,
+  nearestChargeTarget,
+} from "../src/server/world/skill-system.js";
 import { SpatialGrid } from "../src/server/world/spatial-grid.js";
 import { newPlayer, type PlayerRuntime } from "../src/server/world/world-runtime.js";
 import { starterEquipmentFor } from "../src/shared/character.js";
@@ -161,11 +166,67 @@ describe("isolated directional combat systems", () => {
     ).toBe("a-near");
   });
 
+  it("moves Lumen Step only while a direction is actively held", () => {
+    expect(heldMovementDirection({ up: false, down: false, left: false, right: false })).toBeNull();
+    const diagonal = heldMovementDirection({ up: true, down: false, left: false, right: true });
+    expect(diagonal?.x).toBeCloseTo(Math.SQRT1_2);
+    expect(diagonal?.y).toBeCloseTo(-Math.SQRT1_2);
+  });
+
+  it("keeps a held Lumen action active until release and then appends recovery", () => {
+    const actor = player();
+    const action = startCombatAction(actor, {
+      kind: "skill",
+      skillId: "blink",
+      slot: 3,
+      direction: { x: 1, y: 0 },
+      now: 1_000,
+      anticipationMs: 180,
+      recoveryMs: 420,
+      mobilityDistance: 247.5,
+      channelDurationMs: 2_500,
+    });
+    expect(action).toMatchObject({
+      impactAt: 1_180,
+      channelMaxEndsAt: 3_500,
+      recoveryEndsAt: 3_920,
+      mobilityDistance: 247.5,
+    });
+    expect(finishHeldCombatAction(actor, 1_600, 2)).toBe(false);
+    expect(finishHeldCombatAction(actor, 1_600, 3)).toBe(true);
+    expect(action).toMatchObject({ channelEndsAt: 1_600, recoveryEndsAt: 2_020 });
+    expect(finishHeldCombatAction(actor, 1_700, 3)).toBe(false);
+  });
+
+  it("makes only the active Lumen cloud invulnerable", () => {
+    const actor = player();
+    actor.class = "priest";
+    const action = startCombatAction(actor, {
+      kind: "skill",
+      skillId: "blink",
+      slot: 3,
+      direction: { x: 1, y: 0 },
+      now: 1_000,
+      anticipationMs: 180,
+      recoveryMs: 420,
+      mobilityDistance: 247.5,
+      channelDurationMs: 2_500,
+    });
+    expect(action).not.toBeNull();
+    expect(isLumenCloudInvulnerable(actor, 1_179)).toBe(false);
+    expect(isLumenCloudInvulnerable(actor, 1_180)).toBe(true);
+    expect(isLumenCloudInvulnerable(actor, 2_000)).toBe(true);
+    expect(finishHeldCombatAction(actor, 2_000, 3)).toBe(true);
+    expect(isLumenCloudInvulnerable(actor, 2_000)).toBe(false);
+    expect(isLumenCloudInvulnerable(actor, 2_200)).toBe(false);
+  });
+
   it("preserves Iron Guard damage reduction", () => {
     const actor = player();
-    actor.guardUntil = 5_000;
+    actor.guarding = true;
     actor.guardReduction = 0.5;
-    expect(guardedDamage(actor, 25, 4_000)).toMatchObject({ amount: 13 });
-    expect(guardedDamage(actor, 25, 5_000)).toMatchObject({ amount: 25 });
+    expect(guardedDamage(actor, 25)).toMatchObject({ amount: 13 });
+    actor.guarding = false;
+    expect(guardedDamage(actor, 25)).toMatchObject({ amount: 25 });
   });
 });

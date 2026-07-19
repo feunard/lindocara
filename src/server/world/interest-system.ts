@@ -39,6 +39,7 @@ function combatActionSnapshot(
     startedAt: action.startedAt,
     impactAt: action.impactAt,
     recoveryEndsAt: action.recoveryEndsAt,
+    ...(action.channelEndsAt === undefined ? {} : { channelEndsAt: action.channelEndsAt }),
     resolved: action.resolved,
   };
 }
@@ -82,6 +83,7 @@ export function playerSnapshot(player: PlayerRuntime): PlayerSnapshot {
     equipment: { ...player.equipment },
     life: player.life,
     facing: { ...player.facing },
+    guarding: player.guarding,
     action: combatActionSnapshot(player.action),
   };
 }

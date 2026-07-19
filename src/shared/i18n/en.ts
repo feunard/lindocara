@@ -130,10 +130,11 @@ export const en = {
   "skill.warrior.iron_guard.name": "Iron Guard",
   "skill.warrior.shield_bash.name": "Shield Bash",
   "skill.warrior.cleave.description": "A reliable close-range sweep in your facing direction.",
-  "skill.warrior.iron_guard.description": "Halve incoming damage for a short time.",
+  "skill.warrior.iron_guard.description":
+    "Toggle a defensive stance that halves incoming damage and locks other abilities; use it again to leave the stance.",
   "skill.warrior.shield_bash.description":
     "Automatically charge the nearest visible enemy and stop at the first obstacle.",
-  "skill.warrior.battle_cry.description": "Damage every enemy around you with a rallying shout.",
+  "skill.warrior.battle_cry.description": "Taunt every nearby enemy without dealing damage.",
   "skill.warrior.whirlwind.description": "Spin through nearby enemies for heavy area damage.",
   "skill.warrior.battle_cry.name": "Battle Cry",
   "skill.warrior.whirlwind.name": "Whirlwind",
@@ -154,7 +155,8 @@ export const en = {
   "skill.priest.radiant_bolt.description": "Launch a radiant bolt in your facing direction.",
   "skill.priest.mend.description":
     "Launch a green light that heals the first wounded ally it touches.",
-  "skill.priest.blink.description": "Teleport a short distance in your last movement direction.",
+  "skill.priest.blink.description":
+    "Hold to travel as an invulnerable cloud and change direction; release to rematerialize.",
   "skill.priest.prayer.description": "Heal every injured ally around you.",
   "skill.priest.divine_nova.description": "Damage nearby enemies and heal nearby allies at once.",
   "skill.unlock_at": "Unlocks at level {level}",

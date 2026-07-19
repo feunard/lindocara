@@ -237,7 +237,9 @@ export const TINY_SWORDS_QUEST_ART = {
 export const TINY_SWORDS_EFFECTS = {
   fire: `${TINY_SWORDS_ROOT}/effects/Fire_01.png`,
   explosion: `${TINY_SWORDS_ROOT}/effects/Explosion_01.png`,
+  explosionBurst: `${TINY_SWORDS_ROOT}/effects/Explosion_02.png`,
   dust: `${TINY_SWORDS_ROOT}/effects/Dust_01.png`,
+  dustStrong: `${TINY_SWORDS_ROOT}/effects/Dust_02.png`,
   splash: `${TINY_SWORDS_ROOT}/effects/Water Splash.png`,
   heal: `${TINY_SWORDS_ROOT}/units/blue/monk/Heal_Effect.png`,
   arrow: `${TINY_SWORDS_ROOT}/units/blue/archer/Arrow.png`,
@@ -289,7 +291,7 @@ export interface SkillIconArt {
 export function skillIconArt(playerClass: PlayerClass, slot: SkillSlot): SkillIconArt {
   if (playerClass === "ranger") {
     if (slot === 4)
-      return { source: TINY_SWORDS_EFFECTS.dust, frames: 8, frame: 2, variant: "dash" };
+      return { source: TINY_SWORDS_EFFECTS.dustStrong, frames: 10, frame: 2, variant: "dash" };
     const variants = ["quick-shot", "piercing-arrow", "volley", "dash", "heartseeker"];
     return {
       source: TINY_SWORDS_EFFECTS.arrow,
@@ -304,13 +306,20 @@ export function skillIconArt(playerClass: PlayerClass, slot: SkillSlot): SkillIc
     if (slot === 2)
       return { source: HEX_SHAMAN_PROJECTILE_ICON, frames: 3, frame: 0, variant: "mend" };
     if (slot === 3)
-      return { source: TINY_SWORDS_EFFECTS.dust, frames: 8, frame: 2, variant: "blink" };
+      return { source: TINY_SWORDS_EFFECTS.dustStrong, frames: 10, frame: 2, variant: "blink" };
     if (slot === 4)
       return { source: TINY_SWORDS_EFFECTS.heal, frames: 11, frame: 4, variant: "prayer" };
-    return { source: TINY_SWORDS_EFFECTS.explosion, frames: 8, frame: 2, variant: "nova" };
+    return { source: TINY_SWORDS_EFFECTS.heal, frames: 11, frame: 5, variant: "nova" };
   }
   if (slot === 3)
-    return { source: TINY_SWORDS_EFFECTS.dust, frames: 8, frame: 2, variant: "charge" };
+    return { source: TINY_SWORDS_EFFECTS.dustStrong, frames: 10, frame: 2, variant: "charge" };
+  if (slot === 4 || slot === 5)
+    return {
+      source: TINY_SWORDS_EFFECTS.explosionBurst,
+      frames: 10,
+      frame: slot === 4 ? 2 : 3,
+      variant: slot === 4 ? "battle-cry" : "whirlwind",
+    };
   const icon = SKILL_ICON_INDEX[playerClass][slot - 1] ?? 11;
   return {
     source: `${TINY_SWORDS_ROOT}/ui/Icon_${String(icon).padStart(2, "0")}.png`,

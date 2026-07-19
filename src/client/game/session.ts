@@ -85,6 +85,7 @@ function renderPlayer(player: PlayerSnapshot | undefined, corpse: Vec2 | null): 
           class: player.class,
           appearance: { ...player.appearance },
           equipment: { ...player.equipment },
+          guarding: player.guarding === true,
         }
       : null,
   );
@@ -546,6 +547,9 @@ async function startGameIdentity(
     sound.unlock();
     connection?.skill(slot);
   };
+  const releaseSkill = (slot: SkillSlot) => {
+    connection?.releaseSkill(slot);
+  };
   const switchCharacter = () => {
     intentionallyClosed = true;
     connection?.close();
@@ -580,6 +584,7 @@ async function startGameIdentity(
       usePotion,
       release,
       castSkill,
+      releaseSkill,
       focusChat: () => {
         input.reset();
         useUiStore.getState().requestChatFocus();
@@ -599,6 +604,7 @@ async function startGameIdentity(
     usePotion,
     release,
     castSkill,
+    releaseSkill,
     setMovement: (movement) => input.setVirtual(movement),
     sendChat: (text, channel) => connection?.sendChat(text, channel),
     partyCreate: () => connection?.partyCreate(),
