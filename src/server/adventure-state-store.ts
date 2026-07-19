@@ -19,7 +19,30 @@ import {
   type PartyAdventureState,
   parsePartyAdventureState,
 } from "../shared/adventure-state.js";
-import { type Db, partyAdventureState } from "./db/index.js";
+import { adventureMap, type Db, mapEvent, party, partyAdventureState } from "./db/index.js";
+
+/**
+ * Every event id across every map an adventure owns, for the party addressed by `partyId`. The
+ * coordinator supplies this to `savePartyAdventureState` so orphan self-switches (whose owning
+ * event was deleted from the adventure) get pruned. Reads happen only at save time — party-empty or
+ * the debounce — never per tick. A party with no adventure row (should not happen) yields an empty
+ * set, which prunes every self-switch: the fail-closed direction, consistent with an unknown
+ * condition id reading as false.
+ */
+export async function loadAdventureEventIds(db: Db, partyId: string): Promise<ReadonlySet<string>> {
+  const partyRow = await db
+    .select({ adventureId: party.adventureId })
+    .from(party)
+    .where(eq(party.id, partyId))
+    .get();
+  if (!partyRow) return new Set();
+  const rows = await db
+    .select({ id: mapEvent.id })
+    .from(mapEvent)
+    .innerJoin(adventureMap, eq(adventureMap.mapId, mapEvent.mapId))
+    .where(eq(adventureMap.adventureId, partyRow.adventureId));
+  return new Set(rows.map((entry) => entry.id));
+}
 
 function warnCorruptPartyState(partyId: string, reason: string): void {
   console.warn(JSON.stringify({ event: "party_adventure_state_corrupt", partyId, reason }));

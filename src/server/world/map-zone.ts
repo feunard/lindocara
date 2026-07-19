@@ -53,6 +53,9 @@ export function zoneFromMap(stored: StoredMap): ZoneDefinition {
     revision: stored.revision,
     tilesetId: stored.tilesetId,
     layers: stored.layers.map(encodeTileLayer),
+    // Appearance-only, exactly like `elements` and `layers` above — never a second source of
+    // collision. The room selects each event's active page against the party's adventure state.
+    events: stored.events,
   };
 }
 

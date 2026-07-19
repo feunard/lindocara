@@ -7,6 +7,7 @@ import { expect } from "vitest";
 import type { AdventureGraph } from "../../src/shared/adventure.js";
 import { type PlayerClass, type QuestChapter, spawnPosition } from "../../src/shared/game.js";
 import type { MapElement, MapMarkers } from "../../src/shared/map-data.js";
+import type { MapEvent } from "../../src/shared/map-events.js";
 import type { PartyColor } from "../../src/shared/party.js";
 import { PARTY_COLORS } from "../../src/shared/party.js";
 import {
@@ -192,6 +193,7 @@ export interface TestMapBody {
   rows: number;
   layers: string[];
   elements: MapElement[];
+  events: MapEvent[];
   spawn: { col: number; row: number };
   markers: MapMarkers;
 }
@@ -202,6 +204,8 @@ export interface TestMapOptions {
   spawn?: { col: number; row: number };
   exit?: { col: number; row: number };
   monsterSpawns?: MapMarkers["monsterSpawns"];
+  /** Authored events placed on the map — appearance-only, evaluated server-side. */
+  events?: MapEvent[];
 }
 
 /** The pixel centre of a tile — where entries, exits and spawns actually put a hero. */
@@ -225,6 +229,7 @@ export function testMapInput(name: string, options: TestMapOptions = {}): TestMa
     name,
     ...layeredWireTerrain(Array.from({ length: rows }, () => ".".repeat(cols))),
     elements: [],
+    events: options.events ?? [],
     spawn,
     markers: {
       entries: [{ id: TEST_ENTRY_ID, ...spawn }],
