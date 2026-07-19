@@ -17,6 +17,9 @@ import {
 import {
   addEventDraftPage,
   deleteEventDraftPage,
+  normalizeConditionId,
+  normalizeConditionMin,
+  normalizeEventDraftConditions,
   setEventDraftName,
   updateEventDraftPage,
 } from "../../game/editor-state.js";
@@ -150,10 +153,14 @@ export function EventDialog({ event, onCommit, onDelete, onCancel }: EventDialog
   };
 
   const save = (): void => {
+    // Re-normalize every page's condition ids/threshold here too — the per-field blur handlers
+    // below cover the mouse path, but Save can fire via keyboard shortcut while a field is still
+    // focused, and a blur that never happened must not let a stray free-text id reach the parser.
+    const normalized = normalizeEventDraftConditions(draft);
     // The wireframe's `normEv`: an empty name persists as the `EV{ordinal}` string, never blank.
-    const trimmed = validateEventName(draft.name) ?? "";
-    const name = trimmed === "" ? eventDisplayId(draft.ordinal) : trimmed;
-    onCommit(setEventDraftName(draft, name));
+    const trimmed = validateEventName(normalized.name) ?? "";
+    const name = trimmed === "" ? eventDisplayId(normalized.ordinal) : trimmed;
+    onCommit(setEventDraftName(normalized, name));
   };
 
   return (
@@ -251,10 +258,13 @@ export function EventDialog({ event, onCommit, onDelete, onCancel }: EventDialog
                 <Input
                   aria-label={t("editor.event.cond.switch")}
                   className="h-7 w-20 text-xs tabular-nums"
-                  maxLength={4}
                   disabled={page.condSwitchId === null}
                   value={page.condSwitchId ?? ""}
                   onChange={(e) => update({ condSwitchId: e.currentTarget.value })}
+                  onBlur={() => {
+                    if (page.condSwitchId !== null)
+                      update({ condSwitchId: normalizeConditionId(page.condSwitchId) });
+                  }}
                 />
                 <span className="text-[12.5px] text-zinc-500">
                   {t("editor.event.cond.switch.on")}
@@ -274,10 +284,13 @@ export function EventDialog({ event, onCommit, onDelete, onCancel }: EventDialog
                 <Input
                   aria-label={t("editor.event.cond.variable")}
                   className="h-7 w-20 text-xs tabular-nums"
-                  maxLength={4}
                   disabled={page.condVariableId === null}
                   value={page.condVariableId ?? ""}
                   onChange={(e) => update({ condVariableId: e.currentTarget.value })}
+                  onBlur={() => {
+                    if (page.condVariableId !== null)
+                      update({ condVariableId: normalizeConditionId(page.condVariableId) });
+                  }}
                 />
                 <span className="text-[12.5px] text-zinc-500">≥</span>
                 <Input
@@ -287,6 +300,10 @@ export function EventDialog({ event, onCommit, onDelete, onCancel }: EventDialog
                   disabled={page.condVariableId === null}
                   value={page.condVariableMin ?? 0}
                   onChange={(e) => update({ condVariableMin: Number(e.currentTarget.value) })}
+                  onBlur={() => {
+                    if (page.condVariableMin !== null)
+                      update({ condVariableMin: normalizeConditionMin(page.condVariableMin) });
+                  }}
                 />
               </CheckRow>
               <CheckRow

@@ -432,6 +432,41 @@ export function deleteEventDraftPage(draft: MapEvent, index: number): MapEvent |
   return { ...draft, pages: draft.pages.filter((_page, i) => i !== index) };
 }
 
+/** Wire-legal-izes one condition id: digits only, empty pads to `"0001"`, otherwise padded/truncated
+ *  to exactly four digits (keeping the last four when an author types more). The parser requires
+ *  `/^\d{4}$/` (`shared/map-events.ts`); the switch/variable REGISTRY that would give these ids
+ *  meaning is a later tranche, so this only guarantees the authored value stays wire-legal, never
+ *  that it names anything real. */
+export function normalizeConditionId(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  if (digits === "") return "0001";
+  return digits.length > 4 ? digits.slice(-4) : digits.padStart(4, "0");
+}
+
+/** Clamps a variable-condition threshold to a non-negative integer; `null` passes through unchanged
+ *  (the condition is off, and `condVariableId`/`condVariableMin` nullness must stay paired). */
+export function normalizeConditionMin(value: number | null): number | null {
+  if (value === null) return null;
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.trunc(value));
+}
+
+/** Draft mutator: normalizes every page's condition ids/threshold to what the wire parser accepts.
+ *  The dialog also normalizes a single field on blur, but a keyboard-driven Save never blurs the
+ *  focused input — this pass over every page is what keeps that path wire-legal too. */
+export function normalizeEventDraftConditions(draft: MapEvent): MapEvent {
+  return {
+    ...draft,
+    pages: draft.pages.map((page) => ({
+      ...page,
+      condSwitchId: page.condSwitchId === null ? null : normalizeConditionId(page.condSwitchId),
+      condVariableId:
+        page.condVariableId === null ? null : normalizeConditionId(page.condVariableId),
+      condVariableMin: normalizeConditionMin(page.condVariableMin),
+    })),
+  };
+}
+
 /** Commit a draft back onto its event as ONE history entry. Committing after each mutator instead of
  *  once is what would split a single dialog save into several undo steps — the caller commits once,
  *  on the dialog's Save. A draft whose id no longer names a live event writes nothing. */

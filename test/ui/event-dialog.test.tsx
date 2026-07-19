@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultEventPage } from "../../src/client/game/editor-state.js";
@@ -162,6 +162,58 @@ describe("EventDialog", () => {
     const committed = onCommit.mock.calls[0]?.[0] as MapEvent;
     expect(committed.pages).toHaveLength(1);
     expect(committed.pages[0]?.condSwitchId).toBe("0002");
+  });
+
+  it("normalizes a partial switch id to four digits on blur", () => {
+    renderDialog(seedEvent());
+
+    fireEvent.click(screen.getByRole("checkbox", { name: t("editor.event.cond.switch") }));
+    const switchId = screen.getByRole("textbox", { name: t("editor.event.cond.switch") });
+    fireEvent.change(switchId, { target: { value: "5" } });
+    fireEvent.blur(switchId);
+
+    expect(switchId).toHaveValue("0005");
+  });
+
+  it("commits a cleared switch id as 0001", () => {
+    const { onCommit } = renderDialog(seedEvent());
+
+    fireEvent.click(screen.getByRole("checkbox", { name: t("editor.event.cond.switch") }));
+    const switchId = screen.getByRole("textbox", { name: t("editor.event.cond.switch") });
+    fireEvent.change(switchId, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: t("editor.event.save") }));
+
+    const committed = onCommit.mock.calls[0]?.[0] as MapEvent;
+    expect(committed.pages[0]?.condSwitchId).toBe("0001");
+  });
+
+  it("clamps a negative variable-min threshold to zero on blur", () => {
+    renderDialog(seedEvent());
+
+    fireEvent.click(screen.getByRole("checkbox", { name: t("editor.event.cond.variable") }));
+    const varMin = screen.getByRole("spinbutton", { name: t("editor.event.cond.variable.min") });
+    fireEvent.change(varMin, { target: { value: "-3" } });
+    fireEvent.blur(varMin);
+
+    expect(varMin).toHaveValue(0);
+  });
+
+  it("normalizes an unblurred id when Save is clicked directly (no blur ever fires)", () => {
+    const { onCommit } = renderDialog(seedEvent());
+
+    fireEvent.click(screen.getByRole("checkbox", { name: t("editor.event.cond.switch") }));
+    const switchId = screen.getByRole("textbox", { name: t("editor.event.cond.switch") });
+    switchId.focus();
+    fireEvent.change(switchId, { target: { value: "5" } });
+    // Precondition: the field is still focused, so no blur handler has run yet — `fireEvent.click`
+    // (unlike `userEvent.click`) does not simulate the browser's focus-follows-click behaviour, so
+    // clicking Save below cannot blur it either. Only save()'s own commit-path normalization can be
+    // responsible for the assertion that follows.
+    expect(document.activeElement).toBe(switchId);
+    fireEvent.click(screen.getByRole("button", { name: t("editor.event.save") }));
+
+    const committed = onCommit.mock.calls[0]?.[0] as MapEvent;
+    expect(committed.pages[0]?.condSwitchId).toBe("0005");
   });
 
   it("deletes the event through the confirm path", async () => {
