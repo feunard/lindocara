@@ -30,6 +30,8 @@ describe("input remapping", () => {
     expect(getInputSettings().keyboard.skill4).toEqual([{ code: "KeyK" }, { code: "Numpad1" }]);
     expect(getInputSettings().keyboard.skill5).toEqual([{ code: "KeyJ" }, { code: "Numpad4" }]);
     expect(getInputSettings().keyboard.map).toEqual([{ code: "KeyC" }]);
+    expect(getInputSettings().keyboard.talents).toEqual([{ code: "KeyH" }]);
+    expect(getInputSettings().gamepad.talents).toEqual([{ kind: "button", index: 5 }]);
   });
 
   it("uses remapped movement keys in the prediction input tracker", () => {
@@ -158,6 +160,25 @@ describe("input remapping", () => {
 
     fireEvent.keyDown(window, { code: "Numpad4" });
     expect(castSkill).toHaveBeenCalledWith(5);
+    stop();
+  });
+
+  it("opens the talent tree with H through the shared shortcut handler", () => {
+    const toggleTalents = vi.fn();
+    const stop = trackActions({
+      attack: vi.fn(),
+      interact: vi.fn(),
+      usePotion: vi.fn(),
+      release: vi.fn(),
+      castSkill: vi.fn(),
+      focusChat: vi.fn(),
+      toggleMap: vi.fn(),
+      toggleTalents,
+      toggleSettings: vi.fn(),
+    });
+
+    fireEvent.keyDown(window, { code: "KeyH" });
+    expect(toggleTalents).toHaveBeenCalledOnce();
     stop();
   });
 

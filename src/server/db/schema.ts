@@ -496,6 +496,8 @@ export const hero = sqliteTable(
     level: integer("level").notNull().default(1),
     xp: integer("xp").notNull().default(0),
     hp: integer("hp").notNull().default(100),
+    /** JSON array of server-validated talent ids. Roots are derived and never stored. */
+    talents: text("talents").notNull().default("[]"),
     sessionEpoch: integer("session_epoch").notNull().default(0),
     /** Death is persistent, mirroring `character`. `corpseX/Y` are null exactly when life is alive. */
     life: text("life", { enum: ["alive", "corpse", "ghost"] })

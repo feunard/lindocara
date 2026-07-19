@@ -80,6 +80,18 @@ describe("mobile controls", () => {
     });
   });
 
+  it("opens the talent tree from the touch utility cluster", () => {
+    const game = gameHandle();
+    useUiStore.setState({ game, talentsOpen: false });
+    render(<MobileControls />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open talents" }));
+
+    expect(useUiStore.getState().talentsOpen).toBe(true);
+    expect(useUiStore.getState().mapOpen).toBe(false);
+    expect(useUiStore.getState().settingsOpen).toBe(false);
+  });
+
   it("keeps the first pointer in control until that pointer is released", () => {
     const game = gameHandle();
     const setMovement = game.setMovement;

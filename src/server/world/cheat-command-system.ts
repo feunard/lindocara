@@ -1,6 +1,7 @@
 import { CHEAT_COMMAND_SYNTAX, type CheatCommand } from "../../shared/cheats.js";
 import { maxHpForLevel } from "../../shared/game.js";
 import type { EventCode, EventParams, EventTone } from "../../shared/protocol.js";
+import { normalizeTalentSelection } from "../../shared/talents.js";
 import { cancelCombatAction } from "./combat-action-system.js";
 import type { PlayerRuntime } from "./world-runtime.js";
 
@@ -28,6 +29,7 @@ function resetCooldowns(player: PlayerRuntime): void {
   player.lastResurrectAt = 0;
   player.guardUntil = 0;
   player.guarding = false;
+  player.guardActivatedAt = 0;
 }
 
 /** Mutates session state only; World remains responsible for life-state transitions and sends. */
@@ -48,6 +50,7 @@ export function executeCheatCommand(
     player.level = command.level;
     player.xp = 0;
     player.hp = maxHpForLevel(command.level);
+    player.talents = normalizeTalentSelection(player.class, command.level, player.talents);
     player.dirty = true;
     return {
       event: event("cheat.level", "good", { level: command.level }),

@@ -119,6 +119,41 @@ afterEach(async () => {
 });
 
 describe("party hero admission and authored runtime", () => {
+  it("allocates, snapshots, persists and freely resets hero talents authoritatively", async () => {
+    const party = await testParty("talent-persistence");
+    const hero = await testHero("Talented", {
+      party,
+      account: party.host,
+      class: "ranger",
+      level: 10,
+    });
+    const client = await Client.joinHero(hero);
+    const welcome = await until("talent welcome", () => client.welcome);
+    expect(welcome.self.talents).toEqual({ selected: [], pointsSpent: 0, pointsAvailable: 10 });
+
+    client.sendRaw(JSON.stringify({ t: "talent.unlock", nodeId: "ranger.piercing_arrow.force" }));
+    await until("talent allocation state", () =>
+      client.latestState?.talents?.selected.includes("ranger.piercing_arrow.force")
+        ? client.latestState
+        : undefined,
+    );
+    expect(await env.WORLD.getByName(hero.roomKey).persistCharacter(hero.heroId)).not.toBeNull();
+    const allocated = await env.DB.prepare("SELECT talents FROM hero WHERE id = ?")
+      .bind(hero.heroId)
+      .first<{ talents: string }>();
+    expect(JSON.parse(allocated?.talents ?? "[]")).toEqual(["ranger.piercing_arrow.force"]);
+
+    client.sendRaw(JSON.stringify({ t: "talent.reset" }));
+    await until("talent reset event", () =>
+      client.received.find((message) => message.t === "event" && message.code === "talent.reset"),
+    );
+    expect(client.latestState?.talents).toEqual({
+      selected: [],
+      pointsSpent: 0,
+      pointsAvailable: 10,
+    });
+  });
+
   it("executes private authoritative test commands for a hero", { timeout: 15_000 }, async () => {
     const party = await testParty("cheat-commands");
     const hero = await testHero("Tester", {

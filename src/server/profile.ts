@@ -44,6 +44,8 @@ export interface PlayerProfile extends Vec2 {
   /** Null exactly when `life` is "alive". */
   corpse: Vec2 | null;
   resource?: ClassResourceState;
+  /** Hero-owned talent ids. Legacy characters keep this session-local until an explicit migration. */
+  talents?: readonly string[];
 }
 
 /**

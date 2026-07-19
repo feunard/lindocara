@@ -64,6 +64,20 @@ projectiles vivent dans `src/shared/combat-actions.ts`. Les trois attaques de ba
 cooldown de 325 ms et une chronologie anticipation/récupération réduite de 50 % ; les compétences
 spéciales et les attaques de monstres conservent leurs timings.
 
+## Talents de combat
+
+`src/shared/talents.ts` décrit 20 nœuds par classe : quatre branches de cinq nœuds pour les
+compétences 2 à 5. La racine d'une branche représente la compétence, coûte zéro point et devient
+active avec son niveau de déblocage. Chaque niveau de héros accorde ensuite un point à dépenser ;
+le serveur valide la classe, le niveau, les prérequis et le plafond avant toute modification.
+
+Les talents modifient notamment puissance, portée, distance et recharge. Les effets particuliers
+restent eux aussi autoritaires : ricochet et exécution du Rôdeur, projectiles supplémentaires,
+invulnérabilité du Dash, soin en chaîne, soin à la rematérialisation et parade parfaite. Pour le
+Guerrier, la parade parfaite annule les dégâts dans les 220 ms suivant l'activation de Garde de fer ;
+sa branche offensive peut alors renvoyer une riposte à l'attaquant. La réinitialisation rembourse
+tous les points, gratuitement pour le moment, après confirmation dans l'arbre.
+
 ## Géométrie et projectiles
 
 `src/shared/directional-combat.ts` fournit les fonctions pures communes : direction normalisée,

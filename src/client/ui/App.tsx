@@ -17,6 +17,7 @@ import { PartyScreen } from "./PartyScreen.js";
 import { Prompt } from "./Prompt.js";
 import { SettingsMenu } from "./SettingsMenu.js";
 import { StatusBar } from "./StatusBar.js";
+import { TalentTree } from "./TalentTree.js";
 import { TitleScreen } from "./TitleScreen.js";
 import { VictoryOverlay } from "./VictoryOverlay.js";
 import { WorldMap } from "./WorldMap.js";
@@ -55,6 +56,7 @@ export function App() {
           <HelpBar />
           <InteriorOverlay />
           <WorldMap />
+          <TalentTree />
           <MobileControls />
           <ConnectionOverlay />
           <VictoryOverlay />

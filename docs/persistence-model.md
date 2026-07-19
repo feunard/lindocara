@@ -76,5 +76,8 @@ aujourd'hui ; les autres emplacements préparent l'évolution du modèle sans cr
 3. Utiliser le claim atomique pour toute récompense non idempotente.
 4. Ajouter les deux traductions et couvrir acceptation, progression, reconnexion et récompense.
 
-Les niveaux restent la règle de déblocage des compétences. `character_skill` persiste l'état
-résultant et la disposition, sans introduire de talents ni remplacer les règles de niveau.
+Les niveaux restent la règle de déblocage des compétences. Dans le flux principal, `hero.talents`
+persiste un tableau JSON d'identifiants validés par le serveur : un niveau donne un point, les
+racines gratuites sont toujours dérivées du niveau et ne sont jamais stockées. Les personnages de
+rollback conservent leurs talents en mémoire de session ; `character_skill` reste leur modèle
+normalisé et ne doit pas être repointé silencieusement vers les héros.

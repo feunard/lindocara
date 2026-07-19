@@ -30,6 +30,7 @@ const ACTION_CONTROLS = [
   "potion",
   "release",
   "map",
+  "talents",
   "chat",
   "settings",
 ] as const satisfies readonly ControlId[];
@@ -116,6 +117,7 @@ export interface ActionHandlers {
   releaseSkill?(slot: SkillSlot): void;
   focusChat(): void;
   toggleMap(): void;
+  toggleTalents?(): void;
   toggleSettings(): void;
 }
 
@@ -129,6 +131,7 @@ function invokeAction(control: (typeof ACTION_CONTROLS)[number], handlers: Actio
   else if (control === "potion") handlers.usePotion();
   else if (control === "release") handlers.release();
   else if (control === "map") handlers.toggleMap();
+  else if (control === "talents") handlers.toggleTalents?.();
   else if (control === "chat") handlers.focusChat();
   else handlers.toggleSettings();
 }
@@ -168,7 +171,7 @@ export function trackActions(
     }
     const control = keyboardControlForCode(event.code);
     if (!control || !ACTION_CONTROLS.includes(control as (typeof ACTION_CONTROLS)[number])) return;
-    if (control !== "settings" && !actionsEnabled()) return;
+    if (control !== "settings" && control !== "talents" && !actionsEnabled()) return;
     const actionControl = control as (typeof ACTION_CONTROLS)[number];
     invokeAction(actionControl, handlers);
     const skillSlot = skillSlotForControl(actionControl);
@@ -192,7 +195,10 @@ export function trackActions(
       for (const control of ACTION_CONTROLS) {
         if (!gamepadControlPressed(control, gamepad)) continue;
         pressed.add(control);
-        if (!previousGamepad.has(control) && (control === "settings" || actionsEnabled())) {
+        if (
+          !previousGamepad.has(control) &&
+          (control === "settings" || control === "talents" || actionsEnabled())
+        ) {
           invokeAction(control, handlers);
         }
       }
