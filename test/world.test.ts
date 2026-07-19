@@ -1287,7 +1287,7 @@ describe("World", () => {
   }, async () => {
     // ~250px from the nearest SPAWN_POINTS grid cell — far enough that a straggler still
     // disconnecting from an earlier test (spawned somewhere on that grid, always inside
-    // heal.range 130 of *itself* but not of here) cannot be closer than the wounded ally and
+    // heal.range 195 of *itself* but not of here) cannot be closer than the wounded ally and
     // steal the cast.
     const priest = await Client.join("mender", {
       position: { x: 1150, y: 250 },
@@ -1590,8 +1590,8 @@ describe("World", () => {
       class: "priest",
       level: 3,
     });
-    // 200px away: past heal.range (130), well inside the snapshot view.
-    const wounded = await Client.join("far_wounded", { position: { x: 984, y: 450 }, hp: 40 });
+    // 260px away: past the 195px projectile travel plus both collision radii, inside snapshot view.
+    const wounded = await Client.join("far_wounded", { position: { x: 1044, y: 450 }, hp: 40 });
     await until("both welcomes", () => priest.welcome && wounded.welcome);
     await formRuntimeParty(priest, wounded);
 

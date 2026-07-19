@@ -35,6 +35,7 @@ export function SkillBar() {
   }, [attackCooldownUntil, cooldowns]);
 
   if (!self) return null;
+  const ironGuardActive = self.class === "warrior" && self.guarding === true;
 
   return (
     <section className="skill-bar panel" aria-label={t("hud.abilities")}>
@@ -49,7 +50,9 @@ export function SkillBar() {
         const manaCost = skillResourceCost(self.class, skill.slot);
         const lacksMana =
           manaCost > 0 && (selfState?.resource?.current ?? Number.NEGATIVE_INFINITY) < manaCost;
-        const unavailable = !unlocked || cooling || lacksMana;
+        const guardToggle = self.class === "warrior" && skill.id === "iron_guard";
+        const blockedByGuard = ironGuardActive && !guardToggle;
+        const unavailable = !unlocked || cooling || lacksMana || blockedByGuard;
         const manaText = manaCost > 0 ? t("skill.mana_cost", { cost: manaCost }) : null;
         const icon = skillIconArt(self.class, skill.slot);
         const iconStyle = {
@@ -61,9 +64,10 @@ export function SkillBar() {
           <button
             type="button"
             key={skill.id}
-            className={unavailable ? "skill-slot cooling" : "skill-slot"}
+            className={`skill-slot${unavailable ? " cooling" : ""}${guardToggle && ironGuardActive ? " active" : ""}`}
             disabled={!game || self.life !== "alive" || unavailable}
             onClick={() => game?.castSkill(skill.slot)}
+            aria-pressed={guardToggle ? ironGuardActive : undefined}
             aria-label={`${skill.slot}. ${name}`}
             aria-keyshortcuts={String(skill.slot)}
             title={

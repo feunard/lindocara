@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { mobilityRenderOffset, mobilityVisual } from "../src/client/game/combat-motion.js";
+import {
+  lumenStepOpacity,
+  mobilityRenderOffset,
+  mobilityVisual,
+} from "../src/client/game/combat-motion.js";
 
 describe("combat mobility presentation", () => {
   it("gives charge, dash and blink distinct visual identities", () => {
@@ -13,5 +17,12 @@ describe("combat mobility presentation", () => {
     expect(mobilityRenderOffset(-120, 30, 1_000, 200, 1_000)).toEqual({ x: -120, y: 30 });
     expect(mobilityRenderOffset(-120, 30, 1_000, 200, 1_100)).toEqual({ x: -30, y: 7.5 });
     expect(mobilityRenderOffset(-120, 30, 1_000, 200, 1_200)).toEqual({ x: 0, y: 0 });
+  });
+
+  it("softly disappears at Lumen impact and rematerializes through recovery", () => {
+    expect(lumenStepOpacity(1_000, 1_200, 1_600, 1_000)).toBe(1);
+    expect(lumenStepOpacity(1_000, 1_200, 1_600, 1_200)).toBeCloseTo(0.06);
+    expect(lumenStepOpacity(1_000, 1_200, 1_600, 1_400)).toBeCloseTo(0.53);
+    expect(lumenStepOpacity(1_000, 1_200, 1_600, 1_600)).toBe(1);
   });
 });

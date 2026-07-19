@@ -62,6 +62,8 @@ export interface SelfHud {
   class: PlayerClass;
   appearance: CharacterAppearance;
   equipment: Equipment;
+  /** Server-authoritative persistent Iron Guard posture. */
+  guarding?: boolean;
 }
 
 export interface GameHandle {
@@ -184,6 +186,7 @@ function selfHudEqual(a: SelfHud | null, b: SelfHud | null): boolean {
     // Rounded to the metre by the writer, so a walking ghost re-renders the HUD ~1x/step.
     a.corpseDistance === b.corpseDistance &&
     a.class === b.class &&
+    a.guarding === b.guarding &&
     a.appearance.body === b.appearance.body &&
     a.appearance.primaryColor === b.appearance.primaryColor &&
     a.equipment.mainHand === b.equipment.mainHand &&

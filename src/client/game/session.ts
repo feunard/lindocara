@@ -85,6 +85,7 @@ function renderPlayer(player: PlayerSnapshot | undefined, corpse: Vec2 | null): 
           class: player.class,
           appearance: { ...player.appearance },
           equipment: { ...player.equipment },
+          guarding: player.guarding === true,
         }
       : null,
   );

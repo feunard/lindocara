@@ -72,6 +72,8 @@ export interface PlayerSnapshot {
   life: LifeState;
   /** Last non-zero movement accepted by the authority. Standing still preserves this direction. */
   facing: Vec2;
+  /** True while the warrior has deliberately toggled Iron Guard on. */
+  guarding?: boolean;
   /** Present while anticipation, impact or recovery is still relevant to remote rendering. */
   action: CombatActionSnapshot | null;
 }
@@ -460,6 +462,7 @@ function isPlayerSnapshot(value: unknown): value is PlayerSnapshot {
     isFiniteNumber(value.x) &&
     isFiniteNumber(value.y) &&
     isDirection(value.facing) &&
+    (value.guarding === undefined || typeof value.guarding === "boolean") &&
     (value.action === null || isActionSnapshot(value.action))
   );
 }

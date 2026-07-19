@@ -103,6 +103,9 @@ describe("ui store", () => {
     const first = useUiStore.getState().self;
     useUiStore.getState().setSelf({ ...self });
     expect(useUiStore.getState().self).toBe(first);
+    useUiStore.getState().setSelf({ ...self, guarding: true });
+    expect(useUiStore.getState().self).not.toBe(first);
+    expect(useUiStore.getState().self?.guarding).toBe(true);
   });
 
   it("ignores an unchanged party, so a 10Hz rebroadcast does not re-render the HUD", () => {

@@ -63,4 +63,36 @@ describe("skill bar cooldowns", () => {
     expect(primary.querySelector(".skill-slot__icon--quick-shot")).not.toBeNull();
     expect(secondary.querySelector(".skill-slot__icon--piercing-arrow")).not.toBeNull();
   });
+
+  it("keeps Iron Guard clickable while active and greys every other warrior action", () => {
+    const game = gameHandle();
+    useUiStore.setState({
+      game,
+      self: {
+        nick: "Bulwark",
+        level: 10,
+        hp: 100,
+        maxHp: 100,
+        life: "alive",
+        corpseDistance: null,
+        class: "warrior",
+        appearance: { body: "wayfarer", primaryColor: "azure" },
+        equipment: { mainHand: "weathered_sword", offHand: "oak_shield" },
+        guarding: true,
+      },
+    });
+    render(<SkillBar />);
+
+    const guard = screen.getByRole("button", { name: "2. Iron Guard" });
+    expect(guard).toBeEnabled();
+    expect(guard).toHaveAttribute("aria-pressed", "true");
+    expect(guard).toHaveClass("active");
+    expect(screen.getByRole("button", { name: "1. Cleave" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "3. Shield Bash" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "4. Battle Cry" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "5. Whirlwind" })).toBeDisabled();
+
+    fireEvent.click(guard);
+    expect(game.castSkill).toHaveBeenCalledWith(2);
+  });
 });

@@ -9,7 +9,7 @@ export interface MobilityVisual {
 const MOBILITY_VISUALS: Readonly<Record<MobilitySkillId, MobilityVisual>> = {
   shield_bash: { durationMs: 230, color: 0xffd66b, width: 14 },
   dash: { durationMs: 190, color: 0x6ad9ff, width: 10 },
-  blink: { durationMs: 210, color: 0xb48cff, width: 12 },
+  blink: { durationMs: 300, color: 0xc9a7ff, width: 18 },
 };
 
 export function mobilityVisual(skillId: string | undefined): MobilityVisual | null {
@@ -30,4 +30,21 @@ export function mobilityRenderOffset(
   if (progress >= 1) return { x: 0, y: 0 };
   const remaining = (1 - progress) ** 2;
   return { x: offsetX * remaining, y: offsetY * remaining };
+}
+
+/** Fades Lumen Step out until impact, then softly rematerializes through recovery. */
+export function lumenStepOpacity(
+  startedAt: number,
+  impactAt: number,
+  recoveryEndsAt: number,
+  now: number,
+): number {
+  if (now <= startedAt || now >= recoveryEndsAt) return 1;
+  const minimum = 0.06;
+  if (now <= impactAt) {
+    const progress = (now - startedAt) / Math.max(1, impactAt - startedAt);
+    return 1 - (1 - minimum) * Math.max(0, Math.min(1, progress));
+  }
+  const progress = (now - impactAt) / Math.max(1, recoveryEndsAt - impactAt);
+  return minimum + (1 - minimum) * Math.max(0, Math.min(1, progress));
 }

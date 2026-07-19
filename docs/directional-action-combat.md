@@ -42,18 +42,18 @@ carte. Les projectiles déjà créés restent gouvernés par leurs propres snaps
 | Classe | Compétence | Anticipation | Récupération | Résolution |
 | --- | --- | ---: | ---: | --- |
 | Guerrier | Cleave | 110 ms | 215 ms | Arc frontal, portée 60 |
-| Guerrier | Iron Guard | 180 ms | 420 ms | Réduction 50 % pendant 3 500 ms |
+| Guerrier | Iron Guard | 180 ms | 420 ms | Posture activable : réduction 50 %, désactivation sur le même bouton |
 | Guerrier | Shield Bash | 180 ms | 480 ms | Auto-cible visible la plus proche, charge jusqu'au premier obstacle/contact |
 | Guerrier | Battle Cry | 300 ms | 500 ms | Zone de rayon 105 |
 | Guerrier | Whirlwind | 320 ms | 600 ms | Zone de rayon 82 |
-| Rôdeur | Quick Shot | 130 ms | 195 ms | Flèche droite, portée 170 |
-| Rôdeur | Piercing Arrow | 300 ms | 500 ms | Flèche perforante, portée 200 |
-| Rôdeur | Volley | 360 ms | 640 ms | Éventail de cinq flèches sur 36°, portée 160 |
+| Rôdeur | Quick Shot | 130 ms | 195 ms | Flèche droite, portée 255 |
+| Rôdeur | Piercing Arrow | 300 ms | 500 ms | Flèche perforante, portée 270 |
+| Rôdeur | Volley | 360 ms | 640 ms | Éventail de cinq flèches sur 36°, portée 216 |
 | Rôdeur | Dash | 120 ms | 380 ms | Déplacement arrière de 189 |
-| Rôdeur | Heartseeker | 360 ms | 700 ms | Flèche droite rapide, portée 230 |
-| Prêtre | Radiant Bolt | 140 ms | 185 ms | Projectile magique, portée 225 ; total 325 ms |
-| Prêtre | Mend | 240 ms | 600 ms | Lumière de soin alliée à la frame active, sans auto-soin |
-| Prêtre | Blink | 180 ms | 420 ms | Déplacement frontal de 110 |
+| Rôdeur | Heartseeker | 360 ms | 700 ms | Flèche droite rapide, portée 345 |
+| Prêtre | Radiant Bolt | 140 ms | 185 ms | Projectile magique, portée 337,5 ; total 325 ms |
+| Prêtre | Mend | 240 ms | 600 ms | Lumière de soin alliée, portée 195, sans auto-soin |
+| Prêtre | Blink | 180 ms | 420 ms | Sur place sans direction ; déplacement dirigé collisionné de 165 |
 | Prêtre | Prayer | 320 ms | 640 ms | Soin allié en rayon 155 avec ligne de vue |
 | Prêtre | Divine Nova | 400 ms | 700 ms | Dégâts et soins en rayon 120 |
 
@@ -87,7 +87,10 @@ projectiles. Une room vide peut réinitialiser ses monstres, projectiles et loot
 
 - Cleave frappe tous les monstres dans son arc frontal qui ont une ligne de vue ; rien derrière et
   rien au-delà d'un mur.
-- Iron Guard conserve sa réduction, sans cible.
+- Iron Guard est une posture persistante activée après son anticipation. Tant qu'elle est active,
+  elle réduit les dégâts reçus de 50 % et interdit toute autre attaque ou compétence. Le même
+  bouton la désactive immédiatement et déclenche alors son cooldown de 8 s. La posture est
+  session-locale et tombe à la mort, à la transition ou à la déconnexion.
 - Shield Bash choisit côté serveur le monstre vivant et visible le plus proche dans sa portée,
   fige cette direction, puis balaye la charge. Il s'arrête juste avant le premier mur ou monstre,
   inflige 24 et conserve la provocation de menace. Sans cible valide, il conserve le facing : le
@@ -104,11 +107,17 @@ projectiles. Une room vide peut réinitialiser ses monstres, projectiles et loot
   activation frappe plusieurs fois le même monstre.
 - Dash conserve son déplacement opposé au facing et s'arrête devant le terrain.
 - Heartseeker est une flèche droite non guidée à 700 px/s. Elle peut rater et ne corrige jamais sa
-  trajectoire.
+  trajectoire. Son statut d'ultime est porté par une flèche agrandie, une longue traînée rouge, une
+  décharge au lancement et un impact magique renforcé.
 
 ### Prêtre
 
 - Radiant Bolt est un projectile magique offensif droit, bloqué par le terrain.
+- Mend parcourt jusqu'à 195 px et soigne uniquement le premier allié blessé touché.
+- Lumen Step observe l'intention de mouvement déjà acceptée par le serveur au lancement : sans
+  direction maintenue, le prêtre disparaît puis réapparaît sur place ; avec une direction, il
+  parcourt jusqu'à 165 px par segments collisionnés. Le rendu fond le prêtre, déroule un nuage sur
+  le trajet autoritaire, puis le rematérialise.
 - Mend crée à la frame active une lumière verte qui ignore son lanceur, les monstres, les héros à
   pleine vie et les membres d'une autre partie. Le premier allié vivant et blessé touché reçoit 35
   de base. Le sort ne soigne plus le Prêtre.
@@ -155,15 +164,17 @@ textures sont mises en cache par source.
 | Cleave | `Warrior_Attack1.png` | `Explosion_01.png` à l'impact réel | Attaque exacte |
 | Iron Guard | `Warrior_Guard.png` | garde persistante | Garde exacte |
 | Shield Bash | `Warrior_Attack2.png` | glissade rendue + traînée or + `Dust_02.png` | Charge lisible sans déplacer l'autorité côté client |
-| Battle Cry / Whirlwind | `Warrior_Attack2.png` | `Explosion_01.png` | Substitution documentée : aucun cri/360 exact |
+| Battle Cry | `Warrior_Attack2.png` | explosion orange agrandie, double onde et particules | Cri renforcé malgré l'absence d'un strip dédié |
+| Whirlwind | `Warrior_Attack2.png` | explosion or agrandie, doubles anneaux et gerbe dense | Ultime 360° volontairement spectaculaire |
 | Quick Shot | `Archer_Shoot.png` | `Arrow.png`, impact `Explosion_01.png` | Flèche de base sans traînée |
-| Piercing / Volley / Heartseeker | `Archer_Shoot.png` | `Arrow.png` avec tailles, teintes et traînées cyan/or/rouge distinctes | Identité visuelle propre par technique |
+| Piercing / Volley | `Archer_Shoot.png` | `Arrow.png` avec tailles, teintes et traînées cyan/or distinctes | Identité visuelle propre par technique |
+| Heartseeker | `Archer_Shoot.png` | flèche rouge 1,78×, traînée longue, décharge de départ et impact 1,65× | Ultime du rôdeur nettement distinct |
 | Dash | `Archer_Shoot.png` | glissade rendue + traînée cyan + `Dust_02.png` | Le saut serveur n'apparaît plus comme une téléportation |
 | Radiant Bolt | `Heal.png` | `Hex Shaman_Projectile.png`, `Hex Shaman_Explosion.png` | Projectile magique Tiny Swords exact le plus proche |
 | Mend | `Heal.png` | `Hex Shaman_Projectile.png` et explosion teintés en vert | Même langage visuel que Radiant Bolt, version soin |
-| Blink | `Heal.png` | glissade rendue + traînée violette + `Dust_02.png` | Déplacement visible malgré la résolution instantanée serveur |
+| Blink | `Heal.png` | fondu, nuages violets successifs et rematérialisation | Téléportation légère, sur place ou dirigée |
 | Prayer | `Heal.png` | `Heal_Effect.png` en zone + cercle exact de rayon 155 | Soin et portée lisibles |
-| Divine Nova | `Heal.png` | `Heal_Effect.png` + `Explosion_01.png` | Lecture soin/dégâts distincte |
+| Divine Nova | `Heal.png` | soin violet 1,45×, explosion 1,55×, doubles anneaux et particules | Ultime soin/dégâts nettement amplifié |
 | Monstres | strip `attack` exact de chaque espèce | `Explosion_01.png` au contact | Animations d'espèce exactes |
 
 Le projectile magique et son explosion sont chargés directement depuis le pack Enemy ; Mend en

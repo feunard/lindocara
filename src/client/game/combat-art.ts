@@ -167,10 +167,10 @@ function arrow(color: PrimaryColor, kind: ProjectileKind): CombatProjectileArt {
   if (kind === "heartseeker")
     return {
       ...base,
-      durationMs: 900,
+      durationMs: 1_050,
       tint: 0xff557d,
-      scale: 1.38,
-      trail: { color: 0xff416c, length: 48, width: 5, glowRadius: 11 },
+      scale: 1.78,
+      trail: { color: 0xff416c, length: 72, width: 7, glowRadius: 16 },
     };
   return base;
 }
@@ -208,10 +208,17 @@ export function combatArt(
   if (playerClass === "warrior") {
     if (skillId === "iron_guard") return { caster };
     if (skillId === "shield_bash") return { caster, impact: styled(DUST, 0xffd66b, 1.3) };
-    if (skillId === "battle_cry" || skillId === "whirlwind")
+    if (skillId === "battle_cry")
       return {
         caster,
-        zone: EXPLOSION,
+        zone: styled(EXPLOSION, 0xffb34f, 1.45),
+        fallback:
+          "Explosion_01 renforcée par des anneaux et particules représente le cri de guerre.",
+      };
+    if (skillId === "whirlwind")
+      return {
+        caster,
+        zone: styled(EXPLOSION, 0xffe08a, 1.55),
         fallback: "Explosion_01 représente la zone : le pack ne fournit pas de cri ni de rotation.",
       };
     return { caster, impact: EXPLOSION };
@@ -234,7 +241,12 @@ export function combatArt(
           : kind === "heartseeker"
             ? styled(MAGIC_IMPACT, 0xff557d, 1.18)
             : EXPLOSION;
-    return { caster, projectile: projectileArt(kind, color), impact };
+    return {
+      caster,
+      projectile: projectileArt(kind, color),
+      impact: kind === "heartseeker" ? styled(MAGIC_IMPACT, 0xff416c, 1.65) : impact,
+      ...(kind === "heartseeker" ? { zone: styled(MAGIC_IMPACT, 0xff557d, 1.18) } : {}),
+    };
   }
   if (skillId === "radiant_bolt")
     return {
@@ -252,8 +264,11 @@ export function combatArt(
   if (skillId === "blink") return { caster, impact: styled(DUST, 0xb48cff, 1.35) };
   return {
     caster,
-    zone: unitSheet(unitSource(color, "monk", "Heal_Effect.png"), 11, 760, 4),
-    ...(skillId === "divine_nova" ? { impact: EXPLOSION } : {}),
+    zone: {
+      ...unitSheet(unitSource(color, "monk", "Heal_Effect.png"), 11, 760, 4),
+      ...(skillId === "divine_nova" ? { tint: 0xd8a0ff, scale: 1.45 } : {}),
+    },
+    ...(skillId === "divine_nova" ? { impact: styled(EXPLOSION, 0xd8a0ff, 1.55) } : {}),
   };
 }
 

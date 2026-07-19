@@ -71,7 +71,7 @@ describe("directional class kit contract", () => {
     const mend = CLASS_SKILLS.priest.find((skill) => skill.id === "mend");
     expect(mend).toMatchObject({
       cooldownMs: 1_500,
-      range: 130,
+      range: 195,
       power: 35,
       allyPower: 35,
     });
@@ -79,6 +79,18 @@ describe("directional class kit contract", () => {
       shape: "heal_projectile",
       projectile: { kind: "healing_light", pierce: 0 },
     });
+  });
+
+  it("applies the requested ranged and mobility range increases", () => {
+    expect(CLASS_SKILLS.ranger.map((skill) => skill.range)).toEqual([255, 270, 216, 0, 345]);
+    expect(CLASS_SKILLS.ranger[2]?.radius).toBe(216);
+    expect(CLASS_SKILLS.priest.slice(0, 2).map((skill) => skill.range)).toEqual([337.5, 195]);
+    expect(CLASS_SKILLS.priest[2]).toMatchObject({ id: "blink", distance: 165 });
+    expect(CLASS_SKILLS.warrior[1]).toMatchObject({
+      id: "iron_guard",
+      reduction: 0.5,
+    });
+    expect(CLASS_SKILLS.warrior[1]?.durationMs).toBeUndefined();
   });
 
   it("gives every monster species a telegraphed active frame and bounded recovery", () => {

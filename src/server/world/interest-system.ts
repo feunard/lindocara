@@ -82,6 +82,7 @@ export function playerSnapshot(player: PlayerRuntime): PlayerSnapshot {
     equipment: { ...player.equipment },
     life: player.life,
     facing: { ...player.facing },
+    guarding: player.guarding,
     action: combatActionSnapshot(player.action),
   };
 }

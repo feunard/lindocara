@@ -15,7 +15,6 @@ describe("authoritative combat visual cancellation", () => {
       actionEndsAt: 750,
       actionDirection: { x: 1, y: 0 },
       effectPlayedActionId: "action-a",
-      guardVisualUntil: 2_000,
     };
     expect(clearVisualAction(state)).toBe("action-a");
     expect(state).toEqual({});

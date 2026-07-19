@@ -108,6 +108,8 @@ export interface CombatActionRuntime {
   impactAt: number;
   recoveryEndsAt: number;
   resolved: boolean;
+  /** Server-selected mobility distance. Zero keeps a teleport visual on the caster's tile. */
+  mobilityDistance?: number;
 }
 
 export type ProjectileTargetFilter = "monsters" | "wounded_allies";
@@ -149,6 +151,7 @@ export interface PlayerRuntime extends PlayerProfile {
   lastHealAt: number;
   skillCooldowns: number[];
   guardUntil: number;
+  guarding: boolean;
   guardReduction: number;
   lastResurrectAt: number;
   messageTimes: number[];
@@ -343,9 +346,7 @@ export function newPlayer(
   const cooldowns = normalizeCombatCooldowns(restoredCooldowns, now);
   const healCooldownMs = CLASS_STATS[profile.class].heal?.cooldownMs ?? 0;
   const guardReduction =
-    cooldowns.guardUntil > now
-      ? (CLASS_SKILLS[profile.class].find((skill) => skill.effect === "guard")?.reduction ?? 0)
-      : 0;
+    CLASS_SKILLS[profile.class].find((skill) => skill.effect === "guard")?.reduction ?? 0;
   return {
     ...profile,
     appearance: { ...profile.appearance },
@@ -362,7 +363,9 @@ export function newPlayer(
     lastAttackAt: cooldowns.attackUntil === 0 ? 0 : cooldowns.attackUntil - ATTACK_COOLDOWN_MS,
     lastHealAt: cooldowns.healUntil === 0 ? 0 : cooldowns.healUntil - healCooldownMs,
     skillCooldowns: [...cooldowns.skillCooldowns],
-    guardUntil: cooldowns.guardUntil,
+    // Iron Guard is now a session-local toggle. A reconnect always returns in neutral posture.
+    guardUntil: 0,
+    guarding: false,
     guardReduction,
     lastResurrectAt:
       cooldowns.resurrectUntil === 0 ? 0 : cooldowns.resurrectUntil - RESURRECT_COOLDOWN_MS,
@@ -398,7 +401,7 @@ export function combatCooldownsFromPlayer(
       attackUntil: player.lastAttackAt + ATTACK_COOLDOWN_MS,
       healUntil: player.lastHealAt + healCooldownMs,
       skillCooldowns: player.skillCooldowns,
-      guardUntil: player.guardUntil,
+      guardUntil: 0,
       resurrectUntil: player.lastResurrectAt + RESURRECT_COOLDOWN_MS,
     },
     now,

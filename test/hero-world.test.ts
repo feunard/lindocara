@@ -119,6 +119,128 @@ afterEach(async () => {
 });
 
 describe("party hero admission and authored runtime", () => {
+  it("toggles Iron Guard, blocks every other action, and starts cooldown on exit", {
+    timeout: 10_000,
+  }, async () => {
+    const party = await testParty("iron-guard-toggle");
+    const hero = await testHero("Bulwark", {
+      party,
+      account: party.host,
+      class: "warrior",
+      level: 10,
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      await until("iron guard welcome", () => client.welcome);
+      client.skill(2);
+      await until("iron guard active snapshot", () =>
+        client.self()?.guarding === true ? client.self() : undefined,
+      );
+
+      client.action("attack");
+      client.skill(3);
+      client.skill(4);
+      client.skill(5);
+      await scheduler.wait(700);
+      expect(
+        client.received.some(
+          (message) =>
+            message.t === "animation" &&
+            (message.skillId === "cleave" ||
+              message.skillId === "shield_bash" ||
+              message.skillId === "battle_cry" ||
+              message.skillId === "whirlwind"),
+        ),
+      ).toBe(false);
+
+      client.skill(2);
+      await until("iron guard disabled snapshot", () =>
+        client.self()?.guarding === false ? client.self() : undefined,
+      );
+      const cooldown = await until("iron guard exit cooldown", () => {
+        const state = client.latestState;
+        const deadline = state?.cooldowns?.skillCooldowns[1] ?? 0;
+        return deadline > (state?.serverNow ?? 0) ? deadline : undefined;
+      });
+      expect(cooldown).toBeGreaterThan(Date.now());
+
+      client.action("attack");
+      await until("cleave available after leaving guard", () =>
+        client.received.find(
+          (message) => message.t === "animation" && message.skillId === "cleave",
+        ),
+      );
+    } finally {
+      client.close();
+    }
+  });
+
+  it("keeps Lumen Step in place without held movement", { timeout: 10_000 }, async () => {
+    const party = await testParty("stationary-lumen");
+    const hero = await testHero("Stilllight", {
+      party,
+      account: party.host,
+      class: "priest",
+      level: 5,
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      const welcome = await until("stationary lumen welcome", () => client.welcome);
+      const before = welcome.players.find((player) => player.id === hero.heroId);
+      if (!before) throw new Error("missing stationary priest");
+
+      client.skill(3);
+      await until("stationary lumen animation", () =>
+        client.received.find((message) => message.t === "animation" && message.skillId === "blink"),
+      );
+      await scheduler.wait(750);
+      const after = client.self();
+      if (!after) throw new Error("missing priest after Lumen Step");
+      expect(after.x).toBeCloseTo(before.x, 2);
+      expect(after.y).toBeCloseTo(before.y, 2);
+    } finally {
+      client.close();
+    }
+  });
+
+  it("moves Lumen Step through collision-aware space while a direction is held", {
+    timeout: 10_000,
+  }, async () => {
+    const party = await testParty("directed-lumen");
+    const hero = await testHero("Cloudstep", {
+      party,
+      account: party.host,
+      class: "priest",
+      level: 5,
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      await until("directed lumen welcome", () => client.welcome);
+      const start = client.self();
+      if (!start) throw new Error("missing directed priest");
+      client.press("right");
+      await until("right movement applied before Lumen Step", () => {
+        const current = client.self();
+        return current && current.x > start.x + 1 ? current : undefined;
+      });
+      const beforeCast = client.self();
+      if (!beforeCast) throw new Error("missing priest before directed Lumen Step");
+
+      client.skill(3);
+      await until("directed lumen animation", () =>
+        client.received.find((message) => message.t === "animation" && message.skillId === "blink"),
+      );
+      client.release();
+      const after = await until("directed Lumen Step movement", () => {
+        const current = client.self();
+        return current && current.x - beforeCast.x > 140 ? current : undefined;
+      });
+      expect(after.x - beforeCast.x).toBeGreaterThanOrEqual(150);
+    } finally {
+      client.close();
+    }
+  });
+
   it("accepts an empty Cleave and consumes its cooldown at launch", {
     timeout: 10_000,
   }, async () => {

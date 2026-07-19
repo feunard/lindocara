@@ -73,6 +73,26 @@ describe("Tiny Swords directional combat art", () => {
     expect(combatArt("priest", "blink", "azure").impact?.tint).toBe(0xb48cff);
   });
 
+  it("gives every class ultimate a deliberately amplified visual treatment", () => {
+    const whirlwind = combatArt("warrior", "whirlwind", "azure");
+    const heartseeker = combatArt("ranger", "heartseeker", "azure");
+    const nova = combatArt("priest", "divine_nova", "azure");
+
+    expect(whirlwind.zone).toMatchObject({ tint: 0xffe08a, scale: 1.55 });
+    expect(heartseeker.projectile).toMatchObject({
+      scale: 1.78,
+      trail: { length: 72, width: 7, glowRadius: 16 },
+    });
+    expect(heartseeker).toMatchObject({
+      zone: { tint: 0xff557d, scale: 1.18 },
+      impact: { tint: 0xff416c, scale: 1.65 },
+    });
+    expect(nova).toMatchObject({
+      zone: { tint: 0xd8a0ff, scale: 1.45 },
+      impact: { tint: 0xd8a0ff, scale: 1.55 },
+    });
+  });
+
   it("uses the exact Hex Shaman magic projectile for Radiant Bolt", () => {
     expect(combatArt("priest", "radiant_bolt", "azure")).toMatchObject({
       projectile: {

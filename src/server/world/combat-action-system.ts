@@ -11,6 +11,7 @@ export interface StartCombatActionOptions {
   now: number;
   anticipationMs: number;
   recoveryMs: number;
+  mobilityDistance?: number;
 }
 
 export function startCombatAction(
@@ -29,6 +30,9 @@ export function startCombatAction(
     recoveryEndsAt:
       options.now + Math.max(0, options.anticipationMs) + Math.max(0, options.recoveryMs),
     resolved: false,
+    ...(options.mobilityDistance === undefined
+      ? {}
+      : { mobilityDistance: Math.max(0, options.mobilityDistance) }),
   };
   actor.action = action;
   return action;

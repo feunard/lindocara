@@ -155,7 +155,11 @@ import {
   spawnProjectile,
 } from "./world/projectile-system.js";
 import { nextQuestChapter, questDefinition } from "./world/quest-system.js";
-import { movePlayerInDirection, nearestChargeTarget } from "./world/skill-system.js";
+import {
+  heldMovementDirection,
+  movePlayerInDirection,
+  nearestChargeTarget,
+} from "./world/skill-system.js";
 import {
   broadcastNetworkUpdates,
   selfState,
@@ -962,17 +966,28 @@ export class World extends DurableObject<Env> {
       });
       return false;
     }
+    const now = Date.now();
+    if (!canAct(player.life)) return false;
+    if (player.guarding) {
+      if (skill.id !== "iron_guard") return false;
+      cancelCombatAction(player);
+      player.guarding = false;
+      player.skillCooldowns[slot - 1] = now + skill.cooldownMs;
+      player.dirty = true;
+      this.#sendState(ws, player);
+      return true;
+    }
     const resourceCost = skillResourceCost(player.class, slot);
     if (!canSpendResource(player.resource, resourceCost)) {
       this.#send(ws, { t: "event", code: "resource.insufficient", tone: "info" });
       return false;
     }
-    const now = Date.now();
-    if (!canAct(player.life)) return false;
     if (slot === 1 && now - player.lastAttackAt < skill.cooldownMs) return false;
     if (skill.id === "mend" && now - player.lastHealAt < skill.cooldownMs) return false;
     if (slot !== 1 && (player.skillCooldowns[slot - 1] ?? 0) > now) return false;
     const definition = actionForClassSlot(player.class, slot);
+    const heldDirection =
+      definition.shape === "teleport" ? heldMovementDirection(player.lastInput) : null;
     const chargeTarget =
       definition.shape === "charge"
         ? nearestChargeTarget(
@@ -988,7 +1003,7 @@ export class World extends DurableObject<Env> {
           { x: chargeTarget.x - player.x, y: chargeTarget.y - player.y },
           player.facing,
         )
-      : player.facing;
+      : (heldDirection ?? player.facing);
     const action = startCombatAction(player, {
       kind: slot === 1 ? "basic" : "skill",
       skillId: skill.id,
@@ -997,11 +1012,14 @@ export class World extends DurableObject<Env> {
       now,
       anticipationMs: definition.anticipationMs,
       recoveryMs: definition.recoveryMs,
+      ...(definition.shape === "teleport"
+        ? { mobilityDistance: heldDirection ? (skill.distance ?? 0) : 0 }
+        : {}),
     });
     if (!action) return false;
 
     if (slot === 1) player.lastAttackAt = now;
-    else player.skillCooldowns[slot - 1] = now + skill.cooldownMs;
+    else if (skill.id !== "iron_guard") player.skillCooldowns[slot - 1] = now + skill.cooldownMs;
     if (skill.id === "mend") player.lastHealAt = now;
     spendResource(player.resource, resourceCost);
     player.dirty = true;
@@ -1070,8 +1088,11 @@ export class World extends DurableObject<Env> {
       return;
     }
     if (definition.shape === "guard") {
-      player.guardUntil = now + (skill.durationMs ?? 0);
+      player.guardUntil = 0;
+      player.guarding = true;
       player.guardReduction = skill.reduction ?? 0;
+      player.dirty = true;
+      this.#sendState(socket, player);
       return;
     }
     if (definition.shape === "dash") {
@@ -1083,7 +1104,7 @@ export class World extends DurableObject<Env> {
       return;
     }
     if (definition.shape === "teleport") {
-      this.#movePlayerInDirection(player, action.direction, skill.distance ?? 0);
+      this.#movePlayerInDirection(player, action.direction, action.mobilityDistance ?? 0);
       return;
     }
     if (definition.shape === "projectile" || definition.shape === "volley") {
@@ -2479,7 +2500,7 @@ export class World extends DurableObject<Env> {
         !hasLineOfSight(monster, player, this.#zone().terrain.tiles)
       )
         continue;
-      this.#damagePlayer(socket, player, monster.damage, monster.species, monster.id, now);
+      this.#damagePlayer(socket, player, monster.damage, monster.species, monster.id);
     }
     for (const guard of this.#guards) {
       if (
@@ -2504,9 +2525,8 @@ export class World extends DurableObject<Env> {
     damage: number,
     species: MonsterSpecies,
     monsterId: string,
-    now: number,
   ): void {
-    const { amount: appliedDamage, result } = guardedDamage(player, damage, now);
+    const { amount: appliedDamage, result } = guardedDamage(player, damage);
     player.hp = result.hp;
     generateResource(player.class, player.resource, "damage_taken", appliedDamage);
     player.dirty = true;
@@ -2553,6 +2573,7 @@ export class World extends DurableObject<Env> {
     player.queue = [];
     player.starvedTicks = 0;
     cancelCombatAction(player);
+    player.guarding = false;
     removeProjectilesByOwner(this.#projectiles, player.id);
     player.dirty = true;
   }

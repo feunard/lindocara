@@ -903,12 +903,12 @@ export interface ClassStats {
 
 export const CLASS_STATS: Record<PlayerClass, ClassStats> = {
   warrior: { attackBase: 27, attackPerLevel: 4, attackRange: 60 },
-  ranger: { attackBase: 16, attackPerLevel: 2, attackRange: 170 },
+  ranger: { attackBase: 16, attackPerLevel: 2, attackRange: 255 },
   priest: {
     attackBase: 14,
     attackPerLevel: 2,
-    attackRange: 225,
-    heal: { base: 35, perLevel: 3, range: 130, cooldownMs: 1_500 },
+    attackRange: 337.5,
+    heal: { base: 35, perLevel: 3, range: 195, cooldownMs: 1_500 },
   },
 };
 

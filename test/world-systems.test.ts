@@ -5,7 +5,11 @@ import {
   startCombatAction,
 } from "../src/server/world/combat-action-system.js";
 import { guardedDamage } from "../src/server/world/combat-system.js";
-import { movePlayerInDirection, nearestChargeTarget } from "../src/server/world/skill-system.js";
+import {
+  heldMovementDirection,
+  movePlayerInDirection,
+  nearestChargeTarget,
+} from "../src/server/world/skill-system.js";
 import { SpatialGrid } from "../src/server/world/spatial-grid.js";
 import { newPlayer, type PlayerRuntime } from "../src/server/world/world-runtime.js";
 import { starterEquipmentFor } from "../src/shared/character.js";
@@ -161,11 +165,19 @@ describe("isolated directional combat systems", () => {
     ).toBe("a-near");
   });
 
+  it("moves Lumen Step only while a direction is actively held", () => {
+    expect(heldMovementDirection({ up: false, down: false, left: false, right: false })).toBeNull();
+    const diagonal = heldMovementDirection({ up: true, down: false, left: false, right: true });
+    expect(diagonal?.x).toBeCloseTo(Math.SQRT1_2);
+    expect(diagonal?.y).toBeCloseTo(-Math.SQRT1_2);
+  });
+
   it("preserves Iron Guard damage reduction", () => {
     const actor = player();
-    actor.guardUntil = 5_000;
+    actor.guarding = true;
     actor.guardReduction = 0.5;
-    expect(guardedDamage(actor, 25, 4_000)).toMatchObject({ amount: 13 });
-    expect(guardedDamage(actor, 25, 5_000)).toMatchObject({ amount: 25 });
+    expect(guardedDamage(actor, 25)).toMatchObject({ amount: 13 });
+    actor.guarding = false;
+    expect(guardedDamage(actor, 25)).toMatchObject({ amount: 25 });
   });
 });

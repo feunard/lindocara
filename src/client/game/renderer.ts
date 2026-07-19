@@ -69,7 +69,12 @@ import {
   monsterCombatArt,
   projectileArt,
 } from "./combat-art.js";
-import { type MobilityVisual, mobilityRenderOffset, mobilityVisual } from "./combat-motion.js";
+import {
+  lumenStepOpacity,
+  type MobilityVisual,
+  mobilityRenderOffset,
+  mobilityVisual,
+} from "./combat-motion.js";
 import { CombatVisualAuthority, clearVisualAction } from "./combat-visual-state.js";
 import { type HealthBarMode, shouldShowHealthBar } from "./display-settings.js";
 import {
@@ -277,7 +282,6 @@ interface EntityView<T extends { id: string }> {
   actionEndsAt?: number;
   actionDirection?: { x: number; y: number };
   effectPlayedActionId?: string;
-  guardVisualUntil?: number;
   createdAt?: number;
   mobilityActionId?: string;
   mobilityOffsetX?: number;
@@ -2825,10 +2829,6 @@ export class Renderer {
     view.actionStartedAt = localTimeline.startedAt;
     view.actionImpactAt = localTimeline.impactAt;
     view.actionEndsAt = localTimeline.recoveryEndsAt;
-    if (action.skillId === "iron_guard") {
-      const guard = CLASS_SKILLS.warrior.find((skill) => skill.id === "iron_guard");
-      view.guardVisualUntil = view.actionImpactAt + (guard?.durationMs ?? 0);
-    }
   }
 
   #syncActionSnapshot<T extends PlayerSnapshot | MonsterSnapshot>(
@@ -2909,17 +2909,18 @@ export class Renderer {
     player: PlayerSnapshot,
     now: number,
   ): boolean {
-    const skillId = view.actionSkillId;
+    const actionSkillId = view.actionSkillId;
     const actionActive =
-      Boolean(view.actionId && skillId) &&
+      Boolean(view.actionId && actionSkillId) &&
       typeof view.actionStartedAt === "number" &&
       typeof view.actionEndsAt === "number" &&
       view.actionEndsAt > now;
-    const guarding = skillId === "iron_guard" && (view.guardVisualUntil ?? 0) > now;
+    const guarding = player.guarding === true;
     if (!actionActive && !guarding) {
       this.#clearExpiredAction(view, now);
       return false;
     }
+    const skillId = guarding ? "iron_guard" : actionSkillId;
     if (!skillId || !view.unitSprite) return false;
     const art = combatArt(player.class, skillId, player.appearance.primaryColor);
     const frames = this.art.combatFrames.get(art.caster.source);
@@ -2951,6 +2952,7 @@ export class Renderer {
       if (effect) {
         const position = centerOf(player);
         this.#playCombatSheet(effect, position.x, position.y, view.actionId);
+        this.#playActionFlourish(skillId, position.x, position.y, view.actionId);
         if (skillId === "prayer") {
           const radius = CLASS_SKILLS.priest.find((skill) => skill.id === "prayer")?.radius ?? 0;
           this.#playRangeIndicator(position.x, position.y, radius, 0x8df0aa, view.actionId);
@@ -3048,6 +3050,56 @@ export class Renderer {
     this.#trackEffect(trail, visual.durationMs, 0, undefined, 0, actionId);
     this.#addPulse(from.x, from.y, visual.color, visual.width, visual.durationMs);
     this.#addPulse(to.x, to.y, visual.color, visual.width * 1.25, visual.durationMs + 80);
+  }
+
+  #playLumenCloudTrail(
+    from: { x: number; y: number },
+    to: { x: number; y: number },
+    color: PrimaryColor,
+    actionId: string,
+  ): void {
+    const cloud = combatArt("priest", "blink", color).impact;
+    if (!cloud) return;
+    const distance = Math.hypot(to.x - from.x, to.y - from.y);
+    const count = Math.max(3, Math.min(7, Math.ceil(distance / 32)));
+    for (let index = 0; index < count; index++) {
+      const progress = count === 1 ? 0 : index / (count - 1);
+      this.#playCombatSheet(
+        { ...cloud, scale: (cloud.scale ?? 1) * (0.72 + progress * 0.4) },
+        from.x + (to.x - from.x) * progress,
+        from.y + (to.y - from.y) * progress,
+        actionId,
+      );
+    }
+  }
+
+  #playActionFlourish(skillId: string, x: number, y: number, actionId: string): void {
+    if (skillId === "battle_cry") {
+      const radius = CLASS_SKILLS.warrior[3]?.radius ?? 0;
+      this.#playRangeIndicator(x, y, radius, 0xffb34f, actionId);
+      this.#playRangeIndicator(x, y, radius * 0.62, 0xffe08a, actionId);
+      this.#burst(x, y, 0xffc35a, 12);
+      return;
+    }
+    if (skillId === "whirlwind") {
+      const radius = CLASS_SKILLS.warrior[4]?.radius ?? 0;
+      this.#playRangeIndicator(x, y, radius, 0xffe08a, actionId);
+      this.#playRangeIndicator(x, y, radius * 0.72, 0xffffff, actionId);
+      this.#burst(x, y, 0xffe7a3, 14);
+      return;
+    }
+    if (skillId === "heartseeker") {
+      this.#addPulse(x, y, 0xff416c, 38, 520);
+      this.#addPulse(x, y, 0xffa0b7, 22, 380);
+      this.#burst(x, y, 0xff557d, 10);
+      return;
+    }
+    if (skillId === "divine_nova") {
+      const radius = CLASS_SKILLS.priest[4]?.radius ?? 0;
+      this.#playRangeIndicator(x, y, radius, 0xd8a0ff, actionId);
+      this.#playRangeIndicator(x, y, radius * 0.68, 0x8df0aa, actionId);
+      this.#burst(x, y, 0xe6bdff, 14);
+    }
   }
 
   playCombatImpact(
@@ -3289,6 +3341,17 @@ export class Renderer {
             mobility,
             view.actionId,
           );
+          if (view.actionSkillId === "blink") {
+            this.#playLumenCloudTrail(
+              {
+                x: (view.lastX ?? player.x) + PLAYER_SIZE / 2,
+                y: (view.lastY ?? player.y) + PLAYER_SIZE / 2,
+              },
+              { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 },
+              player.appearance.primaryColor,
+              view.actionId,
+            );
+          }
         }
         const mobilityOffset =
           view.mobilityStartedAt === undefined || view.mobilityDurationMs === undefined
@@ -3345,6 +3408,21 @@ export class Renderer {
               const frame = frames[Math.floor(now / 95) % frames.length] ?? frames[0];
               if (frame) view.unitSprite.texture = frame;
             }
+          }
+          if (
+            view.actor &&
+            !ghost &&
+            view.actionSkillId === "blink" &&
+            view.actionStartedAt !== undefined &&
+            view.actionImpactAt !== undefined &&
+            view.actionEndsAt !== undefined
+          ) {
+            view.actor.alpha = lumenStepOpacity(
+              view.actionStartedAt,
+              view.actionImpactAt,
+              view.actionEndsAt,
+              now,
+            );
           }
           if (view.flash) view.flash.alpha = (view.hitUntil ?? 0) > now ? 0.65 : 0;
           view.container.alpha = ghost ? 0.5 : 1;

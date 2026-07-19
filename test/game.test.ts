@@ -548,17 +548,17 @@ describe("class rules", () => {
     expect(CLASS_STATS.ranger).toMatchObject({
       attackBase: 16,
       attackPerLevel: 2,
-      attackRange: 170,
+      attackRange: 255,
     });
     expect(CLASS_STATS.priest).toMatchObject({
       attackBase: 14,
       attackPerLevel: 2,
-      attackRange: 225,
+      attackRange: 337.5,
     });
     expect(CLASS_STATS.priest.heal).toEqual({
       base: 35,
       perLevel: 3,
-      range: 130,
+      range: 195,
       cooldownMs: 1500,
     });
     expect(CLASS_STATS.warrior.heal).toBeUndefined();
