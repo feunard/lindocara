@@ -11,6 +11,11 @@ import {
   parseAdventureGraph,
   validateAdventure,
 } from "../shared/adventure.js";
+import {
+  type AdventureRegistry,
+  EMPTY_REGISTRY,
+  parseAdventureRegistry,
+} from "../shared/adventure-state.js";
 import { adventure, adventureMap, type Db, map, party } from "./db/index.js";
 import { markersOfRow } from "./maps.js";
 
@@ -22,6 +27,20 @@ export interface StoredAdventure {
   version: number;
   mapIds: string[];
   graph: AdventureGraph;
+  registry: AdventureRegistry;
+}
+
+/** `''` — the column default and the sentinel for "no registry authored yet" — reads back as
+ *  `EMPTY_REGISTRY`. Anything else must be valid JSON that passes `parseAdventureRegistry`; a
+ *  corrupt row throws, mirroring `toStored`'s handling of a corrupt `graph` column below. Unlike
+ *  `maps.ts`'s `decodeLayers`, this never degrades silently — every write to this column already
+ *  goes through `parseAdventureRegistry` (`updateAdventureRegistry`), so corruption here would
+ *  mean the write path itself is broken, not that an old/foreign row predates validation. */
+function storedRegistry(raw: string): AdventureRegistry {
+  if (raw === "") return EMPTY_REGISTRY;
+  const registry = parseAdventureRegistry(JSON.parse(raw));
+  if (!registry) throw new Error("registry: stored registry is corrupt");
+  return registry;
 }
 
 async function markerIdsFor(
@@ -60,6 +79,7 @@ function toStored(row: typeof adventure.$inferSelect, mapIds: string[]): StoredA
     version: row.version,
     mapIds,
     graph,
+    registry: storedRegistry(row.registry),
   };
 }
 
@@ -83,6 +103,9 @@ export async function createAdventure(
     title: input.title.trim(),
     maxPlayers: input.maxPlayers,
     graph: JSON.stringify(input.graph),
+    // registry omitted: a new adventure always starts from the column DEFAULT '', which reads
+    // back as EMPTY_REGISTRY. The database dialog (a later tranche) grows it afterwards via
+    // updateAdventureRegistry.
   };
   await db.batch([
     db.insert(adventure).values(row),
@@ -148,6 +171,33 @@ export async function updateAdventure(
   const stored = await loadAdventure(db, accountId, id);
   if (!stored) throw new Error("not_found: adventure vanished mid-update");
   return stored;
+}
+
+/**
+ * Replaces an adventure's switch/variable registry. Deleting an entry that a still-authored
+ * event page conditions on is ALLOWED — this function does not cross-check the registry against
+ * any map's `map_event_page` rows, on purpose. `activePageIndex` (`shared/adventure-state.ts`)
+ * already reads an unknown switch/variable id as `false`/`0`, its fail-closed default; a page
+ * whose condition id got orphaned this way simply stops holding rather than doing anything
+ * unsafe. Cross-checking would also require loading every member map's events on every registry
+ * edit for a benefit that is purely cosmetic (an editor warning), so it stays a known gap here,
+ * not a validation rule.
+ */
+export async function updateAdventureRegistry(
+  db: Db,
+  accountId: string,
+  id: string,
+  registry: unknown,
+): Promise<AdventureRegistry> {
+  const row = await ownedRow(db, accountId, id);
+  if (!row) throw new Error("not_found: no such adventure");
+  const parsed = parseAdventureRegistry(registry);
+  if (!parsed) throw new Error("registry: invalid");
+  await db
+    .update(adventure)
+    .set({ registry: JSON.stringify(parsed), updatedAt: new Date() })
+    .where(eq(adventure.id, id));
+  return parsed;
 }
 
 export async function deleteAdventure(db: Db, accountId: string, id: string): Promise<void> {
