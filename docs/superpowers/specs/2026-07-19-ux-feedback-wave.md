@@ -53,3 +53,15 @@ Schéma d'abord (5), puis le flux d'entrée (2-4, 6, 7), puis l'éditeur (8, 9, 
 > avec un type d'events / afficher uniquement les décorations qu'on a testé rigoureusement,
 > aujourd'hui y'en a bcp d'invalide. Garde juste un buisson et un arbre. Garde juste un
 > monstre. Fait simple.
+
+## Amendement du 2026-07-19 (après tâche 2)
+
+14. **Pas de page/formulaire de création.** « Nouvelle aventure » crée immédiatement (création
+    atomique existante, nom par défaut) et atterrit dans l'éditeur. **Le nom se demande au
+    premier save, via un popup.** Le max joueurs (défaut 4) se configure dans les réglages de
+    l'aventure via un dialog des menus de l'éditeur — plus jamais à la création.
+
+> Verbatim : « je suis pas fan de la page de création de aventure, je préfère qu'on fasse
+> directement une aventure, et qu'on peut changer le nom de l'aventure quand on va la save pour
+> la premiere fois via un popup. Also, on configure le max player dans des settings de
+> l'aventure via un dialog dans les menus de l'éditeur. Par défaut on dit que c'est 4 joueurs max. »
