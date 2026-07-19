@@ -113,6 +113,7 @@ export interface ActionHandlers {
   usePotion(): void;
   release(): void;
   castSkill(slot: SkillSlot): void;
+  releaseSkill?(slot: SkillSlot): void;
   focusChat(): void;
   toggleMap(): void;
   toggleSettings(): void;
@@ -132,6 +133,15 @@ function invokeAction(control: (typeof ACTION_CONTROLS)[number], handlers: Actio
   else handlers.toggleSettings();
 }
 
+function skillSlotForControl(control: ControlId): SkillSlot | null {
+  if (control === "skill1") return 1;
+  if (control === "skill2") return 2;
+  if (control === "skill3") return 3;
+  if (control === "skill4") return 4;
+  if (control === "skill5") return 5;
+  return null;
+}
+
 function isTextEntry(target: EventTarget | null): target is HTMLElement {
   return (
     target instanceof HTMLInputElement ||
@@ -146,6 +156,7 @@ export function trackActions(
   handlers: ActionHandlers,
   actionsEnabled: () => boolean = () => true,
 ): () => void {
+  const pressedSkillCodes = new Map<string, SkillSlot>();
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.defaultPrevented || event.repeat) return;
     if (isTextEntry(event.target)) {
@@ -158,7 +169,17 @@ export function trackActions(
     const control = keyboardControlForCode(event.code);
     if (!control || !ACTION_CONTROLS.includes(control as (typeof ACTION_CONTROLS)[number])) return;
     if (control !== "settings" && !actionsEnabled()) return;
-    invokeAction(control as (typeof ACTION_CONTROLS)[number], handlers);
+    const actionControl = control as (typeof ACTION_CONTROLS)[number];
+    invokeAction(actionControl, handlers);
+    const skillSlot = skillSlotForControl(actionControl);
+    if (skillSlot !== null) pressedSkillCodes.set(event.code, skillSlot);
+    event.preventDefault();
+  };
+  const onKeyUp = (event: KeyboardEvent) => {
+    const slot = pressedSkillCodes.get(event.code);
+    if (slot === undefined) return;
+    pressedSkillCodes.delete(event.code);
+    handlers.releaseSkill?.(slot);
     event.preventDefault();
   };
 
@@ -176,14 +197,21 @@ export function trackActions(
         }
       }
     }
+    for (const control of previousGamepad) {
+      if (pressed.has(control)) continue;
+      const slot = skillSlotForControl(control);
+      if (slot !== null) handlers.releaseSkill?.(slot);
+    }
     previousGamepad = pressed;
     frame = window.requestAnimationFrame(pollGamepad);
   };
 
   window.addEventListener("keydown", onKeyDown);
+  window.addEventListener("keyup", onKeyUp);
   frame = window.requestAnimationFrame(pollGamepad);
   return () => {
     window.removeEventListener("keydown", onKeyDown);
+    window.removeEventListener("keyup", onKeyUp);
     window.cancelAnimationFrame(frame);
   };
 }

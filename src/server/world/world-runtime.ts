@@ -107,8 +107,14 @@ export interface CombatActionRuntime {
   startedAt: number;
   impactAt: number;
   recoveryEndsAt: number;
+  /** Set only after a held action is released or reaches an authoritative bound. */
+  channelEndsAt?: number;
+  /** Hard server deadline used when the release intent is lost. Never sent to the client. */
+  channelMaxEndsAt?: number;
+  /** Recovery appended when a held action finishes. Never sent to the client. */
+  channelRecoveryMs?: number;
   resolved: boolean;
-  /** Server-selected mobility distance. Zero keeps a teleport visual on the caster's tile. */
+  /** Remaining collision-resolved travel budget for a held mobility action. */
   mobilityDistance?: number;
 }
 

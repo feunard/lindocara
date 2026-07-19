@@ -32,10 +32,11 @@ export function mobilityRenderOffset(
   return { x: offsetX * remaining, y: offsetY * remaining };
 }
 
-/** Fades Lumen Step out until impact, then softly rematerializes through recovery. */
+/** Fades Lumen Step out, remains clouded while held, then rematerializes after release. */
 export function lumenStepOpacity(
   startedAt: number,
   impactAt: number,
+  channelEndsAt: number | undefined,
   recoveryEndsAt: number,
   now: number,
 ): number {
@@ -45,6 +46,7 @@ export function lumenStepOpacity(
     const progress = (now - startedAt) / Math.max(1, impactAt - startedAt);
     return 1 - (1 - minimum) * Math.max(0, Math.min(1, progress));
   }
-  const progress = (now - impactAt) / Math.max(1, recoveryEndsAt - impactAt);
+  if (channelEndsAt === undefined || now <= channelEndsAt) return minimum;
+  const progress = (now - channelEndsAt) / Math.max(1, recoveryEndsAt - channelEndsAt);
   return minimum + (1 - minimum) * Math.max(0, Math.min(1, progress));
 }

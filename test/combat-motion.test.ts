@@ -20,9 +20,10 @@ describe("combat mobility presentation", () => {
   });
 
   it("softly disappears at Lumen impact and rematerializes through recovery", () => {
-    expect(lumenStepOpacity(1_000, 1_200, 1_600, 1_000)).toBe(1);
-    expect(lumenStepOpacity(1_000, 1_200, 1_600, 1_200)).toBeCloseTo(0.06);
-    expect(lumenStepOpacity(1_000, 1_200, 1_600, 1_400)).toBeCloseTo(0.53);
-    expect(lumenStepOpacity(1_000, 1_200, 1_600, 1_600)).toBe(1);
+    expect(lumenStepOpacity(1_000, 1_200, undefined, 3_600, 1_000)).toBe(1);
+    expect(lumenStepOpacity(1_000, 1_200, undefined, 3_600, 1_200)).toBeCloseTo(0.06);
+    expect(lumenStepOpacity(1_000, 1_200, undefined, 3_600, 2_000)).toBeCloseTo(0.06);
+    expect(lumenStepOpacity(1_000, 1_200, 2_000, 2_400, 2_200)).toBeCloseTo(0.53);
+    expect(lumenStepOpacity(1_000, 1_200, 2_000, 2_400, 2_400)).toBe(1);
   });
 });

@@ -45,6 +45,8 @@ export interface CombatArtDefinition {
   projectile?: CombatProjectileArt;
   impact?: CombatSheetArt;
   zone?: CombatSheetArt;
+  /** Optional second authored sheet layered over the primary zone sheet. */
+  accent?: CombatSheetArt;
   /** Records every deliberate approximation where the pack has no exact named animation. */
   fallback?: string;
 }
@@ -114,6 +116,7 @@ function unitSheet(
 
 const DUST = sheet(`${TINY_SWORDS_ROOT}/effects/Dust_02.png`, 64, 64, 10, 600, 1);
 const EXPLOSION = sheet(`${TINY_SWORDS_ROOT}/effects/Explosion_01.png`, 192, 192, 8, 620, 2);
+const EXPLOSION_BURST = sheet(`${TINY_SWORDS_ROOT}/effects/Explosion_02.png`, 192, 192, 10, 760, 2);
 const MAGIC_PROJECTILE = {
   ...sheet(HEX_SHAMAN_PROJECTILE_SOURCE, 128, 128, 3, 520, 1),
   rotationOffset: 0,
@@ -211,15 +214,14 @@ export function combatArt(
     if (skillId === "battle_cry")
       return {
         caster,
-        zone: styled(EXPLOSION, 0xffb34f, 1.45),
-        fallback:
-          "Explosion_01 renforcée par des anneaux et particules représente le cri de guerre.",
+        zone: styled(EXPLOSION_BURST, 0xff9f3f, 1.55),
+        accent: styled(DUST, 0xffd477, 2.05),
       };
     if (skillId === "whirlwind")
       return {
         caster,
-        zone: styled(EXPLOSION, 0xffe08a, 1.55),
-        fallback: "Explosion_01 représente la zone : le pack ne fournit pas de cri ni de rotation.",
+        zone: styled(EXPLOSION_BURST, 0xffdf72, 1.78),
+        accent: styled(EXPLOSION, 0xfff2bd, 1.42),
       };
     return { caster, impact: EXPLOSION };
   }
@@ -266,9 +268,14 @@ export function combatArt(
     caster,
     zone: {
       ...unitSheet(unitSource(color, "monk", "Heal_Effect.png"), 11, 760, 4),
-      ...(skillId === "divine_nova" ? { tint: 0xd8a0ff, scale: 1.45 } : {}),
+      ...(skillId === "divine_nova" ? { tint: 0xc88cff, scale: 1.72 } : {}),
     },
-    ...(skillId === "divine_nova" ? { impact: styled(EXPLOSION, 0xd8a0ff, 1.55) } : {}),
+    ...(skillId === "divine_nova"
+      ? {
+          impact: styled(EXPLOSION, 0xe1b0ff, 1.65),
+          accent: styled(EXPLOSION_BURST, 0xb875ff, 1.88),
+        }
+      : {}),
   };
 }
 
@@ -301,7 +308,7 @@ export function allCombatSheets(): CombatSheetArt[] {
     for (const playerClass of classes) {
       for (const skill of CLASS_SKILLS[playerClass]) {
         const art = combatArt(playerClass, skill.id, color);
-        for (const sheet of [art.caster, art.projectile, art.impact, art.zone]) {
+        for (const sheet of [art.caster, art.projectile, art.impact, art.zone, art.accent]) {
           if (sheet) unique.set(sheet.source, sheet);
         }
       }

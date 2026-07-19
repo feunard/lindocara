@@ -608,6 +608,10 @@ export class Client {
     this.#socket.send(JSON.stringify({ t: "skill", slot }));
   }
 
+  skillRelease(slot: number): void {
+    this.#socket.send(JSON.stringify({ t: "skill.release", slot }));
+  }
+
   attemptAfterRevocation(payload: unknown): void {
     try {
       this.#socket.send(JSON.stringify(payload));

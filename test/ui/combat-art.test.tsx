@@ -6,6 +6,7 @@ import {
   projectileArt,
 } from "../../src/client/game/combat-art.js";
 import { ServerClock } from "../../src/client/game/server-clock.js";
+import { skillIconArt } from "../../src/client/game/tiny-swords-art.js";
 import { MONSTER_SPECIES_KIND, type MonsterSpecies } from "../../src/shared/game.js";
 
 describe("Tiny Swords directional combat art", () => {
@@ -78,7 +79,10 @@ describe("Tiny Swords directional combat art", () => {
     const heartseeker = combatArt("ranger", "heartseeker", "azure");
     const nova = combatArt("priest", "divine_nova", "azure");
 
-    expect(whirlwind.zone).toMatchObject({ tint: 0xffe08a, scale: 1.55 });
+    expect(whirlwind).toMatchObject({
+      zone: { source: expect.stringContaining("Explosion_02.png"), scale: 1.78 },
+      accent: { source: expect.stringContaining("Explosion_01.png"), scale: 1.42 },
+    });
     expect(heartseeker.projectile).toMatchObject({
       scale: 1.78,
       trail: { length: 72, width: 7, glowRadius: 16 },
@@ -88,9 +92,24 @@ describe("Tiny Swords directional combat art", () => {
       impact: { tint: 0xff416c, scale: 1.65 },
     });
     expect(nova).toMatchObject({
-      zone: { tint: 0xd8a0ff, scale: 1.45 },
-      impact: { tint: 0xd8a0ff, scale: 1.55 },
+      zone: { source: expect.stringContaining("Heal_Effect.png"), scale: 1.72 },
+      accent: { source: expect.stringContaining("Explosion_02.png"), scale: 1.88 },
+      impact: { source: expect.stringContaining("Explosion_01.png"), scale: 1.65 },
     });
+  });
+
+  it("uses authored Tiny Swords sheets as the primary Battle Cry visual", () => {
+    expect(combatArt("warrior", "battle_cry", "azure")).toMatchObject({
+      zone: { source: expect.stringContaining("Explosion_02.png"), frames: 10 },
+      accent: { source: expect.stringContaining("Dust_02.png"), frames: 10 },
+    });
+  });
+
+  it("maps ultimate and mobility icons to the assets now used in-world", () => {
+    expect(skillIconArt("warrior", 4).source).toContain("Explosion_02.png");
+    expect(skillIconArt("warrior", 5).source).toContain("Explosion_02.png");
+    expect(skillIconArt("priest", 3).source).toContain("Dust_02.png");
+    expect(skillIconArt("priest", 5).source).toContain("Heal_Effect.png");
   });
 
   it("uses the exact Hex Shaman magic projectile for Radiant Bolt", () => {

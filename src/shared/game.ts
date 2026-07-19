@@ -903,7 +903,7 @@ export interface ClassStats {
 
 export const CLASS_STATS: Record<PlayerClass, ClassStats> = {
   warrior: { attackBase: 27, attackPerLevel: 4, attackRange: 60 },
-  ranger: { attackBase: 16, attackPerLevel: 2, attackRange: 255 },
+  ranger: { attackBase: 16, attackPerLevel: 2, attackRange: 382.5 },
   priest: {
     attackBase: 14,
     attackPerLevel: 2,

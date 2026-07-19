@@ -54,19 +54,56 @@ export function advancePlayers(context: MovementSystemContext): void {
       }
 
       const previousPosition = { x: player.x, y: player.y };
-      const desired = step(
+      let desired = step(
         player,
         player.lastInput,
         TICK_DT,
         speedForLife(player.life),
         context.zone.terrain,
       );
+      const heldBlink =
+        player.action?.skillId === "blink" &&
+        player.action.channelMaxEndsAt !== undefined &&
+        player.action.channelEndsAt === undefined
+          ? player.action
+          : null;
+      const desiredDistance = Math.hypot(desired.x - player.x, desired.y - player.y);
+      if (
+        heldBlink &&
+        heldBlink.mobilityDistance !== undefined &&
+        desiredDistance > heldBlink.mobilityDistance
+      ) {
+        const ratio = heldBlink.mobilityDistance / Math.max(desiredDistance, Number.EPSILON);
+        desired = {
+          x: player.x + (desired.x - player.x) * ratio,
+          y: player.y + (desired.y - player.y) * ratio,
+        };
+      }
       const moved = resolveTerrain(player, desired, context.zone.terrain);
       if (moved.x !== player.x || moved.y !== player.y) {
+        const movementDistance = Math.hypot(moved.x - player.x, moved.y - player.y);
         player.x = moved.x;
         player.y = moved.y;
         context.playerGrid.update(player, previousPosition);
         player.dirty = true;
+        const action = player.action;
+        if (
+          action?.skillId === "blink" &&
+          action.channelMaxEndsAt !== undefined &&
+          action.channelEndsAt === undefined
+        ) {
+          action.mobilityDistance = Math.max(0, (action.mobilityDistance ?? 0) - movementDistance);
+          const directionLength = Math.hypot(
+            Number(player.lastInput.right) - Number(player.lastInput.left),
+            Number(player.lastInput.down) - Number(player.lastInput.up),
+          );
+          if (directionLength > 0) {
+            action.direction = {
+              x: (Number(player.lastInput.right) - Number(player.lastInput.left)) / directionLength,
+              y: (Number(player.lastInput.down) - Number(player.lastInput.up)) / directionLength,
+            };
+          }
+        }
       }
     }
 

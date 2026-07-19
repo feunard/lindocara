@@ -83,6 +83,7 @@ export interface Connection {
   usePotion(): void;
   release(): void;
   skill(slot: SkillSlot): void;
+  releaseSkill(slot: SkillSlot): void;
   sendChat(text: string, channel?: "local" | "party"): void;
   partyCreate(): void;
   partyInvite(playerId: string): void;
@@ -193,6 +194,7 @@ export class WorldClient {
       usePotion: () => this.#send({ t: "use", item: "potion" }),
       release: () => this.#send({ t: "release" }),
       skill: (slot) => this.#send({ t: "skill", slot }),
+      releaseSkill: (slot) => this.#send({ t: "skill.release", slot }),
       sendChat: (text, channel = "local") => this.#send({ t: "chat", channel, text }),
       partyCreate: () => this.#send({ t: "party.create" }),
       partyInvite: (playerId) => this.#send({ t: "party.invite", playerId }),

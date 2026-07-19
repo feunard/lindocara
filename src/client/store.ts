@@ -72,6 +72,7 @@ export interface GameHandle {
   usePotion(): void;
   release(): void;
   castSkill(slot: SkillSlot): void;
+  releaseSkill?(slot: SkillSlot): void;
   /** Virtual controls feed the same intent stream as the keyboard; never an authoritative position. */
   setMovement?(input: Input): void;
   sendChat(text: string, channel?: "local" | "party"): void;

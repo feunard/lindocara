@@ -51,7 +51,7 @@ choisir la victime d'une action joueur.
 | Guerrier | `cleave` | cible hostile unique | arc frontal multi-cible à impact différé |
 | Guerrier | `iron_guard` | effet personnel | garde personnelle sans cible |
 | Guerrier | `shield_bash` | charge vers une cible | capsule frontale, arrêt terrain/premier monstre |
-| Guerrier | `battle_cry` | zone instantanée | zone autour du lanceur à la frame active |
+| Guerrier | `battle_cry` | zone instantanée | provocation autour du lanceur à la frame active, sans dégâts |
 | Guerrier | `whirlwind` | zone instantanée | cercle, une résolution par monstre |
 | Rôdeur | `quick_shot` | impact instantané ciblé | flèche droite bloquante |
 | Rôdeur | `piercing_arrow` | cible unique | flèche perforante, une fois par monstre |
@@ -60,7 +60,7 @@ choisir la victime d'une action joueur.
 | Rôdeur | `heartseeker` | cible unique | flèche droite puissante non guidée |
 | Prêtre | `radiant_bolt` | cible hostile | projectile magique bloquant |
 | Prêtre | `mend` | allié sélectionné | soin personnel et projectile de soin simultanés |
-| Prêtre | `blink` | déplacement personnel | déplacement dans l'orientation, collision conservée |
+| Prêtre | `blink` | déplacement personnel | déplacement maintenu à direction variable, collision et distance cumulée conservées |
 | Prêtre | `prayer` | zone de soin | soin de zone allié avec ligne de vue |
 | Prêtre | `divine_nova` | zone mixte | dégâts et soins de zone, une fois par entité |
 

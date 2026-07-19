@@ -548,7 +548,7 @@ describe("class rules", () => {
     expect(CLASS_STATS.ranger).toMatchObject({
       attackBase: 16,
       attackPerLevel: 2,
-      attackRange: 255,
+      attackRange: 382.5,
     });
     expect(CLASS_STATS.priest).toMatchObject({
       attackBase: 14,

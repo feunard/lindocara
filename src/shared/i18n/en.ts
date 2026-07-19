@@ -134,7 +134,7 @@ export const en = {
     "Toggle a defensive stance that halves incoming damage and locks other abilities; use it again to leave the stance.",
   "skill.warrior.shield_bash.description":
     "Automatically charge the nearest visible enemy and stop at the first obstacle.",
-  "skill.warrior.battle_cry.description": "Damage every enemy around you with a rallying shout.",
+  "skill.warrior.battle_cry.description": "Taunt every nearby enemy without dealing damage.",
   "skill.warrior.whirlwind.description": "Spin through nearby enemies for heavy area damage.",
   "skill.warrior.battle_cry.name": "Battle Cry",
   "skill.warrior.whirlwind.name": "Whirlwind",
@@ -156,7 +156,7 @@ export const en = {
   "skill.priest.mend.description":
     "Launch a green light that heals the first wounded ally it touches.",
   "skill.priest.blink.description":
-    "Fade out and return in place, or travel as a cloud while holding a movement direction.",
+    "Hold to travel as a cloud and change direction; release to rematerialize.",
   "skill.priest.prayer.description": "Heal every injured ally around you.",
   "skill.priest.divine_nova.description": "Damage nearby enemies and heal nearby allies at once.",
   "skill.unlock_at": "Unlocks at level {level}",

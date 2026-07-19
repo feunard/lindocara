@@ -175,6 +175,49 @@ describe("party hero admission and authored runtime", () => {
     }
   });
 
+  it("uses Battle Cry as an area taunt without dealing damage", { timeout: 10_000 }, async () => {
+    const party = await testParty("battle-cry-taunt", { maps: [novaMapInput()] });
+    const hero = await testHero("Provoker", {
+      party,
+      account: party.host,
+      class: "warrior",
+      level: 10,
+      position: centre(3, 3),
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      const welcome = await until("battle cry welcome", () => client.welcome);
+      const monster = welcome.monsters[0];
+      if (!monster) throw new Error("expected Battle Cry monster");
+      const stub = env.WORLD.getByName(hero.roomKey);
+      const beforeThreat =
+        (await stub.roomDiagnostics()).monsters
+          .find((candidate) => candidate.id === monster.id)
+          ?.threat.find((entry) => entry.playerId === hero.heroId)?.amount ?? 0;
+
+      client.skill(4);
+      await scheduler.wait(500);
+      const afterThreat = (await stub.roomDiagnostics()).monsters
+        .find((candidate) => candidate.id === monster.id)
+        ?.threat.find((entry) => entry.playerId === hero.heroId)?.amount;
+      expect(afterThreat).toBeGreaterThanOrEqual(beforeThreat + 25);
+      const after = client.latestSnapshot?.monsters.find(
+        (candidate) => candidate.id === monster.id,
+      );
+      expect(after?.hp).toBe(monster.hp);
+      expect(
+        client.received.some(
+          (message) =>
+            message.t === "event" &&
+            message.code === "combat.hit" &&
+            message.params?.skill === "battle_cry",
+        ),
+      ).toBe(false);
+    } finally {
+      client.close();
+    }
+  });
+
   it("keeps Lumen Step in place without held movement", { timeout: 10_000 }, async () => {
     const party = await testParty("stationary-lumen");
     const hero = await testHero("Stilllight", {
@@ -193,6 +236,13 @@ describe("party hero admission and authored runtime", () => {
       await until("stationary lumen animation", () =>
         client.received.find((message) => message.t === "animation" && message.skillId === "blink"),
       );
+      client.skillRelease(3);
+      await until("stationary lumen release", () => {
+        const action = client.self()?.action;
+        return action?.skillId === "blink" && action.channelEndsAt !== undefined
+          ? action
+          : undefined;
+      });
       await scheduler.wait(750);
       const after = client.self();
       if (!after) throw new Error("missing priest after Lumen Step");
@@ -203,7 +253,7 @@ describe("party hero admission and authored runtime", () => {
     }
   });
 
-  it("moves Lumen Step through collision-aware space while a direction is held", {
+  it("keeps Lumen Step held across direction changes and rematerializes only on release", {
     timeout: 10_000,
   }, async () => {
     const party = await testParty("directed-lumen");
@@ -230,12 +280,36 @@ describe("party hero admission and authored runtime", () => {
       await until("directed lumen animation", () =>
         client.received.find((message) => message.t === "animation" && message.skillId === "blink"),
       );
-      client.release();
-      const after = await until("directed Lumen Step movement", () => {
+      const afterRight = await until("rightward Lumen cloud movement", () => {
         const current = client.self();
-        return current && current.x - beforeCast.x > 140 ? current : undefined;
+        return current && current.x - beforeCast.x > 24 ? current : undefined;
       });
-      expect(after.x - beforeCast.x).toBeGreaterThanOrEqual(150);
+      expect(afterRight.action).toMatchObject({ skillId: "blink" });
+      expect(afterRight.action?.channelEndsAt).toBeUndefined();
+
+      client.press("down");
+      const afterTurn = await until("Lumen direction changes while still held", () => {
+        const current = client.self();
+        return current && current.y - afterRight.y > 24 ? current : undefined;
+      });
+      expect(afterTurn.action).toMatchObject({
+        skillId: "blink",
+        direction: { x: 0, y: 1 },
+      });
+      expect(afterTurn.action?.channelEndsAt).toBeUndefined();
+
+      client.skillRelease(3);
+      client.release();
+      const released = await until("Lumen release becomes authoritative", () => {
+        const action = client.self()?.action;
+        return action?.skillId === "blink" && action.channelEndsAt !== undefined
+          ? action
+          : undefined;
+      });
+      expect(released.channelEndsAt).toBeGreaterThanOrEqual(released.impactAt);
+      await until("Lumen recovery completes", () =>
+        client.self()?.action === null ? true : undefined,
+      );
     } finally {
       client.close();
     }

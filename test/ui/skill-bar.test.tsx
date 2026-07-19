@@ -12,6 +12,7 @@ function gameHandle(): GameHandle {
     usePotion: vi.fn(),
     release: vi.fn(),
     castSkill: vi.fn(),
+    releaseSkill: vi.fn(),
     setMovement: vi.fn(),
     sendChat: vi.fn(),
     switchCharacter: vi.fn(),
@@ -94,5 +95,31 @@ describe("skill bar cooldowns", () => {
 
     fireEvent.click(guard);
     expect(game.castSkill).toHaveBeenCalledWith(2);
+  });
+
+  it("holds Lumen Step from pointer down until pointer up", () => {
+    const game = gameHandle();
+    useUiStore.setState({
+      game,
+      self: {
+        nick: "Cloudstep",
+        level: 10,
+        hp: 100,
+        maxHp: 100,
+        life: "alive",
+        corpseDistance: null,
+        class: "priest",
+        appearance: { body: "wayfarer", primaryColor: "violet" },
+        equipment: { mainHand: "heartwood_staff", offHand: null },
+      },
+    });
+    render(<SkillBar />);
+
+    const lumen = screen.getByRole("button", { name: "3. Lumen Step" });
+    fireEvent.pointerDown(lumen, { pointerId: 7 });
+    expect(game.castSkill).toHaveBeenCalledWith(3);
+    expect(game.releaseSkill).not.toHaveBeenCalled();
+    fireEvent.pointerUp(lumen, { pointerId: 7 });
+    expect(game.releaseSkill).toHaveBeenCalledWith(3);
   });
 });

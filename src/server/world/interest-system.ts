@@ -39,6 +39,7 @@ function combatActionSnapshot(
     startedAt: action.startedAt,
     impactAt: action.impactAt,
     recoveryEndsAt: action.recoveryEndsAt,
+    ...(action.channelEndsAt === undefined ? {} : { channelEndsAt: action.channelEndsAt }),
     resolved: action.resolved,
   };
 }

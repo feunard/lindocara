@@ -1691,6 +1691,17 @@ kbd {
   filter: saturate(2) hue-rotate(235deg) drop-shadow(0 0 5px #b48cff);
 }
 
+.skill-slot__icon--battle-cry {
+  filter: sepia(0.5) saturate(2.4) brightness(1.1) drop-shadow(0 0 5px #ff9f3f);
+  scale: 1.12;
+}
+
+.skill-slot__icon--whirlwind {
+  filter: sepia(0.8) saturate(1.8) brightness(1.35) drop-shadow(0 0 6px #ffdf72);
+  rotate: -12deg;
+  scale: 1.18;
+}
+
 .skill-slot__icon--radiant {
   filter: sepia(0.65) saturate(2.2) brightness(1.25) drop-shadow(0 0 5px #ffe48a);
 }

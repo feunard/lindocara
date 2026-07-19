@@ -279,6 +279,7 @@ interface EntityView<T extends { id: string }> {
   actionSkillId?: string;
   actionStartedAt?: number;
   actionImpactAt?: number;
+  actionChannelEndsAt?: number;
   actionEndsAt?: number;
   actionDirection?: { x: number; y: number };
   effectPlayedActionId?: string;
@@ -2817,6 +2818,7 @@ export class Renderer {
       startedAt: number;
       impactAt: number;
       recoveryEndsAt: number;
+      channelEndsAt?: number;
     },
   ): void {
     if (!this.#combatVisualAuthority.acceptsAction(action.id)) return;
@@ -2829,6 +2831,12 @@ export class Renderer {
     view.actionStartedAt = localTimeline.startedAt;
     view.actionImpactAt = localTimeline.impactAt;
     view.actionEndsAt = localTimeline.recoveryEndsAt;
+    if (action.channelEndsAt === undefined) delete view.actionChannelEndsAt;
+    else {
+      view.actionChannelEndsAt =
+        this.serverClock.toLocal(action.channelEndsAt) ??
+        localNow + Math.max(0, action.channelEndsAt - action.startedAt);
+    }
   }
 
   #syncActionSnapshot<T extends PlayerSnapshot | MonsterSnapshot>(
@@ -2952,6 +2960,7 @@ export class Renderer {
       if (effect) {
         const position = centerOf(player);
         this.#playCombatSheet(effect, position.x, position.y, view.actionId);
+        if (art.accent) this.#playCombatSheet(art.accent, position.x, position.y, view.actionId);
         this.#playActionFlourish(skillId, position.x, position.y, view.actionId);
         if (skillId === "prayer") {
           const radius = CLASS_SKILLS.priest.find((skill) => skill.id === "prayer")?.radius ?? 0;
@@ -3061,7 +3070,7 @@ export class Renderer {
     const cloud = combatArt("priest", "blink", color).impact;
     if (!cloud) return;
     const distance = Math.hypot(to.x - from.x, to.y - from.y);
-    const count = Math.max(3, Math.min(7, Math.ceil(distance / 32)));
+    const count = Math.max(1, Math.min(3, Math.ceil(distance / 24)));
     for (let index = 0; index < count; index++) {
       const progress = count === 1 ? 0 : index / (count - 1);
       this.#playCombatSheet(
@@ -3321,27 +3330,19 @@ export class Renderer {
           view.movingUntil = now + 120;
         }
         const mobility = mobilityVisual(view.actionSkillId);
+        const continuousLumen = view.actionSkillId === "blink";
         if (
           mobility &&
           view.actionId &&
-          view.mobilityActionId !== view.actionId &&
-          movementDistance > 12
+          ((continuousLumen && movementDistance > 2) ||
+            (!continuousLumen && view.mobilityActionId !== view.actionId && movementDistance > 12))
         ) {
-          view.mobilityActionId = view.actionId;
+          if (!continuousLumen) view.mobilityActionId = view.actionId;
           view.mobilityOffsetX = -dx;
           view.mobilityOffsetY = -dy;
           view.mobilityStartedAt = now;
           view.mobilityDurationMs = mobility.durationMs;
-          this.#playMobilityTrail(
-            {
-              x: (view.lastX ?? player.x) + PLAYER_SIZE / 2,
-              y: (view.lastY ?? player.y) + PLAYER_SIZE / 2,
-            },
-            { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 },
-            mobility,
-            view.actionId,
-          );
-          if (view.actionSkillId === "blink") {
+          if (continuousLumen) {
             this.#playLumenCloudTrail(
               {
                 x: (view.lastX ?? player.x) + PLAYER_SIZE / 2,
@@ -3351,7 +3352,16 @@ export class Renderer {
               player.appearance.primaryColor,
               view.actionId,
             );
-          }
+          } else
+            this.#playMobilityTrail(
+              {
+                x: (view.lastX ?? player.x) + PLAYER_SIZE / 2,
+                y: (view.lastY ?? player.y) + PLAYER_SIZE / 2,
+              },
+              { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 },
+              mobility,
+              view.actionId,
+            );
         }
         const mobilityOffset =
           view.mobilityStartedAt === undefined || view.mobilityDurationMs === undefined
@@ -3420,6 +3430,7 @@ export class Renderer {
             view.actor.alpha = lumenStepOpacity(
               view.actionStartedAt,
               view.actionImpactAt,
+              view.actionChannelEndsAt,
               view.actionEndsAt,
               now,
             );

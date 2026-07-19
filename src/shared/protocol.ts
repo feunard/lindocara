@@ -168,6 +168,8 @@ export interface CombatActionSnapshot {
   startedAt: number;
   impactAt: number;
   recoveryEndsAt: number;
+  /** Present once a held action has been released or has reached its authoritative bound. */
+  channelEndsAt?: number;
   resolved: boolean;
 }
 
@@ -277,6 +279,7 @@ export type ClientMessage =
   | { t: "interact" }
   | { t: "release" }
   | { t: "skill"; slot: SkillSlot }
+  | { t: "skill.release"; slot: SkillSlot }
   | { t: "use"; item: "potion" }
   | { t: "chat"; channel: ChatChannel; text: string }
   | { t: "party.create" }
@@ -442,6 +445,10 @@ function isActionSnapshot(value: unknown): value is CombatActionSnapshot {
     !isFiniteNumber(value.recoveryEndsAt) ||
     value.startedAt > value.impactAt ||
     value.impactAt > value.recoveryEndsAt ||
+    (value.channelEndsAt !== undefined &&
+      (!isFiniteNumber(value.channelEndsAt) ||
+        value.channelEndsAt < value.impactAt ||
+        value.channelEndsAt > value.recoveryEndsAt)) ||
     typeof value.resolved !== "boolean"
   ) {
     return false;
@@ -567,6 +574,9 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
     return { t: value.t };
   if (value.t === "skill" && isSkillSlot(value.slot) && hasOnlyKeys(value, ["t", "slot"])) {
     return { t: "skill", slot: value.slot };
+  }
+  if (value.t === "skill.release" && isSkillSlot(value.slot) && hasOnlyKeys(value, ["t", "slot"])) {
+    return { t: "skill.release", slot: value.slot };
   }
   if (value.t === "use" && value.item === "potion" && hasOnlyKeys(value, ["t", "item"]))
     return { t: "use", item: "potion" };

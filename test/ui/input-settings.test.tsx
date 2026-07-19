@@ -111,6 +111,29 @@ describe("input remapping", () => {
     stop();
   });
 
+  it("releases a held skill only when its keyboard key is released", () => {
+    const castSkill = vi.fn();
+    const releaseSkill = vi.fn();
+    const stop = trackActions({
+      attack: vi.fn(),
+      interact: vi.fn(),
+      usePotion: vi.fn(),
+      release: vi.fn(),
+      castSkill,
+      releaseSkill,
+      focusChat: vi.fn(),
+      toggleMap: vi.fn(),
+      toggleSettings: vi.fn(),
+    });
+
+    fireEvent.keyDown(window, { code: "Digit3" });
+    expect(castSkill).toHaveBeenCalledWith(3);
+    expect(releaseSkill).not.toHaveBeenCalled();
+    fireEvent.keyUp(window, { code: "Digit3" });
+    expect(releaseSkill).toHaveBeenCalledWith(3);
+    stop();
+  });
+
   it("labels the same standard button for Xbox, PS5, Switch and generic pads", () => {
     const binding = { kind: "button", index: 0 } as const;
     expect(gamepadBindingLabel(binding, "xbox")).toBe("A");
