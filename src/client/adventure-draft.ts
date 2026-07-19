@@ -248,7 +248,6 @@ export function toAdventureInput(draft: AdventureDraft): AdventureInput | null {
   return {
     title: draft.title.trim(),
     maxPlayers: draft.maxPlayers,
-    mapIds: draft.members.map((member) => member.mapId),
     graph: { start: draft.start, links },
     registry: draft.registry,
   };

@@ -73,7 +73,6 @@ describe("adventure draft", () => {
     expect(toAdventureInput(fullDraft())).toEqual({
       title: "Donjon",
       maxPlayers: 2,
-      mapIds: ["map-a", "map-b"],
       graph: {
         start: { mapId: "map-a", entryId: "door" },
         links: [
@@ -109,7 +108,7 @@ describe("adventure draft", () => {
       ["map-a", A],
       ["map-b", B],
     ]);
-    const rebuilt = draftFromAdventure({ ...stored, mapIds: [...stored.mapIds] }, infos);
+    const rebuilt = draftFromAdventure({ ...stored, mapIds: ["map-a", "map-b"] }, infos);
     expect(rebuilt).toEqual(fullDraft());
   });
 

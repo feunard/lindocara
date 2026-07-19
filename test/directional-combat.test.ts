@@ -5,6 +5,7 @@ import {
   circleIntersectsCapsule,
   circleIntersectsCone,
   directionalCone,
+  facingFromInput,
   firstSegmentImpact,
   frontalArc,
   normalizeDirection,
@@ -13,6 +14,7 @@ import {
   sweptProjectileEntityImpact,
   sweptProjectileTerrainImpact,
 } from "../src/shared/directional-combat.js";
+import { NO_INPUT } from "../src/shared/simulation.js";
 import type { TileKind, TileMap } from "../src/shared/tilemap.js";
 
 function tiles(rows: readonly (readonly TileKind[])[]): TileMap {
@@ -28,6 +30,22 @@ describe("directional combat geometry", () => {
     expect(normalizeDirection({ x: 3, y: 4 })).toEqual({ x: 0.6, y: 0.8 });
     expect(orientationFromMovement({ x: 0, y: 0 }, { x: 0, y: -2 })).toEqual({ x: 0, y: -1 });
     expect(normalizeDirection({ x: 0, y: 0 }, { x: 0, y: 0 })).toEqual({ x: 1, y: 0 });
+  });
+
+  // This is the exact conversion `movement-system.ts` applies to a dequeued command every tick,
+  // and the map-preview sandbox now applies to its locally-polled input every tick. Regressing
+  // either caller back to a hardcoded facing (the map-preview bug this pins) leaves this failing.
+  it("turns a movement input into facing, and preserves facing at rest", () => {
+    expect(facingFromInput({ ...NO_INPUT, left: true }, { x: 1, y: 0 })).toEqual({ x: -1, y: 0 });
+    expect(facingFromInput({ ...NO_INPUT, right: true }, { x: -1, y: 0 })).toEqual({ x: 1, y: 0 });
+    expect(facingFromInput({ ...NO_INPUT, up: true }, { x: 1, y: 0 })).toEqual({ x: 0, y: -1 });
+    expect(facingFromInput({ ...NO_INPUT, down: true }, { x: 1, y: 0 })).toEqual({ x: 0, y: 1 });
+    // Standing still (or a diagonal that cancels out) preserves whatever facing was already held.
+    expect(facingFromInput(NO_INPUT, { x: -1, y: 0 })).toEqual({ x: -1, y: 0 });
+    expect(facingFromInput({ ...NO_INPUT, left: true, right: true }, { x: 0, y: -1 })).toEqual({
+      x: 0,
+      y: -1,
+    });
   });
 
   it("hits entities in a frontal arc but not behind or outside its radius", () => {

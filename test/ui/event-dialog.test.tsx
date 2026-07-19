@@ -15,6 +15,9 @@ function seedEvent(overrides: Partial<MapEvent> = {}): MapEvent {
     row: 4,
     name: "",
     ordinal: 1,
+    kind: "normal",
+    species: null,
+    patrolRadius: null,
     pages: [defaultEventPage()],
     ...overrides,
   };
@@ -238,6 +241,56 @@ describe("EventDialog", () => {
     await user.click(within(confirm).getByRole("button", { name: t("editor.event.delete") }));
 
     expect(onDelete).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a monster block (no pages/conditions) and round-trips species and radius", async () => {
+    // `delay: null` batches the clear+type keystrokes into one synchronous act() flush instead of
+    // pacing them with real `setTimeout`s. Vitest runs multiple test files concurrently inside one
+    // worker's single JS thread; a sibling file's synchronous work (e.g. a heavy render loop) can
+    // starve those timers between two keystrokes of *this* interaction and strand the number input
+    // at its post-clear value. This is CPU-contention, not shared state — see
+    // .superpowers/sdd/pollution-fix-report.md.
+    const user = userEvent.setup({ delay: null });
+    const { onCommit } = renderDialog(
+      seedEvent({ kind: "monster", species: "spear_goblin", patrolRadius: 96 }),
+    );
+
+    // A functional kind hides the whole scripted editor: no page tabs, no condition checkboxes.
+    expect(screen.queryByRole("tablist")).toBeNull();
+    expect(
+      screen.queryByRole("checkbox", { name: t("editor.event.cond.switch") }),
+    ).not.toBeInTheDocument();
+
+    // The species picker and patrol-radius input are present; edit the radius and save.
+    expect(screen.getByRole("combobox", { name: t("editor.markers.species") })).toBeInTheDocument();
+    const radius = screen.getByRole("spinbutton", { name: t("editor.markers.radius") });
+    await user.clear(radius);
+    await user.type(radius, "128");
+    await user.click(screen.getByRole("button", { name: t("editor.event.save") }));
+
+    const committed = onCommit.mock.calls[0]?.[0] as MapEvent;
+    expect(committed.kind).toBe("monster");
+    expect(committed.species).toBe("spear_goblin");
+    expect(committed.patrolRadius).toBe(128);
+    // A functional event stays single-page — the wire parser refuses extra pages.
+    expect(committed.pages).toHaveLength(1);
+  });
+
+  it("shows only a label field for an entry event and round-trips the label", async () => {
+    const user = userEvent.setup();
+    const { onCommit } = renderDialog(seedEvent({ kind: "entry", name: "" }));
+
+    // No scripted editor for an anchor kind — just the header Name (label) field and a hint.
+    expect(screen.queryByRole("tablist")).toBeNull();
+    expect(screen.getByText(t("editor.event.kind.anchor.hint"))).toBeVisible();
+
+    await user.type(screen.getByRole("textbox", { name: t("editor.event.name") }), "North gate");
+    await user.click(screen.getByRole("button", { name: t("editor.event.save") }));
+
+    const committed = onCommit.mock.calls[0]?.[0] as MapEvent;
+    expect(committed.kind).toBe("entry");
+    expect(committed.name).toBe("North gate");
+    expect(committed.pages).toHaveLength(1);
   });
 });
 

@@ -60,6 +60,9 @@ function twoPageEvent(id: string): MapEvent {
     row: EVENT_ROW,
     name: "Gate",
     ordinal: 0,
+    kind: "normal",
+    species: null,
+    patrolRadius: null,
     pages: [
       page({ graphicAssetId: PAGE1_GRAPHIC }),
       page({ graphicAssetId: PAGE2_GRAPHIC, condSwitchId: "0001" }),
@@ -76,6 +79,9 @@ function vanishEvent(id: string): MapEvent {
     row: EVENT_ROW,
     name: "Vanish",
     ordinal: 1,
+    kind: "normal",
+    species: null,
+    patrolRadius: null,
     pages: [page({ graphicAssetId: PAGE1_GRAPHIC, condSwitchId: "0002" })],
   };
 }
@@ -145,7 +151,6 @@ afterEach(async () => {
   await env.DB.exec("DELETE FROM hero");
   await env.DB.exec("DELETE FROM party_member");
   await env.DB.exec("DELETE FROM party");
-  await env.DB.exec("DELETE FROM adventure_map");
   await env.DB.exec("DELETE FROM adventure");
   await env.DB.exec("DELETE FROM map_event_page");
   await env.DB.exec("DELETE FROM map_event");

@@ -6,17 +6,16 @@
  * call and this handler never has to think about serving files.
  */
 
-import { parseAdventureInput } from "../shared/adventure.js";
+import { parseAdventureInput, parseCreateAdventureInput } from "../shared/adventure.js";
 import { normalizeAppearance } from "../shared/character.js";
 import { WS_CLOSE } from "../shared/close-codes.js";
 import { isValidClass } from "../shared/game.js";
 import { parseCreateHeroInput } from "../shared/hero.js";
 import { isUuid } from "../shared/identifiers.js";
-import { EMPTY_MARKERS, mapSpawnPoint, parseMapData } from "../shared/map-data.js";
-import { parseMapEvents } from "../shared/map-events.js";
+import { mapSpawnPoint, parseMapData } from "../shared/map-data.js";
+import { eventCellCentre, parseMapEvents } from "../shared/map-events.js";
 import { parseCreatePartyInput, parseJoinPartyInput } from "../shared/party.js";
 import { encodeTileLayer } from "../shared/tile-layer-codec.js";
-import { TILE_SIZE } from "../shared/tilemap.js";
 import {
   isKnownZone,
   isValidInstanceId,
@@ -25,7 +24,7 @@ import {
 } from "../shared/zones.js";
 import { accountExists, createAccount, verifyCredentials } from "./accounts.js";
 import {
-  createAdventure,
+  createAdventureWithDefaultMap,
   deleteAdventure,
   listAdventures,
   loadAdventure,
@@ -45,7 +44,7 @@ import { createHero, deleteHero, listHeroes, loadOwnedHero } from "./heroes.js";
 import {
   createMap,
   deleteMap,
-  listMaps,
+  listMapsForAdventure,
   loadMap,
   loadOwnedMap,
   type MapInput,
@@ -366,22 +365,20 @@ async function handleJoinHero(request: Request, env: Env, url: URL): Promise<Res
   const adventure = await loadAdventure(db, partyRow.hostAccountId, partyRow.adventureId);
   if (!adventure) return closedWebSocket(WS_CLOSE.INVALID_LOCATION, "party adventure missing");
 
+  const start = adventure.graph.start;
   let mapId = owned.mapId;
   let stored = adventure.mapIds.includes(mapId) ? await loadMap(db, mapId) : null;
   let fallbackPosition: { x: number; y: number } | null = null;
   if (!stored) {
-    mapId = adventure.graph.start.mapId;
+    // A draft adventure (no start) has no room to admit the hero into.
+    if (!start) return closedWebSocket(WS_CLOSE.INVALID_LOCATION, "adventure has no start");
+    mapId = start.mapId;
     stored = await loadMap(db, mapId);
     if (!stored) return closedWebSocket(WS_CLOSE.INVALID_LOCATION, "adventure start missing");
-    const entry = (stored.markers ?? EMPTY_MARKERS).entries.find(
-      (marker) => marker.id === adventure.graph.start.entryId,
+    const entry = stored.events.find(
+      (event) => event.kind === "entry" && event.id === start.entryId,
     );
-    fallbackPosition = entry
-      ? {
-          x: entry.col * TILE_SIZE + TILE_SIZE / 2,
-          y: entry.row * TILE_SIZE + TILE_SIZE / 2,
-        }
-      : mapSpawnPoint(stored);
+    fallbackPosition = entry ? eventCellCentre(entry) : mapSpawnPoint(stored);
   }
 
   const roomKey = `${partyId}:${mapId}`;
@@ -568,7 +565,23 @@ function mapResponseBody(stored: StoredMap): Record<string, unknown> {
 async function handleListMaps(request: Request, env: Env, url: URL): Promise<Response> {
   const auth = await requireSession(request, env, url);
   if (auth instanceof Response) return auth;
-  return json(await listMaps(createDb(env.DB), auth.session.id));
+  // Maps are listed per-adventure (UX wave #5). The `adventure` query param is required; without it
+  // there is no library to list.
+  const adventureId = url.searchParams.get("adventure");
+  if (!adventureId || !isUuid(adventureId)) {
+    return json({ error: "map_invalid" }, { status: 400 });
+  }
+  return json(await listMapsForAdventure(createDb(env.DB), auth.session.id, adventureId));
+}
+
+/** The `{ adventureId, name }` body of a new-map request — the only two fields a client sends now,
+ *  since the terrain is always the server-built template. */
+function parseCreateMapBody(body: unknown): { adventureId: string; name: string } | null {
+  if (typeof body !== "object" || body === null) return null;
+  const { adventureId, name } = body as Record<string, unknown>;
+  if (typeof adventureId !== "string" || !isUuid(adventureId)) return null;
+  if (typeof name !== "string") return null;
+  return { adventureId, name };
 }
 
 async function handleCreateMap(request: Request, env: Env, url: URL): Promise<Response> {
@@ -576,12 +589,15 @@ async function handleCreateMap(request: Request, env: Env, url: URL): Promise<Re
   if (auth instanceof Response) return auth;
   const parsed = await readJson(request, MAX_MAP_JSON_BYTES);
   if (parsed instanceof Response) return parsed;
-  const input = parseMapBody(parsed.value);
+  const input = parseCreateMapBody(parsed.value);
   if (!input) return json({ error: "map_invalid" }, { status: 400 });
   try {
-    return json(mapResponseBody(await createMap(createDb(env.DB), auth.session.id, input)), {
-      status: 201,
-    });
+    return json(
+      mapResponseBody(
+        await createMap(createDb(env.DB), auth.session.id, input.adventureId, input.name),
+      ),
+      { status: 201 },
+    );
   } catch (error) {
     return mapErrorResponse(error);
   }
@@ -653,6 +669,7 @@ function adventureErrorResponse(error: unknown): Response {
   const code = message.split(":")[0];
   if (code === "not_found") return json({ error: "adventure_not_found" }, { status: 404 });
   if (code === "referenced") return json({ error: "adventure_referenced" }, { status: 409 });
+  if (code === "in_use") return json({ error: "adventure_in_use" }, { status: 409 });
   if (code === "title" || code === "players" || code === "maps" || code === "graph") {
     return json({ error: `adventure_${code}` }, { status: 400 });
   }
@@ -665,6 +682,7 @@ function partyErrorResponse(error: unknown): Response {
   const code = message.split(":")[0];
   if (code === "not_found") return json({ error: "party_not_found" }, { status: 404 });
   if (code === "adventure") return json({ error: "party_adventure" }, { status: 404 });
+  if (code === "not_playable") return json({ error: "adventure_not_playable" }, { status: 409 });
   if (code === "already_member" || code === "full" || code === "color_taken") {
     return json({ error: `party_${code}` }, { status: 409 });
   }
@@ -692,10 +710,17 @@ async function handleCreateAdventure(request: Request, env: Env, url: URL): Prom
   if (auth instanceof Response) return auth;
   const parsed = await readJson(request, MAX_ADVENTURE_JSON_BYTES);
   if (parsed instanceof Response) return parsed;
-  const input = parseAdventureInput(parsed.value);
+  const input = parseCreateAdventureInput(parsed.value);
   if (!input) return json({ error: "adventure_invalid" }, { status: 400 });
   try {
-    return json(await createAdventure(createDb(env.DB), auth.session.id, input), { status: 201 });
+    // Atomic: the adventure and its default map are created in one transaction, and both ride the
+    // response so the client lands straight in the editor (UX wave #2/#3/#4).
+    const { adventure, map } = await createAdventureWithDefaultMap(
+      createDb(env.DB),
+      auth.session.id,
+      input,
+    );
+    return json({ ...adventure, defaultMap: mapResponseBody(map) }, { status: 201 });
   } catch (error) {
     return adventureErrorResponse(error);
   }

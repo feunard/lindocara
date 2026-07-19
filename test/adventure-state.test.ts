@@ -56,6 +56,9 @@ function event(overrides: Partial<MapEvent> = {}): MapEvent {
     row: 1,
     name: "Portier",
     ordinal: 0,
+    kind: "normal",
+    species: null,
+    patrolRadius: null,
     pages: [page()],
     ...overrides,
   };

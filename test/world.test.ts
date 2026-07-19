@@ -324,6 +324,24 @@ describe("World", () => {
     client.close();
   });
 
+  // A player's own `facing` in their own snapshot must track the direction they actually moved,
+  // not just an ally's (the existing "priest facing down" coverage below only proves the y axis).
+  // This pins the x axis a user reported broken in the map-editor preview sandbox: if the real
+  // authoritative path ever regressed the same way, this is where it would be caught.
+  it("turns a player's own facing to left when they move left", async () => {
+    const client = await Client.join("lefty");
+    await until("welcome", () => client.welcome);
+
+    client.press("left");
+    const facingLeft = await until("self facing left after moving left", () => {
+      const self = client.self();
+      return self && self.facing.x < -0.9 ? self : undefined;
+    });
+    expect(facingLeft.facing).toEqual({ x: -1, y: 0 });
+
+    client.close();
+  });
+
   // The world is a singleton, shared by every test in this file. Assertions are therefore
   // about *which* ids are present, never about how many — a straggler from an earlier test
   // that has not finished disconnecting must not be able to fail an unrelated assertion.

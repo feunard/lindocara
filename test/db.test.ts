@@ -16,6 +16,7 @@ import {
 } from "../src/server/characters.js";
 import {
   account,
+  adventure,
   character,
   createDb,
   map,
@@ -460,26 +461,53 @@ describe("characters service", () => {
   });
 });
 
+// A map row is NOT NULL on `adventure_id` (UX wave #5): even a direct-insert constraint probe needs
+// a real owning adventure (and its account) to reference. These fixed ids are reused via
+// `onConflictDoNothing`, so calling the seed twice within one test is a no-op the second time.
+const MAP_OWNER_ACCOUNT = "map-owner-account";
+const MAP_OWNER_ADVENTURE = "map-owner-adventure";
+
+async function ensureMapOwner(db: ReturnType<typeof createDb>): Promise<void> {
+  await db
+    .insert(account)
+    .values({
+      id: MAP_OWNER_ACCOUNT,
+      username: MAP_OWNER_ACCOUNT,
+      passwordHash: "h",
+      passwordSalt: "s",
+      passwordIterations: 1,
+    })
+    .onConflictDoNothing();
+  await db
+    .insert(adventure)
+    .values({ id: MAP_OWNER_ADVENTURE, accountId: MAP_OWNER_ACCOUNT, title: "Owner", graph: "{}" })
+    .onConflictDoNothing();
+}
+
 describe("the map tables", () => {
-  // The pool does not isolate storage between tests. Elements before maps (FK).
+  // The pool does not isolate storage between tests. Elements before maps (FK); the owning adventure
+  // (and its account) after the maps that reference it.
   afterEach(async () => {
     await env.DB.exec("DELETE FROM map_element");
     await env.DB.exec("DELETE FROM map");
+    await env.DB.exec("DELETE FROM adventure");
+    await env.DB.exec("DELETE FROM account");
   });
 
   async function seedMap(id: string): Promise<void> {
-    await createDb(env.DB)
-      .insert(map)
-      .values({
-        id,
-        name: "Test",
-        cols: 4,
-        rows: 4,
-        tilesetId: TINY_SWORDS_TILESET_ID,
-        layers: JSON.stringify(["0*16", "0*16", "0*16"]),
-        spawnCol: 0,
-        spawnRow: 0,
-      });
+    const db = createDb(env.DB);
+    await ensureMapOwner(db);
+    await db.insert(map).values({
+      id,
+      adventureId: MAP_OWNER_ADVENTURE,
+      name: "Test",
+      cols: 4,
+      rows: 4,
+      tilesetId: TINY_SWORDS_TILESET_ID,
+      layers: JSON.stringify(["0*16", "0*16", "0*16"]),
+      spawnCol: 0,
+      spawnRow: 0,
+    });
   }
 
   // "You can't set another tree on it" is the primary key, not a check anyone has to remember.
@@ -513,27 +541,31 @@ describe("the map tables", () => {
 });
 
 describe("the map event tables", () => {
-  // Children before parents (FK): pages, then events, then the map (and its elements).
+  // Children before parents (FK): pages, then events, then the map (and its elements), then the
+  // owning adventure and its account.
   afterEach(async () => {
     await env.DB.exec("DELETE FROM map_event_page");
     await env.DB.exec("DELETE FROM map_event");
     await env.DB.exec("DELETE FROM map_element");
     await env.DB.exec("DELETE FROM map");
+    await env.DB.exec("DELETE FROM adventure");
+    await env.DB.exec("DELETE FROM account");
   });
 
   async function seedMap(id: string): Promise<void> {
-    await createDb(env.DB)
-      .insert(map)
-      .values({
-        id,
-        name: "Test",
-        cols: 8,
-        rows: 8,
-        tilesetId: TINY_SWORDS_TILESET_ID,
-        layers: JSON.stringify(["0*64", "0*64", "0*64"]),
-        spawnCol: 0,
-        spawnRow: 0,
-      });
+    const db = createDb(env.DB);
+    await ensureMapOwner(db);
+    await db.insert(map).values({
+      id,
+      adventureId: MAP_OWNER_ADVENTURE,
+      name: "Test",
+      cols: 8,
+      rows: 8,
+      tilesetId: TINY_SWORDS_TILESET_ID,
+      layers: JSON.stringify(["0*64", "0*64", "0*64"]),
+      spawnCol: 0,
+      spawnRow: 0,
+    });
   }
 
   function pageValues(id: string, eventId: string, position: number) {

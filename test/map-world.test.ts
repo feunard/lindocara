@@ -7,10 +7,11 @@
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
 import { createDb } from "../src/server/db/index.js";
-import { createMap, deleteMap, type MapInput } from "../src/server/maps.js";
+import { deleteMap, type MapInput } from "../src/server/maps.js";
 import { WS_CLOSE } from "../src/shared/close-codes.js";
 import { bakeCollision, mapSpawnPoint } from "../src/shared/map-data.js";
 import { encodeTileMap } from "../src/shared/tilemap-codec.js";
+import { authorMap, seedAdventure } from "./support/adventure-fixtures.js";
 import { layeredTerrain } from "./support/map-fixtures.js";
 import { Client, testCharacter, until } from "./support/world-harness.js";
 
@@ -54,12 +55,14 @@ describe("D1 maps end-to-end", () => {
   afterEach(async () => {
     await env.DB.exec("DELETE FROM map_element");
     await env.DB.exec("DELETE FROM map");
+    await env.DB.exec("DELETE FROM adventure");
   });
 
   it("welcomes a character onto their D1 map with its tiles and elements", async () => {
     const db = createDb(env.DB);
     const session = await testCharacter("mapper");
-    const stored = await createMap(db, session.accountId, islandInput);
+    const adventureId = await seedAdventure(db, session.accountId);
+    const stored = await authorMap(db, session.accountId, adventureId, islandInput);
     await env.DB.prepare("UPDATE character SET zone_id = ? WHERE id = ?")
       .bind(stored.id, session.characterId)
       .run();
@@ -77,8 +80,15 @@ describe("D1 maps end-to-end", () => {
   it("relocates a character whose map was deleted to the first map, at its spawn", async () => {
     const db = createDb(env.DB);
     const session = await testCharacter("relocatee");
-    const first = await createMap(db, session.accountId, { ...smallInput, name: "First" });
-    const gone = await createMap(db, session.accountId, { ...smallInput, name: "Gone" });
+    const adventureId = await seedAdventure(db, session.accountId);
+    const first = await authorMap(db, session.accountId, adventureId, {
+      ...smallInput,
+      name: "First",
+    });
+    const gone = await authorMap(db, session.accountId, adventureId, {
+      ...smallInput,
+      name: "Gone",
+    });
     await env.DB.prepare("UPDATE character SET zone_id = ? WHERE id = ?")
       .bind(gone.id, session.characterId)
       .run();
@@ -118,7 +128,8 @@ describe("D1 maps end-to-end", () => {
   it("returns to the same map and position across a disconnect", async () => {
     const db = createDb(env.DB);
     const session = await testCharacter("returner");
-    const stored = await createMap(db, session.accountId, smallInput);
+    const adventureId = await seedAdventure(db, session.accountId);
+    const stored = await authorMap(db, session.accountId, adventureId, smallInput);
     await env.DB.prepare("UPDATE character SET zone_id = ? WHERE id = ?")
       .bind(stored.id, session.characterId)
       .run();

@@ -613,6 +613,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.inspector.event": "Événement",
   "editor.inspector.spawn": "Point d’apparition du héros",
   "editor.inspector.walkable": "Praticable",
+  "editor.inspector.openEditor": "Ouvrir l’éditeur",
   "editor.tool.variant": "Variante",
   "editor.markers.species": "Espèce",
   "editor.markers.radius": "Rayon de patrouille",
@@ -648,6 +649,11 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.assets.more": "Afficher plus",
 
   // Habillage de l'éditeur d'aventure (menu/barre d'outils/barre d'état fusionnés, Tâche 7)
+  "editor.shell.brand": "Éditeur",
+  "editor.shell.load": "Charger une aventure…",
+  "editor.shell.quit": "Quitter l'éditeur",
+  "editor.load.title": "Charger une aventure",
+  "editor.load.empty": "Aucune aventure pour l'instant.",
   "editor.shell.exit.aria": "Quitter l'éditeur",
   "editor.shell.exit.confirm": "Quitter l'éditeur et abandonner les modifications ?",
   "editor.shell.deleteMap": "Supprimer la carte",
@@ -675,6 +681,24 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.shell.maps.dims": "{cols}×{rows}",
   "editor.shell.maps.rename": "Renommer",
   "editor.shell.maps.create": "Créer la carte",
+  "editor.shell.maps.start": "Définir comme carte de départ",
+  "editor.shell.maps.start.active": "Carte de départ",
+  "editor.shell.maps.start.noEntry":
+    "Ajoutez un marqueur d'entrée sur cette carte pour en faire la carte de départ",
+  "editor.picker.title": "Aventures",
+  "editor.picker.subtitle": "Choisissez une aventure à éditer, ou créez-en une nouvelle.",
+  "editor.picker.empty": "Aucune aventure pour l'instant. Créez la première ci-dessous.",
+  "editor.picker.open": "Ouvrir",
+  "editor.picker.maps": "{count} cartes",
+  "editor.picker.playable": "Jouable",
+  "editor.picker.draft": "Brouillon",
+  "editor.picker.create.heading": "Nouvelle aventure",
+  "editor.picker.create.submit": "Créer l'aventure",
+  "editor.picker.loading": "Chargement des aventures…",
+  "editor.firstSave.title": "Nommez votre aventure",
+  "editor.firstSave.hint": "Donnez un nom à votre aventure avant sa première sauvegarde.",
+  "editor.firstSave.confirm": "Enregistrer",
+  "editor.firstSave.cancel": "Annuler",
   "editor.shell.markers.heading": "Marqueurs",
   "editor.shell.settings": "Réglages de l'aventure",
   "editor.shell.settings.pick": "Choisir une aventure à modifier",
@@ -756,6 +780,13 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.save": "Valider",
   "editor.event.cond.empty.hint":
     "Aucune entrée — ajoutez des interrupteurs et variables dans Jeu → Base de données.",
+  "editor.event.kind.heading": "Type d’événement",
+  "editor.event.kind.normal": "Scénarisé",
+  "editor.event.kind.entry": "Entrée",
+  "editor.event.kind.exit": "Sortie",
+  "editor.event.kind.monster": "Monstre",
+  "editor.event.kind.anchor.hint":
+    "Le graphe d’aventure lie cet ancrage par identifiant. Nommez-le pour distinguer les ancrages.",
   "editor.registry.title": "Base de données",
   "editor.registry.switches": "Interrupteurs",
   "editor.registry.variables": "Variables",
@@ -784,6 +815,10 @@ export const fr: Record<keyof typeof en, string> = {
     "Chaque sortie doit mener quelque part, et au moins une doit conclure l'aventure.",
   "adventure.error.not_found": "Cette aventure n'existe plus.",
   "adventure.error.referenced": "Une partie utilise encore cette aventure.",
+  "adventure.error.not_playable":
+    "Cette aventure n'a pas encore de point de départ. Terminez-la dans l'éditeur avant de lancer une partie.",
+  "adventure.error.in_use":
+    "Une partie joue déjà cette aventure : sa carte de départ ne peut pas être changée.",
 
   // Erreurs de l'API des parties
   "party.error.invalid": "Ces données de partie sont invalides.",
@@ -809,6 +844,7 @@ export const fr: Record<keyof typeof en, string> = {
   // Éditeur d'aventures
   "adventure.title": "Éditeur d'aventures",
   "adventure.new": "Nouvelle aventure",
+  "adventure.default_title": "Nouvelle aventure",
   "adventure.name": "Titre",
   "adventure.players": "Joueurs max",
   "adventure.players.count": "{count} joueurs max",

@@ -19,7 +19,7 @@ import {
   type PartyAdventureState,
   parsePartyAdventureState,
 } from "../shared/adventure-state.js";
-import { adventureMap, type Db, mapEvent, party, partyAdventureState } from "./db/index.js";
+import { type Db, map, mapEvent, party, partyAdventureState } from "./db/index.js";
 
 /**
  * Every event id across every map an adventure owns, for the party addressed by `partyId`. The
@@ -39,8 +39,8 @@ export async function loadAdventureEventIds(db: Db, partyId: string): Promise<Re
   const rows = await db
     .select({ id: mapEvent.id })
     .from(mapEvent)
-    .innerJoin(adventureMap, eq(adventureMap.mapId, mapEvent.mapId))
-    .where(eq(adventureMap.adventureId, partyRow.adventureId));
+    .innerJoin(map, eq(map.id, mapEvent.mapId))
+    .where(eq(map.adventureId, partyRow.adventureId));
   return new Set(rows.map((entry) => entry.id));
 }
 

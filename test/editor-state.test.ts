@@ -13,25 +13,19 @@ import {
   editorLayersFromPayload,
   isEditorHistoryDirty,
   markEditorHistorySaved,
-  mintMarkerId,
   moveSelection,
+  placementLegalAt,
   redoEditorHistory,
   selectionAt,
   setActiveLayer,
   setEventDraftName,
-  setMarkerLabel,
   toSaveInput,
   undoEditorHistory,
   updateEventDraftPage,
 } from "../src/client/game/editor-state.js";
 import { isUuid } from "../src/shared/identifiers.js";
-import {
-  EMPTY_MARKERS,
-  MAX_MAP_ELEMENTS,
-  MAX_MAP_ENTRIES,
-  type MapElement,
-} from "../src/shared/map-data.js";
-import type { MapEvent } from "../src/shared/map-events.js";
+import { EMPTY_MARKERS, MAX_MAP_ELEMENTS, type MapElement } from "../src/shared/map-data.js";
+import { entryEvents, exitEvents, type MapEvent } from "../src/shared/map-events.js";
 import { eraseRect, paintRectAutotile, paintStairs, slotAt } from "../src/shared/tile-brush.js";
 import type { TileLayer } from "../src/shared/tile-layer-codec.js";
 import { autotileId, EMPTY_TILE } from "../src/shared/tileset.js";
@@ -593,14 +587,16 @@ describe("applyTool: bounds", () => {
   });
 });
 
-describe("markers on the editor map", () => {
+describe("markers are quarantined on the editor map", () => {
   it("blankMap starts with empty markers", () => {
     expect(blankMap("m", 20, 15).markers).toEqual(EMPTY_MARKERS);
   });
 
-  it("every tool application preserves markers it did not touch", () => {
+  it("the editor never authors a functional marker: the save body always sends EMPTY_MARKERS", () => {
+    // Even a map seeded (by hand) with legacy markers is saved with none — the functional meaning is
+    // events now, and the editor emits `EMPTY_MARKERS` regardless of what the field still holds.
     const base = blankMap("m", 20, 15);
-    const withMarkers: EditorMap = {
+    const seeded: EditorMap = {
       ...base,
       markers: {
         entries: [{ id: "door", col: 2, row: 2 }],
@@ -608,10 +604,8 @@ describe("markers on the editor map", () => {
         monsterSpawns: [],
       },
     };
-    const painted = applyTool(withMarkers, { kind: "block", block: "water" }, 9, 9);
-    expect(painted?.markers).toEqual(withMarkers.markers);
-    const moved = applyTool(withMarkers, { kind: "spawn" }, 8, 8);
-    expect(moved?.markers).toEqual(withMarkers.markers);
+    expect(toSaveInput(seeded).markers).toEqual(EMPTY_MARKERS);
+    expect(toSaveInput(base).markers).toEqual(EMPTY_MARKERS);
   });
 });
 
@@ -651,98 +645,130 @@ describe("editor history", () => {
   });
 });
 
-describe("marker labels", () => {
-  it("keeps stable ids while trimming, changing and clearing labels", () => {
-    const base = applyTool(blankMap("m", 20, 15), { kind: "marker-entry" }, 2, 2) as EditorMap;
-    const labelled = setMarkerLabel(base, { kind: "entry", id: "entry-1" }, "  North gate  ");
-    expect(labelled?.markers.entries).toEqual([
-      { id: "entry-1", label: "North gate", col: 2, row: 2 },
-    ]);
-    expect(
-      setMarkerLabel(labelled as EditorMap, { kind: "entry", id: "entry-1" }, "")?.markers.entries,
-    ).toEqual([{ id: "entry-1", col: 2, row: 2 }]);
-  });
-
-  it("rejects labels longer than the shared maximum", () => {
-    const base = applyTool(blankMap("m", 20, 15), { kind: "marker-exit" }, 2, 2) as EditorMap;
-    expect(setMarkerLabel(base, { kind: "exit", id: "exit-1" }, "x".repeat(49))).toBeNull();
-  });
-});
-
-describe("applyTool: markers", () => {
+describe("applyTool: functional event kinds (entry / exit / monster)", () => {
   const base = blankMap("m", 20, 15);
 
-  it("places entries and exits with minted unique ids", () => {
-    const one = applyTool(base, { kind: "marker-entry" }, 2, 2);
-    expect(one?.markers.entries).toEqual([{ id: "entry-1", col: 2, row: 2 }]);
-    const two = applyTool(one as EditorMap, { kind: "marker-entry" }, 3, 3);
-    expect(two?.markers.entries.map((e) => e.id)).toEqual(["entry-1", "entry-2"]);
-    const exit = applyTool(two as EditorMap, { kind: "marker-exit" }, 5, 5);
-    expect(exit?.markers.exits).toEqual([{ id: "exit-1", col: 5, row: 5 }]);
+  it("places an entry event as a functionalEvent-shaped MapEvent with a uuid", () => {
+    const next = applyTool(base, { kind: "event", eventKind: "entry" }, 2, 2) as EditorMap;
+    expect(next).not.toBeNull();
+    expect(next.events).toHaveLength(1);
+    const event = next.events[0] as MapEvent;
+    expect(isUuid(event.id)).toBe(true);
+    expect(event.kind).toBe("entry");
+    expect(event).toMatchObject({ col: 2, row: 2, name: "", ordinal: 1, species: null });
+    expect(event.patrolRadius).toBeNull();
+    // A functional event is single-page, conditions-disabled — the one default page and no more.
+    expect(event.pages).toEqual([defaultEventPage()]);
   });
 
-  it("mints the smallest free suffix", () => {
-    expect(mintMarkerId("entry", ["entry-1", "entry-3"])).toBe("entry-2");
-    expect(mintMarkerId("exit", [])).toBe("exit-1");
-  });
-
-  it("refuses markers on water, exits on spawn or entry cells, and duplicates on one cell", () => {
-    const wet = applyTool(base, { kind: "block", block: "water" }, 2, 2);
-    expect(applyTool(wet as EditorMap, { kind: "marker-entry" }, 2, 2)).toBeNull();
-    expect(applyTool(base, { kind: "marker-exit" }, base.spawn.col, base.spawn.row)).toBeNull();
-    const entry = applyTool(base, { kind: "marker-entry" }, 4, 4) as EditorMap;
-    expect(applyTool(entry, { kind: "marker-exit" }, 4, 4)).toBeNull();
-    expect(applyTool(entry, { kind: "marker-entry" }, 4, 4)).toBeNull();
-  });
-
-  it("enforces the entry cap", () => {
-    let map: EditorMap = base;
-    for (let i = 0; i < MAX_MAP_ENTRIES; i += 1) {
-      map = applyTool(map, { kind: "marker-entry" }, i + 1, 1) as EditorMap;
-    }
-    expect(applyTool(map, { kind: "marker-entry" }, 1, 5)).toBeNull();
-  });
-
-  it("places monster spawns, replaces on the same cell, validates the radius", () => {
-    const placed = applyTool(
-      base,
-      { kind: "marker-monster", species: "spear_goblin", patrolRadius: 96 },
-      6,
-      6,
-    );
-    expect(placed?.markers.monsterSpawns).toEqual([
-      { col: 6, row: 6, species: "spear_goblin", patrolRadius: 96 },
-    ]);
-    const replaced = applyTool(
-      placed as EditorMap,
-      { kind: "marker-monster", species: "mire_troll", patrolRadius: 128 },
-      6,
-      6,
-    );
-    expect(replaced?.markers.monsterSpawns).toEqual([
-      { col: 6, row: 6, species: "mire_troll", patrolRadius: 128 },
-    ]);
+  it("places an exit event, and an exit may not share the spawn cell", () => {
+    const next = applyTool(base, { kind: "event", eventKind: "exit" }, 5, 5) as EditorMap;
+    expect(next.events[0]?.kind).toBe("exit");
+    // The exit-on-spawn rule the server enforces is refused here too.
     expect(
-      applyTool(base, { kind: "marker-monster", species: "spear_goblin", patrolRadius: 8 }, 6, 6),
+      applyTool(base, { kind: "event", eventKind: "exit" }, base.spawn.col, base.spawn.row),
     ).toBeNull();
   });
 
-  it("eraser removes markers, spawn and paint refuse to invalidate them", () => {
-    const entry = applyTool(base, { kind: "marker-entry" }, 4, 4) as EditorMap;
-    const erased = applyTool(entry, { kind: "eraser" }, 4, 4);
-    expect(erased?.markers.entries).toEqual([]);
-    // The eraser falls through to the terrain on a bare cell, so 9,9 clears the ground there.
-    expect(groundSlot(applyTool(entry, { kind: "eraser" }, 9, 9) as EditorMap, 9, 9)).toBe(-1);
-    expect(applyTool(entry, { kind: "block", block: "water" }, 4, 4)).toBeNull(); // would drown the entry
-    const exit = applyTool(base, { kind: "marker-exit" }, 7, 7) as EditorMap;
-    expect(applyTool(exit, { kind: "spawn" }, 7, 7)).toBeNull(); // spawn may not land on an exit
+  it("allows an entry on the spawn cell (the born default map does exactly this)", () => {
+    const onSpawn = applyTool(
+      base,
+      { kind: "event", eventKind: "entry" },
+      base.spawn.col,
+      base.spawn.row,
+    ) as EditorMap;
+    expect(onSpawn).not.toBeNull();
+    expect(onSpawn.events[0]?.kind).toBe("entry");
+  });
+
+  it("refuses a functional event on solid ground (walkable rule, per kind)", () => {
+    const wet = applyTool(base, { kind: "block", block: "water" }, 3, 3) as EditorMap;
+    expect(applyTool(wet, { kind: "event", eventKind: "entry" }, 3, 3)).toBeNull();
+    expect(applyTool(wet, { kind: "event", eventKind: "exit" }, 3, 3)).toBeNull();
+    expect(
+      applyTool(
+        wet,
+        { kind: "event", eventKind: "monster", species: "spear_goblin", patrolRadius: 96 },
+        3,
+        3,
+      ),
+    ).toBeNull();
+    // A `normal` event floats above collision, so water is fine.
+    expect(applyTool(wet, { kind: "event", eventKind: "normal" }, 3, 3)).not.toBeNull();
+  });
+
+  it("places a monster event carrying species and radius, and validates the radius", () => {
+    const placed = applyTool(
+      base,
+      { kind: "event", eventKind: "monster", species: "spear_goblin", patrolRadius: 96 },
+      6,
+      6,
+    ) as EditorMap;
+    const event = placed.events[0] as MapEvent;
+    expect(event.kind).toBe("monster");
+    expect(event.species).toBe("spear_goblin");
+    expect(event.patrolRadius).toBe(96);
+    // Out-of-range radius and a missing species are refused (would be rejected by the wire parser).
+    expect(
+      applyTool(
+        base,
+        { kind: "event", eventKind: "monster", species: "spear_goblin", patrolRadius: 8 },
+        6,
+        6,
+      ),
+    ).toBeNull();
+    expect(
+      applyTool(base, { kind: "event", eventKind: "monster", patrolRadius: 96 }, 6, 6),
+    ).toBeNull();
+  });
+
+  it("still refuses a second event on an occupied cell, whatever the kind", () => {
+    const entry = applyTool(base, { kind: "event", eventKind: "entry" }, 4, 4) as EditorMap;
+    expect(applyTool(entry, { kind: "event", eventKind: "exit" }, 4, 4)).toBeNull();
+    expect(selectionAt(entry, 4, 4)).toEqual({ kind: "event", id: entry.events[0]?.id });
+  });
+
+  it("the eraser and moveSelection treat functional events like any event", () => {
+    const entry = applyTool(base, { kind: "event", eventKind: "entry" }, 4, 4) as EditorMap;
+    const id = entry.events[0]?.id ?? "";
+    // Eraser peels the event off its cell.
+    expect((applyTool(entry, { kind: "eraser" }, 4, 4) as EditorMap).events).toEqual([]);
+    // Move keeps the exit off the spawn cell (the same rule as placement).
+    const exit = applyTool(base, { kind: "event", eventKind: "exit" }, 7, 7) as EditorMap;
+    const exitId = exit.events[0]?.id ?? "";
+    expect(
+      moveSelection(exit, { kind: "event", id: exitId }, exit.spawn.col, exit.spawn.row),
+    ).toBeNull();
+    // But a move onto walkable ground is fine, id preserved.
+    const moved = moveSelection(entry, { kind: "event", id }, 8, 8) as EditorMap;
+    expect(moved.events[0]).toMatchObject({ id, col: 8, row: 8, kind: "entry" });
+  });
+});
+
+describe("entry/exit event uuids drive the graph binding (the Cartes-panel start star)", () => {
+  it("entryEvents/exitEvents expose only their kind's events, by uuid", () => {
+    let map = blankMap("m", 20, 15);
+    map = applyTool(map, { kind: "event", eventKind: "entry" }, 2, 2) as EditorMap;
+    map = applyTool(map, { kind: "event", eventKind: "exit" }, 5, 5) as EditorMap;
+    map = applyTool(map, { kind: "event", eventKind: "normal" }, 9, 9) as EditorMap;
+
+    const entries = entryEvents(map.events);
+    const exits = exitEvents(map.events);
+    expect(entries).toHaveLength(1);
+    expect(exits).toHaveLength(1);
+    // These uuids are exactly what the adventure graph binds (start → an entry, an exit → dest).
+    expect(isUuid(entries[0]?.id)).toBe(true);
+    expect(isUuid(exits[0]?.id)).toBe(true);
+    // The scripted event is neither an entry nor an exit anchor.
+    expect(entries.some((e) => e.col === 9)).toBe(false);
+    expect(exits.some((e) => e.col === 9)).toBe(false);
   });
 });
 
 describe("applyTool: event placement", () => {
   it("mints a uuid, the next ordinal, and the wireframe's default page, as one undo entry", () => {
     const base = blankMap("m", 20, 15);
-    const next = applyTool(base, { kind: "event" }, 3, 4) as EditorMap;
+    const next = applyTool(base, { kind: "event", eventKind: "normal" }, 3, 4) as EditorMap;
     expect(next).not.toBeNull();
     expect(next).not.toBe(base);
     expect(next.events).toHaveLength(1);
@@ -766,7 +792,7 @@ describe("applyTool: event placement", () => {
     expect(undoEditorHistory(history).present).toEqual(base);
 
     // A second event takes the next ordinal and a fresh, distinct id.
-    const two = applyTool(next, { kind: "event" }, 5, 6) as EditorMap;
+    const two = applyTool(next, { kind: "event", eventKind: "normal" }, 5, 6) as EditorMap;
     expect(two.events[1]?.ordinal).toBe(2);
     expect(two.events[0]?.id).not.toBe(two.events[1]?.id);
   });
@@ -774,7 +800,12 @@ describe("applyTool: event placement", () => {
   it("stamps the tool's pending graphic onto the new event's page 1", () => {
     const base = blankMap("m", 20, 15);
     const graphic = EDITOR_ASSETS[0]?.id as EditorAssetId;
-    const next = applyTool(base, { kind: "event", graphic }, 3, 4) as EditorMap;
+    const next = applyTool(
+      base,
+      { kind: "event", eventKind: "normal", graphic },
+      3,
+      4,
+    ) as EditorMap;
     // The pending graphic (the palette's Événements picker) becomes page 1's appearance; every other
     // page field stays the wireframe default.
     expect(next.events[0]?.pages[0]?.graphicAssetId).toBe(graphic);
@@ -784,21 +815,22 @@ describe("applyTool: event placement", () => {
   it("leaves page 1's graphic null when the tool carries no graphic", () => {
     const base = blankMap("m", 20, 15);
     expect(
-      (applyTool(base, { kind: "event", graphic: null }, 3, 4) as EditorMap).events[0]?.pages[0]
-        ?.graphicAssetId,
+      (applyTool(base, { kind: "event", eventKind: "normal", graphic: null }, 3, 4) as EditorMap)
+        .events[0]?.pages[0]?.graphicAssetId,
     ).toBeNull();
     expect(
-      (applyTool(base, { kind: "event" }, 3, 4) as EditorMap).events[0]?.pages[0]?.graphicAssetId,
+      (applyTool(base, { kind: "event", eventKind: "normal" }, 3, 4) as EditorMap).events[0]
+        ?.pages[0]?.graphicAssetId,
     ).toBeNull();
   });
 
   it("refuses a second event on an occupied cell and selects it instead — no history entry", () => {
     const base = blankMap("m", 20, 15);
-    const next = applyTool(base, { kind: "event" }, 3, 4) as EditorMap;
+    const next = applyTool(base, { kind: "event", eventKind: "normal" }, 3, 4) as EditorMap;
     const id = next.events[0]?.id ?? "";
 
     // Placement on the occupied cell is a no-op: the pointer path reads null as "select this one".
-    expect(applyTool(next, { kind: "event" }, 3, 4)).toBeNull();
+    expect(applyTool(next, { kind: "event", eventKind: "normal" }, 3, 4)).toBeNull();
     expect(selectionAt(next, 3, 4)).toEqual({ kind: "event", id });
 
     // A rejected placement commits nothing.
@@ -810,7 +842,7 @@ describe("applyTool: event placement", () => {
 describe("moveSelection: event", () => {
   it("drags an event to an empty cell as one history entry", () => {
     const base = blankMap("m", 20, 15);
-    const placed = applyTool(base, { kind: "event" }, 3, 4) as EditorMap;
+    const placed = applyTool(base, { kind: "event", eventKind: "normal" }, 3, 4) as EditorMap;
     const id = placed.events[0]?.id ?? "";
 
     const moved = moveSelection(placed, { kind: "event", id }, 7, 8) as EditorMap;
@@ -825,17 +857,18 @@ describe("moveSelection: event", () => {
 
   it("is a no-op when the destination cell already holds an event", () => {
     const base = blankMap("m", 20, 15);
-    const one = applyTool(base, { kind: "event" }, 3, 4) as EditorMap;
-    const two = applyTool(one, { kind: "event" }, 5, 6) as EditorMap;
+    const one = applyTool(base, { kind: "event", eventKind: "normal" }, 3, 4) as EditorMap;
+    const two = applyTool(one, { kind: "event", eventKind: "normal" }, 5, 6) as EditorMap;
     const firstId = two.events[0]?.id ?? "";
     expect(moveSelection(two, { kind: "event", id: firstId }, 5, 6)).toBeNull();
   });
 });
 
-describe("applyTool: eraser precedence event > element > marker", () => {
-  it("peels the event first, then the element, then the marker on successive strokes", () => {
-    // One cell carrying all three planes at once — they are independent, so a cell may hold an
-    // event, an element and a marker together. Built by hand so the construction is unambiguous.
+describe("applyTool: eraser precedence event > element", () => {
+  it("peels the event first, then the element, on successive strokes", () => {
+    // One cell carrying both planes at once — they are independent, so a cell may hold an event and
+    // an element together. Built by hand so the construction is unambiguous. (Markers are dead — an
+    // entry/exit/monster is an event now, peeled off by the same first stroke.)
     const base = blankMap("m", 20, 15);
     const event: MapEvent = {
       id: "11111111-1111-4111-8111-111111111111",
@@ -843,35 +876,36 @@ describe("applyTool: eraser precedence event > element > marker", () => {
       row: 4,
       name: "",
       ordinal: 1,
+      kind: "normal",
+      species: null,
+      patrolRadius: null,
       pages: [defaultEventPage()],
     };
     const stacked: EditorMap = {
       ...base,
       elements: [{ col: 3, row: 4, assetId: BUSH }],
-      markers: { entries: [{ id: "door", col: 3, row: 4 }], exits: [], monsterSpawns: [] },
       events: [event],
     };
 
-    // Stroke 1: the event goes; element and marker stay.
+    // Stroke 1: the event goes; the element stays.
     const afterEvent = applyTool(stacked, { kind: "eraser" }, 3, 4) as EditorMap;
     expect(afterEvent.events).toEqual([]);
     expect(afterEvent.elements).toEqual([{ col: 3, row: 4, assetId: BUSH }]);
-    expect(afterEvent.markers.entries).toEqual([{ id: "door", col: 3, row: 4 }]);
 
-    // Stroke 2: the element goes; marker stays.
+    // Stroke 2: the element goes.
     const afterElement = applyTool(afterEvent, { kind: "eraser" }, 3, 4) as EditorMap;
     expect(afterElement.elements).toEqual([]);
-    expect(afterElement.markers.entries).toEqual([{ id: "door", col: 3, row: 4 }]);
-
-    // Stroke 3: the marker goes.
-    const afterMarker = applyTool(afterElement, { kind: "eraser" }, 3, 4) as EditorMap;
-    expect(afterMarker.markers.entries).toEqual([]);
   });
 });
 
 describe("event dialog draft", () => {
   it("keeps edits off history until commit, then folds them into ONE entry", () => {
-    const map = applyTool(blankMap("m", 20, 15), { kind: "event" }, 3, 4) as EditorMap;
+    const map = applyTool(
+      blankMap("m", 20, 15),
+      { kind: "event", eventKind: "normal" },
+      3,
+      4,
+    ) as EditorMap;
     const id = map.events[0]?.id ?? "";
     const history = markEditorHistorySaved(createEditorHistory(map));
 
@@ -894,7 +928,12 @@ describe("event dialog draft", () => {
   });
 
   it("flips the dirty flag when a committed draft changes an event field", () => {
-    const map = applyTool(blankMap("m", 20, 15), { kind: "event" }, 3, 4) as EditorMap;
+    const map = applyTool(
+      blankMap("m", 20, 15),
+      { kind: "event", eventKind: "normal" },
+      3,
+      4,
+    ) as EditorMap;
     const id = map.events[0]?.id ?? "";
     const history = markEditorHistorySaved(createEditorHistory(map));
     expect(isEditorHistoryDirty(history)).toBe(false);
@@ -906,7 +945,12 @@ describe("event dialog draft", () => {
 
 describe("event serialization", () => {
   it("emits every condition field as an explicit null in the save body", () => {
-    const map = applyTool(blankMap("m", 20, 15), { kind: "event" }, 3, 4) as EditorMap;
+    const map = applyTool(
+      blankMap("m", 20, 15),
+      { kind: "event", eventKind: "normal" },
+      3,
+      4,
+    ) as EditorMap;
     const saved = toSaveInput(map);
     const body = JSON.stringify(saved);
 
@@ -927,8 +971,121 @@ describe("event serialization", () => {
   });
 
   it("has the deleteSelection path drop an event by id", () => {
-    const map = applyTool(blankMap("m", 20, 15), { kind: "event" }, 3, 4) as EditorMap;
+    const map = applyTool(
+      blankMap("m", 20, 15),
+      { kind: "event", eventKind: "normal" },
+      3,
+      4,
+    ) as EditorMap;
     const id = map.events[0]?.id ?? "";
     expect(deleteSelection(map, { kind: "event", id }).events).toEqual([]);
+  });
+});
+
+describe("placementLegalAt (UX wave #9 hover legality)", () => {
+  const TREE_TOOL: EditorTool = { kind: "element", assetId: TREE };
+
+  /** Paint one water cell so the "on water" cases have real solid ground to reject. */
+  function withWaterAt(map: EditorMap, col: number, row: number): EditorMap {
+    return applyTool(map, { kind: "block", block: "water" }, col, row) as EditorMap;
+  }
+
+  it("legal: a decoration on grass", () => {
+    expect(placementLegalAt(TREE_TOOL, blankMap("m", 20, 15), 3, 4)).toBe(true);
+  });
+
+  it("illegal: a decoration on water", () => {
+    const map = withWaterAt(blankMap("m", 20, 15), 3, 4);
+    expect(placementLegalAt(TREE_TOOL, map, 3, 4)).toBe(false);
+  });
+
+  it("legal: an entry event on grass, illegal on water", () => {
+    const map = withWaterAt(blankMap("m", 20, 15), 3, 4);
+    expect(placementLegalAt({ kind: "event", eventKind: "entry" }, map, 5, 5)).toBe(true);
+    expect(placementLegalAt({ kind: "event", eventKind: "entry" }, map, 3, 4)).toBe(false);
+  });
+
+  it("legal: the spawn on empty grass, illegal onto a decorated cell", () => {
+    let map = blankMap("m", 20, 15);
+    expect(placementLegalAt({ kind: "spawn" }, map, 6, 6)).toBe(true);
+    map = applyTool(map, TREE_TOOL, 6, 6) as EditorMap;
+    expect(placementLegalAt({ kind: "spawn" }, map, 6, 6)).toBe(false);
+  });
+
+  it("legal: an event on an empty cell, illegal on a cell that already holds an event", () => {
+    let map = blankMap("m", 20, 15);
+    expect(placementLegalAt({ kind: "event", eventKind: "normal" }, map, 7, 7)).toBe(true);
+    map = applyTool(map, { kind: "event", eventKind: "normal" }, 7, 7) as EditorMap;
+    expect(placementLegalAt({ kind: "event", eventKind: "normal" }, map, 7, 7)).toBe(false);
+  });
+
+  it("legal: the select tool anywhere, even over water (nothing to refuse)", () => {
+    const map = withWaterAt(blankMap("m", 20, 15), 3, 4);
+    expect(placementLegalAt({ kind: "select" }, map, 3, 4)).toBe(true);
+  });
+
+  it("illegal: any placement out of bounds", () => {
+    expect(placementLegalAt(TREE_TOOL, blankMap("m", 20, 15), -1, 4)).toBe(false);
+    expect(placementLegalAt(TREE_TOOL, blankMap("m", 20, 15), 20, 4)).toBe(false);
+  });
+});
+
+describe("placementLegalAt: fill short-circuit (perf)", () => {
+  const FILL_GRASS: EditorTool = { kind: "fill", content: { kind: "block", block: "grass" } };
+  const FILL_WATER: EditorTool = { kind: "fill", content: { kind: "block", block: "water" } };
+
+  /** Wrap the ground layer's `ids` array in a Proxy that counts index reads. The full `applyTool`
+   *  fill path spreads and traverses this array (`floodFill` + `changedBounds` + `commitTerrain`);
+   *  the short-circuit must not touch it at all, only the layer's `cols`/`rows`. */
+  function countingGroundReads(map: EditorMap): { map: EditorMap; reads: () => number } {
+    let reads = 0;
+    const ground = map.layers[0];
+    if (!ground) throw new Error("map has no ground layer");
+    const ids = new Proxy(ground.ids, {
+      get(target, prop, receiver) {
+        reads += 1;
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+    const proxied = { ...map, layers: [{ ...ground, ids }, ...map.layers.slice(1)] };
+    return { map: proxied, reads: () => reads };
+  }
+
+  it("legal everywhere the content has a fill slot — position-independent", () => {
+    const map = blankMap("m", 20, 15);
+    // grass cell, water-fill area, both edges: all legal for a grass fill.
+    expect(placementLegalAt(FILL_GRASS, map, 3, 4)).toBe(true);
+    expect(placementLegalAt(FILL_GRASS, map, 0, 0)).toBe(true);
+    expect(placementLegalAt(FILL_GRASS, map, 19, 14)).toBe(true);
+  });
+
+  it("illegal when the content has no fill slot (water), and out of bounds", () => {
+    const map = blankMap("m", 20, 15);
+    expect(placementLegalAt(FILL_WATER, map, 3, 4)).toBe(false);
+    expect(placementLegalAt(FILL_GRASS, map, -1, 4)).toBe(false);
+    expect(placementLegalAt(FILL_GRASS, map, 20, 4)).toBe(false);
+  });
+
+  it("agrees with the full applyTool legality it replaces", () => {
+    const map = blankMap("m", 20, 15);
+    for (const [tool, c, r] of [
+      [FILL_GRASS, 3, 4],
+      [FILL_GRASS, 0, 0],
+      [FILL_WATER, 5, 5],
+      [FILL_GRASS, -1, 0],
+    ] as const) {
+      expect(placementLegalAt(tool, map, c, r)).toBe(applyTool(map, tool, c, r, true) !== null);
+    }
+  });
+
+  it("does not flood: the short-circuit never reads the ground tile array", () => {
+    const probe = countingGroundReads(blankMap("m", 20, 15));
+    expect(placementLegalAt(FILL_GRASS, probe.map, 3, 4)).toBe(true);
+    expect(probe.reads()).toBe(0);
+
+    // Proof the probe is live: the full path it replaces does traverse that array.
+    const probe2 = countingGroundReads(blankMap("m", 20, 15));
+    applyTool(probe2.map, FILL_GRASS, 3, 4, true);
+    expect(probe2.reads()).toBeGreaterThan(0);
   });
 });

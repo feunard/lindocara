@@ -8,9 +8,9 @@
 
 import { MONSTER_SPECIES_KIND, type MonsterSpawn } from "../../shared/game.js";
 import { EMPTY_MARKERS, terrainFromMap } from "../../shared/map-data.js";
+import { eventCellCentre, monsterEvents } from "../../shared/map-events.js";
 import { DEFAULT_ZONE_NAVIGATION } from "../../shared/navigation.js";
 import { encodeTileLayer } from "../../shared/tile-layer-codec.js";
-import { TILE_SIZE } from "../../shared/tilemap.js";
 import type { ZoneDefinition, ZoneLocation } from "../../shared/zones.js";
 import type { StoredMap } from "../maps.js";
 
@@ -18,20 +18,25 @@ import type { StoredMap } from "../maps.js";
 const MAP_MAX_PLAYERS = 16;
 
 export function zoneFromMap(stored: StoredMap): ZoneDefinition {
-  const monsters: MonsterSpawn[] = (stored.markers ?? EMPTY_MARKERS).monsterSpawns.map(
-    (marker, index) => ({
-      // Entity ids cross the wire in authoritative snapshots and impact events. Keep the
-      // deterministic id inside protocol.ts's wire-id alphabet (`[A-Za-z0-9_-]`): colons would
-      // render correctly but make every authored-monster animation fail defensive parsing.
-      id: `${stored.id}-monster-${index}-${marker.col}-${marker.row}`,
-      kind: MONSTER_SPECIES_KIND[marker.species],
-      species: marker.species,
-      zone: "route",
-      x: marker.col * TILE_SIZE + TILE_SIZE / 2,
-      y: marker.row * TILE_SIZE + TILE_SIZE / 2,
-      patrolRadius: marker.patrolRadius,
-    }),
-  );
+  // UX wave #12: monster spawns are monster-kind EVENTS, not markers. A monster event carries a
+  // validated `species` + `patrolRadius`; the defensive `?? "spear_goblin"`/`?? 0` never fires
+  // (`eventsOf` drops a monster row missing either), it only keeps the types honest here.
+  const monsters: MonsterSpawn[] = monsterEvents(stored.events).map((event) => {
+    const species = event.species ?? "spear_goblin";
+    const { x, y } = eventCellCentre(event);
+    return {
+      // Entity ids cross the wire in authoritative snapshots and impact events. The event uuid is
+      // unique, stable and all hex+dashes, so `mon-<uuid>` (40 chars) stays inside protocol.ts's
+      // wire-id alphabet AND under its 64-char cap — the map-id-prefixed form overran it.
+      id: `mon-${event.id}`,
+      kind: MONSTER_SPECIES_KIND[species],
+      species,
+      zone: "route" as const,
+      x,
+      y,
+      patrolRadius: event.patrolRadius ?? 0,
+    };
+  });
   return {
     id: stored.id,
     // The name is the map's own, typed by whoever drew it — so it is not an i18n key and must not

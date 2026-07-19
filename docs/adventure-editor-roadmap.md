@@ -22,7 +22,7 @@ Six tranches, each ending in something playable:
 | 2 | The editor shell — the wireframe's chrome | **Done** (branch `feature/editor-shell`) |
 | 3 | Events: data and placement | **Done** (branch `feature/map-events`) |
 | 4 | Switches, variables, adventure state | **Done** (branch `feature/adventure-state`) |
-| 4.5 | UX feedback wave | (between 4 and 5, see below) |
+| 4.5 | UX feedback wave | **Done — exit gate cleared** (`feature/ux-wave`, Task 6) |
 | 5 | The command interpreter | The big one |
 | 6 | Test button, tileset database, the rest | |
 
@@ -199,6 +199,25 @@ piece — markers becoming typed events (spawn/entry/exit/monster-spawn) instead
 which needs its own mini-spec before it starts. Its exit gate is not a checklist, it is **hours of
 real Playwright testing**: authoring adventures online, multi-map, multi-player, from zero, without a
 snag. Tranche 5 does not start until that gate is cleared.
+
+**Exit gate cleared (Task 6, `feature/ux-wave`).** A scripted Playwright campaign drove the real app
+end to end and passed with zero console errors in every context: register → creator → instant
+"Nouvelle aventure" (5×5 land in a 20×15 canvas, born with an entry + exit event) → name-at-first-save
+popup → build map 1 (pencil/rect/fill terrain, elevation + stairs, curated tree/bush — the palette
+offers *only* the four curated assets and the one curated species — red illegal-placement feedback on
+water, a switch `0001` in the Database, a monster event, a normal event with a graphic and a switch
+condition) → add map 2 → wire map 1's exit → map 2's entry and map 2's exit → end → PLAYABLE badge →
+create a party → hero → play (terrain collision, the monster attacks, the normal event visible, take
+the exit and arrive on map 2 → Victory). Two-account multiplayer was verified in a second browser
+context: B joined A's party, both heroes saw each other and each other's movement on the same map,
+local chat worked both directions, both fought the goblin, and B took the exit to map 2 while A
+remained on map 1 — both kept functioning. Persistence held: A left and re-entered with map **and**
+exact position restored (a dead hero even restored its corpse state), and the adventure reopened in
+the editor intact after a full reload. The core author→build→wire→play loop was rerun 3× on fresh
+accounts with no flakes. Two minor UX observations, non-blocking (see the Task 6 report): the
+Database dialog's "Retour" unloads the whole editor session (Escape/× is the safe dismiss), and
+adding a map via the panel leaves that map's exit unbound so the adventure reads Draft until it is
+wired. Tranche 5 may proceed.
 
 ## Tranche 5 — The command interpreter
 

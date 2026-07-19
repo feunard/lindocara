@@ -11,8 +11,10 @@
  * any logged-in player. The API is the only place these can actually be enforced.
  */
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 import {
   type AdventureGraph,
+  type MapMarkerIds,
   parseAdventureGraph,
   validateAdventure,
 } from "../shared/adventure.js";
@@ -33,7 +35,14 @@ import {
   type MapMarkers,
   parseMapMarkers,
 } from "../shared/map-data.js";
-import { MAX_EVENTS_PER_MAP, type MapEvent, parseMapEvents } from "../shared/map-events.js";
+import {
+  entryEvents,
+  exitEvents,
+  functionalEvent,
+  MAX_EVENTS_PER_MAP,
+  type MapEvent,
+  parseMapEvents,
+} from "../shared/map-events.js";
 import { layersFromBlocks } from "../shared/map-migrate.js";
 import {
   emptyLayer,
@@ -45,21 +54,15 @@ import { isSolidKind, kindAt } from "../shared/tilemap.js";
 import { tileIdInTileset } from "../shared/tileset.js";
 import { TINY_SWORDS_TILESET_ID, tilesetById } from "../shared/tilesets/tiny-swords.js";
 import { isEditorAssetId } from "../shared/tiny-swords-catalog.js";
-import {
-  adventure,
-  adventureMap,
-  type Db,
-  map,
-  mapElement,
-  mapEvent,
-  mapEventPage,
-} from "./db/index.js";
+import { adventure, type Db, map, mapElement, mapEvent, mapEventPage } from "./db/index.js";
 
 export const BUILTIN_MAP_ID = "builtin";
 
 export interface StoredMap extends MapData {
   id: string;
   accountId: string | null;
+  /** The one adventure that owns this map. The built-in floor has no adventure. */
+  adventureId: string | null;
   name: string;
   revision: number;
   /** Authored events, ordered by ordinal; pages ordered by position. Empty for maps saved before
@@ -92,6 +95,7 @@ const BUILTIN_LAYERS = layersFromBlocks(BUILTIN_BLOCKS);
 export const BUILTIN_MAP: StoredMap = {
   id: BUILTIN_MAP_ID,
   accountId: null,
+  adventureId: null,
   name: "Nowhere",
   revision: 1,
   tilesetId: TINY_SWORDS_TILESET_ID,
@@ -127,6 +131,129 @@ export const MAP_MAX_COLS = 100;
 export const MAP_MIN_ROWS = 15;
 export const MAP_MAX_ROWS = 100;
 export const MAP_NAME_MAX = 48;
+
+/** UX wave #7: every new map is a 5x5 block of grass, spawn dead centre, water everywhere else. */
+export const DEFAULT_MAP_LAND = 5;
+
+/** UX wave #16: the name the atomic adventure-create gives its born map. A fresh adventure owns zero
+ *  maps, so the lowest free `MapN` is unconditionally `Map1` — a constant, not a list to consult, so
+ *  the server stays dumb. Every subsequent map's `MapN` is computed client-side (`nextMapName`) and
+ *  sent as the name, exactly as the new-map dialog already sends a name today. */
+export const DEFAULT_FIRST_MAP_NAME = "Map1";
+
+/**
+ * The one shape a new map is ever created in (#7): a `MAP_MIN_COLS x MAP_MIN_ROWS` field of water
+ * with a centred `DEFAULT_MAP_LAND x DEFAULT_MAP_LAND` block of grass, spawn on that block's centre.
+ * The edges are autotile-resolved by the same brush the editor paints with (`layersFromBlocks`), so
+ * the block is indistinguishable from one drawn by hand. Sizing is a later resize tool's job — map
+ * create ignores any client-supplied dimensions and always builds this.
+ */
+export function defaultMapInput(name: string): MapInput {
+  const cols = MAP_MIN_COLS;
+  const rows = MAP_MIN_ROWS;
+  const colStart = Math.floor((cols - DEFAULT_MAP_LAND) / 2);
+  const rowStart = Math.floor((rows - DEFAULT_MAP_LAND) / 2);
+  const blocks: string[] = [];
+  for (let row = 0; row < rows; row += 1) {
+    let line = "";
+    for (let col = 0; col < cols; col += 1) {
+      const land =
+        col >= colStart &&
+        col < colStart + DEFAULT_MAP_LAND &&
+        row >= rowStart &&
+        row < rowStart + DEFAULT_MAP_LAND;
+      line += land ? "." : "#";
+    }
+    blocks.push(line);
+  }
+  const { layers } = layersFromBlocks(blocks);
+  const spawn = {
+    col: colStart + Math.floor(DEFAULT_MAP_LAND / 2),
+    row: rowStart + Math.floor(DEFAULT_MAP_LAND / 2),
+  };
+  // UX wave #12: the default map is born with a start-ENTRY event on the spawn cell and an end-EXIT
+  // event on a corner of the land block (walkable, and not the spawn cell). A freshly created
+  // adventure's graph binds these events' uuids — start -> the entry, the exit -> "end" — so the born
+  // graph is playable and passes `validateAdventure` on the very first save.
+  const events: MapEvent[] = [
+    functionalEvent({
+      id: crypto.randomUUID(),
+      col: spawn.col,
+      row: spawn.row,
+      ordinal: 1,
+      kind: "entry",
+    }),
+    functionalEvent({
+      id: crypto.randomUUID(),
+      col: colStart,
+      row: rowStart,
+      ordinal: 2,
+      kind: "exit",
+    }),
+  ];
+  return {
+    name,
+    tilesetId: TINY_SWORDS_TILESET_ID,
+    cols,
+    rows,
+    layers,
+    elements: [],
+    spawn,
+    markers: EMPTY_MARKERS,
+    events,
+  };
+}
+
+/**
+ * The map an adventure is born with (UX wave #2/#3): the 5x5 template plus the start-entry and
+ * end-exit EVENTS (UX wave #12) so the adventure's graph validates immediately. Returns the drizzle
+ * INSERTs to compose into the adventure's create batch (one transaction) — the map row and its event
+ * rows/pages — the entry/exit event uuids the born graph binds, and the `StoredMap` the caller hands
+ * back to the client. The `is_first` flag is decided by the database at insert time exactly as
+ * `createMap` does.
+ */
+export function prepareDefaultMap(
+  db: Db,
+  accountId: string,
+  adventureId: string,
+  name: string,
+): {
+  id: string;
+  inserts: BatchItem<"sqlite">[];
+  entryEventId: string;
+  exitEventId: string;
+  stored: StoredMap;
+} {
+  const input = defaultMapInput(name);
+  const data = validateMapInput(input);
+  const id = crypto.randomUUID();
+  const mapInsert = db.insert(map).values({
+    id,
+    accountId,
+    adventureId,
+    name: data.name,
+    cols: input.cols,
+    rows: input.rows,
+    tilesetId: input.tilesetId,
+    layers: encodeLayers(input.layers),
+    spawnCol: input.spawn.col,
+    spawnRow: input.spawn.row,
+    markers: markersJson(data.markers),
+    isFirst: sql`CASE WHEN (SELECT count(*) FROM ${map} WHERE ${map.accountId} = ${accountId}) = 0 THEN 1 ELSE 0 END`,
+  });
+  const entryEventId = entryEvents(data.events)[0]?.id;
+  const exitEventId = exitEvents(data.events)[0]?.id;
+  if (!entryEventId || !exitEventId) {
+    throw new Error("default map lost its start entry or end exit event");
+  }
+  return {
+    id,
+    inserts: [mapInsert, ...insertEventStatements(db, id, data.events)],
+    entryEventId,
+    exitEventId,
+    stored: { id, accountId, adventureId, revision: 1, ...data },
+  };
+}
 
 /** Stored as a JSON array of run-length encoded layer strings — one column, three layers, and no
  *  second encoding for `tile-layer-codec.ts` to keep in step with. */
@@ -260,35 +387,31 @@ export function validateMapInput(input: MapInput): MapData & { name: string; eve
   if (isSolidKind(kindAt(baked, input.spawn.col, input.spawn.row))) {
     throw new Error("spawn: must be a cell a hero can stand on");
   }
+  // Markers are QUARANTINED (UX wave #12): the column still round-trips, so the payload is still
+  // shape-checked, but nothing functional is validated against it — entries/exits/monster spawns are
+  // events now. `parseMapEvents` re-runs the full defensive shape check against THIS map's
+  // dimensions, so count (<= MAX_EVENTS_PER_MAP), in-bounds cells, unique cells, unique ids and the
+  // per-kind discriminant are all re-validated here rather than trusting a pre-parsed `input.events`.
   const markers = parseMapMarkers(input.markers, baked.cols, baked.rows);
   if (!markers) throw new Error("markers: malformed marker payload");
-  const walkable = (col: number, row: number) => !isSolidKind(kindAt(baked, col, row));
-  for (const entry of markers.entries) {
-    if (!walkable(entry.col, entry.row))
-      throw new Error(`markers: entry ${entry.id} must stand on walkable ground`);
-  }
-  const blockedCells = new Set(markers.entries.map((m) => `${m.col},${m.row}`));
-  blockedCells.add(`${input.spawn.col},${input.spawn.row}`);
-  for (const exit of markers.exits) {
-    if (!walkable(exit.col, exit.row))
-      throw new Error(`markers: exit ${exit.id} must stand on walkable ground`);
-    if (blockedCells.has(`${exit.col},${exit.row}`)) {
-      throw new Error(`markers: exit ${exit.id} may not share a cell with the spawn or an entry`);
-    }
-  }
-  for (const spawn of markers.monsterSpawns) {
-    if (!walkable(spawn.col, spawn.row))
-      throw new Error("markers: monster spawns must stand on walkable ground");
-  }
-  // Events float above collision — this tranche never bakes them into `bakeCollision` — so unlike
-  // scenery there is deliberately NO terrain-walkability or spawn-overlap check: an event may
-  // legitimately sit on the spawn cell, on an element, or on water, because they are different
-  // planes. `parseMapEvents` re-runs the full defensive shape check against THIS map's dimensions,
-  // so count (<= MAX_EVENTS_PER_MAP), in-bounds cells, unique cells and unique ids are all
-  // re-validated here rather than trusting a pre-parsed `input.events`.
   const events = parseMapEvents(input.events ?? [], cols, rows);
   if (!events) {
     throw new Error(`events: malformed, out of bounds, or more than ${MAX_EVENTS_PER_MAP} events`);
+  }
+  // A `normal` event floats above collision (it may sit on the spawn, on an element, on water — a
+  // different plane). A functional event is load-bearing: an entry/exit/monster on solid ground is a
+  // map nobody could play, so the old marker-walkability rules move here, keyed by kind. An exit may
+  // not share the spawn cell (a revolving-door on arrival); entry/exit share no cell by construction
+  // (one event per cell).
+  const walkable = (col: number, row: number) => !isSolidKind(kindAt(baked, col, row));
+  for (const event of events) {
+    if (event.kind === "normal") continue;
+    if (!walkable(event.col, event.row)) {
+      throw new Error(`events: ${event.kind} event must stand on walkable ground`);
+    }
+    if (event.kind === "exit" && event.col === input.spawn.col && event.row === input.spawn.row) {
+      throw new Error("events: an exit may not share the spawn cell");
+    }
   }
   // Trimmed, not raw: the name that passed validation is the name that gets stored.
   return { ...data, markers, name, events };
@@ -317,6 +440,7 @@ function toStoredMap(
   return {
     id: row.id,
     accountId: row.accountId,
+    adventureId: row.adventureId,
     name: row.name,
     revision: row.revision,
     tilesetId: row.tilesetId,
@@ -388,8 +512,22 @@ async function eventsOf(db: Db, mapId: string): Promise<MapEvent[]> {
   return eventRowsForMap.flatMap((row): MapEvent[] => {
     const pages = pagesByEvent.get(row.id);
     if (!pages || pages.length === 0) return [];
+    // A monster row missing its species/radius is a corrupt half-row: drop it rather than surface a
+    // monster event the parser would reject, the same "one bad row must not break the map" degrade.
+    const isMonster = row.kind === "monster";
+    if (isMonster && (row.species === null || row.patrolRadius === null)) return [];
     return [
-      { id: row.id, col: row.col, row: row.row, name: row.name, ordinal: row.ordinal, pages },
+      {
+        id: row.id,
+        col: row.col,
+        row: row.row,
+        name: row.name,
+        ordinal: row.ordinal,
+        kind: row.kind,
+        species: isMonster ? row.species : null,
+        patrolRadius: isMonster ? row.patrolRadius : null,
+        pages,
+      },
     ];
   });
 }
@@ -414,16 +552,23 @@ export async function loadOwnedMap(
   return toStoredMap(row, await elementsOf(db, id), await eventsOf(db, id));
 }
 
-export async function listMaps(
+/**
+ * The maps of one adventure the caller owns (UX wave #5: a map belongs to exactly one adventure, so
+ * the library is listed per-adventure, not per-account). The `accountId` gate is redundant with the
+ * `adventureId` scope — a map's account always equals its adventure's — but keeps a foreign caller
+ * from listing another owner's adventure's maps by id.
+ */
+export async function listMapsForAdventure(
   db: Db,
   accountId: string,
+  adventureId: string,
 ): Promise<
   { id: string; name: string; revision: number; cols: number; rows: number; isFirst: boolean }[]
 > {
   const rows = await db
     .select()
     .from(map)
-    .where(eq(map.accountId, accountId))
+    .where(and(eq(map.accountId, accountId), eq(map.adventureId, adventureId)))
     .orderBy(asc(map.createdAt));
   return rows.map((row) => ({
     id: row.id,
@@ -491,15 +636,15 @@ function insertElementStatements(db: Db, mapId: string, elements: readonly MapEl
 
 /**
  * Events and their pages ride the same batch as elements and hit the same D1 100-bound-parameter
- * cap. An event INSERT binds 6 parameters per row (id, map_id, col, row, name, ordinal — created_at
- * defaults), so an unchunked write of the 64-event maximum would bind 384 and D1 would refuse the
- * whole batch with `D1_ERROR: too many SQL variables`. A page INSERT binds 17 (id, event_id,
+ * cap. An event INSERT binds 9 parameters per row (id, map_id, col, row, name, ordinal, kind,
+ * species, patrol_radius — created_at defaults), so an unchunked write of the 64-event maximum would
+ * bind 576 and D1 would refuse the whole batch. A page INSERT binds 17 (id, event_id,
  * position, four condition columns, graphic_asset_id, three move columns, five opt columns,
  * trigger), and the 64x8 = 512-page maximum would bind 8,704. Both chunk sizes derive from the real
  * column count and target 60% of the cap, matching the element rule above so a later column keeps
  * headroom instead of regressing onto the line.
  */
-const MAP_EVENT_PARAMS_PER_ROW = 6; // id, mapId, col, row, name, ordinal — mirrors `mapEvent` (created_at defaults)
+const MAP_EVENT_PARAMS_PER_ROW = 9; // id, mapId, col, row, name, ordinal, kind, species, patrol_radius — mirrors `mapEvent` (created_at defaults)
 const MAP_EVENT_CHUNK_ROWS = Math.floor((D1_MAX_BOUND_PARAMETERS * 0.6) / MAP_EVENT_PARAMS_PER_ROW);
 const MAP_EVENT_PAGE_PARAMS_PER_ROW = 17; // id, eventId, position, 4 cond, graphic, 3 move, 5 opt, trigger — mirrors `mapEventPage`
 const MAP_EVENT_PAGE_CHUNK_ROWS = Math.floor(
@@ -514,6 +659,9 @@ function eventRows(mapId: string, events: readonly MapEvent[]) {
     row: event.row,
     name: event.name,
     ordinal: event.ordinal,
+    kind: event.kind,
+    species: event.species,
+    patrolRadius: event.patrolRadius,
   }));
 }
 
@@ -548,7 +696,7 @@ function eventPageRows(events: readonly MapEvent[]) {
  *  batch. Every chunk rides in the caller's `db.batch()` (one transaction), so an event never
  *  persists with only some of its pages, and a chunked write is exactly as atomic as a single
  *  statement would be. */
-function insertEventStatements(db: Db, mapId: string, events: readonly MapEvent[]) {
+export function insertEventStatements(db: Db, mapId: string, events: readonly MapEvent[]) {
   const parents = chunkRows(eventRows(mapId, events), MAP_EVENT_CHUNK_ROWS).map((rows) =>
     db.insert(mapEvent).values(rows),
   );
@@ -558,12 +706,39 @@ function insertEventStatements(db: Db, mapId: string, events: readonly MapEvent[
   return [...parents, ...pages];
 }
 
-export async function createMap(db: Db, accountId: string, input: MapInput): Promise<StoredMap> {
+/** The adventure `adventureId` that `accountId` owns, or null. Map operations that require an
+ *  adventure resolve ownership through it (the map's owner is the adventure's owner). */
+async function ownedAdventure(db: Db, accountId: string, adventureId: string) {
+  const [row] = await db
+    .select({ id: adventure.id, accountId: adventure.accountId })
+    .from(adventure)
+    .where(eq(adventure.id, adventureId))
+    .limit(1);
+  if (!row || row.accountId !== accountId) return null;
+  return row;
+}
+
+/**
+ * Create a map inside an adventure (UX wave #5 + #7). Ownership is checked through the adventure —
+ * a map created under an adventure the caller does not own is refused with `not_found`. The map is
+ * ALWAYS the 5x5 template (`defaultMapInput`); any client-supplied terrain/size is ignored, so the
+ * new-map dialog only sends a name.
+ */
+export async function createMap(
+  db: Db,
+  accountId: string,
+  adventureId: string,
+  name: string,
+): Promise<StoredMap> {
+  const owner = await ownedAdventure(db, accountId, adventureId);
+  if (!owner) throw new Error("not_found: no such adventure");
+  const input = defaultMapInput(name);
   const data = validateMapInput(input);
   const id = crypto.randomUUID();
   const insertMap = db.insert(map).values({
     id,
     accountId,
+    adventureId,
     name: data.name,
     cols: input.cols,
     rows: input.rows,
@@ -588,7 +763,7 @@ export async function createMap(db: Db, accountId: string, input: MapInput): Pro
   } else {
     await insertMap;
   }
-  return { id, accountId, revision: 1, ...data };
+  return { id, accountId, adventureId, revision: 1, ...data };
 }
 
 export async function updateMap(
@@ -600,60 +775,63 @@ export async function updateMap(
   const data = validateMapInput(input);
   const existing = await loadOwnedMap(db, accountId, id);
   if (!existing) throw new Error("not_found: no such map");
-  const references = await db
-    .select({
-      id: adventure.id,
-      accountId: adventure.accountId,
-      title: adventure.title,
-      maxPlayers: adventure.maxPlayers,
-      graph: adventure.graph,
-    })
-    .from(adventureMap)
-    .innerJoin(adventure, eq(adventureMap.adventureId, adventure.id))
-    .where(eq(adventureMap.mapId, id));
-  if (references.length > 0) {
-    for (const row of references) {
-      if (row.accountId !== accountId) {
-        throw new Error(`referenced: adventure "${row.title}" belongs to another account`);
-      }
+  // A map belongs to exactly one adventure (UX wave #5), so revalidation is against THAT adventure's
+  // graph alone — the cross-account loop is gone, ownership is guaranteed by the fk. Editing this
+  // map's markers must not break its owning adventure's saved graph (a bound exit removed, a start
+  // entry gone). A draft graph (`start === null`) protects nothing, so the edit passes freely.
+  if (existing.adventureId) {
+    const [owner] = await db
+      .select({
+        title: adventure.title,
+        maxPlayers: adventure.maxPlayers,
+        graph: adventure.graph,
+      })
+      .from(adventure)
+      .where(eq(adventure.id, existing.adventureId))
+      .limit(1);
+    if (owner) {
       let graph: AdventureGraph | null = null;
       try {
-        graph = parseAdventureGraph(JSON.parse(row.graph));
+        graph = parseAdventureGraph(JSON.parse(owner.graph));
       } catch {
         graph = null;
       }
-      if (!graph) throw new Error(`referenced: adventure "${row.title}" has a corrupt graph`);
-      const members = await db
-        .select({ mapId: adventureMap.mapId })
-        .from(adventureMap)
-        .where(eq(adventureMap.adventureId, row.id))
-        .orderBy(asc(adventureMap.position));
-      const mapIds = members.map((member) => member.mapId);
-      const markerRows = await db
-        .select({ id: map.id, markers: map.markers, cols: map.cols, rows: map.rows })
+      if (!graph) throw new Error(`referenced: adventure "${owner.title}" has a corrupt graph`);
+      // The graph binds entry/exit EVENT uuids now (UX wave #12). This map's anchors come from the
+      // events being saved (`data.events`); every OTHER member map's from its stored `map_event` rows.
+      const memberRows = await db
+        .select({ id: map.id })
         .from(map)
-        .where(inArray(map.id, mapIds));
-      const markersByMap = new Map(
-        markerRows.map((markerRow) => {
-          const markers =
-            markerRow.id === id ? (data.markers ?? EMPTY_MARKERS) : markersOfRow(markerRow);
-          return [
-            markerRow.id,
-            {
-              entryIds: markers.entries.map((marker) => marker.id),
-              exitIds: markers.exits.map((marker) => marker.id),
-            },
-          ] as const;
-        }),
-      );
+        .where(eq(map.adventureId, existing.adventureId));
+      const markersByMap = new Map<string, MapMarkerIds>();
+      for (const memberRow of memberRows) {
+        markersByMap.set(memberRow.id, { entryIds: [], exitIds: [] });
+      }
+      const otherIds = memberRows.map((row) => row.id).filter((memberId) => memberId !== id);
+      if (otherIds.length > 0) {
+        const eventRows = await db
+          .select({ mapId: mapEvent.mapId, id: mapEvent.id, kind: mapEvent.kind })
+          .from(mapEvent)
+          .where(inArray(mapEvent.mapId, otherIds));
+        for (const event of eventRows) {
+          const anchors = markersByMap.get(event.mapId);
+          if (!anchors) continue;
+          if (event.kind === "entry") (anchors.entryIds as string[]).push(event.id);
+          else if (event.kind === "exit") (anchors.exitIds as string[]).push(event.id);
+        }
+      }
+      markersByMap.set(id, {
+        entryIds: entryEvents(data.events).map((event) => event.id),
+        exitIds: exitEvents(data.events).map((event) => event.id),
+      });
       try {
         validateAdventure(
-          { title: row.title, maxPlayers: row.maxPlayers, mapIds, graph },
+          { title: owner.title, maxPlayers: owner.maxPlayers, graph },
           markersByMap,
         );
       } catch (error) {
         const reason = error instanceof Error ? error.message : "invalid graph";
-        throw new Error(`referenced: adventure "${row.title}" would become invalid (${reason})`);
+        throw new Error(`referenced: adventure "${owner.title}" would become invalid (${reason})`);
       }
     }
   }
@@ -693,7 +871,7 @@ export async function updateMap(
   const updatedRows = batchResults[0] as { revision: number }[];
   const updated = updatedRows[0];
   if (!updated) throw new Error("not_found: map ownership changed mid-update");
-  return { id, accountId, revision: updated.revision, ...data };
+  return { id, accountId, adventureId: existing.adventureId, revision: updated.revision, ...data };
 }
 
 /**
@@ -719,6 +897,25 @@ export async function setFirstMap(db: Db, accountId: string, id: string): Promis
   ]);
 }
 
+/** Whether an adventure's stored graph names `mapId` anywhere — its start, a link's source, or a
+ *  link's destination. A corrupt graph is treated as referencing nothing (delete is not the place
+ *  to fail on it). */
+function graphReferencesMap(graphJson: string, mapId: string): boolean {
+  let graph: AdventureGraph | null = null;
+  try {
+    graph = parseAdventureGraph(JSON.parse(graphJson));
+  } catch {
+    graph = null;
+  }
+  if (!graph) return false;
+  if (graph.start?.mapId === mapId) return true;
+  for (const link of graph.links) {
+    if (link.mapId === mapId) return true;
+    if (link.dest !== "end" && link.dest.mapId === mapId) return true;
+  }
+  return false;
+}
+
 /**
  * Deleting the last map is refused, and deleting the front door moves the flag rather than removing
  * it. Between them, there is always exactly one map flagged and at least one map to flag.
@@ -736,12 +933,17 @@ export async function deleteMap(db: Db, accountId: string, id: string): Promise<
     .limit(1);
   if (!row) throw new Error("not_found: no such map");
 
-  const used = await db
-    .select({ adventureId: adventureMap.adventureId })
-    .from(adventureMap)
-    .where(eq(adventureMap.mapId, id))
+  // The owning adventure's graph may name this map (its start, a link's source or destination).
+  // Deleting it would corrupt the saved graph, so it is refused while the graph references it —
+  // an unlinked map (or a draft adventure) deletes freely.
+  const [owner] = await db
+    .select({ graph: adventure.graph })
+    .from(adventure)
+    .where(eq(adventure.id, row.adventureId))
     .limit(1);
-  if (used.length > 0) throw new Error("referenced: an adventure still uses this map");
+  if (owner && graphReferencesMap(owner.graph, id)) {
+    throw new Error("referenced: an adventure still uses this map");
+  }
 
   const results = await db.$client.batch([
     db.$client

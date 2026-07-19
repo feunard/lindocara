@@ -1,4 +1,4 @@
-import type { Vec2 } from "./simulation.js";
+import type { Input, Vec2 } from "./simulation.js";
 import { isSolidKind, kindAt, TILE_SIZE, type TileMap } from "./tilemap.js";
 
 const DIRECTION_EPSILON = 1e-6;
@@ -91,6 +91,19 @@ export function orientationFromMovement(movement: Vec2, current: Vec2 = DEFAULT_
     return normalizeDirection(current);
   }
   return normalizeDirection(movement, current);
+}
+
+/**
+ * Turns one tick's movement `Input` into the vector `orientationFromMovement` expects. This is
+ * the one conversion the server's `movement-system.ts` applies to a dequeued command every tick,
+ * and the map-preview sandbox applies to its locally-polled input every tick — same function, so
+ * a builder walking the preview turns exactly like a player would in the real room.
+ */
+export function facingFromInput(input: Input, current: Vec2 = DEFAULT_FACING): Vec2 {
+  return orientationFromMovement(
+    { x: Number(input.right) - Number(input.left), y: Number(input.down) - Number(input.up) },
+    current,
+  );
 }
 
 export function frontalArc(

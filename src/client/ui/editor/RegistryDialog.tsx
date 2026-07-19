@@ -198,7 +198,9 @@ export function RegistryDialog({ open, onOpenChange, onSessionExpired }: Registr
             />
 
             <div className="flex items-center justify-between gap-2">
-              <Button variant="outline" onClick={() => setSession(null)}>
+              {/* Close the dialog (Escape/× semantics) — never `setSession(null)`, which with the
+                  picker gone (UX wave #15) would unload the whole editor out from under the author. */}
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
                 {t("editor.back")}
               </Button>
               <div className="flex items-center gap-3">

@@ -1,11 +1,16 @@
 /**
- * An adventure is an authored graph over maps: exits (placed in maps) are bound here to a
- * destination map + entry, or to "end". Destinations belong to the adventure, never to the map —
- * a client can request "use this exit" but the server resolves where it leads from this graph.
- * Pure rules only: D1 lookups live in server/adventures.ts.
+ * An adventure is an authored graph over its OWN maps: exits (placed in maps) are bound here to a
+ * destination map + entry, or to "end". A map belongs to exactly one adventure (UX wave #5), so
+ * membership is implicit — every map the adventure owns is a member, and the graph may only
+ * reference those. A client can request "use this exit" but the server resolves where it leads from
+ * this graph. Pure rules only: D1 lookups live in server/adventures.ts.
+ *
+ * `start` is nullable: a freshly created adventure is a draft with no maps yet, so it has no start
+ * anchor to point at. `EMPTY_GRAPH` is that draft state. A draft is valid but not playable — heroes
+ * cannot spawn and party admission refuses it until a real start is authored.
  */
 import { type AdventureRegistry, parseAdventureRegistry } from "./adventure-state.js";
-import { MARKER_ID_PATTERN } from "./map-data.js";
+import { isUuid } from "./identifiers.js";
 
 export const ADVENTURE_TITLE_MAX = 48;
 export const MAX_ADVENTURE_MAPS = 16;
@@ -24,23 +29,34 @@ export interface AdventureLink {
 }
 
 export interface AdventureGraph {
-  start: { mapId: string; entryId: string };
+  /** Null for a draft adventure with no start authored yet (see `EMPTY_GRAPH`). */
+  start: { mapId: string; entryId: string } | null;
   links: readonly AdventureLink[];
 }
 
+/** The graph a freshly created (draft) adventure carries: no start, no links. */
+export const EMPTY_GRAPH: AdventureGraph = { start: null, links: [] };
+
+/** What `updateAdventure` accepts: the graph plus its shell fields. Membership is implicit (the
+ *  adventure's owned maps), so there is no `mapIds` on the wire any more. */
 export interface AdventureInput {
   title: string;
   maxPlayers: number;
-  mapIds: readonly string[];
   graph: AdventureGraph;
   /** The switch/variable registry, when the client sends one. `undefined` means "leave the stored
-   *  registry untouched" — a PUT that omits it never wipes the column — so only a body that carries
-   *  `registry` writes it. `activePageIndex` reads any orphaned id as false/0 (the fail-closed
-   *  default), so shrinking a registry out from under a condition is safe. */
+   *  registry untouched" — a PUT that omits it never wipes the column. */
   registry?: AdventureRegistry;
 }
 
-/** The marker ids of one member map, as Task 5 reads them from the stored payload. */
+/** What `createAdventure` accepts: just the shell. The server mints an empty draft graph. */
+export interface CreateAdventureInput {
+  title: string;
+  maxPlayers: number;
+  registry?: AdventureRegistry;
+}
+
+/** UX wave #12: the graph binds the UUIDs of a map's entry/exit-kind EVENTS, not marker ids. These
+ *  are the uuids of that member map's entry-kind and exit-kind events. */
 export interface MapMarkerIds {
   entryIds: readonly string[];
   exitIds: readonly string[];
@@ -50,15 +66,20 @@ function parseAnchor(value: unknown): { mapId: string; entryId: string } | null 
   if (typeof value !== "object" || value === null) return null;
   const { mapId, entryId } = value as Record<string, unknown>;
   if (typeof mapId !== "string" || !MAP_ID_PATTERN.test(mapId)) return null;
-  if (typeof entryId !== "string" || !MARKER_ID_PATTERN.test(entryId)) return null;
+  // `entryId` is the uuid of an entry-kind event on `mapId` (was a marker id before UX wave #12).
+  if (!isUuid(entryId)) return null;
   return { mapId, entryId };
 }
 
 export function parseAdventureGraph(value: unknown): AdventureGraph | null {
   if (typeof value !== "object" || value === null) return null;
   const record = value as Record<string, unknown>;
-  const start = parseAnchor(record.start);
-  if (!start) return null;
+  // A null/absent start is a draft graph; anything else must be a well-formed anchor.
+  let start: { mapId: string; entryId: string } | null = null;
+  if (record.start !== null && record.start !== undefined) {
+    start = parseAnchor(record.start);
+    if (!start) return null;
+  }
   const linksRaw = record.links;
   if (!Array.isArray(linksRaw) || linksRaw.length > MAX_ADVENTURE_LINKS) return null;
   const links: AdventureLink[] = [];
@@ -66,7 +87,8 @@ export function parseAdventureGraph(value: unknown): AdventureGraph | null {
     if (typeof raw !== "object" || raw === null) return null;
     const { mapId, exitId, dest } = raw as Record<string, unknown>;
     if (typeof mapId !== "string" || !MAP_ID_PATTERN.test(mapId)) return null;
-    if (typeof exitId !== "string" || !MARKER_ID_PATTERN.test(exitId)) return null;
+    // `exitId` is the uuid of an exit-kind event on `mapId` (was a marker id before UX wave #12).
+    if (!isUuid(exitId)) return null;
     if (dest === "end") {
       links.push({ mapId, exitId, dest: "end" });
       continue;
@@ -78,38 +100,57 @@ export function parseAdventureGraph(value: unknown): AdventureGraph | null {
   return { start, links };
 }
 
-export function parseAdventureInput(value: unknown): AdventureInput | null {
+function parseShell(value: unknown): { title: string; maxPlayers: number } | null {
   if (typeof value !== "object" || value === null) return null;
-  const record = value as Record<string, unknown>;
-  const { title, maxPlayers, mapIds } = record;
+  const { title, maxPlayers } = value as Record<string, unknown>;
   if (typeof title !== "string") return null;
   if (!Number.isSafeInteger(maxPlayers)) return null;
-  if (!Array.isArray(mapIds) || mapIds.length > MAX_ADVENTURE_MAPS) return null;
-  for (const id of mapIds) {
-    if (typeof id !== "string" || !MAP_ID_PATTERN.test(id)) return null;
-  }
-  const graph = parseAdventureGraph(record.graph);
-  if (!graph) return null;
-  // Absent registry stays undefined (the store leaves the column alone); a present-but-malformed
-  // registry rejects the whole body rather than silently defaulting to empty.
-  let registry: AdventureRegistry | undefined;
-  if (record.registry !== undefined) {
-    const parsed = parseAdventureRegistry(record.registry);
-    if (!parsed) return null;
-    registry = parsed;
-  }
+  return { title, maxPlayers: maxPlayers as number };
+}
+
+function parseOptionalRegistry(value: unknown): { ok: true; registry?: AdventureRegistry } | null {
+  const record = value as Record<string, unknown>;
+  if (record.registry === undefined) return { ok: true };
+  const parsed = parseAdventureRegistry(record.registry);
+  if (!parsed) return null;
+  return { ok: true, registry: parsed };
+}
+
+export function parseCreateAdventureInput(value: unknown): CreateAdventureInput | null {
+  const shell = parseShell(value);
+  if (!shell) return null;
+  const registry = parseOptionalRegistry(value);
+  if (!registry) return null;
   return {
-    title,
-    maxPlayers: maxPlayers as number,
-    mapIds: mapIds as string[],
-    graph,
-    ...(registry !== undefined ? { registry } : {}),
+    ...shell,
+    ...(registry.registry !== undefined ? { registry: registry.registry } : {}),
   };
 }
 
-/** Throws "title:|players:|maps:|graph:" — the prefix is the machine code, per server convention. */
+export function parseAdventureInput(value: unknown): AdventureInput | null {
+  const shell = parseShell(value);
+  if (!shell) return null;
+  const graph = parseAdventureGraph((value as Record<string, unknown>).graph);
+  if (!graph) return null;
+  const registry = parseOptionalRegistry(value);
+  if (!registry) return null;
+  return {
+    ...shell,
+    graph,
+    ...(registry.registry !== undefined ? { registry: registry.registry } : {}),
+  };
+}
+
+/**
+ * Throws "title:|players:|maps:|graph:" — the prefix is the machine code, per server convention.
+ *
+ * `markersByMap` is the adventure's OWNED maps (server/adventures.ts builds it from `map.adventure_id`),
+ * so a graph that names a map not in this set is by construction a foreign-map reference and is
+ * rejected. A draft graph (`start === null`) is valid with no members and no links — an adventure
+ * being built before its first map exists.
+ */
 export function validateAdventure(
-  input: AdventureInput,
+  input: { title: string; maxPlayers: number; graph: AdventureGraph },
   markersByMap: ReadonlyMap<string, MapMarkerIds>,
 ): void {
   const title = input.title.trim();
@@ -119,19 +160,22 @@ export function validateAdventure(
   if (input.maxPlayers < 1 || input.maxPlayers > 4) {
     throw new Error("players: between 1 and 4");
   }
-  if (input.mapIds.length === 0 || input.mapIds.length > MAX_ADVENTURE_MAPS) {
-    throw new Error(`maps: 1 to ${MAX_ADVENTURE_MAPS} maps`);
+
+  const { start, links } = input.graph;
+  if (start === null) {
+    // A draft: nothing is wired yet. Links without a start make no sense.
+    if (links.length > 0) throw new Error("graph: a draft adventure cannot have links");
+    return;
   }
-  const members = new Set(input.mapIds);
-  if (members.size !== input.mapIds.length) throw new Error("maps: duplicate map");
-  for (const mapId of input.mapIds) {
-    if (!markersByMap.has(mapId)) throw new Error(`maps: unknown map ${mapId}`);
+
+  const members = new Set(markersByMap.keys());
+  if (members.size === 0 || members.size > MAX_ADVENTURE_MAPS) {
+    throw new Error(`maps: 1 to ${MAX_ADVENTURE_MAPS} maps`);
   }
 
   const entryExists = (mapId: string, entryId: string): boolean =>
     (markersByMap.get(mapId)?.entryIds ?? []).includes(entryId);
 
-  const { start, links } = input.graph;
   if (!members.has(start.mapId) || !entryExists(start.mapId, start.entryId)) {
     throw new Error("graph: start must name a member map and one of its entries");
   }
@@ -159,8 +203,8 @@ export function validateAdventure(
     next.add(link.dest.mapId);
     destinations.set(link.mapId, next);
   }
-  for (const mapId of input.mapIds) {
-    for (const exitId of markersByMap.get(mapId)?.exitIds ?? []) {
+  for (const [mapId, markers] of markersByMap) {
+    for (const exitId of markers.exitIds) {
       if (!bound.has(`${mapId}:${exitId}`)) {
         throw new Error(`graph: exit ${exitId} on map ${mapId} is unbound`);
       }
@@ -180,6 +224,7 @@ export function validateAdventure(
   if (![...endingMaps].some((mapId) => reachable.has(mapId))) {
     throw new Error("graph: no adventure ending is reachable from the start");
   }
-  const unreachable = input.mapIds.find((mapId) => !reachable.has(mapId));
-  if (unreachable) throw new Error(`graph: map ${unreachable} is unreachable from the start`);
+  // No "every owned map must be reachable" rule: under implicit membership (UX wave #5) a map the
+  // adventure owns but has not wired into the graph yet is a work-in-progress, not an error — an
+  // author adds a map before linking it. Playability still requires a reachable ending above.
 }

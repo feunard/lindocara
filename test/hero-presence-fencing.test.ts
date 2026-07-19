@@ -130,7 +130,6 @@ afterEach(async () => {
   await env.DB.exec("DELETE FROM hero");
   await env.DB.exec("DELETE FROM party_member");
   await env.DB.exec("DELETE FROM party");
-  await env.DB.exec("DELETE FROM adventure_map");
   await env.DB.exec("DELETE FROM adventure");
   await env.DB.exec("DELETE FROM map_element");
   await env.DB.exec("DELETE FROM map");

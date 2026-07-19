@@ -53,3 +53,38 @@ Schéma d'abord (5), puis le flux d'entrée (2-4, 6, 7), puis l'éditeur (8, 9, 
 > avec un type d'events / afficher uniquement les décorations qu'on a testé rigoureusement,
 > aujourd'hui y'en a bcp d'invalide. Garde juste un buisson et un arbre. Garde juste un
 > monstre. Fait simple.
+
+## Amendement du 2026-07-19 (après tâche 2)
+
+14. **Pas de page/formulaire de création.** « Nouvelle aventure » crée immédiatement (création
+    atomique existante, nom par défaut) et atterrit dans l'éditeur. **Le nom se demande au
+    premier save, via un popup.** Le max joueurs (défaut 4) se configure dans les réglages de
+    l'aventure via un dialog des menus de l'éditeur — plus jamais à la création.
+
+> Verbatim : « je suis pas fan de la page de création de aventure, je préfère qu'on fasse
+> directement une aventure, et qu'on peut changer le nom de l'aventure quand on va la save pour
+> la premiere fois via un popup. Also, on configure le max player dans des settings de
+> l'aventure via un dialog dans les menus de l'éditeur. Par défaut on dit que c'est 4 joueurs max. »
+
+## Amendement 2 du 2026-07-19
+
+15. **Pas de page picker.** Ouvrir l'éditeur ouvre L'ÉDITEUR, directement. Charger une aventure
+    existante : menus → Fichier → « Charger une aventure » → dialog listant les aventures.
+    Décision d'implémentation (renversable) : à l'ouverture, l'éditeur charge la DERNIÈRE
+    aventure éditée (mémoire client) ; s'il n'y en a aucune, il en crée une immédiatement
+    (remarque 14). Ça évite de fabriquer une aventure fantôme à chaque ouverture.
+
+> Verbatim : « quand on ouvre l'editeur, je veux ouvrir directement l'editeur, je veux pas une
+> page intermédiaire qui liste les aventures. je veux ouvrir directement l'éditeur. et si je veux
+> load une aventure existant, j'utilise les menus -> fichiers -> charger aventures -> dialog avec
+> la liste des aventures »
+
+## Amendement 3 du 2026-07-19
+
+16. **Noms par défaut des cartes : Map1, Map2, Map3…** (plus de nom d'aventure visible en
+    tête). Le chip du menubar affiche un « Editor » statique, non cliquable. Fichier gagne
+    « Quitter l'éditeur » (retour aux parties).
+
+> Verbatim : « le nom par défaut d'une map c'est Map1 (Map2, Map3), je veux pas voir "Nouvelle
+> Aventure". / replace "Nouvelle Aventure" par "Editor" et ne le rend pas clickable / ajoute
+> "Quitter l'editor" dans "Ficher" / fais des pulls régulièrement aussi et merge si besoin »

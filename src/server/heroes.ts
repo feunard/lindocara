@@ -8,8 +8,8 @@ import { and, asc, eq } from "drizzle-orm";
 import type { PlayerClass } from "../shared/game.js";
 import type { CreateHeroInput } from "../shared/hero.js";
 import { MAX_HEROES_PER_PARTY } from "../shared/hero.js";
-import { EMPTY_MARKERS, mapSpawnPoint } from "../shared/map-data.js";
-import { TILE_SIZE } from "../shared/tilemap.js";
+import { mapSpawnPoint } from "../shared/map-data.js";
+import { eventCellCentre } from "../shared/map-events.js";
 import { loadAdventure } from "./adventures.js";
 import { type Db, hero, party, partyMember } from "./db/index.js";
 import { loadMap, type StoredMap } from "./maps.js";
@@ -46,12 +46,11 @@ function toStored(row: typeof hero.$inferSelect): StoredHero {
   };
 }
 
-/** The pixel centre of the named entry cell, or the map's fallback spawn if the entry is gone. */
+/** The pixel centre of the named entry EVENT's cell, or the map's fallback spawn if it is gone. */
 function entryPosition(map: StoredMap, entryId: string): { x: number; y: number } {
-  const markers = map.markers ?? EMPTY_MARKERS;
-  const entry = markers.entries.find((marker) => marker.id === entryId);
+  const entry = map.events.find((event) => event.kind === "entry" && event.id === entryId);
   if (!entry) return mapSpawnPoint(map);
-  return { x: entry.col * TILE_SIZE + TILE_SIZE / 2, y: entry.row * TILE_SIZE + TILE_SIZE / 2 };
+  return eventCellCentre(entry);
 }
 
 export async function createHero(
@@ -80,9 +79,12 @@ export async function createHero(
   // The adventure is owned by the party host; load it through them to read the start entry.
   const adventure = await loadAdventure(db, partyRow.hostAccountId, partyRow.adventureId);
   if (!adventure) throw new Error("not_found: party adventure is unavailable");
-  const startMap = await loadMap(db, adventure.graph.start.mapId);
+  // A draft adventure has no start authored yet — a hero has nowhere to spawn.
+  const start = adventure.graph.start;
+  if (!start) throw new Error("not_found: party adventure has no start");
+  const startMap = await loadMap(db, start.mapId);
   if (!startMap) throw new Error("not_found: start map is unavailable");
-  const position = entryPosition(startMap, adventure.graph.start.entryId);
+  const position = entryPosition(startMap, start.entryId);
 
   const id = crypto.randomUUID();
   await db.insert(hero).values({

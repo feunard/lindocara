@@ -1,13 +1,9 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { emptyDraft } from "../../src/client/adventure-draft.js";
 import type { MapPayload, MapSummary } from "../../src/client/api.js";
-import {
-  blankMap,
-  defaultEventPage,
-  toMapData,
-  toSaveInput,
-} from "../../src/client/game/editor-state.js";
+import { defaultEventPage, toMapData, toSaveInput } from "../../src/client/game/editor-state.js";
 import { setLocale, t } from "../../src/client/i18n.js";
 import { useUiStore } from "../../src/client/store.js";
 import { AdventureEditorScreen } from "../../src/client/ui/editor/AdventureEditorScreen.js";
@@ -16,7 +12,7 @@ import { EMPTY_MARKERS } from "../../src/shared/map-data.js";
 import { layersFromBlocks } from "../../src/shared/map-migrate.js";
 import { encodeTileLayer } from "../../src/shared/tile-layer-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "../../src/shared/tilesets/tiny-swords.js";
-import { EDITOR_ASSETS } from "../../src/shared/tiny-swords-catalog.js";
+import { CURATED_EDITOR_ASSETS } from "../../src/shared/tiny-swords-catalog.js";
 
 // The painting stage is Pixi on a real canvas — untestable in jsdom. A fake handle stands in so the
 // tests exercise the shell's own behaviour: which EditorTool it pushes, that the layer selector
@@ -26,16 +22,15 @@ const stageMock = vi.hoisted(() => ({
   setTool: vi.fn(),
   setActiveLayer: vi.fn(),
   setDim: vi.fn(),
+  setGrid: vi.fn(),
   current: vi.fn(),
   setName: vi.fn(),
   undo: vi.fn(),
   redo: vi.fn(),
   markSaved: vi.fn(),
   selected: vi.fn(),
-  setSelectedMarkerLabel: vi.fn(),
   moveSelected: vi.fn(),
   setSelectedElementAsset: vi.fn(),
-  setSelectedMonster: vi.fn(),
   deleteSelected: vi.fn(),
   beginEventDraft: vi.fn(),
   commitEventDraft: vi.fn(),
@@ -52,16 +47,15 @@ function stageHandle() {
     setTool: stageMock.setTool,
     setActiveLayer: stageMock.setActiveLayer,
     setDim: stageMock.setDim,
+    setGrid: stageMock.setGrid,
     current: stageMock.current,
     setName: stageMock.setName,
     undo: stageMock.undo,
     redo: stageMock.redo,
     markSaved: stageMock.markSaved,
     selected: stageMock.selected,
-    setSelectedMarkerLabel: stageMock.setSelectedMarkerLabel,
     moveSelected: stageMock.moveSelected,
     setSelectedElementAsset: stageMock.setSelectedElementAsset,
-    setSelectedMonster: stageMock.setSelectedMonster,
     deleteSelected: stageMock.deleteSelected,
     beginEventDraft: stageMock.beginEventDraft,
     commitEventDraft: stageMock.commitEventDraft,
@@ -114,7 +108,8 @@ function payloadFor(summary: MapSummary): MapPayload {
 function mapsFetchMock(maps: MapSummary[] = oneMap) {
   return vi.fn((url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
-    if (url === "/api/maps" && method === "GET") return Promise.resolve(jsonResponse(maps));
+    if (url.startsWith("/api/maps?adventure=") && method === "GET")
+      return Promise.resolve(jsonResponse(maps));
     const idMatch = url.match(/^\/api\/maps\/([^/]+)$/);
     const summary = idMatch?.[1] ? maps.find((m) => m.id === idMatch[1]) : undefined;
     if (summary && method === "GET") return Promise.resolve(jsonResponse(payloadFor(summary)));
@@ -128,7 +123,8 @@ function mapsBackend(maps: MapSummary[] = twoMaps) {
   const list = maps.map((m) => ({ ...m }));
   return vi.fn((url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
-    if (url === "/api/maps" && method === "GET") return Promise.resolve(jsonResponse(list));
+    if (url.startsWith("/api/maps?adventure=") && method === "GET")
+      return Promise.resolve(jsonResponse(list));
     if (url === "/api/maps" && method === "POST") {
       const created: MapPayload = {
         id: "new",
@@ -179,9 +175,17 @@ async function mountReady(): Promise<ReturnType<typeof render>> {
 describe("AdventureEditorScreen shell", () => {
   beforeEach(() => {
     setLocale("en");
+    // A map belongs to one adventure, so the editor loads maps for the session's adventure. Seed a
+    // loaded adventure so the auto-open fetches `/api/maps?adventure=adv-1` and mounts the stage.
     useUiStore.setState({
       screen: "adventure-editor",
-      adventureEditorSession: null,
+      adventureEditorSession: {
+        adventureId: "adv-1",
+        draftId: "draft-1",
+        draft: emptyDraft(),
+        invalidatedLinks: [],
+        savedDraft: null,
+      },
     });
     for (const fn of Object.values(stageMock)) fn.mockReset();
     stageMock.openMapEditorStage.mockResolvedValue(stageHandle());
@@ -191,6 +195,7 @@ describe("AdventureEditorScreen shell", () => {
       elements: [],
       spawn: { col: 20, row: 15 },
       markers: EMPTY_MARKERS,
+      events: [],
     });
     previewMock.startMapPreview.mockReset();
     previewMock.startMapPreview.mockResolvedValue({ stop: previewMock.stop });
@@ -222,6 +227,52 @@ describe("AdventureEditorScreen shell", () => {
     expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "eraser" });
   });
 
+  it("mounts the shell under the light-only editor scope (UX wave #1)", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    const { container } = await mountReady();
+    // The whole shell hangs off `.editor-root`, the hook legacy.css scopes color-scheme:light and the
+    // light shadcn tokens to (the token resolution itself is css:false here — verified visually in the
+    // real-browser campaign). If the hook class is ever renamed/dropped, the light scope silently
+    // stops applying, so pin it.
+    const root = container.querySelector(".editor-root");
+    expect(root).not.toBeNull();
+    expect(root).toHaveClass("editor-root");
+  });
+
+  it("opens the stage grid-on by default (UX wave #8)", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    await mountReady();
+    // The stage is told to show the grid the moment it is wired…
+    await waitFor(() => expect(stageMock.setGrid).toHaveBeenCalledWith(true));
+    // …and the toolbar's grid toggle reflects it as pressed.
+    expect(screen.getByRole("button", { name: t("editor.shell.grid.aria") })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("keeps selection exclusive: a terrain pick clears the spawn tool and vice versa (UX wave #11)", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    await mountReady();
+    const grass = () => screen.getByRole("button", { name: t("editor.tool.grass") });
+    const spawn = () => screen.getByRole("button", { name: t("editor.tool.spawn") });
+
+    // Default selection is pencil+grass, so the grass swatch is the ONE active selection.
+    expect(grass()).toHaveAttribute("aria-pressed", "true");
+
+    // Picking the hero-spawn tool deselects the terrain — never Herbe AND the spawn tool at once.
+    await userEvent.click(spawn());
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "spawn" });
+    expect(spawn()).toHaveAttribute("aria-pressed", "true");
+    expect(grass()).toHaveAttribute("aria-pressed", "false");
+
+    // Picking grass back deselects the spawn tool and re-arms the pencil, so exactly one is pressed.
+    await userEvent.click(grass());
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "block", block: "grass" });
+    expect(grass()).toHaveAttribute("aria-pressed", "true");
+    expect(spawn()).toHaveAttribute("aria-pressed", "false");
+  });
+
   it("the EV slot activates the event tool, pushing the overlay onto the stage handle", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady();
@@ -229,7 +280,11 @@ describe("AdventureEditorScreen shell", () => {
     await userEvent.click(screen.getByRole("button", { name: t("editor.shell.events") }));
     // The event tool is what turns the stage's EV overlay on (shouldShowEventOverlay), so this call
     // reaching the handle IS the overlay flag reaching the stage.
-    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "event", graphic: null });
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({
+      kind: "event",
+      eventKind: "normal",
+      graphic: null,
+    });
   });
 
   it("opens the event dialog when the stage double-click requests it", async () => {
@@ -341,14 +396,14 @@ describe("AdventureEditorScreen shell", () => {
     await userEvent.click(screen.getByRole("button", { name: t("editor.shell.events") }));
     const palette = screen.getByRole("complementary", { name: t("editor.shell.palette.aria") });
 
-    // An asset whose last id segment is unique across the catalogue, so its grid card is found by
-    // that text alone — this test is about the picker→tool wiring, not the palette's search.
+    // An asset whose last id segment is unique across the CURATED palette (UX wave #13 hides the rest),
+    // so its grid card is found by that text alone — this test is about the picker→tool wiring.
     const shortCounts = new Map<string, number>();
-    for (const candidate of EDITOR_ASSETS) {
+    for (const candidate of CURATED_EDITOR_ASSETS) {
       const segment = candidate.id.split(".").at(-1) ?? candidate.id;
       shortCounts.set(segment, (shortCounts.get(segment) ?? 0) + 1);
     }
-    const asset = EDITOR_ASSETS.find(
+    const asset = CURATED_EDITOR_ASSETS.find(
       (candidate) => shortCounts.get(candidate.id.split(".").at(-1) ?? candidate.id) === 1,
     );
     if (!asset) throw new Error("no uniquely-named catalogue asset");
@@ -358,13 +413,21 @@ describe("AdventureEditorScreen shell", () => {
     await userEvent.click(card);
     // The pending graphic reaches the event tool the stage places with (applyTool then stamps it on
     // page 1 — proven directly in editor-state.test.ts).
-    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "event", graphic: asset.id });
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({
+      kind: "event",
+      eventKind: "normal",
+      graphic: asset.id,
+    });
 
     // And "No graphic" clears back to the placeholder default.
     await userEvent.click(
       within(palette).getByRole("button", { name: t("editor.shell.events.graphic.none") }),
     );
-    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "event", graphic: null });
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({
+      kind: "event",
+      eventKind: "normal",
+      graphic: null,
+    });
   });
 
   it("threads the layer selector to setActiveLayer and reflects it in the status bar", async () => {
@@ -376,6 +439,96 @@ describe("AdventureEditorScreen shell", () => {
 
     expect(stageMock.setActiveLayer).toHaveBeenLastCalledWith(1);
     expect(screen.getByText(t("editor.shell.layer", { n: 2 }))).toBeInTheDocument();
+  });
+
+  it("makes a map the start from the Cartes panel, persisting the entry binding through the adventure PUT", async () => {
+    // A two-map corridor whose start is m1; the Cartes-panel star moves it to m2.
+    useUiStore.setState({
+      adventureEditorSession: {
+        adventureId: "adv-1",
+        draftId: "draft-1",
+        draft: {
+          title: "Donjon",
+          maxPlayers: 4,
+          members: [
+            {
+              mapId: "m1",
+              name: "Verdant Reach",
+              revision: 1,
+              solid: ["."],
+              monsterCount: 0,
+              entryIds: ["door"],
+              exitIds: ["gate"],
+              entryLabels: {},
+              exitLabels: {},
+            },
+            {
+              mapId: "m2",
+              name: "Frostfen",
+              revision: 1,
+              solid: ["."],
+              monsterCount: 0,
+              entryIds: ["west"],
+              exitIds: ["boss"],
+              entryLabels: {},
+              exitLabels: {},
+            },
+          ],
+          start: { mapId: "m1", entryId: "door" },
+          bindings: [
+            { mapId: "m1", exitId: "gate", dest: { mapId: "m2", entryId: "west" } },
+            { mapId: "m2", exitId: "boss", dest: "end" },
+          ],
+          registry: { switches: [], variables: [] },
+        },
+        invalidatedLinks: [],
+        savedDraft: null,
+      },
+    });
+    const adventurePayload = {
+      id: "adv-1",
+      accountId: "acct",
+      title: "Donjon",
+      maxPlayers: 4,
+      version: 1,
+      mapIds: ["m1", "m2"],
+      graph: { start: { mapId: "m2", entryId: "west" }, links: [] },
+      registry: { switches: [], variables: [] },
+    };
+    const mock = vi.fn((url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      if (url.startsWith("/api/maps?adventure=") && method === "GET")
+        return Promise.resolve(jsonResponse(twoMaps));
+      const mapMatch = url.match(/^\/api\/maps\/([^/]+)$/);
+      if (mapMatch?.[1] && method === "GET") {
+        const summary = twoMaps.find((m) => m.id === mapMatch[1]);
+        if (summary) return Promise.resolve(jsonResponse(payloadFor(summary)));
+      }
+      if (url === "/api/adventures/adv-1" && method === "PUT")
+        return Promise.resolve(jsonResponse(adventurePayload));
+      if (url === "/api/adventures/adv-1" && method === "GET")
+        return Promise.resolve(jsonResponse(adventurePayload));
+      return Promise.resolve(jsonResponse({ error: "not_found" }, 404));
+    });
+    vi.stubGlobal("fetch", mock);
+    await mountReady();
+
+    // m1 is the start (its star reads "active"); click m2's "set as start" affordance.
+    await userEvent.click(
+      await screen.findByRole("button", { name: t("editor.shell.maps.start") }),
+    );
+
+    await waitFor(() => {
+      const put = mock.mock.calls.find(
+        ([url, init]) => url === "/api/adventures/adv-1" && (init as RequestInit)?.method === "PUT",
+      );
+      expect(put).toBeDefined();
+      const body = JSON.parse(String((put?.[1] as RequestInit)?.body)) as {
+        graph: { start: { mapId: string; entryId: string } };
+      };
+      // The start carries the ENTRY binding, not just the map id — a bare map id would be rejected.
+      expect(body.graph.start).toEqual({ mapId: "m2", entryId: "west" });
+    });
   });
 
   it("installs the layer selected while the stage was still opening, not the layer captured when the open effect started", async () => {
@@ -471,25 +624,35 @@ describe("AdventureEditorScreen shell", () => {
     await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(2));
   });
 
-  it("restores marker authoring: the entry tool places an entry and the inspector deletes a marker", async () => {
+  it("authors an entry EVENT: the EV entry kind places one, and the inspector deletes it", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady();
 
-    // The palette's entry tool pushes the marker-entry EditorTool down to the stage.
-    await userEvent.click(screen.getByRole("button", { name: t("editor.tool.entry") }));
-    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "marker-entry" });
+    // Enter EV mode, then pick the entry kind — the event tool it pushes carries eventKind: "entry".
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.events") }));
+    await userEvent.click(screen.getByRole("button", { name: t("editor.event.kind.entry") }));
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "event", eventKind: "entry" });
 
-    // A selected entry lights the inspector: its label shows, and Delete reaches deleteSelected.
+    // A selected event lights the inspector: its EV id shows, and Delete reaches deleteSelected.
     stageMock.current.mockReturnValue({
       name: "Verdant Reach",
       layers: [],
       elements: [],
       spawn: { col: 20, row: 15 },
-      markers: {
-        entries: [{ id: "door", label: "Front gate", col: 1, row: 1 }],
-        exits: [],
-        monsterSpawns: [],
-      },
+      markers: EMPTY_MARKERS,
+      events: [
+        {
+          id: "ev-door",
+          col: 1,
+          row: 1,
+          name: "Front gate",
+          ordinal: 1,
+          kind: "entry",
+          species: null,
+          patrolRadius: null,
+          pages: [defaultEventPage()],
+        },
+      ],
     });
     const callback = stageMock.openMapEditorStage.mock.calls[0]?.[1];
     act(() => {
@@ -497,32 +660,46 @@ describe("AdventureEditorScreen shell", () => {
         canUndo: false,
         canRedo: false,
         dirty: false,
-        selection: { kind: "entry", id: "door" },
+        selection: { kind: "event", id: "ev-door" },
       });
     });
 
-    expect(screen.getByDisplayValue("Front gate")).toBeInTheDocument();
+    // The inspector shows the entry event (its EV id and name), and Delete reaches deleteSelected.
+    expect(screen.getByText(/EV001/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: t("editor.delete") }));
     expect(stageMock.deleteSelected).toHaveBeenCalledTimes(1);
   });
 
-  it("selects marker tools and forwards monster species and radius to the stage", async () => {
+  it("authors event kinds and forwards monster species and radius to the stage", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady();
 
-    await userEvent.click(screen.getByRole("button", { name: t("editor.tool.exit") }));
-    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "marker-exit" });
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.events") }));
 
-    await userEvent.click(screen.getByRole("button", { name: t("editor.tool.monster") }));
+    await userEvent.click(screen.getByRole("button", { name: t("editor.event.kind.exit") }));
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "event", eventKind: "exit" });
+
+    await userEvent.click(screen.getByRole("button", { name: t("editor.event.kind.monster") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({
-      kind: "marker-monster",
+      kind: "event",
+      eventKind: "monster",
       species: "spear_goblin",
       patrolRadius: 96,
     });
 
-    await userEvent.selectOptions(screen.getByLabelText(t("editor.markers.species")), "mire_troll");
+    // Only one species is curated now (UX wave #13), so the species select offers just it. Exercise
+    // the same re-push path through the patrol radius: changing it re-pushes the monster event tool
+    // with the new radius (and the curated species) onto the stage.
+    fireEvent.change(screen.getByLabelText(t("editor.markers.radius")), {
+      target: { value: "128" },
+    });
     expect(stageMock.setTool).toHaveBeenLastCalledWith(
-      expect.objectContaining({ kind: "marker-monster", species: "mire_troll" }),
+      expect.objectContaining({
+        kind: "event",
+        eventKind: "monster",
+        species: "spear_goblin",
+        patrolRadius: 128,
+      }),
     );
   });
 
@@ -614,14 +791,15 @@ describe("AdventureEditorScreen shell", () => {
     vi.stubGlobal("fetch", mock);
     await mountReady();
 
+    // The new-map dialog now takes only a name: a map belongs to one adventure and the server builds
+    // a fixed 5x5 template, so the client no longer sends terrain or size — just adventure + name. The
+    // field is prefilled with the default MapN (UX wave #16); clear it to type a custom name.
     await userEvent.click(
       screen.getAllByRole("button", { name: t("editor.new") })[0] as HTMLElement,
     );
-    // The create form defaults to 40x30, exactly as the old MapEditor list screen did.
-    expect(await screen.findByLabelText(t("editor.cols"))).toHaveValue(40);
-    expect(screen.getByLabelText(t("editor.rows"))).toHaveValue(30);
-
-    await userEvent.type(screen.getByLabelText(t("editor.name")), "Third map");
+    const nameField = await screen.findByLabelText(t("editor.name"));
+    await userEvent.clear(nameField);
+    await userEvent.type(nameField, "Third map");
     await userEvent.click(screen.getByRole("button", { name: t("editor.shell.maps.create") }));
 
     await waitFor(() =>
@@ -629,7 +807,7 @@ describe("AdventureEditorScreen shell", () => {
         "/api/maps",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify(toSaveInput(blankMap("Third map", 40, 30))),
+          body: JSON.stringify({ adventureId: "adv-1", name: "Third map" }),
         }),
       ),
     );
@@ -800,6 +978,9 @@ describe("AdventureEditorScreen shell", () => {
         screen.getAllByRole("button", { name: t("editor.new") })[0] as HTMLElement,
       );
       const nameInput = await screen.findByLabelText(t("editor.name"));
+      // The field is prefilled with the default MapN (UX wave #16); clear it so the typed "r" is the
+      // whole value.
+      await userEvent.clear(nameInput);
 
       const before = stageMock.setTool.mock.calls.length;
       await userEvent.type(nameInput, "r");
@@ -935,6 +1116,396 @@ describe("AdventureEditorScreen shell", () => {
       fireEvent.blur(host, { relatedTarget: elsewhere });
       expect(host).not.toHaveFocus();
       expect(elsewhere).toHaveFocus();
+    });
+  });
+
+  describe("editor chrome (UX wave #15/#16)", () => {
+    /** A second adventure `adv-2` (one map `m2b`) the load dialog can switch to, plus the standard
+     *  `adv-1` map backend so the shell mounts. */
+    function loadableBackend() {
+      const adv2 = {
+        id: "adv-2",
+        accountId: "acct",
+        title: "Second",
+        maxPlayers: 4,
+        version: 1,
+        mapIds: ["m2b"],
+        graph: { start: null, links: [] },
+        registry: { switches: [], variables: [] },
+      };
+      const m2b: MapSummary = {
+        id: "m2b",
+        name: "Map1",
+        revision: 1,
+        cols: 40,
+        rows: 30,
+        isFirst: true,
+      };
+      return vi.fn((url: string, init?: RequestInit) => {
+        const method = init?.method ?? "GET";
+        if (url.startsWith("/api/maps?adventure=") && method === "GET")
+          return Promise.resolve(jsonResponse(oneMap));
+        if (url === "/api/adventures" && method === "GET")
+          return Promise.resolve(
+            jsonResponse([
+              { id: "adv-1", title: "First", maxPlayers: 4, mapCount: 1, playable: true },
+              { id: "adv-2", title: "Second", maxPlayers: 4, mapCount: 1, playable: false },
+            ]),
+          );
+        if (url === "/api/adventures/adv-2" && method === "GET")
+          return Promise.resolve(jsonResponse(adv2));
+        if (url === "/api/maps/m2b" && method === "GET")
+          return Promise.resolve(jsonResponse(payloadFor(m2b)));
+        const idMatch = url.match(/^\/api\/maps\/([^/]+)$/);
+        const summary = idMatch?.[1] ? oneMap.find((m) => m.id === idMatch[1]) : undefined;
+        if (summary && method === "GET") return Promise.resolve(jsonResponse(payloadFor(summary)));
+        return Promise.resolve(jsonResponse({ error: "not_found" }, 404));
+      });
+    }
+
+    it("shows a static Editor brand chip, not a clickable exit button (UX wave #16)", async () => {
+      vi.stubGlobal("fetch", mapsFetchMock());
+      await mountReady();
+
+      // The brand text is present…
+      expect(screen.getByText(t("editor.shell.brand"))).toBeInTheDocument();
+      // …but it is not a button and there is no "exit" chip button any more.
+      expect(screen.queryByRole("button", { name: t("editor.shell.brand") })).toBeNull();
+      expect(screen.queryByRole("button", { name: t("editor.shell.exit.aria") })).toBeNull();
+    });
+
+    it("opens the Load-adventure dialog from the File menu and switching swaps the session", async () => {
+      vi.stubGlobal("fetch", loadableBackend());
+      await mountReady();
+
+      screen.getByRole("menuitem", { name: t("editor.shell.menu.file") }).focus();
+      await userEvent.keyboard("{Enter}");
+      await userEvent.click(await screen.findByRole("menuitem", { name: t("editor.shell.load") }));
+
+      // The dialog lists the account's adventures; open the second.
+      expect(await screen.findByText(t("editor.load.title"))).toBeInTheDocument();
+      const row = (await screen.findByText("Second")).closest("li");
+      if (!row) throw new Error("adventure row not found");
+      await userEvent.click(within(row).getByRole("button", { name: t("editor.picker.open") }));
+
+      await waitFor(() =>
+        expect(useUiStore.getState().adventureEditorSession?.adventureId).toBe("adv-2"),
+      );
+    });
+
+    it("guards a dirty switch from the Load dialog: cancel keeps the current adventure", async () => {
+      vi.stubGlobal("fetch", loadableBackend());
+      await mountReady();
+      markDirty();
+
+      screen.getByRole("menuitem", { name: t("editor.shell.menu.file") }).focus();
+      await userEvent.keyboard("{Enter}");
+      await userEvent.click(await screen.findByRole("menuitem", { name: t("editor.shell.load") }));
+      await screen.findByText(t("editor.load.title"));
+
+      const row = (await screen.findByText("Second")).closest("li");
+      if (!row) throw new Error("adventure row not found");
+      const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+      await userEvent.click(within(row).getByRole("button", { name: t("editor.picker.open") }));
+      expect(confirm).toHaveBeenCalledWith(t("editor.shell.exit.confirm"));
+      // Cancelled: still on adv-1.
+      expect(useUiStore.getState().adventureEditorSession?.adventureId).toBe("adv-1");
+      confirm.mockRestore();
+    });
+
+    it("Quit returns to the parties screen, dirty-guarded (cancel stays in the editor)", async () => {
+      vi.stubGlobal("fetch", mapsFetchMock());
+      await mountReady();
+      markDirty();
+
+      const openQuit = async () => {
+        screen.getByRole("menuitem", { name: t("editor.shell.menu.file") }).focus();
+        await userEvent.keyboard("{Enter}");
+        await userEvent.click(
+          await screen.findByRole("menuitem", { name: t("editor.shell.quit") }),
+        );
+      };
+
+      const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+      await openQuit();
+      expect(confirm).toHaveBeenCalledWith(t("editor.shell.exit.confirm"));
+      // Cancelled: still in the editor.
+      expect(useUiStore.getState().screen).toBe("adventure-editor");
+
+      confirm.mockReturnValue(true);
+      await openQuit();
+      expect(useUiStore.getState().screen).toBe("parties");
+      confirm.mockRestore();
+    });
+
+    it("closes the database dialog on Retour without unloading the editor (campaign fix)", async () => {
+      vi.stubGlobal("fetch", mapsFetchMock());
+      await mountReady();
+
+      screen.getByRole("menuitem", { name: t("editor.shell.menu.game") }).focus();
+      await userEvent.keyboard("{Enter}");
+      await userEvent.click(
+        await screen.findByRole("menuitem", { name: t("editor.shell.database") }),
+      );
+      expect(await screen.findByText(t("editor.registry.title"))).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: t("editor.back") }));
+      // The dialog closes…
+      await waitFor(() => expect(screen.queryByText(t("editor.registry.title"))).toBeNull());
+      // …and the editor SURVIVES: still mounted on adv-1, never unloaded to a bare/parties screen.
+      expect(useUiStore.getState().adventureEditorSession?.adventureId).toBe("adv-1");
+      expect(useUiStore.getState().screen).toBe("adventure-editor");
+    });
+  });
+});
+
+describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
+  /** The one-map session the editor opens, flagged unnamed so the first save prompts for a name. */
+  function seedUnnamed(titleUntouched: boolean): void {
+    useUiStore.setState({
+      screen: "adventure-editor",
+      adventureEditorSession: {
+        adventureId: "adv-1",
+        draftId: "draft-1",
+        draft: {
+          title: t("adventure.default_title"),
+          maxPlayers: 4,
+          members: [
+            {
+              mapId: "m1",
+              name: "Verdant Reach",
+              revision: 1,
+              solid: ["."],
+              monsterCount: 0,
+              entryIds: ["door"],
+              exitIds: ["gate"],
+              entryLabels: {},
+              exitLabels: {},
+            },
+          ],
+          start: { mapId: "m1", entryId: "door" },
+          bindings: [{ mapId: "m1", exitId: "gate", dest: "end" }],
+          registry: { switches: [], variables: [] },
+        },
+        invalidatedLinks: [],
+        savedDraft: null,
+        titleUntouched,
+      },
+    });
+  }
+
+  const adventurePayload = {
+    id: "adv-1",
+    accountId: "acct",
+    title: t("adventure.default_title"),
+    maxPlayers: 4,
+    version: 1,
+    mapIds: ["m1"],
+    graph: { start: { mapId: "m1", entryId: "door" }, links: [] },
+    registry: { switches: [], variables: [] },
+  };
+
+  /** A /api/maps + /api/adventures backend that answers the map save PUT, the adventure title PUT and
+   *  the settings reload GET, so the whole first-save round-trip can be driven. */
+  function editorBackend() {
+    return vi.fn((url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      if (url.startsWith("/api/maps?adventure=") && method === "GET")
+        return Promise.resolve(jsonResponse(oneMap));
+      const mapMatch = url.match(/^\/api\/maps\/([^/]+)$/);
+      if (mapMatch?.[1] && method === "GET") {
+        const summary = oneMap.find((m) => m.id === mapMatch[1]);
+        if (summary) return Promise.resolve(jsonResponse(payloadFor(summary)));
+      }
+      if (mapMatch?.[1] && method === "PUT")
+        return Promise.resolve(jsonResponse({ id: mapMatch[1], revision: 2 }));
+      if (url === "/api/adventures/adv-1" && method === "PUT") {
+        const body: unknown = JSON.parse(String(init?.body ?? "{}"));
+        return Promise.resolve(jsonResponse({ ...(body as object), id: "adv-1", version: 2 }));
+      }
+      if (url === "/api/adventures/adv-1" && method === "GET")
+        return Promise.resolve(jsonResponse(adventurePayload));
+      return Promise.resolve(jsonResponse({ error: "not_found" }, 404));
+    });
+  }
+
+  const editedMap = {
+    name: "Verdant Reach",
+    layers: OPEN_TILE_LAYERS,
+    elements: [],
+    spawn: { col: 20, row: 15 },
+    markers: EMPTY_MARKERS,
+  };
+
+  function adventurePutCalls(mock: ReturnType<typeof editorBackend>): unknown[][] {
+    return mock.mock.calls.filter(
+      ([url, init]) =>
+        url === "/api/adventures/adv-1" && (init as RequestInit | undefined)?.method === "PUT",
+    );
+  }
+  function mapPutCalls(mock: ReturnType<typeof editorBackend>): unknown[][] {
+    return mock.mock.calls.filter(
+      ([url, init]) =>
+        url === "/api/maps/m1" && (init as RequestInit | undefined)?.method === "PUT",
+    );
+  }
+
+  async function mountReady(): Promise<ReturnType<typeof render>> {
+    const rendered = render(<AdventureEditorScreen />);
+    await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(stageMock.setTool).toHaveBeenCalled());
+    return rendered;
+  }
+
+  function shell(rendered: { container: HTMLElement }): HTMLElement {
+    return rendered.container.firstElementChild as HTMLElement;
+  }
+
+  beforeEach(() => {
+    setLocale("en");
+    for (const fn of Object.values(stageMock)) fn.mockReset();
+    stageMock.openMapEditorStage.mockResolvedValue(stageHandle());
+    stageMock.current.mockReturnValue(editedMap);
+    previewMock.startMapPreview.mockReset();
+    previewMock.startMapPreview.mockResolvedValue({ stop: previewMock.stop });
+  });
+
+  it("opens the name popup on the first ⌘S instead of saving the map", async () => {
+    seedUnnamed(true);
+    const mock = editorBackend();
+    vi.stubGlobal("fetch", mock);
+    const rendered = await mountReady();
+
+    fireEvent.keyDown(shell(rendered), { key: "s", metaKey: true });
+
+    expect(await screen.findByText(t("editor.firstSave.title"))).toBeInTheDocument();
+    // The map is NOT saved yet — the name must be confirmed first.
+    expect(mapPutCalls(mock)).toHaveLength(0);
+    expect(adventurePutCalls(mock)).toHaveLength(0);
+  });
+
+  it("confirm saves the title then the map, in that order; a second save does not re-prompt", async () => {
+    seedUnnamed(true);
+    const mock = editorBackend();
+    vi.stubGlobal("fetch", mock);
+    const rendered = await mountReady();
+
+    fireEvent.keyDown(shell(rendered), { key: "s", metaKey: true });
+    const dialog = await screen.findByRole("dialog");
+    const title = within(dialog).getByLabelText(t("adventure.name"));
+    await userEvent.clear(title);
+    await userEvent.type(title, "Ashen Keep");
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: t("editor.firstSave.confirm") }),
+    );
+
+    // Both writes land: the adventure title PUT, then the map PUT — the title before the map.
+    await waitFor(() => expect(mapPutCalls(mock)).toHaveLength(1));
+    const advPut = adventurePutCalls(mock);
+    expect(advPut).toHaveLength(1);
+    const advBody = JSON.parse(String((advPut[0]?.[1] as RequestInit)?.body)) as { title: string };
+    expect(advBody.title).toBe("Ashen Keep");
+    const advIndex = mock.mock.calls.findIndex(
+      ([url, init]) =>
+        url === "/api/adventures/adv-1" && (init as RequestInit | undefined)?.method === "PUT",
+    );
+    const mapIndex = mock.mock.calls.findIndex(
+      ([url, init]) =>
+        url === "/api/maps/m1" && (init as RequestInit | undefined)?.method === "PUT",
+    );
+    expect(advIndex).toBeLessThan(mapIndex);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    // A second save writes the map straight through — the popup never re-appears.
+    fireEvent.keyDown(shell(rendered), { key: "s", metaKey: true });
+    await waitFor(() => expect(mapPutCalls(mock)).toHaveLength(2));
+    expect(screen.queryByText(t("editor.firstSave.title"))).toBeNull();
+    // No second title PUT: the name was confirmed once.
+    expect(adventurePutCalls(mock)).toHaveLength(1);
+  });
+
+  it("cancel aborts the whole save: neither the title nor the map is written", async () => {
+    seedUnnamed(true);
+    const mock = editorBackend();
+    vi.stubGlobal("fetch", mock);
+    const rendered = await mountReady();
+
+    fireEvent.keyDown(shell(rendered), { key: "s", metaKey: true });
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: t("editor.firstSave.cancel") }),
+    );
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(adventurePutCalls(mock)).toHaveLength(0);
+    expect(mapPutCalls(mock)).toHaveLength(0);
+  });
+
+  it("keeps ⌘S inert while the popup is open, so it cannot double-fire a save", async () => {
+    seedUnnamed(true);
+    const mock = editorBackend();
+    vi.stubGlobal("fetch", mock);
+    const rendered = await mountReady();
+
+    fireEvent.keyDown(shell(rendered), { key: "s", metaKey: true });
+    const dialog = await screen.findByRole("dialog");
+
+    // A second ⌘S — on the host, and targeted inside the (portaled) dialog — must not save: the
+    // firstSaveOpen flag gates the host, the closest('[data-slot=dialog-content]') gate the dialog.
+    fireEvent.keyDown(shell(rendered), { key: "s", metaKey: true });
+    fireEvent.keyDown(dialog, { key: "s", metaKey: true });
+    expect(mapPutCalls(mock)).toHaveLength(0);
+    expect(adventurePutCalls(mock)).toHaveLength(0);
+  });
+
+  it("suppresses the popup once the title is confirmed through the settings dialog", async () => {
+    seedUnnamed(true);
+    const mock = editorBackend();
+    vi.stubGlobal("fetch", mock);
+    const rendered = await mountReady();
+
+    // Rename through the adventure settings dialog and save it: an explicit naming.
+    screen.getByRole("menuitem", { name: t("editor.shell.menu.file") }).focus();
+    await userEvent.keyboard("{Enter}");
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: t("editor.shell.settings") }),
+    );
+    const settings = await screen.findByRole("dialog");
+    const title = within(settings).getByLabelText(t("adventure.name"));
+    await userEvent.clear(title);
+    await userEvent.type(title, "Ironhold");
+    await userEvent.click(within(settings).getByRole("button", { name: t("editor.save") }));
+    await waitFor(() => expect(adventurePutCalls(mock)).toHaveLength(1));
+
+    // Now ⌘S saves the map directly — no first-save popup, because the title is already confirmed.
+    fireEvent.keyDown(shell(rendered), { key: "s", metaKey: true });
+    await waitFor(() => expect(mapPutCalls(mock)).toHaveLength(1));
+    expect(screen.queryByText(t("editor.firstSave.title"))).toBeNull();
+  });
+
+  it("reaches the settings dialog from the File menu and edits max players there", async () => {
+    seedUnnamed(false);
+    const mock = editorBackend();
+    vi.stubGlobal("fetch", mock);
+    await mountReady();
+
+    screen.getByRole("menuitem", { name: t("editor.shell.menu.file") }).focus();
+    await userEvent.keyboard("{Enter}");
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: t("editor.shell.settings") }),
+    );
+    const settings = await screen.findByRole("dialog");
+
+    const players = within(settings).getByLabelText(t("adventure.players"));
+    await userEvent.clear(players);
+    await userEvent.type(players, "2");
+    await userEvent.click(within(settings).getByRole("button", { name: t("editor.save") }));
+
+    await waitFor(() => {
+      const put = adventurePutCalls(mock)[0];
+      expect(put).toBeDefined();
+      const body = JSON.parse(String((put?.[1] as RequestInit)?.body)) as { maxPlayers: number };
+      expect(body.maxPlayers).toBe(2);
     });
   });
 });

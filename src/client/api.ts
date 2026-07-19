@@ -1,4 +1,4 @@
-import type { AdventureGraph, AdventureInput } from "../shared/adventure.js";
+import type { AdventureGraph, AdventureInput, CreateAdventureInput } from "../shared/adventure.js";
 import type { AdventureRegistry } from "../shared/adventure-state.js";
 import type { CharacterAppearance, Equipment } from "../shared/character.js";
 import type { PlayerClass } from "../shared/game.js";
@@ -81,10 +81,11 @@ export interface MapPayload {
 /** What create/update send: everything but the server-minted id. */
 export type MapSaveInput = Omit<MapPayload, "id" | "revision">;
 
-export const fetchMaps = () => api<MapSummary[]>("/api/maps");
+export const fetchMaps = (adventureId: string) =>
+  api<MapSummary[]>(`/api/maps?adventure=${adventureId}`);
 export const fetchMap = (id: string) => api<MapPayload>(`/api/maps/${id}`);
-export const createMapApi = (input: MapSaveInput) =>
-  api<MapPayload>("/api/maps", { method: "POST", body: JSON.stringify(input) });
+export const createMapApi = (adventureId: string, name: string) =>
+  api<MapPayload>("/api/maps", { method: "POST", body: JSON.stringify({ adventureId, name }) });
 export const updateMapApi = (id: string, input: MapSaveInput) =>
   api<MapPayload>(`/api/maps/${id}`, { method: "PUT", body: JSON.stringify(input) });
 export const deleteMapApi = (id: string) => api<void>(`/api/maps/${id}`, { method: "DELETE" });
@@ -93,6 +94,16 @@ export interface AdventureSummary {
   id: string;
   title: string;
   maxPlayers: number;
+  /** How many maps the adventure owns — shown on the picker card. */
+  mapCount: number;
+  /** Whether a start is authored: a playable adventure vs a draft. Badges the picker card. */
+  playable: boolean;
+}
+
+/** The atomic create response (UX wave #2/#3): the adventure plus the default map it was born with,
+ *  so the picker can drop the author straight into the editor with no second fetch. */
+export interface CreatedAdventure extends AdventurePayload {
+  defaultMap: MapPayload;
 }
 
 export interface AdventurePayload {
@@ -110,8 +121,8 @@ export interface AdventurePayload {
 
 export const fetchAdventures = () => api<AdventureSummary[]>("/api/adventures");
 export const fetchAdventure = (id: string) => api<AdventurePayload>(`/api/adventures/${id}`);
-export const createAdventureApi = (input: AdventureInput) =>
-  api<AdventurePayload>("/api/adventures", { method: "POST", body: JSON.stringify(input) });
+export const createAdventureApi = (input: CreateAdventureInput) =>
+  api<CreatedAdventure>("/api/adventures", { method: "POST", body: JSON.stringify(input) });
 export const updateAdventureApi = (id: string, input: AdventureInput) =>
   api<AdventurePayload>(`/api/adventures/${id}`, { method: "PUT", body: JSON.stringify(input) });
 export const deleteAdventureApi = (id: string) =>
@@ -204,6 +215,8 @@ export const ERROR_KEYS: Record<string, MessageKey> = {
   adventure_maps: "adventure.error.maps",
   adventure_graph: "adventure.error.graph",
   adventure_not_found: "adventure.error.not_found",
+  adventure_not_playable: "adventure.error.not_playable",
+  adventure_in_use: "adventure.error.in_use",
   party_invalid: "party.error.invalid",
   party_not_found: "party.error.not_found",
   party_adventure: "party.error.adventure",

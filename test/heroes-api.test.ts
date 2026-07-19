@@ -5,11 +5,20 @@
 import { env, SELF } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
 import { SESSION_COOKIE } from "../src/server/session.js";
+import { EMPTY_MARKERS } from "../src/shared/map-data.js";
+import { functionalEvent, type MapEvent } from "../src/shared/map-events.js";
 import { layeredWireTerrain } from "./support/map-fixtures.js";
 
 const ORIGIN = "https://lindocara.test";
 const COLS = 20;
 const ROWS = 15;
+
+// UX wave #12: the graph binds entry/exit EVENT uuids. Map A and map B use distinct uuid families
+// because a `map_event` id is a global primary key.
+const ENTRY_A = "aaaaaaaa-0000-4000-8000-000000000001";
+const EXIT_A = "aaaaaaaa-0000-4000-8000-000000000002";
+const ENTRY_B = "bbbbbbbb-0000-4000-8000-000000000001";
+const EXIT_B = "bbbbbbbb-0000-4000-8000-000000000002";
 
 function blocks(): string[] {
   const rows: string[] = [];
@@ -17,17 +26,25 @@ function blocks(): string[] {
   return rows;
 }
 
-function mapBody(name: string): Record<string, unknown> {
+function ev(id: string, kind: "entry" | "exit", col: number, row: number): MapEvent {
+  return functionalEvent({ id, col, row, ordinal: 0, kind });
+}
+
+function eventsB(): MapEvent[] {
+  return [ev(ENTRY_B, "entry", 5, 5), ev(EXIT_B, "exit", 7, 7)];
+}
+
+function mapBody(
+  name: string,
+  events: MapEvent[] = [ev(ENTRY_A, "entry", 5, 5), ev(EXIT_A, "exit", 7, 7)],
+): Record<string, unknown> {
   return {
     name,
     ...layeredWireTerrain(blocks()),
     elements: [],
     spawn: { col: 0, row: 0 },
-    markers: {
-      entries: [{ id: "door", col: 5, row: 5 }],
-      exits: [{ id: "gate", col: 7, row: 7 }],
-      monsterSpawns: [],
-    },
+    markers: EMPTY_MARKERS,
+    events,
   };
 }
 
@@ -52,34 +69,47 @@ function authed(path: string, cookie: string, init: RequestInit = {}): Promise<R
   });
 }
 
-/** Creates two maps + an adventure + a party owned by `cookie`, returns the party id. */
+/** Creates a draft adventure, two template maps authored inside it, its graph, and a party owned by
+ *  `cookie`; returns the party id. Mirrors the adventure-first authoring flow. */
 async function seedParty(cookie: string): Promise<string> {
-  const a = await authed("/api/maps", cookie, {
+  const adventure = await authed("/api/adventures", cookie, {
     method: "POST",
-    body: JSON.stringify(mapBody("A")),
+    body: JSON.stringify({ title: "Donjon", maxPlayers: 4 }),
+  });
+  // The atomic create already made a default first map; reuse it as map A so the graph stays a
+  // clean two-map corridor with no unbound stray map.
+  const created = (await adventure.json()) as { id: string; defaultMap: { id: string } };
+  const adventureId = created.id;
+  const mapA = created.defaultMap.id;
+  // The born graph binds the default map's start/exit; reset to a draft before re-authoring mapA.
+  await authed(`/api/adventures/${adventureId}`, cookie, {
+    method: "PUT",
+    body: JSON.stringify({ title: "Donjon", maxPlayers: 4, graph: { start: null, links: [] } }),
   });
   const b = await authed("/api/maps", cookie, {
     method: "POST",
-    body: JSON.stringify(mapBody("B")),
+    body: JSON.stringify({ adventureId, name: "B" }),
   });
-  const mapA = ((await a.json()) as { id: string }).id;
   const mapB = ((await b.json()) as { id: string }).id;
-  const adventure = await authed("/api/adventures", cookie, {
-    method: "POST",
+  await authed(`/api/maps/${mapA}`, cookie, { method: "PUT", body: JSON.stringify(mapBody("A")) });
+  await authed(`/api/maps/${mapB}`, cookie, {
+    method: "PUT",
+    body: JSON.stringify(mapBody("B", eventsB())),
+  });
+  await authed(`/api/adventures/${adventureId}`, cookie, {
+    method: "PUT",
     body: JSON.stringify({
       title: "Donjon",
       maxPlayers: 4,
-      mapIds: [mapA, mapB],
       graph: {
-        start: { mapId: mapA, entryId: "door" },
+        start: { mapId: mapA, entryId: ENTRY_A },
         links: [
-          { mapId: mapA, exitId: "gate", dest: { mapId: mapB, entryId: "door" } },
-          { mapId: mapB, exitId: "gate", dest: "end" },
+          { mapId: mapA, exitId: EXIT_A, dest: { mapId: mapB, entryId: ENTRY_B } },
+          { mapId: mapB, exitId: EXIT_B, dest: "end" },
         ],
       },
     }),
   });
-  const adventureId = ((await adventure.json()) as { id: string }).id;
   const party = await authed("/api/parties", cookie, {
     method: "POST",
     body: JSON.stringify({ adventureId, color: "blue" }),
@@ -91,7 +121,6 @@ afterEach(async () => {
   await env.DB.exec("DELETE FROM hero");
   await env.DB.exec("DELETE FROM party_member");
   await env.DB.exec("DELETE FROM party");
-  await env.DB.exec("DELETE FROM adventure_map");
   await env.DB.exec("DELETE FROM adventure");
   await env.DB.exec("DELETE FROM map_element");
   await env.DB.exec("DELETE FROM map");

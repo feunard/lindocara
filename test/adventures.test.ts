@@ -1,6 +1,8 @@
 /**
- * The adventures boundary: ownership-scoped CRUD, graph validation against member-map markers,
- * and membership rows kept in step. Same truncation discipline as db.test.ts (children first).
+ * The adventures boundary under the UX-wave 1-adventure model: a map belongs to one adventure, so an
+ * adventure is created as a draft and its maps are authored inside it, then the graph is saved over
+ * them. Ownership-scoped CRUD, implicit-membership graph validation, and the map guards all live
+ * here. Same truncation discipline as db.test.ts (children first).
  */
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
@@ -12,25 +14,26 @@ import {
   updateAdventure,
   updateAdventureRegistry,
 } from "../src/server/adventures.js";
-import { account, createDb, type Db } from "../src/server/db/index.js";
-import {
-  createMap as createOwnedMap,
-  deleteMap as deleteOwnedMap,
-  loadOwnedMap,
-  type MapInput,
-  updateMap as updateOwnedMap,
-} from "../src/server/maps.js";
-import type { AdventureInput } from "../src/shared/adventure.js";
+import { account, createDb, type Db, party } from "../src/server/db/index.js";
+import { deleteMap as deleteOwnedMap, loadOwnedMap, updateMap } from "../src/server/maps.js";
+import type { AdventureGraph } from "../src/shared/adventure.js";
 import { EMPTY_REGISTRY } from "../src/shared/adventure-state.js";
+import { EMPTY_MARKERS } from "../src/shared/map-data.js";
+import { entryEvents, functionalEvent, type MapEvent } from "../src/shared/map-events.js";
+import { authorMap, seedAdventure } from "./support/adventure-fixtures.js";
 import { layeredTerrain } from "./support/map-fixtures.js";
 
 const COLS = 20;
 const ROWS = 15;
-const OWNER = "owner";
 
-const createMap = (db: Db, input: MapInput) => createOwnedMap(db, OWNER, input);
-const deleteMap = (db: Db, id: string) => deleteOwnedMap(db, OWNER, id);
-const updateMap = (db: Db, id: string, input: MapInput) => updateOwnedMap(db, OWNER, id, input);
+// UX wave #12: the graph binds entry/exit EVENT uuids. These are stable across re-authoring a map so
+// a graph bound to them keeps matching when the marker-guard test rewrites a map's events.
+const ENTRY_A = "aaaaaaaa-0000-4000-8000-000000000001";
+const EXIT_A = "aaaaaaaa-0000-4000-8000-000000000002";
+const SIDE_A = "aaaaaaaa-0000-4000-8000-000000000003";
+const UNBOUND_A = "aaaaaaaa-0000-4000-8000-000000000004";
+const ENTRY_B = "bbbbbbbb-0000-4000-8000-000000000001";
+const EXIT_B = "bbbbbbbb-0000-4000-8000-000000000002";
 
 function blocks(): string[] {
   const rows: string[] = [];
@@ -38,18 +41,31 @@ function blocks(): string[] {
   return rows;
 }
 
-function mapInput(name: string): MapInput {
+function ev(id: string, kind: "entry" | "exit", col: number, row: number): MapEvent {
+  return functionalEvent({ id, col, row, ordinal: 0, kind });
+}
+
+/** A map body carrying explicit entry/exit events (default: entry@5,5 + exit@7,7). */
+function mapInput(
+  name: string,
+  events: MapEvent[] = [ev(ENTRY_A, "entry", 5, 5), ev(EXIT_A, "exit", 7, 7)],
+) {
   return {
     name,
     ...layeredTerrain(blocks()),
     elements: [],
     spawn: { col: 0, row: 0 },
-    markers: {
-      entries: [{ id: "door", col: 5, row: 5 }],
-      exits: [{ id: "gate", col: 7, row: 7 }],
-      monsterSpawns: [],
-    },
+    markers: EMPTY_MARKERS,
+    events,
   };
+}
+
+/** Map A's events, map B's events — distinct uuids so the two rows never collide on the event pk. */
+function eventsA(extra: MapEvent[] = []): MapEvent[] {
+  return [ev(ENTRY_A, "entry", 5, 5), ev(EXIT_A, "exit", 7, 7), ...extra];
+}
+function eventsB(): MapEvent[] {
+  return [ev(ENTRY_B, "entry", 5, 5), ev(EXIT_B, "exit", 7, 7)];
 }
 
 async function seedAccount(id: string): Promise<void> {
@@ -58,25 +74,34 @@ async function seedAccount(id: string): Promise<void> {
     .values({ id, username: id, passwordHash: "h", passwordSalt: "s", passwordIterations: 1 });
 }
 
-function inputFor(mapIds: string[]): AdventureInput {
-  const [a, b] = mapIds;
-  if (!a || !b) throw new Error("expected two maps");
+/** A two-map corridor: A.exit -> B.entry, B.exit -> end (bound by event uuids). */
+function corridorGraph(mapA: string, mapB: string): AdventureGraph {
   return {
-    title: "Donjon",
-    maxPlayers: 2,
-    mapIds,
-    graph: {
-      start: { mapId: a, entryId: "door" },
-      links: [
-        { mapId: a, exitId: "gate", dest: { mapId: b, entryId: "door" } },
-        { mapId: b, exitId: "gate", dest: "end" },
-      ],
-    },
+    start: { mapId: mapA, entryId: ENTRY_A },
+    links: [
+      { mapId: mapA, exitId: EXIT_A, dest: { mapId: mapB, entryId: ENTRY_B } },
+      { mapId: mapB, exitId: EXIT_B, dest: "end" },
+    ],
   };
 }
 
+/** The whole adventure-first flow: draft, author two maps inside it, save the corridor graph. */
+async function buildAdventure(db: Db, owner: string) {
+  const advId = await seedAdventure(db, owner, "Donjon");
+  const mapA = await authorMap(db, owner, advId, mapInput("A", eventsA()));
+  const mapB = await authorMap(db, owner, advId, mapInput("B", eventsB()));
+  const adv = await updateAdventure(db, owner, advId, {
+    title: "Donjon",
+    maxPlayers: 2,
+    graph: corridorGraph(mapA.id, mapB.id),
+  });
+  return { advId, mapA, mapB, adv };
+}
+
 afterEach(async () => {
-  await env.DB.exec("DELETE FROM adventure_map");
+  // Parties (FK-restrict onto adventure) must go before the adventures they pin.
+  await env.DB.exec("DELETE FROM party_member");
+  await env.DB.exec("DELETE FROM party");
   await env.DB.exec("DELETE FROM adventure");
   await env.DB.exec("DELETE FROM map_element");
   await env.DB.exec("DELETE FROM map");
@@ -89,62 +114,117 @@ describe("adventure CRUD", () => {
     const db = createDb(env.DB);
     await seedAccount("owner");
     await seedAccount("rival");
-    const mapA = await createMap(db, mapInput("A"));
-    const mapB = await createMap(db, mapInput("B"));
+    const { advId, mapA, mapB, adv } = await buildAdventure(db, "owner");
 
-    const created = await createAdventure(db, "owner", inputFor([mapA.id, mapB.id]));
-    expect(created).toMatchObject({
-      accountId: "owner",
-      title: "Donjon",
-      maxPlayers: 2,
-      version: 1,
-    });
-    expect(created.mapIds).toEqual([mapA.id, mapB.id]);
+    expect(adv).toMatchObject({ accountId: "owner", title: "Donjon", maxPlayers: 2, version: 1 });
+    expect(adv.mapIds).toEqual([mapA.id, mapB.id]);
 
     expect(await listAdventures(db, "owner")).toEqual([
-      { id: created.id, title: "Donjon", maxPlayers: 2 },
+      { id: advId, title: "Donjon", maxPlayers: 2, mapCount: 2, playable: true },
     ]);
     expect(await listAdventures(db, "rival")).toEqual([]);
-    expect(await loadAdventure(db, "rival", created.id)).toBeNull();
+    expect(await loadAdventure(db, "rival", advId)).toBeNull();
 
-    const loaded = await loadAdventure(db, "owner", created.id);
+    const loaded = await loadAdventure(db, "owner", advId);
     expect(loaded?.graph.links).toHaveLength(2);
   });
 
-  it("validates the graph against the member maps' markers", async () => {
+  it("a freshly created adventure is an empty draft", async () => {
     const db = createDb(env.DB);
     await seedAccount("owner");
-    const mapA = await createMap(db, mapInput("A"));
-    const mapB = await createMap(db, mapInput("B"));
-    const bad = inputFor([mapA.id, mapB.id]);
-    bad.graph = { ...bad.graph, links: [bad.graph.links[0] as never] };
-    await expect(createAdventure(db, "owner", bad)).rejects.toThrow(/^graph:/);
+    const created = await createAdventure(db, "owner", { title: "Fresh", maxPlayers: 3 });
+    expect(created).toMatchObject({ title: "Fresh", maxPlayers: 3, mapIds: [] });
+    expect(created.graph).toEqual({ start: null, links: [] });
+  });
+
+  it("validates the graph against the owned maps' markers", async () => {
+    const db = createDb(env.DB);
+    await seedAccount("owner");
+    const advId = await seedAdventure(db, "owner");
+    const mapA = await authorMap(db, "owner", advId, mapInput("A", eventsA()));
+    const mapB = await authorMap(db, "owner", advId, mapInput("B", eventsB()));
+
+    // B's exit is left unbound (no ending reachable) — refused.
     await expect(
-      createAdventure(db, "owner", { ...inputFor([mapA.id, mapB.id]), mapIds: [mapA.id, "ghost"] }),
-    ).rejects.toThrow(/^maps:/);
+      updateAdventure(db, "owner", advId, {
+        title: "Donjon",
+        maxPlayers: 2,
+        graph: {
+          start: { mapId: mapA.id, entryId: ENTRY_A },
+          links: [{ mapId: mapA.id, exitId: EXIT_A, dest: { mapId: mapB.id, entryId: ENTRY_B } }],
+        },
+      }),
+    ).rejects.toThrow(/^graph:/);
+
+    // A graph that names a map the adventure does not own is a foreign reference — refused.
+    await expect(
+      updateAdventure(db, "owner", advId, {
+        title: "Donjon",
+        maxPlayers: 2,
+        graph: { start: { mapId: "ghostmap", entryId: ENTRY_A }, links: [] },
+      }),
+    ).rejects.toThrow(/^graph:/);
   });
 
   it("updates in place and refuses foreign or missing adventures", async () => {
     const db = createDb(env.DB);
     await seedAccount("owner");
     await seedAccount("rival");
-    const mapA = await createMap(db, mapInput("A"));
-    const mapB = await createMap(db, mapInput("B"));
-    const created = await createAdventure(db, "owner", inputFor([mapA.id, mapB.id]));
+    const { advId, mapA, mapB } = await buildAdventure(db, "owner");
 
-    const renamed = await updateAdventure(db, "owner", created.id, {
-      ...inputFor([mapA.id, mapB.id]),
+    const renamed = await updateAdventure(db, "owner", advId, {
       title: "Renamed",
+      maxPlayers: 2,
+      graph: corridorGraph(mapA.id, mapB.id),
     });
     expect(renamed.title).toBe("Renamed");
 
     await expect(
-      updateAdventure(db, "rival", created.id, inputFor([mapA.id, mapB.id])),
+      updateAdventure(db, "rival", advId, {
+        title: "Steal",
+        maxPlayers: 2,
+        graph: corridorGraph(mapA.id, mapB.id),
+      }),
     ).rejects.toThrow(/^not_found:/);
-    await expect(deleteAdventure(db, "rival", created.id)).rejects.toThrow(/^not_found:/);
+    await expect(deleteAdventure(db, "rival", advId)).rejects.toThrow(/^not_found:/);
 
-    await deleteAdventure(db, "owner", created.id);
-    expect(await loadAdventure(db, "owner", created.id)).toBeNull();
+    await deleteAdventure(db, "owner", advId);
+    expect(await loadAdventure(db, "owner", advId)).toBeNull();
+    // Deleting the adventure cascades to its maps.
+    expect(await loadOwnedMap(db, "owner", mapA.id)).toBeNull();
+  });
+
+  it("refuses moving the start while a party still references the adventure (in_use)", async () => {
+    const db = createDb(env.DB);
+    await seedAccount("owner");
+    const { advId, mapA, mapB, adv } = await buildAdventure(db, "owner");
+    // A live party pins where its heroes spawn.
+    await db.insert(party).values({
+      id: "party-in-use",
+      adventureId: advId,
+      adventureVersion: adv.version,
+      maxPlayers: adv.maxPlayers,
+      hostAccountId: "owner",
+      name: null,
+      status: "open",
+    });
+
+    // Nulling the start is refused while the party exists.
+    await expect(
+      updateAdventure(db, "owner", advId, {
+        title: "Donjon",
+        maxPlayers: 2,
+        graph: { start: null, links: [] },
+      }),
+    ).rejects.toThrow(/^in_use:/);
+
+    // Editing that leaves the start where it is (a rename) is still allowed mid-play.
+    const renamed = await updateAdventure(db, "owner", advId, {
+      title: "Renamed mid-play",
+      maxPlayers: 2,
+      graph: corridorGraph(mapA.id, mapB.id),
+    });
+    expect(renamed.title).toBe("Renamed mid-play");
   });
 });
 
@@ -152,9 +232,7 @@ describe("adventure registry", () => {
   it("a freshly created adventure starts with the empty registry", async () => {
     const db = createDb(env.DB);
     await seedAccount("owner");
-    const mapA = await createMap(db, mapInput("A"));
-    const mapB = await createMap(db, mapInput("B"));
-    const created = await createAdventure(db, "owner", inputFor([mapA.id, mapB.id]));
+    const created = await createAdventure(db, "owner", { title: "Reg", maxPlayers: 4 });
     expect(created.registry).toEqual(EMPTY_REGISTRY);
     expect((await loadAdventure(db, "owner", created.id))?.registry).toEqual(EMPTY_REGISTRY);
   });
@@ -162,9 +240,7 @@ describe("adventure registry", () => {
   it("updateAdventureRegistry validates, persists and round-trips through GET", async () => {
     const db = createDb(env.DB);
     await seedAccount("owner");
-    const mapA = await createMap(db, mapInput("A"));
-    const mapB = await createMap(db, mapInput("B"));
-    const created = await createAdventure(db, "owner", inputFor([mapA.id, mapB.id]));
+    const created = await createAdventure(db, "owner", { title: "Reg", maxPlayers: 4 });
 
     const registry = {
       switches: [{ id: "0001", name: "Porte ouverte" }],
@@ -172,17 +248,13 @@ describe("adventure registry", () => {
     };
     const returned = await updateAdventureRegistry(db, "owner", created.id, registry);
     expect(returned).toEqual(registry);
-
-    const loaded = await loadAdventure(db, "owner", created.id);
-    expect(loaded?.registry).toEqual(registry);
+    expect((await loadAdventure(db, "owner", created.id))?.registry).toEqual(registry);
   });
 
   it("rejects a malformed registry and leaves the stored one untouched", async () => {
     const db = createDb(env.DB);
     await seedAccount("owner");
-    const mapA = await createMap(db, mapInput("A"));
-    const mapB = await createMap(db, mapInput("B"));
-    const created = await createAdventure(db, "owner", inputFor([mapA.id, mapB.id]));
+    const created = await createAdventure(db, "owner", { title: "Reg", maxPlayers: 4 });
     const registry = { switches: [{ id: "0001", name: "Porte ouverte" }], variables: [] };
     await updateAdventureRegistry(db, "owner", created.id, registry);
 
@@ -196,9 +268,7 @@ describe("adventure registry", () => {
     const db = createDb(env.DB);
     await seedAccount("owner");
     await seedAccount("rival");
-    const mapA = await createMap(db, mapInput("A"));
-    const mapB = await createMap(db, mapInput("B"));
-    const created = await createAdventure(db, "owner", inputFor([mapA.id, mapB.id]));
+    const created = await createAdventure(db, "owner", { title: "Reg", maxPlayers: 4 });
 
     await expect(updateAdventureRegistry(db, "rival", created.id, EMPTY_REGISTRY)).rejects.toThrow(
       /^not_found:/,
@@ -208,31 +278,13 @@ describe("adventure registry", () => {
     );
   });
 
-  it("deleting a registry entry that an event still conditions on is allowed (fail-closed)", async () => {
-    // No event storage is exercised here — this pins the documented decision at the boundary
-    // that carries it: updateAdventureRegistry never cross-checks map_event_page rows, so
-    // shrinking a registry out from under an authored condition always succeeds.
-    const db = createDb(env.DB);
-    await seedAccount("owner");
-    const mapA = await createMap(db, mapInput("A"));
-    const mapB = await createMap(db, mapInput("B"));
-    const created = await createAdventure(db, "owner", inputFor([mapA.id, mapB.id]));
-    await updateAdventureRegistry(db, "owner", created.id, {
-      switches: [{ id: "0001", name: "Porte" }],
-      variables: [],
-    });
-    const shrunk = await updateAdventureRegistry(db, "owner", created.id, EMPTY_REGISTRY);
-    expect(shrunk).toEqual(EMPTY_REGISTRY);
-  });
-
   it("createAdventure persists a registry carried on the input", async () => {
     const db = createDb(env.DB);
     await seedAccount("owner");
-    const mapA = await createMap(db, mapInput("A"));
-    const mapB = await createMap(db, mapInput("B"));
     const registry = { switches: [{ id: "0001", name: "Porte" }], variables: [] };
     const created = await createAdventure(db, "owner", {
-      ...inputFor([mapA.id, mapB.id]),
+      title: "Reg",
+      maxPlayers: 4,
       registry,
     });
     expect(created.registry).toEqual(registry);
@@ -242,121 +294,99 @@ describe("adventure registry", () => {
   it("the adventure PUT carries the registry end to end, and omitting it preserves the stored one", async () => {
     const db = createDb(env.DB);
     await seedAccount("owner");
-    const mapA = await createMap(db, mapInput("A"));
-    const mapB = await createMap(db, mapInput("B"));
-    const created = await createAdventure(db, "owner", inputFor([mapA.id, mapB.id]));
+    const { advId, mapA, mapB } = await buildAdventure(db, "owner");
 
-    // A PUT that carries a registry writes it.
     const registry = {
       switches: [{ id: "0001", name: "Porte" }],
       variables: [{ id: "0001", name: "Or" }],
     };
-    await updateAdventure(db, "owner", created.id, {
-      ...inputFor([mapA.id, mapB.id]),
+    await updateAdventure(db, "owner", advId, {
+      title: "Donjon",
+      maxPlayers: 2,
+      graph: corridorGraph(mapA.id, mapB.id),
       registry,
     });
-    expect((await loadAdventure(db, "owner", created.id))?.registry).toEqual(registry);
+    expect((await loadAdventure(db, "owner", advId))?.registry).toEqual(registry);
 
-    // A later PUT that OMITS the registry must not wipe the stored one.
-    await updateAdventure(db, "owner", created.id, {
-      ...inputFor([mapA.id, mapB.id]),
+    await updateAdventure(db, "owner", advId, {
       title: "Renommé",
+      maxPlayers: 2,
+      graph: corridorGraph(mapA.id, mapB.id),
     });
-    const loaded = await loadAdventure(db, "owner", created.id);
+    const loaded = await loadAdventure(db, "owner", advId);
     expect(loaded?.title).toBe("Renommé");
     expect(loaded?.registry).toEqual(registry);
   });
 });
 
 describe("map deletion guard", () => {
-  it("refuses deleting a map an adventure still uses", async () => {
+  it("refuses deleting a map the adventure's graph references, frees an unwired one", async () => {
     const db = createDb(env.DB);
     await seedAccount("owner");
-    const mapA = await createMap(db, mapInput("A"));
-    const mapB = await createMap(db, mapInput("B"));
-    const spare = await createMap(db, mapInput("Spare"));
-    const created = await createAdventure(db, "owner", inputFor([mapA.id, mapB.id]));
+    const advId = await seedAdventure(db, "owner", "Donjon");
+    const mapA = await authorMap(db, "owner", advId, mapInput("A", eventsA()));
+    const mapB = await authorMap(db, "owner", advId, mapInput("B", eventsB()));
+    // A spare map with no exits, never wired into the graph: allowed to coexist and to be deleted.
+    const spare = await authorMap(db, "owner", advId, {
+      ...mapInput("Spare", [ev("cccccccc-0000-4000-8000-000000000001", "entry", 5, 5)]),
+    });
+    await updateAdventure(db, "owner", advId, {
+      title: "Donjon",
+      maxPlayers: 2,
+      graph: corridorGraph(mapA.id, mapB.id),
+    });
 
-    await expect(deleteMap(db, mapA.id)).rejects.toThrow(/^referenced:/);
-    await deleteMap(db, spare.id); // unreferenced maps still delete
-
-    await deleteAdventure(db, "owner", created.id);
-    await deleteMap(db, mapA.id); // and referenced ones do once the adventure is gone
+    await expect(deleteOwnedMap(db, "owner", mapA.id)).rejects.toThrow(/^referenced:/);
+    await deleteOwnedMap(db, "owner", spare.id); // unwired maps still delete
   });
 });
 
 describe("marker reference guard", () => {
-  it("revalidates the whole adventure before accepting a referenced-map update", async () => {
+  it("revalidates the owning adventure before accepting a referenced-map update", async () => {
     const db = createDb(env.DB);
     await seedAccount("owner");
-    const mapA = await createMap(db, mapInput("A"));
-    const mapB = await createMap(db, mapInput("B"));
-    const created = await createAdventure(db, "owner", inputFor([mapA.id, mapB.id]));
-
-    // removing A's bound exit "gate" → refused
-    await expect(
-      updateMap(db, mapA.id, {
-        ...mapInput("A"),
-        markers: { entries: [{ id: "door", col: 5, row: 5 }], exits: [], monsterSpawns: [] },
-      }),
-    ).rejects.toThrow(/^referenced:/);
-
-    // removing B's entry "door" (destination of A's gate) → refused
-    await expect(
-      updateMap(db, mapB.id, {
-        ...mapInput("B"),
-        markers: { entries: [], exits: [{ id: "gate", col: 7, row: 7 }], monsterSpawns: [] },
-      }),
-    ).rejects.toThrow(/^referenced:/);
-
-    // removing A's start entry "door" → refused
-    await expect(
-      updateMap(db, mapA.id, {
-        ...mapInput("A"),
-        markers: { entries: [], exits: [{ id: "gate", col: 7, row: 7 }], monsterSpawns: [] },
-      }),
-    ).rejects.toThrow(/^referenced:/);
-
-    // adding a marker while keeping the bound ones → allowed
-    const grown = await updateMap(db, mapA.id, {
-      ...mapInput("A"),
-      markers: {
-        entries: [
-          { id: "door", col: 5, row: 5 },
-          { id: "side", col: 3, row: 3 },
-        ],
-        exits: [{ id: "gate", col: 7, row: 7 }],
-        monsterSpawns: [],
-      },
+    const advId = await seedAdventure(db, "owner", "Donjon");
+    const mapA = await authorMap(db, "owner", advId, mapInput("A", eventsA()));
+    const mapB = await authorMap(db, "owner", advId, mapInput("B", eventsB()));
+    await updateAdventure(db, "owner", advId, {
+      title: "Donjon",
+      maxPlayers: 2,
+      graph: corridorGraph(mapA.id, mapB.id),
     });
-    expect(grown.markers?.entries).toHaveLength(2);
 
-    // A new exit would be unbound in the already-saved adventure, so the map change is refused
-    // and its monotone revision does not move.
+    // removing A's bound exit event → refused
     await expect(
-      updateMap(db, mapA.id, {
-        ...mapInput("A"),
-        markers: {
-          entries: [
-            { id: "door", col: 5, row: 5 },
-            { id: "side", col: 3, row: 3 },
-          ],
-          exits: [
-            { id: "gate", col: 7, row: 7 },
-            { id: "unbound", col: 9, row: 9 },
-          ],
-          monsterSpawns: [],
-        },
-      }),
+      updateMap(db, "owner", mapA.id, mapInput("A", [ev(ENTRY_A, "entry", 5, 5)])),
+    ).rejects.toThrow(/^referenced:/);
+
+    // removing B's entry event (destination of A's exit) → refused
+    await expect(
+      updateMap(db, "owner", mapB.id, mapInput("B", [ev(EXIT_B, "exit", 7, 7)])),
+    ).rejects.toThrow(/^referenced:/);
+
+    // adding an entry event while keeping the bound ones → allowed
+    const grown = await updateMap(
+      db,
+      "owner",
+      mapA.id,
+      mapInput("A", eventsA([ev(SIDE_A, "entry", 3, 3)])),
+    );
+    expect(entryEvents(grown.events)).toHaveLength(2);
+
+    // A new unbound exit event would break the saved graph, so the map change is refused and its
+    // monotone revision does not move.
+    await expect(
+      updateMap(
+        db,
+        "owner",
+        mapA.id,
+        mapInput("A", eventsA([ev(SIDE_A, "entry", 3, 3), ev(UNBOUND_A, "exit", 9, 9)])),
+      ),
     ).rejects.toThrow(/^referenced:.*unbound/);
-    expect((await loadOwnedMap(db, OWNER, mapA.id))?.revision).toBe(grown.revision);
+    expect((await loadOwnedMap(db, "owner", mapA.id))?.revision).toBe(grown.revision);
 
-    // once the adventure is gone, removal is free
-    await deleteAdventure(db, "owner", created.id);
-    const bare = await updateMap(db, mapA.id, {
-      ...mapInput("A"),
-      markers: { entries: [], exits: [], monsterSpawns: [] },
-    });
-    expect(bare.markers).toEqual({ entries: [], exits: [], monsterSpawns: [] });
+    // once the adventure is gone, the map is gone too (cascade), so there is nothing left to guard.
+    await deleteAdventure(db, "owner", advId);
+    expect(await loadOwnedMap(db, "owner", mapA.id)).toBeNull();
   });
 });

@@ -10,6 +10,7 @@ import {
   tileCentre as centre,
   drainHeroRooms,
   heroRoomKey,
+  type MapAnchors,
   ORIGIN,
   type TestAccount,
   type TestMapBody,
@@ -67,21 +68,26 @@ function novaMapInput(): TestMapBody {
   });
 }
 
-/** Two maps in a line: mapA's exit leads to mapB's entry, mapB's exit ends the adventure. */
+/** Two maps in a line: mapA's exit leads to mapB's entry, mapB's exit ends the adventure. Binds the
+ *  maps' entry/exit EVENT uuids (UX wave #12), read back from the authored bodies via `anchors`. */
 function twoMapAdventure(): {
   maps: TestMapBody[];
-  graph: (ids: readonly string[]) => AdventureGraph;
+  graph: (anchors: readonly MapAnchors[]) => AdventureGraph;
 } {
   return {
     maps: [mapAInput(), mapBInput()],
-    graph: (ids) => {
-      const [mapA, mapB] = ids;
+    graph: (anchors) => {
+      const [mapA, mapB] = anchors;
       if (!mapA || !mapB) throw new Error("expected two seeded maps");
       return {
-        start: { mapId: mapA, entryId: "door" },
+        start: { mapId: mapA.mapId, entryId: mapA.entryId },
         links: [
-          { mapId: mapA, exitId: "finish", dest: { mapId: mapB, entryId: "door" } },
-          { mapId: mapB, exitId: "finish", dest: "end" },
+          {
+            mapId: mapA.mapId,
+            exitId: mapA.exitId,
+            dest: { mapId: mapB.mapId, entryId: mapB.entryId },
+          },
+          { mapId: mapB.mapId, exitId: mapB.exitId, dest: "end" },
         ],
       };
     },
@@ -110,7 +116,6 @@ afterEach(async () => {
   await env.DB.exec("DELETE FROM hero");
   await env.DB.exec("DELETE FROM party_member");
   await env.DB.exec("DELETE FROM party");
-  await env.DB.exec("DELETE FROM adventure_map");
   await env.DB.exec("DELETE FROM adventure");
   await env.DB.exec("DELETE FROM map_element");
   await env.DB.exec("DELETE FROM map");
@@ -119,6 +124,27 @@ afterEach(async () => {
 });
 
 describe("party hero admission and authored runtime", () => {
+  // A monster-event's wire id is `mon-<uuid>` (map-zone.ts). `protocol.ts`'s `isWireId` caps every id
+  // at 64 chars over `[A-Za-z0-9_-]`; the older map-id-prefixed form overran it. This pins the live
+  // snapshot id inside that bound so a future prefix change cannot silently break admission parsing.
+  it("mints a monster wire id that is `mon-` bounded and inside the protocol alphabet", {
+    timeout: 10_000,
+  }, async () => {
+    const party = await testParty("monster-wire-id", { maps: [mapAInput()] });
+    const hero = await testHero("Scout", { party, account: party.host, position: centre(2, 2) });
+    const client = await Client.joinHero(hero);
+    try {
+      const welcome = await until("monster wire id welcome", () => client.welcome);
+      const monster = welcome.monsters[0];
+      if (!monster) throw new Error("expected a spawned monster event");
+      expect(monster.id).toMatch(/^mon-[0-9a-f-]{36}$/);
+      expect(monster.id.length).toBeLessThanOrEqual(64);
+      expect(monster.id).toMatch(/^[A-Za-z0-9_-]+$/);
+    } finally {
+      await client.close();
+    }
+  });
+
   it("allocates, snapshots, persists and freely resets hero talents authoritatively", async () => {
     const party = await testParty("talent-persistence");
     const hero = await testHero("Talented", {

@@ -1,7 +1,9 @@
 import type * as React from "react";
 import { useState } from "react";
 import type { AdventureRegistry, RegistryEntry } from "../../../shared/adventure-state.js";
+import { CURATED_MONSTER_SPECIES, type MonsterSpecies } from "../../../shared/game.js";
 import type { MessageKey } from "../../../shared/i18n/index.js";
+import { MAX_PATROL_RADIUS, MIN_PATROL_RADIUS } from "../../../shared/map-data.js";
 import {
   EVENT_NAME_MAX,
   EVENT_TRIGGERS,
@@ -21,6 +23,7 @@ import {
   normalizeConditionId,
   normalizeConditionMin,
   normalizeEventDraftConditions,
+  setEventDraftMonster,
   setEventDraftName,
   updateEventDraftPage,
 } from "../../game/editor-state.js";
@@ -158,6 +161,60 @@ function CheckRow({
   );
 }
 
+/**
+ * A monster event's kind-specific fields: a curated species picker and a bounded patrol-radius input.
+ * The species list is the curated allowlist (UX wave #13), but an event already carrying a
+ * non-curated species keeps it as an option so opening the dialog never silently rewrites it. Edits
+ * fold straight into the draft through `setEventDraftMonster`; a `monster` draft always carries a
+ * non-null species/radius, so the `??` fallbacks only guard the impossible.
+ */
+function MonsterEventFields({
+  draft,
+  onChange,
+}: {
+  draft: MapEvent;
+  onChange(species: MonsterSpecies, patrolRadius: number): void;
+}) {
+  const species = draft.species ?? CURATED_MONSTER_SPECIES[0] ?? "spear_goblin";
+  const patrolRadius = draft.patrolRadius ?? MIN_PATROL_RADIUS;
+  const options = CURATED_MONSTER_SPECIES.includes(species)
+    ? CURATED_MONSTER_SPECIES
+    : [species, ...CURATED_MONSTER_SPECIES];
+  return (
+    <section className="flex flex-col gap-2 border-y border-zinc-200 py-3">
+      <div className="grid grid-cols-2 gap-3">
+        <span className="flex flex-col gap-1 text-[11px] text-zinc-500">
+          {t("editor.markers.species")}
+          <FieldSelect
+            aria-label={t("editor.markers.species")}
+            className="h-8 text-sm"
+            value={species}
+            onChange={(e) => onChange(e.currentTarget.value as MonsterSpecies, patrolRadius)}
+          >
+            {options.map((option) => (
+              <option key={option} value={option}>
+                {t(`monster.${option}`)}
+              </option>
+            ))}
+          </FieldSelect>
+        </span>
+        <span className="flex flex-col gap-1 text-[11px] text-zinc-500">
+          {t("editor.markers.radius")}
+          <Input
+            aria-label={t("editor.markers.radius")}
+            type="number"
+            className="h-8 text-sm tabular-nums"
+            min={MIN_PATROL_RADIUS}
+            max={MAX_PATROL_RADIUS}
+            value={patrolRadius}
+            onChange={(e) => onChange(species, Number(e.currentTarget.value))}
+          />
+        </span>
+      </div>
+    </section>
+  );
+}
+
 interface EventDialogProps {
   /** The draft seed: a deep copy of the event to edit, from `beginEventDraft`. */
   event: MapEvent;
@@ -254,265 +311,295 @@ export function EventDialog({ event, registry, onCommit, onDelete, onCancel }: E
           </div>
         </DialogHeader>
 
-        {/* Page tabs: 1..n, add (≤ MAX_PAGES_PER_EVENT), delete (disabled at one page). */}
-        <div
-          className="flex flex-wrap items-center gap-1.5 border-y border-zinc-200 py-2"
-          role="tablist"
-          aria-label={t("editor.event.pages.aria")}
-        >
-          {draft.pages.map((_page, i) => (
-            <button
-              // biome-ignore lint/suspicious/noArrayIndexKey: pages are positional, no stable id
-              key={i}
-              type="button"
-              role="tab"
-              aria-selected={i === index}
-              aria-label={t("editor.event.page.aria", { n: i + 1 })}
-              onClick={() => setPageIndex(i)}
-              className={`h-7 min-w-7 rounded-md px-2 text-[12px] font-medium tabular-nums ${
-                i === index ? "bg-zinc-900 text-zinc-50" : "text-zinc-600 hover:bg-zinc-200/70"
-              }`}
+        {/* Monster events carry species + patrol radius, nothing scripted — a dense kind-specific
+            block that replaces the whole pages/conditions machinery below. */}
+        {draft.kind === "monster" && (
+          <MonsterEventFields
+            draft={draft}
+            onChange={(species, radius) => setDraft(setEventDraftMonster(draft, species, radius))}
+          />
+        )}
+
+        {/* Entry/exit events are pure anchors: their only field is the label (the header Name input),
+            so no body is shown — a hint states what the placement binds. */}
+        {(draft.kind === "entry" || draft.kind === "exit") && (
+          <p className="border-y border-zinc-200 py-3 text-[12.5px] text-muted-foreground">
+            {t("editor.event.kind.anchor.hint")}
+          </p>
+        )}
+
+        {/* The full scripted editor — pages, conditions, movement, options, commands — shows only for
+            `normal` events. Functional kinds (entry/exit/monster) hide it: the wire parser refuses a
+            functional event that carries extra pages, so it must never be authorable here. */}
+        {draft.kind === "normal" && (
+          <>
+            {/* Page tabs: 1..n, add (≤ MAX_PAGES_PER_EVENT), delete (disabled at one page). */}
+            <div
+              className="flex flex-wrap items-center gap-1.5 border-y border-zinc-200 py-2"
+              role="tablist"
+              aria-label={t("editor.event.pages.aria")}
             >
-              {i + 1}
-            </button>
-          ))}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-7"
-            disabled={draft.pages.length >= MAX_PAGES_PER_EVENT}
-            aria-label={t("editor.event.page.add")}
-            onClick={addPage}
-          >
-            +
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 text-destructive"
-            disabled={draft.pages.length <= 1}
-            aria-label={t("editor.event.page.delete")}
-            onClick={deletePage}
-          >
-            {t("editor.event.page.delete")}
-          </Button>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          {/* Left column: the authored page fields. */}
-          <div className="flex flex-col gap-4">
-            <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
-              <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
-                {t("editor.event.conditions")}
-              </h3>
-              <CheckRow
-                checked={page.condSwitchId !== null}
-                onToggle={(on) =>
-                  update({ condSwitchId: on ? defaultConditionId(registry.switches) : null })
-                }
-                label={t("editor.event.cond.switch")}
-              >
-                {page.condSwitchId !== null && (
-                  <>
-                    <ConditionIdField
-                      entries={registry.switches}
-                      value={page.condSwitchId}
-                      ariaLabel={t("editor.event.cond.switch")}
-                      onCommit={(id) => update({ condSwitchId: id })}
-                    />
-                    <span className="text-[12.5px] text-zinc-500">
-                      {t("editor.event.cond.switch.on")}
-                    </span>
-                  </>
-                )}
-              </CheckRow>
-              {page.condSwitchId !== null && registry.switches.length === 0 && (
-                <p className="pl-6 text-[11px] text-zinc-400">
-                  {t("editor.event.cond.empty.hint")}
-                </p>
-              )}
-              <CheckRow
-                checked={page.condVariableId !== null}
-                onToggle={(on) =>
-                  update(
-                    on
-                      ? {
-                          condVariableId: defaultConditionId(registry.variables),
-                          condVariableMin: 0,
-                        }
-                      : { condVariableId: null, condVariableMin: null },
-                  )
-                }
-                label={t("editor.event.cond.variable")}
-              >
-                {page.condVariableId !== null && (
-                  <>
-                    <ConditionIdField
-                      entries={registry.variables}
-                      value={page.condVariableId}
-                      ariaLabel={t("editor.event.cond.variable")}
-                      onCommit={(id) => update({ condVariableId: id })}
-                    />
-                    <span className="text-[12.5px] text-zinc-500">≥</span>
-                    <Input
-                      aria-label={t("editor.event.cond.variable.min")}
-                      type="number"
-                      className="h-7 w-20 text-xs tabular-nums"
-                      value={page.condVariableMin ?? 0}
-                      onChange={(e) => update({ condVariableMin: Number(e.currentTarget.value) })}
-                      onBlur={() => {
-                        if (page.condVariableMin !== null)
-                          update({ condVariableMin: normalizeConditionMin(page.condVariableMin) });
-                      }}
-                    />
-                  </>
-                )}
-              </CheckRow>
-              {page.condVariableId !== null && registry.variables.length === 0 && (
-                <p className="pl-6 text-[11px] text-zinc-400">
-                  {t("editor.event.cond.empty.hint")}
-                </p>
-              )}
-              <CheckRow
-                checked={page.condSelfSwitch !== null}
-                onToggle={(on) => update({ condSelfSwitch: on ? "A" : null })}
-                label={t("editor.event.cond.selfSwitch")}
-              >
-                <FieldSelect
-                  aria-label={t("editor.event.cond.selfSwitch")}
-                  className="h-7 w-16 text-xs"
-                  disabled={page.condSelfSwitch === null}
-                  value={page.condSelfSwitch ?? "A"}
-                  onChange={(e) => update({ condSelfSwitch: e.currentTarget.value as SelfSwitch })}
+              {draft.pages.map((_page, i) => (
+                <button
+                  // biome-ignore lint/suspicious/noArrayIndexKey: pages are positional, no stable id
+                  key={i}
+                  type="button"
+                  role="tab"
+                  aria-selected={i === index}
+                  aria-label={t("editor.event.page.aria", { n: i + 1 })}
+                  onClick={() => setPageIndex(i)}
+                  className={`h-7 min-w-7 rounded-md px-2 text-[12px] font-medium tabular-nums ${
+                    i === index ? "bg-zinc-900 text-zinc-50" : "text-zinc-600 hover:bg-zinc-200/70"
+                  }`}
                 >
-                  {SELF_SWITCHES.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </FieldSelect>
-              </CheckRow>
-            </section>
+                  {i + 1}
+                </button>
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7"
+                disabled={draft.pages.length >= MAX_PAGES_PER_EVENT}
+                aria-label={t("editor.event.page.add")}
+                onClick={addPage}
+              >
+                +
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 text-destructive"
+                disabled={draft.pages.length <= 1}
+                aria-label={t("editor.event.page.delete")}
+                onClick={deletePage}
+              >
+                {t("editor.event.page.delete")}
+              </Button>
+            </div>
 
-            <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
-              <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
-                {t("editor.event.appearance")}
-              </h3>
-              <CatalogueAssetPicker
-                value={page.graphicAssetId}
-                onSelectAsset={(assetId) => update({ graphicAssetId: assetId })}
-                onSelectNone={() => update({ graphicAssetId: null })}
-                noneLabel={t("editor.shell.events.graphic.none")}
-              />
-            </section>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {/* Left column: the authored page fields. */}
+              <div className="flex flex-col gap-4">
+                <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
+                  <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
+                    {t("editor.event.conditions")}
+                  </h3>
+                  <CheckRow
+                    checked={page.condSwitchId !== null}
+                    onToggle={(on) =>
+                      update({ condSwitchId: on ? defaultConditionId(registry.switches) : null })
+                    }
+                    label={t("editor.event.cond.switch")}
+                  >
+                    {page.condSwitchId !== null && (
+                      <>
+                        <ConditionIdField
+                          entries={registry.switches}
+                          value={page.condSwitchId}
+                          ariaLabel={t("editor.event.cond.switch")}
+                          onCommit={(id) => update({ condSwitchId: id })}
+                        />
+                        <span className="text-[12.5px] text-zinc-500">
+                          {t("editor.event.cond.switch.on")}
+                        </span>
+                      </>
+                    )}
+                  </CheckRow>
+                  {page.condSwitchId !== null && registry.switches.length === 0 && (
+                    <p className="pl-6 text-[11px] text-zinc-400">
+                      {t("editor.event.cond.empty.hint")}
+                    </p>
+                  )}
+                  <CheckRow
+                    checked={page.condVariableId !== null}
+                    onToggle={(on) =>
+                      update(
+                        on
+                          ? {
+                              condVariableId: defaultConditionId(registry.variables),
+                              condVariableMin: 0,
+                            }
+                          : { condVariableId: null, condVariableMin: null },
+                      )
+                    }
+                    label={t("editor.event.cond.variable")}
+                  >
+                    {page.condVariableId !== null && (
+                      <>
+                        <ConditionIdField
+                          entries={registry.variables}
+                          value={page.condVariableId}
+                          ariaLabel={t("editor.event.cond.variable")}
+                          onCommit={(id) => update({ condVariableId: id })}
+                        />
+                        <span className="text-[12.5px] text-zinc-500">≥</span>
+                        <Input
+                          aria-label={t("editor.event.cond.variable.min")}
+                          type="number"
+                          className="h-7 w-20 text-xs tabular-nums"
+                          value={page.condVariableMin ?? 0}
+                          onChange={(e) =>
+                            update({ condVariableMin: Number(e.currentTarget.value) })
+                          }
+                          onBlur={() => {
+                            if (page.condVariableMin !== null)
+                              update({
+                                condVariableMin: normalizeConditionMin(page.condVariableMin),
+                              });
+                          }}
+                        />
+                      </>
+                    )}
+                  </CheckRow>
+                  {page.condVariableId !== null && registry.variables.length === 0 && (
+                    <p className="pl-6 text-[11px] text-zinc-400">
+                      {t("editor.event.cond.empty.hint")}
+                    </p>
+                  )}
+                  <CheckRow
+                    checked={page.condSelfSwitch !== null}
+                    onToggle={(on) => update({ condSelfSwitch: on ? "A" : null })}
+                    label={t("editor.event.cond.selfSwitch")}
+                  >
+                    <FieldSelect
+                      aria-label={t("editor.event.cond.selfSwitch")}
+                      className="h-7 w-16 text-xs"
+                      disabled={page.condSelfSwitch === null}
+                      value={page.condSelfSwitch ?? "A"}
+                      onChange={(e) =>
+                        update({ condSelfSwitch: e.currentTarget.value as SelfSwitch })
+                      }
+                    >
+                      {SELF_SWITCHES.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </FieldSelect>
+                  </CheckRow>
+                </section>
 
-            <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
-              <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
-                {t("editor.event.movement")}
-              </h3>
-              <div className="grid grid-cols-3 gap-2">
-                {/* A `<span>` caption + `aria-label`, not a `<label>` wrapping the select: Biome's
+                <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
+                  <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
+                    {t("editor.event.appearance")}
+                  </h3>
+                  <CatalogueAssetPicker
+                    value={page.graphicAssetId}
+                    onSelectAsset={(assetId) => update({ graphicAssetId: assetId })}
+                    onSelectNone={() => update({ graphicAssetId: null })}
+                    noneLabel={t("editor.shell.events.graphic.none")}
+                  />
+                </section>
+
+                <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
+                  <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
+                    {t("editor.event.movement")}
+                  </h3>
+                  <div className="grid grid-cols-3 gap-2">
+                    {/* A `<span>` caption + `aria-label`, not a `<label>` wrapping the select: Biome's
                     noLabelWithoutControl cannot see the native `<select>` through the `FieldSelect`
                     component, so the label/control pairing lives on the accessible name instead. */}
-                <span className="flex flex-col gap-1 text-[11px] text-zinc-500">
-                  {t("editor.event.move.type")}
-                  <FieldSelect
-                    aria-label={t("editor.event.move.type")}
-                    className="h-7 text-xs"
-                    value={page.moveType}
-                    onChange={(e) => update({ moveType: e.currentTarget.value as MoveType })}
-                  >
-                    {MOVE_TYPES.map((option) => (
-                      <option key={option} value={option}>
-                        {t(`editor.event.moveType.${option}`)}
-                      </option>
-                    ))}
-                  </FieldSelect>
-                </span>
-                <span className="flex flex-col gap-1 text-[11px] text-zinc-500">
-                  {t("editor.event.move.speed")}
-                  <FieldSelect
-                    aria-label={t("editor.event.move.speed")}
-                    className="h-7 text-xs"
-                    value={page.moveSpeed}
-                    onChange={(e) => update({ moveSpeed: Number(e.currentTarget.value) })}
-                  >
-                    {SPEED_VALUES.map((value) => (
-                      <option key={value} value={value}>
-                        {t(`editor.event.speed.${value}`)}
-                      </option>
-                    ))}
-                  </FieldSelect>
-                </span>
-                <span className="flex flex-col gap-1 text-[11px] text-zinc-500">
-                  {t("editor.event.move.freq")}
-                  <FieldSelect
-                    aria-label={t("editor.event.move.freq")}
-                    className="h-7 text-xs"
-                    value={page.moveFreq}
-                    onChange={(e) => update({ moveFreq: Number(e.currentTarget.value) })}
-                  >
-                    {FREQ_VALUES.map((value) => (
-                      <option key={value} value={value}>
-                        {t(`editor.event.freq.${value}`)}
-                      </option>
-                    ))}
-                  </FieldSelect>
-                </span>
-              </div>
-            </section>
+                    <span className="flex flex-col gap-1 text-[11px] text-zinc-500">
+                      {t("editor.event.move.type")}
+                      <FieldSelect
+                        aria-label={t("editor.event.move.type")}
+                        className="h-7 text-xs"
+                        value={page.moveType}
+                        onChange={(e) => update({ moveType: e.currentTarget.value as MoveType })}
+                      >
+                        {MOVE_TYPES.map((option) => (
+                          <option key={option} value={option}>
+                            {t(`editor.event.moveType.${option}`)}
+                          </option>
+                        ))}
+                      </FieldSelect>
+                    </span>
+                    <span className="flex flex-col gap-1 text-[11px] text-zinc-500">
+                      {t("editor.event.move.speed")}
+                      <FieldSelect
+                        aria-label={t("editor.event.move.speed")}
+                        className="h-7 text-xs"
+                        value={page.moveSpeed}
+                        onChange={(e) => update({ moveSpeed: Number(e.currentTarget.value) })}
+                      >
+                        {SPEED_VALUES.map((value) => (
+                          <option key={value} value={value}>
+                            {t(`editor.event.speed.${value}`)}
+                          </option>
+                        ))}
+                      </FieldSelect>
+                    </span>
+                    <span className="flex flex-col gap-1 text-[11px] text-zinc-500">
+                      {t("editor.event.move.freq")}
+                      <FieldSelect
+                        aria-label={t("editor.event.move.freq")}
+                        className="h-7 text-xs"
+                        value={page.moveFreq}
+                        onChange={(e) => update({ moveFreq: Number(e.currentTarget.value) })}
+                      >
+                        {FREQ_VALUES.map((value) => (
+                          <option key={value} value={value}>
+                            {t(`editor.event.freq.${value}`)}
+                          </option>
+                        ))}
+                      </FieldSelect>
+                    </span>
+                  </div>
+                </section>
 
-            <section className="flex gap-4 rounded-lg border border-zinc-200 p-3">
-              <div className="flex flex-1 flex-col gap-2">
-                <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
-                  {t("editor.event.options")}
-                </h3>
-                {OPTION_FIELDS.map((field) => (
-                  <label
-                    key={field}
-                    className="flex items-center gap-2 text-[12.5px] text-zinc-700"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={page[field]}
-                      onChange={(e) => update({ [field]: e.currentTarget.checked })}
-                    />
-                    {t(OPTION_KEY[field])}
-                  </label>
-                ))}
+                <section className="flex gap-4 rounded-lg border border-zinc-200 p-3">
+                  <div className="flex flex-1 flex-col gap-2">
+                    <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
+                      {t("editor.event.options")}
+                    </h3>
+                    {OPTION_FIELDS.map((field) => (
+                      <label
+                        key={field}
+                        className="flex items-center gap-2 text-[12.5px] text-zinc-700"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={page[field]}
+                          onChange={(e) => update({ [field]: e.currentTarget.checked })}
+                        />
+                        {t(OPTION_KEY[field])}
+                      </label>
+                    ))}
+                  </div>
+                  <div className="flex w-44 flex-none flex-col gap-2">
+                    <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
+                      {t("editor.event.trigger")}
+                    </h3>
+                    <FieldSelect
+                      aria-label={t("editor.event.trigger")}
+                      className="h-7 text-xs"
+                      value={page.trigger}
+                      onChange={(e) => update({ trigger: e.currentTarget.value as EventTrigger })}
+                    >
+                      {EVENT_TRIGGERS.map((option) => (
+                        <option key={option} value={option}>
+                          {t(`editor.event.trigger.${option}`)}
+                        </option>
+                      ))}
+                    </FieldSelect>
+                  </div>
+                </section>
               </div>
-              <div className="flex w-44 flex-none flex-col gap-2">
-                <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
-                  {t("editor.event.trigger")}
-                </h3>
-                <FieldSelect
-                  aria-label={t("editor.event.trigger")}
-                  className="h-7 text-xs"
-                  value={page.trigger}
-                  onChange={(e) => update({ trigger: e.currentTarget.value as EventTrigger })}
-                >
-                  {EVENT_TRIGGERS.map((option) => (
-                    <option key={option} value={option}>
-                      {t(`editor.event.trigger.${option}`)}
-                    </option>
-                  ))}
-                </FieldSelect>
-              </div>
-            </section>
-          </div>
 
-          {/* Right column: the command list, not built this tranche. */}
-          <section className="flex flex-col gap-2">
-            <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
-              {t("editor.event.commands")}
-            </h3>
-            <div className="flex min-h-40 flex-1 items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-4 text-center text-xs text-zinc-400">
-              {t("editor.event.commands.placeholder")}
+              {/* Right column: the command list, not built this tranche. */}
+              <section className="flex flex-col gap-2">
+                <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
+                  {t("editor.event.commands")}
+                </h3>
+                <div className="flex min-h-40 flex-1 items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-4 text-center text-xs text-zinc-400">
+                  {t("editor.event.commands.placeholder")}
+                </div>
+              </section>
             </div>
-          </section>
-        </div>
+          </>
+        )}
 
         <DialogFooter className="items-center sm:justify-between">
           <Button variant="destructive" size="sm" onClick={() => setConfirmingDelete(true)}>

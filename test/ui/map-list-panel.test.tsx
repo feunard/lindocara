@@ -47,7 +47,8 @@ function mapsBackend(maps: MapSummary[] = twoMaps) {
   const list = maps.map((m) => ({ ...m }));
   return vi.fn((url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
-    if (url === "/api/maps" && method === "GET") return Promise.resolve(jsonResponse(list));
+    if (url.startsWith("/api/maps?adventure=") && method === "GET")
+      return Promise.resolve(jsonResponse(list));
     if (url === "/api/maps" && method === "POST") {
       const created: MapPayload = {
         id: "new",
@@ -84,16 +85,23 @@ function mapsBackend(maps: MapSummary[] = twoMaps) {
 
 /** Holds the two dialog-open props the screen owns so the panel can drive them in isolation. */
 function Harness(overrides: {
+  adventureId?: string | null;
   activeMapId?: string | null;
+  startMapId?: string | null;
+  startableMapIds?: ReadonlySet<string>;
   dirty?: boolean;
   onOpenPayload?: (payload: MapPayload) => void;
+  onSetStart?: (mapId: string) => void;
   onSessionExpired?: () => void;
 }) {
   const [newMapOpen, setNewMapOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   return (
     <MapListPanel
+      adventureId={overrides.adventureId ?? "adv-1"}
       activeMapId={overrides.activeMapId ?? null}
+      startMapId={overrides.startMapId ?? null}
+      startableMapIds={overrides.startableMapIds ?? new Set(["m1", "m2"])}
       dirty={overrides.dirty ?? false}
       refreshNonce={0}
       newMapOpen={newMapOpen}
@@ -103,6 +111,7 @@ function Harness(overrides: {
       onRequestOpen={() => {}}
       onOpenPayload={overrides.onOpenPayload ?? (() => {})}
       onActiveDeleted={() => {}}
+      onSetStart={overrides.onSetStart ?? (() => {})}
       onOpenSettings={() => {}}
       onError={() => {}}
       onSessionExpired={overrides.onSessionExpired ?? (() => {})}
@@ -123,6 +132,25 @@ describe("MapListPanel", () => {
     expect(screen.getByRole("button", { name: "Frostfen" })).toBeInTheDocument();
     expect(screen.getByText("40×30")).toBeInTheDocument();
     expect(screen.getByText("48×32")).toBeInTheDocument();
+  });
+
+  it("disables the start star on a map with no entry, with a hint (UX wave #6 review fix)", async () => {
+    vi.stubGlobal("fetch", mapsBackend());
+    const onSetStart = vi.fn();
+    // Only m1 has an entry to point the graph start at; m2 has none.
+    render(<Harness startableMapIds={new Set(["m1"])} onSetStart={onSetStart} />);
+    await screen.findByRole("button", { name: "Frostfen" });
+
+    const stars = screen.getAllByRole("button", { name: t("editor.shell.maps.start") });
+    expect(stars[0]).toBeEnabled();
+    expect(stars[1]).toBeDisabled();
+    expect(stars[1]).toHaveAttribute("title", t("editor.shell.maps.start.noEntry"));
+
+    // The disabled star raises nothing; the enabled one sets the start (no misleading error path).
+    await userEvent.click(stars[1] as HTMLElement);
+    expect(onSetStart).not.toHaveBeenCalled();
+    await userEvent.click(stars[0] as HTMLElement);
+    expect(onSetStart).toHaveBeenCalledWith("m1");
   });
 
   it("asks for confirmation before deleting, then refreshes the list", async () => {
@@ -171,6 +199,43 @@ describe("MapListPanel", () => {
     );
     expect(onOpenPayload).not.toHaveBeenCalled();
     confirm.mockRestore();
+  });
+
+  it("defaults a new map's name to the lowest free MapN and sends it on create (UX wave #16)", async () => {
+    const mock = mapsBackend();
+    vi.stubGlobal("fetch", mock);
+    render(<Harness />);
+    await screen.findByRole("button", { name: "Frostfen" });
+
+    // The list holds "Verdant Reach"/"Frostfen" — neither a MapN — so the default is Map1.
+    await userEvent.click(screen.getByRole("button", { name: t("editor.new") }));
+    const nameField = await screen.findByLabelText(t("editor.name"));
+    expect(nameField).toHaveValue("Map1");
+
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.maps.create") }));
+    await waitFor(() =>
+      expect(mock).toHaveBeenCalledWith(
+        "/api/maps",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ adventureId: "adv-1", name: "Map1" }),
+        }),
+      ),
+    );
+  });
+
+  it("skips MapN names already taken (UX wave #16)", async () => {
+    const takenMaps: MapSummary[] = [
+      { id: "a", name: "Map1", revision: 1, cols: 40, rows: 30, isFirst: true },
+      { id: "b", name: "Map2", revision: 1, cols: 40, rows: 30, isFirst: false },
+    ];
+    vi.stubGlobal("fetch", mapsBackend(takenMaps));
+    render(<Harness />);
+    await screen.findByRole("button", { name: "Map2" });
+
+    await userEvent.click(screen.getByRole("button", { name: t("editor.new") }));
+    // Map1 and Map2 are taken, so the next default is Map3.
+    expect(await screen.findByLabelText(t("editor.name"))).toHaveValue("Map3");
   });
 
   it("redirects to the auth screen when the session has expired", async () => {
