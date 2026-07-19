@@ -25,7 +25,11 @@ import {
 } from "../../shared/tilesets/tiny-swords.js";
 import type { EditorAssetId } from "../../shared/tiny-swords-catalog.js";
 import { needsFoam } from "./autotile.js";
-import { catalogElementFrameAt, createCatalogElementView } from "./catalog-element-render.js";
+import {
+  catalogElementFrameAt,
+  createCatalogElementView,
+  createEventGraphicSprite,
+} from "./catalog-element-render.js";
 import {
   type EditorAssetArt,
   loadEditorAssetArt,
@@ -202,19 +206,11 @@ export function paintEventCell(
   const frame = graphicId === null ? undefined : art?.frames[0];
   const hasGraphic = frame !== undefined;
   if (frame) {
-    const sprite = new Sprite(frame);
-    // Deliberately NOT `createCatalogElementView`'s placement math: an event is a fixed one-cell
-    // marker, so its graphic is anchored bottom-centre (0.5, 1) on the cell and fit into ~1.6 tiles,
-    // regardless of the asset. `createCatalogElementView` instead honours each asset's own
-    // `definition.anchor`/`footOffset` so multi-cell scenery stands on its footprint — the right rule
-    // for props a player collides with, the wrong one for a uniform EV chip. The divergence is
-    // intentional: same catalogue art, two different placement contracts.
-    const fit = Math.min((TILE_SIZE * 1.6) / frame.width, (TILE_SIZE * 1.6) / frame.height);
-    sprite.width = frame.width * fit;
-    sprite.height = frame.height * fit;
-    sprite.anchor.set(0.5, 1);
-    sprite.position.set(x + TILE_SIZE / 2, y + TILE_SIZE);
-    container.addChild(sprite);
+    // The shared event crop (`createEventGraphicSprite`), so the overlay and the game renderer draw a
+    // page graphic identically — a fixed one-cell marker anchored bottom-centre and fit into ~1.6
+    // tiles, deliberately NOT `createCatalogElementView`'s per-asset footprint. Same catalogue art,
+    // one event placement contract for both trees.
+    container.addChild(createEventGraphicSprite(event.col, event.row, frame));
   } else {
     const placeholder = new Graphics();
     placeholder

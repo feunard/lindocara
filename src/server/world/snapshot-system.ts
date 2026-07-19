@@ -1,6 +1,16 @@
 import { type QuestChapter, xpForNextLevel } from "../../shared/game.js";
-import type { SelfState, ServerMessage, WorldView } from "../../shared/protocol.js";
-import { buildWorldDelta, replaceWorldCache } from "../../shared/world-delta.js";
+import type {
+  SelfState,
+  ServerMessage,
+  WorldEventSnapshot,
+  WorldView,
+} from "../../shared/protocol.js";
+import {
+  buildEventDelta,
+  buildWorldDelta,
+  replaceWorldCache,
+  seedEventCache,
+} from "../../shared/world-delta.js";
 import { combatCooldownsFromPlayer, type PlayerRuntime } from "./world-runtime.js";
 
 export type SendMessage = (socket: WebSocket, message: ServerMessage) => void;
@@ -45,11 +55,16 @@ export function broadcastNetworkUpdates(
   tick: number,
   viewForPlayer: ViewForPlayer,
   send: SendMessage,
+  activeEvents: readonly WorldEventSnapshot[],
 ): void {
   for (const [socket, player] of players) {
     if (!player.authorized) continue;
     const delta = buildWorldDelta(player.network, viewForPlayer(player));
-    send(socket, { t: "world.delta", tick, ...delta });
+    // Events are room-scoped — the same active set for every recipient — but the diff is still
+    // per-recipient bookkeeping against that recipient's own baseline, so a client that joined
+    // between two state changes is corrected independently of when it welcomed.
+    const events = buildEventDelta(player.network, activeEvents);
+    send(socket, { t: "world.delta", tick, ...delta, events });
   }
 }
 
@@ -59,10 +74,12 @@ export function sendWorldResync(
   tick: number,
   viewForPlayer: ViewForPlayer,
   send: SendMessage,
+  activeEvents: readonly WorldEventSnapshot[],
 ): void {
   const view = viewForPlayer(player);
   replaceWorldCache(player.network, view);
-  send(socket, { t: "world.resync", tick, ...view });
+  seedEventCache(player.network, activeEvents);
+  send(socket, { t: "world.resync", tick, ...view, events: [...activeEvents] });
 }
 
 export function questTargetFor(

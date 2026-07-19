@@ -1,11 +1,19 @@
 import { describe, expect, it } from "vitest";
-import type { MonsterSnapshot, PlayerSnapshot, WorldView } from "../src/shared/protocol.js";
+import type {
+  MonsterSnapshot,
+  PlayerSnapshot,
+  WorldEventSnapshot,
+  WorldView,
+} from "../src/shared/protocol.js";
 import {
+  applyEventDelta,
   applyWorldDelta,
+  buildEventDelta,
   buildWorldDelta,
   countDeltaEntities,
   createWorldCache,
   interpolateSnapshots,
+  seedEventCache,
   worldViewFromCache,
 } from "../src/shared/world-delta.js";
 
@@ -132,5 +140,43 @@ describe("differential world state", () => {
       deltas.reduce((total, delta) => total + JSON.stringify(delta).length, 0) / deltas.length;
     expect(deltas.filter((delta) => countDeltaEntities(delta) === 0)).toHaveLength(10);
     expect(averageDeltaBytes).toBeLessThan(oldBytes * 0.5);
+  });
+});
+
+describe("room-scoped event deltas", () => {
+  const event = (overrides: Partial<WorldEventSnapshot> = {}): WorldEventSnapshot => ({
+    id: "event-a",
+    col: 5,
+    row: 5,
+    graphicAssetId: "building.buildings-black-buildings.archery",
+    onTop: false,
+    ...overrides,
+  });
+
+  it("upserts a new or changed active page and removes a dormant one", () => {
+    const cache = createWorldCache();
+    seedEventCache(cache, [event()]);
+    // Unchanged: no delta.
+    expect(buildEventDelta(cache, [event()])).toEqual({ upsert: [], remove: [] });
+    // Changed graphic (same id): an upsert, no removal.
+    const changed = event({ graphicAssetId: "resource.terrain-resources-wood-trees.tree3" });
+    expect(buildEventDelta(cache, [changed])).toEqual({ upsert: [changed], remove: [] });
+    // Gone dormant: a removal.
+    expect(buildEventDelta(cache, [])).toEqual({ upsert: [], remove: ["event-a"] });
+  });
+
+  it("applies a delta into the client baseline, upsert then removal", () => {
+    const client = createWorldCache();
+    seedEventCache(client, [event()]);
+    const changed = event({ graphicAssetId: "resource.terrain-resources-wood-trees.tree3" });
+    expect(applyEventDelta(client, { upsert: [changed], remove: [] })).toEqual([changed]);
+    expect(applyEventDelta(client, { upsert: [], remove: ["event-a"] })).toEqual([]);
+  });
+
+  it("rejects an unknown or duplicate removal so the caller can resync", () => {
+    const client = createWorldCache();
+    seedEventCache(client, [event()]);
+    expect(applyEventDelta(client, { upsert: [], remove: ["ghost"] })).toBeNull();
+    expect(applyEventDelta(client, { upsert: [event(), event()], remove: [] })).toBeNull();
   });
 });

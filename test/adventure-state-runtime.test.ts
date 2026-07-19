@@ -67,6 +67,19 @@ function twoPageEvent(id: string): MapEvent {
   };
 }
 
+/** A single-page event gated on switch 0002: present while 0002 holds, dormant (and removed off the
+ *  wire) the moment it stops. Its one page is a "page-1 event" — the stale-removal mutation proof. */
+function vanishEvent(id: string): MapEvent {
+  return {
+    id,
+    col: EVENT_COL + 1,
+    row: EVENT_ROW,
+    name: "Vanish",
+    ordinal: 1,
+    pages: [page({ graphicAssetId: PAGE1_GRAPHIC, condSwitchId: "0002" })],
+  };
+}
+
 interface StateFixture {
   party: TestParty;
   mapA: string;
@@ -207,6 +220,100 @@ describe("adventure state runtime", () => {
       id: fixture.eventIdB,
       graphicAssetId: PAGE2_GRAPHIC,
     });
+  });
+
+  it("puts page 1 on the welcome wire, then upserts page 2 and removes a dormant event on flips", async () => {
+    const gateId = crypto.randomUUID();
+    const vanishId = crypto.randomUUID();
+    const maps: TestMapBody[] = [
+      testMapInput("wire ground", { events: [twoPageEvent(gateId), vanishEvent(vanishId)] }),
+    ];
+    const party = await testParty("wire", { maps });
+    // 0002 on so the vanish event starts present; 0001 off so the gate starts on page 1.
+    await seedPersistedState(party.partyId, {
+      switches: { "0002": true },
+      variables: {},
+      selfSwitches: {},
+    });
+
+    const hero = await testHero("Wire", { party, account: party.host });
+    const client = await Client.joinHero(hero);
+    await until("welcomed", () => client.welcome);
+
+    // The welcome carries the active page's appearance for every holding event.
+    const welcomeEvents = client.welcome?.world.events ?? [];
+    expect(welcomeEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: gateId, graphicAssetId: PAGE1_GRAPHIC, onTop: false }),
+        expect.objectContaining({ id: vanishId, graphicAssetId: PAGE1_GRAPHIC }),
+      ]),
+    );
+
+    // Flip 0001: the gate's active page becomes page 2, carried as a delta upsert.
+    await env.GAME_SESSION.getByName(party.partyId).applyStateChangeForTest(party.partyId, {
+      switchId: "0001",
+      value: true,
+    });
+    await until(
+      "gate shows page 2",
+      () => client.events.find((event) => event.id === gateId)?.graphicAssetId === PAGE2_GRAPHIC,
+    );
+    const sawUpsert = client.received.some(
+      (message) =>
+        message.t === "world.delta" &&
+        message.events.upsert.some(
+          (event) => event.id === gateId && event.graphicAssetId === PAGE2_GRAPHIC,
+        ),
+    );
+    expect(sawUpsert).toBe(true);
+
+    // Flip 0002 off: the single-page vanish event goes dormant and must be REMOVED from the wire.
+    // If the diff never emitted removals, the stale page-1 event would linger here.
+    await env.GAME_SESSION.getByName(party.partyId).applyStateChangeForTest(party.partyId, {
+      switchId: "0002",
+      value: false,
+    });
+    await until("vanish removed", () => client.events.every((event) => event.id !== vanishId));
+    expect(client.events.map((event) => event.id)).toEqual([gateId]);
+  });
+
+  it("serves the coordinator's held state to a restoring room — load-on-demand and ahead of D1", async () => {
+    // A ticking World cannot be evicted (`evictDurableObject` hangs on its `setInterval`), so the
+    // hibernation-restore obligation is proved as two halves: (A) the coordinator serves persisted
+    // state on demand even when it is itself cold, and (B) the copy it serves is the held one, which
+    // can be newer than D1's debounced row — exactly what a restoring World must pull instead of D1.
+
+    // Half A: a fresh coordinator (no room ever admitted) loads the persisted row on first ask.
+    const loadFixture = await seedFixture("hib-load");
+    await seedPersistedState(loadFixture.party.partyId, {
+      switches: { "0001": true },
+      variables: {},
+      selfSwitches: {},
+    });
+    const loaded = await env.GAME_SESSION.getByName(loadFixture.party.partyId).getAdventureState(
+      loadFixture.party.partyId,
+    );
+    expect(loaded.switches).toEqual({ "0001": true });
+
+    // Half B: after a seam flip the held state is ahead of D1 (the write is debounced 5s). A
+    // restoring room pulling `getAdventureState` sees the flip; D1 does not yet.
+    const heldFixture = await seedFixture("hib-held");
+    const hero = await testHero("Hib", {
+      party: heldFixture.party,
+      account: heldFixture.party.host,
+    });
+    const client = await Client.joinHero(hero);
+    await until("welcomed", () => client.welcome);
+
+    await env.GAME_SESSION.getByName(heldFixture.party.partyId).applyStateChangeForTest(
+      heldFixture.party.partyId,
+      { switchId: "0001", value: true },
+    );
+    const held = await env.GAME_SESSION.getByName(heldFixture.party.partyId).getAdventureState(
+      heldFixture.party.partyId,
+    );
+    expect(held.switches["0001"]).toBe(true);
+    expect(await readPersistedState(heldFixture.party.partyId)).toBeNull();
   });
 
   it("saves on party-empty and prunes an orphan self-switch", async () => {

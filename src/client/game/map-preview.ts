@@ -139,7 +139,15 @@ export async function startMapPreview(data: MapData): Promise<{ stop(): void }> 
       grid: false,
     };
     renderer.render(
-      { players: [moved], monsters: [], guards: [], loot: [], corpses: [], projectiles: [] },
+      {
+        players: [moved],
+        monsters: [],
+        guards: [],
+        loot: [],
+        corpses: [],
+        projectiles: [],
+        events: [],
+      },
       context,
     );
   });

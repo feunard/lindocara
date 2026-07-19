@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import type { PartyAdventureState } from "../shared/adventure-state.js";
+import { EMPTY_ADVENTURE_STATE, type PartyAdventureState } from "../shared/adventure-state.js";
 import type { ServerMessage } from "../shared/protocol.js";
 import {
   loadAdventureEventIds,
@@ -49,6 +49,19 @@ export class GameSession extends DurableObject<Env> {
     activeRooms.add(roomKey);
     await this.ctx.storage.put({ partyId, rooms: [...rooms], activeRooms: [...activeRooms] });
     await this.#ensureState(partyId);
+  }
+
+  /**
+   * The coordinator's held snapshot, for a `World` room re-derived from hibernation. That room woke
+   * without a `fetch`-time push, so it pulls the authoritative copy from here — this coordinator is
+   * the single writer, so its held state is at least as fresh as the debounced D1 row, and reading
+   * it is not a second cache. Load-on-demand when this coordinator is itself fresh (`#state` null),
+   * exactly like a first room admission.
+   */
+  async getAdventureState(partyId: string): Promise<PartyAdventureState> {
+    const storedPartyId = await this.ctx.storage.get<string>("partyId");
+    if (storedPartyId !== undefined && storedPartyId !== partyId) return EMPTY_ADVENTURE_STATE;
+    return this.#ensureState(partyId);
   }
 
   /** Load the party's adventure state once, on first contact. Degrades to empty, never throws

@@ -88,7 +88,7 @@ import { emptyLayer, encodeTileLayer } from "../shared/tile-layer-codec.js";
 import { TILE_SIZE } from "../shared/tilemap.js";
 import { encodeTileMap } from "../shared/tilemap-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "../shared/tilesets/tiny-swords.js";
-import { replaceWorldCache } from "../shared/world-delta.js";
+import { replaceWorldCache, seedEventCache } from "../shared/world-delta.js";
 import {
   isKnownZone,
   isValidInstanceId,
@@ -267,6 +267,27 @@ export class World extends DurableObject<Env> {
           } catch {
             // The legacy socket may already be closed or carry an unreadable attachment.
           }
+        }
+      }
+      // Hibernation restore reconstructs the room from its sockets without going through
+      // `GameSession.fetch`, so no snapshot push happens on wake. Pull the party's held state from
+      // the coordinator — the single writer, whose copy can be newer than D1's debounced row and is
+      // never a second storage cache — and re-evaluate the active events against it. `#restoreWebSocket`
+      // set `#heroPartyId` via `#addPlayer`; a catalogue/character room has none and keeps the empty state.
+      if (this.#heroPartyId !== null && this.#location !== null) {
+        const partyId = this.#heroPartyId;
+        try {
+          this.#adventureState =
+            await this.env.GAME_SESSION.getByName(partyId).getAdventureState(partyId);
+          this.#evaluateActiveEvents();
+        } catch (error) {
+          console.error(
+            JSON.stringify({
+              event: "world_adventure_state_restore_failed",
+              partyId,
+              error: error instanceof Error ? error.message : String(error),
+            }),
+          );
         }
       }
       if (this.#players.size > 0) this.#startLoop();
@@ -572,6 +593,9 @@ export class World extends DurableObject<Env> {
 
     const initialView = this.#worldView(player);
     replaceWorldCache(player.network, initialView);
+    // Seed this recipient's events baseline to the full active set so its first `world.delta`
+    // diffs against what the welcome actually carried, not an empty cache.
+    seedEventCache(player.network, this.#activeEvents);
     this.#send(server, {
       t: "welcome",
       tick: this.#tick,
@@ -598,6 +622,9 @@ export class World extends DurableObject<Env> {
             location.definition.terrain.tiles.cols,
             location.definition.terrain.tiles.rows,
           ),
+        // The active page of each authored event, appearance only — evaluated just above at join.
+        // A catalogue zone has none; a D1 map's are re-derived against the party's state snapshot.
+        events: this.#activeEvents,
         width: location.definition.terrain.width,
         height: location.definition.terrain.height,
         playerSize: PLAYER_SIZE,
@@ -2571,6 +2598,7 @@ export class World extends DurableObject<Env> {
       this.#tick,
       (player) => this.#worldView(player),
       (socket, message) => this.#send(socket, message),
+      this.#activeEvents,
     );
   }
 
@@ -2581,6 +2609,7 @@ export class World extends DurableObject<Env> {
       this.#tick,
       (recipient) => this.#worldView(recipient),
       (socket, message) => this.#send(socket, message),
+      this.#activeEvents,
     );
   }
 

@@ -16,6 +16,7 @@ import {
   parseServerMessage,
   type QuestStatus,
   type ServerMessage,
+  type WorldEventSnapshot,
   type WorldView,
 } from "../../src/shared/protocol.js";
 import {
@@ -27,9 +28,11 @@ import {
 } from "../../src/shared/simulation.js";
 import { TILE_SIZE } from "../../src/shared/tilemap.js";
 import {
+  applyEventDelta,
   applyWorldDelta,
   createWorldCache,
   replaceWorldCache,
+  seedEventCache,
   type WorldCache,
 } from "../../src/shared/world-delta.js";
 import { isKnownZone, zoneDefinition } from "../../src/shared/zones.js";
@@ -450,6 +453,9 @@ export class Client {
   #pump: ReturnType<typeof setInterval> | null = null;
   #worldCache: WorldCache = createWorldCache();
   #latestWorld: (WorldView & { tick: number }) | undefined;
+  /** The room's active events, reconstructed exactly as the browser client does, so a test can
+   *  assert what a real client would draw after a welcome/delta/resync. */
+  #events: WorldEventSnapshot[] = [];
 
   constructor(socket: WebSocket) {
     this.#socket = socket;
@@ -462,6 +468,9 @@ export class Client {
       this.receivedAt.push(Date.now());
       if (message.t === "welcome" || message.t === "world.resync") {
         replaceWorldCache(this.#worldCache, message);
+        const events = message.t === "welcome" ? message.world.events : message.events;
+        seedEventCache(this.#worldCache, events);
+        this.#events = [...events];
         this.#latestWorld = {
           tick: message.tick,
           players: message.players,
@@ -474,6 +483,8 @@ export class Client {
       } else if (message.t === "world.delta") {
         const view = applyWorldDelta(this.#worldCache, message);
         if (view) this.#latestWorld = { tick: message.tick, ...view };
+        const events = applyEventDelta(this.#worldCache, message.events);
+        if (events) this.#events = events;
       }
     });
     socket.addEventListener("close", (event) => {
@@ -636,6 +647,11 @@ export class Client {
 
   get latestSnapshot() {
     return this.#latestWorld;
+  }
+
+  /** The room's active events as this client has reconstructed them from welcome/delta/resync. */
+  get events(): readonly WorldEventSnapshot[] {
+    return this.#events;
   }
 
   get latestState() {
