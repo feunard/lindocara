@@ -1,3 +1,19 @@
+-- POC RESET (added after the first deploy attempt failed): D1 ignores `PRAGMA foreign_keys=OFF`,
+-- the local-SQLite idiom this rebuild leaned on, so rebuilding `map` under live children fires FK
+-- enforcement remotely (SQLITE_CONSTRAINT). Pre-wave authored content is disposable by decision —
+-- the merge records it — so the honest fix is also the safe one: empty the content tables first
+-- (children before parents, accounts kept), which makes the rebuild deterministic on any state.
+DELETE FROM `map_event_page`;--> statement-breakpoint
+DELETE FROM `map_event`;--> statement-breakpoint
+DELETE FROM `map_element`;--> statement-breakpoint
+DELETE FROM `party_adventure_state`;--> statement-breakpoint
+DELETE FROM `hero`;--> statement-breakpoint
+DELETE FROM `party_member`;--> statement-breakpoint
+DELETE FROM `party`;--> statement-breakpoint
+DELETE FROM `adventure_map`;--> statement-breakpoint
+DELETE FROM `map`;--> statement-breakpoint
+DELETE FROM `adventure`;--> statement-breakpoint
+PRAGMA defer_foreign_keys = true;--> statement-breakpoint
 -- UX wave #5: a map belongs to exactly ONE adventure. The `adventure_map` n-n table dies and
 -- `map.adventure_id` (NOT NULL, cascade) replaces it. This migration attributes every map to the
 -- single adventure that referenced it; a map referenced by SEVERAL adventures is DUPLICATED (a new
@@ -61,7 +77,7 @@ SELECT `adventure_id`, `new_map_id`, `position` FROM `__dup`;--> statement-break
 
 -- 2. Rebuild `map` with the NOT NULL `adventure_id`, reading the owner out of `adventure_map`. A map
 --    with no membership yields NULL and is excluded — that is the orphan drop.
-PRAGMA foreign_keys=OFF;--> statement-breakpoint
+PRAGMA defer_foreign_keys = true;--> statement-breakpoint
 CREATE TABLE `__new_map` (
 	`id` text PRIMARY KEY NOT NULL,
 	`account_id` text,
@@ -108,7 +124,6 @@ ALTER TABLE `__new_map` RENAME TO `map`;--> statement-breakpoint
 DELETE FROM `map_element` WHERE `map_id` NOT IN (SELECT `id` FROM `map`);--> statement-breakpoint
 DELETE FROM `map_event` WHERE `map_id` NOT IN (SELECT `id` FROM `map`);--> statement-breakpoint
 DELETE FROM `map_event_page` WHERE `event_id` NOT IN (SELECT `id` FROM `map_event`);--> statement-breakpoint
-PRAGMA foreign_keys=ON;--> statement-breakpoint
 CREATE INDEX `map_account_idx` ON `map` (`account_id`);--> statement-breakpoint
 CREATE INDEX `map_adventure_idx` ON `map` (`adventure_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `map_account_first_unique` ON `map` (`account_id`) WHERE "map"."is_first" = 1 AND "map"."account_id" IS NOT NULL;--> statement-breakpoint
