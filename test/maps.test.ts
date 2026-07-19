@@ -14,6 +14,12 @@ import {
   updateMap as updateOwnedMap,
 } from "../src/server/maps.js";
 import { MAX_MAP_ELEMENTS, type MapElement } from "../src/shared/map-data.js";
+import {
+  MAX_EVENTS_PER_MAP,
+  MAX_PAGES_PER_EVENT,
+  type MapEvent,
+  type MapEventPage,
+} from "../src/shared/map-events.js";
 import { fixedId } from "../src/shared/tileset.js";
 import { layeredTerrain } from "./support/map-fixtures.js";
 
@@ -463,6 +469,137 @@ describe("maps", () => {
       const listed = await listMaps(db);
       expect(listed).toHaveLength(1);
       expect(listed.filter((m) => m.isFirst)).toHaveLength(1);
+    });
+  });
+
+  describe("events", () => {
+    function page(overrides: Partial<MapEventPage> = {}): MapEventPage {
+      return {
+        condSwitchId: null,
+        condVariableId: null,
+        condVariableMin: null,
+        condSelfSwitch: null,
+        graphicAssetId: null,
+        moveType: "fixed",
+        moveSpeed: 3,
+        moveFreq: 3,
+        optMoveAnim: false,
+        optStopAnim: false,
+        optDirFix: false,
+        optThrough: false,
+        optOnTop: false,
+        trigger: "action",
+        ...overrides,
+      };
+    }
+    function event(
+      col: number,
+      row: number,
+      ordinal: number,
+      pages: readonly MapEventPage[],
+    ): MapEvent {
+      return { id: crypto.randomUUID(), col, row, name: `EV${ordinal}`, ordinal, pages };
+    }
+
+    // A single map body sized to hold the events under test, with room to spare.
+    function withEvents(events: readonly MapEvent[]): MapInput {
+      return { ...validInput, name: "Evented", events };
+    }
+
+    it("round-trips events and pages through D1 in ordinal and position order", async () => {
+      const db = createDb(env.DB);
+      // A page with every field at a non-default value, so a dropped or mis-mapped column shows.
+      const rich = page({
+        condSwitchId: "0001",
+        condVariableId: "0002",
+        condVariableMin: 5,
+        condSelfSwitch: "B",
+        graphicAssetId: TREE,
+        moveType: "approach",
+        moveSpeed: 4,
+        moveFreq: 2,
+        optMoveAnim: true,
+        optStopAnim: true,
+        optDirFix: true,
+        optThrough: true,
+        optOnTop: true,
+        trigger: "player-touch",
+      });
+      // moveSpeed doubles as a position marker so page order is observable after the round trip.
+      const first = event(3, 4, 1, [page({ moveSpeed: 0 }), page({ moveSpeed: 1 }), rich]);
+      const second = event(7, 8, 2, [page({ moveSpeed: 5 })]);
+      // Deliberately hand them to createMap out of ordinal order; load must still sort by ordinal.
+      const created = await createMap(db, withEvents([second, first]));
+      expect(created.events).toHaveLength(2);
+
+      const loaded = await loadMap(db, created.id);
+      if (!loaded) throw new Error("expected the map to load");
+      expect(loaded.events.map((e) => e.ordinal)).toEqual([1, 2]);
+      // Page order preserved: the third page of the first event is the rich one.
+      expect(loaded.events[0]?.pages.map((p) => p.moveSpeed)).toEqual([0, 1, 4]);
+      expect(loaded.events[0]?.pages[2]).toEqual(rich);
+      expect(loaded.events[0]).toMatchObject({ id: first.id, col: 3, row: 4, name: "EV1" });
+      expect(loaded.events[1]).toMatchObject({ id: second.id, col: 7, row: 8, ordinal: 2 });
+    });
+
+    // Regression / the tranche-1 D1 bug class: an event INSERT binds 6 params/row and a page INSERT
+    // 17, so an unchunked write of the 64-event x 8-page maximum would bind 384 and 8,704 and D1
+    // would refuse the whole batch with `D1_ERROR: too many SQL variables`. This drives the real D1
+    // binding through `createMap` at that maximum to prove the chunked insert clears it.
+    it("creates a map at the 64x8 event/page maximum, across a chunked D1 insert", async () => {
+      const db = createDb(env.DB);
+      const events = Array.from({ length: MAX_EVENTS_PER_MAP }, (_, i) =>
+        event(
+          i % MAP_COLS,
+          Math.floor(i / MAP_COLS),
+          i,
+          Array.from({ length: MAX_PAGES_PER_EVENT }, (_, p) => page({ moveSpeed: p % 6 })),
+        ),
+      );
+      const created = await createMap(db, withEvents(events));
+      expect(created.events).toHaveLength(MAX_EVENTS_PER_MAP);
+
+      const loaded = await loadMap(db, created.id);
+      expect(loaded?.events).toHaveLength(MAX_EVENTS_PER_MAP);
+      expect(loaded?.events.every((e) => e.pages.length === MAX_PAGES_PER_EVENT)).toBe(true);
+      // Every event's pages come back in position order.
+      for (const e of loaded?.events ?? []) {
+        expect(e.pages.map((p) => p.moveSpeed)).toEqual(
+          Array.from({ length: MAX_PAGES_PER_EVENT }, (_, p) => p % 6),
+        );
+      }
+    });
+
+    // The other write path: updateMap deletes and reinserts events+pages, and the delete cascades to
+    // pages, so a fix that only chunked createMap would still fail here.
+    it("updates events past the single-statement limit, replacing the old set wholesale", async () => {
+      const db = createDb(env.DB);
+      const created = await createMap(db, withEvents([event(1, 1, 1, [page()])]));
+
+      const grown = Array.from({ length: 40 }, (_, i) =>
+        event(i % MAP_COLS, Math.floor(i / MAP_COLS), i, [page(), page({ moveSpeed: 1 })]),
+      );
+      const updated = await updateMap(db, created.id, withEvents(grown));
+      expect(updated.events).toHaveLength(40);
+
+      const loaded = await loadMap(db, created.id);
+      expect(loaded?.events).toHaveLength(40);
+      // No stale page rows survived the cascade: exactly 2 pages per event, 80 total.
+      expect(loaded?.events.reduce((n, e) => n + e.pages.length, 0)).toBe(80);
+    });
+
+    it("rejects more than MAX_EVENTS_PER_MAP events", async () => {
+      const db = createDb(env.DB);
+      const tooMany = Array.from({ length: MAX_EVENTS_PER_MAP + 1 }, (_, i) =>
+        event(i % MAP_COLS, Math.floor(i / MAP_COLS), i, [page()]),
+      );
+      await expect(createMap(db, withEvents(tooMany))).rejects.toThrow(/events/);
+    });
+
+    it("rejects an event whose cell is outside the map", async () => {
+      const db = createDb(env.DB);
+      const offMap = [event(MAP_COLS + 5, 0, 1, [page()])];
+      await expect(createMap(db, withEvents(offMap))).rejects.toThrow(/events/);
     });
   });
 });

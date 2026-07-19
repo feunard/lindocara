@@ -13,6 +13,7 @@ import { isValidClass } from "../shared/game.js";
 import { parseCreateHeroInput } from "../shared/hero.js";
 import { isUuid } from "../shared/identifiers.js";
 import { EMPTY_MARKERS, mapSpawnPoint, parseMapData } from "../shared/map-data.js";
+import { parseMapEvents } from "../shared/map-events.js";
 import { parseCreatePartyInput, parseJoinPartyInput } from "../shared/party.js";
 import { encodeTileLayer } from "../shared/tile-layer-codec.js";
 import { TILE_SIZE } from "../shared/tilemap.js";
@@ -109,11 +110,23 @@ const MAX_API_JSON_BYTES = 4_096;
  * 105 bytes each (the longest catalogue asset id is 72 characters) = 42,001 bytes; markers at
  * their per-field caps (8 entries + 8 exits + 32 monster spawns, each with a 32-character id and a
  * 48-character label) = 4,057 bytes; name (`MAP_NAME_MAX`, 48 characters), tilesetId, cols/rows,
- * spawn and the JSON envelope add the remaining 168 bytes. The true worst case measures
- * 196,233 bytes. 200 KiB (204,800 bytes) is the next clean number with sensible headroom above
- * that — not the 576 KiB an unreachable 16-digit id used to justify.
+ * spawn and the JSON envelope add the remaining 168 bytes. That much alone measures 196,233 bytes.
+ *
+ * Tranche 3 adds authored events (`shared/map-events.ts`) to the same PUT body, and they dominate.
+ * Worst case per event page, every field present at its widest: `condSwitchId`/`condVariableId` as
+ * 4-digit strings, `condVariableMin` a 10-digit int, `condSelfSwitch` one letter, `graphicAssetId`
+ * the 72-character longest catalogue id, `moveType` "approach" (8), `trigger` "player-touch" (12),
+ * two 1-digit move numbers and five `true` options — 352 bytes per page including braces and
+ * commas. A page array of `MAX_PAGES_PER_EVENT` = 8: 8*352 + 7 commas + 2 brackets = 2,825 bytes.
+ * One event wraps that in `{"id":"<36>","col":99,"row":99,"name":"<32>","ordinal":63,"pages":[...]}`
+ * = 2,952 bytes. `MAX_EVENTS_PER_MAP` = 64 of them: 64*2,952 + 63 commas + 2 brackets + the
+ * `"events":` key = 189,001 bytes.
+ *
+ * Total enumerated worst case: 196,233 + 189,001 = 385,234 bytes. 400 KiB (409,600 bytes) is the
+ * next clean number with sensible headroom (24,366 bytes, ~6%) above that — the 200 KiB cap the
+ * pre-events body justified is no longer enough.
  */
-const MAX_MAP_JSON_BYTES = 204_800;
+const MAX_MAP_JSON_BYTES = 409_600;
 // An adventure body is ids and bindings only (no map payloads): 16 links × a few uuids each.
 const MAX_ADVENTURE_JSON_BYTES = 65_536;
 
@@ -520,6 +533,13 @@ function parseMapBody(body: unknown): MapInput | null {
   if (typeof name !== "string") return null;
   const data = parseMapData(body);
   if (!data) return null;
+  // Events are optional so an old client that never sends the field still saves: absent is an empty
+  // event set, not a malformed body. Present-but-malformed is rejected (null -> map_invalid) exactly
+  // like the layers or markers would be. `parseMapEvents` needs the grid dimensions to bounds-check
+  // each event's cell.
+  const rawEvents = (body as { events?: unknown }).events;
+  const events = rawEvents === undefined ? [] : parseMapEvents(rawEvents, data.cols, data.rows);
+  if (events === null) return null;
   return {
     name,
     tilesetId: data.tilesetId,
@@ -529,13 +549,16 @@ function parseMapBody(body: unknown): MapInput | null {
     elements: data.elements,
     spawn: data.spawn,
     markers: data.markers,
+    events,
   };
 }
 
 /**
  * A stored map as it goes out over HTTP: layers as the same run-length encoded strings the client
  * sends back. The wire is symmetric on purpose — a payload read from `GET /api/maps/:id` is a
- * legal body for `PUT` without a re-encode step nobody would remember to keep in step.
+ * legal body for `PUT` without a re-encode step nobody would remember to keep in step. `events`
+ * rides through the spread unchanged: `StoredMap.events` is already exactly the `MapEvent[]` shape
+ * `parseMapEvents` accepts, so a GET response re-PUTs verbatim, events included.
  */
 function mapResponseBody(stored: StoredMap): Record<string, unknown> {
   return { ...stored, layers: stored.layers.map(encodeTileLayer) };

@@ -14,6 +14,11 @@ import {
   MAX_MAP_EXITS,
   MAX_MAP_MONSTER_SPAWNS,
 } from "../src/shared/map-data.js";
+import {
+  EVENT_NAME_MAX,
+  MAX_EVENTS_PER_MAP,
+  MAX_PAGES_PER_EVENT,
+} from "../src/shared/map-events.js";
 import { encodeTileLayer, type TileLayer } from "../src/shared/tile-layer-codec.js";
 import { fixedId } from "../src/shared/tileset.js";
 import { TINY_SWORDS_TILESET_ID } from "../src/shared/tilesets/tiny-swords.js";
@@ -38,6 +43,28 @@ function mapBody(overrides: Record<string, unknown> = {}): Record<string, unknow
     ...layeredWireTerrain(validBlocks()),
     elements: [],
     spawn: { col: 0, row: 0 },
+    ...overrides,
+  };
+}
+
+/** A wire event page with every required field, overridable per test — the same shape
+ *  `parseMapEvents` accepts and `mapResponseBody` returns. */
+function wirePage(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    condSwitchId: null,
+    condVariableId: null,
+    condVariableMin: null,
+    condSelfSwitch: null,
+    graphicAssetId: null,
+    moveType: "fixed",
+    moveSpeed: 3,
+    moveFreq: 3,
+    optMoveAnim: false,
+    optStopAnim: false,
+    optDirFix: false,
+    optThrough: false,
+    optOnTop: false,
+    trigger: "action",
     ...overrides,
   };
 }
@@ -101,9 +128,29 @@ describe("create, list, get, update, delete", () => {
       body: JSON.stringify(mapBody({ name: "Keepalive" })),
     });
 
+    // Events ride the same body and must survive the GET -> PUT verbatim path below just like
+    // layers do. Two events, one with two pages, to exercise ordinal and page order over the wire.
+    const roundTripEvents = [
+      {
+        id: crypto.randomUUID(),
+        col: 5,
+        row: 5,
+        name: "Sign",
+        ordinal: 1,
+        pages: [wirePage({ condSwitchId: "0007", trigger: "player-touch" })],
+      },
+      {
+        id: crypto.randomUUID(),
+        col: 6,
+        row: 5,
+        name: "",
+        ordinal: 2,
+        pages: [wirePage(), wirePage({ moveType: "random", optOnTop: true })],
+      },
+    ];
     const createRes = await authed("/api/maps", {
       method: "POST",
-      body: JSON.stringify(mapBody({ name: "Round Trip" })),
+      body: JSON.stringify(mapBody({ name: "Round Trip", events: roundTripEvents })),
     });
     expect(createRes.status).toBe(201);
     const created = (await createRes.json()) as { id: string };
@@ -113,6 +160,7 @@ describe("create, list, get, update, delete", () => {
       ...layeredWireTerrain(validBlocks()),
       elements: [],
       spawn: { col: 0, row: 0 },
+      events: roundTripEvents,
     });
     expect(typeof created.id).toBe("string");
 
@@ -124,7 +172,7 @@ describe("create, list, get, update, delete", () => {
     const getRes = await authed(`/api/maps/${created.id}`);
     expect(getRes.status).toBe(200);
     const fetched = await getRes.json();
-    expect(fetched).toMatchObject({ id: created.id, name: "Round Trip" });
+    expect(fetched).toMatchObject({ id: created.id, name: "Round Trip", events: roundTripEvents });
 
     // The invariant `src/server/index.ts:509-512` claims: a GET response is a legal PUT body,
     // verbatim, with no re-encode step in between. Feed it straight back rather than re-deriving
@@ -352,8 +400,9 @@ describe("size caps over the wire", () => {
   // length, non-compressible layers, `MAX_MAP_ELEMENTS` elements at the longest catalogue asset
   // id, and the full entry/exit/monster-spawn marker complement at their id/label caps with the
   // longest `MonsterSpecies` name. The old version of this test defaulted to `elements: []` and no
-  // markers, so it only ever posted ~150,050 bytes — nowhere near the 196,233-byte worst case or
-  // the 204,800 cap — and would have passed under any cap above ~150,060. It gave no protection
+  // markers (and, as of tranche 3, no events — which now dominate the worst case), so it only ever
+  // posted ~150,050 bytes — nowhere near the enumerated worst case (now 385,234 bytes) or the
+  // 409,600-byte cap — and would have passed under any cap above ~150,060. It gave no protection
   // against the failure mode it exists to prevent: someone shortening the element/marker
   // arithmetic (a longer asset id, a longer species name, a raised `MAX_MAP_ELEMENTS`) and
   // silently making the cap too tight for legitimate large maps once the painting brushes ship.
@@ -475,6 +524,37 @@ describe("size caps over the wire", () => {
       patrolRadius: 768,
     }));
 
+    // Events dominate the re-derived worst case (see MAX_MAP_JSON_BYTES in server/index.ts): the
+    // full MAX_EVENTS_PER_MAP x MAX_PAGES_PER_EVENT complement, every page field at its widest —
+    // 4-digit condition ids, a 10-digit variable threshold, the longest catalogue graphic id, the
+    // longest move type and trigger, and all five options true. Events float above collision, so
+    // their cells are unconstrained; one per column on a single row keeps them distinct and in
+    // bounds. createMap chunks these into D1-safe INSERTs, so this also drives that path over HTTP.
+    const maxWidthPage = (): Record<string, unknown> => ({
+      condSwitchId: "9999",
+      condVariableId: "9999",
+      condVariableMin: 2_147_483_647,
+      condSelfSwitch: "A",
+      graphicAssetId: longestAssetId,
+      moveType: "approach",
+      moveSpeed: 5,
+      moveFreq: 4,
+      optMoveAnim: true,
+      optStopAnim: true,
+      optDirFix: true,
+      optThrough: true,
+      optOnTop: true,
+      trigger: "player-touch",
+    });
+    const events = Array.from({ length: MAX_EVENTS_PER_MAP }, (_, i) => ({
+      id: crypto.randomUUID(),
+      col: i,
+      row: rows - 5,
+      name: "e".repeat(EVENT_NAME_MAX),
+      ordinal: i,
+      pages: Array.from({ length: MAX_PAGES_PER_EVENT }, maxWidthPage),
+    }));
+
     const bodyText = JSON.stringify(
       mapBody({
         name: "W".repeat(48),
@@ -484,20 +564,22 @@ describe("size caps over the wire", () => {
         layers,
         elements,
         markers: { entries, exits, monsterSpawns },
+        events,
       }),
     );
-    // Sanity on the fixture itself: measurably past what the old (elements-less, marker-less)
-    // fixture reached (~150,050 bytes) — proving this one actually exercises the element and
-    // marker arithmetic — and still comfortably under the cap.
-    expect(bodyText.length).toBeGreaterThan(155_000);
-    expect(bodyText.length).toBeLessThan(204_800);
+    // Sanity on the fixture: the event payload lifts it well past the ~156,322-byte elements+markers
+    // body, proving the events arithmetic is exercised — and still under the re-derived 400 KiB cap.
+    expect(bodyText.length).toBeGreaterThan(320_000);
+    expect(bodyText.length).toBeLessThan(409_600);
 
     const response = await authed("/api/maps", { method: "POST", body: bodyText });
     expect(response.status).toBe(201);
   });
 
-  it("413s a body over the new 200 KiB cap, padded via elements since name is capped at 48", async () => {
-    const elements = Array.from({ length: 5_000 }, (_, i) => ({
+  it("413s a body over the re-derived 400 KiB cap, padded via elements since name is capped at 48", async () => {
+    // ~46 bytes/element x 12,000 clears the 409,600-byte cap by a wide margin, so `readJson` 413s on
+    // the byte stream before any semantic gate runs.
+    const elements = Array.from({ length: 12_000 }, (_, i) => ({
       col: 0,
       row: 0,
       kind: "tree",
