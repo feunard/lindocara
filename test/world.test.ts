@@ -471,7 +471,9 @@ describe("World", () => {
     const drinker = await Client.join("potion_window", {
       zoneId: "verdant-reach",
       instanceId: "potion-window",
-      position: { x: 1870, y: 820 },
+      // Cleave is directional: stand just left of the authored goblin spawn rather than directly
+      // on top of it, so the default right-facing attack has a real frontal target.
+      position: { x: 1840, y: 820 },
       level: 10,
       hp: 150,
     });
