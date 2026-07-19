@@ -232,12 +232,13 @@ describe("eventChipLabel", () => {
 
 describe("shouldShowEventOverlay", () => {
   it("is true only while the event tool is active", () => {
-    expect(shouldShowEventOverlay({ kind: "event" })).toBe(true);
+    expect(shouldShowEventOverlay({ kind: "event", eventKind: "normal" })).toBe(true);
+    expect(shouldShowEventOverlay({ kind: "event", eventKind: "entry" })).toBe(true);
     const inactive: EditorTool[] = [
       { kind: "block", block: "grass" },
       { kind: "select" },
       { kind: "eraser" },
-      { kind: "marker-entry" },
+      { kind: "spawn" },
     ];
     for (const tool of inactive) expect(shouldShowEventOverlay(tool)).toBe(false);
   });
@@ -259,13 +260,25 @@ describe("eventOverlayToggled", () => {
         { kind: "eraser" },
       ),
     ).toBe(false);
-    // Both event: staying in EV mode (e.g. a graphic change) does not flip visibility here either.
-    expect(eventOverlayToggled({ kind: "event" }, { kind: "event", graphic: null })).toBe(false);
+    // Both event: staying in EV mode (e.g. a graphic or kind change) does not flip visibility here.
+    expect(
+      eventOverlayToggled(
+        { kind: "event", eventKind: "normal" },
+        { kind: "event", eventKind: "entry" },
+      ),
+    ).toBe(false);
   });
 
   it("is true exactly when the overlay's visibility flips", () => {
-    expect(eventOverlayToggled({ kind: "select" }, { kind: "event" })).toBe(true);
-    expect(eventOverlayToggled({ kind: "event" }, { kind: "block", block: "grass" })).toBe(true);
+    expect(eventOverlayToggled({ kind: "select" }, { kind: "event", eventKind: "normal" })).toBe(
+      true,
+    );
+    expect(
+      eventOverlayToggled(
+        { kind: "event", eventKind: "normal" },
+        { kind: "block", block: "grass" },
+      ),
+    ).toBe(true);
   });
 });
 
@@ -283,7 +296,8 @@ describe("shouldShowHoverPreview", () => {
         assetId: "resource.terrain-resources-wood-trees.tree3",
       }),
     ).toBe(true);
-    expect(shouldShowHoverPreview({ kind: "marker-entry" })).toBe(true);
+    expect(shouldShowHoverPreview({ kind: "event", eventKind: "entry" })).toBe(true);
+    expect(shouldShowHoverPreview({ kind: "spawn" })).toBe(true);
     expect(shouldShowHoverPreview({ kind: "select" })).toBe(false);
     expect(shouldShowHoverPreview({ kind: "pan" })).toBe(false);
   });

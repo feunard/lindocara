@@ -30,12 +30,33 @@ function mapPayload(id: string): Record<string, unknown> {
     layers: LAYERS,
     elements: [],
     spawn: { col: 9, row: 7 },
-    markers: {
-      entries: [{ id: "start", col: 9, row: 7 }],
-      exits: [{ id: "exit", col: 7, row: 5 }],
-      monsterSpawns: [],
-    },
-    events: [],
+    markers: { entries: [], exits: [], monsterSpawns: [] },
+    // Entries and exits are typed events now (UX wave #12); the graph binds their uuids. `memberInfo`
+    // derives the member's entry/exit ids from these, so the loaded session's start matches the graph.
+    events: [
+      {
+        id: "start",
+        col: 9,
+        row: 7,
+        name: "",
+        ordinal: 1,
+        kind: "entry",
+        species: null,
+        patrolRadius: null,
+        pages: [],
+      },
+      {
+        id: "exit",
+        col: 7,
+        row: 5,
+        name: "",
+        ordinal: 2,
+        kind: "exit",
+        species: null,
+        patrolRadius: null,
+        pages: [],
+      },
+    ],
   };
 }
 

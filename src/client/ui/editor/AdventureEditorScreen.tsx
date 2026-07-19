@@ -8,15 +8,9 @@ import {
 } from "react";
 import type { AdventureInput } from "../../../shared/adventure.js";
 import { type AdventureRegistry, EMPTY_REGISTRY } from "../../../shared/adventure-state.js";
-import { CURATED_MONSTER_SPECIES, type MonsterSpecies } from "../../../shared/game.js";
-import {
-  EMPTY_MARKERS,
-  MARKER_LABEL_MAX,
-  MAX_PATROL_RADIUS,
-  type MapData,
-  MIN_PATROL_RADIUS,
-} from "../../../shared/map-data.js";
-import type { MapEvent } from "../../../shared/map-events.js";
+import type { MonsterSpecies } from "../../../shared/game.js";
+import { EMPTY_MARKERS, type MapData } from "../../../shared/map-data.js";
+import type { EventKind, MapEvent } from "../../../shared/map-events.js";
 import { type EditorAssetId, editorAsset } from "../../../shared/tiny-swords-catalog.js";
 import { setStart } from "../../adventure-draft.js";
 import {
@@ -55,17 +49,17 @@ import { EventDialog } from "./EventDialog.js";
 import { FirstSaveDialog } from "./FirstSaveDialog.js";
 import { MapListPanel } from "./MapListPanel.js";
 import { RegistryDialog } from "./RegistryDialog.js";
-import { type MarkerToolKey, TerrainPalette } from "./TerrainPalette.js";
+import { TerrainPalette } from "./TerrainPalette.js";
 
 /** The default terrain a fresh stroke paints with until the Task 9 terrain palette lands: flat grass,
  *  matching the stage's own default tool so what the toolbar shows and what the stage paints agree. */
 const DEFAULT_CONTENT: RectFillContent = { kind: "block", block: "grass" };
 
 type StageStatus = "loading" | "empty" | "ready" | "error";
-/** The active tool key. `stairs`, scenery, the marker tools and `event` have no *paint*-toolbar
+/** The active tool key. `stairs`, the hero-spawn tool, scenery and `event` have no *paint*-toolbar
  *  button — they are picked in the palette or the EV slot — so the paint toolbar highlights only for
  *  its five paint tools. */
-type ToolKey = EditorPaintTool | "stairs" | MarkerToolKey | "event";
+type ToolKey = EditorPaintTool | "stairs" | "spawn" | "event";
 
 function isPaintToolKey(key: ToolKey | null): key is EditorPaintTool {
   return (
@@ -73,23 +67,18 @@ function isPaintToolKey(key: ToolKey | null): key is EditorPaintTool {
   );
 }
 
-/** The EditorTool a marker palette selection resolves to, bundling the monster species/radius the
- *  monster tool needs. */
-function markerToolFor(
-  key: MarkerToolKey,
+/** The event `EditorTool` for the current EV kind, bundling the pending graphic (normal) or the
+ *  species/radius (monster) the placement needs. Markers are dead — every entry/exit/monster is an
+ *  event now, chosen by `eventKind` on the one event tool. */
+function eventToolFor(
+  eventKind: EventKind,
+  graphic: EditorAssetId | null,
   species: MonsterSpecies,
   patrolRadius: number,
 ): EditorTool {
-  switch (key) {
-    case "spawn":
-      return { kind: "spawn" };
-    case "entry":
-      return { kind: "marker-entry" };
-    case "exit":
-      return { kind: "marker-exit" };
-    case "monster":
-      return { kind: "marker-monster", species, patrolRadius };
-  }
+  if (eventKind === "monster") return { kind: "event", eventKind, species, patrolRadius };
+  if (eventKind === "normal") return { kind: "event", eventKind, graphic };
+  return { kind: "event", eventKind };
 }
 
 /** The two `requireSession` codes that mean "log in again", never "this map request failed". */
@@ -103,7 +92,9 @@ function toEditorMap(map: MapPayload): EditorMap {
     layers: editorLayersFromPayload(map),
     elements: map.elements,
     spawn: map.spawn,
-    markers: map.markers ?? EMPTY_MARKERS,
+    // Markers are QUARANTINED (UX wave #12): the editor ignores whatever a (legacy) payload still
+    // carries and never authors one, so it opens with `EMPTY_MARKERS` and saves the same.
+    markers: EMPTY_MARKERS,
     events: map.events ?? [],
   };
 }
@@ -228,6 +219,9 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [selection, setSelection] = useState<EditorSelection | null>(null);
+  // The kind the EV tool places (normal / entry / exit / monster), and the monster kind's default
+  // species/radius. Markers are dead — these drive the one event tool's placement.
+  const [eventKind, setEventKind] = useState<EventKind>("normal");
   const [markerSpecies, setMarkerSpecies] = useState<MonsterSpecies>("spear_goblin");
   const [markerRadius, setMarkerRadius] = useState(96);
   const [stageStatus, setStageStatus] = useState<StageStatus>("loading");
@@ -380,19 +374,20 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     containerRef.current?.focus();
   }, [previewing]);
 
-  // The monster marker tool bundles its species/radius into the pushed tool, so changing either while
-  // that tool is active must re-push it — otherwise the stage keeps stamping spawns with whatever
-  // species/radius were selected when the tool was last picked.
+  // The monster event kind bundles its species/radius into the pushed tool, so changing either while
+  // that kind is active must re-push it — otherwise the stage keeps stamping spawns with whatever
+  // species/radius were selected when the kind was last picked.
   useEffect(() => {
-    if (toolKey !== "monster") return;
+    if (toolKey !== "event" || eventKind !== "monster") return;
     const tool: EditorTool = {
-      kind: "marker-monster",
+      kind: "event",
+      eventKind: "monster",
       species: markerSpecies,
       patrolRadius: markerRadius,
     };
     pendingToolRef.current = tool;
     handleRef.current?.setTool(tool);
-  }, [toolKey, markerSpecies, markerRadius]);
+  }, [toolKey, eventKind, markerSpecies, markerRadius]);
 
   function pushTool(tool: EditorTool): void {
     pendingToolRef.current = tool;
@@ -413,10 +408,10 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     pushTool(paintToolFor(key, next));
   }
 
-  function selectMarkerTool(key: MarkerToolKey): void {
-    setToolKey(key);
+  function selectSpawn(): void {
+    setToolKey("spawn");
     setSelectedAsset(null);
-    pushTool(markerToolFor(key, markerSpecies, markerRadius));
+    pushTool({ kind: "spawn" });
   }
 
   function selectAsset(assetId: EditorAssetId): void {
@@ -426,18 +421,31 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   }
 
   // The EV slot and the Mode › Événements item both land here: activate the event tool, carrying the
-  // pending default graphic so a first placement already has it.
+  // current kind and its fields (a normal event's pending graphic, a monster's species/radius) so a
+  // first placement already has them.
   function selectEvents(): void {
     setToolKey("event");
     setSelectedAsset(null);
-    pushTool({ kind: "event", graphic: pendingEventGraphic });
+    pushTool(eventToolFor(eventKind, pendingEventGraphic, markerSpecies, markerRadius));
   }
 
-  // The Événements palette picker sets the default graphic future events get; while the event tool is
-  // active it re-pushes so the very next placement uses it (a "none" pick clears back to placeholder).
+  // The EV kind selector: switch which kind the event tool places, re-pushing so the very next
+  // placement is of the chosen kind (the monster re-push effect keeps species/radius fresh too).
+  function selectEventKind(kind: EventKind): void {
+    setEventKind(kind);
+    if (toolKey === "event") {
+      pushTool(eventToolFor(kind, pendingEventGraphic, markerSpecies, markerRadius));
+    }
+  }
+
+  // The Événements palette picker sets the default graphic future `normal` events get; while the
+  // normal event kind is active it re-pushes so the next placement uses it (a "none" pick clears back
+  // to the placeholder).
   function selectEventGraphic(assetId: EditorAssetId | null): void {
     setPendingEventGraphic(assetId);
-    if (toolKey === "event") pushTool({ kind: "event", graphic: assetId });
+    if (toolKey === "event" && eventKind === "normal") {
+      pushTool({ kind: "event", eventKind: "normal", graphic: assetId });
+    }
   }
 
   // UX wave #11: exactly one selection. Picking a terrain content is a terrain-tool selection, so if a
@@ -792,10 +800,6 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         ? toolLabelText(toolKey)
         : t(`editor.tool.${toolKey}`);
 
-  const activeMarker: MarkerToolKey | null =
-    toolKey === "spawn" || toolKey === "entry" || toolKey === "exit" || toolKey === "monster"
-      ? toolKey
-      : null;
   const cursorText = cursor ? `(${cursor.col}, ${cursor.row})` : "(—, —)";
 
   // The live map the inspector reads its selected marker's fields off — the handle's current edits
@@ -886,8 +890,9 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
             terrainActive={toolKey === "pencil" || toolKey === "rect" || toolKey === "fill"}
             fillActive={toolKey === "fill"}
             stairsActive={toolKey === "stairs"}
-            activeMarker={activeMarker}
+            spawnActive={toolKey === "spawn"}
             eventMode={toolKey === "event"}
+            eventKind={eventKind}
             pendingEventGraphic={pendingEventGraphic}
             selectedAsset={selectedAsset}
             markerSpecies={markerSpecies}
@@ -895,8 +900,9 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
             elementCount={elementCount}
             onPickContent={pickContent}
             onSelectStairs={() => selectTool("stairs")}
-            onSelectMarkerTool={selectMarkerTool}
+            onSelectSpawn={selectSpawn}
             onSelectAsset={selectAsset}
+            onSelectEventKind={selectEventKind}
             onSelectEventGraphic={selectEventGraphic}
             onMarkerSpeciesChange={setMarkerSpecies}
             onMarkerRadiusChange={setMarkerRadius}
@@ -941,14 +947,13 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
             )}
             {selection && currentMap && (
               <div className="pointer-events-auto absolute bottom-3 left-3 z-10 w-64">
-                <MarkerInspector
+                <SelectionInspector
                   selection={selection}
                   map={currentMap}
-                  onSetLabel={(label) => handleRef.current?.setSelectedMarkerLabel(label)}
                   onMove={(col, row) => handleRef.current?.moveSelected(col, row)}
-                  onSetMonster={(species, radius) =>
-                    handleRef.current?.setSelectedMonster(species, radius)
-                  }
+                  onOpenEditor={() => {
+                    if (selection.kind === "event") setOpenEventId(selection.id);
+                  }}
                   onDelete={() => handleRef.current?.deleteSelected()}
                 />
               </div>
@@ -1043,53 +1048,50 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   );
 }
 
+/** The wireframe's `EV{ordinal}` display id, zero-padded to three digits — the friendly label for an
+ *  event in the inspector. Identity is the uuid; this is display only. */
+function eventDisplayId(ordinal: number): string {
+  return `EV${String(ordinal).padStart(3, "0")}`;
+}
+
 /**
- * The selection inspector restored from the old MapEditor: the label, species/radius and cell of the
- * selected marker, with move and delete, all pushed straight through the stage handle. Stock shadcn +
- * a dense native species select; the hero spawn is move-only (it cannot be deleted).
+ * The selection inspector: the cell of the selected event/scenery/spawn, with move, delete, and — for
+ * an event — its kind, its `EV{ordinal}` id and an "open editor" button (markers are dead, so the
+ * former entry/exit/monster inspectors fold into the event's own kind-aware block; the kind-specific
+ * fields themselves are edited in the event dialog). Stock shadcn; the hero spawn is move-only (it
+ * cannot be deleted). Everything is pushed straight through the stage handle.
  */
-function MarkerInspector({
+function SelectionInspector({
   selection,
   map,
-  onSetLabel,
   onMove,
-  onSetMonster,
+  onOpenEditor,
   onDelete,
 }: {
   selection: EditorSelection;
   map: EditorMap;
-  onSetLabel(label: string): void;
   onMove(col: number, row: number): void;
-  onSetMonster(species: MonsterSpecies, patrolRadius: number): void;
+  onOpenEditor(): void;
   onDelete(): void;
 }) {
   useLocale();
-  const selectedEntry =
-    selection.kind === "entry"
-      ? map.markers.entries.find((marker) => marker.id === selection.id)
-      : undefined;
-  const selectedExit =
-    selection.kind === "exit"
-      ? map.markers.exits.find((marker) => marker.id === selection.id)
-      : undefined;
-  const selectedMonster =
-    selection.kind === "monster"
-      ? map.markers.monsterSpawns.find(
-          (marker) => marker.col === selection.col && marker.row === selection.row,
-        )
-      : undefined;
+  const selectedEvent =
+    selection.kind === "event" ? map.events.find((event) => event.id === selection.id) : undefined;
   const selectedElement =
     selection.kind === "element"
       ? map.elements.find(
           (element) => element.col === selection.col && element.row === selection.row,
         )
       : undefined;
-  const named = selectedEntry ?? selectedExit;
   const position =
-    named ??
-    selectedMonster ??
-    selectedElement ??
-    (selection.kind === "spawn" ? map.spawn : undefined);
+    selectedEvent ?? selectedElement ?? (selection.kind === "spawn" ? map.spawn : undefined);
+
+  // An event's inspector title reflects its kind (Entry/Exit/Monster spawn/Event), reusing the same
+  // labels the former marker inspectors used; scenery and the hero spawn keep their own titles.
+  const titleKey =
+    selectedEvent && selectedEvent.kind !== "normal"
+      ? (`editor.inspector.${selectedEvent.kind}` as const)
+      : (`editor.inspector.${selection.kind}` as const);
 
   return (
     <aside
@@ -1097,26 +1099,18 @@ function MarkerInspector({
       aria-label={t("editor.inspector.title")}
     >
       <p className="text-[11px] font-semibold tracking-wide text-zinc-500 uppercase">
-        {t(`editor.inspector.${selection.kind}`)}
+        {t(titleKey)}
       </p>
 
-      {named && (
+      {selectedEvent && (
         <>
           <p className="text-[11px] text-zinc-500">
-            {t("editor.inspector.id")}: <code>{named.id}</code>
+            {t("editor.inspector.id")}: <code>{eventDisplayId(selectedEvent.ordinal)}</code>
+            {selectedEvent.name ? ` · ${selectedEvent.name}` : ""}
           </p>
-          <Label htmlFor="inspector-label" className="text-[11px] text-zinc-500">
-            {t("editor.inspector.label")}
-          </Label>
-          <Input
-            id="inspector-label"
-            key={`${selection.kind}:${named.id}`}
-            type="text"
-            className="h-7 text-xs"
-            maxLength={MARKER_LABEL_MAX}
-            defaultValue={named.label ?? ""}
-            onBlur={(event) => onSetLabel(event.currentTarget.value)}
-          />
+          <Button variant="outline" size="sm" onClick={onOpenEditor}>
+            {t("editor.inspector.openEditor")}
+          </Button>
         </>
       )}
 
@@ -1129,51 +1123,6 @@ function MarkerInspector({
         </p>
       )}
 
-      {selectedMonster && (
-        <>
-          <Label htmlFor="inspector-species" className="text-[11px] text-zinc-500">
-            {t("editor.markers.species")}
-          </Label>
-          <select
-            id="inspector-species"
-            className="h-7 w-full rounded-md border border-input bg-white px-1.5 text-xs outline-none"
-            value={selectedMonster.species}
-            onChange={(event) =>
-              onSetMonster(
-                event.currentTarget.value as MonsterSpecies,
-                selectedMonster.patrolRadius,
-              )
-            }
-          >
-            {/* UX wave #13: authoring is narrowed to the curated species, but an existing marker of any
-                species must stay editable — so its own species is always an option even when hidden
-                from the placement tool. */}
-            {(CURATED_MONSTER_SPECIES.includes(selectedMonster.species)
-              ? CURATED_MONSTER_SPECIES
-              : [selectedMonster.species, ...CURATED_MONSTER_SPECIES]
-            ).map((option) => (
-              <option key={option} value={option}>
-                {t(`monster.${option}`)}
-              </option>
-            ))}
-          </select>
-          <Label htmlFor="inspector-radius" className="text-[11px] text-zinc-500">
-            {t("editor.markers.radius")}
-          </Label>
-          <Input
-            id="inspector-radius"
-            type="number"
-            className="h-7 text-xs"
-            min={MIN_PATROL_RADIUS}
-            max={MAX_PATROL_RADIUS}
-            defaultValue={selectedMonster.patrolRadius}
-            onBlur={(event) =>
-              onSetMonster(selectedMonster.species, Number(event.currentTarget.value))
-            }
-          />
-        </>
-      )}
-
       {position && (
         <div className="flex gap-2">
           <div className="flex flex-1 flex-col gap-1">
@@ -1182,6 +1131,7 @@ function MarkerInspector({
             </Label>
             <Input
               id="inspector-col"
+              key={`col:${position.col},${position.row}`}
               type="number"
               className="h-7 text-xs"
               min={0}
@@ -1195,6 +1145,7 @@ function MarkerInspector({
             </Label>
             <Input
               id="inspector-row"
+              key={`row:${position.col},${position.row}`}
               type="number"
               className="h-7 text-xs"
               min={0}

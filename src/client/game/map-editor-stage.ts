@@ -12,9 +12,8 @@
  * is React, the canvas is Pixi, and the two only meet at `setTool`/`current`/`setName`/`dispose`.
  */
 import { type Application, Assets, Container, Graphics, Sprite, Text, type Texture } from "pixi.js";
-import type { MonsterSpecies } from "../../shared/game.js";
 import { bakeCollision, MAP_LAYERS } from "../../shared/map-data.js";
-import type { MapEvent } from "../../shared/map-events.js";
+import type { EventKind, MapEvent } from "../../shared/map-events.js";
 import type { TileLayer } from "../../shared/tile-layer-codec.js";
 import { TILE_SIZE, type TileMap } from "../../shared/tilemap.js";
 import type { Tileset } from "../../shared/tileset.js";
@@ -51,11 +50,9 @@ import {
   redoEditorHistory,
   selectionAt,
   setActiveLayer,
-  setMarkerLabel,
   toMapData,
   undoEditorHistory,
   updateSelectedElementAsset,
-  updateSelectedMonster,
 } from "./editor-state.js";
 import { acquireStageApp } from "./stage-application.js";
 import { foamFrameAt } from "./terrain-visuals.js";
@@ -92,10 +89,8 @@ export interface MapEditorStageHandle {
   redo(): void;
   markSaved(): void;
   selected(): EditorSelection | null;
-  setSelectedMarkerLabel(label: string): boolean;
   moveSelected(col: number, row: number): boolean;
   setSelectedElementAsset(assetId: EditorAssetId): boolean;
-  setSelectedMonster(species: MonsterSpecies, patrolRadius: number): boolean;
   deleteSelected(): boolean;
   /** A detached draft copy of one event for the dialog to edit, or `null` if the id names no live
    *  event. Reads the live map; writes nothing. */
@@ -219,10 +214,23 @@ export function paintHoverCell(
 const GRID_COLOR = 0x0e1a12;
 
 const EVENT_BOX_COLOR = 0x27272a;
-const EVENT_PLACEHOLDER_COLOR = 0x7c3aed;
 const EVENT_CHIP_BG_COLOR = 0x18181b;
 const EVENT_CHIP_TEXT_COLOR = 0xfafafa;
 const EVENT_SELECTION_COLOR = 0xffffff;
+
+/**
+ * The placeholder swatch colour per event kind, so the four kinds read apart at a glance on the EV
+ * overlay: `normal` is the wireframe's violet, and entry/exit/monster inherit the old marker palette
+ * they replace (green arrival, violet-blue departure, red spawn). A `normal` event with a page-1
+ * graphic draws that sprite instead of the swatch; the functional kinds never carry a graphic, so
+ * their swatch is always their identity on the overlay.
+ */
+const EVENT_KIND_PLACEHOLDER_COLOR: Record<EventKind, number> = {
+  normal: 0x7c3aed,
+  entry: 0x6fd44c,
+  exit: 0x9a6cf0,
+  monster: 0xd9484a,
+};
 
 /** What `paintEventCell` decided and drew for one event: the chip text, whether it drew the page-1
  *  graphic (vs the blank placeholder), and whether it drew the selection outline. */
@@ -271,11 +279,23 @@ export function paintEventCell(
     // one event placement contract for both trees.
     container.addChild(createEventGraphicSprite(event.col, event.row, frame));
   } else {
+    // The blank placeholder, coloured by kind so entry/exit/monster events (which never carry a
+    // graphic) read apart from each other and from a scripted `normal` event.
     const placeholder = new Graphics();
     placeholder
       .roundRect(x + TILE_SIZE * 0.2, y + TILE_SIZE * 0.2, TILE_SIZE * 0.6, TILE_SIZE * 0.6, 4)
-      .fill({ color: EVENT_PLACEHOLDER_COLOR, alpha: 0.85 });
+      .fill({ color: EVENT_KIND_PLACEHOLDER_COLOR[event.kind], alpha: 0.85 });
     container.addChild(placeholder);
+  }
+
+  // A monster event carries its patrol radius, so the overlay draws the same reach ring the old
+  // monster marker did — a faint circle centred on the cell — right on the EV plane.
+  if (event.kind === "monster" && event.patrolRadius !== null) {
+    const ring = new Graphics();
+    ring
+      .circle(x + TILE_SIZE / 2, y + TILE_SIZE / 2, event.patrolRadius)
+      .stroke({ width: 2, color: EVENT_KIND_PLACEHOLDER_COLOR.monster, alpha: 0.35 });
+    container.addChild(ring);
   }
 
   const chipText = eventChipLabel(event.ordinal);
@@ -315,9 +335,6 @@ function eventGraphicAssetIds(events: readonly MapEvent[]): EditorAssetId[] {
 
 const SPAWN_MARKER_COLOR = 0xffd54a;
 const SPAWN_MARKER_OUTLINE = 0x2a1a05;
-const ENTRY_MARKER_COLOR = 0x6fd44c;
-const EXIT_MARKER_COLOR = 0x9a6cf0;
-const MONSTER_MARKER_COLOR = 0xd9484a;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -434,10 +451,8 @@ function inertHandle(map: EditorMap): MapEditorStageHandle {
     redo() {},
     markSaved() {},
     selected: () => null,
-    setSelectedMarkerLabel: () => false,
     moveSelected: () => false,
     setSelectedElementAsset: () => false,
-    setSelectedMonster: () => false,
     deleteSelected: () => false,
     beginEventDraft: () => null,
     commitEventDraft() {},
@@ -670,7 +685,6 @@ async function buildSession(
 
     drawElements();
     drawSpawnMarker();
-    drawMarkers();
     drawEvents();
   }
 
@@ -708,11 +722,12 @@ async function buildSession(
     }
   }
 
-  /** A colored diamond centred on a cell — the one shape every editor marker (spawn, entry, exit,
-   *  monster spawn) renders as, distinguished only by fill color. */
-  function drawDiamond(col: number, row: number, color: number): void {
-    const cx = col * TILE_SIZE + TILE_SIZE / 2;
-    const cy = row * TILE_SIZE + TILE_SIZE / 2;
+  /** A gold diamond on the spawn cell — the hero spawn, the one always-on editor marker (entries,
+   *  exits and monster spawns are events now, drawn on the EV overlay). Chosen to read clearly over
+   *  both grass and water without hiding what is under it. */
+  function drawSpawnMarker(): void {
+    const cx = map.spawn.col * TILE_SIZE + TILE_SIZE / 2;
+    const cy = map.spawn.row * TILE_SIZE + TILE_SIZE / 2;
     const marker = new Graphics();
     marker
       .moveTo(cx, cy - 22)
@@ -720,33 +735,9 @@ async function buildSession(
       .lineTo(cx, cy + 22)
       .lineTo(cx - 17, cy)
       .closePath()
-      .fill({ color, alpha: 0.85 })
+      .fill({ color: SPAWN_MARKER_COLOR, alpha: 0.85 })
       .stroke({ width: 3, color: SPAWN_MARKER_OUTLINE, alpha: 0.9 });
     markerLayer.addChild(marker);
-  }
-
-  /** A gold diamond on the spawn cell — a marker the brief leaves to taste, chosen to read clearly
-   *  over both grass and water without hiding what is under it. */
-  function drawSpawnMarker(): void {
-    drawDiamond(map.spawn.col, map.spawn.row, SPAWN_MARKER_COLOR);
-  }
-
-  /** Editor-only overlays: adventure graphs bind these cells, so they must be visible while editing. */
-  function drawMarkers(): void {
-    for (const entry of map.markers.entries) drawDiamond(entry.col, entry.row, ENTRY_MARKER_COLOR);
-    for (const exit of map.markers.exits) drawDiamond(exit.col, exit.row, EXIT_MARKER_COLOR);
-    for (const spawn of map.markers.monsterSpawns) {
-      drawDiamond(spawn.col, spawn.row, MONSTER_MARKER_COLOR);
-      const ring = new Graphics();
-      ring
-        .circle(
-          spawn.col * TILE_SIZE + TILE_SIZE / 2,
-          spawn.row * TILE_SIZE + TILE_SIZE / 2,
-          spawn.patrolRadius,
-        )
-        .stroke({ width: 2, color: MONSTER_MARKER_COLOR, alpha: 0.35 });
-      markerLayer.addChild(ring);
-    }
   }
 
   /** The 1px cell grid across the whole map, built once and toggled by `gridLayer.visible`. */
@@ -1114,27 +1105,19 @@ async function buildSession(
     selected() {
       return selected;
     },
-    setSelectedMarkerLabel(label) {
-      if (!selected || (selected.kind !== "entry" && selected.kind !== "exit")) return false;
-      return commitInspectorChange(setMarkerLabel(map, selected, label));
-    },
     moveSelected(col, row) {
       if (!selected) return false;
       const previous = selected;
+      // Only an element selection is keyed by cell, so only it re-anchors on a move; an event is
+      // keyed by uuid and a spawn is singular, so both keep their existing selection identity.
       const nextSelection: EditorSelection =
-        previous.kind === "element" || previous.kind === "monster"
-          ? { ...previous, col, row }
-          : previous;
+        previous.kind === "element" ? { ...previous, col, row } : previous;
       return commitInspectorChange(moveSelection(map, previous, col, row), nextSelection);
     },
     setSelectedElementAsset(assetId) {
       if (selected?.kind !== "element") return false;
       ensureAsset(assetId);
       return commitInspectorChange(updateSelectedElementAsset(map, selected, assetId));
-    },
-    setSelectedMonster(species, patrolRadius) {
-      if (selected?.kind !== "monster") return false;
-      return commitInspectorChange(updateSelectedMonster(map, selected, species, patrolRadius));
     },
     deleteSelected() {
       if (!selected || selected.kind === "spawn") return false;

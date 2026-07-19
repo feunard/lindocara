@@ -29,10 +29,8 @@ const stageMock = vi.hoisted(() => ({
   redo: vi.fn(),
   markSaved: vi.fn(),
   selected: vi.fn(),
-  setSelectedMarkerLabel: vi.fn(),
   moveSelected: vi.fn(),
   setSelectedElementAsset: vi.fn(),
-  setSelectedMonster: vi.fn(),
   deleteSelected: vi.fn(),
   beginEventDraft: vi.fn(),
   commitEventDraft: vi.fn(),
@@ -56,10 +54,8 @@ function stageHandle() {
     redo: stageMock.redo,
     markSaved: stageMock.markSaved,
     selected: stageMock.selected,
-    setSelectedMarkerLabel: stageMock.setSelectedMarkerLabel,
     moveSelected: stageMock.moveSelected,
     setSelectedElementAsset: stageMock.setSelectedElementAsset,
-    setSelectedMonster: stageMock.setSelectedMonster,
     deleteSelected: stageMock.deleteSelected,
     beginEventDraft: stageMock.beginEventDraft,
     commitEventDraft: stageMock.commitEventDraft,
@@ -199,6 +195,7 @@ describe("AdventureEditorScreen shell", () => {
       elements: [],
       spawn: { col: 20, row: 15 },
       markers: EMPTY_MARKERS,
+      events: [],
     });
     previewMock.startMapPreview.mockReset();
     previewMock.startMapPreview.mockResolvedValue({ stop: previewMock.stop });
@@ -254,26 +251,26 @@ describe("AdventureEditorScreen shell", () => {
     );
   });
 
-  it("keeps selection exclusive: a terrain pick clears a marker tool and vice versa (UX wave #11)", async () => {
+  it("keeps selection exclusive: a terrain pick clears the spawn tool and vice versa (UX wave #11)", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady();
     const grass = () => screen.getByRole("button", { name: t("editor.tool.grass") });
-    const entry = () => screen.getByRole("button", { name: t("editor.tool.entry") });
+    const spawn = () => screen.getByRole("button", { name: t("editor.tool.spawn") });
 
     // Default selection is pencil+grass, so the grass swatch is the ONE active selection.
     expect(grass()).toHaveAttribute("aria-pressed", "true");
 
-    // Picking the entry marker tool deselects the terrain — never Herbe AND a marker at once.
-    await userEvent.click(entry());
-    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "marker-entry" });
-    expect(entry()).toHaveAttribute("aria-pressed", "true");
+    // Picking the hero-spawn tool deselects the terrain — never Herbe AND the spawn tool at once.
+    await userEvent.click(spawn());
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "spawn" });
+    expect(spawn()).toHaveAttribute("aria-pressed", "true");
     expect(grass()).toHaveAttribute("aria-pressed", "false");
 
-    // Picking grass back deselects the marker and re-arms the pencil, so exactly one is pressed again.
+    // Picking grass back deselects the spawn tool and re-arms the pencil, so exactly one is pressed.
     await userEvent.click(grass());
     expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "block", block: "grass" });
     expect(grass()).toHaveAttribute("aria-pressed", "true");
-    expect(entry()).toHaveAttribute("aria-pressed", "false");
+    expect(spawn()).toHaveAttribute("aria-pressed", "false");
   });
 
   it("the EV slot activates the event tool, pushing the overlay onto the stage handle", async () => {
@@ -283,7 +280,11 @@ describe("AdventureEditorScreen shell", () => {
     await userEvent.click(screen.getByRole("button", { name: t("editor.shell.events") }));
     // The event tool is what turns the stage's EV overlay on (shouldShowEventOverlay), so this call
     // reaching the handle IS the overlay flag reaching the stage.
-    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "event", graphic: null });
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({
+      kind: "event",
+      eventKind: "normal",
+      graphic: null,
+    });
   });
 
   it("opens the event dialog when the stage double-click requests it", async () => {
@@ -412,13 +413,21 @@ describe("AdventureEditorScreen shell", () => {
     await userEvent.click(card);
     // The pending graphic reaches the event tool the stage places with (applyTool then stamps it on
     // page 1 — proven directly in editor-state.test.ts).
-    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "event", graphic: asset.id });
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({
+      kind: "event",
+      eventKind: "normal",
+      graphic: asset.id,
+    });
 
     // And "No graphic" clears back to the placeholder default.
     await userEvent.click(
       within(palette).getByRole("button", { name: t("editor.shell.events.graphic.none") }),
     );
-    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "event", graphic: null });
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({
+      kind: "event",
+      eventKind: "normal",
+      graphic: null,
+    });
   });
 
   it("threads the layer selector to setActiveLayer and reflects it in the status bar", async () => {
@@ -615,25 +624,35 @@ describe("AdventureEditorScreen shell", () => {
     await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(2));
   });
 
-  it("restores marker authoring: the entry tool places an entry and the inspector deletes a marker", async () => {
+  it("authors an entry EVENT: the EV entry kind places one, and the inspector deletes it", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady();
 
-    // The palette's entry tool pushes the marker-entry EditorTool down to the stage.
-    await userEvent.click(screen.getByRole("button", { name: t("editor.tool.entry") }));
-    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "marker-entry" });
+    // Enter EV mode, then pick the entry kind — the event tool it pushes carries eventKind: "entry".
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.events") }));
+    await userEvent.click(screen.getByRole("button", { name: t("editor.event.kind.entry") }));
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "event", eventKind: "entry" });
 
-    // A selected entry lights the inspector: its label shows, and Delete reaches deleteSelected.
+    // A selected event lights the inspector: its EV id shows, and Delete reaches deleteSelected.
     stageMock.current.mockReturnValue({
       name: "Verdant Reach",
       layers: [],
       elements: [],
       spawn: { col: 20, row: 15 },
-      markers: {
-        entries: [{ id: "door", label: "Front gate", col: 1, row: 1 }],
-        exits: [],
-        monsterSpawns: [],
-      },
+      markers: EMPTY_MARKERS,
+      events: [
+        {
+          id: "ev-door",
+          col: 1,
+          row: 1,
+          name: "Front gate",
+          ordinal: 1,
+          kind: "entry",
+          species: null,
+          patrolRadius: null,
+          pages: [defaultEventPage()],
+        },
+      ],
     });
     const callback = stageMock.openMapEditorStage.mock.calls[0]?.[1];
     act(() => {
@@ -641,38 +660,43 @@ describe("AdventureEditorScreen shell", () => {
         canUndo: false,
         canRedo: false,
         dirty: false,
-        selection: { kind: "entry", id: "door" },
+        selection: { kind: "event", id: "ev-door" },
       });
     });
 
-    expect(screen.getByDisplayValue("Front gate")).toBeInTheDocument();
+    // The inspector shows the entry event (its EV id and name), and Delete reaches deleteSelected.
+    expect(screen.getByText(/EV001/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: t("editor.delete") }));
     expect(stageMock.deleteSelected).toHaveBeenCalledTimes(1);
   });
 
-  it("selects marker tools and forwards monster species and radius to the stage", async () => {
+  it("authors event kinds and forwards monster species and radius to the stage", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady();
 
-    await userEvent.click(screen.getByRole("button", { name: t("editor.tool.exit") }));
-    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "marker-exit" });
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.events") }));
 
-    await userEvent.click(screen.getByRole("button", { name: t("editor.tool.monster") }));
+    await userEvent.click(screen.getByRole("button", { name: t("editor.event.kind.exit") }));
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "event", eventKind: "exit" });
+
+    await userEvent.click(screen.getByRole("button", { name: t("editor.event.kind.monster") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({
-      kind: "marker-monster",
+      kind: "event",
+      eventKind: "monster",
       species: "spear_goblin",
       patrolRadius: 96,
     });
 
     // Only one species is curated now (UX wave #13), so the species select offers just it. Exercise
-    // the same re-push path through the patrol radius: changing it re-pushes the monster tool with the
-    // new radius (and the curated species) onto the stage.
+    // the same re-push path through the patrol radius: changing it re-pushes the monster event tool
+    // with the new radius (and the curated species) onto the stage.
     fireEvent.change(screen.getByLabelText(t("editor.markers.radius")), {
       target: { value: "128" },
     });
     expect(stageMock.setTool).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        kind: "marker-monster",
+        kind: "event",
+        eventKind: "monster",
         species: "spear_goblin",
         patrolRadius: 128,
       }),

@@ -31,7 +31,7 @@ describe("editor curated catalogue", () => {
     expect(editorAsset("decoration.terrain-decorations-bushes.bushe2")).not.toBeNull();
   });
 
-  it("the monster tool offers only the one curated species", () => {
+  it("the monster event kind offers only the one curated species", () => {
     setLocale("en");
     render(
       <TerrainPalette
@@ -39,8 +39,9 @@ describe("editor curated catalogue", () => {
         terrainActive={false}
         fillActive={false}
         stairsActive={false}
-        activeMarker="monster"
-        eventMode={false}
+        spawnActive={false}
+        eventMode={true}
+        eventKind="monster"
         pendingEventGraphic={null}
         selectedAsset={null}
         markerSpecies="spear_goblin"
@@ -48,8 +49,9 @@ describe("editor curated catalogue", () => {
         elementCount={0}
         onPickContent={() => {}}
         onSelectStairs={() => {}}
-        onSelectMarkerTool={() => {}}
+        onSelectSpawn={() => {}}
         onSelectAsset={() => {}}
+        onSelectEventKind={() => {}}
         onSelectEventGraphic={() => {}}
         onMarkerSpeciesChange={() => {}}
         onMarkerRadiusChange={() => {}}

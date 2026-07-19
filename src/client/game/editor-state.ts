@@ -10,11 +10,7 @@ import {
   elementPlacementCells,
   elementsOverlap,
   MAP_LAYERS,
-  MARKER_LABEL_MAX,
   MAX_MAP_ELEMENTS,
-  MAX_MAP_ENTRIES,
-  MAX_MAP_EXITS,
-  MAX_MAP_MONSTER_SPAWNS,
   MAX_PATROL_RADIUS,
   type MapData,
   type MapElement,
@@ -23,6 +19,8 @@ import {
   parseMapData,
 } from "../../shared/map-data.js";
 import {
+  type EventKind,
+  functionalEvent,
   MAX_EVENTS_PER_MAP,
   MAX_PAGES_PER_EVENT,
   type MapEvent,
@@ -112,25 +110,34 @@ export type EditorTool =
   | { kind: "spawn" }
   | { kind: "select" }
   | { kind: "pan" }
-  | { kind: "marker-entry" }
-  | { kind: "marker-exit" }
-  | { kind: "marker-monster"; species: MonsterSpecies; patrolRadius: number }
   | { kind: "rect"; content: RectFillContent }
   | { kind: "fill"; content: RectFillContent }
   | { kind: "stairs" }
   /**
-   * Places an event, whose page 1 gets `graphic` as its default appearance — the palette's
-   * Événements picker sets it, "none" (omitted/`null`) leaves a blank placeholder. The graphic is a
-   * NEW-placement default only: editing an existing event's graphic is the dialog's job, not this
-   * tool's.
+   * UX wave #12: the one placement tool for every event kind — markers are dead, their meaning is a
+   * typed event now. `eventKind` selects what is placed:
+   *
+   * - `normal`  — the scripted wireframe event; page 1 gets `graphic` as its default appearance (the
+   *   palette's Événements picker sets it, "none"/`null` leaves a blank placeholder). The graphic is a
+   *   NEW-placement default only — editing an existing event's graphic is the dialog's job.
+   * - `entry`/`exit` — a spawn/arrival or departure anchor the adventure graph binds by the EVENT's
+   *   uuid. Single default page, no graphic.
+   * - `monster` — a monster spawn carrying `species` + `patrolRadius`.
+   *
+   * Functional kinds (entry/exit/monster) are load-bearing: they must land on walkable ground, and an
+   * exit may not share the spawn cell — the same rules `server/maps.ts` enforces, so the editor never
+   * authors a map the server would reject.
    */
-  | { kind: "event"; graphic?: EditorAssetId | null };
+  | {
+      kind: "event";
+      eventKind: EventKind;
+      graphic?: EditorAssetId | null;
+      species?: MonsterSpecies;
+      patrolRadius?: number;
+    };
 
 export type EditorSelection =
   | { kind: "element"; col: number; row: number }
-  | { kind: "entry"; id: string }
-  | { kind: "exit"; id: string }
-  | { kind: "monster"; col: number; row: number }
   | { kind: "event"; id: string }
   | { kind: "spawn" };
 
@@ -219,41 +226,14 @@ export function isEditorHistoryDirty(history: EditorHistory, current = history.p
 }
 
 export function selectionAt(map: EditorMap, col: number, row: number): EditorSelection | null {
-  // Events are the topmost plane, so they answer a click before any element or marker on the same
-  // cell — the same precedence the eraser follows.
+  // Events are the topmost plane (every kind — entry/exit/monster are events now, not markers), so
+  // they answer a click before any element on the same cell — the same precedence the eraser follows.
   const event = map.events.find((candidate) => candidate.col === col && candidate.row === row);
   if (event) return { kind: "event", id: event.id };
-  const entry = map.markers.entries.find((marker) => marker.col === col && marker.row === row);
-  if (entry) return { kind: "entry", id: entry.id };
-  const exit = map.markers.exits.find((marker) => marker.col === col && marker.row === row);
-  if (exit) return { kind: "exit", id: exit.id };
-  const monster = map.markers.monsterSpawns.find(
-    (marker) => marker.col === col && marker.row === row,
-  );
-  if (monster) return { kind: "monster", col, row };
   const element = map.elements.find((candidate) => elementCoversCell(candidate, col, row));
   if (element) return { kind: "element", col: element.col, row: element.row };
   if (map.spawn.col === col && map.spawn.row === row) return { kind: "spawn" };
   return null;
-}
-
-export function setMarkerLabel(
-  map: EditorMap,
-  selection: Extract<EditorSelection, { kind: "entry" | "exit" }>,
-  label: string,
-): EditorMap | null {
-  const normalized = label.trim();
-  if (normalized.length > MARKER_LABEL_MAX) return null;
-  const update = (marker: { id: string; label?: string; col: number; row: number }) => {
-    if (marker.id !== selection.id) return marker;
-    if (normalized.length === 0) {
-      return { id: marker.id, col: marker.col, row: marker.row };
-    }
-    return { ...marker, label: normalized };
-  };
-  return selection.kind === "entry"
-    ? { ...map, markers: { ...map.markers, entries: map.markers.entries.map(update) } }
-    : { ...map, markers: { ...map.markers, exits: map.markers.exits.map(update) } };
 }
 
 export function deleteSelection(map: EditorMap, selection: EditorSelection): EditorMap {
@@ -264,32 +244,6 @@ export function deleteSelection(map: EditorMap, selection: EditorSelection): Edi
         elements: map.elements.filter(
           (element) => element.col !== selection.col || element.row !== selection.row,
         ),
-      };
-    case "entry":
-      return {
-        ...map,
-        markers: {
-          ...map.markers,
-          entries: map.markers.entries.filter((marker) => marker.id !== selection.id),
-        },
-      };
-    case "exit":
-      return {
-        ...map,
-        markers: {
-          ...map.markers,
-          exits: map.markers.exits.filter((marker) => marker.id !== selection.id),
-        },
-      };
-    case "monster":
-      return {
-        ...map,
-        markers: {
-          ...map.markers,
-          monsterSpawns: map.markers.monsterSpawns.filter(
-            (marker) => marker.col !== selection.col || marker.row !== selection.row,
-          ),
-        },
       };
     case "event":
       return { ...map, events: map.events.filter((event) => event.id !== selection.id) };
@@ -313,43 +267,21 @@ export function moveSelection(
       const without = deleteSelection(map, selection);
       return applyTool(without, { kind: "element", assetId: element.assetId }, col, row);
     }
-    case "entry": {
-      const entries = map.markers.entries.map((marker) =>
-        marker.id === selection.id ? { ...marker, col, row } : marker,
-      );
-      const next = { ...map, markers: { ...map.markers, entries } };
-      return keepsMarkersValid(next) ? next : null;
-    }
-    case "exit": {
-      const exits = map.markers.exits.map((marker) =>
-        marker.id === selection.id ? { ...marker, col, row } : marker,
-      );
-      const next = { ...map, markers: { ...map.markers, exits } };
-      return keepsMarkersValid(next) ? next : null;
-    }
-    case "monster": {
-      const marker = map.markers.monsterSpawns.find(
-        (candidate) => candidate.col === selection.col && candidate.row === selection.row,
-      );
-      if (!marker) return null;
-      return applyTool(
-        deleteSelection(map, selection),
-        { kind: "marker-monster", ...marker },
-        col,
-        row,
-      );
-    }
     case "event": {
       const event = map.events.find((candidate) => candidate.id === selection.id);
       if (!event) return null;
       const { cols, rows } = editorMapSize(map);
       if (col < 0 || row < 0 || col >= cols || row >= rows) return null;
-      // One event per cell: a move onto a cell another event already holds is a no-op, matching
-      // the placement rule. Events float above collision, so no terrain or marker check applies.
+      // One event per cell: a move onto a cell another event already holds is a no-op, matching the
+      // placement rule.
       if (
         map.events.some((other) => other.id !== event.id && other.col === col && other.row === row)
       )
         return null;
+      // A `normal` event floats above collision, but a functional (entry/exit/monster) event is
+      // load-bearing: it must stay on walkable ground, and an exit may not slide onto the spawn — the
+      // same rules the server enforces, applied to a drag as well as a fresh placement.
+      if (!functionalEventPlacementOk(map, event.kind, col, row)) return null;
       const events = map.events.map((candidate) =>
         candidate.id === selection.id ? { ...candidate, col, row } : candidate,
       );
@@ -367,21 +299,6 @@ export function updateSelectedElementAsset(
 ): EditorMap | null {
   const without = deleteSelection(map, selection);
   return applyTool(without, { kind: "element", assetId }, selection.col, selection.row);
-}
-
-export function updateSelectedMonster(
-  map: EditorMap,
-  selection: Extract<EditorSelection, { kind: "monster" }>,
-  species: MonsterSpecies,
-  patrolRadius: number,
-): EditorMap | null {
-  const without = deleteSelection(map, selection);
-  return applyTool(
-    without,
-    { kind: "marker-monster", species, patrolRadius },
-    selection.col,
-    selection.row,
-  );
 }
 
 /**
@@ -402,6 +319,19 @@ export function beginEventDraft(map: EditorMap, id: string): MapEvent | null {
  *  name is legal (the ordinal chip is the real label). */
 export function setEventDraftName(draft: MapEvent, name: string): MapEvent {
   return { ...draft, name };
+}
+
+/** Draft mutator: set a monster event's species and patrol radius. A no-op on any other kind —
+ *  `species`/`patrolRadius` are `null` for entry/exit/normal by construction, and the wire parser
+ *  rejects them there, so only a `monster` draft may carry them. The radius is left as typed; the
+ *  dialog bounds it on its input and the server re-validates against `[MIN, MAX]_PATROL_RADIUS`. */
+export function setEventDraftMonster(
+  draft: MapEvent,
+  species: MonsterSpecies,
+  patrolRadius: number,
+): MapEvent {
+  if (draft.kind !== "monster") return draft;
+  return { ...draft, species, patrolRadius };
 }
 
 /** Draft mutator: merge a patch into one page. Everything on a page is per-page (XP semantics), so
@@ -536,7 +466,9 @@ function nextEventOrdinal(events: readonly MapEvent[]): number {
   return events.reduce((max, event) => Math.max(max, event.ordinal), 0) + 1;
 }
 
-/** The editor's layers are the map's layers: no projection, nothing to lose. */
+/** The editor's layers are the map's layers: no projection, nothing to lose. Markers are QUARANTINED
+ *  (UX wave #12) — entries/exits/monster spawns are typed events now — so the editor always emits
+ *  `EMPTY_MARKERS` and never a functional marker the server would ignore. */
 export function toMapData(map: EditorMap): MapData {
   const { cols, rows } = editorMapSize(map);
   return {
@@ -546,7 +478,7 @@ export function toMapData(map: EditorMap): MapData {
     layers: map.layers,
     elements: map.elements,
     spawn: map.spawn,
-    markers: map.markers,
+    markers: EMPTY_MARKERS,
   };
 }
 
@@ -574,7 +506,9 @@ export function toSaveInput(map: EditorMap): {
     layers: data.layers.map(encodeTileLayer),
     elements: map.elements,
     spawn: map.spawn,
-    markers: map.markers,
+    // Markers are QUARANTINED: the editor never authors one, so it always sends `EMPTY_MARKERS`. The
+    // functional meaning lives in `events` now.
+    markers: EMPTY_MARKERS,
     // The `MapEvent` shape carries every condition field as an explicit `null`, so `JSON.stringify`
     // emits `"condSwitchId":null` rather than dropping the key. The wire parser rejects a page with
     // an ABSENT condition field, so this fullness is load-bearing, not cosmetic.
@@ -626,34 +560,24 @@ function keepsSpawnClear(map: EditorMap): boolean {
   );
 }
 
-export function mintMarkerId(prefix: "entry" | "exit", taken: readonly string[]): string {
-  const used = new Set(taken);
-  let n = 1;
-  while (used.has(`${prefix}-${n}`)) n += 1;
-  return `${prefix}-${n}`;
-}
-
-function cellTaken(
-  list: readonly { col: number; row: number }[],
+/**
+ * May a functional (entry/exit/monster) event legally occupy `(col, row)` on `map`? A `normal` event
+ * floats above collision, so it always may. A functional event is load-bearing — the adventure graph
+ * binds entry/exit uuids and a monster spawns here — so it must stand on walkable ground, and an exit
+ * may not share the spawn cell. These are exactly the per-kind rules `server/maps.ts` enforces, so the
+ * editor never authors a map the server would reject; the entry-on-spawn case is deliberately allowed
+ * (the born default map's entry sits on the spawn).
+ */
+function functionalEventPlacementOk(
+  map: EditorMap,
+  kind: EventKind,
   col: number,
   row: number,
 ): boolean {
-  return list.some((item) => item.col === col && item.row === row);
-}
-
-/**
- * Markers are load-bearing (adventure graphs bind their ids), so unlike decorative elements they
- * are never silently dropped: any result that would leave a marker on solid ground, or an exit on
- * the spawn or an entry cell, is refused outright. Mirrors the server's validateMapInput rules.
- */
-function keepsMarkersValid(map: EditorMap): boolean {
-  const tiles = bakeCollision(toMapData(map));
-  const markers = map.markers;
-  const all = [...markers.entries, ...markers.exits, ...markers.monsterSpawns];
-  if (all.some((marker) => isSolidKind(kindAt(tiles, marker.col, marker.row)))) return false;
-  const blocked = new Set(markers.entries.map((entry) => `${entry.col},${entry.row}`));
-  blocked.add(`${map.spawn.col},${map.spawn.row}`);
-  return markers.exits.every((exit) => !blocked.has(`${exit.col},${exit.row}`));
+  if (kind === "normal") return true;
+  if (!isWalkableCell(map, col, row)) return false;
+  if (kind === "exit" && col === map.spawn.col && row === map.spawn.row) return false;
+  return true;
 }
 
 function placementTerrainValid(map: EditorMap, element: MapElement): boolean {
@@ -706,7 +630,7 @@ function commitTerrain(
       placementTerrainValid(candidate, element),
   );
   const next = { ...candidate, elements };
-  return keepsSpawnClear(next) && keepsMarkersValid(next) ? next : null;
+  return keepsSpawnClear(next) ? next : null;
 }
 
 /** Clear the ground at one cell and let layer 1 catch up: erasing raised ground orphans the cliff
@@ -858,7 +782,7 @@ function eraseOnLayer(map: EditorMap, layer: 1 | 2, col: number, row: number): E
   const layers = map.layers.map((existing, index) => (index === layer ? erased : existing));
   if (sameLayers(map.layers, layers)) return map;
   const next = { ...map, layers };
-  return keepsSpawnClear(next) && keepsMarkersValid(next) ? next : null;
+  return keepsSpawnClear(next) ? next : null;
 }
 
 export function applyTool(
@@ -972,15 +896,15 @@ export function applyTool(
       if (retained.some((element) => elementsOverlap(element, placed))) return null;
       if (sameAnchor.length === 0 && map.elements.length >= MAX_MAP_ELEMENTS) return null;
       const next = { ...map, elements: [...retained, placed] };
-      return keepsSpawnClear(next) && keepsMarkersValid(next) ? next : null;
+      return keepsSpawnClear(next) ? next : null;
     }
     /**
-     * Erase whatever is on the cell, topmost first: an element or marker if there is one, otherwise
+     * Erase whatever is on the cell, topmost first: an event or element if there is one, otherwise
      * the terrain. That last step is the same operation as the water tool — on the ground layer an
      * empty cell *is* water — so a single click on a bare cell never does nothing.
      *
-     * The terrain fall-through only fires on `isStrokeStart`: a drag must keep clearing elements and
-     * markers it passes over, but must not also carve the ground underneath them. Without this, an
+     * The terrain fall-through only fires on `isStrokeStart`: a drag must keep clearing events and
+     * elements it passes over, but must not also carve the ground underneath them. Without this, an
      * eraser stroke dragged across a clearing full of trees would leave behind a continuous water
      * trail nobody asked for — the same result as the water tool, but as a surprising side effect of
      * clearing decor. A deliberate single click on bare ground still erases it, same as before.
@@ -990,11 +914,10 @@ export function applyTool(
      * `activeLayer` is 0, a plain single-layer clear on layer 1 or 2 otherwise.
      */
     case "eraser": {
-      // Topmost plane first, exactly one plane per stroke: an event outranks an element, an element
-      // outranks a marker, and a marker outranks the bare terrain underneath. Events, elements and
-      // markers occupy independent planes, so a cell may hold all three at once; successive strokes
-      // then peel them off in that order. (The old eraser cleared the element and marker planes in
-      // one stroke; strict precedence is what lets an event sit above them without swallowing them.)
+      // Topmost plane first, exactly one plane per stroke: an event outranks an element, and an
+      // element outranks the bare terrain underneath. Events and elements occupy independent planes,
+      // so a cell may hold both at once; successive strokes then peel them off in that order. (Markers
+      // are dead — their functional meaning is a typed event now, cleared by this same event branch.)
       const eventIndex = map.events.findIndex((event) => event.col === col && event.row === row);
       if (eventIndex !== -1) {
         return { ...map, events: map.events.filter((_event, index) => index !== eventIndex) };
@@ -1002,17 +925,6 @@ export function applyTool(
       const elements = withoutElementAt(map.elements, col, row);
       if (elements.length !== map.elements.length) {
         return { ...map, elements };
-      }
-      const markers = map.markers;
-      const entries = markers.entries.filter((m) => m.col !== col || m.row !== row);
-      const exits = markers.exits.filter((m) => m.col !== col || m.row !== row);
-      const monsterSpawns = markers.monsterSpawns.filter((m) => m.col !== col || m.row !== row);
-      if (
-        entries.length !== markers.entries.length ||
-        exits.length !== markers.exits.length ||
-        monsterSpawns.length !== markers.monsterSpawns.length
-      ) {
-        return { ...map, markers: { entries, exits, monsterSpawns } };
       }
       if (!isStrokeStart) return null;
       if (activeLayer !== 0) return eraseOnLayer(map, activeLayer, col, row);
@@ -1023,79 +935,71 @@ export function applyTool(
     case "spawn": {
       if (map.elements.some((element) => elementCoversCell(element, col, row))) return null;
       if (!isWalkableCell(map, col, row)) return null;
-      const next = { ...map, spawn: { col, row } };
-      return keepsMarkersValid(next) ? next : null;
+      return { ...map, spawn: { col, row } };
     }
     case "select":
       return map;
-    case "marker-entry": {
-      const markers = map.markers;
-      if (cellTaken(markers.entries, col, row)) return null;
-      if (markers.entries.length >= MAX_MAP_ENTRIES) return null;
-      const entry = {
-        id: mintMarkerId(
-          "entry",
-          markers.entries.map((m) => m.id),
-        ),
-        col,
-        row,
-      };
-      const next = { ...map, markers: { ...markers, entries: [...markers.entries, entry] } };
-      return keepsMarkersValid(next) ? next : null;
-    }
-    case "marker-exit": {
-      const markers = map.markers;
-      if (cellTaken(markers.exits, col, row)) return null;
-      if (markers.exits.length >= MAX_MAP_EXITS) return null;
-      const exit = {
-        id: mintMarkerId(
-          "exit",
-          markers.exits.map((m) => m.id),
-        ),
-        col,
-        row,
-      };
-      const next = { ...map, markers: { ...markers, exits: [...markers.exits, exit] } };
-      return keepsMarkersValid(next) ? next : null;
-    }
-    case "marker-monster": {
-      if (
-        !Number.isSafeInteger(tool.patrolRadius) ||
-        tool.patrolRadius < MIN_PATROL_RADIUS ||
-        tool.patrolRadius > MAX_PATROL_RADIUS
-      ) {
-        return null;
-      }
-      const markers = map.markers;
-      const retained = markers.monsterSpawns.filter((s) => s.col !== col || s.row !== row);
-      if (retained.length >= MAX_MAP_MONSTER_SPAWNS) return null;
-      const spawn = { col, row, species: tool.species, patrolRadius: tool.patrolRadius };
-      const next = { ...map, markers: { ...markers, monsterSpawns: [...retained, spawn] } };
-      return keepsMarkersValid(next) ? next : null;
-    }
     /**
      * Place a new event on an empty cell. One event per cell: a click on a cell that already holds
      * an event is refused here (`null`) — the pointer path reads that as "select the event on this
-     * cell instead", keeping placement and selection cleanly separate. Events float above collision,
-     * so unlike elements and markers there is no terrain, spawn or marker rule to satisfy; the id is
-     * a client-minted uuid (stable across edits) and the ordinal is the next free display number.
+     * cell instead", keeping placement and selection cleanly separate. The id is a client-minted uuid
+     * (stable across edits) and the ordinal is the next free display number.
+     *
+     * A `normal` event floats above collision (no terrain rule), adopting the tool's pending graphic
+     * on page 1. A functional (entry/exit/monster) event is load-bearing: it must stand on walkable
+     * ground (`functionalEventPlacementOk`), and a monster carries a valid species + in-range patrol
+     * radius or the placement is refused — exactly what `server/maps.ts` would accept.
      */
     case "event": {
       if (map.events.some((event) => event.col === col && event.row === row)) return null;
       if (map.events.length >= MAX_EVENTS_PER_MAP) return null;
-      const event: MapEvent = {
+      if (!functionalEventPlacementOk(map, tool.eventKind, col, row)) return null;
+      const ordinal = nextEventOrdinal(map.events);
+      if (tool.eventKind === "normal") {
+        const event: MapEvent = {
+          id: crypto.randomUUID(),
+          col,
+          row,
+          name: "",
+          ordinal,
+          kind: "normal",
+          species: null,
+          patrolRadius: null,
+          // Page 1 adopts the tool's pending graphic (the palette's Événements picker); "none" leaves
+          // the default page's null graphic, i.e. the blank placeholder on the overlay.
+          pages: [{ ...defaultEventPage(), graphicAssetId: tool.graphic ?? null }],
+        };
+        return { ...map, events: [...map.events, event] };
+      }
+      if (tool.eventKind === "monster") {
+        const { species, patrolRadius } = tool;
+        if (species === undefined) return null;
+        if (
+          patrolRadius === undefined ||
+          !Number.isSafeInteger(patrolRadius) ||
+          patrolRadius < MIN_PATROL_RADIUS ||
+          patrolRadius > MAX_PATROL_RADIUS
+        ) {
+          return null;
+        }
+        const event = functionalEvent({
+          id: crypto.randomUUID(),
+          col,
+          row,
+          ordinal,
+          kind: "monster",
+          species,
+          patrolRadius,
+        });
+        return { ...map, events: [...map.events, event] };
+      }
+      const event = functionalEvent({
         id: crypto.randomUUID(),
         col,
         row,
-        name: "",
-        ordinal: nextEventOrdinal(map.events),
-        kind: "normal",
-        species: null,
-        patrolRadius: null,
-        // Page 1 adopts the tool's pending graphic (the palette's Événements picker); "none" leaves
-        // the default page's null graphic, i.e. the blank placeholder on the overlay.
-        pages: [{ ...defaultEventPage(), graphicAssetId: tool.graphic ?? null }],
-      };
+        ordinal,
+        kind: tool.eventKind,
+      });
       return { ...map, events: [...map.events, event] };
     }
     case "pan":

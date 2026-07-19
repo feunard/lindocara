@@ -540,6 +540,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.inspector.event": "Événement",
   "editor.inspector.spawn": "Point d’apparition du héros",
   "editor.inspector.walkable": "Praticable",
+  "editor.inspector.openEditor": "Ouvrir l’éditeur",
   "editor.tool.variant": "Variante",
   "editor.markers.species": "Espèce",
   "editor.markers.radius": "Rayon de patrouille",
@@ -701,6 +702,13 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.save": "Valider",
   "editor.event.cond.empty.hint":
     "Aucune entrée — ajoutez des interrupteurs et variables dans Jeu → Base de données.",
+  "editor.event.kind.heading": "Type d’événement",
+  "editor.event.kind.normal": "Scénarisé",
+  "editor.event.kind.entry": "Entrée",
+  "editor.event.kind.exit": "Sortie",
+  "editor.event.kind.monster": "Monstre",
+  "editor.event.kind.anchor.hint":
+    "Le graphe d’aventure lie cet ancrage par identifiant. Nommez-le pour distinguer les ancrages.",
   "editor.registry.title": "Base de données",
   "editor.registry.switches": "Interrupteurs",
   "editor.registry.variables": "Variables",
