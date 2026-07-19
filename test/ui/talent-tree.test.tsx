@@ -58,7 +58,7 @@ describe("TalentTree", () => {
     const view = render(<TalentTree />);
 
     expect(screen.getByText("10 of 10 points available")).toBeInTheDocument();
-    expect(screen.getByText("V2")).toBeInTheDocument();
+    expect(screen.getByText("Evolutions")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Iron Guard\./ })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -67,6 +67,15 @@ describe("TalentTree", () => {
     await userEvent.click(screen.getByRole("button", { name: /Fortified guard\./ }));
     expect(game.unlockTalent).toHaveBeenCalledWith("warrior.iron_guard.fortified");
     expect(screen.getByText("Reduce damage taken in Iron Guard by another 10%.")).toBeVisible();
+  });
+
+  it("names every final node as an evolved technique", async () => {
+    useUiStore.setState({ talentsOpen: true, game: gameHandle() });
+    render(<TalentTree />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Steel Tempest\./ }));
+    expect(screen.getAllByText("Steel Tempest")).toHaveLength(2);
+    expect(screen.queryByText("V2 form")).not.toBeInTheDocument();
   });
 
   it("requires explicit confirmation before the free reset is sent", async () => {

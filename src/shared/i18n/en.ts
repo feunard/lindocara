@@ -334,7 +334,7 @@ export const en = {
   "settings.controls.cancel": "Cancel capture",
   "settings.controls.reset": "Restore defaults",
   "talent.title": "Talents",
-  "talent.v2": "V2",
+  "talent.evolutions": "Evolutions",
   "talent.status.active": "Active",
   "talent.status.available": "Available",
   "talent.status.locked": "Locked",
@@ -379,9 +379,42 @@ export const en = {
     "{skill} bounces to another wounded ally for {value}% healing.",
   "talent.node.blink_heal.name": "Renewing light",
   "talent.node.blink_heal.description": "{skill} restores {value} health when you rematerialize.",
-  "talent.node.amplified.name": "V2 form",
-  "talent.node.amplified.description":
-    "Transform {skill} into an empowered version with stronger defining effects and enhanced animation.",
+  "talent.evolution.warrior.iron_guard.name": "Unbreakable Bastion",
+  "talent.evolution.warrior.iron_guard.description":
+    "An absolute guard: perfect parries prevent all damage and reflect the attack.",
+  "talent.evolution.warrior.shield_bash.name": "Colossus Charge",
+  "talent.evolution.warrior.shield_bash.description":
+    "A much longer, stronger charge wrapped in an amplified impact.",
+  "talent.evolution.warrior.battle_cry.name": "King's Challenge",
+  "talent.evolution.warrior.battle_cry.description":
+    "A monumental challenge that taunts enemies across a considerably larger area.",
+  "talent.evolution.warrior.whirlwind.name": "Steel Tempest",
+  "talent.evolution.warrior.whirlwind.description":
+    "Whirlwind becomes a wider, devastating tempest with multiplied effects.",
+  "talent.evolution.ranger.piercing_arrow.name": "Echo Arrow",
+  "talent.evolution.ranger.piercing_arrow.description":
+    "Piercing Arrow ricochets into a second enemy at 60% power.",
+  "talent.evolution.ranger.volley.name": "Arrow Deluge",
+  "talent.evolution.ranger.volley.description":
+    "Volley releases four additional arrows in a spectacular deluge.",
+  "talent.evolution.ranger.dash.name": "Windstep",
+  "talent.evolution.ranger.dash.description":
+    "Travel farther and more often while remaining invulnerable throughout the dash.",
+  "talent.evolution.ranger.heartseeker.name": "Heartstopper",
+  "talent.evolution.ranger.heartseeker.description":
+    "A fatal shot dealing 35% more damage to targets below 35% health.",
+  "talent.evolution.priest.mend.name": "Leaping Grace",
+  "talent.evolution.priest.mend.description":
+    "The heal bounces to a second wounded ally at half strength.",
+  "talent.evolution.priest.blink.name": "Lumen Transfiguration",
+  "talent.evolution.priest.blink.description":
+    "The cloud travels farther, returns sooner, and restores health on rematerialization.",
+  "talent.evolution.priest.prayer.name": "Living Sanctuary",
+  "talent.evolution.priest.prayer.description":
+    "Prayer becomes a vast sanctuary with substantially amplified healing.",
+  "talent.evolution.priest.divine_nova.name": "Divine Supernova",
+  "talent.evolution.priest.divine_nova.description":
+    "The nova erupts across a wider area with greater power and richer effects.",
   "talent.node.mastery.name": "Mastery",
   "talent.node.mastery.description": "Greatly improve {skill}'s defining strengths.",
   "status.connecting": "connecting as {name}...",

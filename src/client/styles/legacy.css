@@ -1668,6 +1668,13 @@ kbd {
   filter: none;
 }
 
+.skill-slot.evolved {
+  border-color: #f5cd69;
+  box-shadow:
+    inset 0 0 16px rgb(255 225 132 / 24%),
+    0 0 18px rgb(240 190 73 / 42%);
+}
+
 .skill-slot__key {
   position: absolute;
   top: 0.18rem;

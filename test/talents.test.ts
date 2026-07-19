@@ -76,7 +76,7 @@ describe("class talents", () => {
     ).toMatchObject({ windowMs: 220 });
   });
 
-  it("gives every class a materially stronger V2 capstone", () => {
+  it("gives every class a materially stronger named evolution", () => {
     const warrior = skillWithTalents("warrior", ["warrior.shield_bash.mastery"], 3);
     expect(warrior.power).toBeGreaterThan(CLASS_SKILLS.warrior[2]?.power ?? 0);
     expect(warrior.distance).toBeGreaterThan(CLASS_SKILLS.warrior[2]?.distance ?? 0);
@@ -88,5 +88,11 @@ describe("class talents", () => {
     const priest = skillWithTalents("priest", ["priest.prayer.mastery"], 4);
     expect(priest.power).toBeGreaterThan(CLASS_SKILLS.priest[3]?.power ?? 0);
     expect(priest.radius).toBeGreaterThan(CLASS_SKILLS.priest[3]?.radius ?? 0);
+  });
+
+  it("turns Volley into a seven-arrow deluge", () => {
+    expect(talentEffect("ranger", ["ranger.volley.mastery"], "extra_projectiles", 3)).toMatchObject(
+      { value: 4 },
+    );
   });
 });

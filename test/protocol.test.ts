@@ -381,6 +381,7 @@ describe("combat animation messages", () => {
       action: "skill",
       skillId: "prayer",
       talented: true,
+      evolved: true,
       direction: { x: 1, y: 0 },
       startedAt: 100,
       impactAt: 300,
@@ -401,6 +402,7 @@ describe("combat animation messages", () => {
       t: "animation",
       action: "skill",
       talented: true,
+      evolved: true,
     });
     expect(parseServerMessage(monster)).toMatchObject({ t: "animation", actorKind: "monster" });
   });

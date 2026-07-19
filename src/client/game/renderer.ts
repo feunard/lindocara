@@ -284,6 +284,7 @@ interface EntityView<T extends { id: string }> {
   actionId?: string;
   actionSkillId?: string;
   actionTalented?: boolean;
+  actionEvolved?: boolean;
   actionStartedAt?: number;
   actionImpactAt?: number;
   actionChannelEndsAt?: number;
@@ -2819,6 +2820,7 @@ export class Renderer {
       id: string;
       skillId?: string;
       talented?: true;
+      evolved?: true;
       direction: { x: number; y: number };
       startedAt: number;
       impactAt: number;
@@ -2835,6 +2837,8 @@ export class Renderer {
     else view.actionSkillId = action.skillId;
     if (action.talented === true) view.actionTalented = true;
     else if (replacingAction) delete view.actionTalented;
+    if (action.evolved === true) view.actionEvolved = true;
+    else if (replacingAction) delete view.actionEvolved;
     view.actionDirection = { ...action.direction };
     view.actionStartedAt = localTimeline.startedAt;
     view.actionImpactAt = localTimeline.impactAt;
@@ -2866,6 +2870,7 @@ export class Renderer {
       id: animation.actionId,
       ...(animation.skillId === undefined ? {} : { skillId: animation.skillId }),
       ...(animation.talented === true ? { talented: true as const } : {}),
+      ...(animation.evolved === true ? { evolved: true as const } : {}),
       direction: animation.direction,
       startedAt: animation.startedAt,
       impactAt: animation.impactAt,
@@ -2972,7 +2977,13 @@ export class Renderer {
         if (art.accent) this.#playCombatSheet(art.accent, position.x, position.y, view.actionId);
         this.#playActionFlourish(skillId, position.x, position.y, view.actionId);
         if (view.actionTalented) {
-          this.#playTalentedFlourish(art, position.x, position.y, view.actionId);
+          this.#playTalentedFlourish(
+            art,
+            position.x,
+            position.y,
+            view.actionId,
+            view.actionEvolved === true,
+          );
         }
         if (skillId === "prayer") {
           const radius = CLASS_SKILLS.priest.find((skill) => skill.id === "prayer")?.radius ?? 0;
@@ -3123,18 +3134,32 @@ export class Renderer {
     }
   }
 
-  /** A V2 talent cast stays rooted in the skill's own Tiny Swords art, enlarged and echoed. */
+  /** Talent flourishes only echo the skill's own Tiny Swords sheet; no substitute is generated. */
   #playTalentedFlourish(
     art: ReturnType<typeof combatArt>,
     x: number,
     y: number,
     actionId: string,
+    evolved: boolean,
   ): void {
     const asset = art.accent ?? art.zone ?? art.impact;
     if (!asset) return;
     this.#playCombatSheet({ ...asset, scale: (asset.scale ?? 1) * 1.28 }, x, y, actionId);
     this.#playCombatSheet(
       { ...asset, scale: (asset.scale ?? 1) * 0.72, durationMs: asset.durationMs * 0.82 },
+      x,
+      y,
+      actionId,
+    );
+    if (!evolved) return;
+    this.#playCombatSheet(
+      { ...asset, scale: (asset.scale ?? 1) * 1.68, durationMs: asset.durationMs * 1.18 },
+      x,
+      y,
+      actionId,
+    );
+    this.#playCombatSheet(
+      { ...asset, scale: (asset.scale ?? 1) * 1.02, durationMs: asset.durationMs * 1.35 },
       x,
       y,
       actionId,

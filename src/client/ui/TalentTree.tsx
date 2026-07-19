@@ -26,7 +26,7 @@ const NODE_GLYPHS: Readonly<Record<Exclude<TalentLabel, "root">, string>> = {
   execute: "✧",
   chain_heal: "∞",
   blink_heal: "✚",
-  amplified: "II",
+  evolution: "✦",
   mastery: "★",
 };
 
@@ -78,13 +78,19 @@ export function TalentTree() {
     const skillName = t(`skill.${self.class}.${skill.id}.name` as MessageKey);
     return {
       skillName,
-      name: node.root ? skillName : t(`talent.node.${node.label}.name` as MessageKey),
+      name: node.root
+        ? skillName
+        : node.tier === 3
+          ? t(`talent.evolution.${self.class}.${skill.id}.name` as MessageKey)
+          : t(`talent.node.${node.label}.name` as MessageKey),
       description: node.root
         ? t(`skill.${self.class}.${skill.id}.description` as MessageKey)
-        : t(`talent.node.${node.label}.description` as MessageKey, {
-            skill: skillName,
-            value: effectValue(node.effects),
-          }),
+        : node.tier === 3
+          ? t(`talent.evolution.${self.class}.${skill.id}.description` as MessageKey)
+          : t(`talent.node.${node.label}.description` as MessageKey, {
+              skill: skillName,
+              value: effectValue(node.effects),
+            }),
     };
   };
   const inspectedCopy = inspectedNode ? copyFor(inspectedNode) : null;
@@ -101,7 +107,7 @@ export function TalentTree() {
           <div>
             <p className="talent-kicker">{t(`class.${self.class}` as MessageKey)}</p>
             <h2 id="talent-title">
-              {t("talent.title")} <span className="talent-v2">{t("talent.v2")}</span>
+              {t("talent.title")} <span className="talent-v2">{t("talent.evolutions")}</span>
             </h2>
             <p>
               {t("talent.points", { available: talentState.pointsAvailable, total: self.level })}
