@@ -589,6 +589,8 @@ export const en = {
   "editor.shell.tool.stairs": "Stairs",
   "editor.shell.stage.loading": "Loading the map…",
   "editor.shell.stage.error": "The map could not be loaded.",
+  "editor.shell.stage.empty.title": "No maps yet",
+  "editor.shell.stage.empty.hint": "Create your first map to start building this adventure.",
   "editor.shell.palette.aria": "Palette",
   "editor.shell.stage.aria": "Map",
   "editor.shell.maps.aria": "Maps",

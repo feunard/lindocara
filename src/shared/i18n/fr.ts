@@ -606,6 +606,8 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.shell.tool.stairs": "Escalier",
   "editor.shell.stage.loading": "Chargement de la carte…",
   "editor.shell.stage.error": "La carte n'a pas pu être chargée.",
+  "editor.shell.stage.empty.title": "Aucune carte pour l'instant",
+  "editor.shell.stage.empty.hint": "Créez votre première carte pour commencer cette aventure.",
   "editor.shell.palette.aria": "Palette",
   "editor.shell.stage.aria": "Carte",
   "editor.shell.maps.aria": "Cartes",

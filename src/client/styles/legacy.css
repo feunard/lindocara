@@ -46,6 +46,39 @@ body::after {
   touch-action: none;
 }
 
+/* Editor shell ⇄ #stage pointer contract.
+   #stage is a `position: fixed`, full-viewport SIBLING of #root, so it establishes its own stacking
+   context and both paints and hit-tests ABOVE the editor's normal-flow chrome — meaning a painted-
+   above menubar/toolbar/palette would still hand every click to the (often transparent) canvas.
+   The editor fixes the contract in two moves:
+     1. `.editor-root` lifts the whole shell into a stacking context above the canvas (z-index) so the
+        chrome actually paints on top, and turns the container transparent to the pointer.
+     2. Each chrome island opts back in (`.editor-root > *` = menubar, toolbar, body row, status bar;
+        `.editor-chrome` = the two side panels + resize handles). The three-pane body row
+        (`.editor-body`) stays pointer-transparent, so the CENTRE viewport — the only region with no
+        opaque chrome over it — lets painting strokes fall through to #stage behind it.
+   Keep the centre the ONLY pointer-transparent region: anything the author must click needs an opaque
+   surface AND a pointer-events opt-in, or it silently loses its clicks to the canvas again. The
+   selection inspector re-enables pointer events on itself (a directly-set value beats the inherited
+   `none`), which is why it stays clickable while floating over the transparent centre. */
+.editor-root {
+  position: relative;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.editor-root > * {
+  pointer-events: auto;
+}
+
+.editor-body {
+  pointer-events: none;
+}
+
+.editor-chrome {
+  pointer-events: auto;
+}
+
 /* Authoring surfaces deliberately use a dense product-tool treatment. Player-facing menus keep
    the Tiny Swords skin, while map/adventure editors prioritize working area, scanning and keyboard
    use. The controls retain the existing accessible React/Radix structure. */
@@ -315,8 +348,15 @@ body::after {
   text-transform: uppercase;
 }
 
-input,
-button {
+/* These bare element defaults are the Tiny Swords game skin, and they are deliberately UNLAYERED so
+   they win over the layered shadcn utilities on the legacy/game screens that rely on raw <input>/
+   <button>. That same "unlayered beats layered" is exactly what makes them bleed into the stock
+   shadcn tree (green pill buttons in the editor). `:not(:where([data-slot], .editor-root *))` fences
+   them off the shadcn tree without changing their specificity (`:where()` contributes 0): every
+   stock shadcn control carries a `data-slot` (covers portaled dialogs/menus too), and the editor's
+   own raw controls live under `.editor-root`. Neither should ever wear the game skin. */
+input:not(:where([data-slot], .editor-root *)),
+button:not(:where([data-slot], .editor-root *)) {
   font: inherit;
   padding: 0.68rem 0.78rem;
   border: 1px solid #648f75;
@@ -331,14 +371,14 @@ button {
   margin-bottom: 0.75rem;
 }
 
-button {
+button:not(:where([data-slot], .editor-root *)) {
   background: linear-gradient(180deg, #a9db8f, #6ea875);
   color: #092016;
   font-weight: 800;
   cursor: var(--tiny-cursor-link, pointer);
 }
 
-button:disabled {
+button:not(:where([data-slot], .editor-root *)):disabled {
   opacity: 0.5;
   cursor: progress;
 }

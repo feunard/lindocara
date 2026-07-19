@@ -50,7 +50,7 @@ import { type MarkerToolKey, TerrainPalette } from "./TerrainPalette.js";
  *  matching the stage's own default tool so what the toolbar shows and what the stage paints agree. */
 const DEFAULT_CONTENT: RectFillContent = { kind: "block", block: "grass" };
 
-type StageStatus = "loading" | "ready" | "error";
+type StageStatus = "loading" | "empty" | "ready" | "error";
 /** The active tool key. `stairs`, scenery and the marker tools have no *paint*-toolbar button — they
  *  are picked in the palette — so the paint toolbar highlights only for its five paint tools. */
 type ToolKey = EditorPaintTool | "stairs" | MarkerToolKey;
@@ -197,8 +197,11 @@ export function AdventureEditorScreen() {
         }
         const list = await fetchMaps();
         const first = list[0];
+        // A fresh account has zero maps: that is a first-class empty state, not an error. Leave `map`
+        // null (no stage opened) and let the centre invite a first map; the maps panel already
+        // renders its own empty list with a New-map affordance.
         if (first) setMap(await fetchMap(first.id));
-        else setError("no_maps");
+        else setStageStatus("empty");
       } catch (caught) {
         fail(caught);
       }
@@ -432,7 +435,11 @@ export function AdventureEditorScreen() {
       try {
         const first = (await fetchMaps())[0];
         editedRef.current = null;
-        setMap(first ? await fetchMap(first.id) : null);
+        if (first) setMap(await fetchMap(first.id));
+        else {
+          setMap(null);
+          setStageStatus("empty");
+        }
       } catch (caught) {
         fail(caught);
       }
@@ -580,7 +587,7 @@ export function AdventureEditorScreen() {
       tabIndex={-1}
       onKeyDown={handleShortcutKeyDown}
       onBlur={handleContainerBlur}
-      className="flex h-screen flex-col overflow-hidden bg-white text-zinc-950 select-none outline-none"
+      className="editor-root flex h-screen flex-col overflow-hidden text-zinc-950 select-none outline-none"
     >
       <EditorMenuBar
         adventureName={map?.name ?? t("editor.shell.adventureFallback")}
@@ -621,8 +628,13 @@ export function AdventureEditorScreen() {
         onTest={test}
       />
 
-      <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
-        <ResizablePanel defaultSize="18" minSize="12" maxSize="30" className="min-h-0">
+      <ResizablePanelGroup orientation="horizontal" className="editor-body min-h-0 flex-1">
+        <ResizablePanel
+          defaultSize="18"
+          minSize="12"
+          maxSize="30"
+          className="editor-chrome min-h-0"
+        >
           <TerrainPalette
             content={content}
             fillActive={toolKey === "fill"}
@@ -640,7 +652,7 @@ export function AdventureEditorScreen() {
             onMarkerRadiusChange={setMarkerRadius}
           />
         </ResizablePanel>
-        <ResizableHandle />
+        <ResizableHandle className="editor-chrome" />
 
         <ResizablePanel defaultSize="64" className="min-h-0">
           {/* The stage draws on the sibling #stage canvas behind #root; this pane is its viewport.
@@ -658,6 +670,19 @@ export function AdventureEditorScreen() {
               <p className="absolute left-3 top-3 z-10 text-sm text-red-600" role="alert">
                 {t("editor.shell.stage.error")}
               </p>
+            )}
+            {stageStatus === "empty" && (
+              <div className="pointer-events-auto absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 text-center">
+                <p className="text-sm font-semibold text-zinc-300">
+                  {t("editor.shell.stage.empty.title")}
+                </p>
+                <p className="max-w-xs text-xs text-zinc-400">
+                  {t("editor.shell.stage.empty.hint")}
+                </p>
+                <Button size="sm" onClick={() => setNewMapOpen(true)}>
+                  {t("editor.new")}
+                </Button>
+              </div>
             )}
             {error && (
               <p className="absolute left-3 bottom-3 z-10 text-sm text-red-600" role="alert">
@@ -680,9 +705,14 @@ export function AdventureEditorScreen() {
             )}
           </section>
         </ResizablePanel>
-        <ResizableHandle />
+        <ResizableHandle className="editor-chrome" />
 
-        <ResizablePanel defaultSize="18" minSize="12" maxSize="30" className="min-h-0">
+        <ResizablePanel
+          defaultSize="18"
+          minSize="12"
+          maxSize="30"
+          className="editor-chrome min-h-0"
+        >
           <MapListPanel
             activeMapId={map?.id ?? null}
             dirty={dirty}

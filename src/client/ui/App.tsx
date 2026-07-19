@@ -36,8 +36,11 @@ export function App() {
 
   return (
     <>
-      <LocaleToggle />
-      <StatusBar />
+      {/* The floating game-chrome locale chip and status pill are anchored bottom-right and would
+          collide with the editor's own bottom-right chrome (the "Adventure settings" button). The
+          dense editor shell owns its whole viewport, so keep these Tiny Swords widgets off it. */}
+      {screen !== "adventure-editor" && <LocaleToggle />}
+      {screen !== "adventure-editor" && <StatusBar />}
       {screen === "title" && <TitleScreen />}
       {screen === "auth" && <AuthScreen />}
       {screen === "adventure-editor" && <AdventureEditorScreen />}
