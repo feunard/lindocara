@@ -38,21 +38,39 @@ describe("Tiny Swords directional combat art", () => {
     }
   });
 
-  it("renders arrows at native size and uses Heal_Effect as the documented healing light", () => {
+  it("keeps the basic arrow plain and gives every ranger special shot a distinct treatment", () => {
     expect(projectileArt("arrow", "azure")).toMatchObject({
       source: expect.stringContaining("/archer/Arrow.png"),
       frameWidth: 64,
       frameHeight: 64,
       frames: 1,
     });
+    expect(projectileArt("arrow", "azure").trail).toBeUndefined();
+    const specialShots = ["piercing_arrow", "volley_arrow", "heartseeker"] as const;
+    expect(new Set(specialShots.map((kind) => projectileArt(kind, "azure").tint)).size).toBe(3);
+    expect(specialShots.every((kind) => projectileArt(kind, "azure").trail !== undefined)).toBe(
+      true,
+    );
+  });
+
+  it("uses a green Radiant-Bolt-style projectile for ally-only Mend", () => {
     const mend = combatArt("priest", "mend", "violet");
     expect(mend.projectile).toMatchObject({
-      source: expect.stringContaining("units/purple/monk/Heal_Effect.png"),
-      frameWidth: 192,
-      frameHeight: 192,
-      frames: 11,
+      source: expect.stringContaining("Hex%20Shaman_Projectile.png"),
+      frameWidth: 128,
+      frameHeight: 128,
+      frames: 3,
+      tint: 0x62e68f,
+      trail: { color: 0x62e68f },
     });
-    expect(mend.fallback).toContain("aucun projectile exact");
+    expect(mend.impact).toMatchObject({ tint: 0x62e68f });
+    expect(mend.fallback).toContain("teinté en vert");
+  });
+
+  it("gives charge, dash and blink distinct movement impact colours", () => {
+    expect(combatArt("warrior", "shield_bash", "azure").impact?.tint).toBe(0xffd66b);
+    expect(combatArt("ranger", "dash", "azure").impact?.tint).toBe(0x6ad9ff);
+    expect(combatArt("priest", "blink", "azure").impact?.tint).toBe(0xb48cff);
   });
 
   it("uses the exact Hex Shaman magic projectile for Radiant Bolt", () => {

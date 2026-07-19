@@ -716,7 +716,7 @@ export const PLAYER_MAX_HP_BASE = 100;
 export const PLAYER_HP_PER_LEVEL = 12;
 
 /** Slot-one attack cadence shared by all three class kits. */
-export const ATTACK_COOLDOWN_MS = 650;
+export const ATTACK_COOLDOWN_MS = 325;
 export const MONSTER_AGGRO_RANGE = 210;
 export const MONSTER_ATTACK_RANGE = 42;
 export const MONSTER_ATTACK_COOLDOWN_MS = 900;
@@ -902,7 +902,7 @@ export interface ClassStats {
 }
 
 export const CLASS_STATS: Record<PlayerClass, ClassStats> = {
-  warrior: { attackBase: 30, attackPerLevel: 4, attackRange: 60 },
+  warrior: { attackBase: 27, attackPerLevel: 4, attackRange: 60 },
   ranger: { attackBase: 16, attackPerLevel: 2, attackRange: 170 },
   priest: {
     attackBase: 14,

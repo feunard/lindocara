@@ -1,4 +1,4 @@
-import type { PlayerClass } from "./game.js";
+import { ATTACK_COOLDOWN_MS, type PlayerClass } from "./game.js";
 
 export const SKILL_SLOTS = [1, 2, 3, 4, 5] as const;
 export type SkillSlot = (typeof SKILL_SLOTS)[number];
@@ -26,15 +26,21 @@ export interface SkillDefinition {
   radius?: number;
   durationMs?: number;
   reduction?: number;
-  /** Mend V1 tunes the immediate self-heal independently from its directional ally projectile. */
-  selfPower?: number;
   allyPower?: number;
   icon: string;
 }
 
 export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition[]>> = {
   warrior: [
-    { id: "cleave", slot: 1, effect: "attack", cooldownMs: 650, range: 60, power: 0, icon: "⚔" },
+    {
+      id: "cleave",
+      slot: 1,
+      effect: "attack",
+      cooldownMs: ATTACK_COOLDOWN_MS,
+      range: 60,
+      power: 0,
+      icon: "⚔",
+    },
     {
       id: "iron_guard",
       slot: 2,
@@ -53,7 +59,7 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       cooldownMs: 3_200,
       range: 308,
       power: 24,
-      distance: 150,
+      distance: 300,
       icon: "◈",
     },
     {
@@ -82,7 +88,7 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       id: "quick_shot",
       slot: 1,
       effect: "attack",
-      cooldownMs: 650,
+      cooldownMs: ATTACK_COOLDOWN_MS,
       range: 170,
       power: 0,
       icon: "➶",
@@ -131,7 +137,7 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       id: "radiant_bolt",
       slot: 1,
       effect: "attack",
-      cooldownMs: 650,
+      cooldownMs: ATTACK_COOLDOWN_MS,
       range: 225,
       power: 0,
       icon: "✧",
@@ -143,7 +149,6 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       cooldownMs: 1_500,
       range: 130,
       power: 35,
-      selfPower: 35,
       allyPower: 35,
       icon: "✚",
     },

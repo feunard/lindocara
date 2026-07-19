@@ -1630,14 +1630,67 @@ kbd {
 }
 
 .skill-slot__icon {
+  display: block;
   width: 2rem;
   height: 2rem;
-  object-fit: contain;
+  background-repeat: no-repeat;
   image-rendering: pixelated;
   font-size: 1.55rem;
   line-height: 1;
   color: #f7d87b;
   text-shadow: 0 1px 5px rgb(255 214 103 / 34%);
+}
+
+.skill-slot__icon--quick-shot {
+  filter: drop-shadow(0 0 2px rgb(220 238 255 / 35%));
+}
+
+.skill-slot__icon--piercing-arrow {
+  filter: brightness(1.25) saturate(1.8) hue-rotate(150deg) drop-shadow(0 0 4px #5dd9ff);
+  scale: 1.12;
+}
+
+.skill-slot__icon--volley {
+  filter: sepia(0.8) saturate(2.2) brightness(1.25) drop-shadow(5px 2px 0 rgb(255 207 88 / 45%))
+    drop-shadow(-5px -2px 0 rgb(255 207 88 / 35%));
+  rotate: -8deg;
+  scale: 0.88;
+}
+
+.skill-slot__icon--heartseeker {
+  filter: sepia(0.45) saturate(4) hue-rotate(305deg) drop-shadow(0 0 5px #ff416c);
+  scale: 1.2;
+}
+
+.skill-slot__icon--charge,
+.skill-slot__icon--dash,
+.skill-slot__icon--blink {
+  scale: 1.15;
+}
+
+.skill-slot__icon--charge {
+  filter: sepia(1) saturate(2) drop-shadow(0 0 5px #ffd66b);
+}
+
+.skill-slot__icon--dash {
+  filter: saturate(2) hue-rotate(135deg) drop-shadow(0 0 5px #6ad9ff);
+}
+
+.skill-slot__icon--blink {
+  filter: saturate(2) hue-rotate(235deg) drop-shadow(0 0 5px #b48cff);
+}
+
+.skill-slot__icon--radiant {
+  filter: sepia(0.65) saturate(2.2) brightness(1.25) drop-shadow(0 0 5px #ffe48a);
+}
+
+.skill-slot__icon--mend,
+.skill-slot__icon--prayer {
+  filter: sepia(0.35) saturate(3) hue-rotate(70deg) brightness(1.2) drop-shadow(0 0 5px #62e68f);
+}
+
+.skill-slot__icon--nova {
+  filter: saturate(1.7) hue-rotate(245deg) drop-shadow(0 0 5px #d8a0ff);
 }
 
 .skill-slot__name {

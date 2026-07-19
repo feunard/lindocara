@@ -42,7 +42,7 @@ describe("authoritative combat cooldown state", () => {
         {
           attackUntil: NOW - 1,
           healUntil: Number.POSITIVE_INFINITY,
-          skillCooldowns: [NOW + 651, -1, Number.NaN, NOW + 60_000, NOW + 10_001],
+          skillCooldowns: [NOW + 326, -1, Number.NaN, NOW + 60_000, NOW + 10_001],
           guardUntil: NOW + 3_501,
           resurrectUntil: NOW + 20_001,
         },
@@ -54,7 +54,7 @@ describe("authoritative combat cooldown state", () => {
   it("restores the same remaining time and converts it to the browser monotonic clock", () => {
     const state = normalizeCombatCooldowns(
       {
-        attackUntil: NOW + 500,
+        attackUntil: NOW + 300,
         healUntil: NOW + 1_250,
         skillCooldowns: [0, 0, 0, 0, NOW + 10_000],
         guardUntil: 0,
@@ -65,7 +65,7 @@ describe("authoritative combat cooldown state", () => {
     const clock = new ServerClock();
     clock.sample(NOW + 250, 40_000);
     const local = clientCooldownDeadlines(state, clock);
-    expect(local.attackUntil).toBe(40_250);
+    expect(local.attackUntil).toBe(40_050);
     expect(local.healUntil).toBe(41_000);
     expect(local.skills[5]).toBe(49_750);
 
@@ -73,12 +73,12 @@ describe("authoritative combat cooldown state", () => {
     const refreshed = clientCooldownDeadlines(
       {
         ...state,
-        attackUntil: NOW + 900,
+        attackUntil: NOW + 800,
         skillCooldowns: [0, NOW + 2_000, 0, 0, NOW + 10_000],
       },
       clock,
     );
-    expect(refreshed.attackUntil).toBe(40_800);
+    expect(refreshed.attackUntil).toBe(40_700);
     expect(refreshed.skills[2]).toBe(41_900);
     expect(refreshed.skills[5]).toBe(49_900);
   });

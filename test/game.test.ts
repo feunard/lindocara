@@ -541,7 +541,7 @@ describe("class rules", () => {
   it("keeps the balance table in the spec's shape", () => {
     expect(PLAYER_CLASSES).toEqual(["warrior", "ranger", "priest"]);
     expect(CLASS_STATS.warrior).toMatchObject({
-      attackBase: 30,
+      attackBase: 27,
       attackPerLevel: 4,
       attackRange: 60,
     });
@@ -565,8 +565,8 @@ describe("class rules", () => {
   });
 
   it("scales damage and healing by level", () => {
-    expect(attackDamageFor("warrior", 1)).toBe(30);
-    expect(attackDamageFor("warrior", 3)).toBe(38);
+    expect(attackDamageFor("warrior", 1)).toBe(27);
+    expect(attackDamageFor("warrior", 3)).toBe(35);
     expect(attackDamageFor("ranger", 1)).toBe(16);
     expect(attackDamageFor("priest", 5)).toBe(22);
     expect(healAmountFor(1)).toBe(35);

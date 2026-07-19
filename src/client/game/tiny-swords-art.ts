@@ -263,6 +263,11 @@ export const TINY_SWORDS_EFFECT_SHEETS = {
   heal: { source: `${TINY_SWORDS_ROOT}/units/blue/monk/Heal_Effect.png`, frame: 192, frames: 11 },
 } as const;
 
+const HEX_SHAMAN_PROJECTILE_ICON = new URL(
+  "../../../assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Hex Shaman/Hex Shaman_Projectile.png",
+  import.meta.url,
+).href;
+
 const SKILL_ICON_INDEX: Readonly<Record<PlayerClass, readonly number[]>> = {
   warrior: [5, 6, 5, 11, 5],
   ranger: [7, 7, 7, 6, 7],
@@ -270,9 +275,49 @@ const SKILL_ICON_INDEX: Readonly<Record<PlayerClass, readonly number[]>> = {
 };
 
 export function skillIconSource(playerClass: PlayerClass, slot: SkillSlot): string {
-  if (playerClass === "ranger" && slot !== 4) return TINY_SWORDS_EFFECTS.arrow;
+  return skillIconArt(playerClass, slot).source;
+}
+
+export interface SkillIconArt {
+  source: string;
+  frames: number;
+  frame: number;
+  variant: string;
+}
+
+/** Mirrors the actual combat asset/effect used by each skill instead of generic inventory icons. */
+export function skillIconArt(playerClass: PlayerClass, slot: SkillSlot): SkillIconArt {
+  if (playerClass === "ranger") {
+    if (slot === 4)
+      return { source: TINY_SWORDS_EFFECTS.dust, frames: 8, frame: 2, variant: "dash" };
+    const variants = ["quick-shot", "piercing-arrow", "volley", "dash", "heartseeker"];
+    return {
+      source: TINY_SWORDS_EFFECTS.arrow,
+      frames: 1,
+      frame: 0,
+      variant: variants[slot - 1] ?? "quick-shot",
+    };
+  }
+  if (playerClass === "priest") {
+    if (slot === 1)
+      return { source: HEX_SHAMAN_PROJECTILE_ICON, frames: 3, frame: 0, variant: "radiant" };
+    if (slot === 2)
+      return { source: HEX_SHAMAN_PROJECTILE_ICON, frames: 3, frame: 0, variant: "mend" };
+    if (slot === 3)
+      return { source: TINY_SWORDS_EFFECTS.dust, frames: 8, frame: 2, variant: "blink" };
+    if (slot === 4)
+      return { source: TINY_SWORDS_EFFECTS.heal, frames: 11, frame: 4, variant: "prayer" };
+    return { source: TINY_SWORDS_EFFECTS.explosion, frames: 8, frame: 2, variant: "nova" };
+  }
+  if (slot === 3)
+    return { source: TINY_SWORDS_EFFECTS.dust, frames: 8, frame: 2, variant: "charge" };
   const icon = SKILL_ICON_INDEX[playerClass][slot - 1] ?? 11;
-  return `${TINY_SWORDS_ROOT}/ui/Icon_${String(icon).padStart(2, "0")}.png`;
+  return {
+    source: `${TINY_SWORDS_ROOT}/ui/Icon_${String(icon).padStart(2, "0")}.png`,
+    frames: 1,
+    frame: 0,
+    variant: `warrior-${slot}`,
+  };
 }
 
 const FACTION: Readonly<Record<PrimaryColor, string>> = {

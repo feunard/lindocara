@@ -5,7 +5,7 @@ import {
   startCombatAction,
 } from "../src/server/world/combat-action-system.js";
 import { guardedDamage } from "../src/server/world/combat-system.js";
-import { movePlayerInDirection } from "../src/server/world/skill-system.js";
+import { movePlayerInDirection, nearestChargeTarget } from "../src/server/world/skill-system.js";
 import { SpatialGrid } from "../src/server/world/spatial-grid.js";
 import { newPlayer, type PlayerRuntime } from "../src/server/world/world-runtime.js";
 import { starterEquipmentFor } from "../src/shared/character.js";
@@ -109,7 +109,7 @@ describe("isolated directional combat systems", () => {
     expect(actor.action).toBeNull();
   });
 
-  it("accepts Radiant Bolt exactly when its 650 ms action timeline ends", () => {
+  it("accepts Radiant Bolt exactly when its 325 ms action timeline ends", () => {
     const actor = player();
     const definition = PLAYER_ACTIONS.priest[0];
     if (!definition) throw new Error("missing Radiant Bolt action");
@@ -122,14 +122,14 @@ describe("isolated directional combat systems", () => {
       recoveryMs: definition.recoveryMs,
     };
     const first = startCombatAction(actor, { ...options, now: 1_000 });
-    expect(first?.impactAt).toBe(1_280);
-    expect(first?.recoveryEndsAt).toBe(1_650);
+    expect(first?.impactAt).toBe(1_140);
+    expect(first?.recoveryEndsAt).toBe(1_325);
 
-    advanceCombatActions([actor], 1_649, () => undefined);
-    expect(startCombatAction(actor, { ...options, now: 1_649 })).toBeNull();
+    advanceCombatActions([actor], 1_324, () => undefined);
+    expect(startCombatAction(actor, { ...options, now: 1_324 })).toBeNull();
 
-    advanceCombatActions([actor], 1_650, () => undefined);
-    expect(startCombatAction(actor, { ...options, now: 1_650 })).not.toBeNull();
+    advanceCombatActions([actor], 1_325, () => undefined);
+    expect(startCombatAction(actor, { ...options, now: 1_325 })).not.toBeNull();
   });
 
   it("resolves mobility in segments and does not cross a wall", () => {
@@ -140,6 +140,25 @@ describe("isolated directional combat systems", () => {
     expect(movePlayerInDirection(actor, { x: 1, y: 0 }, 120, terrain, grid)).toBe(true);
     expect(actor.x).toBeLessThan(80);
     expect(grid.queryRadius(actor, 1)).toContain(actor);
+  });
+
+  it("selects the nearest visible living charge target deterministically", () => {
+    const targets = [
+      { id: "far", x: 180, y: 10, deadUntil: 0 },
+      { id: "dead", x: 20, y: 10, deadUntil: 2_000 },
+      { id: "blocked", x: 30, y: 10, deadUntil: 0 },
+      { id: "z-near", x: 50, y: 10, deadUntil: 0 },
+      { id: "a-near", x: -30, y: 10, deadUntil: 0 },
+    ];
+    expect(
+      nearestChargeTarget(
+        { x: 10, y: 10 },
+        targets,
+        100,
+        1_000,
+        (target) => target.id !== "blocked",
+      )?.id,
+    ).toBe("a-near");
   });
 
   it("preserves Iron Guard damage reduction", () => {

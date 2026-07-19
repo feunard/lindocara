@@ -4,6 +4,38 @@ import type { Vec2 } from "../../shared/simulation.js";
 import type { SpatialGrid } from "./spatial-grid.js";
 import type { PlayerRuntime } from "./world-runtime.js";
 
+export interface ChargeCandidate extends Vec2 {
+  id: string;
+  deadUntil: number;
+}
+
+/** Selects a deterministic living target without ever accepting a client-provided entity id. */
+export function nearestChargeTarget<T extends ChargeCandidate>(
+  origin: Vec2,
+  candidates: Iterable<T>,
+  maxRange: number,
+  now: number,
+  isVisible: (candidate: T) => boolean,
+): T | null {
+  let nearest: T | null = null;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+  for (const candidate of candidates) {
+    if (candidate.deadUntil > now || !isVisible(candidate)) continue;
+    const distance = Math.hypot(candidate.x - origin.x, candidate.y - origin.y);
+    if (distance > maxRange) continue;
+    if (
+      distance < nearestDistance ||
+      (distance === nearestDistance &&
+        nearest !== null &&
+        candidate.id.localeCompare(nearest.id) < 0)
+    ) {
+      nearest = candidate;
+      nearestDistance = distance;
+    }
+  }
+  return nearest;
+}
+
 /** Resolves mobility skills in short segments so they cannot phase through colliders. */
 export function movePlayerInDirection(
   player: PlayerRuntime,
