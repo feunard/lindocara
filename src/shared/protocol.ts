@@ -26,6 +26,7 @@ import type { Input, Vec2 } from "./simulation.js";
 import { isSkillSlot, type SkillSlot } from "./skills.js";
 import { parseTileMap } from "./tilemap-codec.js";
 import { tilesetById } from "./tilesets/tiny-swords.js";
+import { isEditorAssetId } from "./tiny-swords-catalog.js";
 import { isZoneId, type ZoneId } from "./zones.js";
 
 /** One tick's worth of movement intent, stamped so the server can acknowledge it. */
@@ -207,6 +208,22 @@ export interface CombatAnimation {
   recoveryEndsAt: number;
 }
 
+/**
+ * The active page of an authored map event, projected to its appearance for the wire — the third
+ * member of the `elements`/`layers` family. **Appearance only:** collision is already baked into
+ * `tiles`, exactly the rule `elements` and `layers` follow, so nothing here is ever read for
+ * walkability, movement, interaction or command execution. `graphicAssetId` is the active page's
+ * catalogue graphic (`null` is the authored blank tile); `onTop` chooses whether it draws above the
+ * actors (a treetop) or in the ground decor pass. One event owns exactly one cell (`col`/`row`).
+ */
+export interface WorldEventSnapshot {
+  id: string;
+  col: number;
+  row: number;
+  graphicAssetId: string | null;
+  onTop: boolean;
+}
+
 export interface WorldInfo {
   /** Names the room. It is no longer enough to find the terrain with: a map can live in D1, so the
    *  terrain travels below instead of being looked up. `zoneNameKey` is prose (an i18n key) and must
@@ -232,6 +249,12 @@ export interface WorldInfo {
    * and the reason adding layers to the wire introduces no new invariant.
    */
   layers: readonly string[];
+  /**
+   * The authored events whose active page currently holds, appearance only — the same rule
+   * `elements`/`layers` above follow, never a source of collision. Page selection is server-side
+   * (spec Decision 3/4); the client only draws what it is told is active.
+   */
+  events: readonly WorldEventSnapshot[];
   width: number;
   height: number;
   playerSize: number;
@@ -364,8 +387,11 @@ export type ServerMessage =
       loot: EntityDelta<LootSnapshot>;
       corpses: EntityDelta<CorpseSnapshot>;
       projectiles: EntityDelta<ProjectileSnapshot>;
+      /** Room-scoped, never interest-filtered: every recipient sees the same events. Upserts a
+       *  changed/new active page, removes an event that went dormant. Appearance only. */
+      events: EntityDelta<WorldEventSnapshot>;
     }
-  | ({ t: "world.resync"; tick: number } & WorldView)
+  | ({ t: "world.resync"; tick: number; events: WorldEventSnapshot[] } & WorldView)
   | { t: "world.resync_required" }
   | { t: "state"; self: SelfState }
   | { t: "chat"; channel: ChatChannel; from: string; text: string }
@@ -476,6 +502,22 @@ function isBasicEntity(value: unknown): value is { id: string } {
   return isRecord(value) && isWireId(value.id);
 }
 
+/** Same table-driven discipline as the snapshots above: every field is checked, and a malformed
+ *  one drops the whole frame. `graphicAssetId` must be `null` or a real catalogue id — appearance
+ *  only, so an unknown asset id is not something the renderer should ever be handed. */
+function isWorldEventSnapshot(value: unknown): value is WorldEventSnapshot {
+  return (
+    isRecord(value) &&
+    isWireId(value.id) &&
+    Number.isSafeInteger(value.col) &&
+    (value.col as number) >= 0 &&
+    Number.isSafeInteger(value.row) &&
+    (value.row as number) >= 0 &&
+    (value.graphicAssetId === null || isEditorAssetId(value.graphicAssetId)) &&
+    typeof value.onTop === "boolean"
+  );
+}
+
 function isEntityDelta<T extends { id: string }>(
   value: unknown,
   validate: (entity: unknown) => entity is T,
@@ -576,6 +618,10 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       Array.isArray(value.world.layers) &&
       value.world.layers.length === MAP_LAYERS &&
       value.world.layers.every((layer: unknown) => typeof layer === "string") &&
+      // Events ride inside `world` (the `elements`/`layers` family), validated the same way:
+      // appearance only, every field checked, a bad graphic id drops the frame.
+      Array.isArray(value.world.events) &&
+      value.world.events.every(isWorldEventSnapshot) &&
       Array.isArray(value.players) &&
       value.players.every(isPlayerSnapshot) &&
       Array.isArray(value.monsters) &&
@@ -600,7 +646,8 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       isEntityDelta(value.guards, isBasicEntity) &&
       isEntityDelta(value.loot, isBasicEntity) &&
       isEntityDelta(value.corpses, isBasicEntity) &&
-      isEntityDelta(value.projectiles, isProjectileSnapshot)
+      isEntityDelta(value.projectiles, isProjectileSnapshot) &&
+      isEntityDelta(value.events, isWorldEventSnapshot)
     ) {
       return value as unknown as ServerMessage;
     }
@@ -618,7 +665,9 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       Array.isArray(value.corpses) &&
       value.corpses.every(isBasicEntity) &&
       Array.isArray(value.projectiles) &&
-      value.projectiles.every(isProjectileSnapshot)
+      value.projectiles.every(isProjectileSnapshot) &&
+      Array.isArray(value.events) &&
+      value.events.every(isWorldEventSnapshot)
     ) {
       return value as unknown as ServerMessage;
     }

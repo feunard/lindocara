@@ -6,6 +6,7 @@ import type {
   MonsterSnapshot,
   PlayerSnapshot,
   ProjectileSnapshot,
+  WorldEventSnapshot,
   WorldView,
 } from "./protocol.js";
 
@@ -18,6 +19,14 @@ export interface WorldCache {
   loot: Map<string, LootSnapshot>;
   corpses: Map<string, CorpseSnapshot>;
   projectiles: Map<string, ProjectileSnapshot>;
+  /**
+   * The events baseline this recipient was last sent. Kept out of `WorldView` on purpose: events
+   * do not move and must never enter the interpolation buffer, so they are diffed here as a bespoke
+   * room-scoped collection rather than folded into the positional entity machinery above. Managed
+   * only by `seedEventCache`/`buildEventDelta`/`applyEventDelta` — `replaceWorldCache`,
+   * `buildWorldDelta` and `applyWorldDelta` never touch it.
+   */
+  events: Map<string, WorldEventSnapshot>;
 }
 
 export interface WorldDeltaPayload {
@@ -37,6 +46,7 @@ export function createWorldCache(view?: WorldView): WorldCache {
     loot: new Map(),
     corpses: new Map(),
     projectiles: new Map(),
+    events: new Map(),
   };
   if (view) replaceWorldCache(cache, view);
   return cache;
@@ -113,6 +123,66 @@ export function interpolateSnapshots<T extends { id: string; x: number; y: numbe
       y: before.y + (entity.y - before.y) * alpha,
     };
   });
+}
+
+/**
+ * Reset the events baseline to a full set — used at welcome and resync, where the recipient is
+ * handed the complete active-event list rather than a diff. Separate from `replaceWorldCache`
+ * because events live outside `WorldView` (they never interpolate).
+ */
+export function seedEventCache(cache: WorldCache, events: readonly WorldEventSnapshot[]): void {
+  cache.events.clear();
+  for (const event of events) cache.events.set(event.id, event);
+}
+
+/**
+ * Diff the recipient's events baseline against the room's current active events, mutating the
+ * baseline to the new set. Upserts an event whose active page is new or changed; removes an event
+ * that went dormant. Events carry no position, so equality is a full-object compare rather than the
+ * positional threshold `diffMap` uses. The removal branch is load-bearing: without it a dormant
+ * event lingers on the client forever.
+ */
+export function buildEventDelta(
+  cache: WorldCache,
+  events: readonly WorldEventSnapshot[],
+): EntityDelta<WorldEventSnapshot> {
+  const currentIds = new Set(events.map((event) => event.id));
+  const remove = [...cache.events.keys()].filter((id) => !currentIds.has(id));
+  for (const id of remove) cache.events.delete(id);
+
+  const upsert: WorldEventSnapshot[] = [];
+  for (const event of events) {
+    const previous = cache.events.get(event.id);
+    if (!previous || JSON.stringify(previous) !== JSON.stringify(event)) {
+      upsert.push(event);
+      cache.events.set(event.id, event);
+    }
+  }
+  return { upsert, remove };
+}
+
+/**
+ * Apply an events delta to the recipient's baseline with the same rigor as `applyEntityDelta`: no
+ * duplicate upsert id, no duplicate/unknown removal. Returns the materialized set, or `null` on a
+ * malformed delta so the caller can fall back to a bounded resync.
+ */
+export function applyEventDelta(
+  cache: WorldCache,
+  delta: EntityDelta<WorldEventSnapshot>,
+): WorldEventSnapshot[] | null {
+  const upsertIds = new Set<string>();
+  for (const event of delta.upsert) {
+    if (upsertIds.has(event.id)) return null;
+    upsertIds.add(event.id);
+  }
+  const removeIds = new Set<string>();
+  for (const id of delta.remove) {
+    if (removeIds.has(id) || upsertIds.has(id) || !cache.events.has(id)) return null;
+    removeIds.add(id);
+  }
+  for (const id of removeIds) cache.events.delete(id);
+  for (const event of delta.upsert) cache.events.set(event.id, event);
+  return [...cache.events.values()];
 }
 
 function replaceMap<T extends { id: string }>(

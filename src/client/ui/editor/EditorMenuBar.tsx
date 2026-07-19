@@ -22,6 +22,7 @@ interface EditorMenuBarProps {
   onSave(): void;
   onDeleteMap(): void;
   onOpenSettings(): void;
+  onOpenDatabase(): void;
   onUndo(): void;
   onRedo(): void;
   onSelectLayer(layer: 0 | 1 | 2): void;
@@ -35,10 +36,9 @@ interface EditorMenuBarProps {
 
 /**
  * The wireframe's 32px menu row: the adventure identity (doubling as the way back to the parties
- * home until the account menu lands) and the six menus. Items whose action does not exist this
- * tranche — Base de données… — render disabled, never hidden: the menu structure is the contract.
- * No account menu: the store carries no username/email to fill it, and inventing that plumbing is
- * out of scope.
+ * home until the account menu lands) and the six menus. Jeu → « Base de données… » opens the
+ * registry editor. No account menu: the store carries no username/email to fill it, and inventing
+ * that plumbing is out of scope.
  */
 export function EditorMenuBar({
   adventureName,
@@ -51,6 +51,7 @@ export function EditorMenuBar({
   onSave,
   onDeleteMap,
   onOpenSettings,
+  onOpenDatabase,
   onUndo,
   onRedo,
   onSelectLayer,
@@ -173,7 +174,7 @@ export function EditorMenuBar({
           <MenubarTrigger>{t("editor.shell.menu.game")}</MenubarTrigger>
           <MenubarContent>
             <MenubarItem onClick={onTest}>{t("editor.shell.test")}</MenubarItem>
-            <MenubarItem disabled>{t("editor.shell.database")}</MenubarItem>
+            <MenubarItem onClick={onOpenDatabase}>{t("editor.shell.database")}</MenubarItem>
           </MenubarContent>
         </MenubarMenu>
       </Menubar>

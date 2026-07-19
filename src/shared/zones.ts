@@ -12,6 +12,7 @@ import {
   VERDANT_REACH_TERRAIN,
 } from "./game.js";
 import type { MapElement, MapMarkers } from "./map-data.js";
+import type { MapEvent } from "./map-events.js";
 import { DEFAULT_ZONE_NAVIGATION, type ZoneNavigationDefinition } from "./navigation.js";
 import type { Vec2 } from "./simulation.js";
 import { MMO_TEST_ZONE_TILES } from "./zones/mmo-test-zone-tiles.js";
@@ -48,6 +49,13 @@ export interface ZoneDefinition {
   readonly elements?: readonly MapElement[];
   /** Functional authored anchors. They stay server-side; clients receive only visual state. */
   readonly markers?: MapMarkers;
+  /**
+   * Authored events, appearance-only — the third member of the `elements`/`layers` family, and it
+   * carries the same rule: never a source of collision. Undefined for every catalogue zone. The
+   * room evaluates each event's active page against the party's adventure-state snapshot and never
+   * per tick; nothing here moves, triggers or executes a command this tranche.
+   */
+  readonly events?: readonly MapEvent[];
   /** Authored map cache identity. Catalogue zones use 0. */
   readonly revision?: number;
   /**

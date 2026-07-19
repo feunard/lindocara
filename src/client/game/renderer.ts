@@ -34,6 +34,7 @@ import type {
   PlayerSnapshot,
   ProjectileSnapshot,
   QuestState,
+  WorldEventSnapshot,
 } from "../../shared/protocol.js";
 import { PLAYER_SIZE } from "../../shared/simulation.js";
 import { CLASS_SKILLS } from "../../shared/skills.js";
@@ -45,7 +46,7 @@ import {
   TINY_SWORDS_SHEET_ROWS,
   tilesetById,
 } from "../../shared/tilesets/tiny-swords.js";
-import type { EditorAssetId } from "../../shared/tiny-swords-catalog.js";
+import { type EditorAssetId, isEditorAssetId } from "../../shared/tiny-swords-catalog.js";
 import {
   DEFAULT_ZONE_ID,
   type PortalDefinition,
@@ -54,7 +55,11 @@ import {
 } from "../../shared/zones.js";
 import { onLocaleChange, t } from "../i18n.js";
 import { landTile, needsFoam, tileVisual } from "./autotile.js";
-import { catalogElementFrameAt, createCatalogElementView } from "./catalog-element-render.js";
+import {
+  catalogElementFrameAt,
+  createCatalogElementView,
+  createEventGraphicSprite,
+} from "./catalog-element-render.js";
 import { MAIN_HAND_ART, OFF_HAND_ART, PLAYER_ATLAS_FRAMES } from "./character-art.js";
 import {
   allCombatSheets,
@@ -65,7 +70,11 @@ import {
 } from "./combat-art.js";
 import { CombatVisualAuthority, clearVisualAction } from "./combat-visual-state.js";
 import { type HealthBarMode, shouldShowHealthBar } from "./display-settings.js";
-import { type EditorAssetArt, loadEditorAssetArts } from "./editor-asset-art.js";
+import {
+  type EditorAssetArt,
+  loadEditorAssetArt,
+  loadEditorAssetArts,
+} from "./editor-asset-art.js";
 import {
   ENEMY_RENDER_METRICS,
   type EnemyArt,
@@ -701,6 +710,24 @@ function placeTile(
   tile.height = height;
 }
 
+/** One drawn authored event: its container, the last snapshot it drew, and the graphic id currently
+ *  painted (`undefined` means "needs a (re)draw", the sentinel a just-loaded asset sets). */
+interface EventView {
+  container: Container;
+  data: WorldEventSnapshot;
+  drawnGraphic: string | null | undefined;
+}
+
+/**
+ * Which container an event draws into — the ONE routing decision, extracted pure so it can be pinned
+ * without a renderer: an `onTop` page (a treetop the hero passes behind) goes above the actors, in
+ * `#tilesAbove`; everything else draws in the ground decor pass. Appearance only, mirrors the
+ * `optOnTop` split the map editor already honours.
+ */
+export function eventRenderLayer(onTop: boolean, decor: Container, above: Container): Container {
+  return onTop ? above : decor;
+}
+
 function reconcile<T extends { id: string }>(
   views: Map<string, EntityView<T>>,
   entities: readonly T[],
@@ -776,6 +803,12 @@ export class Renderer {
   #loot = new Map<string, EntityView<LootSnapshot>>();
   #corpses = new Map<string, EntityView<CorpseSnapshot>>();
   #projectiles = new Map<string, EntityView<ProjectileSnapshot>>();
+  /** Drawn authored events, keyed by event id. Appearance only — nothing gameplay reads these; the
+   *  server already resolved which page is active and baked collision into the tilemap. */
+  #events = new Map<string, EventView>();
+  /** Loaded art for event page graphics, filled on demand — an event's asset need not be one the
+   *  authored-element preload already fetched. */
+  #eventAssetArt = new Map<EditorAssetId, EditorAssetArt>();
   #activeEffects: Effect[] = [];
   #ambientViews: AmbientView[] = [];
   #staticViews: StaticView[] = [];
@@ -1015,6 +1048,9 @@ export class Renderer {
    */
   #rebuildForZone(): void {
     this.#clearTransientCombatViews();
+    // Events are room-scoped: an `onTop` event lives in the persistent `#tilesAbove` container that
+    // survives a zone change, so it must be torn down explicitly or it would draw over the new room.
+    this.#clearEventViews();
     this.#teardownWorldFurniture();
     for (const child of this.#forestTreesLayer.removeChildren()) child.destroy({ children: true });
     for (const child of this.#decorLayer.removeChildren()) child.destroy({ children: true });
@@ -1035,6 +1071,72 @@ export class Renderer {
     this.#applyCameraTransform();
     this.#updateTerrain();
     this.#updateStaticVisibility();
+  }
+
+  /**
+   * Draw the room's active authored events. Appearance only — nothing here is read for collision,
+   * movement, interaction or monster awareness; the server already picked which page is active and
+   * baked its collision into the tilemap. An `onTop` page draws above the actors (`#tilesAbove`),
+   * everything else in the ground decor pass — the one `eventRenderLayer` routing decision. Events
+   * change only on a party state flip, so this is cheap: a same-set frame touches nothing.
+   */
+  #reconcileEvents(events: readonly WorldEventSnapshot[]): void {
+    const present = new Set<string>();
+    for (const event of events) {
+      present.add(event.id);
+      let view = this.#events.get(event.id);
+      // A decor-pass container is destroyed when `#decorLayer` is cleared on a map/element reload;
+      // recreate it (the sentinel forces a redraw) rather than draw into a dead container.
+      if (!view || view.container.destroyed) {
+        view = { container: new Container(), data: event, drawnGraphic: undefined };
+        this.#events.set(event.id, view);
+      }
+      const parent = eventRenderLayer(event.onTop, this.#decorLayer, this.#tilesAbove);
+      if (view.container.parent !== parent) parent.addChild(view.container);
+      if (view.drawnGraphic !== event.graphicAssetId) {
+        view.drawnGraphic = event.graphicAssetId;
+        this.#drawEventGraphic(view, event);
+      }
+      view.data = event;
+    }
+    for (const [id, view] of this.#events) {
+      if (present.has(id)) continue;
+      if (!view.container.destroyed) view.container.destroy({ children: true });
+      this.#events.delete(id);
+    }
+  }
+
+  /** Paint one event's active-page graphic into its container via the shared event crop. A `null`
+   *  graphic is the authored blank tile — a legitimate active page that simply draws nothing. Art is
+   *  loaded on demand; until it arrives the cell is empty and the next reconcile redraws it. */
+  #drawEventGraphic(view: EventView, event: WorldEventSnapshot): void {
+    for (const child of view.container.removeChildren()) child.destroy({ children: true });
+    const graphicId = event.graphicAssetId;
+    if (graphicId === null || !isEditorAssetId(graphicId)) return;
+    const art = this.#eventAssetArt.get(graphicId);
+    if (art) {
+      const frame = art.frames[0];
+      if (frame) view.container.addChild(createEventGraphicSprite(event.col, event.row, frame));
+      return;
+    }
+    void loadEditorAssetArt(graphicId)
+      .then((loaded) => {
+        if (this.#destroyed) return;
+        this.#eventAssetArt.set(graphicId, loaded);
+        // Force the next reconcile to redraw this event now that its art is in hand.
+        const current = this.#events.get(event.id);
+        if (current && current.data.graphicAssetId === graphicId) current.drawnGraphic = undefined;
+      })
+      .catch(() => {
+        // An unknown asset draws nothing — appearance only, so a missing graphic is never fatal.
+      });
+  }
+
+  #clearEventViews(): void {
+    for (const view of this.#events.values()) {
+      if (!view.container.destroyed) view.container.destroy({ children: true });
+    }
+    this.#events.clear();
   }
 
   #clearTransientCombatViews(): void {
@@ -3348,6 +3450,7 @@ export class Renderer {
       },
     );
 
+    this.#reconcileEvents(sample.events);
     this.#layoutPlayerLabels(self);
     this.#updateWorldText(self);
     this.#drawOverlay(context);

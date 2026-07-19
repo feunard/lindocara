@@ -38,6 +38,29 @@ export function createCatalogElementView(
   };
 }
 
+/** An event's graphic is fit into this many tiles, anchored bottom-centre on its cell — a uniform
+ *  one-cell marker rule, deliberately unlike `createCatalogElementView`'s per-asset footprint. */
+export const EVENT_GRAPHIC_FIT_TILES = 1.6;
+
+/**
+ * The ONE event graphic crop/placement path, shared by the editor overlay (`paintEventCell`) and the
+ * authoritative game's renderer so neither forks its own. An event is a fixed one-cell marker: its
+ * frame is scaled to fit ~1.6 tiles and anchored bottom-centre on the cell, whatever the asset's own
+ * footprint. Rendering only — appearance, never collision.
+ */
+export function createEventGraphicSprite(col: number, row: number, frame: Texture): Sprite {
+  const sprite = new Sprite(frame);
+  const fit = Math.min(
+    (TILE_SIZE * EVENT_GRAPHIC_FIT_TILES) / frame.width,
+    (TILE_SIZE * EVENT_GRAPHIC_FIT_TILES) / frame.height,
+  );
+  sprite.width = frame.width * fit;
+  sprite.height = frame.height * fit;
+  sprite.anchor.set(0.5, 1);
+  sprite.position.set(col * TILE_SIZE + TILE_SIZE / 2, row * TILE_SIZE + TILE_SIZE);
+  return sprite;
+}
+
 export function catalogElementFrameAt(
   elapsedMs: number,
   frames: readonly Texture[],

@@ -404,7 +404,7 @@ describe("AdventureEditorScreen shell", () => {
     expect(stageMock.setActiveLayer).toHaveBeenLastCalledWith(2);
   });
 
-  it("does not dispatch from a disabled menu item", async () => {
+  it("opens the registry database dialog from the Game menu", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady();
 
@@ -413,9 +413,12 @@ describe("AdventureEditorScreen shell", () => {
     screen.getByRole("menuitem", { name: t("editor.shell.menu.game") }).focus();
     await userEvent.keyboard("{Enter}");
     const database = await screen.findByRole("menuitem", { name: t("editor.shell.database") });
-    expect(database).toHaveAttribute("aria-disabled", "true");
+    // No longer disabled: it now opens the registry dialog.
+    expect(database).not.toHaveAttribute("aria-disabled", "true");
 
     await userEvent.click(database);
+    // The registry dialog's own title appears (distinct from the menu item's "Database…").
+    expect(await screen.findByText(t("editor.registry.title"))).toBeInTheDocument();
     expect(previewMock.startMapPreview).not.toHaveBeenCalled();
     expect(useUiStore.getState().screen).toBe("adventure-editor");
   });

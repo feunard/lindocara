@@ -17,6 +17,7 @@ function welcome(overrides: Record<string, unknown>) {
       elements: [],
       tilesetId: TINY_SWORDS_TILESET_ID,
       layers: [layer, layer, layer],
+      events: [],
       width: 256,
       height: 192,
       playerSize: 32,

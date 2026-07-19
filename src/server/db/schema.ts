@@ -391,6 +391,15 @@ export const adventure = sqliteTable(
     version: integer("version").notNull().default(1),
     /** JSON AdventureGraph: start anchor plus one binding per placed exit. */
     graph: text("graph").notNull(),
+    /**
+     * JSON `AdventureRegistry` (the switch/variable catalogue, adventure-state design Decision
+     * 1). The empty string, not `'{"switches":[],"variables":[]}'`, is both the column default
+     * and the legacy-row sentinel — `adventures.ts`'s `toStored` reads either one back as
+     * `EMPTY_REGISTRY`, so a freshly created adventure never needs a write to have a valid
+     * registry. Bounded (200 switches + 200 variables max), so it rides this row rather than a
+     * table of its own.
+     */
+    registry: text("registry").notNull().default(""),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
   },
@@ -500,7 +509,29 @@ export const hero = sqliteTable(
   (table) => [index("hero_party_account_idx").on(table.partyId, table.accountId)],
 );
 
+/**
+ * A party's live adventure-state save: which switches are on, what each variable holds, and
+ * which per-event self-switches are set. One row per party — state is party-owned, not
+ * hero-owned (adventure-state design Decision 2), because a party is the save and four heroes
+ * in it share one set of switches. `GameSession` is the only writer; this tranche only installs
+ * it (load on first room admission, upsert on debounce/party-empty) — nothing mutates a single
+ * switch/variable yet, that is tranche 5's interpreter. `switches`/`variables`/`self_switches`
+ * are JSON columns, validated on read by `shared/adventure-state.ts`'s `parsePartyAdventureState`
+ * with the same never-throw degrade discipline `maps.ts`'s `decodeLayers` uses for a corrupt or
+ * missing map-layer row.
+ */
+export const partyAdventureState = sqliteTable("party_adventure_state", {
+  partyId: text("party_id")
+    .primaryKey()
+    .references(() => party.id, { onDelete: "cascade" }),
+  switches: text("switches").notNull(),
+  variables: text("variables").notNull(),
+  selfSwitches: text("self_switches").notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
+});
+
 export type Adventure = typeof adventure.$inferSelect;
 export type Party = typeof party.$inferSelect;
 export type PartyMember = typeof partyMember.$inferSelect;
 export type Hero = typeof hero.$inferSelect;
+export type PartyAdventureStateRow = typeof partyAdventureState.$inferSelect;

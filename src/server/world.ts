@@ -4,6 +4,11 @@
  */
 import { DurableObject } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
+import {
+  activePageIndex,
+  EMPTY_ADVENTURE_STATE,
+  type PartyAdventureState,
+} from "../shared/adventure-state.js";
 import { WS_CLOSE } from "../shared/close-codes.js";
 import { actionForClassSlot, MONSTER_ACTIONS } from "../shared/combat-actions.js";
 import {
@@ -83,7 +88,7 @@ import { emptyLayer, encodeTileLayer } from "../shared/tile-layer-codec.js";
 import { TILE_SIZE } from "../shared/tilemap.js";
 import { encodeTileMap } from "../shared/tilemap-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "../shared/tilesets/tiny-swords.js";
-import { replaceWorldCache } from "../shared/world-delta.js";
+import { replaceWorldCache, seedEventCache } from "../shared/world-delta.js";
 import {
   isKnownZone,
   isValidInstanceId,
@@ -159,6 +164,7 @@ import {
 } from "./world/snapshot-system.js";
 import { SpatialGrid } from "./world/spatial-grid.js";
 import {
+  type ActiveWorldEvent,
   ATTACHMENT_EVERY_TICKS,
   type Attachment,
   CHAT_MAX_LENGTH,
@@ -222,6 +228,22 @@ export class World extends DurableObject<Env> {
   #navigation: NavigationRuntime | null = null;
   #observability = createRoomObservability();
   #seenCharacterIds = new Set<string>();
+  /**
+   * The party's read-only adventure-state snapshot, pushed down by the `GameSession` coordinator
+   * (`installAdventureState`) on room start and on change. The room never mutates it: state is
+   * single-writer, owned by the coordinator (spec Decision 2). Defaults to empty so an
+   * un-pushed-to room — a catalogue zone, or a hero room between hibernation restore and the next
+   * push — still evaluates cleanly (everything reads its neutral default).
+   */
+  #adventureState: PartyAdventureState = EMPTY_ADVENTURE_STATE;
+  /**
+   * The events whose active page currently holds, re-derived only on snapshot install and hero
+   * join — never per tick. Appearance-only and nothing reads it yet; Task 4 puts it on the wire.
+   */
+  #activeEvents: readonly ActiveWorldEvent[] = [];
+  /** The party this hero room belongs to, learned at admission. `null` for catalogue/character
+   *  rooms. Used only to tell the coordinator when the room has emptied. */
+  #heroPartyId: string | null = null;
   #occupiedExitByPlayerId = new Map<string, string>();
   /** How often this room re-asserts its players' leases. Read once from `Env`, never from a client. */
   readonly #presenceHeartbeatMs: number;
@@ -245,6 +267,28 @@ export class World extends DurableObject<Env> {
           } catch {
             // The legacy socket may already be closed or carry an unreadable attachment.
           }
+        }
+      }
+      // Hibernation restore reconstructs the room from its sockets without going through
+      // `GameSession.fetch`, so no snapshot push happens on wake. Pull the party's held state from
+      // the coordinator — the single writer, whose copy can be newer than D1's debounced row and is
+      // never a second storage cache — and re-evaluate the active events against it. `#restoreWebSocket`
+      // set `#heroPartyId` via `#addPlayer`; a catalogue/character room has none and keeps the empty state.
+      if (this.#heroPartyId !== null && this.#location !== null) {
+        const partyId = this.#heroPartyId;
+        try {
+          this.#adventureState =
+            await this.env.GAME_SESSION.getByName(partyId).getAdventureState(partyId);
+          this.#evaluateActiveEvents();
+        } catch (error) {
+          console.error(
+            JSON.stringify({
+              event: "world_adventure_state_restore_failed",
+              partyId,
+              error: error instanceof Error ? error.message : String(error),
+            }),
+          );
+          this.#recoverEventsAfterFailedStateRestore();
         }
       }
       if (this.#players.size > 0) this.#startLoop();
@@ -543,8 +587,16 @@ export class World extends DurableObject<Env> {
       return new Response("presence lost", { status: 409 });
     }
 
+    // Join-time page evaluation: the map's events are only known once the room is configured (the
+    // first join), and a snapshot the coordinator pushed before that configuration could not be
+    // evaluated yet. Re-derive now against whatever snapshot the room holds. Off the tick loop.
+    this.#evaluateActiveEvents();
+
     const initialView = this.#worldView(player);
     replaceWorldCache(player.network, initialView);
+    // Seed this recipient's events baseline to the full active set so its first `world.delta`
+    // diffs against what the welcome actually carried, not an empty cache.
+    seedEventCache(player.network, this.#activeEvents);
     this.#send(server, {
       t: "welcome",
       tick: this.#tick,
@@ -571,6 +623,9 @@ export class World extends DurableObject<Env> {
             location.definition.terrain.tiles.cols,
             location.definition.terrain.tiles.rows,
           ),
+        // The active page of each authored event, appearance only — evaluated just above at join.
+        // A catalogue zone has none; a D1 map's are re-derived against the party's state snapshot.
+        events: this.#activeEvents,
         width: location.definition.terrain.width,
         height: location.definition.terrain.height,
         playerSize: PLAYER_SIZE,
@@ -635,6 +690,66 @@ export class World extends DurableObject<Env> {
     await this.#drop(ws);
   }
 
+  /**
+   * The party coordinator's read-only adventure-state snapshot, pushed on room start and on every
+   * change. Called only by the party's GameSession — the same coordinator -> World RPC seam as
+   * `broadcastParty`, never reachable from a client. Storing it re-derives the room's active-event
+   * list; when the room has no map configured yet (install can land before the first join) the
+   * derivation no-ops and the join re-runs it.
+   */
+  async installAdventureState(partyId: string, state: PartyAdventureState): Promise<void> {
+    if (this.#heroPartyId !== null && this.#heroPartyId !== partyId) return;
+    this.#adventureState = state;
+    this.#evaluateActiveEvents();
+  }
+
+  /**
+   * Select each authored event's active page against the current adventure-state snapshot and
+   * project the holders down to their appearance. Called only on snapshot install and hero join —
+   * NEVER from the tick loop — so an event carries zero per-tick cost. `activePageIndex` is the
+   * exact pure rule `test/adventure-state.test.ts` pins; there is no second copy to drift.
+   */
+  #evaluateActiveEvents(): void {
+    const events = this.#location?.definition.events;
+    if (!events || events.length === 0) {
+      this.#activeEvents = [];
+      return;
+    }
+    const active: ActiveWorldEvent[] = [];
+    for (const event of events) {
+      const index = activePageIndex(event, this.#adventureState);
+      if (index === null) continue;
+      const page = event.pages[index];
+      if (page === undefined) continue;
+      active.push({
+        id: event.id,
+        col: event.col,
+        row: event.row,
+        graphicAssetId: page.graphicAssetId,
+        onTop: page.optOnTop,
+      });
+    }
+    this.#activeEvents = active;
+  }
+
+  /**
+   * The hibernation-restore recovery when the coordinator pull throws: fall back to the safe EMPTY
+   * snapshot and re-derive the active events from it, so always-on events (pages with no conditions)
+   * survive a failed pull instead of the room waking with no events at all. Extracted so the test
+   * seam below can exercise it — a ticking World cannot be evicted (`evictDurableObject` hangs on its
+   * `setInterval`), so the real constructor restore path is not reachable end-to-end in a test.
+   */
+  #recoverEventsAfterFailedStateRestore(): void {
+    this.#adventureState = EMPTY_ADVENTURE_STATE;
+    this.#evaluateActiveEvents();
+  }
+
+  /** Test seam standing in for the unreachable evict/restore: runs the exact recovery the
+   *  constructor's failed-pull catch runs. */
+  async recoverEventsAfterFailedStateRestoreForTest(): Promise<void> {
+    this.#recoverEventsAfterFailedStateRestore();
+  }
+
   /** Called only by the party's GameSession coordinator. */
   async broadcastParty(partyId: string, message: ServerMessage): Promise<void> {
     for (const [socket, player] of this.#players) {
@@ -652,6 +767,8 @@ export class World extends DurableObject<Env> {
     projectiles: { id: string; ownerId: string; kind: ProjectileSnapshot["kind"] }[];
     pendingSaves: number;
     tickActive: boolean;
+    adventureState: PartyAdventureState;
+    activeEvents: readonly ActiveWorldEvent[];
   }> {
     return {
       roomKey: this.#location?.roomKey ?? null,
@@ -668,6 +785,8 @@ export class World extends DurableObject<Env> {
       })),
       pendingSaves: this.#profileSaves.size,
       tickActive: this.#loop !== null,
+      adventureState: this.#adventureState,
+      activeEvents: this.#activeEvents,
     };
   }
 
@@ -2498,6 +2617,7 @@ export class World extends DurableObject<Env> {
       this.#tick,
       (player) => this.#worldView(player),
       (socket, message) => this.#send(socket, message),
+      this.#activeEvents,
     );
   }
 
@@ -2508,6 +2628,7 @@ export class World extends DurableObject<Env> {
       this.#tick,
       (recipient) => this.#worldView(recipient),
       (socket, message) => this.#send(socket, message),
+      this.#activeEvents,
     );
   }
 
@@ -2516,6 +2637,7 @@ export class World extends DurableObject<Env> {
     // has no `Env`. The room owns the real clock, so re-arm here — the one place both admission
     // and hibernation restore funnel through.
     player.nextPresenceHeartbeatAt = Date.now() + this.#presenceHeartbeatMs;
+    if (player.partyId !== null) this.#heroPartyId = player.partyId;
     addPlayer(this.#players, this.#socketByPlayerId, this.#playerGrid, ws, player);
   }
 
@@ -2530,6 +2652,15 @@ export class World extends DurableObject<Env> {
   }
 
   #unloadEmptyRoom(): void {
+    // The party coordinator owns the adventure-state save. Tell it this room emptied so it can
+    // flush on party-empty. Fire-and-forget through the same GameSession -> World RPC seam that
+    // carries party chat/victory, only in the other direction; a catalogue/character room has no
+    // party and nothing to report.
+    if (this.#heroPartyId !== null && this.#location !== null) {
+      const partyId = this.#heroPartyId;
+      const roomKey = this.#location.roomKey;
+      this.ctx.waitUntil(this.env.GAME_SESSION.getByName(partyId).roomEmptied(partyId, roomKey));
+    }
     this.#stopLoop();
     this.#loot = [];
     this.#projectiles = [];

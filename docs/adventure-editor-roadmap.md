@@ -21,7 +21,8 @@ Six tranches, each ending in something playable:
 | 1 | Layered map model + tilesets | **Merged** (`9fdc9b9`) |
 | 2 | The editor shell — the wireframe's chrome | **Done** (branch `feature/editor-shell`) |
 | 3 | Events: data and placement | **Done** (branch `feature/map-events`) |
-| 4 | Switches, variables, adventure state | |
+| 4 | Switches, variables, adventure state | **Done** (branch `feature/adventure-state`) |
+| 4.5 | UX feedback wave | (between 4 and 5, see below) |
 | 5 | The command interpreter | The big one |
 | 6 | Test button, tileset database, the rest | |
 
@@ -157,6 +158,47 @@ two rooms writing the same switch — and deserves a deliberate answer rather th
 
 **The server arbitrates page selection.** A client never says which page of an event is active. That
 is the same rule as everywhere else in this codebase: the server decides outcomes.
+
+**What shipped.** `GameSession` is the single writer of party-owned switches, variables and
+per-event self-switches; `World` rooms hold a read-only snapshot pushed over the same coordinator
+seam party chat and victory already cross, and never write it themselves. Persistence is a debounced
+5s save (matching the hero-profile cadence) plus an immediate party-empty flush that prunes orphaned
+self-switches against D1's live event ids. `World` evaluates `activePageIndex` — XP's rule, highest-
+position page whose conditions all hold, unknown ids reading false/0 — on snapshot install and on
+hero join, **never per tick**; active events reach the client as `WorldInfo.events`, appearance-only,
+the third member of the `elements`/`layers` family, with collision staying exclusively in `tiles`.
+The registry (switch/variable ids and names, up to 200 of each) rides the adventure row as bounded
+JSON and is authored through the editor's registry dialog, whose condition pickers replaced tranche
+3's free-text ids. **Nothing mutates state yet** — the coordinator's own state changes only through a
+single, deliberately commented test-only seam, left as tranche 5's entry point. Browser-verified by
+the controller: the registry dialog opens by mouse, the empty state is calm, zero console errors;
+the runtime path itself is covered by tests against the real Durable Object rather than a browser
+pass. See
+[`docs/superpowers/specs/2026-07-19-adventure-state-design.md`](./docs/superpowers/specs/2026-07-19-adventure-state-design.md)
+for the full design.
+
+**Obligations recorded for tranche 5:**
+
+- **A monotone snapshot version, with a `>=` guard in `installAdventureState`**, must exist before
+  concurrent mutations do. Nothing enforces ordering across two state pushes today because nothing
+  yet produces two in a row from different sources; the interpreter will.
+- **The install path's never-throw guarantee must survive.** `GameSession` awaits the state install
+  ahead of room admission, so a snapshot install that starts throwing would block every join into the
+  party, not just the mutation that triggered it.
+
+## Tranche 4.5 — the UX feedback wave
+
+A user feedback wave arrived mid-tranche-4 and is sequenced between 4 and 5 rather than folded into
+either: `docs/superpowers/specs/2026-07-19-ux-feedback-wave.md` records the thirteen items verbatim,
+translated into requirements — no dark mode, the editor opening on an adventure picker rather than a
+blank canvas, adventures owning their maps 1-n instead of an n-n membership model, a new adventure
+auto-creating its first map (5x5 earth, spawn centre, water border), the start map moving into the
+map panel, grid-on-by-default, hover preview with an opaque red illegal-placement background,
+exclusive tool selection, a Test-map performance fix, a minimal/trusted catalogue, and the largest
+piece — markers becoming typed events (spawn/entry/exit/monster-spawn) instead of a parallel system,
+which needs its own mini-spec before it starts. Its exit gate is not a checklist, it is **hours of
+real Playwright testing**: authoring adventures online, multi-map, multi-player, from zero, without a
+snag. Tranche 5 does not start until that gate is cleared.
 
 ## Tranche 5 — The command interpreter
 

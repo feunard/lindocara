@@ -33,11 +33,27 @@ import type {
 import { type ClassResourceState, initialResource } from "../../shared/resources.js";
 import { type Input, NO_INPUT, TICK_HZ, type Vec2 } from "../../shared/simulation.js";
 import { CLASS_SKILLS } from "../../shared/skills.js";
+import type { EditorAssetId } from "../../shared/tiny-swords-catalog.js";
 import { createWorldCache, type WorldCache } from "../../shared/world-delta.js";
 import type { ZoneDefinition, ZoneLocation } from "../../shared/zones.js";
 import { PRESENCE_HEARTBEAT_MS } from "../character-presence.js";
 import type { PlayerProfile, SaveableProfile } from "../profile.js";
 import { SpatialGrid } from "./spatial-grid.js";
+
+/**
+ * The appearance-only projection of an authored event whose active page currently holds — the
+ * third member of the `elements`/`layers` family, carrying the same rule: never a source of
+ * collision, movement or command execution. The room re-derives this list only when the party's
+ * adventure-state snapshot changes or a hero joins, never per tick. Task 4 puts exactly this shape
+ * on the wire; this tranche only holds it in the room.
+ */
+export interface ActiveWorldEvent {
+  id: string;
+  col: number;
+  row: number;
+  graphicAssetId: EditorAssetId | null;
+  onTop: boolean;
+}
 
 export const ATTACHMENT_EVERY_TICKS = TICK_HZ;
 export const D1_SAVE_EVERY_TICKS = TICK_HZ * 5;

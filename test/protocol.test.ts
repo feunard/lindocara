@@ -145,6 +145,7 @@ describe("server protocol", () => {
     elements: [],
     tilesetId: TINY_SWORDS_TILESET_ID,
     layers: [layer, layer, layer],
+    events: [],
   };
 
   it("accepts any well-formed zone id, since terrain now travels in the welcome itself", () => {
@@ -221,6 +222,7 @@ describe("server protocol", () => {
           loot: emptyDelta,
           corpses: emptyDelta,
           projectiles: emptyDelta,
+          events: emptyDelta,
         }),
       ),
     ).toMatchObject({ t: "world.delta", tick: 12 });
@@ -235,6 +237,7 @@ describe("server protocol", () => {
           loot: emptyDelta,
           corpses: emptyDelta,
           projectiles: emptyDelta,
+          events: emptyDelta,
         }),
       ),
     ).toBeNull();
@@ -249,6 +252,7 @@ describe("server protocol", () => {
           loot: [],
           corpses: [],
           projectiles: [],
+          events: [],
         }),
       ),
     ).toMatchObject({ t: "world.resync", tick: 14 });
@@ -277,6 +281,7 @@ describe("server protocol", () => {
           loot: [],
           corpses: [],
           projectiles: [projectile],
+          events: [],
         }),
       ),
     ).toMatchObject({ t: "world.resync", projectiles: [projectile] });
@@ -297,6 +302,7 @@ describe("server protocol", () => {
             loot: [],
             corpses: [],
             projectiles: [malformed],
+            events: [],
           }),
         ),
       ).toBeNull();

@@ -26,6 +26,7 @@ import {
   parseServerMessage,
   type SelfState,
   type ServerMessage,
+  type WorldEventSnapshot,
   type WorldInfo,
 } from "../../shared/protocol.js";
 import {
@@ -39,10 +40,12 @@ import {
 import type { SkillSlot } from "../../shared/skills.js";
 import { decodeTileMap } from "../../shared/tilemap-codec.js";
 import {
+  applyEventDelta,
   applyWorldDelta,
   createWorldCache,
   interpolateSnapshots,
   replaceWorldCache,
+  seedEventCache,
   type WorldCache,
 } from "../../shared/world-delta.js";
 import { DEFAULT_ZONE_ID, zoneDefinition } from "../../shared/zones.js";
@@ -69,6 +72,9 @@ export interface SceneSample {
   projectiles: ProjectileSnapshot[];
   /** Bodies do not move, so they are never interpolated — the newest word is the only word. */
   corpses: CorpseSnapshot[];
+  /** Authored events, appearance only. Static decor: never interpolated and never buffered, the
+   *  active set is drawn as-is. Room-scoped — the same set for everyone in the room. */
+  events: readonly WorldEventSnapshot[];
 }
 
 export interface Connection {
@@ -127,6 +133,9 @@ export class WorldClient {
   #selfSnapshot: PlayerSnapshot | null = null;
   #life: LifeState = "alive";
   #corpses: CorpseSnapshot[] = [];
+  /** The room's active events, maintained from welcome/delta/resync with the same validation rigor
+   *  as every other collection. Kept off the interpolation buffer — events are static decor. */
+  #events: readonly WorldEventSnapshot[] = [];
   #predicted: Vec2 | null = null;
   #pending: Command[] = [];
   #seq = 0;
@@ -218,9 +227,21 @@ export class WorldClient {
   sample(now: number): SceneSample {
     const newest = this.#buffer[this.#buffer.length - 1];
     if (!newest)
-      return { players: [], monsters: [], guards: [], loot: [], corpses: [], projectiles: [] };
+      return {
+        players: [],
+        monsters: [],
+        guards: [],
+        loot: [],
+        corpses: [],
+        projectiles: [],
+        events: this.#events,
+      };
 
-    const interpolated = { ...this.#sampleInterpolated(now, newest), corpses: this.#corpses };
+    const interpolated = {
+      ...this.#sampleInterpolated(now, newest),
+      corpses: this.#corpses,
+      events: this.#events,
+    };
     const self = this.#sampleSelf(now);
     if (!self) return interpolated;
     return {
@@ -255,6 +276,9 @@ export class WorldClient {
       // bytes the authority baked — the client cannot disagree with a map it did not compute.
       this.#geometry = WorldClient.geometryFrom(message.world);
       replaceWorldCache(this.#worldCache, message);
+      // Events ride inside `world`, not the top-level view; seed their baseline from there.
+      seedEventCache(this.#worldCache, message.world.events);
+      this.#events = message.world.events;
       this.#lastWorldTick = message.tick;
       this.#receivedDelta = false;
       this.#resyncPending = false;
@@ -285,6 +309,14 @@ export class WorldClient {
         this.#requestResync();
         return;
       }
+      // Events are validated with the same rigor: an unknown removal or duplicate upsert yields
+      // null and one bounded resync, exactly like a malformed positional delta.
+      const events = applyEventDelta(this.#worldCache, message.events);
+      if (!events) {
+        this.#requestResync();
+        return;
+      }
+      this.#events = events;
       this.#lastWorldTick = message.tick;
       this.#receivedDelta = true;
       this.#corpses = view.corpses;
@@ -300,6 +332,8 @@ export class WorldClient {
     }
     if (message.t === "world.resync") {
       replaceWorldCache(this.#worldCache, message);
+      seedEventCache(this.#worldCache, message.events);
+      this.#events = message.events;
       this.#lastWorldTick = message.tick;
       this.#receivedDelta = false;
       this.#resyncPending = false;
@@ -433,7 +467,10 @@ export class WorldClient {
     };
   }
 
-  #sampleInterpolated(now: number, newest: BufferedSnapshot): Omit<SceneSample, "corpses"> {
+  #sampleInterpolated(
+    now: number,
+    newest: BufferedSnapshot,
+  ): Omit<SceneSample, "corpses" | "events"> {
     if (this.#buffer.length === 1) {
       return {
         players: newest.players.filter((player) => player.id !== this.#selfId),

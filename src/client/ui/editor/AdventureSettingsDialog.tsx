@@ -46,7 +46,7 @@ function isSessionError(code: string): boolean {
   return code === "session_expired" || code === "unauthorized";
 }
 
-async function memberInfo(mapId: string): Promise<DraftMemberInfo> {
+export async function memberInfo(mapId: string): Promise<DraftMemberInfo> {
   const payload = await fetchMap(mapId);
   return {
     mapId,

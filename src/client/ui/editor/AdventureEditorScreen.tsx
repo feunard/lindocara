@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { type AdventureRegistry, EMPTY_REGISTRY } from "../../../shared/adventure-state.js";
 import { MONSTER_SPECIES_KIND, type MonsterSpecies } from "../../../shared/game.js";
 import {
   EMPTY_MARKERS,
@@ -46,6 +47,7 @@ import { EditorStatusBar } from "./EditorStatusBar.js";
 import { type EditorPaintTool, EditorToolbar, toolLabelText } from "./EditorToolbar.js";
 import { EventDialog } from "./EventDialog.js";
 import { MapListPanel } from "./MapListPanel.js";
+import { RegistryDialog } from "./RegistryDialog.js";
 import { type MarkerToolKey, TerrainPalette } from "./TerrainPalette.js";
 
 /** The default terrain a fresh stroke paints with until the Task 9 terrain palette lands: flat grass,
@@ -132,6 +134,12 @@ function paintToolFor(key: EditorPaintTool | "stairs", content: RectFillContent)
 export function AdventureEditorScreen() {
   useLocale();
   const setScreen = useUiStore((state) => state.setScreen);
+  // The switch/variable registry rides the loaded adventure session's draft. When no adventure is
+  // loaded (the common map-first case) it is empty, which falls the event dialog's condition pickers
+  // back to free text. Loading an adventure in the database dialog fills it.
+  const registry: AdventureRegistry = useUiStore(
+    (state) => state.adventureEditorSession?.draft.registry ?? EMPTY_REGISTRY,
+  );
 
   const handleRef = useRef<MapEditorStageHandle | null>(null);
   const pendingToolRef = useRef<EditorTool>(paintToolFor("pencil", DEFAULT_CONTENT));
@@ -179,6 +187,7 @@ export function AdventureEditorScreen() {
   const [newMapOpen, setNewMapOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [databaseOpen, setDatabaseOpen] = useState(false);
   // The event whose dialog is open, keyed by uuid. Set by a stage double-click (`onOpenEvent`) or by
   // pressing Enter on a selected event; cleared on save/delete/cancel.
   const [openEventId, setOpenEventId] = useState<string | null>(null);
@@ -494,7 +503,14 @@ export function AdventureEditorScreen() {
   //   this file guarding on stage readiness.
   function handleShortcutKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
     if (stageStatus !== "ready") return;
-    if (newMapOpen || confirmDeleteId !== null || settingsOpen || openEventId !== null) return;
+    if (
+      newMapOpen ||
+      confirmDeleteId !== null ||
+      settingsOpen ||
+      databaseOpen ||
+      openEventId !== null
+    )
+      return;
     if (event.target instanceof Element && event.target.closest('[data-slot="dialog-content"]')) {
       return;
     }
@@ -570,7 +586,7 @@ export function AdventureEditorScreen() {
   function handleContainerBlur(event: ReactFocusEvent<HTMLDivElement>): void {
     const related = event.relatedTarget;
     if (related !== null && related !== document.body) return;
-    if (newMapOpen || confirmDeleteId !== null || settingsOpen) return;
+    if (newMapOpen || confirmDeleteId !== null || settingsOpen || databaseOpen) return;
     if (stageStatus !== "ready" || previewing) return;
     containerRef.current?.focus();
   }
@@ -633,6 +649,7 @@ export function AdventureEditorScreen() {
         onSave={() => void save()}
         onDeleteMap={() => setConfirmDeleteId(map?.id ?? null)}
         onOpenSettings={() => setSettingsOpen(true)}
+        onOpenDatabase={() => setDatabaseOpen(true)}
         onUndo={undo}
         onRedo={redo}
         onSelectLayer={selectLayer}
@@ -777,10 +794,17 @@ export function AdventureEditorScreen() {
         onSessionExpired={() => setScreen("auth")}
       />
 
+      <RegistryDialog
+        open={databaseOpen}
+        onOpenChange={setDatabaseOpen}
+        onSessionExpired={() => setScreen("auth")}
+      />
+
       {eventDraft && (
         <EventDialog
           key={eventDraft.id}
           event={eventDraft}
+          registry={registry}
           onCommit={(draft) => {
             handleRef.current?.commitEventDraft(draft);
             setOpenEventId(null);

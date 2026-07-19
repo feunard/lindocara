@@ -680,6 +680,24 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.delete.confirm.title": "Supprimer cet événement ?",
   "editor.event.cancel": "Annuler",
   "editor.event.save": "Valider",
+  "editor.event.cond.empty.hint":
+    "Aucune entrée — ajoutez des interrupteurs et variables dans Jeu → Base de données.",
+  "editor.registry.title": "Base de données",
+  "editor.registry.switches": "Interrupteurs",
+  "editor.registry.variables": "Variables",
+  "editor.registry.add": "Ajouter",
+  "editor.registry.empty": "Aucune entrée.",
+  "editor.registry.name.aria": "Nom de l’entrée",
+  "editor.registry.delete": "Supprimer",
+  "editor.registry.save": "Enregistrer",
+  "editor.registry.pick": "Choisissez une aventure pour éditer sa base de données",
+  "editor.registry.incomplete":
+    "Complétez le graphe de cartes de l’aventure avant d’enregistrer sa base de données.",
+  "editor.registry.new.hint":
+    "Enregistrez d’abord cette aventure avant d’éditer sa base de données.",
+  "editor.registry.delete.confirm.title": "Supprimer {id} · {name} ?",
+  "editor.registry.delete.confirm.body":
+    "Les pages d’événement qui en dépendent seront lues comme désactivées (interrupteur) ou 0 (variable). Aucune mauvaise entrée n’est jamais désignée — la condition cesse simplement de s’appliquer.",
   "editor.shell.status.saved": "Enregistré",
   "editor.shell.status.cursor": "Curseur {cursor}",
 

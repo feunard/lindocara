@@ -413,6 +413,39 @@ pre-merge two-screen spec/plan
 [`docs/superpowers/plans/2026-07-16-map-editor.md`](./docs/superpowers/plans/2026-07-16-map-editor.md))
 is superseded.
 
+### Adventure state: switches, variables and page selection
+
+An event's conditions now read something real. **State belongs to the party, not the hero** — a
+party is the save, so `GameSession` (addressed by `partyId`) is the single writer of switches,
+variables and per-event self-switches; `World` rooms never write it, they install a read-only
+snapshot `GameSession` pushes over the same coordinator seam party chat and victory already cross.
+Persistence is a debounced 5s save, matching the hero-profile cadence, plus an immediate flush (with
+orphan self-switch pruning, against D1's live event ids) when the party empties, so the last owner
+never leaves a stale row behind. The registry — switch/variable ids and names, up to 200 of each —
+rides the adventure row as bounded JSON, not a new table: it is small, atomic with the adventure, and
+authored entirely in the editor's registry dialog.
+
+**Page selection is XP's rule, not a per-tick one.** For each event, the active page is the
+highest-position page whose conditions all hold; an unknown switch/variable id reads as false/0; no
+page holding means the event is dormant. `World` evaluates this against the state snapshot on
+snapshot install and on hero join — **never per tick** — because nothing yet mutates state within a
+room's lifetime; re-evaluation on state-change is the reason the snapshot push exists at all.
+Hibernation restore pulls the current state from `GameSession` (`getAdventureState`, a reverse RPC
+into the coordinator), never from D1: the debounce can leave D1 several seconds stale, and reading
+storage directly would be a second, uncoordinated writer.
+
+Active events reach the client as `WorldInfo.events` — the third member of the `elements`/`layers`
+family: id, cell, the active page's appearance and options, **appearance only**. Collision still
+comes exclusively from `tiles`; an event carries no collider in this tranche regardless of its
+authored "traversable" flag.
+
+**Nothing mutates state yet.** `installAdventureState` and the join-time evaluation are the only
+writers into a room's local copy, and the coordinator's own state only ever changes through a
+test-only seam, deliberately left as the single, clearly commented entry point for the interpreter
+(tranche 5) to hang its command execution on. See
+[`docs/superpowers/specs/2026-07-19-adventure-state-design.md`](./docs/superpowers/specs/2026-07-19-adventure-state-design.md)
+for the full design.
+
 ### Heartroot city, guards and visual readability
 
 The safe zone is an authored city, not a decoration-only rectangle. `shared/game.ts` owns every
