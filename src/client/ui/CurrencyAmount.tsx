@@ -16,7 +16,7 @@ export function CurrencyAmount({ currency, amount, label, compact = false }: Cur
       aria-label={`${amount} ${label}`}
       title={label}
     >
-      <span className={`currency-amount__icon item-icon item-icon--${icon}`} aria-hidden="true" />
+      <span className={`currency-amount__icon currency-amount__icon--${icon}`} aria-hidden="true" />
       <span aria-hidden="true">{amount}</span>
     </span>
   );
