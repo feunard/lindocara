@@ -5,9 +5,10 @@
 import { env, SELF } from "cloudflare:test";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { account, createDb } from "../src/server/db/index.js";
-import { createMap, loadMap, type MapInput, validateMapInput } from "../src/server/maps.js";
+import { loadMap, type MapInput, validateMapInput } from "../src/server/maps.js";
 import { SESSION_COOKIE } from "../src/server/session.js";
 import type { MapMarkers } from "../src/shared/map-data.js";
+import { authorMap, seedAdventure } from "./support/adventure-fixtures.js";
 import { layeredTerrain, layeredWireTerrain } from "./support/map-fixtures.js";
 
 const ORIGIN = "https://lindocara.test";
@@ -91,11 +92,17 @@ describe("marker persistence", () => {
       passwordSalt: "s",
       passwordIterations: 1,
     });
-    const created = await createMap(db, "marker-owner", input());
+    const adventureId = await seedAdventure(db, "marker-owner");
+    const created = await authorMap(db, "marker-owner", adventureId, input());
     const loaded = await loadMap(db, created.id);
     expect(loaded?.markers).toEqual(markers());
 
-    const plain = await createMap(db, "marker-owner", input({ name: "Plain", markers: undefined }));
+    const plain = await authorMap(
+      db,
+      "marker-owner",
+      adventureId,
+      input({ name: "Plain", markers: undefined }),
+    );
     const loadedPlain = await loadMap(db, plain.id);
     expect(loadedPlain?.markers).toEqual({ entries: [], exits: [], monsterSpawns: [] });
   });
@@ -115,8 +122,23 @@ describe("markers over the wire", () => {
   });
 
   it("saves valid markers and answers map_markers for misplaced ones", async () => {
-    const good = await SELF.fetch(`${ORIGIN}/api/maps`, {
+    // POST /api/maps only mints a template inside an adventure now; markers are validated and
+    // persisted by the authoring PUT.
+    const adv = await SELF.fetch(`${ORIGIN}/api/adventures`, {
       method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: cookie },
+      body: JSON.stringify({ title: "Wire", maxPlayers: 4 }),
+    });
+    const adventureId = ((await adv.json()) as { id: string }).id;
+    const template = await SELF.fetch(`${ORIGIN}/api/maps`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: cookie },
+      body: JSON.stringify({ adventureId, name: "Wire" }),
+    });
+    const mapId = ((await template.json()) as { id: string }).id;
+
+    const good = await SELF.fetch(`${ORIGIN}/api/maps/${mapId}`, {
+      method: "PUT",
       headers: { "Content-Type": "application/json", Cookie: cookie },
       body: JSON.stringify({
         name: "Wire",
@@ -126,11 +148,11 @@ describe("markers over the wire", () => {
         markers: markers(),
       }),
     });
-    expect(good.status).toBe(201);
+    expect(good.status).toBe(200);
     expect(((await good.json()) as { markers: MapMarkers }).markers).toEqual(markers());
 
-    const bad = await SELF.fetch(`${ORIGIN}/api/maps`, {
-      method: "POST",
+    const bad = await SELF.fetch(`${ORIGIN}/api/maps/${mapId}`, {
+      method: "PUT",
       headers: { "Content-Type": "application/json", Cookie: cookie },
       body: JSON.stringify({
         name: "Wire",

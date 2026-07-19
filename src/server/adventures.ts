@@ -1,12 +1,19 @@
 /**
- * Adventures: account-owned authored graphs over library maps. This boundary owns the D1 reads
- * and writes; every rule about what a valid adventure IS lives in shared/adventure.ts, and every
- * marker fact comes from the stored map payloads — never from the client's body.
+ * Adventures: account-owned authored graphs over their OWN maps. A map belongs to exactly one
+ * adventure (UX wave #5), so membership is implicit — `map.adventure_id` IS the membership, and
+ * there is no n-n table any more. This boundary owns the D1 reads and writes; every rule about what
+ * a valid adventure IS lives in shared/adventure.ts, and every marker fact comes from the stored map
+ * payloads — never from the client's body.
+ *
+ * A freshly created adventure is an empty draft: no maps, `EMPTY_GRAPH`. Maps are created under it
+ * afterward (`createMap`), and the graph is authored through `updateAdventure` once maps exist.
  */
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import {
   type AdventureGraph,
   type AdventureInput,
+  type CreateAdventureInput,
+  EMPTY_GRAPH,
   type MapMarkerIds,
   parseAdventureGraph,
   validateAdventure,
@@ -16,7 +23,7 @@ import {
   EMPTY_REGISTRY,
   parseAdventureRegistry,
 } from "../shared/adventure-state.js";
-import { adventure, adventureMap, type Db, map, party } from "./db/index.js";
+import { adventure, type Db, map, party } from "./db/index.js";
 import { markersOfRow } from "./maps.js";
 
 export interface StoredAdventure {
@@ -31,11 +38,7 @@ export interface StoredAdventure {
 }
 
 /** `''` — the column default and the sentinel for "no registry authored yet" — reads back as
- *  `EMPTY_REGISTRY`. Anything else must be valid JSON that passes `parseAdventureRegistry`; a
- *  corrupt row throws, mirroring `toStored`'s handling of a corrupt `graph` column below. Unlike
- *  `maps.ts`'s `decodeLayers`, this never degrades silently — every write to this column already
- *  goes through `parseAdventureRegistry` (`updateAdventureRegistry`), so corruption here would
- *  mean the write path itself is broken, not that an old/foreign row predates validation. */
+ *  `EMPTY_REGISTRY`. Anything else must be valid JSON that passes `parseAdventureRegistry`. */
 function storedRegistry(raw: string): AdventureRegistry {
   if (raw === "") return EMPTY_REGISTRY;
   const registry = parseAdventureRegistry(JSON.parse(raw));
@@ -43,16 +46,22 @@ function storedRegistry(raw: string): AdventureRegistry {
   return registry;
 }
 
-async function markerIdsFor(
-  db: Db,
-  accountId: string,
-  mapIds: readonly string[],
-): Promise<Map<string, MapMarkerIds>> {
-  if (mapIds.length === 0) return new Map();
-  const rows = await db
+/** Every map the adventure owns (its members), oldest first, with just the columns markers need. */
+async function ownedMapRows(db: Db, adventureId: string) {
+  return db
     .select({ id: map.id, markers: map.markers, cols: map.cols, rows: map.rows })
     .from(map)
-    .where(and(eq(map.accountId, accountId), inArray(map.id, [...mapIds])));
+    .where(eq(map.adventureId, adventureId))
+    .orderBy(asc(map.createdAt));
+}
+
+/** The marker ids of every map the adventure owns — the member set `validateAdventure` checks the
+ *  graph against. A graph naming a map outside this set is, by construction, a foreign reference. */
+export async function markerIdsFor(
+  db: Db,
+  adventureId: string,
+): Promise<Map<string, MapMarkerIds>> {
+  const rows = await ownedMapRows(db, adventureId);
   const byMap = new Map<string, MapMarkerIds>();
   for (const row of rows) {
     const markers = markersOfRow(row);
@@ -62,10 +71,6 @@ async function markerIdsFor(
     });
   }
   return byMap;
-}
-
-function memberRows(adventureId: string, mapIds: readonly string[]) {
-  return mapIds.map((mapId, position) => ({ adventureId, mapId, position }));
 }
 
 function toStored(row: typeof adventure.$inferSelect, mapIds: string[]): StoredAdventure {
@@ -93,25 +98,20 @@ async function ownedRow(db: Db, accountId: string, id: string) {
 export async function createAdventure(
   db: Db,
   accountId: string,
-  input: AdventureInput,
+  input: CreateAdventureInput,
 ): Promise<StoredAdventure> {
-  validateAdventure(input, await markerIdsFor(db, accountId, input.mapIds));
+  const title = input.title.trim();
+  if (title.length === 0 || title.length > 48) throw new Error("title: 1-48 characters");
+  if (input.maxPlayers < 1 || input.maxPlayers > 4) throw new Error("players: between 1 and 4");
   const id = crypto.randomUUID();
-  const row = {
+  await db.insert(adventure).values({
     id,
     accountId,
-    title: input.title.trim(),
+    title,
     maxPlayers: input.maxPlayers,
-    graph: JSON.stringify(input.graph),
-    // A body that carries a registry writes it at create time; one that omits it falls to the
-    // column DEFAULT '' (reads back as EMPTY_REGISTRY). The database dialog also grows it later
-    // through the adventure PUT.
+    graph: JSON.stringify(EMPTY_GRAPH),
     ...(input.registry !== undefined ? { registry: JSON.stringify(input.registry) } : {}),
-  };
-  await db.batch([
-    db.insert(adventure).values(row),
-    db.insert(adventureMap).values(memberRows(id, input.mapIds)),
-  ]);
+  });
   const stored = await loadAdventure(db, accountId, id);
   if (!stored) throw new Error("not_found: adventure vanished mid-create");
   return stored;
@@ -137,13 +137,13 @@ export async function loadAdventure(
   const row = await ownedRow(db, accountId, id);
   if (!row) return null;
   const members = await db
-    .select({ mapId: adventureMap.mapId })
-    .from(adventureMap)
-    .where(eq(adventureMap.adventureId, id))
-    .orderBy(asc(adventureMap.position));
+    .select({ id: map.id })
+    .from(map)
+    .where(eq(map.adventureId, id))
+    .orderBy(asc(map.createdAt));
   return toStored(
     row,
-    members.map((m) => m.mapId),
+    members.map((m) => m.id),
   );
 }
 
@@ -155,37 +155,28 @@ export async function updateAdventure(
 ): Promise<StoredAdventure> {
   const row = await ownedRow(db, accountId, id);
   if (!row) throw new Error("not_found: no such adventure");
-  validateAdventure(input, await markerIdsFor(db, accountId, input.mapIds));
-  await db.batch([
-    db
-      .update(adventure)
-      .set({
-        title: input.title.trim(),
-        maxPlayers: input.maxPlayers,
-        graph: JSON.stringify(input.graph),
-        // Only a body that carries a registry rewrites the column; omitting it preserves the
-        // stored registry so an unrelated adventure PUT never wipes the switches/variables.
-        ...(input.registry !== undefined ? { registry: JSON.stringify(input.registry) } : {}),
-        updatedAt: new Date(),
-      })
-      .where(eq(adventure.id, id)),
-    db.delete(adventureMap).where(eq(adventureMap.adventureId, id)),
-    db.insert(adventureMap).values(memberRows(id, input.mapIds)),
-  ]);
+  validateAdventure(input, await markerIdsFor(db, id));
+  await db
+    .update(adventure)
+    .set({
+      title: input.title.trim(),
+      maxPlayers: input.maxPlayers,
+      graph: JSON.stringify(input.graph),
+      // Only a body that carries a registry rewrites the column; omitting it preserves the stored
+      // one so an unrelated adventure PUT never wipes the switches/variables.
+      ...(input.registry !== undefined ? { registry: JSON.stringify(input.registry) } : {}),
+      updatedAt: new Date(),
+    })
+    .where(eq(adventure.id, id));
   const stored = await loadAdventure(db, accountId, id);
   if (!stored) throw new Error("not_found: adventure vanished mid-update");
   return stored;
 }
 
 /**
- * Replaces an adventure's switch/variable registry. Deleting an entry that a still-authored
- * event page conditions on is ALLOWED — this function does not cross-check the registry against
- * any map's `map_event_page` rows, on purpose. `activePageIndex` (`shared/adventure-state.ts`)
- * already reads an unknown switch/variable id as `false`/`0`, its fail-closed default; a page
- * whose condition id got orphaned this way simply stops holding rather than doing anything
- * unsafe. Cross-checking would also require loading every member map's events on every registry
- * edit for a benefit that is purely cosmetic (an editor warning), so it stays a known gap here,
- * not a validation rule.
+ * Replaces an adventure's switch/variable registry. Deleting an entry that a still-authored event
+ * page conditions on is ALLOWED — this function does not cross-check the registry against any map's
+ * `map_event_page` rows, on purpose (see `activePageIndex`'s fail-closed default).
  */
 export async function updateAdventureRegistry(
   db: Db,
@@ -213,8 +204,6 @@ export async function deleteAdventure(db: Db, accountId: string, id: string): Pr
     .where(eq(party.adventureId, id))
     .limit(1);
   if (used.length > 0) throw new Error("referenced: a party still uses this adventure");
-  await db.batch([
-    db.delete(adventureMap).where(eq(adventureMap.adventureId, id)),
-    db.delete(adventure).where(eq(adventure.id, id)),
-  ]);
+  // The adventure's maps (and their elements/events) cascade off `map.adventure_id`.
+  await db.delete(adventure).where(eq(adventure.id, id));
 }

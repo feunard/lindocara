@@ -52,24 +52,31 @@ function authed(path: string, cookie: string, init: RequestInit = {}): Promise<R
   });
 }
 
-/** Creates two maps + an adventure + a party owned by `cookie`, returns the party id. */
+/** Creates a draft adventure, two template maps authored inside it, its graph, and a party owned by
+ *  `cookie`; returns the party id. Mirrors the adventure-first authoring flow. */
 async function seedParty(cookie: string): Promise<string> {
+  const adventure = await authed("/api/adventures", cookie, {
+    method: "POST",
+    body: JSON.stringify({ title: "Donjon", maxPlayers: 4 }),
+  });
+  const adventureId = ((await adventure.json()) as { id: string }).id;
   const a = await authed("/api/maps", cookie, {
     method: "POST",
-    body: JSON.stringify(mapBody("A")),
+    body: JSON.stringify({ adventureId, name: "A" }),
   });
   const b = await authed("/api/maps", cookie, {
     method: "POST",
-    body: JSON.stringify(mapBody("B")),
+    body: JSON.stringify({ adventureId, name: "B" }),
   });
   const mapA = ((await a.json()) as { id: string }).id;
   const mapB = ((await b.json()) as { id: string }).id;
-  const adventure = await authed("/api/adventures", cookie, {
-    method: "POST",
+  await authed(`/api/maps/${mapA}`, cookie, { method: "PUT", body: JSON.stringify(mapBody("A")) });
+  await authed(`/api/maps/${mapB}`, cookie, { method: "PUT", body: JSON.stringify(mapBody("B")) });
+  await authed(`/api/adventures/${adventureId}`, cookie, {
+    method: "PUT",
     body: JSON.stringify({
       title: "Donjon",
       maxPlayers: 4,
-      mapIds: [mapA, mapB],
       graph: {
         start: { mapId: mapA, entryId: "door" },
         links: [
@@ -79,7 +86,6 @@ async function seedParty(cookie: string): Promise<string> {
       },
     }),
   });
-  const adventureId = ((await adventure.json()) as { id: string }).id;
   const party = await authed("/api/parties", cookie, {
     method: "POST",
     body: JSON.stringify({ adventureId, color: "blue" }),
@@ -91,7 +97,6 @@ afterEach(async () => {
   await env.DB.exec("DELETE FROM hero");
   await env.DB.exec("DELETE FROM party_member");
   await env.DB.exec("DELETE FROM party");
-  await env.DB.exec("DELETE FROM adventure_map");
   await env.DB.exec("DELETE FROM adventure");
   await env.DB.exec("DELETE FROM map_element");
   await env.DB.exec("DELETE FROM map");

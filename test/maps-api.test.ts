@@ -98,11 +98,44 @@ function authed(path: string, init: RequestInit = {}, asCookie = cookie): Promis
 }
 
 // The pool does not isolate storage between tests, or between files: a map left behind here would
-// change what resolveMapFor() returns for an unrelated test elsewhere. Elements before maps (FK).
+// change what resolveMapFor() returns for an unrelated test elsewhere. Adventure delete cascades to
+// its maps and their children.
 afterEach(async () => {
   await env.DB.exec("DELETE FROM map_element");
   await env.DB.exec("DELETE FROM map");
+  await env.DB.exec("DELETE FROM adventure");
 });
+
+/** A draft adventure over HTTP (UX wave #5: maps are created inside one). */
+async function newAdventure(asCookie = cookie): Promise<string> {
+  const res = await authed(
+    "/api/adventures",
+    { method: "POST", body: JSON.stringify({ title: "Adv", maxPlayers: 4 }) },
+    asCookie,
+  );
+  expect(res.status).toBe(201);
+  return ((await res.json()) as { id: string }).id;
+}
+
+/** Create the 5x5 template map inside `adventureId` (the only thing POST /api/maps does now). */
+async function newMap(adventureId: string, name = "Map", asCookie = cookie): Promise<Response> {
+  return authed(
+    "/api/maps",
+    { method: "POST", body: JSON.stringify({ adventureId, name }) },
+    asCookie,
+  );
+}
+
+async function newMapId(adventureId: string, name = "Map", asCookie = cookie): Promise<string> {
+  const res = await newMap(adventureId, name, asCookie);
+  expect(res.status).toBe(201);
+  return ((await res.json()) as { id: string }).id;
+}
+
+/** Author real terrain onto a map — where all the validation now lives. */
+function putMap(id: string, body: unknown, asCookie = cookie): Promise<Response> {
+  return authed(`/api/maps/${id}`, { method: "PUT", body: JSON.stringify(body) }, asCookie);
+}
 
 describe("session gate", () => {
   it("401s every map route without a cookie", async () => {
@@ -121,16 +154,52 @@ describe("session gate", () => {
   });
 });
 
-describe("create, list, get, update, delete", () => {
-  it("round-trips a map through the whole lifecycle", async () => {
-    // A second map keeps the world non-empty so the one under test can actually be deleted.
-    await authed("/api/maps", {
+describe("create under an adventure", () => {
+  it("creates the 5x5 template, ignoring any client terrain", async () => {
+    const adventureId = await newAdventure();
+    // Deliberately send terrain — the server must ignore it and build the template.
+    const res = await authed("/api/maps", {
       method: "POST",
-      body: JSON.stringify(mapBody({ name: "Keepalive" })),
+      body: JSON.stringify({ adventureId, ...mapBody(), name: "Fresh" }),
     });
+    expect(res.status).toBe(201);
+    const created = (await res.json()) as {
+      name: string;
+      cols: number;
+      rows: number;
+      spawn: unknown;
+    };
+    expect(created).toMatchObject({ name: "Fresh", cols: 20, rows: 15, spawn: { col: 9, row: 7 } });
+  });
 
-    // Events ride the same body and must survive the GET -> PUT verbatim path below just like
-    // layers do. Two events, one with two pages, to exercise ordinal and page order over the wire.
+  it("refuses creating a map under an adventure the caller does not own (404)", async () => {
+    const adventureId = await newAdventure();
+    const rival = await register();
+    const res = await newMap(adventureId, "Sneaky", rival);
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "map_not_found" });
+  });
+
+  it("400s a create body with no adventure or no name", async () => {
+    const adventureId = await newAdventure();
+    expect(
+      (await authed("/api/maps", { method: "POST", body: JSON.stringify({ name: "x" }) })).status,
+    ).toBe(400);
+    expect(
+      (await authed("/api/maps", { method: "POST", body: JSON.stringify({ adventureId }) })).status,
+    ).toBe(400);
+  });
+});
+
+describe("list, get, update, delete", () => {
+  it("round-trips a map through the whole lifecycle", async () => {
+    const adventureId = await newAdventure();
+    // A second map keeps the world non-empty so the one under test can actually be deleted.
+    await newMapId(adventureId, "Keepalive");
+
+    const id = await newMapId(adventureId, "Round Trip");
+
+    // Events ride the PUT body and must survive the GET -> PUT verbatim path below just like layers.
     const roundTripEvents = [
       {
         id: crypto.randomUUID(),
@@ -149,158 +218,126 @@ describe("create, list, get, update, delete", () => {
         pages: [wirePage(), wirePage({ moveType: "random", optOnTop: true })],
       },
     ];
-    const createRes = await authed("/api/maps", {
-      method: "POST",
-      body: JSON.stringify(mapBody({ name: "Round Trip", events: roundTripEvents })),
-    });
-    expect(createRes.status).toBe(201);
-    const created = (await createRes.json()) as { id: string };
-    // The response is a legal PUT body: same encoded layers back out as went in.
-    expect(created).toMatchObject({
+    const authorRes = await putMap(id, mapBody({ name: "Round Trip", events: roundTripEvents }));
+    expect(authorRes.status).toBe(200);
+    expect(await authorRes.json()).toMatchObject({
+      id,
       name: "Round Trip",
       ...layeredWireTerrain(validBlocks()),
       elements: [],
       spawn: { col: 0, row: 0 },
       events: roundTripEvents,
     });
-    expect(typeof created.id).toBe("string");
 
-    const listRes = await authed("/api/maps");
+    const listRes = await authed(`/api/maps?adventure=${adventureId}`);
     expect(listRes.status).toBe(200);
     const list = (await listRes.json()) as { id: string; name: string }[];
-    expect(list.find((m) => m.id === created.id)).toMatchObject({ name: "Round Trip" });
+    expect(list.find((m) => m.id === id)).toMatchObject({ name: "Round Trip" });
 
-    const getRes = await authed(`/api/maps/${created.id}`);
+    const getRes = await authed(`/api/maps/${id}`);
     expect(getRes.status).toBe(200);
     const fetched = await getRes.json();
-    expect(fetched).toMatchObject({ id: created.id, name: "Round Trip", events: roundTripEvents });
+    expect(fetched).toMatchObject({ id, name: "Round Trip", events: roundTripEvents });
 
-    // The invariant `src/server/index.ts:509-512` claims: a GET response is a legal PUT body,
-    // verbatim, with no re-encode step in between. Feed it straight back rather than re-deriving
-    // a fresh body — that is exactly the case that broke when `parseMapBody` used to flatten
-    // layers back to `blocks` before storing.
-    const echoRes = await authed(`/api/maps/${created.id}`, {
-      method: "PUT",
-      body: JSON.stringify(fetched),
-    });
+    // A GET response is a legal PUT body, verbatim, with no re-encode step in between.
+    const echoRes = await putMap(id, fetched);
     expect(echoRes.status).toBe(200);
-    // Same content came back — only `revision` legitimately moved, because this PUT is itself a
-    // successful update.
-    expect(await echoRes.json()).toMatchObject({ id: created.id, name: "Round Trip" });
+    expect(await echoRes.json()).toMatchObject({ id, name: "Round Trip" });
 
-    const updateRes = await authed(`/api/maps/${created.id}`, {
-      method: "PUT",
-      body: JSON.stringify(mapBody({ name: "Renamed" })),
-    });
+    const updateRes = await putMap(id, mapBody({ name: "Renamed" }));
     expect(updateRes.status).toBe(200);
-    expect(await updateRes.json()).toMatchObject({ id: created.id, name: "Renamed" });
+    expect(await updateRes.json()).toMatchObject({ id, name: "Renamed" });
 
-    const deleteRes = await authed(`/api/maps/${created.id}`, { method: "DELETE" });
+    const deleteRes = await authed(`/api/maps/${id}`, { method: "DELETE" });
     expect(deleteRes.status).toBe(204);
 
-    const afterDelete = await authed(`/api/maps/${created.id}`);
+    const afterDelete = await authed(`/api/maps/${id}`);
     expect(afterDelete.status).toBe(404);
     expect(await afterDelete.json()).toEqual({ error: "map_not_found" });
   });
 
   it("keeps maps private and hides foreign mutations as not found", async () => {
-    const created = (await (
-      await authed("/api/maps", {
-        method: "POST",
-        body: JSON.stringify(mapBody({ name: "Private" })),
-      })
-    ).json()) as { id: string };
+    const adventureId = await newAdventure();
+    const id = await newMapId(adventureId, "Private");
     const rival = await register();
+    const rivalAdventure = await newAdventure(rival);
 
-    expect(await (await authed("/api/maps", {}, rival)).json()).toEqual([]);
-    expect((await authed(`/api/maps/${created.id}`, {}, rival)).status).toBe(404);
-    expect(
-      (
-        await authed(
-          `/api/maps/${created.id}`,
-          { method: "PUT", body: JSON.stringify(mapBody({ name: "Stolen" })) },
-          rival,
-        )
-      ).status,
-    ).toBe(404);
-    expect((await authed(`/api/maps/${created.id}`, { method: "DELETE" }, rival)).status).toBe(404);
-    expect(await (await authed(`/api/maps/${created.id}`)).json()).toMatchObject({
+    expect(await (await authed(`/api/maps?adventure=${rivalAdventure}`, {}, rival)).json()).toEqual(
+      [],
+    );
+    expect((await authed(`/api/maps/${id}`, {}, rival)).status).toBe(404);
+    expect((await putMap(id, mapBody({ name: "Stolen" }), rival)).status).toBe(404);
+    expect((await authed(`/api/maps/${id}`, { method: "DELETE" }, rival)).status).toBe(404);
+    expect(await (await authed(`/api/maps/${id}`)).json()).toMatchObject({
       name: "Private",
       revision: 1,
     });
   });
 
   it("increments revision only after a successful update", async () => {
-    const created = (await (
-      await authed("/api/maps", { method: "POST", body: JSON.stringify(mapBody()) })
-    ).json()) as { id: string; revision: number };
+    const adventureId = await newAdventure();
+    const created = (await (await newMap(adventureId)).json()) as { id: string; revision: number };
     expect(created.revision).toBe(1);
 
-    const refused = await authed(`/api/maps/${created.id}`, {
-      method: "PUT",
-      body: JSON.stringify(mapBody({ name: " " })),
-    });
+    const refused = await putMap(created.id, mapBody({ name: " " }));
     expect(refused.status).toBe(400);
     expect(await (await authed(`/api/maps/${created.id}`)).json()).toMatchObject({ revision: 1 });
 
-    const updated = await authed(`/api/maps/${created.id}`, {
-      method: "PUT",
-      body: JSON.stringify(mapBody({ name: "Revision two" })),
-    });
+    const updated = await putMap(created.id, mapBody({ name: "Revision two" }));
     expect(await updated.json()).toMatchObject({ revision: 2 });
   });
 });
 
-describe("validation", () => {
+describe("validation (on the authoring PUT)", () => {
   it("rejects a tree standing in the water", async () => {
-    const response = await authed("/api/maps", {
-      method: "POST",
-      body: JSON.stringify(mapBody({ elements: [{ col: 1, row: 1, kind: "tree", variant: 0 }] })),
-    });
+    const id = await newMapId(await newAdventure());
+    const response = await putMap(
+      id,
+      mapBody({ elements: [{ col: 1, row: 1, kind: "tree", variant: 0 }] }),
+    );
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "map_placement" });
   });
 
   it("rejects a map smaller than the size floor", async () => {
+    const id = await newMapId(await newAdventure());
     const tiny = Array.from({ length: 5 }, () => ".".repeat(5));
-    const response = await authed("/api/maps", {
-      method: "POST",
-      body: JSON.stringify(mapBody({ ...layeredWireTerrain(tiny), spawn: { col: 0, row: 0 } })),
-    });
+    const response = await putMap(
+      id,
+      mapBody({ ...layeredWireTerrain(tiny), spawn: { col: 0, row: 0 } }),
+    );
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "map_size" });
   });
 
   it("rejects a blank name", async () => {
-    const response = await authed("/api/maps", {
-      method: "POST",
-      body: JSON.stringify(mapBody({ name: "   " })),
-    });
+    const id = await newMapId(await newAdventure());
+    const response = await putMap(id, mapBody({ name: "   " }));
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "map_name" });
   });
 
   it("rejects a shape parseMapData cannot make sense of", async () => {
-    const response = await authed("/api/maps", {
-      method: "POST",
-      body: JSON.stringify({
-        name: "Bad Shape",
-        tilesetId: TINY_SWORDS_TILESET_ID,
-        cols: 20,
-        rows: 15,
-        layers: "nope",
-        elements: [],
-        spawn: { col: 0, row: 0 },
-      }),
+    const id = await newMapId(await newAdventure());
+    const response = await putMap(id, {
+      name: "Bad Shape",
+      tilesetId: TINY_SWORDS_TILESET_ID,
+      cols: 20,
+      rows: 15,
+      layers: "nope",
+      elements: [],
+      spawn: { col: 0, row: 0 },
     });
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "map_invalid" });
   });
 
   it("rejects a body with no name at all", async () => {
-    const response = await authed("/api/maps", {
-      method: "POST",
-      body: JSON.stringify({ blocks: validBlocks(), elements: [], spawn: { col: 0, row: 0 } }),
+    const id = await newMapId(await newAdventure());
+    const response = await putMap(id, {
+      blocks: validBlocks(),
+      elements: [],
+      spawn: { col: 0, row: 0 },
     });
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "map_invalid" });
@@ -319,10 +356,7 @@ describe("not found", () => {
     expect(get.status).toBe(404);
     expect(await get.json()).toEqual({ error: "map_not_found" });
 
-    const put = await authed(`/api/maps/${BUILTIN_MAP_ID}`, {
-      method: "PUT",
-      body: JSON.stringify(mapBody()),
-    });
+    const put = await putMap(BUILTIN_MAP_ID, mapBody());
     expect(put.status).toBe(404);
     expect(await put.json()).toEqual({ error: "map_not_found" });
 
@@ -336,65 +370,65 @@ describe("not found", () => {
   });
 
   it("never lists the built-in floor", async () => {
-    await authed("/api/maps", { method: "POST", body: JSON.stringify(mapBody()) });
-    const list = (await (await authed("/api/maps")).json()) as { id: string }[];
+    const adventureId = await newAdventure();
+    await newMapId(adventureId);
+    const list = (await (await authed(`/api/maps?adventure=${adventureId}`)).json()) as {
+      id: string;
+    }[];
     expect(list.map((m) => m.id)).not.toContain(BUILTIN_MAP_ID);
   });
 });
 
 describe("the front door", () => {
   it("hands the flag to a survivor when the flagged map is deleted", async () => {
-    const one = (await (
-      await authed("/api/maps", { method: "POST", body: JSON.stringify(mapBody({ name: "One" })) })
-    ).json()) as { id: string };
-    const two = (await (
-      await authed("/api/maps", { method: "POST", body: JSON.stringify(mapBody({ name: "Two" })) })
-    ).json()) as { id: string };
+    const adventureId = await newAdventure();
+    const one = await newMapId(adventureId, "One");
+    const two = await newMapId(adventureId, "Two");
 
-    await authed(`/api/maps/${one.id}`, { method: "DELETE" });
+    await authed(`/api/maps/${one}`, { method: "DELETE" });
 
-    const list = (await (await authed("/api/maps")).json()) as { id: string; isFirst: boolean }[];
-    expect(list.find((m) => m.id === two.id)?.isFirst).toBe(true);
+    const list = (await (await authed(`/api/maps?adventure=${adventureId}`)).json()) as {
+      id: string;
+      isFirst: boolean;
+    }[];
+    expect(list.find((m) => m.id === two)?.isFirst).toBe(true);
   });
 
   it("moves the flag on POST /:id/first", async () => {
-    const one = (await (
-      await authed("/api/maps", { method: "POST", body: JSON.stringify(mapBody({ name: "One" })) })
-    ).json()) as { id: string };
-    const two = (await (
-      await authed("/api/maps", { method: "POST", body: JSON.stringify(mapBody({ name: "Two" })) })
-    ).json()) as { id: string };
+    const adventureId = await newAdventure();
+    const one = await newMapId(adventureId, "One");
+    const two = await newMapId(adventureId, "Two");
 
-    const flip = await authed(`/api/maps/${two.id}/first`, { method: "POST" });
+    const flip = await authed(`/api/maps/${two}/first`, { method: "POST" });
     expect(flip.status).toBe(204);
 
-    const list = (await (await authed("/api/maps")).json()) as { id: string; isFirst: boolean }[];
-    expect(list.find((m) => m.id === two.id)?.isFirst).toBe(true);
-    expect(list.find((m) => m.id === one.id)?.isFirst).toBe(false);
+    const list = (await (await authed(`/api/maps?adventure=${adventureId}`)).json()) as {
+      id: string;
+      isFirst: boolean;
+    }[];
+    expect(list.find((m) => m.id === two)?.isFirst).toBe(true);
+    expect(list.find((m) => m.id === one)?.isFirst).toBe(false);
   });
 });
 
 describe("the last map", () => {
   it("refuses to delete the only map", async () => {
-    const created = (await (
-      await authed("/api/maps", { method: "POST", body: JSON.stringify(mapBody()) })
-    ).json()) as { id: string };
-    const deleteRes = await authed(`/api/maps/${created.id}`, { method: "DELETE" });
+    const id = await newMapId(await newAdventure());
+    const deleteRes = await authed(`/api/maps/${id}`, { method: "DELETE" });
     expect(deleteRes.status).toBe(409);
     expect(await deleteRes.json()).toEqual({ error: "last_map" });
   });
 });
 
-describe("size caps over the wire", () => {
+describe("size caps over the wire (on the authoring PUT)", () => {
   it("accepts a maximal 100x100 map", async () => {
+    const id = await newMapId(await newAdventure());
     const blocks = Array.from({ length: 100 }, () => ".".repeat(100));
-    const response = await authed("/api/maps", {
-      method: "POST",
-      body: JSON.stringify(
-        mapBody({ name: "Maximal", ...layeredWireTerrain(blocks), spawn: { col: 0, row: 0 } }),
-      ),
-    });
-    expect(response.status).toBe(201);
+    const response = await putMap(
+      id,
+      mapBody({ name: "Maximal", ...layeredWireTerrain(blocks), spawn: { col: 0, row: 0 } }),
+    );
+    expect(response.status).toBe(200);
   });
 
   // `MAX_MAP_JSON_BYTES` (src/server/index.ts) is sized against the enumerated worst case: max-
@@ -573,44 +607,42 @@ describe("size caps over the wire", () => {
     expect(bodyText.length).toBeGreaterThan(320_000);
     expect(bodyText.length).toBeLessThan(409_600);
 
-    const response = await authed("/api/maps", { method: "POST", body: bodyText });
-    expect(response.status).toBe(201);
+    const id = await newMapId(await newAdventure());
+    const response = await authed(`/api/maps/${id}`, { method: "PUT", body: bodyText });
+    expect(response.status).toBe(200);
   });
 
   it("413s a body over the re-derived 400 KiB cap, padded via elements since name is capped at 48", async () => {
     // ~46 bytes/element x 12,000 clears the 409,600-byte cap by a wide margin, so `readJson` 413s on
     // the byte stream before any semantic gate runs.
+    const id = await newMapId(await newAdventure());
     const elements = Array.from({ length: 12_000 }, (_, i) => ({
       col: 0,
       row: 0,
       kind: "tree",
       variant: i,
     }));
-    const response = await authed("/api/maps", {
-      method: "POST",
-      body: JSON.stringify(mapBody({ elements })),
-    });
+    const response = await putMap(id, mapBody({ elements }));
     expect(response.status).toBe(413);
   });
 
   it("400s map_elements just over the element cap, before the body would 413", async () => {
     // 401 in-bounds elements: small enough to clear the byte cap, so the element cap is what
     // answers — a legible 400 rather than a mute 413.
+    const id = await newMapId(await newAdventure());
     const elements = Array.from({ length: 401 }, (_, i) => ({
       col: i % MAP_COLS,
       row: i % MAP_ROWS,
       kind: "bush",
       variant: 0,
     }));
-    const response = await authed("/api/maps", {
-      method: "POST",
-      body: JSON.stringify(mapBody({ elements })),
-    });
+    const response = await putMap(id, mapBody({ elements }));
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "map_elements" });
   });
 
   it("rejects an event count exceeding the limit", async () => {
+    const id = await newMapId(await newAdventure());
     const events = Array.from({ length: MAX_EVENTS_PER_MAP + 1 }, (_, i) => ({
       id: crypto.randomUUID(),
       col: i % MAP_COLS,
@@ -619,10 +651,7 @@ describe("size caps over the wire", () => {
       ordinal: i + 1,
       pages: [wirePage()],
     }));
-    const response = await authed("/api/maps", {
-      method: "POST",
-      body: JSON.stringify(mapBody({ events })),
-    });
+    const response = await putMap(id, mapBody({ events }));
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "map_invalid" });
   });

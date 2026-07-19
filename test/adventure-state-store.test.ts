@@ -10,12 +10,13 @@ import {
   loadPartyAdventureState,
   savePartyAdventureState,
 } from "../src/server/adventure-state-store.js";
-import { createAdventure } from "../src/server/adventures.js";
+import { createAdventure, updateAdventure } from "../src/server/adventures.js";
 import { account, createDb, type Db, partyAdventureState } from "../src/server/db/index.js";
-import { createMap, type MapInput } from "../src/server/maps.js";
+import type { MapInput } from "../src/server/maps.js";
 import { createParty } from "../src/server/parties.js";
 import type { AdventureInput } from "../src/shared/adventure.js";
 import { EMPTY_ADVENTURE_STATE, type PartyAdventureState } from "../src/shared/adventure-state.js";
+import { authorMap } from "./support/adventure-fixtures.js";
 import { layeredTerrain } from "./support/map-fixtures.js";
 
 const COLS = 20;
@@ -50,13 +51,10 @@ async function seedAccount(id: string): Promise<void> {
     .values({ id, username: id, passwordHash: "h", passwordSalt: "s", passwordIterations: 1 });
 }
 
-function adventureInput(mapIds: string[]): AdventureInput {
-  const [a, b] = mapIds;
-  if (!a || !b) throw new Error("expected two maps");
+function adventureGraph(a: string, b: string): AdventureInput {
   return {
     title: "Donjon",
     maxPlayers: 4,
-    mapIds,
     graph: {
       start: { mapId: a, entryId: "door" },
       links: [
@@ -69,9 +67,10 @@ function adventureInput(mapIds: string[]): AdventureInput {
 
 async function seedParty(db: Db): Promise<string> {
   await seedAccount("owner");
-  const mapA = await createMap(db, "owner", mapInput("A"));
-  const mapB = await createMap(db, "owner", mapInput("B"));
-  const adv = await createAdventure(db, "owner", adventureInput([mapA.id, mapB.id]));
+  const adv = await createAdventure(db, "owner", { title: "Donjon", maxPlayers: 4 });
+  const mapA = await authorMap(db, "owner", adv.id, mapInput("A"));
+  const mapB = await authorMap(db, "owner", adv.id, mapInput("B"));
+  await updateAdventure(db, "owner", adv.id, adventureGraph(mapA.id, mapB.id));
   const party = await createParty(db, "owner", { adventureId: adv.id, name: null, color: "blue" });
   return party.id;
 }
@@ -80,7 +79,6 @@ afterEach(async () => {
   await env.DB.exec("DELETE FROM party_adventure_state");
   await env.DB.exec("DELETE FROM party_member");
   await env.DB.exec("DELETE FROM party");
-  await env.DB.exec("DELETE FROM adventure_map");
   await env.DB.exec("DELETE FROM adventure");
   await env.DB.exec("DELETE FROM map_element");
   await env.DB.exec("DELETE FROM map");

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   type AdventureInput,
   type AdventureLink,
+  EMPTY_GRAPH,
   MAX_ADVENTURE_LINKS,
   MAX_ADVENTURE_MAPS,
   type MapMarkerIds,
@@ -19,7 +20,6 @@ function goodInput(): AdventureInput {
   return {
     title: "Donjon",
     maxPlayers: 4,
-    mapIds: ["map-a", "map-b"],
     graph: {
       start: { mapId: "map-a", entryId: "start" },
       links: [
@@ -30,8 +30,13 @@ function goodInput(): AdventureInput {
   };
 }
 
-function distinctMapIds(count: number): string[] {
-  return Array.from({ length: count }, (_, index) => `map-${index}`);
+function markersFor(count: number): Map<string, MapMarkerIds> {
+  return new Map(
+    Array.from({ length: count }, (_, index) => [
+      `map-${index}`,
+      { entryIds: ["start"], exitIds: [] } as MapMarkerIds,
+    ]),
+  );
 }
 
 function repeatedLinks(count: number): AdventureLink[] {
@@ -39,7 +44,7 @@ function repeatedLinks(count: number): AdventureLink[] {
 }
 
 describe("parseAdventureInput", () => {
-  it("round-trips a well-formed body", () => {
+  it("round-trips a well-formed body (no mapIds — membership is implicit now)", () => {
     expect(parseAdventureInput(goodInput())).toEqual(goodInput());
   });
 
@@ -49,8 +54,7 @@ describe("parseAdventureInput", () => {
       null,
       { ...good, title: 7 },
       { ...good, maxPlayers: "four" },
-      { ...good, mapIds: "map-a" },
-      { ...good, graph: { start: null, links: [] } },
+      { ...good, graph: undefined },
       {
         ...good,
         graph: { ...good.graph, links: [{ mapId: "map-a", exitId: "east", dest: "nowhere" }] },
@@ -58,20 +62,18 @@ describe("parseAdventureInput", () => {
     ];
     for (const value of bad) expect(parseAdventureInput(value)).toBeNull();
   });
-
-  it("accepts exactly MAX_ADVENTURE_MAPS mapIds and rejects one more", () => {
-    const atLimit = { ...goodInput(), mapIds: distinctMapIds(MAX_ADVENTURE_MAPS) };
-    expect(parseAdventureInput(atLimit)).not.toBeNull();
-
-    const overLimit = { ...goodInput(), mapIds: distinctMapIds(MAX_ADVENTURE_MAPS + 1) };
-    expect(parseAdventureInput(overLimit)).toBeNull();
-  });
 });
 
 describe("parseAdventureGraph", () => {
   it("returns the parsed graph for a well-formed value", () => {
     const { graph } = goodInput();
     expect(parseAdventureGraph(graph)).toEqual(graph);
+  });
+
+  it("accepts a draft graph with a null start", () => {
+    expect(parseAdventureGraph({ start: null, links: [] })).toEqual(EMPTY_GRAPH);
+    // An absent start is the same draft state.
+    expect(parseAdventureGraph({ links: [] })).toEqual(EMPTY_GRAPH);
   });
 
   it("accepts exactly MAX_ADVENTURE_LINKS links and rejects one more, without deduping repeats", () => {
@@ -103,17 +105,50 @@ describe("validateAdventure", () => {
     expect(() => validateAdventure(goodInput(), MARKERS)).not.toThrow();
   });
 
-  it("enforces title, player count and map membership", () => {
+  it("accepts a draft (null start, no links) with no member maps", () => {
+    expect(() =>
+      validateAdventure({ title: "Draft", maxPlayers: 4, graph: EMPTY_GRAPH }, new Map()),
+    ).not.toThrow();
+  });
+
+  it("rejects a draft that carries links", () => {
+    expect(() =>
+      validateAdventure(
+        { title: "Draft", maxPlayers: 4, graph: { start: null, links: repeatedLinks(1) } },
+        new Map(),
+      ),
+    ).toThrow(/^graph:/);
+  });
+
+  it("enforces title and player count", () => {
     expect(() => validateAdventure({ ...goodInput(), title: " " }, MARKERS)).toThrow(/^title:/);
     expect(() => validateAdventure({ ...goodInput(), maxPlayers: 5 }, MARKERS)).toThrow(
       /^players:/,
     );
+  });
+
+  it("rejects a graph that references a map the adventure does not own (foreign map id)", () => {
+    // "map-c" is nowhere in MARKERS: the adventure owns only map-a and map-b.
+    const foreignStart = goodInput();
+    foreignStart.graph = { ...foreignStart.graph, start: { mapId: "map-c", entryId: "start" } };
+    expect(() => validateAdventure(foreignStart, MARKERS)).toThrow(/^graph:/);
+
+    const foreignLink = goodInput();
+    foreignLink.graph = {
+      ...foreignLink.graph,
+      links: [{ mapId: "map-c", exitId: "east", dest: "end" }, ...foreignLink.graph.links],
+    };
+    expect(() => validateAdventure(foreignLink, MARKERS)).toThrow(/^graph:/);
+  });
+
+  it("rejects a non-draft graph with no member maps, or more than MAX_ADVENTURE_MAPS", () => {
+    expect(() => validateAdventure(goodInput(), new Map())).toThrow(/^maps:/);
+    const startAnchor = { mapId: "map-0", entryId: "start" };
     expect(() =>
-      validateAdventure({ ...goodInput(), mapIds: ["map-a", "ghost"] }, MARKERS),
-    ).toThrow(/^maps:/);
-    expect(() => validateAdventure({ ...goodInput(), mapIds: [] }, MARKERS)).toThrow(/^maps:/);
-    expect(() =>
-      validateAdventure({ ...goodInput(), mapIds: ["map-a", "map-a"] }, MARKERS),
+      validateAdventure(
+        { title: "Too many", maxPlayers: 4, graph: { start: startAnchor, links: [] } },
+        markersFor(MAX_ADVENTURE_MAPS + 1),
+      ),
     ).toThrow(/^maps:/);
   });
 
@@ -167,7 +202,6 @@ describe("validateAdventure", () => {
     const input: AdventureInput = {
       title: "Endless loop",
       maxPlayers: 4,
-      mapIds: ["map-a", "map-b", "map-c"],
       graph: {
         start: { mapId: "map-a", entryId: "start" },
         links: [
@@ -180,23 +214,21 @@ describe("validateAdventure", () => {
     expect(() => validateAdventure(input, markers)).toThrow(/ending is reachable/);
   });
 
-  it("reports a member-map island even when another reachable map ends the adventure", () => {
+  it("allows an owned map that is not yet wired into the graph (work in progress)", () => {
+    // map-c is owned but unlinked — under implicit membership that is a draft-in-progress, not an
+    // error, as long as an ending is still reachable from the start (map-a here).
     const markers = new Map<string, MapMarkerIds>([
       ["map-a", { entryIds: ["start"], exitIds: ["finish"] }],
-      ["map-c", { entryIds: ["island"], exitIds: ["island-end"] }],
+      ["map-c", { entryIds: ["island"], exitIds: [] }],
     ]);
     const input: AdventureInput = {
-      title: "Island",
+      title: "In progress",
       maxPlayers: 4,
-      mapIds: ["map-a", "map-c"],
       graph: {
         start: { mapId: "map-a", entryId: "start" },
-        links: [
-          { mapId: "map-a", exitId: "finish", dest: "end" },
-          { mapId: "map-c", exitId: "island-end", dest: "end" },
-        ],
+        links: [{ mapId: "map-a", exitId: "finish", dest: "end" }],
       },
     };
-    expect(() => validateAdventure(input, markers)).toThrow(/map map-c is unreachable/);
+    expect(() => validateAdventure(input, markers)).not.toThrow();
   });
 });

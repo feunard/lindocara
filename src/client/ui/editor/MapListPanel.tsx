@@ -11,7 +11,6 @@ import {
   type MapSummary,
   updateMapApi,
 } from "../../api.js";
-import { blankMap, toSaveInput } from "../../game/editor-state.js";
 import { t, useLocale } from "../../i18n.js";
 import { Button } from "../components/button.js";
 import {
@@ -24,15 +23,6 @@ import {
 import { Input } from "../components/input.js";
 import { Label } from "../components/label.js";
 
-// Mirrors MAP_MIN_COLS/MAX_COLS/MIN_ROWS/MAX_ROWS in src/server/maps.ts. The server remains the
-// real gate; these min/max attributes only keep the form from inviting an obvious 400.
-const MIN_COLS = 20;
-const MAX_COLS = 100;
-const MIN_ROWS = 15;
-const MAX_ROWS = 100;
-const DEFAULT_COLS = 40;
-const DEFAULT_ROWS = 30;
-
 /** A stored payload made into the create/update body: everything but the server-minted id/revision. */
 function saveInputFromPayload(payload: MapPayload): MapSaveInput {
   const { id: _id, revision: _revision, ...rest } = payload;
@@ -40,6 +30,10 @@ function saveInputFromPayload(payload: MapPayload): MapSaveInput {
 }
 
 interface MapListPanelProps {
+  /** The adventure whose maps this panel lists and creates into. A map belongs to exactly one
+   *  adventure, so creation is per-adventure; `null` means no adventure is loaded — the list is empty
+   *  and creation is disabled. */
+  adventureId: string | null;
   /** The map currently mounted in the stage, so the panel marks it and knows what "delete the open
    *  map" targets. */
   activeMapId: string | null;
@@ -79,6 +73,7 @@ function isSessionError(code: string): boolean {
  * owns the stage load path and the dirty guard, so switching maps always goes through it.
  */
 export function MapListPanel({
+  adventureId,
   activeMapId,
   dirty,
   refreshNonce,
@@ -97,8 +92,6 @@ export function MapListPanel({
   const [maps, setMaps] = useState<MapSummary[]>([]);
   const [renaming, setRenaming] = useState<MapSummary | null>(null);
   const [newName, setNewName] = useState("");
-  const [newCols, setNewCols] = useState(DEFAULT_COLS);
-  const [newRows, setNewRows] = useState(DEFAULT_ROWS);
   const [renameValue, setRenameValue] = useState("");
 
   function fail(caught: unknown): void {
@@ -108,26 +101,31 @@ export function MapListPanel({
   }
 
   async function refresh(): Promise<void> {
+    // A map belongs to exactly one adventure: with no adventure loaded there is nothing to list, and
+    // `/api/maps` requires the `adventure` param. Show an empty list and skip the fetch.
+    if (!adventureId) {
+      setMaps([]);
+      return;
+    }
     try {
-      setMaps(await fetchMaps());
+      setMaps(await fetchMaps(adventureId));
     } catch (caught) {
       fail(caught);
     }
   }
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: refetch names/dims when the screen bumps the nonce
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refetch names/dims when the screen bumps the nonce or the adventure changes
   useEffect(() => {
     void refresh();
-  }, [refreshNonce]);
+  }, [refreshNonce, adventureId]);
 
   async function create(): Promise<void> {
+    if (!adventureId) return;
     onError("");
     try {
-      const created = await createMapApi(toSaveInput(blankMap(newName.trim(), newCols, newRows)));
+      const created = await createMapApi(adventureId, newName.trim());
       onNewMapOpenChange(false);
       setNewName("");
-      setNewCols(DEFAULT_COLS);
-      setNewRows(DEFAULT_ROWS);
       await refresh();
       onOpenPayload(created);
     } catch (caught) {
@@ -263,36 +261,14 @@ export function MapListPanel({
                 onChange={(event) => setNewName(event.currentTarget.value)}
               />
             </div>
-            <div className="flex gap-3">
-              <div className="flex flex-1 flex-col gap-1.5">
-                <Label htmlFor="new-map-cols">{t("editor.cols")}</Label>
-                <Input
-                  id="new-map-cols"
-                  type="number"
-                  min={MIN_COLS}
-                  max={MAX_COLS}
-                  value={newCols}
-                  onChange={(event) => setNewCols(Number(event.currentTarget.value))}
-                />
-              </div>
-              <div className="flex flex-1 flex-col gap-1.5">
-                <Label htmlFor="new-map-rows">{t("editor.rows")}</Label>
-                <Input
-                  id="new-map-rows"
-                  type="number"
-                  min={MIN_ROWS}
-                  max={MAX_ROWS}
-                  value={newRows}
-                  onChange={(event) => setNewRows(Number(event.currentTarget.value))}
-                />
-              </div>
-            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => onNewMapOpenChange(false)}>
               {t("editor.delete.cancel")}
             </Button>
-            <Button onClick={() => void create()}>{t("editor.shell.maps.create")}</Button>
+            <Button disabled={!adventureId} onClick={() => void create()}>
+              {t("editor.shell.maps.create")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

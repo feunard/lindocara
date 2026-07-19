@@ -140,6 +140,9 @@ export function AdventureEditorScreen() {
   const registry: AdventureRegistry = useUiStore(
     (state) => state.adventureEditorSession?.draft.registry ?? EMPTY_REGISTRY,
   );
+  // Maps belong to exactly one adventure, so every map list/create is scoped to the loaded session's
+  // adventure. `null` (no session, or an unsaved draft) means "no maps": an empty list, no auto-open.
+  const adventureId = useUiStore((state) => state.adventureEditorSession?.adventureId ?? null);
 
   const handleRef = useRef<MapEditorStageHandle | null>(null);
   const pendingToolRef = useRef<EditorTool>(paintToolFor("pencil", DEFAULT_CONTENT));
@@ -208,10 +211,15 @@ export function AdventureEditorScreen() {
     autoOpened.current = true;
     void (async () => {
       try {
-        const list = await fetchMaps();
+        // No adventure loaded means no maps to open — a first-class empty state, not an error.
+        if (!adventureId) {
+          setStageStatus("empty");
+          return;
+        }
+        const list = await fetchMaps(adventureId);
         const first = list[0];
-        // A fresh account has zero maps: that is a first-class empty state, not an error. Leave `map`
-        // null (no stage opened) and let the centre invite a first map; the maps panel already
+        // A fresh adventure has zero maps: that is a first-class empty state, not an error. Leave
+        // `map` null (no stage opened) and let the centre invite a first map; the maps panel already
         // renders its own empty list with a New-map affordance.
         if (first) setMap(await fetchMap(first.id));
         else setStageStatus("empty");
@@ -462,7 +470,7 @@ export function AdventureEditorScreen() {
     setMapsRefreshNonce((n) => n + 1);
     void (async () => {
       try {
-        const first = (await fetchMaps())[0];
+        const first = adventureId ? (await fetchMaps(adventureId))[0] : undefined;
         editedRef.current = null;
         if (first) setMap(await fetchMap(first.id));
         else {
@@ -770,6 +778,7 @@ export function AdventureEditorScreen() {
           className="editor-chrome min-h-0"
         >
           <MapListPanel
+            adventureId={adventureId}
             activeMapId={map?.id ?? null}
             dirty={dirty}
             refreshNonce={mapsRefreshNonce}

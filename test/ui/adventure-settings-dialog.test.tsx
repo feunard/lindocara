@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AdventureDraft, DraftMemberInfo } from "../../src/client/adventure-draft.js";
@@ -50,7 +50,7 @@ function backend() {
   const adventures: Record<string, unknown>[] = [];
   return vi.fn((url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
-    if (url === "/api/maps" && method === "GET") {
+    if (url.startsWith("/api/maps?adventure=") && method === "GET") {
       return Promise.resolve(
         jsonResponse([
           { id: "m1", name: "Verdant", revision: 1, cols: 40, rows: 30, isFirst: true },
@@ -219,7 +219,10 @@ describe("AdventureSettingsDialog", () => {
     ).toBeInTheDocument();
   });
 
-  it("builds and saves a complete adventure", async () => {
+  it("creates a draft adventure from a title and player count", async () => {
+    // A map belongs to exactly one adventure, so an adventure is now created empty (a DRAFT) before
+    // any maps exist: the create POST carries only title/maxPlayers/registry. Membership and the
+    // graph are authored later through PUT, once maps have been created into the adventure.
     const mock = backend();
     vi.stubGlobal("fetch", mock);
     render(
@@ -228,22 +231,6 @@ describe("AdventureSettingsDialog", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: t("adventure.new") }));
     await userEvent.type(screen.getByLabelText(t("adventure.name")), "Donjon");
-
-    const mapsRegion = () => screen.getByRole("region", { name: t("adventure.maps.title") });
-    await userEvent.selectOptions(
-      await screen.findByLabelText(t("adventure.maps.add.label")),
-      "m1",
-    );
-    await userEvent.click(screen.getByRole("button", { name: t("adventure.maps.add") }));
-    await within(mapsRegion()).findByText("Verdant");
-    await userEvent.selectOptions(screen.getByLabelText(t("adventure.maps.add.label")), "m2");
-    await userEvent.click(screen.getByRole("button", { name: t("adventure.maps.add") }));
-    await within(mapsRegion()).findByText("Frostfen");
-
-    await userEvent.selectOptions(screen.getByLabelText(t("adventure.start.map")), "m1");
-    await userEvent.selectOptions(screen.getByLabelText(t("adventure.start.entry")), "door");
-    await userEvent.selectOptions(screen.getByLabelText(/east/), "m2::west");
-    await userEvent.selectOptions(screen.getByLabelText(/boss/), "end");
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.save") }));
 
@@ -256,15 +243,7 @@ describe("AdventureSettingsDialog", () => {
       expect(body).toEqual({
         title: "Donjon",
         maxPlayers: 4,
-        mapIds: ["m1", "m2"],
-        graph: {
-          start: { mapId: "m1", entryId: "door" },
-          links: [
-            { mapId: "m1", exitId: "east", dest: { mapId: "m2", entryId: "west" } },
-            { mapId: "m2", exitId: "boss", dest: "end" },
-          ],
-        },
-        // The draft now carries a registry, so the adventure save body includes it end to end.
+        // The draft carries a registry, so the create body includes it end to end.
         registry: { switches: [], variables: [] },
       });
     });

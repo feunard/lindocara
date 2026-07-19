@@ -1,4 +1,4 @@
-import type { AdventureGraph, AdventureInput } from "../shared/adventure.js";
+import type { AdventureGraph, AdventureInput, CreateAdventureInput } from "../shared/adventure.js";
 import type { AdventureRegistry } from "../shared/adventure-state.js";
 import type { CharacterAppearance, Equipment } from "../shared/character.js";
 import type { PlayerClass } from "../shared/game.js";
@@ -81,10 +81,11 @@ export interface MapPayload {
 /** What create/update send: everything but the server-minted id. */
 export type MapSaveInput = Omit<MapPayload, "id" | "revision">;
 
-export const fetchMaps = () => api<MapSummary[]>("/api/maps");
+export const fetchMaps = (adventureId: string) =>
+  api<MapSummary[]>(`/api/maps?adventure=${adventureId}`);
 export const fetchMap = (id: string) => api<MapPayload>(`/api/maps/${id}`);
-export const createMapApi = (input: MapSaveInput) =>
-  api<MapPayload>("/api/maps", { method: "POST", body: JSON.stringify(input) });
+export const createMapApi = (adventureId: string, name: string) =>
+  api<MapPayload>("/api/maps", { method: "POST", body: JSON.stringify({ adventureId, name }) });
 export const updateMapApi = (id: string, input: MapSaveInput) =>
   api<MapPayload>(`/api/maps/${id}`, { method: "PUT", body: JSON.stringify(input) });
 export const deleteMapApi = (id: string) => api<void>(`/api/maps/${id}`, { method: "DELETE" });
@@ -110,7 +111,7 @@ export interface AdventurePayload {
 
 export const fetchAdventures = () => api<AdventureSummary[]>("/api/adventures");
 export const fetchAdventure = (id: string) => api<AdventurePayload>(`/api/adventures/${id}`);
-export const createAdventureApi = (input: AdventureInput) =>
+export const createAdventureApi = (input: CreateAdventureInput) =>
   api<AdventurePayload>("/api/adventures", { method: "POST", body: JSON.stringify(input) });
 export const updateAdventureApi = (id: string, input: AdventureInput) =>
   api<AdventurePayload>(`/api/adventures/${id}`, { method: "PUT", body: JSON.stringify(input) });

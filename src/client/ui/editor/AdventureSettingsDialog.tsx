@@ -141,20 +141,25 @@ export function AdventureSettingsDialog({
     else setError(code);
   }
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: reload the picker/map library each open
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reload the picker/map library on open or when the edited adventure changes
   useEffect(() => {
     if (!open) return;
     setError(null);
     void (async () => {
       try {
-        const [list, library] = await Promise.all([fetchAdventures(), fetchMaps()]);
+        // Maps belong to exactly one adventure, so the membership library is the edited adventure's
+        // own maps. A new draft (no adventure id yet) has none — it must be created first.
+        const [list, library] = await Promise.all([
+          fetchAdventures(),
+          session?.adventureId ? fetchMaps(session.adventureId) : Promise.resolve([]),
+        ]);
         setAdventures(list);
         setMaps(library);
       } catch (caught) {
         fail(caught);
       }
     })();
-  }, [open]);
+  }, [open, session?.adventureId]);
 
   function updateDraft(draft: AdventureDraft | null): void {
     if (session && draft) setSession({ ...session, draft });
@@ -222,13 +227,23 @@ export function AdventureSettingsDialog({
 
   async function save(): Promise<void> {
     if (!session || saving) return;
-    const input = toAdventureInput(session.draft);
-    if (!input) return;
+    // Create makes an empty DRAFT: only title/maxPlayers/registry are sent; the server builds the
+    // rest (mapIds: [], empty graph). Map membership and the graph are authored later through PUT,
+    // which does need a complete input.
+    const input = session.adventureId === null ? null : toAdventureInput(session.draft);
+    if (session.adventureId !== null && !input) return;
     setSaving(true);
     setError(null);
     try {
-      if (session.adventureId === null) await createAdventureApi(input);
-      else await updateAdventureApi(session.adventureId, input);
+      if (session.adventureId === null) {
+        await createAdventureApi({
+          title: session.draft.title.trim(),
+          maxPlayers: session.draft.maxPlayers,
+          registry: session.draft.registry,
+        });
+      } else if (input) {
+        await updateAdventureApi(session.adventureId, input);
+      }
       setSession(null);
       onSaved();
       try {
@@ -372,6 +387,9 @@ function EditForm({
   const validationIssues = draftValidationIssues(draft);
   const available = maps.filter((map) => !draft.members.some((member) => member.mapId === map.id));
   const startMap = draft.members.find((member) => member.mapId === draft.start?.mapId);
+  // Creating an adventure makes a DRAFT: only a title is required client-side (the server validates
+  // length and player count). Updating an existing adventure still needs a complete, playable graph.
+  const canSave = canDelete ? draftComplete(draft) : draft.title.trim().length > 0;
 
   return (
     <div className="flex flex-col gap-4">
@@ -581,7 +599,7 @@ function EditForm({
               {t("editor.delete")}
             </Button>
           )}
-          <Button disabled={!draftComplete(draft) || saving} onClick={onSave}>
+          <Button disabled={!canSave || saving} onClick={onSave}>
             {t("editor.save")}
           </Button>
         </div>

@@ -6,7 +6,7 @@
  * call and this handler never has to think about serving files.
  */
 
-import { parseAdventureInput } from "../shared/adventure.js";
+import { parseAdventureInput, parseCreateAdventureInput } from "../shared/adventure.js";
 import { normalizeAppearance } from "../shared/character.js";
 import { WS_CLOSE } from "../shared/close-codes.js";
 import { isValidClass } from "../shared/game.js";
@@ -45,7 +45,7 @@ import { createHero, deleteHero, listHeroes, loadOwnedHero } from "./heroes.js";
 import {
   createMap,
   deleteMap,
-  listMaps,
+  listMapsForAdventure,
   loadMap,
   loadOwnedMap,
   type MapInput,
@@ -366,15 +366,18 @@ async function handleJoinHero(request: Request, env: Env, url: URL): Promise<Res
   const adventure = await loadAdventure(db, partyRow.hostAccountId, partyRow.adventureId);
   if (!adventure) return closedWebSocket(WS_CLOSE.INVALID_LOCATION, "party adventure missing");
 
+  const start = adventure.graph.start;
   let mapId = owned.mapId;
   let stored = adventure.mapIds.includes(mapId) ? await loadMap(db, mapId) : null;
   let fallbackPosition: { x: number; y: number } | null = null;
   if (!stored) {
-    mapId = adventure.graph.start.mapId;
+    // A draft adventure (no start) has no room to admit the hero into.
+    if (!start) return closedWebSocket(WS_CLOSE.INVALID_LOCATION, "adventure has no start");
+    mapId = start.mapId;
     stored = await loadMap(db, mapId);
     if (!stored) return closedWebSocket(WS_CLOSE.INVALID_LOCATION, "adventure start missing");
     const entry = (stored.markers ?? EMPTY_MARKERS).entries.find(
-      (marker) => marker.id === adventure.graph.start.entryId,
+      (marker) => marker.id === start.entryId,
     );
     fallbackPosition = entry
       ? {
@@ -568,7 +571,23 @@ function mapResponseBody(stored: StoredMap): Record<string, unknown> {
 async function handleListMaps(request: Request, env: Env, url: URL): Promise<Response> {
   const auth = await requireSession(request, env, url);
   if (auth instanceof Response) return auth;
-  return json(await listMaps(createDb(env.DB), auth.session.id));
+  // Maps are listed per-adventure (UX wave #5). The `adventure` query param is required; without it
+  // there is no library to list.
+  const adventureId = url.searchParams.get("adventure");
+  if (!adventureId || !isUuid(adventureId)) {
+    return json({ error: "map_invalid" }, { status: 400 });
+  }
+  return json(await listMapsForAdventure(createDb(env.DB), auth.session.id, adventureId));
+}
+
+/** The `{ adventureId, name }` body of a new-map request — the only two fields a client sends now,
+ *  since the terrain is always the server-built template. */
+function parseCreateMapBody(body: unknown): { adventureId: string; name: string } | null {
+  if (typeof body !== "object" || body === null) return null;
+  const { adventureId, name } = body as Record<string, unknown>;
+  if (typeof adventureId !== "string" || !isUuid(adventureId)) return null;
+  if (typeof name !== "string") return null;
+  return { adventureId, name };
 }
 
 async function handleCreateMap(request: Request, env: Env, url: URL): Promise<Response> {
@@ -576,12 +595,15 @@ async function handleCreateMap(request: Request, env: Env, url: URL): Promise<Re
   if (auth instanceof Response) return auth;
   const parsed = await readJson(request, MAX_MAP_JSON_BYTES);
   if (parsed instanceof Response) return parsed;
-  const input = parseMapBody(parsed.value);
+  const input = parseCreateMapBody(parsed.value);
   if (!input) return json({ error: "map_invalid" }, { status: 400 });
   try {
-    return json(mapResponseBody(await createMap(createDb(env.DB), auth.session.id, input)), {
-      status: 201,
-    });
+    return json(
+      mapResponseBody(
+        await createMap(createDb(env.DB), auth.session.id, input.adventureId, input.name),
+      ),
+      { status: 201 },
+    );
   } catch (error) {
     return mapErrorResponse(error);
   }
@@ -692,7 +714,7 @@ async function handleCreateAdventure(request: Request, env: Env, url: URL): Prom
   if (auth instanceof Response) return auth;
   const parsed = await readJson(request, MAX_ADVENTURE_JSON_BYTES);
   if (parsed instanceof Response) return parsed;
-  const input = parseAdventureInput(parsed.value);
+  const input = parseCreateAdventureInput(parsed.value);
   if (!input) return json({ error: "adventure_invalid" }, { status: 400 });
   try {
     return json(await createAdventure(createDb(env.DB), auth.session.id, input), { status: 201 });

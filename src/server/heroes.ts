@@ -80,9 +80,12 @@ export async function createHero(
   // The adventure is owned by the party host; load it through them to read the start entry.
   const adventure = await loadAdventure(db, partyRow.hostAccountId, partyRow.adventureId);
   if (!adventure) throw new Error("not_found: party adventure is unavailable");
-  const startMap = await loadMap(db, adventure.graph.start.mapId);
+  // A draft adventure has no start authored yet — a hero has nowhere to spawn.
+  const start = adventure.graph.start;
+  if (!start) throw new Error("not_found: party adventure has no start");
+  const startMap = await loadMap(db, start.mapId);
   if (!startMap) throw new Error("not_found: start map is unavailable");
-  const position = entryPosition(startMap, adventure.graph.start.entryId);
+  const position = entryPosition(startMap, start.entryId);
 
   const id = crypto.randomUUID();
   await db.insert(hero).values({

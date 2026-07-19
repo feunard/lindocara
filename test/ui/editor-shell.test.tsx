@@ -1,13 +1,9 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { emptyDraft } from "../../src/client/adventure-draft.js";
 import type { MapPayload, MapSummary } from "../../src/client/api.js";
-import {
-  blankMap,
-  defaultEventPage,
-  toMapData,
-  toSaveInput,
-} from "../../src/client/game/editor-state.js";
+import { defaultEventPage, toMapData, toSaveInput } from "../../src/client/game/editor-state.js";
 import { setLocale, t } from "../../src/client/i18n.js";
 import { useUiStore } from "../../src/client/store.js";
 import { AdventureEditorScreen } from "../../src/client/ui/editor/AdventureEditorScreen.js";
@@ -114,7 +110,8 @@ function payloadFor(summary: MapSummary): MapPayload {
 function mapsFetchMock(maps: MapSummary[] = oneMap) {
   return vi.fn((url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
-    if (url === "/api/maps" && method === "GET") return Promise.resolve(jsonResponse(maps));
+    if (url.startsWith("/api/maps?adventure=") && method === "GET")
+      return Promise.resolve(jsonResponse(maps));
     const idMatch = url.match(/^\/api\/maps\/([^/]+)$/);
     const summary = idMatch?.[1] ? maps.find((m) => m.id === idMatch[1]) : undefined;
     if (summary && method === "GET") return Promise.resolve(jsonResponse(payloadFor(summary)));
@@ -128,7 +125,8 @@ function mapsBackend(maps: MapSummary[] = twoMaps) {
   const list = maps.map((m) => ({ ...m }));
   return vi.fn((url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
-    if (url === "/api/maps" && method === "GET") return Promise.resolve(jsonResponse(list));
+    if (url.startsWith("/api/maps?adventure=") && method === "GET")
+      return Promise.resolve(jsonResponse(list));
     if (url === "/api/maps" && method === "POST") {
       const created: MapPayload = {
         id: "new",
@@ -179,9 +177,17 @@ async function mountReady(): Promise<ReturnType<typeof render>> {
 describe("AdventureEditorScreen shell", () => {
   beforeEach(() => {
     setLocale("en");
+    // A map belongs to one adventure, so the editor loads maps for the session's adventure. Seed a
+    // loaded adventure so the auto-open fetches `/api/maps?adventure=adv-1` and mounts the stage.
     useUiStore.setState({
       screen: "adventure-editor",
-      adventureEditorSession: null,
+      adventureEditorSession: {
+        adventureId: "adv-1",
+        draftId: "draft-1",
+        draft: emptyDraft(),
+        invalidatedLinks: [],
+        savedDraft: null,
+      },
     });
     for (const fn of Object.values(stageMock)) fn.mockReset();
     stageMock.openMapEditorStage.mockResolvedValue(stageHandle());
@@ -614,14 +620,12 @@ describe("AdventureEditorScreen shell", () => {
     vi.stubGlobal("fetch", mock);
     await mountReady();
 
+    // The new-map dialog now takes only a name: a map belongs to one adventure and the server builds
+    // a fixed 5x5 template, so the client no longer sends terrain or size — just adventure + name.
     await userEvent.click(
       screen.getAllByRole("button", { name: t("editor.new") })[0] as HTMLElement,
     );
-    // The create form defaults to 40x30, exactly as the old MapEditor list screen did.
-    expect(await screen.findByLabelText(t("editor.cols"))).toHaveValue(40);
-    expect(screen.getByLabelText(t("editor.rows"))).toHaveValue(30);
-
-    await userEvent.type(screen.getByLabelText(t("editor.name")), "Third map");
+    await userEvent.type(await screen.findByLabelText(t("editor.name")), "Third map");
     await userEvent.click(screen.getByRole("button", { name: t("editor.shell.maps.create") }));
 
     await waitFor(() =>
@@ -629,7 +633,7 @@ describe("AdventureEditorScreen shell", () => {
         "/api/maps",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify(toSaveInput(blankMap("Third map", 40, 30))),
+          body: JSON.stringify({ adventureId: "adv-1", name: "Third map" }),
         }),
       ),
     );

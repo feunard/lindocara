@@ -85,6 +85,21 @@ async function postAs<T>(
   return (await response.json()) as T;
 }
 
+async function putAs<T>(
+  account: TestAccount,
+  path: string,
+  body: unknown,
+  expectedStatus: number,
+): Promise<T> {
+  const response = await SELF.fetch(`${ORIGIN}${path}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Cookie: account.cookie },
+    body: JSON.stringify(body),
+  });
+  expect(response.status).toBe(expectedStatus);
+  return (await response.json()) as T;
+}
+
 export interface TestCharacterOptions {
   position?: { x: number; y: number };
   class?: PlayerClass;
@@ -348,23 +363,31 @@ async function testAdventure(
   options: TestPartyOptions,
 ): Promise<Pick<TestParty, "adventureId" | "mapIds" | "startMapId">> {
   const inputs = options.maps ?? [testMapInput(`${label} ground`)];
-  const mapIds: string[] = [];
-  for (const input of inputs) {
-    const map = await postAs<{ id: string }>(host, "/api/maps", input, 201);
-    mapIds.push(map.id);
-  }
-  const graph = (options.graph ?? defaultGraph)(mapIds);
+  const title = `${label} adventure`.slice(0, 48);
+  const maxPlayers = options.maxPlayers ?? 4;
+  // A map now belongs to one adventure (UX wave #5), so the adventure is created first (as a draft),
+  // its maps are created inside it as templates and then authored with the test terrain via PUT, and
+  // finally the real graph is saved over them.
   const adventure = await postAs<{ id: string }>(
     host,
     "/api/adventures",
-    {
-      title: `${label} adventure`.slice(0, 48),
-      maxPlayers: options.maxPlayers ?? 4,
-      mapIds,
-      graph,
-    },
+    { title, maxPlayers },
     201,
   );
+  const mapIds: string[] = [];
+  for (const input of inputs) {
+    const created = await postAs<{ id: string }>(
+      host,
+      "/api/maps",
+      { adventureId: adventure.id, name: input.name },
+      201,
+    );
+    await putAs(host, `/api/maps/${created.id}`, input, 200);
+    mapIds.push(created.id);
+  }
+  const graph = (options.graph ?? defaultGraph)(mapIds);
+  if (!graph.start) throw new Error("a playable adventure graph needs a start");
+  await putAs(host, `/api/adventures/${adventure.id}`, { title, maxPlayers, graph }, 200);
   return { adventureId: adventure.id, mapIds, startMapId: graph.start.mapId };
 }
 

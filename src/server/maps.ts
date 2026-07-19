@@ -13,6 +13,7 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
   type AdventureGraph,
+  type MapMarkerIds,
   parseAdventureGraph,
   validateAdventure,
 } from "../shared/adventure.js";
@@ -45,21 +46,15 @@ import { isSolidKind, kindAt } from "../shared/tilemap.js";
 import { tileIdInTileset } from "../shared/tileset.js";
 import { TINY_SWORDS_TILESET_ID, tilesetById } from "../shared/tilesets/tiny-swords.js";
 import { isEditorAssetId } from "../shared/tiny-swords-catalog.js";
-import {
-  adventure,
-  adventureMap,
-  type Db,
-  map,
-  mapElement,
-  mapEvent,
-  mapEventPage,
-} from "./db/index.js";
+import { adventure, type Db, map, mapElement, mapEvent, mapEventPage } from "./db/index.js";
 
 export const BUILTIN_MAP_ID = "builtin";
 
 export interface StoredMap extends MapData {
   id: string;
   accountId: string | null;
+  /** The one adventure that owns this map. The built-in floor has no adventure. */
+  adventureId: string | null;
   name: string;
   revision: number;
   /** Authored events, ordered by ordinal; pages ordered by position. Empty for maps saved before
@@ -92,6 +87,7 @@ const BUILTIN_LAYERS = layersFromBlocks(BUILTIN_BLOCKS);
 export const BUILTIN_MAP: StoredMap = {
   id: BUILTIN_MAP_ID,
   accountId: null,
+  adventureId: null,
   name: "Nowhere",
   revision: 1,
   tilesetId: TINY_SWORDS_TILESET_ID,
@@ -127,6 +123,51 @@ export const MAP_MAX_COLS = 100;
 export const MAP_MIN_ROWS = 15;
 export const MAP_MAX_ROWS = 100;
 export const MAP_NAME_MAX = 48;
+
+/** UX wave #7: every new map is a 5x5 block of grass, spawn dead centre, water everywhere else. */
+export const DEFAULT_MAP_LAND = 5;
+
+/**
+ * The one shape a new map is ever created in (#7): a `MAP_MIN_COLS x MAP_MIN_ROWS` field of water
+ * with a centred `DEFAULT_MAP_LAND x DEFAULT_MAP_LAND` block of grass, spawn on that block's centre.
+ * The edges are autotile-resolved by the same brush the editor paints with (`layersFromBlocks`), so
+ * the block is indistinguishable from one drawn by hand. Sizing is a later resize tool's job — map
+ * create ignores any client-supplied dimensions and always builds this.
+ */
+export function defaultMapInput(name: string): MapInput {
+  const cols = MAP_MIN_COLS;
+  const rows = MAP_MIN_ROWS;
+  const colStart = Math.floor((cols - DEFAULT_MAP_LAND) / 2);
+  const rowStart = Math.floor((rows - DEFAULT_MAP_LAND) / 2);
+  const blocks: string[] = [];
+  for (let row = 0; row < rows; row += 1) {
+    let line = "";
+    for (let col = 0; col < cols; col += 1) {
+      const land =
+        col >= colStart &&
+        col < colStart + DEFAULT_MAP_LAND &&
+        row >= rowStart &&
+        row < rowStart + DEFAULT_MAP_LAND;
+      line += land ? "." : "#";
+    }
+    blocks.push(line);
+  }
+  const { layers } = layersFromBlocks(blocks);
+  return {
+    name,
+    tilesetId: TINY_SWORDS_TILESET_ID,
+    cols,
+    rows,
+    layers,
+    elements: [],
+    spawn: {
+      col: colStart + Math.floor(DEFAULT_MAP_LAND / 2),
+      row: rowStart + Math.floor(DEFAULT_MAP_LAND / 2),
+    },
+    markers: EMPTY_MARKERS,
+    events: [],
+  };
+}
 
 /** Stored as a JSON array of run-length encoded layer strings — one column, three layers, and no
  *  second encoding for `tile-layer-codec.ts` to keep in step with. */
@@ -317,6 +358,7 @@ function toStoredMap(
   return {
     id: row.id,
     accountId: row.accountId,
+    adventureId: row.adventureId,
     name: row.name,
     revision: row.revision,
     tilesetId: row.tilesetId,
@@ -414,16 +456,23 @@ export async function loadOwnedMap(
   return toStoredMap(row, await elementsOf(db, id), await eventsOf(db, id));
 }
 
-export async function listMaps(
+/**
+ * The maps of one adventure the caller owns (UX wave #5: a map belongs to exactly one adventure, so
+ * the library is listed per-adventure, not per-account). The `accountId` gate is redundant with the
+ * `adventureId` scope — a map's account always equals its adventure's — but keeps a foreign caller
+ * from listing another owner's adventure's maps by id.
+ */
+export async function listMapsForAdventure(
   db: Db,
   accountId: string,
+  adventureId: string,
 ): Promise<
   { id: string; name: string; revision: number; cols: number; rows: number; isFirst: boolean }[]
 > {
   const rows = await db
     .select()
     .from(map)
-    .where(eq(map.accountId, accountId))
+    .where(and(eq(map.accountId, accountId), eq(map.adventureId, adventureId)))
     .orderBy(asc(map.createdAt));
   return rows.map((row) => ({
     id: row.id,
@@ -558,12 +607,39 @@ function insertEventStatements(db: Db, mapId: string, events: readonly MapEvent[
   return [...parents, ...pages];
 }
 
-export async function createMap(db: Db, accountId: string, input: MapInput): Promise<StoredMap> {
+/** The adventure `adventureId` that `accountId` owns, or null. Map operations that require an
+ *  adventure resolve ownership through it (the map's owner is the adventure's owner). */
+async function ownedAdventure(db: Db, accountId: string, adventureId: string) {
+  const [row] = await db
+    .select({ id: adventure.id, accountId: adventure.accountId })
+    .from(adventure)
+    .where(eq(adventure.id, adventureId))
+    .limit(1);
+  if (!row || row.accountId !== accountId) return null;
+  return row;
+}
+
+/**
+ * Create a map inside an adventure (UX wave #5 + #7). Ownership is checked through the adventure —
+ * a map created under an adventure the caller does not own is refused with `not_found`. The map is
+ * ALWAYS the 5x5 template (`defaultMapInput`); any client-supplied terrain/size is ignored, so the
+ * new-map dialog only sends a name.
+ */
+export async function createMap(
+  db: Db,
+  accountId: string,
+  adventureId: string,
+  name: string,
+): Promise<StoredMap> {
+  const owner = await ownedAdventure(db, accountId, adventureId);
+  if (!owner) throw new Error("not_found: no such adventure");
+  const input = defaultMapInput(name);
   const data = validateMapInput(input);
   const id = crypto.randomUUID();
   const insertMap = db.insert(map).values({
     id,
     accountId,
+    adventureId,
     name: data.name,
     cols: input.cols,
     rows: input.rows,
@@ -588,7 +664,7 @@ export async function createMap(db: Db, accountId: string, input: MapInput): Pro
   } else {
     await insertMap;
   }
-  return { id, accountId, revision: 1, ...data };
+  return { id, accountId, adventureId, revision: 1, ...data };
 }
 
 export async function updateMap(
@@ -600,45 +676,38 @@ export async function updateMap(
   const data = validateMapInput(input);
   const existing = await loadOwnedMap(db, accountId, id);
   if (!existing) throw new Error("not_found: no such map");
-  const references = await db
-    .select({
-      id: adventure.id,
-      accountId: adventure.accountId,
-      title: adventure.title,
-      maxPlayers: adventure.maxPlayers,
-      graph: adventure.graph,
-    })
-    .from(adventureMap)
-    .innerJoin(adventure, eq(adventureMap.adventureId, adventure.id))
-    .where(eq(adventureMap.mapId, id));
-  if (references.length > 0) {
-    for (const row of references) {
-      if (row.accountId !== accountId) {
-        throw new Error(`referenced: adventure "${row.title}" belongs to another account`);
-      }
+  // A map belongs to exactly one adventure (UX wave #5), so revalidation is against THAT adventure's
+  // graph alone — the cross-account loop is gone, ownership is guaranteed by the fk. Editing this
+  // map's markers must not break its owning adventure's saved graph (a bound exit removed, a start
+  // entry gone). A draft graph (`start === null`) protects nothing, so the edit passes freely.
+  if (existing.adventureId) {
+    const [owner] = await db
+      .select({
+        title: adventure.title,
+        maxPlayers: adventure.maxPlayers,
+        graph: adventure.graph,
+      })
+      .from(adventure)
+      .where(eq(adventure.id, existing.adventureId))
+      .limit(1);
+    if (owner) {
       let graph: AdventureGraph | null = null;
       try {
-        graph = parseAdventureGraph(JSON.parse(row.graph));
+        graph = parseAdventureGraph(JSON.parse(owner.graph));
       } catch {
         graph = null;
       }
-      if (!graph) throw new Error(`referenced: adventure "${row.title}" has a corrupt graph`);
-      const members = await db
-        .select({ mapId: adventureMap.mapId })
-        .from(adventureMap)
-        .where(eq(adventureMap.adventureId, row.id))
-        .orderBy(asc(adventureMap.position));
-      const mapIds = members.map((member) => member.mapId);
-      const markerRows = await db
+      if (!graph) throw new Error(`referenced: adventure "${owner.title}" has a corrupt graph`);
+      const memberRows = await db
         .select({ id: map.id, markers: map.markers, cols: map.cols, rows: map.rows })
         .from(map)
-        .where(inArray(map.id, mapIds));
-      const markersByMap = new Map(
-        markerRows.map((markerRow) => {
+        .where(eq(map.adventureId, existing.adventureId));
+      const markersByMap = new Map<string, MapMarkerIds>(
+        memberRows.map((memberRow) => {
           const markers =
-            markerRow.id === id ? (data.markers ?? EMPTY_MARKERS) : markersOfRow(markerRow);
+            memberRow.id === id ? (data.markers ?? EMPTY_MARKERS) : markersOfRow(memberRow);
           return [
-            markerRow.id,
+            memberRow.id,
             {
               entryIds: markers.entries.map((marker) => marker.id),
               exitIds: markers.exits.map((marker) => marker.id),
@@ -648,12 +717,12 @@ export async function updateMap(
       );
       try {
         validateAdventure(
-          { title: row.title, maxPlayers: row.maxPlayers, mapIds, graph },
+          { title: owner.title, maxPlayers: owner.maxPlayers, graph },
           markersByMap,
         );
       } catch (error) {
         const reason = error instanceof Error ? error.message : "invalid graph";
-        throw new Error(`referenced: adventure "${row.title}" would become invalid (${reason})`);
+        throw new Error(`referenced: adventure "${owner.title}" would become invalid (${reason})`);
       }
     }
   }
@@ -693,7 +762,7 @@ export async function updateMap(
   const updatedRows = batchResults[0] as { revision: number }[];
   const updated = updatedRows[0];
   if (!updated) throw new Error("not_found: map ownership changed mid-update");
-  return { id, accountId, revision: updated.revision, ...data };
+  return { id, accountId, adventureId: existing.adventureId, revision: updated.revision, ...data };
 }
 
 /**
@@ -719,6 +788,25 @@ export async function setFirstMap(db: Db, accountId: string, id: string): Promis
   ]);
 }
 
+/** Whether an adventure's stored graph names `mapId` anywhere — its start, a link's source, or a
+ *  link's destination. A corrupt graph is treated as referencing nothing (delete is not the place
+ *  to fail on it). */
+function graphReferencesMap(graphJson: string, mapId: string): boolean {
+  let graph: AdventureGraph | null = null;
+  try {
+    graph = parseAdventureGraph(JSON.parse(graphJson));
+  } catch {
+    graph = null;
+  }
+  if (!graph) return false;
+  if (graph.start?.mapId === mapId) return true;
+  for (const link of graph.links) {
+    if (link.mapId === mapId) return true;
+    if (link.dest !== "end" && link.dest.mapId === mapId) return true;
+  }
+  return false;
+}
+
 /**
  * Deleting the last map is refused, and deleting the front door moves the flag rather than removing
  * it. Between them, there is always exactly one map flagged and at least one map to flag.
@@ -736,12 +824,17 @@ export async function deleteMap(db: Db, accountId: string, id: string): Promise<
     .limit(1);
   if (!row) throw new Error("not_found: no such map");
 
-  const used = await db
-    .select({ adventureId: adventureMap.adventureId })
-    .from(adventureMap)
-    .where(eq(adventureMap.mapId, id))
+  // The owning adventure's graph may name this map (its start, a link's source or destination).
+  // Deleting it would corrupt the saved graph, so it is refused while the graph references it —
+  // an unlinked map (or a draft adventure) deletes freely.
+  const [owner] = await db
+    .select({ graph: adventure.graph })
+    .from(adventure)
+    .where(eq(adventure.id, row.adventureId))
     .limit(1);
-  if (used.length > 0) throw new Error("referenced: an adventure still uses this map");
+  if (owner && graphReferencesMap(owner.graph, id)) {
+    throw new Error("referenced: an adventure still uses this map");
+  }
 
   const results = await db.$client.batch([
     db.$client

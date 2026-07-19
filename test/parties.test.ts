@@ -4,11 +4,12 @@
  */
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
-import { createAdventure, deleteAdventure } from "../src/server/adventures.js";
+import { createAdventure, deleteAdventure, updateAdventure } from "../src/server/adventures.js";
 import { account, createDb } from "../src/server/db/index.js";
-import { createMap, type MapInput } from "../src/server/maps.js";
+import type { MapInput } from "../src/server/maps.js";
 import { createParty, deleteParty, joinParty, listPublicParties } from "../src/server/parties.js";
 import type { AdventureInput } from "../src/shared/adventure.js";
+import { authorMap } from "./support/adventure-fixtures.js";
 import { layeredTerrain } from "./support/map-fixtures.js";
 
 const COLS = 20;
@@ -40,13 +41,10 @@ async function seedAccount(id: string): Promise<void> {
     .values({ id, username: id, passwordHash: "h", passwordSalt: "s", passwordIterations: 1 });
 }
 
-function adventureInput(mapIds: string[], maxPlayers: number): AdventureInput {
-  const [a, b] = mapIds;
-  if (!a || !b) throw new Error("expected two maps");
+function adventureGraph(a: string, b: string, maxPlayers: number): AdventureInput {
   return {
     title: "Donjon",
     maxPlayers,
-    mapIds,
     graph: {
       start: { mapId: a, entryId: "door" },
       links: [
@@ -59,20 +57,16 @@ function adventureInput(mapIds: string[], maxPlayers: number): AdventureInput {
 
 async function seedAdventure(accountId: string, maxPlayers = 4): Promise<string> {
   const db = createDb(env.DB);
-  const mapA = await createMap(db, accountId, mapInput("A"));
-  const mapB = await createMap(db, accountId, mapInput("B"));
-  const created = await createAdventure(
-    db,
-    accountId,
-    adventureInput([mapA.id, mapB.id], maxPlayers),
-  );
+  const created = await createAdventure(db, accountId, { title: "Donjon", maxPlayers });
+  const mapA = await authorMap(db, accountId, created.id, mapInput("A"));
+  const mapB = await authorMap(db, accountId, created.id, mapInput("B"));
+  await updateAdventure(db, accountId, created.id, adventureGraph(mapA.id, mapB.id, maxPlayers));
   return created.id;
 }
 
 afterEach(async () => {
   await env.DB.exec("DELETE FROM party_member");
   await env.DB.exec("DELETE FROM party");
-  await env.DB.exec("DELETE FROM adventure_map");
   await env.DB.exec("DELETE FROM adventure");
   await env.DB.exec("DELETE FROM map_element");
   await env.DB.exec("DELETE FROM map");

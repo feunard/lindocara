@@ -3,9 +3,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createAccount } from "../src/server/accounts.js";
 import { createCharacter } from "../src/server/characters.js";
 import { createDb } from "../src/server/db/index.js";
-import { createMap } from "../src/server/maps.js";
 import { loadProfile } from "../src/server/profile.js";
 import { DEFAULT_APPEARANCE } from "../src/shared/character.js";
+import { authorMap, seedAdventure } from "./support/adventure-fixtures.js";
 import { layeredTerrain } from "./support/map-fixtures.js";
 
 const ORIGIN = "https://lindocara.test";
@@ -239,7 +239,8 @@ describe("creation location resolves through D1", () => {
     const db = createDb(env.DB);
     const account = await createAccount(db, "nova_map", "12345678");
     if (account === "username_taken") throw new Error("unexpected username collision");
-    const stored = await createMap(db, account.id, {
+    const adventureId = await seedAdventure(db, account.id);
+    const stored = await authorMap(db, account.id, adventureId, {
       name: "Home",
       ...layeredTerrain(Array.from({ length: 15 }, () => ".".repeat(20))),
       elements: [],

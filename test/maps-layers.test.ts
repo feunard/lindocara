@@ -10,9 +10,10 @@ import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
 import { createAccount } from "../src/server/accounts.js";
 import { createDb } from "../src/server/db/index.js";
-import { createMap, loadMap, updateMap, validateMapInput } from "../src/server/maps.js";
+import { loadMap, updateMap, validateMapInput } from "../src/server/maps.js";
 import { layersFromBlocks } from "../src/shared/map-migrate.js";
 import { TINY_SWORDS_TILESET_ID } from "../src/shared/tilesets/tiny-swords.js";
+import { authorMap, seedAdventure } from "./support/adventure-fixtures.js";
 
 // The size floor (20x15), with a solid water border so the ground layer is not uniformly one id —
 // a run-length round-trip over a single run would pass even if the runs were rebuilt wrongly.
@@ -52,7 +53,8 @@ describe("maps stored as layers", () => {
   it("round-trips layers through D1", async () => {
     const db = createDb(env.DB);
     const accountId = await owner("layers-owner");
-    const created = await createMap(db, accountId, input("Riverwood"));
+    const adventureId = await seedAdventure(db, accountId);
+    const created = await authorMap(db, accountId, adventureId, input("Riverwood"));
     const loaded = await loadMap(db, created.id);
 
     expect(loaded?.tilesetId).toBe(TINY_SWORDS_TILESET_ID);
@@ -73,7 +75,8 @@ describe("maps stored as layers", () => {
   it("bumps the revision on a successful update", async () => {
     const db = createDb(env.DB);
     const accountId = await owner("layers-rev");
-    const created = await createMap(db, accountId, input("Riverwood"));
+    const adventureId = await seedAdventure(db, accountId);
+    const created = await authorMap(db, accountId, adventureId, input("Riverwood"));
     const updated = await updateMap(db, accountId, created.id, input("Riverwood II"));
     expect(updated.revision).toBe(created.revision + 1);
   });

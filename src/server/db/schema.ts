@@ -252,6 +252,11 @@ export type CharacterQuest = typeof characterQuest.$inferSelect;
  * Authored maps are private to their account. `accountId` remains nullable only so the ownership
  * migration can quarantine historical rows whose author cannot be inferred without guessing;
  * every application write supplies a real owner and no account-facing query exposes NULL rows.
+ *
+ * `adventureId` is the owning adventure (UX wave #5): a map belongs to exactly ONE adventure and is
+ * never shared. It is NOT NULL and cascades — deleting an adventure deletes its maps. `accountId`
+ * always equals the owning adventure's account by construction, but is kept for the per-account
+ * `is_first` front-door flag and the character rollback seam (`resolveMapFor`).
  */
 export const map = sqliteTable(
   "map",
@@ -259,6 +264,10 @@ export const map = sqliteTable(
     /** Server-minted uuid. A client never supplies this. */
     id: text("id").primaryKey(),
     accountId: text("account_id").references(() => account.id, { onDelete: "cascade" }),
+    /** The one adventure that owns this map. A map is created inside an adventure and never moves. */
+    adventureId: text("adventure_id")
+      .notNull()
+      .references(() => adventure.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     cols: integer("cols").notNull(),
     rows: integer("rows").notNull(),
@@ -279,6 +288,7 @@ export const map = sqliteTable(
   },
   (table) => [
     index("map_account_idx").on(table.accountId),
+    index("map_adventure_idx").on(table.adventureId),
     uniqueIndex("map_account_first_unique")
       .on(table.accountId)
       .where(sql`${table.isFirst} = 1 AND ${table.accountId} IS NOT NULL`),
@@ -406,24 +416,6 @@ export const adventure = sqliteTable(
   (table) => [
     index("adventure_account_idx").on(table.accountId),
     check("adventure_max_players_range", sql`${table.maxPlayers} BETWEEN 1 AND 4`),
-  ],
-);
-
-export const adventureMap = sqliteTable(
-  "adventure_map",
-  {
-    adventureId: text("adventure_id")
-      .notNull()
-      .references(() => adventure.id, { onDelete: "cascade" }),
-    /** restrict: the database itself refuses deleting a map an adventure still uses. */
-    mapId: text("map_id")
-      .notNull()
-      .references(() => map.id, { onDelete: "restrict" }),
-    position: integer("position").notNull(),
-  },
-  (table) => [
-    primaryKey({ columns: [table.adventureId, table.mapId] }),
-    index("adventure_map_map_idx").on(table.mapId),
   ],
 );
 

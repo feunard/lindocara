@@ -47,7 +47,8 @@ function mapsBackend(maps: MapSummary[] = twoMaps) {
   const list = maps.map((m) => ({ ...m }));
   return vi.fn((url: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
-    if (url === "/api/maps" && method === "GET") return Promise.resolve(jsonResponse(list));
+    if (url.startsWith("/api/maps?adventure=") && method === "GET")
+      return Promise.resolve(jsonResponse(list));
     if (url === "/api/maps" && method === "POST") {
       const created: MapPayload = {
         id: "new",
@@ -84,6 +85,7 @@ function mapsBackend(maps: MapSummary[] = twoMaps) {
 
 /** Holds the two dialog-open props the screen owns so the panel can drive them in isolation. */
 function Harness(overrides: {
+  adventureId?: string | null;
   activeMapId?: string | null;
   dirty?: boolean;
   onOpenPayload?: (payload: MapPayload) => void;
@@ -93,6 +95,7 @@ function Harness(overrides: {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   return (
     <MapListPanel
+      adventureId={overrides.adventureId ?? "adv-1"}
       activeMapId={overrides.activeMapId ?? null}
       dirty={overrides.dirty ?? false}
       refreshNonce={0}
