@@ -92,6 +92,7 @@ function toEditorMap(map: MapPayload): EditorMap {
     elements: map.elements,
     spawn: map.spawn,
     markers: map.markers ?? EMPTY_MARKERS,
+    events: map.events ?? [],
   };
 }
 

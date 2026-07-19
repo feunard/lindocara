@@ -520,6 +520,7 @@ export const en = {
   "editor.inspector.entry": "Entry",
   "editor.inspector.exit": "Exit",
   "editor.inspector.monster": "Monster spawn",
+  "editor.inspector.event": "Event",
   "editor.inspector.spawn": "Hero spawn",
   "editor.inspector.walkable": "Walkable",
   "editor.tool.variant": "Variant",

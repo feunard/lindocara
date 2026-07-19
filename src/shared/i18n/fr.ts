@@ -535,6 +535,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.inspector.entry": "Entrée",
   "editor.inspector.exit": "Sortie",
   "editor.inspector.monster": "Apparition de monstre",
+  "editor.inspector.event": "Événement",
   "editor.inspector.spawn": "Point d’apparition du héros",
   "editor.inspector.walkable": "Praticable",
   "editor.tool.variant": "Variante",

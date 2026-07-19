@@ -1,27 +1,37 @@
 import { describe, expect, it } from "vitest";
 import {
   applyTool,
+  beginEventDraft,
   blankMap,
   commitEditorHistory,
+  commitEventDraft,
   createEditorHistory,
+  defaultEventPage,
+  deleteSelection,
   type EditorMap,
   type EditorTool,
   editorLayersFromPayload,
   isEditorHistoryDirty,
   markEditorHistorySaved,
   mintMarkerId,
+  moveSelection,
   redoEditorHistory,
+  selectionAt,
   setActiveLayer,
+  setEventDraftName,
   setMarkerLabel,
   toSaveInput,
   undoEditorHistory,
+  updateEventDraftPage,
 } from "../src/client/game/editor-state.js";
+import { isUuid } from "../src/shared/identifiers.js";
 import {
   EMPTY_MARKERS,
   MAX_MAP_ELEMENTS,
   MAX_MAP_ENTRIES,
   type MapElement,
 } from "../src/shared/map-data.js";
+import type { MapEvent } from "../src/shared/map-events.js";
 import { eraseRect, paintRectAutotile, paintStairs, slotAt } from "../src/shared/tile-brush.js";
 import type { TileLayer } from "../src/shared/tile-layer-codec.js";
 import { autotileId, EMPTY_TILE } from "../src/shared/tileset.js";
@@ -725,5 +735,178 @@ describe("applyTool: markers", () => {
     expect(applyTool(entry, { kind: "block", block: "water" }, 4, 4)).toBeNull(); // would drown the entry
     const exit = applyTool(base, { kind: "marker-exit" }, 7, 7) as EditorMap;
     expect(applyTool(exit, { kind: "spawn" }, 7, 7)).toBeNull(); // spawn may not land on an exit
+  });
+});
+
+describe("applyTool: event placement", () => {
+  it("mints a uuid, the next ordinal, and the wireframe's default page, as one undo entry", () => {
+    const base = blankMap("m", 20, 15);
+    const next = applyTool(base, { kind: "event" }, 3, 4) as EditorMap;
+    expect(next).not.toBeNull();
+    expect(next).not.toBe(base);
+    expect(next.events).toHaveLength(1);
+
+    const event = next.events[0];
+    expect(isUuid(event?.id)).toBe(true);
+    expect(event?.col).toBe(3);
+    expect(event?.row).toBe(4);
+    expect(event?.name).toBe("");
+    expect(event?.ordinal).toBe(1);
+    // The lone page is the wireframe's `defPage`: speed 4 (not 3), Stop-Anim off (not on).
+    expect(event?.pages).toEqual([defaultEventPage()]);
+    expect(event?.pages[0]?.moveSpeed).toBe(4);
+    expect(event?.pages[0]?.moveFreq).toBe(3);
+    expect(event?.pages[0]?.optMoveAnim).toBe(true);
+    expect(event?.pages[0]?.optStopAnim).toBe(false);
+    expect(event?.pages[0]?.trigger).toBe("action");
+
+    const history = commitEditorHistory(createEditorHistory(base), next);
+    expect(history.past).toHaveLength(1);
+    expect(undoEditorHistory(history).present).toEqual(base);
+
+    // A second event takes the next ordinal and a fresh, distinct id.
+    const two = applyTool(next, { kind: "event" }, 5, 6) as EditorMap;
+    expect(two.events[1]?.ordinal).toBe(2);
+    expect(two.events[0]?.id).not.toBe(two.events[1]?.id);
+  });
+
+  it("refuses a second event on an occupied cell and selects it instead — no history entry", () => {
+    const base = blankMap("m", 20, 15);
+    const next = applyTool(base, { kind: "event" }, 3, 4) as EditorMap;
+    const id = next.events[0]?.id ?? "";
+
+    // Placement on the occupied cell is a no-op: the pointer path reads null as "select this one".
+    expect(applyTool(next, { kind: "event" }, 3, 4)).toBeNull();
+    expect(selectionAt(next, 3, 4)).toEqual({ kind: "event", id });
+
+    // A rejected placement commits nothing.
+    const history = commitEditorHistory(createEditorHistory(next), next);
+    expect(history.past).toHaveLength(0);
+  });
+});
+
+describe("moveSelection: event", () => {
+  it("drags an event to an empty cell as one history entry", () => {
+    const base = blankMap("m", 20, 15);
+    const placed = applyTool(base, { kind: "event" }, 3, 4) as EditorMap;
+    const id = placed.events[0]?.id ?? "";
+
+    const moved = moveSelection(placed, { kind: "event", id }, 7, 8) as EditorMap;
+    expect(moved).not.toBeNull();
+    expect(moved.events[0]?.col).toBe(7);
+    expect(moved.events[0]?.row).toBe(8);
+    expect(moved.events[0]?.id).toBe(id); // id survives the move
+
+    const history = commitEditorHistory(createEditorHistory(placed), moved);
+    expect(history.past).toHaveLength(1);
+  });
+
+  it("is a no-op when the destination cell already holds an event", () => {
+    const base = blankMap("m", 20, 15);
+    const one = applyTool(base, { kind: "event" }, 3, 4) as EditorMap;
+    const two = applyTool(one, { kind: "event" }, 5, 6) as EditorMap;
+    const firstId = two.events[0]?.id ?? "";
+    expect(moveSelection(two, { kind: "event", id: firstId }, 5, 6)).toBeNull();
+  });
+});
+
+describe("applyTool: eraser precedence event > element > marker", () => {
+  it("peels the event first, then the element, then the marker on successive strokes", () => {
+    // One cell carrying all three planes at once — they are independent, so a cell may hold an
+    // event, an element and a marker together. Built by hand so the construction is unambiguous.
+    const base = blankMap("m", 20, 15);
+    const event: MapEvent = {
+      id: "11111111-1111-4111-8111-111111111111",
+      col: 3,
+      row: 4,
+      name: "",
+      ordinal: 1,
+      pages: [defaultEventPage()],
+    };
+    const stacked: EditorMap = {
+      ...base,
+      elements: [{ col: 3, row: 4, assetId: BUSH }],
+      markers: { entries: [{ id: "door", col: 3, row: 4 }], exits: [], monsterSpawns: [] },
+      events: [event],
+    };
+
+    // Stroke 1: the event goes; element and marker stay.
+    const afterEvent = applyTool(stacked, { kind: "eraser" }, 3, 4) as EditorMap;
+    expect(afterEvent.events).toEqual([]);
+    expect(afterEvent.elements).toEqual([{ col: 3, row: 4, assetId: BUSH }]);
+    expect(afterEvent.markers.entries).toEqual([{ id: "door", col: 3, row: 4 }]);
+
+    // Stroke 2: the element goes; marker stays.
+    const afterElement = applyTool(afterEvent, { kind: "eraser" }, 3, 4) as EditorMap;
+    expect(afterElement.elements).toEqual([]);
+    expect(afterElement.markers.entries).toEqual([{ id: "door", col: 3, row: 4 }]);
+
+    // Stroke 3: the marker goes.
+    const afterMarker = applyTool(afterElement, { kind: "eraser" }, 3, 4) as EditorMap;
+    expect(afterMarker.markers.entries).toEqual([]);
+  });
+});
+
+describe("event dialog draft", () => {
+  it("keeps edits off history until commit, then folds them into ONE entry", () => {
+    const map = applyTool(blankMap("m", 20, 15), { kind: "event" }, 3, 4) as EditorMap;
+    const id = map.events[0]?.id ?? "";
+    const history = markEditorHistorySaved(createEditorHistory(map));
+
+    // Edit two fields on a detached draft.
+    let draft = beginEventDraft(map, id) as MapEvent;
+    draft = setEventDraftName(draft, "Goblin");
+    draft = updateEventDraftPage(draft, 0, { trigger: "auto" });
+
+    // Discard = drop the draft: the live map and history never moved.
+    expect(isEditorHistoryDirty(history)).toBe(false);
+    expect(history.past).toHaveLength(0);
+    expect(map.events[0]?.name).toBe("");
+    expect(map.events[0]?.pages[0]?.trigger).toBe("action");
+
+    // Commit = one history entry carrying BOTH edits.
+    const committed = commitEventDraft(history, draft);
+    expect(committed.past).toHaveLength(1);
+    expect(committed.present.events[0]?.name).toBe("Goblin");
+    expect(committed.present.events[0]?.pages[0]?.trigger).toBe("auto");
+  });
+
+  it("flips the dirty flag when a committed draft changes an event field", () => {
+    const map = applyTool(blankMap("m", 20, 15), { kind: "event" }, 3, 4) as EditorMap;
+    const id = map.events[0]?.id ?? "";
+    const history = markEditorHistorySaved(createEditorHistory(map));
+    expect(isEditorHistoryDirty(history)).toBe(false);
+
+    const draft = updateEventDraftPage(beginEventDraft(map, id) as MapEvent, 0, { moveSpeed: 2 });
+    expect(isEditorHistoryDirty(commitEventDraft(history, draft))).toBe(true);
+  });
+});
+
+describe("event serialization", () => {
+  it("emits every condition field as an explicit null in the save body", () => {
+    const map = applyTool(blankMap("m", 20, 15), { kind: "event" }, 3, 4) as EditorMap;
+    const saved = toSaveInput(map);
+    const body = JSON.stringify(saved);
+
+    // The wire parser rejects a page with an ABSENT condition key, so the nulls must be present in
+    // the literal JSON — not merely reconstructable.
+    expect(body).toContain('"condSwitchId":null');
+    expect(body).toContain('"condVariableId":null');
+    expect(body).toContain('"condVariableMin":null');
+    expect(body).toContain('"condSelfSwitch":null');
+    expect(body).toContain('"graphicAssetId":null');
+
+    const page = saved.events[0]?.pages[0];
+    expect(page?.condSwitchId).toBeNull();
+    expect(page?.condVariableId).toBeNull();
+    expect(page?.condVariableMin).toBeNull();
+    expect(page?.condSelfSwitch).toBeNull();
+    expect(page?.graphicAssetId).toBeNull();
+  });
+
+  it("has the deleteSelection path drop an event by id", () => {
+    const map = applyTool(blankMap("m", 20, 15), { kind: "event" }, 3, 4) as EditorMap;
+    const id = map.events[0]?.id ?? "";
+    expect(deleteSelection(map, { kind: "event", id }).events).toEqual([]);
   });
 });

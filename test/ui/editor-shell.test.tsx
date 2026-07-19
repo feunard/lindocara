@@ -94,6 +94,7 @@ function payloadFor(summary: MapSummary): MapPayload {
     elements: [],
     spawn: { col: 20, row: 15 },
     markers: EMPTY_MARKERS,
+    events: [],
   };
 }
 
@@ -128,6 +129,7 @@ function mapsBackend(maps: MapSummary[] = twoMaps) {
         elements: [],
         spawn: { col: 20, row: 15 },
         markers: EMPTY_MARKERS,
+        events: [],
       };
       list.push({ id: "new", name: "New map", revision: 1, cols: 40, rows: 30, isFirst: false });
       return Promise.resolve(jsonResponse(created, 201));
@@ -373,6 +375,7 @@ describe("AdventureEditorScreen shell", () => {
       ],
       spawn: { col: 20, row: 15 },
       markers: EMPTY_MARKERS,
+      events: [],
     };
     stageMock.current.mockReturnValue(edited);
     const mock = mapsBackend(twoMaps);
@@ -398,6 +401,7 @@ describe("AdventureEditorScreen shell", () => {
       ],
       spawn: { col: 20, row: 15 },
       markers: EMPTY_MARKERS,
+      events: [],
     };
     stageMock.current.mockReturnValue(edited);
     vi.stubGlobal("fetch", mapsFetchMock());

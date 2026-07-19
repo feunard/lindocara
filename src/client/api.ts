@@ -3,6 +3,7 @@ import type { CharacterAppearance, Equipment } from "../shared/character.js";
 import type { PlayerClass } from "../shared/game.js";
 import type { MessageKey } from "../shared/i18n/index.js";
 import type { MapElement, MapMarkers } from "../shared/map-data.js";
+import type { MapEvent } from "../shared/map-events.js";
 import type { PartyColor } from "../shared/party.js";
 import { t } from "./i18n.js";
 
@@ -71,6 +72,9 @@ export interface MapPayload {
   elements: MapElement[];
   spawn: { col: number; row: number };
   markers: MapMarkers;
+  /** Authored events, ordered by ordinal; pages ordered by position. Empty for maps saved before
+   *  events existed. Nothing here executes this tranche. */
+  events: readonly MapEvent[];
 }
 
 /** What create/update send: everything but the server-minted id. */
