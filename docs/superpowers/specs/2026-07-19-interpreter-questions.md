@@ -73,3 +73,22 @@ déjà dans les données (tranche 3); seul le moteur les ignorerait d'abord.
 
 Réponds par exemple : « Q1 A, Q2 ok, Q3 ok, Q4 ok, Q5 or partagé objets héros, Q6 ok » — et la
 spec de la tranche 5 s'écrit là-dessus.
+
+---
+
+## Réponses figées (2026-07-19)
+
+Boussole donnée par l'auteur : « même si c'est que 4 joueurs max auj, pense qu'on veut un model
+proche de world of warcraft ingame ».
+
+- **Q1 = A** — le dialogue n'apparaît qu'au déclencheur (panneau d'interface par joueur).
+- **Q2 = A** (corrigé de B sous la boussole WoW) — mouvement libre pendant le dialogue; la
+  fenêtre se ferme seule au-delà d'un rayon. On ne gèle jamais la file de commandes.
+- **Q3 = A** — « Téléporter le héros » = le déclencheur seul. Le déplacement de groupe
+  s'authorise comme un portail que chacun franchit.
+- **Q4 = B** — verrou par (partie, événement) : une instance à la fois, second déclencheur
+  ignoré sans file.
+- **Q5 = B** — or ET objets au déclencheur (loot personnel, doctrine existante du jeu). L'or
+  par héros naîtra session-only, comme l'inventaire.
+- **Q6 = A** — Automatique / Processus parallèle reportés; la tranche 5 livre Touche action et
+  les deux Contacts.
