@@ -446,7 +446,7 @@ async function startGameIdentity(
         case "loot.picked":
         case "quest.accepted":
         case "quest.site_harvested":
-        case "potion.used":
+        case "item.used":
           sound.loot();
           break;
         case "heal.received":

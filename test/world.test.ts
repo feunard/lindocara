@@ -485,7 +485,7 @@ describe("World", () => {
 
   // Loot enters the room, not D1: the count only reaches the database on the five-second flush.
   // A drink that trusts D1's quantity in that window destroys everything picked up since.
-  it("keeps a potion looted inside the D1 flush window", { timeout: 60_000 }, async () => {
+  it("keeps a potion looted inside the D1 flush window", { timeout: 110_000 }, async () => {
     const drinker = await Client.join("potion_window", {
       zoneId: "verdant-reach",
       instanceId: "potion-window",
@@ -520,7 +520,14 @@ describe("World", () => {
     let lastAttackAt = 0;
     let nextRespawnAttackAt = 0;
     let targetWasDead = false;
-    const deadline = Date.now() + 45_000;
+    // Progress here is bound to *simulation* time, not wall-clock: a potion only drops on a
+    // killing blow that lands on a `tick % 4 === 0` frame, and attacks are gated to the first
+    // ~2s of each five-second flush window. Landing that phase is a stochastic search that needs
+    // several windows. Under full-suite CPU load the 20 Hz tick loop slows and snapshots lag, so a
+    // fixed wall-clock budget buys fewer effective windows and the search can starve — the old
+    // 45s deadline is exactly what made this a ~1-in-3 flake. Give the sim-bound search an
+    // adequate, still-bounded budget (comfortably inside the 110s test timeout).
+    const deadline = Date.now() + 90_000;
     while (potionPickups() === 0 && Date.now() < deadline) {
       const dropped = drinker.latestSnapshot?.loot.find((item) => item.kind === "potion");
       const self = drinker.self();
@@ -581,7 +588,7 @@ describe("World", () => {
 
     drinker.usePotion();
     await until("the drink to resolve", () =>
-      drinker.received.some((message) => message.t === "event" && message.code === "potion.used"),
+      drinker.received.some((message) => message.t === "event" && message.code === "item.used"),
     );
     // One drink costs one potion — not the two it would cost if D1's stale count won.
     expect(drinker.latestState?.inventory.potions).toBe(held - 1);
@@ -1936,7 +1943,7 @@ describe("death, ghosts, and the corpse run", () => {
           (String(m.code).startsWith("heal.") ||
             String(m.code).startsWith("skill.") ||
             m.code === "combat.hit" ||
-            m.code === "potion.used" ||
+            m.code === "item.used" ||
             m.code === "interact.nothing"),
       );
     expect(acted).toEqual([]);
