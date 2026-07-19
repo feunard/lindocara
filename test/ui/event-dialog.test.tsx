@@ -244,7 +244,13 @@ describe("EventDialog", () => {
   });
 
   it("shows a monster block (no pages/conditions) and round-trips species and radius", async () => {
-    const user = userEvent.setup();
+    // `delay: null` batches the clear+type keystrokes into one synchronous act() flush instead of
+    // pacing them with real `setTimeout`s. Vitest runs multiple test files concurrently inside one
+    // worker's single JS thread; a sibling file's synchronous work (e.g. a heavy render loop) can
+    // starve those timers between two keystrokes of *this* interaction and strand the number input
+    // at its post-clear value. This is CPU-contention, not shared state — see
+    // .superpowers/sdd/pollution-fix-report.md.
+    const user = userEvent.setup({ delay: null });
     const { onCommit } = renderDialog(
       seedEvent({ kind: "monster", species: "spear_goblin", patrolRadius: 96 }),
     );
