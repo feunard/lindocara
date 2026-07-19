@@ -1601,14 +1601,15 @@ kbd {
 .skill-bar.panel {
   position: fixed;
   z-index: 5;
+  right: calc(2rem + var(--safe-right));
   bottom: var(--skill-bar-bottom);
-  left: 50%;
+  left: auto;
   display: grid;
   grid-template-columns: repeat(3, 5rem);
   grid-template-rows: repeat(2, 5rem);
   gap: 0.38rem;
   padding: 0.55rem 0.75rem;
-  translate: -50% 0;
+  translate: none;
   pointer-events: auto;
   border: 2px solid rgb(220 194 111 / 35%);
   border-radius: 3.4rem;
