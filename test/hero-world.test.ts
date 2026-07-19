@@ -124,6 +124,27 @@ afterEach(async () => {
 });
 
 describe("party hero admission and authored runtime", () => {
+  // A monster-event's wire id is `mon-<uuid>` (map-zone.ts). `protocol.ts`'s `isWireId` caps every id
+  // at 64 chars over `[A-Za-z0-9_-]`; the older map-id-prefixed form overran it. This pins the live
+  // snapshot id inside that bound so a future prefix change cannot silently break admission parsing.
+  it("mints a monster wire id that is `mon-` bounded and inside the protocol alphabet", {
+    timeout: 10_000,
+  }, async () => {
+    const party = await testParty("monster-wire-id", { maps: [mapAInput()] });
+    const hero = await testHero("Scout", { party, account: party.host, position: centre(2, 2) });
+    const client = await Client.joinHero(hero);
+    try {
+      const welcome = await until("monster wire id welcome", () => client.welcome);
+      const monster = welcome.monsters[0];
+      if (!monster) throw new Error("expected a spawned monster event");
+      expect(monster.id).toMatch(/^mon-[0-9a-f-]{36}$/);
+      expect(monster.id.length).toBeLessThanOrEqual(64);
+      expect(monster.id).toMatch(/^[A-Za-z0-9_-]+$/);
+    } finally {
+      await client.close();
+    }
+  });
+
   it("toggles Iron Guard, blocks every other action, and starts cooldown on exit", {
     timeout: 10_000,
   }, async () => {
