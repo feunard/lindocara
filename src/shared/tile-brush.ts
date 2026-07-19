@@ -12,7 +12,7 @@
  */
 import { edge16Mask, run4Mask, type SameNeighbour } from "./autotile.js";
 import type { TileLayer } from "./tile-layer-codec.js";
-import { autotileId, decodeTileId, EMPTY_TILE, type Tileset } from "./tileset.js";
+import { autotileId, decodeTileId, EMPTY_TILE, fixedId, type Tileset } from "./tileset.js";
 import { CLIFF_WALL_SLOT, elevationOfSlot, GRASS_SLOTS } from "./tilesets/tiny-swords.js";
 
 function indexOf(layer: TileLayer, col: number, row: number): number {
@@ -85,6 +85,204 @@ export function eraseTile(layer: TileLayer, tileset: Tileset, col: number, row: 
   const ids = [...layer.ids];
   ids[indexOf(layer, col, row)] = EMPTY_TILE;
   return withNeighboursResolved({ ...layer, ids }, tileset, col, row);
+}
+
+interface ClampedRect {
+  c0: number;
+  r0: number;
+  c1: number;
+  r1: number;
+}
+
+/** Corners accepted in either order, clamped to the layer. Null when nothing survives clamping. */
+function clampRect(
+  layer: TileLayer,
+  colA: number,
+  rowA: number,
+  colB: number,
+  rowB: number,
+): ClampedRect | null {
+  const c0 = Math.max(0, Math.min(colA, colB));
+  const c1 = Math.min(layer.cols - 1, Math.max(colA, colB));
+  const r0 = Math.max(0, Math.min(rowA, rowB));
+  const r1 = Math.min(layer.rows - 1, Math.max(rowA, rowB));
+  if (c0 > c1 || r0 > r1) return null;
+  return { c0, r0, c1, r1 };
+}
+
+/**
+ * Fill `rect` with `id`, then re-resolve every cell whose variant could have changed: the region
+ * itself plus its one-cell border (a neighbour just outside the region may now abut a different
+ * slot). One pass to write the ids, one to resolve — never per-cell recursion into the
+ * single-cell brush, which would re-resolve an interior cell up to five times.
+ *
+ * Unlike `syncWall`'s ambient wall upkeep, which since Task 2 refuses to touch a fixed tile, a
+ * rectangle is explicit authoring intent: a fixed tile inside the region is overwritten exactly
+ * like an autotile would be.
+ */
+function fillRect(layer: TileLayer, tileset: Tileset, rect: ClampedRect, id: number): TileLayer {
+  const ids = [...layer.ids];
+  for (let row = rect.r0; row <= rect.r1; row += 1) {
+    for (let col = rect.c0; col <= rect.c1; col += 1) {
+      ids[indexOf(layer, col, row)] = id;
+    }
+  }
+  const draft: TileLayer = { ...layer, ids };
+  const top = Math.max(0, rect.r0 - 1);
+  const bottom = Math.min(layer.rows - 1, rect.r1 + 1);
+  const left = Math.max(0, rect.c0 - 1);
+  const right = Math.min(layer.cols - 1, rect.c1 + 1);
+  for (let row = top; row <= bottom; row += 1) {
+    for (let col = left; col <= right; col += 1) {
+      const resolved = resolvedId(draft, tileset, col, row);
+      if (resolved !== null) ids[indexOf(draft, col, row)] = resolved;
+    }
+  }
+  return { ...layer, ids };
+}
+
+export function paintRectAutotile(
+  layer: TileLayer,
+  tileset: Tileset,
+  slot: number,
+  c0: number,
+  r0: number,
+  c1: number,
+  r1: number,
+): TileLayer {
+  const rect = clampRect(layer, c0, r0, c1, r1);
+  if (!rect) return layer;
+  return fillRect(layer, tileset, rect, autotileId(slot, 0));
+}
+
+export function eraseRect(
+  layer: TileLayer,
+  tileset: Tileset,
+  c0: number,
+  r0: number,
+  c1: number,
+  r1: number,
+): TileLayer {
+  const rect = clampRect(layer, c0, r0, c1, r1);
+  if (!rect) return layer;
+  return fillRect(layer, tileset, rect, EMPTY_TILE);
+}
+
+/**
+ * Whether `col,row` belongs to the same flood-fill region as the start cell, given `startRef` — the
+ * decoded id the fill began on. An autotile region is every cell sharing that slot; an empty region
+ * is every empty cell; a fixed tile matches nothing at all, because the region rule below never asks
+ * this function about a fixed start in the first place — its region is exactly the one cell clicked,
+ * even when the next cell over happens to be a fixed tile of the identical index.
+ */
+function sameRegion(
+  layer: TileLayer,
+  startRef: { kind: "autotile"; slot: number } | { kind: "empty" },
+  col: number,
+  row: number,
+): boolean {
+  if (!inBounds(layer, col, row)) return false;
+  const ref = decodeTileId(layer.ids[indexOf(layer, col, row)] ?? EMPTY_TILE);
+  if (startRef.kind === "empty") return ref.kind === "empty";
+  return ref.kind === "autotile" && ref.slot === startRef.slot;
+}
+
+/**
+ * Every cell of the start cell's flood-fill region, found with an explicit stack — never recursion,
+ * because a 100x100 map is 10,000 cells and workerd's stack is not the budget to spend on that.
+ *
+ * The cap below is not reachable by a correct visited-set: each cell is marked visited the moment it
+ * is pushed, so no cell is ever pushed twice and the walk does at most `cells` pops. It exists so
+ * that a *broken* visited-set — the classic bug where two neighbours keep re-queueing each other —
+ * fails fast and loud instead of spinning forever; JS is single-threaded, so an actual infinite loop
+ * here would hang the whole process, not just this call, and no test timeout can preempt it.
+ */
+function floodRegion(
+  layer: TileLayer,
+  startRef: { kind: "autotile"; slot: number } | { kind: "empty" },
+  col: number,
+  row: number,
+): { col: number; row: number }[] {
+  const cap = layer.cols * layer.rows * 4;
+  const visited = new Set<number>([indexOf(layer, col, row)]);
+  const stack: { col: number; row: number }[] = [{ col, row }];
+  const region: { col: number; row: number }[] = [];
+  let steps = 0;
+  while (stack.length > 0) {
+    steps += 1;
+    if (steps > cap) throw new Error("floodFill exceeded its safety cap — visited set is broken");
+    const cell = stack.pop();
+    if (!cell) break;
+    region.push(cell);
+    const neighbours: readonly { col: number; row: number }[] = [
+      { col: cell.col, row: cell.row - 1 },
+      { col: cell.col + 1, row: cell.row },
+      { col: cell.col, row: cell.row + 1 },
+      { col: cell.col - 1, row: cell.row },
+    ];
+    for (const next of neighbours) {
+      if (!inBounds(layer, next.col, next.row)) continue;
+      const idx = indexOf(layer, next.col, next.row);
+      if (visited.has(idx)) continue;
+      if (!sameRegion(layer, startRef, next.col, next.row)) continue;
+      visited.add(idx);
+      stack.push(next);
+    }
+  }
+  return region;
+}
+
+/**
+ * Fill the contiguous 4-neighbour region sharing the start cell's slot — empty counts as a slot of
+ * its own, and a fixed tile is a region of exactly one cell, always replaced. Filling a region with
+ * its own slot is a genuine no-op (same reference back); filling empty is never a no-op, because
+ * empty is not the slot being painted.
+ *
+ * Same two-pass shape as `fillRect`: write every region cell first, then re-resolve the region plus
+ * its one-cell border, since a mask only ever reads a neighbour's slot and every write below keeps
+ * each already-resolved cell's slot fixed — only its variant moves — so reading the same mutating
+ * array back for a later cell in this second pass is safe, not a hazard.
+ */
+export function floodFill(
+  layer: TileLayer,
+  tileset: Tileset,
+  slot: number,
+  col: number,
+  row: number,
+): TileLayer {
+  if (!inBounds(layer, col, row)) return layer;
+  const startRef = decodeTileId(layer.ids[indexOf(layer, col, row)] ?? EMPTY_TILE);
+  if (startRef.kind === "autotile" && startRef.slot === slot) return layer;
+
+  const region: { col: number; row: number }[] =
+    startRef.kind === "fixed" ? [{ col, row }] : floodRegion(layer, startRef, col, row);
+
+  const ids = [...layer.ids];
+  const fillId = autotileId(slot, 0);
+  for (const cell of region) {
+    ids[indexOf(layer, cell.col, cell.row)] = fillId;
+  }
+  const draft: TileLayer = { ...layer, ids };
+
+  const resolveVisited = new Set<number>();
+  for (const cell of region) {
+    const border: readonly { col: number; row: number }[] = [
+      { col: cell.col, row: cell.row },
+      { col: cell.col, row: cell.row - 1 },
+      { col: cell.col + 1, row: cell.row },
+      { col: cell.col, row: cell.row + 1 },
+      { col: cell.col - 1, row: cell.row },
+    ];
+    for (const target of border) {
+      if (!inBounds(draft, target.col, target.row)) continue;
+      const idx = indexOf(draft, target.col, target.row);
+      if (resolveVisited.has(idx)) continue;
+      resolveVisited.add(idx);
+      const resolved = resolvedId(draft, tileset, target.col, target.row);
+      if (resolved !== null) ids[idx] = resolved;
+    }
+  }
+  return { ...layer, ids };
 }
 
 /** Every autotile cell re-resolved from scratch. The oracle the brush is tested against. */
@@ -168,6 +366,11 @@ function syncWall(
   row: number,
 ): TileLayer {
   if (col < 0 || row < 0 || col >= walls.cols || row >= walls.rows) return walls;
+  // A fixed tile (a ramp) is a hand placement, not ambient wall upkeep's to touch — neither
+  // painting a wall over it nor erasing it counts as agreement with what the elevation demands.
+  // An author who wants the wall back erases the ramp first.
+  if (decodeTileId(walls.ids[indexOf(walls, col, row)] ?? EMPTY_TILE).kind === "fixed")
+    return walls;
   const above = elevationAt(ground, col, row - 1);
   const here = elevationAt(ground, col, row);
   const wanted = above > 0 && above > here;
@@ -176,4 +379,66 @@ function syncWall(
   return wanted
     ? paintAutotile(walls, tileset, CLIFF_WALL_SLOT, col, row)
     : eraseTile(walls, tileset, col, row);
+}
+
+/**
+ * The tileset's four ramp fixed tiles as a 2x2 stamp, always onto **layer 1** — top-left,
+ * bottom-left, top-right, bottom-right at `(col,row)..(col+1,row+1)`, i.e. `fixedId(0)`,
+ * `fixedId(1)`, `fixedId(2)`, `fixedId(3)`. Layer 1 because that is where a cliff wall lives, and a
+ * ramp's entire job is to punch a passable hole through one — `bakeCollision`
+ * (`shared/map-data.ts`) reads "any impassable tile on any layer" as solid, so overwriting the wall
+ * layer there is what actually joins the two elevation levels; writing to layer 0 would leave the
+ * wall on layer 1 standing, unbaked and still solid, right under the stamp.
+ *
+ * Refused — the exact same `layers` reference back — if any of the four cells is out of bounds, or
+ * `layers` has no layer 1 at all. Otherwise, like `fillRect`'s rectangle (and unlike `syncWall`'s
+ * ambient wall upkeep, which since Task 2 refuses to touch a fixed tile) this is explicit authoring
+ * intent: a cliff wall under the stamp is overwritten exactly like an autotile would be.
+ *
+ * After the write, a mask only ever reads a cell's own 4-neighbourhood, and only these four cells
+ * changed slot — so only their orthogonal neighbours can have a stale variant, the same one-hop
+ * border idea `floodFill` re-resolves around its region. A neighbour that is itself one of the four
+ * stamp cells is skipped naturally: `resolvedId` returns null for a fixed tile.
+ */
+export function paintStairs(
+  layers: readonly TileLayer[],
+  tileset: Tileset,
+  col: number,
+  row: number,
+): TileLayer[] {
+  const walls = layers[1];
+  if (!walls) return layers as TileLayer[];
+  const cells: readonly { col: number; row: number; index: number }[] = [
+    { col, row, index: 0 },
+    { col, row: row + 1, index: 1 },
+    { col: col + 1, row, index: 2 },
+    { col: col + 1, row: row + 1, index: 3 },
+  ];
+  if (cells.some((cell) => !inBounds(walls, cell.col, cell.row))) return layers as TileLayer[];
+
+  const ids = [...walls.ids];
+  for (const cell of cells) {
+    ids[indexOf(walls, cell.col, cell.row)] = fixedId(cell.index);
+  }
+  const draft: TileLayer = { ...walls, ids };
+
+  const resolveVisited = new Set<number>();
+  for (const cell of cells) {
+    const neighbours: readonly { col: number; row: number }[] = [
+      { col: cell.col, row: cell.row - 1 },
+      { col: cell.col + 1, row: cell.row },
+      { col: cell.col, row: cell.row + 1 },
+      { col: cell.col - 1, row: cell.row },
+    ];
+    for (const target of neighbours) {
+      if (!inBounds(draft, target.col, target.row)) continue;
+      const idx = indexOf(draft, target.col, target.row);
+      if (resolveVisited.has(idx)) continue;
+      resolveVisited.add(idx);
+      const resolved = resolvedId(draft, tileset, target.col, target.row);
+      if (resolved !== null) ids[idx] = resolved;
+    }
+  }
+  const newWalls: TileLayer = { ...walls, ids };
+  return layers.map((layer, index) => (index === 1 ? newWalls : layer));
 }

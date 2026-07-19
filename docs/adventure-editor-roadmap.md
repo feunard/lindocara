@@ -19,7 +19,7 @@ Six tranches, each ending in something playable:
 | | Tranche | State |
 | --- | --- | --- |
 | 1 | Layered map model + tilesets | **Merged** (`9fdc9b9`) |
-| 2 | The editor shell — the wireframe's chrome | Next |
+| 2 | The editor shell — the wireframe's chrome | **Done** (branch `feature/editor-shell`) |
 | 3 | Events: data and placement | |
 | 4 | Switches, variables, adventure state | |
 | 5 | The command interpreter | The big one |
@@ -55,33 +55,44 @@ mask; turning a mask into an atlas cell belongs to the renderer's half of the wo
 
 The wireframe's chrome, on the model tranche 1 built. No new runtime behaviour.
 
-**What it delivers.** Menu bar (Fichier / Édition / Mode / Outils / Affichage / Jeu) with the
-account menu. Toolbar: new/save/delete, select/pencil/rect/fill/eraser, a layer selector, grid and
-dim toggles, zoom, and the Test button. Left palette: terrains with elevation, decorations. Centre:
-the painting stage. Right: the adventure's map tree. Bottom: status bar (map, dimensions, cursor,
-saved state, layer, tool, zoom).
+**What shipped.** The `adventures` and `map-editor` screens merged into one `adventure-editor`
+screen: menu bar / toolbar / three resizable panes (shadcn `TerrainPalette` left, the painting stage
+centre, `MapListPanel` right) / status bar. Adventure metadata moved into
+`AdventureSettingsDialog`. Toolbar: new/save/delete, select/pencil/rect/fill/eraser, a layer
+selector, grid and dim toggles, zoom, the Test button — plus a stairs stamp, picked from the palette
+rather than the toolbar. `activeLayer` now threads from the chrome down to the stage, every tool has
+a keyboard shortcut, and the whole shell is stock shadcn: `EditorAssetPalette`, the last Tiny import
+inside a creator surface, was deleted along with the pre-merge screens, so the two-tree rule now has
+zero exceptions here. The nine missing shadcn components (dialog, select, tabs, checkbox, tooltip,
+dropdown-menu, menubar, resizable, scroll-area) are generated; the feared `ui/Tabs.tsx` /
+`ui/components/tabs.tsx` name collision turned out not to be one — different directories, one
+consumer (`AuthScreen`) of the old one, nothing to decide.
 
-**The component rule is absolute here.** Creator tools use stock shadcn from `ui/components/`;
-player-facing game UI uses `ui/tiny-swords/`. Never import a Tiny component into an editor to match
-the theme. Nine shadcn components are missing — dialog, select, tabs, checkbox, tooltip,
-dropdown-menu, menubar, resizable, scroll-area — and `npm run ui:add -- <name>` is the only way to
-add them. See `docs/superpowers/specs/2026-07-18-shadcn-base-ui-port-design.md`.
+**Discoveries the next tranches inherit:**
 
-Note the collision: the repo has a hand-rolled `ui/Tabs.tsx` that a real shadcn `tabs` will clash
-with by name. Decide that before generating.
+- **Locale switching is unavailable inside the editor.** The floating EN/FR toggle and status pill
+  are Tiny Swords game chrome anchored bottom-right, and they collided with the editor's own
+  bottom-right "Adventure settings" button. `App.tsx` now hides both for the `adventure-editor`
+  screen rather than fight the collision. The editor needs its own locale control — a menu-bar item
+  is the obvious home — before this is a real gap and not just an omission.
+- **Wall upkeep never overwrites a fixed tile.** `syncWall` (`shared/tile-brush.ts`) refuses to
+  paint or erase a cliff wall on a cell that already holds a fixed tile (a ramp): an author who wants
+  the wall back has to erase the ramp first. This is the same "explicit authoring intent beats
+  ambient upkeep" rule the rect and fill tools apply, just in the other direction — see the next
+  point.
+- **Rect and fill diverge on fixed tiles, deliberately.** A rectangle stroke is explicit authoring
+  intent, so it overwrites any fixed tile inside its region exactly like an autotile cell. Flood fill
+  is the opposite: an unclicked fixed tile is a barrier the region never crosses — clicking a fixed
+  tile itself fills a region of exactly that one cell. Don't unify these; they're solving different
+  problems (a stamped rectangle vs. a region that must not leak past a hand-placed tile).
+- **Two things were dropped, not deferred.** `makeFirst` (the map panel's "set as first map" action,
+  `flagFirstMapApi`) has no UI anywhere in the new shell — the API endpoint is now dead code. The old
+  palette's "recent assets" section is also gone; the terrain palette has no equivalent. Neither is
+  scheduled to come back; note it here rather than let it surface as a silent regression later.
 
-**What tranche 1 deliberately left for you.** There is no `activeLayer` anywhere — the grass and
-water tools are ground-layer by definition, and `GROUND_LAYER = 0` is named rather than inlined
-precisely so you have a seam to thread. The layer selector is where that starts.
-
-**The rectangle and fill tools do not exist yet.** They need the same neighbour re-resolution
-discipline the pencil has, over a region rather than a cell. `resolveWholeLayer` in
-`shared/tile-brush.ts` is the oracle to test them against — paint a rectangle, then assert the layer
-equals a full recomputation. That property test caught real bugs in tranche 1.
-
-**Ramps are declared but unpaintable.** The tileset ships four `passable: true` fixed tiles at the
-sheet's ramp cells and no tool writes them. They are the only passable cells that can join two
-elevation levels, so until a tool places them, a plateau is a place you can stand but not climb.
+Ramps are paintable now — the stairs tool stamps the tileset's four ramp fixed tiles onto layer 1,
+so tranche 1's "declared but unpaintable" caveat is dead. Fill still has no fill-to-empty primitive;
+the palette disables it while water is the active content instead of shipping a dead brush.
 
 ## Tranche 3 — Events: data and placement
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { paintElevation } from "../src/shared/tile-brush.js";
 import { emptyLayer, type TileLayer } from "../src/shared/tile-layer-codec.js";
-import { decodeTileId } from "../src/shared/tileset.js";
+import { decodeTileId, fixedId } from "../src/shared/tileset.js";
 import {
   CLIFF_WALL_SLOT,
   GRASS_SLOTS,
@@ -67,5 +67,19 @@ describe("the elevation brush", () => {
     const layers = paintElevation(blank(), set, 0, 2, 2);
     expect(slotOf(layerAt(layers, 0), 2, 2)).toBe(GRASS_SLOTS[0]);
     expect(slotOf(layerAt(layers, 1), 2, 3)).toBe(-1);
+  });
+
+  it("never overwrites a fixed tile (a ramp) with wall upkeep", () => {
+    const start = blank();
+    const ground = layerAt(start, 0);
+    const walls = layerAt(start, 1);
+    const overlay = layerAt(start, 2);
+    const ids = [...walls.ids];
+    ids[3 * walls.cols + 2] = fixedId(0);
+    const layers = [ground, { ...walls, ids }, overlay];
+
+    const result = paintElevation(layers, set, 1, 2, 2);
+
+    expect(layerAt(result, 1).ids[3 * walls.cols + 2]).toBe(fixedId(0));
   });
 });

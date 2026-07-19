@@ -1,18 +1,17 @@
 import { useEffect } from "react";
 import { fetchMe } from "../api.js";
 import { useUiStore } from "../store.js";
-import { AdventureEditor } from "./AdventureEditor.js";
 import { AuthScreen } from "./AuthScreen.js";
 import { Chat } from "./Chat.js";
 import { ConnectionOverlay } from "./ConnectionOverlay.js";
 import { EventLog } from "./EventLog.js";
+import { AdventureEditorScreen } from "./editor/AdventureEditorScreen.js";
 import { HelpBar } from "./HelpBar.js";
 import { Hud } from "./hud/Hud.js";
 import { Minimap } from "./hud/Minimap.js";
 import { TargetFrame } from "./hud/TargetFrame.js";
 import { InteriorOverlay } from "./InteriorOverlay.js";
 import { LocaleToggle } from "./LocaleToggle.js";
-import { MapEditor } from "./MapEditor.js";
 import { MobileControls } from "./MobileControls.js";
 import { PartiesScreen } from "./PartiesScreen.js";
 import { PartyScreen } from "./PartyScreen.js";
@@ -37,12 +36,14 @@ export function App() {
 
   return (
     <>
-      <LocaleToggle />
-      <StatusBar />
+      {/* The floating game-chrome locale chip and status pill are anchored bottom-right and would
+          collide with the editor's own bottom-right chrome (the "Adventure settings" button). The
+          dense editor shell owns its whole viewport, so keep these Tiny Swords widgets off it. */}
+      {screen !== "adventure-editor" && <LocaleToggle />}
+      {screen !== "adventure-editor" && <StatusBar />}
       {screen === "title" && <TitleScreen />}
       {screen === "auth" && <AuthScreen />}
-      {screen === "map-editor" && <MapEditor />}
-      {screen === "adventures" && <AdventureEditor />}
+      {screen === "adventure-editor" && <AdventureEditorScreen />}
       {screen === "parties" && <PartiesScreen />}
       {screen === "party" && <PartyScreen />}
       {screen === "game" && (

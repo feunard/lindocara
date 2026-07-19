@@ -335,15 +335,47 @@ for the full model.
 
 The welcome message includes `mapId + revision`, baked collision tiles, appearance layers,
 `tilesetId` and authored elements so prediction, renderer and mini-map share the same cache
-identity. The map editor is a WYSIWYG PixiJS stage that
-shares placement/collision/catalog rendering rules with the runtime through `shared/map-data.ts` and
-`client/game/catalog-element-render.ts`. It has explicit loading/error state, grouped history,
-dirty navigation guards, selection/inspectors, stable marker ids with optional labels and complete
-marker preview. Editor controls are compact React/Radix tool surfaces; Tiny Swords belongs in asset
-previews rather than oversized editor chrome. See
-[`docs/superpowers/specs/2026-07-16-map-editor-design.md`](./docs/superpowers/specs/2026-07-16-map-editor-design.md)
-and [`docs/superpowers/plans/2026-07-16-map-editor.md`](./docs/superpowers/plans/2026-07-16-map-editor.md)
-for the full spec and plan.
+identity.
+
+The `adventures` and `map-editor` screens are gone: one `adventure-editor` screen
+(`src/client/ui/editor/`) now owns both, as menu bar / toolbar / three resizable panes (shadcn
+`TerrainPalette` left, the WYSIWYG PixiJS stage centre, `MapListPanel` right) / status bar.
+Adventure metadata lives in `AdventureSettingsDialog`, off the canvas. All chrome is stock shadcn —
+the old floating asset palette was the last Tiny import inside a creator surface, and it died with
+the pre-merge screens, so the two-tree rule now has zero exceptions in the editor. The stage keeps
+sharing placement/collision/catalog rendering rules with the runtime through `shared/map-data.ts`
+and `client/game/catalog-element-render.ts`, with explicit loading/empty/error state, grouped
+history, dirty navigation guards, selection/inspectors, stable marker ids with optional labels and
+complete marker preview.
+
+`shared/tile-brush.ts` grew a rectangle (`paintRectAutotile`/`eraseRect`), a flood fill
+(`floodFill`) and a stairs stamp (`paintStairs`) — each re-resolves neighbours the same way the
+pencil always did, and `resolveWholeLayer` is still the oracle they're tested against. `activeLayer`
+now threads from toolbar/menu bar down to the stage handle, and every tool has a keyboard shortcut,
+gated off while a dialog is open or the stage isn't ready. The stairs tool stamps the tileset's four
+ramp fixed tiles onto layer 1, so ramps are paintable — tranche 1's "declared but unpaintable"
+caveat is dead. Fill has no fill-to-empty primitive; the UI disables it rather than let it silently
+no-op.
+
+The pointer-events contract is load-bearing and easy to get backwards. `#stage` stays a `position:
+fixed`, full-viewport sibling of `#root` (see the canvas gotcha below), so by default it paints and
+hit-tests *above* any normal-flow chrome. `.editor-root` inverts that: a `pointer-events: none`
+stacking context over the canvas, with each chrome island — menu bar, toolbar, the two side panels,
+status bar — opting back in via `.editor-chrome`/`.editor-root > *`. The centre body row
+(`.editor-body`) stays pointer-transparent so painting strokes reach the canvas; anything clickable
+floating over that centre, like the selection inspector, must re-enable pointer events on itself.
+Get this backwards and either every chrome click is eaten by the canvas, or every stroke is blocked
+by the chrome.
+
+See
+[`docs/superpowers/specs/2026-07-18-editor-shell-design.md`](./docs/superpowers/specs/2026-07-18-editor-shell-design.md)
+and [`docs/superpowers/plans/2026-07-18-editor-shell.md`](./docs/superpowers/plans/2026-07-18-editor-shell.md)
+for the shell's spec and plan, and
+[`docs/adventure-editor-roadmap.md`](./docs/adventure-editor-roadmap.md) for what comes next. The
+pre-merge two-screen spec/plan
+([`docs/superpowers/specs/2026-07-16-map-editor-design.md`](./docs/superpowers/specs/2026-07-16-map-editor-design.md),
+[`docs/superpowers/plans/2026-07-16-map-editor.md`](./docs/superpowers/plans/2026-07-16-map-editor.md))
+is superseded.
 
 ### Heartroot city, guards and visual readability
 
@@ -517,7 +549,12 @@ the same `Env`.
   same element. If game text ever turns near-white, that is why; fix it in `legacy.css`'s
   unlayered `html, body` rule, never by editing the generated token blocks in `app.css`.
   The UI suite runs with `css: false`, so no test will catch a regression of this kind — check it
-  in a browser.
+  in a browser. The same unlayered-beats-layered rule cuts the other way too: `legacy.css`'s bare
+  `input`/`button` selectors (the Tiny Swords game skin) would otherwise bleed into stock shadcn
+  controls wherever the two trees share a DOM, e.g. green pill buttons inside the editor. The fence
+  is `:not(:where([data-slot], .editor-root *))` — `:where()` contributes zero specificity, every
+  shadcn control carries `data-slot`, and every editor-authored raw control lives under
+  `.editor-root`.
 - Regenerating `label` (`npm run ui:add -- label -o`) re-trips Biome's `noLabelWithoutControl`:
   stock shadcn's `Label` is a generic passthrough that spreads props, and Biome cannot see that
   call sites supply the control. The agreed resolution is a scoped `biome-ignore` on the JSX

@@ -13,7 +13,7 @@
  */
 import { type Application, Assets, Container, Graphics, Sprite, type Texture } from "pixi.js";
 import type { MonsterSpecies } from "../../shared/game.js";
-import { bakeCollision } from "../../shared/map-data.js";
+import { bakeCollision, MAP_LAYERS } from "../../shared/map-data.js";
 import type { TileLayer } from "../../shared/tile-layer-codec.js";
 import { TILE_SIZE, type TileMap } from "../../shared/tilemap.js";
 import type { Tileset } from "../../shared/tileset.js";
@@ -42,6 +42,7 @@ import {
   moveSelection,
   redoEditorHistory,
   selectionAt,
+  setActiveLayer,
   setMarkerLabel,
   toMapData,
   undoEditorHistory,
@@ -66,6 +67,14 @@ import {
  */
 export interface MapEditorStageHandle {
   setTool(tool: EditorTool): void;
+  /** Which layer the paint-adjacent tools (eraser; rect/fill when their selection is layer-free)
+   *  write to. Lives on `EditorHistory`, survives undo/redo, and is threaded into every `applyTool`
+   *  call from `paintAt`. React owns the displayed value and pushes it down here. */
+  setActiveLayer(layer: 0 | 1 | 2): void;
+  /** Editor-only "dim other layers": with it on, every logical tile layer but the active one drops
+   *  to `DIM_ALPHA`, so the author can see which layer a stroke lands on. Never touches the game
+   *  renderer. React owns the toggle and pushes it down here. */
+  setDim(dim: boolean): void;
   current(): EditorMap;
   setName(name: string): void;
   undo(): void;
@@ -91,6 +100,26 @@ export interface MapEditorStageState {
  *  off into empty space. Matches the brief's 0.5x–2x. */
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 2;
+
+/** How far a non-active tile layer fades when "dim other layers" is on. Editor-only; the game
+ *  renderer never applies it. */
+const DIM_ALPHA = 0.35;
+
+/**
+ * Apply "dim other layers" to one container per logical tile layer: with `dim` on, every container
+ * but `activeLayer` fades to `DIM_ALPHA`, and the active one — and every layer when `dim` is off —
+ * stays fully opaque. Pure and Pixi-object-only (a `Container`'s `alpha` needs no renderer), so it
+ * pins the dim rule without the rest of the stage, exactly like `paintLandCell`.
+ */
+export function applyLayerDim(
+  containers: readonly Container[],
+  activeLayer: number,
+  dim: boolean,
+): void {
+  containers.forEach((container, index) => {
+    container.alpha = dim && index !== activeLayer ? DIM_ALPHA : 1;
+  });
+}
 
 const SPAWN_MARKER_COLOR = 0xffd54a;
 const SPAWN_MARKER_OUTLINE = 0x2a1a05;
@@ -204,6 +233,8 @@ function enqueue<T>(job: () => Promise<T> | T): Promise<T> {
 function inertHandle(map: EditorMap): MapEditorStageHandle {
   return {
     setTool() {},
+    setActiveLayer() {},
+    setDim() {},
     current: () => map,
     setName() {},
     undo() {},
@@ -242,15 +273,17 @@ function ensureStageApp(canvas: HTMLCanvasElement): Promise<Application> {
 export function openMapEditorStage(
   initial: EditorMap,
   onChange: (map: EditorMap, state: MapEditorStageState) => void,
+  onCursorCell?: (col: number | null, row: number | null) => void,
 ): Promise<MapEditorStageHandle> {
   const generation = ++openGeneration;
-  return enqueue(() => buildSession(initial, onChange, generation));
+  return enqueue(() => buildSession(initial, onChange, generation, onCursorCell));
 }
 
 async function buildSession(
   initial: EditorMap,
   onChange: (map: EditorMap, state: MapEditorStageState) => void,
   generation: number,
+  onCursorCell?: (col: number | null, row: number | null) => void,
 ): Promise<MapEditorStageHandle> {
   // A newer open already superseded this one before the chain reached it: build nothing, bind no
   // Application. This is the throwaway half of a StrictMode double-mount.
@@ -279,6 +312,7 @@ async function buildSession(
   let history = createEditorHistory(initial);
   let selected: EditorSelection | null = null;
   let tool: EditorTool = { kind: "block", block: "grass" };
+  let dim = false;
 
   const notify = (): void => {
     onChange(map, {
@@ -298,7 +332,10 @@ async function buildSession(
   const world = new Container();
   const waterLayer = new Container();
   const foamLayer = new Container();
-  const landLayer = new Container();
+  // One below-priority land container per logical tile layer, stacked in layer order in the same
+  // z-slot the single `landLayer` used to occupy — so the composite is visually identical, but each
+  // logical layer's tiles are now separable, which is what "dim other layers" fades independently.
+  const tileLayers: Container[] = Array.from({ length: MAP_LAYERS }, () => new Container());
   const groundElementLayer = new Container();
   const objectElementLayer = new Container();
   const canopyElementLayer = new Container();
@@ -307,7 +344,7 @@ async function buildSession(
   world.addChild(
     waterLayer,
     foamLayer,
-    landLayer,
+    ...tileLayers,
     groundElementLayer,
     objectElementLayer,
     canopyElementLayer,
@@ -348,7 +385,7 @@ async function buildSession(
     for (const layer of [
       waterLayer,
       foamLayer,
-      landLayer,
+      ...tileLayers,
       groundElementLayer,
       objectElementLayer,
       canopyElementLayer,
@@ -377,16 +414,28 @@ async function buildSession(
         const y = row * TILE_SIZE;
         // Every layer that has something to say about this cell, in order, through the same
         // `tileDrawAt` the world renderer paints with — the editor cannot resolve a tile id
-        // differently from the game it is previewing.
-        const drewAnything = paintLandCell(
-          TINY_SWORDS_TILESET,
-          map.layers,
-          textures.tileset,
-          col,
-          row,
-          landLayer,
-          aboveLandLayer,
-        );
+        // differently from the game it is previewing. Each logical layer draws its below-priority
+        // tiles into its own container (so dim can fade them one layer at a time) and its rare
+        // above-priority tiles into the shared `aboveLandLayer`, keeping the renderer's z-split.
+        let drewAnything = false;
+        for (let layerIndex = 0; layerIndex < map.layers.length; layerIndex++) {
+          const layer = map.layers[layerIndex];
+          const container = tileLayers[layerIndex];
+          if (!layer || !container) continue;
+          if (
+            paintLandCell(
+              TINY_SWORDS_TILESET,
+              [layer],
+              textures.tileset,
+              col,
+              row,
+              container,
+              aboveLandLayer,
+            )
+          ) {
+            drewAnything = true;
+          }
+        }
 
         // Foam reads the baked tilemap, not the layers: a cliff face meeting the sea is not ground,
         // but it is still where the water meets something, and that is where the rim belongs.
@@ -482,6 +531,17 @@ async function buildSession(
   let lastPaintedRow = Number.NaN;
   let strokeStart: EditorMap | null = null;
 
+  // The last cell handed to `onCursorCell`, so a pointer sliding within one cell reports once, not
+  // per pixel. `"none"` is the off-canvas state, distinct from any real cell.
+  let lastCursorKey = "";
+  const reportCursor = (col: number | null, row: number | null): void => {
+    if (!onCursorCell) return;
+    const key = col === null || row === null ? "none" : `${col},${row}`;
+    if (key === lastCursorKey) return;
+    lastCursorKey = key;
+    onCursorCell(col, row);
+  };
+
   function cellAt(clientX: number, clientY: number): { col: number; row: number } {
     const rect = canvas.getBoundingClientRect();
     const worldX = (clientX - rect.left - world.x) / world.scale.x;
@@ -499,7 +559,7 @@ async function buildSession(
       notify();
       return;
     }
-    const next = applyTool(map, tool, col, row, isStrokeStart);
+    const next = applyTool(map, tool, col, row, isStrokeStart, history.activeLayer);
     // null → refused (does nothing visible); same reference → a no-op edit (eraser on empty).
     if (!next || next === map) return;
     map = next;
@@ -528,6 +588,8 @@ async function buildSession(
   };
 
   const onPointerMove = (event: PointerEvent): void => {
+    const hovered = cellAt(event.clientX, event.clientY);
+    reportCursor(hovered.col, hovered.row);
     if (panning) {
       world.x += event.clientX - panLastX;
       world.y += event.clientY - panLastY;
@@ -538,6 +600,8 @@ async function buildSession(
     }
     if (painting) paintAt(event.clientX, event.clientY, false);
   };
+
+  const onPointerLeave = (): void => reportCursor(null, null);
 
   const stopStroke = (): void => {
     if (strokeStart && strokeStart !== map) {
@@ -603,6 +667,7 @@ async function buildSession(
 
   canvas.addEventListener("pointerdown", onPointerDown);
   canvas.addEventListener("pointermove", onPointerMove);
+  canvas.addEventListener("pointerleave", onPointerLeave);
   canvas.addEventListener("wheel", onWheel, { passive: false });
   canvas.addEventListener("contextmenu", onContextMenu);
   // On window, so releasing or moving off the canvas mid-stroke still ends the stroke cleanly.
@@ -634,6 +699,7 @@ async function buildSession(
     app.ticker.stop();
     canvas.removeEventListener("pointerdown", onPointerDown);
     canvas.removeEventListener("pointermove", onPointerMove);
+    canvas.removeEventListener("pointerleave", onPointerLeave);
     canvas.removeEventListener("wheel", onWheel);
     canvas.removeEventListener("contextmenu", onContextMenu);
     window.removeEventListener("pointerup", stopStroke);
@@ -677,6 +743,14 @@ async function buildSession(
       if (next.kind === "element") ensureAsset(next.assetId);
       canvas.dataset.cursor =
         tool.kind === "pan" ? "move" : tool.kind === "select" ? "select" : "paint";
+    },
+    setActiveLayer(layer) {
+      history = setActiveLayer(history, layer);
+      applyLayerDim(tileLayers, layer, dim);
+    },
+    setDim(next) {
+      dim = next;
+      applyLayerDim(tileLayers, history.activeLayer, dim);
     },
     current() {
       return map;

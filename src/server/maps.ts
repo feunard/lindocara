@@ -336,7 +336,9 @@ export async function loadOwnedMap(
 export async function listMaps(
   db: Db,
   accountId: string,
-): Promise<{ id: string; name: string; revision: number; isFirst: boolean }[]> {
+): Promise<
+  { id: string; name: string; revision: number; cols: number; rows: number; isFirst: boolean }[]
+> {
   const rows = await db
     .select()
     .from(map)
@@ -346,6 +348,8 @@ export async function listMaps(
     id: row.id,
     name: row.name,
     revision: row.revision,
+    cols: row.cols,
+    rows: row.rows,
     isFirst: row.isFirst === 1,
   }));
 }

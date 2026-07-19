@@ -1,3 +1,4 @@
+// This is the player-tree Tabs component; ui/components/tabs.tsx is the creator-tools twin—keep separate.
 import { cn } from "@/lib/utils.js";
 
 interface TabsProps {

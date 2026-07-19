@@ -11,6 +11,7 @@ import {
   markEditorHistorySaved,
   mintMarkerId,
   redoEditorHistory,
+  setActiveLayer,
   setMarkerLabel,
   toSaveInput,
   undoEditorHistory,
@@ -21,9 +22,14 @@ import {
   MAX_MAP_ENTRIES,
   type MapElement,
 } from "../src/shared/map-data.js";
-import { slotAt } from "../src/shared/tile-brush.js";
-import { EMPTY_TILE } from "../src/shared/tileset.js";
-import { CLIFF_WALL_SLOT, GRASS_SLOTS } from "../src/shared/tilesets/tiny-swords.js";
+import { eraseRect, paintRectAutotile, paintStairs, slotAt } from "../src/shared/tile-brush.js";
+import type { TileLayer } from "../src/shared/tile-layer-codec.js";
+import { autotileId, EMPTY_TILE } from "../src/shared/tileset.js";
+import {
+  CLIFF_WALL_SLOT,
+  GRASS_SLOTS,
+  TINY_SWORDS_TILESET,
+} from "../src/shared/tilesets/tiny-swords.js";
 
 /** The ground slot at a cell, or -1 for the void. Every terrain assertion below reads this rather
  *  than a raw id: the id carries an autotile variant the neighbourhood decides, and no test here is
@@ -248,6 +254,221 @@ describe("applyTool: eraser", () => {
     expect(next).not.toBe(map);
     expect(next.elements).toEqual([]);
     expect(groundSlot(next, 3, 4)).toBe(GRASS_SLOTS[0]);
+  });
+});
+
+describe("applyTool: rect", () => {
+  it("anchors on stroke start and commits the whole rectangle once, on release", () => {
+    const base = blankMap("m", 20, 15);
+    const tool: EditorTool = { kind: "rect", content: { kind: "elevation", level: 1 } };
+
+    let map = applyTool(base, tool, 1, 1, true) as EditorMap;
+    expect(map).not.toBeNull();
+    // Stroke start alone paints nothing — it only drops the anchor.
+    expect(map.layers[0]).toEqual(base.layers[0]);
+
+    map = applyTool(map, tool, 6, 6, false) as EditorMap; // drag out to a larger rectangle
+    map = applyTool(map, tool, 4, 3, false) as EditorMap; // shrink back and release here
+
+    const expectedGround = paintRectAutotile(
+      base.layers[0] as TileLayer,
+      TINY_SWORDS_TILESET,
+      GRASS_SLOTS[1],
+      1,
+      1,
+      4,
+      3,
+    );
+    expect(map.layers[0]).toEqual(expectedGround);
+    // Wall upkeep ran across the whole region: row 4, one below the rectangle's bottom edge (row
+    // 3), now casts a wall for every painted column.
+    expect(wallSlot(map, 2, 4)).toBe(CLIFF_WALL_SLOT);
+    expect(wallSlot(map, 1, 4)).toBe(CLIFF_WALL_SLOT);
+    expect(wallSlot(map, 4, 4)).toBe(CLIFF_WALL_SLOT);
+
+    const history = commitEditorHistory(createEditorHistory(base), map);
+    expect(history.past).toHaveLength(1);
+    expect(undoEditorHistory(history).present).toEqual(base);
+  });
+
+  it("erases the ground under a water rectangle and takes the wall away with it", () => {
+    const raised = applyTool(
+      blankMap("m", 20, 15),
+      { kind: "elevation", level: 1 },
+      2,
+      2,
+    ) as EditorMap;
+    const tool: EditorTool = { kind: "rect", content: { kind: "block", block: "water" } };
+    let map = applyTool(raised, tool, 1, 1, true) as EditorMap;
+    map = applyTool(map, tool, 3, 3, false) as EditorMap;
+    expect(groundSlot(map, 2, 2)).toBe(-1);
+    expect(wallSlot(map, 2, 3)).toBe(-1);
+  });
+
+  it("refuses a drag cell with no open stroke", () => {
+    const base = blankMap("m", 20, 15);
+    const tool: EditorTool = { kind: "rect", content: { kind: "block", block: "grass" } };
+    expect(applyTool(base, tool, 3, 3, false)).toBeNull();
+  });
+
+  it("does not permanently drop an element the drag passed over but the final rectangle excludes", () => {
+    const base = blankMap("m", 20, 15);
+    const withTree = applyTool(base, { kind: "element", assetId: TREE }, 5, 5) as EditorMap;
+    expect(withTree).not.toBeNull();
+
+    const tool: EditorTool = { kind: "rect", content: { kind: "block", block: "water" } };
+    let map = applyTool(withTree, tool, 1, 1, true) as EditorMap;
+    map = applyTool(map, tool, 5, 5, false) as EditorMap; // drag out over the tree
+    // Mid-drag, the rectangle covers the tree's cell with water, which a tree cannot stand on.
+    expect(map.elements).toEqual([]);
+    map = applyTool(map, tool, 2, 2, false) as EditorMap; // shrink back and release here
+
+    // The final rectangle never touched (5, 5): the tree must survive.
+    expect(map.elements).toEqual([{ col: 5, row: 5, assetId: TREE }]);
+    const expectedGround = eraseRect(
+      withTree.layers[0] as TileLayer,
+      TINY_SWORDS_TILESET,
+      1,
+      1,
+      2,
+      2,
+    );
+    expect(map.layers[0]).toEqual(expectedGround);
+  });
+});
+
+describe("applyTool: fill", () => {
+  it("floods the contiguous region on click, as one undo entry", () => {
+    let base = blankMap("m", 20, 15);
+    // Carve a small pocket of empty ground so the fill has a bounded, non-trivial region to
+    // redraw — filling an already-uniform blank map with its own slot would be a no-op.
+    for (const [col, row] of [
+      [3, 3],
+      [4, 3],
+      [3, 4],
+      [4, 4],
+    ] as const) {
+      base = applyTool(base, { kind: "block", block: "water" }, col, row) as EditorMap;
+    }
+
+    const tool: EditorTool = { kind: "fill", content: { kind: "block", block: "grass" } };
+    const filled = applyTool(base, tool, 3, 3) as EditorMap;
+    expect(filled).not.toBeNull();
+    expect(groundSlot(filled, 3, 3)).toBe(GRASS_SLOTS[0]);
+    expect(groundSlot(filled, 4, 4)).toBe(GRASS_SLOTS[0]);
+    // The fill did not leak past the pocket it started in.
+    expect(groundSlot(filled, 2, 3)).toBe(GRASS_SLOTS[0]);
+
+    const history = commitEditorHistory(createEditorHistory(base), filled);
+    expect(history.past).toHaveLength(1);
+    expect(undoEditorHistory(history).present).toEqual(base);
+  });
+
+  it("is a no-op that returns the same reference when nothing in the region changes", () => {
+    const base = blankMap("m", 20, 15);
+    const tool: EditorTool = { kind: "fill", content: { kind: "block", block: "grass" } };
+    expect(applyTool(base, tool, 3, 3)).toBe(base);
+  });
+});
+
+describe("applyTool: stairs", () => {
+  it("stamps the ramp onto layer 1 as one undo entry", () => {
+    const base = blankMap("m", 20, 15);
+    const tool: EditorTool = { kind: "stairs" };
+    const next = applyTool(base, tool, 5, 5) as EditorMap;
+    expect(next).not.toBeNull();
+    const expectedWalls = paintStairs(base.layers, TINY_SWORDS_TILESET, 5, 5)[1];
+    expect(next.layers[1]).toEqual(expectedWalls);
+
+    const history = commitEditorHistory(createEditorHistory(base), next);
+    expect(history.past).toHaveLength(1);
+  });
+
+  it("refuses an out-of-bounds stamp, creating no history entry", () => {
+    const base = blankMap("m", 20, 15);
+    const tool: EditorTool = { kind: "stairs" };
+    // The map is 20 cols wide; the stamp's right edge (col + 1) would land at col 20.
+    expect(applyTool(base, tool, 19, 5)).toBeNull();
+
+    const history = commitEditorHistory(createEditorHistory(base), base);
+    expect(history.past).toHaveLength(0);
+  });
+});
+
+describe("applyTool: activeLayer targeting", () => {
+  it("routes an eraser stroke to layer 2 when active layer is 2, leaving layers 0/1 untouched", () => {
+    const base = blankMap("m", 20, 15);
+    // Nothing in the editor paints layer 2 yet, so poke a tile onto it directly, the same way other
+    // tests build markers by hand.
+    const layer2 = base.layers[2] as TileLayer;
+    const index = 4 * layer2.cols + 3; // (col 3, row 4)
+    const poked: TileLayer = {
+      ...layer2,
+      ids: layer2.ids.map((id, cell) => (cell === index ? autotileId(GRASS_SLOTS[0], 0) : id)),
+    };
+    const withLayer2: EditorMap = {
+      ...base,
+      layers: [base.layers[0] as TileLayer, base.layers[1] as TileLayer, poked],
+    };
+    expect(slotAt(poked, 3, 4)).toBe(GRASS_SLOTS[0]);
+
+    const next = applyTool(withLayer2, { kind: "eraser" }, 3, 4, true, 2) as EditorMap;
+    expect(next).not.toBeNull();
+    expect(slotAt(next.layers[2] as TileLayer, 3, 4)).toBe(-1);
+    expect(next.layers[0]).toEqual(withLayer2.layers[0]);
+    expect(next.layers[1]).toEqual(withLayer2.layers[1]);
+  });
+
+  it("leaves an already-void layer-2 cell untouched (same reference) when active layer is 2", () => {
+    const base = blankMap("m", 20, 15);
+    expect(applyTool(base, { kind: "eraser" }, 3, 4, true, 2)).toBe(base);
+  });
+
+  it("still writes ground for a terrain selection when active layer is 2, wall upkeep included", () => {
+    const raised = applyTool(
+      blankMap("m", 20, 15),
+      { kind: "elevation", level: 1 },
+      5,
+      6,
+    ) as EditorMap;
+    const flattened = applyTool(
+      raised,
+      { kind: "block", block: "grass" },
+      5,
+      6,
+      true,
+      2,
+    ) as EditorMap;
+    expect(groundSlot(flattened, 5, 6)).toBe(GRASS_SLOTS[0]);
+    expect(wallSlot(flattened, 5, 7)).toBe(-1); // wall upkeep still ran despite activeLayer = 2
+  });
+});
+
+describe("setActiveLayer", () => {
+  it("swaps the field without touching past, present, future or saved", () => {
+    const history = createEditorHistory(blankMap("m", 20, 15));
+    expect(history.activeLayer).toBe(0);
+    const next = setActiveLayer(history, 2);
+    expect(next.activeLayer).toBe(2);
+    expect(next.present).toBe(history.present);
+    expect(next.past).toBe(history.past);
+    expect(next.saved).toBe(history.saved);
+  });
+
+  it("survives undo/redo unchanged, unlike map content", () => {
+    const base = blankMap("m", 20, 15);
+    const painted = applyTool(base, { kind: "block", block: "water" }, 1, 1) as EditorMap;
+    const history = setActiveLayer(commitEditorHistory(createEditorHistory(base), painted), 1);
+    expect(undoEditorHistory(history).activeLayer).toBe(1);
+    expect(redoEditorHistory(undoEditorHistory(history)).activeLayer).toBe(1);
+  });
+
+  it("does not dirty the map on its own", () => {
+    const base = blankMap("m", 20, 15);
+    const history = markEditorHistorySaved(createEditorHistory(base));
+    expect(isEditorHistoryDirty(history)).toBe(false);
+    const layerSwitched = setActiveLayer(history, 1);
+    expect(isEditorHistoryDirty(layerSwitched)).toBe(false);
   });
 });
 
