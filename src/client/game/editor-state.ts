@@ -1121,5 +1121,15 @@ export function placementLegalAt(
   row: number,
   activeLayer: 0 | 1 | 2 = 0,
 ): boolean {
+  // Fill's legality is position-independent past the content check. `floodFill` never fails on
+  // position — out of bounds or already-filled it returns the layer unchanged — so `applyTool`'s
+  // fill branch is null only when the content has no fill slot (water). Answer that directly instead
+  // of flooding the whole ground layer, resyncing walls and cloning a map on every hovered cell just
+  // to discard the result. `applyTool` itself is unchanged: a real fill click still runs the flood.
+  if (tool.kind === "fill") {
+    const { cols, rows } = editorMapSize(map);
+    if (col < 0 || row < 0 || col >= cols || row >= rows) return false;
+    return contentSlot(tool.content) !== null;
+  }
   return applyTool(map, tool, col, row, true, activeLayer) !== null;
 }

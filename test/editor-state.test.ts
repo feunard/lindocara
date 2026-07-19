@@ -981,3 +981,63 @@ describe("placementLegalAt (UX wave #9 hover legality)", () => {
     expect(placementLegalAt(TREE_TOOL, blankMap("m", 20, 15), 20, 4)).toBe(false);
   });
 });
+
+describe("placementLegalAt: fill short-circuit (perf)", () => {
+  const FILL_GRASS: EditorTool = { kind: "fill", content: { kind: "block", block: "grass" } };
+  const FILL_WATER: EditorTool = { kind: "fill", content: { kind: "block", block: "water" } };
+
+  /** Wrap the ground layer's `ids` array in a Proxy that counts index reads. The full `applyTool`
+   *  fill path spreads and traverses this array (`floodFill` + `changedBounds` + `commitTerrain`);
+   *  the short-circuit must not touch it at all, only the layer's `cols`/`rows`. */
+  function countingGroundReads(map: EditorMap): { map: EditorMap; reads: () => number } {
+    let reads = 0;
+    const ground = map.layers[0];
+    if (!ground) throw new Error("map has no ground layer");
+    const ids = new Proxy(ground.ids, {
+      get(target, prop, receiver) {
+        reads += 1;
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+    const proxied = { ...map, layers: [{ ...ground, ids }, ...map.layers.slice(1)] };
+    return { map: proxied, reads: () => reads };
+  }
+
+  it("legal everywhere the content has a fill slot — position-independent", () => {
+    const map = blankMap("m", 20, 15);
+    // grass cell, water-fill area, both edges: all legal for a grass fill.
+    expect(placementLegalAt(FILL_GRASS, map, 3, 4)).toBe(true);
+    expect(placementLegalAt(FILL_GRASS, map, 0, 0)).toBe(true);
+    expect(placementLegalAt(FILL_GRASS, map, 19, 14)).toBe(true);
+  });
+
+  it("illegal when the content has no fill slot (water), and out of bounds", () => {
+    const map = blankMap("m", 20, 15);
+    expect(placementLegalAt(FILL_WATER, map, 3, 4)).toBe(false);
+    expect(placementLegalAt(FILL_GRASS, map, -1, 4)).toBe(false);
+    expect(placementLegalAt(FILL_GRASS, map, 20, 4)).toBe(false);
+  });
+
+  it("agrees with the full applyTool legality it replaces", () => {
+    const map = blankMap("m", 20, 15);
+    for (const [tool, c, r] of [
+      [FILL_GRASS, 3, 4],
+      [FILL_GRASS, 0, 0],
+      [FILL_WATER, 5, 5],
+      [FILL_GRASS, -1, 0],
+    ] as const) {
+      expect(placementLegalAt(tool, map, c, r)).toBe(applyTool(map, tool, c, r, true) !== null);
+    }
+  });
+
+  it("does not flood: the short-circuit never reads the ground tile array", () => {
+    const probe = countingGroundReads(blankMap("m", 20, 15));
+    expect(placementLegalAt(FILL_GRASS, probe.map, 3, 4)).toBe(true);
+    expect(probe.reads()).toBe(0);
+
+    // Proof the probe is live: the full path it replaces does traverse that array.
+    const probe2 = countingGroundReads(blankMap("m", 20, 15));
+    applyTool(probe2.map, FILL_GRASS, 3, 4, true);
+    expect(probe2.reads()).toBeGreaterThan(0);
+  });
+});
