@@ -10,6 +10,7 @@ import { type Attachment, positionFromAttachment } from "../src/server/world.js"
 import { WS_CLOSE } from "../src/shared/close-codes.js";
 import { CORPSE_RECLAIM_RANGE, RESURRECT_HP_RATIO } from "../src/shared/death.js";
 import {
+  ATTACK_COOLDOWN_MS,
   CEMETERIES,
   isWalkable,
   maxHpForLevel,
@@ -477,12 +478,13 @@ describe("World", () => {
     const welcome = await until("potion window welcome", () => drinker.welcome);
     expect(welcome.self.inventory.potions).toBe(2);
 
-    // A kill drops a potion on ticks divisible by four, and D1 only catches up every
-    // D1_SAVE_EVERY_TICKS. Land the killing blow on a potion tick early in a flush window, so
-    // the pickup and the drink both happen while D1 still says two.
-    const dropsPotionWellBeforeTheFlush = () => {
+    // D1 only catches up every D1_SAVE_EVERY_TICKS. Keep casting early in each flush window until
+    // an impact lands on a potion tick, so pickup and drink both happen while D1 still says two.
+    // Snapshot ticks arrive at half the simulation rate and may keep one parity forever; the
+    // authoritative active frame, not the launch snapshot, decides the loot tick.
+    const isEarlyInFlushWindow = () => {
       const tick = drinker.latestSnapshot?.tick;
-      return tick !== undefined && tick % 4 === 0 && tick % D1_SAVE_EVERY_TICKS <= 40;
+      return tick !== undefined && tick % D1_SAVE_EVERY_TICKS <= 40;
     };
     const potionPickups = () =>
       drinker.received.filter(
@@ -504,7 +506,7 @@ describe("World", () => {
         drinker.press(
           Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy > 0 ? "down" : "up",
         );
-      } else if (Date.now() - lastAttackAt > 600 && dropsPotionWellBeforeTheFlush()) {
+      } else if (Date.now() - lastAttackAt > ATTACK_COOLDOWN_MS && isEarlyInFlushWindow()) {
         drinker.release();
         drinker.action("attack");
         lastAttackAt = Date.now();
