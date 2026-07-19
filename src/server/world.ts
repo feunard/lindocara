@@ -9,6 +9,7 @@ import {
   EMPTY_ADVENTURE_STATE,
   type PartyAdventureState,
 } from "../shared/adventure-state.js";
+import { parseCheatCommand } from "../shared/cheats.js";
 import { WS_CLOSE } from "../shared/close-codes.js";
 import {
   actionForClassSlot,
@@ -24,7 +25,13 @@ import {
   tauntThreat,
   usefulHealingThreat,
 } from "../shared/cooperation.js";
-import { canAct, canBeResurrected, RESURRECT_COOLDOWN_MS, resurrectHp } from "../shared/death.js";
+import {
+  CORPSE_RECLAIM_RANGE,
+  canAct,
+  canBeResurrected,
+  RESURRECT_COOLDOWN_MS,
+  resurrectHp,
+} from "../shared/death.js";
 import {
   circleIntersectsArc,
   circleIntersectsCapsule,
@@ -44,6 +51,7 @@ import {
   clampRestoredPosition,
   hasLineOfSight,
   INTERACTION_RANGE,
+  isWalkable,
   LOOT_EXPIRY_MS,
   MONSTER_AGGRO_RANGE,
   MONSTER_RESPAWN_MS,
@@ -111,13 +119,14 @@ import { HEALTH_POTION_ID } from "./items.js";
 import { BUILTIN_MAP, BUILTIN_MAP_ID, loadMap } from "./maps.js";
 import { completeParty, loadPartyForRuntime } from "./parties.js";
 import { loadProfile, saveProfile } from "./profile.js";
+import { executeCheatCommand } from "./world/cheat-command-system.js";
 import {
   advanceCombatActions,
   cancelCombatAction,
   finishHeldCombatAction,
   startCombatAction,
 } from "./world/combat-action-system.js";
-import { guardedDamage, isLumenCloudInvulnerable } from "./world/combat-system.js";
+import { guardedDamage, isPlayerInvulnerable } from "./world/combat-system.js";
 import { addPlayer, isRateLimited, removePlayer } from "./world/connection-system.js";
 import {
   beginRewardAttribution,
@@ -931,6 +940,11 @@ export class World extends DurableObject<Env> {
     if (message.t !== "chat") return;
     const text = message.text.trim().replaceAll(/\s+/g, " ");
     if (text.length === 0 || text.length > CHAT_MAX_LENGTH) return;
+    const cheatCommand = parseCheatCommand(text);
+    if (cheatCommand) {
+      this.#handleCheatCommand(ws, player, cheatCommand);
+      return;
+    }
     if (message.channel === "party") {
       if (player.identityKind === "hero" && player.partyId) {
         await this.env.GAME_SESSION.getByName(player.partyId).broadcast(player.partyId, {
@@ -942,6 +956,32 @@ export class World extends DurableObject<Env> {
       } else if (!sendPartyChat(this.#partyContext(), player, text))
         this.#send(ws, { t: "event", code: "party.invalid", tone: "bad" });
     } else this.#sendLocalChat(player, text);
+  }
+
+  #handleCheatCommand(
+    ws: WebSocket,
+    player: Player,
+    command: NonNullable<ReturnType<typeof parseCheatCommand>>,
+  ): void {
+    if (this.env.CHEATS_ENABLED !== "true") {
+      this.#send(ws, { t: "event", code: "cheat.disabled", tone: "bad" });
+      return;
+    }
+    const result = executeCheatCommand(player, command);
+    if (result.transition === "die") {
+      player.hp = 0;
+      this.#killPlayer(ws, player);
+    } else if (result.transition === "ghost") {
+      if (player.life === "alive") {
+        player.hp = 0;
+        this.#killPlayer(ws, player);
+      }
+      this.#release(ws, player);
+    } else if (result.transition === "revive") {
+      this.#cheatRevive(player);
+    }
+    if (result.stateChanged) this.#sendState(ws, player);
+    this.#send(ws, { t: "event", ...result.event, x: player.x, y: player.y });
   }
 
   #handlePartyMessage(ws: WebSocket, player: Player, message: ClientMessage): void {
@@ -2572,7 +2612,7 @@ export class World extends DurableObject<Env> {
     monsterId: string,
     now: number,
   ): void {
-    if (isLumenCloudInvulnerable(player, now)) return;
+    if (isPlayerInvulnerable(player, now)) return;
     const { amount: appliedDamage, result } = guardedDamage(player, damage);
     player.hp = result.hp;
     generateResource(player.class, player.resource, "damage_taken", appliedDamage);
@@ -2635,6 +2675,14 @@ export class World extends DurableObject<Env> {
     }
   }
 
+  #cheatRevive(player: Player): void {
+    player.life = "alive";
+    player.corpse = null;
+    player.hp = maxHpForLevel(player.level);
+    this.#grantReviveGrace(player, Date.now());
+    this.#freeze(player);
+  }
+
   /** Release is one-way and deliberate. It is what closes the door on a priest saving you. */
   #release(ws: WebSocket, player: Player): void {
     if (player.life !== "corpse" || player.corpse === null) return;
@@ -2643,9 +2691,41 @@ export class World extends DurableObject<Env> {
         ? (this.#zone().terrain.spawnPoints[0] ?? nearestCemetery(player.corpse))
         : nearestCemetery(player.corpse);
     const previousPosition = { x: player.x, y: player.y };
+    let releasePosition: Vec2 = cemetery;
+    // An authored map currently has one spirit anchor: its entry spawn. If the player dies on
+    // that exact point, releasing there would reclaim the body on the very next tick. Find the
+    // nearest walkable neighbouring tile so the ghost state remains observable and playable.
+    if (pointDistance(releasePosition, player.corpse) <= CORPSE_RECLAIM_RANGE) {
+      const directions = [
+        { x: 1, y: 0 },
+        { x: -1, y: 0 },
+        { x: 0, y: 1 },
+        { x: 0, y: -1 },
+        { x: 1, y: 1 },
+        { x: -1, y: 1 },
+        { x: 1, y: -1 },
+        { x: -1, y: -1 },
+      ];
+      for (const radius of [TILE_SIZE, TILE_SIZE * 2, TILE_SIZE * 3]) {
+        const candidate = directions
+          .map((direction) => ({
+            x: cemetery.x + direction.x * radius,
+            y: cemetery.y + direction.y * radius,
+          }))
+          .find(
+            (position) =>
+              pointDistance(position, player.corpse as Vec2) > CORPSE_RECLAIM_RANGE &&
+              isWalkable(position, PLAYER_SIZE, this.#zone().terrain),
+          );
+        if (candidate) {
+          releasePosition = candidate;
+          break;
+        }
+      }
+    }
     player.life = "ghost";
-    player.x = cemetery.x;
-    player.y = cemetery.y;
+    player.x = releasePosition.x;
+    player.y = releasePosition.y;
     this.#playerGrid.update(player, previousPosition);
     this.#freeze(player);
     this.#send(ws, { t: "event", code: "death.released", tone: "info", x: player.x, y: player.y });

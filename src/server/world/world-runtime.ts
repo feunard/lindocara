@@ -177,6 +177,8 @@ export interface PlayerRuntime extends PlayerProfile {
   network: WorldCache;
   resource?: ClassResourceState;
   navigationDebug: boolean;
+  /** Local test flag. Never serialized or persisted; reconnecting always disables it. */
+  cheatInvulnerable: boolean;
   action: CombatActionRuntime | null;
 }
 
@@ -391,6 +393,7 @@ export function newPlayer(
     network: createWorldCache(),
     ...(resource ? { resource } : {}),
     navigationDebug: false,
+    cheatInvulnerable: false,
     action: null,
     identityKind: "character",
     partyId: null,

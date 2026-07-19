@@ -12,6 +12,17 @@ export interface TileWindow {
   rows: number;
 }
 
+export const LOCAL_PLAYER_RENDER_SCALE = 0.7;
+export const GAME_CAMERA_ZOOM = 0.8;
+
+export function gameCameraScale(viewportWidth: number, viewportHeight: number): number {
+  const fitted = Math.min(viewportWidth / 1220, viewportHeight / 700);
+  return Math.max(
+    0.9 * GAME_CAMERA_ZOOM,
+    Math.min(3.2 * GAME_CAMERA_ZOOM, fitted * GAME_CAMERA_ZOOM),
+  );
+}
+
 export function cameraAxisOffset(
   viewportSize: number,
   worldSize: number,

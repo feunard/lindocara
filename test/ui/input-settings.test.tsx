@@ -23,6 +23,15 @@ describe("input remapping", () => {
     ]);
   });
 
+  it("maps the five ordered skills to the requested letters and numpad mirror", () => {
+    expect(getInputSettings().keyboard.skill1).toEqual([{ code: "KeyO" }, { code: "Numpad5" }]);
+    expect(getInputSettings().keyboard.skill2).toEqual([{ code: "KeyM" }, { code: "Numpad3" }]);
+    expect(getInputSettings().keyboard.skill3).toEqual([{ code: "KeyL" }, { code: "Numpad2" }]);
+    expect(getInputSettings().keyboard.skill4).toEqual([{ code: "KeyK" }, { code: "Numpad1" }]);
+    expect(getInputSettings().keyboard.skill5).toEqual([{ code: "KeyJ" }, { code: "Numpad4" }]);
+    expect(getInputSettings().keyboard.map).toEqual([{ code: "KeyC" }]);
+  });
+
   it("uses remapped movement keys in the prediction input tracker", () => {
     setKeyboardBinding("moveUp", { code: "KeyI" });
     const tracker = trackInput();
@@ -126,11 +135,29 @@ describe("input remapping", () => {
       toggleSettings: vi.fn(),
     });
 
-    fireEvent.keyDown(window, { code: "Digit3" });
+    fireEvent.keyDown(window, { code: "KeyL" });
     expect(castSkill).toHaveBeenCalledWith(3);
     expect(releaseSkill).not.toHaveBeenCalled();
-    fireEvent.keyUp(window, { code: "Digit3" });
+    fireEvent.keyUp(window, { code: "KeyL" });
     expect(releaseSkill).toHaveBeenCalledWith(3);
+    stop();
+  });
+
+  it("dispatches the numpad mirror to the same skill slot", () => {
+    const castSkill = vi.fn();
+    const stop = trackActions({
+      attack: vi.fn(),
+      interact: vi.fn(),
+      usePotion: vi.fn(),
+      release: vi.fn(),
+      castSkill,
+      focusChat: vi.fn(),
+      toggleMap: vi.fn(),
+      toggleSettings: vi.fn(),
+    });
+
+    fireEvent.keyDown(window, { code: "Numpad4" });
+    expect(castSkill).toHaveBeenCalledWith(5);
     stop();
   });
 

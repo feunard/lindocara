@@ -145,6 +145,41 @@ describe("party hero admission and authored runtime", () => {
     }
   });
 
+  it("executes private authoritative test commands for a hero", { timeout: 15_000 }, async () => {
+    const party = await testParty("cheat-commands");
+    const hero = await testHero("Tester", {
+      party,
+      account: party.host,
+      class: "ranger",
+      level: 1,
+    });
+    const client = await Client.joinHero(hero);
+    await until("cheat welcome", () => client.welcome);
+
+    client.chat("/up10");
+    await until("level cheat event", () =>
+      client.received.find((message) => message.t === "event" && message.code === "cheat.level"),
+    );
+    const levelled = await until("level ten snapshot", () =>
+      client.self()?.level === 10 ? client.self() : undefined,
+    );
+    expect(levelled.class).toBe("ranger");
+    expect(levelled.hp).toBe(maxHpForLevel(10));
+
+    client.chat("/ghost");
+    await until("forced ghost", () =>
+      client.self()?.life === "ghost" ? client.self() : undefined,
+    );
+    client.chat("/revive");
+    const revived = await until("cheat revive", () =>
+      client.self()?.life === "alive" ? client.self() : undefined,
+    );
+    expect(revived.hp).toBe(maxHpForLevel(10));
+    expect(
+      client.received.some((message) => message.t === "chat" && message.text.startsWith("/")),
+    ).toBe(false);
+  });
+
   it("toggles Iron Guard, blocks every other action, and starts cooldown on exit", {
     timeout: 10_000,
   }, async () => {

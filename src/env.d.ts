@@ -14,6 +14,8 @@ interface Env {
   SESSION_SECRET: string;
   /** Optional local-only navigation overlay gate. Keep unset in production. */
   NAVIGATION_DEBUG?: string;
+  /** Local/test-only authoritative chat commands. Keep unset in production. */
+  CHEATS_ENABLED?: string;
   /**
    * Test-only presence lease clock, in milliseconds. Both are absent in production and in
    * `wrangler.jsonc`, so `presenceTiming()` falls back to `PRESENCE_TTL_MS` /
