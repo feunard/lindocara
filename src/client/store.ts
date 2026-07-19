@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { CharacterAppearance, Equipment } from "../shared/character.js";
+import type { CharacterAppearance, Equipment, PrimaryColor } from "../shared/character.js";
 import type { LifeState } from "../shared/death.js";
 import type { PlayerClass } from "../shared/game.js";
 import type { MessageKey } from "../shared/i18n/index.js";
@@ -103,6 +103,16 @@ export interface ReconnectState {
   cancelReconnect(): void;
 }
 
+export type HeroLoadingPhase = "preparing" | "connecting" | "world" | "ready";
+
+export interface HeroLoadingState {
+  name: string;
+  class: PlayerClass;
+  color: PrimaryColor;
+  phase: HeroLoadingPhase;
+  progress: number;
+}
+
 interface UiState {
   screen:
     | "boot"
@@ -143,6 +153,7 @@ interface UiState {
    *  Verdant Reach's 16:9. */
   worldSize: { width: number; height: number } | null;
   reconnect: ReconnectState | null;
+  heroLoading: HeroLoadingState | null;
   adventureVictory: boolean;
   game: GameHandle | null;
 
@@ -171,6 +182,7 @@ interface UiState {
   setZoneNameKey(key: MessageKey): void;
   setWorldSize(size: { width: number; height: number } | null): void;
   setReconnect(reconnect: ReconnectState | null): void;
+  setHeroLoading(heroLoading: HeroLoadingState | null): void;
   setAdventureVictory(visible: boolean): void;
   setGame(game: GameHandle | null): void;
   /** Everything a terminal disconnect must clear before character select is usable again: the
@@ -262,6 +274,7 @@ export const useUiStore = create<UiState>((set) => ({
   zoneNameKey: null,
   worldSize: null,
   reconnect: null,
+  heroLoading: null,
   adventureVictory: false,
   game: null,
 
@@ -344,12 +357,14 @@ export const useUiStore = create<UiState>((set) => ({
   setZoneNameKey: (zoneNameKey) => set({ zoneNameKey }),
   setWorldSize: (worldSize) => set({ worldSize }),
   setReconnect: (reconnect) => set({ reconnect }),
+  setHeroLoading: (heroLoading) => set({ heroLoading }),
   setAdventureVictory: (adventureVictory) => set({ adventureVictory }),
   setGame: (game) => set({ game }),
   resetToCharacterSelect: () =>
     set({
       game: null,
       reconnect: null,
+      heroLoading: null,
       screen: "characters",
       mapOpen: false,
       talentsOpen: false,
@@ -362,6 +377,7 @@ export const useUiStore = create<UiState>((set) => ({
     set({
       game: null,
       reconnect: null,
+      heroLoading: null,
       screen: "party",
       mapOpen: false,
       talentsOpen: false,

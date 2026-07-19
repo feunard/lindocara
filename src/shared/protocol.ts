@@ -209,6 +209,8 @@ export interface CombatAnimation {
   actorId: string;
   action: "attack" | "skill";
   skillId?: string;
+  /** Server-authored: this cast owns at least one active talent for its skill slot. */
+  talented?: true;
   direction: Vec2;
   startedAt: number;
   impactAt: number;
@@ -753,6 +755,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       isFiniteNumber(value.recoveryEndsAt) &&
       value.startedAt <= value.impactAt &&
       value.impactAt <= value.recoveryEndsAt &&
+      (value.talented === undefined || value.talented === true) &&
       ((value.actorKind === "monster" &&
         value.action === "attack" &&
         value.skillId === undefined) ||

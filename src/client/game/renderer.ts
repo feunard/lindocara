@@ -283,6 +283,7 @@ interface EntityView<T extends { id: string }> {
   unitAnimations?: Record<UnitMotion, readonly Texture[]>;
   actionId?: string;
   actionSkillId?: string;
+  actionTalented?: boolean;
   actionStartedAt?: number;
   actionImpactAt?: number;
   actionChannelEndsAt?: number;
@@ -2817,6 +2818,7 @@ export class Renderer {
     action: {
       id: string;
       skillId?: string;
+      talented?: true;
       direction: { x: number; y: number };
       startedAt: number;
       impactAt: number;
@@ -2827,9 +2829,12 @@ export class Renderer {
     if (!this.#combatVisualAuthority.acceptsAction(action.id)) return;
     const localNow = performance.now();
     const localTimeline = this.serverClock.combatTimeline(action, localNow);
+    const replacingAction = view.actionId !== action.id;
     view.actionId = action.id;
     if (action.skillId === undefined) delete view.actionSkillId;
     else view.actionSkillId = action.skillId;
+    if (action.talented === true) view.actionTalented = true;
+    else if (replacingAction) delete view.actionTalented;
     view.actionDirection = { ...action.direction };
     view.actionStartedAt = localTimeline.startedAt;
     view.actionImpactAt = localTimeline.impactAt;
@@ -2860,6 +2865,7 @@ export class Renderer {
     const action = {
       id: animation.actionId,
       ...(animation.skillId === undefined ? {} : { skillId: animation.skillId }),
+      ...(animation.talented === true ? { talented: true as const } : {}),
       direction: animation.direction,
       startedAt: animation.startedAt,
       impactAt: animation.impactAt,
@@ -2965,6 +2971,9 @@ export class Renderer {
         this.#playCombatSheet(effect, position.x, position.y, view.actionId);
         if (art.accent) this.#playCombatSheet(art.accent, position.x, position.y, view.actionId);
         this.#playActionFlourish(skillId, position.x, position.y, view.actionId);
+        if (view.actionTalented) {
+          this.#playTalentedFlourish(art, position.x, position.y, view.actionId);
+        }
         if (skillId === "prayer") {
           const radius = CLASS_SKILLS.priest.find((skill) => skill.id === "prayer")?.radius ?? 0;
           this.#playRangeIndicator(position.x, position.y, radius, 0x8df0aa, view.actionId);
@@ -3112,6 +3121,24 @@ export class Renderer {
       this.#playRangeIndicator(x, y, radius * 0.68, 0x8df0aa, actionId);
       this.#burst(x, y, 0xe6bdff, 14);
     }
+  }
+
+  /** A V2 talent cast stays rooted in the skill's own Tiny Swords art, enlarged and echoed. */
+  #playTalentedFlourish(
+    art: ReturnType<typeof combatArt>,
+    x: number,
+    y: number,
+    actionId: string,
+  ): void {
+    const asset = art.accent ?? art.zone ?? art.impact;
+    if (!asset) return;
+    this.#playCombatSheet({ ...asset, scale: (asset.scale ?? 1) * 1.28 }, x, y, actionId);
+    this.#playCombatSheet(
+      { ...asset, scale: (asset.scale ?? 1) * 0.72, durationMs: asset.durationMs * 0.82 },
+      x,
+      y,
+      actionId,
+    );
   }
 
   playCombatImpact(

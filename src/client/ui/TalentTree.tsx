@@ -26,6 +26,7 @@ const NODE_GLYPHS: Readonly<Record<Exclude<TalentLabel, "root">, string>> = {
   execute: "✧",
   chain_heal: "∞",
   blink_heal: "✚",
+  amplified: "II",
   mastery: "★",
 };
 
@@ -57,14 +58,36 @@ export function TalentTree() {
   const talentState = useUiStore((state) => state.selfState?.talents);
   const game = useUiStore((state) => state.game);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [inspectedNodeId, setInspectedNodeId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!open) setConfirmReset(false);
+    if (!open) {
+      setConfirmReset(false);
+      setInspectedNodeId(null);
+    }
   }, [open]);
 
   if (!open || !self || !talentState) return null;
   const selected = new Set(talentState.selected);
   const branches = [2, 3, 4, 5] as const;
+  const classNodes = CLASS_TALENTS[self.class];
+  const inspectedNode =
+    classNodes.find((node) => node.id === inspectedNodeId) ?? classNodes.find((node) => node.root);
+  const copyFor = (node: (typeof classNodes)[number]) => {
+    const skill = skillFor(self.class, node.slot);
+    const skillName = t(`skill.${self.class}.${skill.id}.name` as MessageKey);
+    return {
+      skillName,
+      name: node.root ? skillName : t(`talent.node.${node.label}.name` as MessageKey),
+      description: node.root
+        ? t(`skill.${self.class}.${skill.id}.description` as MessageKey)
+        : t(`talent.node.${node.label}.description` as MessageKey, {
+            skill: skillName,
+            value: effectValue(node.effects),
+          }),
+    };
+  };
+  const inspectedCopy = inspectedNode ? copyFor(inspectedNode) : null;
 
   return (
     <section
@@ -77,7 +100,9 @@ export function TalentTree() {
         <header className="talent-header">
           <div>
             <p className="talent-kicker">{t(`class.${self.class}` as MessageKey)}</p>
-            <h2 id="talent-title">{t("talent.title")}</h2>
+            <h2 id="talent-title">
+              {t("talent.title")} <span className="talent-v2">{t("talent.v2")}</span>
+            </h2>
             <p>
               {t("talent.points", { available: talentState.pointsAvailable, total: self.level })}
             </p>
@@ -97,7 +122,7 @@ export function TalentTree() {
           {branches.map((slot) => {
             const skill = skillFor(self.class, slot);
             const skillName = t(`skill.${self.class}.${skill.id}.name` as MessageKey);
-            const nodes = CLASS_TALENTS[self.class].filter((node) => node.slot === slot);
+            const nodes = classNodes.filter((node) => node.slot === slot);
             const icon = skillIconArt(self.class, slot);
             const iconStyle = {
               backgroundImage: `url("${icon.source}")`,
@@ -118,33 +143,28 @@ export function TalentTree() {
                       node.id,
                     );
                     const available = !node.root && !active && result.ok;
-                    const name = node.root
-                      ? skillName
-                      : t(`talent.node.${node.label}.name` as MessageKey);
-                    const description = node.root
-                      ? t(`skill.${self.class}.${skill.id}.description` as MessageKey)
-                      : t(`talent.node.${node.label}.description` as MessageKey, {
-                          skill: skillName,
-                          value: effectValue(node.effects),
-                        });
+                    const { name, description } = copyFor(node);
+                    const status = active
+                      ? t("talent.status.active")
+                      : available
+                        ? t("talent.status.available")
+                        : t("talent.status.locked");
                     return (
                       <button
                         type="button"
                         key={node.id}
                         className={`talent-node${active ? " talent-node--active" : ""}${available ? " talent-node--available" : ""}`}
                         style={{ gridRow: node.tier + 1, gridColumn: node.column + 2 }}
-                        disabled={!available}
-                        onClick={() => game?.unlockTalent?.(node.id)}
-                        aria-label={`${name}. ${description}`}
+                        aria-pressed={active}
+                        onClick={() => {
+                          setInspectedNodeId(node.id);
+                          if (available) game?.unlockTalent?.(node.id);
+                        }}
+                        aria-label={`${name}. ${description} ${status}.`}
                         title={`${name} — ${description}`}
                       >
-                        {node.root ? (
-                          <span
-                            className="talent-node__icon"
-                            style={iconStyle}
-                            aria-hidden="true"
-                          />
-                        ) : (
+                        <span className="talent-node__icon" style={iconStyle} aria-hidden="true" />
+                        {!node.root && (
                           <span className="talent-node__glyph" aria-hidden="true">
                             {NODE_GLYPHS[node.label as Exclude<TalentLabel, "root">]}
                           </span>
@@ -161,6 +181,23 @@ export function TalentTree() {
             );
           })}
         </div>
+
+        {inspectedNode && inspectedCopy && (
+          <aside className="talent-detail" aria-live="polite">
+            <div className="talent-detail__copy">
+              <p>{inspectedCopy.skillName}</p>
+              <h3>{inspectedCopy.name}</h3>
+              <span>{inspectedCopy.description}</span>
+            </div>
+            <strong>
+              {inspectedNode.root || selected.has(inspectedNode.id)
+                ? t("talent.status.active")
+                : unlockTalent(self.class, self.level, talentState.selected, inspectedNode.id).ok
+                  ? t("talent.status.available")
+                  : t("talent.status.locked")}
+            </strong>
+          </aside>
+        )}
 
         <footer className="talent-footer">
           {!confirmReset ? (

@@ -31,6 +31,7 @@ export type TalentLabel =
   | "execute"
   | "chain_heal"
   | "blink_heal"
+  | "amplified"
   | "mastery";
 
 export interface TalentNode {
@@ -155,19 +156,19 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
       { key: "impact", label: "power", effects: [power()] },
       { key: "onslaught", label: "range", effects: [range(), distance()] },
       { key: "readiness", label: "cooldown", effects: [cooldown()] },
-      { key: "mastery", label: "mastery", effects: [power(0.2), distance(0.1)] },
+      { key: "mastery", label: "amplified", effects: [power(0.3), distance(0.2)] },
     ]),
     ...branch("warrior", 4, [
       { key: "reach", label: "range", effects: [range(0.2)] },
       { key: "readiness", label: "cooldown", effects: [cooldown()] },
       { key: "command", label: "mastery", effects: [range(0.15)] },
-      { key: "mastery", label: "mastery", effects: [range(0.2), cooldown(0.08)] },
+      { key: "mastery", label: "amplified", effects: [range(0.35), cooldown(0.15)] },
     ]),
     ...branch("warrior", 5, [
       { key: "force", label: "power", effects: [power()] },
       { key: "reach", label: "range", effects: [range()] },
       { key: "readiness", label: "cooldown", effects: [cooldown()] },
-      { key: "mastery", label: "mastery", effects: [power(0.22)] },
+      { key: "mastery", label: "amplified", effects: [power(0.35), range(0.1)] },
     ]),
   ],
   ranger: [
@@ -199,7 +200,7 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
         effects: [{ kind: "dash_invulnerability" }],
       },
       { key: "readiness", label: "cooldown", effects: [cooldown()] },
-      { key: "mastery", label: "mastery", effects: [distance(0.2), cooldown(0.08)] },
+      { key: "mastery", label: "amplified", effects: [distance(0.3), cooldown(0.12)] },
     ]),
     ...branch("ranger", 5, [
       { key: "force", label: "power", effects: [power()] },
@@ -227,19 +228,19 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
       { key: "distance", label: "distance", effects: [distance()] },
       { key: "renewal", label: "blink_heal", effects: [{ kind: "blink_heal", value: 20 }] },
       { key: "readiness", label: "cooldown", effects: [cooldown()] },
-      { key: "mastery", label: "mastery", effects: [distance(0.2), cooldown(0.08)] },
+      { key: "mastery", label: "amplified", effects: [distance(0.3), cooldown(0.12)] },
     ]),
     ...branch("priest", 4, [
       { key: "grace", label: "power", effects: [power()] },
       { key: "reach", label: "range", effects: [range()] },
       { key: "readiness", label: "cooldown", effects: [cooldown()] },
-      { key: "mastery", label: "mastery", effects: [power(0.2)] },
+      { key: "mastery", label: "amplified", effects: [power(0.3), range(0.15)] },
     ]),
     ...branch("priest", 5, [
       { key: "radiance", label: "power", effects: [power()] },
       { key: "reach", label: "range", effects: [range()] },
       { key: "readiness", label: "cooldown", effects: [cooldown()] },
-      { key: "mastery", label: "mastery", effects: [power(0.22)] },
+      { key: "mastery", label: "amplified", effects: [power(0.35), range(0.1)] },
     ]),
   ],
 };

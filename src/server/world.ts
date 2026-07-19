@@ -96,7 +96,7 @@ import {
   type SkillDefinition,
   type SkillSlot,
 } from "../shared/skills.js";
-import { skillWithTalents, talentEffect, unlockTalent } from "../shared/talents.js";
+import { skillWithTalents, talentEffect, talentEffects, unlockTalent } from "../shared/talents.js";
 import { emptyLayer, encodeTileLayer } from "../shared/tile-layer-codec.js";
 import { TILE_SIZE } from "../shared/tilemap.js";
 import { encodeTileMap } from "../shared/tilemap-codec.js";
@@ -1163,6 +1163,9 @@ export class World extends DurableObject<Env> {
         actorId: player.id,
         action: slot === 1 ? "attack" : "skill",
         skillId: skill.id,
+        ...(slot > 1 && talentEffects(player.class, player.talents, slot).length > 0
+          ? { talented: true as const }
+          : {}),
         direction: { ...action.direction },
         startedAt: action.startedAt,
         impactAt: action.impactAt,

@@ -380,6 +380,7 @@ describe("combat animation messages", () => {
       actorId: "player-1",
       action: "skill",
       skillId: "prayer",
+      talented: true,
       direction: { x: 1, y: 0 },
       startedAt: 100,
       impactAt: 300,
@@ -396,7 +397,11 @@ describe("combat animation messages", () => {
       impactAt: 550,
       recoveryEndsAt: 1_050,
     });
-    expect(parseServerMessage(player)).toMatchObject({ t: "animation", action: "skill" });
+    expect(parseServerMessage(player)).toMatchObject({
+      t: "animation",
+      action: "skill",
+      talented: true,
+    });
     expect(parseServerMessage(monster)).toMatchObject({ t: "animation", actorKind: "monster" });
   });
 
@@ -409,6 +414,23 @@ describe("combat animation messages", () => {
           actorKind: "player",
           actorId: "player-1",
           action: "skill",
+          direction: { x: 1, y: 0 },
+          startedAt: 100,
+          impactAt: 300,
+          recoveryEndsAt: 600,
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          t: "animation",
+          actionId: "action-player-2",
+          actorKind: "player",
+          actorId: "player-1",
+          action: "skill",
+          skillId: "prayer",
+          talented: false,
           direction: { x: 1, y: 0 },
           startedAt: 100,
           impactAt: 300,

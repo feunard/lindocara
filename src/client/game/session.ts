@@ -1,3 +1,4 @@
+import type { PrimaryColor } from "../../shared/character.js";
 import { WS_CLOSE } from "../../shared/close-codes.js";
 import { isSpirit } from "../../shared/death.js";
 import { INTERACTION_RANGE, isMonsterSpecies, pointDistance } from "../../shared/game.js";
@@ -52,7 +53,26 @@ function talentsOpen(): boolean {
 }
 
 function gameplayPaused(): boolean {
-  return interiorOpen() || settingsOpen() || talentsOpen();
+  return (
+    interiorOpen() || settingsOpen() || talentsOpen() || useUiStore.getState().heroLoading !== null
+  );
+}
+
+function heroLoadingColor(
+  identity: CharacterSummary | StoredHero,
+  persistentParty: PartyListing | null,
+): PrimaryColor {
+  if ("appearance" in identity) return identity.appearance.primaryColor;
+  switch (persistentParty?.myColor) {
+    case "red":
+      return "ember";
+    case "yellow":
+      return "moss";
+    case "purple":
+      return "violet";
+    default:
+      return "azure";
+  }
 }
 
 function setStatus(key: MessageKey, params?: Record<string, string | number>): void {
@@ -213,14 +233,32 @@ async function startGameIdentity(
   identity: CharacterSummary | StoredHero,
   persistentParty: PartyListing | null,
 ): Promise<void> {
-  useUiStore.getState().setAdventureVictory(false);
+  const loadingStartedAt = performance.now();
+  const initialStore = useUiStore.getState();
+  initialStore.setAdventureVictory(false);
+  initialStore.setHeroLoading({
+    name: identity.name,
+    class: identity.class,
+    color: heroLoadingColor(identity, persistentParty),
+    phase: "preparing",
+    progress: 8,
+  });
   setStatus("status.connecting", { name: identity.name });
   const canvas = required<HTMLCanvasElement>("#stage");
   const serverClock = new ServerClock();
   const renderer = await Renderer.create(canvas, serverClock);
+  useUiStore.getState().setHeroLoading({
+    name: identity.name,
+    class: identity.class,
+    color: heroLoadingColor(identity, persistentParty),
+    phase: "preparing",
+    progress: 32,
+  });
   let client = new WorldClient();
   let connection: Connection | null = null;
   let reconnectTimer: number | null = null;
+  let loadingTimer: number | null = null;
+  let loadingCompletionScheduled = false;
   let reconnectAttempts = 0;
   let reconnectCancelled = false;
   let intentionallyClosed = false;
@@ -265,6 +303,15 @@ async function startGameIdentity(
     onWelcome: (selfId, world, state) => {
       reconnectAttempts = 0;
       useUiStore.getState().setReconnect(null);
+      if (!welcomed) {
+        useUiStore.getState().setHeroLoading({
+          name: identity.name,
+          class: identity.class,
+          color: heroLoadingColor(identity, persistentParty),
+          phase: "world",
+          progress: 68,
+        });
+      }
       renderer.setSelfId(selfId);
       // A known id resolves to the compiled catalogue (terrain, furniture and all); anything else
       // is a D1 map, so its baked terrain and authored props travel in the welcome and are drawn
@@ -299,6 +346,13 @@ async function startGameIdentity(
       setStatus("status.connected_zone", { zone: t(world.zoneNameKey as MessageKey) });
       if (!welcomed) {
         welcomed = true;
+        useUiStore.getState().setHeroLoading({
+          name: identity.name,
+          class: identity.class,
+          color: heroLoadingColor(identity, persistentParty),
+          phase: "world",
+          progress: 90,
+        });
         addEvent(t("status.welcome_hint"), "info");
       }
     },
@@ -412,7 +466,9 @@ async function startGameIdentity(
     if (ended) return;
     ended = true;
     if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
+    if (loadingTimer !== null) window.clearTimeout(loadingTimer);
     reconnectTimer = null;
+    loadingTimer = null;
     input.stop();
     stopActions?.();
     window.removeEventListener("pointerdown", unlockAudio);
@@ -494,6 +550,13 @@ async function startGameIdentity(
     }, delayMs);
   };
 
+  useUiStore.getState().setHeroLoading({
+    name: identity.name,
+    class: identity.class,
+    color: heroLoadingColor(identity, persistentParty),
+    phase: "connecting",
+    progress: 48,
+  });
   openConnection();
 
   const attack = (): boolean => {
@@ -672,6 +735,21 @@ async function startGameIdentity(
     const sample = client.sample(now);
     const self = sample.players.find((player) => player.id === client.selfId);
     currentSelf = self;
+    if (welcomed && self && !loadingCompletionScheduled) {
+      loadingCompletionScheduled = true;
+      useUiStore.getState().setHeroLoading({
+        name: identity.name,
+        class: identity.class,
+        color: heroLoadingColor(identity, persistentParty),
+        phase: "ready",
+        progress: 100,
+      });
+      const remainingMs = Math.max(180, 850 - (performance.now() - loadingStartedAt));
+      loadingTimer = window.setTimeout(() => {
+        loadingTimer = null;
+        useUiStore.getState().setHeroLoading(null);
+      }, remainingMs);
+    }
     const door = nearestInterior(self, activeZoneId);
     const context: RenderContext = {
       quest: questState,
