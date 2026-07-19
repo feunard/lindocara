@@ -13,6 +13,7 @@ import {
   type MapData,
   MIN_PATROL_RADIUS,
 } from "../../../shared/map-data.js";
+import type { MapEvent } from "../../../shared/map-events.js";
 import { type EditorAssetId, editorAsset } from "../../../shared/tiny-swords-catalog.js";
 import {
   authErrorText,
@@ -43,6 +44,7 @@ import { AdventureSettingsDialog } from "./AdventureSettingsDialog.js";
 import { EditorMenuBar } from "./EditorMenuBar.js";
 import { EditorStatusBar } from "./EditorStatusBar.js";
 import { type EditorPaintTool, EditorToolbar, toolLabelText } from "./EditorToolbar.js";
+import { EventDialog } from "./EventDialog.js";
 import { MapListPanel } from "./MapListPanel.js";
 import { type MarkerToolKey, TerrainPalette } from "./TerrainPalette.js";
 
@@ -177,6 +179,9 @@ export function AdventureEditorScreen() {
   const [newMapOpen, setNewMapOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // The event whose dialog is open, keyed by uuid. Set by a stage double-click (`onOpenEvent`) or by
+  // pressing Enter on a selected event; cleared on save/delete/cancel.
+  const [openEventId, setOpenEventId] = useState<string | null>(null);
   // Bumped after every save/create so the map panel refetches names and dimensions.
   const [mapsRefreshNonce, setMapsRefreshNonce] = useState(0);
 
@@ -227,6 +232,7 @@ export function AdventureEditorScreen() {
         setSelection(state.selection);
       },
       (col, row) => setCursor(col === null || row === null ? null : { col, row }),
+      (id) => setOpenEventId(id),
     )
       .then((handle) => {
         if (cancelled) {
@@ -488,7 +494,7 @@ export function AdventureEditorScreen() {
   //   this file guarding on stage readiness.
   function handleShortcutKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
     if (stageStatus !== "ready") return;
-    if (newMapOpen || confirmDeleteId !== null || settingsOpen) return;
+    if (newMapOpen || confirmDeleteId !== null || settingsOpen || openEventId !== null) return;
     if (event.target instanceof Element && event.target.closest('[data-slot="dialog-content"]')) {
       return;
     }
@@ -508,6 +514,14 @@ export function AdventureEditorScreen() {
       event.preventDefault();
       if (event.shiftKey) redo();
       else undo();
+      return;
+    }
+    // Enter opens the dialog of the selected event — the keyboard twin of a stage double-click.
+    if (key === "enter") {
+      if (selection?.kind === "event") {
+        event.preventDefault();
+        setOpenEventId(selection.id);
+      }
       return;
     }
     if (event.metaKey || event.ctrlKey || event.altKey) return;
@@ -580,6 +594,11 @@ export function AdventureEditorScreen() {
   // reflects the latest positions.
   const currentMap: EditorMap | null =
     handleRef.current?.current() ?? editedRef.current ?? (map ? toEditorMap(map) : null);
+
+  // The dialog seed: a detached draft of the open event, read off the live handle. `null` closes the
+  // dialog (no open id, or the id no longer names a live event — e.g. it was just deleted).
+  const eventDraft: MapEvent | null =
+    openEventId !== null ? (handleRef.current?.beginEventDraft(openEventId) ?? null) : null;
 
   if (previewing) {
     return (
@@ -757,6 +776,22 @@ export function AdventureEditorScreen() {
         onSaved={() => setMapsRefreshNonce((n) => n + 1)}
         onSessionExpired={() => setScreen("auth")}
       />
+
+      {eventDraft && (
+        <EventDialog
+          key={eventDraft.id}
+          event={eventDraft}
+          onCommit={(draft) => {
+            handleRef.current?.commitEventDraft(draft);
+            setOpenEventId(null);
+          }}
+          onDelete={() => {
+            if (openEventId) handleRef.current?.deleteEvent(openEventId);
+            setOpenEventId(null);
+          }}
+          onCancel={() => setOpenEventId(null)}
+        />
+      )}
 
       <EditorStatusBar
         mapName={map?.name ?? "—"}

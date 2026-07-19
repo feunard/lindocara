@@ -2,7 +2,12 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MapPayload, MapSummary } from "../../src/client/api.js";
-import { blankMap, toMapData, toSaveInput } from "../../src/client/game/editor-state.js";
+import {
+  blankMap,
+  defaultEventPage,
+  toMapData,
+  toSaveInput,
+} from "../../src/client/game/editor-state.js";
 import { setLocale, t } from "../../src/client/i18n.js";
 import { useUiStore } from "../../src/client/store.js";
 import { AdventureEditorScreen } from "../../src/client/ui/editor/AdventureEditorScreen.js";
@@ -32,6 +37,9 @@ const stageMock = vi.hoisted(() => ({
   setSelectedElementAsset: vi.fn(),
   setSelectedMonster: vi.fn(),
   deleteSelected: vi.fn(),
+  beginEventDraft: vi.fn(),
+  commitEventDraft: vi.fn(),
+  deleteEvent: vi.fn(),
   dispose: vi.fn(),
 }));
 
@@ -55,6 +63,9 @@ function stageHandle() {
     setSelectedElementAsset: stageMock.setSelectedElementAsset,
     setSelectedMonster: stageMock.setSelectedMonster,
     deleteSelected: stageMock.deleteSelected,
+    beginEventDraft: stageMock.beginEventDraft,
+    commitEventDraft: stageMock.commitEventDraft,
+    deleteEvent: stageMock.deleteEvent,
     dispose: stageMock.dispose,
   };
 }
@@ -219,6 +230,99 @@ describe("AdventureEditorScreen shell", () => {
     // The event tool is what turns the stage's EV overlay on (shouldShowEventOverlay), so this call
     // reaching the handle IS the overlay flag reaching the stage.
     expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "event", graphic: null });
+  });
+
+  it("opens the event dialog when the stage double-click requests it", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    stageMock.beginEventDraft.mockReturnValue({
+      id: "ev-1",
+      col: 3,
+      row: 4,
+      name: "",
+      ordinal: 1,
+      pages: [defaultEventPage()],
+    });
+    await mountReady();
+
+    // The stage's onDoubleClick calls the 4th openMapEditorStage argument with the event's id.
+    const onOpenEvent = stageMock.openMapEditorStage.mock.calls[0]?.[3] as (id: string) => void;
+    expect(onOpenEvent).toBeInstanceOf(Function);
+    act(() => onOpenEvent("ev-1"));
+
+    await waitFor(() =>
+      expect(screen.getByText(t("editor.event.dialog.title"))).toBeInTheDocument(),
+    );
+    // The screen seeds the dialog with a detached draft read off the handle for that id.
+    expect(stageMock.beginEventDraft).toHaveBeenCalledWith("ev-1");
+  });
+
+  it("opens the event dialog on Enter when an event is selected", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    stageMock.beginEventDraft.mockReturnValue({
+      id: "ev-7",
+      col: 1,
+      row: 2,
+      name: "",
+      ordinal: 7,
+      pages: [defaultEventPage()],
+    });
+    await mountReady();
+
+    // Report an event selection through the stage's onChange, the way a select-click would.
+    const onChange = stageMock.openMapEditorStage.mock.calls[0]?.[1] as (
+      map: unknown,
+      state: { canUndo: boolean; canRedo: boolean; dirty: boolean; selection: unknown },
+    ) => void;
+    act(() =>
+      onChange(stageMock.current(), {
+        canUndo: false,
+        canRedo: false,
+        dirty: false,
+        selection: { kind: "event", id: "ev-7" },
+      }),
+    );
+
+    const root = document.querySelector(".editor-root");
+    if (!root) throw new Error("editor root not found");
+    fireEvent.keyDown(root, { key: "Enter" });
+
+    await waitFor(() =>
+      expect(screen.getByText(t("editor.event.dialog.title"))).toBeInTheDocument(),
+    );
+    expect(stageMock.beginEventDraft).toHaveBeenCalledWith("ev-7");
+  });
+
+  it("keeps tool shortcuts inert while the event dialog is open", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    stageMock.beginEventDraft.mockReturnValue({
+      id: "ev-1",
+      col: 3,
+      row: 4,
+      name: "",
+      ordinal: 1,
+      pages: [defaultEventPage()],
+    });
+    await mountReady();
+    const onOpenEvent = stageMock.openMapEditorStage.mock.calls[0]?.[3] as (id: string) => void;
+    act(() => onOpenEvent("ev-1"));
+    await waitFor(() =>
+      expect(screen.getByText(t("editor.event.dialog.title"))).toBeInTheDocument(),
+    );
+
+    const before = stageMock.setTool.mock.calls.length;
+    // Typing "r" in the dialog's name input must not switch to the rectangle tool.
+    await userEvent.type(screen.getByRole("textbox", { name: t("editor.event.name") }), "r");
+    // A bare key with the dialog open but focus on one of its buttons must not switch tools either —
+    // the portaled dialog is outside the shortcut host, and the closest('[data-slot=dialog-content]')
+    // gate covers the case the container ever does see the event.
+    screen.getByRole("button", { name: t("editor.event.save") }).focus();
+    await userEvent.keyboard("r");
+
+    expect(stageMock.setTool.mock.calls).toHaveLength(before);
+    expect(stageMock.setTool).not.toHaveBeenCalledWith({
+      kind: "rect",
+      content: { kind: "block", block: "grass" },
+    });
   });
 
   it("shows the Événements palette section only while EV mode is active", async () => {
@@ -470,6 +574,7 @@ describe("AdventureEditorScreen shell", () => {
     await waitFor(() =>
       expect(stageMock.openMapEditorStage).toHaveBeenLastCalledWith(
         edited,
+        expect.any(Function),
         expect.any(Function),
         expect.any(Function),
       ),

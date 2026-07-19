@@ -34,7 +34,9 @@ import {
 import type { EditorMap, EditorSelection, EditorTool } from "./editor-state.js";
 import {
   applyTool,
+  beginEventDraft,
   commitEditorHistory,
+  commitEventDraft,
   createEditorHistory,
   deleteSelection,
   editorMapSize,
@@ -87,6 +89,13 @@ export interface MapEditorStageHandle {
   setSelectedElementAsset(assetId: EditorAssetId): boolean;
   setSelectedMonster(species: MonsterSpecies, patrolRadius: number): boolean;
   deleteSelected(): boolean;
+  /** A detached draft copy of one event for the dialog to edit, or `null` if the id names no live
+   *  event. Reads the live map; writes nothing. */
+  beginEventDraft(id: string): MapEvent | null;
+  /** Commit an edited event draft back onto the map as ONE history entry (the dialog's Save). */
+  commitEventDraft(draft: MapEvent): void;
+  /** Delete an event by id as its own history entry (the dialog's delete-event). */
+  deleteEvent(id: string): void;
   dispose(): void;
 }
 
@@ -133,6 +142,17 @@ export function eventChipLabel(ordinal: number): string {
  *  gate can be pinned without the rest of the stage, exactly like `applyLayerDim`. */
 export function shouldShowEventOverlay(tool: EditorTool): boolean {
   return tool.kind === "event";
+}
+
+/**
+ * Whether switching from `prev` to `next` flips the EV overlay's visibility — the ONE thing `setTool`
+ * must `redraw()` for. The overlay is the only stage content that reacts to the active tool; every
+ * other tool swap (pencil↔rect↔fill↔eraser↔select) changes nothing drawn, so gating the redraw on
+ * this predicate is what stops each P/R/F/E/S keypress from rebuilding the whole map for nothing.
+ * Pure so the gate can be pinned without the stage, exactly like `shouldShowEventOverlay`.
+ */
+export function eventOverlayToggled(prev: EditorTool, next: EditorTool): boolean {
+  return shouldShowEventOverlay(prev) !== shouldShowEventOverlay(next);
 }
 
 const EVENT_BOX_COLOR = 0x27272a;
@@ -183,6 +203,12 @@ export function paintEventCell(
   const hasGraphic = frame !== undefined;
   if (frame) {
     const sprite = new Sprite(frame);
+    // Deliberately NOT `createCatalogElementView`'s placement math: an event is a fixed one-cell
+    // marker, so its graphic is anchored bottom-centre (0.5, 1) on the cell and fit into ~1.6 tiles,
+    // regardless of the asset. `createCatalogElementView` instead honours each asset's own
+    // `definition.anchor`/`footOffset` so multi-cell scenery stands on its footprint — the right rule
+    // for props a player collides with, the wrong one for a uniform EV chip. The divergence is
+    // intentional: same catalogue art, two different placement contracts.
     const fit = Math.min((TILE_SIZE * 1.6) / frame.width, (TILE_SIZE * 1.6) / frame.height);
     sprite.width = frame.width * fit;
     sprite.height = frame.height * fit;
@@ -357,6 +383,9 @@ function inertHandle(map: EditorMap): MapEditorStageHandle {
     setSelectedElementAsset: () => false,
     setSelectedMonster: () => false,
     deleteSelected: () => false,
+    beginEventDraft: () => null,
+    commitEventDraft() {},
+    deleteEvent() {},
     dispose() {},
   };
 }
@@ -690,8 +719,10 @@ async function buildSession(
     lastPaintedCol = col;
     lastPaintedRow = row;
     if (tool.kind === "select") {
+      // No redraw: no non-event selection renders anything on the stage (the marker/element/spawn
+      // inspector is React), and the EV overlay is hidden under the select tool — so a select-click
+      // rebuilds nothing. Only the React-facing `notify()` needs to fire.
       selected = selectionAt(map, col, row);
-      redraw();
       notify();
       return;
     }
@@ -903,15 +934,17 @@ async function buildSession(
 
   return {
     setTool(next) {
+      const overlayFlipped = eventOverlayToggled(tool, next);
       tool = next;
       if (next.kind === "element") ensureAsset(next.assetId);
       // A pending event graphic is what a freshly placed event will draw with, so its art must be
       // loaded before the first placement, not only after the overlay's next spontaneous redraw.
       if (next.kind === "event" && next.graphic != null) ensureAsset(next.graphic);
-      // Entering or leaving EV mode flips the overlay; redraw so a just-shown overlay paints its
-      // events (and their selection) immediately, not only after the next edit.
       eventLayer.visible = shouldShowEventOverlay(next);
-      redraw();
+      // Only entering or leaving EV mode changes anything drawn, so only then repaint — a redraw on
+      // every tool swap rebuilt the whole map on each P/R/F/E/S keypress for nothing. Entering paints
+      // the just-shown overlay's events (and selection); leaving is covered by the visibility flip.
+      if (overlayFlipped) redraw();
       canvas.dataset.cursor =
         tool.kind === "pan" ? "move" : tool.kind === "select" ? "select" : "paint";
     },
@@ -986,6 +1019,22 @@ async function buildSession(
       if (!selected || selected.kind === "spawn") return false;
       const next = deleteSelection(map, selected);
       return commitInspectorChange(next, null);
+    },
+    beginEventDraft(id) {
+      return beginEventDraft(map, id);
+    },
+    commitEventDraft(draft) {
+      // Sync `present` to the live map first (so an uncommitted name edit is not lost), then let the
+      // editor-state API fold the draft in as one entry. `commitEditorHistory` inside it collapses a
+      // no-op save, so re-saving an unchanged event adds nothing to the undo stack.
+      history = commitEventDraft({ ...history, present: map }, draft);
+      map = history.present;
+      selected = { kind: "event", id: draft.id };
+      redraw();
+      notify();
+    },
+    deleteEvent(id) {
+      commitInspectorChange(deleteSelection(map, { kind: "event", id }), null);
     },
     dispose() {
       // Serialized like open: a dispose must not race a queued open onto the shared canvas. Idempotent

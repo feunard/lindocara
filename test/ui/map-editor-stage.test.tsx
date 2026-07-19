@@ -6,6 +6,7 @@ import { defaultEventPage } from "../../src/client/game/editor-state.js";
 import {
   applyLayerDim,
   eventChipLabel,
+  eventOverlayToggled,
   paintEventCell,
   paintLandCell,
   shouldShowEventOverlay,
@@ -234,5 +235,31 @@ describe("shouldShowEventOverlay", () => {
       { kind: "marker-entry" },
     ];
     for (const tool of inactive) expect(shouldShowEventOverlay(tool)).toBe(false);
+  });
+});
+
+/**
+ * `setTool` redraws the whole stage ONLY when this predicate is true — the EV overlay is the sole
+ * stage content that reacts to the active tool. This is the gate that stops every P/R/F/E/S keypress
+ * from rebuilding the map. Removing the gate (making `setTool` redraw unconditionally) is exactly the
+ * mutation the first case below catches: a same-visibility tool swap must report `false`.
+ */
+describe("eventOverlayToggled", () => {
+  it("is false when neither or both tools show the overlay — no redraw needed", () => {
+    // Both non-event: the wasteful case the gate eliminates.
+    expect(eventOverlayToggled({ kind: "block", block: "grass" }, { kind: "select" })).toBe(false);
+    expect(
+      eventOverlayToggled(
+        { kind: "rect", content: { kind: "block", block: "grass" } },
+        { kind: "eraser" },
+      ),
+    ).toBe(false);
+    // Both event: staying in EV mode (e.g. a graphic change) does not flip visibility here either.
+    expect(eventOverlayToggled({ kind: "event" }, { kind: "event", graphic: null })).toBe(false);
+  });
+
+  it("is true exactly when the overlay's visibility flips", () => {
+    expect(eventOverlayToggled({ kind: "select" }, { kind: "event" })).toBe(true);
+    expect(eventOverlayToggled({ kind: "event" }, { kind: "block", block: "grass" })).toBe(true);
   });
 });
