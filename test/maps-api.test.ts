@@ -5,6 +5,8 @@
  */
 import { env, SELF } from "cloudflare:test";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { createAdventure } from "../src/server/adventures.js";
+import { createDb } from "../src/server/db/index.js";
 import { BUILTIN_MAP_ID } from "../src/server/maps.js";
 import { SESSION_COOKIE } from "../src/server/session.js";
 import { MONSTER_SPECIES_KIND, type MonsterSpecies } from "../src/shared/game.js";
@@ -106,15 +108,17 @@ afterEach(async () => {
   await env.DB.exec("DELETE FROM adventure");
 });
 
-/** A draft adventure over HTTP (UX wave #5: maps are created inside one). */
+/**
+ * A DRAFT adventure with NO maps, seeded directly through the server function rather than the HTTP
+ * POST. The HTTP `POST /api/adventures` is now atomic (it creates a default first map), which would
+ * perturb this file's map-count and front-door assertions; these tests own the map lifecycle
+ * themselves, so they start from an empty adventure. The owner is resolved from the cookie via
+ * `/api/me` so every existing call site keeps passing a cookie.
+ */
 async function newAdventure(asCookie = cookie): Promise<string> {
-  const res = await authed(
-    "/api/adventures",
-    { method: "POST", body: JSON.stringify({ title: "Adv", maxPlayers: 4 }) },
-    asCookie,
-  );
-  expect(res.status).toBe(201);
-  return ((await res.json()) as { id: string }).id;
+  const me = (await (await authed("/api/me", {}, asCookie)).json()) as { id: string };
+  const adv = await createAdventure(createDb(env.DB), me.id, { title: "Adv", maxPlayers: 4 });
+  return adv.id;
 }
 
 /** Create the 5x5 template map inside `adventureId` (the only thing POST /api/maps does now). */

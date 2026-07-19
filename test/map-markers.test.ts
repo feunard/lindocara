@@ -130,6 +130,13 @@ describe("markers over the wire", () => {
       body: JSON.stringify({ title: "Wire", maxPlayers: 4 }),
     });
     const adventureId = ((await adv.json()) as { id: string }).id;
+    // The atomic create gives the adventure a saved graph binding its default map; reset it to a
+    // draft so authoring a fresh map with its own exits isn't gated by the all-exits-bound rule.
+    await SELF.fetch(`${ORIGIN}/api/adventures/${adventureId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Cookie: cookie },
+      body: JSON.stringify({ title: "Wire", maxPlayers: 4, graph: { start: null, links: [] } }),
+    });
     const template = await SELF.fetch(`${ORIGIN}/api/maps`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: cookie },

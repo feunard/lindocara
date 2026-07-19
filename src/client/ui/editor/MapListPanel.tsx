@@ -1,4 +1,4 @@
-import { Pencil, Plus, Settings2, Trash2 } from "lucide-react";
+import { Pencil, Plus, Settings2, Star, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   createMapApi,
@@ -37,6 +37,9 @@ interface MapListPanelProps {
   /** The map currently mounted in the stage, so the panel marks it and knows what "delete the open
    *  map" targets. */
   activeMapId: string | null;
+  /** The adventure's starting map (UX wave #6), so the panel fills that row's start affordance. Null
+   *  for a draft with no start authored. */
+  startMapId: string | null;
   /** Whether the open map has unsaved stage edits, so renaming it in place can guard them: rename
    *  persists the *stored* payload and re-mounts, which would otherwise drop those edits silently. */
   dirty: boolean;
@@ -54,6 +57,8 @@ interface MapListPanelProps {
   onOpenPayload(payload: MapPayload): void;
   /** The open map was deleted: the screen decides what to show next. */
   onActiveDeleted(): void;
+  /** Make this map the adventure's starting map (via its first entry), persisted by the screen. */
+  onSetStart(mapId: string): void;
   onOpenSettings(): void;
   onError(code: string): void;
   onSessionExpired(): void;
@@ -75,6 +80,7 @@ function isSessionError(code: string): boolean {
 export function MapListPanel({
   adventureId,
   activeMapId,
+  startMapId,
   dirty,
   refreshNonce,
   newMapOpen,
@@ -84,6 +90,7 @@ export function MapListPanel({
   onRequestOpen,
   onOpenPayload,
   onActiveDeleted,
+  onSetStart,
   onOpenSettings,
   onError,
   onSessionExpired,
@@ -200,6 +207,22 @@ export function MapListPanel({
                 : "border-transparent hover:bg-zinc-200/60"
             }`}
           >
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label={
+                map.id === startMapId
+                  ? t("editor.shell.maps.start.active")
+                  : t("editor.shell.maps.start")
+              }
+              aria-pressed={map.id === startMapId}
+              className={
+                map.id === startMapId ? "text-amber-500" : "text-zinc-300 hover:text-zinc-500"
+              }
+              onClick={() => onSetStart(map.id)}
+            >
+              <Star fill={map.id === startMapId ? "currentColor" : "none"} />
+            </Button>
             <button
               type="button"
               className="flex min-w-0 flex-1 flex-col items-start text-left"

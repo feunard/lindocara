@@ -586,6 +586,18 @@ export const en = {
   "editor.shell.maps.dims": "{cols}×{rows}",
   "editor.shell.maps.rename": "Rename",
   "editor.shell.maps.create": "Create map",
+  "editor.shell.maps.start": "Set as starting map",
+  "editor.shell.maps.start.active": "Starting map",
+  "editor.picker.title": "Adventures",
+  "editor.picker.subtitle": "Pick an adventure to edit, or create a new one.",
+  "editor.picker.empty": "No adventures yet. Create your first one below.",
+  "editor.picker.open": "Open",
+  "editor.picker.maps": "{count} maps",
+  "editor.picker.playable": "Playable",
+  "editor.picker.draft": "Draft",
+  "editor.picker.create.heading": "New adventure",
+  "editor.picker.create.submit": "Create adventure",
+  "editor.picker.loading": "Loading adventures…",
   "editor.shell.markers.heading": "Markers",
   "editor.shell.settings": "Adventure settings",
   "editor.shell.settings.pick": "Choose an adventure to edit",
@@ -691,6 +703,10 @@ export const en = {
     "Every exit must lead somewhere, and at least one must end the adventure.",
   "adventure.error.not_found": "That adventure no longer exists.",
   "adventure.error.referenced": "A party still uses this adventure.",
+  "adventure.error.not_playable":
+    "This adventure has no starting point yet. Finish it in the editor before starting a party.",
+  "adventure.error.in_use":
+    "A party is already playing this adventure, so its starting map can't be changed.",
 
   // Party API errors
   "party.error.invalid": "That party data is invalid.",

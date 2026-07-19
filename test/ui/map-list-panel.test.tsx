@@ -87,8 +87,10 @@ function mapsBackend(maps: MapSummary[] = twoMaps) {
 function Harness(overrides: {
   adventureId?: string | null;
   activeMapId?: string | null;
+  startMapId?: string | null;
   dirty?: boolean;
   onOpenPayload?: (payload: MapPayload) => void;
+  onSetStart?: (mapId: string) => void;
   onSessionExpired?: () => void;
 }) {
   const [newMapOpen, setNewMapOpen] = useState(false);
@@ -97,6 +99,7 @@ function Harness(overrides: {
     <MapListPanel
       adventureId={overrides.adventureId ?? "adv-1"}
       activeMapId={overrides.activeMapId ?? null}
+      startMapId={overrides.startMapId ?? null}
       dirty={overrides.dirty ?? false}
       refreshNonce={0}
       newMapOpen={newMapOpen}
@@ -106,6 +109,7 @@ function Harness(overrides: {
       onRequestOpen={() => {}}
       onOpenPayload={overrides.onOpenPayload ?? (() => {})}
       onActiveDeleted={() => {}}
+      onSetStart={overrides.onSetStart ?? (() => {})}
       onOpenSettings={() => {}}
       onError={() => {}}
       onSessionExpired={overrides.onSessionExpired ?? (() => {})}

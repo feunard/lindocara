@@ -365,25 +365,39 @@ async function testAdventure(
   const inputs = options.maps ?? [testMapInput(`${label} ground`)];
   const title = `${label} adventure`.slice(0, 48);
   const maxPlayers = options.maxPlayers ?? 4;
-  // A map now belongs to one adventure (UX wave #5), so the adventure is created first (as a draft),
-  // its maps are created inside it as templates and then authored with the test terrain via PUT, and
-  // finally the real graph is saved over them.
-  const adventure = await postAs<{ id: string }>(
+  // A map now belongs to one adventure (UX wave #5), and creating an adventure atomically creates its
+  // first map (UX wave #2/#3). Reuse that default map as the first authored map, then create the rest
+  // inside the adventure and author each with the test terrain via PUT, and finally save the graph.
+  const adventure = await postAs<{ id: string; defaultMap: { id: string } }>(
     host,
     "/api/adventures",
     { title, maxPlayers },
     201,
   );
+  // The born graph binds the default map's start/exit markers; reset it to a draft before
+  // re-authoring that map with the test terrain, so `updateMap`'s graph-integrity guard has nothing
+  // to protect while the markers change.
+  await putAs(
+    host,
+    `/api/adventures/${adventure.id}`,
+    { title, maxPlayers, graph: { start: null, links: [] } },
+    200,
+  );
   const mapIds: string[] = [];
-  for (const input of inputs) {
-    const created = await postAs<{ id: string }>(
-      host,
-      "/api/maps",
-      { adventureId: adventure.id, name: input.name },
-      201,
-    );
-    await putAs(host, `/api/maps/${created.id}`, input, 200);
-    mapIds.push(created.id);
+  for (const [index, input] of inputs.entries()) {
+    const mapId =
+      index === 0
+        ? adventure.defaultMap.id
+        : (
+            await postAs<{ id: string }>(
+              host,
+              "/api/maps",
+              { adventureId: adventure.id, name: input.name },
+              201,
+            )
+          ).id;
+    await putAs(host, `/api/maps/${mapId}`, input, 200);
+    mapIds.push(mapId);
   }
   const graph = (options.graph ?? defaultGraph)(mapIds);
   if (!graph.start) throw new Error("a playable adventure graph needs a start");

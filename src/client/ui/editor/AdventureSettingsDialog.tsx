@@ -1,34 +1,14 @@
 import type * as React from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { ExitDestination } from "../../../shared/adventure.js";
 import {
   type AdventureDraft,
-  addMember,
   bindExit,
-  type DraftMemberInfo,
   draftComplete,
-  draftFromAdventure,
   draftValidationIssues,
-  emptyDraft,
-  moveMember,
-  removeMember,
-  setStart,
   toAdventureInput,
 } from "../../adventure-draft.js";
-import {
-  type AdventureSummary,
-  authErrorText,
-  createAdventureApi,
-  deleteAdventureApi,
-  errorCode,
-  fetchAdventure,
-  fetchAdventures,
-  fetchMap,
-  fetchMaps,
-  type MapSummary,
-  updateAdventureApi,
-} from "../../api.js";
-import { solidMaskFromMapPayload } from "../../game/editor-state.js";
+import { authErrorText, deleteAdventureApi, errorCode, updateAdventureApi } from "../../api.js";
 import { t, useLocale } from "../../i18n.js";
 import { useUiStore } from "../../store.js";
 import { Button } from "../components/button.js";
@@ -44,29 +24,6 @@ import { Label } from "../components/label.js";
 
 function isSessionError(code: string): boolean {
   return code === "session_expired" || code === "unauthorized";
-}
-
-export async function memberInfo(mapId: string): Promise<DraftMemberInfo> {
-  const payload = await fetchMap(mapId);
-  return {
-    mapId,
-    name: payload.name,
-    revision: payload.revision,
-    solid: solidMaskFromMapPayload(payload),
-    monsterCount: payload.markers.monsterSpawns.length,
-    entryIds: payload.markers.entries.map((marker) => marker.id),
-    exitIds: payload.markers.exits.map((marker) => marker.id),
-    entryLabels: Object.fromEntries(
-      payload.markers.entries.flatMap((marker) =>
-        marker.label ? [[marker.id, marker.label] as const] : [],
-      ),
-    ),
-    exitLabels: Object.fromEntries(
-      payload.markers.exits.flatMap((marker) =>
-        marker.label ? [[marker.id, marker.label] as const] : [],
-      ),
-    ),
-  };
 }
 
 function markerName(labels: Readonly<Record<string, string>>, id: string): string {
@@ -89,7 +46,7 @@ function decodeDest(value: string): ExitDestination | null {
 }
 
 /** Dense native select, styled to sit with the shadcn Input in creator surfaces. Native so the
- *  membership/start/binding pickers stay keyboard- and test-driveable, unlike a portalled listbox. */
+ *  binding pickers stay keyboard- and test-driveable, unlike a portalled listbox. */
 function FieldSelect(props: React.ComponentProps<"select">) {
   const { className, ...rest } = props;
   return (
@@ -103,20 +60,20 @@ function FieldSelect(props: React.ComponentProps<"select">) {
 interface AdventureSettingsDialogProps {
   open: boolean;
   onOpenChange(open: boolean): void;
-  /** A membership/save landed: the map panel should refetch names and dims. */
+  /** A save or delete landed: the screen refetches names and reloads the session. */
   onSaved(): void;
   onSessionExpired(): void;
 }
 
 /**
- * Adventure-level settings, absorbed from the deleted `AdventureEditor` screen: title, max players,
- * map membership (add/remove/reorder), the starting entry, exit→entry bindings, the graph-validation
- * readout and save. Secondary chrome reached from the menu bar's Fichier menu and the map panel — not
- * a screen of its own.
+ * Adventure-level settings for the adventure currently open in the editor (UX wave #2/#5/#6): title,
+ * max players, the exit→entry bindings, the graph-validation readout, save and delete. Secondary
+ * chrome reached from the menu bar's Fichier menu and the map panel — never a screen of its own.
  *
- * Which adventure is being edited is carried by the store's `adventureEditorSession` draft slice —
- * the same seam the old two-screen flow used. With no session, the dialog first lists the account's
- * adventures to pick or create one; once a draft is loaded, it shows the editing form.
+ * Deliberately slim: membership is implicit now (a map belongs to exactly one adventure, so every
+ * owned map is a member — there is no add/remove/reorder), and the starting map is chosen in the
+ * Cartes panel, not here. Which adventure is edited is carried by the store's `adventureEditorSession`
+ * draft, populated by the picker before the editor mounts.
  */
 export function AdventureSettingsDialog({
   open,
@@ -128,9 +85,6 @@ export function AdventureSettingsDialog({
   const session = useUiStore((state) => state.adventureEditorSession);
   const setSession = useUiStore((state) => state.setAdventureEditorSession);
 
-  const [adventures, setAdventures] = useState<AdventureSummary[] | null>(null);
-  const [maps, setMaps] = useState<MapSummary[]>([]);
-  const [addingMapId, setAddingMapId] = useState("");
   const [saving, setSaving] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -141,84 +95,21 @@ export function AdventureSettingsDialog({
     else setError(code);
   }
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: reload the picker/map library on open or when the edited adventure changes
-  useEffect(() => {
-    if (!open) return;
-    setError(null);
-    void (async () => {
-      try {
-        // Maps belong to exactly one adventure, so the membership library is the edited adventure's
-        // own maps. A new draft (no adventure id yet) has none — it must be created first.
-        const [list, library] = await Promise.all([
-          fetchAdventures(),
-          session?.adventureId ? fetchMaps(session.adventureId) : Promise.resolve([]),
-        ]);
-        setAdventures(list);
-        setMaps(library);
-      } catch (caught) {
-        fail(caught);
-      }
-    })();
-  }, [open, session?.adventureId]);
-
   function updateDraft(draft: AdventureDraft | null): void {
     if (session && draft) setSession({ ...session, draft });
   }
 
-  async function openExisting(id: string): Promise<void> {
-    setError(null);
-    try {
-      const payload = await fetchAdventure(id);
-      const infos = new Map<string, DraftMemberInfo>();
-      for (const mapId of payload.mapIds) infos.set(mapId, await memberInfo(mapId));
-      const draft = draftFromAdventure(payload, infos);
-      setSession({
-        adventureId: id,
-        draftId: crypto.randomUUID(),
-        draft,
-        invalidatedLinks: [],
-        savedDraft: JSON.stringify(draft),
-      });
-    } catch (caught) {
-      fail(caught);
-    }
-  }
-
-  function createNew(): void {
-    setSession({
-      adventureId: null,
-      draftId: crypto.randomUUID(),
-      draft: emptyDraft(),
-      invalidatedLinks: [],
-      savedDraft: null,
-    });
-  }
-
-  async function addMap(): Promise<void> {
-    if (!session || !addingMapId) return;
-    setError(null);
-    try {
-      const info = await memberInfo(addingMapId);
-      const draft = addMember(session.draft, info);
-      if (draft) setSession({ ...session, draft });
-      setAddingMapId("");
-    } catch (caught) {
-      fail(caught);
-    }
-  }
-
-  // Delete the adventure currently open in the editor session. Confirm-gated in the UI, wired to the
-  // account-scoped delete endpoint, and clears the session on success so the dialog falls back to the
-  // adventure picker — the server refuses the delete if a party still references the adventure.
+  // Delete the adventure open in the editor session. The server refuses while a party references it.
+  // On success the session is cleared, which drops the editor back to the adventure picker.
   async function remove(): Promise<void> {
     if (!session?.adventureId) return;
     setError(null);
     try {
       await deleteAdventureApi(session.adventureId);
       setConfirmingDelete(false);
+      onOpenChange(false);
       setSession(null);
       onSaved();
-      setAdventures(await fetchAdventures());
     } catch (caught) {
       setConfirmingDelete(false);
       fail(caught);
@@ -226,31 +117,15 @@ export function AdventureSettingsDialog({
   }
 
   async function save(): Promise<void> {
-    if (!session || saving) return;
-    // Create makes an empty DRAFT: only title/maxPlayers/registry are sent; the server builds the
-    // rest (mapIds: [], empty graph). Map membership and the graph are authored later through PUT,
-    // which does need a complete input.
-    const input = session.adventureId === null ? null : toAdventureInput(session.draft);
-    if (session.adventureId !== null && !input) return;
+    if (!session?.adventureId || saving) return;
+    const input = toAdventureInput(session.draft);
+    if (!input) return;
     setSaving(true);
     setError(null);
     try {
-      if (session.adventureId === null) {
-        await createAdventureApi({
-          title: session.draft.title.trim(),
-          maxPlayers: session.draft.maxPlayers,
-          registry: session.draft.registry,
-        });
-      } else if (input) {
-        await updateAdventureApi(session.adventureId, input);
-      }
-      setSession(null);
+      await updateAdventureApi(session.adventureId, input);
+      onOpenChange(false);
       onSaved();
-      try {
-        setAdventures(await fetchAdventures());
-      } catch (caught) {
-        fail(caught);
-      }
     } catch (caught) {
       fail(caught);
     } finally {
@@ -271,25 +146,13 @@ export function AdventureSettingsDialog({
           </p>
         )}
 
-        {session ? (
+        {session && (
           <EditForm
             draft={session.draft}
-            maps={maps}
-            addingMapId={addingMapId}
             saving={saving}
-            canDelete={session.adventureId !== null}
-            onAddingMapIdChange={setAddingMapId}
             onUpdate={updateDraft}
-            onAddMap={() => void addMap()}
             onSave={() => void save()}
             onDelete={() => setConfirmingDelete(true)}
-            onBack={() => setSession(null)}
-          />
-        ) : (
-          <Picker
-            adventures={adventures}
-            onOpen={(id) => void openExisting(id)}
-            onNew={createNew}
           />
         )}
 
@@ -315,81 +178,22 @@ export function AdventureSettingsDialog({
   );
 }
 
-function Picker({
-  adventures,
-  onOpen,
-  onNew,
-}: {
-  adventures: AdventureSummary[] | null;
-  onOpen(id: string): void;
-  onNew(): void;
-}) {
-  useLocale();
-  return (
-    <div className="flex flex-col gap-2">
-      <p className="text-[11px] font-semibold tracking-wide text-zinc-500 uppercase">
-        {t("editor.shell.settings.pick")}
-      </p>
-      {adventures && adventures.length === 0 && (
-        <p className="text-sm text-muted-foreground">{t("editor.shell.settings.empty")}</p>
-      )}
-      <div className="flex flex-col gap-1">
-        {adventures?.map((adventure) => (
-          <div
-            key={adventure.id}
-            className="flex items-center gap-2 rounded-md border border-zinc-200 px-2 py-1.5"
-          >
-            <div className="flex min-w-0 flex-1 flex-col">
-              <span className="truncate text-sm font-medium">{adventure.title}</span>
-              <span className="text-xs text-muted-foreground">
-                {t("adventure.players.count", { count: adventure.maxPlayers })}
-              </span>
-            </div>
-            <Button variant="secondary" size="sm" onClick={() => onOpen(adventure.id)}>
-              {t("adventure.edit")}
-            </Button>
-          </div>
-        ))}
-      </div>
-      <Button className="self-start" onClick={onNew}>
-        {t("adventure.new")}
-      </Button>
-    </div>
-  );
-}
-
 function EditForm({
   draft,
-  maps,
-  addingMapId,
   saving,
-  canDelete,
-  onAddingMapIdChange,
   onUpdate,
-  onAddMap,
   onSave,
   onDelete,
-  onBack,
 }: {
   draft: AdventureDraft;
-  maps: MapSummary[];
-  addingMapId: string;
   saving: boolean;
-  canDelete: boolean;
-  onAddingMapIdChange(id: string): void;
   onUpdate(draft: AdventureDraft | null): void;
-  onAddMap(): void;
   onSave(): void;
   onDelete(): void;
-  onBack(): void;
 }) {
   useLocale();
   const validationIssues = draftValidationIssues(draft);
-  const available = maps.filter((map) => !draft.members.some((member) => member.mapId === map.id));
-  const startMap = draft.members.find((member) => member.mapId === draft.start?.mapId);
-  // Creating an adventure makes a DRAFT: only a title is required client-side (the server validates
-  // length and player count). Updating an existing adventure still needs a complete, playable graph.
-  const canSave = canDelete ? draftComplete(draft) : draft.title.trim().length > 0;
+  const canSave = draftComplete(draft);
 
   return (
     <div className="flex flex-col gap-4">
@@ -415,108 +219,6 @@ function EditForm({
           }
         />
       </div>
-
-      <section className="flex flex-col gap-2" aria-label={t("adventure.maps.title")}>
-        <h3 className="text-sm font-semibold">{t("adventure.maps.title")}</h3>
-        {draft.members.map((member) => (
-          <div
-            key={member.mapId}
-            className="flex items-center gap-2 rounded-md border border-zinc-200 px-2 py-1.5"
-          >
-            <div className="flex min-w-0 flex-1 flex-col">
-              <span className="truncate text-sm font-medium">{member.name}</span>
-              <span className="text-xs text-muted-foreground">
-                {member.entryIds.length} {t("adventure.maps.entries")} · {member.exitIds.length}{" "}
-                {t("adventure.maps.exits")} · {member.monsterCount} {t("adventure.maps.monsters")}
-              </span>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onUpdate(moveMember(draft, member.mapId, -1))}
-            >
-              {t("adventure.maps.up")}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onUpdate(moveMember(draft, member.mapId, 1))}
-            >
-              {t("adventure.maps.down")}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onUpdate(removeMember(draft, member.mapId))}
-            >
-              {t("adventure.maps.remove")}
-            </Button>
-          </div>
-        ))}
-        <div className="flex items-end gap-2">
-          <div className="flex flex-1 flex-col gap-1.5">
-            <Label htmlFor="adventure-add-map">{t("adventure.maps.add.label")}</Label>
-            <FieldSelect
-              id="adventure-add-map"
-              value={addingMapId}
-              onChange={(event) => onAddingMapIdChange(event.currentTarget.value)}
-            >
-              <option value="">—</option>
-              {available.map((map) => (
-                <option key={map.id} value={map.id}>
-                  {map.name}
-                </option>
-              ))}
-            </FieldSelect>
-          </div>
-          <Button variant="secondary" onClick={onAddMap}>
-            {t("adventure.maps.add")}
-          </Button>
-        </div>
-      </section>
-
-      <section className="flex flex-col gap-2" aria-label={t("adventure.start.title")}>
-        <h3 className="text-sm font-semibold">{t("adventure.start.title")}</h3>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="adventure-start-map">{t("adventure.start.map")}</Label>
-          <FieldSelect
-            id="adventure-start-map"
-            value={draft.start?.mapId ?? ""}
-            onChange={(event) => {
-              const member = draft.members.find((m) => m.mapId === event.currentTarget.value);
-              const first = member?.entryIds[0];
-              if (member && first) onUpdate(setStart(draft, member.mapId, first));
-            }}
-          >
-            <option value="">—</option>
-            {draft.members
-              .filter((member) => member.entryIds.length > 0)
-              .map((member) => (
-                <option key={member.mapId} value={member.mapId}>
-                  {member.name}
-                </option>
-              ))}
-          </FieldSelect>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="adventure-start-entry">{t("adventure.start.entry")}</Label>
-          <FieldSelect
-            id="adventure-start-entry"
-            value={draft.start?.entryId ?? ""}
-            onChange={(event) => {
-              if (draft.start)
-                onUpdate(setStart(draft, draft.start.mapId, event.currentTarget.value));
-            }}
-          >
-            <option value="">—</option>
-            {(startMap?.entryIds ?? []).map((entryId) => (
-              <option key={entryId} value={entryId}>
-                {markerName(startMap?.entryLabels ?? {}, entryId)}
-              </option>
-            ))}
-          </FieldSelect>
-        </div>
-      </section>
 
       <section className="flex flex-col gap-2" aria-label={t("adventure.bindings.title")}>
         <h3 className="text-sm font-semibold">{t("adventure.bindings.title")}</h3>
@@ -585,24 +287,15 @@ function EditForm({
         )}
       </section>
 
-      {!draftComplete(draft) && (
-        <p className="text-sm text-muted-foreground">{t("adventure.incomplete")}</p>
-      )}
+      {!canSave && <p className="text-sm text-muted-foreground">{t("adventure.incomplete")}</p>}
 
-      <div className="flex items-center justify-between gap-2">
-        <Button variant="outline" onClick={onBack}>
-          {t("editor.back")}
+      <div className="flex items-center justify-end gap-2">
+        <Button variant="destructive" onClick={onDelete}>
+          {t("editor.delete")}
         </Button>
-        <div className="flex gap-2">
-          {canDelete && (
-            <Button variant="destructive" onClick={onDelete}>
-              {t("editor.delete")}
-            </Button>
-          )}
-          <Button disabled={!canSave || saving} onClick={onSave}>
-            {t("editor.save")}
-          </Button>
-        </div>
+        <Button disabled={!canSave || saving} onClick={onSave}>
+          {t("editor.save")}
+        </Button>
       </div>
     </div>
   );

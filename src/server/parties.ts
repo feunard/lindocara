@@ -90,6 +90,13 @@ export async function createParty(
 ): Promise<StoredParty> {
   const adv = await loadAdventure(db, accountId, input.adventureId);
   if (!adv) throw new Error("adventure: no such adventure");
+  // A draft adventure (no start authored) has nowhere for heroes to spawn. Refuse the party at
+  // creation with a DISTINCT code rather than letting hero creation later fail as a misleading
+  // "hero not found" — the fault is the adventure, not the hero.
+  // A draft adventure (no start authored) has nowhere for heroes to spawn. Refuse the party at
+  // creation with a DISTINCT code rather than letting hero creation later fail as a misleading
+  // "hero not found" — the fault is the adventure, not the hero.
+  if (!adv.graph.start) throw new Error("not_playable: adventure has no start");
   const id = crypto.randomUUID();
   const row = {
     id,

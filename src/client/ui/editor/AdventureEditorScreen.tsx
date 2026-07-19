@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
+import type { AdventureInput } from "../../../shared/adventure.js";
 import { type AdventureRegistry, EMPTY_REGISTRY } from "../../../shared/adventure-state.js";
 import { MONSTER_SPECIES_KIND, type MonsterSpecies } from "../../../shared/game.js";
 import {
@@ -16,12 +17,14 @@ import {
 } from "../../../shared/map-data.js";
 import type { MapEvent } from "../../../shared/map-events.js";
 import { type EditorAssetId, editorAsset } from "../../../shared/tiny-swords-catalog.js";
+import { setStart } from "../../adventure-draft.js";
 import {
   authErrorText,
   errorCode,
   fetchMap,
   fetchMaps,
   type MapPayload,
+  updateAdventureApi,
   updateMapApi,
 } from "../../api.js";
 import {
@@ -41,7 +44,9 @@ import { Button } from "../components/button.js";
 import { Input } from "../components/input.js";
 import { Label } from "../components/label.js";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../components/resizable.js";
+import { AdventurePicker } from "./AdventurePicker.js";
 import { AdventureSettingsDialog } from "./AdventureSettingsDialog.js";
+import { loadAdventureSession } from "./adventure-session.js";
 import { EditorMenuBar } from "./EditorMenuBar.js";
 import { EditorStatusBar } from "./EditorStatusBar.js";
 import { type EditorPaintTool, EditorToolbar, toolLabelText } from "./EditorToolbar.js";
@@ -132,17 +137,40 @@ function paintToolFor(key: EditorPaintTool | "stairs", content: RectFillContent)
  * through the `MapEditorStageHandle`, exactly as before.
  */
 export function AdventureEditorScreen() {
+  const session = useUiStore((state) => state.adventureEditorSession);
+  const setSession = useUiStore((state) => state.setAdventureEditorSession);
+  const setScreen = useUiStore((state) => state.setScreen);
+  // UX wave #2: the editor opens on the adventure picker, never a bare stage. Only once an adventure
+  // is selected (a session with a real id) does the editor shell mount around it.
+  if (!session?.adventureId) {
+    return (
+      <AdventurePicker
+        onOpen={(loaded) => setSession(loaded)}
+        onExit={() => {
+          setSession(null);
+          setScreen("parties");
+        }}
+        onSessionExpired={() => setScreen("auth")}
+      />
+    );
+  }
+  return <AdventureEditorInner key={session.adventureId} adventureId={session.adventureId} />;
+}
+
+function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   useLocale();
   const setScreen = useUiStore((state) => state.setScreen);
+  const setSession = useUiStore((state) => state.setAdventureEditorSession);
+  // The starting map (UX wave #6) is the graph start's map — surfaced in the Cartes panel below.
+  const startMapId = useUiStore(
+    (state) => state.adventureEditorSession?.draft.start?.mapId ?? null,
+  );
   // The switch/variable registry rides the loaded adventure session's draft. When no adventure is
   // loaded (the common map-first case) it is empty, which falls the event dialog's condition pickers
   // back to free text. Loading an adventure in the database dialog fills it.
   const registry: AdventureRegistry = useUiStore(
     (state) => state.adventureEditorSession?.draft.registry ?? EMPTY_REGISTRY,
   );
-  // Maps belong to exactly one adventure, so every map list/create is scoped to the loaded session's
-  // adventure. `null` (no session, or an unsaved draft) means "no maps": an empty list, no auto-open.
-  const adventureId = useUiStore((state) => state.adventureEditorSession?.adventureId ?? null);
 
   const handleRef = useRef<MapEditorStageHandle | null>(null);
   const pendingToolRef = useRef<EditorTool>(paintToolFor("pencil", DEFAULT_CONTENT));
@@ -457,17 +485,77 @@ export function AdventureEditorScreen() {
     })();
   }
 
+  // Reload the editor session from the server so the draft's members (and thus the start indicator
+  // and the settings dialog's bindings) reflect maps just created, deleted or re-marked. Best-effort:
+  // a failure here never blocks the map edit that triggered it.
+  function refreshSession(): void {
+    void (async () => {
+      try {
+        setSession(await loadAdventureSession(adventureId));
+      } catch (caught) {
+        const code = errorCode(caught);
+        if (isSessionError(code)) setScreen("auth");
+      }
+    })();
+  }
+
+  // The Cartes-panel start affordance (UX wave #6): make `mapId` the graph start via its first entry,
+  // and persist through the adventure PUT. The default map always has an entry; a map with none is
+  // refused with the "maps" code rather than writing a start the server would reject.
+  function setStartMap(mapId: string): void {
+    const current = useUiStore.getState().adventureEditorSession;
+    if (!current) return;
+    const member = current.draft.members.find((candidate) => candidate.mapId === mapId);
+    const entryId = member?.entryIds[0];
+    if (!member || entryId === undefined) {
+      setError("adventure_maps");
+      return;
+    }
+    const nextDraft = setStart(current.draft, mapId, entryId);
+    if (!nextDraft) return;
+    setSession({ ...current, draft: nextDraft });
+    // Persist the start (with its entry binding) through the adventure PUT. The graph is built from
+    // the draft's bound links directly rather than via `toAdventureInput`, whose completeness gate is
+    // stricter than the server: the server allows a map that is no longer reachable from the moved
+    // start, so a start change on an otherwise-valid graph is not blocked client-side. The server
+    // remains the validation authority — an unbound exit still comes back as an error.
+    const input: AdventureInput = {
+      title: nextDraft.title.trim(),
+      maxPlayers: nextDraft.maxPlayers,
+      graph: {
+        start: { mapId, entryId },
+        links: nextDraft.bindings.flatMap((binding) =>
+          binding.dest === null
+            ? []
+            : [{ mapId: binding.mapId, exitId: binding.exitId, dest: binding.dest }],
+        ),
+      },
+      registry: nextDraft.registry,
+    };
+    setError(null);
+    void (async () => {
+      try {
+        await updateAdventureApi(adventureId, input);
+        setSession(await loadAdventureSession(adventureId));
+      } catch (caught) {
+        fail(caught);
+      }
+    })();
+  }
+
   // A freshly created or renamed-in-place map handed back by the panel: mount it in the stage.
   function openPayload(payload: MapPayload): void {
     editedRef.current = null;
     setMap(payload);
     setMapsRefreshNonce((n) => n + 1);
+    refreshSession();
   }
 
   // The open map was deleted from the panel: fall back to the author's first remaining map, or an
   // empty stage if none is left.
   function activeMapDeleted(): void {
     setMapsRefreshNonce((n) => n + 1);
+    refreshSession();
     void (async () => {
       try {
         const first = adventureId ? (await fetchMaps(adventureId))[0] : undefined;
@@ -487,6 +575,8 @@ export function AdventureEditorScreen() {
     if (!force && dirty && !window.confirm(t("editor.shell.exit.confirm"))) {
       return;
     }
+    // Clear the session so re-entering the editor lands on the picker again (UX wave #2).
+    setSession(null);
     setScreen("parties");
   }
 
@@ -780,6 +870,7 @@ export function AdventureEditorScreen() {
           <MapListPanel
             adventureId={adventureId}
             activeMapId={map?.id ?? null}
+            startMapId={startMapId}
             dirty={dirty}
             refreshNonce={mapsRefreshNonce}
             newMapOpen={newMapOpen}
@@ -789,6 +880,7 @@ export function AdventureEditorScreen() {
             onRequestOpen={loadMap}
             onOpenPayload={openPayload}
             onActiveDeleted={activeMapDeleted}
+            onSetStart={setStartMap}
             onOpenSettings={() => setSettingsOpen(true)}
             onError={(code) => setError(code === "" ? null : code)}
             onSessionExpired={() => setScreen("auth")}
@@ -799,7 +891,10 @@ export function AdventureEditorScreen() {
       <AdventureSettingsDialog
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
-        onSaved={() => setMapsRefreshNonce((n) => n + 1)}
+        onSaved={() => {
+          setMapsRefreshNonce((n) => n + 1);
+          refreshSession();
+        }}
         onSessionExpired={() => setScreen("auth")}
       />
 

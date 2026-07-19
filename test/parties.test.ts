@@ -102,6 +102,16 @@ describe("createParty", () => {
       createParty(db, "rival", { adventureId, name: null, color: "blue" }),
     ).rejects.toThrow(/^adventure:/);
   });
+
+  it("refuses a draft adventure with a not_playable code, not a misleading hero error", async () => {
+    const db = createDb(env.DB);
+    await seedAccount("owner");
+    // A draft adventure (created but never given a start) has nowhere for heroes to spawn.
+    const draft = await createAdventure(db, "owner", { title: "WIP", maxPlayers: 4 });
+    await expect(
+      createParty(db, "owner", { adventureId: draft.id, name: null, color: "blue" }),
+    ).rejects.toThrow(/^not_playable:/);
+  });
 });
 
 describe("joinParty", () => {

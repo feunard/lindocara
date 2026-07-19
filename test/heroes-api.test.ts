@@ -59,16 +59,20 @@ async function seedParty(cookie: string): Promise<string> {
     method: "POST",
     body: JSON.stringify({ title: "Donjon", maxPlayers: 4 }),
   });
-  const adventureId = ((await adventure.json()) as { id: string }).id;
-  const a = await authed("/api/maps", cookie, {
-    method: "POST",
-    body: JSON.stringify({ adventureId, name: "A" }),
+  // The atomic create already made a default first map; reuse it as map A so the graph stays a
+  // clean two-map corridor with no unbound stray map.
+  const created = (await adventure.json()) as { id: string; defaultMap: { id: string } };
+  const adventureId = created.id;
+  const mapA = created.defaultMap.id;
+  // The born graph binds the default map's start/exit; reset to a draft before re-authoring mapA.
+  await authed(`/api/adventures/${adventureId}`, cookie, {
+    method: "PUT",
+    body: JSON.stringify({ title: "Donjon", maxPlayers: 4, graph: { start: null, links: [] } }),
   });
   const b = await authed("/api/maps", cookie, {
     method: "POST",
     body: JSON.stringify({ adventureId, name: "B" }),
   });
-  const mapA = ((await a.json()) as { id: string }).id;
   const mapB = ((await b.json()) as { id: string }).id;
   await authed(`/api/maps/${mapA}`, cookie, { method: "PUT", body: JSON.stringify(mapBody("A")) });
   await authed(`/api/maps/${mapB}`, cookie, { method: "PUT", body: JSON.stringify(mapBody("B")) });

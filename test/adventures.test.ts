@@ -14,7 +14,7 @@ import {
   updateAdventure,
   updateAdventureRegistry,
 } from "../src/server/adventures.js";
-import { account, createDb, type Db } from "../src/server/db/index.js";
+import { account, createDb, type Db, party } from "../src/server/db/index.js";
 import { deleteMap as deleteOwnedMap, loadOwnedMap, updateMap } from "../src/server/maps.js";
 import type { AdventureGraph } from "../src/shared/adventure.js";
 import { EMPTY_REGISTRY } from "../src/shared/adventure-state.js";
@@ -75,6 +75,9 @@ async function buildAdventure(db: Db, owner: string) {
 }
 
 afterEach(async () => {
+  // Parties (FK-restrict onto adventure) must go before the adventures they pin.
+  await env.DB.exec("DELETE FROM party_member");
+  await env.DB.exec("DELETE FROM party");
   await env.DB.exec("DELETE FROM adventure");
   await env.DB.exec("DELETE FROM map_element");
   await env.DB.exec("DELETE FROM map");
@@ -93,7 +96,7 @@ describe("adventure CRUD", () => {
     expect(adv.mapIds).toEqual([mapA.id, mapB.id]);
 
     expect(await listAdventures(db, "owner")).toEqual([
-      { id: advId, title: "Donjon", maxPlayers: 2 },
+      { id: advId, title: "Donjon", maxPlayers: 2, mapCount: 2, playable: true },
     ]);
     expect(await listAdventures(db, "rival")).toEqual([]);
     expect(await loadAdventure(db, "rival", advId)).toBeNull();
@@ -165,6 +168,39 @@ describe("adventure CRUD", () => {
     expect(await loadAdventure(db, "owner", advId)).toBeNull();
     // Deleting the adventure cascades to its maps.
     expect(await loadOwnedMap(db, "owner", mapA.id)).toBeNull();
+  });
+
+  it("refuses moving the start while a party still references the adventure (in_use)", async () => {
+    const db = createDb(env.DB);
+    await seedAccount("owner");
+    const { advId, mapA, mapB, adv } = await buildAdventure(db, "owner");
+    // A live party pins where its heroes spawn.
+    await db.insert(party).values({
+      id: "party-in-use",
+      adventureId: advId,
+      adventureVersion: adv.version,
+      maxPlayers: adv.maxPlayers,
+      hostAccountId: "owner",
+      name: null,
+      status: "open",
+    });
+
+    // Nulling the start is refused while the party exists.
+    await expect(
+      updateAdventure(db, "owner", advId, {
+        title: "Donjon",
+        maxPlayers: 2,
+        graph: { start: null, links: [] },
+      }),
+    ).rejects.toThrow(/^in_use:/);
+
+    // Editing that leaves the start where it is (a rename) is still allowed mid-play.
+    const renamed = await updateAdventure(db, "owner", advId, {
+      title: "Renamed mid-play",
+      maxPlayers: 2,
+      graph: corridorGraph(mapA.id, mapB.id),
+    });
+    expect(renamed.title).toBe("Renamed mid-play");
   });
 });
 

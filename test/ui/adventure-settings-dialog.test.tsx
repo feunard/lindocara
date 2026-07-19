@@ -218,34 +218,4 @@ describe("AdventureSettingsDialog", () => {
       ),
     ).toBeInTheDocument();
   });
-
-  it("creates a draft adventure from a title and player count", async () => {
-    // A map belongs to exactly one adventure, so an adventure is now created empty (a DRAFT) before
-    // any maps exist: the create POST carries only title/maxPlayers/registry. Membership and the
-    // graph are authored later through PUT, once maps have been created into the adventure.
-    const mock = backend();
-    vi.stubGlobal("fetch", mock);
-    render(
-      <AdventureSettingsDialog open onOpenChange={noop} onSaved={noop} onSessionExpired={noop} />,
-    );
-
-    await userEvent.click(await screen.findByRole("button", { name: t("adventure.new") }));
-    await userEvent.type(screen.getByLabelText(t("adventure.name")), "Donjon");
-
-    await userEvent.click(screen.getByRole("button", { name: t("editor.save") }));
-
-    await waitFor(() => {
-      const post = mock.mock.calls.find(
-        ([url, init]) => url === "/api/adventures" && (init as RequestInit)?.method === "POST",
-      );
-      expect(post).toBeDefined();
-      const body = JSON.parse(String((post?.[1] as RequestInit)?.body));
-      expect(body).toEqual({
-        title: "Donjon",
-        maxPlayers: 4,
-        // The draft carries a registry, so the create body includes it end to end.
-        registry: { switches: [], variables: [] },
-      });
-    });
-  });
 });

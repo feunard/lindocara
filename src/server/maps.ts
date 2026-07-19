@@ -11,6 +11,7 @@
  * any logged-in player. The API is the only place these can actually be enforced.
  */
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 import {
   type AdventureGraph,
   type MapMarkerIds,
@@ -167,6 +168,62 @@ export function defaultMapInput(name: string): MapInput {
     markers: EMPTY_MARKERS,
     events: [],
   };
+}
+
+/** The default map's built-in markers (UX wave #2/#3): a start entry on the spawn cell and an exit
+ *  on a corner of the land block. A freshly created adventure's graph binds these — start -> this
+ *  entry, this exit -> "end" — so the born graph is playable and passes `validateAdventure` on the
+ *  very first save. Both ids match `MARKER_ID_PATTERN`. */
+export const DEFAULT_MAP_ENTRY_ID = "start";
+export const DEFAULT_MAP_EXIT_ID = "exit";
+
+/** The entry (on the spawn cell) and exit (on a corner land cell) a default map is born with. The
+ *  exit must be walkable and share no cell with the spawn/entry — a corner of the centred land block
+ *  is both. */
+function defaultMapMarkers(input: MapInput): MapMarkers {
+  const colStart = Math.floor((input.cols - DEFAULT_MAP_LAND) / 2);
+  const rowStart = Math.floor((input.rows - DEFAULT_MAP_LAND) / 2);
+  return {
+    entries: [{ id: DEFAULT_MAP_ENTRY_ID, col: input.spawn.col, row: input.spawn.row }],
+    exits: [{ id: DEFAULT_MAP_EXIT_ID, col: colStart, row: rowStart }],
+    monsterSpawns: [],
+  };
+}
+
+/**
+ * The map an adventure is born with (UX wave #2/#3): the 5x5 template plus the start-entry and
+ * end-exit markers so the adventure's graph validates immediately. Returns the drizzle INSERT to
+ * compose into the adventure's create batch (one transaction) and the `StoredMap` the caller hands
+ * back to the client. The `is_first` flag is decided by the database at insert time exactly as
+ * `createMap` does.
+ */
+export function prepareDefaultMap(
+  db: Db,
+  accountId: string,
+  adventureId: string,
+  name: string,
+): { id: string; insert: BatchItem<"sqlite">; stored: StoredMap } {
+  const input: MapInput = {
+    ...defaultMapInput(name),
+    markers: defaultMapMarkers(defaultMapInput(name)),
+  };
+  const data = validateMapInput(input);
+  const id = crypto.randomUUID();
+  const insert = db.insert(map).values({
+    id,
+    accountId,
+    adventureId,
+    name: data.name,
+    cols: input.cols,
+    rows: input.rows,
+    tilesetId: input.tilesetId,
+    layers: encodeLayers(input.layers),
+    spawnCol: input.spawn.col,
+    spawnRow: input.spawn.row,
+    markers: markersJson(data.markers),
+    isFirst: sql`CASE WHEN (SELECT count(*) FROM ${map} WHERE ${map.accountId} = ${accountId}) = 0 THEN 1 ELSE 0 END`,
+  });
+  return { id, insert, stored: { id, accountId, adventureId, revision: 1, ...data } };
 }
 
 /** Stored as a JSON array of run-length encoded layer strings — one column, three layers, and no

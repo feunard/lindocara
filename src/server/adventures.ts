@@ -8,7 +8,7 @@
  * A freshly created adventure is an empty draft: no maps, `EMPTY_GRAPH`. Maps are created under it
  * afterward (`createMap`), and the graph is authored through `updateAdventure` once maps exist.
  */
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import {
   type AdventureGraph,
   type AdventureInput,
@@ -24,7 +24,13 @@ import {
   parseAdventureRegistry,
 } from "../shared/adventure-state.js";
 import { adventure, type Db, map, party } from "./db/index.js";
-import { markersOfRow } from "./maps.js";
+import {
+  DEFAULT_MAP_ENTRY_ID,
+  DEFAULT_MAP_EXIT_ID,
+  markersOfRow,
+  prepareDefaultMap,
+  type StoredMap,
+} from "./maps.js";
 
 export interface StoredAdventure {
   id: string;
@@ -117,16 +123,104 @@ export async function createAdventure(
   return stored;
 }
 
+/**
+ * One atomic POST creates an adventure AND the map it is born with (UX wave #2/#3): a single
+ * `db.batch` writes the adventure row and its default map (5x5 template + start entry + end exit),
+ * and the adventure's graph is born valid — `start` points at the default map's entry and its exit
+ * binds to `"end"`. The response carries both the stored adventure and its default map so the client
+ * lands straight in the editor with no second round-trip.
+ *
+ * The defensive `validateAdventure` below is load-bearing: if the born graph ever loses its end-bound
+ * exit (or its start entry), it throws here rather than persisting an adventure whose first PUT would
+ * 400 on the reachable-ending rule.
+ */
+export async function createAdventureWithDefaultMap(
+  db: Db,
+  accountId: string,
+  input: CreateAdventureInput,
+): Promise<{ adventure: StoredAdventure; map: StoredMap }> {
+  const title = input.title.trim();
+  if (title.length === 0 || title.length > 48) throw new Error("title: 1-48 characters");
+  if (input.maxPlayers < 1 || input.maxPlayers > 4) throw new Error("players: between 1 and 4");
+  const adventureId = crypto.randomUUID();
+  const prepared = prepareDefaultMap(db, accountId, adventureId, title);
+  const graph: AdventureGraph = {
+    start: { mapId: prepared.id, entryId: DEFAULT_MAP_ENTRY_ID },
+    links: [{ mapId: prepared.id, exitId: DEFAULT_MAP_EXIT_ID, dest: "end" }],
+  };
+  // Derive the marker set from the map that was actually prepared (not hardcoded ids): if the
+  // default map ever loses its start entry or end-bound exit, this throws here rather than persisting
+  // an adventure whose first save would 400.
+  const markers = prepared.stored.markers ?? { entries: [], exits: [], monsterSpawns: [] };
+  validateAdventure(
+    { title, maxPlayers: input.maxPlayers, graph },
+    new Map([
+      [
+        prepared.id,
+        {
+          entryIds: markers.entries.map((entry) => entry.id),
+          exitIds: markers.exits.map((exit) => exit.id),
+        },
+      ],
+    ]),
+  );
+  // The adventure row is inserted before its map so the map's `adventure_id` foreign key resolves
+  // within the one transaction.
+  await db.batch([
+    db.insert(adventure).values({
+      id: adventureId,
+      accountId,
+      title,
+      maxPlayers: input.maxPlayers,
+      graph: JSON.stringify(graph),
+      ...(input.registry !== undefined ? { registry: JSON.stringify(input.registry) } : {}),
+    }),
+    prepared.insert,
+  ]);
+  const stored = await loadAdventure(db, accountId, adventureId);
+  if (!stored) throw new Error("not_found: adventure vanished mid-create");
+  return { adventure: stored, map: prepared.stored };
+}
+
 export async function listAdventures(
   db: Db,
   accountId: string,
-): Promise<{ id: string; title: string; maxPlayers: number }[]> {
+): Promise<
+  { id: string; title: string; maxPlayers: number; mapCount: number; playable: boolean }[]
+> {
   const rows = await db
-    .select({ id: adventure.id, title: adventure.title, maxPlayers: adventure.maxPlayers })
+    .select({
+      id: adventure.id,
+      title: adventure.title,
+      maxPlayers: adventure.maxPlayers,
+      graph: adventure.graph,
+    })
     .from(adventure)
     .where(eq(adventure.accountId, accountId))
     .orderBy(asc(adventure.createdAt));
-  return rows;
+  const counts = await db
+    .select({ adventureId: map.adventureId, count: sql<number>`count(*)` })
+    .from(map)
+    .where(eq(map.accountId, accountId))
+    .groupBy(map.adventureId);
+  const countByAdventure = new Map(counts.map((row) => [row.adventureId, Number(row.count)]));
+  return rows.map((row) => {
+    // A draft adventure (no start authored) is not playable — the picker badges it. A corrupt graph
+    // reads as a draft, which is the safe default (it cannot admit a party either way).
+    let playable = false;
+    try {
+      playable = parseAdventureGraph(JSON.parse(row.graph))?.start != null;
+    } catch {
+      playable = false;
+    }
+    return {
+      id: row.id,
+      title: row.title,
+      maxPlayers: row.maxPlayers,
+      mapCount: countByAdventure.get(row.id) ?? 0,
+      playable,
+    };
+  });
 }
 
 export async function loadAdventure(
@@ -156,6 +250,25 @@ export async function updateAdventure(
   const row = await ownedRow(db, accountId, id);
   if (!row) throw new Error("not_found: no such adventure");
   validateAdventure(input, await markerIdsFor(db, id));
+  // A live party pins where its heroes spawn (the adventure's start). Refuse nulling or moving the
+  // start while a party still references this adventure — mirrors `deleteAdventure`'s party guard.
+  // Edits that leave the start where it is (links, title, players) are allowed mid-play.
+  const storedStart = parseAdventureGraph(JSON.parse(row.graph))?.start ?? null;
+  const nextStart = input.graph.start;
+  const startMoved =
+    storedStart === null
+      ? nextStart !== null
+      : nextStart === null ||
+        nextStart.mapId !== storedStart.mapId ||
+        nextStart.entryId !== storedStart.entryId;
+  if (startMoved) {
+    const used = await db
+      .select({ partyId: party.id })
+      .from(party)
+      .where(eq(party.adventureId, id))
+      .limit(1);
+    if (used.length > 0) throw new Error("in_use: a party still references this adventure");
+  }
   await db
     .update(adventure)
     .set({

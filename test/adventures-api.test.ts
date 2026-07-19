@@ -6,6 +6,8 @@
  */
 import { env, SELF } from "cloudflare:test";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { createAdventure } from "../src/server/adventures.js";
+import { createDb } from "../src/server/db/index.js";
 import { SESSION_COOKIE } from "../src/server/session.js";
 import { layeredWireTerrain } from "./support/map-fixtures.js";
 
@@ -59,15 +61,16 @@ function authed(path: string, init: RequestInit = {}, asCookie = cookie): Promis
   });
 }
 
-/** A draft adventure over the wire, returning its id. */
+/**
+ * A DRAFT adventure with NO maps, seeded directly through the server function. The HTTP POST is now
+ * atomic (it creates a default first map + a born graph, covered by its own test below); the
+ * authoring/validation tests here start from an empty adventure and create their own maps, so they
+ * seed the draft directly. Owner resolved from the cookie via `/api/me`.
+ */
 async function createDraft(asCookie = cookie): Promise<string> {
-  const res = await authed(
-    "/api/adventures",
-    { method: "POST", body: JSON.stringify({ title: "Donjon", maxPlayers: 4 }) },
-    asCookie,
-  );
-  expect(res.status).toBe(201);
-  return ((await res.json()) as { id: string }).id;
+  const me = (await (await authed("/api/me", {}, asCookie)).json()) as { id: string };
+  const adv = await createAdventure(createDb(env.DB), me.id, { title: "Donjon", maxPlayers: 4 });
+  return adv.id;
 }
 
 /** Create a template map inside the adventure and author `body` onto it, returning its id. */
@@ -125,20 +128,50 @@ describe("session gate", () => {
 });
 
 describe("adventure lifecycle over the wire", () => {
-  it("creates a draft, then authors maps and saves the graph, then deletes", async () => {
+  it("creates an adventure with its default map and a playable graph in one POST", async () => {
     const createRes = await authed("/api/adventures", {
       method: "POST",
       body: JSON.stringify({ title: "Donjon", maxPlayers: 4 }),
     });
     expect(createRes.status).toBe(201);
-    const created = (await createRes.json()) as { id: string; mapIds: string[]; graph: unknown };
-    expect(created).toMatchObject({ title: "Donjon", maxPlayers: 4, version: 1, mapIds: [] });
-    expect(created.graph).toEqual({ start: null, links: [] });
+    const created = (await createRes.json()) as {
+      id: string;
+      mapIds: string[];
+      graph: { start: unknown; links: unknown[] };
+      defaultMap: {
+        id: string;
+        markers: { entries: { id: string }[]; exits: { id: string }[] };
+      };
+    };
+    expect(created).toMatchObject({ title: "Donjon", maxPlayers: 4, version: 1 });
+    // Atomic: exactly one default map, born with an entry on the spawn and an end-bound exit, and a
+    // graph that already points start -> that entry and binds the exit -> "end".
+    expect(created.mapIds).toHaveLength(1);
+    const mapId = created.mapIds[0];
+    expect(created.graph.start).toEqual({ mapId, entryId: "start" });
+    expect(created.graph.links).toEqual([{ mapId, exitId: "exit", dest: "end" }]);
+    expect(created.defaultMap.id).toBe(mapId);
+    expect(created.defaultMap.markers.entries.map((m) => m.id)).toEqual(["start"]);
+    expect(created.defaultMap.markers.exits.map((m) => m.id)).toEqual(["exit"]);
 
-    const mapA = await authorMap(created.id, mapBody("A"));
-    const mapB = await authorMap(created.id, mapBody("B"));
+    // The D1 rows exist: one adventure, exactly one map owned by it.
+    const advRows = await env.DB.prepare("SELECT id FROM adventure WHERE id = ?")
+      .bind(created.id)
+      .all();
+    expect(advRows.results).toHaveLength(1);
+    const mapRows = await env.DB.prepare("SELECT id FROM map WHERE adventure_id = ?")
+      .bind(created.id)
+      .all();
+    expect(mapRows.results.map((r) => r.id)).toEqual([mapId]);
+  });
 
-    const graphRes = await authed(`/api/adventures/${created.id}`, {
+  it("authors maps and saves the graph, then deletes", async () => {
+    const advId = await createDraft();
+
+    const mapA = await authorMap(advId, mapBody("A"));
+    const mapB = await authorMap(advId, mapBody("B"));
+
+    const graphRes = await authed(`/api/adventures/${advId}`, {
       method: "PUT",
       body: JSON.stringify({ title: "Donjon", maxPlayers: 4, graph: corridorGraph(mapA, mapB) }),
     });
@@ -146,10 +179,14 @@ describe("adventure lifecycle over the wire", () => {
     expect(await graphRes.json()).toMatchObject({ title: "Donjon", mapIds: [mapA, mapB] });
 
     const listRes = await authed("/api/adventures");
-    expect(await listRes.json()).toEqual([{ id: created.id, title: "Donjon", maxPlayers: 4 }]);
+    expect(await listRes.json()).toEqual([
+      { id: advId, title: "Donjon", maxPlayers: 4, mapCount: 2, playable: true },
+    ]);
 
-    const getRes = await authed(`/api/adventures/${created.id}`);
+    const getRes = await authed(`/api/adventures/${advId}`);
     expect(getRes.status).toBe(200);
+
+    const created = { id: advId };
 
     const updateRes = await authed(`/api/adventures/${created.id}`, {
       method: "PUT",

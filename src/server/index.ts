@@ -25,7 +25,7 @@ import {
 } from "../shared/zones.js";
 import { accountExists, createAccount, verifyCredentials } from "./accounts.js";
 import {
-  createAdventure,
+  createAdventureWithDefaultMap,
   deleteAdventure,
   listAdventures,
   loadAdventure,
@@ -675,6 +675,7 @@ function adventureErrorResponse(error: unknown): Response {
   const code = message.split(":")[0];
   if (code === "not_found") return json({ error: "adventure_not_found" }, { status: 404 });
   if (code === "referenced") return json({ error: "adventure_referenced" }, { status: 409 });
+  if (code === "in_use") return json({ error: "adventure_in_use" }, { status: 409 });
   if (code === "title" || code === "players" || code === "maps" || code === "graph") {
     return json({ error: `adventure_${code}` }, { status: 400 });
   }
@@ -687,6 +688,7 @@ function partyErrorResponse(error: unknown): Response {
   const code = message.split(":")[0];
   if (code === "not_found") return json({ error: "party_not_found" }, { status: 404 });
   if (code === "adventure") return json({ error: "party_adventure" }, { status: 404 });
+  if (code === "not_playable") return json({ error: "adventure_not_playable" }, { status: 409 });
   if (code === "already_member" || code === "full" || code === "color_taken") {
     return json({ error: `party_${code}` }, { status: 409 });
   }
@@ -717,7 +719,14 @@ async function handleCreateAdventure(request: Request, env: Env, url: URL): Prom
   const input = parseCreateAdventureInput(parsed.value);
   if (!input) return json({ error: "adventure_invalid" }, { status: 400 });
   try {
-    return json(await createAdventure(createDb(env.DB), auth.session.id, input), { status: 201 });
+    // Atomic: the adventure and its default map are created in one transaction, and both ride the
+    // response so the client lands straight in the editor (UX wave #2/#3/#4).
+    const { adventure, map } = await createAdventureWithDefaultMap(
+      createDb(env.DB),
+      auth.session.id,
+      input,
+    );
+    return json({ ...adventure, defaultMap: mapResponseBody(map) }, { status: 201 });
   } catch (error) {
     return adventureErrorResponse(error);
   }
