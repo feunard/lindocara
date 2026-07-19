@@ -466,12 +466,10 @@ describe("World", () => {
 
   // Loot enters the room, not D1: the count only reaches the database on the five-second flush.
   // A drink that trusts D1's quantity in that window destroys everything picked up since.
-  it("keeps a potion looted inside the D1 flush window", { timeout: 75_000 }, async () => {
-    // This room is process-wide in the Workers harness. Let the previous test finish dropping its
-    // sockets so empty-room cleanup restores authored monster spawns before this test relies on one.
-    await waitForRoomSockets(VERDANT_ROOM_KEY, 0);
+  it("keeps a potion looted inside the D1 flush window", { timeout: 60_000 }, async () => {
     const drinker = await Client.join("potion_window", {
       zoneId: "verdant-reach",
+      instanceId: "potion-window",
       position: { x: 1870, y: 820 },
       level: 10,
       hp: 150,
@@ -1289,16 +1287,15 @@ describe("World", () => {
     wounded.close();
   });
 
-  it("lets a visible directional arrow hit a monster", { timeout: 30_000 }, async () => {
-    // A drained room resets roaming/dead monsters, keeping the fixed firing lane deterministic even
-    // when the complete file runs more slowly in CI than an isolated test.
-    await waitForRoomSockets(VERDANT_ROOM_KEY, 0);
+  it("lets a visible directional arrow hit a monster", { timeout: 10_000 }, async () => {
     const ranger = await Client.join("sighter", {
       position: { x: 2140, y: 820 },
       class: "ranger",
+      instanceId: "directional-arrow",
     });
     const observer = await Client.join("sighter_observer", {
       position: { x: 2180, y: 820 },
+      instanceId: "directional-arrow",
     });
     try {
       await until("welcome", () => ranger.welcome && observer.welcome);
