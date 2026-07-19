@@ -48,6 +48,7 @@ const LAYERS: (0 | 1 | 2)[] = [0, 1, 2];
 interface EditorToolbarProps {
   activeTool: EditorPaintTool | null;
   activeLayer: 0 | 1 | 2;
+  eventActive: boolean;
   showGrid: boolean;
   showDim: boolean;
   zoom: number;
@@ -57,6 +58,7 @@ interface EditorToolbarProps {
   onDeleteMap(): void;
   onSelectTool(tool: EditorPaintTool): void;
   onSelectLayer(layer: 0 | 1 | 2): void;
+  onSelectEvents(): void;
   onToggleGrid(): void;
   onToggleDim(): void;
   onCycleZoom(): void;
@@ -68,6 +70,7 @@ interface EditorToolbarProps {
 export function EditorToolbar({
   activeTool,
   activeLayer,
+  eventActive,
   showGrid,
   showDim,
   zoom,
@@ -77,6 +80,7 @@ export function EditorToolbar({
   onDeleteMap,
   onSelectTool,
   onSelectLayer,
+  onSelectEvents,
   onToggleGrid,
   onToggleDim,
   onCycleZoom,
@@ -136,7 +140,13 @@ export function EditorToolbar({
             {layer + 1}
           </Button>
         ))}
-        <Button variant="ghost" size="icon-sm" aria-label={t("editor.shell.events")} disabled>
+        <Button
+          variant={eventActive ? "secondary" : "ghost"}
+          size="icon-sm"
+          aria-label={t("editor.shell.events")}
+          aria-pressed={eventActive}
+          onClick={onSelectEvents}
+        >
           {t("editor.shell.events.short")}
         </Button>
       </div>

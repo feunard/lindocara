@@ -40,6 +40,7 @@ import {
   GRASS_SLOTS,
   TINY_SWORDS_TILESET,
 } from "../src/shared/tilesets/tiny-swords.js";
+import { EDITOR_ASSETS, type EditorAssetId } from "../src/shared/tiny-swords-catalog.js";
 
 /** The ground slot at a cell, or -1 for the void. Every terrain assertion below reads this rather
  *  than a raw id: the id carries an autotile variant the neighbourhood decides, and no test here is
@@ -768,6 +769,27 @@ describe("applyTool: event placement", () => {
     const two = applyTool(next, { kind: "event" }, 5, 6) as EditorMap;
     expect(two.events[1]?.ordinal).toBe(2);
     expect(two.events[0]?.id).not.toBe(two.events[1]?.id);
+  });
+
+  it("stamps the tool's pending graphic onto the new event's page 1", () => {
+    const base = blankMap("m", 20, 15);
+    const graphic = EDITOR_ASSETS[0]?.id as EditorAssetId;
+    const next = applyTool(base, { kind: "event", graphic }, 3, 4) as EditorMap;
+    // The pending graphic (the palette's Événements picker) becomes page 1's appearance; every other
+    // page field stays the wireframe default.
+    expect(next.events[0]?.pages[0]?.graphicAssetId).toBe(graphic);
+    expect(next.events[0]?.pages[0]?.moveSpeed).toBe(4);
+  });
+
+  it("leaves page 1's graphic null when the tool carries no graphic", () => {
+    const base = blankMap("m", 20, 15);
+    expect(
+      (applyTool(base, { kind: "event", graphic: null }, 3, 4) as EditorMap).events[0]?.pages[0]
+        ?.graphicAssetId,
+    ).toBeNull();
+    expect(
+      (applyTool(base, { kind: "event" }, 3, 4) as EditorMap).events[0]?.pages[0]?.graphicAssetId,
+    ).toBeNull();
   });
 
   it("refuses a second event on an occupied cell and selects it instead — no history entry", () => {

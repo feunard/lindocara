@@ -905,6 +905,9 @@ async function buildSession(
     setTool(next) {
       tool = next;
       if (next.kind === "element") ensureAsset(next.assetId);
+      // A pending event graphic is what a freshly placed event will draw with, so its art must be
+      // loaded before the first placement, not only after the overlay's next spontaneous redraw.
+      if (next.kind === "event" && next.graphic != null) ensureAsset(next.graphic);
       // Entering or leaving EV mode flips the overlay; redraw so a just-shown overlay paints its
       // events (and their selection) immediately, not only after the next edit.
       eventLayer.visible = shouldShowEventOverlay(next);

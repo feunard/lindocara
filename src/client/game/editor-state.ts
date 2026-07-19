@@ -118,7 +118,13 @@ export type EditorTool =
   | { kind: "rect"; content: RectFillContent }
   | { kind: "fill"; content: RectFillContent }
   | { kind: "stairs" }
-  | { kind: "event" };
+  /**
+   * Places an event, whose page 1 gets `graphic` as its default appearance — the palette's
+   * Événements picker sets it, "none" (omitted/`null`) leaves a blank placeholder. The graphic is a
+   * NEW-placement default only: editing an existing event's graphic is the dialog's job, not this
+   * tool's.
+   */
+  | { kind: "event"; graphic?: EditorAssetId | null };
 
 export type EditorSelection =
   | { kind: "element"; col: number; row: number }
@@ -1048,7 +1054,9 @@ export function applyTool(
         row,
         name: "",
         ordinal: nextEventOrdinal(map.events),
-        pages: [defaultEventPage()],
+        // Page 1 adopts the tool's pending graphic (the palette's Événements picker); "none" leaves
+        // the default page's null graphic, i.e. the blank placeholder on the overlay.
+        pages: [{ ...defaultEventPage(), graphicAssetId: tool.graphic ?? null }],
       };
       return { ...map, events: [...map.events, event] };
     }

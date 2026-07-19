@@ -528,6 +528,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.tool.exit": "Sortie",
   "editor.tool.monster": "Monstre",
   "editor.tool.pan": "Déplacer la carte",
+  "editor.tool.event": "Événement",
   "editor.inspector.title": "Inspecteur de sélection",
   "editor.inspector.id": "Identifiant stable",
   "editor.inspector.label": "Libellé affiché",
@@ -625,6 +626,8 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.shell.database": "Base de données…",
   "editor.shell.events": "Événements",
   "editor.shell.events.short": "EV",
+  "editor.shell.events.graphic.heading": "Graphique de l’événement",
+  "editor.shell.events.graphic.none": "Aucun graphique",
   "editor.shell.status.saved": "Enregistré",
   "editor.shell.status.cursor": "Curseur {cursor}",
 

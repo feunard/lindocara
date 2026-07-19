@@ -51,9 +51,10 @@ import { type MarkerToolKey, TerrainPalette } from "./TerrainPalette.js";
 const DEFAULT_CONTENT: RectFillContent = { kind: "block", block: "grass" };
 
 type StageStatus = "loading" | "empty" | "ready" | "error";
-/** The active tool key. `stairs`, scenery and the marker tools have no *paint*-toolbar button — they
- *  are picked in the palette — so the paint toolbar highlights only for its five paint tools. */
-type ToolKey = EditorPaintTool | "stairs" | MarkerToolKey;
+/** The active tool key. `stairs`, scenery, the marker tools and `event` have no *paint*-toolbar
+ *  button — they are picked in the palette or the EV slot — so the paint toolbar highlights only for
+ *  its five paint tools. */
+type ToolKey = EditorPaintTool | "stairs" | MarkerToolKey | "event";
 
 function isPaintToolKey(key: ToolKey | null): key is EditorPaintTool {
   return (
@@ -153,6 +154,9 @@ export function AdventureEditorScreen() {
   const [toolKey, setToolKey] = useState<ToolKey | null>("pencil");
   const [content, setContent] = useState<RectFillContent>(DEFAULT_CONTENT);
   const [selectedAsset, setSelectedAsset] = useState<EditorAssetId | null>(null);
+  // The default graphic a newly placed event's page 1 receives, carried on the event tool; `null` is
+  // the wireframe's "no graphic" default (a blank placeholder on the overlay).
+  const [pendingEventGraphic, setPendingEventGraphic] = useState<EditorAssetId | null>(null);
   const [activeLayer, setActiveLayer] = useState<0 | 1 | 2>(0);
   const [showGrid, setShowGrid] = useState(true);
   const [showDim, setShowDim] = useState(false);
@@ -338,6 +342,21 @@ export function AdventureEditorScreen() {
     setToolKey(null);
     setSelectedAsset(assetId);
     pushTool({ kind: "element", assetId });
+  }
+
+  // The EV slot and the Mode › Événements item both land here: activate the event tool, carrying the
+  // pending default graphic so a first placement already has it.
+  function selectEvents(): void {
+    setToolKey("event");
+    setSelectedAsset(null);
+    pushTool({ kind: "event", graphic: pendingEventGraphic });
+  }
+
+  // The Événements palette picker sets the default graphic future events get; while the event tool is
+  // active it re-pushes so the very next placement uses it (a "none" pick clears back to placeholder).
+  function selectEventGraphic(assetId: EditorAssetId | null): void {
+    setPendingEventGraphic(assetId);
+    if (toolKey === "event") pushTool({ kind: "event", graphic: assetId });
   }
 
   function pickContent(next: RectFillContent): void {
@@ -598,6 +617,7 @@ export function AdventureEditorScreen() {
         onUndo={undo}
         onRedo={redo}
         onSelectLayer={selectLayer}
+        onSelectEvents={selectEvents}
         onSelectTool={selectTool}
         onToggleGrid={toggleGrid}
         onToggleDim={toggleDim}
@@ -608,6 +628,7 @@ export function AdventureEditorScreen() {
       <EditorToolbar
         activeTool={isPaintToolKey(toolKey) ? toolKey : null}
         activeLayer={activeLayer}
+        eventActive={toolKey === "event"}
         showGrid={showGrid}
         showDim={showDim}
         zoom={zoom}
@@ -617,6 +638,7 @@ export function AdventureEditorScreen() {
         onDeleteMap={() => setConfirmDeleteId(map?.id ?? null)}
         onSelectTool={selectTool}
         onSelectLayer={selectLayer}
+        onSelectEvents={selectEvents}
         onToggleGrid={toggleGrid}
         onToggleDim={toggleDim}
         onCycleZoom={cycleZoom}
@@ -635,6 +657,8 @@ export function AdventureEditorScreen() {
             fillActive={toolKey === "fill"}
             stairsActive={toolKey === "stairs"}
             activeMarker={activeMarker}
+            eventMode={toolKey === "event"}
+            pendingEventGraphic={pendingEventGraphic}
             selectedAsset={selectedAsset}
             markerSpecies={markerSpecies}
             markerRadius={markerRadius}
@@ -643,6 +667,7 @@ export function AdventureEditorScreen() {
             onSelectStairs={() => selectTool("stairs")}
             onSelectMarkerTool={selectMarkerTool}
             onSelectAsset={selectAsset}
+            onSelectEventGraphic={selectEventGraphic}
             onMarkerSpeciesChange={setMarkerSpecies}
             onMarkerRadiusChange={setMarkerRadius}
           />

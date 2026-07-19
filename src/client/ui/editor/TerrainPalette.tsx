@@ -31,6 +31,12 @@ interface TerrainPaletteProps {
   stairsActive: boolean;
   /** The active marker tool, if any, so its palette button reads as pressed. */
   activeMarker: MarkerToolKey | null;
+  /** True while the event tool is active: the palette swaps its terrain body for the Événements
+   *  section, the default-graphic picker for new event placements. */
+  eventMode: boolean;
+  /** The default graphic the next placed event's page 1 will get, or `null` for the blank
+   *  placeholder — highlighted in the Événements grid. */
+  pendingEventGraphic: EditorAssetId | null;
   /** The selected decoration, highlighted in the catalogue grid. */
   selectedAsset: EditorAssetId | null;
   markerSpecies: MonsterSpecies;
@@ -40,6 +46,7 @@ interface TerrainPaletteProps {
   onSelectStairs(): void;
   onSelectMarkerTool(key: MarkerToolKey): void;
   onSelectAsset(assetId: EditorAssetId): void;
+  onSelectEventGraphic(assetId: EditorAssetId | null): void;
   onMarkerSpeciesChange(species: MonsterSpecies): void;
   onMarkerRadiusChange(radius: number): void;
 }
@@ -60,6 +67,8 @@ export function TerrainPalette({
   fillActive,
   stairsActive,
   activeMarker,
+  eventMode,
+  pendingEventGraphic,
   selectedAsset,
   markerSpecies,
   markerRadius,
@@ -68,6 +77,7 @@ export function TerrainPalette({
   onSelectStairs,
   onSelectMarkerTool,
   onSelectAsset,
+  onSelectEventGraphic,
   onMarkerSpeciesChange,
   onMarkerRadiusChange,
 }: TerrainPaletteProps) {
@@ -100,138 +110,178 @@ export function TerrainPalette({
     >
       <div className="flex h-8 flex-none items-center justify-between border-b border-zinc-200 px-3">
         <span className="text-[11px] font-semibold tracking-wide text-zinc-500 uppercase">
-          {t("editor.shell.terrain.heading")}
+          {eventMode ? t("editor.shell.events") : t("editor.shell.terrain.heading")}
         </span>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto p-2">
-        <div className="grid grid-cols-2 gap-1.5">
+      {eventMode ? (
+        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto p-2">
+          <div className="flex h-6 items-center text-[10.5px] font-semibold tracking-wide text-zinc-400 uppercase">
+            {t("editor.shell.events.graphic.heading")}
+          </div>
           <SwatchButton
-            label={t("editor.tool.grass")}
-            active={grassActive}
-            onClick={() => onPickContent({ kind: "block", block: "grass" })}
+            label={t("editor.shell.events.graphic.none")}
+            active={pendingEventGraphic === null}
+            onClick={() => onSelectEventGraphic(null)}
           />
-          <SwatchButton
-            label={t("editor.tool.water")}
-            active={waterActive}
-            disabled={fillActive}
-            title={fillActive ? t("editor.shell.fill.water_disabled") : undefined}
-            onClick={() => onPickContent({ kind: "block", block: "water" })}
+          <Input
+            type="search"
+            value={query}
+            aria-label={t("editor.palette.search")}
+            placeholder={t("editor.palette.search")}
+            className="h-7 text-xs"
+            onChange={(event) => setQuery(event.currentTarget.value)}
           />
-        </div>
-
-        <div className="flex items-center justify-between gap-2 px-0.5">
-          <span className="text-[11.5px] text-zinc-500">
-            {t("editor.shell.terrain.elevationLabel")}
-          </span>
-          <div className="flex gap-0.5 rounded-lg bg-zinc-100 p-0.5">
-            {ELEVATION_LEVELS.map((level) => {
-              const active = content.kind === "elevation" && content.level === level;
-              return (
-                <button
-                  key={level}
-                  type="button"
-                  aria-label={t("editor.shell.terrain.level", { level })}
-                  aria-pressed={active}
-                  onClick={() => onPickContent({ kind: "elevation", level })}
-                  className={`flex size-6 items-center justify-center rounded-md text-[12px] font-medium tabular-nums ${
-                    active ? "bg-zinc-900 text-zinc-50" : "text-zinc-600 hover:bg-zinc-200/70"
-                  }`}
-                >
-                  {level}
-                </button>
-              );
-            })}
+          <div className="flex flex-col gap-2">
+            {groups.map(([category, assets]) => (
+              <div key={category} className="flex flex-col gap-1">
+                <span className="px-0.5 text-[10.5px] font-medium text-zinc-400">
+                  {category} ({assets.length})
+                </span>
+                <div className="grid grid-cols-3 gap-1">
+                  {assets.map((asset) => (
+                    <AssetChoice
+                      key={asset.id}
+                      asset={asset}
+                      selected={asset.id === pendingEventGraphic}
+                      onSelect={onSelectEventGraphic}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-
-        <SwatchButton
-          label={t("editor.shell.tool.stairs")}
-          active={stairsActive}
-          onClick={onSelectStairs}
-        />
-
-        <div className="mt-1 flex h-6 items-center border-y border-zinc-200 text-[10.5px] font-semibold tracking-wide text-zinc-400 uppercase">
-          {t("editor.shell.markers.heading")}
-        </div>
-        <div className="flex flex-col gap-1">
-          {MARKER_TOOL_KEYS.map((key) => (
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto p-2">
+          <div className="grid grid-cols-2 gap-1.5">
             <SwatchButton
-              key={key}
-              label={t(`editor.tool.${key}`)}
-              active={activeMarker === key}
-              onClick={() => onSelectMarkerTool(key)}
+              label={t("editor.tool.grass")}
+              active={grassActive}
+              onClick={() => onPickContent({ kind: "block", block: "grass" })}
             />
-          ))}
-          {activeMarker === "monster" && (
-            <div className="flex flex-col gap-1.5 rounded-md bg-zinc-100 p-2">
-              <Label htmlFor="marker-species" className="text-[11px] text-zinc-500">
-                {t("editor.markers.species")}
-              </Label>
-              <select
-                id="marker-species"
-                className="h-7 w-full rounded-md border border-input bg-white px-1.5 text-xs outline-none"
-                value={markerSpecies}
-                onChange={(event) =>
-                  onMarkerSpeciesChange(event.currentTarget.value as MonsterSpecies)
-                }
-              >
-                {(Object.keys(MONSTER_SPECIES_KIND) as MonsterSpecies[]).map((option) => (
-                  <option key={option} value={option}>
-                    {t(`monster.${option}`)}
-                  </option>
-                ))}
-              </select>
-              <Label htmlFor="marker-radius" className="text-[11px] text-zinc-500">
-                {t("editor.markers.radius")}
-              </Label>
-              <Input
-                id="marker-radius"
-                type="number"
-                className="h-7 text-xs"
-                min={MIN_PATROL_RADIUS}
-                max={MAX_PATROL_RADIUS}
-                value={markerRadius}
-                onChange={(event) => onMarkerRadiusChange(Number(event.currentTarget.value))}
-              />
-            </div>
-          )}
-        </div>
+            <SwatchButton
+              label={t("editor.tool.water")}
+              active={waterActive}
+              disabled={fillActive}
+              title={fillActive ? t("editor.shell.fill.water_disabled") : undefined}
+              onClick={() => onPickContent({ kind: "block", block: "water" })}
+            />
+          </div>
 
-        <div className="mt-1 flex h-6 items-center justify-between border-y border-zinc-200 text-[10.5px] font-semibold tracking-wide text-zinc-400 uppercase">
-          <span>{t("editor.shell.decor.heading")}</span>
-          <span className="tabular-nums lowercase">
-            {elementCount}/{MAX_MAP_ELEMENTS}
-          </span>
-        </div>
-        <Input
-          type="search"
-          value={query}
-          aria-label={t("editor.palette.search")}
-          placeholder={t("editor.palette.search")}
-          className="h-7 text-xs"
-          onChange={(event) => setQuery(event.currentTarget.value)}
-        />
-        <div className="flex flex-col gap-2">
-          {groups.map(([category, assets]) => (
-            <div key={category} className="flex flex-col gap-1">
-              <span className="px-0.5 text-[10.5px] font-medium text-zinc-400">
-                {category} ({assets.length})
-              </span>
-              <div className="grid grid-cols-3 gap-1">
-                {assets.map((asset) => (
-                  <AssetChoice
-                    key={asset.id}
-                    asset={asset}
-                    selected={asset.id === selectedAsset}
-                    onSelect={onSelectAsset}
-                  />
-                ))}
-              </div>
+          <div className="flex items-center justify-between gap-2 px-0.5">
+            <span className="text-[11.5px] text-zinc-500">
+              {t("editor.shell.terrain.elevationLabel")}
+            </span>
+            <div className="flex gap-0.5 rounded-lg bg-zinc-100 p-0.5">
+              {ELEVATION_LEVELS.map((level) => {
+                const active = content.kind === "elevation" && content.level === level;
+                return (
+                  <button
+                    key={level}
+                    type="button"
+                    aria-label={t("editor.shell.terrain.level", { level })}
+                    aria-pressed={active}
+                    onClick={() => onPickContent({ kind: "elevation", level })}
+                    className={`flex size-6 items-center justify-center rounded-md text-[12px] font-medium tabular-nums ${
+                      active ? "bg-zinc-900 text-zinc-50" : "text-zinc-600 hover:bg-zinc-200/70"
+                    }`}
+                  >
+                    {level}
+                  </button>
+                );
+              })}
             </div>
-          ))}
+          </div>
+
+          <SwatchButton
+            label={t("editor.shell.tool.stairs")}
+            active={stairsActive}
+            onClick={onSelectStairs}
+          />
+
+          <div className="mt-1 flex h-6 items-center border-y border-zinc-200 text-[10.5px] font-semibold tracking-wide text-zinc-400 uppercase">
+            {t("editor.shell.markers.heading")}
+          </div>
+          <div className="flex flex-col gap-1">
+            {MARKER_TOOL_KEYS.map((key) => (
+              <SwatchButton
+                key={key}
+                label={t(`editor.tool.${key}`)}
+                active={activeMarker === key}
+                onClick={() => onSelectMarkerTool(key)}
+              />
+            ))}
+            {activeMarker === "monster" && (
+              <div className="flex flex-col gap-1.5 rounded-md bg-zinc-100 p-2">
+                <Label htmlFor="marker-species" className="text-[11px] text-zinc-500">
+                  {t("editor.markers.species")}
+                </Label>
+                <select
+                  id="marker-species"
+                  className="h-7 w-full rounded-md border border-input bg-white px-1.5 text-xs outline-none"
+                  value={markerSpecies}
+                  onChange={(event) =>
+                    onMarkerSpeciesChange(event.currentTarget.value as MonsterSpecies)
+                  }
+                >
+                  {(Object.keys(MONSTER_SPECIES_KIND) as MonsterSpecies[]).map((option) => (
+                    <option key={option} value={option}>
+                      {t(`monster.${option}`)}
+                    </option>
+                  ))}
+                </select>
+                <Label htmlFor="marker-radius" className="text-[11px] text-zinc-500">
+                  {t("editor.markers.radius")}
+                </Label>
+                <Input
+                  id="marker-radius"
+                  type="number"
+                  className="h-7 text-xs"
+                  min={MIN_PATROL_RADIUS}
+                  max={MAX_PATROL_RADIUS}
+                  value={markerRadius}
+                  onChange={(event) => onMarkerRadiusChange(Number(event.currentTarget.value))}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="mt-1 flex h-6 items-center justify-between border-y border-zinc-200 text-[10.5px] font-semibold tracking-wide text-zinc-400 uppercase">
+            <span>{t("editor.shell.decor.heading")}</span>
+            <span className="tabular-nums lowercase">
+              {elementCount}/{MAX_MAP_ELEMENTS}
+            </span>
+          </div>
+          <Input
+            type="search"
+            value={query}
+            aria-label={t("editor.palette.search")}
+            placeholder={t("editor.palette.search")}
+            className="h-7 text-xs"
+            onChange={(event) => setQuery(event.currentTarget.value)}
+          />
+          <div className="flex flex-col gap-2">
+            {groups.map(([category, assets]) => (
+              <div key={category} className="flex flex-col gap-1">
+                <span className="px-0.5 text-[10.5px] font-medium text-zinc-400">
+                  {category} ({assets.length})
+                </span>
+                <div className="grid grid-cols-3 gap-1">
+                  {assets.map((asset) => (
+                    <AssetChoice
+                      key={asset.id}
+                      asset={asset}
+                      selected={asset.id === selectedAsset}
+                      onSelect={onSelectAsset}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </aside>
   );
 }

@@ -513,6 +513,7 @@ export const en = {
   "editor.tool.exit": "Exit",
   "editor.tool.monster": "Monster",
   "editor.tool.pan": "Move map",
+  "editor.tool.event": "Event",
   "editor.inspector.title": "Selection inspector",
   "editor.inspector.id": "Stable id",
   "editor.inspector.label": "Display label",
@@ -608,6 +609,8 @@ export const en = {
   "editor.shell.database": "Database…",
   "editor.shell.events": "Events",
   "editor.shell.events.short": "EV",
+  "editor.shell.events.graphic.heading": "Event graphic",
+  "editor.shell.events.graphic.none": "No graphic",
   "editor.shell.status.saved": "Saved",
   "editor.shell.status.cursor": "Cursor {cursor}",
 

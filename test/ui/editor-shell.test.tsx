@@ -11,6 +11,7 @@ import { EMPTY_MARKERS } from "../../src/shared/map-data.js";
 import { layersFromBlocks } from "../../src/shared/map-migrate.js";
 import { encodeTileLayer } from "../../src/shared/tile-layer-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "../../src/shared/tilesets/tiny-swords.js";
+import { EDITOR_ASSETS } from "../../src/shared/tiny-swords-catalog.js";
 
 // The painting stage is Pixi on a real canvas — untestable in jsdom. A fake handle stands in so the
 // tests exercise the shell's own behaviour: which EditorTool it pushes, that the layer selector
@@ -208,6 +209,58 @@ describe("AdventureEditorScreen shell", () => {
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.tool.eraser") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "eraser" });
+  });
+
+  it("the EV slot activates the event tool, pushing the overlay onto the stage handle", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    await mountReady();
+
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.events") }));
+    // The event tool is what turns the stage's EV overlay on (shouldShowEventOverlay), so this call
+    // reaching the handle IS the overlay flag reaching the stage.
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "event", graphic: null });
+  });
+
+  it("shows the Événements palette section only while EV mode is active", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    await mountReady();
+
+    expect(screen.queryByText(t("editor.shell.events.graphic.heading"))).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.events") }));
+    expect(screen.getByText(t("editor.shell.events.graphic.heading"))).toBeVisible();
+  });
+
+  it("picking a graphic in EV mode pushes it as the next placement's default", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    await mountReady();
+
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.events") }));
+    const palette = screen.getByRole("complementary", { name: t("editor.shell.palette.aria") });
+
+    // An asset whose last id segment is unique across the catalogue, so its grid card is found by
+    // that text alone — this test is about the picker→tool wiring, not the palette's search.
+    const shortCounts = new Map<string, number>();
+    for (const candidate of EDITOR_ASSETS) {
+      const segment = candidate.id.split(".").at(-1) ?? candidate.id;
+      shortCounts.set(segment, (shortCounts.get(segment) ?? 0) + 1);
+    }
+    const asset = EDITOR_ASSETS.find(
+      (candidate) => shortCounts.get(candidate.id.split(".").at(-1) ?? candidate.id) === 1,
+    );
+    if (!asset) throw new Error("no uniquely-named catalogue asset");
+    const shortId = asset.id.split(".").at(-1) ?? asset.id;
+    const card = within(palette).getByText(shortId).closest("button");
+    if (!card) throw new Error("asset card not found");
+    await userEvent.click(card);
+    // The pending graphic reaches the event tool the stage places with (applyTool then stamps it on
+    // page 1 — proven directly in editor-state.test.ts).
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "event", graphic: asset.id });
+
+    // And "No graphic" clears back to the placeholder default.
+    await userEvent.click(
+      within(palette).getByRole("button", { name: t("editor.shell.events.graphic.none") }),
+    );
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "event", graphic: null });
   });
 
   it("threads the layer selector to setActiveLayer and reflects it in the status bar", async () => {
