@@ -23,12 +23,13 @@ import {
 } from "../../game/editor-state.js";
 import { type MapEditorStageHandle, openMapEditorStage } from "../../game/map-editor-stage.js";
 import { startMapPreview } from "../../game/map-preview.js";
+import { t, useLocale } from "../../i18n.js";
 import { useUiStore } from "../../store.js";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../components/resizable.js";
 import { EditorAssetPalette } from "../EditorAssetPalette.js";
 import { EditorMenuBar } from "./EditorMenuBar.js";
 import { EditorStatusBar } from "./EditorStatusBar.js";
-import { type EditorPaintTool, EditorToolbar, TOOL_LABELS } from "./EditorToolbar.js";
+import { type EditorPaintTool, EditorToolbar, toolLabelText } from "./EditorToolbar.js";
 
 const DEFAULT_COLS = 40;
 const DEFAULT_ROWS = 30;
@@ -88,11 +89,17 @@ function paintToolFor(key: ToolKey, content: RectFillContent): EditorTool {
  * through the `MapEditorStageHandle`, exactly as before.
  */
 export function AdventureEditorScreen() {
+  useLocale();
   const setScreen = useUiStore((state) => state.setScreen);
   const returnContext = useUiStore((state) => state.editorReturnContext);
 
   const handleRef = useRef<MapEditorStageHandle | null>(null);
   const pendingToolRef = useRef<EditorTool>(paintToolFor("pencil", DEFAULT_CONTENT));
+  // Mirrors `activeLayer` the same way `pendingToolRef` mirrors the pending tool: the async stage-open
+  // `.then` below must read the layer selected *while it was opening*, not the one captured when the
+  // effect started running. Without this, clicking a layer during the open window is silently
+  // overwritten by the stale initial layer once the stage resolves.
+  const pendingLayerRef = useRef<0 | 1 | 2>(0);
   // The live edits captured when Tester is pressed, carried across the preview round-trip so the
   // stage reopens from them rather than the pristine payload.
   const editedRef = useRef<EditorMap | null>(null);
@@ -167,7 +174,7 @@ export function AdventureEditorScreen() {
         }
         handleRef.current = handle;
         handle.setTool(pendingToolRef.current);
-        handle.setActiveLayer(activeLayer);
+        handle.setActiveLayer(pendingLayerRef.current);
         setStageStatus("ready");
       })
       .catch((caught) => {
@@ -246,6 +253,7 @@ export function AdventureEditorScreen() {
   }
 
   function selectLayer(layer: 0 | 1 | 2): void {
+    pendingLayerRef.current = layer;
     setActiveLayer(layer);
     handleRef.current?.setActiveLayer(layer);
   }
@@ -291,7 +299,7 @@ export function AdventureEditorScreen() {
     setError(null);
     try {
       const created = await createMapApi(
-        toSaveInput(blankMap("Nouvelle carte", DEFAULT_COLS, DEFAULT_ROWS)),
+        toSaveInput(blankMap(t("editor.new"), DEFAULT_COLS, DEFAULT_ROWS)),
       );
       editedRef.current = null;
       setMap(created);
@@ -302,7 +310,7 @@ export function AdventureEditorScreen() {
 
   async function deleteMap(): Promise<void> {
     if (!map) return;
-    if (!window.confirm(`Supprimer « ${map.name} » ? Cette action est définitive.`)) return;
+    if (!window.confirm(t("editor.shell.deleteMap.confirm", { name: map.name }))) return;
     setError(null);
     try {
       await deleteMapApi(map.id);
@@ -313,13 +321,17 @@ export function AdventureEditorScreen() {
   }
 
   function exit(force = false): void {
-    if (!force && dirty && !window.confirm("Quitter l'éditeur et abandonner les modifications ?")) {
+    if (!force && dirty && !window.confirm(t("editor.shell.exit.confirm"))) {
       return;
     }
     setScreen("parties");
   }
 
-  const toolLabel = selectedAsset ? "Décor" : toolKey ? (TOOL_LABELS[toolKey] ?? toolKey) : "Décor";
+  const toolLabel = selectedAsset
+    ? t("editor.inspector.element")
+    : toolKey
+      ? toolLabelText(toolKey)
+      : t("editor.inspector.element");
 
   if (previewing) {
     return (
@@ -328,7 +340,7 @@ export function AdventureEditorScreen() {
           className="rounded-md bg-zinc-900/90 px-4 py-2 text-sm text-zinc-50 shadow-lg"
           role="status"
         >
-          Testez votre carte avec un guerrier de niveau 1. Appuyez sur Échap pour revenir.
+          {t("editor.shell.preview.hint")}
         </p>
       </div>
     );
@@ -337,7 +349,7 @@ export function AdventureEditorScreen() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-white text-zinc-950 select-none">
       <EditorMenuBar
-        adventureName={map?.name ?? "Aventure"}
+        adventureName={map?.name ?? t("editor.shell.adventureFallback")}
         canUndo={canUndo && stageStatus === "ready"}
         canRedo={canRedo && stageStatus === "ready"}
         showGrid={showGrid}
@@ -376,39 +388,39 @@ export function AdventureEditorScreen() {
               selection so pencil/rect/fill/stairs keep working through the merge. */}
           <aside
             className="flex h-full flex-col border-r border-zinc-200 bg-zinc-50"
-            aria-label="Palette"
+            aria-label={t("editor.shell.palette.aria")}
           >
             <div className="flex h-8 items-center border-b border-zinc-200 px-3 text-[11px] font-semibold tracking-wide text-zinc-500 uppercase">
-              Terrains
+              {t("editor.shell.terrain.heading")}
             </div>
             <div className="flex flex-col gap-1 p-2">
               <TerrainButton
-                label="Herbe"
+                label={t("editor.tool.grass")}
                 active={contentIs(content, "grass")}
                 onClick={() => pickContent({ kind: "block", block: "grass" })}
               />
               <TerrainButton
-                label="Eau"
+                label={t("editor.tool.water")}
                 active={contentIs(content, "water")}
                 onClick={() => pickContent({ kind: "block", block: "water" })}
               />
               <TerrainButton
-                label="Élévation 1"
+                label={t("editor.shell.terrain.elevation1")}
                 active={contentIsLevel(content, 0)}
                 onClick={() => pickContent({ kind: "elevation", level: 0 })}
               />
               <TerrainButton
-                label="Élévation 2"
+                label={t("editor.shell.terrain.elevation2")}
                 active={contentIsLevel(content, 1)}
                 onClick={() => pickContent({ kind: "elevation", level: 1 })}
               />
               <TerrainButton
-                label="Élévation 3"
+                label={t("editor.shell.terrain.elevation3")}
                 active={contentIsLevel(content, 2)}
                 onClick={() => pickContent({ kind: "elevation", level: 2 })}
               />
               <TerrainButton
-                label="Escalier"
+                label={t("editor.shell.tool.stairs")}
                 active={toolKey === "stairs"}
                 onClick={() => selectTool("stairs")}
               />
@@ -420,15 +432,18 @@ export function AdventureEditorScreen() {
         <ResizablePanel defaultSize="64" className="min-h-0">
           {/* The stage draws on the sibling #stage canvas behind #root; this pane is its viewport.
               The scenery palette floats over it, exactly as before, until Task 9 moves it left. */}
-          <section className="relative h-full min-h-0 overflow-hidden" aria-label="Carte">
+          <section
+            className="relative h-full min-h-0 overflow-hidden"
+            aria-label={t("editor.shell.stage.aria")}
+          >
             {stageStatus === "loading" && (
               <p className="absolute left-3 top-3 z-10 text-sm text-zinc-500" role="status">
-                Chargement de la carte…
+                {t("editor.shell.stage.loading")}
               </p>
             )}
             {stageStatus === "error" && (
               <p className="absolute left-3 top-3 z-10 text-sm text-red-600" role="alert">
-                La carte n'a pas pu être chargée.
+                {t("editor.shell.stage.error")}
               </p>
             )}
             {error && (
@@ -451,10 +466,10 @@ export function AdventureEditorScreen() {
           {/* Task 8 replaces this with the adventure's maps list + new-map dialog. */}
           <aside
             className="flex h-full flex-col border-l border-zinc-200 bg-zinc-50"
-            aria-label="Cartes"
+            aria-label={t("editor.shell.maps.aria")}
           >
             <div className="flex h-8 items-center justify-between border-b border-zinc-200 px-3 text-[11px] font-semibold tracking-wide text-zinc-500 uppercase">
-              Cartes
+              {t("editor.shell.maps.aria")}
             </div>
             <div className="flex flex-1 flex-col gap-1 overflow-auto p-2 text-sm text-zinc-500">
               {map ? (
@@ -463,7 +478,7 @@ export function AdventureEditorScreen() {
                 </span>
               ) : null}
               <p className="px-1 pt-2 text-[11px] leading-relaxed text-zinc-400">
-                La liste des cartes de l'aventure arrivera bientôt.
+                {t("editor.shell.maps.comingSoon")}
               </p>
             </div>
           </aside>

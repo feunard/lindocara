@@ -1,4 +1,5 @@
 import { Box } from "lucide-react";
+import { t, useLocale } from "../../i18n.js";
 import {
   Menubar,
   MenubarContent,
@@ -52,12 +53,13 @@ export function EditorMenuBar({
   onSetZoom,
   onTest,
 }: EditorMenuBarProps) {
+  useLocale();
   return (
     <div className="flex h-8 flex-none items-stretch border-b border-zinc-200 bg-white px-1.5">
       <button
         type="button"
         onClick={onExit}
-        aria-label="Quitter l'éditeur"
+        aria-label={t("editor.shell.exit.aria")}
         className="mr-1 flex items-center gap-2 rounded-md px-2 hover:bg-zinc-100"
       >
         <span className="flex size-4 items-center justify-center rounded bg-zinc-900 text-zinc-50">
@@ -68,75 +70,95 @@ export function EditorMenuBar({
 
       <Menubar className="h-8 gap-0 rounded-none border-none bg-transparent p-0">
         <MenubarMenu>
-          <MenubarTrigger>Fichier</MenubarTrigger>
+          <MenubarTrigger>{t("editor.shell.menu.file")}</MenubarTrigger>
           <MenubarContent>
             <MenubarItem onClick={onNewMap}>
-              Nouvelle carte
+              {t("editor.new")}
               <MenubarShortcut>⌘N</MenubarShortcut>
             </MenubarItem>
             <MenubarItem onClick={onSave}>
-              Enregistrer
+              {t("editor.save")}
               <MenubarShortcut>⌘S</MenubarShortcut>
             </MenubarItem>
             <MenubarSeparator />
             <MenubarItem variant="destructive" onClick={onDeleteMap}>
-              Supprimer la carte
+              {t("editor.shell.deleteMap")}
             </MenubarItem>
           </MenubarContent>
         </MenubarMenu>
 
         <MenubarMenu>
-          <MenubarTrigger>Édition</MenubarTrigger>
+          <MenubarTrigger>{t("editor.shell.menu.edit")}</MenubarTrigger>
           <MenubarContent>
             <MenubarItem disabled={!canUndo} onClick={onUndo}>
-              Annuler
+              {t("editor.undo")}
               <MenubarShortcut>⌘Z</MenubarShortcut>
             </MenubarItem>
             <MenubarItem disabled={!canRedo} onClick={onRedo}>
-              Rétablir
+              {t("editor.redo")}
               <MenubarShortcut>⇧⌘Z</MenubarShortcut>
             </MenubarItem>
           </MenubarContent>
         </MenubarMenu>
 
         <MenubarMenu>
-          <MenubarTrigger>Mode</MenubarTrigger>
+          <MenubarTrigger>{t("editor.shell.menu.mode")}</MenubarTrigger>
           <MenubarContent>
-            <MenubarItem onClick={() => onSelectLayer(0)}>Calque 1</MenubarItem>
-            <MenubarItem onClick={() => onSelectLayer(1)}>Calque 2</MenubarItem>
-            <MenubarItem onClick={() => onSelectLayer(2)}>Calque 3</MenubarItem>
+            <MenubarItem onClick={() => onSelectLayer(0)}>
+              {t("editor.shell.layer", { n: 1 })}
+            </MenubarItem>
+            <MenubarItem onClick={() => onSelectLayer(1)}>
+              {t("editor.shell.layer", { n: 2 })}
+            </MenubarItem>
+            <MenubarItem onClick={() => onSelectLayer(2)}>
+              {t("editor.shell.layer", { n: 3 })}
+            </MenubarItem>
           </MenubarContent>
         </MenubarMenu>
 
         <MenubarMenu>
-          <MenubarTrigger>Outils</MenubarTrigger>
+          <MenubarTrigger>{t("editor.shell.menu.tools")}</MenubarTrigger>
           <MenubarContent>
-            <MenubarItem onClick={() => onSelectTool("select")}>Sélection</MenubarItem>
-            <MenubarItem onClick={() => onSelectTool("pencil")}>Crayon</MenubarItem>
-            <MenubarItem onClick={() => onSelectTool("rect")}>Rectangle</MenubarItem>
-            <MenubarItem onClick={() => onSelectTool("fill")}>Remplissage</MenubarItem>
-            <MenubarItem onClick={() => onSelectTool("eraser")}>Gomme</MenubarItem>
+            <MenubarItem onClick={() => onSelectTool("select")}>
+              {t("editor.shell.tool.select")}
+            </MenubarItem>
+            <MenubarItem onClick={() => onSelectTool("pencil")}>
+              {t("editor.shell.tool.pencil")}
+            </MenubarItem>
+            <MenubarItem onClick={() => onSelectTool("rect")}>
+              {t("editor.shell.tool.rect")}
+            </MenubarItem>
+            <MenubarItem onClick={() => onSelectTool("fill")}>
+              {t("editor.shell.tool.fill")}
+            </MenubarItem>
+            <MenubarItem onClick={() => onSelectTool("eraser")}>
+              {t("editor.tool.eraser")}
+            </MenubarItem>
           </MenubarContent>
         </MenubarMenu>
 
         <MenubarMenu>
-          <MenubarTrigger>Affichage</MenubarTrigger>
+          <MenubarTrigger>{t("editor.shell.menu.view")}</MenubarTrigger>
           <MenubarContent>
             <MenubarItem onClick={onToggleGrid}>
-              {showGrid ? "Masquer la grille" : "Afficher la grille"}
+              {showGrid ? t("editor.shell.grid.hide") : t("editor.shell.grid.show")}
             </MenubarItem>
-            <MenubarItem disabled>Estomper les autres calques</MenubarItem>
+            <MenubarItem disabled>{t("editor.shell.dimOtherLayers")}</MenubarItem>
             <MenubarSeparator />
-            <MenubarItem onClick={() => onSetZoom(100)}>Zoom 100%</MenubarItem>
-            <MenubarItem onClick={() => onSetZoom(200)}>Zoom 200%</MenubarItem>
+            <MenubarItem onClick={() => onSetZoom(100)}>
+              {t("editor.shell.zoomTo", { value: 100 })}
+            </MenubarItem>
+            <MenubarItem onClick={() => onSetZoom(200)}>
+              {t("editor.shell.zoomTo", { value: 200 })}
+            </MenubarItem>
           </MenubarContent>
         </MenubarMenu>
 
         <MenubarMenu>
-          <MenubarTrigger>Jeu</MenubarTrigger>
+          <MenubarTrigger>{t("editor.shell.menu.game")}</MenubarTrigger>
           <MenubarContent>
-            <MenubarItem onClick={onTest}>Tester</MenubarItem>
-            <MenubarItem disabled>Base de données…</MenubarItem>
+            <MenubarItem onClick={onTest}>{t("editor.shell.test")}</MenubarItem>
+            <MenubarItem disabled>{t("editor.shell.database")}</MenubarItem>
           </MenubarContent>
         </MenubarMenu>
       </Menubar>

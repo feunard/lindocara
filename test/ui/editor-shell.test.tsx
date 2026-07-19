@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MapPayload, MapSummary } from "../../src/client/api.js";
-import { setLocale } from "../../src/client/i18n.js";
+import { setLocale, t } from "../../src/client/i18n.js";
 import { useUiStore } from "../../src/client/store.js";
 import { AdventureEditorScreen } from "../../src/client/ui/editor/AdventureEditorScreen.js";
 import { PartiesScreen } from "../../src/client/ui/PartiesScreen.js";
@@ -134,25 +134,25 @@ describe("AdventureEditorScreen shell", () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady();
 
-    await userEvent.click(screen.getByRole("button", { name: "Sélection" }));
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.tool.select") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "select" });
 
-    await userEvent.click(screen.getByRole("button", { name: "Crayon" }));
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.tool.pencil") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "block", block: "grass" });
 
-    await userEvent.click(screen.getByRole("button", { name: "Rectangle" }));
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.tool.rect") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({
       kind: "rect",
       content: { kind: "block", block: "grass" },
     });
 
-    await userEvent.click(screen.getByRole("button", { name: "Remplissage" }));
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.tool.fill") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({
       kind: "fill",
       content: { kind: "block", block: "grass" },
     });
 
-    await userEvent.click(screen.getByRole("button", { name: "Gomme" }));
+    await userEvent.click(screen.getByRole("button", { name: t("editor.tool.eraser") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "eraser" });
   });
 
@@ -160,11 +160,37 @@ describe("AdventureEditorScreen shell", () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady();
 
-    expect(screen.getByText("Calque 1")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Calque 2" }));
+    expect(screen.getByText(t("editor.shell.layer", { n: 1 }))).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.layer", { n: 2 }) }));
 
     expect(stageMock.setActiveLayer).toHaveBeenLastCalledWith(1);
-    expect(screen.getByText("Calque 2")).toBeInTheDocument();
+    expect(screen.getByText(t("editor.shell.layer", { n: 2 }))).toBeInTheDocument();
+  });
+
+  it("installs the layer selected while the stage was still opening, not the layer captured when the open effect started", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    // Hold the stage-open promise open so the effect's `.then` has not run yet when we click.
+    let resolveOpen!: (handle: ReturnType<typeof stageHandle>) => void;
+    const openPromise = new Promise<ReturnType<typeof stageHandle>>((resolve) => {
+      resolveOpen = resolve;
+    });
+    stageMock.openMapEditorStage.mockReturnValueOnce(openPromise);
+
+    render(<AdventureEditorScreen />);
+    await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(1));
+
+    // The handle does not exist yet, so selecting layer 3 here can only reach the stage through
+    // whatever the `.then` callback reads once it resolves — this is the race.
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.layer", { n: 3 }) }));
+    expect(stageMock.setActiveLayer).not.toHaveBeenCalled();
+
+    resolveOpen(stageHandle());
+    await waitFor(() => expect(stageMock.setActiveLayer).toHaveBeenCalled());
+
+    // Must be the layer selected during the open window (index 2), never the stale layer (index 0)
+    // that was active when the effect started running.
+    expect(stageMock.setActiveLayer).toHaveBeenCalledTimes(1);
+    expect(stageMock.setActiveLayer).toHaveBeenLastCalledWith(2);
   });
 
   it("does not dispatch from a disabled menu item", async () => {
@@ -173,9 +199,9 @@ describe("AdventureEditorScreen shell", () => {
 
     // The Base UI menubar opens reliably from the keyboard in jsdom (its click-to-open path depends
     // on layout measurement that jsdom does not provide).
-    screen.getByRole("menuitem", { name: "Jeu" }).focus();
+    screen.getByRole("menuitem", { name: t("editor.shell.menu.game") }).focus();
     await userEvent.keyboard("{Enter}");
-    const database = await screen.findByRole("menuitem", { name: "Base de données…" });
+    const database = await screen.findByRole("menuitem", { name: t("editor.shell.database") });
     expect(database).toHaveAttribute("aria-disabled", "true");
 
     await userEvent.click(database);

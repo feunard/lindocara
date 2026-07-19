@@ -1,4 +1,5 @@
 import { Check } from "lucide-react";
+import { t, useLocale } from "../../i18n.js";
 
 interface EditorStatusBarProps {
   mapName: string;
@@ -23,6 +24,7 @@ export function EditorStatusBar({
   toolLabel,
   zoom,
 }: EditorStatusBarProps) {
+  useLocale();
   return (
     <div className="flex h-[26px] flex-none items-center border-t border-zinc-200 bg-zinc-50 px-3 text-[11.5px] text-zinc-500 tabular-nums">
       <span className="flex items-center gap-1.5">
@@ -32,7 +34,7 @@ export function EditorStatusBar({
       <Divider />
       <span>{`${cols}×${rows}`}</span>
       <Divider />
-      <span>{`Curseur ${cursor}`}</span>
+      <span>{t("editor.shell.status.cursor", { cursor })}</span>
 
       <span className="flex-1" />
 
@@ -40,12 +42,12 @@ export function EditorStatusBar({
         <>
           <span className="flex items-center gap-1.5 font-medium text-green-600">
             <Check className="size-3" />
-            Enregistré
+            {t("editor.shell.status.saved")}
           </span>
           <Divider />
         </>
       )}
-      <span>{`Calque ${activeLayer + 1}`}</span>
+      <span>{t("editor.shell.layer", { n: activeLayer + 1 })}</span>
       <Divider />
       <span>{toolLabel}</span>
       <Divider />
