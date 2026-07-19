@@ -1,0 +1,208 @@
+/**
+ * Party-owned adventure state — switches, variables, self-switches — and the rule that turns it
+ * into which page of a `MapEvent` is currently showing.
+ *
+ * This module has three readers across two tranches. This tranche (t4): `World`, in the room,
+ * calls `activePageIndex` against a read-only snapshot `GameSession` pushes down, to decide which
+ * page's appearance goes on the wire. `test/adventure-state.test.ts` calls the exact same
+ * function to pin page precedence and the unknown-id defaults — there is no second copy of the
+ * rule to drift, the same argument `shared/simulation.ts` makes for `step()`. Tranche 5's
+ * interpreter is the fourth reader and the first WRITER: it will read this same state to decide
+ * what a command sees, then mutate the state this file only parses and evaluates today. Nothing
+ * here executes a command or writes anything — that split mirrors `map-events.ts`'s shape/evaluator
+ * boundary, one tranche later.
+ *
+ * The registry (id -> name, for switches and variables) rides the adventure row; a party's live
+ * state is a separate thing entirely, loaded/held/saved by the coordinator
+ * (`docs/superpowers/specs/2026-07-19-adventure-state-design.md`, Decisions 1-3). Both are parsed
+ * here with the same totality discipline as `map-events.ts`: untrusted input in, a valid value or
+ * `null` out, never a throw.
+ */
+import { isUuid } from "./identifiers.js";
+import { isSelfSwitch, type MapEvent, type MapEventPage } from "./map-events.js";
+
+/**
+ * Same 4-digit-ordinal shape `map-events.ts`'s (private) `CONDITION_ID_PATTERN` checks a page's
+ * condition ids against. That file deliberately keeps its copy unexported — the registry it would
+ * validate against didn't exist yet when it was written. It exists now; this is that registry's
+ * id shape, kept as its own copy rather than reaching into `map-events.ts` for a private constant.
+ */
+const REGISTRY_ID_PATTERN = /^\d{4}$/;
+
+/** Mint order, not display order — unlike `MapEvent.ordinal`, a registry id IS identity: pages
+ *  reference it by string, so once minted it never changes shape or gets reused. */
+export interface RegistryEntry {
+  id: string;
+  name: string;
+}
+
+export const REGISTRY_ENTRY_NAME_MAX = 32;
+
+/** The most switches, and the most variables, one adventure's registry may hold. Small and
+ *  bounded on purpose: the registry rides the adventure row as JSON (Decision 1), not a table. */
+export const MAX_REGISTRY_SWITCHES = 200;
+export const MAX_REGISTRY_VARIABLES = 200;
+
+export interface AdventureRegistry {
+  switches: readonly RegistryEntry[];
+  variables: readonly RegistryEntry[];
+}
+
+export const EMPTY_REGISTRY: AdventureRegistry = { switches: [], variables: [] };
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Trims and bounds a registry entry's name — the `validateEventName` idiom, applied here. An
+ *  empty name is legal for the same reason it is on an event: the id chip is the real label. */
+function validateRegistryEntryName(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length <= REGISTRY_ENTRY_NAME_MAX ? trimmed : null;
+}
+
+function parseRegistryEntry(raw: unknown): RegistryEntry | null {
+  if (!isPlainObject(raw)) return null;
+  const { id, name } = raw;
+  if (typeof id !== "string" || !REGISTRY_ID_PATTERN.test(id)) return null;
+  const parsedName = validateRegistryEntryName(name);
+  if (parsedName === null) return null;
+  return { id, name: parsedName };
+}
+
+/** Duplicate ids are rejected within THIS list only — a switch and a variable are separate
+ *  namespaces (each keyed into its own `Record` in `PartyAdventureState`), so id "0001" naming
+ *  both a switch and a variable is not a collision. */
+function parseRegistryList(value: unknown, max: number): RegistryEntry[] | null {
+  if (!Array.isArray(value) || value.length > max) return null;
+  const seenIds = new Set<string>();
+  const entries: RegistryEntry[] = [];
+  for (const raw of value) {
+    const entry = parseRegistryEntry(raw);
+    if (!entry) return null;
+    if (seenIds.has(entry.id)) return null;
+    seenIds.add(entry.id);
+    entries.push(entry);
+  }
+  return entries;
+}
+
+export function parseAdventureRegistry(value: unknown): AdventureRegistry | null {
+  if (!isPlainObject(value)) return null;
+  const switches = parseRegistryList(value.switches, MAX_REGISTRY_SWITCHES);
+  if (!switches) return null;
+  const variables = parseRegistryList(value.variables, MAX_REGISTRY_VARIABLES);
+  if (!variables) return null;
+  return { switches, variables };
+}
+
+/**
+ * A party's live save data for this tranche: which switches are on, what each variable holds, and
+ * which per-event self-switch letters are set. Self-switches are keyed `${eventId}:${letter}` —
+ * the same event id `map-events.ts` mints (a uuid), paired with one of `SELF_SWITCHES` — because
+ * XP's self-switches are local to the (event, letter) pair, not the party-wide registry: two
+ * different events both using letter "A" must never share one flag.
+ */
+export interface PartyAdventureState {
+  switches: Record<string, boolean>;
+  variables: Record<string, number>;
+  selfSwitches: Record<string, boolean>;
+}
+
+export const EMPTY_ADVENTURE_STATE: PartyAdventureState = {
+  switches: {},
+  variables: {},
+  selfSwitches: {},
+};
+
+function parseSwitches(value: unknown): Record<string, boolean> | null {
+  if (!isPlainObject(value)) return null;
+  const switches: Record<string, boolean> = {};
+  for (const [id, flag] of Object.entries(value)) {
+    if (!REGISTRY_ID_PATTERN.test(id) || typeof flag !== "boolean") return null;
+    switches[id] = flag;
+  }
+  return switches;
+}
+
+function parseVariables(value: unknown): Record<string, number> | null {
+  if (!isPlainObject(value)) return null;
+  const variables: Record<string, number> = {};
+  for (const [id, amount] of Object.entries(value)) {
+    if (!REGISTRY_ID_PATTERN.test(id) || !Number.isSafeInteger(amount)) return null;
+    variables[id] = amount as number;
+  }
+  return variables;
+}
+
+/** `${eventId}:${letter}` — split on the LAST colon, since a uuid never contains one, so this
+ *  never needs to guess where the id ends and the letter begins. */
+function isSelfSwitchKey(key: string): boolean {
+  const separator = key.lastIndexOf(":");
+  if (separator < 0) return false;
+  return isUuid(key.slice(0, separator)) && isSelfSwitch(key.slice(separator + 1));
+}
+
+function parseSelfSwitches(value: unknown): Record<string, boolean> | null {
+  if (!isPlainObject(value)) return null;
+  const selfSwitches: Record<string, boolean> = {};
+  for (const [key, flag] of Object.entries(value)) {
+    if (!isSelfSwitchKey(key) || typeof flag !== "boolean") return null;
+    selfSwitches[key] = flag;
+  }
+  return selfSwitches;
+}
+
+export function parsePartyAdventureState(value: unknown): PartyAdventureState | null {
+  if (!isPlainObject(value)) return null;
+  const switches = parseSwitches(value.switches);
+  if (!switches) return null;
+  const variables = parseVariables(value.variables);
+  if (!variables) return null;
+  const selfSwitches = parseSelfSwitches(value.selfSwitches);
+  if (!selfSwitches) return null;
+  return { switches, variables, selfSwitches };
+}
+
+/** One page's conditions, ALL of them — a page with none set holds vacuously (Decision 3's
+ *  "no conditions" case), so an event whose only page is bare is always on. An unset condition
+ *  contributes nothing to the AND; it is not evaluated at all. */
+function pageConditionsHold(
+  page: MapEventPage,
+  eventId: string,
+  state: PartyAdventureState,
+): boolean {
+  if (page.condSwitchId !== null && state.switches[page.condSwitchId] !== true) return false;
+  if (page.condVariableId !== null) {
+    const min = page.condVariableMin ?? 0;
+    const actual = state.variables[page.condVariableId] ?? 0;
+    if (actual < min) return false;
+  }
+  if (page.condSelfSwitch !== null) {
+    const key = `${eventId}:${page.condSelfSwitch}`;
+    if (state.selfSwitches[key] !== true) return false;
+  }
+  return true;
+}
+
+/**
+ * XP's rule: walk pages from the LAST (highest position) to the first and return the index of the
+ * first one whose conditions all hold. A more specific, later-authored page always wins over an
+ * earlier, more general one when both are satisfied — that precedence, not "first match", is the
+ * entire point of letting an event carry more than one page. No page holding means the event is
+ * dormant: `null`, not page 0 — an event is not required to always show something.
+ *
+ * Unknown ids read as their neutral default (`false` for a switch, `0` for a variable) rather than
+ * failing the page: state a party has never touched is indistinguishable from state explicitly
+ * left at its default, so a fresh party and a party that set a switch back to its default look the
+ * same to a page that reads it. A `min 0` variable condition against an unknown/untouched variable
+ * therefore HOLDS (0 >= 0) — a deliberate consequence, not a hole; see the test with the same name.
+ */
+export function activePageIndex(event: MapEvent, state: PartyAdventureState): number | null {
+  for (let index = event.pages.length - 1; index >= 0; index--) {
+    const page = event.pages[index];
+    if (page !== undefined && pageConditionsHold(page, event.id, state)) return index;
+  }
+  return null;
+}
