@@ -10,6 +10,7 @@ import { type Attachment, positionFromAttachment } from "../src/server/world.js"
 import { WS_CLOSE } from "../src/shared/close-codes.js";
 import { CORPSE_RECLAIM_RANGE, RESURRECT_HP_RATIO } from "../src/shared/death.js";
 import {
+  ATTACK_COOLDOWN_MS,
   CEMETERIES,
   isWalkable,
   maxHpForLevel,
@@ -469,19 +470,23 @@ describe("World", () => {
   it("keeps a potion looted inside the D1 flush window", { timeout: 60_000 }, async () => {
     const drinker = await Client.join("potion_window", {
       zoneId: "verdant-reach",
-      position: { x: 1870, y: 820 },
-      level: 10,
-      hp: 150,
+      instanceId: "potion-window",
+      // Cleave is directional: stand just left of the authored goblin spawn rather than directly
+      // on top of it, so the default right-facing attack has a real frontal target.
+      position: { x: 1840, y: 820 },
+      level: 100,
+      hp: 1_000,
     });
     const welcome = await until("potion window welcome", () => drinker.welcome);
     expect(welcome.self.inventory.potions).toBe(2);
 
-    // A kill drops a potion on ticks divisible by four, and D1 only catches up every
-    // D1_SAVE_EVERY_TICKS. Land the killing blow on a potion tick early in a flush window, so
-    // the pickup and the drink both happen while D1 still says two.
-    const dropsPotionWellBeforeTheFlush = () => {
+    // D1 only catches up every D1_SAVE_EVERY_TICKS. Keep casting early in each flush window until
+    // an impact lands on a potion tick, so pickup and drink both happen while D1 still says two.
+    // Snapshot ticks arrive at half the simulation rate and may keep one parity forever; the
+    // authoritative active frame, not the launch snapshot, decides the loot tick.
+    const isEarlyInFlushWindow = () => {
       const tick = drinker.latestSnapshot?.tick;
-      return tick !== undefined && tick % 4 === 0 && tick % D1_SAVE_EVERY_TICKS <= 40;
+      return tick !== undefined && tick % D1_SAVE_EVERY_TICKS <= 40;
     };
     const potionPickups = () =>
       drinker.received.filter(
@@ -490,12 +495,21 @@ describe("World", () => {
           message.code === "loot.picked" &&
           message.params?.kind === "potion",
       ).length;
+    const lootPickups = () =>
+      drinker.received.filter((message) => message.t === "event" && message.code === "loot.picked")
+        .length;
 
     let lastAttackAt = 0;
+    let nextRespawnAttackAt = 0;
+    let targetWasDead = false;
     const deadline = Date.now() + 45_000;
     while (potionPickups() === 0 && Date.now() < deadline) {
       const dropped = drinker.latestSnapshot?.loot.find((item) => item.kind === "potion");
       const self = drinker.self();
+      const authoredTarget = drinker.latestSnapshot?.monsters.find(
+        (monster) => monster.id === "road-goblin-scout",
+      );
+      const target = authoredTarget && !authoredTarget.dead ? authoredTarget : undefined;
       if (dropped && self) {
         // The pickup radius is tighter than the attack range: walk onto the drop.
         const dx = dropped.x - self.x;
@@ -503,10 +517,39 @@ describe("World", () => {
         drinker.press(
           Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy > 0 ? "down" : "up",
         );
-      } else if (Date.now() - lastAttackAt > 600 && dropsPotionWellBeforeTheFlush()) {
+      } else if (target && self) {
+        if (targetWasDead) {
+          // Respawn is an exact multiple of four simulation ticks. Offset consecutive killing
+          // blows so the deterministic loot selector visits every tick phase instead of repeating
+          // the same non-potion drop forever.
+          nextRespawnAttackAt = Date.now() + (lootPickups() % 4) * TICK_DT * 1_000;
+          targetWasDead = false;
+        }
+        const dx = target.x - self.x;
+        const dy = target.y - self.y;
+        const direction =
+          Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy > 0 ? "down" : "up";
+        const facingTarget =
+          (direction === "right" && self.facing.x > 0.9) ||
+          (direction === "left" && self.facing.x < -0.9) ||
+          (direction === "down" && self.facing.y > 0.9) ||
+          (direction === "up" && self.facing.y < -0.9);
+        if (Math.hypot(dx, dy) > 24 || !facingTarget) {
+          drinker.press(direction);
+        } else {
+          drinker.release();
+          if (
+            Date.now() >= nextRespawnAttackAt &&
+            Date.now() - lastAttackAt > ATTACK_COOLDOWN_MS &&
+            isEarlyInFlushWindow()
+          ) {
+            drinker.action("attack");
+            lastAttackAt = Date.now();
+          }
+        }
+      } else {
+        if (authoredTarget?.dead) targetWasDead = true;
         drinker.release();
-        drinker.action("attack");
-        lastAttackAt = Date.now();
       }
       await scheduler.wait(10);
     }
@@ -1290,9 +1333,11 @@ describe("World", () => {
     const ranger = await Client.join("sighter", {
       position: { x: 2140, y: 820 },
       class: "ranger",
+      instanceId: "directional-arrow",
     });
     const observer = await Client.join("sighter_observer", {
       position: { x: 2180, y: 820 },
+      instanceId: "directional-arrow",
     });
     try {
       await until("welcome", () => ranger.welcome && observer.welcome);
