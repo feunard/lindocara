@@ -69,7 +69,26 @@ describe("AdventurePicker", () => {
     expect(screen.getByText(t("editor.picker.maps", { count: 3 }))).toBeInTheDocument();
   });
 
-  it("creates an adventure with a single POST and hands the loaded session to the editor", async () => {
+  it("has no creation form — just a single New-adventure button (UX wave #14)", async () => {
+    const mock = vi.fn((url: string) => {
+      if (url === "/api/adventures") return Promise.resolve(jsonResponse([]));
+      return Promise.resolve(jsonResponse({ error: "not_found" }, 404));
+    });
+    vi.stubGlobal("fetch", mock);
+
+    render(<AdventurePicker onOpen={noop} onExit={noop} onSessionExpired={noop} />);
+
+    // The create button is present…
+    expect(
+      await screen.findByRole("button", { name: t("editor.picker.create.heading") }),
+    ).toBeInTheDocument();
+    // …but the name/players form fields the create page used to carry are gone: naming is deferred to
+    // the first save, max players to the settings dialog.
+    expect(screen.queryByLabelText(t("adventure.name"))).toBeNull();
+    expect(screen.queryByLabelText(t("adventure.players"))).toBeNull();
+  });
+
+  it("creates immediately with the localized default title + 4 players and hands the session to the editor (UX wave #14)", async () => {
     let opened: AdventureEditorSession | null = null;
     const mock = vi.fn((url: string, init?: RequestInit) => {
       const method = init?.method ?? "GET";
@@ -80,7 +99,7 @@ describe("AdventurePicker", () => {
             {
               id: "adv-new",
               accountId: "acct",
-              title: "My quest",
+              title: t("adventure.default_title"),
               maxPlayers: 4,
               version: 1,
               mapIds: ["m0"],
@@ -98,7 +117,7 @@ describe("AdventurePicker", () => {
           jsonResponse({
             id: "adv-new",
             accountId: "acct",
-            title: "My quest",
+            title: t("adventure.default_title"),
             maxPlayers: 4,
             version: 1,
             mapIds: ["m0"],
@@ -122,8 +141,9 @@ describe("AdventurePicker", () => {
       />,
     );
 
-    await userEvent.type(await screen.findByLabelText(t("adventure.name")), "My quest");
-    await userEvent.click(screen.getByRole("button", { name: t("editor.picker.create.submit") }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: t("editor.picker.create.heading") }),
+    );
 
     await waitFor(() => expect(opened).not.toBeNull());
     // Exactly one POST /api/adventures — the atomic create, not a create-then-add-map sequence.
@@ -131,7 +151,17 @@ describe("AdventurePicker", () => {
       ([url, init]) => url === "/api/adventures" && (init as RequestInit)?.method === "POST",
     );
     expect(posts).toHaveLength(1);
+    const body = JSON.parse(String((posts[0]?.[1] as RequestInit)?.body)) as {
+      title: string;
+      maxPlayers: number;
+    };
+    // The default title is the localized DATA the picker sends; max players defaults to 4 (never a
+    // create-time form field any more).
+    expect(body.title).toBe(t("adventure.default_title"));
+    expect(body.maxPlayers).toBe(4);
     const session = opened as unknown as AdventureEditorSession;
     expect(session.adventureId).toBe("adv-new");
+    // The session is flagged unnamed so the editor's first save prompts for the real title.
+    expect(session.titleUntouched).toBe(true);
   });
 });

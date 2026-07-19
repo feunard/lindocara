@@ -616,6 +616,10 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.picker.create.heading": "Nouvelle aventure",
   "editor.picker.create.submit": "Créer l'aventure",
   "editor.picker.loading": "Chargement des aventures…",
+  "editor.firstSave.title": "Nommez votre aventure",
+  "editor.firstSave.hint": "Donnez un nom à votre aventure avant sa première sauvegarde.",
+  "editor.firstSave.confirm": "Enregistrer",
+  "editor.firstSave.cancel": "Annuler",
   "editor.shell.markers.heading": "Marqueurs",
   "editor.shell.settings": "Réglages de l'aventure",
   "editor.shell.settings.pick": "Choisir une aventure à modifier",
@@ -754,6 +758,7 @@ export const fr: Record<keyof typeof en, string> = {
   // Éditeur d'aventures
   "adventure.title": "Éditeur d'aventures",
   "adventure.new": "Nouvelle aventure",
+  "adventure.default_title": "Nouvelle aventure",
   "adventure.name": "Titre",
   "adventure.players": "Joueurs max",
   "adventure.players.count": "{count} joueurs max",

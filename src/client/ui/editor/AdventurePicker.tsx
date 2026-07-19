@@ -9,8 +9,6 @@ import {
 import { t, useLocale } from "../../i18n.js";
 import type { AdventureEditorSession } from "../../store.js";
 import { Button } from "../components/button.js";
-import { Input } from "../components/input.js";
-import { Label } from "../components/label.js";
 import { loadAdventureSession } from "./adventure-session.js";
 
 function isSessionError(code: string): boolean {
@@ -27,17 +25,16 @@ interface AdventurePickerProps {
 }
 
 /**
- * The editor's front door (UX wave #2/#4): opening the editor lands here, never on a bare stage.
- * You must pick an adventure to edit or create one — there is no editor surface without an
- * adventure. Creating one is a single explicit "Create adventure" button (the "save" the user asked
- * for), which POSTs the adventure AND its default map atomically and drops you straight into the
- * editor. Stock shadcn only — this is a creator surface, so the two-tree rule keeps Tiny Swords out.
+ * The editor's front door (UX wave #2/#4/#14): opening the editor lands here, never on a bare stage.
+ * You must pick an adventure to edit or create one — there is no editor surface without an adventure,
+ * and no creation form either. « New adventure » is a single button that POSTs the adventure AND its
+ * default map atomically (with the localized default title and 4 max players) and drops you straight
+ * into the editor; the real name is asked at the first save, and max players in the settings dialog —
+ * never here. Stock shadcn only — this is a creator surface, so the two-tree rule keeps Tiny Swords out.
  */
 export function AdventurePicker({ onOpen, onExit, onSessionExpired }: AdventurePickerProps) {
   useLocale();
   const [adventures, setAdventures] = useState<AdventureSummary[] | null>(null);
-  const [title, setTitle] = useState("");
-  const [maxPlayers, setMaxPlayers] = useState(4);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,13 +68,20 @@ export function AdventurePicker({ onOpen, onExit, onSessionExpired }: AdventureP
   }
 
   async function create(): Promise<void> {
-    const trimmed = title.trim();
-    if (trimmed.length === 0 || busy) return;
+    if (busy) return;
     setError(null);
     setBusy(true);
     try {
-      const created = await createAdventureApi({ title: trimmed, maxPlayers });
-      onOpen(await loadAdventureSession(created.id));
+      // The title is DATA the author sees, not chrome, but i18n lives client-side (the server sends
+      // codes, never prose), so the picker — which already knows the locale — sends the localized
+      // default. The server keeps validating length; it does not invent a default of its own.
+      const created = await createAdventureApi({
+        title: t("adventure.default_title"),
+        maxPlayers: 4,
+      });
+      const loaded = await loadAdventureSession(created.id);
+      // Mark the session's title unconfirmed so the editor's first save prompts for the real name.
+      onOpen({ ...loaded, titleUntouched: true });
     } catch (caught) {
       fail(caught);
     } finally {
@@ -154,32 +158,10 @@ export function AdventurePicker({ onOpen, onExit, onSessionExpired }: AdventureP
           aria-label={t("editor.picker.create.heading")}
         >
           <h2 className="text-sm font-semibold">{t("editor.picker.create.heading")}</h2>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="picker-title">{t("adventure.name")}</Label>
-            <Input
-              id="picker-title"
-              type="text"
-              value={title}
-              onChange={(event) => setTitle(event.currentTarget.value)}
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="picker-players">{t("adventure.players")}</Label>
-            <Input
-              id="picker-players"
-              type="number"
-              min={1}
-              max={4}
-              value={maxPlayers}
-              onChange={(event) => setMaxPlayers(Number(event.currentTarget.value))}
-            />
-          </div>
-          <Button
-            className="self-start"
-            disabled={busy || title.trim().length === 0}
-            onClick={() => void create()}
-          >
-            {t("editor.picker.create.submit")}
+          {/* UX wave #14: no creation form. One button creates immediately (default title + 4 players)
+              and lands in the editor; naming happens at the first save. */}
+          <Button className="self-start" disabled={busy} onClick={() => void create()}>
+            {t("editor.picker.create.heading")}
           </Button>
         </section>
       </div>

@@ -52,6 +52,7 @@ import { EditorMenuBar } from "./EditorMenuBar.js";
 import { EditorStatusBar } from "./EditorStatusBar.js";
 import { type EditorPaintTool, EditorToolbar, toolLabelText } from "./EditorToolbar.js";
 import { EventDialog } from "./EventDialog.js";
+import { FirstSaveDialog } from "./FirstSaveDialog.js";
 import { MapListPanel } from "./MapListPanel.js";
 import { RegistryDialog } from "./RegistryDialog.js";
 import { type MarkerToolKey, TerrainPalette } from "./TerrainPalette.js";
@@ -176,6 +177,8 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   // an entry to point the graph at. The Cartes panel disables the start star on the rest, so the user
   // gets a hint instead of the misleading `adventure_maps` error the star used to raise.
   const draftMembers = useUiStore((state) => state.adventureEditorSession?.draft.members);
+  // The first-save popup prefills with the adventure's current (default) title.
+  const draftTitle = useUiStore((state) => state.adventureEditorSession?.draft.title ?? "");
   const startableMapIds = useMemo(
     () =>
       new Set(
@@ -236,6 +239,15 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [databaseOpen, setDatabaseOpen] = useState(false);
+  // UX wave #14: a freshly created adventure is born with the default title, so its first explicit
+  // save must prompt for the real name. Seeded once (this component is keyed by adventureId, so a new
+  // adventure remounts it) from the picker's `titleUntouched` flag, then kept in local state so no
+  // session reload (map/graph refreshes rebuild the session without the flag) can lose it. Cleared on
+  // the first-save confirm and whenever the settings dialog saves — both are explicit namings.
+  const [titleUntouched, setTitleUntouched] = useState(
+    () => useUiStore.getState().adventureEditorSession?.titleUntouched ?? false,
+  );
+  const [firstSaveOpen, setFirstSaveOpen] = useState(false);
   // The event whose dialog is open, keyed by uuid. Set by a stage double-click (`onOpenEvent`) or by
   // pressing Enter on a selected event; cleared on save/delete/cancel.
   const [openEventId, setOpenEventId] = useState<string | null>(null);
@@ -486,7 +498,9 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     handleRef.current?.redo();
   }
 
-  async function save(): Promise<void> {
+  // The map save itself, ungated: writes the stage's current map to D1. Both the direct path and the
+  // first-save popup's continuation land here so there is one definition of "persist this map".
+  async function doSaveMap(): Promise<void> {
     const handle = handleRef.current;
     if (!handle || !map || stageStatus !== "ready") return;
     setError(null);
@@ -499,6 +513,54 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     } catch (caught) {
       fail(caught);
     }
+  }
+
+  // The save entry point (⌘S and the menu/toolbar Save): on an unnamed fresh adventure it opens the
+  // first-save name popup instead of saving; the popup's Confirm continues into `doSaveMap`.
+  async function save(): Promise<void> {
+    if (stageStatus !== "ready") return;
+    if (titleUntouched) {
+      setFirstSaveOpen(true);
+      return;
+    }
+    await doSaveMap();
+  }
+
+  // First-save popup Confirm: persist the confirmed title through the adventure PUT, drop the unnamed
+  // flag, then continue the pending map save. The graph is built from the current draft's bound links
+  // directly (the adventure was born valid, so this is a title-only change over a complete graph). A
+  // PUT failure leaves the popup's abort semantics intact: nothing partial is claimed as saved.
+  async function confirmFirstSave(title: string): Promise<void> {
+    const current = useUiStore.getState().adventureEditorSession;
+    if (!current) {
+      setFirstSaveOpen(false);
+      return;
+    }
+    const draft = current.draft;
+    const input: AdventureInput = {
+      title,
+      maxPlayers: draft.maxPlayers,
+      graph: {
+        start: draft.start,
+        links: draft.bindings.flatMap((binding) =>
+          binding.dest === null
+            ? []
+            : [{ mapId: binding.mapId, exitId: binding.exitId, dest: binding.dest }],
+        ),
+      },
+      registry: draft.registry,
+    };
+    setError(null);
+    try {
+      await updateAdventureApi(adventureId, input);
+    } catch (caught) {
+      fail(caught);
+      return;
+    }
+    setSession({ ...current, draft: { ...draft, title }, titleUntouched: false });
+    setTitleUntouched(false);
+    setFirstSaveOpen(false);
+    await doSaveMap();
   }
 
   // The map panel's "select to switch" load path: guard unsaved edits, then swap the stage's map.
@@ -637,7 +699,8 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       confirmDeleteId !== null ||
       settingsOpen ||
       databaseOpen ||
-      openEventId !== null
+      openEventId !== null ||
+      firstSaveOpen
     )
       return;
     if (event.target instanceof Element && event.target.closest('[data-slot="dialog-content"]')) {
@@ -715,7 +778,8 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   function handleContainerBlur(event: ReactFocusEvent<HTMLDivElement>): void {
     const related = event.relatedTarget;
     if (related !== null && related !== document.body) return;
-    if (newMapOpen || confirmDeleteId !== null || settingsOpen || databaseOpen) return;
+    if (newMapOpen || confirmDeleteId !== null || settingsOpen || databaseOpen || firstSaveOpen)
+      return;
     if (stageStatus !== "ready" || previewing) return;
     containerRef.current?.focus();
   }
@@ -925,10 +989,21 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
         onSaved={() => {
+          // A settings save is an explicit adventure save that includes the title, so it counts as
+          // the name being confirmed: the first-save popup must not fire afterwards (UX wave #14).
+          setTitleUntouched(false);
           setMapsRefreshNonce((n) => n + 1);
           refreshSession();
         }}
         onSessionExpired={() => setScreen("auth")}
+      />
+
+      <FirstSaveDialog
+        key={`${adventureId}:${firstSaveOpen}`}
+        open={firstSaveOpen}
+        defaultTitle={draftTitle}
+        onConfirm={(title) => void confirmFirstSave(title)}
+        onCancel={() => setFirstSaveOpen(false)}
       />
 
       <RegistryDialog

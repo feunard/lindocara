@@ -1090,6 +1090,257 @@ describe("AdventureEditorScreen shell", () => {
   });
 });
 
+describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
+  /** The one-map session the editor opens, flagged unnamed so the first save prompts for a name. */
+  function seedUnnamed(titleUntouched: boolean): void {
+    useUiStore.setState({
+      screen: "adventure-editor",
+      adventureEditorSession: {
+        adventureId: "adv-1",
+        draftId: "draft-1",
+        draft: {
+          title: t("adventure.default_title"),
+          maxPlayers: 4,
+          members: [
+            {
+              mapId: "m1",
+              name: "Verdant Reach",
+              revision: 1,
+              solid: ["."],
+              monsterCount: 0,
+              entryIds: ["door"],
+              exitIds: ["gate"],
+              entryLabels: {},
+              exitLabels: {},
+            },
+          ],
+          start: { mapId: "m1", entryId: "door" },
+          bindings: [{ mapId: "m1", exitId: "gate", dest: "end" }],
+          registry: { switches: [], variables: [] },
+        },
+        invalidatedLinks: [],
+        savedDraft: null,
+        titleUntouched,
+      },
+    });
+  }
+
+  const adventurePayload = {
+    id: "adv-1",
+    accountId: "acct",
+    title: t("adventure.default_title"),
+    maxPlayers: 4,
+    version: 1,
+    mapIds: ["m1"],
+    graph: { start: { mapId: "m1", entryId: "door" }, links: [] },
+    registry: { switches: [], variables: [] },
+  };
+
+  /** A /api/maps + /api/adventures backend that answers the map save PUT, the adventure title PUT and
+   *  the settings reload GET, so the whole first-save round-trip can be driven. */
+  function editorBackend() {
+    return vi.fn((url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      if (url.startsWith("/api/maps?adventure=") && method === "GET")
+        return Promise.resolve(jsonResponse(oneMap));
+      const mapMatch = url.match(/^\/api\/maps\/([^/]+)$/);
+      if (mapMatch?.[1] && method === "GET") {
+        const summary = oneMap.find((m) => m.id === mapMatch[1]);
+        if (summary) return Promise.resolve(jsonResponse(payloadFor(summary)));
+      }
+      if (mapMatch?.[1] && method === "PUT")
+        return Promise.resolve(jsonResponse({ id: mapMatch[1], revision: 2 }));
+      if (url === "/api/adventures/adv-1" && method === "PUT") {
+        const body: unknown = JSON.parse(String(init?.body ?? "{}"));
+        return Promise.resolve(jsonResponse({ ...(body as object), id: "adv-1", version: 2 }));
+      }
+      if (url === "/api/adventures/adv-1" && method === "GET")
+        return Promise.resolve(jsonResponse(adventurePayload));
+      return Promise.resolve(jsonResponse({ error: "not_found" }, 404));
+    });
+  }
+
+  const editedMap = {
+    name: "Verdant Reach",
+    layers: OPEN_TILE_LAYERS,
+    elements: [],
+    spawn: { col: 20, row: 15 },
+    markers: EMPTY_MARKERS,
+  };
+
+  function adventurePutCalls(mock: ReturnType<typeof editorBackend>): unknown[][] {
+    return mock.mock.calls.filter(
+      ([url, init]) =>
+        url === "/api/adventures/adv-1" && (init as RequestInit | undefined)?.method === "PUT",
+    );
+  }
+  function mapPutCalls(mock: ReturnType<typeof editorBackend>): unknown[][] {
+    return mock.mock.calls.filter(
+      ([url, init]) =>
+        url === "/api/maps/m1" && (init as RequestInit | undefined)?.method === "PUT",
+    );
+  }
+
+  async function mountReady(): Promise<ReturnType<typeof render>> {
+    const rendered = render(<AdventureEditorScreen />);
+    await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(stageMock.setTool).toHaveBeenCalled());
+    return rendered;
+  }
+
+  function shell(rendered: { container: HTMLElement }): HTMLElement {
+    return rendered.container.firstElementChild as HTMLElement;
+  }
+
+  beforeEach(() => {
+    setLocale("en");
+    for (const fn of Object.values(stageMock)) fn.mockReset();
+    stageMock.openMapEditorStage.mockResolvedValue(stageHandle());
+    stageMock.current.mockReturnValue(editedMap);
+    previewMock.startMapPreview.mockReset();
+    previewMock.startMapPreview.mockResolvedValue({ stop: previewMock.stop });
+  });
+
+  it("opens the name popup on the first ⌘S instead of saving the map", async () => {
+    seedUnnamed(true);
+    const mock = editorBackend();
+    vi.stubGlobal("fetch", mock);
+    const rendered = await mountReady();
+
+    fireEvent.keyDown(shell(rendered), { key: "s", metaKey: true });
+
+    expect(await screen.findByText(t("editor.firstSave.title"))).toBeInTheDocument();
+    // The map is NOT saved yet — the name must be confirmed first.
+    expect(mapPutCalls(mock)).toHaveLength(0);
+    expect(adventurePutCalls(mock)).toHaveLength(0);
+  });
+
+  it("confirm saves the title then the map, in that order; a second save does not re-prompt", async () => {
+    seedUnnamed(true);
+    const mock = editorBackend();
+    vi.stubGlobal("fetch", mock);
+    const rendered = await mountReady();
+
+    fireEvent.keyDown(shell(rendered), { key: "s", metaKey: true });
+    const dialog = await screen.findByRole("dialog");
+    const title = within(dialog).getByLabelText(t("adventure.name"));
+    await userEvent.clear(title);
+    await userEvent.type(title, "Ashen Keep");
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: t("editor.firstSave.confirm") }),
+    );
+
+    // Both writes land: the adventure title PUT, then the map PUT — the title before the map.
+    await waitFor(() => expect(mapPutCalls(mock)).toHaveLength(1));
+    const advPut = adventurePutCalls(mock);
+    expect(advPut).toHaveLength(1);
+    const advBody = JSON.parse(String((advPut[0]?.[1] as RequestInit)?.body)) as { title: string };
+    expect(advBody.title).toBe("Ashen Keep");
+    const advIndex = mock.mock.calls.findIndex(
+      ([url, init]) =>
+        url === "/api/adventures/adv-1" && (init as RequestInit | undefined)?.method === "PUT",
+    );
+    const mapIndex = mock.mock.calls.findIndex(
+      ([url, init]) =>
+        url === "/api/maps/m1" && (init as RequestInit | undefined)?.method === "PUT",
+    );
+    expect(advIndex).toBeLessThan(mapIndex);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    // A second save writes the map straight through — the popup never re-appears.
+    fireEvent.keyDown(shell(rendered), { key: "s", metaKey: true });
+    await waitFor(() => expect(mapPutCalls(mock)).toHaveLength(2));
+    expect(screen.queryByText(t("editor.firstSave.title"))).toBeNull();
+    // No second title PUT: the name was confirmed once.
+    expect(adventurePutCalls(mock)).toHaveLength(1);
+  });
+
+  it("cancel aborts the whole save: neither the title nor the map is written", async () => {
+    seedUnnamed(true);
+    const mock = editorBackend();
+    vi.stubGlobal("fetch", mock);
+    const rendered = await mountReady();
+
+    fireEvent.keyDown(shell(rendered), { key: "s", metaKey: true });
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: t("editor.firstSave.cancel") }),
+    );
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(adventurePutCalls(mock)).toHaveLength(0);
+    expect(mapPutCalls(mock)).toHaveLength(0);
+  });
+
+  it("keeps ⌘S inert while the popup is open, so it cannot double-fire a save", async () => {
+    seedUnnamed(true);
+    const mock = editorBackend();
+    vi.stubGlobal("fetch", mock);
+    const rendered = await mountReady();
+
+    fireEvent.keyDown(shell(rendered), { key: "s", metaKey: true });
+    const dialog = await screen.findByRole("dialog");
+
+    // A second ⌘S — on the host, and targeted inside the (portaled) dialog — must not save: the
+    // firstSaveOpen flag gates the host, the closest('[data-slot=dialog-content]') gate the dialog.
+    fireEvent.keyDown(shell(rendered), { key: "s", metaKey: true });
+    fireEvent.keyDown(dialog, { key: "s", metaKey: true });
+    expect(mapPutCalls(mock)).toHaveLength(0);
+    expect(adventurePutCalls(mock)).toHaveLength(0);
+  });
+
+  it("suppresses the popup once the title is confirmed through the settings dialog", async () => {
+    seedUnnamed(true);
+    const mock = editorBackend();
+    vi.stubGlobal("fetch", mock);
+    const rendered = await mountReady();
+
+    // Rename through the adventure settings dialog and save it: an explicit naming.
+    screen.getByRole("menuitem", { name: t("editor.shell.menu.file") }).focus();
+    await userEvent.keyboard("{Enter}");
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: t("editor.shell.settings") }),
+    );
+    const settings = await screen.findByRole("dialog");
+    const title = within(settings).getByLabelText(t("adventure.name"));
+    await userEvent.clear(title);
+    await userEvent.type(title, "Ironhold");
+    await userEvent.click(within(settings).getByRole("button", { name: t("editor.save") }));
+    await waitFor(() => expect(adventurePutCalls(mock)).toHaveLength(1));
+
+    // Now ⌘S saves the map directly — no first-save popup, because the title is already confirmed.
+    fireEvent.keyDown(shell(rendered), { key: "s", metaKey: true });
+    await waitFor(() => expect(mapPutCalls(mock)).toHaveLength(1));
+    expect(screen.queryByText(t("editor.firstSave.title"))).toBeNull();
+  });
+
+  it("reaches the settings dialog from the File menu and edits max players there", async () => {
+    seedUnnamed(false);
+    const mock = editorBackend();
+    vi.stubGlobal("fetch", mock);
+    await mountReady();
+
+    screen.getByRole("menuitem", { name: t("editor.shell.menu.file") }).focus();
+    await userEvent.keyboard("{Enter}");
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: t("editor.shell.settings") }),
+    );
+    const settings = await screen.findByRole("dialog");
+
+    const players = within(settings).getByLabelText(t("adventure.players"));
+    await userEvent.clear(players);
+    await userEvent.type(players, "2");
+    await userEvent.click(within(settings).getByRole("button", { name: t("editor.save") }));
+
+    await waitFor(() => {
+      const put = adventurePutCalls(mock)[0];
+      expect(put).toBeDefined();
+      const body = JSON.parse(String((put?.[1] as RequestInit)?.body)) as { maxPlayers: number };
+      expect(body.maxPlayers).toBe(2);
+    });
+  });
+});
+
 describe("PartiesScreen → editor navigation", () => {
   beforeEach(() => {
     setLocale("en");

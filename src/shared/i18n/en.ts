@@ -599,6 +599,10 @@ export const en = {
   "editor.picker.create.heading": "New adventure",
   "editor.picker.create.submit": "Create adventure",
   "editor.picker.loading": "Loading adventures…",
+  "editor.firstSave.title": "Name your adventure",
+  "editor.firstSave.hint": "Give your adventure a name before its first save.",
+  "editor.firstSave.confirm": "Save",
+  "editor.firstSave.cancel": "Cancel",
   "editor.shell.markers.heading": "Markers",
   "editor.shell.settings": "Adventure settings",
   "editor.shell.settings.pick": "Choose an adventure to edit",
@@ -733,6 +737,7 @@ export const en = {
   // Adventure editor
   "adventure.title": "Adventure editor",
   "adventure.new": "New adventure",
+  "adventure.default_title": "New adventure",
   "adventure.name": "Title",
   "adventure.players": "Max players",
   "adventure.players.count": "{count} players max",

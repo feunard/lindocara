@@ -15,6 +15,11 @@ export interface AdventureEditorSession {
   draft: AdventureDraft;
   invalidatedLinks: string[];
   savedDraft: string | null;
+  /** UX wave #14: set true when the picker creates an adventure with the default title and drops the
+   *  author straight into the editor. The editor seeds a local flag from it so the first explicit save
+   *  prompts for the real name; every reloaded session (map/graph refreshes) omits it, defaulting to
+   *  "already named". */
+  titleUntouched?: boolean;
 }
 
 export interface LocalizedText {
