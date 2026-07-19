@@ -18,6 +18,8 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
+import { EVENT_TRIGGERS, MOVE_TYPES, SELF_SWITCHES } from "../../shared/map-events.js";
+import type { EditorAssetId } from "../../shared/tiny-swords-catalog.js";
 
 /** Milliseconds since the epoch, as SQLite integers. `unixepoch()` is seconds. */
 const nowMs = sql`(unixepoch() * 1000)`;
@@ -305,6 +307,75 @@ export const mapElement = sqliteTable(
     index("map_element_map_idx").on(table.mapId),
   ],
 );
+
+/**
+ * An authored map event: a stateful, one-cell entity with ordered pages. Unlike a `map_element`
+ * (catalogue scenery baked into collision), an event is addressable and never contributes to
+ * collision this tranche — it floats above terrain. Nothing here executes yet; a later tranche
+ * evaluates `map_event_page` conditions to drive behaviour. See
+ * `docs/superpowers/specs/2026-07-19-map-events-design.md` (Decisions 1, 2, 8).
+ */
+export const mapEvent = sqliteTable(
+  "map_event",
+  {
+    /** Client-minted uuid, stable across edits — the referenceable identity tranche 5's commands
+     *  will point at. `ordinal` is the wireframe's `EV{ordinal}` display order, never identity. */
+    id: text("id").primaryKey(),
+    mapId: text("map_id")
+      .notNull()
+      .references(() => map.id, { onDelete: "cascade" }),
+    col: integer("col").notNull(),
+    row: integer("row").notNull(),
+    name: text("name").notNull(),
+    /** Creation order, per map. Display only. */
+    ordinal: integer("ordinal").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
+  },
+  (table) => [
+    // One event per cell — the editor moves an event rather than replacing on overlap.
+    uniqueIndex("map_event_cell_unique").on(table.mapId, table.col, table.row),
+    index("map_event_map_idx").on(table.mapId),
+  ],
+);
+
+/**
+ * One page of an event, XP semantics: conditions, appearance, movement, options and trigger belong
+ * to the page, not the event. A page's durable identity is `(event_id, position)`; the `id` pk is
+ * an internal row id, freshly minted every save because a save deletes and reinserts an event's
+ * pages wholesale. Condition switch/variable ids are free 4-digit ordinals with no registry yet
+ * (Decision 5), so they are stored as plain text this file does not constrain.
+ */
+export const mapEventPage = sqliteTable(
+  "map_event_page",
+  {
+    id: text("id").primaryKey(),
+    eventId: text("event_id")
+      .notNull()
+      .references(() => mapEvent.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    condSwitchId: text("cond_switch_id"),
+    condVariableId: text("cond_variable_id"),
+    condVariableMin: integer("cond_variable_min"),
+    condSelfSwitch: text("cond_self_switch", { enum: SELF_SWITCHES }),
+    graphicAssetId: text("graphic_asset_id").$type<EditorAssetId>(),
+    moveType: text("move_type", { enum: MOVE_TYPES }).notNull(),
+    moveSpeed: integer("move_speed").notNull(),
+    moveFreq: integer("move_freq").notNull(),
+    optMoveAnim: integer("opt_move_anim", { mode: "boolean" }).notNull(),
+    optStopAnim: integer("opt_stop_anim", { mode: "boolean" }).notNull(),
+    optDirFix: integer("opt_dir_fix", { mode: "boolean" }).notNull(),
+    optThrough: integer("opt_through", { mode: "boolean" }).notNull(),
+    optOnTop: integer("opt_on_top", { mode: "boolean" }).notNull(),
+    trigger: text("trigger", { enum: EVENT_TRIGGERS }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("map_event_page_position_unique").on(table.eventId, table.position),
+    index("map_event_page_event_idx").on(table.eventId),
+  ],
+);
+
+export type MapEventRow = typeof mapEvent.$inferSelect;
+export type MapEventPageRow = typeof mapEventPage.$inferSelect;
 
 export const adventure = sqliteTable(
   "adventure",

@@ -4,7 +4,7 @@
  */
 
 import { env } from "cloudflare:test";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import { createAccount, verifyCredentials } from "../src/server/accounts.js";
 import {
@@ -14,7 +14,15 @@ import {
   listCharacters,
   MAX_CHARACTERS_PER_ACCOUNT,
 } from "../src/server/characters.js";
-import { account, character, createDb, map, mapElement } from "../src/server/db/index.js";
+import {
+  account,
+  character,
+  createDb,
+  map,
+  mapElement,
+  mapEvent,
+  mapEventPage,
+} from "../src/server/db/index.js";
 import { BUILTIN_MAP } from "../src/server/maps.js";
 import { acquireSessionEpoch, loadProfile, saveProfile } from "../src/server/profile.js";
 import { starterEquipmentFor } from "../src/shared/character.js";
@@ -501,5 +509,144 @@ describe("the map tables", () => {
     await db.delete(map).where(eq(map.id, "map-cascade"));
     const left = await db.select().from(mapElement).where(eq(mapElement.mapId, "map-cascade"));
     expect(left).toEqual([]);
+  });
+});
+
+describe("the map event tables", () => {
+  // Children before parents (FK): pages, then events, then the map (and its elements).
+  afterEach(async () => {
+    await env.DB.exec("DELETE FROM map_event_page");
+    await env.DB.exec("DELETE FROM map_event");
+    await env.DB.exec("DELETE FROM map_element");
+    await env.DB.exec("DELETE FROM map");
+  });
+
+  async function seedMap(id: string): Promise<void> {
+    await createDb(env.DB)
+      .insert(map)
+      .values({
+        id,
+        name: "Test",
+        cols: 8,
+        rows: 8,
+        tilesetId: TINY_SWORDS_TILESET_ID,
+        layers: JSON.stringify(["0*64", "0*64", "0*64"]),
+        spawnCol: 0,
+        spawnRow: 0,
+      });
+  }
+
+  function pageValues(id: string, eventId: string, position: number) {
+    return {
+      id,
+      eventId,
+      position,
+      condSwitchId: null,
+      condVariableId: null,
+      condVariableMin: null,
+      condSelfSwitch: null,
+      graphicAssetId: null,
+      moveType: "fixed" as const,
+      moveSpeed: 3,
+      moveFreq: 3,
+      optMoveAnim: false,
+      optStopAnim: false,
+      optDirFix: false,
+      optThrough: false,
+      optOnTop: false,
+      trigger: "action" as const,
+    };
+  }
+
+  it("inserts an event and its ordered pages", async () => {
+    const db = createDb(env.DB);
+    await seedMap("map-ev");
+    await db
+      .insert(mapEvent)
+      .values({ id: "ev-1", mapId: "map-ev", col: 2, row: 3, name: "Sign", ordinal: 1 });
+    await db
+      .insert(mapEventPage)
+      .values([pageValues("pg-1a", "ev-1", 0), pageValues("pg-1b", "ev-1", 1)]);
+
+    const events = await db.select().from(mapEvent).where(eq(mapEvent.mapId, "map-ev"));
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ id: "ev-1", col: 2, row: 3, name: "Sign", ordinal: 1 });
+    const pages = await db
+      .select()
+      .from(mapEventPage)
+      .where(eq(mapEventPage.eventId, "ev-1"))
+      .orderBy(asc(mapEventPage.position));
+    expect(pages.map((p) => p.position)).toEqual([0, 1]);
+    // Booleans round-trip through the 0/1 integer columns.
+    expect(pages[0]).toMatchObject({ moveType: "fixed", trigger: "action", optOnTop: false });
+  });
+
+  it("cascades a map delete through its events and their pages", async () => {
+    const db = createDb(env.DB);
+    await seedMap("map-cascade-ev");
+    await db
+      .insert(mapEvent)
+      .values({ id: "ev-c", mapId: "map-cascade-ev", col: 1, row: 1, name: "C", ordinal: 1 });
+    await db.insert(mapEventPage).values(pageValues("pg-c", "ev-c", 0));
+
+    await db.delete(map).where(eq(map.id, "map-cascade-ev"));
+
+    expect(await db.select().from(mapEvent).where(eq(mapEvent.mapId, "map-cascade-ev"))).toEqual(
+      [],
+    );
+    expect(await db.select().from(mapEventPage).where(eq(mapEventPage.eventId, "ev-c"))).toEqual(
+      [],
+    );
+  });
+
+  it("cascades an event delete through its pages", async () => {
+    const db = createDb(env.DB);
+    await seedMap("map-ev-cascade");
+    await db
+      .insert(mapEvent)
+      .values({ id: "ev-d", mapId: "map-ev-cascade", col: 4, row: 4, name: "D", ordinal: 1 });
+    await db.insert(mapEventPage).values(pageValues("pg-d", "ev-d", 0));
+
+    await db.delete(mapEvent).where(eq(mapEvent.id, "ev-d"));
+
+    expect(await db.select().from(mapEventPage).where(eq(mapEventPage.eventId, "ev-d"))).toEqual(
+      [],
+    );
+  });
+
+  it("refuses two events on one cell", async () => {
+    const db = createDb(env.DB);
+    await seedMap("map-cell");
+    await db
+      .insert(mapEvent)
+      .values({ id: "ev-a", mapId: "map-cell", col: 2, row: 2, name: "A", ordinal: 1 });
+    await expect(
+      db
+        .insert(mapEvent)
+        .values({ id: "ev-b", mapId: "map-cell", col: 2, row: 2, name: "B", ordinal: 2 }),
+    ).rejects.toThrow();
+  });
+
+  it("allows the same cell on a different map", async () => {
+    const db = createDb(env.DB);
+    await seedMap("map-x");
+    await seedMap("map-y");
+    await db
+      .insert(mapEvent)
+      .values({ id: "ev-x", mapId: "map-x", col: 2, row: 2, name: "X", ordinal: 1 });
+    await db
+      .insert(mapEvent)
+      .values({ id: "ev-y", mapId: "map-y", col: 2, row: 2, name: "Y", ordinal: 1 });
+    expect(await db.select().from(mapEvent)).toHaveLength(2);
+  });
+
+  it("refuses two pages at one position within an event", async () => {
+    const db = createDb(env.DB);
+    await seedMap("map-pos");
+    await db
+      .insert(mapEvent)
+      .values({ id: "ev-p", mapId: "map-pos", col: 0, row: 0, name: "P", ordinal: 1 });
+    await db.insert(mapEventPage).values(pageValues("pg-p1", "ev-p", 0));
+    await expect(db.insert(mapEventPage).values(pageValues("pg-p2", "ev-p", 0))).rejects.toThrow();
   });
 });
