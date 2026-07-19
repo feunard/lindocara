@@ -78,3 +78,13 @@ Schéma d'abord (5), puis le flux d'entrée (2-4, 6, 7), puis l'éditeur (8, 9, 
 > page intermédiaire qui liste les aventures. je veux ouvrir directement l'éditeur. et si je veux
 > load une aventure existant, j'utilise les menus -> fichiers -> charger aventures -> dialog avec
 > la liste des aventures »
+
+## Amendement 3 du 2026-07-19
+
+16. **Noms par défaut des cartes : Map1, Map2, Map3…** (plus de nom d'aventure visible en
+    tête). Le chip du menubar affiche un « Editor » statique, non cliquable. Fichier gagne
+    « Quitter l'éditeur » (retour aux parties).
+
+> Verbatim : « le nom par défaut d'une map c'est Map1 (Map2, Map3), je veux pas voir "Nouvelle
+> Aventure". / replace "Nouvelle Aventure" par "Editor" et ne le rend pas clickable / ajoute
+> "Quitter l'editor" dans "Ficher" / fais des pulls régulièrement aussi et merge si besoin »
