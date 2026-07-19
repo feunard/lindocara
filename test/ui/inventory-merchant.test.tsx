@@ -65,10 +65,13 @@ describe("merchant and inventory", () => {
 
   it("assigns an owned item to any quick slot", async () => {
     useUiStore.setState({ inventoryOpen: true, game: gameHandle() });
-    render(<InventoryOverlay />);
+    const view = render(<InventoryOverlay />);
 
     expect(screen.getByLabelText("20 Sunmarks")).toBeInTheDocument();
     expect(screen.getByLabelText("5 Gloam shards")).toBeInTheDocument();
+    expect(view.container.querySelector(".currency-amount__icon--gold")).not.toBeNull();
+    expect(view.container.querySelector(".currency-amount__icon--crystal")).not.toBeNull();
+    expect(view.container.querySelector(".item-icon--gold, .item-icon--crystal")).toBeNull();
     const manaCard = screen.getByText("Lumen phial").closest("article");
     if (!manaCard) throw new Error("mana card missing");
     await userEvent.click(within(manaCard).getByRole("button", { name: "3" }));
@@ -78,10 +81,13 @@ describe("merchant and inventory", () => {
   it("sends only the selected item id when buying", async () => {
     const game = gameHandle();
     useUiStore.setState({ merchantOpen: true, game });
-    render(<MerchantOverlay />);
+    const view = render(<MerchantOverlay />);
 
     expect(screen.getByLabelText("20 Sunmarks")).toBeInTheDocument();
     expect(screen.getByLabelText("5 Gloam shards")).toBeInTheDocument();
+    expect(view.container.querySelector(".currency-amount__icon--gold")).not.toBeNull();
+    expect(view.container.querySelector(".currency-amount__icon--crystal")).not.toBeNull();
+    expect(view.container.querySelector(".item-icon--gold, .item-icon--crystal")).toBeNull();
     const healthCard = screen.getByText("Heartroot tonic").closest("article");
     if (!healthCard) throw new Error("health card missing");
     await userEvent.click(within(healthCard).getByRole("button", { name: /8/ }));

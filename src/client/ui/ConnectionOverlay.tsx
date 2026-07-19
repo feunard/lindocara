@@ -21,62 +21,84 @@ export function ConnectionOverlay() {
       unitSheet(
         loading.class === "warrior" ? "ranger" : "warrior",
         { body: "wayfarer", primaryColor: loading.color === "moss" ? "azure" : "moss" },
-        "attack",
+        "run",
       ),
       unitSheet(
         loading.class === "priest" ? "ranger" : "priest",
         { body: "wayfarer", primaryColor: "violet" },
-        "attack",
+        "run",
       ),
     ];
-    const monsters = [
-      TINY_SWORDS_ENEMIES.spear_goblin.run,
-      TINY_SWORDS_ENEMIES.gnoll_marauder.attack,
-    ];
+    const monsters = [TINY_SWORDS_ENEMIES.spear_goblin.run, TINY_SWORDS_ENEMIES.gnoll_marauder.run];
     const phaseKey = `loading.hero.${loading.phase}` as MessageKey;
     return (
       <section className="connection-overlay hero-loading" role="status" aria-live="polite">
         <TinySwordsMenuScene variant="courtyard" />
         <div className="hero-loading__battle" aria-hidden="true">
-          <div className="hero-loading__party">
-            {heroes.map((hero, index) => (
-              <span
-                className={`hero-loading__actor hero-loading__actor--hero-${index + 1}`}
-                key={hero.source}
-              >
-                <img
-                  src={hero.source}
-                  alt=""
-                  style={{ "--actor-frames": hero.frames } as CinematicStyle}
-                />
-              </span>
-            ))}
+          <span className="hero-loading__road" />
+          <div className="hero-loading__journey">
+            <div className="hero-loading__monsters">
+              {monsters.map((monster, index) => (
+                <span
+                  className={`hero-loading__actor hero-loading__actor--monster-${index + 1}`}
+                  key={monster.source}
+                >
+                  <img
+                    src={monster.source}
+                    alt=""
+                    style={{ "--actor-frames": monster.frames } as CinematicStyle}
+                  />
+                </span>
+              ))}
+            </div>
+            <span className="hero-loading__trail hero-loading__trail--rear">
+              <img
+                src={TINY_SWORDS_EFFECT_SHEETS.dust.source}
+                alt=""
+                style={
+                  {
+                    "--actor-frames": TINY_SWORDS_EFFECT_SHEETS.dust.frames,
+                  } as CinematicStyle
+                }
+              />
+            </span>
+            <div className="hero-loading__party">
+              {heroes.map((hero, index) => (
+                <span
+                  className={`hero-loading__actor hero-loading__actor--hero-${index + 1}`}
+                  key={hero.source}
+                >
+                  <img
+                    src={hero.source}
+                    alt=""
+                    style={{ "--actor-frames": hero.frames } as CinematicStyle}
+                  />
+                </span>
+              ))}
+            </div>
+            <span className="hero-loading__trail hero-loading__trail--front">
+              <img
+                src={TINY_SWORDS_EFFECT_SHEETS.dust.source}
+                alt=""
+                style={
+                  {
+                    "--actor-frames": TINY_SWORDS_EFFECT_SHEETS.dust.frames,
+                  } as CinematicStyle
+                }
+              />
+            </span>
           </div>
-          <span className="hero-loading__clash">
+          <span className="hero-loading__waystone">
             <img
-              src={TINY_SWORDS_EFFECT_SHEETS.explosion.source}
+              src={TINY_SWORDS_EFFECT_SHEETS.fire.source}
               alt=""
               style={
                 {
-                  "--actor-frames": TINY_SWORDS_EFFECT_SHEETS.explosion.frames,
+                  "--actor-frames": TINY_SWORDS_EFFECT_SHEETS.fire.frames,
                 } as CinematicStyle
               }
             />
           </span>
-          <div className="hero-loading__monsters">
-            {monsters.map((monster, index) => (
-              <span
-                className={`hero-loading__actor hero-loading__actor--monster-${index + 1}`}
-                key={monster.source}
-              >
-                <img
-                  src={monster.source}
-                  alt=""
-                  style={{ "--actor-frames": monster.frames } as CinematicStyle}
-                />
-              </span>
-            ))}
-          </div>
         </div>
         <div className="connection-overlay__panel hero-loading__panel">
           <p className="hero-loading__kicker">{t("loading.hero.eyebrow")}</p>
