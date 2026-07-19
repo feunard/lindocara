@@ -159,7 +159,7 @@ export const fr: Record<keyof typeof en, string> = {
   "skill.priest.mend.description":
     "Lance une lumière verte qui soigne le premier allié blessé touché.",
   "skill.priest.blink.description":
-    "Maintenez pour voyager en nuage et changer de direction ; relâchez pour réapparaître.",
+    "Maintenez pour voyager en nuage invulnérable et changer de direction ; relâchez pour réapparaître.",
   "skill.priest.prayer.description": "Soigne tous les alliés blessés autour de vous.",
   "skill.priest.divine_nova.description":
     "Blesse les ennemis proches et soigne les alliés proches.",

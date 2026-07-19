@@ -116,8 +116,10 @@ projectiles. Une room vide peut réinitialiser ses monstres, projectiles et loot
 - Mend parcourt jusqu'à 195 px et soigne uniquement le premier allié blessé touché.
 - Lumen Step disparaît progressivement puis suit l'intention de mouvement acceptée par le serveur
   tant que le bouton reste maintenu. La direction peut changer sans rematérialisation ; le trajet
-  cumulé est borné à 247,5 px et reste collisionné. Un appui bref réapparaît sur place. Le
-  relâchement, la distance maximale ou le délai serveur de 2,5 s lance la rematérialisation.
+  cumulé est borné à 247,5 px et reste collisionné. Une fois entièrement transformé en nuage, le
+  Prêtre est invulnérable jusqu'au début de sa rematérialisation. Un appui bref réapparaît sur
+  place. Le relâchement, la distance maximale ou le délai serveur de 2,5 s lance la
+  rematérialisation.
 - Mend crée à la frame active une lumière verte qui ignore son lanceur, les monstres, les héros à
   pleine vie et les membres d'une autre partie. Le premier allié vivant et blessé touché reçoit 35
   de base. Le sort ne soigne plus le Prêtre.

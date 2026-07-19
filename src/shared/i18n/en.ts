@@ -156,7 +156,7 @@ export const en = {
   "skill.priest.mend.description":
     "Launch a green light that heals the first wounded ally it touches.",
   "skill.priest.blink.description":
-    "Hold to travel as a cloud and change direction; release to rematerialize.",
+    "Hold to travel as an invulnerable cloud and change direction; release to rematerialize.",
   "skill.priest.prayer.description": "Heal every injured ally around you.",
   "skill.priest.divine_nova.description": "Damage nearby enemies and heal nearby allies at once.",
   "skill.unlock_at": "Unlocks at level {level}",

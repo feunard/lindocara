@@ -618,6 +618,63 @@ describe("party hero admission and authored runtime", () => {
     client.close();
   });
 
+  it("makes the active Lumen cloud immune to monster damage until release", {
+    timeout: 15_000,
+  }, async () => {
+    const party = await seedParty("lumen-invulnerability");
+    const hero = await testHero("Mist", {
+      party,
+      class: "priest",
+      level: 5,
+      position: centre(9, 8),
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      const welcome = await until("Lumen immunity welcome", () => client.welcome);
+      const initialHp = welcome.players.find((player) => player.id === hero.heroId)?.hp;
+      if (initialHp === undefined) throw new Error("expected Lumen priest HP");
+      const monsterAttack = await until("monster attacks Lumen priest", () =>
+        client.received.find(
+          (message) =>
+            message.t === "animation" &&
+            message.actorKind === "monster" &&
+            message.action === "attack",
+        ),
+      );
+      if (monsterAttack.t !== "animation") throw new Error("expected monster attack animation");
+
+      const hpBeforeCloud = client.self()?.hp;
+      if (hpBeforeCloud === undefined) throw new Error("expected HP before Lumen cloud");
+      const hurtBefore = client.received.filter(
+        (message) => message.t === "event" && message.code === "combat.hurt",
+      ).length;
+      client.skill(3);
+      await until("Lumen cloud active", () => {
+        const action = client.self()?.action;
+        return action?.skillId === "blink" && action.resolved ? action : undefined;
+      });
+      await scheduler.wait(Math.max(100, monsterAttack.impactAt - Date.now() + 150));
+      expect(client.self()?.hp).toBe(hpBeforeCloud);
+      expect(
+        client.received.filter(
+          (message) => message.t === "event" && message.code === "combat.hurt",
+        ),
+      ).toHaveLength(hurtBefore);
+
+      client.skillRelease(3);
+      await until("Lumen priest rematerializes", () =>
+        client.self()?.action === null ? true : undefined,
+      );
+      const wounded = await until("damage resumes after Lumen release", () => {
+        const self = client.self();
+        return self && self.hp < hpBeforeCloud ? self : undefined;
+      });
+      expect(wounded.hp).toBeLessThan(hpBeforeCloud);
+    } finally {
+      client.close();
+    }
+  });
+
   it("heals the priest and visible party allies with Prayer but not through a wall", {
     timeout: 15_000,
   }, async () => {

@@ -116,7 +116,7 @@ import {
   finishHeldCombatAction,
   startCombatAction,
 } from "./world/combat-action-system.js";
-import { guardedDamage } from "./world/combat-system.js";
+import { guardedDamage, isLumenCloudInvulnerable } from "./world/combat-system.js";
 import { addPlayer, isRateLimited, removePlayer } from "./world/connection-system.js";
 import {
   beginRewardAttribution,
@@ -2543,7 +2543,7 @@ export class World extends DurableObject<Env> {
         !hasLineOfSight(monster, player, this.#zone().terrain.tiles)
       )
         continue;
-      this.#damagePlayer(socket, player, monster.damage, monster.species, monster.id);
+      this.#damagePlayer(socket, player, monster.damage, monster.species, monster.id, now);
     }
     for (const guard of this.#guards) {
       if (
@@ -2568,7 +2568,9 @@ export class World extends DurableObject<Env> {
     damage: number,
     species: MonsterSpecies,
     monsterId: string,
+    now: number,
   ): void {
+    if (isLumenCloudInvulnerable(player, now)) return;
     const { amount: appliedDamage, result } = guardedDamage(player, damage);
     player.hp = result.hp;
     generateResource(player.class, player.resource, "damage_taken", appliedDamage);

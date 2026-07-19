@@ -5,7 +5,7 @@ import {
   finishHeldCombatAction,
   startCombatAction,
 } from "../src/server/world/combat-action-system.js";
-import { guardedDamage } from "../src/server/world/combat-system.js";
+import { guardedDamage, isLumenCloudInvulnerable } from "../src/server/world/combat-system.js";
 import {
   heldMovementDirection,
   movePlayerInDirection,
@@ -196,6 +196,29 @@ describe("isolated directional combat systems", () => {
     expect(finishHeldCombatAction(actor, 1_600, 3)).toBe(true);
     expect(action).toMatchObject({ channelEndsAt: 1_600, recoveryEndsAt: 2_020 });
     expect(finishHeldCombatAction(actor, 1_700, 3)).toBe(false);
+  });
+
+  it("makes only the active Lumen cloud invulnerable", () => {
+    const actor = player();
+    actor.class = "priest";
+    const action = startCombatAction(actor, {
+      kind: "skill",
+      skillId: "blink",
+      slot: 3,
+      direction: { x: 1, y: 0 },
+      now: 1_000,
+      anticipationMs: 180,
+      recoveryMs: 420,
+      mobilityDistance: 247.5,
+      channelDurationMs: 2_500,
+    });
+    expect(action).not.toBeNull();
+    expect(isLumenCloudInvulnerable(actor, 1_179)).toBe(false);
+    expect(isLumenCloudInvulnerable(actor, 1_180)).toBe(true);
+    expect(isLumenCloudInvulnerable(actor, 2_000)).toBe(true);
+    expect(finishHeldCombatAction(actor, 2_000, 3)).toBe(true);
+    expect(isLumenCloudInvulnerable(actor, 2_000)).toBe(false);
+    expect(isLumenCloudInvulnerable(actor, 2_200)).toBe(false);
   });
 
   it("preserves Iron Guard damage reduction", () => {
