@@ -1,10 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { EMPTY_MARKERS, type MapData } from "../../../shared/map-data.js";
-import type { EditorAssetId } from "../../../shared/tiny-swords-catalog.js";
+import { MONSTER_SPECIES_KIND, type MonsterSpecies } from "../../../shared/game.js";
+import {
+  EMPTY_MARKERS,
+  MARKER_LABEL_MAX,
+  MAX_PATROL_RADIUS,
+  type MapData,
+  MIN_PATROL_RADIUS,
+} from "../../../shared/map-data.js";
+import { type EditorAssetId, editorAsset } from "../../../shared/tiny-swords-catalog.js";
 import {
   authErrorText,
-  createMapApi,
-  deleteMapApi,
   errorCode,
   fetchMap,
   fetchMaps,
@@ -12,7 +17,6 @@ import {
   updateMapApi,
 } from "../../api.js";
 import {
-  blankMap,
   type EditorMap,
   type EditorSelection,
   type EditorTool,
@@ -25,23 +29,55 @@ import { type MapEditorStageHandle, openMapEditorStage } from "../../game/map-ed
 import { startMapPreview } from "../../game/map-preview.js";
 import { t, useLocale } from "../../i18n.js";
 import { useUiStore } from "../../store.js";
+import { Button } from "../components/button.js";
+import { Input } from "../components/input.js";
+import { Label } from "../components/label.js";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../components/resizable.js";
 import { EditorAssetPalette } from "../EditorAssetPalette.js";
+import { AdventureSettingsDialog } from "./AdventureSettingsDialog.js";
 import { EditorMenuBar } from "./EditorMenuBar.js";
 import { EditorStatusBar } from "./EditorStatusBar.js";
 import { type EditorPaintTool, EditorToolbar, toolLabelText } from "./EditorToolbar.js";
-
-const DEFAULT_COLS = 40;
-const DEFAULT_ROWS = 30;
+import { MapListPanel } from "./MapListPanel.js";
 
 /** The default terrain a fresh stroke paints with until the Task 9 terrain palette lands: flat grass,
  *  matching the stage's own default tool so what the toolbar shows and what the stage paints agree. */
 const DEFAULT_CONTENT: RectFillContent = { kind: "block", block: "grass" };
 
 type StageStatus = "loading" | "ready" | "error";
-/** The active tool key. `stairs` and `element` (scenery) have no toolbar button — they are picked in
- *  the palette — so the toolbar highlights only when the key is one of its five paint tools. */
-type ToolKey = EditorPaintTool | "stairs";
+/** A marker-authoring tool key: hero spawn move and the entry/exit/monster-spawn placements the old
+ *  MapEditor exposed, restored onto the merged shell's palette. */
+type MarkerToolKey = "spawn" | "entry" | "exit" | "monster";
+/** The active tool key. `stairs`, scenery and the marker tools have no *paint*-toolbar button — they
+ *  are picked in the palette — so the paint toolbar highlights only for its five paint tools. */
+type ToolKey = EditorPaintTool | "stairs" | MarkerToolKey;
+
+const MARKER_TOOL_KEYS: MarkerToolKey[] = ["spawn", "entry", "exit", "monster"];
+
+function isPaintToolKey(key: ToolKey | null): key is EditorPaintTool {
+  return (
+    key === "select" || key === "pencil" || key === "rect" || key === "fill" || key === "eraser"
+  );
+}
+
+/** The EditorTool a marker palette selection resolves to, bundling the monster species/radius the
+ *  monster tool needs. */
+function markerToolFor(
+  key: MarkerToolKey,
+  species: MonsterSpecies,
+  patrolRadius: number,
+): EditorTool {
+  switch (key) {
+    case "spawn":
+      return { kind: "spawn" };
+    case "entry":
+      return { kind: "marker-entry" };
+    case "exit":
+      return { kind: "marker-exit" };
+    case "monster":
+      return { kind: "marker-monster", species, patrolRadius };
+  }
+}
 
 /** The two `requireSession` codes that mean "log in again", never "this map request failed". */
 function isSessionError(code: string): boolean {
@@ -60,7 +96,7 @@ function toEditorMap(map: MapPayload): EditorMap {
 
 /** The single EditorTool a toolbar/palette selection resolves to. Terrain content composes into
  *  pencil (single cell), rect and fill exactly as the pre-merge editor's paint path did. */
-function paintToolFor(key: ToolKey, content: RectFillContent): EditorTool {
+function paintToolFor(key: EditorPaintTool | "stairs", content: RectFillContent): EditorTool {
   switch (key) {
     case "select":
       return { kind: "select" };
@@ -116,10 +152,19 @@ export function AdventureEditorScreen() {
   const [dirty, setDirty] = useState(false);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
-  const [, setSelection] = useState<EditorSelection | null>(null);
+  const [selection, setSelection] = useState<EditorSelection | null>(null);
+  const [markerSpecies, setMarkerSpecies] = useState<MonsterSpecies>("spear_goblin");
+  const [markerRadius, setMarkerRadius] = useState(96);
   const [stageStatus, setStageStatus] = useState<StageStatus>("loading");
   const [previewing, setPreviewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Right-pane / dialog coordination, lifted here so the menu bar, toolbar and map panel all reach
+  // the same new-map dialog, delete confirm and settings dialog.
+  const [newMapOpen, setNewMapOpen] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  // Bumped after every save/create so the map panel refetches names and dimensions.
+  const [mapsRefreshNonce, setMapsRefreshNonce] = useState(0);
 
   function fail(caught: unknown): void {
     const code = errorCode(caught);
@@ -228,15 +273,35 @@ export function AdventureEditorScreen() {
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
 
+  // The monster marker tool bundles its species/radius into the pushed tool, so changing either while
+  // that tool is active must re-push it — otherwise the stage keeps stamping spawns with whatever
+  // species/radius were selected when the tool was last picked.
+  useEffect(() => {
+    if (toolKey !== "monster") return;
+    const tool: EditorTool = {
+      kind: "marker-monster",
+      species: markerSpecies,
+      patrolRadius: markerRadius,
+    };
+    pendingToolRef.current = tool;
+    handleRef.current?.setTool(tool);
+  }, [toolKey, markerSpecies, markerRadius]);
+
   function pushTool(tool: EditorTool): void {
     pendingToolRef.current = tool;
     handleRef.current?.setTool(tool);
   }
 
-  function selectTool(key: ToolKey): void {
+  function selectTool(key: EditorPaintTool | "stairs"): void {
     setToolKey(key);
     setSelectedAsset(null);
     pushTool(paintToolFor(key, content));
+  }
+
+  function selectMarkerTool(key: MarkerToolKey): void {
+    setToolKey(key);
+    setSelectedAsset(null);
+    pushTool(markerToolFor(key, markerSpecies, markerRadius));
   }
 
   function selectAsset(assetId: EditorAssetId): void {
@@ -290,34 +355,47 @@ export function AdventureEditorScreen() {
       handle.markSaved();
       setDirty(false);
       setMap((current) => (current ? { ...current, ...updated } : current));
+      setMapsRefreshNonce((n) => n + 1);
     } catch (caught) {
       fail(caught);
     }
   }
 
-  async function newMap(): Promise<void> {
+  // The map panel's "select to switch" load path: guard unsaved edits, then swap the stage's map.
+  function loadMap(id: string): void {
+    if (id === map?.id) return;
+    if (dirty && !window.confirm(t("editor.shell.exit.confirm"))) return;
     setError(null);
-    try {
-      const created = await createMapApi(
-        toSaveInput(blankMap(t("editor.new"), DEFAULT_COLS, DEFAULT_ROWS)),
-      );
-      editedRef.current = null;
-      setMap(created);
-    } catch (caught) {
-      fail(caught);
-    }
+    void (async () => {
+      try {
+        editedRef.current = null;
+        setMap(await fetchMap(id));
+      } catch (caught) {
+        fail(caught);
+      }
+    })();
   }
 
-  async function deleteMap(): Promise<void> {
-    if (!map) return;
-    if (!window.confirm(t("editor.shell.deleteMap.confirm", { name: map.name }))) return;
-    setError(null);
-    try {
-      await deleteMapApi(map.id);
-      exit(true);
-    } catch (caught) {
-      fail(caught);
-    }
+  // A freshly created or renamed-in-place map handed back by the panel: mount it in the stage.
+  function openPayload(payload: MapPayload): void {
+    editedRef.current = null;
+    setMap(payload);
+    setMapsRefreshNonce((n) => n + 1);
+  }
+
+  // The open map was deleted from the panel: fall back to the author's first remaining map, or an
+  // empty stage if none is left.
+  function activeMapDeleted(): void {
+    setMapsRefreshNonce((n) => n + 1);
+    void (async () => {
+      try {
+        const first = (await fetchMaps())[0];
+        editedRef.current = null;
+        setMap(first ? await fetchMap(first.id) : null);
+      } catch (caught) {
+        fail(caught);
+      }
+    })();
   }
 
   function exit(force = false): void {
@@ -329,9 +407,17 @@ export function AdventureEditorScreen() {
 
   const toolLabel = selectedAsset
     ? t("editor.inspector.element")
-    : toolKey
-      ? toolLabelText(toolKey)
-      : t("editor.inspector.element");
+    : toolKey === null
+      ? t("editor.inspector.element")
+      : isPaintToolKey(toolKey) || toolKey === "stairs"
+        ? toolLabelText(toolKey)
+        : t(`editor.tool.${toolKey}`);
+
+  // The live map the inspector reads its selected marker's fields off — the handle's current edits
+  // while a stage is mounted, else whatever payload is loaded. Read in render so a new selection
+  // reflects the latest positions.
+  const currentMap: EditorMap | null =
+    handleRef.current?.current() ?? editedRef.current ?? (map ? toEditorMap(map) : null);
 
   if (previewing) {
     return (
@@ -354,9 +440,10 @@ export function AdventureEditorScreen() {
         canRedo={canRedo && stageStatus === "ready"}
         showGrid={showGrid}
         onExit={() => exit()}
-        onNewMap={() => void newMap()}
+        onNewMap={() => setNewMapOpen(true)}
         onSave={() => void save()}
-        onDeleteMap={() => void deleteMap()}
+        onDeleteMap={() => setConfirmDeleteId(map?.id ?? null)}
+        onOpenSettings={() => setSettingsOpen(true)}
         onUndo={undo}
         onRedo={redo}
         onSelectLayer={selectLayer}
@@ -367,14 +454,14 @@ export function AdventureEditorScreen() {
       />
 
       <EditorToolbar
-        activeTool={toolKey === "stairs" ? null : toolKey}
+        activeTool={isPaintToolKey(toolKey) ? toolKey : null}
         activeLayer={activeLayer}
         showGrid={showGrid}
         zoom={zoom}
         canSave={stageStatus === "ready"}
-        onNewMap={() => void newMap()}
+        onNewMap={() => setNewMapOpen(true)}
         onSave={() => void save()}
-        onDeleteMap={() => void deleteMap()}
+        onDeleteMap={() => setConfirmDeleteId(map?.id ?? null)}
         onSelectTool={selectTool}
         onSelectLayer={selectLayer}
         onToggleGrid={toggleGrid}
@@ -425,6 +512,53 @@ export function AdventureEditorScreen() {
                 onClick={() => selectTool("stairs")}
               />
             </div>
+
+            <div className="flex h-8 items-center border-y border-zinc-200 px-3 text-[11px] font-semibold tracking-wide text-zinc-500 uppercase">
+              {t("editor.shell.markers.heading")}
+            </div>
+            <div className="flex flex-col gap-1 p-2">
+              {MARKER_TOOL_KEYS.map((key) => (
+                <TerrainButton
+                  key={key}
+                  label={t(`editor.tool.${key}`)}
+                  active={toolKey === key}
+                  onClick={() => selectMarkerTool(key)}
+                />
+              ))}
+              {toolKey === "monster" && (
+                <div className="flex flex-col gap-1.5 rounded-md bg-zinc-100 p-2">
+                  <Label htmlFor="marker-species" className="text-[11px] text-zinc-500">
+                    {t("editor.markers.species")}
+                  </Label>
+                  <select
+                    id="marker-species"
+                    className="h-7 w-full rounded-md border border-input bg-white px-1.5 text-xs outline-none"
+                    value={markerSpecies}
+                    onChange={(event) =>
+                      setMarkerSpecies(event.currentTarget.value as MonsterSpecies)
+                    }
+                  >
+                    {(Object.keys(MONSTER_SPECIES_KIND) as MonsterSpecies[]).map((option) => (
+                      <option key={option} value={option}>
+                        {t(`monster.${option}`)}
+                      </option>
+                    ))}
+                  </select>
+                  <Label htmlFor="marker-radius" className="text-[11px] text-zinc-500">
+                    {t("editor.markers.radius")}
+                  </Label>
+                  <Input
+                    id="marker-radius"
+                    type="number"
+                    className="h-7 text-xs"
+                    min={MIN_PATROL_RADIUS}
+                    max={MAX_PATROL_RADIUS}
+                    value={markerRadius}
+                    onChange={(event) => setMarkerRadius(Number(event.currentTarget.value))}
+                  />
+                </div>
+              )}
+            </div>
           </aside>
         </ResizablePanel>
         <ResizableHandle />
@@ -458,32 +592,48 @@ export function AdventureEditorScreen() {
                 onSelect={selectAsset}
               />
             </div>
+            {selection && currentMap && (
+              <div className="pointer-events-auto absolute bottom-3 left-3 z-10 w-64">
+                <MarkerInspector
+                  selection={selection}
+                  map={currentMap}
+                  onSetLabel={(label) => handleRef.current?.setSelectedMarkerLabel(label)}
+                  onMove={(col, row) => handleRef.current?.moveSelected(col, row)}
+                  onSetMonster={(species, radius) =>
+                    handleRef.current?.setSelectedMonster(species, radius)
+                  }
+                  onDelete={() => handleRef.current?.deleteSelected()}
+                />
+              </div>
+            )}
           </section>
         </ResizablePanel>
         <ResizableHandle />
 
         <ResizablePanel defaultSize="18" minSize="12" maxSize="30" className="min-h-0">
-          {/* Task 8 replaces this with the adventure's maps list + new-map dialog. */}
-          <aside
-            className="flex h-full flex-col border-l border-zinc-200 bg-zinc-50"
-            aria-label={t("editor.shell.maps.aria")}
-          >
-            <div className="flex h-8 items-center justify-between border-b border-zinc-200 px-3 text-[11px] font-semibold tracking-wide text-zinc-500 uppercase">
-              {t("editor.shell.maps.aria")}
-            </div>
-            <div className="flex flex-1 flex-col gap-1 overflow-auto p-2 text-sm text-zinc-500">
-              {map ? (
-                <span className="truncate rounded-md bg-zinc-200/60 px-2 py-1 text-zinc-700">
-                  {map.name}
-                </span>
-              ) : null}
-              <p className="px-1 pt-2 text-[11px] leading-relaxed text-zinc-400">
-                {t("editor.shell.maps.comingSoon")}
-              </p>
-            </div>
-          </aside>
+          <MapListPanel
+            activeMapId={map?.id ?? null}
+            refreshNonce={mapsRefreshNonce}
+            newMapOpen={newMapOpen}
+            onNewMapOpenChange={setNewMapOpen}
+            confirmDeleteId={confirmDeleteId}
+            onConfirmDeleteIdChange={setConfirmDeleteId}
+            onRequestOpen={loadMap}
+            onOpenPayload={openPayload}
+            onActiveDeleted={activeMapDeleted}
+            onOpenSettings={() => setSettingsOpen(true)}
+            onError={(code) => setError(code === "" ? null : code)}
+            onSessionExpired={() => setScreen("auth")}
+          />
         </ResizablePanel>
       </ResizablePanelGroup>
+
+      <AdventureSettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        onSaved={() => setMapsRefreshNonce((n) => n + 1)}
+        onSessionExpired={() => setScreen("auth")}
+      />
 
       <EditorStatusBar
         mapName={map?.name ?? "—"}
@@ -527,5 +677,170 @@ function TerrainButton({
     >
       {label}
     </button>
+  );
+}
+
+/**
+ * The selection inspector restored from the old MapEditor: the label, species/radius and cell of the
+ * selected marker, with move and delete, all pushed straight through the stage handle. Stock shadcn +
+ * a dense native species select; the hero spawn is move-only (it cannot be deleted).
+ */
+function MarkerInspector({
+  selection,
+  map,
+  onSetLabel,
+  onMove,
+  onSetMonster,
+  onDelete,
+}: {
+  selection: EditorSelection;
+  map: EditorMap;
+  onSetLabel(label: string): void;
+  onMove(col: number, row: number): void;
+  onSetMonster(species: MonsterSpecies, patrolRadius: number): void;
+  onDelete(): void;
+}) {
+  useLocale();
+  const selectedEntry =
+    selection.kind === "entry"
+      ? map.markers.entries.find((marker) => marker.id === selection.id)
+      : undefined;
+  const selectedExit =
+    selection.kind === "exit"
+      ? map.markers.exits.find((marker) => marker.id === selection.id)
+      : undefined;
+  const selectedMonster =
+    selection.kind === "monster"
+      ? map.markers.monsterSpawns.find(
+          (marker) => marker.col === selection.col && marker.row === selection.row,
+        )
+      : undefined;
+  const selectedElement =
+    selection.kind === "element"
+      ? map.elements.find(
+          (element) => element.col === selection.col && element.row === selection.row,
+        )
+      : undefined;
+  const named = selectedEntry ?? selectedExit;
+  const position =
+    named ??
+    selectedMonster ??
+    selectedElement ??
+    (selection.kind === "spawn" ? map.spawn : undefined);
+
+  return (
+    <aside
+      className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-3 shadow-lg"
+      aria-label={t("editor.inspector.title")}
+    >
+      <p className="text-[11px] font-semibold tracking-wide text-zinc-500 uppercase">
+        {t(`editor.inspector.${selection.kind}`)}
+      </p>
+
+      {named && (
+        <>
+          <p className="text-[11px] text-zinc-500">
+            {t("editor.inspector.id")}: <code>{named.id}</code>
+          </p>
+          <Label htmlFor="inspector-label" className="text-[11px] text-zinc-500">
+            {t("editor.inspector.label")}
+          </Label>
+          <Input
+            id="inspector-label"
+            key={`${selection.kind}:${named.id}`}
+            type="text"
+            className="h-7 text-xs"
+            maxLength={MARKER_LABEL_MAX}
+            defaultValue={named.label ?? ""}
+            onBlur={(event) => onSetLabel(event.currentTarget.value)}
+          />
+        </>
+      )}
+
+      {selectedElement && (
+        <p className="text-[11px] text-zinc-500">
+          {selectedElement.assetId}
+          {editorAsset(selectedElement.assetId)?.editor.collisionFootprint.length
+            ? ` · ${t("editor.palette.collision")}`
+            : ` · ${t("editor.inspector.walkable")}`}
+        </p>
+      )}
+
+      {selectedMonster && (
+        <>
+          <Label htmlFor="inspector-species" className="text-[11px] text-zinc-500">
+            {t("editor.markers.species")}
+          </Label>
+          <select
+            id="inspector-species"
+            className="h-7 w-full rounded-md border border-input bg-white px-1.5 text-xs outline-none"
+            value={selectedMonster.species}
+            onChange={(event) =>
+              onSetMonster(
+                event.currentTarget.value as MonsterSpecies,
+                selectedMonster.patrolRadius,
+              )
+            }
+          >
+            {(Object.keys(MONSTER_SPECIES_KIND) as MonsterSpecies[]).map((option) => (
+              <option key={option} value={option}>
+                {t(`monster.${option}`)}
+              </option>
+            ))}
+          </select>
+          <Label htmlFor="inspector-radius" className="text-[11px] text-zinc-500">
+            {t("editor.markers.radius")}
+          </Label>
+          <Input
+            id="inspector-radius"
+            type="number"
+            className="h-7 text-xs"
+            min={MIN_PATROL_RADIUS}
+            max={MAX_PATROL_RADIUS}
+            defaultValue={selectedMonster.patrolRadius}
+            onBlur={(event) =>
+              onSetMonster(selectedMonster.species, Number(event.currentTarget.value))
+            }
+          />
+        </>
+      )}
+
+      {position && (
+        <div className="flex gap-2">
+          <div className="flex flex-1 flex-col gap-1">
+            <Label htmlFor="inspector-col" className="text-[11px] text-zinc-500">
+              {t("editor.cols")}
+            </Label>
+            <Input
+              id="inspector-col"
+              type="number"
+              className="h-7 text-xs"
+              min={0}
+              defaultValue={position.col}
+              onBlur={(event) => onMove(Number(event.currentTarget.value), position.row)}
+            />
+          </div>
+          <div className="flex flex-1 flex-col gap-1">
+            <Label htmlFor="inspector-row" className="text-[11px] text-zinc-500">
+              {t("editor.rows")}
+            </Label>
+            <Input
+              id="inspector-row"
+              type="number"
+              className="h-7 text-xs"
+              min={0}
+              defaultValue={position.row}
+              onBlur={(event) => onMove(position.col, Number(event.currentTarget.value))}
+            />
+          </div>
+        </div>
+      )}
+
+      {selection.kind !== "spawn" && (
+        <Button variant="destructive" size="sm" onClick={onDelete}>
+          {t("editor.delete")}
+        </Button>
+      )}
+    </aside>
   );
 }

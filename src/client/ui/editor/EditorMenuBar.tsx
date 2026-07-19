@@ -20,6 +20,7 @@ interface EditorMenuBarProps {
   onNewMap(): void;
   onSave(): void;
   onDeleteMap(): void;
+  onOpenSettings(): void;
   onUndo(): void;
   onRedo(): void;
   onSelectLayer(layer: 0 | 1 | 2): void;
@@ -45,6 +46,7 @@ export function EditorMenuBar({
   onNewMap,
   onSave,
   onDeleteMap,
+  onOpenSettings,
   onUndo,
   onRedo,
   onSelectLayer,
@@ -80,6 +82,8 @@ export function EditorMenuBar({
               {t("editor.save")}
               <MenubarShortcut>⌘S</MenubarShortcut>
             </MenubarItem>
+            <MenubarSeparator />
+            <MenubarItem onClick={onOpenSettings}>{t("editor.shell.settings")}</MenubarItem>
             <MenubarSeparator />
             <MenubarItem variant="destructive" onClick={onDeleteMap}>
               {t("editor.shell.deleteMap")}

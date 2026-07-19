@@ -50,6 +50,8 @@ export interface MapSummary {
   id: string;
   name: string;
   revision: number;
+  cols: number;
+  rows: number;
   isFirst: boolean;
 }
 

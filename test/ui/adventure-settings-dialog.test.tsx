@@ -1,0 +1,227 @@
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { AdventureDraft, DraftMemberInfo } from "../../src/client/adventure-draft.js";
+import { setLocale, t } from "../../src/client/i18n.js";
+import { useUiStore } from "../../src/client/store.js";
+import { AdventureSettingsDialog } from "../../src/client/ui/editor/AdventureSettingsDialog.js";
+import { layersFromBlocks } from "../../src/shared/map-migrate.js";
+import { encodeTileLayer } from "../../src/shared/tile-layer-codec.js";
+import { TINY_SWORDS_TILESET_ID } from "../../src/shared/tilesets/tiny-swords.js";
+
+const OPEN_LAYERS = layersFromBlocks(Array.from({ length: 30 }, () => ".".repeat(40))).layers.map(
+  encodeTileLayer,
+);
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(body === undefined ? null : JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function mapPayload(
+  id: string,
+  name: string,
+  entryId: string,
+  exitId: string,
+): Record<string, unknown> {
+  return {
+    id,
+    name,
+    revision: 1,
+    tilesetId: TINY_SWORDS_TILESET_ID,
+    cols: 40,
+    rows: 30,
+    layers: OPEN_LAYERS,
+    elements: [],
+    spawn: { col: 20, row: 15 },
+    markers: {
+      entries: [{ id: entryId, col: 1, row: 1 }],
+      exits: [{ id: exitId, col: 2, row: 2 }],
+      monsterSpawns: [],
+    },
+  };
+}
+
+/** A /api/adventures + /api/maps backend for the settings dialog. */
+function backend() {
+  const adventures: Record<string, unknown>[] = [];
+  return vi.fn((url: string, init?: RequestInit) => {
+    const method = init?.method ?? "GET";
+    if (url === "/api/maps" && method === "GET") {
+      return Promise.resolve(
+        jsonResponse([
+          { id: "m1", name: "Verdant", revision: 1, cols: 40, rows: 30, isFirst: true },
+          { id: "m2", name: "Frostfen", revision: 1, cols: 40, rows: 30, isFirst: false },
+        ]),
+      );
+    }
+    if (url === "/api/maps/m1")
+      return Promise.resolve(jsonResponse(mapPayload("m1", "Verdant", "door", "east")));
+    if (url === "/api/maps/m2")
+      return Promise.resolve(jsonResponse(mapPayload("m2", "Frostfen", "west", "boss")));
+    if (url === "/api/adventures" && method === "GET") {
+      return Promise.resolve(
+        jsonResponse(
+          adventures.map((a) => ({ id: a.id, title: a.title, maxPlayers: a.maxPlayers })),
+        ),
+      );
+    }
+    if (url === "/api/adventures" && method === "POST") {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      const stored = { ...body, id: "adv-1", accountId: "acct", version: 1 };
+      adventures.push(stored);
+      return Promise.resolve(jsonResponse(stored, 201));
+    }
+    const one = url.match(/^\/api\/adventures\/([A-Za-z0-9-]+)$/);
+    if (one?.[1] && method === "PUT") {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return Promise.resolve(jsonResponse({ ...body, id: one[1], accountId: "acct", version: 2 }));
+    }
+    return Promise.resolve(jsonResponse({ error: "not_found" }, 404));
+  });
+}
+
+function member(mapId: string, name: string, entryId: string, exitId: string): DraftMemberInfo {
+  return {
+    mapId,
+    name,
+    revision: 1,
+    solid: ["."],
+    monsterCount: 0,
+    entryIds: [entryId],
+    exitIds: [exitId],
+    entryLabels: {},
+    exitLabels: {},
+  };
+}
+
+function seedSession(draft: AdventureDraft, adventureId: string | null): void {
+  useUiStore.setState({
+    adventureEditorSession: {
+      adventureId,
+      draftId: "draft-1",
+      draft,
+      invalidatedLinks: [],
+      savedDraft: adventureId ? JSON.stringify(draft) : null,
+    },
+  });
+}
+
+const noop = () => {};
+
+describe("AdventureSettingsDialog", () => {
+  beforeEach(() => {
+    setLocale("en");
+    useUiStore.setState({ adventureEditorSession: null });
+  });
+
+  it("round-trips the title and max players through the update endpoint", async () => {
+    const complete: AdventureDraft = {
+      title: "Original",
+      maxPlayers: 4,
+      members: [member("m1", "Verdant", "door", "east")],
+      start: { mapId: "m1", entryId: "door" },
+      bindings: [{ mapId: "m1", exitId: "east", dest: "end" }],
+    };
+    seedSession(complete, "adv-1");
+    const mock = backend();
+    vi.stubGlobal("fetch", mock);
+    render(
+      <AdventureSettingsDialog open onOpenChange={noop} onSaved={noop} onSessionExpired={noop} />,
+    );
+
+    const title = await screen.findByLabelText(t("adventure.name"));
+    await userEvent.clear(title);
+    await userEvent.type(title, "Renamed");
+    const players = screen.getByLabelText(t("adventure.players"));
+    await userEvent.clear(players);
+    await userEvent.type(players, "3");
+
+    await userEvent.click(screen.getByRole("button", { name: t("editor.save") }));
+
+    await waitFor(() => {
+      const put = mock.mock.calls.find(
+        ([url, init]) => url === "/api/adventures/adv-1" && (init as RequestInit)?.method === "PUT",
+      );
+      expect(put).toBeDefined();
+      const body = JSON.parse(String((put?.[1] as RequestInit)?.body)) as {
+        title: string;
+        maxPlayers: number;
+      };
+      expect(body.title).toBe("Renamed");
+      expect(body.maxPlayers).toBe(3);
+    });
+  });
+
+  it("renders the validation message for a graph with an unbound exit", async () => {
+    const withUnbound: AdventureDraft = {
+      title: "Draft",
+      maxPlayers: 4,
+      members: [member("m1", "Verdant", "door", "gate")],
+      start: { mapId: "m1", entryId: "door" },
+      bindings: [{ mapId: "m1", exitId: "gate", dest: null }],
+    };
+    seedSession(withUnbound, "adv-1");
+    vi.stubGlobal("fetch", backend());
+    render(
+      <AdventureSettingsDialog open onOpenChange={noop} onSaved={noop} onSessionExpired={noop} />,
+    );
+
+    expect(
+      await screen.findByText(
+        t("adventure.validation.unbound_exit", { map: "Verdant", exit: "gate" }),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("builds and saves a complete adventure", async () => {
+    const mock = backend();
+    vi.stubGlobal("fetch", mock);
+    render(
+      <AdventureSettingsDialog open onOpenChange={noop} onSaved={noop} onSessionExpired={noop} />,
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: t("adventure.new") }));
+    await userEvent.type(screen.getByLabelText(t("adventure.name")), "Donjon");
+
+    const mapsRegion = () => screen.getByRole("region", { name: t("adventure.maps.title") });
+    await userEvent.selectOptions(
+      await screen.findByLabelText(t("adventure.maps.add.label")),
+      "m1",
+    );
+    await userEvent.click(screen.getByRole("button", { name: t("adventure.maps.add") }));
+    await within(mapsRegion()).findByText("Verdant");
+    await userEvent.selectOptions(screen.getByLabelText(t("adventure.maps.add.label")), "m2");
+    await userEvent.click(screen.getByRole("button", { name: t("adventure.maps.add") }));
+    await within(mapsRegion()).findByText("Frostfen");
+
+    await userEvent.selectOptions(screen.getByLabelText(t("adventure.start.map")), "m1");
+    await userEvent.selectOptions(screen.getByLabelText(t("adventure.start.entry")), "door");
+    await userEvent.selectOptions(screen.getByLabelText(/east/), "m2::west");
+    await userEvent.selectOptions(screen.getByLabelText(/boss/), "end");
+
+    await userEvent.click(screen.getByRole("button", { name: t("editor.save") }));
+
+    await waitFor(() => {
+      const post = mock.mock.calls.find(
+        ([url, init]) => url === "/api/adventures" && (init as RequestInit)?.method === "POST",
+      );
+      expect(post).toBeDefined();
+      const body = JSON.parse(String((post?.[1] as RequestInit)?.body));
+      expect(body).toEqual({
+        title: "Donjon",
+        maxPlayers: 4,
+        mapIds: ["m1", "m2"],
+        graph: {
+          start: { mapId: "m1", entryId: "door" },
+          links: [
+            { mapId: "m1", exitId: "east", dest: { mapId: "m2", entryId: "west" } },
+            { mapId: "m2", exitId: "boss", dest: "end" },
+          ],
+        },
+      });
+    });
+  });
+});
