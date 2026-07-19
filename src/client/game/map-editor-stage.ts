@@ -11,9 +11,10 @@
  * React never touches anything in this module but the returned `MapEditorStageHandle`: the toolbar
  * is React, the canvas is Pixi, and the two only meet at `setTool`/`current`/`setName`/`dispose`.
  */
-import { type Application, Assets, Container, Graphics, Sprite, type Texture } from "pixi.js";
+import { type Application, Assets, Container, Graphics, Sprite, Text, type Texture } from "pixi.js";
 import type { MonsterSpecies } from "../../shared/game.js";
 import { bakeCollision, MAP_LAYERS } from "../../shared/map-data.js";
+import type { MapEvent } from "../../shared/map-events.js";
 import type { TileLayer } from "../../shared/tile-layer-codec.js";
 import { TILE_SIZE, type TileMap } from "../../shared/tilemap.js";
 import type { Tileset } from "../../shared/tileset.js";
@@ -119,6 +120,116 @@ export function applyLayerDim(
   containers.forEach((container, index) => {
     container.alpha = dim && index !== activeLayer ? DIM_ALPHA : 1;
   });
+}
+
+/** The wireframe's `EV{ordinal}` chip text: the creation ordinal zero-padded to three digits, so the
+ *  first event on a map reads `EV001`. Display only — the uuid is identity, never this. */
+export function eventChipLabel(ordinal: number): string {
+  return `EV${String(ordinal).padStart(3, "0")}`;
+}
+
+/** The event overlay is a mode, not always-on: events show only while the event tool is the active
+ *  tool (the wireframe's EV layer), and are hidden under every other tool. Pure so the visibility
+ *  gate can be pinned without the rest of the stage, exactly like `applyLayerDim`. */
+export function shouldShowEventOverlay(tool: EditorTool): boolean {
+  return tool.kind === "event";
+}
+
+const EVENT_BOX_COLOR = 0x27272a;
+const EVENT_PLACEHOLDER_COLOR = 0x7c3aed;
+const EVENT_CHIP_BG_COLOR = 0x18181b;
+const EVENT_CHIP_TEXT_COLOR = 0xfafafa;
+const EVENT_SELECTION_COLOR = 0xffffff;
+
+/** What `paintEventCell` decided and drew for one event: the chip text, whether it drew the page-1
+ *  graphic (vs the blank placeholder), and whether it drew the selection outline. */
+export interface EventCellDraw {
+  chipText: string;
+  hasGraphic: boolean;
+  selected: boolean;
+}
+
+/**
+ * Draws one authored event into the overlay container: the wireframe's faint bounding box, then
+ * either its page-1 catalogue graphic (when that art is loaded) or the blank placeholder square, an
+ * `EV{ordinal}` chip, and a selection outline when it is selected.
+ *
+ * Exported and kept Pixi-object-only like `paintLandCell` — `Container`/`Sprite`/`Graphics`/`Text`
+ * all construct without a live renderer — so the per-event draw decision (graphic vs placeholder,
+ * chip text, selection) can be pinned without the WebGL context the rest of the stage needs.
+ *
+ * Rendering only: it never mutates the map and nothing here runs in the game.
+ */
+export function paintEventCell(
+  event: MapEvent,
+  art: EditorAssetArt | undefined,
+  selected: boolean,
+  container: Container,
+): EventCellDraw {
+  const x = event.col * TILE_SIZE;
+  const y = event.row * TILE_SIZE;
+
+  const box = new Graphics();
+  box
+    .rect(x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2)
+    .fill({ color: EVENT_BOX_COLOR, alpha: 0.04 })
+    .stroke({ width: 1, color: EVENT_BOX_COLOR, alpha: 0.55 });
+  container.addChild(box);
+
+  // The graphic branch needs both a page-1 graphic AND its art loaded; a graphic whose art has not
+  // arrived yet falls back to the placeholder until the next redraw, exactly like an element's art.
+  const graphicId = event.pages[0]?.graphicAssetId ?? null;
+  const frame = graphicId === null ? undefined : art?.frames[0];
+  const hasGraphic = frame !== undefined;
+  if (frame) {
+    const sprite = new Sprite(frame);
+    const fit = Math.min((TILE_SIZE * 1.6) / frame.width, (TILE_SIZE * 1.6) / frame.height);
+    sprite.width = frame.width * fit;
+    sprite.height = frame.height * fit;
+    sprite.anchor.set(0.5, 1);
+    sprite.position.set(x + TILE_SIZE / 2, y + TILE_SIZE);
+    container.addChild(sprite);
+  } else {
+    const placeholder = new Graphics();
+    placeholder
+      .roundRect(x + TILE_SIZE * 0.2, y + TILE_SIZE * 0.2, TILE_SIZE * 0.6, TILE_SIZE * 0.6, 4)
+      .fill({ color: EVENT_PLACEHOLDER_COLOR, alpha: 0.85 });
+    container.addChild(placeholder);
+  }
+
+  const chipText = eventChipLabel(event.ordinal);
+  // Chip width derived from the text length rather than measured, so the backing plate is stable
+  // without a canvas 2D context (jsdom has none, which is where this function is pinned).
+  const chipBg = new Graphics();
+  chipBg.rect(x, y, chipText.length * 6 + 4, 12).fill({ color: EVENT_CHIP_BG_COLOR, alpha: 0.9 });
+  container.addChild(chipBg);
+  const chip = new Text({
+    text: chipText,
+    style: { fontFamily: "monospace", fontSize: 9, fill: EVENT_CHIP_TEXT_COLOR },
+  });
+  chip.position.set(x + 2, y + 1);
+  container.addChild(chip);
+
+  if (selected) {
+    const outline = new Graphics();
+    outline
+      .rect(x, y, TILE_SIZE, TILE_SIZE)
+      .stroke({ width: 2, color: EVENT_SELECTION_COLOR, alpha: 0.95 });
+    container.addChild(outline);
+  }
+
+  return { chipText, hasGraphic, selected };
+}
+
+/** The page-1 graphic ids across a set of events, deduplicated by the caller's loader. Only page 1
+ *  renders on the overlay, so only its graphic needs preloading. */
+function eventGraphicAssetIds(events: readonly MapEvent[]): EditorAssetId[] {
+  const ids: EditorAssetId[] = [];
+  for (const event of events) {
+    const graphicId = event.pages[0]?.graphicAssetId ?? null;
+    if (graphicId !== null) ids.push(graphicId);
+  }
+  return ids;
 }
 
 const SPAWN_MARKER_COLOR = 0xffd54a;
@@ -274,9 +385,10 @@ export function openMapEditorStage(
   initial: EditorMap,
   onChange: (map: EditorMap, state: MapEditorStageState) => void,
   onCursorCell?: (col: number | null, row: number | null) => void,
+  onOpenEvent?: (id: string) => void,
 ): Promise<MapEditorStageHandle> {
   const generation = ++openGeneration;
-  return enqueue(() => buildSession(initial, onChange, generation, onCursorCell));
+  return enqueue(() => buildSession(initial, onChange, generation, onCursorCell, onOpenEvent));
 }
 
 async function buildSession(
@@ -284,6 +396,7 @@ async function buildSession(
   onChange: (map: EditorMap, state: MapEditorStageState) => void,
   generation: number,
   onCursorCell?: (col: number | null, row: number | null) => void,
+  onOpenEvent?: (id: string) => void,
 ): Promise<MapEditorStageHandle> {
   // A newer open already superseded this one before the chain reached it: build nothing, bind no
   // Application. This is the throwaway half of a StrictMode double-mount.
@@ -306,7 +419,10 @@ async function buildSession(
   const app = await ensureStageApp(canvas);
   app.ticker.start();
 
-  const textures = await loadStageTextures(initial.elements.map((element) => element.assetId));
+  const textures = await loadStageTextures([
+    ...initial.elements.map((element) => element.assetId),
+    ...eventGraphicAssetIds(initial.events),
+  ]);
 
   let map = initial;
   let history = createEditorHistory(initial);
@@ -341,6 +457,10 @@ async function buildSession(
   const canopyElementLayer = new Container();
   const aboveLandLayer = new Container();
   const markerLayer = new Container();
+  // Events are the topmost plane, above markers and props, and only shown in "EV mode" (the event
+  // tool). Its visibility is driven by `shouldShowEventOverlay(tool)`, never by content.
+  const eventLayer = new Container();
+  eventLayer.visible = shouldShowEventOverlay(tool);
   world.addChild(
     waterLayer,
     foamLayer,
@@ -350,6 +470,7 @@ async function buildSession(
     canopyElementLayer,
     aboveLandLayer,
     markerLayer,
+    eventLayer,
   );
   app.stage.addChild(world);
 
@@ -391,6 +512,7 @@ async function buildSession(
       canopyElementLayer,
       aboveLandLayer,
       markerLayer,
+      eventLayer,
     ]) {
       for (const child of layer.removeChildren()) child.destroy({ children: true });
     }
@@ -454,6 +576,19 @@ async function buildSession(
     drawElements();
     drawSpawnMarker();
     drawMarkers();
+    drawEvents();
+  }
+
+  /** Every authored event on the EV overlay: its page-1 graphic or the blank placeholder, its chip,
+   *  and a selection outline on the selected one. Hidden unless the event tool is active. */
+  function drawEvents(): void {
+    eventLayer.visible = shouldShowEventOverlay(tool);
+    for (const event of map.events) {
+      const graphicId = event.pages[0]?.graphicAssetId ?? null;
+      const art = graphicId === null ? undefined : textures.editorAssets.get(graphicId);
+      const isSelected = selected?.kind === "event" && selected.id === event.id;
+      paintEventCell(event, art, isSelected, eventLayer);
+    }
   }
 
   /** Props, painted the way `renderer.ts`'s `#buildMapElements` does: y-sorted so a lower tree
@@ -556,13 +691,31 @@ async function buildSession(
     lastPaintedRow = row;
     if (tool.kind === "select") {
       selected = selectionAt(map, col, row);
+      redraw();
       notify();
       return;
+    }
+    // Event tool on a cell that already holds an event: placement is refused, so the click reads as
+    // "select that event instead" (its double-click then opens the dialog), keeping place and select
+    // cleanly separate on one tool the way the wireframe does.
+    if (tool.kind === "event") {
+      const existing = map.events.find((event) => event.col === col && event.row === row);
+      if (existing) {
+        selected = { kind: "event", id: existing.id };
+        redraw();
+        notify();
+        return;
+      }
     }
     const next = applyTool(map, tool, col, row, isStrokeStart, history.activeLayer);
     // null → refused (does nothing visible); same reference → a no-op edit (eraser on empty).
     if (!next || next === map) return;
     map = next;
+    // A freshly placed event is selected so it reads as active and its double-click has a target.
+    if (tool.kind === "event") {
+      const placed = next.events.find((event) => event.col === col && event.row === row);
+      if (placed) selected = { kind: "event", id: placed.id };
+    }
     redraw();
     notify();
   }
@@ -631,6 +784,15 @@ async function buildSession(
     clampCamera();
   };
 
+  // Double-click in EV mode opens the event under the cursor, if any — the wireframe's route into the
+  // event dialog. Threaded to React through `onOpenEvent`; the stage itself owns no dialog.
+  const onDoubleClick = (event: MouseEvent): void => {
+    if (tool.kind !== "event" || !onOpenEvent) return;
+    const { col, row } = cellAt(event.clientX, event.clientY);
+    const target = map.events.find((candidate) => candidate.col === col && candidate.row === row);
+    if (target) onOpenEvent(target.id);
+  };
+
   const onContextMenu = (event: Event): void => event.preventDefault();
   const onKeyDown = (event: KeyboardEvent): void => {
     if ((event.ctrlKey || event.metaKey) && event.code === "KeyZ") {
@@ -668,6 +830,7 @@ async function buildSession(
   canvas.addEventListener("pointerdown", onPointerDown);
   canvas.addEventListener("pointermove", onPointerMove);
   canvas.addEventListener("pointerleave", onPointerLeave);
+  canvas.addEventListener("dblclick", onDoubleClick);
   canvas.addEventListener("wheel", onWheel, { passive: false });
   canvas.addEventListener("contextmenu", onContextMenu);
   // On window, so releasing or moving off the canvas mid-stroke still ends the stroke cleanly.
@@ -700,6 +863,7 @@ async function buildSession(
     canvas.removeEventListener("pointerdown", onPointerDown);
     canvas.removeEventListener("pointermove", onPointerMove);
     canvas.removeEventListener("pointerleave", onPointerLeave);
+    canvas.removeEventListener("dblclick", onDoubleClick);
     canvas.removeEventListener("wheel", onWheel);
     canvas.removeEventListener("contextmenu", onContextMenu);
     window.removeEventListener("pointerup", stopStroke);
@@ -741,6 +905,10 @@ async function buildSession(
     setTool(next) {
       tool = next;
       if (next.kind === "element") ensureAsset(next.assetId);
+      // Entering or leaving EV mode flips the overlay; redraw so a just-shown overlay paints its
+      // events (and their selection) immediately, not only after the next edit.
+      eventLayer.visible = shouldShowEventOverlay(next);
+      redraw();
       canvas.dataset.cursor =
         tool.kind === "pan" ? "move" : tool.kind === "select" ? "select" : "paint";
     },

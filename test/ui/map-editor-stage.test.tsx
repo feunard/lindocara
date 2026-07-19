@@ -1,9 +1,20 @@
-import { Container, Sprite, Texture } from "pixi.js";
+import { Container, Sprite, Text, Texture } from "pixi.js";
 import { describe, expect, it } from "vitest";
-import { applyLayerDim, paintLandCell } from "../../src/client/game/map-editor-stage.js";
+import type { EditorAssetArt } from "../../src/client/game/editor-asset-art.js";
+import type { EditorTool } from "../../src/client/game/editor-state.js";
+import { defaultEventPage } from "../../src/client/game/editor-state.js";
+import {
+  applyLayerDim,
+  eventChipLabel,
+  paintEventCell,
+  paintLandCell,
+  shouldShowEventOverlay,
+} from "../../src/client/game/map-editor-stage.js";
+import type { MapEvent } from "../../src/shared/map-events.js";
 import type { TileLayer } from "../../src/shared/tile-layer-codec.js";
 import type { Tileset } from "../../src/shared/tileset.js";
 import { fixedId } from "../../src/shared/tileset.js";
+import type { EditorAssetDefinition, EditorAssetId } from "../../src/shared/tiny-swords-catalog.js";
 
 /**
  * `paintLandCell` is `redraw()`'s per-cell tile routing, exported and kept Pixi-object-only (no
@@ -127,5 +138,101 @@ describe("applyLayerDim", () => {
     applyLayerDim(layers, 0, true);
     applyLayerDim(layers, 0, false);
     for (const layer of layers) expect(layer.alpha).toBe(1);
+  });
+});
+
+/**
+ * The EV overlay's per-event draw is extracted into `paintEventCell` for the same reason
+ * `paintLandCell` is: the whole stage needs a WebGL context this suite cannot give it, but the draw
+ * decision — graphic vs placeholder, chip text, selection outline — is pure Pixi-object construction
+ * that pins fine here. `shouldShowEventOverlay` and `eventChipLabel` are the two decisions the
+ * overlay hangs off, pinned directly.
+ */
+describe("paintEventCell", () => {
+  function eventAt(ordinal: number, graphic: EditorAssetId | null): MapEvent {
+    return {
+      id: `id-${ordinal}`,
+      col: 2,
+      row: 3,
+      name: "",
+      ordinal,
+      pages: [{ ...defaultEventPage(), graphicAssetId: graphic }],
+    };
+  }
+
+  const loadedArt: EditorAssetArt = {
+    definition: {} as EditorAssetDefinition,
+    frames: [Texture.WHITE],
+  };
+
+  it("draws the page-1 graphic as a sprite when its art is loaded", () => {
+    const container = new Container();
+    const result = paintEventCell(
+      eventAt(1, "decoration.tree" as EditorAssetId),
+      loadedArt,
+      false,
+      container,
+    );
+    expect(result.hasGraphic).toBe(true);
+    expect(container.children.some((child) => child instanceof Sprite)).toBe(true);
+  });
+
+  it("draws the blank placeholder, not a sprite, when page 1 has no graphic", () => {
+    const container = new Container();
+    const result = paintEventCell(eventAt(1, null), undefined, false, container);
+    expect(result.hasGraphic).toBe(false);
+    expect(container.children.some((child) => child instanceof Sprite)).toBe(false);
+  });
+
+  it("falls back to the placeholder when a graphic is set but its art has not loaded yet", () => {
+    const container = new Container();
+    const result = paintEventCell(
+      eventAt(1, "decoration.tree" as EditorAssetId),
+      undefined,
+      false,
+      container,
+    );
+    expect(result.hasGraphic).toBe(false);
+    expect(container.children.some((child) => child instanceof Sprite)).toBe(false);
+  });
+
+  it("labels the chip EV{ordinal} zero-padded to three digits", () => {
+    const container = new Container();
+    const result = paintEventCell(eventAt(1, null), undefined, false, container);
+    expect(result.chipText).toBe("EV001");
+    const chip = container.children.find((child): child is Text => child instanceof Text);
+    expect(chip?.text).toBe("EV001");
+  });
+
+  it("adds a selection outline only when the event is selected", () => {
+    const unselected = new Container();
+    const withoutOutline = paintEventCell(eventAt(1, null), undefined, false, unselected);
+    const selected = new Container();
+    const withOutline = paintEventCell(eventAt(1, null), undefined, true, selected);
+    expect(withoutOutline.selected).toBe(false);
+    expect(withOutline.selected).toBe(true);
+    // The selection outline is one extra child; nothing else differs between the two draws.
+    expect(selected.children.length).toBe(unselected.children.length + 1);
+  });
+});
+
+describe("eventChipLabel", () => {
+  it("zero-pads the ordinal to three digits", () => {
+    expect(eventChipLabel(1)).toBe("EV001");
+    expect(eventChipLabel(42)).toBe("EV042");
+    expect(eventChipLabel(128)).toBe("EV128");
+  });
+});
+
+describe("shouldShowEventOverlay", () => {
+  it("is true only while the event tool is active", () => {
+    expect(shouldShowEventOverlay({ kind: "event" })).toBe(true);
+    const inactive: EditorTool[] = [
+      { kind: "block", block: "grass" },
+      { kind: "select" },
+      { kind: "eraser" },
+      { kind: "marker-entry" },
+    ];
+    for (const tool of inactive) expect(shouldShowEventOverlay(tool)).toBe(false);
   });
 });
