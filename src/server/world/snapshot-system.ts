@@ -5,6 +5,7 @@ import type {
   WorldEventSnapshot,
   WorldView,
 } from "../../shared/protocol.js";
+import { talentState } from "../../shared/talents.js";
 import {
   buildEventDelta,
   buildWorldDelta,
@@ -37,6 +38,7 @@ export function selfState(player: PlayerRuntime, questTarget?: number): SelfStat
     corpse: player.corpse === null ? null : { ...player.corpse },
     serverNow,
     cooldowns: combatCooldownsFromPlayer(player, serverNow),
+    talents: talentState(player.class, player.level, player.talents),
     ...(player.resource ? { resource: { ...player.resource } } : {}),
   };
 }

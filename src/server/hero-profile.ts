@@ -5,6 +5,7 @@ import { clampRestoredPosition, isWalkable, maxHpForLevel } from "../shared/game
 import { terrainFromMap } from "../shared/map-data.js";
 import { initialResource } from "../shared/resources.js";
 import type { Vec2 } from "../shared/simulation.js";
+import { normalizeTalentSelection } from "../shared/talents.js";
 import { type Db, hero, partyMember } from "./db/index.js";
 import { loadMap } from "./maps.js";
 import type { PlayerProfile, SaveableProfile } from "./profile.js";
@@ -15,6 +16,14 @@ const COLOR_TO_APPEARANCE: Record<"blue" | "red" | "yellow" | "purple", PrimaryC
   yellow: "moss",
   purple: "violet",
 };
+
+function talentsFromRow(playerClass: typeof hero.$inferSelect.class, level: number, json: string) {
+  try {
+    return normalizeTalentSelection(playerClass, level, JSON.parse(json));
+  } catch {
+    return [];
+  }
+}
 
 async function restoredLife(
   db: Db,
@@ -65,6 +74,7 @@ export async function loadHeroProfile(db: Db, heroId: string): Promise<PlayerPro
     wardRunExpiresAt: null,
     ...life,
     ...(resource ? { resource } : {}),
+    talents: talentsFromRow(row.class, level, row.talents),
   };
 }
 
@@ -121,6 +131,9 @@ export async function saveHeroProfile(db: Db, profile: SaveableProfile): Promise
       level: profile.level,
       xp: profile.xp,
       hp: profile.hp,
+      talents: JSON.stringify(
+        normalizeTalentSelection(profile.class, profile.level, profile.talents),
+      ),
       life: profile.life,
       corpseX: profile.corpse?.x ?? null,
       corpseY: profile.corpse?.y ?? null,

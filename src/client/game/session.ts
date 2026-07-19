@@ -47,8 +47,12 @@ function settingsOpen(): boolean {
   return useUiStore.getState().settingsOpen;
 }
 
+function talentsOpen(): boolean {
+  return useUiStore.getState().talentsOpen;
+}
+
 function gameplayPaused(): boolean {
-  return interiorOpen() || settingsOpen();
+  return interiorOpen() || settingsOpen() || talentsOpen();
 }
 
 function setStatus(key: MessageKey, params?: Record<string, string | number>): void {
@@ -572,6 +576,11 @@ async function startGameIdentity(
       input.reset();
       return;
     }
+    if (talentsOpen()) {
+      useUiStore.getState().setTalentsOpen(false);
+      input.reset();
+      return;
+    }
     const nextOpen = !settingsOpen();
     useUiStore.getState().setSettingsOpen(nextOpen);
     if (nextOpen) input.reset();
@@ -591,7 +600,15 @@ async function startGameIdentity(
       },
       toggleMap: () => {
         const store = useUiStore.getState();
+        store.setTalentsOpen(false);
         store.setMapOpen(!store.mapOpen);
+      },
+      toggleTalents: () => {
+        const store = useUiStore.getState();
+        store.setMapOpen(false);
+        store.setSettingsOpen(false);
+        store.setTalentsOpen(!store.talentsOpen);
+        input.reset();
       },
       toggleSettings,
     },
@@ -605,6 +622,8 @@ async function startGameIdentity(
     release,
     castSkill,
     releaseSkill,
+    unlockTalent: (nodeId) => connection?.unlockTalent(nodeId),
+    resetTalents: () => connection?.resetTalents(),
     setMovement: (movement) => input.setVirtual(movement),
     sendChat: (text, channel) => connection?.sendChat(text, channel),
     partyCreate: () => connection?.partyCreate(),

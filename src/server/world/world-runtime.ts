@@ -33,6 +33,7 @@ import type {
 import { type ClassResourceState, initialResource } from "../../shared/resources.js";
 import { type Input, NO_INPUT, TICK_HZ, type Vec2 } from "../../shared/simulation.js";
 import { CLASS_SKILLS } from "../../shared/skills.js";
+import { normalizeTalentSelection } from "../../shared/talents.js";
 import type { EditorAssetId } from "../../shared/tiny-swords-catalog.js";
 import { createWorldCache, type WorldCache } from "../../shared/world-delta.js";
 import type { ZoneDefinition, ZoneLocation } from "../../shared/zones.js";
@@ -79,6 +80,7 @@ export interface Attachment extends Vec2 {
   quest?: PlayerProfile["quest"];
   life?: PlayerProfile["life"];
   corpse?: PlayerProfile["corpse"];
+  talents?: PlayerProfile["talents"];
   ack?: number;
   lastSeq?: number;
   connectionId?: string;
@@ -142,6 +144,8 @@ export interface ProjectileRuntime extends Vec2 {
   basic: boolean;
   /** Volley projectiles from one cast share this set so one monster receives its power once. */
   activationHitEntityIds?: Set<string>;
+  /** Bounded server-only bounce budget for talented projectiles. */
+  ricochetRemaining: number;
 }
 
 export interface PlayerRuntime extends PlayerProfile {
@@ -159,6 +163,7 @@ export interface PlayerRuntime extends PlayerProfile {
   guardUntil: number;
   guarding: boolean;
   guardReduction: number;
+  guardActivatedAt: number;
   lastResurrectAt: number;
   messageTimes: number[];
   malformedCount: number;
@@ -179,6 +184,7 @@ export interface PlayerRuntime extends PlayerProfile {
   navigationDebug: boolean;
   /** Local test flag. Never serialized or persisted; reconnecting always disables it. */
   cheatInvulnerable: boolean;
+  talents: string[];
   action: CombatActionRuntime | null;
 }
 
@@ -316,6 +322,7 @@ export function toProfile(player: PlayerRuntime): SaveableProfile {
     wardRunExpiresAt: player.wardRunExpiresAt,
     life: player.life,
     corpse: player.corpse === null ? null : { ...player.corpse },
+    talents: [...player.talents],
     ...(player.resource ? { resource: { ...player.resource } } : {}),
   };
 }
@@ -375,6 +382,7 @@ export function newPlayer(
     guardUntil: 0,
     guarding: false,
     guardReduction,
+    guardActivatedAt: 0,
     lastResurrectAt:
       cooldowns.resurrectUntil === 0 ? 0 : cooldowns.resurrectUntil - RESURRECT_COOLDOWN_MS,
     messageTimes: [],
@@ -394,6 +402,7 @@ export function newPlayer(
     ...(resource ? { resource } : {}),
     navigationDebug: false,
     cheatInvulnerable: false,
+    talents: normalizeTalentSelection(profile.class, profile.level, profile.talents),
     action: null,
     identityKind: "character",
     partyId: null,
@@ -450,6 +459,7 @@ export function profileFromAttachment(
     instanceId: attachment.instanceId ?? "main",
     sessionEpoch: attachment.sessionEpoch ?? 0,
     wardRunExpiresAt: attachment.wardRunExpiresAt ?? null,
+    talents: normalizeTalentSelection(playerClass, level, attachment.talents),
     ...lifeFromAttachment(attachment),
   };
 }

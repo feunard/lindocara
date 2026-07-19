@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "5fc916ab-61ce-41f6-ace9-11d3d158a46b",
+  "id": "471fb1b8-8d22-4b0a-965b-66f26489df27",
   "prevId": "efacde22-b7b5-46c5-a5de-9961aa33a1b7",
   "tables": {
     "account": {
@@ -177,6 +177,80 @@
           "value": "\"adventure\".\"max_players\" BETWEEN 1 AND 4"
         }
       }
+    },
+    "adventure_map": {
+      "name": "adventure_map",
+      "columns": {
+        "adventure_id": {
+          "name": "adventure_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "map_id": {
+          "name": "map_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "adventure_map_map_idx": {
+          "name": "adventure_map_map_idx",
+          "columns": [
+            "map_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "adventure_map_adventure_id_adventure_id_fk": {
+          "name": "adventure_map_adventure_id_adventure_id_fk",
+          "tableFrom": "adventure_map",
+          "tableTo": "adventure",
+          "columnsFrom": [
+            "adventure_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "adventure_map_map_id_map_id_fk": {
+          "name": "adventure_map_map_id_map_id_fk",
+          "tableFrom": "adventure_map",
+          "tableTo": "map",
+          "columnsFrom": [
+            "map_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "adventure_map_adventure_id_map_id_pk": {
+          "columns": [
+            "adventure_id",
+            "map_id"
+          ],
+          "name": "adventure_map_adventure_id_map_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
     },
     "character": {
       "name": "character",
@@ -933,6 +1007,14 @@
           "autoincrement": false,
           "default": 100
         },
+        "talents": {
+          "name": "talents",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
         "session_epoch": {
           "name": "session_epoch",
           "type": "integer",
@@ -1100,13 +1182,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "adventure_id": {
-          "name": "adventure_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "name": {
           "name": "name",
           "type": "text",
@@ -1205,13 +1280,6 @@
           ],
           "isUnique": false
         },
-        "map_adventure_idx": {
-          "name": "map_adventure_idx",
-          "columns": [
-            "adventure_id"
-          ],
-          "isUnique": false
-        },
         "map_account_first_unique": {
           "name": "map_account_first_unique",
           "columns": [
@@ -1228,19 +1296,6 @@
           "tableTo": "account",
           "columnsFrom": [
             "account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "map_adventure_id_adventure_id_fk": {
-          "name": "map_adventure_id_adventure_id_fk",
-          "tableFrom": "map",
-          "tableTo": "adventure",
-          "columnsFrom": [
-            "adventure_id"
           ],
           "columnsTo": [
             "id"

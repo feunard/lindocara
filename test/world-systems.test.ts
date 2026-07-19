@@ -229,4 +229,28 @@ describe("isolated directional combat systems", () => {
     actor.guarding = false;
     expect(guardedDamage(actor, 25)).toMatchObject({ amount: 25 });
   });
+
+  it("makes a talented Iron Guard activation a frame-perfect zero-damage parry", () => {
+    const actor = player();
+    actor.level = 10;
+    actor.guarding = true;
+    actor.guardReduction = 0.6;
+    actor.guardActivatedAt = 1_000;
+    actor.talents = [
+      "warrior.iron_guard.fortified",
+      "warrior.iron_guard.perfect",
+      "warrior.iron_guard.readiness",
+      "warrior.iron_guard.riposte",
+    ];
+
+    expect(guardedDamage(actor, 40, 1_220)).toMatchObject({
+      amount: 0,
+      parried: true,
+      retaliationRatio: 1,
+    });
+    expect(guardedDamage(actor, 40, 1_221)).toMatchObject({
+      amount: 16,
+      parried: false,
+    });
+  });
 });

@@ -84,6 +84,8 @@ export interface Connection {
   release(): void;
   skill(slot: SkillSlot): void;
   releaseSkill(slot: SkillSlot): void;
+  unlockTalent(nodeId: string): void;
+  resetTalents(): void;
   sendChat(text: string, channel?: "local" | "party"): void;
   partyCreate(): void;
   partyInvite(playerId: string): void;
@@ -195,6 +197,8 @@ export class WorldClient {
       release: () => this.#send({ t: "release" }),
       skill: (slot) => this.#send({ t: "skill", slot }),
       releaseSkill: (slot) => this.#send({ t: "skill.release", slot }),
+      unlockTalent: (nodeId) => this.#send({ t: "talent.unlock", nodeId }),
+      resetTalents: () => this.#send({ t: "talent.reset" }),
       sendChat: (text, channel = "local") => this.#send({ t: "chat", channel, text }),
       partyCreate: () => this.#send({ t: "party.create" }),
       partyInvite: (playerId) => this.#send({ t: "party.invite", playerId }),

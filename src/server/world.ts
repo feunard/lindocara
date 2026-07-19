@@ -95,8 +95,8 @@ import {
   SKILL_UNLOCK_LEVEL,
   type SkillDefinition,
   type SkillSlot,
-  skillFor,
 } from "../shared/skills.js";
+import { skillWithTalents, talentEffect, unlockTalent } from "../shared/talents.js";
 import { emptyLayer, encodeTileLayer } from "../shared/tile-layer-codec.js";
 import { TILE_SIZE } from "../shared/tilemap.js";
 import { encodeTileMap } from "../shared/tilemap-codec.js";
@@ -882,6 +882,43 @@ export class World extends DurableObject<Env> {
       this.#sendWorldResync(ws, player);
       return;
     }
+    if (message.t === "talent.unlock") {
+      const result = unlockTalent(player.class, player.level, player.talents, message.nodeId);
+      if (!result.ok) {
+        this.#send(ws, {
+          t: "event",
+          code: "talent.invalid",
+          params: { reason: result.reason },
+          tone: "bad",
+        });
+        return;
+      }
+      player.talents = result.selected;
+      if (player.guarding) {
+        player.guardReduction = skillWithTalents(player.class, player.talents, 2).reduction ?? 0;
+        player.guardActivatedAt = 0;
+      }
+      player.dirty = true;
+      this.#sendState(ws, player);
+      this.#send(ws, {
+        t: "event",
+        code: "talent.unlocked",
+        params: { talent: message.nodeId },
+        tone: "good",
+      });
+      return;
+    }
+    if (message.t === "talent.reset") {
+      player.talents = [];
+      if (player.guarding) {
+        player.guardReduction = skillWithTalents(player.class, player.talents, 2).reduction ?? 0;
+        player.guardActivatedAt = 0;
+      }
+      player.dirty = true;
+      this.#sendState(ws, player);
+      this.#send(ws, { t: "event", code: "talent.reset", tone: "good" });
+      return;
+    }
     if (message.t === "input") {
       if (message.seq <= player.lastSeq) return;
       player.lastSeq = message.seq;
@@ -904,7 +941,7 @@ export class World extends DurableObject<Env> {
       return;
     }
     if (message.t === "skill.release") {
-      if (finishHeldCombatAction(player, Date.now(), message.slot)) this.#sendState(ws, player);
+      this.#finishHeldPlayerAction(ws, player, Date.now(), message.slot);
       return;
     }
     if (message.t.startsWith("party.")) {
@@ -1015,8 +1052,30 @@ export class World extends DurableObject<Env> {
     };
   }
 
+  #finishHeldPlayerAction(ws: WebSocket, player: Player, now: number, slot?: number): boolean {
+    const action = player.action;
+    if (!finishHeldCombatAction(player, now, slot)) return false;
+    if (action?.skillId === "blink") {
+      const renewal = talentEffect(player.class, player.talents, "blink_heal", 3);
+      if (renewal) {
+        this.#healPlayer(
+          ws,
+          player,
+          ws,
+          player,
+          renewal.value + Math.max(0, player.level - 1),
+          action.skillId,
+          now,
+          true,
+        );
+      }
+    }
+    this.#sendState(ws, player);
+    return true;
+  }
+
   #startPlayerAction(ws: WebSocket, player: Player, slot: SkillSlot): boolean {
-    const skill = skillFor(player.class, slot);
+    const skill = skillWithTalents(player.class, player.talents, slot);
     if (!isSkillUnlocked(player.level, slot)) {
       this.#send(ws, {
         t: "event",
@@ -1032,6 +1091,7 @@ export class World extends DurableObject<Env> {
       if (skill.id !== "iron_guard") return false;
       cancelCombatAction(player);
       player.guarding = false;
+      player.guardActivatedAt = 0;
       player.skillCooldowns[slot - 1] = now + skill.cooldownMs;
       player.dirty = true;
       this.#sendState(ws, player);
@@ -1118,7 +1178,7 @@ export class World extends DurableObject<Env> {
     const socket = this.#socketByPlayerId.get(player.id);
     const slot = action.slot;
     if (!socket || slot === undefined || slot < 1 || slot > 5) return;
-    const skill = skillFor(player.class, slot as SkillSlot);
+    const skill = skillWithTalents(player.class, player.talents, slot as SkillSlot);
     const definition = actionForClassSlot(player.class, slot);
     const center = { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 };
 
@@ -1154,6 +1214,7 @@ export class World extends DurableObject<Env> {
       player.guardUntil = 0;
       player.guarding = true;
       player.guardReduction = skill.reduction ?? 0;
+      player.guardActivatedAt = now;
       player.dirty = true;
       this.#sendState(socket, player);
       return;
@@ -1278,7 +1339,13 @@ export class World extends DurableObject<Env> {
   ): void {
     const projectileDefinition = definition.projectile;
     if (!projectileDefinition) return;
-    const count = Math.max(1, projectileDefinition.count ?? 1);
+    const extraProjectiles = talentEffect(
+      player.class,
+      player.talents,
+      "extra_projectiles",
+      skill.slot,
+    );
+    const count = Math.max(1, (projectileDefinition.count ?? 1) + (extraProjectiles?.value ?? 0));
     const spread = projectileDefinition.spreadRadians ?? 0;
     const activationHitEntityIds = count > 1 ? new Set<string>() : undefined;
     for (let index = 0; index < count; index++) {
@@ -1308,6 +1375,9 @@ export class World extends DurableObject<Env> {
         sourceSkillId: skill.id,
         basic: skill.slot === 1,
         now,
+        ricochetRemaining: talentEffect(player.class, player.talents, "ricochet", skill.slot)
+          ? 1
+          : 0,
         ...(activationHitEntityIds ? { activationHitEntityIds } : {}),
       });
     }
@@ -2341,14 +2411,14 @@ export class World extends DurableObject<Env> {
       collectLoot: (socket, player) => this.#collectLoot(socket, player),
       savePlayer: (player, socket) => this.#savePlayer(player, socket),
     });
-    for (const player of this.#players.values()) {
+    for (const [socket, player] of this.#players) {
       const action = player.action;
       if (
         action?.channelMaxEndsAt !== undefined &&
         action.channelEndsAt === undefined &&
         (now >= action.channelMaxEndsAt || (action.mobilityDistance ?? 0) <= 0)
       )
-        finishHeldCombatAction(player, now);
+        this.#finishHeldPlayerAction(socket, player, now);
     }
     this.#detectAdventureExits(now);
     advanceCombatActions(this.#players.values(), now, (player, action) =>
@@ -2479,19 +2549,48 @@ export class World extends DurableObject<Env> {
   #projectileDamage(projectile: Projectile, monster: Monster, now: number): void {
     const owner = this.#projectileOwner(projectile);
     if (!owner || !canAct(owner.player.life)) return;
-    const skill = CLASS_SKILLS[owner.player.class].find(
+    const baseSkill = CLASS_SKILLS[owner.player.class].find(
       (candidate) => candidate.id === projectile.sourceSkillId,
     );
-    if (!skill) return;
-    this.#damageMonster(
-      owner.socket,
-      owner.player,
-      monster,
-      skill,
+    if (!baseSkill) return;
+    const skill = skillWithTalents(owner.player.class, owner.player.talents, baseSkill.slot);
+    const execute = talentEffect(owner.player.class, owner.player.talents, "execute", skill.slot);
+    const power =
+      execute && monster.hp / Math.max(1, monster.maxHp) <= execute.threshold
+        ? Math.round(projectile.power * (1 + execute.multiplier))
+        : projectile.power;
+    this.#damageMonster(owner.socket, owner.player, monster, skill, now, projectile.basic, power);
+    const ricochet = talentEffect(owner.player.class, owner.player.talents, "ricochet", skill.slot);
+    if (!ricochet || projectile.ricochetRemaining <= 0) return;
+    const target = this.#monsterGrid
+      .queryRadius(monster, ricochet.range)
+      .filter(
+        (candidate) =>
+          candidate.id !== monster.id &&
+          candidate.deadUntil <= now &&
+          !projectile.hitEntityIds.has(candidate.id) &&
+          hasLineOfSight(monster, candidate, this.#zone().terrain.tiles),
+      )
+      .sort((a, b) => pointDistance(monster, a) - pointDistance(monster, b))[0];
+    const definition = actionForClassSlot(owner.player.class, skill.slot).projectile;
+    if (!target || !definition) return;
+    const origin = { x: monster.x + PLAYER_SIZE / 2, y: monster.y + PLAYER_SIZE / 2 };
+    const direction = normalizeDirection({ x: target.x - monster.x, y: target.y - monster.y });
+    spawnProjectile(this.#projectiles, {
+      actionId: crypto.randomUUID(),
+      owner: owner.player,
+      roomKey: owner.player.roomKey,
+      origin,
+      direction,
+      definition: { ...definition, pierce: 0 },
+      range: ricochet.range,
+      power: Math.max(1, Math.round(projectile.power * ricochet.ratio)),
+      targetFilter: "monsters",
+      sourceSkillId: skill.id,
+      basic: false,
       now,
-      projectile.basic,
-      projectile.power,
-    );
+      ricochetRemaining: projectile.ricochetRemaining - 1,
+    });
   }
 
   #projectileHeal(
@@ -2503,7 +2602,7 @@ export class World extends DurableObject<Env> {
     const owner = this.#projectileOwner(projectile);
     if (!owner || !canAct(owner.player.life) || !this.#areCombatAllies(owner.player, target))
       return;
-    this.#healPlayer(
+    const restored = this.#healPlayer(
       owner.socket,
       owner.player,
       targetSocket,
@@ -2513,6 +2612,36 @@ export class World extends DurableObject<Env> {
       now,
       false,
     );
+    const baseSkill = CLASS_SKILLS[owner.player.class].find(
+      (candidate) => candidate.id === projectile.sourceSkillId,
+    );
+    const chain = baseSkill
+      ? talentEffect(owner.player.class, owner.player.talents, "chain_heal", baseSkill.slot)
+      : undefined;
+    if (!chain || restored <= 0) return;
+    const chained = [...this.#players]
+      .filter(
+        ([, candidate]) =>
+          candidate.id !== target.id &&
+          candidate.id !== owner.player.id &&
+          candidate.life === "alive" &&
+          candidate.hp < maxHpForLevel(candidate.level) &&
+          this.#areCombatAllies(owner.player, candidate) &&
+          pointDistance(target, candidate) <= chain.range &&
+          hasLineOfSight(target, candidate, this.#zone().terrain.tiles),
+      )
+      .sort(([, a], [, b]) => pointDistance(target, a) - pointDistance(target, b))[0];
+    if (chained)
+      this.#healPlayer(
+        owner.socket,
+        owner.player,
+        chained[0],
+        chained[1],
+        Math.max(1, Math.round(projectile.power * chain.ratio)),
+        projectile.sourceSkillId,
+        now,
+        false,
+      );
   }
 
   #projectileBlocked(projectile: Projectile, point: Vec2): void {
@@ -2613,7 +2742,37 @@ export class World extends DurableObject<Env> {
     now: number,
   ): void {
     if (isPlayerInvulnerable(player, now)) return;
-    const { amount: appliedDamage, result } = guardedDamage(player, damage);
+    const {
+      amount: appliedDamage,
+      result,
+      parried,
+      retaliationRatio,
+    } = guardedDamage(player, damage, now);
+    if (parried) {
+      this.#send(ws, {
+        t: "event",
+        code: "talent.perfect_parry",
+        tone: "good",
+        x: player.x,
+        y: player.y,
+      });
+      const attacker = this.#monsters.find(
+        (monster) => monster.id === monsterId && monster.deadUntil <= now,
+      );
+      if (attacker && retaliationRatio > 0) {
+        const guardSkill = skillWithTalents(player.class, player.talents, 2);
+        this.#damageMonster(
+          ws,
+          player,
+          attacker,
+          guardSkill,
+          now,
+          false,
+          Math.max(1, Math.round(damage * retaliationRatio)),
+        );
+      }
+      return;
+    }
     player.hp = result.hp;
     generateResource(player.class, player.resource, "damage_taken", appliedDamage);
     player.dirty = true;
@@ -2661,6 +2820,7 @@ export class World extends DurableObject<Env> {
     player.starvedTicks = 0;
     cancelCombatAction(player);
     player.guarding = false;
+    player.guardActivatedAt = 0;
     removeProjectilesByOwner(this.#projectiles, player.id);
     player.dirty = true;
   }

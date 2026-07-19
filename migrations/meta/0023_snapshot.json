@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "5fc916ab-61ce-41f6-ace9-11d3d158a46b",
-  "prevId": "efacde22-b7b5-46c5-a5de-9961aa33a1b7",
+  "id": "6e966beb-55ce-4fe8-9f09-43ead6f0f99d",
+  "prevId": "5fc916ab-61ce-41f6-ace9-11d3d158a46b",
   "tables": {
     "account": {
       "name": "account",
@@ -1378,6 +1378,28 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'normal'"
+        },
+        "species": {
+          "name": "species",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "patrol_radius": {
+          "name": "patrol_radius",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "created_at": {

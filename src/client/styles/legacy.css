@@ -2317,3 +2317,191 @@ kbd {
 .party-colour--purple {
   background: #a855f7;
 }
+
+/* Talent tree: four compact class branches, game chrome only. Creator tools never inherit it. */
+.talent-overlay {
+  position: fixed;
+  z-index: 30;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(2 10 8 / 78%);
+  backdrop-filter: blur(5px);
+  pointer-events: auto;
+}
+
+.talent-panel {
+  width: min(94vw, 76rem);
+  max-height: min(92dvh, 52rem);
+  overflow: auto;
+  padding: 1rem;
+  border: 3px solid #92743d;
+  background:
+    linear-gradient(rgb(7 25 20 / 94%), rgb(4 15 12 / 98%)),
+    var(--tiny-panel) center / cover no-repeat;
+  color: #f5e6bd;
+  box-shadow: 0 16px 48px rgb(0 0 0 / 65%);
+}
+
+.talent-header,
+.talent-footer,
+.talent-reset-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.talent-header h2,
+.talent-header p,
+.talent-branch h3 {
+  margin: 0;
+}
+
+.talent-kicker {
+  color: #c8a95e;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.talent-hint {
+  margin: 0.65rem 0;
+  color: #c9c0a5;
+  font-size: 0.8rem;
+}
+
+.talent-branches {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(12rem, 1fr));
+  gap: 0.65rem;
+  overflow-x: auto;
+  padding-bottom: 0.4rem;
+}
+
+.talent-branch {
+  min-width: 12rem;
+  padding: 0.55rem;
+  border: 1px solid rgb(199 165 87 / 42%);
+  background: linear-gradient(rgb(35 65 49 / 72%), rgb(10 31 24 / 88%));
+}
+
+.talent-branch h3 {
+  min-height: 2rem;
+  color: #f3d98f;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.talent-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(3.1rem, 1fr));
+  grid-template-rows: repeat(4, 5.15rem);
+  gap: 0.4rem;
+  background:
+    linear-gradient(90deg, transparent 49%, rgb(183 150 70 / 34%) 49% 51%, transparent 51%),
+    linear-gradient(transparent 49%, rgb(183 150 70 / 24%) 49% 51%, transparent 51%);
+}
+
+.talent-node {
+  position: relative;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 0.15rem;
+  min-width: 0;
+  padding: 0.25rem;
+  overflow: hidden;
+  border: 2px solid #54472f;
+  border-radius: 0.35rem;
+  background: linear-gradient(#27352e, #131d19);
+  color: #8f948d;
+}
+
+.talent-node--available {
+  border-color: #d0aa50;
+  color: #f3df9d;
+  cursor: var(--tiny-cursor-link, pointer);
+  box-shadow: 0 0 12px rgb(219 176 73 / 26%);
+}
+
+.talent-node--active {
+  border-color: #7edca5;
+  background: linear-gradient(#315f48, #17392b);
+  color: #f2ffe9;
+  box-shadow: inset 0 0 12px rgb(117 224 160 / 20%);
+}
+
+.talent-node__icon {
+  display: block;
+  width: 2.15rem;
+  height: 2.15rem;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+
+.talent-node__glyph {
+  font:
+    700 1.45rem Georgia,
+    serif;
+}
+
+.talent-node__name {
+  width: 100%;
+  overflow: hidden;
+  font-size: 0.58rem;
+  line-height: 1.05;
+  text-align: center;
+  text-overflow: ellipsis;
+}
+
+.talent-node__cost {
+  position: absolute;
+  top: 0.15rem;
+  right: 0.2rem;
+  display: grid;
+  place-items: center;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: #0b1611;
+  color: #e1c979;
+  font:
+    700 0.58rem ui-monospace,
+    monospace;
+}
+
+.talent-footer {
+  margin-top: 0.75rem;
+  color: #bdb59e;
+  font-size: 0.72rem;
+}
+
+.talent-reset-confirm {
+  justify-content: flex-start;
+  padding: 0.35rem;
+  border: 1px solid #b3884d;
+  background: rgb(37 22 13 / 78%);
+}
+
+@media (max-width: 760px) {
+  .talent-overlay {
+    padding: 0.35rem;
+  }
+
+  .talent-panel {
+    width: calc(100vw - 0.7rem);
+    max-height: calc(100dvh - 0.7rem);
+    padding: 0.6rem;
+  }
+
+  .talent-branches {
+    grid-template-columns: repeat(4, 11rem);
+  }
+
+  .talent-footer,
+  .talent-reset-confirm {
+    flex-wrap: wrap;
+  }
+}

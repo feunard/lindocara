@@ -24,6 +24,7 @@ import { MAP_LAYERS, type MapElement, parseMapElements } from "./map-data.js";
 import type { ClassResourceState } from "./resources.js";
 import type { Input, Vec2 } from "./simulation.js";
 import { isSkillSlot, type SkillSlot } from "./skills.js";
+import { isTalentId, type TalentState } from "./talents.js";
 import { parseTileMap } from "./tilemap-codec.js";
 import { tilesetById } from "./tilesets/tiny-swords.js";
 import { isEditorAssetId } from "./tiny-swords-catalog.js";
@@ -142,6 +143,8 @@ export interface SelfState {
   serverNow?: number;
   /** Absolute server deadlines, informational on the client and authoritative on the server. */
   cooldowns?: CombatCooldownState;
+  /** Present on current servers; optional so an in-flight older welcome remains readable. */
+  talents?: TalentState;
 }
 
 export interface PartyMemberState {
@@ -280,6 +283,8 @@ export type ClientMessage =
   | { t: "release" }
   | { t: "skill"; slot: SkillSlot }
   | { t: "skill.release"; slot: SkillSlot }
+  | { t: "talent.unlock"; nodeId: string }
+  | { t: "talent.reset" }
   | { t: "use"; item: "potion" }
   | { t: "chat"; channel: ChatChannel; text: string }
   | { t: "party.create" }
@@ -331,6 +336,10 @@ export const EVENT_CODES = [
   "skill.blocked",
   "skill.locked",
   "resource.insufficient",
+  "talent.unlocked",
+  "talent.reset",
+  "talent.invalid",
+  "talent.perfect_parry",
   "cheat.disabled",
   "cheat.help",
   "cheat.unknown",
@@ -598,6 +607,14 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
   if (value.t === "skill.release" && isSkillSlot(value.slot) && hasOnlyKeys(value, ["t", "slot"])) {
     return { t: "skill.release", slot: value.slot };
   }
+  if (
+    value.t === "talent.unlock" &&
+    isTalentId(value.nodeId) &&
+    hasOnlyKeys(value, ["t", "nodeId"])
+  ) {
+    return { t: "talent.unlock", nodeId: value.nodeId };
+  }
+  if (value.t === "talent.reset" && hasOnlyKeys(value, ["t"])) return { t: "talent.reset" };
   if (value.t === "use" && value.item === "potion" && hasOnlyKeys(value, ["t", "item"]))
     return { t: "use", item: "potion" };
   if (value.t === "world.resync") return { t: "world.resync" };

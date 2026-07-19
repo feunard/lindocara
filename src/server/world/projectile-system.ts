@@ -37,6 +37,7 @@ export interface SpawnProjectileOptions {
   basic: boolean;
   now: number;
   activationHitEntityIds?: Set<string>;
+  ricochetRemaining?: number;
 }
 
 export interface ProjectileSystemContext {
@@ -97,6 +98,7 @@ export function spawnProjectile(
     expiresAt: options.now + MAX_PROJECTILE_LIFETIME_MS,
     sourceSkillId: options.sourceSkillId,
     basic: options.basic,
+    ricochetRemaining: Math.max(0, Math.trunc(options.ricochetRemaining ?? 0)),
     ...(options.activationHitEntityIds
       ? { activationHitEntityIds: options.activationHitEntityIds }
       : {}),

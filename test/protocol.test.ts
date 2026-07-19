@@ -102,6 +102,29 @@ describe("client protocol", () => {
     expect(parseClientMessage(JSON.stringify({ t: "skill.release", slot: 3, x: 999 }))).toBeNull();
   });
 
+  it("accepts only known talent allocation intents without client-authored outcomes", () => {
+    expect(
+      parseClientMessage(
+        JSON.stringify({ t: "talent.unlock", nodeId: "warrior.iron_guard.perfect" }),
+      ),
+    ).toEqual({ t: "talent.unlock", nodeId: "warrior.iron_guard.perfect" });
+    expect(parseClientMessage(JSON.stringify({ t: "talent.reset" }))).toEqual({
+      t: "talent.reset",
+    });
+    expect(
+      parseClientMessage(JSON.stringify({ t: "talent.unlock", nodeId: "warrior.god_mode" })),
+    ).toBeNull();
+    expect(
+      parseClientMessage(
+        JSON.stringify({
+          t: "talent.unlock",
+          nodeId: "warrior.iron_guard.perfect",
+          damage: 999,
+        }),
+      ),
+    ).toBeNull();
+  });
+
   it("accepts only server-minted UUIDs for party actions", () => {
     const id = "33333333-3333-4333-8333-333333333333";
     expect(parseClientMessage(JSON.stringify({ t: "party.invite", playerId: id }))).toEqual({

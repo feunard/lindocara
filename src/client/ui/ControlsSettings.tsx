@@ -61,6 +61,7 @@ const CONTROL_GROUPS: readonly ControlGroup[] = [
     label: "settings.controls.group.shortcuts",
     controls: [
       { id: "map", label: "settings.controls.map" },
+      { id: "talents", label: "settings.controls.talents" },
       { id: "chat", label: "settings.controls.chat" },
       { id: "settings", label: "settings.controls.settings" },
     ],

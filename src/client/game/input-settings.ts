@@ -12,6 +12,7 @@ export const CONTROL_IDS = [
   "potion",
   "release",
   "map",
+  "talents",
   "chat",
   "settings",
 ] as const;
@@ -55,6 +56,7 @@ export const DEFAULT_INPUT_SETTINGS: InputSettings = {
     potion: [{ code: "KeyQ" }],
     release: [{ code: "KeyR" }],
     map: [{ code: "KeyC" }],
+    talents: [{ code: "KeyH" }],
     chat: [{ code: "Enter" }],
     settings: [{ code: "Escape" }],
   },
@@ -84,6 +86,7 @@ export const DEFAULT_INPUT_SETTINGS: InputSettings = {
     potion: [{ kind: "button", index: 6 }],
     release: [{ kind: "button", index: 10 }],
     map: [{ kind: "button", index: 8 }],
+    talents: [{ kind: "button", index: 5 }],
     chat: [{ kind: "button", index: 11 }],
     settings: [{ kind: "button", index: 9 }],
   },

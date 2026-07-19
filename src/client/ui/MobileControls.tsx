@@ -41,9 +41,11 @@ export function MobileControls() {
   const self = useUiStore((state) => state.self);
   const mapOpen = useUiStore((state) => state.mapOpen);
   const settingsOpen = useUiStore((state) => state.settingsOpen);
+  const talentsOpen = useUiStore((state) => state.talentsOpen);
   const chatFocusRequest = useUiStore((state) => state.chatFocusRequest);
   const setMapOpen = useUiStore((state) => state.setMapOpen);
   const setSettingsOpen = useUiStore((state) => state.setSettingsOpen);
+  const setTalentsOpen = useUiStore((state) => state.setTalentsOpen);
   const requestChatFocus = useUiStore((state) => state.requestChatFocus);
   const activePointer = useRef<number | null>(null);
   const [thumb, setThumb] = useState({ x: 0, y: 0 });
@@ -57,11 +59,11 @@ export function MobileControls() {
   );
 
   useEffect(() => {
-    if (!mapOpen && !settingsOpen && chatFocusRequest === 0) return;
+    if (!mapOpen && !settingsOpen && !talentsOpen && chatFocusRequest === 0) return;
     activePointer.current = null;
     setThumb({ x: 0, y: 0 });
     game?.setMovement?.({ ...NO_INPUT });
-  }, [chatFocusRequest, game, mapOpen, settingsOpen]);
+  }, [chatFocusRequest, game, mapOpen, settingsOpen, talentsOpen]);
 
   if (!game || !self) return null;
   const drinkPotion = game.usePotion;
@@ -132,6 +134,19 @@ export function MobileControls() {
           aria-label={t("mobile.map")}
         >
           <span aria-hidden="true">&#10021;</span>
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            openOverlay(() => {
+              setMapOpen(false);
+              setSettingsOpen(false);
+              setTalentsOpen(!talentsOpen);
+            })
+          }
+          aria-label={t("mobile.talents")}
+        >
+          <span aria-hidden="true">✦</span>
         </button>
         <button
           type="button"

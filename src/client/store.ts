@@ -78,6 +78,8 @@ export interface GameHandle {
   release(): void;
   castSkill(slot: SkillSlot): void;
   releaseSkill?(slot: SkillSlot): void;
+  unlockTalent?(nodeId: string): void;
+  resetTalents?(): void;
   /** Virtual controls feed the same intent stream as the keyboard; never an authoritative position. */
   setMovement?(input: Input): void;
   sendChat(text: string, channel?: "local" | "party"): void;
@@ -130,6 +132,7 @@ interface UiState {
   interiorDoorId: string | null;
   settingsOpen: boolean;
   mapOpen: boolean;
+  talentsOpen: boolean;
   /** The current zone's i18n key, carried by the welcome message. Null until the first
    *  welcome arrives; refreshed on every zone transition so the world map titles itself
    *  correctly after walking through a portal. */
@@ -164,6 +167,7 @@ interface UiState {
   setInteriorDoorId(id: string | null): void;
   setSettingsOpen(open: boolean): void;
   setMapOpen(open: boolean): void;
+  setTalentsOpen(open: boolean): void;
   setZoneNameKey(key: MessageKey): void;
   setWorldSize(size: { width: number; height: number } | null): void;
   setReconnect(reconnect: ReconnectState | null): void;
@@ -254,6 +258,7 @@ export const useUiStore = create<UiState>((set) => ({
   interiorDoorId: null,
   settingsOpen: false,
   mapOpen: false,
+  talentsOpen: false,
   zoneNameKey: null,
   worldSize: null,
   reconnect: null,
@@ -335,6 +340,7 @@ export const useUiStore = create<UiState>((set) => ({
   setInteriorDoorId: (id) => set({ interiorDoorId: id }),
   setSettingsOpen: (open) => set({ settingsOpen: open }),
   setMapOpen: (open) => set({ mapOpen: open }),
+  setTalentsOpen: (open) => set({ talentsOpen: open }),
   setZoneNameKey: (zoneNameKey) => set({ zoneNameKey }),
   setWorldSize: (worldSize) => set({ worldSize }),
   setReconnect: (reconnect) => set({ reconnect }),
@@ -346,6 +352,7 @@ export const useUiStore = create<UiState>((set) => ({
       reconnect: null,
       screen: "characters",
       mapOpen: false,
+      talentsOpen: false,
       settingsOpen: false,
       interiorDoorId: null,
       adventureVictory: false,
@@ -357,6 +364,7 @@ export const useUiStore = create<UiState>((set) => ({
       reconnect: null,
       screen: "party",
       mapOpen: false,
+      talentsOpen: false,
       settingsOpen: false,
       interiorDoorId: null,
       adventureVictory: false,
