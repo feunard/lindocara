@@ -24,6 +24,7 @@ import {
   isSelfSwitch,
   type MapEvent,
   type MapEventPage,
+  type SelfSwitch,
 } from "./map-events.js";
 
 /**
@@ -203,6 +204,41 @@ export function parsePartyAdventureState(value: unknown): PartyAdventureState | 
   return { switches, variables, selfSwitches };
 }
 
+/**
+ * The three condition PRIMITIVES, shared verbatim by page selection (below) and the tranche-5
+ * command interpreter (`event-interpreter.ts`'s `if`). They are extracted here — not copied — for
+ * the same reason `step()` lives once in `shared/`: page selection and the interpreter MUST agree
+ * on what a condition sees, and two hand-synchronised copies of "is this switch on" is exactly how
+ * they silently drift. Each encodes the unknown-id default `activePageIndex` documents: an unknown
+ * switch reads `false`, an unknown/untouched variable reads `0` (so `min 0` holds vacuously).
+ */
+export function switchIsOn(state: PartyAdventureState, switchId: string): boolean {
+  return state.switches[switchId] === true;
+}
+
+export function variableAtLeast(
+  state: PartyAdventureState,
+  variableId: string,
+  min: number,
+): boolean {
+  return (state.variables[variableId] ?? 0) >= min;
+}
+
+/** The self-switch storage key: `${eventId}:${letter}`. The interpreter mints the same key when it
+ *  emits a `setSelfSwitch` mutation, so a page reading letter "A" and a command setting it land on
+ *  one entry. Split on the LAST colon everywhere (a uuid never contains one) — see `isSelfSwitchKey`. */
+export function selfSwitchKey(eventId: string, letter: SelfSwitch): string {
+  return `${eventId}:${letter}`;
+}
+
+export function selfSwitchIsOn(
+  state: PartyAdventureState,
+  eventId: string,
+  letter: SelfSwitch,
+): boolean {
+  return state.selfSwitches[selfSwitchKey(eventId, letter)] === true;
+}
+
 /** One page's conditions, ALL of them — a page with none set holds vacuously (Decision 3's
  *  "no conditions" case), so an event whose only page is bare is always on. An unset condition
  *  contributes nothing to the AND; it is not evaluated at all. */
@@ -211,15 +247,15 @@ function pageConditionsHold(
   eventId: string,
   state: PartyAdventureState,
 ): boolean {
-  if (page.condSwitchId !== null && state.switches[page.condSwitchId] !== true) return false;
-  if (page.condVariableId !== null) {
-    const min = page.condVariableMin ?? 0;
-    const actual = state.variables[page.condVariableId] ?? 0;
-    if (actual < min) return false;
+  if (page.condSwitchId !== null && !switchIsOn(state, page.condSwitchId)) return false;
+  if (
+    page.condVariableId !== null &&
+    !variableAtLeast(state, page.condVariableId, page.condVariableMin ?? 0)
+  ) {
+    return false;
   }
-  if (page.condSelfSwitch !== null) {
-    const key = `${eventId}:${page.condSelfSwitch}`;
-    if (state.selfSwitches[key] !== true) return false;
+  if (page.condSelfSwitch !== null && !selfSwitchIsOn(state, eventId, page.condSelfSwitch)) {
+    return false;
   }
   return true;
 }
