@@ -82,6 +82,8 @@ function mapsBackend(maps: MapSummary[] = twoMaps) {
 
 /** Holds the two dialog-open props the screen owns so the panel can drive them in isolation. */
 function Harness(overrides: {
+  activeMapId?: string | null;
+  dirty?: boolean;
   onOpenPayload?: (payload: MapPayload) => void;
   onSessionExpired?: () => void;
 }) {
@@ -89,7 +91,8 @@ function Harness(overrides: {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   return (
     <MapListPanel
-      activeMapId={null}
+      activeMapId={overrides.activeMapId ?? null}
+      dirty={overrides.dirty ?? false}
       refreshNonce={0}
       newMapOpen={newMapOpen}
       onNewMapOpenChange={setNewMapOpen}
@@ -141,6 +144,31 @@ describe("MapListPanel", () => {
     await waitFor(() =>
       expect(screen.queryByRole("button", { name: "Frostfen" })).not.toBeInTheDocument(),
     );
+  });
+
+  it("guards unsaved stage edits when renaming the open map: cancel makes no refetch or remount", async () => {
+    const mock = mapsBackend();
+    vi.stubGlobal("fetch", mock);
+    const onOpenPayload = vi.fn();
+    render(<Harness activeMapId="m1" dirty onOpenPayload={onOpenPayload} />);
+    await screen.findByRole("button", { name: "Verdant Reach" });
+
+    await userEvent.click(
+      screen.getByRole("button", { name: `${t("editor.shell.maps.rename")} Verdant Reach` }),
+    );
+    await userEvent.type(screen.getByLabelText(t("editor.name")), " Renamed");
+
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    await userEvent.click(screen.getByRole("button", { name: t("editor.save") }));
+
+    expect(confirm).toHaveBeenCalledWith(t("editor.shell.exit.confirm"));
+    // Cancelled: the open map was neither refetched (remount) nor written.
+    expect(mock).not.toHaveBeenCalledWith(
+      "/api/maps/m1",
+      expect.objectContaining({ method: "PUT" }),
+    );
+    expect(onOpenPayload).not.toHaveBeenCalled();
+    confirm.mockRestore();
   });
 
   it("redirects to the auth screen when the session has expired", async () => {

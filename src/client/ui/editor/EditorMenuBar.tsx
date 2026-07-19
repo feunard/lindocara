@@ -16,6 +16,7 @@ interface EditorMenuBarProps {
   canUndo: boolean;
   canRedo: boolean;
   showGrid: boolean;
+  showDim: boolean;
   onExit(): void;
   onNewMap(): void;
   onSave(): void;
@@ -26,6 +27,7 @@ interface EditorMenuBarProps {
   onSelectLayer(layer: 0 | 1 | 2): void;
   onSelectTool(tool: EditorPaintTool): void;
   onToggleGrid(): void;
+  onToggleDim(): void;
   onSetZoom(zoom: number): void;
   onTest(): void;
 }
@@ -33,15 +35,16 @@ interface EditorMenuBarProps {
 /**
  * The wireframe's 32px menu row: the adventure identity (doubling as the way back to the parties
  * home until the account menu lands) and the six menus. Items whose action does not exist this
- * tranche — Base de données…, Estomper les autres calques — render disabled, never hidden: the menu
- * structure is the contract. No account menu: the store carries no username/email to fill it, and
- * inventing that plumbing is out of scope.
+ * tranche — Base de données… — render disabled, never hidden: the menu structure is the contract.
+ * No account menu: the store carries no username/email to fill it, and inventing that plumbing is
+ * out of scope.
  */
 export function EditorMenuBar({
   adventureName,
   canUndo,
   canRedo,
   showGrid,
+  showDim,
   onExit,
   onNewMap,
   onSave,
@@ -52,6 +55,7 @@ export function EditorMenuBar({
   onSelectLayer,
   onSelectTool,
   onToggleGrid,
+  onToggleDim,
   onSetZoom,
   onTest,
 }: EditorMenuBarProps) {
@@ -147,7 +151,10 @@ export function EditorMenuBar({
             <MenubarItem onClick={onToggleGrid}>
               {showGrid ? t("editor.shell.grid.hide") : t("editor.shell.grid.show")}
             </MenubarItem>
-            <MenubarItem disabled>{t("editor.shell.dimOtherLayers")}</MenubarItem>
+            <MenubarItem onClick={onToggleDim}>
+              {showDim ? "✓ " : ""}
+              {t("editor.shell.dimOtherLayers")}
+            </MenubarItem>
             <MenubarSeparator />
             <MenubarItem onClick={() => onSetZoom(100)}>
               {t("editor.shell.zoomTo", { value: 100 })}

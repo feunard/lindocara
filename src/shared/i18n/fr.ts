@@ -598,6 +598,11 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.shell.terrain.elevation1": "Élévation 1",
   "editor.shell.terrain.elevation2": "Élévation 2",
   "editor.shell.terrain.elevation3": "Élévation 3",
+  "editor.shell.terrain.elevationLabel": "Élévation de l'herbe",
+  "editor.shell.terrain.level": "Herbe élévation niveau {level}",
+  "editor.shell.decor.heading": "Décorations",
+  "editor.shell.fill.water_disabled":
+    "Le remplissage ne peut pas peindre l'eau — choisissez un autre outil pour l'eau.",
   "editor.shell.tool.stairs": "Escalier",
   "editor.shell.stage.loading": "Chargement de la carte…",
   "editor.shell.stage.error": "La carte n'a pas pu être chargée.",

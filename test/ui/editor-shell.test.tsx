@@ -19,6 +19,7 @@ const stageMock = vi.hoisted(() => ({
   openMapEditorStage: vi.fn(),
   setTool: vi.fn(),
   setActiveLayer: vi.fn(),
+  setDim: vi.fn(),
   current: vi.fn(),
   setName: vi.fn(),
   undo: vi.fn(),
@@ -41,6 +42,7 @@ function stageHandle() {
   return {
     setTool: stageMock.setTool,
     setActiveLayer: stageMock.setActiveLayer,
+    setDim: stageMock.setDim,
     current: stageMock.current,
     setName: stageMock.setName,
     undo: stageMock.undo,
@@ -410,7 +412,11 @@ describe("AdventureEditorScreen shell", () => {
 
     await userEvent.keyboard("{Escape}");
     await waitFor(() =>
-      expect(stageMock.openMapEditorStage).toHaveBeenLastCalledWith(edited, expect.any(Function)),
+      expect(stageMock.openMapEditorStage).toHaveBeenLastCalledWith(
+        edited,
+        expect.any(Function),
+        expect.any(Function),
+      ),
     );
   });
 
@@ -464,6 +470,56 @@ describe("AdventureEditorScreen shell", () => {
       ),
     );
     await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(2));
+  });
+
+  it("composes the toolbar tool with the palette's elevation, terrain and stairs selections", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    await mountReady();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: t("editor.shell.terrain.level", { level: 2 }) }),
+    );
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "elevation", level: 2 });
+
+    await userEvent.click(screen.getByRole("button", { name: t("editor.tool.grass") }));
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "block", block: "grass" });
+
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.tool.stairs") }));
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "stairs" });
+  });
+
+  it("gates the fill+water dead combination: the water swatch is disabled while fill is active", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    await mountReady();
+
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.tool.fill") }));
+    const water = screen.getByRole("button", { name: t("editor.tool.water") });
+    expect(water).toBeDisabled();
+
+    // A disabled swatch dispatches nothing, so no fill+water tool ever reaches the stage.
+    const before = stageMock.setTool.mock.calls.length;
+    await userEvent.click(water);
+    expect(stageMock.setTool.mock.calls).toHaveLength(before);
+    expect(stageMock.setTool).not.toHaveBeenCalledWith({
+      kind: "fill",
+      content: { kind: "block", block: "water" },
+    });
+  });
+
+  it("reports the hovered cell to the status bar and clears it to (—, —) on leave", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    await mountReady();
+    const cursorCb = stageMock.openMapEditorStage.mock.calls[0]?.[2];
+
+    act(() => cursorCb?.(3, 5));
+    expect(
+      screen.getByText(t("editor.shell.status.cursor", { cursor: "(3, 5)" })),
+    ).toBeInTheDocument();
+
+    act(() => cursorCb?.(null, null));
+    expect(
+      screen.getByText(t("editor.shell.status.cursor", { cursor: "(—, —)" })),
+    ).toBeInTheDocument();
   });
 
   it("searches the catalogue palette and selects a visible variant directly", async () => {

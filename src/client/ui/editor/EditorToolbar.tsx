@@ -49,6 +49,7 @@ interface EditorToolbarProps {
   activeTool: EditorPaintTool | null;
   activeLayer: 0 | 1 | 2;
   showGrid: boolean;
+  showDim: boolean;
   zoom: number;
   canSave: boolean;
   onNewMap(): void;
@@ -57,6 +58,7 @@ interface EditorToolbarProps {
   onSelectTool(tool: EditorPaintTool): void;
   onSelectLayer(layer: 0 | 1 | 2): void;
   onToggleGrid(): void;
+  onToggleDim(): void;
   onCycleZoom(): void;
   onTest(): void;
 }
@@ -67,6 +69,7 @@ export function EditorToolbar({
   activeTool,
   activeLayer,
   showGrid,
+  showDim,
   zoom,
   canSave,
   onNewMap,
@@ -75,6 +78,7 @@ export function EditorToolbar({
   onSelectTool,
   onSelectLayer,
   onToggleGrid,
+  onToggleDim,
   onCycleZoom,
   onTest,
 }: EditorToolbarProps) {
@@ -148,7 +152,13 @@ export function EditorToolbar({
       >
         <Grid3x3 />
       </Button>
-      <Button variant="ghost" size="icon" aria-label={t("editor.shell.dimOtherLayers")} disabled>
+      <Button
+        variant={showDim ? "secondary" : "ghost"}
+        size="icon"
+        aria-label={t("editor.shell.dimOtherLayers")}
+        aria-pressed={showDim}
+        onClick={onToggleDim}
+      >
         <Layers />
       </Button>
       <Button

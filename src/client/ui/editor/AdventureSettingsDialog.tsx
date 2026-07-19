@@ -19,6 +19,7 @@ import {
   type AdventureSummary,
   authErrorText,
   createAdventureApi,
+  deleteAdventureApi,
   errorCode,
   fetchAdventure,
   fetchAdventures,
@@ -31,7 +32,13 @@ import { solidMaskFromMapPayload } from "../../game/editor-state.js";
 import { t, useLocale } from "../../i18n.js";
 import { useUiStore } from "../../store.js";
 import { Button } from "../components/button.js";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/dialog.js";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../components/dialog.js";
 import { Input } from "../components/input.js";
 import { Label } from "../components/label.js";
 
@@ -125,6 +132,7 @@ export function AdventureSettingsDialog({
   const [maps, setMaps] = useState<MapSummary[]>([]);
   const [addingMapId, setAddingMapId] = useState("");
   const [saving, setSaving] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function fail(caught: unknown): void {
@@ -194,6 +202,24 @@ export function AdventureSettingsDialog({
     }
   }
 
+  // Delete the adventure currently open in the editor session. Confirm-gated in the UI, wired to the
+  // account-scoped delete endpoint, and clears the session on success so the dialog falls back to the
+  // adventure picker — the server refuses the delete if a party still references the adventure.
+  async function remove(): Promise<void> {
+    if (!session?.adventureId) return;
+    setError(null);
+    try {
+      await deleteAdventureApi(session.adventureId);
+      setConfirmingDelete(false);
+      setSession(null);
+      onSaved();
+      setAdventures(await fetchAdventures());
+    } catch (caught) {
+      setConfirmingDelete(false);
+      fail(caught);
+    }
+  }
+
   async function save(): Promise<void> {
     if (!session || saving) return;
     const input = toAdventureInput(session.draft);
@@ -236,10 +262,12 @@ export function AdventureSettingsDialog({
             maps={maps}
             addingMapId={addingMapId}
             saving={saving}
+            canDelete={session.adventureId !== null}
             onAddingMapIdChange={setAddingMapId}
             onUpdate={updateDraft}
             onAddMap={() => void addMap()}
             onSave={() => void save()}
+            onDelete={() => setConfirmingDelete(true)}
             onBack={() => setSession(null)}
           />
         ) : (
@@ -249,6 +277,24 @@ export function AdventureSettingsDialog({
             onNew={createNew}
           />
         )}
+
+        <Dialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {t("adventure.delete.title", { name: session?.draft.title ?? "" })}
+              </DialogTitle>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setConfirmingDelete(false)}>
+                {t("editor.delete.cancel")}
+              </Button>
+              <Button variant="destructive" onClick={() => void remove()}>
+                {t("editor.delete.confirm")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
   );
@@ -302,20 +348,24 @@ function EditForm({
   maps,
   addingMapId,
   saving,
+  canDelete,
   onAddingMapIdChange,
   onUpdate,
   onAddMap,
   onSave,
+  onDelete,
   onBack,
 }: {
   draft: AdventureDraft;
   maps: MapSummary[];
   addingMapId: string;
   saving: boolean;
+  canDelete: boolean;
   onAddingMapIdChange(id: string): void;
   onUpdate(draft: AdventureDraft | null): void;
   onAddMap(): void;
   onSave(): void;
+  onDelete(): void;
   onBack(): void;
 }) {
   useLocale();
@@ -521,13 +571,20 @@ function EditForm({
         <p className="text-sm text-muted-foreground">{t("adventure.incomplete")}</p>
       )}
 
-      <div className="flex justify-between gap-2">
+      <div className="flex items-center justify-between gap-2">
         <Button variant="outline" onClick={onBack}>
           {t("editor.back")}
         </Button>
-        <Button disabled={!draftComplete(draft) || saving} onClick={onSave}>
-          {t("editor.save")}
-        </Button>
+        <div className="flex gap-2">
+          {canDelete && (
+            <Button variant="destructive" onClick={onDelete}>
+              {t("editor.delete")}
+            </Button>
+          )}
+          <Button disabled={!draftComplete(draft) || saving} onClick={onSave}>
+            {t("editor.save")}
+          </Button>
+        </div>
       </div>
     </div>
   );

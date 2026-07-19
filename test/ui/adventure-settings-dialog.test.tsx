@@ -79,6 +79,11 @@ function backend() {
       const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
       return Promise.resolve(jsonResponse({ ...body, id: one[1], accountId: "acct", version: 2 }));
     }
+    if (one?.[1] && method === "DELETE") {
+      const index = adventures.findIndex((a) => a.id === one[1]);
+      if (index >= 0) adventures.splice(index, 1);
+      return Promise.resolve(new Response(null, { status: 204 }));
+    }
     return Promise.resolve(jsonResponse({ error: "not_found" }, 404));
   });
 }
@@ -153,6 +158,40 @@ describe("AdventureSettingsDialog", () => {
       expect(body.title).toBe("Renamed");
       expect(body.maxPlayers).toBe(3);
     });
+  });
+
+  it("deletes the edited adventure behind a confirm and clears the editing session", async () => {
+    const complete: AdventureDraft = {
+      title: "Donjon",
+      maxPlayers: 4,
+      members: [member("m1", "Verdant", "door", "east")],
+      start: { mapId: "m1", entryId: "door" },
+      bindings: [{ mapId: "m1", exitId: "east", dest: "end" }],
+    };
+    seedSession(complete, "adv-1");
+    const mock = backend();
+    vi.stubGlobal("fetch", mock);
+    render(
+      <AdventureSettingsDialog open onOpenChange={noop} onSaved={noop} onSessionExpired={noop} />,
+    );
+
+    // Delete is confirm-gated: the first click only raises the confirm, it does not call the endpoint.
+    await userEvent.click(await screen.findByRole("button", { name: t("editor.delete") }));
+    expect(await screen.findByText(t("adventure.delete.title", { name: "Donjon" }))).toBeVisible();
+    expect(
+      mock.mock.calls.find(([, init]) => (init as RequestInit)?.method === "DELETE"),
+    ).toBeUndefined();
+
+    await userEvent.click(screen.getByRole("button", { name: t("editor.delete.confirm") }));
+
+    await waitFor(() =>
+      expect(mock).toHaveBeenCalledWith(
+        "/api/adventures/adv-1",
+        expect.objectContaining({ method: "DELETE" }),
+      ),
+    );
+    // The deleted adventure's editing session is torn down, so the dialog falls back to the picker.
+    await waitFor(() => expect(useUiStore.getState().adventureEditorSession).toBeNull());
   });
 
   it("renders the validation message for a graph with an unbound exit", async () => {

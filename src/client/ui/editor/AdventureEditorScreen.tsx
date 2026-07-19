@@ -33,26 +33,21 @@ import { Button } from "../components/button.js";
 import { Input } from "../components/input.js";
 import { Label } from "../components/label.js";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../components/resizable.js";
-import { EditorAssetPalette } from "../EditorAssetPalette.js";
 import { AdventureSettingsDialog } from "./AdventureSettingsDialog.js";
 import { EditorMenuBar } from "./EditorMenuBar.js";
 import { EditorStatusBar } from "./EditorStatusBar.js";
 import { type EditorPaintTool, EditorToolbar, toolLabelText } from "./EditorToolbar.js";
 import { MapListPanel } from "./MapListPanel.js";
+import { type MarkerToolKey, TerrainPalette } from "./TerrainPalette.js";
 
 /** The default terrain a fresh stroke paints with until the Task 9 terrain palette lands: flat grass,
  *  matching the stage's own default tool so what the toolbar shows and what the stage paints agree. */
 const DEFAULT_CONTENT: RectFillContent = { kind: "block", block: "grass" };
 
 type StageStatus = "loading" | "ready" | "error";
-/** A marker-authoring tool key: hero spawn move and the entry/exit/monster-spawn placements the old
- *  MapEditor exposed, restored onto the merged shell's palette. */
-type MarkerToolKey = "spawn" | "entry" | "exit" | "monster";
 /** The active tool key. `stairs`, scenery and the marker tools have no *paint*-toolbar button — they
  *  are picked in the palette — so the paint toolbar highlights only for its five paint tools. */
 type ToolKey = EditorPaintTool | "stairs" | MarkerToolKey;
-
-const MARKER_TOOL_KEYS: MarkerToolKey[] = ["spawn", "entry", "exit", "monster"];
 
 function isPaintToolKey(key: ToolKey | null): key is EditorPaintTool {
   return (
@@ -136,6 +131,9 @@ export function AdventureEditorScreen() {
   // effect started running. Without this, clicking a layer during the open window is silently
   // overwritten by the stale initial layer once the stage resolves.
   const pendingLayerRef = useRef<0 | 1 | 2>(0);
+  // Mirrors `dim` for the same reason `pendingLayerRef` mirrors the active layer: a dim toggled while
+  // the stage is still opening must be installed by the resolving `.then`, not lost.
+  const pendingDimRef = useRef(false);
   // The live edits captured when Tester is pressed, carried across the preview round-trip so the
   // stage reopens from them rather than the pristine payload.
   const editedRef = useRef<EditorMap | null>(null);
@@ -147,6 +145,8 @@ export function AdventureEditorScreen() {
   const [selectedAsset, setSelectedAsset] = useState<EditorAssetId | null>(null);
   const [activeLayer, setActiveLayer] = useState<0 | 1 | 2>(0);
   const [showGrid, setShowGrid] = useState(true);
+  const [showDim, setShowDim] = useState(false);
+  const [cursor, setCursor] = useState<{ col: number; row: number } | null>(null);
   const [zoom, setZoom] = useState(100);
   const [elementCount, setElementCount] = useState(0);
   const [dirty, setDirty] = useState(false);
@@ -204,14 +204,18 @@ export function AdventureEditorScreen() {
     if (previewing || !map) return;
     let cancelled = false;
     setStageStatus("loading");
-    openMapEditorStage(editedRef.current ?? toEditorMap(map), (changed, state) => {
-      setError(null);
-      setElementCount(changed.elements.length);
-      setDirty(state.dirty);
-      setCanUndo(state.canUndo);
-      setCanRedo(state.canRedo);
-      setSelection(state.selection);
-    })
+    openMapEditorStage(
+      editedRef.current ?? toEditorMap(map),
+      (changed, state) => {
+        setError(null);
+        setElementCount(changed.elements.length);
+        setDirty(state.dirty);
+        setCanUndo(state.canUndo);
+        setCanRedo(state.canRedo);
+        setSelection(state.selection);
+      },
+      (col, row) => setCursor(col === null || row === null ? null : { col, row }),
+    )
       .then((handle) => {
         if (cancelled) {
           handle.dispose();
@@ -220,6 +224,7 @@ export function AdventureEditorScreen() {
         handleRef.current = handle;
         handle.setTool(pendingToolRef.current);
         handle.setActiveLayer(pendingLayerRef.current);
+        handle.setDim(pendingDimRef.current);
         setStageStatus("ready");
       })
       .catch((caught) => {
@@ -295,7 +300,15 @@ export function AdventureEditorScreen() {
   function selectTool(key: EditorPaintTool | "stairs"): void {
     setToolKey(key);
     setSelectedAsset(null);
-    pushTool(paintToolFor(key, content));
+    // Fill has no water primitive, so entering fill with water selected would be a dead brush. The
+    // palette disables the water swatch while fill is active; this closes the reverse by falling the
+    // content back to grass when fill is picked over a water selection.
+    const next: RectFillContent =
+      key === "fill" && content.kind === "block" && content.block === "water"
+        ? { kind: "block", block: "grass" }
+        : content;
+    if (next !== content) setContent(next);
+    pushTool(paintToolFor(key, next));
   }
 
   function selectMarkerTool(key: MarkerToolKey): void {
@@ -325,6 +338,15 @@ export function AdventureEditorScreen() {
 
   function toggleGrid(): void {
     setShowGrid((current) => !current);
+  }
+
+  function toggleDim(): void {
+    setShowDim((current) => {
+      const next = !current;
+      pendingDimRef.current = next;
+      handleRef.current?.setDim(next);
+      return next;
+    });
   }
 
   function cycleZoom(): void {
@@ -413,6 +435,12 @@ export function AdventureEditorScreen() {
         ? toolLabelText(toolKey)
         : t(`editor.tool.${toolKey}`);
 
+  const activeMarker: MarkerToolKey | null =
+    toolKey === "spawn" || toolKey === "entry" || toolKey === "exit" || toolKey === "monster"
+      ? toolKey
+      : null;
+  const cursorText = cursor ? `(${cursor.col}, ${cursor.row})` : "(—, —)";
+
   // The live map the inspector reads its selected marker's fields off — the handle's current edits
   // while a stage is mounted, else whatever payload is loaded. Read in render so a new selection
   // reflects the latest positions.
@@ -439,6 +467,7 @@ export function AdventureEditorScreen() {
         canUndo={canUndo && stageStatus === "ready"}
         canRedo={canRedo && stageStatus === "ready"}
         showGrid={showGrid}
+        showDim={showDim}
         onExit={() => exit()}
         onNewMap={() => setNewMapOpen(true)}
         onSave={() => void save()}
@@ -449,6 +478,7 @@ export function AdventureEditorScreen() {
         onSelectLayer={selectLayer}
         onSelectTool={selectTool}
         onToggleGrid={toggleGrid}
+        onToggleDim={toggleDim}
         onSetZoom={setZoom}
         onTest={test}
       />
@@ -457,6 +487,7 @@ export function AdventureEditorScreen() {
         activeTool={isPaintToolKey(toolKey) ? toolKey : null}
         activeLayer={activeLayer}
         showGrid={showGrid}
+        showDim={showDim}
         zoom={zoom}
         canSave={stageStatus === "ready"}
         onNewMap={() => setNewMapOpen(true)}
@@ -465,107 +496,35 @@ export function AdventureEditorScreen() {
         onSelectTool={selectTool}
         onSelectLayer={selectLayer}
         onToggleGrid={toggleGrid}
+        onToggleDim={toggleDim}
         onCycleZoom={cycleZoom}
         onTest={test}
       />
 
       <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
         <ResizablePanel defaultSize="18" minSize="12" maxSize="30" className="min-h-0">
-          {/* Task 9 replaces this with the full terrain palette. Minimal stand-in: terrain + stairs
-              selection so pencil/rect/fill/stairs keep working through the merge. */}
-          <aside
-            className="flex h-full flex-col border-r border-zinc-200 bg-zinc-50"
-            aria-label={t("editor.shell.palette.aria")}
-          >
-            <div className="flex h-8 items-center border-b border-zinc-200 px-3 text-[11px] font-semibold tracking-wide text-zinc-500 uppercase">
-              {t("editor.shell.terrain.heading")}
-            </div>
-            <div className="flex flex-col gap-1 p-2">
-              <TerrainButton
-                label={t("editor.tool.grass")}
-                active={contentIs(content, "grass")}
-                onClick={() => pickContent({ kind: "block", block: "grass" })}
-              />
-              <TerrainButton
-                label={t("editor.tool.water")}
-                active={contentIs(content, "water")}
-                onClick={() => pickContent({ kind: "block", block: "water" })}
-              />
-              <TerrainButton
-                label={t("editor.shell.terrain.elevation1")}
-                active={contentIsLevel(content, 0)}
-                onClick={() => pickContent({ kind: "elevation", level: 0 })}
-              />
-              <TerrainButton
-                label={t("editor.shell.terrain.elevation2")}
-                active={contentIsLevel(content, 1)}
-                onClick={() => pickContent({ kind: "elevation", level: 1 })}
-              />
-              <TerrainButton
-                label={t("editor.shell.terrain.elevation3")}
-                active={contentIsLevel(content, 2)}
-                onClick={() => pickContent({ kind: "elevation", level: 2 })}
-              />
-              <TerrainButton
-                label={t("editor.shell.tool.stairs")}
-                active={toolKey === "stairs"}
-                onClick={() => selectTool("stairs")}
-              />
-            </div>
-
-            <div className="flex h-8 items-center border-y border-zinc-200 px-3 text-[11px] font-semibold tracking-wide text-zinc-500 uppercase">
-              {t("editor.shell.markers.heading")}
-            </div>
-            <div className="flex flex-col gap-1 p-2">
-              {MARKER_TOOL_KEYS.map((key) => (
-                <TerrainButton
-                  key={key}
-                  label={t(`editor.tool.${key}`)}
-                  active={toolKey === key}
-                  onClick={() => selectMarkerTool(key)}
-                />
-              ))}
-              {toolKey === "monster" && (
-                <div className="flex flex-col gap-1.5 rounded-md bg-zinc-100 p-2">
-                  <Label htmlFor="marker-species" className="text-[11px] text-zinc-500">
-                    {t("editor.markers.species")}
-                  </Label>
-                  <select
-                    id="marker-species"
-                    className="h-7 w-full rounded-md border border-input bg-white px-1.5 text-xs outline-none"
-                    value={markerSpecies}
-                    onChange={(event) =>
-                      setMarkerSpecies(event.currentTarget.value as MonsterSpecies)
-                    }
-                  >
-                    {(Object.keys(MONSTER_SPECIES_KIND) as MonsterSpecies[]).map((option) => (
-                      <option key={option} value={option}>
-                        {t(`monster.${option}`)}
-                      </option>
-                    ))}
-                  </select>
-                  <Label htmlFor="marker-radius" className="text-[11px] text-zinc-500">
-                    {t("editor.markers.radius")}
-                  </Label>
-                  <Input
-                    id="marker-radius"
-                    type="number"
-                    className="h-7 text-xs"
-                    min={MIN_PATROL_RADIUS}
-                    max={MAX_PATROL_RADIUS}
-                    value={markerRadius}
-                    onChange={(event) => setMarkerRadius(Number(event.currentTarget.value))}
-                  />
-                </div>
-              )}
-            </div>
-          </aside>
+          <TerrainPalette
+            content={content}
+            fillActive={toolKey === "fill"}
+            stairsActive={toolKey === "stairs"}
+            activeMarker={activeMarker}
+            selectedAsset={selectedAsset}
+            markerSpecies={markerSpecies}
+            markerRadius={markerRadius}
+            elementCount={elementCount}
+            onPickContent={pickContent}
+            onSelectStairs={() => selectTool("stairs")}
+            onSelectMarkerTool={selectMarkerTool}
+            onSelectAsset={selectAsset}
+            onMarkerSpeciesChange={setMarkerSpecies}
+            onMarkerRadiusChange={setMarkerRadius}
+          />
         </ResizablePanel>
         <ResizableHandle />
 
         <ResizablePanel defaultSize="64" className="min-h-0">
           {/* The stage draws on the sibling #stage canvas behind #root; this pane is its viewport.
-              The scenery palette floats over it, exactly as before, until Task 9 moves it left. */}
+              The decoration palette now lives in the left TerrainPalette, not floating over here. */}
           <section
             className="relative h-full min-h-0 overflow-hidden"
             aria-label={t("editor.shell.stage.aria")}
@@ -585,13 +544,6 @@ export function AdventureEditorScreen() {
                 {authErrorText(error)}
               </p>
             )}
-            <div className="pointer-events-auto absolute right-3 top-3 z-10 w-64">
-              <EditorAssetPalette
-                selected={selectedAsset}
-                elementCount={elementCount}
-                onSelect={selectAsset}
-              />
-            </div>
             {selection && currentMap && (
               <div className="pointer-events-auto absolute bottom-3 left-3 z-10 w-64">
                 <MarkerInspector
@@ -613,6 +565,7 @@ export function AdventureEditorScreen() {
         <ResizablePanel defaultSize="18" minSize="12" maxSize="30" className="min-h-0">
           <MapListPanel
             activeMapId={map?.id ?? null}
+            dirty={dirty}
             refreshNonce={mapsRefreshNonce}
             newMapOpen={newMapOpen}
             onNewMapOpenChange={setNewMapOpen}
@@ -639,44 +592,13 @@ export function AdventureEditorScreen() {
         mapName={map?.name ?? "—"}
         cols={map?.cols ?? 0}
         rows={map?.rows ?? 0}
-        cursor="(—, —)"
+        cursor={cursorText}
         saved={map !== null && !dirty && stageStatus === "ready"}
         activeLayer={activeLayer}
         toolLabel={toolLabel}
         zoom={zoom}
       />
     </div>
-  );
-}
-
-function contentIs(content: RectFillContent, block: "grass" | "water"): boolean {
-  return content.kind === "block" && content.block === block;
-}
-
-function contentIsLevel(content: RectFillContent, level: 0 | 1 | 2): boolean {
-  return content.kind === "elevation" && content.level === level;
-}
-
-function TerrainButton({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick(): void;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={`rounded-md px-2 py-1.5 text-left text-[12px] font-medium ${
-        active ? "bg-zinc-900 text-zinc-50" : "text-zinc-600 hover:bg-zinc-200/70"
-      }`}
-    >
-      {label}
-    </button>
   );
 }
 

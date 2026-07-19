@@ -43,6 +43,9 @@ interface MapListPanelProps {
   /** The map currently mounted in the stage, so the panel marks it and knows what "delete the open
    *  map" targets. */
   activeMapId: string | null;
+  /** Whether the open map has unsaved stage edits, so renaming it in place can guard them: rename
+   *  persists the *stored* payload and re-mounts, which would otherwise drop those edits silently. */
+  dirty: boolean;
   /** Bumped by the screen whenever a save/create lands, so the panel refetches names and dims. */
   refreshNonce: number;
   /** New-map dialog open state, lifted so the menu bar and toolbar can open it too. */
@@ -77,6 +80,7 @@ function isSessionError(code: string): boolean {
  */
 export function MapListPanel({
   activeMapId,
+  dirty,
   refreshNonce,
   newMapOpen,
   onNewMapOpenChange,
@@ -146,6 +150,11 @@ export function MapListPanel({
   async function rename(): Promise<void> {
     if (!renaming) return;
     const target = renaming;
+    // Renaming the open map re-mounts it from the stored payload, so unsaved stage edits would be
+    // lost — guard them the same way the screen's map-switch does.
+    if (target.id === activeMapId && dirty && !window.confirm(t("editor.shell.exit.confirm"))) {
+      return;
+    }
     onError("");
     try {
       const payload = await fetchMap(target.id);
