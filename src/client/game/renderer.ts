@@ -137,7 +137,7 @@ import {
 import {
   cameraAxisOffset,
   gameCameraScale,
-  LOCAL_PLAYER_RENDER_SCALE,
+  playerRenderScale,
   tileWindowForBounds,
   type WorldBounds,
 } from "./world-view.js";
@@ -889,6 +889,7 @@ export class Renderer {
   #mapAssetArt = new Map<EditorAssetId, EditorAssetArt>();
   #mapElementAnimations: Array<{ sprite: Sprite; frames: readonly Texture[] }> = [];
   #merchantContainer: Container | null = null;
+  #merchantAnimation: { sprite: Sprite; frames: readonly Texture[] } | null = null;
   /** Read from the shared catalogue, the same place `#tiles` comes from — not from the welcome.
    *  Swapped wholesale in `configureZone`, so a portal from the zone you left can never draw over
    *  the one you arrived in. */
@@ -1010,11 +1011,13 @@ export class Renderer {
     void this.#loadMapAssetArt(zoneId, revision, elements);
   }
 
-  configureMerchant(merchant: MerchantDefinition): void {
+  configureMerchant(merchant: MerchantDefinition | null): void {
     if (this.#merchantContainer) {
       this.#merchantContainer.destroy({ children: true });
       this.#merchantContainer = null;
     }
+    this.#merchantAnimation = null;
+    if (!merchant) return;
     const container = new Container();
     container.position.set(merchant.x + PLAYER_SIZE / 2, merchant.y + PLAYER_SIZE);
     container.zIndex = merchant.y + PLAYER_SIZE;
@@ -1040,7 +1043,9 @@ export class Renderer {
     this.#localizedTexts.push({ node: label, compute: () => t("merchant.world_label") });
     this.#actors.addChild(container);
     this.#merchantContainer = container;
-    this.#mapElementAnimations.push({ sprite, frames: this.art.merchant });
+    // Kept separate from authored prop animations: their async asset refresh clears its own list,
+    // while an authored merchant must keep idling like every other living NPC.
+    this.#merchantAnimation = { sprite, frames: this.art.merchant };
   }
 
   /**
@@ -2619,10 +2624,13 @@ export class Renderer {
     const container = new Container();
     const actor = new Container();
     actor.pivot.set(18, 20);
+    const bodyScale = playerRenderScale(corpse.id, this.#selfId);
+    actor.scale.set(bodyScale);
 
     const frames = playerAnimations(corpse, this.art.units);
-    // Your body is the same sprite you were standing up in, so it is the same size. This one is
-    // anchored rather than offset — it lies rotated over its own grave — so only the size changes.
+    // Your body uses the same local-only scale as the hero who was standing here. Remote heroes
+    // remain full-size, matching their living renderer; the local corpse no longer jumps back to
+    // the atlas' 100% scale when the 70%-scale local avatar disappears.
     const body = new Sprite(frames.idle[0]);
     body.width = TINY_SWORDS_UNIT_FRAME;
     body.height = TINY_SWORDS_UNIT_FRAME;
@@ -3408,6 +3416,10 @@ export class Renderer {
       const frame = catalogElementFrameAt(now, animation.frames);
       if (frame) animation.sprite.texture = frame;
     }
+    if (this.#merchantAnimation) {
+      const frame = catalogElementFrameAt(now, this.#merchantAnimation.frames);
+      if (frame) this.#merchantAnimation.sprite.texture = frame;
+    }
     this.#healthBarMode = context.healthBars;
     this.#showGrid = context.grid;
     this.#followSelf(sample.players, now);
@@ -3473,7 +3485,7 @@ export class Renderer {
                 now,
               );
         const horizontalFacing = view.actionDirection?.x ?? player.facing.x;
-        const actorScale = player.id === this.#selfId ? LOCAL_PLAYER_RENDER_SCALE : 1;
+        const actorScale = playerRenderScale(player.id, this.#selfId);
         if (view.actor && Math.abs(horizontalFacing) > 0.01)
           view.actor.scale.x = (horizontalFacing < 0 ? -1 : 1) * actorScale;
         if (

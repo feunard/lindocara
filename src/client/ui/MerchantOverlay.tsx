@@ -4,6 +4,7 @@ import { firstConnectedGamepad } from "../game/input-settings.js";
 import { consumableIconSource } from "../game/tiny-swords-art.js";
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
+import { CurrencyAmount } from "./CurrencyAmount.js";
 import { TinyButton } from "./tiny-swords/TinyButton.js";
 
 export function MerchantOverlay() {
@@ -59,9 +60,17 @@ export function MerchantOverlay() {
           <span className="item-overlay__eyebrow">{t("merchant.eyebrow")}</span>
           <h2>{t("merchant.title")}</h2>
         </div>
-        <div className="merchant-wallet" title={t("merchant.wallet")}>
-          <span>● {selfState.inventory.gold}</span>
-          <span>◆ {selfState.inventory.crystals}</span>
+        <div className="currency-wallet" title={t("merchant.wallet")}>
+          <CurrencyAmount
+            currency="gold"
+            amount={selfState.inventory.gold}
+            label={t("item.gold")}
+          />
+          <CurrencyAmount
+            currency="crystals"
+            amount={selfState.inventory.crystals}
+            label={t("item.crystal")}
+          />
         </div>
         <TinyButton size="sm" variant="secondary" onClick={() => setOpen(false)}>
           {t("common.close")}
@@ -85,7 +94,12 @@ export function MerchantOverlay() {
                 disabled={!game?.buyItem || funds < definition.price}
                 onClick={() => game?.buyItem?.(item)}
               >
-                {definition.currency === "gold" ? "●" : "◆"} {definition.price}
+                <CurrencyAmount
+                  currency={definition.currency}
+                  amount={definition.price}
+                  label={t(definition.currency === "gold" ? "item.gold" : "item.crystal")}
+                  compact
+                />
               </TinyButton>
             </article>
           );

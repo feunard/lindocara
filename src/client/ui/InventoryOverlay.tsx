@@ -4,6 +4,7 @@ import { firstConnectedGamepad } from "../game/input-settings.js";
 import { consumableIconSource } from "../game/tiny-swords-art.js";
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
+import { CurrencyAmount } from "./CurrencyAmount.js";
 import { TinyButton } from "./tiny-swords/TinyButton.js";
 
 export function InventoryOverlay() {
@@ -75,6 +76,18 @@ export function InventoryOverlay() {
           <span className="item-overlay__eyebrow">{t("inventory.eyebrow")}</span>
           <h2>{t("inventory.title")}</h2>
         </div>
+        <fieldset className="currency-wallet" aria-label={t("merchant.wallet")}>
+          <CurrencyAmount
+            currency="gold"
+            amount={selfState?.inventory.gold ?? 0}
+            label={t("item.gold")}
+          />
+          <CurrencyAmount
+            currency="crystals"
+            amount={selfState?.inventory.crystals ?? 0}
+            label={t("item.crystal")}
+          />
+        </fieldset>
         <TinyButton size="sm" variant="secondary" onClick={() => setOpen(false)}>
           {t("common.close")}
         </TinyButton>

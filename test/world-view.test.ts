@@ -4,6 +4,7 @@ import {
   GAME_CAMERA_ZOOM,
   gameCameraScale,
   LOCAL_PLAYER_RENDER_SCALE,
+  playerRenderScale,
   tileWindowForBounds,
 } from "../src/client/game/world-view.js";
 import { TILE_SIZE } from "../src/shared/tilemap.js";
@@ -14,6 +15,8 @@ describe("multizone camera geometry", () => {
     expect(GAME_CAMERA_ZOOM).toBe(0.8);
     expect(gameCameraScale(1220, 700)).toBe(0.8);
     expect(gameCameraScale(2440, 1400)).toBe(1.6);
+    expect(playerRenderScale("hero", "hero")).toBe(LOCAL_PLAYER_RENDER_SCALE);
+    expect(playerRenderScale("party-member", "hero")).toBe(1);
   });
 
   it("centres a zone that is smaller than the viewport", () => {

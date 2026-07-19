@@ -73,7 +73,7 @@ import {
 } from "../shared/game.js";
 import { LOCAL_CHAT_RADIUS, SPATIAL_CELL_SIZE, SPATIAL_EVENT_RADIUS } from "../shared/interest.js";
 import { eventCellCentre, exitEvents } from "../shared/map-events.js";
-import { merchantForTerrain } from "../shared/merchant.js";
+import { merchantForRuntimeRoom } from "../shared/merchant.js";
 import {
   type ClientMessage,
   encodeServerMessage,
@@ -678,7 +678,7 @@ export class World extends DurableObject<Env> {
           x: portal.x,
           y: portal.y,
         })),
-        merchant: merchantForTerrain(location.definition.terrain),
+        merchant: merchantForRuntimeRoom(),
       },
       ...initialView,
       self: this.#selfState(player),
@@ -1795,8 +1795,8 @@ export class World extends DurableObject<Env> {
       await this.#transition(ws, player, portal, now);
       return;
     }
-    const merchant = merchantForTerrain(this.#zone().terrain);
-    if (pointDistance(player, merchant) <= INTERACTION_RANGE) {
+    const merchant = merchantForRuntimeRoom();
+    if (merchant && pointDistance(player, merchant) <= INTERACTION_RANGE) {
       this.#send(ws, { t: "merchant.open" });
       return;
     }
@@ -2302,8 +2302,8 @@ export class World extends DurableObject<Env> {
   }
 
   #buyConsumable(ws: WebSocket, player: Player, item: ConsumableId): void {
-    const merchant = merchantForTerrain(this.#zone().terrain);
-    if (pointDistance(player, merchant) > INTERACTION_RANGE) {
+    const merchant = merchantForRuntimeRoom();
+    if (!merchant || pointDistance(player, merchant) > INTERACTION_RANGE) {
       this.#send(ws, { t: "event", code: "item.invalid", params: { item }, tone: "bad" });
       return;
     }

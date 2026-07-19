@@ -1601,7 +1601,7 @@ kbd {
 .skill-bar.panel {
   position: fixed;
   z-index: 5;
-  right: calc(2rem + var(--safe-right));
+  right: calc(5rem + var(--safe-right));
   bottom: var(--skill-bar-bottom);
   left: auto;
   display: grid;
@@ -1792,11 +1792,39 @@ kbd {
   outline: 2px solid #8ed7c3;
   outline-offset: 1px;
 }
-.merchant-wallet {
+.currency-wallet {
   display: flex;
   gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
   color: #ffe071;
   white-space: nowrap;
+}
+
+.currency-amount {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  min-width: max-content;
+  font-variant-numeric: tabular-nums;
+}
+
+.currency-amount__icon.item-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 0;
+  background-color: transparent;
+}
+
+.currency-amount--compact {
+  gap: 0.18rem;
+}
+
+.currency-amount--compact .currency-amount__icon.item-icon {
+  width: 1.2rem;
+  height: 1.2rem;
 }
 
 @media (max-width: 700px) {
@@ -2111,7 +2139,7 @@ kbd {
   }
 
   .skill-bar.panel {
-    right: calc(0.55rem + var(--safe-right));
+    right: calc(1.25rem + var(--safe-right));
     bottom: calc(0.55rem + var(--safe-bottom));
     left: auto;
     width: auto;
