@@ -1,4 +1,4 @@
-import { MONSTER_SPECIES_KIND, type MonsterSpecies } from "../../../shared/game.js";
+import { CURATED_MONSTER_SPECIES, type MonsterSpecies } from "../../../shared/game.js";
 import {
   MAX_MAP_ELEMENTS,
   MAX_PATROL_RADIUS,
@@ -20,6 +20,10 @@ const ELEVATION_LEVELS: (0 | 1 | 2)[] = [0, 1, 2];
 interface TerrainPaletteProps {
   /** The active terrain content (grass / water / one elevation level), highlighted in the palette. */
   content: RectFillContent;
+  /** UX wave #11: whether a terrain paint tool (pencil/rect/fill) is the ONE active selection. The
+   *  terrain swatches read as pressed only when it is — otherwise a marker/decoration/event owns the
+   *  selection and no terrain swatch may also light up (no Herbe AND a marker at once). */
+  terrainActive: boolean;
   /** True while the fill tool is active: fill has no water primitive, so the water swatch is gated. */
   fillActive: boolean;
   /** True while the stairs stamp is the active tool. */
@@ -59,6 +63,7 @@ interface TerrainPaletteProps {
  */
 export function TerrainPalette({
   content,
+  terrainActive,
   fillActive,
   stairsActive,
   activeMarker,
@@ -78,8 +83,11 @@ export function TerrainPalette({
 }: TerrainPaletteProps) {
   useLocale();
 
-  const grassActive = content.kind === "block" && content.block === "grass";
-  const waterActive = content.kind === "block" && content.block === "water";
+  // Gated on `terrainActive` (UX wave #11): a terrain swatch is pressed only when a terrain tool is the
+  // one active selection, never merely because `content` still remembers a grass/water pick made
+  // before a marker or decoration was selected.
+  const grassActive = terrainActive && content.kind === "block" && content.block === "grass";
+  const waterActive = terrainActive && content.kind === "block" && content.block === "water";
 
   return (
     <aside
@@ -127,7 +135,8 @@ export function TerrainPalette({
             </span>
             <div className="flex gap-0.5 rounded-lg bg-zinc-100 p-0.5">
               {ELEVATION_LEVELS.map((level) => {
-                const active = content.kind === "elevation" && content.level === level;
+                const active =
+                  terrainActive && content.kind === "elevation" && content.level === level;
                 return (
                   <button
                     key={level}
@@ -177,7 +186,7 @@ export function TerrainPalette({
                     onMarkerSpeciesChange(event.currentTarget.value as MonsterSpecies)
                   }
                 >
-                  {(Object.keys(MONSTER_SPECIES_KIND) as MonsterSpecies[]).map((option) => (
+                  {CURATED_MONSTER_SPECIES.map((option) => (
                     <option key={option} value={option}>
                       {t(`monster.${option}`)}
                     </option>

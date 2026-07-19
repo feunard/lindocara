@@ -47,6 +47,7 @@ import {
   isEditorHistoryDirty,
   markEditorHistorySaved,
   moveSelection,
+  placementLegalAt,
   redoEditorHistory,
   selectionAt,
   setActiveLayer,
@@ -82,6 +83,9 @@ export interface MapEditorStageHandle {
    *  to `DIM_ALPHA`, so the author can see which layer a stroke lands on. Never touches the game
    *  renderer. React owns the toggle and pushes it down here. */
   setDim(dim: boolean): void;
+  /** UX wave #8: toggle the cell grid overlay. On by default so a fresh editor shows the grid; React
+   *  owns the displayed value and pushes it down here. */
+  setGrid(show: boolean): void;
   current(): EditorMap;
   setName(name: string): void;
   undo(): void;
@@ -158,6 +162,61 @@ export function shouldShowEventOverlay(tool: EditorTool): boolean {
 export function eventOverlayToggled(prev: EditorTool, next: EditorTool): boolean {
   return shouldShowEventOverlay(prev) !== shouldShowEventOverlay(next);
 }
+
+/** UX wave #9: the hover preview shows for placement tools, but never for select/pan — those tools
+ *  point at existing content rather than propose a placement, so a "can I place here?" outline would
+ *  be noise. Pure so the visibility gate pins without the stage, exactly like `shouldShowEventOverlay`. */
+export function shouldShowHoverPreview(tool: EditorTool): boolean {
+  return tool.kind !== "select" && tool.kind !== "pan";
+}
+
+const HOVER_OUTLINE_COLOR = 0xffffff;
+/** The "wider cell border" the user asked for: a 3px preview outline, versus the map's 1px grid. */
+const HOVER_OUTLINE_WIDTH = 3;
+const HOVER_ILLEGAL_COLOR = 0xd41f1f;
+
+/**
+ * Draws the UX wave #9 hover feedback for ONE cell into `container`: always a thick preview outline,
+ * plus an OPAQUE red cell fill UNDER that outline when `placementLegalAt` says the active tool cannot
+ * place here. Returns whether it drew the illegal fill, which is the render decision the stage test
+ * pins.
+ *
+ * Exported and kept Pixi-object-only like `paintEventCell`/`paintLandCell` — `Graphics` constructs
+ * without a live renderer — so the red-vs-clear decision can be pinned without the WebGL context the
+ * rest of the stage needs. Rendering only: it never mutates the map and nothing here runs in the game.
+ */
+export function paintHoverCell(
+  tool: EditorTool,
+  map: EditorMap,
+  col: number,
+  row: number,
+  activeLayer: 0 | 1 | 2,
+  container: Container,
+): { illegal: boolean } {
+  const x = col * TILE_SIZE;
+  const y = row * TILE_SIZE;
+  const illegal = !placementLegalAt(tool, map, col, row, activeLayer);
+  if (illegal) {
+    const fill = new Graphics();
+    fill.rect(x, y, TILE_SIZE, TILE_SIZE).fill({ color: HOVER_ILLEGAL_COLOR, alpha: 1 });
+    container.addChild(fill);
+  }
+  const outline = new Graphics();
+  const inset = HOVER_OUTLINE_WIDTH / 2;
+  outline
+    .rect(x + inset, y + inset, TILE_SIZE - HOVER_OUTLINE_WIDTH, TILE_SIZE - HOVER_OUTLINE_WIDTH)
+    .stroke({
+      width: HOVER_OUTLINE_WIDTH,
+      color: illegal ? HOVER_ILLEGAL_COLOR : HOVER_OUTLINE_COLOR,
+      alpha: 1,
+    });
+  container.addChild(outline);
+  return { illegal };
+}
+
+/** The 1px cell grid overlay (UX wave #8), one Graphics of lines for the whole map. Pure and
+ *  Pixi-object-only so it needs no live renderer; `gridLayer.visible` toggles it without a rebuild. */
+const GRID_COLOR = 0x0e1a12;
 
 const EVENT_BOX_COLOR = 0x27272a;
 const EVENT_PLACEHOLDER_COLOR = 0x7c3aed;
@@ -368,6 +427,7 @@ function inertHandle(map: EditorMap): MapEditorStageHandle {
     setTool() {},
     setActiveLayer() {},
     setDim() {},
+    setGrid() {},
     current: () => map,
     setName() {},
     undo() {},
@@ -481,11 +541,19 @@ async function buildSession(
   const objectElementLayer = new Container();
   const canopyElementLayer = new Container();
   const aboveLandLayer = new Container();
+  // The cell grid (UX wave #8), above the terrain/props so it reads over both land and sea, below the
+  // markers so a spawn/entry diamond still sits clearly on top. Built once (map size is fixed for a
+  // session) and toggled by `.visible`, not rebuilt per stroke.
+  const gridLayer = new Container();
+  let gridVisible = true;
   const markerLayer = new Container();
   // Events are the topmost plane, above markers and props, and only shown in "EV mode" (the event
   // tool). Its visibility is driven by `shouldShowEventOverlay(tool)`, never by content.
   const eventLayer = new Container();
   eventLayer.visible = shouldShowEventOverlay(tool);
+  // The hover preview overlay (UX wave #9) sits above everything, so its outline and opaque-red
+  // illegal fill read over any content. Managed on pointer move, never in `redraw()`.
+  const hoverLayer = new Container();
   world.addChild(
     waterLayer,
     foamLayer,
@@ -494,8 +562,10 @@ async function buildSession(
     objectElementLayer,
     canopyElementLayer,
     aboveLandLayer,
+    gridLayer,
     markerLayer,
     eventLayer,
+    hoverLayer,
   );
   app.stage.addChild(world);
 
@@ -679,6 +749,38 @@ async function buildSession(
     }
   }
 
+  /** The 1px cell grid across the whole map, built once and toggled by `gridLayer.visible`. */
+  function drawGrid(): void {
+    for (const child of gridLayer.removeChildren()) child.destroy();
+    const { cols, rows } = editorMapSize(map);
+    const grid = new Graphics();
+    for (let col = 0; col <= cols; col++) {
+      grid.moveTo(col * TILE_SIZE, 0).lineTo(col * TILE_SIZE, rows * TILE_SIZE);
+    }
+    for (let row = 0; row <= rows; row++) {
+      grid.moveTo(0, row * TILE_SIZE).lineTo(cols * TILE_SIZE, row * TILE_SIZE);
+    }
+    grid.stroke({ width: 1, color: GRID_COLOR, alpha: 0.35 });
+    gridLayer.addChild(grid);
+    gridLayer.visible = gridVisible;
+  }
+
+  // The cell the pointer is currently over, so the hover overlay redraws only when it changes cell (or
+  // when the tool/map under it changes), never per pixel. `NaN` is the off-canvas state.
+  let hoverCol = Number.NaN;
+  let hoverRow = Number.NaN;
+
+  /** Repaint the hover preview for the current cell/tool/map: cleared when off-canvas, out of bounds,
+   *  or the active tool has no placement to preview (select/pan). */
+  function drawHover(): void {
+    for (const child of hoverLayer.removeChildren()) child.destroy();
+    if (!shouldShowHoverPreview(tool)) return;
+    if (Number.isNaN(hoverCol) || Number.isNaN(hoverRow)) return;
+    const { cols, rows } = editorMapSize(map);
+    if (hoverCol < 0 || hoverRow < 0 || hoverCol >= cols || hoverRow >= rows) return;
+    paintHoverCell(tool, map, hoverCol, hoverRow, history.activeLayer, hoverLayer);
+  }
+
   // ── Pointer: paint, or pan the camera ─────────────────────────────────────────────────────────
   let painting = false;
   let panning = false;
@@ -745,6 +847,11 @@ async function buildSession(
     }
     redraw();
     notify();
+    // The terrain under the cursor just changed, so the hover legality may have too (e.g. a decoration
+    // that was legal on grass is now illegal over freshly-painted water).
+    hoverCol = col;
+    hoverRow = row;
+    drawHover();
   }
 
   function isPanTrigger(event: PointerEvent): boolean {
@@ -778,10 +885,20 @@ async function buildSession(
       clampCamera();
       return;
     }
+    if (hovered.col !== hoverCol || hovered.row !== hoverRow) {
+      hoverCol = hovered.col;
+      hoverRow = hovered.row;
+      drawHover();
+    }
     if (painting) paintAt(event.clientX, event.clientY, false);
   };
 
-  const onPointerLeave = (): void => reportCursor(null, null);
+  const onPointerLeave = (): void => {
+    reportCursor(null, null);
+    hoverCol = Number.NaN;
+    hoverRow = Number.NaN;
+    drawHover();
+  };
 
   const stopStroke = (): void => {
     if (strokeStart && strokeStart !== map) {
@@ -878,6 +995,7 @@ async function buildSession(
 
   fitCamera();
   redraw();
+  drawGrid();
 
   let destroyed = false;
   const destroy = (): void => {
@@ -941,6 +1059,9 @@ async function buildSession(
       // every tool swap rebuilt the whole map on each P/R/F/E/S keypress for nothing. Entering paints
       // the just-shown overlay's events (and selection); leaving is covered by the visibility flip.
       if (overlayFlipped) redraw();
+      // The hovered cell's legality/preview depends on the tool, so re-evaluate it for the new tool
+      // (and hide it entirely when switching to select/pan).
+      drawHover();
       canvas.dataset.cursor =
         tool.kind === "pan" ? "move" : tool.kind === "select" ? "select" : "paint";
     },
@@ -951,6 +1072,10 @@ async function buildSession(
     setDim(next) {
       dim = next;
       applyLayerDim(tileLayers, history.activeLayer, dim);
+    },
+    setGrid(next) {
+      gridVisible = next;
+      gridLayer.visible = next;
     },
     current() {
       return map;

@@ -1,15 +1,17 @@
 import { Container, Sprite, Text, Texture } from "pixi.js";
 import { describe, expect, it } from "vitest";
 import type { EditorAssetArt } from "../../src/client/game/editor-asset-art.js";
-import type { EditorTool } from "../../src/client/game/editor-state.js";
-import { defaultEventPage } from "../../src/client/game/editor-state.js";
+import type { EditorMap, EditorTool } from "../../src/client/game/editor-state.js";
+import { applyTool, blankMap, defaultEventPage } from "../../src/client/game/editor-state.js";
 import {
   applyLayerDim,
   eventChipLabel,
   eventOverlayToggled,
   paintEventCell,
+  paintHoverCell,
   paintLandCell,
   shouldShowEventOverlay,
+  shouldShowHoverPreview,
 } from "../../src/client/game/map-editor-stage.js";
 import type { MapEvent } from "../../src/shared/map-events.js";
 import type { TileLayer } from "../../src/shared/tile-layer-codec.js";
@@ -261,5 +263,50 @@ describe("eventOverlayToggled", () => {
   it("is true exactly when the overlay's visibility flips", () => {
     expect(eventOverlayToggled({ kind: "select" }, { kind: "event" })).toBe(true);
     expect(eventOverlayToggled({ kind: "event" }, { kind: "block", block: "grass" })).toBe(true);
+  });
+});
+
+/**
+ * `paintHoverCell` is the UX wave #9 hover overlay's per-cell render decision, exported and kept
+ * Pixi-object-only (Container/Graphics need no renderer) so the red-vs-clear choice pins without the
+ * WebGL context `openMapEditorStage` cannot get in this suite — exactly like `paintLandCell`.
+ */
+describe("shouldShowHoverPreview", () => {
+  it("shows for placement tools, hides for select and pan", () => {
+    expect(shouldShowHoverPreview({ kind: "block", block: "grass" })).toBe(true);
+    expect(
+      shouldShowHoverPreview({
+        kind: "element",
+        assetId: "resource.terrain-resources-wood-trees.tree3",
+      }),
+    ).toBe(true);
+    expect(shouldShowHoverPreview({ kind: "marker-entry" })).toBe(true);
+    expect(shouldShowHoverPreview({ kind: "select" })).toBe(false);
+    expect(shouldShowHoverPreview({ kind: "pan" })).toBe(false);
+  });
+});
+
+describe("paintHoverCell", () => {
+  const TREE = "resource.terrain-resources-wood-trees.tree3";
+  const TREE_TOOL: EditorTool = { kind: "element", assetId: TREE };
+
+  function waterAt(map: EditorMap, col: number, row: number): EditorMap {
+    return applyTool(map, { kind: "block", block: "water" }, col, row) as EditorMap;
+  }
+
+  it("draws only the preview outline on a legal cell (no red fill)", () => {
+    const container = new Container();
+    const decision = paintHoverCell(TREE_TOOL, blankMap("m", 20, 15), 3, 4, 0, container);
+    expect(decision.illegal).toBe(false);
+    expect(container.children).toHaveLength(1);
+  });
+
+  it("draws an opaque red fill UNDER the outline on an illegal cell", () => {
+    const map = waterAt(blankMap("m", 20, 15), 3, 4);
+    const container = new Container();
+    const decision = paintHoverCell(TREE_TOOL, map, 3, 4, 0, container);
+    expect(decision.illegal).toBe(true);
+    // Fill first, outline on top: two children, the red fill drawn beneath the border.
+    expect(container.children).toHaveLength(2);
   });
 });

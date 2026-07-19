@@ -604,6 +604,8 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.shell.maps.create": "Créer la carte",
   "editor.shell.maps.start": "Définir comme carte de départ",
   "editor.shell.maps.start.active": "Carte de départ",
+  "editor.shell.maps.start.noEntry":
+    "Ajoutez un marqueur d'entrée sur cette carte pour en faire la carte de départ",
   "editor.picker.title": "Aventures",
   "editor.picker.subtitle": "Choisissez une aventure à éditer, ou créez-en une nouvelle.",
   "editor.picker.empty": "Aucune aventure pour l'instant. Créez la première ci-dessous.",

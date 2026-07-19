@@ -167,4 +167,35 @@ export function editorAsset(value: string): EditorAssetDefinition | null {
   return EDITOR_ASSET_BY_ID.get(value) ?? null;
 }
 
+/**
+ * UX wave #13: the rigorously-tested subset of the catalogue an author may PLACE from the editor
+ * palette — exactly one bush, one tree, and the two functional wood bridges (load-bearing water
+ * crossings, the only assets carrying `terrainOverride: "walkable"`). The tree and bush chosen are the
+ * ones the test/fixture harnesses already exercise most. Every other catalogue asset is hidden from
+ * the palette until it, too, is tested rigorously.
+ *
+ * This gates AUTHORING only, never RENDERING: `editorAsset` / `EDITOR_ASSET_BY_ID` still resolve every
+ * definition, so a stored map that already references a non-curated asset (older content, fixtures)
+ * keeps drawing exactly as before. Narrowing what the palette OFFERS must never narrow what the
+ * renderer can SHOW.
+ */
+export const CURATED_EDITOR_ASSET_IDS = [
+  "resource.terrain-resources-wood-trees.tree3",
+  "decoration.terrain-decorations-bushes.bushe1",
+  "terrain.bridge.wood.horizontal",
+  "terrain.bridge.wood.vertical",
+] as const;
+
+const CURATED_EDITOR_ASSET_ID_SET: ReadonlySet<string> = new Set(CURATED_EDITOR_ASSET_IDS);
+
+/** The curated allowlist as full definitions, in catalogue order — the palette decor grid's source. */
+export const CURATED_EDITOR_ASSETS: readonly EditorAssetDefinition[] = EDITOR_ASSETS.filter(
+  (asset) => CURATED_EDITOR_ASSET_ID_SET.has(asset.id),
+);
+
+/** Whether an asset id is on the curated authoring allowlist (rendering is never gated by this). */
+export function isCuratedEditorAssetId(value: unknown): value is EditorAssetId {
+  return typeof value === "string" && CURATED_EDITOR_ASSET_ID_SET.has(value);
+}
+
 export const TINY_SWORDS_UI = GENERATED_TINY_SWORDS_UI_ASSETS;

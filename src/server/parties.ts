@@ -93,9 +93,6 @@ export async function createParty(
   // A draft adventure (no start authored) has nowhere for heroes to spawn. Refuse the party at
   // creation with a DISTINCT code rather than letting hero creation later fail as a misleading
   // "hero not found" — the fault is the adventure, not the hero.
-  // A draft adventure (no start authored) has nowhere for heroes to spawn. Refuse the party at
-  // creation with a DISTINCT code rather than letting hero creation later fail as a misleading
-  // "hero not found" — the fault is the adventure, not the hero.
   if (!adv.graph.start) throw new Error("not_playable: adventure has no start");
   const id = crypto.randomUUID();
   const row = {

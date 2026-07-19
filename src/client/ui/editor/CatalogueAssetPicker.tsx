@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import {
-  EDITOR_ASSETS,
+  CURATED_EDITOR_ASSETS,
   type EditorAssetDefinition,
   type EditorAssetId,
 } from "../../../shared/tiny-swords-catalog.js";
@@ -43,7 +43,10 @@ export function CatalogueAssetPicker({
 
   const groups = useMemo(() => {
     const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    const filtered = EDITOR_ASSETS.filter((asset) => {
+    // UX wave #13: the palette only OFFERS the curated allowlist (one bush, one tree, the wood
+    // bridges). This gates authoring, not rendering — a stored map that references any other asset
+    // still draws, because the renderer resolves every catalogue definition, not just these.
+    const filtered = CURATED_EDITOR_ASSETS.filter((asset) => {
       const haystack =
         `${asset.id} ${asset.role} ${asset.category} ${asset.tags.join(" ")}`.toLowerCase();
       return terms.every((term) => haystack.includes(term));

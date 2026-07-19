@@ -2,12 +2,13 @@ import {
   type FocusEvent as ReactFocusEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
 import type { AdventureInput } from "../../../shared/adventure.js";
 import { type AdventureRegistry, EMPTY_REGISTRY } from "../../../shared/adventure-state.js";
-import { MONSTER_SPECIES_KIND, type MonsterSpecies } from "../../../shared/game.js";
+import { CURATED_MONSTER_SPECIES, type MonsterSpecies } from "../../../shared/game.js";
 import {
   EMPTY_MARKERS,
   MARKER_LABEL_MAX,
@@ -171,6 +172,19 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   const registry: AdventureRegistry = useUiStore(
     (state) => state.adventureEditorSession?.draft.registry ?? EMPTY_REGISTRY,
   );
+  // The maps that can be made the start (UX wave #6 review fix): a map is a valid start only if it has
+  // an entry to point the graph at. The Cartes panel disables the start star on the rest, so the user
+  // gets a hint instead of the misleading `adventure_maps` error the star used to raise.
+  const draftMembers = useUiStore((state) => state.adventureEditorSession?.draft.members);
+  const startableMapIds = useMemo(
+    () =>
+      new Set(
+        (draftMembers ?? [])
+          .filter((member) => member.entryIds.length > 0)
+          .map((member) => member.mapId),
+      ),
+    [draftMembers],
+  );
 
   const handleRef = useRef<MapEditorStageHandle | null>(null);
   const pendingToolRef = useRef<EditorTool>(paintToolFor("pencil", DEFAULT_CONTENT));
@@ -182,6 +196,9 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   // Mirrors `dim` for the same reason `pendingLayerRef` mirrors the active layer: a dim toggled while
   // the stage is still opening must be installed by the resolving `.then`, not lost.
   const pendingDimRef = useRef(false);
+  // Mirrors `showGrid` (UX wave #8), so the grid-visible state a resolving stage installs is the one
+  // in effect — on by default — even if the toggle was pressed while the stage was opening.
+  const pendingGridRef = useRef(true);
   // The live edits captured when Tester is pressed, carried across the preview round-trip so the
   // stage reopens from them rather than the pristine payload.
   const editedRef = useRef<EditorMap | null>(null);
@@ -288,6 +305,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         handle.setTool(pendingToolRef.current);
         handle.setActiveLayer(pendingLayerRef.current);
         handle.setDim(pendingDimRef.current);
+        handle.setGrid(pendingGridRef.current);
         setStageStatus("ready");
       })
       .catch((caught) => {
@@ -410,11 +428,19 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     if (toolKey === "event") pushTool({ kind: "event", graphic: assetId });
   }
 
+  // UX wave #11: exactly one selection. Picking a terrain content is a terrain-tool selection, so if a
+  // marker/decoration/event tool is active it is deselected and the pencil takes over — never Herbe
+  // AND a marker highlighted at once. When a paint shape (pencil/rect/fill) is already active the
+  // content just re-feeds it, keeping that shape.
   function pickContent(next: RectFillContent): void {
     setContent(next);
     if (toolKey === "pencil" || toolKey === "rect" || toolKey === "fill") {
       pushTool(paintToolFor(toolKey, next));
+      return;
     }
+    setToolKey("pencil");
+    setSelectedAsset(null);
+    pushTool(paintToolFor("pencil", next));
   }
 
   function selectLayer(layer: 0 | 1 | 2): void {
@@ -424,7 +450,12 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   }
 
   function toggleGrid(): void {
-    setShowGrid((current) => !current);
+    setShowGrid((current) => {
+      const next = !current;
+      pendingGridRef.current = next;
+      handleRef.current?.setGrid(next);
+      return next;
+    });
   }
 
   function toggleDim(): void {
@@ -788,6 +819,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         >
           <TerrainPalette
             content={content}
+            terrainActive={toolKey === "pencil" || toolKey === "rect" || toolKey === "fill"}
             fillActive={toolKey === "fill"}
             stairsActive={toolKey === "stairs"}
             activeMarker={activeMarker}
@@ -871,6 +903,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
             adventureId={adventureId}
             activeMapId={map?.id ?? null}
             startMapId={startMapId}
+            startableMapIds={startableMapIds}
             dirty={dirty}
             refreshNonce={mapsRefreshNonce}
             newMapOpen={newMapOpen}
@@ -1037,7 +1070,13 @@ function MarkerInspector({
               )
             }
           >
-            {(Object.keys(MONSTER_SPECIES_KIND) as MonsterSpecies[]).map((option) => (
+            {/* UX wave #13: authoring is narrowed to the curated species, but an existing marker of any
+                species must stay editable — so its own species is always an option even when hidden
+                from the placement tool. */}
+            {(CURATED_MONSTER_SPECIES.includes(selectedMonster.species)
+              ? CURATED_MONSTER_SPECIES
+              : [selectedMonster.species, ...CURATED_MONSTER_SPECIES]
+            ).map((option) => (
               <option key={option} value={option}>
                 {t(`monster.${option}`)}
               </option>

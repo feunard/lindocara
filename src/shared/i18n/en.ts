@@ -588,6 +588,7 @@ export const en = {
   "editor.shell.maps.create": "Create map",
   "editor.shell.maps.start": "Set as starting map",
   "editor.shell.maps.start.active": "Starting map",
+  "editor.shell.maps.start.noEntry": "Add an entry marker to this map to use it as the start",
   "editor.picker.title": "Adventures",
   "editor.picker.subtitle": "Pick an adventure to edit, or create a new one.",
   "editor.picker.empty": "No adventures yet. Create your first one below.",

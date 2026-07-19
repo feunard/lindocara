@@ -12,7 +12,7 @@ import { EMPTY_MARKERS } from "../../src/shared/map-data.js";
 import { layersFromBlocks } from "../../src/shared/map-migrate.js";
 import { encodeTileLayer } from "../../src/shared/tile-layer-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "../../src/shared/tilesets/tiny-swords.js";
-import { EDITOR_ASSETS } from "../../src/shared/tiny-swords-catalog.js";
+import { CURATED_EDITOR_ASSETS } from "../../src/shared/tiny-swords-catalog.js";
 
 // The painting stage is Pixi on a real canvas — untestable in jsdom. A fake handle stands in so the
 // tests exercise the shell's own behaviour: which EditorTool it pushes, that the layer selector
@@ -22,6 +22,7 @@ const stageMock = vi.hoisted(() => ({
   setTool: vi.fn(),
   setActiveLayer: vi.fn(),
   setDim: vi.fn(),
+  setGrid: vi.fn(),
   current: vi.fn(),
   setName: vi.fn(),
   undo: vi.fn(),
@@ -48,6 +49,7 @@ function stageHandle() {
     setTool: stageMock.setTool,
     setActiveLayer: stageMock.setActiveLayer,
     setDim: stageMock.setDim,
+    setGrid: stageMock.setGrid,
     current: stageMock.current,
     setName: stageMock.setName,
     undo: stageMock.undo,
@@ -228,6 +230,52 @@ describe("AdventureEditorScreen shell", () => {
     expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "eraser" });
   });
 
+  it("mounts the shell under the light-only editor scope (UX wave #1)", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    const { container } = await mountReady();
+    // The whole shell hangs off `.editor-root`, the hook legacy.css scopes color-scheme:light and the
+    // light shadcn tokens to (the token resolution itself is css:false here — verified visually in the
+    // real-browser campaign). If the hook class is ever renamed/dropped, the light scope silently
+    // stops applying, so pin it.
+    const root = container.querySelector(".editor-root");
+    expect(root).not.toBeNull();
+    expect(root).toHaveClass("editor-root");
+  });
+
+  it("opens the stage grid-on by default (UX wave #8)", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    await mountReady();
+    // The stage is told to show the grid the moment it is wired…
+    await waitFor(() => expect(stageMock.setGrid).toHaveBeenCalledWith(true));
+    // …and the toolbar's grid toggle reflects it as pressed.
+    expect(screen.getByRole("button", { name: t("editor.shell.grid.aria") })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("keeps selection exclusive: a terrain pick clears a marker tool and vice versa (UX wave #11)", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    await mountReady();
+    const grass = () => screen.getByRole("button", { name: t("editor.tool.grass") });
+    const entry = () => screen.getByRole("button", { name: t("editor.tool.entry") });
+
+    // Default selection is pencil+grass, so the grass swatch is the ONE active selection.
+    expect(grass()).toHaveAttribute("aria-pressed", "true");
+
+    // Picking the entry marker tool deselects the terrain — never Herbe AND a marker at once.
+    await userEvent.click(entry());
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "marker-entry" });
+    expect(entry()).toHaveAttribute("aria-pressed", "true");
+    expect(grass()).toHaveAttribute("aria-pressed", "false");
+
+    // Picking grass back deselects the marker and re-arms the pencil, so exactly one is pressed again.
+    await userEvent.click(grass());
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "block", block: "grass" });
+    expect(grass()).toHaveAttribute("aria-pressed", "true");
+    expect(entry()).toHaveAttribute("aria-pressed", "false");
+  });
+
   it("the EV slot activates the event tool, pushing the overlay onto the stage handle", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady();
@@ -347,14 +395,14 @@ describe("AdventureEditorScreen shell", () => {
     await userEvent.click(screen.getByRole("button", { name: t("editor.shell.events") }));
     const palette = screen.getByRole("complementary", { name: t("editor.shell.palette.aria") });
 
-    // An asset whose last id segment is unique across the catalogue, so its grid card is found by
-    // that text alone — this test is about the picker→tool wiring, not the palette's search.
+    // An asset whose last id segment is unique across the CURATED palette (UX wave #13 hides the rest),
+    // so its grid card is found by that text alone — this test is about the picker→tool wiring.
     const shortCounts = new Map<string, number>();
-    for (const candidate of EDITOR_ASSETS) {
+    for (const candidate of CURATED_EDITOR_ASSETS) {
       const segment = candidate.id.split(".").at(-1) ?? candidate.id;
       shortCounts.set(segment, (shortCounts.get(segment) ?? 0) + 1);
     }
-    const asset = EDITOR_ASSETS.find(
+    const asset = CURATED_EDITOR_ASSETS.find(
       (candidate) => shortCounts.get(candidate.id.split(".").at(-1) ?? candidate.id) === 1,
     );
     if (!asset) throw new Error("no uniquely-named catalogue asset");
@@ -616,9 +664,18 @@ describe("AdventureEditorScreen shell", () => {
       patrolRadius: 96,
     });
 
-    await userEvent.selectOptions(screen.getByLabelText(t("editor.markers.species")), "mire_troll");
+    // Only one species is curated now (UX wave #13), so the species select offers just it. Exercise
+    // the same re-push path through the patrol radius: changing it re-pushes the monster tool with the
+    // new radius (and the curated species) onto the stage.
+    fireEvent.change(screen.getByLabelText(t("editor.markers.radius")), {
+      target: { value: "128" },
+    });
     expect(stageMock.setTool).toHaveBeenLastCalledWith(
-      expect.objectContaining({ kind: "marker-monster", species: "mire_troll" }),
+      expect.objectContaining({
+        kind: "marker-monster",
+        species: "spear_goblin",
+        patrolRadius: 128,
+      }),
     );
   });
 

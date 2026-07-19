@@ -40,6 +40,10 @@ interface MapListPanelProps {
   /** The adventure's starting map (UX wave #6), so the panel fills that row's start affordance. Null
    *  for a draft with no start authored. */
   startMapId: string | null;
+  /** The maps that CAN be the start — those with at least one entry for the graph to point at. The
+   *  start star is disabled (with a hint) on every other map, so an entry-less map gives feedback
+   *  instead of the misleading `adventure_maps` error the star used to raise. */
+  startableMapIds: ReadonlySet<string>;
   /** Whether the open map has unsaved stage edits, so renaming it in place can guard them: rename
    *  persists the *stored* payload and re-mounts, which would otherwise drop those edits silently. */
   dirty: boolean;
@@ -81,6 +85,7 @@ export function MapListPanel({
   adventureId,
   activeMapId,
   startMapId,
+  startableMapIds,
   dirty,
   refreshNonce,
   newMapOpen,
@@ -198,68 +203,72 @@ export function MapListPanel({
       </div>
 
       <div className="flex flex-1 flex-col gap-1 overflow-auto p-2">
-        {maps.map((map) => (
-          <div
-            key={map.id}
-            className={`group flex items-center gap-1 rounded-md border px-2 py-1.5 ${
-              map.id === activeMapId
-                ? "border-zinc-400 bg-white"
-                : "border-transparent hover:bg-zinc-200/60"
-            }`}
-          >
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label={
-                map.id === startMapId
-                  ? t("editor.shell.maps.start.active")
-                  : t("editor.shell.maps.start")
-              }
-              aria-pressed={map.id === startMapId}
-              className={
-                map.id === startMapId ? "text-amber-500" : "text-zinc-300 hover:text-zinc-500"
-              }
-              onClick={() => onSetStart(map.id)}
+        {maps.map((map) => {
+          const isStart = map.id === startMapId;
+          // A map with no entry cannot be the start (the graph start binds an entry). Disable the star
+          // there with a hint, rather than raising the misleading `adventure_maps` error on click.
+          const canStart = isStart || startableMapIds.has(map.id);
+          return (
+            <div
+              key={map.id}
+              className={`group flex items-center gap-1 rounded-md border px-2 py-1.5 ${
+                map.id === activeMapId
+                  ? "border-zinc-400 bg-white"
+                  : "border-transparent hover:bg-zinc-200/60"
+              }`}
             >
-              <Star fill={map.id === startMapId ? "currentColor" : "none"} />
-            </Button>
-            <button
-              type="button"
-              className="flex min-w-0 flex-1 flex-col items-start text-left"
-              aria-label={map.name || t("editor.new")}
-              aria-current={map.id === activeMapId}
-              onClick={() => onRequestOpen(map.id)}
-            >
-              <span className="w-full truncate text-[12.5px] font-medium text-zinc-800">
-                {map.name || t("editor.new")}
-              </span>
-              <span className="rounded bg-zinc-200/80 px-1 text-[10px] tabular-nums text-zinc-500">
-                {t("editor.shell.maps.dims", { cols: map.cols, rows: map.rows })}
-              </span>
-            </button>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label={`${t("editor.shell.maps.rename")} ${map.name}`}
-              className="opacity-0 group-hover:opacity-100"
-              onClick={() => {
-                setRenaming(map);
-                setRenameValue(map.name);
-              }}
-            >
-              <Pencil />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label={`${t("editor.delete")} ${map.name}`}
-              className="text-destructive opacity-0 group-hover:opacity-100"
-              onClick={() => onConfirmDeleteIdChange(map.id)}
-            >
-              <Trash2 />
-            </Button>
-          </div>
-        ))}
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                disabled={!canStart}
+                aria-label={
+                  isStart ? t("editor.shell.maps.start.active") : t("editor.shell.maps.start")
+                }
+                title={canStart ? undefined : t("editor.shell.maps.start.noEntry")}
+                aria-pressed={isStart}
+                className={isStart ? "text-amber-500" : "text-zinc-300 hover:text-zinc-500"}
+                onClick={() => onSetStart(map.id)}
+              >
+                <Star fill={isStart ? "currentColor" : "none"} />
+              </Button>
+              <button
+                type="button"
+                className="flex min-w-0 flex-1 flex-col items-start text-left"
+                aria-label={map.name || t("editor.new")}
+                aria-current={map.id === activeMapId}
+                onClick={() => onRequestOpen(map.id)}
+              >
+                <span className="w-full truncate text-[12.5px] font-medium text-zinc-800">
+                  {map.name || t("editor.new")}
+                </span>
+                <span className="rounded bg-zinc-200/80 px-1 text-[10px] tabular-nums text-zinc-500">
+                  {t("editor.shell.maps.dims", { cols: map.cols, rows: map.rows })}
+                </span>
+              </button>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label={`${t("editor.shell.maps.rename")} ${map.name}`}
+                className="opacity-0 group-hover:opacity-100"
+                onClick={() => {
+                  setRenaming(map);
+                  setRenameValue(map.name);
+                }}
+              >
+                <Pencil />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label={`${t("editor.delete")} ${map.name}`}
+                className="text-destructive opacity-0 group-hover:opacity-100"
+                onClick={() => onConfirmDeleteIdChange(map.id)}
+              >
+                <Trash2 />
+              </Button>
+            </div>
+          );
+        })}
       </div>
 
       <div className="border-t border-zinc-200 p-2">

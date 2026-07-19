@@ -77,6 +77,14 @@ export function isMonsterSpecies(value: unknown): value is MonsterSpecies {
   return typeof value === "string" && value in MONSTER_SPECIES_KIND;
 }
 
+/**
+ * UX wave #13: the one monster species the editor's monster tool offers. The engine still knows every
+ * species (authored maps and compiled zones spawn them all), so this narrows AUTHORING only — the
+ * most-tested species stays, the rest are hidden from the palette until they, too, are exercised
+ * rigorously. Existing markers of any species keep rendering and spawning.
+ */
+export const CURATED_MONSTER_SPECIES: readonly MonsterSpecies[] = ["spear_goblin"];
+
 export interface MonsterSpawn extends Vec2 {
   id: string;
   kind: MonsterKind;

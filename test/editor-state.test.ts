@@ -15,6 +15,7 @@ import {
   markEditorHistorySaved,
   mintMarkerId,
   moveSelection,
+  placementLegalAt,
   redoEditorHistory,
   selectionAt,
   setActiveLayer,
@@ -930,5 +931,53 @@ describe("event serialization", () => {
     const map = applyTool(blankMap("m", 20, 15), { kind: "event" }, 3, 4) as EditorMap;
     const id = map.events[0]?.id ?? "";
     expect(deleteSelection(map, { kind: "event", id }).events).toEqual([]);
+  });
+});
+
+describe("placementLegalAt (UX wave #9 hover legality)", () => {
+  const TREE_TOOL: EditorTool = { kind: "element", assetId: TREE };
+
+  /** Paint one water cell so the "on water" cases have real solid ground to reject. */
+  function withWaterAt(map: EditorMap, col: number, row: number): EditorMap {
+    return applyTool(map, { kind: "block", block: "water" }, col, row) as EditorMap;
+  }
+
+  it("legal: a decoration on grass", () => {
+    expect(placementLegalAt(TREE_TOOL, blankMap("m", 20, 15), 3, 4)).toBe(true);
+  });
+
+  it("illegal: a decoration on water", () => {
+    const map = withWaterAt(blankMap("m", 20, 15), 3, 4);
+    expect(placementLegalAt(TREE_TOOL, map, 3, 4)).toBe(false);
+  });
+
+  it("legal: an entry marker on grass, illegal on water", () => {
+    const map = withWaterAt(blankMap("m", 20, 15), 3, 4);
+    expect(placementLegalAt({ kind: "marker-entry" }, map, 5, 5)).toBe(true);
+    expect(placementLegalAt({ kind: "marker-entry" }, map, 3, 4)).toBe(false);
+  });
+
+  it("legal: the spawn on empty grass, illegal onto a decorated cell", () => {
+    let map = blankMap("m", 20, 15);
+    expect(placementLegalAt({ kind: "spawn" }, map, 6, 6)).toBe(true);
+    map = applyTool(map, TREE_TOOL, 6, 6) as EditorMap;
+    expect(placementLegalAt({ kind: "spawn" }, map, 6, 6)).toBe(false);
+  });
+
+  it("legal: an event on an empty cell, illegal on a cell that already holds an event", () => {
+    let map = blankMap("m", 20, 15);
+    expect(placementLegalAt({ kind: "event" }, map, 7, 7)).toBe(true);
+    map = applyTool(map, { kind: "event" }, 7, 7) as EditorMap;
+    expect(placementLegalAt({ kind: "event" }, map, 7, 7)).toBe(false);
+  });
+
+  it("legal: the select tool anywhere, even over water (nothing to refuse)", () => {
+    const map = withWaterAt(blankMap("m", 20, 15), 3, 4);
+    expect(placementLegalAt({ kind: "select" }, map, 3, 4)).toBe(true);
+  });
+
+  it("illegal: any placement out of bounds", () => {
+    expect(placementLegalAt(TREE_TOOL, blankMap("m", 20, 15), -1, 4)).toBe(false);
+    expect(placementLegalAt(TREE_TOOL, blankMap("m", 20, 15), 20, 4)).toBe(false);
   });
 });

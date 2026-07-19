@@ -1101,3 +1101,25 @@ export function applyTool(
       throw new Error(`unknown editor tool: ${JSON.stringify(tool)}`);
   }
 }
+
+/**
+ * UX wave #9: may `tool` legally place on cell (col,row) of `map` right now? The pure predicate the
+ * editor stage paints its hover feedback from — a thicker preview outline whenever a placement tool is
+ * active, plus an OPAQUE RED cell fill on top when the placement is illegal there.
+ *
+ * It DELEGATES to `applyTool` rather than re-deriving the placement rules, so the hover preview can
+ * never disagree with what a real click does: terrain fit (`canPlaceElement`), cell occupancy,
+ * one-event-per-cell, marker limits/validity and spawn coverage are all exactly the checks the click
+ * would run. `applyTool` returns `null` only when a placement is refused, so "legal" is precisely "not
+ * refused". Tools with no per-cell refusal (select/pan, a terrain no-op, the rect anchor) come back
+ * non-null and read as legal; an out-of-bounds cell is refused and reads as illegal.
+ */
+export function placementLegalAt(
+  tool: EditorTool,
+  map: EditorMap,
+  col: number,
+  row: number,
+  activeLayer: 0 | 1 | 2 = 0,
+): boolean {
+  return applyTool(map, tool, col, row, true, activeLayer) !== null;
+}

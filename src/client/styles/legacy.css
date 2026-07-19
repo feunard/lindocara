@@ -79,6 +79,47 @@ body::after {
   pointer-events: auto;
 }
 
+/* UX wave #1: the creator editor is light-only, even though index.html sets <html class="dark"> to
+   keep the game's own chrome dark. The editor shell — and every shadcn popup it opens (dialogs,
+   menubar menus, selects, tooltips), which portal to <body> OUTSIDE .editor-root — is built from stock
+   shadcn components that read the semantic tokens below; under html.dark those tokens resolve DARK.
+   Re-declaring the LIGHT token values (copied verbatim from the :root block in app.css) on the editor
+   tree and on exactly the portal slots the editor uses pins those surfaces light, and color-scheme:
+   light makes native controls/scrollbars match. This never touches the game's own look: the HUD is
+   tiny-swords components reading --tiny-* tokens (tokens.css), not these shadcn tokens, and these
+   portal slots are opened only by editor code. Keep these values in sync with app.css :root if the
+   light palette is ever regenerated — the UI test suite runs with css:false, so only the real-browser
+   campaign can catch a drift here. */
+.editor-root,
+[data-slot="dialog-content"],
+[data-slot="dialog-overlay"],
+[data-slot="menubar-content"],
+[data-slot="menubar-sub-content"],
+[data-slot="dropdown-menu-content"],
+[data-slot="dropdown-menu-sub-content"],
+[data-slot="select-content"],
+[data-slot="tooltip-content"] {
+  color-scheme: light;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+}
+
 .creator-list-item {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
