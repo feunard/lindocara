@@ -32,6 +32,26 @@ describe("authoritative combat visual cancellation", () => {
     expect(authority.acceptsAnimation("player-a", "action-b")).toBe(true);
   });
 
+  it("does not let a buffered stale null erase a newer animation event", () => {
+    const authority = new CombatVisualAuthority();
+    expect(authority.recordSnapshot("player-a", null)).toBe(true);
+    expect(authority.acceptsAnimation("player-a", "action-a")).toBe(true);
+
+    expect(authority.recordSnapshot("player-a", null)).toBe(false);
+    expect(authority.recordSnapshot("player-a", null)).toBe(false);
+    expect(authority.recordSnapshot("player-a", "action-a")).toBe(true);
+    expect(authority.recordSnapshot("player-a", null)).toBe(true);
+  });
+
+  it("does not let the previous snapshot action replace the next ordered animation", () => {
+    const authority = new CombatVisualAuthority();
+    authority.recordSnapshot("player-a", "action-a");
+    expect(authority.acceptsAnimation("player-a", "action-b")).toBe(true);
+
+    expect(authority.recordSnapshot("player-a", "action-a")).toBe(false);
+    expect(authority.recordSnapshot("player-a", "action-b")).toBe(true);
+  });
+
   it("keeps an explicitly cancelled action blocked after an authoritative null", () => {
     const authority = new CombatVisualAuthority();
     authority.recordSnapshot("monster-a", "action-a");

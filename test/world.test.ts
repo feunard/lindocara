@@ -1282,7 +1282,7 @@ describe("World", () => {
     expect(closed.code).toBe(1009);
   });
 
-  it("lets a priest heal themself and a struck ally with Mend while respecting cooldown", {
+  it("lets a priest heal a struck ally but not themself with Mend while respecting cooldown", {
     timeout: 15_000,
   }, async () => {
     // ~250px from the nearest SPAWN_POINTS grid cell — far enough that a straggler still
@@ -1307,22 +1307,24 @@ describe("World", () => {
 
     const healed = wounded.self();
     expect(healed?.hp).toBe(40 + 41); // healAmountFor(3)
-    expect(priest.self()?.hp).toBe(40 + 41);
+    expect(priest.self()?.hp).toBe(40);
 
     // Cooldown: an immediate second cast must not double-heal.
     priest.skill(2);
     priest.skill(2);
     await scheduler.wait(200);
     expect(wounded.self()?.hp).toBe(81);
-    expect(priest.self()?.hp).toBe(81);
+    expect(priest.self()?.hp).toBe(40);
 
     const cast = priest.received.find(
       (m) => m.t === "event" && m.code === "heal.cast" && m.params?.name === "wounded",
     );
     const received = wounded.received.find((m) => m.t === "event" && m.code === "heal.received");
-    expect(cast).toMatchObject({ params: { name: "wounded", amount: 41, color: "azure" } });
+    expect(cast).toMatchObject({
+      params: { name: "wounded", amount: 41, color: "azure", skill: "mend" },
+    });
     expect(received).toMatchObject({
-      params: { name: "mender", amount: 41, color: "azure" },
+      params: { name: "mender", amount: 41, color: "azure", skill: "mend" },
     });
 
     priest.close();
@@ -1381,7 +1383,9 @@ describe("World", () => {
     warrior.close();
   });
 
-  it("charges straight ahead with warrior shield bash", { timeout: 10_000 }, async () => {
+  it("aims warrior shield bash at the nearest visible enemy and charges", {
+    timeout: 10_000,
+  }, async () => {
     const warrior = await Client.join("charger", {
       position: { x: 2140, y: 820 },
       level: 5,
@@ -1408,6 +1412,26 @@ describe("World", () => {
       ),
     );
     expect(cast).toMatchObject({ tone: "good" });
+    const animation = await until("targeted charge animation", () =>
+      warrior.received.find(
+        (message) =>
+          message.t === "animation" &&
+          message.actorId === warrior.welcome?.selfId &&
+          message.skillId === "shield_bash",
+      ),
+    );
+    if (animation.t !== "animation") throw new Error("expected charge animation");
+    const targetLength = Math.hypot(
+      before.target.x - before.self.x,
+      before.target.y - before.self.y,
+    );
+    const targetDirection = {
+      x: (before.target.x - before.self.x) / targetLength,
+      y: (before.target.y - before.self.y) / targetLength,
+    };
+    expect(
+      animation.direction.x * targetDirection.x + animation.direction.y * targetDirection.y,
+    ).toBeGreaterThan(0.8);
     const moved = await until("charge position", () => {
       const self = warrior.self();
       if (!self) return undefined;

@@ -58,11 +58,13 @@ import { catalogElementFrameAt, createCatalogElementView } from "./catalog-eleme
 import { MAIN_HAND_ART, OFF_HAND_ART, PLAYER_ATLAS_FRAMES } from "./character-art.js";
 import {
   allCombatSheets,
+  type CombatSheetArt,
   combatActionFrameIndex,
   combatArt,
   monsterCombatArt,
   projectileArt,
 } from "./combat-art.js";
+import { type MobilityVisual, mobilityRenderOffset, mobilityVisual } from "./combat-motion.js";
 import { CombatVisualAuthority, clearVisualAction } from "./combat-visual-state.js";
 import { type HealthBarMode, shouldShowHealthBar } from "./display-settings.js";
 import { type EditorAssetArt, loadEditorAssetArts } from "./editor-asset-art.js";
@@ -268,6 +270,11 @@ interface EntityView<T extends { id: string }> {
   effectPlayedActionId?: string;
   guardVisualUntil?: number;
   createdAt?: number;
+  mobilityActionId?: string;
+  mobilityOffsetX?: number;
+  mobilityOffsetY?: number;
+  mobilityStartedAt?: number;
+  mobilityDurationMs?: number;
 }
 
 interface Effect {
@@ -279,6 +286,7 @@ interface Effect {
   sprite?: Sprite;
   frames?: readonly Texture[];
   scaleGrowth: number;
+  baseScale: number;
   actionId?: string;
 }
 
@@ -2507,9 +2515,16 @@ export class Renderer {
     const frames = this.art.combatFrames.get(art.source) ?? [Texture.EMPTY];
     const sprite = new Sprite(frames[0]);
     sprite.anchor.set(art.anchor.x, art.anchor.y);
+    sprite.tint = art.tint ?? 0xffffff;
+    sprite.scale.set(art.scale ?? 1);
     sprite.rotation =
       Math.atan2(projectile.direction.y, projectile.direction.x) + art.rotationOffset;
     const container = new Container();
+    const trail = art.trail ? new Graphics() : undefined;
+    if (trail && art.trail) {
+      this.#drawProjectileTrail(trail, projectile.direction, art.trail);
+      container.addChild(trail);
+    }
     container.addChild(sprite);
     container.position.set(projectile.x, projectile.y);
     container.zIndex = Math.round(projectile.y + PLAYER_SIZE / 2);
@@ -2518,9 +2533,29 @@ export class Renderer {
       container,
       data: projectile,
       unitSprite: sprite,
+      ...(trail ? { flash: trail } : {}),
       phase: phaseFor(projectile.id),
       createdAt: performance.now(),
     };
+  }
+
+  #drawProjectileTrail(
+    trail: Graphics,
+    direction: { x: number; y: number },
+    art: NonNullable<ReturnType<typeof projectileArt>["trail"]>,
+  ): void {
+    const endX = -direction.x * art.length;
+    const endY = -direction.y * art.length;
+    trail
+      .clear()
+      .moveTo(endX, endY)
+      .lineTo(0, 0)
+      .stroke({ width: art.width * 2.4, color: art.color, alpha: 0.16 })
+      .moveTo(endX, endY)
+      .lineTo(0, 0)
+      .stroke({ width: art.width, color: art.color, alpha: 0.82 })
+      .circle(0, 0, art.glowRadius)
+      .fill({ color: art.color, alpha: 0.18 });
   }
 
   #drawHp(view: EntityView<{ id: string }>, hp: number, maxHp: number): void {
@@ -2629,6 +2664,7 @@ export class Renderer {
       rise,
       baseY: container.y,
       scaleGrowth,
+      baseScale: container.scale.x,
     };
     if (sprite) effect.sprite = sprite;
     if (frames) effect.frames = frames;
@@ -2697,7 +2733,7 @@ export class Renderer {
     view: EntityView<T>,
     action: CombatActionSnapshot | null,
   ): void {
-    this.#combatVisualAuthority.recordSnapshot(view.data.id, action?.id ?? null);
+    if (!this.#combatVisualAuthority.recordSnapshot(view.data.id, action?.id ?? null)) return;
     if (!action) {
       this.#resetVisualAction(view);
       return;
@@ -2812,14 +2848,11 @@ export class Renderer {
       const effect = art.zone ?? mobilityImpact;
       if (effect) {
         const position = centerOf(player);
-        this.#playCombatSheet(
-          effect.source,
-          effect.durationMs,
-          effect.anchor,
-          position.x,
-          position.y,
-          view.actionId,
-        );
+        this.#playCombatSheet(effect, position.x, position.y, view.actionId);
+        if (skillId === "prayer") {
+          const radius = CLASS_SKILLS.priest.find((skill) => skill.id === "prayer")?.radius ?? 0;
+          this.#playRangeIndicator(position.x, position.y, radius, 0x8df0aa, view.actionId);
+        }
       }
       view.effectPlayedActionId = view.actionId;
     }
@@ -2868,21 +2901,51 @@ export class Renderer {
     this.#addPulse(position.x, position.y, COLORS.npc, 34, 220);
   }
 
-  #playCombatSheet(
-    source: string,
-    durationMs: number,
-    anchor: { x: number; y: number },
-    x: number,
-    y: number,
-    actionId?: string,
-  ): void {
-    const frames = this.art.combatFrames.get(source);
+  #playCombatSheet(art: CombatSheetArt, x: number, y: number, actionId?: string): void {
+    const frames = this.art.combatFrames.get(art.source);
     const first = frames?.[0];
     if (!frames || !first) return;
     const sprite = new Sprite(first);
-    sprite.anchor.set(anchor.x, anchor.y);
+    sprite.anchor.set(art.anchor.x, art.anchor.y);
+    sprite.tint = art.tint ?? 0xffffff;
+    sprite.scale.set(art.scale ?? 1);
     sprite.position.set(x, y);
-    this.#trackEffect(sprite, durationMs, 0, frames, 0, actionId);
+    this.#trackEffect(sprite, art.durationMs, 0, frames, 0, actionId);
+  }
+
+  #playRangeIndicator(
+    x: number,
+    y: number,
+    radius: number,
+    color: number,
+    actionId?: string,
+  ): void {
+    if (radius <= 0) return;
+    const ring = new Graphics()
+      .circle(0, 0, radius)
+      .stroke({ width: 3, color, alpha: 0.8 })
+      .circle(0, 0, Math.max(0, radius - 6))
+      .stroke({ width: 1, color, alpha: 0.35 });
+    ring.position.set(x, y);
+    this.#trackEffect(ring, 720, 0, undefined, 0, actionId);
+  }
+
+  #playMobilityTrail(
+    from: { x: number; y: number },
+    to: { x: number; y: number },
+    visual: MobilityVisual,
+    actionId?: string,
+  ): void {
+    const trail = new Graphics()
+      .moveTo(from.x, from.y)
+      .lineTo(to.x, to.y)
+      .stroke({ width: visual.width * 2.2, color: visual.color, alpha: 0.12 })
+      .moveTo(from.x, from.y)
+      .lineTo(to.x, to.y)
+      .stroke({ width: visual.width, color: visual.color, alpha: 0.46 });
+    this.#trackEffect(trail, visual.durationMs, 0, undefined, 0, actionId);
+    this.#addPulse(from.x, from.y, visual.color, visual.width, visual.durationMs);
+    this.#addPulse(to.x, to.y, visual.color, visual.width * 1.25, visual.durationMs + 80);
   }
 
   playCombatImpact(
@@ -2895,21 +2958,27 @@ export class Renderer {
     if (!player) return undefined;
     const art = combatArt(player.class, skillId, player.appearance.primaryColor).impact;
     if (!art) return player.class;
-    this.#playCombatSheet(art.source, art.durationMs, art.anchor, x + 16, y + 16);
+    this.#playCombatSheet(art, x + 16, y + 16);
     return player.class;
   }
 
   playMonsterImpact(species: MonsterSpecies, x?: number, y?: number): void {
     const position = this.#effectPosition(x, y);
     const art = monsterCombatArt(species).impact;
-    this.#playCombatSheet(art.source, art.durationMs, art.anchor, position.x + 16, position.y + 16);
+    this.#playCombatSheet(art, position.x + 16, position.y + 16);
   }
 
-  playHealingImpact(color: PrimaryColor, x?: number, y?: number): void {
+  playHealingImpact(
+    color: PrimaryColor,
+    skillId: "mend" | "prayer" | "divine_nova" = "mend",
+    x?: number,
+    y?: number,
+  ): void {
     const position = this.#effectPosition(x, y);
-    const art = combatArt("priest", "mend", color).impact;
+    const definition = combatArt("priest", skillId, color);
+    const art = definition.impact ?? definition.zone;
     if (!art) return;
-    this.#playCombatSheet(art.source, art.durationMs, art.anchor, position.x + 16, position.y + 16);
+    this.#playCombatSheet(art, position.x + 16, position.y + 16);
   }
 
   #burst(x: number, y: number, color: number, count: number): void {
@@ -2940,7 +3009,7 @@ export class Renderer {
       }
       effect.container.alpha = 1 - progress;
       effect.container.y = effect.baseY - effect.rise * progress;
-      effect.container.scale.set(1 + progress * effect.scaleGrowth);
+      effect.container.scale.set(effect.baseScale * (1 + progress * effect.scaleGrowth));
       if (progress < 1) continue;
       effect.container.destroy({ children: true });
       this.#activeEffects.splice(index, 1);
@@ -3093,9 +3162,42 @@ export class Renderer {
         this.#syncActionSnapshot(view, player.action);
         const dx = player.x - (view.lastX ?? player.x);
         const dy = player.y - (view.lastY ?? player.y);
-        if (Math.hypot(dx, dy) > 0.2) {
+        const movementDistance = Math.hypot(dx, dy);
+        if (movementDistance > 0.2) {
           view.movingUntil = now + 120;
         }
+        const mobility = mobilityVisual(view.actionSkillId);
+        if (
+          mobility &&
+          view.actionId &&
+          view.mobilityActionId !== view.actionId &&
+          movementDistance > 12
+        ) {
+          view.mobilityActionId = view.actionId;
+          view.mobilityOffsetX = -dx;
+          view.mobilityOffsetY = -dy;
+          view.mobilityStartedAt = now;
+          view.mobilityDurationMs = mobility.durationMs;
+          this.#playMobilityTrail(
+            {
+              x: (view.lastX ?? player.x) + PLAYER_SIZE / 2,
+              y: (view.lastY ?? player.y) + PLAYER_SIZE / 2,
+            },
+            { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 },
+            mobility,
+            view.actionId,
+          );
+        }
+        const mobilityOffset =
+          view.mobilityStartedAt === undefined || view.mobilityDurationMs === undefined
+            ? { x: 0, y: 0 }
+            : mobilityRenderOffset(
+                view.mobilityOffsetX ?? 0,
+                view.mobilityOffsetY ?? 0,
+                view.mobilityStartedAt,
+                view.mobilityDurationMs,
+                now,
+              );
         const horizontalFacing = view.actionDirection?.x ?? player.facing.x;
         if (view.actor && Math.abs(horizontalFacing) > 0.01)
           view.actor.scale.x = horizontalFacing < 0 ? -1 : 1;
@@ -3107,6 +3209,7 @@ export class Renderer {
         }
         const ghost = player.life === "ghost";
         const spirit = isSpirit(player.life);
+        if (spirit) this.#resetVisualAction(view);
         if (view.wasDead && !spirit && this.#isVisibleWorld(player.x, player.y, 80)) {
           this.#addPulse(player.x + 16, player.y + 16, 0xa8f2dc, 24, 650);
         }
@@ -3115,7 +3218,7 @@ export class Renderer {
         const visible =
           this.#isVisibleWorld(player.x, player.y, ENTITY_CULL_MARGIN) && player.life !== "corpse";
         view.container.visible = visible;
-        view.container.position.set(player.x, player.y);
+        view.container.position.set(player.x + mobilityOffset.x, player.y + mobilityOffset.y);
         view.container.zIndex = Math.round(player.y + PLAYER_SIZE);
         if (visible) {
           const moving = (view.movingUntil ?? 0) > now;
@@ -3133,7 +3236,7 @@ export class Renderer {
             view.actor.tint = ghost ? 0x9fd8ff : 0xffffff;
           }
           if (view.unitSprite && view.unitAnimations) {
-            const actionRendered = this.#updatePlayerActionArt(view, player, now);
+            const actionRendered = !spirit && this.#updatePlayerActionArt(view, player, now);
             if (!actionRendered) {
               const motion: UnitMotion = moving ? "run" : "idle";
               const frames = view.unitAnimations[motion];
@@ -3161,6 +3264,7 @@ export class Renderer {
       (monster) => this.#createMonster(monster),
       (view, monster) => {
         this.#syncActionSnapshot(view, monster.action);
+        if (monster.dead) this.#resetVisualAction(view);
         const dx = monster.x - (view.lastX ?? monster.x);
         const dy = monster.y - (view.lastY ?? monster.y);
         if (Math.hypot(dx, dy) > 0.15) view.movingUntil = now + 120;
@@ -3343,6 +3447,10 @@ export class Renderer {
           }
           view.unitSprite.rotation =
             Math.atan2(projectile.direction.y, projectile.direction.x) + art.rotationOffset;
+          view.unitSprite.tint = art.tint ?? 0xffffff;
+          view.unitSprite.scale.set(art.scale ?? 1);
+          if (view.flash && art.trail)
+            this.#drawProjectileTrail(view.flash, projectile.direction, art.trail);
         }
         view.data = projectile;
       },

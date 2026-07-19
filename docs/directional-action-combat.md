@@ -33,36 +33,36 @@ La mort, la transition de carte, la perte de présence ou la déconnexion annule
 et les projectiles de l'ancien propriétaire. Une room déchargée ne conserve ni action ni projectile.
 Le client projette tous les timestamps avec un unique échantillon `SelfState.serverNow` /
 `performance.now()` partagé par les cooldowns et le renderer ; il ne suppose jamais que l'horloge
-murale du navigateur correspond à celle du Worker. Un snapshot autoritaire `action: null` annule
-immédiatement l'animation, le télégraphe et ses effets persistants, et empêche un ancien événement
-`CombatAnimation` de la restaurer. Les projectiles déjà créés restent gouvernés par leurs propres
-snapshots.
-`CombatAnimation` est lui-même un message serveur ordonné : tout nouvel identifiant démarre donc
-dès l'événement, même si le dernier snapshot porte encore l'action précédente ou `action: null`.
-Seuls les identifiants explicitement annulés restent bloqués ; un snapshot `action: null` efface
-toujours immédiatement l'action visible et empêche cet ancien identifiant de revenir.
+murale du navigateur correspond à celle du Worker. L'autorité visuelle ordonne événements et
+snapshots par identifiant d'action : un ancien snapshot `action: null` ou portant l'action
+précédente ne peut plus annuler un événement `CombatAnimation` fraîchement reçu. Un `action: null`
+cohérent avec la dernière action connue l'annule bien, tout comme la mort ou le changement de
+carte. Les projectiles déjà créés restent gouvernés par leurs propres snapshots.
 
 | Classe | Compétence | Anticipation | Récupération | Résolution |
 | --- | --- | ---: | ---: | --- |
-| Guerrier | Cleave | 220 ms | 430 ms | Arc frontal, portée 60 |
+| Guerrier | Cleave | 110 ms | 215 ms | Arc frontal, portée 60 |
 | Guerrier | Iron Guard | 180 ms | 420 ms | Réduction 50 % pendant 3 500 ms |
-| Guerrier | Shield Bash | 180 ms | 480 ms | Charge droite, premier obstacle/contact |
+| Guerrier | Shield Bash | 180 ms | 480 ms | Auto-cible visible la plus proche, charge jusqu'au premier obstacle/contact |
 | Guerrier | Battle Cry | 300 ms | 500 ms | Zone de rayon 105 |
 | Guerrier | Whirlwind | 320 ms | 600 ms | Zone de rayon 82 |
-| Rôdeur | Quick Shot | 260 ms | 390 ms | Flèche droite, portée 170 |
+| Rôdeur | Quick Shot | 130 ms | 195 ms | Flèche droite, portée 170 |
 | Rôdeur | Piercing Arrow | 300 ms | 500 ms | Flèche perforante, portée 200 |
 | Rôdeur | Volley | 360 ms | 640 ms | Éventail de cinq flèches sur 36°, portée 160 |
 | Rôdeur | Dash | 120 ms | 380 ms | Déplacement arrière de 189 |
 | Rôdeur | Heartseeker | 360 ms | 700 ms | Flèche droite rapide, portée 230 |
-| Prêtre | Radiant Bolt | 280 ms | 370 ms | Projectile magique, portée 225 ; total 650 ms |
-| Prêtre | Mend | 240 ms | 600 ms | Soin personnel immédiat + lumière de soin à la frame active |
+| Prêtre | Radiant Bolt | 140 ms | 185 ms | Projectile magique, portée 225 ; total 325 ms |
+| Prêtre | Mend | 240 ms | 600 ms | Lumière de soin alliée à la frame active, sans auto-soin |
 | Prêtre | Blink | 180 ms | 420 ms | Déplacement frontal de 110 |
 | Prêtre | Prayer | 320 ms | 640 ms | Soin allié en rayon 155 avec ligne de vue |
 | Prêtre | Divine Nova | 400 ms | 700 ms | Dégâts et soins en rayon 120 |
 
 Les cooldowns, puissances, rayons, distances, coûts et niveaux de déblocage restent dans
-`src/shared/skills.ts`; cette table n'a pas été silencieusement retunée. Les timings actifs et les
-paramètres de projectiles vivent dans `src/shared/combat-actions.ts`.
+`src/shared/skills.ts`. Shield Bash parcourt jusqu'à 300 px dans sa portée d'acquisition de 308 px ;
+l'attaque de base du Guerrier démarre à 27 au lieu de 30. Les timings actifs et les paramètres de
+projectiles vivent dans `src/shared/combat-actions.ts`. Les trois attaques de base partagent un
+cooldown de 325 ms et une chronologie anticipation/récupération réduite de 50 % ; les compétences
+spéciales et les attaques de monstres conservent leurs timings.
 
 ## Géométrie et projectiles
 
@@ -88,8 +88,10 @@ projectiles. Une room vide peut réinitialiser ses monstres, projectiles et loot
 - Cleave frappe tous les monstres dans son arc frontal qui ont une ligne de vue ; rien derrière et
   rien au-delà d'un mur.
 - Iron Guard conserve sa réduction, sans cible.
-- Shield Bash balaye un segment frontal, s'arrête juste avant le premier mur ou monstre, inflige 24
-  et conserve la provocation de menace.
+- Shield Bash choisit côté serveur le monstre vivant et visible le plus proche dans sa portée,
+  fige cette direction, puis balaye la charge. Il s'arrête juste avant le premier mur ou monstre,
+  inflige 24 et conserve la provocation de menace. Sans cible valide, il conserve le facing : le
+  client ne fournit jamais d'identifiant de cible.
 - Battle Cry et Whirlwind résolvent chaque monstre au plus une fois dans leur rayon et respectent la
   ligne de vue.
 
@@ -107,17 +109,18 @@ projectiles. Une room vide peut réinitialiser ses monstres, projectiles et loot
 ### Prêtre
 
 - Radiant Bolt est un projectile magique offensif droit, bloqué par le terrain.
-- Mend soigne immédiatement le lanceur de 35 de base, puis crée à la frame active une lumière qui
-  ignore monstres, héros à pleine vie et membres d'une autre partie. Le premier allié vivant et
-  blessé touché reçoit aussi 35 de base. `selfPower` et `allyPower` sont configurables séparément.
+- Mend crée à la frame active une lumière verte qui ignore son lanceur, les monstres, les héros à
+  pleine vie et les membres d'une autre partie. Le premier allié vivant et blessé touché reçoit 35
+  de base. Le sort ne soigne plus le Prêtre.
 - Blink avance dans le facing et ne traverse pas un collider.
 - Prayer soigne le Prêtre et tous les alliés vivants et blessés dans le rayon avec ligne de vue.
 - Divine Nova soigne les alliés, Prêtre compris, et frappe chaque monstre du rayon une fois.
 
-Les événements `heal.cast` et `heal.received` transportent la couleur Tiny Swords validée du
-Prêtre (`azure`, `ember`, `moss` ou `violet`). Mend, Prayer, Divine Nova, l'auto-soin et le soin
-d'un allié gardent ainsi la couleur du lanceur jusque sur l'impact du destinataire ; une valeur
-absente ou invalide retombe sans erreur sur `azure` et n'est jamais interpolée dans le texte i18n.
+Les événements `heal.cast` et `heal.received` transportent l'identifiant de compétence et la
+couleur Tiny Swords validée du Prêtre (`azure`, `ember`, `moss` ou `violet`). La couleur reste une
+métadonnée d'identité ; Mend force son projectile et son impact visuel en vert. Prayer et Divine
+Nova gardent leur effet de zone Tiny Swords. Une couleur absente ou invalide retombe sans erreur
+sur `azure` et n'est jamais interpolée dans le texte i18n.
 
 Seul le soin réellement restauré produit ressource, menace de soin et contribution. Le sursoin ne
 produit rien. La résurrection reste une interaction de proximité, pas une sélection.
@@ -151,20 +154,23 @@ textures sont mises en cache par source.
 | --- | --- | --- | --- |
 | Cleave | `Warrior_Attack1.png` | `Explosion_01.png` à l'impact réel | Attaque exacte |
 | Iron Guard | `Warrior_Guard.png` | garde persistante | Garde exacte |
-| Shield Bash | `Warrior_Attack2.png` | `Dust_02.png` | Meilleure charge du pack |
+| Shield Bash | `Warrior_Attack2.png` | glissade rendue + traînée or + `Dust_02.png` | Charge lisible sans déplacer l'autorité côté client |
 | Battle Cry / Whirlwind | `Warrior_Attack2.png` | `Explosion_01.png` | Substitution documentée : aucun cri/360 exact |
-| Quick Shot / Piercing / Volley / Heartseeker | `Archer_Shoot.png` | `Arrow.png`, impact `Explosion_01.png` | Tir et flèche exacts |
+| Quick Shot | `Archer_Shoot.png` | `Arrow.png`, impact `Explosion_01.png` | Flèche de base sans traînée |
+| Piercing / Volley / Heartseeker | `Archer_Shoot.png` | `Arrow.png` avec tailles, teintes et traînées cyan/or/rouge distinctes | Identité visuelle propre par technique |
+| Dash | `Archer_Shoot.png` | glissade rendue + traînée cyan + `Dust_02.png` | Le saut serveur n'apparaît plus comme une téléportation |
 | Radiant Bolt | `Heal.png` | `Hex Shaman_Projectile.png`, `Hex Shaman_Explosion.png` | Projectile magique Tiny Swords exact le plus proche |
-| Mend | `Heal.png` | `Heal_Effect.png` déplacé puis joué à l'impact | Substitution : aucun projectile de soin exact |
-| Blink | `Heal.png` | `Dust_02.png` | Téléportation la plus proche disponible |
-| Prayer | `Heal.png` | `Heal_Effect.png` en zone | Soin exact |
+| Mend | `Heal.png` | `Hex Shaman_Projectile.png` et explosion teintés en vert | Même langage visuel que Radiant Bolt, version soin |
+| Blink | `Heal.png` | glissade rendue + traînée violette + `Dust_02.png` | Déplacement visible malgré la résolution instantanée serveur |
+| Prayer | `Heal.png` | `Heal_Effect.png` en zone + cercle exact de rayon 155 | Soin et portée lisibles |
 | Divine Nova | `Heal.png` | `Heal_Effect.png` + `Explosion_01.png` | Lecture soin/dégâts distincte |
 | Monstres | strip `attack` exact de chaque espèce | `Explosion_01.png` au contact | Animations d'espèce exactes |
 
-Le projectile magique et son explosion sont chargés directement depuis le pack Enemy ; la lumière
-de Mend réutilise `Heal_Effect` sans asset externe, génération ni forme CSS. Les effets d'impact ne
-se jouent que sur un résultat serveur effectif. Le projectile visible est l'entité réseau : un
-événement de dégâts ne le recrée pas une seconde fois.
+Le projectile magique et son explosion sont chargés directement depuis le pack Enemy ; Mend en
+réutilise la silhouette avec une teinte et une traînée vertes. Les icônes du HUD reprennent ces
+assets et traitements (projectile, flèche, poussière, soin ou explosion) au lieu d'icônes
+d'inventaire génériques. Les effets d'impact ne se jouent que sur un résultat serveur effectif. Le
+projectile visible est l'entité réseau : un événement de dégâts ne le recrée pas une seconde fois.
 
 ## Client, contrôles et diagnostic
 

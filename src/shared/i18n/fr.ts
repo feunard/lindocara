@@ -134,7 +134,7 @@ export const fr: Record<keyof typeof en, string> = {
   "skill.warrior.iron_guard.description":
     "Réduit de moitié les dégâts reçus pendant un court instant.",
   "skill.warrior.shield_bash.description":
-    "Charge tout droit et percute le premier ennemi rencontré.",
+    "Charge automatiquement l’ennemi visible le plus proche et percute le premier obstacle.",
   "skill.warrior.battle_cry.description": "Blesse tous les ennemis proches avec un cri de guerre.",
   "skill.warrior.whirlwind.description":
     "Tournoie parmi les ennemis proches pour de lourds dégâts de zone.",
@@ -155,7 +155,8 @@ export const fr: Record<keyof typeof en, string> = {
   "skill.priest.mend.name": "Soin",
   "skill.priest.blink.name": "Pas de Lumen",
   "skill.priest.radiant_bolt.description": "Lance un trait radieux dans la direction du héros.",
-  "skill.priest.mend.description": "Soigne le prêtre et lance une lumière de soin vers un allié.",
+  "skill.priest.mend.description":
+    "Lance une lumière verte qui soigne le premier allié blessé touché.",
   "skill.priest.blink.description":
     "Vous téléporte brièvement dans votre dernière direction de déplacement.",
   "skill.priest.prayer.description": "Soigne tous les alliés blessés autour de vous.",

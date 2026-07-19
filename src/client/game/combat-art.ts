@@ -31,10 +31,13 @@ export interface CombatSheetArt {
   durationMs: number;
   activeFrame: number;
   anchor: { x: number; y: number };
+  tint?: number;
+  scale?: number;
 }
 
 export interface CombatProjectileArt extends CombatSheetArt {
   rotationOffset: number;
+  trail?: { color: number; length: number; width: number; glowRadius: number };
 }
 
 export interface CombatArtDefinition {
@@ -117,6 +120,12 @@ const MAGIC_PROJECTILE = {
 };
 const MAGIC_IMPACT = sheet(HEX_SHAMAN_IMPACT_SOURCE, 128, 128, 9, 620, 2);
 
+const GREEN_MAGIC = 0x62e68f;
+
+function styled(art: CombatSheetArt, tint: number, scale = 1): CombatSheetArt {
+  return { ...art, tint, scale };
+}
+
 function actionDuration(playerClass: PlayerClass, skillId: string): number {
   const slot = CLASS_SKILLS[playerClass].find((skill) => skill.id === skillId)?.slot ?? 1;
   const action = actionForClassSlot(playerClass, slot);
@@ -137,18 +146,43 @@ function casterArt(playerClass: PlayerClass, skillId: string, color: PrimaryColo
 }
 
 function arrow(color: PrimaryColor, kind: ProjectileKind): CombatProjectileArt {
-  return {
+  const base: CombatProjectileArt = {
     ...sheet(unitSource(color, "archer", "Arrow.png"), 64, 64, 1, 1_000, 0),
     rotationOffset: 0,
-    ...(kind === "heartseeker" ? { durationMs: 900 } : {}),
   };
+  if (kind === "piercing_arrow")
+    return {
+      ...base,
+      tint: 0x71dcff,
+      scale: 1.16,
+      trail: { color: 0x5dd9ff, length: 34, width: 3, glowRadius: 8 },
+    };
+  if (kind === "volley_arrow")
+    return {
+      ...base,
+      tint: 0xffdc72,
+      scale: 0.82,
+      trail: { color: 0xffcf58, length: 18, width: 2, glowRadius: 4 },
+    };
+  if (kind === "heartseeker")
+    return {
+      ...base,
+      durationMs: 900,
+      tint: 0xff557d,
+      scale: 1.38,
+      trail: { color: 0xff416c, length: 48, width: 5, glowRadius: 11 },
+    };
+  return base;
 }
 
-function magicProjectile(kind: "radiant_bolt" | "healing_light", color: PrimaryColor) {
+function magicProjectile(kind: "radiant_bolt" | "healing_light") {
   if (kind === "healing_light") {
     return {
-      ...unitSheet(unitSource(color, "monk", "Heal_Effect.png"), 11, 760, 4),
+      ...MAGIC_PROJECTILE,
       rotationOffset: 0,
+      tint: GREEN_MAGIC,
+      scale: 0.82,
+      trail: { color: GREEN_MAGIC, length: 30, width: 4, glowRadius: 10 },
     };
   }
   return MAGIC_PROJECTILE;
@@ -162,7 +196,7 @@ export function projectileArt(kind: ProjectileKind, color: PrimaryColor): Combat
     kind === "heartseeker"
   )
     return arrow(color, kind);
-  return magicProjectile(kind, color);
+  return magicProjectile(kind);
 }
 
 export function combatArt(
@@ -173,7 +207,7 @@ export function combatArt(
   const caster = casterArt(playerClass, skillId, color);
   if (playerClass === "warrior") {
     if (skillId === "iron_guard") return { caster };
-    if (skillId === "shield_bash") return { caster, impact: DUST };
+    if (skillId === "shield_bash") return { caster, impact: styled(DUST, 0xffd66b, 1.3) };
     if (skillId === "battle_cry" || skillId === "whirlwind")
       return {
         caster,
@@ -183,7 +217,7 @@ export function combatArt(
     return { caster, impact: EXPLOSION };
   }
   if (playerClass === "ranger") {
-    if (skillId === "dash") return { caster, impact: DUST };
+    if (skillId === "dash") return { caster, impact: styled(DUST, 0x6ad9ff, 1.25) };
     const kind =
       skillId === "piercing_arrow"
         ? "piercing_arrow"
@@ -192,7 +226,15 @@ export function combatArt(
           : skillId === "heartseeker"
             ? "heartseeker"
             : "arrow";
-    return { caster, projectile: projectileArt(kind, color), impact: EXPLOSION };
+    const impact =
+      kind === "piercing_arrow"
+        ? styled(EXPLOSION, 0x71dcff, 0.72)
+        : kind === "volley_arrow"
+          ? styled(EXPLOSION, 0xffdc72, 0.86)
+          : kind === "heartseeker"
+            ? styled(MAGIC_IMPACT, 0xff557d, 1.18)
+            : EXPLOSION;
+    return { caster, projectile: projectileArt(kind, color), impact };
   }
   if (skillId === "radiant_bolt")
     return {
@@ -204,10 +246,10 @@ export function combatArt(
     return {
       caster,
       projectile: projectileArt("healing_light", color),
-      impact: unitSheet(unitSource(color, "monk", "Heal_Effect.png"), 11, 760, 4),
-      fallback: "Heal_Effect est déplacé comme lumière de soin ; aucun projectile exact n'existe.",
+      impact: styled(MAGIC_IMPACT, GREEN_MAGIC, 0.86),
+      fallback: "Le projectile magique est teinté en vert pour former la lumière de soin.",
     };
-  if (skillId === "blink") return { caster, impact: DUST };
+  if (skillId === "blink") return { caster, impact: styled(DUST, 0xb48cff, 1.35) };
   return {
     caster,
     zone: unitSheet(unitSource(color, "monk", "Heal_Effect.png"), 11, 760, 4),

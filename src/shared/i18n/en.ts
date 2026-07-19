@@ -131,7 +131,8 @@ export const en = {
   "skill.warrior.shield_bash.name": "Shield Bash",
   "skill.warrior.cleave.description": "A reliable close-range sweep in your facing direction.",
   "skill.warrior.iron_guard.description": "Halve incoming damage for a short time.",
-  "skill.warrior.shield_bash.description": "Charge straight ahead and slam the first enemy hit.",
+  "skill.warrior.shield_bash.description":
+    "Automatically charge the nearest visible enemy and stop at the first obstacle.",
   "skill.warrior.battle_cry.description": "Damage every enemy around you with a rallying shout.",
   "skill.warrior.whirlwind.description": "Spin through nearby enemies for heavy area damage.",
   "skill.warrior.battle_cry.name": "Battle Cry",
@@ -151,7 +152,8 @@ export const en = {
   "skill.priest.mend.name": "Mend",
   "skill.priest.blink.name": "Lumen Step",
   "skill.priest.radiant_bolt.description": "Launch a radiant bolt in your facing direction.",
-  "skill.priest.mend.description": "Heal yourself and launch a healing light toward an ally.",
+  "skill.priest.mend.description":
+    "Launch a green light that heals the first wounded ally it touches.",
   "skill.priest.blink.description": "Teleport a short distance in your last movement direction.",
   "skill.priest.prayer.description": "Heal every injured ally around you.",
   "skill.priest.divine_nova.description": "Damage nearby enemies and heal nearby allies at once.",

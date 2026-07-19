@@ -58,8 +58,8 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
     {
       skillId: "cleave",
       shape: "arc",
-      anticipationMs: 220,
-      recoveryMs: 430,
+      anticipationMs: 110,
+      recoveryMs: 215,
       halfAngleRadians: (65 * Math.PI) / 180,
       hitboxRadius: 15,
     },
@@ -78,8 +78,8 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
     {
       skillId: "quick_shot",
       shape: "projectile",
-      anticipationMs: 260,
-      recoveryMs: 390,
+      anticipationMs: 130,
+      recoveryMs: 195,
       projectile: { kind: "arrow", speed: 540, radius: 5, pierce: 0 },
     },
     {
@@ -116,8 +116,8 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
     {
       skillId: "radiant_bolt",
       shape: "projectile",
-      anticipationMs: 280,
-      recoveryMs: 370,
+      anticipationMs: 140,
+      recoveryMs: 185,
       projectile: { kind: "radiant_bolt", speed: 480, radius: 8, pierce: 0 },
     },
     {

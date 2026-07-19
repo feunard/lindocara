@@ -1,0 +1,66 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { setLocale } from "../../src/client/i18n.js";
+import type { GameHandle } from "../../src/client/store.js";
+import { useUiStore } from "../../src/client/store.js";
+import { SkillBar } from "../../src/client/ui/hud/SkillBar.js";
+
+function gameHandle(): GameHandle {
+  return {
+    attack: vi.fn(),
+    interact: vi.fn(),
+    usePotion: vi.fn(),
+    release: vi.fn(),
+    castSkill: vi.fn(),
+    setMovement: vi.fn(),
+    sendChat: vi.fn(),
+    switchCharacter: vi.fn(),
+    logout: vi.fn(),
+    attachMinimap: vi.fn(),
+    attachWorldMap: vi.fn(),
+  };
+}
+
+describe("skill bar cooldowns", () => {
+  beforeEach(() => {
+    setLocale("en");
+    useUiStore.setState({
+      game: null,
+      self: {
+        nick: "Scout",
+        level: 10,
+        hp: 100,
+        maxHp: 100,
+        life: "alive",
+        corpseDistance: null,
+        class: "ranger",
+        appearance: { body: "wayfarer", primaryColor: "moss" },
+        equipment: { mainHand: "hunter_bow", offHand: null },
+      },
+      selfState: null,
+      attackCooldownUntil: 0,
+      skillCooldowns: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+    });
+  });
+
+  it("uses the dedicated basic-attack deadline for slot one", () => {
+    const game = gameHandle();
+    useUiStore.setState({
+      game,
+      attackCooldownUntil: performance.now() + 5_000,
+    });
+    render(<SkillBar />);
+
+    const primary = screen.getByRole("button", { name: "1. Quick Shot" });
+    const secondary = screen.getByRole("button", { name: "2. Piercing Arrow" });
+    expect(primary).toBeDisabled();
+    expect(secondary).toBeEnabled();
+
+    fireEvent.click(primary);
+    fireEvent.click(secondary);
+    expect(game.castSkill).toHaveBeenCalledOnce();
+    expect(game.castSkill).toHaveBeenCalledWith(2);
+    expect(primary.querySelector(".skill-slot__icon--quick-shot")).not.toBeNull();
+    expect(secondary.querySelector(".skill-slot__icon--piercing-arrow")).not.toBeNull();
+  });
+});

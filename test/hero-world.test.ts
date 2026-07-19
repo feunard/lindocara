@@ -201,7 +201,6 @@ describe("party hero admission and authored runtime", () => {
           (message) => message.t === "animation" && message.skillId === "cleave",
         ),
       );
-      await scheduler.wait(100);
       expect(
         client.received.some((message) => message.t === "event" && message.code === "combat.hit"),
       ).toBe(false);
@@ -476,7 +475,7 @@ describe("party hero admission and authored runtime", () => {
     blocked.close();
   });
 
-  it("keeps a violet Mend projectile and its ally impact violet", { timeout: 15_000 }, async () => {
+  it("keeps Mend ownership metadata while healing only its ally", { timeout: 15_000 }, async () => {
     const party = await testParty("mend-colour", { color: "purple" });
     const priestHero = await testHero("VioletMend", {
       party,
@@ -508,11 +507,13 @@ describe("party hero admission and authored runtime", () => {
     const received = await until("violet Mend impact", () =>
       ally.received.find((message) => message.t === "event" && message.code === "heal.received"),
     );
-    expect(received).toMatchObject({ params: { color: "violet", name: "VioletMend" } });
+    expect(received).toMatchObject({
+      params: { color: "violet", name: "VioletMend", skill: "mend" },
+    });
     await until("Mend colour state catches up", () => {
       const caster = priest.self();
       const target = ally.self();
-      return caster && target && caster.hp > 40 && target.hp > 40 ? true : undefined;
+      return caster && target && caster.hp === 40 && target.hp > 40 ? true : undefined;
     });
     priest.close();
     ally.close();

@@ -12,15 +12,15 @@ import { CLASS_SKILLS } from "../src/shared/skills.js";
 
 describe("directional class kit contract", () => {
   it("preserves the five reference cooldowns for every class", () => {
-    expect(ATTACK_COOLDOWN_MS).toBe(650);
+    expect(ATTACK_COOLDOWN_MS).toBe(325);
     expect(CLASS_SKILLS.warrior.map((skill) => skill.cooldownMs)).toEqual([
-      650, 8_000, 3_200, 5_500, 8_000,
+      325, 8_000, 3_200, 5_500, 8_000,
     ]);
     expect(CLASS_SKILLS.ranger.map((skill) => skill.cooldownMs)).toEqual([
-      650, 2_000, 5_000, 7_000, 8_500,
+      325, 2_000, 5_000, 7_000, 8_500,
     ]);
     expect(CLASS_SKILLS.priest.map((skill) => skill.cooldownMs)).toEqual([
-      650, 1_500, 8_000, 6_000, 10_000,
+      325, 1_500, 8_000, 6_000, 10_000,
     ]);
   });
 
@@ -34,18 +34,18 @@ describe("directional class kit contract", () => {
     }
   });
 
-  it("aligns every slot-one action timeline with its 650 ms cooldown", () => {
+  it("aligns every slot-one action timeline with its 325 ms cooldown", () => {
     expect(
       (["warrior", "ranger", "priest"] as const).map((playerClass) => {
         const action = PLAYER_ACTIONS[playerClass][0];
         if (!action) throw new Error(`missing slot one action for ${playerClass}`);
         return action.anticipationMs + action.recoveryMs;
       }),
-    ).toEqual([650, 650, 650]);
+    ).toEqual([325, 325, 325]);
     expect(PLAYER_ACTIONS.priest[0]).toMatchObject({
       skillId: "radiant_bolt",
-      anticipationMs: 280,
-      recoveryMs: 370,
+      anticipationMs: 140,
+      recoveryMs: 185,
     });
   });
 
@@ -67,13 +67,12 @@ describe("directional class kit contract", () => {
     });
   });
 
-  it("configures Mend's self and ally powers independently", () => {
+  it("configures Mend as an ally-only healing projectile", () => {
     const mend = CLASS_SKILLS.priest.find((skill) => skill.id === "mend");
     expect(mend).toMatchObject({
       cooldownMs: 1_500,
       range: 130,
       power: 35,
-      selfPower: 35,
       allyPower: 35,
     });
     expect(PLAYER_ACTIONS.priest[1]).toMatchObject({

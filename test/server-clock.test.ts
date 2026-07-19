@@ -28,29 +28,29 @@ describe("shared browser server clock", () => {
     clock.sample(101_000, 800);
     const sample = clock.currentSample();
     if (!sample) throw new Error("expected a server clock sample");
-    expect(serverTimestampToLocal(101_650, sample)).toBe(1_450);
+    expect(serverTimestampToLocal(101_325, sample)).toBe(1_125);
     expect(
       clock.combatTimeline(
-        { ...timeline, startedAt: 101_000, impactAt: 101_280, recoveryEndsAt: 101_650 },
+        { ...timeline, startedAt: 101_000, impactAt: 101_130, recoveryEndsAt: 101_325 },
         0,
       ),
     ).toEqual({
       startedAt: 800,
-      impactAt: 1_080,
-      recoveryEndsAt: 1_450,
+      impactAt: 930,
+      recoveryEndsAt: 1_125,
     });
     expect(
       clientCooldownDeadlines(
         {
-          attackUntil: 101_650,
+          attackUntil: 101_325,
           healUntil: 0,
-          skillCooldowns: [101_650, 0, 0, 0, 0],
+          skillCooldowns: [101_325, 0, 0, 0, 0],
           guardUntil: 0,
           resurrectUntil: 0,
         },
         clock,
       ),
-    ).toMatchObject({ attackUntil: 1_450, skills: { 1: 1_450 } });
+    ).toMatchObject({ attackUntil: 1_125, skills: { 1: 1_125 } });
   });
 
   it("falls back to relative action durations and no speculative cooldown before a sample", () => {

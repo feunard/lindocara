@@ -150,7 +150,7 @@ import {
   spawnProjectile,
 } from "./world/projectile-system.js";
 import { nextQuestChapter, questDefinition } from "./world/quest-system.js";
-import { movePlayerInDirection } from "./world/skill-system.js";
+import { movePlayerInDirection, nearestChargeTarget } from "./world/skill-system.js";
 import {
   broadcastNetworkUpdates,
   selfState,
@@ -854,11 +854,27 @@ export class World extends DurableObject<Env> {
     if (skill.id === "mend" && now - player.lastHealAt < skill.cooldownMs) return false;
     if (slot !== 1 && (player.skillCooldowns[slot - 1] ?? 0) > now) return false;
     const definition = actionForClassSlot(player.class, slot);
+    const chargeTarget =
+      definition.shape === "charge"
+        ? nearestChargeTarget(
+            player,
+            this.#monsterGrid.queryRadius(player, skill.range + PLAYER_SIZE),
+            skill.range,
+            now,
+            (monster) => hasLineOfSight(player, monster, this.#zone().terrain.tiles),
+          )
+        : null;
+    const direction = chargeTarget
+      ? normalizeDirection(
+          { x: chargeTarget.x - player.x, y: chargeTarget.y - player.y },
+          player.facing,
+        )
+      : player.facing;
     const action = startCombatAction(player, {
       kind: slot === 1 ? "basic" : "skill",
       skillId: skill.id,
       slot,
-      direction: player.facing,
+      direction,
       now,
       anticipationMs: definition.anticipationMs,
       recoveryMs: definition.recoveryMs,
@@ -870,10 +886,6 @@ export class World extends DurableObject<Env> {
     if (skill.id === "mend") player.lastHealAt = now;
     spendResource(player.resource, resourceCost);
     player.dirty = true;
-    if (skill.id === "mend") {
-      const selfPower = (skill.selfPower ?? skill.power) + Math.max(0, player.level - 1) * 3;
-      this.#healPlayer(ws, player, ws, player, selfPower, now, true);
-    }
     this.#sendState(ws, player);
     this.#send(ws, {
       t: "event",
@@ -1155,7 +1167,18 @@ export class World extends DurableObject<Env> {
         continue;
       if (!hasLineOfSight(player, target, this.#zone().terrain.tiles)) continue;
       const amount = skill.power + Math.max(0, player.level - 1) * 2;
-      if (this.#healPlayer(ws, player, targetSocket, target, amount, now, target === player) > 0)
+      if (
+        this.#healPlayer(
+          ws,
+          player,
+          targetSocket,
+          target,
+          amount,
+          skill.id,
+          now,
+          target === player,
+        ) > 0
+      )
         healed += 1;
     }
     return healed;
@@ -1167,6 +1190,7 @@ export class World extends DurableObject<Env> {
     targetSocket: WebSocket,
     target: Player,
     amount: number,
+    skillId: string,
     now: number,
     selfCast: boolean,
   ): number {
@@ -1185,6 +1209,7 @@ export class World extends DurableObject<Env> {
           name: target.nick,
           amount: actualAmount,
           color: caster.appearance.primaryColor,
+          skill: skillId,
         },
         tone: "good",
         x: target.x,
@@ -1198,6 +1223,7 @@ export class World extends DurableObject<Env> {
         name: caster.nick,
         amount: actualAmount,
         color: caster.appearance.primaryColor,
+        skill: skillId,
       },
       tone: "good",
       x: target.x,
@@ -2258,6 +2284,7 @@ export class World extends DurableObject<Env> {
       targetSocket,
       target,
       projectile.power,
+      projectile.sourceSkillId,
       now,
       false,
     );

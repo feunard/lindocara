@@ -123,6 +123,10 @@ function shouldLogEvent(code: EventCode): boolean {
   return code !== "combat.hit" && code !== "quest.site_harvested";
 }
 
+function healingSkillId(value: unknown): "mend" | "prayer" | "divine_nova" {
+  return value === "prayer" || value === "divine_nova" ? value : "mend";
+}
+
 function updatePrompt(
   self: PlayerSnapshot | undefined,
   quest: QuestState,
@@ -340,7 +344,12 @@ async function startGameIdentity(
           sound.levelUp();
           break;
         case "heal.cast":
-          renderer.playHealingImpact(healingEffectColor(params?.color), x, y);
+          renderer.playHealingImpact(
+            healingEffectColor(params?.color),
+            healingSkillId(params?.skill),
+            x,
+            y,
+          );
           break;
         case "loot.picked":
         case "quest.accepted":
@@ -350,7 +359,12 @@ async function startGameIdentity(
           break;
         case "heal.received":
           sound.healReceived();
-          renderer.playHealingImpact(healingEffectColor(params?.color), x, y);
+          renderer.playHealingImpact(
+            healingEffectColor(params?.color),
+            healingSkillId(params?.skill),
+            x,
+            y,
+          );
           break;
         case "player.down":
         case "death.fallen":
@@ -521,7 +535,10 @@ async function startGameIdentity(
   };
   const castSkill = (slot: SkillSlot) => {
     if (interiorOpen()) return;
-    if ((useUiStore.getState().skillCooldowns[slot] ?? 0) > performance.now()) return;
+    const store = useUiStore.getState();
+    const cooldownUntil =
+      slot === 1 ? store.attackCooldownUntil : (store.skillCooldowns[slot] ?? 0);
+    if (cooldownUntil > performance.now()) return;
     if (slot === 1) {
       attack();
       return;
