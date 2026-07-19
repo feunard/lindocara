@@ -21,6 +21,7 @@ import {
   PRIMARY_COLORS,
   starterEquipmentFor,
 } from "../../shared/character.js";
+import { facingFromInput } from "../../shared/directional-combat.js";
 import { resolveTerrain } from "../../shared/game.js";
 import { type MapData, mapSpawnPoint, terrainFromMap } from "../../shared/map-data.js";
 import { MAX_ACCUMULATED_SECONDS } from "../../shared/prediction.js";
@@ -113,6 +114,7 @@ export async function startMapPreview(data: MapData): Promise<{ stop(): void }> 
 
   const tracker = trackInput();
   let position: Vec2 = { x: spawn.x, y: spawn.y };
+  let facing: Vec2 = { ...self.facing };
   let accumulator = 0;
 
   renderer.onFrame((now, dt) => {
@@ -129,8 +131,12 @@ export async function startMapPreview(data: MapData): Promise<{ stop(): void }> 
         step(position, input, TICK_DT, PLAYER_SPEED, geometry),
         geometry,
       );
+      // Same conversion `movement-system.ts` applies to a dequeued command every tick: the last
+      // non-zero movement becomes facing, standing still preserves it. Without this the preview
+      // hero never turns, since nothing else in this local loop ever touches `facing`.
+      facing = facingFromInput(input, facing);
     }
-    const moved: PlayerSnapshot = { ...self, x: position.x, y: position.y };
+    const moved: PlayerSnapshot = { ...self, x: position.x, y: position.y, facing };
     const context: RenderContext = {
       self: moved,
       quest: PREVIEW_QUEST,
@@ -154,7 +160,14 @@ export async function startMapPreview(data: MapData): Promise<{ stop(): void }> 
 
   // The editor's dispose (run just before this) paused the shared ticker; guarantee a running one so
   // the frame loop above fires. Idempotent — `acquireStageApp` hands back the same, started app.
-  (await acquireStageApp(canvas)).ticker.start();
+  const app = await acquireStageApp(canvas);
+  app.ticker.start();
+  // Measured: on a high-refresh (ProMotion 120Hz) display the uncapped preview ticker ran at
+  // 120-145 fps, roughly doubling GPU fill-rate for zero visible gain over 60 — the dominant cost
+  // is the fullscreen animated water fill. Scoped to the preview only: this is the shared `#stage`
+  // app the game session's renderer also runs on, so `stop()` below puts the cap back to Pixi's
+  // default (uncapped) rather than leaving the game itself capped after the preview closes.
+  app.ticker.maxFPS = 60;
 
   let stopped = false;
   return {
@@ -162,6 +175,7 @@ export async function startMapPreview(data: MapData): Promise<{ stop(): void }> 
       if (stopped) return;
       stopped = true;
       tracker.stop();
+      app.ticker.maxFPS = 0;
       // Detaches only this preview's world and frame callbacks from the shared app (never destroys
       // it — Pixi 8 cannot re-init the canvas), leaving a clean stage for the editor to reopen on.
       renderer.destroy();
