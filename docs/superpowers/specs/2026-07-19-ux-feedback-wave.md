@@ -65,3 +65,16 @@ Schéma d'abord (5), puis le flux d'entrée (2-4, 6, 7), puis l'éditeur (8, 9, 
 > directement une aventure, et qu'on peut changer le nom de l'aventure quand on va la save pour
 > la premiere fois via un popup. Also, on configure le max player dans des settings de
 > l'aventure via un dialog dans les menus de l'éditeur. Par défaut on dit que c'est 4 joueurs max. »
+
+## Amendement 2 du 2026-07-19
+
+15. **Pas de page picker.** Ouvrir l'éditeur ouvre L'ÉDITEUR, directement. Charger une aventure
+    existante : menus → Fichier → « Charger une aventure » → dialog listant les aventures.
+    Décision d'implémentation (renversable) : à l'ouverture, l'éditeur charge la DERNIÈRE
+    aventure éditée (mémoire client) ; s'il n'y en a aucune, il en crée une immédiatement
+    (remarque 14). Ça évite de fabriquer une aventure fantôme à chaque ouverture.
+
+> Verbatim : « quand on ouvre l'editeur, je veux ouvrir directement l'editeur, je veux pas une
+> page intermédiaire qui liste les aventures. je veux ouvrir directement l'éditeur. et si je veux
+> load une aventure existant, j'utilise les menus -> fichiers -> charger aventures -> dialog avec
+> la liste des aventures »
