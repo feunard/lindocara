@@ -83,8 +83,6 @@ export const createMapApi = (input: MapSaveInput) =>
 export const updateMapApi = (id: string, input: MapSaveInput) =>
   api<MapPayload>(`/api/maps/${id}`, { method: "PUT", body: JSON.stringify(input) });
 export const deleteMapApi = (id: string) => api<void>(`/api/maps/${id}`, { method: "DELETE" });
-export const flagFirstMapApi = (id: string) =>
-  api<void>(`/api/maps/${id}/first`, { method: "POST" });
 
 export interface AdventureSummary {
   id: string;

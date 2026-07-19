@@ -683,6 +683,7 @@ export const fr: Record<keyof typeof en, string> = {
   "adventure.test": "Tester l’aventure",
   "adventure.refresh": "Actualiser",
   "adventure.delete.title": "Supprimer {name} ?",
+  "adventure.delete.cancel": "Garder l’aventure",
   "adventure.maps.title": "Cartes",
   "adventure.maps.add": "Ajouter",
   "adventure.maps.add.label": "Ajouter une carte",

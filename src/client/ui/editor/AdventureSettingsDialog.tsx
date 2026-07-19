@@ -287,7 +287,7 @@ export function AdventureSettingsDialog({
             </DialogHeader>
             <DialogFooter>
               <Button variant="outline" onClick={() => setConfirmingDelete(false)}>
-                {t("editor.delete.cancel")}
+                {t("adventure.delete.cancel")}
               </Button>
               <Button variant="destructive" onClick={() => void remove()}>
                 {t("editor.delete.confirm")}

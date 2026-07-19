@@ -666,6 +666,7 @@ export const en = {
   "adventure.test": "Test adventure",
   "adventure.refresh": "Refresh",
   "adventure.delete.title": "Delete {name}?",
+  "adventure.delete.cancel": "Keep adventure",
   "adventure.maps.title": "Maps",
   "adventure.maps.add": "Add",
   "adventure.maps.add.label": "Add a map",

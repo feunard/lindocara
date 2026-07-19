@@ -168,7 +168,6 @@ describe("AdventureEditorScreen shell", () => {
     useUiStore.setState({
       screen: "adventure-editor",
       adventureEditorSession: null,
-      editorReturnContext: null,
     });
     for (const fn of Object.values(stageMock)) fn.mockReset();
     stageMock.openMapEditorStage.mockResolvedValue(stageHandle());

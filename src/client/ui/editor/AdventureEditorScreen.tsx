@@ -128,7 +128,6 @@ function paintToolFor(key: EditorPaintTool | "stairs", content: RectFillContent)
 export function AdventureEditorScreen() {
   useLocale();
   const setScreen = useUiStore((state) => state.setScreen);
-  const returnContext = useUiStore((state) => state.editorReturnContext);
 
   const handleRef = useRef<MapEditorStageHandle | null>(null);
   const pendingToolRef = useRef<EditorTool>(paintToolFor("pencil", DEFAULT_CONTENT));
@@ -182,19 +181,14 @@ export function AdventureEditorScreen() {
     else setError(code);
   }
 
-  // Load the map to edit once: the one named by an adventure return context, else the author's first
-  // map. Task 8's maps panel takes over selection; this is the minimal seam that keeps the stage fed.
+  // Load the map to edit once: the author's first map. Task 8's maps panel takes over selection;
+  // this is the minimal seam that keeps the stage fed.
   // biome-ignore lint/correctness/useExhaustiveDependencies: one contextual auto-open on mount
   useEffect(() => {
     if (autoOpened.current) return;
     autoOpened.current = true;
     void (async () => {
       try {
-        const wanted = returnContext?.screen === "adventure" ? returnContext.mapId : null;
-        if (wanted) {
-          setMap(await fetchMap(wanted));
-          return;
-        }
         const list = await fetchMaps();
         const first = list[0];
         // A fresh account has zero maps: that is a first-class empty state, not an error. Leave `map`
