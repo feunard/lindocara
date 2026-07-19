@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "../../src/client/i18n.js";
 import type { GameHandle } from "../../src/client/store.js";
 import { useUiStore } from "../../src/client/store.js";
-import { SkillBar } from "../../src/client/ui/hud/SkillBar.js";
+import { SKILL_PAD_LAYOUT, SkillBar } from "../../src/client/ui/hud/SkillBar.js";
 
 function gameHandle(): GameHandle {
   return {
@@ -63,8 +63,31 @@ describe("skill bar cooldowns", () => {
     expect(game.castSkill).toHaveBeenCalledWith(2);
     expect(primary.querySelector(".skill-slot__icon--quick-shot")).not.toBeNull();
     expect(secondary.querySelector(".skill-slot__icon--piercing-arrow")).not.toBeNull();
-    expect(primary.querySelector(".skill-slot__key")).toHaveTextContent("O / Num 5");
-    expect(secondary.querySelector(".skill-slot__key")).toHaveTextContent("M / Num 3");
+    expect(primary.querySelector(".skill-slot__key")).toHaveTextContent("O");
+    expect(primary.querySelector(".skill-slot__pad")).toHaveTextContent("Num 5");
+    expect(secondary.querySelector(".skill-slot__key")).toHaveTextContent("M");
+    expect(secondary.querySelector(".skill-slot__pad")).toHaveTextContent("Num 3");
+  });
+
+  it("mirrors the five default numpad positions as a controller-style button cluster", () => {
+    useUiStore.setState({ game: gameHandle() });
+    render(<SkillBar />);
+
+    expect(SKILL_PAD_LAYOUT).toEqual({
+      1: { row: 1, column: 2, numpad: 5 },
+      2: { row: 2, column: 3, numpad: 3 },
+      3: { row: 2, column: 2, numpad: 2 },
+      4: { row: 2, column: 1, numpad: 1 },
+      5: { row: 1, column: 1, numpad: 4 },
+    });
+    for (const [slot, expected] of Object.entries(SKILL_PAD_LAYOUT)) {
+      const button = screen.getByRole("button", { name: new RegExp(`^${slot}\\.`) });
+      expect(button).toHaveStyle({
+        gridRow: String(expected.row),
+        gridColumn: String(expected.column),
+      });
+      expect(button).toHaveAttribute("data-numpad", String(expected.numpad));
+    }
   });
 
   it("keeps Iron Guard clickable while active and greys every other warrior action", () => {

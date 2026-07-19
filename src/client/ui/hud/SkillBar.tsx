@@ -12,6 +12,16 @@ import { skillIconArt } from "../../game/tiny-swords-art.js";
 import { t } from "../../i18n.js";
 import { useUiStore } from "../../store.js";
 
+export const SKILL_PAD_LAYOUT: Readonly<
+  Record<SkillSlot, { row: 1 | 2; column: 1 | 2 | 3; numpad: 1 | 2 | 3 | 4 | 5 }>
+> = {
+  1: { row: 1, column: 2, numpad: 5 },
+  2: { row: 2, column: 3, numpad: 3 },
+  3: { row: 2, column: 2, numpad: 2 },
+  4: { row: 2, column: 1, numpad: 1 },
+  5: { row: 1, column: 1, numpad: 4 },
+};
+
 export function SkillBar() {
   const self = useUiStore((state) => state.self);
   const game = useUiStore((state) => state.game);
@@ -88,7 +98,14 @@ export function SkillBar() {
         const icon = skillIconArt(self.class, skill.slot);
         const control = `skill${skill.slot}` as const;
         const keyBindings = inputSettings.keyboard[control];
-        const keyLabels = keyBindings.map(keyboardBindingLabel);
+        const layout = SKILL_PAD_LAYOUT[skill.slot];
+        const numpadLabel =
+          keyBindings
+            .filter((binding) => binding.code.startsWith("Numpad"))
+            .map(keyboardBindingLabel)[0] ?? `Num ${layout.numpad}`;
+        const primaryLabels = keyBindings
+          .filter((binding) => !binding.code.startsWith("Numpad"))
+          .map(keyboardBindingLabel);
         const iconStyle = {
           backgroundImage: `url("${icon.source}")`,
           backgroundSize: `${icon.frames * 100}% 100%`,
@@ -98,7 +115,9 @@ export function SkillBar() {
           <button
             type="button"
             key={skill.id}
-            className={`skill-slot${unavailable ? " cooling" : ""}${guardToggle && ironGuardActive ? " active" : ""}`}
+            className={`skill-slot skill-slot--${skill.slot}${unavailable ? " cooling" : ""}${guardToggle && ironGuardActive ? " active" : ""}`}
+            style={{ gridRow: layout.row, gridColumn: layout.column }}
+            data-numpad={layout.numpad}
             disabled={!game || self.life !== "alive" || unavailable}
             onPointerDown={
               heldSkill
@@ -125,7 +144,10 @@ export function SkillBar() {
                 : `${name} — ${t("skill.unlock_at", { level: requiredLevel })}`
             }
           >
-            <span className="skill-slot__key">{keyLabels.join(" / ")}</span>
+            <span className="skill-slot__key">{primaryLabels.join(" / ")}</span>
+            <span className="skill-slot__pad" aria-hidden="true">
+              {numpadLabel}
+            </span>
             <span
               className={`skill-slot__icon skill-slot__icon--${icon.variant}`}
               style={iconStyle}

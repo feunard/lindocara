@@ -6,7 +6,7 @@
   --green: #8bd59d;
   --legacy-muted: #a9bcae;
   --skill-bar-bottom: 1rem;
-  --skill-bar-height: 5.3rem;
+  --skill-bar-height: 11.6rem;
   --skill-bar-gap: 0.55rem;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
@@ -1563,13 +1563,14 @@ kbd {
   bottom: var(--skill-bar-bottom);
   left: 50%;
   display: grid;
-  grid-template-columns: repeat(5, minmax(4.5rem, 6.2rem));
-  gap: 0.35rem;
-  padding: 0.45rem;
+  grid-template-columns: repeat(3, 5rem);
+  grid-template-rows: repeat(2, 5rem);
+  gap: 0.38rem;
+  padding: 0.55rem 0.75rem;
   translate: -50% 0;
   pointer-events: auto;
   border: 2px solid rgb(220 194 111 / 35%);
-  border-radius: 0;
+  border-radius: 3.4rem;
   background:
     linear-gradient(rgb(5 20 17 / 88%), rgb(5 20 17 / 92%)),
     var(--tiny-slot) center / cover no-repeat;
@@ -1578,20 +1579,25 @@ kbd {
 
 .skill-slot {
   position: relative;
-  min-height: 4.4rem;
-  padding: 0.35rem 0.3rem 0.25rem;
+  width: 5rem;
+  min-width: 5rem;
+  min-height: 5rem;
+  padding: 0.55rem 0.35rem 0.35rem;
   display: grid;
   place-items: center;
   gap: 0.1rem;
   overflow: hidden;
   border: 2px solid rgb(220 194 111 / 42%);
-  border-radius: 0;
+  border-radius: 50%;
   background:
     linear-gradient(rgb(44 71 51 / 72%), rgb(13 39 31 / 88%)),
     var(--tiny-slot) center / 100% 100% no-repeat;
   image-rendering: pixelated;
   color: #f5e6bd;
   cursor: var(--tiny-cursor-link, pointer);
+  box-shadow:
+    inset 0 0 0 2px rgb(6 22 17 / 72%),
+    0 4px 9px rgb(0 0 0 / 38%);
 }
 
 .skill-slot:hover:not(:disabled),
@@ -1623,11 +1629,30 @@ kbd {
 .skill-slot__key {
   position: absolute;
   top: 0.18rem;
-  left: 0.28rem;
+  left: 0.65rem;
   color: #d8c789;
   font:
     700 0.6rem ui-monospace,
     monospace;
+}
+
+.skill-slot__pad {
+  position: absolute;
+  right: 0.45rem;
+  bottom: 0.35rem;
+  display: grid;
+  place-items: center;
+  min-width: 1.65rem;
+  min-height: 1rem;
+  padding: 0 0.18rem;
+  border: 1px solid rgb(236 205 121 / 58%);
+  border-radius: 999px;
+  background: rgb(4 18 14 / 88%);
+  color: #f6dda0;
+  font:
+    700 0.48rem ui-monospace,
+    monospace;
+  letter-spacing: -0.04em;
 }
 
 .skill-slot__cost {
@@ -1739,8 +1764,9 @@ kbd {
 
 .skill-slot__lock {
   position: absolute;
-  right: 0.25rem;
+  right: auto;
   bottom: 0.18rem;
+  left: 0.25rem;
   min-width: 1.1rem;
   padding: 0.05rem 0.16rem;
   border: 1px solid rgb(230 196 116 / 55%);
@@ -1842,6 +1868,7 @@ kbd {
     width: auto;
     padding: 0;
     grid-template-columns: repeat(3, 3.4rem);
+    grid-template-rows: repeat(2, 3.4rem);
     gap: 0.42rem;
     border: 0;
     background: transparent;
@@ -1871,6 +1898,15 @@ kbd {
   .skill-slot__key,
   .skill-slot__tooltip {
     display: none;
+  }
+
+  .skill-slot__pad {
+    top: -0.12rem;
+    right: -0.12rem;
+    bottom: auto;
+    min-width: 1.35rem;
+    min-height: 1.05rem;
+    font-size: 0.42rem;
   }
 
   .skill-slot__cost {
@@ -2106,7 +2142,8 @@ kbd {
   }
 
   .skill-bar.panel {
-    grid-template-columns: repeat(5, 2.85rem);
+    grid-template-columns: repeat(3, 2.85rem);
+    grid-template-rows: repeat(2, 2.85rem);
   }
 
   .skill-slot {
