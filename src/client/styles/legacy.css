@@ -195,9 +195,14 @@ body::after {
    shadcn tree (green pill buttons in the editor). `:not(:where([data-slot], .editor-root *))` fences
    them off the shadcn tree without changing their specificity (`:where()` contributes 0): every
    stock shadcn control carries a `data-slot` (covers portaled dialogs/menus too), and the editor's
-   own raw controls live under `.editor-root`. Neither should ever wear the game skin. */
-input:not(:where([data-slot], .editor-root *)),
-button:not(:where([data-slot], .editor-root *)) {
+   own raw controls live under `.editor-root`. Neither should ever wear the game skin.
+   `[data-slot] *` extends the same exemption to plain elements NESTED inside a data-slot container
+   (e.g. a raw <button>/<input> inside shadcn's DialogContent) — Radix dialogs/menus portal their
+   content to document.body, outside both `.editor-root` and any shadcn ancestor with a matching
+   attribute, so without this a bare child re-acquires the game skin the instant it lacks its own
+   data-slot. */
+input:not(:where([data-slot], [data-slot] *, .editor-root *)),
+button:not(:where([data-slot], [data-slot] *, .editor-root *)) {
   font: inherit;
   padding: 0.68rem 0.78rem;
   border: 1px solid #648f75;
@@ -206,14 +211,14 @@ button:not(:where([data-slot], .editor-root *)) {
   color: #f5f0df;
 }
 
-button:not(:where([data-slot], .editor-root *)) {
+button:not(:where([data-slot], [data-slot] *, .editor-root *)) {
   background: linear-gradient(180deg, #a9db8f, #6ea875);
   color: #092016;
   font-weight: 800;
   cursor: var(--tiny-cursor-link, pointer);
 }
 
-button:not(:where([data-slot], .editor-root *)):disabled {
+button:not(:where([data-slot], [data-slot] *, .editor-root *)):disabled {
   opacity: 0.5;
   cursor: progress;
 }

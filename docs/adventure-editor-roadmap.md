@@ -20,7 +20,7 @@ Six tranches, each ending in something playable:
 | --- | --- | --- |
 | 1 | Layered map model + tilesets | **Merged** (`9fdc9b9`) |
 | 2 | The editor shell — the wireframe's chrome | **Done** (branch `feature/editor-shell`) |
-| 3 | Events: data and placement | |
+| 3 | Events: data and placement | **Done** (branch `feature/map-events`) |
 | 4 | Switches, variables, adventure state | |
 | 5 | The command interpreter | The big one |
 | 6 | Test button, tileset database, the rest | |
@@ -100,22 +100,43 @@ The event layer. Placing, moving and deleting an event on the map, with its appe
 dialog — pages, spawn conditions, appearance, autonomous movement, options, trigger — but **not**
 the command list. Nothing executes yet.
 
-**The data model is the whole task.** An event is not a map element: elements are catalogue assets
-with footprints and collision, events are addressable things with pages and state. They want their
-own tables — `map_event` for identity and position, `map_event_page` for the pages — because a page
-count is unbounded and a JSON blob on the map row would fight the 200 KiB body cap that tranche 1
-already had to re-derive once.
+**What shipped.** `shared/map-events.ts` (types, limits, a total defensive parser) plus
+`map_event`/`map_event_page`, their own tables rather than a JSON blob on the map row, because a
+page count is unbounded and would have fought the body cap tranche 1 already had to re-derive once.
+Events ride the same `db.batch` as the map save, chunked under D1's 100-bound-parameter cap — the
+tranche-1 bug class, this time caught by a test before it shipped. An event is a client-minted uuid
+(stable so tranche 5's commands can reference it, unlike a marker's server-minted slug) plus a
+per-map creation-order ordinal (`EV001`, display only, never identity) and 1–8 pages of
+conditions/appearance/movement/options/trigger. The EV tool, the stage overlay and `EventDialog.tsx`
+(stock shadcn, the command-list pane disabled with a tranche-5 placeholder) are editor-only —
+nothing executes; the game runtime is untouched. Browser-verified: place two events, fill every
+block across two pages, save, reload, reopen — everything survives, zero console errors. One real
+bug found and fixed on that pass, not by any test: Radix portals `DialogContent` to `document.body`,
+outside `.editor-root`, so bare `<button>`/`<input>` nested inside a `[data-slot]` container had no
+`data-slot` of its own and was repainting as a green Tiny Swords pill; the `legacy.css` fence now
+also exempts `[data-slot] *` (`f7ddc63`).
 
-**Open decisions worth settling deliberately:**
+**Discoveries the next tranches inherit:**
 
-- **Event id stability.** Markers use server-minted ids matching `/^[a-z0-9][a-z0-9-]{0,31}$/`, and
-  the adventure graph binds to them. Events will be referenced by commands in tranche 5, so their
-  ids must survive edits the same way. Decide this now, not in tranche 5.
-- **What an event looks like.** The wireframe picks from unit sprites. The repo has a full Tiny
-  Swords catalogue with stable asset ids and footprints. Reuse it rather than inventing a second
-  art-reference scheme.
-- **Which page is active is a runtime question**, not an authoring one. Tranche 3 authors the
-  conditions; tranche 4 makes the server evaluate them. Resist making the editor decide.
+- **The catalogue has no unit/character domain.** The wireframe picks an event's appearance from
+  warrior/archer-style unit sprites; the repo's Tiny Swords catalogue has no such category, so the
+  graphic picker offers the full catalogue instead (scenery, props, everything) rather than a
+  filtered unit set. Adding real units is an art task — extending the generated catalogue — not an
+  editor task; nothing here blocks it, but nothing here does it either.
+- **Switch/variable ids are authored, not registered, yet.** A page's condition ids are free 4-digit
+  strings, validated in shape only (`/^\d{4}$/`). Tranche 4's registry is what closes the loop —
+  until then an author can type an id nothing reads.
+- **Page identity is `(event_id, position)`.** The D1 row also has its own server-minted primary
+  key, unused as identity today. Affirmed forward-compatible: giving a page a durable id later is a
+  column addition, not an identity migration.
+- **The eraser is now strict one-plane-per-stroke**: event beats element beats marker beats terrain,
+  first match wins, never multiple planes in one stroke. A disclosed UX change from the prior
+  eraser, worth a human nod rather than a silent behavior shift.
+- **Tranche 4's obligations, recorded in the ledger** (`.superpowers/sdd/progress.md`): client
+  event serialization must emit explicit `null` condition fields, never omit the key — the wire
+  parser rejects an absent field on purpose, so "no condition" and "malformed" stay distinguishable.
+  And the map's next-event-ordinal is display-only: deleting the highest-ordinal event and adding a
+  new one reuses that ordinal, which is fine for a chip but would be wrong as an identity.
 
 ## Tranche 4 — Switches, variables, adventure state
 
@@ -263,6 +284,7 @@ shipped once already.
 - `CLAUDE.md` — the agent contract. Read it fully before touching anything.
 - `wireframes/RPG Editor.dc.html` — the visual target.
 - `docs/superpowers/specs/2026-07-18-layered-map-model-design.md` — tranche 1's design.
+- `docs/superpowers/specs/2026-07-19-map-events-design.md` — tranche 3's design.
 - `docs/adventure-runtime-architecture.md` — room ownership, routing, presence fencing.
 - `docs/superpowers/specs/2026-07-16-map-editor-design.md` — the current editor's spec, which
   tranche 2 supersedes but should not contradict without saying so.

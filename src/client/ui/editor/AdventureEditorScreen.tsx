@@ -13,6 +13,7 @@ import {
   type MapData,
   MIN_PATROL_RADIUS,
 } from "../../../shared/map-data.js";
+import type { MapEvent } from "../../../shared/map-events.js";
 import { type EditorAssetId, editorAsset } from "../../../shared/tiny-swords-catalog.js";
 import {
   authErrorText,
@@ -43,6 +44,7 @@ import { AdventureSettingsDialog } from "./AdventureSettingsDialog.js";
 import { EditorMenuBar } from "./EditorMenuBar.js";
 import { EditorStatusBar } from "./EditorStatusBar.js";
 import { type EditorPaintTool, EditorToolbar, toolLabelText } from "./EditorToolbar.js";
+import { EventDialog } from "./EventDialog.js";
 import { MapListPanel } from "./MapListPanel.js";
 import { type MarkerToolKey, TerrainPalette } from "./TerrainPalette.js";
 
@@ -51,9 +53,10 @@ import { type MarkerToolKey, TerrainPalette } from "./TerrainPalette.js";
 const DEFAULT_CONTENT: RectFillContent = { kind: "block", block: "grass" };
 
 type StageStatus = "loading" | "empty" | "ready" | "error";
-/** The active tool key. `stairs`, scenery and the marker tools have no *paint*-toolbar button — they
- *  are picked in the palette — so the paint toolbar highlights only for its five paint tools. */
-type ToolKey = EditorPaintTool | "stairs" | MarkerToolKey;
+/** The active tool key. `stairs`, scenery, the marker tools and `event` have no *paint*-toolbar
+ *  button — they are picked in the palette or the EV slot — so the paint toolbar highlights only for
+ *  its five paint tools. */
+type ToolKey = EditorPaintTool | "stairs" | MarkerToolKey | "event";
 
 function isPaintToolKey(key: ToolKey | null): key is EditorPaintTool {
   return (
@@ -92,6 +95,7 @@ function toEditorMap(map: MapPayload): EditorMap {
     elements: map.elements,
     spawn: map.spawn,
     markers: map.markers ?? EMPTY_MARKERS,
+    events: map.events ?? [],
   };
 }
 
@@ -152,6 +156,9 @@ export function AdventureEditorScreen() {
   const [toolKey, setToolKey] = useState<ToolKey | null>("pencil");
   const [content, setContent] = useState<RectFillContent>(DEFAULT_CONTENT);
   const [selectedAsset, setSelectedAsset] = useState<EditorAssetId | null>(null);
+  // The default graphic a newly placed event's page 1 receives, carried on the event tool; `null` is
+  // the wireframe's "no graphic" default (a blank placeholder on the overlay).
+  const [pendingEventGraphic, setPendingEventGraphic] = useState<EditorAssetId | null>(null);
   const [activeLayer, setActiveLayer] = useState<0 | 1 | 2>(0);
   const [showGrid, setShowGrid] = useState(true);
   const [showDim, setShowDim] = useState(false);
@@ -172,6 +179,9 @@ export function AdventureEditorScreen() {
   const [newMapOpen, setNewMapOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // The event whose dialog is open, keyed by uuid. Set by a stage double-click (`onOpenEvent`) or by
+  // pressing Enter on a selected event; cleared on save/delete/cancel.
+  const [openEventId, setOpenEventId] = useState<string | null>(null);
   // Bumped after every save/create so the map panel refetches names and dimensions.
   const [mapsRefreshNonce, setMapsRefreshNonce] = useState(0);
 
@@ -222,6 +232,7 @@ export function AdventureEditorScreen() {
         setSelection(state.selection);
       },
       (col, row) => setCursor(col === null || row === null ? null : { col, row }),
+      (id) => setOpenEventId(id),
     )
       .then((handle) => {
         if (cancelled) {
@@ -337,6 +348,21 @@ export function AdventureEditorScreen() {
     setToolKey(null);
     setSelectedAsset(assetId);
     pushTool({ kind: "element", assetId });
+  }
+
+  // The EV slot and the Mode › Événements item both land here: activate the event tool, carrying the
+  // pending default graphic so a first placement already has it.
+  function selectEvents(): void {
+    setToolKey("event");
+    setSelectedAsset(null);
+    pushTool({ kind: "event", graphic: pendingEventGraphic });
+  }
+
+  // The Événements palette picker sets the default graphic future events get; while the event tool is
+  // active it re-pushes so the very next placement uses it (a "none" pick clears back to placeholder).
+  function selectEventGraphic(assetId: EditorAssetId | null): void {
+    setPendingEventGraphic(assetId);
+    if (toolKey === "event") pushTool({ kind: "event", graphic: assetId });
   }
 
   function pickContent(next: RectFillContent): void {
@@ -468,7 +494,7 @@ export function AdventureEditorScreen() {
   //   this file guarding on stage readiness.
   function handleShortcutKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
     if (stageStatus !== "ready") return;
-    if (newMapOpen || confirmDeleteId !== null || settingsOpen) return;
+    if (newMapOpen || confirmDeleteId !== null || settingsOpen || openEventId !== null) return;
     if (event.target instanceof Element && event.target.closest('[data-slot="dialog-content"]')) {
       return;
     }
@@ -488,6 +514,14 @@ export function AdventureEditorScreen() {
       event.preventDefault();
       if (event.shiftKey) redo();
       else undo();
+      return;
+    }
+    // Enter opens the dialog of the selected event — the keyboard twin of a stage double-click.
+    if (key === "enter") {
+      if (selection?.kind === "event") {
+        event.preventDefault();
+        setOpenEventId(selection.id);
+      }
       return;
     }
     if (event.metaKey || event.ctrlKey || event.altKey) return;
@@ -561,6 +595,11 @@ export function AdventureEditorScreen() {
   const currentMap: EditorMap | null =
     handleRef.current?.current() ?? editedRef.current ?? (map ? toEditorMap(map) : null);
 
+  // The dialog seed: a detached draft of the open event, read off the live handle. `null` closes the
+  // dialog (no open id, or the id no longer names a live event — e.g. it was just deleted).
+  const eventDraft: MapEvent | null =
+    openEventId !== null ? (handleRef.current?.beginEventDraft(openEventId) ?? null) : null;
+
   if (previewing) {
     return (
       <div className="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center">
@@ -597,6 +636,7 @@ export function AdventureEditorScreen() {
         onUndo={undo}
         onRedo={redo}
         onSelectLayer={selectLayer}
+        onSelectEvents={selectEvents}
         onSelectTool={selectTool}
         onToggleGrid={toggleGrid}
         onToggleDim={toggleDim}
@@ -607,6 +647,7 @@ export function AdventureEditorScreen() {
       <EditorToolbar
         activeTool={isPaintToolKey(toolKey) ? toolKey : null}
         activeLayer={activeLayer}
+        eventActive={toolKey === "event"}
         showGrid={showGrid}
         showDim={showDim}
         zoom={zoom}
@@ -616,6 +657,7 @@ export function AdventureEditorScreen() {
         onDeleteMap={() => setConfirmDeleteId(map?.id ?? null)}
         onSelectTool={selectTool}
         onSelectLayer={selectLayer}
+        onSelectEvents={selectEvents}
         onToggleGrid={toggleGrid}
         onToggleDim={toggleDim}
         onCycleZoom={cycleZoom}
@@ -634,6 +676,8 @@ export function AdventureEditorScreen() {
             fillActive={toolKey === "fill"}
             stairsActive={toolKey === "stairs"}
             activeMarker={activeMarker}
+            eventMode={toolKey === "event"}
+            pendingEventGraphic={pendingEventGraphic}
             selectedAsset={selectedAsset}
             markerSpecies={markerSpecies}
             markerRadius={markerRadius}
@@ -642,6 +686,7 @@ export function AdventureEditorScreen() {
             onSelectStairs={() => selectTool("stairs")}
             onSelectMarkerTool={selectMarkerTool}
             onSelectAsset={selectAsset}
+            onSelectEventGraphic={selectEventGraphic}
             onMarkerSpeciesChange={setMarkerSpecies}
             onMarkerRadiusChange={setMarkerRadius}
           />
@@ -731,6 +776,22 @@ export function AdventureEditorScreen() {
         onSaved={() => setMapsRefreshNonce((n) => n + 1)}
         onSessionExpired={() => setScreen("auth")}
       />
+
+      {eventDraft && (
+        <EventDialog
+          key={eventDraft.id}
+          event={eventDraft}
+          onCommit={(draft) => {
+            handleRef.current?.commitEventDraft(draft);
+            setOpenEventId(null);
+          }}
+          onDelete={() => {
+            if (openEventId) handleRef.current?.deleteEvent(openEventId);
+            setOpenEventId(null);
+          }}
+          onCancel={() => setOpenEventId(null)}
+        />
+      )}
 
       <EditorStatusBar
         mapName={map?.name ?? "—"}

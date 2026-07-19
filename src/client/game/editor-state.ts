@@ -23,6 +23,12 @@ import {
   parseMapData,
 } from "../../shared/map-data.js";
 import {
+  MAX_EVENTS_PER_MAP,
+  MAX_PAGES_PER_EVENT,
+  type MapEvent,
+  type MapEventPage,
+} from "../../shared/map-events.js";
+import {
   eraseRect,
   eraseTile,
   floodFill,
@@ -57,6 +63,12 @@ export interface EditorMap {
   elements: MapElement[];
   spawn: { col: number; row: number };
   markers: MapMarkers;
+  /**
+   * Authored events, ordered by creation. They are a plane of their own — above elements and
+   * markers, addressed by a client-minted uuid, one per cell — and nothing here executes this
+   * tranche. Serialized as-is by `serializedMap`, so dirty tracking sees an event change for free.
+   */
+  events: readonly MapEvent[];
   /**
    * The rect tool's drag anchor: optional and set only while a rect stroke is in flight. It carries
    * the first cell of the stroke and both the layers and the elements exactly as they stood before
@@ -105,13 +117,21 @@ export type EditorTool =
   | { kind: "marker-monster"; species: MonsterSpecies; patrolRadius: number }
   | { kind: "rect"; content: RectFillContent }
   | { kind: "fill"; content: RectFillContent }
-  | { kind: "stairs" };
+  | { kind: "stairs" }
+  /**
+   * Places an event, whose page 1 gets `graphic` as its default appearance — the palette's
+   * Événements picker sets it, "none" (omitted/`null`) leaves a blank placeholder. The graphic is a
+   * NEW-placement default only: editing an existing event's graphic is the dialog's job, not this
+   * tool's.
+   */
+  | { kind: "event"; graphic?: EditorAssetId | null };
 
 export type EditorSelection =
   | { kind: "element"; col: number; row: number }
   | { kind: "entry"; id: string }
   | { kind: "exit"; id: string }
   | { kind: "monster"; col: number; row: number }
+  | { kind: "event"; id: string }
   | { kind: "spawn" };
 
 export interface EditorHistory {
@@ -199,6 +219,10 @@ export function isEditorHistoryDirty(history: EditorHistory, current = history.p
 }
 
 export function selectionAt(map: EditorMap, col: number, row: number): EditorSelection | null {
+  // Events are the topmost plane, so they answer a click before any element or marker on the same
+  // cell — the same precedence the eraser follows.
+  const event = map.events.find((candidate) => candidate.col === col && candidate.row === row);
+  if (event) return { kind: "event", id: event.id };
   const entry = map.markers.entries.find((marker) => marker.col === col && marker.row === row);
   if (entry) return { kind: "entry", id: entry.id };
   const exit = map.markers.exits.find((marker) => marker.col === col && marker.row === row);
@@ -267,6 +291,8 @@ export function deleteSelection(map: EditorMap, selection: EditorSelection): Edi
           ),
         },
       };
+    case "event":
+      return { ...map, events: map.events.filter((event) => event.id !== selection.id) };
     case "spawn":
       return map;
   }
@@ -313,6 +339,22 @@ export function moveSelection(
         row,
       );
     }
+    case "event": {
+      const event = map.events.find((candidate) => candidate.id === selection.id);
+      if (!event) return null;
+      const { cols, rows } = editorMapSize(map);
+      if (col < 0 || row < 0 || col >= cols || row >= rows) return null;
+      // One event per cell: a move onto a cell another event already holds is a no-op, matching
+      // the placement rule. Events float above collision, so no terrain or marker check applies.
+      if (
+        map.events.some((other) => other.id !== event.id && other.col === col && other.row === row)
+      )
+        return null;
+      const events = map.events.map((candidate) =>
+        candidate.id === selection.id ? { ...candidate, col, row } : candidate,
+      );
+      return { ...map, events };
+    }
     case "spawn":
       return applyTool(map, { kind: "spawn" }, col, row);
   }
@@ -342,6 +384,98 @@ export function updateSelectedMonster(
   );
 }
 
+/**
+ * The event dialog edits a detached DRAFT, never the live map: `beginEventDraft` hands back a deep
+ * copy of one event, the pure mutators below fold changes into that copy, and only `commitEventDraft`
+ * writes it back as a single history entry. Because the draft is a value the caller holds — not a
+ * mutation of `EditorHistory` — every keystroke in the dialog is free of the undo stack until save,
+ * and cancelling is simply dropping the draft (history is untouched by construction, so no discard
+ * function is needed).
+ */
+export function beginEventDraft(map: EditorMap, id: string): MapEvent | null {
+  const event = map.events.find((candidate) => candidate.id === id);
+  if (!event) return null;
+  return { ...event, pages: event.pages.map((page) => ({ ...page })) };
+}
+
+/** Draft mutator: set the event name. Left untrimmed — the dialog validates on commit, and an empty
+ *  name is legal (the ordinal chip is the real label). */
+export function setEventDraftName(draft: MapEvent, name: string): MapEvent {
+  return { ...draft, name };
+}
+
+/** Draft mutator: merge a patch into one page. Everything on a page is per-page (XP semantics), so
+ *  a field edit routes through the page index the dialog has open. Out-of-range index is a no-op. */
+export function updateEventDraftPage(
+  draft: MapEvent,
+  index: number,
+  patch: Partial<MapEventPage>,
+): MapEvent {
+  if (index < 0 || index >= draft.pages.length) return draft;
+  return {
+    ...draft,
+    pages: draft.pages.map((page, i) => (i === index ? { ...page, ...patch } : page)),
+  };
+}
+
+/** Draft mutator: append a fresh page, up to the shared cap. Refused (`null`) at the cap so the
+ *  dialog can disable its add-page control rather than silently no-op. */
+export function addEventDraftPage(draft: MapEvent): MapEvent | null {
+  if (draft.pages.length >= MAX_PAGES_PER_EVENT) return null;
+  return { ...draft, pages: [...draft.pages, defaultEventPage()] };
+}
+
+/** Draft mutator: drop the page at `index`. Page 1 is mandatory, so the last page is never
+ *  removable and an out-of-range index is a no-op. */
+export function deleteEventDraftPage(draft: MapEvent, index: number): MapEvent | null {
+  if (draft.pages.length <= 1 || index < 0 || index >= draft.pages.length) return null;
+  return { ...draft, pages: draft.pages.filter((_page, i) => i !== index) };
+}
+
+/** Wire-legal-izes one condition id: digits only, empty pads to `"0001"`, otherwise padded/truncated
+ *  to exactly four digits (keeping the last four when an author types more). The parser requires
+ *  `/^\d{4}$/` (`shared/map-events.ts`); the switch/variable REGISTRY that would give these ids
+ *  meaning is a later tranche, so this only guarantees the authored value stays wire-legal, never
+ *  that it names anything real. */
+export function normalizeConditionId(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  if (digits === "") return "0001";
+  return digits.length > 4 ? digits.slice(-4) : digits.padStart(4, "0");
+}
+
+/** Clamps a variable-condition threshold to a non-negative integer; `null` passes through unchanged
+ *  (the condition is off, and `condVariableId`/`condVariableMin` nullness must stay paired). */
+export function normalizeConditionMin(value: number | null): number | null {
+  if (value === null) return null;
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.trunc(value));
+}
+
+/** Draft mutator: normalizes every page's condition ids/threshold to what the wire parser accepts.
+ *  The dialog also normalizes a single field on blur, but a keyboard-driven Save never blurs the
+ *  focused input — this pass over every page is what keeps that path wire-legal too. */
+export function normalizeEventDraftConditions(draft: MapEvent): MapEvent {
+  return {
+    ...draft,
+    pages: draft.pages.map((page) => ({
+      ...page,
+      condSwitchId: page.condSwitchId === null ? null : normalizeConditionId(page.condSwitchId),
+      condVariableId:
+        page.condVariableId === null ? null : normalizeConditionId(page.condVariableId),
+      condVariableMin: normalizeConditionMin(page.condVariableMin),
+    })),
+  };
+}
+
+/** Commit a draft back onto its event as ONE history entry. Committing after each mutator instead of
+ *  once is what would split a single dialog save into several undo steps — the caller commits once,
+ *  on the dialog's Save. A draft whose id no longer names a live event writes nothing. */
+export function commitEventDraft(history: EditorHistory, draft: MapEvent): EditorHistory {
+  const present = history.present;
+  const events = present.events.map((event) => (event.id === draft.id ? draft : event));
+  return commitEditorHistory(history, { ...present, events });
+}
+
 /** A map's dimensions, read off the ground layer — the layers are the only size there is. */
 export function editorMapSize(map: EditorMap): { cols: number; rows: number } {
   const ground = map.layers[GROUND_LAYER];
@@ -367,7 +501,39 @@ export function blankMap(name: string, cols: number, rows: number): EditorMap {
     elements: [],
     spawn: { col: Math.floor(cols / 2), row: Math.floor(rows / 2) },
     markers: EMPTY_MARKERS,
+    events: [],
   };
+}
+
+/**
+ * A fresh event page, matching the wireframe's `defPage` (`wireframes/RPG Editor.dc.html`): no
+ * graphic, all conditions cleared, movement Fixed at speed 4 / frequency 3, only Move-Anim on, and
+ * the Action trigger. These are the wireframe's literal defaults — speed 4 (not 3) and Stop-Anim
+ * off — not a rounder guess.
+ */
+export function defaultEventPage(): MapEventPage {
+  return {
+    condSwitchId: null,
+    condVariableId: null,
+    condVariableMin: null,
+    condSelfSwitch: null,
+    graphicAssetId: null,
+    moveType: "fixed",
+    moveSpeed: 4,
+    moveFreq: 3,
+    optMoveAnim: true,
+    optStopAnim: false,
+    optDirFix: false,
+    optThrough: false,
+    optOnTop: false,
+    trigger: "action",
+  };
+}
+
+/** The next display ordinal for a new event: one past the largest in use, so the first event on a
+ *  blank map is `EV001`. Never reused after a delete — ordinals are display order, not identity. */
+function nextEventOrdinal(events: readonly MapEvent[]): number {
+  return events.reduce((max, event) => Math.max(max, event.ordinal), 0) + 1;
 }
 
 /** The editor's layers are the map's layers: no projection, nothing to lose. */
@@ -397,6 +563,7 @@ export function toSaveInput(map: EditorMap): {
   elements: MapElement[];
   spawn: { col: number; row: number };
   markers: MapMarkers;
+  events: readonly MapEvent[];
 } {
   const data = toMapData(map);
   return {
@@ -408,6 +575,10 @@ export function toSaveInput(map: EditorMap): {
     elements: map.elements,
     spawn: map.spawn,
     markers: map.markers,
+    // The `MapEvent` shape carries every condition field as an explicit `null`, so `JSON.stringify`
+    // emits `"condSwitchId":null` rather than dropping the key. The wire parser rejects a page with
+    // an ABSENT condition field, so this fullness is load-bearing, not cosmetic.
+    events: map.events,
   };
 }
 
@@ -819,18 +990,29 @@ export function applyTool(
      * `activeLayer` is 0, a plain single-layer clear on layer 1 or 2 otherwise.
      */
     case "eraser": {
+      // Topmost plane first, exactly one plane per stroke: an event outranks an element, an element
+      // outranks a marker, and a marker outranks the bare terrain underneath. Events, elements and
+      // markers occupy independent planes, so a cell may hold all three at once; successive strokes
+      // then peel them off in that order. (The old eraser cleared the element and marker planes in
+      // one stroke; strict precedence is what lets an event sit above them without swallowing them.)
+      const eventIndex = map.events.findIndex((event) => event.col === col && event.row === row);
+      if (eventIndex !== -1) {
+        return { ...map, events: map.events.filter((_event, index) => index !== eventIndex) };
+      }
       const elements = withoutElementAt(map.elements, col, row);
+      if (elements.length !== map.elements.length) {
+        return { ...map, elements };
+      }
       const markers = map.markers;
       const entries = markers.entries.filter((m) => m.col !== col || m.row !== row);
       const exits = markers.exits.filter((m) => m.col !== col || m.row !== row);
       const monsterSpawns = markers.monsterSpawns.filter((m) => m.col !== col || m.row !== row);
-      const untouched =
-        elements.length === map.elements.length &&
-        entries.length === markers.entries.length &&
-        exits.length === markers.exits.length &&
-        monsterSpawns.length === markers.monsterSpawns.length;
-      if (!untouched) {
-        return { ...map, elements, markers: { entries, exits, monsterSpawns } };
+      if (
+        entries.length !== markers.entries.length ||
+        exits.length !== markers.exits.length ||
+        monsterSpawns.length !== markers.monsterSpawns.length
+      ) {
+        return { ...map, markers: { entries, exits, monsterSpawns } };
       }
       if (!isStrokeStart) return null;
       if (activeLayer !== 0) return eraseOnLayer(map, activeLayer, col, row);
@@ -890,6 +1072,28 @@ export function applyTool(
       const spawn = { col, row, species: tool.species, patrolRadius: tool.patrolRadius };
       const next = { ...map, markers: { ...markers, monsterSpawns: [...retained, spawn] } };
       return keepsMarkersValid(next) ? next : null;
+    }
+    /**
+     * Place a new event on an empty cell. One event per cell: a click on a cell that already holds
+     * an event is refused here (`null`) — the pointer path reads that as "select the event on this
+     * cell instead", keeping placement and selection cleanly separate. Events float above collision,
+     * so unlike elements and markers there is no terrain, spawn or marker rule to satisfy; the id is
+     * a client-minted uuid (stable across edits) and the ordinal is the next free display number.
+     */
+    case "event": {
+      if (map.events.some((event) => event.col === col && event.row === row)) return null;
+      if (map.events.length >= MAX_EVENTS_PER_MAP) return null;
+      const event: MapEvent = {
+        id: crypto.randomUUID(),
+        col,
+        row,
+        name: "",
+        ordinal: nextEventOrdinal(map.events),
+        // Page 1 adopts the tool's pending graphic (the palette's Événements picker); "none" leaves
+        // the default page's null graphic, i.e. the blank placeholder on the overlay.
+        pages: [{ ...defaultEventPage(), graphicAssetId: tool.graphic ?? null }],
+      };
+      return { ...map, events: [...map.events, event] };
     }
     case "pan":
       return map;

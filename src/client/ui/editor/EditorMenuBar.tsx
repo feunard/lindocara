@@ -25,6 +25,7 @@ interface EditorMenuBarProps {
   onUndo(): void;
   onRedo(): void;
   onSelectLayer(layer: 0 | 1 | 2): void;
+  onSelectEvents(): void;
   onSelectTool(tool: EditorPaintTool): void;
   onToggleGrid(): void;
   onToggleDim(): void;
@@ -53,6 +54,7 @@ export function EditorMenuBar({
   onUndo,
   onRedo,
   onSelectLayer,
+  onSelectEvents,
   onSelectTool,
   onToggleGrid,
   onToggleDim,
@@ -121,6 +123,8 @@ export function EditorMenuBar({
             <MenubarItem onClick={() => onSelectLayer(2)}>
               {t("editor.shell.layer", { n: 3 })}
             </MenubarItem>
+            <MenubarSeparator />
+            <MenubarItem onClick={onSelectEvents}>{t("editor.shell.events")}</MenubarItem>
           </MenubarContent>
         </MenubarMenu>
 

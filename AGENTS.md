@@ -385,6 +385,24 @@ floating over that centre, like the selection inspector, must re-enable pointer 
 Get this backwards and either every chrome click is eaten by the canvas, or every stroke is blocked
 by the chrome.
 
+Maps now carry authored **events** — their own `map_event`/`map_event_page` D1 tables, saved inside
+the same map-save transaction as elements and layers, chunked under D1's 100-bound-parameter cap the
+same way tranche 1 had to chunk elements. An event is a client-minted uuid (stable so tranche 5's
+commands can reference it) plus a per-map creation-order ordinal (the `EV001` chip — display only,
+never identity) and 1–8 ordered pages, each carrying conditions, appearance, autonomous-movement
+settings, options and a trigger. **Nothing executes**: the game runtime is untouched, and an
+authored event is invisible to a running party until the next tranche evaluates page conditions
+server-side. The wire parser rejects a payload with an absent condition field — a client must emit
+an explicit `null`, never omit the key, so "no condition" stays distinguishable from "malformed."
+The EV tool, the stage overlay (sprite + `EV{ordinal}` chip, or the placeholder box with no
+graphic) and the event dialog live entirely in the editor, in stock shadcn. Because Radix portals
+`DialogContent` to `document.body`, outside `.editor-root`, the `legacy.css` shadcn fence now also
+exempts `[data-slot] *`, not just `[data-slot]` itself — a bare `<button>`/`<input>` nested inside a
+data-slot container had no `data-slot` of its own and was repainting as a green Tiny Swords pill.
+See
+[`docs/superpowers/specs/2026-07-19-map-events-design.md`](./docs/superpowers/specs/2026-07-19-map-events-design.md)
+for the full model.
+
 See
 [`docs/superpowers/specs/2026-07-18-editor-shell-design.md`](./docs/superpowers/specs/2026-07-18-editor-shell-design.md)
 and [`docs/superpowers/plans/2026-07-18-editor-shell.md`](./docs/superpowers/plans/2026-07-18-editor-shell.md)
