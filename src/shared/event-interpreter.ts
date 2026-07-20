@@ -108,6 +108,34 @@ export type StateMutation =
   | { readonly type: "setSelfSwitch"; readonly key: string; readonly value: boolean };
 
 /**
+ * Apply one mutation to a party's adventure state, returning a NEW state (the interpreter never
+ * mutates; the coordinator, the single writer, is the sole caller). Pure and total: `add` reads the
+ * current value as `0` when the variable is untouched — the exact unknown-id default page selection
+ * uses (`adventure-state.ts`), so a run adding to a never-set variable and a page reading it agree.
+ * A `set` overwrites; a `setSwitch`/`setSelfSwitch` records the boolean under its key. Lives here,
+ * beside `StateMutation`, so the shape and the applier cannot drift.
+ */
+export function applyStateMutation(
+  state: PartyAdventureState,
+  mutation: StateMutation,
+): PartyAdventureState {
+  switch (mutation.type) {
+    case "setSwitch":
+      return { ...state, switches: { ...state.switches, [mutation.switchId]: mutation.value } };
+    case "setVariable": {
+      const current = state.variables[mutation.variableId] ?? 0;
+      const next = mutation.op === "add" ? current + mutation.value : mutation.value;
+      return { ...state, variables: { ...state.variables, [mutation.variableId]: next } };
+    }
+    case "setSelfSwitch":
+      return {
+        ...state,
+        selfSwitches: { ...state.selfSwitches, [mutation.key]: mutation.value },
+      };
+  }
+}
+
+/**
  * What a step asks the outside world to do, as data. The stepper resolves none of these — it does
  * not touch a socket, the coordinator, or a hero's inventory; task 3 dispatches each. `wait` carries
  * the authored frame count (NOT a deadline; see the module header). `closeDialogue` fires on `done`.

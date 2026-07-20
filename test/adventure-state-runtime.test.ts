@@ -299,7 +299,7 @@ describe("adventure state runtime", () => {
     const loaded = await env.GAME_SESSION.getByName(loadFixture.party.partyId).getAdventureState(
       loadFixture.party.partyId,
     );
-    expect(loaded.switches).toEqual({ "0001": true });
+    expect(loaded.state.switches).toEqual({ "0001": true });
 
     // Half B: after a seam flip the held state is ahead of D1 (the write is debounced 5s). A
     // restoring room pulling `getAdventureState` sees the flip; D1 does not yet.
@@ -318,7 +318,7 @@ describe("adventure state runtime", () => {
     const held = await env.GAME_SESSION.getByName(heldFixture.party.partyId).getAdventureState(
       heldFixture.party.partyId,
     );
-    expect(held.switches["0001"]).toBe(true);
+    expect(held.state.switches["0001"]).toBe(true);
     expect(await readPersistedState(heldFixture.party.partyId)).toBeNull();
   });
 

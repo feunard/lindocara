@@ -21,6 +21,14 @@ export interface MovementSystemContext {
   reclaimCorpse(socket: WebSocket, player: PlayerRuntime): void;
   collectLoot(socket: WebSocket, player: PlayerRuntime): void;
   savePlayer(player: PlayerRuntime, socket: WebSocket): Promise<boolean>;
+  /** Fired right after a player's authoritative position changed this tick, with where they were
+   *  before. `World` uses it to detect a hero's box landing on a `player-touch` event's cell — a
+   *  movement-edge check, not a per-tick scan. Absent for rooms that do not run events. */
+  onPlayerMoved?(
+    socket: WebSocket,
+    player: PlayerRuntime,
+    previousPosition: { x: number; y: number },
+  ): void;
 }
 
 /** Applies at most one queued command per player and performs movement-adjacent maintenance. */
@@ -79,6 +87,7 @@ export function advancePlayers(context: MovementSystemContext): void {
         player.x = moved.x;
         player.y = moved.y;
         context.playerGrid.update(player, previousPosition);
+        context.onPlayerMoved?.(socket, player, previousPosition);
         player.dirty = true;
         const action = player.action;
         if (
