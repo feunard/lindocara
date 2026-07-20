@@ -51,12 +51,14 @@ export const WAIT_FRAMES_MIN = 1;
 export const WAIT_FRAMES_MAX = 600;
 
 /**
- * An item id an authored `changeItems` grants or removes. Item definitions live in the server's
- * `items.ts` catalogue (`health_potion`, `weathered_sword`, ...) — a lowercase snake_case slug. This
- * shared file cannot import that server catalogue, and the registry-less philosophy the
- * switch/variable ids already follow applies identically: check the SHAPE of an id here, defer
- * "does it name a real item" to the runtime that owns the catalogue. The bound keeps a pathological
- * id from inflating the map body.
+ * An item id an authored `changeItems` grants or removes. `changeItems` only ever grants a
+ * consumable — a lowercase snake_case slug from the shared `CONSUMABLE_IDS` catalogue
+ * (`consumables.ts`), e.g. `health_potion` or `mana_potion`. Equipment ids such as `weathered_sword`
+ * are a DIFFERENT catalogue (the server's `items.ts`) and are refused just like an unknown id: this
+ * shared file cannot import either catalogue, and the registry-less philosophy the switch/variable
+ * ids already follow applies identically — check the SHAPE of an id here, defer "does it name a
+ * grantable consumable" to `World#dispatchItems` (`isConsumableId`), the runtime that owns the
+ * catalogue. The bound keeps a pathological id from inflating the map body.
  */
 export const ITEM_ID_PATTERN = /^[a-z][a-z0-9_]*$/;
 export const ITEM_ID_MAX = 64;

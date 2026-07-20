@@ -1076,6 +1076,150 @@ describe("gold and items (Task 5)", () => {
     );
     expect(refusals).toHaveLength(1);
   });
+
+  it("makes a zero-net gold change a no-op: no dirty, no reship, no event (review fix 2)", async () => {
+    // `changeGold -50` on a fresh hero (0 gold) clamps to 0 -> the NET change is zero. MUTATION PROOF:
+    // revert the before/after no-op check in `#dispatchGold` and a spurious `state` beat reaches the
+    // wire even though the balance never actually moved.
+    const scriptId = crypto.randomUUID();
+    const party = await testParty("noop-gold", {
+      maps: [
+        testMapInput("noop-gold ground", {
+          events: [scriptEvent(scriptId, 5, 5, "action", [{ t: "changeGold", amount: -50 }])],
+        }),
+      ],
+    });
+    const hero = await testHero("NoopGold", {
+      party,
+      account: party.host,
+      position: { x: 5 * TILE_SIZE + TILE_SIZE / 2, y: 5 * TILE_SIZE + TILE_SIZE / 2 },
+    });
+    const client = await Client.joinHero(hero);
+    await until("welcomed", () => client.welcome);
+
+    client.action("interact");
+    await scheduler.wait(300); // give the room ticks to (wrongly) reship a no-op state beat
+    expect(client.received.some((m) => m.t === "state")).toBe(false);
+    expect(client.latestState?.inventory.gold).toBe(0);
+  });
+
+  it("refuses a changeGold grant landing mid cross-map transition, with a deduped log (review fix 1)", async () => {
+    // Program: `teleport(cross-map); changeGold +5` in one drain. The teleport claims
+    // `player.transitioning` SYNCHRONOUSLY before its async handoff runs, so the very next effect in
+    // the SAME drain — the gold grant — must see it and refuse, not silently land in the handoff
+    // window. MUTATION PROOF: drop the `player.transitioning` guard in `#dispatchGold` and this
+    // refusal log never appears (the grant would instead land, or vanish unaccounted for).
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    onTestFinished(() => warnSpy.mockRestore());
+
+    const teleId = crypto.randomUUID();
+    const bodyA = testMapInput("guard-gold A", {
+      events: [
+        scriptEvent(teleId, 5, 5, "action", [
+          { t: "teleport", mapId: PLACEHOLDER_MAP, col: 10, row: 10 },
+          { t: "changeGold", amount: 5 },
+        ]),
+      ],
+    });
+    const party = await testParty("guard-gold", { maps: [bodyA, testMapInput("guard-gold B")] });
+    const [mapA, mapB] = party.mapIds;
+    if (!mapA || !mapB) throw new Error("expected two maps");
+    const fixedA: TestMapBody = {
+      ...bodyA,
+      events: bodyA.events.map((event) =>
+        event.id === teleId
+          ? {
+              ...event,
+              pages: event.pages.map((p) => ({
+                ...p,
+                commands: [
+                  { t: "teleport", mapId: mapB, col: 10, row: 10 } satisfies EventCommand,
+                  { t: "changeGold", amount: 5 } satisfies EventCommand,
+                ],
+              })),
+            }
+          : event,
+      ),
+    };
+    await putMap(party, mapA, fixedA);
+
+    const hero = await testHero("GuardGold", {
+      party,
+      account: party.host,
+      position: { x: 5 * TILE_SIZE + TILE_SIZE / 2, y: 5 * TILE_SIZE + TILE_SIZE / 2 },
+    });
+    const client = await Client.joinHero(hero);
+    await until("welcomed", () => client.welcome);
+
+    client.action("interact");
+    await until("gold refusal logged", () =>
+      warnSpy.mock.calls.some(
+        ([arg]) =>
+          typeof arg === "string" &&
+          arg.includes("event_gold_refused") &&
+          arg.includes('"reason":"transitioning"'),
+      ),
+    );
+    // Never landed: no loot.picked (gold) beat ever reached the client.
+    expect(client.received.some((m) => m.t === "event" && m.code === "loot.picked")).toBe(false);
+  });
+
+  it("refuses a changeItems grant landing mid cross-map transition, with a deduped log (review fix 1)", async () => {
+    // Same guard, same drain-ordering, on the item dispatcher. MUTATION PROOF: drop the
+    // `player.transitioning` guard in `#dispatchItems` and this refusal log never appears.
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    onTestFinished(() => warnSpy.mockRestore());
+
+    const teleId = crypto.randomUUID();
+    const bodyA = testMapInput("guard-items A", {
+      events: [
+        scriptEvent(teleId, 5, 5, "action", [
+          { t: "teleport", mapId: PLACEHOLDER_MAP, col: 10, row: 10 },
+          { t: "changeItems", itemId: "mana_potion", count: 3 },
+        ]),
+      ],
+    });
+    const party = await testParty("guard-items", { maps: [bodyA, testMapInput("guard-items B")] });
+    const [mapA, mapB] = party.mapIds;
+    if (!mapA || !mapB) throw new Error("expected two maps");
+    const fixedA: TestMapBody = {
+      ...bodyA,
+      events: bodyA.events.map((event) =>
+        event.id === teleId
+          ? {
+              ...event,
+              pages: event.pages.map((p) => ({
+                ...p,
+                commands: [
+                  { t: "teleport", mapId: mapB, col: 10, row: 10 } satisfies EventCommand,
+                  { t: "changeItems", itemId: "mana_potion", count: 3 } satisfies EventCommand,
+                ],
+              })),
+            }
+          : event,
+      ),
+    };
+    await putMap(party, mapA, fixedA);
+
+    const hero = await testHero("GuardItems", {
+      party,
+      account: party.host,
+      position: { x: 5 * TILE_SIZE + TILE_SIZE / 2, y: 5 * TILE_SIZE + TILE_SIZE / 2 },
+    });
+    const client = await Client.joinHero(hero);
+    await until("welcomed", () => client.welcome);
+
+    client.action("interact");
+    await until("item refusal logged", () =>
+      warnSpy.mock.calls.some(
+        ([arg]) =>
+          typeof arg === "string" &&
+          arg.includes("event_item_refused") &&
+          arg.includes('"reason":"transitioning"'),
+      ),
+    );
+    expect(client.received.some((m) => m.t === "event" && m.code === "loot.picked")).toBe(false);
+  });
 });
 
 describe("the per-hero dialogue cap (Task 4 review)", () => {
