@@ -261,6 +261,17 @@ describe("stepEventRun — control-flow programs", () => {
     expect(maxDepth).toBe(2);
   });
 
+  // Task-2 carry: a bare `loop {}` (empty body) is a fixpoint, not growth. Stepping it twice must
+  // land on the IDENTICAL context — an exhausted empty loop body resets pc to 0 and never pushes,
+  // so the second step is byte-for-byte the first. A pop-instead-of-reset bug would end the run.
+  it("an empty loop steps to an identical context twice running", () => {
+    const once = stepEventRun(run([{ t: "loop", body: [] }]), state());
+    const twice = stepEventRun(once.context, state());
+    expect(once.context.status).toBe("running");
+    expect(twice.context).toEqual(once.context);
+    expect(twice.effects).toEqual([]);
+  });
+
   it("walks nested ifs down to the model's depth cap and executes the innermost command", () => {
     // Eight nested holding ifs (the depth cap is 8), each satisfied, reaching a marker at the bottom.
     let inner: EventCommand[] = [{ t: "setSwitch", switchId: "0099", value: true }];
