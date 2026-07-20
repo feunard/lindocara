@@ -61,11 +61,15 @@ export interface EditorPlacementMetadata {
   renderLayer: EditorRenderLayer;
   visualFootprint: readonly CellOffset[];
   /**
-   * Sub-cell collision, in pixels relative to the sprite's ANCHOR point — the same point
-   * `createCatalogElementView` positions the container at, i.e. `col*64 + 32` horizontally and
-   * `(row+1)*64 + footOffset` vertically. Anchor space, not cell space: `footOffset` can push the
-   * art's foot most of a cell below the anchor cell, so cell-relative numbers would need re-tuning
-   * every time the art's foot moves.
+   * Sub-cell collision, in pixels relative to the sprite's VISIBLE FOOT — `col*64 + 32`
+   * horizontally, `(row+1)*64` vertically. So `y` is negative: the collider rises from the ground
+   * line the art stands on.
+   *
+   * Deliberately NOT the sprite container's position. `createCatalogElementView` places the
+   * container at `(row+1)*64 + footOffset`, and `footOffset` is `frameHeight - alphaBboxBottom`, so
+   * it cancels: the visible pixels always end exactly on the cell's bottom edge and the container
+   * point sits `footOffset` px BELOW them. Authoring against the container would make every value
+   * `footOffset`-dependent and would put a tree's collider in the empty cell south of the tree.
    *
    * Absent means the asset does not collide at all — the correct value for bushes, flowers and any
    * pure decoration. This replaces `collisionFootprint`: a whole-cell footprint was the only shape

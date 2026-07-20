@@ -238,20 +238,22 @@ function visualCells(width: number, height: number): { col: number; row: number 
   return result;
 }
 
-// Anchor-space collider math shares this with the build invariant below: the sprite's ANCHOR sits
-// at cell-centre horizontally (col*64+32) and at the cell's bottom edge vertically before footOffset
-// is added, so a cell-wide box centred on the anchor spans [-32, 32) in x and [-64, 0) in y per row.
+// Foot-space collider math shares this with the build invariant below: the origin is the sprite's
+// VISIBLE FOOT — cell-centre horizontally (col*64+32), the ground line the art stands on vertically
+// ((row+1)*64) — so a cell-wide box resting on the foot spans [-32, 32) in x and [-64, 0) in y per
+// row, rising into negative y. This is footOffset-independent by construction: see the `collider`
+// doc comment on `EditorPlacementMetadata` for why authoring against the sprite container instead
+// would be wrong.
 const TILE_PX = 64;
 
-// Trees (Tree1-4, Stump): a trunk, not a canopy. 192x192 art, footOffset 22, anchor bottom-centre.
-// The trunk is ~24px wide, centred on the anchor, rising ~20px from the foot.
+// Trees (Tree1-4, Stump): a trunk, not a canopy. ~24px wide, centred, rising ~20px from the ground.
 const TREE_COLLIDER: Rect = { x: -12, y: -20, width: 24, height: 20 };
 
 // Rocks: squatter and wider than a trunk.
 const ROCK_COLLIDER: Rect = { x: -20, y: -14, width: 40, height: 14 };
 
 // Buildings still block their whole visual footprint (unchanged behavior this tranche) — just
-// expressed in anchor space instead of cells, so the collider survives the removal of
+// expressed in foot space instead of cells, so the collider survives the removal of
 // `collisionFootprint` without a gameplay change.
 function buildingCollider(width: number, height: number): Rect {
   const cols = Math.max(1, Math.ceil(width / TILE_PX));
@@ -571,9 +573,14 @@ export function validateCatalog(
       }
       const editor = entry.editor;
       if (editor.collider) {
-        // Anchor space, not cell space (see TILE_PX comment above): a footprint cell at (col, row)
-        // spans x in [col*64-32, (col+1)*64-32) and y in [(row-1)*64, row*64) once you account for
-        // every row up to the footprint's lowest (closest to the anchor) row sitting at y=0.
+        // Foot space, not cell space (see TILE_PX comment above): the footprint's lowest (closest
+        // to the ground line) row sits at y=0, and higher (further-back) rows extend upward from
+        // there, so a footprint cell at (col, row) spans x in [col*64-32, (col+1)*64-32) and y in
+        // [(row - maxRow - 1)*64, (row - maxRow)*64).
+        //
+        // y=0 is the ground line the art stands on, so a collider that hangs below it
+        // (y + height > 0) sits in the cell SOUTH of the art — exactly the coordinate-space bug
+        // this shape exists to catch. Do not relax this bound.
         const cols = editor.visualFootprint.map((cell) => cell.col);
         const rows = editor.visualFootprint.map((cell) => cell.row);
         const minX = Math.min(...cols) * TILE_PX - TILE_PX / 2;
