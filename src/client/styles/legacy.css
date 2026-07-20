@@ -1681,6 +1681,57 @@ kbd {
   font-size: 0.68rem;
 }
 
+/* The per-player dialogue panel (spec Decision 4): a bottom-centred WoW-style card. Non-modal — it
+   never blocks the pointer outside itself, so movement/combat stay live around it. */
+.event-dialogue.tiny-panel {
+  position: fixed;
+  z-index: 84;
+  bottom: 8.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(42rem, calc(100vw - 2rem));
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem 1.15rem;
+  pointer-events: auto;
+}
+.event-dialogue__name {
+  color: #ffe6a1;
+  font-size: 0.95rem;
+}
+.event-dialogue__text {
+  margin: 0;
+  color: #f2ead9;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+.event-dialogue__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.event-dialogue__choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+.event-dialogue__legend {
+  padding: 0;
+  margin-bottom: 0.4rem;
+  color: #d9a94a;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.event-dialogue__choice {
+  justify-content: flex-start;
+  gap: 0.5rem;
+}
+
 .item-overlay.panel {
   position: fixed;
   z-index: 85;

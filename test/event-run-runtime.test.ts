@@ -11,6 +11,7 @@ import { env, evictDurableObject, runDurableObjectAlarm, SELF } from "cloudflare
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import type { EventCommand } from "../src/shared/event-commands.js";
 import type { MapEvent, MapEventPage } from "../src/shared/map-events.js";
+import type { ServerMessage } from "../src/shared/protocol.js";
 import { TILE_SIZE } from "../src/shared/tilemap.js";
 import {
   Client,
@@ -205,7 +206,7 @@ describe("triggers, the run, and cross-room state", () => {
 
   it("keeps only one run per event when triggered twice (the lock)", async () => {
     // A say program parks the run (waiting-advance), holding the lock indefinitely — a second
-    // interact must be dropped, so exactly one dialogue beat is ever buffered.
+    // interact must be dropped, so exactly one say beat ever reaches the wire.
     const scriptId = crypto.randomUUID();
     const party = await testParty("lock", {
       maps: [
@@ -223,15 +224,18 @@ describe("triggers, the run, and cross-room state", () => {
     await until("welcomed", () => client.welcome);
 
     client.action("interact");
-    await awaitDiag(hero.roomKey, "dialogue buffered", (diag) => diag.eventDialogue.length === 1);
+    await until(
+      "say beat on the wire",
+      () => client.received.filter((m) => m.t === "event.say").length === 1,
+    );
     client.action("interact");
     client.action("interact");
-    // Give the room time to (wrongly) start more runs, then assert still exactly one.
+    // Give the room time to (wrongly) start more runs, then assert still exactly one run + one beat.
     await scheduler.wait(300);
     const diag = await env.WORLD.getByName(hero.roomKey).roomDiagnostics();
-    expect(diag.eventDialogue).toHaveLength(1);
     expect(diag.eventRuns).toHaveLength(1);
     expect(diag.eventRuns[0]?.status).toBe("waiting-advance");
+    expect(client.received.filter((m) => m.t === "event.say")).toHaveLength(1);
   });
 
   it("reads its OWN switch write within the drain: set-then-branch takes THEN", async () => {
@@ -360,6 +364,169 @@ describe("triggers, the run, and cross-room state", () => {
     await until(
       "hero B advanced while the loop spins",
       () => (clientB.self()?.x ?? 0) > startX + TILE_SIZE,
+    );
+  });
+});
+
+describe("the dialogue conversation (Task 4)", () => {
+  it("runs say -> advance -> choices -> choose(1), the chosen branch's flip landing", async () => {
+    // A door-keeper scene: greet, then offer two answers. Option 0 flips 0001; option 1 flips 0007.
+    // choosing 1 must land 0007 (not 0001), then the run ends and the panel closes.
+    const scriptId = crypto.randomUUID();
+    const program: EventCommand[] = [
+      { t: "say", text: "Hail, traveller.", name: "Keeper" },
+      {
+        t: "choices",
+        prompt: "Open the door?",
+        options: [
+          { label: "Open", body: [{ t: "setSwitch", switchId: "0001", value: true }] },
+          { label: "Leave", body: [{ t: "setSwitch", switchId: "0007", value: true }] },
+        ],
+      },
+    ];
+    const party = await testParty("convo", {
+      maps: [
+        testMapInput("convo ground", {
+          events: [scriptEvent(scriptId, 5, 5, "action", program)],
+        }),
+      ],
+    });
+    const hero = await testHero("Talker", {
+      party,
+      account: party.host,
+      position: { x: 5 * TILE_SIZE + TILE_SIZE / 2, y: 5 * TILE_SIZE + TILE_SIZE / 2 },
+    });
+    const client = await Client.joinHero(hero);
+    await until("welcomed", () => client.welcome);
+
+    // 1) interact -> the say beat reaches THIS client on the wire (authored prose, verbatim).
+    client.action("interact");
+    const say = await until(
+      "say beat",
+      () =>
+        client.received.find((m) => m.t === "event.say") as
+          | Extract<ServerMessage, { t: "event.say" }>
+          | undefined,
+    );
+    expect(say.text).toBe("Hail, traveller.");
+    expect(say.name).toBe("Keeper");
+
+    // 2) advance -> the choices offer arrives.
+    client.sendRaw(JSON.stringify({ t: "event.advance", runId: say.runId }));
+    const choices = await until(
+      "choices beat",
+      () =>
+        client.received.find((m) => m.t === "event.choices") as
+          | Extract<ServerMessage, { t: "event.choices" }>
+          | undefined,
+    );
+    expect(choices.prompt).toBe("Open the door?");
+    expect(choices.options).toEqual(["Open", "Leave"]);
+    expect(choices.runId).toBe(say.runId);
+
+    // 3) choose(1) -> option 1's body flips 0007; the run then ends and pushes event.close.
+    client.sendRaw(JSON.stringify({ t: "event.choose", runId: say.runId, index: 1 }));
+    const diag = await awaitDiag(
+      hero.roomKey,
+      "chosen branch flipped 0007",
+      (d) => d.adventureState.switches["0007"] === true,
+    );
+    expect(diag.adventureState.switches["0001"]).toBeUndefined();
+    await until("panel closed", () =>
+      client.received.some((m) => m.t === "event.close" && m.runId === say.runId),
+    );
+    await awaitDiag(hero.roomKey, "run released", (d) => d.eventRuns.length === 0);
+  });
+
+  it("closes the panel and ends the run when the triggerer walks past DIALOGUE_CLOSE_RADIUS", async () => {
+    // A say parks the run. The hero walks four tiles away (> 3 * TILE_SIZE): the server closes the
+    // dialogue and drops the run. Mutation proof: drop the `> DIALOGUE_CLOSE_RADIUS` check in
+    // `#closeDistantDialogues` and no event.close ever arrives — this test times out.
+    const scriptId = crypto.randomUUID();
+    const party = await testParty("walkaway", {
+      maps: [
+        testMapInput("walkaway ground", {
+          events: [
+            scriptEvent(scriptId, 5, 5, "action", [{ t: "say", text: "stay a while", name: null }]),
+          ],
+        }),
+      ],
+    });
+    const hero = await testHero("Walker", {
+      party,
+      account: party.host,
+      position: { x: 5 * TILE_SIZE + TILE_SIZE / 2, y: 5 * TILE_SIZE + TILE_SIZE / 2 },
+    });
+    const client = await Client.joinHero(hero);
+    await until("welcomed", () => client.welcome);
+
+    client.action("interact");
+    const say = await until(
+      "say beat",
+      () =>
+        client.received.find((m) => m.t === "event.say") as
+          | Extract<ServerMessage, { t: "event.say" }>
+          | undefined,
+    );
+    await awaitDiag(hero.roomKey, "run parked", (d) => d.eventRuns.length === 1);
+
+    // Walk right, well beyond three tiles from the event cell (5,5).
+    client.press("right");
+    await until("walked four tiles away", () => (client.self()?.x ?? 0) > 9 * TILE_SIZE);
+    await until("panel closed on walk-away", () =>
+      client.received.some((m) => m.t === "event.close" && m.runId === say.runId),
+    );
+    await awaitDiag(hero.roomKey, "run ended on walk-away", (d) => d.eventRuns.length === 0);
+  });
+
+  it("mid-dialogue: a raw interact does NOT re-trigger, and event.advance turns the page", async () => {
+    // While parked on a say (waiting-advance), a bare interact must be dropped by the one-run lock —
+    // it never starts a second run. The advance intent is what turns the page.
+    const scriptId = crypto.randomUUID();
+    const party = await testParty("mid", {
+      maps: [
+        testMapInput("mid ground", {
+          events: [
+            scriptEvent(scriptId, 5, 5, "action", [
+              { t: "say", text: "one", name: null },
+              { t: "say", text: "two", name: null },
+            ]),
+          ],
+        }),
+      ],
+    });
+    const hero = await testHero("Mid", {
+      party,
+      account: party.host,
+      position: { x: 5 * TILE_SIZE + TILE_SIZE / 2, y: 5 * TILE_SIZE + TILE_SIZE / 2 },
+    });
+    const client = await Client.joinHero(hero);
+    await until("welcomed", () => client.welcome);
+
+    client.action("interact");
+    const first = await until(
+      "first say",
+      () =>
+        client.received.find((m) => m.t === "event.say") as
+          | Extract<ServerMessage, { t: "event.say" }>
+          | undefined,
+    );
+    expect(first.text).toBe("one");
+
+    // A second bare interact while parked: the lock drops it. Give the room ticks to (wrongly) act.
+    client.action("interact");
+    client.action("interact");
+    await scheduler.wait(300);
+    const diag = await env.WORLD.getByName(hero.roomKey).roomDiagnostics();
+    expect(diag.eventRuns).toHaveLength(1);
+    expect(diag.eventRuns[0]?.runId).toBe(first.runId);
+    // Still exactly one say has been sent — no re-trigger produced a duplicate greeting.
+    expect(client.received.filter((m) => m.t === "event.say" && m.text === "one")).toHaveLength(1);
+
+    // event.advance turns to the second page.
+    client.sendRaw(JSON.stringify({ t: "event.advance", runId: first.runId }));
+    await until("advanced to page two", () =>
+      client.received.some((m) => m.t === "event.say" && m.text === "two"),
     );
   });
 });

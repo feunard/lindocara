@@ -48,7 +48,7 @@ import {
   sweptProjectileEntityImpact,
   sweptProjectileTerrainImpact,
 } from "../shared/directional-combat.js";
-import type { EventCommand } from "../shared/event-commands.js";
+import { DIALOGUE_CLOSE_RADIUS, type EventCommand } from "../shared/event-commands.js";
 import type { StateMutation } from "../shared/event-interpreter.js";
 import {
   applyDamage,
@@ -158,6 +158,7 @@ import {
   abortRunsForHero,
   advanceRun,
   chooseRun,
+  closeDistantDialogues,
   createEventRunRuntime,
   type DispatchEffect,
   drainRuns,
@@ -1180,6 +1181,17 @@ export class World extends DurableObject<Env> {
     }
     if (message.t === "interact") {
       await this.#interact(ws, player);
+      return;
+    }
+    // The two dialogue intents (cheap intents, the connection window cost class). Both are validated
+    // hero==triggerer inside `advanceRun`/`chooseRun`, and `chooseRun` re-derives and range-checks the
+    // option from the live pending offer; a stray intent from anyone else, or a wrong index, drops.
+    if (message.t === "event.advance") {
+      advanceRun(this.#eventRuns, player.id, message.runId);
+      return;
+    }
+    if (message.t === "event.choose") {
+      chooseRun(this.#eventRuns, player.id, message.runId, message.index);
       return;
     }
     if (message.t === "use") {
@@ -2847,41 +2859,100 @@ export class World extends DurableObject<Env> {
   /**
    * Step every live run its budgeted slice, then dispatch the effects that need this room's
    * authority: state mutations are batched into ONE coordinator RPC (the single writer), a teleport
-   * sets an authoritative position, gold/items are parked for Task 5. Dialogue effects are not here
-   * — they buffer in the run runtime for the diagnostics/test seam until Task 4 puts them on the wire.
+   * sets an authoritative position, gold/items are parked for Task 5. Dialogue effects buffer in the
+   * run runtime and are flushed to the triggerer's socket at the end of the drain (`#flushDialogue`).
+   *
+   * Order: close any walked-away dialogue FIRST (it buffers a `closeDialogue` beat and releases the
+   * lock), then drain the survivors, then flush every buffered beat — a run's `say`/`choices` and its
+   * distance-close all reach the wire in the same tick they were produced.
    */
   #drainEventRuns(now: number): void {
-    if (this.#eventRuns.contexts.size === 0) return;
-    const { effects } = drainRuns(this.#eventRuns, {
-      state: this.#adventureState,
-      tick: this.#tick,
-    });
-    if (effects.length === 0) return;
-    const mutations: StateMutation[] = [];
-    for (const dispatch of effects) {
-      const effect = dispatch.effect;
-      if (effect.kind === "mutateState") {
-        mutations.push(effect.op);
-      } else if (effect.kind === "teleport") {
-        this.#dispatchTeleport(dispatch, effect, now);
-      } else {
-        // changeGold / changeItems land in Task 5 — do NOT silently drop; record and continue so the
-        // run keeps running. The hero-session gold/inventory wiring is the remaining effect work.
-        console.log(
-          JSON.stringify({
-            event: "event_effect_unimplemented",
-            kind: effect.kind,
-            heroId: dispatch.heroId,
-            roomKey: this.#location?.roomKey ?? null,
-          }),
-        );
+    this.#closeDistantDialogues();
+    if (this.#eventRuns.contexts.size > 0) {
+      const { effects } = drainRuns(this.#eventRuns, {
+        state: this.#adventureState,
+        tick: this.#tick,
+      });
+      const mutations: StateMutation[] = [];
+      for (const dispatch of effects) {
+        const effect = dispatch.effect;
+        if (effect.kind === "mutateState") {
+          mutations.push(effect.op);
+        } else if (effect.kind === "teleport") {
+          this.#dispatchTeleport(dispatch, effect, now);
+        } else {
+          // changeGold / changeItems land in Task 5 — do NOT silently drop; record and continue so the
+          // run keeps running. The hero-session gold/inventory wiring is the remaining effect work.
+          console.log(
+            JSON.stringify({
+              event: "event_effect_unimplemented",
+              kind: effect.kind,
+              heroId: dispatch.heroId,
+              roomKey: this.#location?.roomKey ?? null,
+            }),
+          );
+        }
+      }
+      if (mutations.length > 0 && this.#heroPartyId !== null) {
+        const partyId = this.#heroPartyId;
+        // Same retained stub every tick so consecutive mutation batches keep their E-order.
+        this.ctx.waitUntil(this.#gameSession(partyId).applyStateChanges(partyId, mutations));
       }
     }
-    if (mutations.length > 0 && this.#heroPartyId !== null) {
-      const partyId = this.#heroPartyId;
-      // Same retained stub every tick so consecutive mutation batches keep their E-order.
-      this.ctx.waitUntil(this.#gameSession(partyId).applyStateChanges(partyId, mutations));
+    this.#flushDialogue();
+  }
+
+  /**
+   * End every run parked on a dialogue whose triggerer has walked beyond `DIALOGUE_CLOSE_RADIUS` of
+   * its event cell (spec Decision 4, WoW: the panel closes, the conversation is over). `World` owns
+   * the positions, so it supplies the geometry; `closeDistantDialogues` buffers the `closeDialogue`
+   * beat and drops the context. A missing triggerer or event is treated as beyond — there is no panel
+   * left to hold open. Ending the run is NOT a rollback: mutations already applied stay applied.
+   */
+  #closeDistantDialogues(): void {
+    if (this.#eventRuns.contexts.size === 0) return;
+    const events = this.#location?.definition.events ?? [];
+    closeDistantDialogues(this.#eventRuns, (context) => {
+      const socket = this.#socketByPlayerId.get(context.heroId);
+      const player = socket ? this.#players.get(socket) : undefined;
+      if (player === undefined) return true;
+      const event = events.find((candidate) => candidate.id === context.eventId);
+      if (event === undefined) return true;
+      return pointDistance(player, eventCellCentre(event)) > DIALOGUE_CLOSE_RADIUS;
+    });
+  }
+
+  /**
+   * Send every buffered dialogue beat to its triggerer's socket, then clear the buffer. `say`/
+   * `choices` carry authored prose (the sanctioned data exception, spec Decision 4); `closeDialogue`
+   * becomes `event.close`. A beat whose triggerer has no socket (already gone) is dropped silently.
+   */
+  #flushDialogue(): void {
+    const dialogue = this.#eventRuns.dialogue;
+    if (dialogue.length === 0) return;
+    for (const buffered of dialogue) {
+      const socket = this.#socketByPlayerId.get(buffered.heroId);
+      if (socket === undefined) continue;
+      const message = buffered.message;
+      if (message.kind === "say") {
+        this.#send(
+          socket,
+          message.name === null
+            ? { t: "event.say", runId: buffered.runId, text: message.text }
+            : { t: "event.say", runId: buffered.runId, text: message.text, name: message.name },
+        );
+      } else if (message.kind === "offerChoices") {
+        this.#send(socket, {
+          t: "event.choices",
+          runId: buffered.runId,
+          prompt: message.prompt,
+          options: [...message.options],
+        });
+      } else {
+        this.#send(socket, { t: "event.close", runId: buffered.runId });
+      }
     }
+    dialogue.length = 0;
   }
 
   /** The party's coordinator stub, retained so every ordered call rides one stub's E-order (see

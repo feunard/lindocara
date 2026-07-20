@@ -2,6 +2,10 @@ import type { en } from "./en.js";
 
 export const fr: Record<keyof typeof en, string> = {
   "common.close": "Fermer",
+  "dialogue.title": "Conversation",
+  "dialogue.continue": "Continuer",
+  "dialogue.choose": "Choisissez une réponse",
+  "dialogue.space": "Espace",
   "inventory.eyebrow": "Sac de voyage",
   "inventory.title": "Inventaire",
   "inventory.hint":

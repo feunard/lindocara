@@ -43,6 +43,17 @@ export interface ChatLine {
   at: number;
 }
 
+/**
+ * The dialogue panel's current beat (spec Decision 4), or null when no panel is open. A per-player
+ * WoW-style panel: the server pushes `event.say`/`event.choices` to the triggerer and `event.close`
+ * ends it. `runId` names the run the intents (`eventAdvance`/`eventChoose`) route back to. The prose
+ * (`text`/`name`/`prompt`/`options`) is the AUTHOR's data rendered verbatim — the sanctioned
+ * codes-not-sentences exception; every chrome string around it stays i18n-governed.
+ */
+export type EventDialogue =
+  | { kind: "say"; runId: string; text: string; name?: string }
+  | { kind: "choices"; runId: string; prompt: string; options: string[] };
+
 export interface PartyInviteNotice {
   inviteId: string;
   fromId: string;
@@ -93,6 +104,9 @@ export interface GameHandle {
   partyLeave?(): void;
   partyKick?(playerId: string): void;
   partyDissolve?(): void;
+  /** The two dialogue intents (spec Decision 4). The panel calls these; the server re-validates. */
+  eventAdvance?(runId: string): void;
+  eventChoose?(runId: string, index: number): void;
   switchCharacter(): void;
   logout(): void;
   /** React owns the canvas; the game loop draws into it. The store stays free of world x/y. */
@@ -161,6 +175,8 @@ interface UiState {
   reconnect: ReconnectState | null;
   heroLoading: HeroLoadingState | null;
   adventureVictory: boolean;
+  /** The open dialogue panel, or null. Owned entirely by session.ts's event handlers. */
+  eventDialogue: EventDialogue | null;
   game: GameHandle | null;
 
   setScreen(screen: UiState["screen"]): void;
@@ -193,6 +209,7 @@ interface UiState {
   setReconnect(reconnect: ReconnectState | null): void;
   setHeroLoading(heroLoading: HeroLoadingState | null): void;
   setAdventureVictory(visible: boolean): void;
+  setEventDialogue(dialogue: EventDialogue | null): void;
   setGame(game: GameHandle | null): void;
   /** Everything a terminal disconnect must clear before character select is usable again: the
    *  handle, the reconnect banner, and every full-screen overlay flag. Miss one and it survives
@@ -288,6 +305,7 @@ export const useUiStore = create<UiState>((set) => ({
   reconnect: null,
   heroLoading: null,
   adventureVictory: false,
+  eventDialogue: null,
   game: null,
 
   setScreen: (screen) => set({ screen }),
@@ -383,6 +401,7 @@ export const useUiStore = create<UiState>((set) => ({
   setReconnect: (reconnect) => set({ reconnect }),
   setHeroLoading: (heroLoading) => set({ heroLoading }),
   setAdventureVictory: (adventureVictory) => set({ adventureVictory }),
+  setEventDialogue: (eventDialogue) => set({ eventDialogue }),
   setGame: (game) => set({ game }),
   resetToCharacterSelect: () =>
     set({
@@ -397,6 +416,7 @@ export const useUiStore = create<UiState>((set) => ({
       settingsOpen: false,
       interiorDoorId: null,
       adventureVictory: false,
+      eventDialogue: null,
       activeParty: null,
     }),
   resetToParty: () =>
@@ -412,5 +432,6 @@ export const useUiStore = create<UiState>((set) => ({
       settingsOpen: false,
       interiorDoorId: null,
       adventureVictory: false,
+      eventDialogue: null,
     }),
 }));

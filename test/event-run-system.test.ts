@@ -10,6 +10,7 @@ import {
   abortRunsForHero,
   advanceRun,
   chooseRun,
+  closeDistantDialogues,
   createEventRunRuntime,
   drainRuns,
   startRun,
@@ -151,6 +152,42 @@ describe("aborts", () => {
     begin(runtime, "b", [{ t: "say", text: "b", name: null }], { heroId: "h2", runId: "run-b" });
     abortRunsForHero(runtime, "h1");
     expect([...runtime.contexts.keys()]).toEqual(["b"]);
+  });
+});
+
+describe("distance-close (spec Decision 4)", () => {
+  it("ends only a dialogue-parked run when its triggerer is beyond the radius, buffering a close", () => {
+    const runtime = createEventRunRuntime();
+    // A parked say (waiting-advance) and a spinning loop (running) share the room.
+    begin(runtime, "talk", [{ t: "say", text: "hi", name: null }], { runId: "run-talk" });
+    begin(runtime, "spin", [{ t: "loop", body: [{ t: "comment", text: "x" }] }], {
+      runId: "run-spin",
+    });
+    drainRuns(runtime, { state: EMPTY_ADVENTURE_STATE, tick: 0 });
+    expect(runtime.contexts.get("talk")?.status).toBe("waiting-advance");
+    expect(runtime.contexts.get("spin")?.status).toBe("running");
+    // Drop the say beat the drain buffered — World flushes it to the wire every tick; here we clear
+    // by hand so the assertion below sees only the close beat the distance-close appends.
+    runtime.dialogue.length = 0;
+
+    // Everyone is "beyond" — but only the dialogue-parked run may end; the running loop is untouched.
+    closeDistantDialogues(runtime, () => true);
+    expect(runtime.contexts.has("talk")).toBe(false);
+    expect(runtime.contexts.get("spin")?.status).toBe("running");
+    expect(runtime.dialogue).toEqual([
+      { heroId: "hero-1", runId: "run-talk", message: { kind: "closeDialogue" } },
+    ]);
+  });
+
+  it("keeps a dialogue-parked run whose triggerer is still in range", () => {
+    const runtime = createEventRunRuntime();
+    begin(runtime, "talk", [{ t: "say", text: "hi", name: null }], { runId: "run-talk" });
+    drainRuns(runtime, { state: EMPTY_ADVENTURE_STATE, tick: 0 });
+    runtime.dialogue.length = 0; // clear the say beat the drain buffered (World flushes it each tick)
+    // In range: nothing closes, nothing buffered.
+    closeDistantDialogues(runtime, () => false);
+    expect(runtime.contexts.get("talk")?.status).toBe("waiting-advance");
+    expect(runtime.dialogue).toHaveLength(0);
   });
 });
 

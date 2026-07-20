@@ -285,3 +285,32 @@ export function abortRunsForHero(runtime: EventRunRuntime, heroId: string): void
 export function abortRunForEvent(runtime: EventRunRuntime, eventId: string): void {
   runtime.contexts.delete(eventId);
 }
+
+/**
+ * The distance-close (spec Decision 4, WoW): a run PARKED on a dialogue (`waiting-advance`/
+ * `waiting-choice`) whose triggerer has walked beyond `DIALOGUE_CLOSE_RADIUS` of its event ENDS — the
+ * panel closes, the conversation is over. `World` owns the positions, so it supplies `isBeyond`,
+ * keyed by the parked context; this function owns the bookkeeping that must never touch a socket:
+ * buffer one `closeDialogue` beat for the triggerer (the flush sends `event.close`) and delete the
+ * context, releasing the lock. Only PARKED-on-dialogue contexts are eligible — a running or
+ * waiting-timer context is mid-execution, not waiting on a panel, so walking away does not end it.
+ *
+ * Ending the run is NOT a state rollback: any switch/variable/self-switch the run already wrote stays
+ * written (it flowed up to the coordinator when it executed). Walk-away abandons the REMAINDER of the
+ * conversation, exactly as WoW closing a quest dialog keeps whatever the click already committed.
+ */
+export function closeDistantDialogues(
+  runtime: EventRunRuntime,
+  isBeyond: (context: RunContext) => boolean,
+): void {
+  for (const [eventId, context] of [...runtime.contexts]) {
+    if (context.status !== "waiting-advance" && context.status !== "waiting-choice") continue;
+    if (!isBeyond(context)) continue;
+    runtime.dialogue.push({
+      heroId: context.heroId,
+      runId: context.runId,
+      message: { kind: "closeDialogue" },
+    });
+    runtime.contexts.delete(eventId);
+  }
+}

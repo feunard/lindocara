@@ -7,6 +7,7 @@ import { ConnectionOverlay } from "./ConnectionOverlay.js";
 import { EventLog } from "./EventLog.js";
 import { AdventureEditorScreen } from "./editor/AdventureEditorScreen.js";
 import { HelpBar } from "./HelpBar.js";
+import { EventDialoguePanel } from "./hud/EventDialoguePanel.js";
 import { Hud } from "./hud/Hud.js";
 import { Minimap } from "./hud/Minimap.js";
 import { InteriorOverlay } from "./InteriorOverlay.js";
@@ -59,6 +60,7 @@ export function App() {
           <InteriorOverlay />
           <InventoryOverlay />
           <MerchantOverlay />
+          <EventDialoguePanel />
           <WorldMap />
           <TalentTree />
           <MobileControls />

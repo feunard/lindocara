@@ -5,6 +5,12 @@
 
 export const en = {
   "common.close": "Close",
+  // Dialogue-panel chrome (spec Decision 4). The authored say/choice PROSE renders verbatim from the
+  // wire; only this framing is i18n. `dialogue.continue` labels the advance affordance on a say page.
+  "dialogue.title": "Conversation",
+  "dialogue.continue": "Continue",
+  "dialogue.choose": "Choose an answer",
+  "dialogue.space": "Space",
   "inventory.eyebrow": "Travelling pack",
   "inventory.title": "Inventory",
   "inventory.hint":
