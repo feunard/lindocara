@@ -13,7 +13,6 @@ import {
   fetchHeroes,
   type StoredHero,
 } from "../api.js";
-import { startGameAsHero } from "../game/session.js";
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
 
@@ -100,6 +99,7 @@ export function PartyScreen() {
     setError(null);
     setStartingHeroId(hero.id);
     try {
+      const { startGameAsHero } = await import("../game/session.js");
       await startGameAsHero(hero, party);
     } catch (caught) {
       fail(caught);

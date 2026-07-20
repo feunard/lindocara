@@ -1,11 +1,10 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { fetchMe } from "../api.js";
 import { useUiStore } from "../store.js";
 import { AuthScreen } from "./AuthScreen.js";
 import { Chat } from "./Chat.js";
 import { ConnectionOverlay } from "./ConnectionOverlay.js";
 import { EventLog } from "./EventLog.js";
-import { AdventureEditorScreen } from "./editor/AdventureEditorScreen.js";
 import { HelpBar } from "./HelpBar.js";
 import { EventDialoguePanel } from "./hud/EventDialoguePanel.js";
 import { Hud } from "./hud/Hud.js";
@@ -24,6 +23,11 @@ import { TalentTree } from "./TalentTree.js";
 import { TitleScreen } from "./TitleScreen.js";
 import { VictoryOverlay } from "./VictoryOverlay.js";
 import { WorldMap } from "./WorldMap.js";
+
+const AdventureEditorScreen = lazy(async () => {
+  const module = await import("./editor/AdventureEditorScreen.js");
+  return { default: module.AdventureEditorScreen };
+});
 
 export function App() {
   const screen = useUiStore((s) => s.screen);
@@ -46,7 +50,11 @@ export function App() {
       {screen !== "adventure-editor" && <StatusBar />}
       {screen === "title" && <TitleScreen />}
       {screen === "auth" && <AuthScreen />}
-      {screen === "adventure-editor" && <AdventureEditorScreen />}
+      {screen === "adventure-editor" && (
+        <Suspense fallback={null}>
+          <AdventureEditorScreen />
+        </Suspense>
+      )}
       {screen === "parties" && <PartiesScreen />}
       {screen === "party" && <PartyScreen />}
       {screen === "game" && (

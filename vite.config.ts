@@ -14,5 +14,18 @@ export default defineConfig({
   },
   build: {
     sourcemap: true,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: "tiny-swords-assets",
+              test: /[\\/]assets[\\/]Tiny Swords/,
+              maxSize: 350_000,
+            },
+          ],
+        },
+      },
+    },
   },
 });
