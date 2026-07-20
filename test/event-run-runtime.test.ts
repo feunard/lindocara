@@ -8,7 +8,7 @@
  * `roomDiagnostics` run/dialogue seam standing in for the not-yet-existing dialogue protocol.
  */
 import { env, evictDurableObject, runDurableObjectAlarm, SELF } from "cloudflare:test";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import type { EventCommand } from "../src/shared/event-commands.js";
 import type { MapEvent, MapEventPage } from "../src/shared/map-events.js";
 import { TILE_SIZE } from "../src/shared/tilemap.js";
@@ -234,6 +234,93 @@ describe("triggers, the run, and cross-room state", () => {
     expect(diag.eventRuns[0]?.status).toBe("waiting-advance");
   });
 
+  it("reads its OWN switch write within the drain: set-then-branch takes THEN", async () => {
+    // `setSwitch 0001; if 0001 then {set 0002} else {set 0003}` — the branch runs in the SAME drain
+    // as the write, so it must see 0001 and set 0002, NOT 0003. Mutation proof: drop the drain-local
+    // working copy and the `if` reads the frozen (pre-flip) snapshot, takes ELSE, and sets 0003.
+    const scriptId = crypto.randomUUID();
+    const party = await testParty("raw-branch", {
+      maps: [
+        testMapInput("branch ground", {
+          events: [
+            scriptEvent(scriptId, 5, 5, "action", [
+              { t: "setSwitch", switchId: "0001", value: true },
+              {
+                t: "if",
+                cond: { type: "switch", switchId: "0001" },
+                then: [{ t: "setSwitch", switchId: "0002", value: true }],
+                else: [{ t: "setSwitch", switchId: "0003", value: true }],
+              },
+            ]),
+          ],
+        }),
+      ],
+    });
+    const hero = await testHero("Brancher", {
+      party,
+      account: party.host,
+      position: { x: 5 * TILE_SIZE + TILE_SIZE / 2, y: 5 * TILE_SIZE + TILE_SIZE / 2 },
+    });
+    const client = await Client.joinHero(hero);
+    await until("welcomed", () => client.welcome);
+
+    client.action("interact");
+    const diag = await awaitDiag(
+      hero.roomKey,
+      "branch resolved",
+      (d) =>
+        d.adventureState.switches["0002"] === true || d.adventureState.switches["0003"] === true,
+    );
+    expect(diag.adventureState.switches["0002"]).toBe(true);
+    expect(diag.adventureState.switches["0003"]).toBeUndefined();
+  });
+
+  it("reads its OWN variable writes within the drain: a counter loop exits at exactly 10", async () => {
+    // `loop { add 0001 += 1; if 0001 >= 10 break }` — the guard reads the running total THIS drain, so
+    // it breaks the instant the count reaches 10 and never overshoots. Mutation proof: drop the
+    // working copy and every `if` reads the stale snapshot, so the loop keeps adding past 10 (the RPC
+    // round-trip is one-to-two ticks behind), landing above 10.
+    const scriptId = crypto.randomUUID();
+    const party = await testParty("raw-loop", {
+      maps: [
+        testMapInput("loop ground", {
+          events: [
+            scriptEvent(scriptId, 5, 5, "action", [
+              {
+                t: "loop",
+                body: [
+                  { t: "setVariable", variableId: "0001", op: "add", value: 1 },
+                  {
+                    t: "if",
+                    cond: { type: "variable", variableId: "0001", min: 10 },
+                    then: [{ t: "breakLoop" }],
+                    else: [],
+                  },
+                ],
+              },
+            ]),
+          ],
+        }),
+      ],
+    });
+    const hero = await testHero("Counter", {
+      party,
+      account: party.host,
+      position: { x: 5 * TILE_SIZE + TILE_SIZE / 2, y: 5 * TILE_SIZE + TILE_SIZE / 2 },
+    });
+    const client = await Client.joinHero(hero);
+    await until("welcomed", () => client.welcome);
+
+    client.action("interact");
+    // The count crosses 10 exactly once; the first diagnostics reading at-or-past 10 must read 10.
+    const diag = await awaitDiag(
+      hero.roomKey,
+      "counter reached 10",
+      (d) => (d.adventureState.variables["0001"] ?? 0) >= 10,
+    );
+    expect(diag.adventureState.variables["0001"]).toBe(10);
+  });
+
   it("stays live while an authored infinite loop spins — another hero keeps moving", async () => {
     // Hero A triggers an event that loops forever (no-op body). The room MUST keep ticking: hero B,
     // in the same room, keeps moving. The budget is what makes this true — the drain always returns.
@@ -333,7 +420,128 @@ describe("teleport", () => {
     const restingX = client.self()?.x ?? 0;
     expect(Math.abs(restingX - destColumnX)).toBeLessThan(TILE_SIZE);
   });
+
+  it("launches exactly ONE handoff for two back-to-back cross-map teleports", async () => {
+    // A program with two consecutive cross-map teleports. `transitioning` is claimed synchronously by
+    // the first dispatch, so the second is dropped and only one handoff launches. Mutation proof: move
+    // the claim back into the async handoff and BOTH dispatches launch (crossMapTeleports === 2).
+    const teleId = crypto.randomUUID();
+    const bodyA = testMapInput("double A", {
+      events: [
+        scriptEvent(teleId, 5, 5, "action", [
+          { t: "teleport", mapId: "00000000-0000-4000-8000-000000000000", col: 10, row: 10 },
+          { t: "teleport", mapId: "00000000-0000-4000-8000-000000000000", col: 10, row: 10 },
+        ]),
+      ],
+    });
+    const party = await testParty("double-tp", {
+      maps: [bodyA, testMapInput("double B")],
+    });
+    const [mapA, mapB] = party.mapIds;
+    if (!mapA || !mapB) throw new Error("expected two maps");
+    const roomKeyA = `${party.partyId}:${mapA}`;
+    // Re-author mapA's event so both teleports point at the real map B.
+    const fixedA: TestMapBody = {
+      ...bodyA,
+      events: bodyA.events.map((event) =>
+        event.id === teleId
+          ? {
+              ...event,
+              pages: event.pages.map((p) => ({
+                ...p,
+                commands: [
+                  { t: "teleport", mapId: mapB, col: 10, row: 10 } satisfies EventCommand,
+                  { t: "teleport", mapId: mapB, col: 10, row: 10 } satisfies EventCommand,
+                ],
+              })),
+            }
+          : event,
+      ),
+    };
+    await putMap(party, mapA, fixedA);
+
+    // Two heroes in map A so the room stays alive (and keeps its counter) after the teleporter leaves.
+    const teleporter = await testHero("Double", {
+      party,
+      account: party.host,
+      position: { x: 5 * TILE_SIZE + TILE_SIZE / 2, y: 5 * TILE_SIZE + TILE_SIZE / 2 },
+    });
+    const stay = await testHero("Stay", {
+      party,
+      position: { x: 12 * TILE_SIZE + TILE_SIZE / 2, y: 12 * TILE_SIZE + TILE_SIZE / 2 },
+    });
+    const teleClient = await Client.joinHero(teleporter);
+    const stayClient = await Client.joinHero(stay);
+    await until("both welcomed", () => teleClient.welcome && stayClient.welcome);
+
+    teleClient.action("interact");
+    const diag = await awaitDiag(
+      roomKeyA,
+      "a cross-map handoff launched",
+      (d) => d.crossMapTeleports >= 1,
+    );
+    expect(diag.crossMapTeleports).toBe(1);
+  });
+
+  it("logs a refused authored teleport at most ONCE per room lifetime, not every tick", async () => {
+    // `loop { teleport <out-of-bounds> }` refuses on every command forever. The (event, reason) dedupe
+    // set collapses the flood to a single log. Mutation proof: drop the dedupe and the spinning loop
+    // emits a refusal log every tick.
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    onTestFinished(() => warnSpy.mockRestore());
+
+    const spinId = crypto.randomUUID();
+    const body = testMapInput("refuse ground", {
+      events: [
+        scriptEvent(spinId, 5, 5, "action", [
+          { t: "loop", body: [{ t: "teleport", mapId: PLACEHOLDER_MAP, col: 9999, row: 9999 }] },
+        ]),
+      ],
+    });
+    const party = await testParty("refuse", { maps: [body] });
+    const mapId = party.mapIds[0];
+    if (!mapId) throw new Error("expected a map");
+    // Point the teleport at the map's OWN id (same-map path) so the out-of-bounds cell is refused.
+    const fixed: TestMapBody = {
+      ...body,
+      events: body.events.map((event) =>
+        event.id === spinId
+          ? {
+              ...event,
+              pages: event.pages.map((p) => ({
+                ...p,
+                commands: [
+                  {
+                    t: "loop",
+                    body: [{ t: "teleport", mapId, col: 9999, row: 9999 }],
+                  } satisfies EventCommand,
+                ],
+              })),
+            }
+          : event,
+      ),
+    };
+    await putMap(party, mapId, fixed);
+
+    const hero = await testHero("Refuser", {
+      party,
+      account: party.host,
+      position: { x: 5 * TILE_SIZE + TILE_SIZE / 2, y: 5 * TILE_SIZE + TILE_SIZE / 2 },
+    });
+    const client = await Client.joinHero(hero);
+    await until("welcomed", () => client.welcome);
+
+    client.action("interact");
+    // Let the loop spin many ticks (each would flood without the dedupe), then count refusal logs.
+    await scheduler.wait(400);
+    const refusals = warnSpy.mock.calls.filter(
+      ([arg]) => typeof arg === "string" && arg.includes("event_teleport_refused"),
+    );
+    expect(refusals).toHaveLength(1);
+  });
 });
+
+const PLACEHOLDER_MAP = "00000000-0000-4000-8000-000000000000";
 
 describe("aborts", () => {
   it("aborts a hero's run when they disconnect (no zombie context)", async () => {
