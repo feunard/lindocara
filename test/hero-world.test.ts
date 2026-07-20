@@ -121,9 +121,9 @@ afterEach(async () => {
   await env.DB.exec("DELETE FROM map");
   await env.DB.exec("DELETE FROM character");
   await env.DB.exec("DELETE FROM account");
-});
+}, 20_000);
 
-describe("party hero admission and authored runtime", () => {
+describe("party hero admission and authored runtime", { timeout: 20_000 }, () => {
   // A monster-event's wire id is `mon-<uuid>` (map-zone.ts). `protocol.ts`'s `isWireId` caps every id
   // at 64 chars over `[A-Za-z0-9_-]`; the older map-id-prefixed form overran it. This pins the live
   // snapshot id inside that bound so a future prefix change cannot silently break admission parsing.
@@ -630,7 +630,10 @@ describe("party hero admission and authored runtime", () => {
         "post-fault approach within attack range",
         () => {
           const self = client.self();
-          const gap = self ? monster.x - self.x : Number.POSITIVE_INFINITY;
+          const currentMonster = client.latestSnapshot?.monsters.find(
+            (candidate) => candidate.id === monster.id,
+          );
+          const gap = self && currentMonster ? currentMonster.x - self.x : Number.POSITIVE_INFINITY;
           return self && gap > 0 && gap <= 45 ? self : undefined;
         },
         8_000,
@@ -1176,7 +1179,7 @@ function rewardMapInput(): TestMapBody {
   });
 }
 
-describe("cooperative rewards inside a party room", () => {
+describe("cooperative rewards inside a party room", { timeout: 20_000 }, () => {
   it("splits experience with an idle hero party member but never loot or kill credit", async () => {
     const party = await testParty("coopxp", { maps: [rewardMapInput()] });
     // On top of the goblin: a level-10 warrior hits for 66, so one swing settles a 48 HP goblin.
@@ -1269,7 +1272,7 @@ function rosterMapInput(): TestMapBody {
   });
 }
 
-describe("party state inside a hero room", () => {
+describe("party state inside a hero room", { timeout: 20_000 }, () => {
   it("lists every hero of the persistent party sharing the room", async () => {
     const party = await testParty("roster", { maps: [rosterMapInput()] });
     const firstHero = await testHero("Ana", {

@@ -204,57 +204,95 @@ export async function saveHeroProfile(db: Db, profile: SaveableProfile): Promise
         profile.sessionEpoch,
       ),
   ];
-  for (const [definitionId, quantity] of Object.entries(consumables)) {
-    statements.push(
-      db.$client
-        .prepare(
-          `INSERT INTO hero_item (id, hero_id, item_definition_id, quantity, created_at)
-           SELECT ?, id, ?, ?, ? FROM hero WHERE id = ? AND session_epoch = ?
-           ON CONFLICT(hero_id, item_definition_id) DO UPDATE SET quantity = excluded.quantity`,
-        )
-        .bind(
+  const consumableEntries = Object.entries(consumables);
+  const consumableValues = consumableEntries.map(() => "(?, ?, ?)").join(", ");
+  statements.push(
+    db.$client
+      .prepare(
+        `WITH items(item_id, definition_id, quantity) AS (VALUES ${consumableValues})
+         INSERT INTO hero_item (id, hero_id, item_definition_id, quantity, created_at)
+         SELECT items.item_id, owner.id, items.definition_id, items.quantity, ?
+         FROM hero AS owner
+         JOIN items ON 1 = 1
+         WHERE owner.id = ? AND owner.session_epoch = ?
+         ON CONFLICT(hero_id, item_definition_id) DO UPDATE SET quantity = excluded.quantity`,
+      )
+      .bind(
+        ...consumableEntries.flatMap(([definitionId, quantity]) => [
           ownedItemId(profile.id, definitionId),
           definitionId,
           quantity,
-          now,
-          profile.id,
-          profile.sessionEpoch,
-        ),
-    );
-  }
+        ]),
+        now,
+        profile.id,
+        profile.sessionEpoch,
+      ),
+  );
+
+  const equippedItems: Array<{
+    slot: "main_hand" | "off_hand";
+    itemId: string;
+    definitionId: string;
+  }> = [];
+  const emptySlots: Array<"main_hand" | "off_hand"> = [];
   for (const [slot, definitionId] of [
     ["main_hand", equipment.mainHand],
     ["off_hand", equipment.offHand],
   ] as const) {
     if (definitionId === null) {
-      statements.push(
-        db.$client
-          .prepare(
-            `DELETE FROM hero_equipment
-             WHERE hero_id = ? AND slot = ?
-               AND EXISTS (SELECT 1 FROM hero WHERE id = ? AND session_epoch = ?)`,
-          )
-          .bind(profile.id, slot, profile.id, profile.sessionEpoch),
-      );
+      emptySlots.push(slot);
       continue;
     }
-    const itemId = ownedItemId(profile.id, definitionId);
+    equippedItems.push({ slot, definitionId, itemId: ownedItemId(profile.id, definitionId) });
+  }
+  if (emptySlots.length > 0) {
     statements.push(
       db.$client
         .prepare(
-          `INSERT INTO hero_item (id, hero_id, item_definition_id, quantity, created_at)
-           SELECT ?, id, ?, 1, ? FROM hero WHERE id = ? AND session_epoch = ?
-           ON CONFLICT(hero_id, item_definition_id) DO NOTHING`,
+          `DELETE FROM hero_equipment
+           WHERE hero_id = ? AND slot IN (${emptySlots.map(() => "?").join(", ")})
+             AND EXISTS (SELECT 1 FROM hero WHERE id = ? AND session_epoch = ?)`,
         )
-        .bind(itemId, definitionId, now, profile.id, profile.sessionEpoch),
+        .bind(profile.id, ...emptySlots, profile.id, profile.sessionEpoch),
+    );
+  }
+  if (equippedItems.length > 0) {
+    const itemValues = equippedItems.map(() => "(?, ?)").join(", ");
+    const equipmentValues = equippedItems.map(() => "(?, ?)").join(", ");
+    statements.push(
       db.$client
         .prepare(
-          `INSERT INTO hero_equipment (hero_id, slot, hero_item_id, equipped_at)
-           SELECT id, ?, ?, ? FROM hero WHERE id = ? AND session_epoch = ?
+          `WITH items(item_id, definition_id) AS (VALUES ${itemValues})
+           INSERT INTO hero_item (id, hero_id, item_definition_id, quantity, created_at)
+           SELECT items.item_id, owner.id, items.definition_id, 1, ?
+           FROM hero AS owner
+           JOIN items ON 1 = 1
+           WHERE owner.id = ? AND owner.session_epoch = ?
+           ON CONFLICT(hero_id, item_definition_id) DO NOTHING`,
+        )
+        .bind(
+          ...equippedItems.flatMap((item) => [item.itemId, item.definitionId]),
+          now,
+          profile.id,
+          profile.sessionEpoch,
+        ),
+      db.$client
+        .prepare(
+          `WITH equipment(slot, item_id) AS (VALUES ${equipmentValues})
+           INSERT INTO hero_equipment (hero_id, slot, hero_item_id, equipped_at)
+           SELECT owner.id, equipment.slot, equipment.item_id, ?
+           FROM hero AS owner
+           JOIN equipment ON 1 = 1
+           WHERE owner.id = ? AND owner.session_epoch = ?
            ON CONFLICT(hero_id, slot) DO UPDATE SET
              hero_item_id = excluded.hero_item_id, equipped_at = excluded.equipped_at`,
         )
-        .bind(slot, itemId, now, profile.id, profile.sessionEpoch),
+        .bind(
+          ...equippedItems.flatMap((item) => [item.slot, item.itemId]),
+          now,
+          profile.id,
+          profile.sessionEpoch,
+        ),
     );
   }
   statements.push(
@@ -289,30 +327,45 @@ export async function saveHeroProfile(db: Db, profile: SaveableProfile): Promise
         profile.sessionEpoch,
       ),
   );
-  for (const skill of CLASS_SKILLS[profile.class]) {
+  const persistedSkills = CLASS_SKILLS[profile.class].map((skill) => {
     const unlocked = isSkillUnlocked(profile.level, skill.slot);
-    statements.push(
-      db.$client
-        .prepare(
-          `INSERT INTO hero_skill (hero_id, skill_id, unlocked, equipped, slot, unlocked_at)
-           SELECT id, ?, ?, ?, ?, ? FROM hero WHERE id = ? AND session_epoch = ?
-           ON CONFLICT(hero_id, skill_id) DO UPDATE SET
-             unlocked = excluded.unlocked,
-             equipped = excluded.equipped,
-             slot = excluded.slot,
-             unlocked_at = COALESCE(hero_skill.unlocked_at, excluded.unlocked_at)`,
-        )
-        .bind(
+    return {
+      id: skill.id,
+      unlocked: unlocked ? 1 : 0,
+      equipped: unlocked ? 1 : 0,
+      slot: unlocked ? skill.slot : null,
+      unlockedAt: unlocked ? now : null,
+    };
+  });
+  const skillValues = persistedSkills.map(() => "(?, ?, ?, ?, ?)").join(", ");
+  statements.push(
+    db.$client
+      .prepare(
+        `WITH skills(skill_id, unlocked, equipped, slot, unlocked_at) AS (VALUES ${skillValues})
+         INSERT INTO hero_skill (hero_id, skill_id, unlocked, equipped, slot, unlocked_at)
+         SELECT owner.id, skills.skill_id, skills.unlocked, skills.equipped,
+           skills.slot, skills.unlocked_at
+         FROM hero AS owner
+         JOIN skills ON 1 = 1
+         WHERE owner.id = ? AND owner.session_epoch = ?
+         ON CONFLICT(hero_id, skill_id) DO UPDATE SET
+           unlocked = excluded.unlocked,
+           equipped = excluded.equipped,
+           slot = excluded.slot,
+           unlocked_at = COALESCE(hero_skill.unlocked_at, excluded.unlocked_at)`,
+      )
+      .bind(
+        ...persistedSkills.flatMap((skill) => [
           skill.id,
-          unlocked ? 1 : 0,
-          unlocked ? 1 : 0,
-          unlocked ? skill.slot : null,
-          unlocked ? now : null,
-          profile.id,
-          profile.sessionEpoch,
-        ),
-    );
-  }
+          skill.unlocked,
+          skill.equipped,
+          skill.slot,
+          skill.unlockedAt,
+        ]),
+        profile.id,
+        profile.sessionEpoch,
+      ),
+  );
   const results = await db.$client.batch(statements);
   return (results[0]?.results.length ?? 0) === 1;
 }

@@ -482,9 +482,11 @@ model + total parser; `shared/event-interpreter.ts` is the **pure, clockless ste
   `setSwitch X; if X …` would take the wrong branch. So the drain keeps a **local working copy**,
   seeded from the snapshot at drain start and folded forward with the shared pure `applyStateMutation`
   after each `mutateState`; every later step THIS tick (command execution and `if`/waiting-condition
-  evaluation alike) reads that copy. The batch still flows up unchanged; cross-ROOM propagation stays
-  async by design — a room reaches strong coherence only with itself, and picks up other rooms'
-  writes on the coordinator's next push.
+  evaluation alike) reads that copy. The batch still flows up unchanged. If the command budget splits
+  a run across ticks, `World` pauses only the event drain until `GameSession` has applied and pushed
+  that batch; simulation keeps ticking. The next drain therefore seeds from the acknowledged snapshot,
+  never from a pre-batch value that would replay a non-idempotent `add`. Cross-room propagation remains
+  asynchronous relative to simulation, but the source run cannot outrun its own coordinator writes.
 
 - **Authored prose is the sanctioned codes-not-sentences exception.** `event.say`/`event.choices`
   carry the author's `text`/`name`/`prompt`/option labels as DATA across the wire (still size-capped

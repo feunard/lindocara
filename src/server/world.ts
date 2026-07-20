@@ -306,6 +306,12 @@ export class World extends DurableObject<Env> {
   /** The room's live event runs: the one-run-per-event lock, the budgeted drain and the buffered
    *  dialogue seam (`world/event-run-system.ts`). Cleared when the room empties. */
   #eventRuns: EventRunRuntime = createEventRunRuntime();
+  /**
+   * A mutation batch whose coordinator push has not completed yet. Simulation keeps ticking while
+   * this is set, but event runs pause so their next drain cannot seed its working copy from a stale
+   * pre-mutation snapshot and replay non-idempotent `add` operations.
+   */
+  #eventStateSync: Promise<void> | null = null;
   /** The party this hero room belongs to, learned at admission. `null` for catalogue/character
    *  rooms. Used only to tell the coordinator when the room has emptied. */
   #heroPartyId: string | null = null;
@@ -2652,6 +2658,18 @@ export class World extends DurableObject<Env> {
     );
   }
 
+  async #savePlayerInBackground(player: Player, ws: WebSocket): Promise<boolean> {
+    try {
+      return await this.#savePlayer(player, ws);
+    } catch {
+      // The tick has already cleared `dirty` after queueing this save. Put it back so a transient
+      // D1 failure is retried at the next bounded save interval, and contain the rejection so an
+      // operational database error cannot restart the Durable Object around live sockets.
+      if (this.#players.get(ws) === player && player.authorized) player.dirty = true;
+      return false;
+    }
+  }
+
   #checkpointCooldowns(player: Player): Promise<boolean> {
     return this.#presence(player).checkpointCooldowns(
       player.connectionId,
@@ -2766,7 +2784,7 @@ export class World extends DurableObject<Env> {
       renewPresence: (player) => this.#renewPresence(player),
       reclaimCorpse: (socket, player) => this.#reclaimCorpse(socket, player),
       collectLoot: (socket, player) => this.#collectLoot(socket, player),
-      savePlayer: (player, socket) => this.#savePlayer(player, socket),
+      savePlayer: (player, socket) => this.#savePlayerInBackground(player, socket),
       onPlayerMoved: (_socket, player, previous) => this.#detectPlayerTouch(player, previous),
     });
     for (const [socket, player] of this.#players) {
@@ -2869,6 +2887,10 @@ export class World extends DurableObject<Env> {
    */
   #drainEventRuns(now: number): void {
     this.#closeDistantDialogues();
+    if (this.#eventStateSync !== null) {
+      this.#flushDialogue();
+      return;
+    }
     if (this.#eventRuns.contexts.size > 0) {
       const { effects } = drainRuns(this.#eventRuns, {
         state: this.#adventureState,
@@ -2890,7 +2912,31 @@ export class World extends DurableObject<Env> {
       if (mutations.length > 0 && this.#heroPartyId !== null) {
         const partyId = this.#heroPartyId;
         // Same retained stub every tick so consecutive mutation batches keep their E-order.
-        this.ctx.waitUntil(this.#gameSession(partyId).applyStateChanges(partyId, mutations));
+        const sync = this.#gameSession(partyId).applyStateChanges(partyId, mutations);
+        this.#eventStateSync = sync;
+        this.ctx.waitUntil(
+          sync.then(
+            () => {
+              if (this.#eventStateSync === sync) this.#eventStateSync = null;
+            },
+            (error: unknown) => {
+              if (this.#eventStateSync === sync) {
+                this.#eventStateSync = null;
+                // The run has already advanced past mutations that never became authoritative.
+                // Continuing would execute its remainder against a lie, so release every lock.
+                resetEventRunRuntime(this.#eventRuns);
+              }
+              console.error(
+                JSON.stringify({
+                  event: "event_state_sync_failed",
+                  partyId,
+                  roomKey: this.#location?.roomKey ?? null,
+                  error: error instanceof Error ? error.message : String(error),
+                }),
+              );
+            },
+          ),
+        );
       }
     }
     this.#flushDialogue();
@@ -3145,7 +3191,17 @@ export class World extends DurableObject<Env> {
         effect.row,
         now,
         dispatch.eventId,
-      ),
+      ).catch((error) => {
+        console.error(
+          JSON.stringify({
+            event: "event_teleport_transition_failed",
+            roomKey: player.roomKey,
+            eventId: dispatch.eventId,
+            elapsedMs: Math.max(0, Date.now() - now),
+            error: error instanceof Error ? error.message : String(error),
+          }),
+        );
+      }),
     );
   }
 
@@ -3316,7 +3372,24 @@ export class World extends DurableObject<Env> {
         continue;
       }
       this.#occupiedExitByPlayerId.set(player.id, key);
-      this.ctx.waitUntil(this.#transitionAdventureExit(socket, player, exit.id, now));
+      this.ctx.waitUntil(
+        this.#transitionAdventureExit(socket, player, exit.id, now).catch((error) => {
+          // A failed fenced save is recoverable: the transition's finally block has already
+          // reopened movement/action. Contain the rejection here so workerd does not treat an
+          // expected D1/RPC failure as an uncaught Durable Object exception and restart the room
+          // around the still-open socket.
+          console.error(
+            JSON.stringify({
+              event: "adventure_exit_transition_failed",
+              roomKey: player.roomKey,
+              elapsedMs: Math.max(0, Date.now() - now),
+              authorized: player.authorized,
+              transitioning: player.transitioning,
+              error: error instanceof Error ? error.message : String(error),
+            }),
+          );
+        }),
+      );
     }
   }
 
