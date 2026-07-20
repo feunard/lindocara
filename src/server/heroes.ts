@@ -87,16 +87,30 @@ export async function createHero(
   const position = entryPosition(startMap, start.entryId);
 
   const id = crypto.randomUUID();
-  await db.insert(hero).values({
-    id,
-    partyId,
-    accountId,
-    name: input.name,
-    class: input.class,
-    mapId: startMap.id,
-    x: position.x,
-    y: position.y,
-  });
+  const result = await db.$client
+    .prepare(
+      `INSERT INTO hero (id, party_id, account_id, name, class, map_id, x, y,
+                         created_at, updated_at)
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?, (unixepoch() * 1000), (unixepoch() * 1000)
+       WHERE (SELECT count(*) FROM hero WHERE party_id = ? AND account_id = ?) < ?`,
+    )
+    .bind(
+      id,
+      partyId,
+      accountId,
+      input.name,
+      input.class,
+      startMap.id,
+      position.x,
+      position.y,
+      partyId,
+      accountId,
+      MAX_HEROES_PER_PARTY,
+    )
+    .run();
+  if ((result.meta.changes ?? 0) === 0) {
+    throw new Error("cap: too many heroes in this party");
+  }
   const [created] = await db.select().from(hero).where(eq(hero.id, id)).limit(1);
   if (!created) throw new Error("not_found: hero vanished mid-create");
   return toStored(created);

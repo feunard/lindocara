@@ -57,7 +57,7 @@ import {
   createParty,
   deleteParty,
   joinParty,
-  listPublicParties,
+  listPublicPartiesPage,
   loadPartyForMember,
 } from "./parties.js";
 import { loadProfile, relocateProfile } from "./profile.js";
@@ -707,6 +707,7 @@ function partyErrorResponse(error: unknown): Response {
   if (code === "not_found") return json({ error: "party_not_found" }, { status: 404 });
   if (code === "adventure") return json({ error: "party_adventure" }, { status: 404 });
   if (code === "not_playable") return json({ error: "adventure_not_playable" }, { status: 409 });
+  if (code === "cap") return json({ error: "party_cap" }, { status: 409 });
   if (code === "already_member" || code === "full" || code === "color_taken") {
     return json({ error: `party_${code}` }, { status: 409 });
   }
@@ -801,7 +802,20 @@ async function handleDeleteAdventure(
 async function handleListParties(request: Request, env: Env, url: URL): Promise<Response> {
   const auth = await requireSession(request, env, url);
   if (auth instanceof Response) return auth;
-  return json(await listPublicParties(createDb(env.DB), auth.session.id));
+  const cursor = url.searchParams.get("cursor") ?? undefined;
+  const limitValue = url.searchParams.get("limit");
+  const limit = limitValue === null ? undefined : Number(limitValue);
+  const options: { cursor?: string; limit?: number } = {};
+  if (cursor !== undefined) options.cursor = cursor;
+  if (limit !== undefined) options.limit = limit;
+  try {
+    return json(await listPublicPartiesPage(createDb(env.DB), auth.session.id, options));
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("page:")) {
+      return json({ error: "party_page_invalid" }, { status: 400 });
+    }
+    throw error;
+  }
 }
 
 async function handleCreateParty(request: Request, env: Env, url: URL): Promise<Response> {

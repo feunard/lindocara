@@ -152,8 +152,11 @@ describe("party lifecycle over the wire", () => {
     const guest = await register();
     const listRes = await authed("/api/parties", guest, {});
     expect(listRes.status).toBe(200);
-    const list = (await listRes.json()) as { id: string; colors: string[] }[];
-    expect(list.find((row) => row.id === party.id)).toMatchObject({ colors: ["blue"] });
+    const list = (await listRes.json()) as {
+      items: { id: string; colors: string[] }[];
+      nextCursor: string | null;
+    };
+    expect(list.items.find((row) => row.id === party.id)).toMatchObject({ colors: ["blue"] });
 
     const takenRes = await authed(`/api/parties/${party.id}/join`, guest, {
       method: "POST",
@@ -231,15 +234,21 @@ describe("party lifecycle over the wire", () => {
       body: JSON.stringify({ adventureId, color: "blue" }),
     });
     const mineRes = await authed("/api/parties", host, {});
-    expect(((await mineRes.json()) as { mine: boolean; myColor: string }[])[0]).toMatchObject({
-      mine: true,
-      myColor: "blue",
-    });
+    expect(
+      ((await mineRes.json()) as { items: { mine: boolean; myColor: string }[] }).items[0],
+    ).toMatchObject({ mine: true, myColor: "blue" });
     const stranger = await register();
     const theirs = await authed("/api/parties", stranger, {});
-    expect(((await theirs.json()) as { mine: boolean }[])[0]).toMatchObject({
+    expect(((await theirs.json()) as { items: { mine: boolean }[] }).items[0]).toMatchObject({
       mine: false,
       myColor: null,
     });
+  });
+
+  it("rejects malformed pagination instead of issuing an unbounded query", async () => {
+    const host = await register();
+    const response = await authed("/api/parties?cursor=broken&limit=999", host, {});
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "party_page_invalid" });
   });
 });

@@ -7,10 +7,17 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createAdventure, deleteAdventure, updateAdventure } from "../src/server/adventures.js";
 import { account, createDb } from "../src/server/db/index.js";
 import type { MapInput } from "../src/server/maps.js";
-import { createParty, deleteParty, joinParty, listPublicParties } from "../src/server/parties.js";
+import {
+  createParty,
+  deleteParty,
+  joinParty,
+  listPublicParties,
+  listPublicPartiesPage,
+} from "../src/server/parties.js";
 import type { AdventureInput } from "../src/shared/adventure.js";
 import { EMPTY_MARKERS } from "../src/shared/map-data.js";
 import { functionalEvent, type MapEvent } from "../src/shared/map-events.js";
+import { MAX_HOSTED_PARTIES } from "../src/shared/party.js";
 import { authorMap } from "./support/adventure-fixtures.js";
 import { layeredTerrain } from "./support/map-fixtures.js";
 
@@ -128,6 +135,36 @@ describe("createParty", () => {
     await expect(
       createParty(db, "owner", { adventureId: draft.id, name: null, color: "blue" }),
     ).rejects.toThrow(/^not_playable:/);
+  });
+
+  it("atomically enforces the hosted-party quota under a race", async () => {
+    const db = createDb(env.DB);
+    await seedAccount("owner");
+    const adventureId = await seedAdventure("owner");
+    const seeded = Array.from({ length: MAX_HOSTED_PARTIES - 1 }, (_, index) =>
+      env.DB.prepare(
+        `INSERT INTO party
+          (id, adventure_id, adventure_version, max_players, host_account_id, name, status,
+           created_at, updated_at)
+         VALUES (?, ?, 1, 4, 'owner', NULL, 'open', ?, ?)`,
+      ).bind(`seeded-${index}`, adventureId, index, index),
+    );
+    await env.DB.batch(seeded);
+
+    const outcomes = await Promise.allSettled([
+      createParty(db, "owner", { adventureId, name: "Last A", color: "red" }),
+      createParty(db, "owner", { adventureId, name: "Last B", color: "yellow" }),
+    ]);
+    expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
+    const rejected = outcomes.find(
+      (outcome): outcome is PromiseRejectedResult => outcome.status === "rejected",
+    );
+    expect(rejected?.reason).toMatchObject({ message: expect.stringMatching(/^cap:/) });
+    expect(
+      await env.DB.prepare(
+        "SELECT count(*) AS count FROM party WHERE host_account_id = 'owner'",
+      ).first<{ count: number }>(),
+    ).toEqual({ count: MAX_HOSTED_PARTIES });
   });
 });
 
@@ -258,5 +295,29 @@ describe("listPublicParties caller annotation", () => {
     expect(asGuest[0]).toMatchObject({ mine: true, myColor: "red" });
     const asStranger = await listPublicParties(db, "nobody");
     expect(asStranger[0]).toMatchObject({ mine: false, myColor: null });
+  });
+
+  it("paginates more parties than one D1 IN query may bind", async () => {
+    const db = createDb(env.DB);
+    await seedAccount("host");
+    const adventureId = await seedAdventure("host");
+    const statements = Array.from({ length: 55 }, (_, index) =>
+      env.DB.prepare(
+        `INSERT INTO party
+          (id, adventure_id, adventure_version, max_players, host_account_id, name, status,
+           created_at, updated_at)
+         VALUES (?, ?, 1, 4, 'host', NULL, 'open', ?, ?)`,
+      ).bind(`page-${String(index).padStart(3, "0")}`, adventureId, index, index),
+    );
+    await env.DB.batch(statements);
+
+    const first = await listPublicPartiesPage(db, "host");
+    expect(first.items).toHaveLength(50);
+    expect(first.nextCursor).not.toBeNull();
+    if (!first.nextCursor) throw new Error("expected a second party page");
+    const second = await listPublicPartiesPage(db, "host", { cursor: first.nextCursor });
+    expect(second.items).toHaveLength(5);
+    expect(second.nextCursor).toBeNull();
+    expect(new Set([...first.items, ...second.items].map((row) => row.id)).size).toBe(55);
   });
 });

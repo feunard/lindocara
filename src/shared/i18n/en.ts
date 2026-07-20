@@ -985,6 +985,7 @@ export const en = {
   "party.error.color_taken": "That colour is already taken.",
   "party.error.full": "That party is full.",
   "party.error.already_member": "You are already in that party.",
+  "party.error.cap": "You already host the maximum number of saved parties.",
 
   // Party colour picker
   "party.color.label": "Colour",

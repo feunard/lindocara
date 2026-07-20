@@ -1007,6 +1007,7 @@ export const fr: Record<keyof typeof en, string> = {
   "party.error.color_taken": "Cette couleur est déjà prise.",
   "party.error.full": "Cette partie est complète.",
   "party.error.already_member": "Tu es déjà dans cette partie.",
+  "party.error.cap": "Tu héberges déjà le nombre maximal de parties sauvegardées.",
 
   // Sélecteur de couleur de partie
   "party.color.label": "Couleur",

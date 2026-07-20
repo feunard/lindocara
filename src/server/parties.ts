@@ -4,8 +4,13 @@
  * current version and player cap. Immutable published adventure versions remain a later boundary;
  * this V1 still resolves the mutable adventure id at runtime.
  */
-import { and, eq, inArray } from "drizzle-orm";
-import type { CreatePartyInput, PartyColor } from "../shared/party.js";
+import { and, desc, eq, inArray, lt, or } from "drizzle-orm";
+import {
+  type CreatePartyInput,
+  MAX_HOSTED_PARTIES,
+  PARTY_LIST_PAGE_SIZE,
+  type PartyColor,
+} from "../shared/party.js";
 import { loadAdventure } from "./adventures.js";
 import { adventure, type Db, hero, party, partyMember } from "./db/index.js";
 
@@ -30,6 +35,32 @@ export interface StoredParty {
   hostAccountId: string;
   name: string | null;
   status: "open" | "completed";
+}
+
+export interface PartyListingPage {
+  items: PartyListing[];
+  nextCursor: string | null;
+}
+
+interface PartyCursor {
+  createdAt: Date;
+  id: string;
+}
+
+function parsePartyCursor(value: string | undefined): PartyCursor | null {
+  if (value === undefined) return null;
+  const separator = value.indexOf(":");
+  if (separator <= 0) throw new Error("page: invalid party cursor");
+  const timestamp = Number(value.slice(0, separator));
+  const id = value.slice(separator + 1);
+  if (!Number.isSafeInteger(timestamp) || timestamp < 0 || !/^[A-Za-z0-9-]{1,64}$/.test(id)) {
+    throw new Error("page: invalid party cursor");
+  }
+  return { createdAt: new Date(timestamp), id };
+}
+
+function encodePartyCursor(row: { createdAt: Date; id: string }): string {
+  return `${row.createdAt.getTime()}:${row.id}`;
 }
 
 function toStored(row: typeof party.$inferSelect): StoredParty {
@@ -104,29 +135,84 @@ export async function createParty(
     name: input.name,
     status: "open" as const,
   };
-  await db.batch([
-    db.insert(party).values(row),
-    db.insert(partyMember).values({ partyId: id, accountId, color: input.color }),
+  // Both statements are one D1 transaction. The second is conditional on the first having
+  // created the party, so a zero-change quota result does not trip a foreign-key error and can be
+  // reported as a stable business code. The conditional count is the race-proof backstop.
+  const [createdParty] = await db.$client.batch([
+    db.$client
+      .prepare(
+        `INSERT INTO party
+           (id, adventure_id, adventure_version, max_players, host_account_id, name, status,
+            created_at, updated_at)
+         SELECT ?, ?, ?, ?, ?, ?, ?, (unixepoch() * 1000), (unixepoch() * 1000)
+         WHERE (SELECT count(*) FROM party WHERE host_account_id = ?) < ?`,
+      )
+      .bind(
+        row.id,
+        row.adventureId,
+        row.adventureVersion,
+        row.maxPlayers,
+        row.hostAccountId,
+        row.name,
+        row.status,
+        accountId,
+        MAX_HOSTED_PARTIES,
+      ),
+    db.$client
+      .prepare(
+        `INSERT INTO party_member (party_id, account_id, color, joined_at)
+         SELECT ?, ?, ?, (unixepoch() * 1000)
+         WHERE EXISTS (SELECT 1 FROM party WHERE id = ?)`,
+      )
+      .bind(id, accountId, input.color, id),
   ]);
+  if (!createdParty || (createdParty.meta.changes ?? 0) === 0) {
+    throw new Error("cap: too many hosted parties");
+  }
   const stored = await loadPartyRow(db, id);
   if (!stored) throw new Error("not_found: party vanished mid-create");
   return toStored(stored);
 }
 
-export async function listPublicParties(db: Db, accountId: string): Promise<PartyListing[]> {
-  const rows = await db
-    .select({
-      id: party.id,
-      name: party.name,
-      adventureId: party.adventureId,
-      adventureTitle: adventure.title,
-      maxPlayers: party.maxPlayers,
-      status: party.status,
-      hostAccountId: party.hostAccountId,
-    })
+export async function listPublicPartiesPage(
+  db: Db,
+  accountId: string,
+  options: { cursor?: string; limit?: number } = {},
+): Promise<PartyListingPage> {
+  const limit = options.limit ?? PARTY_LIST_PAGE_SIZE;
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > PARTY_LIST_PAGE_SIZE) {
+    throw new Error("page: invalid party page size");
+  }
+  const cursor = parsePartyCursor(options.cursor);
+  const fields = {
+    id: party.id,
+    name: party.name,
+    adventureId: party.adventureId,
+    adventureTitle: adventure.title,
+    maxPlayers: party.maxPlayers,
+    status: party.status,
+    hostAccountId: party.hostAccountId,
+    createdAt: party.createdAt,
+  };
+  const cursorCondition = cursor
+    ? or(
+        lt(party.createdAt, cursor.createdAt),
+        and(eq(party.createdAt, cursor.createdAt), lt(party.id, cursor.id)),
+      )
+    : undefined;
+  const base = db
+    .select(fields)
     .from(party)
     .innerJoin(adventure, eq(party.adventureId, adventure.id));
-  if (rows.length === 0) return [];
+  const rows = cursorCondition
+    ? await base
+        .where(cursorCondition)
+        .orderBy(desc(party.createdAt), desc(party.id))
+        .limit(limit + 1)
+    : await base.orderBy(desc(party.createdAt), desc(party.id)).limit(limit + 1);
+  const hasMore = rows.length > limit;
+  const pageRows = rows.slice(0, limit);
+  if (pageRows.length === 0) return { items: [], nextCursor: null };
   const members = await db
     .select({
       partyId: partyMember.partyId,
@@ -137,7 +223,7 @@ export async function listPublicParties(db: Db, accountId: string): Promise<Part
     .where(
       inArray(
         partyMember.partyId,
-        rows.map((row) => row.id),
+        pageRows.map((row) => row.id),
       ),
     );
   const coloursByParty = new Map<string, PartyColor[]>();
@@ -148,12 +234,21 @@ export async function listPublicParties(db: Db, accountId: string): Promise<Part
     coloursByParty.set(member.partyId, list);
     if (member.accountId === accountId) mineByParty.set(member.partyId, member.color);
   }
-  return rows.map((row) => ({
-    ...row,
-    colors: coloursByParty.get(row.id) ?? [],
-    mine: mineByParty.has(row.id),
-    myColor: mineByParty.get(row.id) ?? null,
-  }));
+  const lastRow = pageRows.at(-1);
+  return {
+    items: pageRows.map(({ createdAt: _createdAt, ...row }) => ({
+      ...row,
+      colors: coloursByParty.get(row.id) ?? [],
+      mine: mineByParty.has(row.id),
+      myColor: mineByParty.get(row.id) ?? null,
+    })),
+    nextCursor: hasMore && lastRow ? encodePartyCursor(lastRow) : null,
+  };
+}
+
+/** Small direct-call convenience for domain tests; the HTTP boundary always uses cursor pages. */
+export async function listPublicParties(db: Db, accountId: string): Promise<PartyListing[]> {
+  return (await listPublicPartiesPage(db, accountId)).items;
 }
 
 export async function joinParty(

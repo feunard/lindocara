@@ -161,6 +161,25 @@ describe("createHero", () => {
     expect(await listHeroes(db, "host", partyId)).toHaveLength(1);
     expect((await listHeroes(db, "mate", partyId))[0]?.name).toBe("Matey");
   });
+
+  it("never exceeds the cap when two creations race for the last slot", async () => {
+    const db = createDb(env.DB);
+    await seedAccount("host");
+    const { partyId } = await seedParty("host");
+    await createHero(db, "host", partyId, { name: "One", class: "warrior" });
+    await createHero(db, "host", partyId, { name: "Two", class: "ranger" });
+
+    const outcomes = await Promise.allSettled([
+      createHero(db, "host", partyId, { name: "Three-A", class: "priest" }),
+      createHero(db, "host", partyId, { name: "Three-B", class: "warrior" }),
+    ]);
+    expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
+    const rejected = outcomes.find(
+      (outcome): outcome is PromiseRejectedResult => outcome.status === "rejected",
+    );
+    expect(rejected?.reason).toMatchObject({ message: expect.stringMatching(/^cap:/) });
+    expect(await listHeroes(db, "host", partyId)).toHaveLength(3);
+  });
 });
 
 describe("deleteHero", () => {

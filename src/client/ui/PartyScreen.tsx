@@ -30,6 +30,7 @@ export function PartyScreen() {
   const [name, setName] = useState("");
   const [heroClass, setHeroClass] = useState<PlayerClass>("warrior");
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const partyId = party?.id ?? null;
 
@@ -66,14 +67,17 @@ export function PartyScreen() {
   }
 
   async function create(): Promise<void> {
-    if (!partyId || name.trim().length === 0) return;
+    if (!partyId || name.trim().length === 0 || creating) return;
     setError(null);
+    setCreating(true);
     try {
       await createHeroApi(partyId, { name: name.trim(), class: heroClass });
       setName("");
       await refresh(partyId);
     } catch (caught) {
       fail(caught);
+    } finally {
+      setCreating(false);
     }
   }
 
@@ -160,7 +164,7 @@ export function PartyScreen() {
           </TinyFieldSelect>
           <TinyButton
             type="button"
-            disabled={name.trim().length === 0}
+            disabled={creating || name.trim().length === 0}
             onClick={() => void create()}
           >
             {t("party.create.submit")}

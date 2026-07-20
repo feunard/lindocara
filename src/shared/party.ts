@@ -7,6 +7,10 @@ export const PARTY_COLORS = ["blue", "red", "yellow", "purple"] as const;
 export type PartyColor = (typeof PARTY_COLORS)[number];
 
 export const PARTY_NAME_MAX = 48;
+/** A single account must not be able to fill the public browser with unbounded saved sessions. */
+export const MAX_HOSTED_PARTIES = 20;
+/** Keeps the follow-up membership query below D1's bound-parameter ceiling. */
+export const PARTY_LIST_PAGE_SIZE = 50;
 
 /** Matches server-minted adventure/map uuids. */
 const ID_PATTERN = /^[A-Za-z0-9-]{1,64}$/;

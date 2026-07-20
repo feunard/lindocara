@@ -166,7 +166,27 @@ export interface StoredHero {
   life: "alive" | "corpse" | "ghost";
 }
 
-export const fetchParties = () => api<PartyListing[]>("/api/parties");
+interface PartyListingPage {
+  items: PartyListing[];
+  nextCursor: string | null;
+}
+
+/** Fetch bounded server pages. The array fallback keeps local mocks and an older Worker usable. */
+export async function fetchParties(): Promise<PartyListing[]> {
+  const parties: PartyListing[] = [];
+  let cursor: string | null = null;
+  for (let page = 0; page < 20; page++) {
+    const suffix: string = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+    const response: PartyListingPage | PartyListing[] = await api<
+      PartyListingPage | PartyListing[]
+    >(`/api/parties${suffix}`);
+    if (Array.isArray(response)) return response;
+    parties.push(...response.items);
+    if (!response.nextCursor) return parties;
+    cursor = response.nextCursor;
+  }
+  return parties;
+}
 export const createPartyApi = (input: {
   adventureId: string;
   name?: string | null;
@@ -223,6 +243,7 @@ export const ERROR_KEYS: Record<string, MessageKey> = {
   party_color_taken: "party.error.color_taken",
   party_full: "party.error.full",
   party_already_member: "party.error.already_member",
+  party_cap: "party.error.cap",
   adventure_referenced: "adventure.error.referenced",
   hero_invalid: "hero.error.invalid",
   hero_not_found: "hero.error.not_found",
