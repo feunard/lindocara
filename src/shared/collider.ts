@@ -73,6 +73,64 @@ export function flattenColliderIndex(index: ColliderIndex): [number, number, num
 }
 
 /**
+ * Every rect in any bucket the swept body's bounding box touches, each once. A rect spanning
+ * several cells is listed in every bucket it spans, hence the set.
+ */
+export function collidersOnSegment(
+  index: ColliderIndex,
+  from: Vec2,
+  to: Vec2,
+  size: number,
+): Rect[] {
+  if (!Number.isFinite(from.x) || !Number.isFinite(from.y)) return [];
+  if (!Number.isFinite(to.x) || !Number.isFinite(to.y)) return [];
+  if (!Number.isFinite(size) || size <= 0) return [];
+  const left = Math.max(0, Math.floor(Math.min(from.x, to.x) / TILE_SIZE));
+  const top = Math.max(0, Math.floor(Math.min(from.y, to.y) / TILE_SIZE));
+  const right = Math.min(
+    index.cols - 1,
+    Math.floor((Math.max(from.x, to.x) + size - 1) / TILE_SIZE),
+  );
+  const bottom = Math.min(
+    index.rows - 1,
+    Math.floor((Math.max(from.y, to.y) + size - 1) / TILE_SIZE),
+  );
+  const seen = new Set<Rect>();
+  for (let row = top; row <= bottom; row++) {
+    for (let col = left; col <= right; col++) {
+      for (const rect of index.buckets[row * index.cols + col] ?? []) seen.add(rect);
+    }
+  }
+  return [...seen];
+}
+
+/**
+ * The `t` values where a moving body's near and far edges cross a rect's near and far edges.
+ *
+ * `addAxisCrossings` only ever samples between TILE boundaries, so a collider narrower than a cell
+ * can sit entirely between two consecutive midpoints and be stepped over. These are the crossings
+ * that close that gap. Non-finite input is dropped for the same reason it is there: this runs in a
+ * 20 Hz tick and a NaN must never reach the sweep.
+ */
+export function addEdgeCrossings(
+  into: number[],
+  origin: number,
+  delta: number,
+  size: number,
+  rectStart: number,
+  rectLength: number,
+): void {
+  if (!Number.isFinite(origin) || !Number.isFinite(delta) || delta === 0) return;
+  if (!Number.isFinite(size) || !Number.isFinite(rectStart) || !Number.isFinite(rectLength)) return;
+  for (const boundary of [rectStart, rectStart + rectLength]) {
+    for (const edge of [0, size - 1]) {
+      const t = (boundary - (origin + edge)) / delta;
+      if (t > 0 && t < 1) into.push(t);
+    }
+  }
+}
+
+/**
  * `position` is the body's top-left corner and the far edge is exclusive — the same convention
  * `isWalkableBox` uses, so a body sitting exactly on a collider's edge is beside it, not inside it.
  */

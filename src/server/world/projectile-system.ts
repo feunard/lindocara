@@ -203,6 +203,7 @@ export function advanceProjectiles(context: ProjectileSystemContext, now: number
       to,
       projectile.radius,
       context.terrain.tiles,
+      context.terrain.colliders,
     );
     const contacts = entityImpacts(projectile, projectile, to, context, now).sort((a, b) => {
       if (a.impact.fraction !== b.impact.fraction) return a.impact.fraction - b.impact.fraction;

@@ -1,3 +1,4 @@
+import { type ColliderIndex, collidersOnSegment } from "./collider.js";
 import type { Input, Vec2 } from "./simulation.js";
 import { isSolidKind, kindAt, TILE_SIZE, type TileMap } from "./tilemap.js";
 
@@ -49,8 +50,9 @@ export interface SegmentImpact {
 
 export interface TerrainImpact extends SegmentImpact {
   kind: "terrain";
-  col: number;
-  row: number;
+  /** Cell impacts carry their cell; a sub-cell collider impact has none, and is identified by id. */
+  col?: number;
+  row?: number;
 }
 
 function finiteVec(value: Vec2): boolean {
@@ -326,12 +328,17 @@ function segmentAabbEntry(
   return entry >= 0 && entry <= 1 ? entry : null;
 }
 
-/** Sweeps a projectile circle against the collision tiles and returns the first blocked cell. */
+/**
+ * Sweeps a projectile circle against the collision tiles and the sub-cell colliders, returning
+ * whichever it meets first. Both use the same `segmentAabbEntry`: two intersection routines that
+ * "should" agree is how an arrow passes through a trunk on one side and not the other.
+ */
 export function sweptProjectileTerrainImpact(
   start: Vec2,
   end: Vec2,
   radius: number,
   tiles: TileMap,
+  colliders?: ColliderIndex,
 ): TerrainImpact | null {
   if (!finiteVec(start) || !finiteVec(end) || !finiteNonNegative(radius)) return null;
   const minCol = Math.floor((Math.min(start.x, end.x) - radius) / TILE_SIZE);
@@ -358,6 +365,37 @@ export function sweptProjectileTerrainImpact(
         id: `${row}:${col}`,
         col,
         row,
+      };
+      if (!first || compareImpacts(candidate, first) < 0) first = candidate;
+    }
+  }
+  if (colliders) {
+    // `collidersOnSegment` takes top-left corners; the projectile's box is its centre line dilated
+    // by the radius on every side, so shift both ends back by the radius rather than only growing
+    // the far edge — otherwise a collider just left of `start` is never even a candidate.
+    const candidates = collidersOnSegment(
+      colliders,
+      { x: start.x - radius, y: start.y - radius },
+      { x: end.x - radius, y: end.y - radius },
+      Math.max(1, radius * 2),
+    );
+    for (let index = 0; index < candidates.length; index++) {
+      const rect = candidates[index];
+      if (!rect) continue;
+      const fraction = segmentAabbEntry(
+        start,
+        end,
+        rect.x - radius,
+        rect.y - radius,
+        rect.x + rect.width + radius,
+        rect.y + rect.height + radius,
+      );
+      if (fraction === null) continue;
+      const candidate: TerrainImpact = {
+        fraction,
+        point: pointAlong(start, end, fraction),
+        kind: "terrain",
+        id: `c${index}`,
       };
       if (!first || compareImpacts(candidate, first) < 0) first = candidate;
     }

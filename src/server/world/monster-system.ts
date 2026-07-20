@@ -211,7 +211,13 @@ function navigateMonster(
   // only to be shoved back by real (box) collision each time — ping-pongs there forever.
   const lineClear =
     monster.navigation.directBlockedDestination === null &&
-    isPathWalkable(context.zone.terrain.tiles, monster, destination, PLAYER_SIZE);
+    isPathWalkable(
+      context.zone.terrain.tiles,
+      monster,
+      destination,
+      PLAYER_SIZE,
+      context.zone.terrain.colliders,
+    );
   if (lineClear) {
     if (monster.navigation.requestPending || monster.navigation.path.length > 0)
       invalidateMonsterPath(monster, "direct_path");

@@ -7,6 +7,12 @@
  *
  * This module knows nothing about sprites. It stores what a cell *is*, not what it looks like.
  */
+import {
+  addEdgeCrossings,
+  type ColliderIndex,
+  collidersOnSegment,
+  overlapsCollider,
+} from "./collider.js";
 import type { Vec2 } from "./simulation.js";
 
 /** Tiny Swords' native tile size. The art is drawn at this scale; using any other would resample it. */
@@ -115,7 +121,13 @@ export function addAxisCrossings(into: number[], origin: number, delta: number):
  * the same disagreement `hasLineOfSight` was rewritten to close, one level down, between a
  * direct-move decision and the body it is deciding for.
  */
-export function isPathWalkable(map: TileMap, from: Vec2, to: Vec2, size: number): boolean {
+export function isPathWalkable(
+  map: TileMap,
+  from: Vec2,
+  to: Vec2,
+  size: number,
+  colliders?: ColliderIndex,
+): boolean {
   if (size <= 0) return false;
   const dx = to.x - from.x;
   const dy = to.y - from.y;
@@ -124,6 +136,14 @@ export function isPathWalkable(map: TileMap, from: Vec2, to: Vec2, size: number)
   addAxisCrossings(crossings, from.x + size - 1, dx);
   addAxisCrossings(crossings, from.y, dy);
   addAxisCrossings(crossings, from.y + size - 1, dy);
+  // A sub-cell collider can sit entirely between two tile-boundary midpoints, so it needs its own
+  // edges in the crossing list or the sweep steps over it — sometimes, depending on geometry.
+  if (colliders) {
+    for (const rect of collidersOnSegment(colliders, from, to, size)) {
+      addEdgeCrossings(crossings, from.x, dx, size, rect.x, rect.width);
+      addEdgeCrossings(crossings, from.y, dy, size, rect.y, rect.height);
+    }
+  }
   crossings.sort((a, b) => a - b);
   for (let index = 0; index < crossings.length - 1; index++) {
     const entry = crossings[index];
@@ -132,6 +152,7 @@ export function isPathWalkable(map: TileMap, from: Vec2, to: Vec2, size: number)
     const midpoint = (entry + exit) / 2;
     const position = { x: from.x + dx * midpoint, y: from.y + dy * midpoint };
     if (!isWalkableBox(map, position, size)) return false;
+    if (colliders && overlapsCollider(colliders, position, size)) return false;
   }
   return true;
 }
