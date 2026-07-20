@@ -128,11 +128,18 @@ The editor grid gains quarter sub-divisions in Element mode only.
 `EditorPlacementMetadata.collisionFootprint` (a cell list) is replaced by:
 
 ```ts
-collider?: Rect; // pixels, relative to the anchor cell's origin
+collider?: Rect; // pixels, relative to the sprite's anchor point
 ```
 
-World AABB: `{ x: col * 64 + offsetX * 16 + collider.x, y: row * 64 + offsetY * 16 + collider.y,
-w: collider.w, h: collider.h }`. The offset therefore carries the collider with the sprite for free.
+The origin is the point `createCatalogElementView` already positions the sprite at:
+`anchorX = col * 64 + 32 + offsetX * 16`, `anchorY = (row + 1) * 64 + footOffset + offsetY * 16`.
+World AABB: `{ x: anchorX + collider.x, y: anchorY + collider.y, width, height }`. The offset
+therefore carries the collider with the sprite for free.
+
+Anchor space rather than cell space: `footOffset` reaches 49 px on some assets, putting the art's
+foot most of a cell below its anchor cell. Cell-relative numbers would be negative or out of range
+for exactly the assets that need a collider, and would need re-tuning every time the art's foot
+moved. In anchor space you measure the trunk on the PNG and are done.
 
 This is the same indirection the tiles already use — `tile id → tileset → passable`, authored once
 per tile, never per cell. Per-placement collider editing is explicitly out of scope (YAGNI); the
