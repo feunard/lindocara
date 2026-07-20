@@ -2191,60 +2191,70 @@ export class World extends DurableObject<Env> {
     }
 
     const destinationAnchor = link.dest;
-    if (!authoredAdventure.mapIds.includes(destinationAnchor.mapId)) {
-      player.transitioning = false;
-      this.#send(ws, { t: "event", code: "zone.transition_denied", tone: "bad" });
-      return;
-    }
-    const destinationMap = await loadMap(db, destinationAnchor.mapId);
-    const entry = destinationMap?.events.find(
-      (candidate) => candidate.kind === "entry" && candidate.id === destinationAnchor.entryId,
-    );
-    if (!destinationMap || !entry) {
-      player.transitioning = false;
-      this.#send(ws, { t: "event", code: "zone.transition_failed", tone: "bad" });
-      return;
-    }
-    const destination = locationFromMap(destinationMap, "main");
-    const spawn = clampRestoredPosition(
-      eventCellCentre(entry),
-      player.id,
-      destination.definition.terrain,
-    );
-    const destinationRoomKey = `${partyId}:${destinationMap.id}`;
-
-    player.authorized = false;
-    if (!(await this.#checkpointCooldowns(player))) {
-      this.#rejectStaleSave(ws, player);
-      return;
-    }
-    const saved = await this.#savePlayer(player, ws, true);
-    if (!saved) return;
-    const next = await this.#presence(player).handoff({
-      characterId: player.id,
-      connectionId: player.connectionId,
-      sessionEpoch: player.sessionEpoch,
-      sourceRoomKey: player.roomKey,
-      destinationRoomKey,
-      zoneId: destinationMap.id,
-      instanceId: "main",
-      x: spawn.x,
-      y: spawn.y,
-    });
-    if (!next) {
-      this.#rejectStaleSave(ws, player);
-      return;
-    }
-    player.disconnecting = true;
-    this.#removePlayer(ws, player);
-    this.#observability.transitions += 1;
-    this.#send(ws, { t: "event", code: "zone.transition", tone: "good" });
+    // Same discipline as the "end" branch above: the whole fallible body is wrapped in try/finally
+    // so a thrown D1 read/write error or a stale presence RPC releases the claim instead of
+    // stranding it. `authorized` is only restored when this call is the one that cleared it, so a
+    // concurrent legitimate deauthorization is never overridden; on the success path the player is
+    // fully removed and the socket closed before finally runs, so releasing here is inert.
+    let claimedAuthorization = false;
     try {
-      ws.close(WS_CLOSE.ZONE_TRANSITION, "adventure map transition");
-    } catch {
-      // The fenced destination is already durable; reconnect resumes there.
+      if (!authoredAdventure.mapIds.includes(destinationAnchor.mapId)) {
+        this.#send(ws, { t: "event", code: "zone.transition_denied", tone: "bad" });
+        return;
+      }
+      const destinationMap = await loadMap(db, destinationAnchor.mapId);
+      const entry = destinationMap?.events.find(
+        (candidate) => candidate.kind === "entry" && candidate.id === destinationAnchor.entryId,
+      );
+      if (!destinationMap || !entry) {
+        this.#send(ws, { t: "event", code: "zone.transition_failed", tone: "bad" });
+        return;
+      }
+      const destination = locationFromMap(destinationMap, "main");
+      const spawn = clampRestoredPosition(
+        eventCellCentre(entry),
+        player.id,
+        destination.definition.terrain,
+      );
+      const destinationRoomKey = `${partyId}:${destinationMap.id}`;
+
+      claimedAuthorization = true;
+      player.authorized = false;
+      if (!(await this.#checkpointCooldowns(player))) {
+        this.#rejectStaleSave(ws, player);
+        return;
+      }
+      const saved = await this.#savePlayer(player, ws, true);
+      if (!saved) return;
+      const next = await this.#presence(player).handoff({
+        characterId: player.id,
+        connectionId: player.connectionId,
+        sessionEpoch: player.sessionEpoch,
+        sourceRoomKey: player.roomKey,
+        destinationRoomKey,
+        zoneId: destinationMap.id,
+        instanceId: "main",
+        x: spawn.x,
+        y: spawn.y,
+      });
+      if (!next) {
+        this.#rejectStaleSave(ws, player);
+        return;
+      }
+      player.disconnecting = true;
+      this.#removePlayer(ws, player);
+      this.#observability.transitions += 1;
+      this.#send(ws, { t: "event", code: "zone.transition", tone: "good" });
+      try {
+        ws.close(WS_CLOSE.ZONE_TRANSITION, "adventure map transition");
+      } catch {
+        // The fenced destination is already durable; reconnect resumes there.
+      }
+      if (this.#players.size === 0) this.#stopLoop();
+    } finally {
+      player.transitioning = false;
+      if (claimedAuthorization) player.authorized = true;
     }
-    if (this.#players.size === 0) this.#stopLoop();
   }
 
   /**
@@ -2978,89 +2988,92 @@ export class World extends DurableObject<Env> {
     eventId: string,
   ): Promise<void> {
     // `transitioning` is claimed by the SYNCHRONOUS caller (`#dispatchTeleport`), not here, so this
-    // never re-checks it — instead every validation failure below RELEASES the claim so a refused
-    // cross-map teleport leaves the hero free to move and try again.
+    // never re-checks it — instead the whole fallible body is wrapped in try/finally so every
+    // validation failure AND every thrown exception (a D1 read/write error, a stale presence RPC)
+    // releases the claim, leaving a refused or failed cross-map teleport free to move and try again.
+    // `authorized` is only restored when THIS call is the one that cleared it (`claimedAuthorization`)
+    // so a concurrent legitimate deauthorization (e.g. presence invalidation) is never overridden. On
+    // the success path the player is fully removed and the socket closed before finally runs, so
+    // releasing the claim afterward on the now-orphaned player object is inert.
     const partyId = player.partyId;
-    if (player.identityKind !== "hero" || !partyId || player.life !== "alive") {
-      player.transitioning = false;
-      return;
-    }
-    const db = createDb(this.env.DB);
-    const storedParty = await loadPartyForRuntime(db, partyId);
-    if (!storedParty || !player.authorized) {
-      player.transitioning = false;
-      return;
-    }
-    const authoredAdventure = await loadAdventure(
-      db,
-      storedParty.hostAccountId,
-      storedParty.adventureId,
-    );
-    if (!authoredAdventure?.mapIds.includes(mapId)) {
-      player.transitioning = false;
-      this.#send(ws, { t: "event", code: "zone.transition_denied", tone: "bad" });
-      return;
-    }
-    const destinationMap = await loadMap(db, mapId);
-    if (!destinationMap) {
-      player.transitioning = false;
-      this.#send(ws, { t: "event", code: "zone.transition_failed", tone: "bad" });
-      return;
-    }
-    const destination = locationFromMap(destinationMap, "main");
-    const inBounds =
-      col >= 0 &&
-      row >= 0 &&
-      col < destination.definition.terrain.width / TILE_SIZE &&
-      row < destination.definition.terrain.height / TILE_SIZE;
-    if (!inBounds) {
-      player.transitioning = false;
-      this.#logTeleportRefusedOnce(eventId, "out_of_bounds", { mapId, col, row });
-      return;
-    }
-    const spawn = clampRestoredPosition(
-      eventCellCentre({ col, row }),
-      player.id,
-      destination.definition.terrain,
-    );
-    const destinationRoomKey = `${partyId}:${destinationMap.id}`;
-
-    player.lastTransitionAt = now;
-    player.lastInput = NO_INPUT;
-    player.queue = [];
-    cancelCombatAction(player);
-    removeProjectilesByOwner(this.#projectiles, player.id);
-    player.authorized = false;
-    if (!(await this.#checkpointCooldowns(player))) {
-      this.#rejectStaleSave(ws, player);
-      return;
-    }
-    if (!(await this.#savePlayer(player, ws, true))) return;
-    const next = await this.#presence(player).handoff({
-      characterId: player.id,
-      connectionId: player.connectionId,
-      sessionEpoch: player.sessionEpoch,
-      sourceRoomKey: player.roomKey,
-      destinationRoomKey,
-      zoneId: destinationMap.id,
-      instanceId: "main",
-      x: spawn.x,
-      y: spawn.y,
-    });
-    if (!next) {
-      this.#rejectStaleSave(ws, player);
-      return;
-    }
-    player.disconnecting = true;
-    this.#removePlayer(ws, player);
-    this.#observability.transitions += 1;
-    this.#send(ws, { t: "event", code: "zone.transition", tone: "good" });
+    let claimedAuthorization = false;
     try {
-      ws.close(WS_CLOSE.ZONE_TRANSITION, "event teleport");
-    } catch {
-      // The fenced destination is already durable; reconnect resumes there.
+      if (player.identityKind !== "hero" || !partyId || player.life !== "alive") return;
+      const db = createDb(this.env.DB);
+      const storedParty = await loadPartyForRuntime(db, partyId);
+      if (!storedParty || !player.authorized) return;
+      const authoredAdventure = await loadAdventure(
+        db,
+        storedParty.hostAccountId,
+        storedParty.adventureId,
+      );
+      if (!authoredAdventure?.mapIds.includes(mapId)) {
+        this.#send(ws, { t: "event", code: "zone.transition_denied", tone: "bad" });
+        return;
+      }
+      const destinationMap = await loadMap(db, mapId);
+      if (!destinationMap) {
+        this.#send(ws, { t: "event", code: "zone.transition_failed", tone: "bad" });
+        return;
+      }
+      const destination = locationFromMap(destinationMap, "main");
+      const inBounds =
+        col >= 0 &&
+        row >= 0 &&
+        col < destination.definition.terrain.width / TILE_SIZE &&
+        row < destination.definition.terrain.height / TILE_SIZE;
+      if (!inBounds) {
+        this.#logTeleportRefusedOnce(eventId, "out_of_bounds", { mapId, col, row });
+        return;
+      }
+      const spawn = clampRestoredPosition(
+        eventCellCentre({ col, row }),
+        player.id,
+        destination.definition.terrain,
+      );
+      const destinationRoomKey = `${partyId}:${destinationMap.id}`;
+
+      player.lastTransitionAt = now;
+      player.lastInput = NO_INPUT;
+      player.queue = [];
+      cancelCombatAction(player);
+      removeProjectilesByOwner(this.#projectiles, player.id);
+      claimedAuthorization = true;
+      player.authorized = false;
+      if (!(await this.#checkpointCooldowns(player))) {
+        this.#rejectStaleSave(ws, player);
+        return;
+      }
+      if (!(await this.#savePlayer(player, ws, true))) return;
+      const next = await this.#presence(player).handoff({
+        characterId: player.id,
+        connectionId: player.connectionId,
+        sessionEpoch: player.sessionEpoch,
+        sourceRoomKey: player.roomKey,
+        destinationRoomKey,
+        zoneId: destinationMap.id,
+        instanceId: "main",
+        x: spawn.x,
+        y: spawn.y,
+      });
+      if (!next) {
+        this.#rejectStaleSave(ws, player);
+        return;
+      }
+      player.disconnecting = true;
+      this.#removePlayer(ws, player);
+      this.#observability.transitions += 1;
+      this.#send(ws, { t: "event", code: "zone.transition", tone: "good" });
+      try {
+        ws.close(WS_CLOSE.ZONE_TRANSITION, "event teleport");
+      } catch {
+        // The fenced destination is already durable; reconnect resumes there.
+      }
+      if (this.#players.size === 0) this.#stopLoop();
+    } finally {
+      player.transitioning = false;
+      if (claimedAuthorization) player.authorized = true;
     }
-    if (this.#players.size === 0) this.#stopLoop();
   }
 
   #detectAdventureExits(now: number): void {

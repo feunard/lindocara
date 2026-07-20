@@ -483,6 +483,95 @@ describe("teleport", () => {
     expect(diag.crossMapTeleports).toBe(1);
   });
 
+  it("releases transitioning and authorized after a D1 write failure mid cross-map handoff", {
+    timeout: 10_000,
+  }, async () => {
+    // `#teleportCrossMap`'s five validation early-returns already released `player.transitioning`
+    // (proven above); the gap was a THROWN exception past those checks — the D1 loads,
+    // `#checkpointCooldowns`, `#savePlayer` (which deliberately re-throws D1 write failures), or the
+    // handoff RPC — escaping the `waitUntil` and stranding `transitioning = true` (and, once past the
+    // point where the claim also flips `authorized = false`, stranding that too) forever. That flag
+    // gates `#resolvePlayerAction`, so a stranded hero could walk (if still authorized) but never
+    // fight again without a reconnect. Force a genuine D1 write failure with a trigger scoped to this
+    // test's own hero row — `saveHeroProfile`'s `UPDATE hero ...` is exactly the write `#savePlayer`
+    // performs before the handoff RPC — and prove both flags come back: the socket stays open and
+    // authorized (no reconnect needed), AND the combat gate itself reopens (an attack actually lands).
+    const teleId = crypto.randomUUID();
+    const bodyA = testMapInput("fault A", {
+      events: [
+        scriptEvent(teleId, 5, 5, "action", [
+          { t: "teleport", mapId: "00000000-0000-4000-8000-000000000000", col: 10, row: 10 },
+        ]),
+      ],
+      monsterSpawns: [{ col: 6, row: 5, species: "spear_goblin", patrolRadius: 32 }],
+    });
+    const party = await testParty("fault-tp", {
+      maps: [bodyA, testMapInput("fault B")],
+    });
+    const [mapA, mapB] = party.mapIds;
+    if (!mapA || !mapB) throw new Error("expected two maps");
+    const roomKeyA = `${party.partyId}:${mapA}`;
+    const fixedA: TestMapBody = {
+      ...bodyA,
+      events: bodyA.events.map((event) =>
+        event.id === teleId
+          ? {
+              ...event,
+              pages: event.pages.map((p) => ({
+                ...p,
+                commands: [{ t: "teleport", mapId: mapB, col: 10, row: 10 } satisfies EventCommand],
+              })),
+            }
+          : event,
+      ),
+    };
+    await putMap(party, mapA, fixedA);
+
+    const hero = await testHero("Faulted", {
+      party,
+      account: party.host,
+      position: { x: 5 * TILE_SIZE + TILE_SIZE / 2, y: 5 * TILE_SIZE + TILE_SIZE / 2 },
+    });
+    const client = await Client.joinHero(hero);
+    const welcome = await until("fault welcomed", () => client.welcome);
+    const monster = welcome.monsters[0];
+    if (!monster) throw new Error("expected the fixture monster in the welcome snapshot");
+
+    // Scoped to this hero's id alone: it can never touch another test's rows, even if cleanup ran
+    // late. A genuine SQLite trigger, not a mock — the real Durable Object drives the real D1 write.
+    const triggerName = `fail_hero_save_${hero.heroId.replaceAll("-", "")}`;
+    await env.DB.exec(
+      `CREATE TRIGGER ${triggerName} BEFORE UPDATE ON hero WHEN NEW.id = '${hero.heroId}' ` +
+        `BEGIN SELECT RAISE(ABORT, 'injected d1 write failure'); END`,
+    );
+    try {
+      client.action("interact");
+      // Let the failed handoff attempt run to completion (or, pre-fix, strand the claim forever).
+      await scheduler.wait(400);
+      // The failure happens before the player is ever removed or the socket closed.
+      expect(client.closeInfo).toBeNull();
+    } finally {
+      await env.DB.exec(`DROP TRIGGER IF EXISTS ${triggerName}`);
+    }
+
+    // `authorized` is back: `roomDiagnostics().playerIds` only lists authorized players, and the
+    // socket itself accepts messages again (`webSocketMessage` gates every frame on `authorized`).
+    const diag = await awaitDiag(roomKeyA, "hero still authorized after the fault", (d) =>
+      d.playerIds.includes(hero.heroId),
+    );
+    expect(diag.playerIds).toContain(hero.heroId);
+
+    // `transitioning` is back too: `#startPlayerAction` doesn't gate on it, but `#resolvePlayerAction`
+    // does, so only an actual landed hit proves the combat gate itself reopened, not just the socket.
+    client.action("attack");
+    await until("post-failure attack lands", () => {
+      const current = client.latestSnapshot?.monsters.find(
+        (candidate) => candidate.id === monster.id,
+      );
+      return current && current.hp < monster.hp ? current : undefined;
+    });
+  });
+
   it("logs a refused authored teleport at most ONCE per room lifetime, not every tick", async () => {
     // `loop { teleport <out-of-bounds> }` refuses on every command forever. The (event, reason) dedupe
     // set collapses the flood to a single log. Mutation proof: drop the dedupe and the spinning loop
