@@ -7,6 +7,7 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  abortRunForEvent,
   abortRunsForHero,
   advanceRun,
   chooseRun,
@@ -196,6 +197,103 @@ describe("aborts", () => {
     begin(runtime, "b", [{ t: "say", text: "b", name: null }], { heroId: "h2", runId: "run-b" });
     abortRunsForHero(runtime, "h1");
     expect([...runtime.contexts.keys()]).toEqual(["b"]);
+  });
+
+  it("buffers a close for a hero's run parked on a dialogue when its life transition aborts it (final-review must-fix)", () => {
+    // A hero dies (or otherwise freezes) while parked on a say: the run is torn down, but their
+    // panel is still open on their still-connected client. Without a buffered close beat it would
+    // stay undismissable, swallowing interact and 1-4 forever.
+    // MUTATION PROOF: drop the `isDialogueParked` buffering in `abortRunsForHero` and `runtime.dialogue`
+    // comes back empty here, failing the `toEqual` below.
+    const runtime = createEventRunRuntime();
+    begin(runtime, "talk", [{ t: "say", text: "hi", name: null }], {
+      heroId: "h1",
+      runId: "run-talk",
+    });
+    drainRuns(runtime, { state: EMPTY_ADVENTURE_STATE, tick: 0 });
+    expect(runtime.contexts.get("talk")?.status).toBe("waiting-advance");
+    runtime.dialogue.length = 0; // clear the say beat the drain buffered, isolating the abort's own beat
+
+    abortRunsForHero(runtime, "h1");
+    expect(runtime.contexts.has("talk")).toBe(false);
+    expect(runtime.dialogue).toEqual([
+      { heroId: "h1", runId: "run-talk", message: { kind: "closeDialogue" } },
+    ]);
+  });
+
+  it("drops a hero's still-buffered stale beats but keeps the fresh close it just buffered", () => {
+    // A run that had already buffered a say/choices beat this tick (not yet flushed) is aborted:
+    // the stale beat for a now-dead run must not reach the wire, but the fresh close the abort
+    // itself buffers must survive the same clear.
+    const runtime = createEventRunRuntime();
+    begin(runtime, "talk", [{ t: "say", text: "hi", name: null }], {
+      heroId: "h1",
+      runId: "run-talk",
+    });
+    drainRuns(runtime, { state: EMPTY_ADVENTURE_STATE, tick: 0 });
+    expect(runtime.dialogue).toEqual([
+      { heroId: "h1", runId: "run-talk", message: { kind: "say", text: "hi", name: null } },
+    ]);
+
+    abortRunsForHero(runtime, "h1");
+    expect(runtime.dialogue).toEqual([
+      { heroId: "h1", runId: "run-talk", message: { kind: "closeDialogue" } },
+    ]);
+  });
+
+  it("does not buffer a close for a hero's run that was not parked on a dialogue (running / waiting-timer)", () => {
+    const runtime = createEventRunRuntime();
+    begin(runtime, "spin", [{ t: "loop", body: [{ t: "comment", text: "x" }] }], {
+      heroId: "h1",
+      runId: "run-spin",
+    });
+    drainRuns(runtime, { state: EMPTY_ADVENTURE_STATE, tick: 0 });
+    expect(runtime.contexts.get("spin")?.status).toBe("running");
+
+    abortRunsForHero(runtime, "h1");
+    expect(runtime.contexts.has("spin")).toBe(false);
+    expect(runtime.dialogue).toEqual([]);
+  });
+});
+
+describe("abortRunForEvent (state-driven page flip)", () => {
+  it("buffers a close when the aborted event's run is parked on a dialogue (final-review must-fix)", () => {
+    // MUTATION PROOF: drop the `isDialogueParked` buffering in `abortRunForEvent` and `runtime.dialogue`
+    // comes back empty here, failing the `toEqual` below.
+    const runtime = createEventRunRuntime();
+    begin(runtime, "gate", [{ t: "say", text: "hi", name: null }], {
+      heroId: "h1",
+      runId: "run-gate",
+    });
+    drainRuns(runtime, { state: EMPTY_ADVENTURE_STATE, tick: 0 });
+    expect(runtime.contexts.get("gate")?.status).toBe("waiting-advance");
+    runtime.dialogue.length = 0;
+
+    abortRunForEvent(runtime, "gate");
+    expect(runtime.contexts.has("gate")).toBe(false);
+    expect(runtime.dialogue).toEqual([
+      { heroId: "h1", runId: "run-gate", message: { kind: "closeDialogue" } },
+    ]);
+  });
+
+  it("buffers nothing when the aborted event's run was not parked on a dialogue", () => {
+    const runtime = createEventRunRuntime();
+    begin(runtime, "spin", [{ t: "loop", body: [{ t: "comment", text: "x" }] }], {
+      heroId: "h1",
+      runId: "run-spin",
+    });
+    drainRuns(runtime, { state: EMPTY_ADVENTURE_STATE, tick: 0 });
+    expect(runtime.contexts.get("spin")?.status).toBe("running");
+
+    abortRunForEvent(runtime, "spin");
+    expect(runtime.contexts.has("spin")).toBe(false);
+    expect(runtime.dialogue).toEqual([]);
+  });
+
+  it("is a no-op on an event with no live context", () => {
+    const runtime = createEventRunRuntime();
+    expect(() => abortRunForEvent(runtime, "nowhere")).not.toThrow();
+    expect(runtime.dialogue).toEqual([]);
   });
 });
 

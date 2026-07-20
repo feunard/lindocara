@@ -831,6 +831,50 @@ describe("aborts", () => {
     );
   });
 
+  it("closes the panel and ends the run when the triggerer dies mid-dialogue (final-review must-fix)", async () => {
+    // Death (`#killPlayer` -> `#freeze` -> `abortRunsForHero`) tears down a run parked on a say, but
+    // unlike a disconnect the hero's socket stays open. Without buffering a close beat the panel
+    // would stay undismissable, swallowing interact and 1-4 forever. Mutation proof: revert the
+    // `isDialogueParked` buffering in `abortRunsForHero` and this test times out waiting for
+    // event.close.
+    const scriptId = crypto.randomUUID();
+    const party = await testParty("diemid", {
+      maps: [
+        testMapInput("diemid ground", {
+          events: [
+            scriptEvent(scriptId, 5, 5, "action", [
+              { t: "say", text: "before you go...", name: null },
+            ]),
+          ],
+        }),
+      ],
+    });
+    const hero = await testHero("Doomed", {
+      party,
+      account: party.host,
+      position: { x: 5 * TILE_SIZE + TILE_SIZE / 2, y: 5 * TILE_SIZE + TILE_SIZE / 2 },
+    });
+    const client = await Client.joinHero(hero);
+    await until("welcomed", () => client.welcome);
+
+    client.action("interact");
+    const say = await until(
+      "say beat",
+      () =>
+        client.received.find((m) => m.t === "event.say") as
+          | Extract<ServerMessage, { t: "event.say" }>
+          | undefined,
+    );
+    await awaitDiag(hero.roomKey, "run parked", (d) => d.eventRuns.length === 1);
+
+    client.chat("/die");
+    await until("hero fell", () => client.self()?.life === "corpse");
+    await until("panel closed on death", () =>
+      client.received.some((m) => m.t === "event.close" && m.runId === say.runId),
+    );
+    await awaitDiag(hero.roomKey, "run aborted on death", (d) => d.eventRuns.length === 0);
+  });
+
   it("aborts a run whose own switch flip changes its active page (no zombie), and shows the new page", async () => {
     // Page 0 (action): flip self-switch A, then park on a long wait BEFORE any further command.
     // Page 1 gates on self-switch A and shows PAGE2. Setting A makes page 1 active, which must abort
@@ -871,6 +915,67 @@ describe("aborts", () => {
     client.action("interact");
     // The page flips to page 2 AND the run is gone: the self-switch flip aborted the page-0 context
     // before its parked wait could ever resume.
+    await awaitDiag(hero.roomKey, "page 2 active and run aborted", (diag) => {
+      const shows =
+        diag.activeEvents.find((e) => e.id === eventId)?.graphicAssetId === PAGE2_GRAPHIC;
+      return shows && diag.eventRuns.length === 0;
+    });
+  });
+
+  it("closes the panel and ends the run when a page flip aborts it mid-dialogue (final-review must-fix)", async () => {
+    // Page 0 (action) opens a say and parks (waiting-advance) — unlike the zombie test above, the
+    // flip is NOT this run's own command: it comes from an external state mutation (another hero's
+    // event, or here the coordinator test seam), which is exactly the reachable "page flip under a
+    // parked run" path. `installAdventureState` -> `#abortRunsForStalePages` -> `abortRunForEvent`
+    // must buffer a close, or the triggerer's panel is left undismissable. Mutation proof: revert the
+    // `isDialogueParked` buffering in `abortRunForEvent` and this test times out waiting for
+    // event.close.
+    const eventId = crypto.randomUUID();
+    const gated: MapEvent = {
+      id: eventId,
+      col: 5,
+      row: 5,
+      name: "Gated",
+      ordinal: 30,
+      kind: "normal",
+      species: null,
+      patrolRadius: null,
+      pages: [
+        page({ trigger: "action", commands: [{ t: "say", text: "hold on...", name: null }] }),
+        page({ graphicAssetId: PAGE2_GRAPHIC, condSwitchId: "0001" }),
+      ],
+    };
+    const party = await testParty("gateddialogue", {
+      maps: [testMapInput("gateddialogue ground", { events: [gated] })],
+    });
+    const hero = await testHero("Gated", {
+      party,
+      account: party.host,
+      position: { x: 5 * TILE_SIZE + TILE_SIZE / 2, y: 5 * TILE_SIZE + TILE_SIZE / 2 },
+    });
+    const client = await Client.joinHero(hero);
+    await until("welcomed", () => client.welcome);
+
+    client.action("interact");
+    const say = await until(
+      "say beat",
+      () =>
+        client.received.find((m) => m.t === "event.say") as
+          | Extract<ServerMessage, { t: "event.say" }>
+          | undefined,
+    );
+    await awaitDiag(hero.roomKey, "run parked", (d) => d.eventRuns.length === 1);
+
+    // An external mutation (not the parked run's own doing) flips the gate switch, changing page 0's
+    // active page out from under the parked context.
+    await env.GAME_SESSION.getByName(party.partyId).applyStateChangeForTest(party.partyId, {
+      switchId: "0001",
+      value: true,
+    });
+
+    await until("panel closed on page flip", () =>
+      client.received.some((m) => m.t === "event.close" && m.runId === say.runId),
+    );
     await awaitDiag(hero.roomKey, "page 2 active and run aborted", (diag) => {
       const shows =
         diag.activeEvents.find((e) => e.id === eventId)?.graphicAssetId === PAGE2_GRAPHIC;

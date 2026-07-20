@@ -285,21 +285,51 @@ export function chooseRun(
   return true;
 }
 
+/** True for a context parked on a panel (`waiting-advance`/`waiting-choice`) — the only statuses a
+ *  connected client actually has a dialogue open for, so the only ones an abort must close. */
+function isDialogueParked(context: RunContext): boolean {
+  return context.status === "waiting-advance" || context.status === "waiting-choice";
+}
+
 /** Abort every run a hero triggered — the life-transition queue-clear precedent, applied on the hero
- *  leaving (disconnect/transition) and on death. Their buffered dialogue is dropped too: there is no
- *  panel left to receive it. */
+ *  leaving (disconnect/transition) and on death. Their STALE buffered dialogue (a `say`/`choices`
+ *  beat this same tick's drain produced but hasn't reached the wire yet) is dropped, since the run
+ *  producing it no longer exists — but a run parked on a panel (`waiting-advance`/`waiting-choice`)
+ *  buffers a fresh `closeDialogue` beat first, so a still-connected triggerer (death is the reachable
+ *  case; a real disconnect's socket is already gone by the next flush, so the beat is silently
+ *  dropped there) gets `event.close` and the panel does not go undismissable. */
 export function abortRunsForHero(runtime: EventRunRuntime, heroId: string): void {
+  const closes: BufferedDialogue[] = [];
   for (const [eventId, context] of [...runtime.contexts]) {
-    if (context.heroId === heroId) runtime.contexts.delete(eventId);
+    if (context.heroId !== heroId) continue;
+    if (isDialogueParked(context)) {
+      closes.push({
+        heroId: context.heroId,
+        runId: context.runId,
+        message: { kind: "closeDialogue" },
+      });
+    }
+    runtime.contexts.delete(eventId);
   }
   const kept = runtime.dialogue.filter((buffered) => buffered.heroId !== heroId);
   runtime.dialogue.length = 0;
-  runtime.dialogue.push(...kept);
+  runtime.dialogue.push(...kept, ...closes);
 }
 
 /** Abort the run on one event — used when a state flip changes that event's active page. Ordered
- *  BEFORE page re-evaluation in `World` so no zombie context outlives the page it was reading. */
+ *  BEFORE page re-evaluation in `World` so no zombie context outlives the page it was reading. A
+ *  context parked on a panel (`waiting-advance`/`waiting-choice`) buffers a `closeDialogue` beat
+ *  first, so the triggerer's undismissable panel actually closes instead of swallowing interact and
+ *  1-4 forever. */
 export function abortRunForEvent(runtime: EventRunRuntime, eventId: string): void {
+  const context = runtime.contexts.get(eventId);
+  if (context !== undefined && isDialogueParked(context)) {
+    runtime.dialogue.push({
+      heroId: context.heroId,
+      runId: context.runId,
+      message: { kind: "closeDialogue" },
+    });
+  }
   runtime.contexts.delete(eventId);
 }
 
