@@ -49,6 +49,10 @@ export class GameSession extends DurableObject<Env> {
   #state: VersionedState | null = null;
   /** A change is waiting to be written. Party-empty flushes it; the alarm writes it after 5s. */
   #dirty = false;
+  /** Test seam only (null in production): a barrier the next `#flushSave` parks on just before its
+   *  version-guarded dirty clear, so a test can land a mutation mid-flush deterministically and prove
+   *  the guard keeps the newer version. */
+  #flushRaceBarrier: { promise: Promise<void>; resolve: () => void } | null = null;
 
   async #rememberRoom(partyId: string, roomKey: string): Promise<void> {
     const storedPartyId = await this.ctx.storage.get<string>("partyId");
@@ -244,10 +248,43 @@ export class GameSession extends DurableObject<Env> {
   async #flushSave(partyId: string): Promise<void> {
     const held = await this.#ensureState(partyId);
     if (!this.#dirty) return;
+    // Capture the version we are about to persist. A mutation can land during the awaited D1 write
+    // (that write does not hold the input gate closed), bumping `#state.version` and re-setting
+    // `#dirty`; clearing `#dirty` unconditionally would clobber that flag and strand the newer state
+    // out of D1 until session end. Only clear when what we wrote is still current.
+    const savedVersion = held.version;
     const db = createDb(this.env.DB);
     const liveEventIds = await loadAdventureEventIds(db, partyId);
     await savePartyAdventureState(db, partyId, held.state, liveEventIds);
-    this.#dirty = false;
-    await this.ctx.storage.put("stateDirty", false);
+    // Test-only rendezvous point (see `#flushRaceBarrier`): production never installs a barrier.
+    const barrier = this.#flushRaceBarrier;
+    if (barrier !== null) {
+      this.#flushRaceBarrier = null;
+      await barrier.promise;
+    }
+    if (this.#state !== null && this.#state.version === savedVersion) {
+      this.#dirty = false;
+      await this.ctx.storage.put("stateDirty", false);
+    } else {
+      // A mid-flush mutation moved past what we saved: stay dirty and re-arm so it reaches D1.
+      await this.#scheduleSave();
+    }
+  }
+
+  /**
+   * Test seam: reproduce the flush-window race deterministically inside the object. Starts a real
+   * `#flushSave` (which parks at the barrier just before its dirty clear), lands a real mutation while
+   * it is parked, then releases the flush — proving the version-guarded clear keeps the newer version.
+   */
+  async raceFlushWithMutationForTest(partyId: string, switchId: string): Promise<void> {
+    let resolve: () => void = () => {};
+    const promise = new Promise<void>((r) => {
+      resolve = r;
+    });
+    this.#flushRaceBarrier = { promise, resolve };
+    const flushing = this.#flushSave(partyId);
+    await this.applyStateChanges(partyId, [{ type: "setSwitch", switchId, value: true }]);
+    resolve();
+    await flushing;
   }
 }

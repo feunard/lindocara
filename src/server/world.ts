@@ -305,6 +305,21 @@ export class World extends DurableObject<Env> {
   /** The party this hero room belongs to, learned at admission. `null` for catalogue/character
    *  rooms. Used only to tell the coordinator when the room has emptied. */
   #heroPartyId: string | null = null;
+  /**
+   * The retained coordinator stub for this room's party. Cloudflare guarantees calls on ONE stub are
+   * delivered in the order made (E-order); calls on DIFFERENT stubs to the same object have no
+   * ordering guarantee. Mutation batches carry non-commutative ops (`set` vs `add`), so a fresh
+   * `getByName` per tick could deliver two ticks' batches out of order and corrupt a variable. Keep a
+   * single stub per party and reuse it for every ordered coordinator call.
+   */
+  #gameSessionStub: ReturnType<Env["GAME_SESSION"]["getByName"]> | null = null;
+  /** Cross-map authored teleport handoffs launched this room lifetime — the Fix-3 observable: a
+   *  synchronous `transitioning` claim makes back-to-back cross-map teleports launch exactly one. */
+  #crossMapTeleports = 0;
+  /** (eventId, reason) pairs already logged for a refused authored teleport, so an authored
+   *  `loop { teleport <unwalkable> }` warns ONCE per pair per room lifetime rather than every tick
+   *  (the observability law forbids per-event tick logging). Reset when the room empties. */
+  #teleportRefusalsLogged = new Set<string>();
   #occupiedExitByPlayerId = new Map<string, string>();
   /** How often this room re-asserts its players' leases. Read once from `Env`, never from a client. */
   readonly #presenceHeartbeatMs: number;
@@ -952,6 +967,9 @@ export class World extends DurableObject<Env> {
     tickActive: boolean;
     adventureState: PartyAdventureState;
     adventureStateVersion: number;
+    /** Cross-map authored teleport handoffs launched this room lifetime — the Fix-3 observable that a
+     *  back-to-back cross-map teleport claims the transition synchronously and launches exactly one. */
+    crossMapTeleports: number;
     activeEvents: readonly ActiveWorldEvent[];
     /** The live event runs and the buffered dialogue beats — the Task-3 test seam standing in for
      *  the not-yet-existing dialogue protocol (Task 4 sends `dialogue` on the wire). */
@@ -986,6 +1004,7 @@ export class World extends DurableObject<Env> {
       tickActive: this.#loop !== null,
       adventureState: this.#adventureState,
       adventureStateVersion: this.#adventureStateVersion,
+      crossMapTeleports: this.#crossMapTeleports,
       activeEvents: this.#activeEvents,
       eventRuns: [...this.#eventRuns.contexts.entries()].map(([eventId, context]) => ({
         eventId,
@@ -2850,10 +2869,31 @@ export class World extends DurableObject<Env> {
     }
     if (mutations.length > 0 && this.#heroPartyId !== null) {
       const partyId = this.#heroPartyId;
-      this.ctx.waitUntil(
-        this.env.GAME_SESSION.getByName(partyId).applyStateChanges(partyId, mutations),
-      );
+      // Same retained stub every tick so consecutive mutation batches keep their E-order.
+      this.ctx.waitUntil(this.#gameSession(partyId).applyStateChanges(partyId, mutations));
     }
+  }
+
+  /** The party's coordinator stub, retained so every ordered call rides one stub's E-order (see
+   *  `#gameSessionStub`). A room serves exactly one party, so the memo never straddles parties. */
+  #gameSession(partyId: string): ReturnType<Env["GAME_SESSION"]["getByName"]> {
+    if (this.#gameSessionStub === null) {
+      this.#gameSessionStub = this.env.GAME_SESSION.getByName(partyId);
+    }
+    return this.#gameSessionStub;
+  }
+
+  /**
+   * Warn about a refused authored teleport at most ONCE per (event, reason) per room lifetime. An
+   * authored `loop { teleport <unwalkable> }` would otherwise emit up to `EVENT_COMMANDS_PER_TICK`
+   * logs every tick forever; the observability law forbids per-event tick logging. The (event,
+   * reason) Set is small and bounded (events per map times a few reasons) and resets on room empty.
+   */
+  #logTeleportRefusedOnce(eventId: string, reason: string, extra: Record<string, unknown>): void {
+    const key = `${eventId}:${reason}`;
+    if (this.#teleportRefusalsLogged.has(key)) return;
+    this.#teleportRefusalsLogged.add(key);
+    console.warn(JSON.stringify({ event: "event_teleport_refused", reason, eventId, ...extra }));
   }
 
   #dispatchTeleport(
@@ -2865,11 +2905,25 @@ export class World extends DurableObject<Env> {
     const player = socket ? this.#players.get(socket) : undefined;
     if (!socket || !player?.authorized || player.transitioning) return;
     if (effect.mapId === this.#location?.zoneId) {
-      this.#teleportSameMap(player, effect.col, effect.row);
+      this.#teleportSameMap(player, effect.col, effect.row, dispatch.eventId);
       return;
     }
+    // Claim the transition SYNCHRONOUSLY, before the async handoff. The handoff sets `transitioning`
+    // too late to stop a second cross-map teleport effect dispatched in the SAME drain, so without
+    // this a back-to-back teleport would launch two handoffs (two saves, two closes). A validation
+    // failure inside `#teleportCrossMap` clears the claim so a refused teleport never strands the hero.
+    player.transitioning = true;
+    this.#crossMapTeleports += 1;
     this.ctx.waitUntil(
-      this.#teleportCrossMap(socket, player, effect.mapId, effect.col, effect.row, now),
+      this.#teleportCrossMap(
+        socket,
+        player,
+        effect.mapId,
+        effect.col,
+        effect.row,
+        now,
+        dispatch.eventId,
+      ),
     );
   }
 
@@ -2880,7 +2934,7 @@ export class World extends DurableObject<Env> {
    * queue clear is the death-transition precedent: a stale queue replayed after the snap is the
    * post-teleport sprint bug.
    */
-  #teleportSameMap(player: Player, col: number, row: number): void {
+  #teleportSameMap(player: Player, col: number, row: number, eventId: string): void {
     const terrain = this.#zone().terrain;
     const destination = eventCellCentre({ col, row });
     const inBounds =
@@ -2889,16 +2943,12 @@ export class World extends DurableObject<Env> {
       destination.x < terrain.width &&
       destination.y < terrain.height;
     if (!inBounds || !isWalkable(destination, PLAYER_SIZE, terrain)) {
-      console.error(
-        JSON.stringify({
-          event: "event_teleport_refused",
-          reason: inBounds ? "unwalkable" : "out_of_bounds",
-          heroId: player.id,
-          mapId: this.#location?.zoneId ?? null,
-          col,
-          row,
-        }),
-      );
+      this.#logTeleportRefusedOnce(eventId, inBounds ? "unwalkable" : "out_of_bounds", {
+        heroId: player.id,
+        mapId: this.#location?.zoneId ?? null,
+        col,
+        row,
+      });
       return;
     }
     const previousPosition = { x: player.x, y: player.y };
@@ -2925,30 +2975,35 @@ export class World extends DurableObject<Env> {
     col: number,
     row: number,
     now: number,
+    eventId: string,
   ): Promise<void> {
+    // `transitioning` is claimed by the SYNCHRONOUS caller (`#dispatchTeleport`), not here, so this
+    // never re-checks it — instead every validation failure below RELEASES the claim so a refused
+    // cross-map teleport leaves the hero free to move and try again.
     const partyId = player.partyId;
-    if (
-      player.identityKind !== "hero" ||
-      !partyId ||
-      player.life !== "alive" ||
-      player.transitioning
-    ) {
+    if (player.identityKind !== "hero" || !partyId || player.life !== "alive") {
+      player.transitioning = false;
       return;
     }
     const db = createDb(this.env.DB);
     const storedParty = await loadPartyForRuntime(db, partyId);
-    if (!storedParty || !player.authorized) return;
+    if (!storedParty || !player.authorized) {
+      player.transitioning = false;
+      return;
+    }
     const authoredAdventure = await loadAdventure(
       db,
       storedParty.hostAccountId,
       storedParty.adventureId,
     );
     if (!authoredAdventure?.mapIds.includes(mapId)) {
+      player.transitioning = false;
       this.#send(ws, { t: "event", code: "zone.transition_denied", tone: "bad" });
       return;
     }
     const destinationMap = await loadMap(db, mapId);
     if (!destinationMap) {
+      player.transitioning = false;
       this.#send(ws, { t: "event", code: "zone.transition_failed", tone: "bad" });
       return;
     }
@@ -2959,15 +3014,8 @@ export class World extends DurableObject<Env> {
       col < destination.definition.terrain.width / TILE_SIZE &&
       row < destination.definition.terrain.height / TILE_SIZE;
     if (!inBounds) {
-      console.error(
-        JSON.stringify({
-          event: "event_teleport_refused",
-          reason: "out_of_bounds",
-          mapId,
-          col,
-          row,
-        }),
-      );
+      player.transitioning = false;
+      this.#logTeleportRefusedOnce(eventId, "out_of_bounds", { mapId, col, row });
       return;
     }
     const spawn = clampRestoredPosition(
@@ -2977,7 +3025,6 @@ export class World extends DurableObject<Env> {
     );
     const destinationRoomKey = `${partyId}:${destinationMap.id}`;
 
-    player.transitioning = true;
     player.lastTransitionAt = now;
     player.lastInput = NO_INPUT;
     player.queue = [];
@@ -3551,6 +3598,8 @@ export class World extends DurableObject<Env> {
     }
     this.#stopLoop();
     resetEventRunRuntime(this.#eventRuns);
+    this.#teleportRefusalsLogged.clear();
+    this.#crossMapTeleports = 0;
     this.#loot = [];
     this.#projectiles = [];
     this.#lootGrid.clear();

@@ -26,6 +26,7 @@
 import type { PartyAdventureState } from "../../shared/adventure-state.js";
 import { EVENT_COMMANDS_PER_TICK, type EventCommand } from "../../shared/event-commands.js";
 import {
+  applyStateMutation,
   type EventEffect,
   type RunContext,
   resumeWithAdvance,
@@ -136,6 +137,19 @@ export interface DrainResult {
  *     only through `advanceRun`/`chooseRun` (Task 4's intents). A `wait` command parks its context in
  *     `waiting-timer`; the drain fills `resumeAtTick = tick + frames` (frames are 20Hz ticks, 1:1).
  *  3. A `done` context is deleted, releasing the lock.
+ *
+ * ## One-room state coherence (read-after-write within a drain)
+ *
+ * The coordinator (`GameSession`) is the single writer and its push is only visible a tick or two
+ * later, so stepping every command against the frozen `params.state` snapshot would make a run blind
+ * to its OWN just-written switches/variables: `setSwitch X; if X ...` would take the wrong branch and
+ * `loop { add 1; if >= 10 break }` would overshoot. We keep a LOCAL working copy, seeded from the
+ * snapshot at drain start, and fold each `mutateState` effect into it with the shared pure
+ * `applyStateMutation`. Every later step THIS drain — command execution and `if`/waiting-condition
+ * evaluation alike — reads that copy, so a run (and other runs in THIS room this tick) sees its own
+ * writes immediately. The batch still flows up to the coordinator unchanged; the copy is discarded at
+ * drain end. Cross-ROOM propagation stays async by design — a room only reaches strong coherence with
+ * itself, and picks up other rooms' writes on the coordinator's next push.
  */
 export function drainRuns(
   runtime: EventRunRuntime,
@@ -147,6 +161,8 @@ export function drainRuns(
 ): DrainResult {
   const budget = params.budget ?? EVENT_COMMANDS_PER_TICK;
   const effects: DispatchEffect[] = [];
+  // The drain-local working copy (see the header): steps read their own same-room writes through it.
+  let workingState = params.state;
 
   // (1) Timers first: a wait whose deadline has passed rejoins the running set for this same drain.
   for (const [eventId, context] of runtime.contexts) {
@@ -167,7 +183,7 @@ export function drainRuns(
       if (used >= budget) break;
       const context = runtime.contexts.get(eventId);
       if (context === undefined || context.status !== "running") continue;
-      const result = stepEventRun(context, params.state);
+      const result = stepEventRun(context, workingState);
       used += 1;
       progressed = true;
       for (const effect of result.effects) {
@@ -178,6 +194,11 @@ export function drainRuns(
         ) {
           runtime.dialogue.push({ heroId: context.heroId, runId: context.runId, message: effect });
         } else if (effect.kind !== "wait") {
+          // Fold a state write into the drain-local copy BEFORE the next step reads it, then hand the
+          // same op up to `World` for the coordinator batch (the durable single-writer path).
+          if (effect.kind === "mutateState") {
+            workingState = applyStateMutation(workingState, effect.op);
+          }
           effects.push({ heroId: context.heroId, runId: context.runId, eventId, effect });
         }
       }
