@@ -168,10 +168,9 @@ export function insertCommand(
 ): { commands: readonly EventCommand[]; selection: Selection } | null {
   const point = insertPoint(commands, selection);
   if (!point) return null;
-  if (point.addr.length + 1 > MAX_COMMAND_DEPTH) return null;
-  if (countEventCommands(commands) + countEventCommands([command]) > MAX_COMMANDS_PER_PAGE) {
-    return null;
-  }
+  // One guard implementation: `insertRefusal` owns the depth/count checks; a refusal there is a
+  // refusal here. (`point` is re-derived, but the LIMIT logic lives in exactly one place.)
+  if (insertRefusal(commands, selection, command) !== null) return null;
   const next = mapBody(commands, point.addr, (body) => [
     ...body.slice(0, point.index),
     command,
