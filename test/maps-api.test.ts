@@ -9,6 +9,7 @@ import { createAdventure } from "../src/server/adventures.js";
 import { createDb } from "../src/server/db/index.js";
 import { BUILTIN_MAP_ID } from "../src/server/maps.js";
 import { SESSION_COOKIE } from "../src/server/session.js";
+import { COMMAND_TEXT_MAX, MAX_CHOICE_OPTIONS } from "../src/shared/event-commands.js";
 import { MONSTER_SPECIES_KIND, type MonsterSpecies } from "../src/shared/game.js";
 import {
   MARKER_LABEL_MAX,
@@ -258,6 +259,58 @@ describe("list, get, update, delete", () => {
     const afterDelete = await authed(`/api/maps/${id}`);
     expect(afterDelete.status).toBe(404);
     expect(await afterDelete.json()).toEqual({ error: "map_not_found" });
+  });
+
+  it("round-trips a page's nested command program through D1", async () => {
+    const adventureId = await newAdventure();
+    await newMapId(adventureId, "Keepalive");
+    const id = await newMapId(adventureId, "Scripted");
+
+    // A nested program (a choice whose branches nest an if with a loop and a break) exercises the
+    // JSON `commands` column through the whole save/load path, not just a flat list.
+    const commands = [
+      { t: "say", text: "La porte est verrouillee.", name: "Mira" },
+      {
+        t: "choices",
+        prompt: "Ouvrir ?",
+        options: [
+          {
+            label: "Ouvrir",
+            body: [
+              { t: "setSwitch", switchId: "0001", value: true },
+              {
+                t: "if",
+                cond: { type: "variable", variableId: "0002", min: 3 },
+                then: [{ t: "loop", body: [{ t: "changeGold", amount: 1 }, { t: "breakLoop" }] }],
+                else: [{ t: "changeItems", itemId: "health_potion", count: 1 }],
+              },
+            ],
+          },
+          { label: "Laisser", body: [{ t: "exitRun" }] },
+        ],
+      },
+      { t: "wait", frames: 20 },
+    ];
+    const events = [
+      {
+        id: crypto.randomUUID(),
+        col: 4,
+        row: 4,
+        name: "Door",
+        ordinal: 1,
+        pages: [wirePage({ commands })],
+      },
+    ];
+
+    const putRes = await putMap(id, mapBody({ name: "Scripted", events }));
+    expect(putRes.status).toBe(200);
+
+    const getRes = await authed(`/api/maps/${id}`);
+    expect(getRes.status).toBe(200);
+    const fetched = (await getRes.json()) as {
+      events: { pages: { commands: unknown }[] }[];
+    };
+    expect(fetched.events[0]?.pages[0]?.commands).toEqual(commands);
   });
 
   it("keeps maps private and hides foreign mutations as not found", async () => {
@@ -566,9 +619,21 @@ describe("size caps over the wire (on the authoring PUT)", () => {
     // Events dominate the re-derived worst case (see MAX_MAP_JSON_BYTES in server/index.ts): the
     // full MAX_EVENTS_PER_MAP x MAX_PAGES_PER_EVENT complement, every page field at its widest —
     // 4-digit condition ids, a 10-digit variable threshold, the longest catalogue graphic id, the
-    // longest move type and trigger, and all five options true. Events float above collision, so
-    // their cells are unconstrained; one per column on a single row keeps them distinct and in
-    // bounds. createMap chunks these into D1-safe INSERTs, so this also drives that path over HTTP.
+    // longest move type and trigger, all five options true, AND a tranche-5 command program built
+    // from the widest single node (a `choices` with a max-length prompt and MAX_CHOICE_OPTIONS
+    // max-length labels). The theoretical 200-node page is far past this cap (see the comment on
+    // MAX_MAP_JSON_BYTES — it exceeds Worker memory), so this drives several such nodes per page,
+    // enough to prove the commands column is exercised and the body clears 400 KiB while staying
+    // memory-safe under the new 4 MiB cap. Events float above collision, so their cells are
+    // unconstrained; one per column on a single row keeps them distinct and in bounds. createMap
+    // chunks these into D1-safe INSERTs (commands are one TEXT param each), so this drives that path.
+    const maxText = "x".repeat(COMMAND_TEXT_MAX);
+    const maxWidthChoice = () => ({
+      t: "choices",
+      prompt: maxText,
+      options: Array.from({ length: MAX_CHOICE_OPTIONS }, () => ({ label: maxText, body: [] })),
+    });
+    const maxWidthCommands = Array.from({ length: 4 }, maxWidthChoice);
     const maxWidthPage = (): Record<string, unknown> => ({
       condSwitchId: "9999",
       condVariableId: "9999",
@@ -584,6 +649,7 @@ describe("size caps over the wire (on the authoring PUT)", () => {
       optThrough: true,
       optOnTop: true,
       trigger: "player-touch",
+      commands: maxWidthCommands,
     });
     const events = Array.from({ length: MAX_EVENTS_PER_MAP }, (_, i) => ({
       id: crypto.randomUUID(),
@@ -606,21 +672,23 @@ describe("size caps over the wire (on the authoring PUT)", () => {
         events,
       }),
     );
-    // Sanity on the fixture: the event payload lifts it well past the ~156,322-byte elements+markers
-    // body, proving the events arithmetic is exercised — and still under the re-derived 400 KiB cap.
-    expect(bodyText.length).toBeGreaterThan(320_000);
-    expect(bodyText.length).toBeLessThan(409_600);
+    // Sanity on the fixture: the command payload lifts it past 2 MB — well beyond the ~385 KB
+    // events+elements+markers body — proving the tranche-5 commands arithmetic is exercised, and
+    // still under the re-derived 4 MiB cap with headroom.
+    expect(bodyText.length).toBeGreaterThan(2_000_000);
+    expect(bodyText.length).toBeLessThan(4_194_304);
 
     const id = await newMapId(await newAdventure());
     const response = await authed(`/api/maps/${id}`, { method: "PUT", body: bodyText });
     expect(response.status).toBe(200);
   });
 
-  it("413s a body over the re-derived 400 KiB cap, padded via elements since name is capped at 48", async () => {
-    // ~46 bytes/element x 12,000 clears the 409,600-byte cap by a wide margin, so `readJson` 413s on
-    // the byte stream before any semantic gate runs.
+  it("413s a body over the re-derived 4 MiB cap, padded via elements since name is capped at 48", async () => {
+    // ~46 bytes/element x 100,000 clears the 4,194,304-byte cap by a wide margin, so `readJson` 413s
+    // on the byte stream before any semantic gate runs. (The old 400 KiB cap grew 10x once tranche 5
+    // added per-page command programs — see MAX_MAP_JSON_BYTES.)
     const id = await newMapId(await newAdventure());
-    const elements = Array.from({ length: 12_000 }, (_, i) => ({
+    const elements = Array.from({ length: 100_000 }, (_, i) => ({
       col: 0,
       row: 0,
       kind: "tree",

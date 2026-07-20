@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import { EMPTY_ADVENTURE_STATE, type PartyAdventureState } from "../shared/adventure-state.js";
+import { applyStateMutation, type StateMutation } from "../shared/event-interpreter.js";
 import type { ServerMessage } from "../shared/protocol.js";
 import {
   loadAdventureEventIds,
@@ -10,10 +11,16 @@ import { createDb } from "./db/index.js";
 
 /**
  * How long a state change waits before its debounced D1 write, matching the hero profile flush
- * cadence. Party-empty flushes immediately and cancels a pending debounce, so the last owner never
+ * cadence. Party-empty flushes immediately and cancels a pending alarm, so the last owner never
  * relies on the timer surviving.
  */
 const ADVENTURE_STATE_SAVE_DEBOUNCE_MS = 5_000;
+
+/** The party's held snapshot plus the monotone version rooms use to drop out-of-order pushes. */
+interface VersionedState {
+  state: PartyAdventureState;
+  version: number;
+}
 
 /**
  * Durable coordinator addressed by party id. It owns the persistent session directory and fans
@@ -24,17 +31,28 @@ const ADVENTURE_STATE_SAVE_DEBOUNCE_MS = 5_000;
  * It also owns the party's live adventure state — switches, variables, self-switches (spec
  * Decision 2). State belongs to the party, not the hero: four heroes across different map rooms
  * share one set of switches, so exactly one writer (this coordinator) holds it. Rooms only READ it,
- * through the read-only snapshot pushed to each on room start and on change. This tranche has no
- * in-game mutation path; the only change source is `applyStateChangeForTest`, the test seam
- * standing in for tranche 5's interpreter.
+ * through the read-only snapshot pushed to each on room start and on change. Tranche 5's interpreter
+ * is now the real change source: a room drains an event's commands and RPCs the resulting mutations
+ * here through `applyStateChanges`; nothing a browser can send reaches this path.
+ *
+ * ## Durability across eviction (T4 obligation)
+ *
+ * The debounced D1 write is scheduled with `ctx.storage.setAlarm`, not a `setTimeout` a coordinator
+ * eviction would drop. For the alarm to flush AFTER an eviction cleared this object's memory, the
+ * dirty state must itself be durable, so every mutation persists `{ liveState, stateVersion,
+ * stateDirty }` to `ctx.storage` before scheduling. `alarm()` reloads them and writes D1; the
+ * party-empty flush is the other durable point, and the held copy is always at least as fresh as D1.
  */
 export class GameSession extends DurableObject<Env> {
-  /** The party's live state, loaded lazily on first room admission and held read-only for rooms.
+  /** The party's live state + version, loaded lazily on first contact and held for rooms to read.
    *  `null` until loaded; `#ensureState` is the single load point. */
-  #state: PartyAdventureState | null = null;
-  /** A change is waiting to be written. Party-empty flushes it; the debounce writes it after 5s. */
+  #state: VersionedState | null = null;
+  /** A change is waiting to be written. Party-empty flushes it; the alarm writes it after 5s. */
   #dirty = false;
-  #saveTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Test seam only (null in production): a barrier the next `#flushSave` parks on just before its
+   *  version-guarded dirty clear, so a test can land a mutation mid-flush deterministically and prove
+   *  the guard keeps the newer version. */
+  #flushRaceBarrier: { promise: Promise<void>; resolve: () => void } | null = null;
 
   async #rememberRoom(partyId: string, roomKey: string): Promise<void> {
     const storedPartyId = await this.ctx.storage.get<string>("partyId");
@@ -52,23 +70,32 @@ export class GameSession extends DurableObject<Env> {
   }
 
   /**
-   * The coordinator's held snapshot, for a `World` room re-derived from hibernation. That room woke
-   * without a `fetch`-time push, so it pulls the authoritative copy from here — this coordinator is
-   * the single writer, so its held state is at least as fresh as the debounced D1 row, and reading
-   * it is not a second cache. Load-on-demand when this coordinator is itself fresh (`#state` null),
-   * exactly like a first room admission.
+   * The coordinator's held snapshot + version, for a `World` room re-derived from hibernation. That
+   * room woke without a `fetch`-time push, so it pulls the authoritative copy from here — this
+   * coordinator is the single writer, so its held state is at least as fresh as the debounced D1 row
+   * (and, since the mutation is persisted to `ctx.storage`, survives this coordinator's own
+   * eviction). Load-on-demand when this coordinator is itself fresh (`#state` null).
    */
-  async getAdventureState(partyId: string): Promise<PartyAdventureState> {
+  async getAdventureState(partyId: string): Promise<VersionedState> {
     const storedPartyId = await this.ctx.storage.get<string>("partyId");
-    if (storedPartyId !== undefined && storedPartyId !== partyId) return EMPTY_ADVENTURE_STATE;
+    if (storedPartyId !== undefined && storedPartyId !== partyId) {
+      return { state: EMPTY_ADVENTURE_STATE, version: 0 };
+    }
     return this.#ensureState(partyId);
   }
 
-  /** Load the party's adventure state once, on first contact. Degrades to empty, never throws
-   *  (`loadPartyAdventureState`'s posture). */
-  async #ensureState(partyId: string): Promise<PartyAdventureState> {
+  /**
+   * Load the party's state + version once, on first contact. Prefers the durable `ctx.storage`
+   * copy (the freshest, written on every mutation and surviving eviction) over the debounced D1 row,
+   * then falls back to D1. Degrades to empty, never throws (`loadPartyAdventureState`'s posture).
+   */
+  async #ensureState(partyId: string): Promise<VersionedState> {
     if (this.#state === null) {
-      this.#state = await loadPartyAdventureState(createDb(this.env.DB), partyId);
+      const liveState = await this.ctx.storage.get<PartyAdventureState>("liveState");
+      const version = (await this.ctx.storage.get<number>("stateVersion")) ?? 0;
+      this.#dirty = (await this.ctx.storage.get<boolean>("stateDirty")) ?? false;
+      const state = liveState ?? (await loadPartyAdventureState(createDb(this.env.DB), partyId));
+      this.#state = { state, version };
     }
     return this.#state;
   }
@@ -87,8 +114,12 @@ export class GameSession extends DurableObject<Env> {
     // Room start: push the party's snapshot to the room before it admits the hero, so its
     // join-time page evaluation sees the loaded state. Awaited before delegating so the install
     // lands first on this same World object.
-    const state = await this.#ensureState(partyId);
-    await this.env.WORLD.getByName(roomKey).installAdventureState(partyId, state);
+    const held = await this.#ensureState(partyId);
+    await this.env.WORLD.getByName(roomKey).installAdventureState(
+      partyId,
+      held.state,
+      held.version,
+    );
     return this.env.WORLD.getByName(roomKey).fetch(request);
   }
 
@@ -114,12 +145,9 @@ export class GameSession extends DurableObject<Env> {
     activeRooms.delete(roomKey);
     await this.ctx.storage.put("activeRooms", [...activeRooms]);
     if (activeRooms.size > 0) return;
-    if (this.#saveTimer !== null) {
-      clearTimeout(this.#saveTimer);
-      this.#saveTimer = null;
-    }
+    await this.ctx.storage.deleteAlarm();
     // The party-empty flush can race a teardown that drops the party row (an FK the save depends
-    // on): swallow and log rather than reject `roomEmptied`, mirroring the debounced path's catch.
+    // on): swallow and log rather than reject `roomEmptied`, mirroring the alarm path's catch.
     await this.#flushSave(partyId).catch((error) => {
       console.error(
         JSON.stringify({
@@ -132,24 +160,37 @@ export class GameSession extends DurableObject<Env> {
   }
 
   /**
-   * The ONLY change source this tranche. Tranche 5's interpreter becomes the real caller of
-   * `#applyStateChange`; until then a change can only be driven by a test standing in for it. Not
-   * reachable from a client — the Worker forwards only WebSocket upgrades to `fetch`.
+   * The interpreter's mutation RPC (spec Decision 1): a room drains an event's commands and sends the
+   * resulting switch/variable/self-switch writes UP here — the single writer. Applied serially in
+   * order, bumping the monotone version ONCE for the batch, then pushed to every room. Not reachable
+   * from a client; the Worker forwards only WebSocket upgrades to `fetch`.
+   */
+  async applyStateChanges(partyId: string, mutations: readonly StateMutation[]): Promise<void> {
+    if (mutations.length === 0) return;
+    await this.#applyStateChange(partyId, (state) => {
+      let next = state;
+      for (const mutation of mutations) next = applyStateMutation(next, mutation);
+      return next;
+    });
+  }
+
+  /**
+   * The tranche-4 test seam, now delegating to the REAL mutation path (`applyStateChanges`) so a
+   * test drives exactly what the interpreter drives. Standing in for a hand-authored `setSwitch`.
    */
   async applyStateChangeForTest(
     partyId: string,
     change: { switchId: string; value: boolean },
   ): Promise<void> {
-    await this.#applyStateChange(partyId, (state) => ({
-      ...state,
-      switches: { ...state.switches, [change.switchId]: change.value },
-    }));
+    await this.applyStateChanges(partyId, [
+      { type: "setSwitch", switchId: change.switchId, value: change.value },
+    ]);
   }
 
   /**
-   * Apply a state change, then push the new snapshot to EVERY room so two heroes on different maps
-   * re-evaluate their pages against the same state, and schedule the debounced save. This is
-   * tranche 5's entry point for command-driven mutation; its single caller today is the test seam.
+   * Apply a state change, bump the version, persist the dirty state durably, schedule the debounced
+   * alarm, then push the new snapshot to EVERY room so heroes on different maps re-evaluate their
+   * pages against the same state.
    */
   async #applyStateChange(
     partyId: string,
@@ -158,44 +199,92 @@ export class GameSession extends DurableObject<Env> {
     const storedPartyId = await this.ctx.storage.get<string>("partyId");
     if (storedPartyId !== partyId) return;
     const current = await this.#ensureState(partyId);
-    this.#state = mutate(current);
+    const next: VersionedState = { state: mutate(current.state), version: current.version + 1 };
+    this.#state = next;
     this.#dirty = true;
-    this.#scheduleSave(partyId);
-    await this.#pushStateToAllRooms(partyId);
+    // Persist the dirty state durably BEFORE scheduling the alarm: an eviction that clears this
+    // object's memory must not lose the flip, and `alarm()` reloads exactly these keys.
+    await this.ctx.storage.put({
+      liveState: next.state,
+      stateVersion: next.version,
+      stateDirty: true,
+    });
+    await this.#scheduleSave();
+    await this.#pushStateToAllRooms(partyId, next);
   }
 
-  async #pushStateToAllRooms(partyId: string): Promise<void> {
-    const state = this.#state;
-    if (state === null) return;
+  async #pushStateToAllRooms(partyId: string, held: VersionedState): Promise<void> {
     const rooms = (await this.ctx.storage.get<string[]>("rooms")) ?? [];
     await Promise.all(
       rooms.map((roomKey) =>
-        this.env.WORLD.getByName(roomKey).installAdventureState(partyId, state),
+        this.env.WORLD.getByName(roomKey).installAdventureState(partyId, held.state, held.version),
       ),
     );
   }
 
-  #scheduleSave(partyId: string): void {
-    if (this.#saveTimer !== null) return;
-    this.#saveTimer = setTimeout(() => {
-      this.#saveTimer = null;
-      void this.#flushSave(partyId).catch((error) => {
-        console.error(
-          JSON.stringify({
-            event: "party_adventure_state_save_failed",
-            partyId,
-            error: error instanceof Error ? error.message : String(error),
-          }),
-        );
-      });
-    }, ADVENTURE_STATE_SAVE_DEBOUNCE_MS);
+  /** Arm the debounced flush as a durable alarm. Leaves an already-armed alarm in place (debounce
+   *  semantics: the first mutation sets the deadline, later ones do not push it out). */
+  async #scheduleSave(): Promise<void> {
+    if ((await this.ctx.storage.getAlarm()) !== null) return;
+    await this.ctx.storage.setAlarm(Date.now() + ADVENTURE_STATE_SAVE_DEBOUNCE_MS);
+  }
+
+  /** The debounced D1 write. Fires even after an eviction cleared this object's memory: `#flushSave`
+   *  reloads the dirty state from `ctx.storage` through `#ensureState`. */
+  override async alarm(): Promise<void> {
+    const partyId = await this.ctx.storage.get<string>("partyId");
+    if (partyId === undefined) return;
+    await this.#flushSave(partyId).catch((error) => {
+      console.error(
+        JSON.stringify({
+          event: "party_adventure_state_save_failed",
+          partyId,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    });
   }
 
   async #flushSave(partyId: string): Promise<void> {
-    if (!this.#dirty || this.#state === null) return;
+    const held = await this.#ensureState(partyId);
+    if (!this.#dirty) return;
+    // Capture the version we are about to persist. A mutation can land during the awaited D1 write
+    // (that write does not hold the input gate closed), bumping `#state.version` and re-setting
+    // `#dirty`; clearing `#dirty` unconditionally would clobber that flag and strand the newer state
+    // out of D1 until session end. Only clear when what we wrote is still current.
+    const savedVersion = held.version;
     const db = createDb(this.env.DB);
     const liveEventIds = await loadAdventureEventIds(db, partyId);
-    await savePartyAdventureState(db, partyId, this.#state, liveEventIds);
-    this.#dirty = false;
+    await savePartyAdventureState(db, partyId, held.state, liveEventIds);
+    // Test-only rendezvous point (see `#flushRaceBarrier`): production never installs a barrier.
+    const barrier = this.#flushRaceBarrier;
+    if (barrier !== null) {
+      this.#flushRaceBarrier = null;
+      await barrier.promise;
+    }
+    if (this.#state !== null && this.#state.version === savedVersion) {
+      this.#dirty = false;
+      await this.ctx.storage.put("stateDirty", false);
+    } else {
+      // A mid-flush mutation moved past what we saved: stay dirty and re-arm so it reaches D1.
+      await this.#scheduleSave();
+    }
+  }
+
+  /**
+   * Test seam: reproduce the flush-window race deterministically inside the object. Starts a real
+   * `#flushSave` (which parks at the barrier just before its dirty clear), lands a real mutation while
+   * it is parked, then releases the flush — proving the version-guarded clear keeps the newer version.
+   */
+  async raceFlushWithMutationForTest(partyId: string, switchId: string): Promise<void> {
+    let resolve: () => void = () => {};
+    const promise = new Promise<void>((r) => {
+      resolve = r;
+    });
+    this.#flushRaceBarrier = { promise, resolve };
+    const flushing = this.#flushSave(partyId);
+    await this.applyStateChanges(partyId, [{ type: "setSwitch", switchId, value: true }]);
+    resolve();
+    await flushing;
   }
 }

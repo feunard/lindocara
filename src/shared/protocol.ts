@@ -9,6 +9,7 @@ import type { CharacterAppearance, Equipment, PrimaryColor } from "./character.j
 import { type ConsumableCounts, type ConsumableId, isConsumableId } from "./consumables.js";
 import type { CombatCooldownState } from "./cooldowns.js";
 import type { LifeState } from "./death.js";
+import { COMMAND_TEXT_MAX, MAX_CHOICE_OPTIONS } from "./event-commands.js";
 import type {
   Cemetery,
   MonsterKind,
@@ -317,7 +318,13 @@ export type ClientMessage =
   | { t: "party.kick"; playerId: string }
   | { t: "party.dissolve" }
   | { t: "world.resync" }
-  | { t: "navigation.debug"; enabled: boolean };
+  | { t: "navigation.debug"; enabled: boolean }
+  // The two dialogue intents (spec Decision 4). Both are cheap intents (the connection window cost
+  // class): `event.advance` turns the say page; `event.choose` picks an option. `runId` names the run
+  // the panel belongs to; `index` is a wire-bounded option index the server RE-VALIDATES against the
+  // live pending offer regardless — client input is never an authoritative outcome.
+  | { t: "event.advance"; runId: string }
+  | { t: "event.choose"; runId: string; index: number };
 
 export type EventTone = "info" | "good" | "bad";
 
@@ -351,6 +358,7 @@ export const EVENT_CODES = [
   "merchant.insufficient",
   "player.down",
   "loot.picked",
+  "item.full",
   "heal.cast",
   "heal.received",
   "death.fallen",
@@ -461,7 +469,14 @@ export type ServerMessage =
   | { t: "party.state"; party: PartyState | null }
   | { t: "merchant.open" }
   | CombatAnimation
-  | { t: "event"; code: EventCode; params?: EventParams; tone: EventTone; x?: number; y?: number };
+  | { t: "event"; code: EventCode; params?: EventParams; tone: EventTone; x?: number; y?: number }
+  // The three dialogue beats pushed to the run's TRIGGERER only (spec Decision 4: dialogue is a
+  // per-player panel). `text`/`name`/`prompt`/`options` are AUTHORED PROSE — see `isAuthoredText`:
+  // the one sanctioned exception to codes-not-sentences, because the author wrote it and no dictionary
+  // can hold it. Every field is still size-capped and defensively parsed like any other wire data.
+  | { t: "event.say"; runId: string; text: string; name?: string }
+  | { t: "event.choices"; runId: string; prompt: string; options: string[] }
+  | { t: "event.close"; runId: string };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -483,6 +498,17 @@ function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): b
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
+}
+
+/**
+ * Authored prose off the wire (a `say`/`choices` field). This is the one sanctioned exception to
+ * codes-not-sentences (spec Decision 4): the text is the AUTHOR's own data, which no dictionary can
+ * hold, so it crosses as data rather than an i18n code — while every chrome string around the panel
+ * stays i18n-governed. It is still untrusted input: bounded by `COMMAND_TEXT_MAX`, the exact cap the
+ * command parser (`event-commands.ts`) enforces on the same field, so the wire and the store agree.
+ */
+function isAuthoredText(value: unknown): value is string {
+  return typeof value === "string" && value.length <= COMMAND_TEXT_MAX;
 }
 
 function isDirection(value: unknown): value is Vec2 {
@@ -656,6 +682,21 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
   if (value.t === "world.resync") return { t: "world.resync" };
   if (value.t === "navigation.debug" && typeof value.enabled === "boolean")
     return { t: "navigation.debug", enabled: value.enabled };
+  if (value.t === "event.advance" && isWireId(value.runId) && hasOnlyKeys(value, ["t", "runId"]))
+    return { t: "event.advance", runId: value.runId };
+  if (
+    value.t === "event.choose" &&
+    isWireId(value.runId) &&
+    // A wire-level sanity bound only; the server re-validates the index against the live pending
+    // offer (`resumeWithChoice` range-checks it) so a well-formed-but-wrong index is still dropped.
+    typeof value.index === "number" &&
+    Number.isSafeInteger(value.index) &&
+    value.index >= 0 &&
+    value.index < MAX_CHOICE_OPTIONS &&
+    hasOnlyKeys(value, ["t", "runId", "index"])
+  ) {
+    return { t: "event.choose", runId: value.runId, index: value.index };
+  }
   if (value.t === "party.create" || value.t === "party.leave" || value.t === "party.dissolve")
     return { t: value.t };
   if ((value.t === "party.invite" || value.t === "party.kick") && isUuid(value.playerId))
@@ -809,6 +850,30 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       (value.params === undefined || isRecord(value.params)) &&
       (value.tone === "info" || value.tone === "good" || value.tone === "bad")
     ) {
+      return value as unknown as ServerMessage;
+    }
+    // The dialogue beats. Authored prose (`text`/`name`/`prompt`/`options`) is bounded and parsed as
+    // the sanctioned data exception (see `isAuthoredText`); `runId` is a wire id; `name` is optional.
+    if (
+      value.t === "event.say" &&
+      isWireId(value.runId) &&
+      isAuthoredText(value.text) &&
+      (value.name === undefined || isAuthoredText(value.name))
+    ) {
+      return value as unknown as ServerMessage;
+    }
+    if (
+      value.t === "event.choices" &&
+      isWireId(value.runId) &&
+      isAuthoredText(value.prompt) &&
+      Array.isArray(value.options) &&
+      value.options.length >= 1 &&
+      value.options.length <= MAX_CHOICE_OPTIONS &&
+      value.options.every(isAuthoredText)
+    ) {
+      return value as unknown as ServerMessage;
+    }
+    if (value.t === "event.close" && isWireId(value.runId)) {
       return value as unknown as ServerMessage;
     }
     return null;

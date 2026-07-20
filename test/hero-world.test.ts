@@ -580,6 +580,85 @@ describe("party hero admission and authored runtime", () => {
     destination.close();
   });
 
+  it("releases transitioning and authorized after a D1 write failure mid adventure-exit handoff", {
+    timeout: 10_000,
+  }, async () => {
+    // Mirrors the cross-map teleport fix in `world.ts` `#teleportCrossMap`: the destination-anchor
+    // branch of `#transitionAdventureExit` (dest !== "end") claims `transitioning`/`authorized` the
+    // same way ahead of the same fallible sequence (a D1 load, `#checkpointCooldowns`, `#savePlayer`
+    // — which deliberately re-throws D1 write failures — or the handoff RPC), and had the same gap: a
+    // thrown exception escaped without releasing either flag, stranding the hero unable to walk OR
+    // fight until reconnect. Force a genuine D1 write failure with a trigger scoped to this test's own
+    // hero row, exactly like the cross-map teleport proof, and confirm both flags come back.
+    // The monster sits well past the exit column so the hero's post-recovery walk (rightward, same
+    // direction that crossed the exit) approaches it from behind rather than overshooting into or
+    // past it — the frontal arc only hits what is still ahead of the hero when it attacks.
+    const mapA = testMapInput("Fault exit source", {
+      spawn: { col: 2, row: 5 },
+      exit: { col: 6, row: 5 },
+      monsterSpawns: [{ col: 15, row: 5, species: "spear_goblin", patrolRadius: 32 }],
+    });
+    const mapB = testMapInput("Fault exit destination", {
+      spawn: { col: 3, row: 3 },
+      exit: { col: 18, row: 13 },
+    });
+    const party = await testParty("fault-exit", { maps: [mapA, mapB] });
+    const hero = await testHero("ExitFaulted", {
+      party,
+      account: party.host,
+      position: { x: 6 * TILE_SIZE - 2, y: 5 * TILE_SIZE + TILE_SIZE / 2 },
+    });
+    const client = await Client.joinHero(hero);
+    const welcome = await until("exit fault welcomed", () => client.welcome);
+    const monster = welcome.monsters[0];
+    if (!monster) throw new Error("expected the fixture monster in the welcome snapshot");
+
+    // Scoped to this hero's id alone, exactly like the cross-map teleport proof: a real SQLite
+    // trigger on the real D1 database, fired by the real Durable Object's own write.
+    const triggerName = `fail_hero_save_${hero.heroId.replaceAll("-", "")}`;
+    await env.DB.exec(
+      `CREATE TRIGGER ${triggerName} BEFORE UPDATE ON hero WHEN NEW.id = '${hero.heroId}' ` +
+        `BEGIN SELECT RAISE(ABORT, 'injected d1 write failure'); END`,
+    );
+    try {
+      client.press("right");
+      // Cross the exit (triggering, and failing, the handoff), then keep walking toward the monster.
+      // `transitioning`/`authorized` being restored is exactly what lets this keep advancing instead
+      // of freezing a few pixels past the exit tile forever — the pre-fix failure mode this timeout
+      // would catch. Stop just inside the warrior's 60px attack range, still short of the monster.
+      await until(
+        "post-fault approach within attack range",
+        () => {
+          const self = client.self();
+          const gap = self ? monster.x - self.x : Number.POSITIVE_INFINITY;
+          return self && gap > 0 && gap <= 45 ? self : undefined;
+        },
+        8_000,
+      );
+      client.release();
+      // The failure happens before the player is ever removed or the socket closed.
+      expect(client.closeInfo).toBeNull();
+    } finally {
+      await env.DB.exec(`DROP TRIGGER IF EXISTS ${triggerName}`);
+    }
+
+    // `authorized` is back: `roomDiagnostics().playerIds` only lists authorized players, and the
+    // socket itself accepts messages again (`webSocketMessage` gates every frame on `authorized`).
+    const diag = await env.WORLD.getByName(hero.roomKey).roomDiagnostics();
+    expect(diag.playerIds).toContain(hero.heroId);
+
+    // `transitioning` is back too: only an actual landed hit proves the combat gate
+    // (`#resolvePlayerAction`) itself reopened, not just that the socket accepts messages again.
+    client.action("attack");
+    await until("post-failure exit attack lands", () => {
+      const current = client.latestSnapshot?.monsters.find(
+        (candidate) => candidate.id === monster.id,
+      );
+      return current && current.hp < monster.hp ? current : undefined;
+    });
+    client.close();
+  });
+
   it("renders an authoritative arrow for party peers and ignores client-selected victims", {
     timeout: 10_000,
   }, async () => {

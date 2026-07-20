@@ -10,7 +10,7 @@
  * and asserted in D1. The only non-client poke is `applyStateChangeForTest`, the coordinator's test
  * seam standing in for tranche 5's interpreter.
  */
-import { env } from "cloudflare:test";
+import { env, runDurableObjectAlarm } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
 import type { PartyAdventureState } from "../src/shared/adventure-state.js";
 import type { MapEvent, MapEventPage } from "../src/shared/map-events.js";
@@ -48,6 +48,7 @@ function page(overrides: Partial<MapEventPage> = {}): MapEventPage {
     optThrough: false,
     optOnTop: false,
     trigger: "action",
+    commands: [],
     ...overrides,
   };
 }
@@ -298,7 +299,7 @@ describe("adventure state runtime", () => {
     const loaded = await env.GAME_SESSION.getByName(loadFixture.party.partyId).getAdventureState(
       loadFixture.party.partyId,
     );
-    expect(loaded.switches).toEqual({ "0001": true });
+    expect(loaded.state.switches).toEqual({ "0001": true });
 
     // Half B: after a seam flip the held state is ahead of D1 (the write is debounced 5s). A
     // restoring room pulling `getAdventureState` sees the flip; D1 does not yet.
@@ -317,7 +318,7 @@ describe("adventure state runtime", () => {
     const held = await env.GAME_SESSION.getByName(heldFixture.party.partyId).getAdventureState(
       heldFixture.party.partyId,
     );
-    expect(held.switches["0001"]).toBe(true);
+    expect(held.state.switches["0001"]).toBe(true);
     expect(await readPersistedState(heldFixture.party.partyId)).toBeNull();
   });
 
@@ -353,6 +354,38 @@ describe("adventure state runtime", () => {
         onTop: false,
       },
     ]);
+  });
+
+  it("keeps a mutation that lands during a flush from being clobbered by the dirty clear", async () => {
+    // A flush captures the version it is about to write and only clears `#dirty` when that version is
+    // still current. A mutation landing during the awaited D1 write bumps the version, so the flush
+    // leaves `#dirty` set and re-arms — a later flush lands the newer value. Mutation proof: clear
+    // `#dirty` unconditionally and the newer 0002 never reaches D1 (the second flush no-ops).
+    const fixture = await seedFixture("flush-race");
+    const hero = await testHero("Racer", { party: fixture.party, account: fixture.party.host });
+    const client = await Client.joinHero(hero);
+    await until("welcomed", () => client.welcome);
+
+    const coordinator = env.GAME_SESSION.getByName(fixture.party.partyId);
+    // First mutation: version 1, dirty, alarm armed (debounced — not in D1 yet).
+    await coordinator.applyStateChangeForTest(fixture.party.partyId, {
+      switchId: "0001",
+      value: true,
+    });
+
+    // Race a second mutation (0002) into the flush window. The flush writes the v1 state to D1, sees
+    // the version has since moved, and stays dirty rather than clobbering the 0002 flag.
+    await coordinator.raceFlushWithMutationForTest(fixture.party.partyId, "0002");
+
+    const afterRace = await readPersistedState(fixture.party.partyId);
+    expect(afterRace?.switches).toEqual({ "0001": true }); // the flush wrote only the v1 state
+
+    // The re-armed alarm flushes again; the newer 0002 must now land.
+    const ran = await runDurableObjectAlarm(coordinator);
+    expect(ran).toBe(true);
+    const afterAlarm = await readPersistedState(fixture.party.partyId);
+    expect(afterAlarm?.switches["0002"]).toBe(true);
+    expect(afterAlarm?.switches["0001"]).toBe(true);
   });
 
   it("saves on party-empty and prunes an orphan self-switch", async () => {

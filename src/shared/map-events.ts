@@ -15,6 +15,7 @@
  * wireframe's friendly `EV001` display order; it is display only, never identity, and this parser
  * only checks its shape, never its uniqueness.
  */
+import { type EventCommand, parseEventCommands } from "./event-commands.js";
 import { isMonsterSpecies, type MonsterSpecies } from "./game.js";
 import { isUuid } from "./identifiers.js";
 import { MAX_PATROL_RADIUS, MIN_PATROL_RADIUS } from "./map-data.js";
@@ -116,6 +117,10 @@ export interface MapEventPage {
   optThrough: boolean;
   optOnTop: boolean;
   trigger: EventTrigger;
+  /** Tranche 5: the page's authored command program. Empty until authored, and always empty on a
+   *  non-`normal` (entry/exit/monster) event — `parseMapEvents` refuses a non-empty program there,
+   *  the same way it refuses those anchors extra pages. */
+  commands: readonly EventCommand[];
 }
 
 export interface MapEvent {
@@ -176,6 +181,7 @@ export function defaultEventPage(): MapEventPage {
     optThrough: false,
     optOnTop: false,
     trigger: "action",
+    commands: [],
   };
 }
 
@@ -234,6 +240,7 @@ function parseEventPage(raw: unknown): MapEventPage | null {
     optThrough,
     optOnTop,
     trigger,
+    commands,
   } = record;
 
   if (
@@ -268,8 +275,15 @@ function parseEventPage(raw: unknown): MapEventPage | null {
   )
     return null;
   if (!isEventTrigger(trigger)) return null;
+  // A page missing its `commands` (an old client that predates tranche 5) means the empty program;
+  // anything present is parsed in full, and a malformed program fails the whole page — the parser
+  // stays total. The per-kind rule (only `normal` events may carry commands) is enforced by
+  // `parseMapEvents`, which owns the kind; this page-level parse is kind-agnostic.
+  const parsedCommands = commands === undefined ? [] : parseEventCommands(commands);
+  if (!parsedCommands) return null;
 
   return {
+    commands: parsedCommands,
     condSwitchId: condSwitchId as string | null,
     condVariableId: condVariableId as string | null,
     condVariableMin: variableMin,
@@ -360,6 +374,10 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
     // single page is a default page the editor never surfaces; refusing extra pages here keeps the
     // "hidden in the UI" promise from being bypassed over the wire.
     if (kind !== "normal" && parsedPages.length !== 1) return null;
+    // Commands are scripted behaviour; entry/exit/monster events are anchors, not scripts. A
+    // non-normal event carrying a non-empty program is refused outright, the same way its extra
+    // pages are — nothing over the wire may smuggle behaviour onto an anchor.
+    if (kind !== "normal" && parsedPages.some((page) => page.commands.length > 0)) return null;
 
     seenCells.add(cellKey);
     seenIds.add(id);

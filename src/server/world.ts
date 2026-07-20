@@ -18,8 +18,10 @@ import {
 } from "../shared/combat-actions.js";
 import {
   CONSUMABLE_COOLDOWN_MS,
+  CONSUMABLE_MAX_STACK,
   CONSUMABLES,
   type ConsumableId,
+  isConsumableId,
   normalizeConsumables,
 } from "../shared/consumables.js";
 import {
@@ -48,6 +50,8 @@ import {
   sweptProjectileEntityImpact,
   sweptProjectileTerrainImpact,
 } from "../shared/directional-combat.js";
+import { DIALOGUE_CLOSE_RADIUS, type EventCommand } from "../shared/event-commands.js";
+import type { StateMutation } from "../shared/event-interpreter.js";
 import {
   applyDamage,
   applyExperience,
@@ -72,7 +76,12 @@ import {
   withinRange,
 } from "../shared/game.js";
 import { LOCAL_CHAT_RADIUS, SPATIAL_CELL_SIZE, SPATIAL_EVENT_RADIUS } from "../shared/interest.js";
-import { eventCellCentre, exitEvents } from "../shared/map-events.js";
+import {
+  type EventTrigger,
+  eventCellCentre,
+  exitEvents,
+  type MapEvent,
+} from "../shared/map-events.js";
 import { merchantForRuntimeRoom } from "../shared/merchant.js";
 import {
   type ClientMessage,
@@ -146,6 +155,19 @@ import {
   clearMonsterCombat,
   removePlayerCombatState,
 } from "./world/contribution-system.js";
+import {
+  abortRunForEvent,
+  abortRunsForHero,
+  advanceRun,
+  chooseRun,
+  closeDistantDialogues,
+  createEventRunRuntime,
+  type DispatchEffect,
+  drainRuns,
+  type EventRunRuntime,
+  resetEventRunRuntime,
+  startRun,
+} from "./world/event-run-system.js";
 import { worldView } from "./world/interest-system.js";
 import { collectLoot, processExpiredLoot } from "./world/loot-system.js";
 import { locationFromMap } from "./world/map-zone.js";
@@ -269,13 +291,46 @@ export class World extends DurableObject<Env> {
    */
   #adventureState: PartyAdventureState = EMPTY_ADVENTURE_STATE;
   /**
+   * The monotone version of `#adventureState` (spec Decision 1). Rooms may receive coordinator
+   * pushes out of order, so `installAdventureState` keeps a snapshot only when its version is `>=`
+   * this one and drops a stale push. Starts at 0; the first install lands at the coordinator's
+   * current version and a hibernation pull carries the version it read.
+   */
+  #adventureStateVersion = 0;
+  /**
    * The events whose active page currently holds, re-derived only on snapshot install and hero
    * join — never per tick. Appearance-only and nothing reads it yet; Task 4 puts it on the wire.
    */
   #activeEvents: readonly ActiveWorldEvent[] = [];
+  /** The room's live event runs: the one-run-per-event lock, the budgeted drain and the buffered
+   *  dialogue seam (`world/event-run-system.ts`). Cleared when the room empties. */
+  #eventRuns: EventRunRuntime = createEventRunRuntime();
   /** The party this hero room belongs to, learned at admission. `null` for catalogue/character
    *  rooms. Used only to tell the coordinator when the room has emptied. */
   #heroPartyId: string | null = null;
+  /**
+   * The retained coordinator stub for this room's party. Cloudflare guarantees calls on ONE stub are
+   * delivered in the order made (E-order); calls on DIFFERENT stubs to the same object have no
+   * ordering guarantee. Mutation batches carry non-commutative ops (`set` vs `add`), so a fresh
+   * `getByName` per tick could deliver two ticks' batches out of order and corrupt a variable. Keep a
+   * single stub per party and reuse it for every ordered coordinator call.
+   */
+  #gameSessionStub: ReturnType<Env["GAME_SESSION"]["getByName"]> | null = null;
+  /** Cross-map authored teleport handoffs launched this room lifetime — the Fix-3 observable: a
+   *  synchronous `transitioning` claim makes back-to-back cross-map teleports launch exactly one. */
+  #crossMapTeleports = 0;
+  /** (eventId, reason) pairs already logged for a refused authored teleport, so an authored
+   *  `loop { teleport <unwalkable> }` warns ONCE per pair per room lifetime rather than every tick
+   *  (the observability law forbids per-event tick logging). Reset when the room empties. */
+  #teleportRefusalsLogged = new Set<string>();
+  /** (eventId, itemId, reason) triples already logged for a refused authored `changeItems`, so an
+   *  authored `loop { changeItems <unknown> +1 }` warns ONCE per triple per room lifetime, not every
+   *  tick. Reset when the room empties, beside `#teleportRefusalsLogged`. */
+  #itemRefusalsLogged = new Set<string>();
+  /** (eventId, reason) pairs already logged for a refused authored `changeGold`, mirroring
+   *  `#teleportRefusalsLogged`. Currently the only reason is a grant landing mid cross-map handoff.
+   *  Reset when the room empties. */
+  #goldRefusalsLogged = new Set<string>();
   #occupiedExitByPlayerId = new Map<string, string>();
   /** How often this room re-asserts its players' leases. Read once from `Env`, never from a client. */
   readonly #presenceHeartbeatMs: number;
@@ -309,8 +364,9 @@ export class World extends DurableObject<Env> {
       if (this.#heroPartyId !== null && this.#location !== null) {
         const partyId = this.#heroPartyId;
         try {
-          this.#adventureState =
-            await this.env.GAME_SESSION.getByName(partyId).getAdventureState(partyId);
+          const held = await this.env.GAME_SESSION.getByName(partyId).getAdventureState(partyId);
+          this.#adventureState = held.state;
+          this.#adventureStateVersion = held.version;
           this.#evaluateActiveEvents();
         } catch (error) {
           console.error(
@@ -735,10 +791,116 @@ export class World extends DurableObject<Env> {
    * list; when the room has no map configured yet (install can land before the first join) the
    * derivation no-ops and the join re-runs it.
    */
-  async installAdventureState(partyId: string, state: PartyAdventureState): Promise<void> {
+  async installAdventureState(
+    partyId: string,
+    state: PartyAdventureState,
+    version: number,
+  ): Promise<void> {
     if (this.#heroPartyId !== null && this.#heroPartyId !== partyId) return;
+    // The `>=` guard (kept as `version < current -> drop`): rooms may receive pushes out of order,
+    // so an older-versioned snapshot is dropped and the newer one held. Never throws — this path
+    // gates admission (`GameSession.fetch` awaits it), so a throw would block a hero from joining.
+    if (version < this.#adventureStateVersion) return;
+    this.#adventureStateVersion = version;
     this.#adventureState = state;
+    // Abort BEFORE re-evaluation: a flip that changes an event's active page must kill that event's
+    // run so no zombie context keeps executing the page it was reading (XP's behaviour). Ordering
+    // the abort ahead of `#evaluateActiveEvents` is what the zombie test pins.
+    this.#abortRunsForStalePages();
     this.#evaluateActiveEvents();
+  }
+
+  /** Kill any run whose event's active page no longer matches the page the run started on (the state
+   *  just changed under it). An event that went dormant (no page holds) aborts too. */
+  #abortRunsForStalePages(): void {
+    const events = this.#location?.definition.events ?? [];
+    for (const [eventId, context] of [...this.#eventRuns.contexts]) {
+      const event = events.find((candidate) => candidate.id === eventId);
+      const active = event ? activePageIndex(event, this.#adventureState) : null;
+      if (active !== context.pageIndex) abortRunForEvent(this.#eventRuns, eventId);
+    }
+  }
+
+  /**
+   * The active page of a `normal` event carrying a runnable program under `trigger`, or null. Only a
+   * satisfied active page (the exact page `#evaluateActiveEvents` would show) with a non-empty
+   * program can fire — a blank appearance-only event is not a script.
+   */
+  #runnablePage(
+    event: MapEvent,
+    trigger: EventTrigger,
+  ): { pageIndex: number; program: readonly EventCommand[] } | null {
+    if (event.kind !== "normal") return null;
+    const pageIndex = activePageIndex(event, this.#adventureState);
+    if (pageIndex === null) return null;
+    const page = event.pages[pageIndex];
+    if (page === undefined || page.trigger !== trigger || page.commands.length === 0) return null;
+    return { pageIndex, program: page.commands };
+  }
+
+  /**
+   * The interact-key trigger: the nearest `action` event within `INTERACTION_RANGE` starts a run.
+   * Returns true when an action event was FOUND (so `#interact` stops here even if the run was
+   * dropped by the one-run lock) — an interact spent on an event is not a fall-through to the quest
+   * NPCs. Placement in `#interact`: after the corpse resurrection (a life-critical revive still wins)
+   * and before the legacy quest-site/giver dispatch — authored events are the general mechanism, the
+   * hardcoded quest keepers are catalogue-zone content that never coexists with authored events.
+   */
+  #triggerActionEventNearby(player: Player): boolean {
+    if (player.identityKind !== "hero") return false;
+    const events = this.#location?.definition.events ?? [];
+    let best: {
+      event: MapEvent;
+      pageIndex: number;
+      program: readonly EventCommand[];
+      distance: number;
+    } | null = null;
+    for (const event of events) {
+      const runnable = this.#runnablePage(event, "action");
+      if (runnable === null) continue;
+      const distance = pointDistance(player, eventCellCentre(event));
+      if (distance > INTERACTION_RANGE) continue;
+      if (best === null || distance < best.distance) best = { event, ...runnable, distance };
+    }
+    if (best === null) return false;
+    startRun(this.#eventRuns, {
+      event: best.event,
+      pageIndex: best.pageIndex,
+      program: best.program,
+      heroId: player.id,
+      runId: crypto.randomUUID(),
+    });
+    return true;
+  }
+
+  /**
+   * The Contact-with-hero trigger, evaluated on the movement edge (from `movement-system`'s
+   * `onPlayerMoved`), not by a per-tick scan: when a hero's box enters a NEW cell that carries a
+   * runnable `player-touch` event, its run starts. Standing still on the cell does not re-fire (no
+   * move, no callback); the one-run lock covers a re-entry while the run lives.
+   */
+  #detectPlayerTouch(player: Player, previous: { x: number; y: number }): void {
+    if (player.identityKind !== "hero" || player.life !== "alive" || !player.authorized) return;
+    const events = this.#location?.definition.events;
+    if (!events || events.length === 0) return;
+    const col = Math.floor(player.x / TILE_SIZE);
+    const row = Math.floor(player.y / TILE_SIZE);
+    if (col === Math.floor(previous.x / TILE_SIZE) && row === Math.floor(previous.y / TILE_SIZE)) {
+      return;
+    }
+    const event = events.find(
+      (candidate) => candidate.kind === "normal" && candidate.col === col && candidate.row === row,
+    );
+    if (event === undefined) return;
+    const runnable = this.#runnablePage(event, "player-touch");
+    if (runnable === null) return;
+    startRun(this.#eventRuns, {
+      event,
+      pageIndex: runnable.pageIndex,
+      program: runnable.program,
+      heroId: player.id,
+      runId: crypto.randomUUID(),
+    });
   }
 
   /**
@@ -815,7 +977,14 @@ export class World extends DurableObject<Env> {
     pendingSaves: number;
     tickActive: boolean;
     adventureState: PartyAdventureState;
+    adventureStateVersion: number;
+    /** Cross-map authored teleport handoffs launched this room lifetime — the Fix-3 observable that a
+     *  back-to-back cross-map teleport claims the transition synchronously and launches exactly one. */
+    crossMapTeleports: number;
     activeEvents: readonly ActiveWorldEvent[];
+    /** The live event runs — the run/lock diagnostics seam. Dialogue itself now rides the wire
+     *  (Task 4's `event.say`/`choices`/`close`); tests assert conversations off the client. */
+    eventRuns: { eventId: string; runId: string; heroId: string; status: string }[];
   }> {
     return {
       roomKey: this.#location?.roomKey ?? null,
@@ -834,8 +1003,27 @@ export class World extends DurableObject<Env> {
       pendingSaves: this.#profileSaves.size,
       tickActive: this.#loop !== null,
       adventureState: this.#adventureState,
+      adventureStateVersion: this.#adventureStateVersion,
+      crossMapTeleports: this.#crossMapTeleports,
       activeEvents: this.#activeEvents,
+      eventRuns: [...this.#eventRuns.contexts.entries()].map(([eventId, context]) => ({
+        eventId,
+        runId: context.runId,
+        heroId: context.heroId,
+        status: context.status,
+      })),
     };
+  }
+
+  /** Task-4 seam: resume a `say`/`choices` run from the dialogue intents (validated hero==triggerer,
+   *  choice index re-derived from the command). Exposed now so the run system is complete; the wire
+   *  that calls these lands in Task 4. */
+  async advanceEventRunForTest(heroId: string, runId: string): Promise<boolean> {
+    return advanceRun(this.#eventRuns, heroId, runId);
+  }
+
+  async chooseEventRunForTest(heroId: string, runId: string, index: number): Promise<boolean> {
+    return chooseRun(this.#eventRuns, heroId, runId, index);
   }
 
   /** Called only by the per-character presence coordinator. */
@@ -987,6 +1175,17 @@ export class World extends DurableObject<Env> {
     }
     if (message.t === "interact") {
       await this.#interact(ws, player);
+      return;
+    }
+    // The two dialogue intents (cheap intents, the connection window cost class). Both are validated
+    // hero==triggerer inside `advanceRun`/`chooseRun`, and `chooseRun` re-derives and range-checks the
+    // option from the live pending offer; a stray intent from anyone else, or a wrong index, drops.
+    if (message.t === "event.advance") {
+      advanceRun(this.#eventRuns, player.id, message.runId);
+      return;
+    }
+    if (message.t === "event.choose") {
+      chooseRun(this.#eventRuns, player.id, message.runId, message.index);
       return;
     }
     if (message.t === "use") {
@@ -1809,6 +2008,9 @@ export class World extends DurableObject<Env> {
       }
       return;
     }
+    // Authored `action` events sit between the life-critical resurrection above and the legacy
+    // quest keepers below (see `#triggerActionEventNearby`).
+    if (this.#triggerActionEventNearby(player)) return;
     const chapter = player.quest.chapter ?? "three_offerings";
     player.quest.chapter = chapter;
 
@@ -1995,60 +2197,70 @@ export class World extends DurableObject<Env> {
     }
 
     const destinationAnchor = link.dest;
-    if (!authoredAdventure.mapIds.includes(destinationAnchor.mapId)) {
-      player.transitioning = false;
-      this.#send(ws, { t: "event", code: "zone.transition_denied", tone: "bad" });
-      return;
-    }
-    const destinationMap = await loadMap(db, destinationAnchor.mapId);
-    const entry = destinationMap?.events.find(
-      (candidate) => candidate.kind === "entry" && candidate.id === destinationAnchor.entryId,
-    );
-    if (!destinationMap || !entry) {
-      player.transitioning = false;
-      this.#send(ws, { t: "event", code: "zone.transition_failed", tone: "bad" });
-      return;
-    }
-    const destination = locationFromMap(destinationMap, "main");
-    const spawn = clampRestoredPosition(
-      eventCellCentre(entry),
-      player.id,
-      destination.definition.terrain,
-    );
-    const destinationRoomKey = `${partyId}:${destinationMap.id}`;
-
-    player.authorized = false;
-    if (!(await this.#checkpointCooldowns(player))) {
-      this.#rejectStaleSave(ws, player);
-      return;
-    }
-    const saved = await this.#savePlayer(player, ws, true);
-    if (!saved) return;
-    const next = await this.#presence(player).handoff({
-      characterId: player.id,
-      connectionId: player.connectionId,
-      sessionEpoch: player.sessionEpoch,
-      sourceRoomKey: player.roomKey,
-      destinationRoomKey,
-      zoneId: destinationMap.id,
-      instanceId: "main",
-      x: spawn.x,
-      y: spawn.y,
-    });
-    if (!next) {
-      this.#rejectStaleSave(ws, player);
-      return;
-    }
-    player.disconnecting = true;
-    this.#removePlayer(ws, player);
-    this.#observability.transitions += 1;
-    this.#send(ws, { t: "event", code: "zone.transition", tone: "good" });
+    // Same discipline as the "end" branch above: the whole fallible body is wrapped in try/finally
+    // so a thrown D1 read/write error or a stale presence RPC releases the claim instead of
+    // stranding it. `authorized` is only restored when this call is the one that cleared it, so a
+    // concurrent legitimate deauthorization is never overridden; on the success path the player is
+    // fully removed and the socket closed before finally runs, so releasing here is inert.
+    let claimedAuthorization = false;
     try {
-      ws.close(WS_CLOSE.ZONE_TRANSITION, "adventure map transition");
-    } catch {
-      // The fenced destination is already durable; reconnect resumes there.
+      if (!authoredAdventure.mapIds.includes(destinationAnchor.mapId)) {
+        this.#send(ws, { t: "event", code: "zone.transition_denied", tone: "bad" });
+        return;
+      }
+      const destinationMap = await loadMap(db, destinationAnchor.mapId);
+      const entry = destinationMap?.events.find(
+        (candidate) => candidate.kind === "entry" && candidate.id === destinationAnchor.entryId,
+      );
+      if (!destinationMap || !entry) {
+        this.#send(ws, { t: "event", code: "zone.transition_failed", tone: "bad" });
+        return;
+      }
+      const destination = locationFromMap(destinationMap, "main");
+      const spawn = clampRestoredPosition(
+        eventCellCentre(entry),
+        player.id,
+        destination.definition.terrain,
+      );
+      const destinationRoomKey = `${partyId}:${destinationMap.id}`;
+
+      claimedAuthorization = true;
+      player.authorized = false;
+      if (!(await this.#checkpointCooldowns(player))) {
+        this.#rejectStaleSave(ws, player);
+        return;
+      }
+      const saved = await this.#savePlayer(player, ws, true);
+      if (!saved) return;
+      const next = await this.#presence(player).handoff({
+        characterId: player.id,
+        connectionId: player.connectionId,
+        sessionEpoch: player.sessionEpoch,
+        sourceRoomKey: player.roomKey,
+        destinationRoomKey,
+        zoneId: destinationMap.id,
+        instanceId: "main",
+        x: spawn.x,
+        y: spawn.y,
+      });
+      if (!next) {
+        this.#rejectStaleSave(ws, player);
+        return;
+      }
+      player.disconnecting = true;
+      this.#removePlayer(ws, player);
+      this.#observability.transitions += 1;
+      this.#send(ws, { t: "event", code: "zone.transition", tone: "good" });
+      try {
+        ws.close(WS_CLOSE.ZONE_TRANSITION, "adventure map transition");
+      } catch {
+        // The fenced destination is already durable; reconnect resumes there.
+      }
+      if (this.#players.size === 0) this.#stopLoop();
+    } finally {
+      player.transitioning = false;
+      if (claimedAuthorization) player.authorized = true;
     }
-    if (this.#players.size === 0) this.#stopLoop();
   }
 
   /**
@@ -2549,6 +2761,7 @@ export class World extends DurableObject<Env> {
       reclaimCorpse: (socket, player) => this.#reclaimCorpse(socket, player),
       collectLoot: (socket, player) => this.#collectLoot(socket, player),
       savePlayer: (player, socket) => this.#savePlayer(player, socket),
+      onPlayerMoved: (_socket, player, previous) => this.#detectPlayerTouch(player, previous),
     });
     for (const [socket, player] of this.#players) {
       const action = player.action;
@@ -2603,6 +2816,10 @@ export class World extends DurableObject<Env> {
     );
     advanceGuards(monsterContext, now);
     processExpiredLoot(this.#loot, this.#lootGrid, now);
+    // Drain event runs AFTER all authoritative simulation (movement, combat, monsters, loot) and
+    // BEFORE the network flush: a run's teleport acts on final positions and rides out THIS tick's
+    // snapshot, and the budget guarantees the drain returns so the tick never hangs.
+    this.#drainEventRuns(now);
     if (this.#tick % NETWORK_TICKS_PER_SNAPSHOT === 0) {
       this.#sendWorldDeltas();
       const context = this.#partyContext();
@@ -2630,6 +2847,438 @@ export class World extends DurableObject<Env> {
         y: player.y,
       });
       this.#sendState(socket, player);
+    }
+  }
+
+  /**
+   * Step every live run its budgeted slice, then dispatch the effects that need this room's
+   * authority: state mutations are batched into ONE coordinator RPC (the single writer), a teleport
+   * sets an authoritative position, gold/items land on the triggerer's session inventory. Dialogue
+   * effects buffer in the run runtime and are flushed to the triggerer's socket at the end of the
+   * drain (`#flushDialogue`).
+   *
+   * Order: close any walked-away dialogue FIRST (it buffers a `closeDialogue` beat and releases the
+   * lock), then drain the survivors, then flush every buffered beat — a run's `say`/`choices` and its
+   * distance-close all reach the wire in the same tick they were produced.
+   */
+  #drainEventRuns(now: number): void {
+    this.#closeDistantDialogues();
+    if (this.#eventRuns.contexts.size > 0) {
+      const { effects } = drainRuns(this.#eventRuns, {
+        state: this.#adventureState,
+        tick: this.#tick,
+      });
+      const mutations: StateMutation[] = [];
+      for (const dispatch of effects) {
+        const effect = dispatch.effect;
+        if (effect.kind === "mutateState") {
+          mutations.push(effect.op);
+        } else if (effect.kind === "teleport") {
+          this.#dispatchTeleport(dispatch, effect, now);
+        } else if (effect.kind === "changeGold") {
+          this.#dispatchGold(dispatch, effect);
+        } else {
+          this.#dispatchItems(dispatch, effect);
+        }
+      }
+      if (mutations.length > 0 && this.#heroPartyId !== null) {
+        const partyId = this.#heroPartyId;
+        // Same retained stub every tick so consecutive mutation batches keep their E-order.
+        this.ctx.waitUntil(this.#gameSession(partyId).applyStateChanges(partyId, mutations));
+      }
+    }
+    this.#flushDialogue();
+  }
+
+  /**
+   * End every run parked on a dialogue whose triggerer has walked beyond `DIALOGUE_CLOSE_RADIUS` of
+   * its event cell (spec Decision 4, WoW: the panel closes, the conversation is over). `World` owns
+   * the positions, so it supplies the geometry; `closeDistantDialogues` buffers the `closeDialogue`
+   * beat and drops the context. A missing triggerer or event is treated as beyond — there is no panel
+   * left to hold open. Ending the run is NOT a rollback: mutations already applied stay applied.
+   */
+  #closeDistantDialogues(): void {
+    if (this.#eventRuns.contexts.size === 0) return;
+    const events = this.#location?.definition.events ?? [];
+    closeDistantDialogues(this.#eventRuns, (context) => {
+      const socket = this.#socketByPlayerId.get(context.heroId);
+      const player = socket ? this.#players.get(socket) : undefined;
+      if (player === undefined) return true;
+      const event = events.find((candidate) => candidate.id === context.eventId);
+      if (event === undefined) return true;
+      return pointDistance(player, eventCellCentre(event)) > DIALOGUE_CLOSE_RADIUS;
+    });
+  }
+
+  /**
+   * Send every buffered dialogue beat to its triggerer's socket, then clear the buffer. `say`/
+   * `choices` carry authored prose (the sanctioned data exception, spec Decision 4); `closeDialogue`
+   * becomes `event.close`. A beat whose triggerer has no socket (already gone) is dropped silently.
+   */
+  #flushDialogue(): void {
+    const dialogue = this.#eventRuns.dialogue;
+    if (dialogue.length === 0) return;
+    for (const buffered of dialogue) {
+      const socket = this.#socketByPlayerId.get(buffered.heroId);
+      if (socket === undefined) continue;
+      const message = buffered.message;
+      if (message.kind === "say") {
+        this.#send(
+          socket,
+          message.name === null
+            ? { t: "event.say", runId: buffered.runId, text: message.text }
+            : { t: "event.say", runId: buffered.runId, text: message.text, name: message.name },
+        );
+      } else if (message.kind === "offerChoices") {
+        this.#send(socket, {
+          t: "event.choices",
+          runId: buffered.runId,
+          prompt: message.prompt,
+          options: [...message.options],
+        });
+      } else {
+        this.#send(socket, { t: "event.close", runId: buffered.runId });
+      }
+    }
+    dialogue.length = 0;
+  }
+
+  /** The party's coordinator stub, retained so every ordered call rides one stub's E-order (see
+   *  `#gameSessionStub`). A room serves exactly one party, so the memo never straddles parties. */
+  #gameSession(partyId: string): ReturnType<Env["GAME_SESSION"]["getByName"]> {
+    if (this.#gameSessionStub === null) {
+      this.#gameSessionStub = this.env.GAME_SESSION.getByName(partyId);
+    }
+    return this.#gameSessionStub;
+  }
+
+  /**
+   * Warn about a refused authored teleport at most ONCE per (event, reason) per room lifetime. An
+   * authored `loop { teleport <unwalkable> }` would otherwise emit up to `EVENT_COMMANDS_PER_TICK`
+   * logs every tick forever; the observability law forbids per-event tick logging. The (event,
+   * reason) Set is small and bounded (events per map times a few reasons) and resets on room empty.
+   */
+  #logTeleportRefusedOnce(eventId: string, reason: string, extra: Record<string, unknown>): void {
+    const key = `${eventId}:${reason}`;
+    if (this.#teleportRefusalsLogged.has(key)) return;
+    this.#teleportRefusalsLogged.add(key);
+    console.warn(JSON.stringify({ event: "event_teleport_refused", reason, eventId, ...extra }));
+  }
+
+  /**
+   * A `changeGold` grant lands on the triggerer's session inventory (the same `inventory.gold` the
+   * merchant spends and the HUD reads through the self snapshot). The balance clamps at zero — a
+   * `changeGold -50` on 10 gold leaves 0, never a debt — and a positive grant tells the hero with
+   * `loot.picked` (kind "gold"), the existing personal loot-event the pickup path already uses.
+   *
+   * A grant landing mid `player.transitioning` (a cross-map teleport claimed earlier in the SAME
+   * drain, or one already in flight) is REFUSED with a deduped structured log, exactly like a
+   * refused teleport — silently applying it here would land on whichever room wins the handoff race,
+   * or vanish if the destination room never re-derives it. A clamped change whose NET effect is zero
+   * (this same `-50` on 0 gold) is a no-op: no dirty flag, no reshipped snapshot, no event, since
+   * nothing about the hero's state actually changed.
+   */
+  #dispatchGold(
+    dispatch: DispatchEffect,
+    effect: Extract<DispatchEffect["effect"], { kind: "changeGold" }>,
+  ): void {
+    const socket = this.#socketByPlayerId.get(dispatch.heroId);
+    const player = socket ? this.#players.get(socket) : undefined;
+    if (!socket || !player?.authorized) return;
+    if (player.transitioning) {
+      this.#logGoldRefusedOnce(dispatch.eventId, "transitioning", { heroId: player.id });
+      return;
+    }
+    const before = player.inventory.gold;
+    const after = Math.max(0, before + effect.amount);
+    if (after === before) return;
+    player.inventory.gold = after;
+    player.dirty = true;
+    if (effect.amount > 0) {
+      this.#send(socket, {
+        t: "event",
+        code: "loot.picked",
+        params: { amount: effect.amount, kind: "gold" },
+        tone: "good",
+      });
+    }
+    this.#sendState(socket, player);
+  }
+
+  /**
+   * Warn about a refused authored `changeGold` at most ONCE per (event, reason) per room lifetime —
+   * the same dedupe discipline `#logTeleportRefusedOnce` follows.
+   */
+  #logGoldRefusedOnce(eventId: string, reason: string, extra: Record<string, unknown>): void {
+    const key = `${eventId}:${reason}`;
+    if (this.#goldRefusalsLogged.has(key)) return;
+    this.#goldRefusalsLogged.add(key);
+    console.warn(JSON.stringify({ event: "event_gold_refused", reason, eventId, ...extra }));
+  }
+
+  /**
+   * A `changeItems` change lands on the triggerer's session consumable bag — the only stackable
+   * inventory a party hero owns this slice, and the one the merchant already fills. The runtime is
+   * the item-id authority (the Task-1 carry: the parser only shape-checks the slug): an id that is
+   * not a grantable consumable is REFUSED with a deduped structured log, never a player message,
+   * exactly like a refused teleport. A positive grant respects the per-stack capacity — a stack
+   * already at `CONSUMABLE_MAX_STACK` is full, so the grant is dropped and the hero is told with the
+   * `item.full` personal code (the loot precedent for a pickup that cannot land); otherwise it adds
+   * up to the ceiling and reports what landed with `loot.picked`. A negative change removes, clamped
+   * at zero — and if the clamp leaves the NET change at zero (a `-N` grant on an already-empty
+   * stack), it is a no-op: no dirty flag, no reshipped snapshot, nothing to sync. Any change that DID
+   * land syncs the legacy `potions` mirror and reships the self snapshot.
+   *
+   * A grant landing mid `player.transitioning` (a cross-map teleport claimed earlier in the SAME
+   * drain, or one already in flight) is REFUSED with a deduped structured log — the same treatment as
+   * an unknown item id — rather than silently applied into the handoff window.
+   */
+  #dispatchItems(
+    dispatch: DispatchEffect,
+    effect: Extract<DispatchEffect["effect"], { kind: "changeItems" }>,
+  ): void {
+    const socket = this.#socketByPlayerId.get(dispatch.heroId);
+    const player = socket ? this.#players.get(socket) : undefined;
+    if (!socket || !player?.authorized) return;
+    if (player.transitioning) {
+      this.#logItemRefusedOnce(dispatch.eventId, effect.itemId, "transitioning", {
+        heroId: player.id,
+      });
+      return;
+    }
+    if (!isConsumableId(effect.itemId)) {
+      this.#logItemRefusedOnce(dispatch.eventId, effect.itemId, "unknown_item", {
+        heroId: player.id,
+      });
+      return;
+    }
+    const item: ConsumableId = effect.itemId;
+    const counts = normalizeConsumables(player.inventory.consumables, player.inventory.potions);
+    player.inventory.consumables = counts;
+    if (effect.count > 0) {
+      if (counts[item] >= CONSUMABLE_MAX_STACK) {
+        this.#send(socket, {
+          t: "event",
+          code: "item.full",
+          params: { item },
+          tone: "bad",
+        });
+        return;
+      }
+      const added = Math.min(effect.count, CONSUMABLE_MAX_STACK - counts[item]);
+      counts[item] += added;
+      if (item === "health_potion") player.inventory.potions = counts.health_potion;
+      player.dirty = true;
+      this.#send(socket, {
+        t: "event",
+        code: "loot.picked",
+        params: { amount: added, kind: item },
+        tone: "good",
+      });
+    } else {
+      const before = counts[item];
+      const after = Math.max(0, before + effect.count);
+      if (after === before) return;
+      counts[item] = after;
+      if (item === "health_potion") player.inventory.potions = counts.health_potion;
+      player.dirty = true;
+    }
+    this.#sendState(socket, player);
+  }
+
+  /**
+   * Warn about a refused authored `changeItems` at most ONCE per (event, itemId, reason) per room
+   * lifetime — the same dedupe discipline `#logTeleportRefusedOnce` follows, so an authored
+   * `loop { changeItems <unknown> +1 }` warns once, not `EVENT_COMMANDS_PER_TICK` times a tick. The
+   * (event, itemId, reason) set is small and bounded and resets on room empty beside the teleport set.
+   */
+  #logItemRefusedOnce(
+    eventId: string,
+    itemId: string,
+    reason: string,
+    extra: Record<string, unknown>,
+  ): void {
+    const key = `${eventId}:${itemId}:${reason}`;
+    if (this.#itemRefusalsLogged.has(key)) return;
+    this.#itemRefusalsLogged.add(key);
+    console.warn(
+      JSON.stringify({
+        event: "event_item_refused",
+        reason,
+        eventId,
+        itemId,
+        ...extra,
+      }),
+    );
+  }
+
+  #dispatchTeleport(
+    dispatch: DispatchEffect,
+    effect: Extract<DispatchEffect["effect"], { kind: "teleport" }>,
+    now: number,
+  ): void {
+    const socket = this.#socketByPlayerId.get(dispatch.heroId);
+    const player = socket ? this.#players.get(socket) : undefined;
+    if (!socket || !player?.authorized || player.transitioning) return;
+    if (effect.mapId === this.#location?.zoneId) {
+      this.#teleportSameMap(player, effect.col, effect.row, dispatch.eventId);
+      return;
+    }
+    // Claim the transition SYNCHRONOUSLY, before the async handoff. The handoff sets `transitioning`
+    // too late to stop a second cross-map teleport effect dispatched in the SAME drain, so without
+    // this a back-to-back teleport would launch two handoffs (two saves, two closes). A validation
+    // failure inside `#teleportCrossMap` clears the claim so a refused teleport never strands the hero.
+    player.transitioning = true;
+    this.#crossMapTeleports += 1;
+    this.ctx.waitUntil(
+      this.#teleportCrossMap(
+        socket,
+        player,
+        effect.mapId,
+        effect.col,
+        effect.row,
+        now,
+        dispatch.eventId,
+      ),
+    );
+  }
+
+  /**
+   * A same-map authored teleport: refuse an unwalkable/out-of-bounds destination (the Task-1 carry —
+   * col/row are runtime-checked against the live map, like an item id) with a structured log while
+   * the run continues; otherwise set the authoritative position AND clear the command queue. The
+   * queue clear is the death-transition precedent: a stale queue replayed after the snap is the
+   * post-teleport sprint bug.
+   */
+  #teleportSameMap(player: Player, col: number, row: number, eventId: string): void {
+    const terrain = this.#zone().terrain;
+    const destination = eventCellCentre({ col, row });
+    const inBounds =
+      destination.x >= 0 &&
+      destination.y >= 0 &&
+      destination.x < terrain.width &&
+      destination.y < terrain.height;
+    if (!inBounds || !isWalkable(destination, PLAYER_SIZE, terrain)) {
+      this.#logTeleportRefusedOnce(eventId, inBounds ? "unwalkable" : "out_of_bounds", {
+        heroId: player.id,
+        mapId: this.#location?.zoneId ?? null,
+        col,
+        row,
+      });
+      return;
+    }
+    const previousPosition = { x: player.x, y: player.y };
+    player.x = destination.x;
+    player.y = destination.y;
+    this.#playerGrid.update(player, previousPosition);
+    // Clear the movement queue so no buffered command replays past the snap (the sprint bug class).
+    player.queue = [];
+    player.lastInput = NO_INPUT;
+    player.starvedTicks = 0;
+    player.dirty = true;
+  }
+
+  /**
+   * A cross-map authored teleport: validate the destination map belongs to the party's adventure,
+   * then ride the exact epoch-fenced handoff `#transitionAdventureExit` uses, with the authored
+   * cell as the arrival point. Removing the source player aborts the run (the disconnect/transition
+   * abort hook).
+   */
+  async #teleportCrossMap(
+    ws: WebSocket,
+    player: Player,
+    mapId: string,
+    col: number,
+    row: number,
+    now: number,
+    eventId: string,
+  ): Promise<void> {
+    // `transitioning` is claimed by the SYNCHRONOUS caller (`#dispatchTeleport`), not here, so this
+    // never re-checks it — instead the whole fallible body is wrapped in try/finally so every
+    // validation failure AND every thrown exception (a D1 read/write error, a stale presence RPC)
+    // releases the claim, leaving a refused or failed cross-map teleport free to move and try again.
+    // `authorized` is only restored when THIS call is the one that cleared it (`claimedAuthorization`)
+    // so a concurrent legitimate deauthorization (e.g. presence invalidation) is never overridden. On
+    // the success path the player is fully removed and the socket closed before finally runs, so
+    // releasing the claim afterward on the now-orphaned player object is inert.
+    const partyId = player.partyId;
+    let claimedAuthorization = false;
+    try {
+      if (player.identityKind !== "hero" || !partyId || player.life !== "alive") return;
+      const db = createDb(this.env.DB);
+      const storedParty = await loadPartyForRuntime(db, partyId);
+      if (!storedParty || !player.authorized) return;
+      const authoredAdventure = await loadAdventure(
+        db,
+        storedParty.hostAccountId,
+        storedParty.adventureId,
+      );
+      if (!authoredAdventure?.mapIds.includes(mapId)) {
+        this.#send(ws, { t: "event", code: "zone.transition_denied", tone: "bad" });
+        return;
+      }
+      const destinationMap = await loadMap(db, mapId);
+      if (!destinationMap) {
+        this.#send(ws, { t: "event", code: "zone.transition_failed", tone: "bad" });
+        return;
+      }
+      const destination = locationFromMap(destinationMap, "main");
+      const inBounds =
+        col >= 0 &&
+        row >= 0 &&
+        col < destination.definition.terrain.width / TILE_SIZE &&
+        row < destination.definition.terrain.height / TILE_SIZE;
+      if (!inBounds) {
+        this.#logTeleportRefusedOnce(eventId, "out_of_bounds", { mapId, col, row });
+        return;
+      }
+      const spawn = clampRestoredPosition(
+        eventCellCentre({ col, row }),
+        player.id,
+        destination.definition.terrain,
+      );
+      const destinationRoomKey = `${partyId}:${destinationMap.id}`;
+
+      player.lastTransitionAt = now;
+      player.lastInput = NO_INPUT;
+      player.queue = [];
+      cancelCombatAction(player);
+      removeProjectilesByOwner(this.#projectiles, player.id);
+      claimedAuthorization = true;
+      player.authorized = false;
+      if (!(await this.#checkpointCooldowns(player))) {
+        this.#rejectStaleSave(ws, player);
+        return;
+      }
+      if (!(await this.#savePlayer(player, ws, true))) return;
+      const next = await this.#presence(player).handoff({
+        characterId: player.id,
+        connectionId: player.connectionId,
+        sessionEpoch: player.sessionEpoch,
+        sourceRoomKey: player.roomKey,
+        destinationRoomKey,
+        zoneId: destinationMap.id,
+        instanceId: "main",
+        x: spawn.x,
+        y: spawn.y,
+      });
+      if (!next) {
+        this.#rejectStaleSave(ws, player);
+        return;
+      }
+      player.disconnecting = true;
+      this.#removePlayer(ws, player);
+      this.#observability.transitions += 1;
+      this.#send(ws, { t: "event", code: "zone.transition", tone: "good" });
+      try {
+        ws.close(WS_CLOSE.ZONE_TRANSITION, "event teleport");
+      } catch {
+        // The fenced destination is already durable; reconnect resumes there.
+      }
+      if (this.#players.size === 0) this.#stopLoop();
+    } finally {
+      player.transitioning = false;
+      if (claimedAuthorization) player.authorized = true;
     }
   }
 
@@ -2980,6 +3629,9 @@ export class World extends DurableObject<Env> {
     player.lastInput = NO_INPUT;
     player.queue = [];
     player.starvedTicks = 0;
+    // A life transition aborts the hero's event runs, the same reason it clears the command queue:
+    // a run buffered across a death/revive must not resume against a different life state.
+    abortRunsForHero(this.#eventRuns, player.id);
     cancelCombatAction(player);
     player.guarding = false;
     player.guardActivatedAt = 0;
@@ -3143,6 +3795,8 @@ export class World extends DurableObject<Env> {
 
   #removePlayer(ws: WebSocket, player: Player): void {
     this.#occupiedExitByPlayerId.delete(player.id);
+    // A hero leaving (disconnect or map transition) aborts every run they triggered.
+    abortRunsForHero(this.#eventRuns, player.id);
     cancelCombatAction(player);
     removeProjectilesByOwner(this.#projectiles, player.id);
     removePlayerFromParties(this.#partyContext(), player.id);
@@ -3162,6 +3816,11 @@ export class World extends DurableObject<Env> {
       this.ctx.waitUntil(this.env.GAME_SESSION.getByName(partyId).roomEmptied(partyId, roomKey));
     }
     this.#stopLoop();
+    resetEventRunRuntime(this.#eventRuns);
+    this.#teleportRefusalsLogged.clear();
+    this.#itemRefusalsLogged.clear();
+    this.#goldRefusalsLogged.clear();
+    this.#crossMapTeleports = 0;
     this.#loot = [];
     this.#projectiles = [];
     this.#lootGrid.clear();

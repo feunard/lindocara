@@ -97,6 +97,9 @@ export interface Connection {
   partyLeave(): void;
   partyKick(playerId: string): void;
   partyDissolve(): void;
+  /** Turn the current say page — the two dialogue intents (spec Decision 4). */
+  eventAdvance(runId: string): void;
+  eventChoose(runId: string, index: number): void;
   close(): void;
 }
 
@@ -108,6 +111,11 @@ export interface ConnectionHandlers {
   onPartyState(party: PartyState | null): void;
   onMerchantOpen(): void;
   onAnimation(animation: CombatAnimation): void;
+  /** A dialogue beat for THIS player's panel (spec Decision 4): a say page, a choices offer, or the
+   *  close that ends the run. `text`/`name`/`prompt`/`options` are authored prose, not i18n codes. */
+  onEventSay(runId: string, text: string, name?: string): void;
+  onEventChoices(runId: string, prompt: string, options: string[]): void;
+  onEventClose(runId: string): void;
   onEvent(
     code: EventCode,
     params: EventParams | undefined,
@@ -213,6 +221,8 @@ export class WorldClient {
       partyLeave: () => this.#send({ t: "party.leave" }),
       partyKick: (playerId) => this.#send({ t: "party.kick", playerId }),
       partyDissolve: () => this.#send({ t: "party.dissolve" }),
+      eventAdvance: (runId) => this.#send({ t: "event.advance", runId }),
+      eventChoose: (runId, index) => this.#send({ t: "event.choose", runId, index }),
       close: () => socket.close(1000, "client left"),
     };
   }
@@ -387,6 +397,18 @@ export class WorldClient {
     }
     if (message.t === "animation") {
       handlers.onAnimation(message);
+      return;
+    }
+    if (message.t === "event.say") {
+      handlers.onEventSay(message.runId, message.text, message.name);
+      return;
+    }
+    if (message.t === "event.choices") {
+      handlers.onEventChoices(message.runId, message.prompt, message.options);
+      return;
+    }
+    if (message.t === "event.close") {
+      handlers.onEventClose(message.runId);
       return;
     }
     handlers.onEvent(message.code, message.params, message.tone, message.x, message.y);

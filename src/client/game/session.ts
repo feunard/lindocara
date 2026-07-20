@@ -325,6 +325,9 @@ async function startGameIdentity(
     onWelcome: (selfId, world, state) => {
       reconnectAttempts = 0;
       useUiStore.getState().setReconnect(null);
+      // A reconnect lands a fresh welcome and the server aborted any run this hero triggered on the
+      // disconnect, so no run is left to answer the panel — clear it rather than strand a dead panel.
+      useUiStore.getState().setEventDialogue(null);
       if (!welcomed) {
         useUiStore.getState().setHeroLoading({
           name: identity.name,
@@ -407,6 +410,25 @@ async function startGameIdentity(
       renderer.playCombatAnimation(animation);
       if (animation.actorKind === "monster") sound.monsterAttack();
       else if (animation.skillId) sound.skillCast(animation.skillId);
+    },
+    // The dialogue panel (spec Decision 4): the server pushes beats to THIS player, the store holds
+    // the open panel, EventDialoguePanel renders it. Prose is authored data rendered verbatim; the
+    // panel's own chrome stays i18n. `event.close` only clears if it names the run currently shown —
+    // a late close for an already-superseded run must not blank a fresh one.
+    onEventSay: (runId, text, name) => {
+      sound.interact();
+      useUiStore
+        .getState()
+        .setEventDialogue(
+          name === undefined ? { kind: "say", runId, text } : { kind: "say", runId, text, name },
+        );
+    },
+    onEventChoices: (runId, prompt, options) => {
+      useUiStore.getState().setEventDialogue({ kind: "choices", runId, prompt, options });
+    },
+    onEventClose: (runId) => {
+      const store = useUiStore.getState();
+      if (store.eventDialogue?.runId === runId) store.setEventDialogue(null);
     },
     onEvent: (code, params, tone, x, y) => {
       const text = eventText(code, params, currentSelf?.class ?? identity.class);
@@ -600,6 +622,16 @@ async function startGameIdentity(
   };
   const interact = () => {
     sound.unlock();
+    // Mid-dialogue, the interact key (the RPG convention) ADVANCES the say page rather than
+    // re-triggering the event — the server's one-run lock would drop a re-trigger anyway, but routing
+    // here keeps the interact key meaning "continue" while a panel is open. A choices panel swallows
+    // interact (a pick needs an explicit option), so it never falls through to re-trigger either.
+    const dialogue = useUiStore.getState().eventDialogue;
+    if (dialogue) {
+      if (dialogue.kind === "say") connection?.eventAdvance(dialogue.runId);
+      input.reset();
+      return;
+    }
     if (interiorOpen()) {
       closeInterior();
       input.reset();
@@ -783,6 +815,8 @@ async function startGameIdentity(
       connection?.partyKick(target.playerId);
     },
     partyDissolve: () => connection?.partyDissolve(),
+    eventAdvance: (runId) => connection?.eventAdvance(runId),
+    eventChoose: (runId, index) => connection?.eventChoose(runId, index),
     switchCharacter,
     logout: logoutAndReload,
     attachMinimap: (canvas) => {

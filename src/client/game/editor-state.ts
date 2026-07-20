@@ -457,6 +457,7 @@ export function defaultEventPage(): MapEventPage {
     optThrough: false,
     optOnTop: false,
     trigger: "action",
+    commands: [],
   };
 }
 

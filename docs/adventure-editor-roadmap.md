@@ -23,7 +23,7 @@ Six tranches, each ending in something playable:
 | 3 | Events: data and placement | **Done** (branch `feature/map-events`) |
 | 4 | Switches, variables, adventure state | **Done** (branch `feature/adventure-state`) |
 | 4.5 | UX feedback wave | **Done — exit gate cleared** (`feature/ux-wave`, Task 6) |
-| 5 | The command interpreter | The big one |
+| 5 | The command interpreter | **Done — exit gate cleared** (`feature/interpreter`, Task 6) |
 | 6 | Test button, tileset database, the rest | |
 
 The ordering is not arbitrary. An event must exist before it can have state, and have state before
@@ -221,43 +221,65 @@ wired. Tranche 5 may proceed.
 
 ## Tranche 5 — The command interpreter
 
-The largest tranche by a wide margin. Authored commands become a language, and something runs it
-inside a Durable Object.
+The largest tranche by a wide margin. Authored commands became a language, and it runs inside the
+Durable Object. Shipped in six tasks (`feature/interpreter`), each independently green, on the six
+settled multiplayer answers (`docs/superpowers/specs/2026-07-19-interpreter-questions.md`, the WoW
+compass) and the full design (`docs/superpowers/specs/2026-07-20-interpreter-design.md`).
 
-The wireframe's catalogue is the target vocabulary: show text, show choices, prompt for a number;
-set switches and variables; conditions, loops, break, call common event, exit; teleport the hero,
-move route, wait; change gold and items; play BGM/SE, fade; comment and script.
+**The t5 vocabulary** (the wireframe's catalogue filtered by the settled answers): show text · show
+choices · set switch · set variable (set/add) · set self-switch · conditional (switch / variable ≥ /
+self-switch, with else) · loop · break · exit · wait · teleport the triggerer (same-map or cross-map
+via the existing handoff) · change gold · change items · comment. Deferred to t6, recorded: audio/
+screen commands, move routes, common events, "input a number", auto/parallel triggers, event-touch.
 
-**Four things make this hard, and none of them are the parser.**
+**The four hard things, and how they landed.**
 
-**1. It runs inside a 20 Hz tick loop.** An authored `while` loop with no exit must not hang a room
-— and a room hanging means every player in it disconnects. The interpreter has to be *step-wise*:
-it advances a bounded number of commands per tick and yields, keeping its position in a resumable
-structure. This is the same discipline `navigation-system.ts` already applies to A* with its
-per-tick node budget. Read it; the shape transfers.
+**1. It runs inside a 20 Hz tick loop.** `shared/event-interpreter.ts` is a **pure, clockless
+stepper** — `stepEventRun` executes exactly ONE command and returns effects as data. `World` drains
+at most `EVENT_COMMANDS_PER_TICK` (16) commands per tick across all live contexts, round-robin, then
+yields. An authored infinite loop consumes its budget slice and never hangs the room — the same
+per-tick-budget discipline `navigation-system.ts` uses, proven by a starvation test that asserts the
+room keeps ticking and other heroes keep moving.
 
-**2. Multiplayer is not a detail here, it is the design.** RPG Maker is single-player. This is not.
-When one of four players talks to an NPC: does the dialogue appear for everyone, or only them? Can
-the other three walk away mid-conversation? If a command teleports "the hero", which hero? If two
-players trigger the same event on the same tick, does it run twice?
+**2. Multiplayer was the design, not a detail.** The settled answers: dialogue is a **per-player
+panel** shown to the triggerer only (browser-verified — while A talks to the door NPC, B's viewport
+stays clean); state is **party-owned** and shared (A flips a switch, B on another map sees the
+conditioned event appear); a run is locked **one-per-event, room-local** (two heroes triggering one
+gold chest on the same tick yield exactly ONE grant, not two); teleport moves **the triggerer**.
 
-There are defensible answers to all of these and they are not obvious. **Settle them with the human
-before writing a line of interpreter code** — retrofitting a multiplayer answer onto a single-player
-interpreter is how this tranche fails.
+**3. Blocking is a protocol problem — solved without blocking.** There is no queue freeze because
+movement is never frozen: the dialogue panel captures only its own keys, WASD stays live, and the
+server ends the run when the triggerer walks beyond `DIALOGUE_CLOSE_RADIUS` (3 tiles). Nothing to
+un-freeze (Q2-A). Durable state writes go UP to `GameSession` (the single writer, now real via
+`#applyStateChange`), which bumps a monotone `version` and pushes to every room; a run reads its OWN
+writes within a tick through a **drain-local working copy**, so `setSwitch X; if X …` is coherent.
 
-**3. Blocking is a protocol problem.** A message box that pauses the game means the server must
-know a player is waiting, and must not let their movement commands accumulate into a sprint when
-the box closes. `World` already clears the command queue on every life transition for exactly this
-reason (see the death state machine in `CLAUDE.md`) — the same argument applies.
+**4. Authored prose is the sanctioned codes-not-sentences exception.** `event.say`/`event.choices`
+carry the author's text/labels as DATA across the wire (size-capped, defensively parsed) — the one
+exception, documented at the field. Every CHROME string around the panel stays i18n.
 
-**4. Every player-facing string must be authored data, not code.** Server events are codes, not
-sentences: `{ t: "event", code, params }`, with the client owning all wording via `shared/i18n/`.
-But an authored dialogue line *is* prose, written by the adventure's author, and it cannot live in a
-dictionary. That is a genuine new case and the i18n boundary needs an explicit answer for it.
+**Discoveries the next tranches inherit:**
 
-**Expect to sub-decompose.** A reasonable split: the command data model and its editor UI; the
-interpreter core with only set-switch and conditional; the message/choice protocol and client UI;
-then the rest of the vocabulary. Each of those is a tranche-sized piece.
+- **Saving a member map re-validates the WHOLE adventure graph.** `handleUpdateMap` calls
+  `validateAdventure`, which requires every exit on every member map to be bound (`adventure.ts`
+  ~L206). So creating a second map and then saving map CONTENT before wiring its exit fails with a
+  `map_referenced` 409 — the save is rejected, not retried. The authoring order that works: create
+  the map, wire the graph (bind the new exit), *then* author and save content. The Task 6 campaign
+  hit this and reorders around it; a future editor nicety would be to bind a new map's exit to a
+  sane default (or defer graph validation to an explicit "publish") so authoring order stops
+  mattering.
+- **The editor bootstraps straight into instant-create for a fresh account** (no picker), and the
+  adventure stays untitled until the FIRST `⌘S`, which pops the name popup. Test flows must handle
+  the name popup on first save, not assume a pre-named adventure.
+- **Gold and items are per-hero and session-only** (born 0, HUD-shown, not yet durable — exactly
+  like inventory). Making party-hero gold/inventory durable is the recorded migration, same as the
+  normalized character tables waiting for hero ownership + fencing.
+- **The exit gate was cleared by a real-browser Playwright campaign** (Task 6): a door-NPC scene
+  authored entirely through the `EventCommandEditor` (say → choices « Ouvrir / Laisser » → Ouvrir
+  flips switch 0001 → a two-page treasure event reveals its page-2 graphic; a player-touch teleport
+  to map 2; a gold chest), then played by real heroes — the say/advance/choices/choose beats, the
+  number-key and click affordances, the walk-away close, cross-map teleport, and the lock all
+  verified end to end, plus the core author→play→choice loop 3× on fresh accounts, console clean.
 
 ## Tranche 6 — The rest
 

@@ -38,6 +38,7 @@ import {
 } from "../components/dialog.js";
 import { Input } from "../components/input.js";
 import { CatalogueAssetPicker } from "./CatalogueAssetPicker.js";
+import { EventCommandEditor, type TeleportMap } from "./EventCommandEditor.js";
 
 /** The wireframe's friendly `EV{ordinal}` display id, zero-padded to three digits. Display only —
  *  identity is the uuid. Duplicated (rather than imported from `map-editor-stage`) so this React
@@ -221,6 +222,9 @@ interface EventDialogProps {
   /** The loaded adventure's switch/variable registry. Its entries drive the condition pickers; an
    *  empty registry falls the id fields back to normalized free text with a hint. */
   registry: AdventureRegistry;
+  /** The adventure's member maps, for a `teleport` command's destination Select (with its dims for
+   *  the client-side cell clamp). Empty disables the teleport command in the insert palette. */
+  maps: readonly TeleportMap[];
   /** Commit the edited draft as one history entry. */
   onCommit(draft: MapEvent): void;
   /** Delete the event (its own history entry). */
@@ -238,7 +242,14 @@ interface EventDialogProps {
  *
  * The command column is the tranche-5 placeholder: a disabled pane, no list built yet.
  */
-export function EventDialog({ event, registry, onCommit, onDelete, onCancel }: EventDialogProps) {
+export function EventDialog({
+  event,
+  registry,
+  maps,
+  onCommit,
+  onDelete,
+  onCancel,
+}: EventDialogProps) {
   useLocale();
   const [draft, setDraft] = useState<MapEvent>(event);
   const [pageIndex, setPageIndex] = useState(0);
@@ -588,15 +599,14 @@ export function EventDialog({ event, registry, onCommit, onDelete, onCancel }: E
                 </section>
               </div>
 
-              {/* Right column: the command list, not built this tranche. */}
-              <section className="flex flex-col gap-2">
-                <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
-                  {t("editor.event.commands")}
-                </h3>
-                <div className="flex min-h-40 flex-1 items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-4 text-center text-xs text-zinc-400">
-                  {t("editor.event.commands.placeholder")}
-                </div>
-              </section>
+              {/* Right column: the page's command program. */}
+              <EventCommandEditor
+                commands={page.commands}
+                switches={registry.switches}
+                variables={registry.variables}
+                maps={maps}
+                onChange={(commands) => update({ commands })}
+              />
             </div>
           </>
         )}
