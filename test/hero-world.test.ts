@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { AdventureGraph } from "../src/shared/adventure.js";
 import { WS_CLOSE } from "../src/shared/close-codes.js";
 import { ATTACK_COOLDOWN_MS, MONSTER_STATS, maxHpForLevel } from "../src/shared/game.js";
+import type { MapElement } from "../src/shared/map-data.js";
 import { TILE_SIZE } from "../src/shared/tilemap.js";
 import { layeredWireTerrain } from "./support/map-fixtures.js";
 import {
@@ -66,6 +67,32 @@ function novaMapInput(): TestMapBody {
     exit: { col: 18, row: 13 },
     monsterSpawns: [{ col: 4, row: 3, species: "spear_goblin", patrolRadius: 32 }],
   });
+}
+
+/**
+ * A goblin sits in a straight line behind a tree, well inside Shield Bash's 300px charge distance
+ * and inside its 308px targeting range/line-of-sight (trees carry only a sub-cell `ColliderIndex`
+ * rect, never a tile change, so `hasLineOfSight` — tile-based only — sees straight through it and
+ * happily nominates the goblin as the charge target). The tree's collider sits well short of the
+ * goblin along that line, so a correctly colliding charge must stop at the trunk and never reach
+ * the goblin at all.
+ */
+function shieldBashTreeMapInput(): TestMapBody {
+  const map = testMapInput("Shield bash tree", {
+    cols: 20,
+    rows: 15,
+    spawn: { col: 2, row: 2 },
+    exit: { col: 18, row: 13 },
+    monsterSpawns: [{ col: 10, row: 7, species: "spear_goblin", patrolRadius: 32 }],
+  });
+  const tree: MapElement = {
+    col: 8,
+    row: 7,
+    offsetX: 0,
+    offsetY: 0,
+    assetId: "resource.terrain-resources-wood-trees.tree3",
+  };
+  return { ...map, elements: [tree] };
 }
 
 /** Two maps in a line: mapA's exit leads to mapB's entry, mapB's exit ends the adventure. Binds the
@@ -266,6 +293,64 @@ describe("party hero admission and authored runtime", { timeout: 20_000 }, () =>
           (message) => message.t === "animation" && message.skillId === "cleave",
         ),
       );
+    } finally {
+      client.close();
+    }
+  });
+
+  /**
+   * `#resolveShieldBash` swept only `terrain.tiles`, so a decorative tree — collision lives
+   * entirely in `terrain.colliders`, never in a tile change — was invisible to the charge even
+   * though it blocks every other mobility path (ordinary movement, monster pathing, projectiles).
+   * A goblin sits behind the tree, still within Shield Bash's charge distance, so the bug's
+   * observable shape is a monster taking a hit through an obstacle the player's own body cannot
+   * cross: the charge would report a clean hit and drain the goblin's HP as if the tree were not
+   * there. With the collider index threaded through, the tree wins the sweep first and the charge
+   * reports `skill.blocked` without ever reaching the goblin.
+   */
+  it("stops Shield Bash on a tree collider instead of hitting the goblin behind it", {
+    timeout: 10_000,
+  }, async () => {
+    const party = await testParty("shield-bash-tree", { maps: [shieldBashTreeMapInput()] });
+    const hero = await testHero("Trunked", {
+      party,
+      account: party.host,
+      class: "warrior",
+      level: 5,
+      position: centre(6, 7),
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      const welcome = await until("shield bash tree welcome", () => client.welcome);
+      const monster = welcome.monsters[0];
+      if (!monster) throw new Error("expected the shielded goblin");
+      const startHp = monster.hp;
+
+      client.skill(3);
+      const cast = await until("shield bash tree cast", () =>
+        client.received.find(
+          (message) =>
+            message.t === "event" &&
+            message.code === "skill.cast" &&
+            message.params?.skill === "shield_bash",
+        ),
+      );
+      expect(cast).toMatchObject({ tone: "good" });
+      const blocked = await until("shield bash blocked by the tree", () =>
+        client.received.find(
+          (message) => message.t === "event" && message.code === "skill.blocked",
+        ),
+      );
+      expect(blocked).toMatchObject({ params: { skill: "shield_bash" } });
+
+      // Give the room a few more ticks so a wrongly-landed hit would have shown up by now.
+      await scheduler.wait(300);
+      expect(
+        client.latestSnapshot?.monsters.find((candidate) => candidate.id === monster.id)?.hp,
+      ).toBe(startHp);
+      expect(
+        client.received.some((message) => message.t === "event" && message.code === "combat.hit"),
+      ).toBe(false);
     } finally {
       client.close();
     }

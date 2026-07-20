@@ -1535,6 +1535,7 @@ export class World extends DurableObject<Env> {
       end,
       PLAYER_SIZE / 2,
       this.#zone().terrain.tiles,
+      this.#zone().terrain.colliders,
     );
     const midpoint = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
     const monsterImpacts = this.#monsterGrid
