@@ -212,6 +212,7 @@ describe("server protocol", () => {
     zoneNameKey: "zone.verdant_reach.name",
     tiles: ["..", "##"],
     elements: [],
+    colliders: [],
     tilesetId: TINY_SWORDS_TILESET_ID,
     layers: [layer, layer, layer],
     events: [],

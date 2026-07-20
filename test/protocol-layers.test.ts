@@ -15,6 +15,7 @@ function welcome(overrides: Record<string, unknown>) {
       zoneNameKey: "zone.verdant",
       tiles: ["....", "....", "...."],
       elements: [],
+      colliders: [],
       tilesetId: TINY_SWORDS_TILESET_ID,
       layers: [layer, layer, layer],
       events: [],

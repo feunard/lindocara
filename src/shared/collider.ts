@@ -54,6 +54,24 @@ export function colliderIndexFrom(
   return { cols, rows, buckets };
 }
 
+/** The index back to a flat rect list, each rect once. The wire ships rects, not buckets: the
+ *  receiver rebuilds its own index, so bucket layout never has to be a wire concern. A rect
+ *  spanning several cells is listed in every bucket it spans, so this de-duplicates — otherwise
+ *  the wire would carry the same rect once per cell it touches. */
+export function flattenColliderIndex(index: ColliderIndex): [number, number, number, number][] {
+  const seen = new Set<string>();
+  const rects: [number, number, number, number][] = [];
+  for (const bucket of index.buckets) {
+    for (const rect of bucket) {
+      const key = `${rect.x}:${rect.y}:${rect.width}:${rect.height}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rects.push([rect.x, rect.y, rect.width, rect.height]);
+    }
+  }
+  return rects;
+}
+
 /**
  * `position` is the body's top-left corner and the far edge is exclusive — the same convention
  * `isWalkableBox` uses, so a body sitting exactly on a collider's edge is beside it, not inside it.

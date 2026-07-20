@@ -43,6 +43,7 @@ const WELCOME: ServerMessage = {
     zoneNameKey: "zone.verdant_reach",
     tiles: ["....", "....", "....", "...."],
     elements: [],
+    colliders: [],
     tilesetId: "tiny-swords",
     layers: ["0*16", "0*16", "0*16"],
     events: [],

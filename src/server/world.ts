@@ -11,6 +11,7 @@ import {
 } from "../shared/adventure-state.js";
 import { parseCheatCommand } from "../shared/cheats.js";
 import { WS_CLOSE } from "../shared/close-codes.js";
+import { flattenColliderIndex } from "../shared/collider.js";
 import {
   actionForClassSlot,
   LUMEN_STEP_MAX_HOLD_MS,
@@ -709,6 +710,10 @@ export class World extends DurableObject<Env> {
         // than looking the zone up in a table it compiled in — which is what lets a map live in D1
         // at all, and means a client can never disagree with collision it did not compute.
         tiles: encodeTileMap(location.definition.terrain.tiles),
+        // The other half of baked collision: sub-cell rectangles a tile grid cannot express (a
+        // tree's trunk, not its cell). Flattened once here so the client rebuilds its own index
+        // from exactly what was baked, rather than re-deriving it from `elements`.
+        colliders: flattenColliderIndex(location.definition.terrain.colliders),
         // Catalogue zones grow their trees out of `forest` cells in the tilemap above, so there is
         // nothing standing on the ground that the ground does not already describe — `elements` is
         // undefined for them. A D1 map's scenery lives here instead.

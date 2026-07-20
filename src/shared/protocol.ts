@@ -38,7 +38,7 @@ import {
 } from "./game.js";
 import { isUuid } from "./identifiers.js";
 import type { ChatChannel } from "./interest.js";
-import { MAP_LAYERS, type MapElement, parseMapElements } from "./map-data.js";
+import { MAP_LAYERS, MAX_MAP_ELEMENTS, type MapElement, parseMapElements } from "./map-data.js";
 import type { MerchantDefinition } from "./merchant.js";
 import type { ClassResourceState } from "./resources.js";
 import type { Input, Vec2 } from "./simulation.js";
@@ -284,20 +284,28 @@ export interface WorldInfo {
    */
   tiles: string[];
   /**
-   * What to draw on the ground — and, since sub-cell colliders, the ONE exception to the
-   * "collision is already in `tiles`" rule that `layers` and `events` still follow.
+   * The second half of baked collision truth: sub-cell rectangles in world pixels, `[x, y, w, h]`.
+   *
+   * This does NOT weaken the appearance-only rule below. Collision is still baked server-side and
+   * shipped as collision; it simply needs two structures now, because a tile grid cannot express a
+   * tree trunk. `elements` remains appearance. A client that derived colliders from `elements`
+   * would be a second, disagreeing bake — exactly the desync the baked contract exists to prevent.
+   */
+  colliders: readonly (readonly [number, number, number, number])[];
+  /**
+   * What to draw on the ground. Appearance only — collision is already in `tiles` and `colliders`
+   * above, the same rule `layers` and `events` below follow.
    *
    * A tree blocks its trunk, not its cell, so its solidity cannot be expressed in the tile grid at
-   * all. Both sides therefore build the collider index from THIS list with the same pure
-   * `elementColliders`/`elementWorldCollider` — one function, exactly the `step()` argument — and
-   * `isWalkable` remains the single junction where the grid and the rectangles meet.
+   * all — that is what `colliders` is for. A client deriving colliders from THIS list instead would
+   * be a second, disagreeing bake of the same rectangles the server already baked into `colliders`.
    */
   elements: readonly MapElement[];
   /** Which tileset `layers` index into. */
   tilesetId: string;
   /**
-   * Appearance only. Collision is already in `tiles` above — exactly the rule `elements` follows,
-   * and the reason adding layers to the wire introduces no new invariant.
+   * Appearance only. Collision is already in `tiles` and `colliders` above — exactly the rule
+   * `elements` follows, and the reason adding layers to the wire introduces no new invariant.
    */
   layers: readonly string[];
   /**
@@ -882,12 +890,41 @@ function isQuestSite(value: unknown): value is QuestSite {
   );
 }
 
+/** Defensively parses the wire's flat `[x, y, w, h]` tuples into `Rect`s, the same discipline as
+ *  every other wire structure: malformed input returns `null`, it never throws, and a payload
+ *  larger than a map could legitimately hold is rejected outright. */
+export function parseWorldColliders(value: unknown): Rect[] | null {
+  if (!Array.isArray(value)) return null;
+  if (value.length > MAX_MAP_ELEMENTS) return null;
+  const parsed: Rect[] = [];
+  for (const raw of value) {
+    if (!Array.isArray(raw) || raw.length !== 4) return null;
+    const [x, y, width, height] = raw;
+    if (
+      !Number.isFinite(x) ||
+      !Number.isFinite(y) ||
+      !Number.isFinite(width) ||
+      !Number.isFinite(height)
+    ) {
+      return null;
+    }
+    parsed.push({
+      x: x as number,
+      y: y as number,
+      width: width as number,
+      height: height as number,
+    });
+  }
+  return parsed;
+}
+
 function isWorldInfo(value: unknown): value is WorldInfo {
   if (!isRecord(value) || !isZoneId(value.zoneId) || !isNonNegativeInteger(value.revision)) {
     return false;
   }
   const tiles = parseTileMap(value.tiles);
   if (!tiles || parseMapElements(value.elements, tiles.cols, tiles.rows) === null) return false;
+  if (parseWorldColliders(value.colliders) === null) return false;
   return (
     isBoundedString(value.zoneNameKey, 128) &&
     typeof value.tilesetId === "string" &&
