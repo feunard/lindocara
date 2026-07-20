@@ -23,6 +23,7 @@ const stageMock = vi.hoisted(() => ({
   setActiveLayer: vi.fn(),
   setDim: vi.fn(),
   setGrid: vi.fn(),
+  setZoom: vi.fn(),
   current: vi.fn(),
   setName: vi.fn(),
   undo: vi.fn(),
@@ -48,6 +49,7 @@ function stageHandle() {
     setActiveLayer: stageMock.setActiveLayer,
     setDim: stageMock.setDim,
     setGrid: stageMock.setGrid,
+    setZoom: stageMock.setZoom,
     current: stageMock.current,
     setName: stageMock.setName,
     undo: stageMock.undo,
@@ -408,6 +410,9 @@ describe("AdventureEditorScreen shell", () => {
     );
     if (!asset) throw new Error("no uniquely-named catalogue asset");
     const shortId = asset.id.split(".").at(-1) ?? asset.id;
+    fireEvent.change(within(palette).getByRole("searchbox", { name: t("editor.palette.search") }), {
+      target: { value: shortId },
+    });
     const card = within(palette).getByText(shortId).closest("button");
     if (!card) throw new Error("asset card not found");
     await userEvent.click(card);
@@ -435,7 +440,7 @@ describe("AdventureEditorScreen shell", () => {
     await mountReady();
 
     expect(screen.getByText(t("editor.shell.layer", { n: 1 }))).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.layer", { n: 2 }) }));
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.layer.details") }));
 
     expect(stageMock.setActiveLayer).toHaveBeenLastCalledWith(1);
     expect(screen.getByText(t("editor.shell.layer", { n: 2 }))).toBeInTheDocument();
@@ -545,7 +550,7 @@ describe("AdventureEditorScreen shell", () => {
 
     // The handle does not exist yet, so selecting layer 3 here can only reach the stage through
     // whatever the `.then` callback reads once it resolves — this is the race.
-    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.layer", { n: 3 }) }));
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.layer.overlay") }));
     expect(stageMock.setActiveLayer).not.toHaveBeenCalled();
 
     resolveOpen(stageHandle());
@@ -723,7 +728,10 @@ describe("AdventureEditorScreen shell", () => {
     await waitFor(() =>
       expect(mock).toHaveBeenCalledWith(
         "/api/maps/m1",
-        expect.objectContaining({ method: "PUT", body: JSON.stringify(toSaveInput(edited)) }),
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({ ...toSaveInput(edited), expectedRevision: 1 }),
+        }),
       ),
     );
     expect(stageMock.markSaved).toHaveBeenCalledTimes(1);
@@ -754,6 +762,7 @@ describe("AdventureEditorScreen shell", () => {
     await waitFor(() =>
       expect(stageMock.openMapEditorStage).toHaveBeenLastCalledWith(
         edited,
+        expect.any(Function),
         expect.any(Function),
         expect.any(Function),
         expect.any(Function),
@@ -869,7 +878,7 @@ describe("AdventureEditorScreen shell", () => {
     await mountReady();
 
     const search = screen.getByRole("searchbox", { name: t("editor.palette.search") });
-    await userEvent.type(search, "tree3");
+    fireEvent.change(search, { target: { value: "tree3" } });
     await userEvent.click(screen.getByRole("button", { name: /tree3grasssolid/i }));
     await waitFor(() =>
       expect(stageMock.setTool).toHaveBeenCalledWith({
@@ -1462,7 +1471,7 @@ describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
     seedUnnamed(true);
     const mock = editorBackend();
     vi.stubGlobal("fetch", mock);
-    const rendered = await mountReady();
+    await mountReady();
 
     // Rename through the adventure settings dialog and save it: an explicit naming.
     screen.getByRole("menuitem", { name: t("editor.shell.menu.file") }).focus();
@@ -1475,11 +1484,18 @@ describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
     await userEvent.clear(title);
     await userEvent.type(title, "Ironhold");
     await userEvent.click(within(settings).getByRole("button", { name: t("editor.save") }));
-    await waitFor(() => expect(adventurePutCalls(mock)).toHaveLength(1));
-
-    // Now ⌘S saves the map directly — no first-save popup, because the title is already confirmed.
-    fireEvent.keyDown(shell(rendered), { key: "s", metaKey: true });
     await waitFor(() => expect(mapPutCalls(mock)).toHaveLength(1));
+    const settingsBody = JSON.parse(String((mapPutCalls(mock)[0]?.[1] as RequestInit)?.body)) as {
+      adventure: { title: string };
+    };
+    expect(settingsBody.adventure.title).toBe("Ironhold");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    // A normal Save now writes the map directly — no first-save popup, because the title is confirmed.
+    const saveButton = screen.getByRole("button", { name: t("editor.save") });
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    await userEvent.click(saveButton);
+    await waitFor(() => expect(mapPutCalls(mock)).toHaveLength(2));
     expect(screen.queryByText(t("editor.firstSave.title"))).toBeNull();
   });
 
@@ -1502,10 +1518,12 @@ describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
     await userEvent.click(within(settings).getByRole("button", { name: t("editor.save") }));
 
     await waitFor(() => {
-      const put = adventurePutCalls(mock)[0];
+      const put = mapPutCalls(mock)[0];
       expect(put).toBeDefined();
-      const body = JSON.parse(String((put?.[1] as RequestInit)?.body)) as { maxPlayers: number };
-      expect(body.maxPlayers).toBe(2);
+      const body = JSON.parse(String((put?.[1] as RequestInit)?.body)) as {
+        adventure: { maxPlayers: number };
+      };
+      expect(body.adventure.maxPlayers).toBe(2);
     });
   });
 });

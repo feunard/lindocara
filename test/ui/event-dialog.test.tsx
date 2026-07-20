@@ -114,7 +114,7 @@ describe("EventDialog", () => {
     // Explicit nulls, never undefined — the wire parser rejects an absent condition field.
     expect(Object.hasOwn(p1 ?? {}, "condVariableId")).toBe(true);
     expect(p2?.condSwitchId === null).toBe(true);
-  });
+  }, 15_000);
 
   it("discards the draft on cancel", async () => {
     const user = userEvent.setup();

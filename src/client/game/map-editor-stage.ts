@@ -12,6 +12,7 @@
  * is React, the canvas is Pixi, and the two only meet at `setTool`/`current`/`setName`/`dispose`.
  */
 import { type Application, Assets, Container, Graphics, Sprite, Text, type Texture } from "pixi.js";
+import type { MonsterSpecies } from "../../shared/game.js";
 import { bakeCollision, MAP_LAYERS } from "../../shared/map-data.js";
 import type { EventKind, MapEvent } from "../../shared/map-events.js";
 import type { TileLayer } from "../../shared/tile-layer-codec.js";
@@ -54,6 +55,7 @@ import {
   undoEditorHistory,
   updateSelectedElementAsset,
 } from "./editor-state.js";
+import { TINY_SWORDS_ENEMIES } from "./enemy-art.js";
 import { acquireStageApp } from "./stage-application.js";
 import { foamFrameAt } from "./terrain-visuals.js";
 import { tileDrawAt } from "./tile-draw.js";
@@ -62,7 +64,10 @@ import {
   sliceTilesetSheet,
   TINY_SWORDS_FOAM_FRAME,
   TINY_SWORDS_FOAM_FRAMES,
+  TINY_SWORDS_ROOT,
   TINY_SWORDS_TERRAIN,
+  TINY_SWORDS_UNIT_FRAME,
+  unitSheet,
 } from "./tiny-swords-art.js";
 
 /**
@@ -83,11 +88,15 @@ export interface MapEditorStageHandle {
   /** UX wave #8: toggle the cell grid overlay. On by default so a fresh editor shows the grid; React
    *  owns the displayed value and pushes it down here. */
   setGrid(show: boolean): void;
+  /** Set the real Pixi camera scale from the React zoom controls. */
+  setZoom(percent: number): void;
   current(): EditorMap;
   setName(name: string): void;
   undo(): void;
   redo(): void;
-  markSaved(): void;
+  /** Mark the exact map snapshot acknowledged by the server as saved. Passing the request snapshot
+   * keeps edits made while that request was in flight dirty instead of falsely clearing them. */
+  markSaved(saved?: EditorMap): void;
   selected(): EditorSelection | null;
   moveSelected(col: number, row: number): boolean;
   setSelectedElementAsset(assetId: EditorAssetId): boolean;
@@ -256,6 +265,7 @@ export function paintEventCell(
   art: EditorAssetArt | undefined,
   selected: boolean,
   container: Container,
+  semanticFrame?: Texture,
 ): EventCellDraw {
   const x = event.col * TILE_SIZE;
   const y = event.row * TILE_SIZE;
@@ -270,7 +280,7 @@ export function paintEventCell(
   // The graphic branch needs both a page-1 graphic AND its art loaded; a graphic whose art has not
   // arrived yet falls back to the placeholder until the next redraw, exactly like an element's art.
   const graphicId = event.pages[0]?.graphicAssetId ?? null;
-  const frame = graphicId === null ? undefined : art?.frames[0];
+  const frame = (graphicId === null ? undefined : art?.frames[0]) ?? semanticFrame;
   const hasGraphic = frame !== undefined;
   if (frame) {
     // The shared event crop (`createEventGraphicSprite`), so the overlay and the game renderer draw a
@@ -334,7 +344,6 @@ function eventGraphicAssetIds(events: readonly MapEvent[]): EditorAssetId[] {
 }
 
 const SPAWN_MARKER_COLOR = 0xffd54a;
-const SPAWN_MARKER_OUTLINE = 0x2a1a05;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -387,24 +396,57 @@ interface StageTextures {
   water: Texture;
   foam: Texture[];
   editorAssets: Map<EditorAssetId, EditorAssetArt>;
+  spawn: Texture;
+  eventSign: Texture;
+  monsters: Map<MonsterSpecies, Texture>;
 }
 
 async function loadStageTextures(assetIds: Iterable<EditorAssetId>): Promise<StageTextures> {
-  const [tilesetSheet, waterTexture, foamSheet] = await Promise.all([
-    Assets.load<Texture>(TINY_SWORDS_TERRAIN.tileset),
-    Assets.load<Texture>(TINY_SWORDS_TERRAIN.water),
-    Assets.load<Texture>(TINY_SWORDS_TERRAIN.foam),
-  ]);
+  const heroSheet = unitSheet("warrior", { body: "wayfarer", primaryColor: "azure" }, "idle");
+  const monsterSheets = new Map(
+    Object.entries(TINY_SWORDS_ENEMIES).map(([species, art]) => [
+      species as MonsterSpecies,
+      art.idle,
+    ]),
+  );
+  const uniqueMonsterSources = [
+    ...new Set([...monsterSheets.values()].map((sheet) => sheet.source)),
+  ];
+  const [tilesetSheet, waterTexture, foamSheet, heroTexture, eventSign, ...monsterTextures] =
+    await Promise.all([
+      Assets.load<Texture>(TINY_SWORDS_TERRAIN.tileset),
+      Assets.load<Texture>(TINY_SWORDS_TERRAIN.water),
+      Assets.load<Texture>(TINY_SWORDS_TERRAIN.foam),
+      Assets.load<Texture>(heroSheet.source),
+      Assets.load<Texture>(`${TINY_SWORDS_ROOT}/deco/17.png`),
+      ...uniqueMonsterSources.map((source) => Assets.load<Texture>(source)),
+    ]);
   // Pixel art, every one: nearest keeps the tiles square exactly as the world renderer does.
   tilesetSheet.source.style.scaleMode = "nearest";
   waterTexture.source.style.scaleMode = "nearest";
   foamSheet.source.style.scaleMode = "nearest";
+  heroTexture.source.style.scaleMode = "nearest";
+  eventSign.source.style.scaleMode = "nearest";
+  for (const texture of monsterTextures) texture.source.style.scaleMode = "nearest";
+
+  const monsterTextureBySource = new Map(
+    uniqueMonsterSources.map((source, index) => [source, monsterTextures[index]]),
+  );
+  const monsters = new Map<MonsterSpecies, Texture>();
+  for (const [species, sheet] of monsterSheets) {
+    const source = monsterTextureBySource.get(sheet.source);
+    const firstFrame = source ? sliceStrip(source, sheet.frame, sheet.frames)[0] : undefined;
+    if (firstFrame) monsters.set(species, firstFrame);
+  }
 
   return {
     tileset: sliceTilesetSheet(tilesetSheet, TINY_SWORDS_SHEET_COLS, TINY_SWORDS_SHEET_ROWS),
     water: waterTexture,
     foam: sliceStrip(foamSheet, TINY_SWORDS_FOAM_FRAME, TINY_SWORDS_FOAM_FRAMES),
     editorAssets: await loadEditorAssetArts(assetIds),
+    spawn: sliceStrip(heroTexture, TINY_SWORDS_UNIT_FRAME, heroSheet.frames)[0] ?? heroTexture,
+    eventSign,
+    monsters,
   };
 }
 
@@ -445,6 +487,7 @@ function inertHandle(map: EditorMap): MapEditorStageHandle {
     setActiveLayer() {},
     setDim() {},
     setGrid() {},
+    setZoom() {},
     current: () => map,
     setName() {},
     undo() {},
@@ -486,9 +529,12 @@ export function openMapEditorStage(
   onChange: (map: EditorMap, state: MapEditorStageState) => void,
   onCursorCell?: (col: number | null, row: number | null) => void,
   onOpenEvent?: (id: string) => void,
+  onZoomChange?: (percent: number) => void,
 ): Promise<MapEditorStageHandle> {
   const generation = ++openGeneration;
-  return enqueue(() => buildSession(initial, onChange, generation, onCursorCell, onOpenEvent));
+  return enqueue(() =>
+    buildSession(initial, onChange, generation, onCursorCell, onOpenEvent, onZoomChange),
+  );
 }
 
 async function buildSession(
@@ -497,6 +543,7 @@ async function buildSession(
   generation: number,
   onCursorCell?: (col: number | null, row: number | null) => void,
   onOpenEvent?: (id: string) => void,
+  onZoomChange?: (percent: number) => void,
 ): Promise<MapEditorStageHandle> {
   // A newer open already superseded this one before the chain reached it: build nothing, bind no
   // Application. This is the throwaway half of a StrictMode double-mount.
@@ -610,6 +657,20 @@ async function buildSession(
     const fit = Math.min(app.screen.width / mapW, app.screen.height / mapH) * 0.92;
     world.scale.set(clamp(fit, MIN_ZOOM, MAX_ZOOM));
     clampCamera();
+    onZoomChange?.(Math.round(world.scale.x * 100));
+  }
+
+  function setCameraZoom(percent: number): void {
+    const scale = clamp(percent / 100, MIN_ZOOM, MAX_ZOOM);
+    const centreX = app.screen.width / 2;
+    const centreY = app.screen.height / 2;
+    const worldX = (centreX - world.x) / world.scale.x;
+    const worldY = (centreY - world.y) / world.scale.y;
+    world.scale.set(scale);
+    world.x = centreX - worldX * scale;
+    world.y = centreY - worldY * scale;
+    clampCamera();
+    onZoomChange?.(Math.round(scale * 100));
   }
 
   function redraw(): void {
@@ -696,7 +757,15 @@ async function buildSession(
       const graphicId = event.pages[0]?.graphicAssetId ?? null;
       const art = graphicId === null ? undefined : textures.editorAssets.get(graphicId);
       const isSelected = selected?.kind === "event" && selected.id === event.id;
-      paintEventCell(event, art, isSelected, eventLayer);
+      const semanticFrame =
+        event.kind === "monster" && event.species
+          ? textures.monsters.get(event.species)
+          : event.kind === "entry"
+            ? textures.spawn
+            : event.kind === "exit"
+              ? textures.eventSign
+              : undefined;
+      paintEventCell(event, art, isSelected, eventLayer, semanticFrame);
     }
   }
 
@@ -728,16 +797,10 @@ async function buildSession(
   function drawSpawnMarker(): void {
     const cx = map.spawn.col * TILE_SIZE + TILE_SIZE / 2;
     const cy = map.spawn.row * TILE_SIZE + TILE_SIZE / 2;
-    const marker = new Graphics();
-    marker
-      .moveTo(cx, cy - 22)
-      .lineTo(cx + 17, cy)
-      .lineTo(cx, cy + 22)
-      .lineTo(cx - 17, cy)
-      .closePath()
-      .fill({ color: SPAWN_MARKER_COLOR, alpha: 0.85 })
-      .stroke({ width: 3, color: SPAWN_MARKER_OUTLINE, alpha: 0.9 });
-    markerLayer.addChild(marker);
+    markerLayer.addChild(createEventGraphicSprite(map.spawn.col, map.spawn.row, textures.spawn));
+    const ring = new Graphics();
+    ring.ellipse(cx, cy - 5, 18, 8).stroke({ width: 2, color: SPAWN_MARKER_COLOR, alpha: 0.9 });
+    markerLayer.addChild(ring);
   }
 
   /** The 1px cell grid across the whole map, built once and toggled by `gridLayer.visible`. */
@@ -917,6 +980,7 @@ async function buildSession(
     world.x = screenX - worldX * scale;
     world.y = screenY - worldY * scale;
     clampCamera();
+    onZoomChange?.(Math.round(scale * 100));
   };
 
   // Double-click in EV mode opens the event under the cursor, if any — the wireframe's route into the
@@ -930,32 +994,6 @@ async function buildSession(
 
   const onContextMenu = (event: Event): void => event.preventDefault();
   const onKeyDown = (event: KeyboardEvent): void => {
-    if ((event.ctrlKey || event.metaKey) && event.code === "KeyZ") {
-      event.preventDefault();
-      stopStroke();
-      if (event.shiftKey) {
-        history = redoEditorHistory(history);
-      } else {
-        history = undoEditorHistory(history);
-      }
-      map = { ...history.present, name: map.name };
-      history = { ...history, present: map };
-      selected = null;
-      redraw();
-      notify();
-      return;
-    }
-    if ((event.ctrlKey || event.metaKey) && event.code === "KeyY") {
-      event.preventDefault();
-      stopStroke();
-      history = redoEditorHistory(history);
-      map = { ...history.present, name: map.name };
-      history = { ...history, present: map };
-      selected = null;
-      redraw();
-      notify();
-      return;
-    }
     if (event.code === "Space") spaceHeld = true;
   };
   const onKeyUp = (event: KeyboardEvent): void => {
@@ -1068,6 +1106,9 @@ async function buildSession(
       gridVisible = next;
       gridLayer.visible = next;
     },
+    setZoom(percent) {
+      setCameraZoom(percent);
+    },
     current() {
       return map;
     },
@@ -1098,8 +1139,8 @@ async function buildSession(
       redraw();
       notify();
     },
-    markSaved() {
-      history = markEditorHistorySaved(history, map);
+    markSaved(saved = map) {
+      history = markEditorHistorySaved(history, saved);
       notify();
     },
     selected() {

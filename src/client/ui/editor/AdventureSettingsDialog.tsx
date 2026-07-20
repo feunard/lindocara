@@ -1,5 +1,5 @@
 import type * as React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ExitDestination } from "../../../shared/adventure.js";
 import {
   type AdventureDraft,
@@ -63,6 +63,9 @@ interface AdventureSettingsDialogProps {
   /** A save or delete landed: the screen refetches names and reloads the session. */
   onSaved(): void;
   onSessionExpired(): void;
+  /** The merged editor can atomically persist its live map and this graph. Returning the saved draft
+   * closes the dialog; null keeps it open and leaves the surfaced error in the parent. */
+  onSaveDraft?(draft: AdventureDraft): Promise<AdventureDraft | null>;
 }
 
 /**
@@ -80,6 +83,7 @@ export function AdventureSettingsDialog({
   onOpenChange,
   onSaved,
   onSessionExpired,
+  onSaveDraft,
 }: AdventureSettingsDialogProps) {
   useLocale();
   const session = useUiStore((state) => state.adventureEditorSession);
@@ -88,6 +92,13 @@ export function AdventureSettingsDialog({
   const [saving, setSaving] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [draft, setDraft] = useState<AdventureDraft | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setDraft(session?.draft ?? null);
+    setError(null);
+  }, [open, session?.draft]);
 
   function fail(caught: unknown): void {
     const code = errorCode(caught);
@@ -95,14 +106,11 @@ export function AdventureSettingsDialog({
     else setError(code);
   }
 
-  function updateDraft(draft: AdventureDraft | null): void {
-    if (session && draft) setSession({ ...session, draft });
-  }
-
   // Delete the adventure open in the editor session. The server refuses while a party references it.
   // On success the session is cleared, which drops the editor back to the adventure picker.
   async function remove(): Promise<void> {
-    if (!session?.adventureId) return;
+    if (!session?.adventureId || saving) return;
+    setSaving(true);
     setError(null);
     try {
       await deleteAdventureApi(session.adventureId);
@@ -113,17 +121,35 @@ export function AdventureSettingsDialog({
     } catch (caught) {
       setConfirmingDelete(false);
       fail(caught);
+    } finally {
+      setSaving(false);
     }
   }
 
   async function save(): Promise<void> {
     if (!session?.adventureId || saving) return;
-    const input = toAdventureInput(session.draft);
+    if (!draft) return;
+    const input = toAdventureInput(draft);
     if (!input) return;
     setSaving(true);
     setError(null);
     try {
-      await updateAdventureApi(session.adventureId, input);
+      let savedDraft: AdventureDraft | null;
+      if (onSaveDraft) savedDraft = await onSaveDraft(draft);
+      else {
+        await updateAdventureApi(session.adventureId, input);
+        savedDraft = draft;
+      }
+      if (!savedDraft) return;
+      const latest = useUiStore.getState().adventureEditorSession;
+      if (latest) {
+        setSession({
+          ...latest,
+          draft: savedDraft,
+          savedDraft: JSON.stringify(savedDraft),
+          invalidatedLinks: [],
+        });
+      }
       onOpenChange(false);
       onSaved();
     } catch (caught) {
@@ -146,11 +172,13 @@ export function AdventureSettingsDialog({
           </p>
         )}
 
-        {session && (
+        {session && draft && (
           <EditForm
-            draft={session.draft}
+            draft={draft}
             saving={saving}
-            onUpdate={updateDraft}
+            onUpdate={(next) => {
+              if (next) setDraft(next);
+            }}
             onSave={() => void save()}
             onDelete={() => setConfirmingDelete(true)}
           />
@@ -160,14 +188,14 @@ export function AdventureSettingsDialog({
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {t("adventure.delete.title", { name: session?.draft.title ?? "" })}
+                {t("adventure.delete.title", { name: draft?.title ?? session?.draft.title ?? "" })}
               </DialogTitle>
             </DialogHeader>
             <DialogFooter>
               <Button variant="outline" onClick={() => setConfirmingDelete(false)}>
                 {t("adventure.delete.cancel")}
               </Button>
-              <Button variant="destructive" onClick={() => void remove()}>
+              <Button variant="destructive" disabled={saving} onClick={() => void remove()}>
                 {t("editor.delete.confirm")}
               </Button>
             </DialogFooter>
@@ -290,7 +318,7 @@ function EditForm({
       {!canSave && <p className="text-sm text-muted-foreground">{t("adventure.incomplete")}</p>}
 
       <div className="flex items-center justify-end gap-2">
-        <Button variant="destructive" onClick={onDelete}>
+        <Button variant="destructive" disabled={saving} onClick={onDelete}>
           {t("editor.delete")}
         </Button>
         <Button disabled={!canSave || saving} onClick={onSave}>
