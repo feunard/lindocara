@@ -5,7 +5,7 @@
 
 import { eq } from "drizzle-orm";
 import { account, type Db } from "./db/index.js";
-import { hashPassword, verifyPassword } from "./password.js";
+import { hashPassword, PBKDF2_ITERATIONS, verifyPassword } from "./password.js";
 
 export interface AccountIdentity {
   id: string;
@@ -32,9 +32,10 @@ export async function createAccount(
   db: Db,
   username: string,
   password: string,
+  targetIterations = PBKDF2_ITERATIONS,
 ): Promise<AccountIdentity | "username_taken"> {
   const normalized = normalizeUsername(username);
-  const record = await hashPassword(password);
+  const record = await hashPassword(password, targetIterations);
   const id = crypto.randomUUID();
   const now = new Date();
   try {
@@ -66,6 +67,7 @@ export async function verifyCredentials(
   db: Db,
   username: string,
   password: string,
+  targetIterations = PBKDF2_ITERATIONS,
 ): Promise<AccountIdentity | null> {
   const row = await db
     .select()
@@ -75,7 +77,7 @@ export async function verifyCredentials(
   if (!row) {
     // Burn the same PBKDF2 cost as a real check so "unknown user" and "wrong password"
     // are indistinguishable by response time as well as by response body.
-    await hashPassword(password);
+    await hashPassword(password, targetIterations);
     return null;
   }
   const ok = await verifyPassword(password, {
@@ -84,6 +86,22 @@ export async function verifyCredentials(
     iterations: row.passwordIterations,
   });
   if (!ok) return null;
-  await db.update(account).set({ lastSeenAt: new Date() }).where(eq(account.id, row.id));
+  const upgraded =
+    row.passwordIterations < targetIterations
+      ? await hashPassword(password, targetIterations)
+      : null;
+  await db
+    .update(account)
+    .set(
+      upgraded
+        ? {
+            lastSeenAt: new Date(),
+            passwordHash: upgraded.hash,
+            passwordSalt: upgraded.salt,
+            passwordIterations: upgraded.iterations,
+          }
+        : { lastSeenAt: new Date() },
+    )
+    .where(eq(account.id, row.id));
   return { id: row.id, username: row.username };
 }

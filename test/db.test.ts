@@ -25,6 +25,7 @@ import {
   mapEventPage,
 } from "../src/server/db/index.js";
 import { BUILTIN_MAP } from "../src/server/maps.js";
+import { hashPassword } from "../src/server/password.js";
 import { acquireSessionEpoch, loadProfile, saveProfile } from "../src/server/profile.js";
 import { starterEquipmentFor } from "../src/shared/character.js";
 import { mapSpawnPoint } from "../src/shared/map-data.js";
@@ -364,6 +365,27 @@ describe("accounts service", () => {
     const db = createDb(env.DB);
     await createAccount(db, "nico", "a good password");
     expect(await createAccount(db, "NiCo", "another password")).toBe("username_taken");
+  });
+
+  it("upgrades a legacy password hash after a successful login", async () => {
+    const db = createDb(env.DB);
+    const legacy = await hashPassword("a good password", 1_000);
+    await db.insert(account).values({
+      id: crypto.randomUUID(),
+      username: "legacy",
+      passwordHash: legacy.hash,
+      passwordSalt: legacy.salt,
+      passwordIterations: legacy.iterations,
+    });
+
+    expect(await verifyCredentials(db, "legacy", "a good password", 2_000)).not.toBeNull();
+    const upgraded = await db
+      .select({ iterations: account.passwordIterations, hash: account.passwordHash })
+      .from(account)
+      .where(eq(account.username, "legacy"))
+      .get();
+    expect(upgraded?.iterations).toBe(2_000);
+    expect(upgraded?.hash).not.toBe(legacy.hash);
   });
 });
 

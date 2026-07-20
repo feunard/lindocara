@@ -6,7 +6,8 @@
  * accounts pick up the new constant.
  */
 
-export const PBKDF2_ITERATIONS = 100_000;
+/** OWASP's current PBKDF2-HMAC-SHA256 baseline. Stored per row for future upgrades. */
+export const PBKDF2_ITERATIONS = 600_000;
 const SALT_BYTES = 16;
 const HASH_BITS = 256;
 
@@ -19,6 +20,16 @@ export interface PasswordRecord {
 }
 
 const encoder = new TextEncoder();
+
+/** Tests can shorten the deliberately expensive hash; production has no such binding. */
+export function configuredPasswordIterations(env: Pick<Env, "TEST_PBKDF2_ITERATIONS">): number {
+  const raw = env.TEST_PBKDF2_ITERATIONS;
+  if (raw === undefined) return PBKDF2_ITERATIONS;
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) && parsed > 0 && parsed <= PBKDF2_ITERATIONS
+    ? parsed
+    : PBKDF2_ITERATIONS;
+}
 
 function toBase64(bytes: Uint8Array): string {
   let binary = "";

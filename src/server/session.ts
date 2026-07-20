@@ -24,6 +24,13 @@ export interface Session {
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
+export const MIN_SESSION_SECRET_BYTES = 32;
+
+export function isValidSessionSecret(secret: unknown): secret is string {
+  return (
+    typeof secret === "string" && encoder.encode(secret).byteLength >= MIN_SESSION_SECRET_BYTES
+  );
+}
 
 export function isValidUsername(value: unknown): value is string {
   return typeof value === "string" && USERNAME_PATTERN.test(value);
@@ -54,7 +61,9 @@ function base64UrlDecode(text: string): Uint8Array | null {
 async function importKey(secret: string): Promise<CryptoKey> {
   // Without this, an unset SESSION_SECRET reaches WebCrypto as a zero-length key and every
   // login dies with an opaque "Zero-length key is not supported" 500. Say what is wrong.
-  if (!secret) throw new Error("SESSION_SECRET is not configured");
+  if (!isValidSessionSecret(secret)) {
+    throw new Error(`SESSION_SECRET must contain at least ${MIN_SESSION_SECRET_BYTES} bytes`);
+  }
 
   return crypto.subtle.importKey(
     "raw",

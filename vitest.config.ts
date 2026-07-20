@@ -21,6 +21,8 @@ export default defineConfig({
           // SESSION_SECRET is a secret, so it is absent from wrangler.jsonc by design. Supply
           // a throwaway value for tests; the crypto is what's under test, not the key.
           SESSION_SECRET: "test-secret-do-not-use-in-production",
+          TEST_PBKDF2_ITERATIONS: "1000",
+          AUTH_RATE_LIMIT_DISABLED: "true",
           CHEATS_ENABLED: "true",
           TEST_MIGRATIONS: migrations,
           // A short lease clock, so the presence-fencing tests can prove a room invalidates

@@ -30,6 +30,7 @@ import {
   loadAdventure,
   updateAdventure,
 } from "./adventures.js";
+import { authRequestAllowed } from "./auth-rate-limit.js";
 import {
   characterOwnedBy,
   createCharacter,
@@ -60,11 +61,13 @@ import {
   listPublicPartiesPage,
   loadPartyForMember,
 } from "./parties.js";
+import { configuredPasswordIterations } from "./password.js";
 import { loadProfile, relocateProfile } from "./profile.js";
 import {
   clearSessionCookie,
   createSession,
   isValidPassword,
+  isValidSessionSecret,
   isValidUsername,
   readSessionCookie,
   type Session,
@@ -253,7 +256,15 @@ async function sessionResponse(
 async function handleRegister(request: Request, env: Env, url: URL): Promise<Response> {
   const credentials = await readCredentials(request);
   if (credentials instanceof Response) return credentials;
-  const account = await createAccount(createDb(env.DB), credentials.username, credentials.password);
+  if (!(await authRequestAllowed(request, env, credentials.username))) {
+    return json({ error: "auth_rate_limited" }, { status: 429, headers: { "Retry-After": "60" } });
+  }
+  const account = await createAccount(
+    createDb(env.DB),
+    credentials.username,
+    credentials.password,
+    configuredPasswordIterations(env),
+  );
   if (account === "username_taken") return json({ error: "username_taken" }, { status: 409 });
   return sessionResponse(account, env, url);
 }
@@ -261,10 +272,14 @@ async function handleRegister(request: Request, env: Env, url: URL): Promise<Res
 async function handleLogin(request: Request, env: Env, url: URL): Promise<Response> {
   const credentials = await readCredentials(request);
   if (credentials instanceof Response) return credentials;
+  if (!(await authRequestAllowed(request, env, credentials.username))) {
+    return json({ error: "auth_rate_limited" }, { status: 429, headers: { "Retry-After": "60" } });
+  }
   const account = await verifyCredentials(
     createDb(env.DB),
     credentials.username,
     credentials.password,
+    configuredPasswordIterations(env),
   );
   // One body for both "no such user" and "wrong password" — indistinguishable by design.
   if (!account) return json({ error: "invalid_credentials" }, { status: 401 });
@@ -929,8 +944,11 @@ export default {
 
     // A deploy succeeds without the secret being set — nothing in wrangler.jsonc requires it.
     // Fail loudly and legibly here rather than deep inside WebCrypto on the first login.
-    if (!env.SESSION_SECRET) {
-      return json({ error: "server misconfigured: SESSION_SECRET is not set" }, { status: 503 });
+    if (!isValidSessionSecret(env.SESSION_SECRET)) {
+      return json(
+        { error: "server misconfigured: SESSION_SECRET must contain at least 32 bytes" },
+        { status: 503 },
+      );
     }
 
     if (url.pathname === "/api/ws") {

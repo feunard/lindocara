@@ -35,6 +35,19 @@
     }
   ],
 
+  "ratelimits": [
+    {
+      "name": "AUTH_CREDENTIAL_RATE_LIMITER",
+      "namespace_id": "730311001",
+      "simple": { "limit": 8, "period": 60 }
+    },
+    {
+      "name": "AUTH_ORIGIN_RATE_LIMITER",
+      "namespace_id": "730311002",
+      "simple": { "limit": 30, "period": 60 }
+    }
+  ],
+
   // SQLite-backed Durable Objects are the current default and the only kind available on
   // the Workers free plan.
   "migrations": [

@@ -56,6 +56,7 @@ export const fr: Record<keyof typeof en, string> = {
   "auth.submit.register": "Créer le compte",
   "auth.error.username_taken": "Ce nom d'utilisateur est déjà pris.",
   "auth.error.invalid_credentials": "Nom d'utilisateur ou mot de passe incorrect.",
+  "auth.error.rate_limited": "Trop de tentatives. Attends une minute avant de réessayer.",
   "auth.error.invalid_username":
     "Le nom d'utilisateur doit faire 2 à 16 caractères : lettres, chiffres, tiret ou tiret bas.",
   "auth.error.invalid_password": "Le mot de passe doit faire entre 8 et 128 caractères.",

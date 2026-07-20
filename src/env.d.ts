@@ -12,6 +12,10 @@
 interface Env {
   /** HMAC key for signing session cookies. See README for how to set it. */
   SESSION_SECRET: string;
+  /** Test-only PBKDF2 cost override. Never declare this in wrangler.jsonc or production. */
+  TEST_PBKDF2_ITERATIONS?: string;
+  /** Test-only bypass; deployed authentication always calls the Cloudflare rate-limit bindings. */
+  AUTH_RATE_LIMIT_DISABLED?: string;
   /** Optional local-only navigation overlay gate. Keep unset in production. */
   NAVIGATION_DEBUG?: string;
   /** Local/test-only authoritative chat commands. Keep unset in production. */

@@ -59,6 +59,7 @@ export const en = {
   "auth.submit.register": "Create account",
   "auth.error.username_taken": "That username is already taken.",
   "auth.error.invalid_credentials": "Wrong username or password.",
+  "auth.error.rate_limited": "Too many attempts. Wait a minute and try again.",
   "auth.error.invalid_username":
     "Username must be 2-16 characters: letters, digits, underscore or hyphen.",
   "auth.error.invalid_password": "Password must be 8-128 characters.",

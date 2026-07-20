@@ -211,6 +211,7 @@ export const ERROR_KEYS: Record<string, MessageKey> = {
   invalid_credentials: "auth.error.invalid_credentials",
   invalid_username: "auth.error.invalid_username",
   invalid_password: "auth.error.invalid_password",
+  auth_rate_limited: "auth.error.rate_limited",
   password_mismatch: "auth.error.password_mismatch",
   limit_reached: "chars.error.limit_reached",
   invalid_name: "chars.error.invalid_name",

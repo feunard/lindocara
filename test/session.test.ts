@@ -2,14 +2,16 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createSession,
   isValidPassword,
+  isValidSessionSecret,
   isValidUsername,
+  MIN_SESSION_SECRET_BYTES,
   readSessionCookie,
   SESSION_TTL_SECONDS,
   signSession,
   verifySession,
 } from "../src/server/session.js";
 
-const SECRET = "test-secret";
+const SECRET = "test-session-secret-with-at-least-32-bytes";
 const ACCOUNT_ID = "11111111-1111-4111-8111-111111111111";
 
 describe("isValidUsername", () => {
@@ -42,6 +44,11 @@ describe("isValidPassword", () => {
 });
 
 describe("signSession / verifySession", () => {
+  it("requires at least 32 bytes of session-secret entropy", () => {
+    expect(isValidSessionSecret("x".repeat(MIN_SESSION_SECRET_BYTES - 1))).toBe(false);
+    expect(isValidSessionSecret("x".repeat(MIN_SESSION_SECRET_BYTES))).toBe(true);
+  });
+
   it("round-trips a session", async () => {
     const session = createSession(ACCOUNT_ID, "player");
     const token = await signSession(session, SECRET);
@@ -51,7 +58,7 @@ describe("signSession / verifySession", () => {
 
   it("rejects a token signed with a different secret", async () => {
     const token = await signSession(createSession(ACCOUNT_ID, "player"), SECRET);
-    expect(await verifySession(token, "other-secret")).toBeNull();
+    expect(await verifySession(token, "other-session-secret-with-at-least-32-bytes")).toBeNull();
   });
 
   it("rejects a correctly signed session carrying a non-UUID account id", async () => {
