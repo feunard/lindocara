@@ -7,7 +7,7 @@ import { TINY_SWORDS_TILESET_ID } from "../src/shared/tilesets/tiny-swords.js";
 const GRAPHIC = "building.buildings-black-buildings.archery";
 
 function event(overrides: Partial<Record<keyof WorldEventSnapshot, unknown>> = {}) {
-  return { id: "event-a", col: 5, row: 5, graphicAssetId: GRAPHIC, onTop: false, ...overrides };
+  return { id: "event-a", col: 1, row: 1, graphicAssetId: GRAPHIC, onTop: false, ...overrides };
 }
 
 const layer = encodeTileLayer(emptyLayer(2, 2));
@@ -20,19 +20,55 @@ function welcome(events: unknown) {
     world: {
       zoneId: "verdant-reach",
       revision: 0,
+      zoneNameKey: "zone.verdant_reach.name",
       tiles: ["..", "##"],
       elements: [],
       tilesetId: TINY_SWORDS_TILESET_ID,
       layers: [layer, layer, layer],
       events,
+      width: 64,
+      height: 64,
+      playerSize: 32,
+      obstacles: [],
+      safeZone: null,
+      questNpc: { id: "none", x: 0, y: 0 },
+      questNpcs: [],
+      questSites: [],
+      cemeteries: [],
+      portals: [],
+      merchant: null,
     },
-    players: [],
+    players: [
+      {
+        id: "p1",
+        nick: "Mira",
+        x: 16,
+        y: 16,
+        ack: 0,
+        hp: 100,
+        maxHp: 100,
+        level: 1,
+        appearance: { body: "wayfarer", primaryColor: "azure" },
+        class: "priest",
+        equipment: { mainHand: "heartwood_staff", offHand: null },
+        life: "alive",
+        facing: { x: 1, y: 0 },
+        action: null,
+      },
+    ],
     monsters: [],
     guards: [],
     loot: [],
     corpses: [],
     projectiles: [],
-    self: {},
+    self: {
+      xp: 0,
+      xpToNext: 100,
+      inventory: { potions: 0, gold: 0, crystals: 0 },
+      quest: { status: "available", progress: 0, target: 3 },
+      life: "alive",
+      corpse: null,
+    },
   };
 }
 

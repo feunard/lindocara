@@ -143,6 +143,7 @@ export class WorldClient {
   #lastWorldTick: number | null = null;
   #receivedDelta = false;
   #resyncPending = false;
+  #predictionBlocked = false;
 
   #selfId: string | null = null;
   #selfSnapshot: PlayerSnapshot | null = null;
@@ -181,6 +182,13 @@ export class WorldClient {
     }
     const socket = new WebSocket(url);
     this.#socket = socket;
+    let closeReported = false;
+    const reportClose = (code: number, reason: string) => {
+      if (closeReported) return;
+      closeReported = true;
+      if (this.#socket === socket) this.#socket = null;
+      handlers.onClose(code, reason);
+    };
 
     if (
       import.meta.env.DEV &&
@@ -190,17 +198,22 @@ export class WorldClient {
     }
 
     socket.addEventListener("message", (event) => {
-      if (typeof event.data !== "string") return;
-      const message = parseServerMessage(event.data);
-      if (message) this.#handle(message, handlers);
+      const message = typeof event.data === "string" ? parseServerMessage(event.data) : null;
+      if (message) {
+        this.#handle(message, handlers);
+        return;
+      }
+      // There is no baseline to resynchronise before welcome. Closing with the WebSocket protocol
+      // error code makes the normal reconnect path start a fresh handshake instead of leaving the
+      // loading screen behind a resync request the server cannot satisfy for this client state.
+      if (this.#selfId === null) socket.close(1002, "invalid welcome");
       else this.#requestResync();
     });
 
     socket.addEventListener("close", (event) => {
-      this.#socket = null;
-      handlers.onClose(event.code, event.reason);
+      reportClose(event.code, event.reason);
     });
-    socket.addEventListener("error", () => handlers.onClose(1006, "connection error"));
+    socket.addEventListener("error", () => reportClose(1006, "connection error"));
 
     return {
       attack: () => this.#send({ t: "attack" }),
@@ -236,6 +249,12 @@ export class WorldClient {
 
     this.#accumulator = Math.min(this.#accumulator + dt, MAX_ACCUMULATED_SECONDS);
     while (this.#accumulator >= TICK_DT) {
+      if (this.#predictionBlocked || this.#pending.length >= MAX_PENDING_COMMANDS) {
+        this.#predictionBlocked = true;
+        this.#accumulator = 0;
+        this.#requestResync();
+        return;
+      }
       this.#accumulator -= TICK_DT;
 
       const seq = ++this.#seq;
@@ -304,6 +323,7 @@ export class WorldClient {
       this.#lastWorldTick = message.tick;
       this.#receivedDelta = false;
       this.#resyncPending = false;
+      this.#predictionBlocked = false;
       this.#push(
         message.players,
         message.monsters,
@@ -369,6 +389,7 @@ export class WorldClient {
         message.projectiles,
       );
       this.#reconcile(message.players, receivedAt);
+      this.#predictionBlocked = false;
       return;
     }
     if (message.t === "world.resync_required") {

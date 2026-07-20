@@ -261,6 +261,13 @@ export function authErrorText(code: string): string {
 }
 
 export async function logout(): Promise<void> {
-  await fetch("/api/session", { method: "DELETE" });
-  window.location.reload();
+  try {
+    await fetch("/api/session", { method: "DELETE" });
+  } catch (error) {
+    // A failed best-effort revocation must not strand the user in a half-closed game session.
+    // Reloading still clears all in-memory authority; an unexpired cookie can then be retried.
+    console.warn("session logout request failed", error);
+  } finally {
+    window.location.reload();
+  }
 }

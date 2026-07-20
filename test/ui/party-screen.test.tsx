@@ -5,6 +5,9 @@ import { setLocale } from "../../src/client/i18n.js";
 import { useUiStore } from "../../src/client/store.js";
 import { PartyScreen } from "../../src/client/ui/PartyScreen.js";
 
+const startGameAsHero = vi.hoisted(() => vi.fn<() => Promise<void>>());
+vi.mock("../../src/client/game/session.js", () => ({ startGameAsHero }));
+
 const PARTY = {
   id: "p1",
   name: "Chez Nico",
@@ -55,6 +58,8 @@ function fetchMock(): ReturnType<typeof vi.fn> {
 
 describe("PartyScreen", () => {
   beforeEach(() => {
+    startGameAsHero.mockReset();
+    startGameAsHero.mockResolvedValue();
     setLocale("en");
     useUiStore.setState({ screen: "party", accountId: "me", activeParty: PARTY });
   });
@@ -77,5 +82,19 @@ describe("PartyScreen", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Leave" }));
     expect(useUiStore.getState().screen).toBe("parties");
     expect(useUiStore.getState().activeParty).toBeNull();
+  });
+
+  it("starts only one hero session while a launch is in flight", async () => {
+    vi.stubGlobal("fetch", fetchMock());
+    startGameAsHero.mockImplementation(() => new Promise<void>(() => {}));
+    render(<PartyScreen />);
+
+    await userEvent.type(await screen.findByLabelText("Hero name"), "Mira");
+    await userEvent.click(screen.getByRole("button", { name: "Create hero" }));
+    const play = await screen.findByRole("button", { name: "Play" });
+    await userEvent.dblClick(play);
+
+    expect(startGameAsHero).toHaveBeenCalledOnce();
+    expect(play).toBeDisabled();
   });
 });

@@ -31,6 +31,7 @@ export function PartyScreen() {
   const [heroClass, setHeroClass] = useState<PlayerClass>("warrior");
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [startingHeroId, setStartingHeroId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const partyId = party?.id ?? null;
 
@@ -94,10 +95,17 @@ export function PartyScreen() {
     }
   }
 
-  function play(hero: StoredHero): void {
-    if (!party) return;
-    setScreen("game");
-    void startGameAsHero(hero, party);
+  async function play(hero: StoredHero): Promise<void> {
+    if (!party || startingHeroId !== null) return;
+    setError(null);
+    setStartingHeroId(hero.id);
+    try {
+      await startGameAsHero(hero, party);
+    } catch (caught) {
+      fail(caught);
+    } finally {
+      setStartingHeroId(null);
+    }
   }
 
   if (!party || heroes === null) return null;
@@ -125,7 +133,11 @@ export function PartyScreen() {
               <span>{t(`class.${hero.class}`)}</span>
             </div>
             <div className="roster-card__actions">
-              <TinyButton type="button" onClick={() => play(hero)}>
+              <TinyButton
+                type="button"
+                disabled={startingHeroId !== null}
+                onClick={() => void play(hero)}
+              >
                 {t("party.hero.play")}
               </TinyButton>
               <TinyButton

@@ -5,20 +5,36 @@
  * server can acknowledge exactly what it applied; actions are still just intent.
  */
 
-import type { CharacterAppearance, Equipment, PrimaryColor } from "./character.js";
-import { type ConsumableCounts, type ConsumableId, isConsumableId } from "./consumables.js";
+import {
+  type CharacterAppearance,
+  type Equipment,
+  isValidAppearance,
+  MAIN_HAND_ITEMS,
+  OFF_HAND_ITEMS,
+  type PrimaryColor,
+} from "./character.js";
+import {
+  CONSUMABLE_IDS,
+  type ConsumableCounts,
+  type ConsumableId,
+  isConsumableId,
+} from "./consumables.js";
 import type { CombatCooldownState } from "./cooldowns.js";
-import type { LifeState } from "./death.js";
+import { isLifeState, type LifeState } from "./death.js";
 import { COMMAND_TEXT_MAX, MAX_CHOICE_OPTIONS } from "./event-commands.js";
-import type {
-  Cemetery,
-  MonsterKind,
-  MonsterSpecies,
-  NpcDefinition,
-  PlayerClass,
-  QuestChapter,
-  QuestSite,
-  Rect,
+import {
+  type Cemetery,
+  isMonsterSpecies,
+  isValidClass,
+  MONSTER_SPECIES_KIND,
+  type MonsterKind,
+  type MonsterSpecies,
+  type NpcDefinition,
+  type PlayerClass,
+  QUEST_CHAPTERS,
+  type QuestChapter,
+  type QuestSite,
+  type Rect,
 } from "./game.js";
 import { isUuid } from "./identifiers.js";
 import type { ChatChannel } from "./interest.js";
@@ -28,6 +44,7 @@ import type { ClassResourceState } from "./resources.js";
 import type { Input, Vec2 } from "./simulation.js";
 import { isSkillSlot, type SkillSlot } from "./skills.js";
 import { isTalentId, type TalentState } from "./talents.js";
+import { parseTileLayer } from "./tile-layer-codec.js";
 import { parseTileMap } from "./tilemap-codec.js";
 import { tilesetById } from "./tilesets/tiny-swords.js";
 import { isEditorAssetId } from "./tiny-swords-catalog.js";
@@ -511,6 +528,41 @@ function isAuthoredText(value: unknown): value is string {
   return typeof value === "string" && value.length <= COMMAND_TEXT_MAX;
 }
 
+function isNonNegativeInteger(value: unknown): value is number {
+  return Number.isSafeInteger(value) && (value as number) >= 0;
+}
+
+function isBoundedString(value: unknown, maximum: number, allowEmpty = false): value is string {
+  return typeof value === "string" && value.length <= maximum && (allowEmpty || value.length > 0);
+}
+
+function isPosition(value: unknown): value is Vec2 {
+  return isRecord(value) && isFiniteNumber(value.x) && isFiniteNumber(value.y);
+}
+
+function isRect(value: unknown): value is Rect {
+  return (
+    isRecord(value) &&
+    isFiniteNumber(value.x) &&
+    isFiniteNumber(value.y) &&
+    isFiniteNumber(value.width) &&
+    value.width > 0 &&
+    isFiniteNumber(value.height) &&
+    value.height > 0
+  );
+}
+
+function isEquipment(value: unknown): value is Equipment {
+  return (
+    isRecord(value) &&
+    typeof value.mainHand === "string" &&
+    (MAIN_HAND_ITEMS as readonly string[]).includes(value.mainHand) &&
+    (value.offHand === null ||
+      (typeof value.offHand === "string" &&
+        (OFF_HAND_ITEMS as readonly string[]).includes(value.offHand)))
+  );
+}
+
 function isDirection(value: unknown): value is Vec2 {
   if (!isRecord(value) || !isFiniteNumber(value.x) || !isFiniteNumber(value.y)) return false;
   const length = Math.hypot(value.x, value.y);
@@ -550,10 +602,24 @@ function isPlayerSnapshot(value: unknown): value is PlayerSnapshot {
   return (
     isRecord(value) &&
     isWireId(value.id) &&
+    isBoundedString(value.nick, 32) &&
     isFiniteNumber(value.x) &&
     isFiniteNumber(value.y) &&
+    isNonNegativeInteger(value.ack) &&
+    isFiniteNumber(value.hp) &&
+    value.hp >= 0 &&
+    isFiniteNumber(value.maxHp) &&
+    value.maxHp > 0 &&
+    value.hp <= value.maxHp &&
+    Number.isSafeInteger(value.level) &&
+    (value.level as number) >= 1 &&
+    isValidAppearance(value.appearance) &&
+    isValidClass(value.class) &&
+    isEquipment(value.equipment) &&
+    isLifeState(value.life) &&
     isDirection(value.facing) &&
     (value.guarding === undefined || typeof value.guarding === "boolean") &&
+    (value.invisible === undefined || typeof value.invisible === "boolean") &&
     (value.action === null || isActionSnapshot(value.action))
   );
 }
@@ -562,10 +628,74 @@ function isMonsterSnapshot(value: unknown): value is MonsterSnapshot {
   return (
     isRecord(value) &&
     isWireId(value.id) &&
+    isMonsterSpecies(value.species) &&
+    value.kind === MONSTER_SPECIES_KIND[value.species] &&
     isFiniteNumber(value.x) &&
     isFiniteNumber(value.y) &&
+    isFiniteNumber(value.hp) &&
+    value.hp >= 0 &&
+    isFiniteNumber(value.maxHp) &&
+    value.maxHp > 0 &&
+    value.hp <= value.maxHp &&
+    typeof value.dead === "boolean" &&
     isDirection(value.facing) &&
+    (value.navigationDebug === undefined || isNavigationDebug(value.navigationDebug)) &&
     (value.action === null || isActionSnapshot(value.action))
+  );
+}
+
+function isNavigationDebug(value: unknown): value is NavigationDebugSnapshot {
+  const states = ["idle", "patrol", "chase", "return", "waiting_path", "unreachable"];
+  return (
+    isRecord(value) &&
+    typeof value.state === "string" &&
+    states.includes(value.state) &&
+    Array.isArray(value.path) &&
+    value.path.length <= 10_000 &&
+    value.path.every(isPosition) &&
+    (value.destination === null || isPosition(value.destination)) &&
+    (value.reason === null || isBoundedString(value.reason, 256, true))
+  );
+}
+
+function isGuardSnapshot(value: unknown): value is GuardSnapshot {
+  return (
+    isRecord(value) &&
+    isWireId(value.id) &&
+    isFiniteNumber(value.x) &&
+    isFiniteNumber(value.y) &&
+    isFiniteNumber(value.hp) &&
+    value.hp >= 0 &&
+    isFiniteNumber(value.maxHp) &&
+    value.maxHp > 0 &&
+    value.hp <= value.maxHp &&
+    isFiniteNumber(value.homeX) &&
+    isFiniteNumber(value.homeY) &&
+    typeof value.fighting === "boolean"
+  );
+}
+
+function isLootSnapshot(value: unknown): value is LootSnapshot {
+  return (
+    isRecord(value) &&
+    isWireId(value.id) &&
+    (value.kind === "potion" || value.kind === "gold" || value.kind === "crystal") &&
+    Number.isSafeInteger(value.amount) &&
+    (value.amount as number) > 0 &&
+    isFiniteNumber(value.x) &&
+    isFiniteNumber(value.y)
+  );
+}
+
+function isCorpseSnapshot(value: unknown): value is CorpseSnapshot {
+  return (
+    isRecord(value) &&
+    isWireId(value.id) &&
+    isBoundedString(value.nick, 32) &&
+    isValidClass(value.class) &&
+    isValidAppearance(value.appearance) &&
+    isFiniteNumber(value.x) &&
+    isFiniteNumber(value.y)
   );
 }
 
@@ -592,8 +722,206 @@ function isProjectileSnapshot(value: unknown): value is ProjectileSnapshot {
   );
 }
 
-function isBasicEntity(value: unknown): value is { id: string } {
-  return isRecord(value) && isWireId(value.id);
+function isInventory(value: unknown): value is Inventory {
+  if (
+    !isRecord(value) ||
+    !isNonNegativeInteger(value.potions) ||
+    !isNonNegativeInteger(value.gold) ||
+    !isNonNegativeInteger(value.crystals)
+  ) {
+    return false;
+  }
+  if (value.consumables === undefined) return true;
+  const consumables = value.consumables;
+  return (
+    isRecord(consumables) && CONSUMABLE_IDS.every((id) => isNonNegativeInteger(consumables[id]))
+  );
+}
+
+function isQuestState(value: unknown): value is QuestState {
+  return (
+    isRecord(value) &&
+    (value.chapter === undefined ||
+      (typeof value.chapter === "string" &&
+        (QUEST_CHAPTERS as readonly string[]).includes(value.chapter))) &&
+    (value.status === "available" ||
+      value.status === "active" ||
+      value.status === "ready" ||
+      value.status === "completed") &&
+    isNonNegativeInteger(value.progress) &&
+    isNonNegativeInteger(value.target) &&
+    (value.timerEndsAt === undefined ||
+      (isFiniteNumber(value.timerEndsAt) && value.timerEndsAt >= 0))
+  );
+}
+
+function isSelfState(value: unknown): value is SelfState {
+  if (
+    !isRecord(value) ||
+    !isNonNegativeInteger(value.xp) ||
+    !isNonNegativeInteger(value.xpToNext) ||
+    !isInventory(value.inventory) ||
+    !isQuestState(value.quest) ||
+    !isLifeState(value.life) ||
+    !(value.corpse === null || isPosition(value.corpse))
+  ) {
+    return false;
+  }
+  if (value.life === "alive" ? value.corpse !== null : value.corpse === null) return false;
+  if (
+    value.resource !== undefined &&
+    (!isRecord(value.resource) ||
+      (value.resource.kind !== "endurance" &&
+        value.resource.kind !== "energy" &&
+        value.resource.kind !== "mana") ||
+      !isFiniteNumber(value.resource.current) ||
+      value.resource.current < 0 ||
+      !isFiniteNumber(value.resource.max) ||
+      value.resource.max <= 0 ||
+      value.resource.current > value.resource.max)
+  ) {
+    return false;
+  }
+  if (value.serverNow !== undefined && !isFiniteNumber(value.serverNow)) return false;
+  if (value.consumableCooldownUntil !== undefined && !isFiniteNumber(value.consumableCooldownUntil))
+    return false;
+  if (value.cooldowns !== undefined) {
+    const cooldowns = value.cooldowns;
+    if (
+      !isRecord(cooldowns) ||
+      !isFiniteNumber(cooldowns.attackUntil) ||
+      !isFiniteNumber(cooldowns.healUntil) ||
+      !Array.isArray(cooldowns.skillCooldowns) ||
+      cooldowns.skillCooldowns.length !== 5 ||
+      !cooldowns.skillCooldowns.every(isFiniteNumber) ||
+      !isFiniteNumber(cooldowns.guardUntil) ||
+      !isFiniteNumber(cooldowns.resurrectUntil)
+    ) {
+      return false;
+    }
+  }
+  if (value.talents !== undefined) {
+    const talents = value.talents;
+    if (
+      !isRecord(talents) ||
+      !Array.isArray(talents.selected) ||
+      talents.selected.length > 64 ||
+      !talents.selected.every(isTalentId) ||
+      !isNonNegativeInteger(talents.pointsSpent) ||
+      !isNonNegativeInteger(talents.pointsAvailable)
+    ) {
+      return false;
+    }
+  }
+  if (value.effects !== undefined) {
+    const effects = value.effects;
+    if (
+      !isRecord(effects) ||
+      !isFiniteNumber(effects.damageUntil) ||
+      !isFiniteNumber(effects.forgottenUntil) ||
+      !isFiniteNumber(effects.invisibleUntil) ||
+      !isFiniteNumber(effects.resurrectionAt)
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function isPartyState(value: unknown): value is PartyState {
+  return (
+    isRecord(value) &&
+    isWireId(value.id) &&
+    (value.leaderId === "" || isWireId(value.leaderId)) &&
+    Array.isArray(value.members) &&
+    value.members.length <= 4 &&
+    value.members.every(
+      (member) =>
+        isRecord(member) &&
+        isWireId(member.id) &&
+        isBoundedString(member.nick, 32) &&
+        isFiniteNumber(member.hp) &&
+        member.hp >= 0 &&
+        isFiniteNumber(member.maxHp) &&
+        member.maxHp > 0 &&
+        member.hp <= member.maxHp &&
+        isLifeState(member.life),
+    )
+  );
+}
+
+function isNpc(value: unknown): value is NpcDefinition {
+  return (
+    isRecord(value) && isWireId(value.id) && isFiniteNumber(value.x) && isFiniteNumber(value.y)
+  );
+}
+
+function isQuestSite(value: unknown): value is QuestSite {
+  return (
+    isRecord(value) &&
+    isWireId(value.id) &&
+    isFiniteNumber(value.x) &&
+    isFiniteNumber(value.y) &&
+    typeof value.chapter === "string" &&
+    (QUEST_CHAPTERS as readonly string[]).includes(value.chapter) &&
+    (value.kind === "resource" || value.kind === "rune" || value.kind === "ward") &&
+    isNonNegativeInteger(value.order) &&
+    (value.art === "wood" ||
+      value.art === "gold" ||
+      value.art === "meat" ||
+      value.art === "rune" ||
+      value.art === "ward")
+  );
+}
+
+function isWorldInfo(value: unknown): value is WorldInfo {
+  if (!isRecord(value) || !isZoneId(value.zoneId) || !isNonNegativeInteger(value.revision)) {
+    return false;
+  }
+  const tiles = parseTileMap(value.tiles);
+  if (!tiles || parseMapElements(value.elements) === null) return false;
+  return (
+    isBoundedString(value.zoneNameKey, 128) &&
+    typeof value.tilesetId === "string" &&
+    tilesetById(value.tilesetId) !== null &&
+    Array.isArray(value.layers) &&
+    value.layers.length === MAP_LAYERS &&
+    value.layers.every((layer) => parseTileLayer(layer, tiles.cols, tiles.rows) !== null) &&
+    Array.isArray(value.events) &&
+    value.events.every(
+      (event) => isWorldEventSnapshot(event) && event.col < tiles.cols && event.row < tiles.rows,
+    ) &&
+    isFiniteNumber(value.width) &&
+    value.width > 0 &&
+    isFiniteNumber(value.height) &&
+    value.height > 0 &&
+    isFiniteNumber(value.playerSize) &&
+    value.playerSize > 0 &&
+    Array.isArray(value.obstacles) &&
+    value.obstacles.every(isRect) &&
+    (value.safeZone === null || isRect(value.safeZone)) &&
+    isNpc(value.questNpc) &&
+    Array.isArray(value.questNpcs) &&
+    value.questNpcs.every(isNpc) &&
+    Array.isArray(value.questSites) &&
+    value.questSites.every(isQuestSite) &&
+    Array.isArray(value.cemeteries) &&
+    value.cemeteries.every(isNpc) &&
+    Array.isArray(value.portals) &&
+    value.portals.every(
+      (portal) =>
+        isRecord(portal) &&
+        isWireId(portal.id) &&
+        isBoundedString(portal.nameKey, 128) &&
+        isFiniteNumber(portal.x) &&
+        isFiniteNumber(portal.y),
+    ) &&
+    (value.merchant === null ||
+      (isRecord(value.merchant) &&
+        value.merchant.id === "heartroot_merchant" &&
+        isFiniteNumber(value.merchant.x) &&
+        isFiniteNumber(value.merchant.y)))
+  );
 }
 
 /** Same table-driven discipline as the snapshots above: every field is checked, and a malformed
@@ -679,8 +1007,12 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
   ) {
     return { t: value.t, item: value.item };
   }
-  if (value.t === "world.resync") return { t: "world.resync" };
-  if (value.t === "navigation.debug" && typeof value.enabled === "boolean")
+  if (value.t === "world.resync" && hasOnlyKeys(value, ["t"])) return { t: "world.resync" };
+  if (
+    value.t === "navigation.debug" &&
+    typeof value.enabled === "boolean" &&
+    hasOnlyKeys(value, ["t", "enabled"])
+  )
     return { t: "navigation.debug", enabled: value.enabled };
   if (value.t === "event.advance" && isWireId(value.runId) && hasOnlyKeys(value, ["t", "runId"]))
     return { t: "event.advance", runId: value.runId };
@@ -697,16 +1029,29 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
   ) {
     return { t: "event.choose", runId: value.runId, index: value.index };
   }
-  if (value.t === "party.create" || value.t === "party.leave" || value.t === "party.dissolve")
+  if (
+    (value.t === "party.create" || value.t === "party.leave" || value.t === "party.dissolve") &&
+    hasOnlyKeys(value, ["t"])
+  )
     return { t: value.t };
-  if ((value.t === "party.invite" || value.t === "party.kick") && isUuid(value.playerId))
+  if (
+    (value.t === "party.invite" || value.t === "party.kick") &&
+    isUuid(value.playerId) &&
+    hasOnlyKeys(value, ["t", "playerId"])
+  )
     return { t: value.t, playerId: value.playerId };
-  if ((value.t === "party.accept" || value.t === "party.refuse") && isUuid(value.inviteId))
+  if (
+    (value.t === "party.accept" || value.t === "party.refuse") &&
+    isUuid(value.inviteId) &&
+    hasOnlyKeys(value, ["t", "inviteId"])
+  )
     return { t: value.t, inviteId: value.inviteId };
   if (
     value.t === "chat" &&
     typeof value.text === "string" &&
-    (value.channel === undefined || value.channel === "local" || value.channel === "party")
+    value.text.length <= 160 &&
+    (value.channel === undefined || value.channel === "local" || value.channel === "party") &&
+    hasOnlyKeys(value, ["t", "channel", "text"])
   ) {
     return { t: "chat", channel: value.channel === "party" ? "party" : "local", text: value.text };
   }
@@ -723,9 +1068,10 @@ export function parseServerMessage(raw: string): ServerMessage | null {
     if (!isRecord(value) || typeof value.t !== "string") return null;
     if (
       value.t === "welcome" &&
-      Number.isSafeInteger(value.tick) &&
-      typeof value.selfId === "string" &&
+      isNonNegativeInteger(value.tick) &&
+      isWireId(value.selfId) &&
       isRecord(value.world) &&
+      isWorldInfo(value.world) &&
       // A cached SPA build can be older than the server it talks to. If a future zone ever
       // reaches this client, drop the frame — like any other malformed message — rather than
       // hand an unrecognised zoneId to zoneDefinition() a frame later.
@@ -751,28 +1097,29 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       value.world.events.every(isWorldEventSnapshot) &&
       Array.isArray(value.players) &&
       value.players.every(isPlayerSnapshot) &&
+      value.players.some((player) => player.id === value.selfId) &&
       Array.isArray(value.monsters) &&
       value.monsters.every(isMonsterSnapshot) &&
       Array.isArray(value.guards) &&
-      value.guards.every(isBasicEntity) &&
+      value.guards.every(isGuardSnapshot) &&
       Array.isArray(value.loot) &&
-      value.loot.every(isBasicEntity) &&
+      value.loot.every(isLootSnapshot) &&
       Array.isArray(value.corpses) &&
-      value.corpses.every(isBasicEntity) &&
+      value.corpses.every(isCorpseSnapshot) &&
       Array.isArray(value.projectiles) &&
       value.projectiles.every(isProjectileSnapshot) &&
-      isRecord(value.self)
+      isSelfState(value.self)
     ) {
       return value as unknown as ServerMessage;
     }
     if (
       value.t === "world.delta" &&
-      Number.isSafeInteger(value.tick) &&
+      isNonNegativeInteger(value.tick) &&
       isEntityDelta(value.players, isPlayerSnapshot) &&
       isEntityDelta(value.monsters, isMonsterSnapshot) &&
-      isEntityDelta(value.guards, isBasicEntity) &&
-      isEntityDelta(value.loot, isBasicEntity) &&
-      isEntityDelta(value.corpses, isBasicEntity) &&
+      isEntityDelta(value.guards, isGuardSnapshot) &&
+      isEntityDelta(value.loot, isLootSnapshot) &&
+      isEntityDelta(value.corpses, isCorpseSnapshot) &&
       isEntityDelta(value.projectiles, isProjectileSnapshot) &&
       isEntityDelta(value.events, isWorldEventSnapshot)
     ) {
@@ -780,17 +1127,17 @@ export function parseServerMessage(raw: string): ServerMessage | null {
     }
     if (
       value.t === "world.resync" &&
-      Number.isSafeInteger(value.tick) &&
+      isNonNegativeInteger(value.tick) &&
       Array.isArray(value.players) &&
       value.players.every(isPlayerSnapshot) &&
       Array.isArray(value.monsters) &&
       value.monsters.every(isMonsterSnapshot) &&
       Array.isArray(value.guards) &&
-      value.guards.every(isBasicEntity) &&
+      value.guards.every(isGuardSnapshot) &&
       Array.isArray(value.loot) &&
-      value.loot.every(isBasicEntity) &&
+      value.loot.every(isLootSnapshot) &&
       Array.isArray(value.corpses) &&
-      value.corpses.every(isBasicEntity) &&
+      value.corpses.every(isCorpseSnapshot) &&
       Array.isArray(value.projectiles) &&
       value.projectiles.every(isProjectileSnapshot) &&
       Array.isArray(value.events) &&
@@ -798,25 +1145,26 @@ export function parseServerMessage(raw: string): ServerMessage | null {
     ) {
       return value as unknown as ServerMessage;
     }
-    if (value.t === "world.resync_required") return { t: "world.resync_required" };
-    if (value.t === "state" && isRecord(value.self)) return value as unknown as ServerMessage;
+    if (value.t === "world.resync_required" && hasOnlyKeys(value, ["t"]))
+      return { t: "world.resync_required" };
+    if (value.t === "state" && isSelfState(value.self)) return value as unknown as ServerMessage;
     if (
       value.t === "chat" &&
       (value.channel === "local" || value.channel === "party") &&
-      typeof value.from === "string" &&
-      typeof value.text === "string"
+      isBoundedString(value.from, 32) &&
+      isBoundedString(value.text, 500)
     ) {
       return value as unknown as ServerMessage;
     }
     if (
       value.t === "party.invite" &&
-      typeof value.inviteId === "string" &&
-      typeof value.fromId === "string" &&
-      typeof value.from === "string" &&
-      typeof value.expiresAt === "number"
+      isUuid(value.inviteId) &&
+      isUuid(value.fromId) &&
+      isBoundedString(value.from, 32) &&
+      isFiniteNumber(value.expiresAt)
     )
       return value as unknown as ServerMessage;
-    if (value.t === "party.state" && (value.party === null || isRecord(value.party)))
+    if (value.t === "party.state" && (value.party === null || isPartyState(value.party)))
       return value as unknown as ServerMessage;
     if (value.t === "merchant.open" && hasOnlyKeys(value, ["t"])) return { t: "merchant.open" };
     if (
@@ -847,8 +1195,18 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       value.t === "event" &&
       typeof value.code === "string" &&
       (EVENT_CODES as readonly string[]).includes(value.code) &&
-      (value.params === undefined || isRecord(value.params)) &&
-      (value.tone === "info" || value.tone === "good" || value.tone === "bad")
+      (value.params === undefined ||
+        (isRecord(value.params) &&
+          Object.keys(value.params).length <= 32 &&
+          Object.entries(value.params).every(
+            ([key, parameter]) =>
+              key.length <= 64 &&
+              ((typeof parameter === "string" && parameter.length <= 256) ||
+                isFiniteNumber(parameter)),
+          ))) &&
+      (value.tone === "info" || value.tone === "good" || value.tone === "bad") &&
+      (value.x === undefined || isFiniteNumber(value.x)) &&
+      (value.y === undefined || isFiniteNumber(value.y))
     ) {
       return value as unknown as ServerMessage;
     }

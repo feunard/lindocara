@@ -167,17 +167,41 @@ describe("server protocol", () => {
     expect(parseServerMessage("broken")).toBeNull();
   });
 
+  const player = {
+    id: "p1",
+    nick: "Mira",
+    x: 16,
+    y: 16,
+    ack: 0,
+    hp: 100,
+    maxHp: 100,
+    level: 1,
+    appearance: { body: "wayfarer", primaryColor: "azure" },
+    class: "priest",
+    equipment: { mainHand: "heartwood_staff", offHand: null },
+    life: "alive",
+    facing: { x: 1, y: 0 },
+    action: null,
+  };
+  const self = {
+    xp: 0,
+    xpToNext: 100,
+    inventory: { potions: 0, gold: 0, crystals: 0 },
+    quest: { status: "available", progress: 0, target: 3 },
+    life: "alive",
+    corpse: null,
+  };
   const welcomeBase = {
     t: "welcome",
     tick: 10,
     selfId: "p1",
-    players: [],
+    players: [player],
     monsters: [],
     guards: [],
     loot: [],
     corpses: [],
     projectiles: [],
-    self: {},
+    self,
   };
   /** A world the client can actually collide against: terrain now travels, so a welcome without it
    *  is not a welcome. */
@@ -185,11 +209,23 @@ describe("server protocol", () => {
   const world = {
     zoneId: "verdant-reach",
     revision: 0,
+    zoneNameKey: "zone.verdant_reach.name",
     tiles: ["..", "##"],
     elements: [],
     tilesetId: TINY_SWORDS_TILESET_ID,
     layers: [layer, layer, layer],
     events: [],
+    width: 64,
+    height: 64,
+    playerSize: 32,
+    obstacles: [],
+    safeZone: null,
+    questNpc: { id: "mira", x: 16, y: 16 },
+    questNpcs: [],
+    questSites: [],
+    cemeteries: [],
+    portals: [],
+    merchant: null,
   };
 
   it("accepts any well-formed zone id, since terrain now travels in the welcome itself", () => {
@@ -251,6 +287,27 @@ describe("server protocol", () => {
       }),
     );
     expect(message).not.toBeNull();
+  });
+
+  it("rejects incomplete state and entity snapshots before they reach the client", () => {
+    expect(
+      parseServerMessage(JSON.stringify({ ...welcomeBase, world, self: { life: "alive" } })),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify({ ...welcomeBase, world, players: [{ ...player, equipment: {} }] }),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify({ ...welcomeBase, world: { ...world, layers: ["bad", layer, layer] } }),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify({ t: "party.state", party: { id: "party", leaderId: "p1", members: [{}] } }),
+      ),
+    ).toBeNull();
   });
 
   it("validates world deltas and full resynchronization messages", () => {

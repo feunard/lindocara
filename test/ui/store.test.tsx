@@ -79,8 +79,42 @@ describe("ui store", () => {
       },
       screen: "game",
       mapOpen: true,
+      talentsOpen: true,
+      inventoryOpen: true,
+      merchantOpen: true,
       settingsOpen: true,
       interiorDoorId: "warden-hut",
+      self: {
+        nick: "Mira",
+        level: 3,
+        hp: 12,
+        maxHp: 100,
+        life: "ghost",
+        corpseDistance: 42,
+        class: "priest",
+        appearance: { body: "wayfarer", primaryColor: "azure" },
+        equipment: { mainHand: "heartwood_staff", offHand: null },
+      },
+      selfState: {
+        xp: 20,
+        xpToNext: 100,
+        inventory: { potions: 2, gold: 3, crystals: 4 },
+        quest: { status: "active", progress: 1, target: 3 },
+        life: "ghost",
+        corpse: { x: 10, y: 20 },
+      },
+      questStatus: "active",
+      prompt: { key: "prompt.hunt" },
+      status: { key: "status.connecting", params: { name: "Mira" } },
+      events: [{ id: 1, text: "old", tone: "info" }],
+      chat: [{ id: 1, from: "old", text: "old", at: 1 }],
+      party: { id: "party", leaderId: "hero", members: [] },
+      partyInvite: { inviteId: "invite", fromId: "hero", from: "Mira", expiresAt: 1 },
+      attackCooldownUntil: 10,
+      healCooldownUntil: 20,
+      skillCooldowns: { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5 },
+      zoneNameKey: "zone.verdant_reach.name",
+      worldSize: { width: 100, height: 200 },
     });
 
     useUiStore.getState().resetToCharacterSelect();
@@ -91,8 +125,62 @@ describe("ui store", () => {
     expect(state.heroLoading).toBeNull();
     expect(state.screen).toBe("characters");
     expect(state.mapOpen).toBe(false);
+    expect(state.talentsOpen).toBe(false);
+    expect(state.inventoryOpen).toBe(false);
+    expect(state.merchantOpen).toBe(false);
     expect(state.settingsOpen).toBe(false);
     expect(state.interiorDoorId).toBeNull();
+    expect(state.self).toBeNull();
+    expect(state.selfState).toBeNull();
+    expect(state.questStatus).toBe("available");
+    expect(state.prompt).toBeNull();
+    expect(state.status).toBeNull();
+    expect(state.events).toEqual([]);
+    expect(state.chat).toEqual([]);
+    expect(state.party).toBeNull();
+    expect(state.partyInvite).toBeNull();
+    expect(state.attackCooldownUntil).toBe(0);
+    expect(state.healCooldownUntil).toBe(0);
+    expect(state.skillCooldowns).toEqual({ 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 });
+    expect(state.zoneNameKey).toBeNull();
+    expect(state.worldSize).toBeNull();
+  });
+
+  it("resetToParty clears the session but preserves the selected save", () => {
+    const activeParty = {
+      id: "p1",
+      name: "Save",
+      adventureId: "a1",
+      adventureTitle: "Donjon",
+      maxPlayers: 4,
+      status: "open" as const,
+      hostAccountId: "acct",
+      colors: ["blue" as const],
+      mine: true,
+      myColor: "blue" as const,
+    };
+    useUiStore.setState({
+      activeParty,
+      screen: "game",
+      events: [{ id: 2, text: "stale", tone: "bad" }],
+      chat: [{ id: 2, from: "stale", text: "stale", at: 2 }],
+      selfState: {
+        xp: 0,
+        xpToNext: 1,
+        inventory: { potions: 0, gold: 0, crystals: 0 },
+        quest: { status: "available", progress: 0, target: 1 },
+        life: "alive",
+        corpse: null,
+      },
+    });
+
+    useUiStore.getState().resetToParty();
+
+    expect(useUiStore.getState().screen).toBe("party");
+    expect(useUiStore.getState().activeParty).toBe(activeParty);
+    expect(useUiStore.getState().events).toEqual([]);
+    expect(useUiStore.getState().chat).toEqual([]);
+    expect(useUiStore.getState().selfState).toBeNull();
   });
 
   it("setSelf is referentially stable for equal values", () => {

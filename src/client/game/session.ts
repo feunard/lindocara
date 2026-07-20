@@ -39,6 +39,12 @@ function required<T extends Element>(selector: string): T {
 }
 
 const sound = new GameSound();
+let activeLaunchId = 0;
+let stopActiveSession: (() => void) | null = null;
+
+function stopCurrentSession(): void {
+  stopActiveSession?.();
+}
 
 /** The store is the single source of truth for whether the interior panel is open;
  *  InteriorOverlay renders it from `interiorDoorId`. */
@@ -247,12 +253,10 @@ function addEvent(text: string, tone: "info" | "good" | "bad"): void {
   useUiStore.getState().addEvent(text, tone);
 }
 
-// Assumes it runs at most once per page life: the keydown/beforeunload listeners it
-// registers are never removed, and switchCharacter/logout tear the session down by
-// reloading the page rather than unwinding this function.
 async function startGameIdentity(
   identity: CharacterSummary | StoredHero,
   persistentParty: PartyListing | null,
+  launchId: number,
 ): Promise<void> {
   const loadingStartedAt = performance.now();
   const initialStore = useUiStore.getState();
@@ -268,6 +272,12 @@ async function startGameIdentity(
   const canvas = required<HTMLCanvasElement>("#stage");
   const serverClock = new ServerClock();
   const renderer = await Renderer.create(canvas, serverClock);
+  // Renderer creation is asynchronous. If another hero was launched while assets were loading,
+  // this result no longer owns the page and must not install listeners or a WebSocket session.
+  if (launchId !== activeLaunchId) {
+    renderer.destroy();
+    return;
+  }
   useUiStore.getState().setHeroLoading({
     name: identity.name,
     class: identity.class,
@@ -517,6 +527,11 @@ async function startGameIdentity(
     },
   };
 
+  const beforeUnload = () => {
+    intentionallyClosed = true;
+    connection?.close();
+  };
+  let stopSession: () => void;
   const endGame = (key: MessageKey) => {
     if (ended) return;
     ended = true;
@@ -528,15 +543,23 @@ async function startGameIdentity(
     stopActions?.();
     window.removeEventListener("pointerdown", unlockAudio);
     window.removeEventListener("keydown", unlockAudio);
+    window.removeEventListener("beforeunload", beforeUnload);
     sound.stopAmbient();
     renderer.destroy();
-    setStatus("status.disconnected", { reason: t(key) });
+    if (stopActiveSession === stopSession) stopActiveSession = null;
     // Also clears mapOpen and settingsOpen: without that, either overlay survives a terminal
     // disconnect and reappears full-screen the instant the next character's world loads, over a
     // world that has not sent it a welcome yet.
     if (persistentParty) useUiStore.getState().resetToParty();
     else useUiStore.getState().resetToCharacterSelect();
+    setStatus("status.disconnected", { reason: t(key) });
   };
+  stopSession = () => {
+    intentionallyClosed = true;
+    connection?.close();
+    endGame("status.close.generic");
+  };
+  stopActiveSession = stopSession;
 
   const cancelReconnect = () => {
     reconnectCancelled = true;
@@ -689,14 +712,11 @@ async function startGameIdentity(
     connection?.releaseSkill(slot);
   };
   const switchCharacter = () => {
-    intentionallyClosed = true;
-    connection?.close();
-    if (persistentParty) endGame("status.close.generic");
+    if (persistentParty) stopSession();
     else window.location.reload();
   };
   const logoutAndReload = () => {
-    intentionallyClosed = true;
-    connection?.close();
+    stopSession();
     void logout();
   };
   const toggleSettings = () => {
@@ -862,10 +882,7 @@ async function startGameIdentity(
     renderPlayer(self, selfCorpse);
     updatePrompt(self, questState, door, activeZoneId, currentMerchant);
   });
-  window.addEventListener("beforeunload", () => {
-    intentionallyClosed = true;
-    connection?.close();
-  });
+  window.addEventListener("beforeunload", beforeUnload);
 
   // A handle for measuring input latency and interpolation from the outside. Dev builds only.
   if (import.meta.env.DEV) {
@@ -878,11 +895,32 @@ async function startGameIdentity(
   }
 }
 
+async function launchGameIdentity(
+  identity: CharacterSummary | StoredHero,
+  persistentParty: PartyListing | null,
+): Promise<void> {
+  const launchId = ++activeLaunchId;
+  stopCurrentSession();
+  stopActiveSession = null;
+  useUiStore.getState().setScreen("game");
+  try {
+    await startGameIdentity(identity, persistentParty, launchId);
+  } catch (error) {
+    if (launchId === activeLaunchId) {
+      stopCurrentSession();
+      stopActiveSession = null;
+      if (persistentParty) useUiStore.getState().resetToParty();
+      else useUiStore.getState().resetToCharacterSelect();
+    }
+    throw error;
+  }
+}
+
 /** Rollback-only legacy entrypoint. The post-login UI no longer calls it. */
 export function startGame(character: CharacterSummary): Promise<void> {
-  return startGameIdentity(character, null);
+  return launchGameIdentity(character, null);
 }
 
 export function startGameAsHero(hero: StoredHero, party: PartyListing): Promise<void> {
-  return startGameIdentity(hero, party);
+  return launchGameIdentity(hero, party);
 }

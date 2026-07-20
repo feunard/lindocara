@@ -273,6 +273,38 @@ function localizedTextEqual(a: LocalizedText | null, b: LocalizedText | null): b
   return a.key === b.key && JSON.stringify(a.params) === JSON.stringify(b.params);
 }
 
+const EMPTY_SKILL_COOLDOWNS: Record<SkillSlot, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+
+function clearedGameSession() {
+  return {
+    self: null,
+    selfState: null,
+    questStatus: "available" as const,
+    prompt: null,
+    status: null,
+    events: [],
+    chat: [],
+    party: null,
+    partyInvite: null,
+    attackCooldownUntil: 0,
+    healCooldownUntil: 0,
+    skillCooldowns: { ...EMPTY_SKILL_COOLDOWNS },
+    interiorDoorId: null,
+    settingsOpen: false,
+    mapOpen: false,
+    talentsOpen: false,
+    inventoryOpen: false,
+    merchantOpen: false,
+    zoneNameKey: null,
+    worldSize: null,
+    reconnect: null,
+    heroLoading: null,
+    adventureVictory: false,
+    eventDialogue: null,
+    game: null,
+  };
+}
+
 export const useUiStore = create<UiState>((set) => ({
   // "boot" is a brief, invisible holding state while fetchMe() is in flight, so a logged-in
   // user does not see a flash of the title screen before landing on their saved parties.
@@ -292,7 +324,7 @@ export const useUiStore = create<UiState>((set) => ({
   chatFocusRequest: 0,
   attackCooldownUntil: 0,
   healCooldownUntil: 0,
-  skillCooldowns: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+  skillCooldowns: { ...EMPTY_SKILL_COOLDOWNS },
   interiorDoorId: null,
   settingsOpen: false,
   mapOpen: false,
@@ -405,33 +437,13 @@ export const useUiStore = create<UiState>((set) => ({
   setGame: (game) => set({ game }),
   resetToCharacterSelect: () =>
     set({
-      game: null,
-      reconnect: null,
-      heroLoading: null,
+      ...clearedGameSession(),
       screen: "characters",
-      mapOpen: false,
-      talentsOpen: false,
-      inventoryOpen: false,
-      merchantOpen: false,
-      settingsOpen: false,
-      interiorDoorId: null,
-      adventureVictory: false,
-      eventDialogue: null,
       activeParty: null,
     }),
   resetToParty: () =>
     set({
-      game: null,
-      reconnect: null,
-      heroLoading: null,
+      ...clearedGameSession(),
       screen: "party",
-      mapOpen: false,
-      talentsOpen: false,
-      inventoryOpen: false,
-      merchantOpen: false,
-      settingsOpen: false,
-      interiorDoorId: null,
-      adventureVictory: false,
-      eventDialogue: null,
     }),
 }));
