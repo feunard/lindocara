@@ -996,7 +996,17 @@ export function flattenColliderIndex(
 }
 ```
 
-- [ ] **Step 5: Decode on the client**
+- [ ] **Step 5: Decode on the client, and delete the temporary re-bake**
+
+Task 4 made `TerrainGeometry.colliders` required before the wire could carry it, so `geometryFrom`
+currently rebuilds the index from `world.elements` via the shared `elementColliders`. That was the
+right stopgap — an empty index there would have been the silent desync — but it is a SECOND bake,
+and this step is where it dies. Delete the `elementColliders(world.elements)` call and its imports;
+the client must consume what the server baked, never re-derive it.
+
+Restore the appearance-only contract in `protocol.ts` at the same time: Task 4 rewrote the comment
+on `elements` to say it is now a collision source. With `colliders` on the wire that is false again —
+`elements`, `layers` and `events` are all appearance, and collision is `tiles` plus `colliders`.
 
 In `src/client/game/net.ts`, `geometryFrom` (~line 300):
 
