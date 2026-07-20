@@ -31,6 +31,7 @@ function renderDialog(event: MapEvent, registry: AdventureRegistry = EMPTY_REGIS
     <EventDialog
       event={event}
       registry={registry}
+      maps={[]}
       onCommit={onCommit}
       onDelete={onDelete}
       onCancel={onCancel}
@@ -280,8 +281,10 @@ describe("EventDialog", () => {
     const user = userEvent.setup();
     const { onCommit } = renderDialog(seedEvent({ kind: "entry", name: "" }));
 
-    // No scripted editor for an anchor kind — just the header Name (label) field and a hint.
+    // No scripted editor for an anchor kind — just the header Name (label) field and a hint. The
+    // command pane is kind-gated: an anchor event never shows the Insert palette.
     expect(screen.queryByRole("tablist")).toBeNull();
+    expect(screen.queryByRole("button", { name: t("editor.event.cmd.insert") })).toBeNull();
     expect(screen.getByText(t("editor.event.kind.anchor.hint"))).toBeVisible();
 
     await user.type(screen.getByRole("textbox", { name: t("editor.event.name") }), "North gate");

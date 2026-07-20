@@ -290,3 +290,32 @@ function parseCommandArray(value: unknown, depth: number, counter: Counter): Eve
 export function parseEventCommands(value: unknown): EventCommand[] | null {
   return parseCommandArray(value, 1, { n: 0 });
 }
+
+/**
+ * How many command nodes a program holds, counted RECURSIVELY — a command nested inside an `if`
+ * branch, a `loop` body or a `choices` option body counts toward the same total as a top-level
+ * command. This is the exact tally `parseEventCommands` threads through its `Counter` (each
+ * `parseCommand` adds one and then recurses into its bodies), extracted so the editor can enforce
+ * `MAX_COMMANDS_PER_PAGE` against the same semantics the parser rejects on: a guard that counted only
+ * the top-level array would let nesting smuggle a program past the bound the parser would then refuse.
+ */
+export function countEventCommands(commands: readonly EventCommand[]): number {
+  let total = 0;
+  for (const command of commands) {
+    total += 1;
+    switch (command.t) {
+      case "if":
+        total += countEventCommands(command.then) + countEventCommands(command.else);
+        break;
+      case "loop":
+        total += countEventCommands(command.body);
+        break;
+      case "choices":
+        for (const option of command.options) total += countEventCommands(option.body);
+        break;
+      default:
+        break;
+    }
+  }
+  return total;
+}

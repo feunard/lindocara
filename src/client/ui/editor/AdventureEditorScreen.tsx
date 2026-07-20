@@ -241,6 +241,19 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       ),
     [draftMembers],
   );
+  // The adventure's maps a `teleport` command may target, with the dims the dialog clamps the
+  // destination cell against. Dims come off the member's display solid mask (rows = its length,
+  // cols = a row's length) — the same thumbnail the Cartes panel already carries, no extra fetch.
+  const teleportMaps = useMemo(
+    () =>
+      (draftMembers ?? []).map((member) => ({
+        mapId: member.mapId,
+        name: member.name,
+        rows: member.solid.length,
+        cols: member.solid[0]?.length ?? 0,
+      })),
+    [draftMembers],
+  );
 
   const handleRef = useRef<MapEditorStageHandle | null>(null);
   const pendingToolRef = useRef<EditorTool>(paintToolFor("pencil", DEFAULT_CONTENT));
@@ -1129,6 +1142,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
           key={eventDraft.id}
           event={eventDraft}
           registry={registry}
+          maps={teleportMaps}
           onCommit={(draft) => {
             handleRef.current?.commitEventDraft(draft);
             setOpenEventId(null);
