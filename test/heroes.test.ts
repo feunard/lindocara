@@ -7,7 +7,15 @@ import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
 import { updateAdventure } from "../src/server/adventures.js";
 import { account, createDb } from "../src/server/db/index.js";
+import {
+  claimHeroQuestReward,
+  consumeHeroOwnedItem,
+  loadHeroSkills,
+  loadNormalizedHeroState,
+} from "../src/server/hero-persistence.js";
+import { acquireHeroEpoch, loadHeroProfile, saveHeroProfile } from "../src/server/hero-profile.js";
 import { createHero, deleteHero, listHeroes } from "../src/server/heroes.js";
+import { HEALTH_POTION_ID } from "../src/server/items.js";
 import type { MapInput } from "../src/server/maps.js";
 import { createParty, joinParty } from "../src/server/parties.js";
 import type { AdventureInput } from "../src/shared/adventure.js";
@@ -124,6 +132,125 @@ describe("createHero", () => {
     const mine = await listHeroes(db, "host", partyId);
     expect(mine).toHaveLength(1);
     expect(mine[0]?.id).toBe(hero.id);
+
+    const row = await db.query.hero.findFirst({ where: (table, { eq }) => eq(table.id, hero.id) });
+    if (!row) throw new Error("missing created hero row");
+    const normalized = await loadNormalizedHeroState(db, row);
+    expect(normalized).toMatchObject({
+      consumables: { health_potion: 2 },
+      equipment: { mainHand: "heartwood_staff", offHand: null },
+      quest: { chapter: "three_offerings", status: "available", progress: 0 },
+    });
+    const skills = await loadHeroSkills(db, hero.id);
+    expect(skills).toHaveLength(5);
+    expect(skills.find((skill) => skill.slot === 1)).toMatchObject({
+      skillId: "radiant_bolt",
+      unlocked: true,
+      equipped: true,
+    });
+  });
+
+  it("round-trips normalized progression and fences every stale child-table write", async () => {
+    const db = createDb(env.DB);
+    await seedAccount("host");
+    const { partyId } = await seedParty("host");
+    const created = await createHero(db, "host", partyId, { name: "Mira", class: "priest" });
+    expect(await acquireHeroEpoch(db, created.id)).toBe(1);
+    const profile = await loadHeroProfile(db, created.id);
+    if (!profile) throw new Error("missing hero profile");
+    const now = Date.now();
+    profile.inventory = {
+      potions: 4,
+      gold: 17,
+      crystals: 3,
+      consumables: {
+        health_potion: 4,
+        mana_potion: 3,
+        damage_elixir: 1,
+        oblivion_draught: 1,
+        invisibility_potion: 2,
+        resurrection_potion: 1,
+      },
+    };
+    profile.quest = {
+      chapter: "three_offerings",
+      status: "active",
+      progress: 2,
+      target: 3,
+    };
+    if (!profile.resource) throw new Error("priest resource missing");
+    profile.resource.current = 37;
+    profile.cooldowns = {
+      attackUntil: now + 200,
+      healUntil: now + 500,
+      skillCooldowns: [0, now + 1_000, 0, 0, 0],
+      guardUntil: 0,
+      resurrectUntil: 0,
+    };
+    profile.consumableCooldownUntil = now + 1_000;
+    profile.damageBoostUntil = now + 2_000;
+    profile.invisibleUntil = now + 2_000;
+    expect(await saveHeroProfile(db, profile)).toBe(true);
+
+    const restored = await loadHeroProfile(db, created.id);
+    expect(restored).toMatchObject({
+      inventory: {
+        potions: 4,
+        gold: 17,
+        crystals: 3,
+        consumables: { health_potion: 4, mana_potion: 3, invisibility_potion: 2 },
+      },
+      quest: { chapter: "three_offerings", status: "active", progress: 2 },
+      resource: { kind: "mana", current: 37, max: 100 },
+      consumableCooldownUntil: profile.consumableCooldownUntil,
+      damageBoostUntil: profile.damageBoostUntil,
+      invisibleUntil: profile.invisibleUntil,
+    });
+    expect(restored?.cooldowns?.skillCooldowns[1]).toBe(profile.cooldowns.skillCooldowns[1]);
+
+    expect(await acquireHeroEpoch(db, created.id)).toBe(2);
+    profile.inventory.gold = 999;
+    if (!profile.inventory.consumables) throw new Error("consumable fixture missing");
+    profile.inventory.consumables.mana_potion = 999;
+    expect(await saveHeroProfile(db, profile)).toBe(false);
+    expect(await consumeHeroOwnedItem(db, created.id, 1, HEALTH_POTION_ID)).toBeNull();
+    const fenced = await loadHeroProfile(db, created.id);
+    expect(fenced?.inventory.gold).toBe(17);
+    expect(fenced?.inventory.consumables?.mana_potion).toBe(3);
+    expect(fenced?.inventory.potions).toBe(4);
+  });
+
+  it("claims a hero quest reward exactly once", async () => {
+    const db = createDb(env.DB);
+    await seedAccount("host");
+    const { partyId } = await seedParty("host");
+    const created = await createHero(db, "host", partyId, { name: "Mira", class: "priest" });
+    expect(await acquireHeroEpoch(db, created.id)).toBe(1);
+    const profile = await loadHeroProfile(db, created.id);
+    if (!profile) throw new Error("missing hero profile");
+    profile.quest.status = "ready";
+    profile.quest.progress = profile.quest.target;
+    expect(await saveHeroProfile(db, profile)).toBe(true);
+    const reward = {
+      heroId: created.id,
+      sessionEpoch: 1,
+      questId: "three_offerings",
+      rewardGold: 9,
+      rewardPotions: 1,
+      resultingLevel: 2,
+      resultingXp: 7,
+      resultingHp: 112,
+    };
+    expect(await claimHeroQuestReward(db, reward)).toBe(true);
+    expect(await claimHeroQuestReward(db, reward)).toBe(false);
+    const restored = await loadHeroProfile(db, created.id);
+    expect(restored).toMatchObject({
+      level: 2,
+      xp: 7,
+      hp: 112,
+      inventory: { gold: 9, potions: 3 },
+      quest: { status: "completed" },
+    });
   });
 
   it("refuses a non-member and caps at three heroes per player", async () => {

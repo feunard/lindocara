@@ -14,6 +14,12 @@ progression extensible utilisent désormais cinq tables :
 | `character_skill` | Compétences débloquées et disposition équipée. |
 | `character_quest` | Plusieurs quêtes, leur statut, progression, dates et données spécifiques. |
 
+Le flux principal de groupe possède une famille parallèle explicite : `hero_item`,
+`hero_equipment`, `hero_skill` et `hero_quest`. Ces tables référencent `hero`, jamais `character`,
+et partagent seulement le catalogue immuable `item_definition`. La ligne `hero` conserve les
+monnaies, la ressource de classe, les talents, les délais de combat et les effets temporisés ; les
+possessions et progressions extensibles restent normalisées dans les quatre tables enfant.
+
 Les anciennes colonnes `potions`, `main_hand`, `off_hand`, `quest_*` et
 `ward_run_expires_at` restent physiquement présentes pour permettre un rollback de Worker, mais
 le nouveau code ne les lit ni ne les écrit dans le fonctionnement normal. L'adaptateur version
@@ -31,11 +37,19 @@ chargement puis marquée version `1` dans le même batch D1.
   personnage existant.
 - `0009_quiet_gertrude_yorkes.sql` ajoute le marqueur `persistence_version` et marque les lignes
   backfillées.
+- `0025_outstanding_kitty_pryde.sql` crée la famille normalisée `hero_*`, complète le catalogue des
+  consommables, ajoute les champs bornés de ressource/délais sur `hero` et backfill les héros
+  existants avec leur équipement, leurs compétences, leur quête et leurs deux potions initiales.
 
 La migration ne modifie ni zone, instance, position, niveau, XP, HP, or, cristaux, vie ou epoch.
 Les sauvegardes multi-table sont envoyées par `D1Database.batch()`. Chaque mutation issue d'un
 World contient aussi une condition sur `character.session_epoch`, y compris les sous-écritures
 d'inventaire, d'équipement, de quête et de compétences.
+
+La même règle vaut séparément pour les héros : le premier `UPDATE hero ... RETURNING` et chaque
+`INSERT`/`UPDATE`/`DELETE` enfant vérifient `hero.session_epoch`. Le résultat du premier statement
+est l'unique verdict de la sauvegarde atomique ; si l'epoch est périmé, le batch ne modifie aucune
+ligne `hero_*`. La consommation et le claim de récompense vérifient eux aussi cet epoch.
 
 ## Règles de propriété et de concurrence
 

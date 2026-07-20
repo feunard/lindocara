@@ -101,6 +101,9 @@ function handlers(): ConnectionHandlers {
     onMerchantOpen: vi.fn(),
     onAnimation: vi.fn(),
     onEvent: vi.fn(),
+    onEventSay: vi.fn(),
+    onEventChoices: vi.fn(),
+    onEventClose: vi.fn(),
     onClose: vi.fn(),
   };
 }

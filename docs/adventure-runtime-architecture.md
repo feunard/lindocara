@@ -146,11 +146,11 @@ never a mixture.
 ## Implemented playable slice (July 2026)
 
 The D1 `party` row is the V1 saved game. Membership, unique member colour, party status and heroes
-are durable. A hero persists its map, position, level, XP, HP, life state, corpse position and
-monotone epoch. `HeroPresence` owns its connection lease and fenced transition saves. Inventory,
-equipment, skills, class resources and quests are currently initialized per hero session; ground
-loot and monsters may reset when an empty room unloads. These are explicit V1 limits, not implied
-durability.
+are durable. A hero persists its map, position, level, XP, HP, life state, corpse position, monotone
+epoch, currencies, normalized inventory/equipment/skills/quests, class resource, talents, bounded
+combat cooldowns and timed consumable effects. `HeroPresence` owns its connection lease and fenced
+transition saves; every child-table write is gated by the same D1 epoch. Ground loot and monsters
+may still reset when an empty room unloads. These are explicit V1 limits, not implied durability.
 
 Authored map `monsterSpawns` are converted server-side into deterministic room monster definitions.
 Species, stats, cell-centre spawn, patrol radius, combat, navigation, death, loot and respawn all

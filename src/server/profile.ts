@@ -6,6 +6,7 @@ import {
   normalizeAppearance,
   starterEquipmentFor,
 } from "../shared/character.js";
+import type { CombatCooldownState } from "../shared/cooldowns.js";
 import { isLifeState, type LifeState } from "../shared/death.js";
 import {
   clampRestoredPosition,
@@ -44,6 +45,12 @@ export interface PlayerProfile extends Vec2 {
   /** Null exactly when `life` is "alive". */
   corpse: Vec2 | null;
   resource?: ClassResourceState;
+  cooldowns?: CombatCooldownState;
+  consumableCooldownUntil?: number;
+  damageBoostUntil?: number;
+  forgottenUntil?: number;
+  invisibleUntil?: number;
+  resurrectionAt?: number;
   /** Hero-owned talent ids. Legacy characters keep this session-local until an explicit migration. */
   talents?: readonly string[];
 }

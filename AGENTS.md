@@ -278,12 +278,13 @@ npm run db:migrate      # apply locally
 npm run cf-typegen      # only if you changed bindings, not the schema
 ```
 
-Objects, equipment, skills and multi-quest progression use the normalized character tables
-documented in [`docs/persistence-model.md`](./docs/persistence-model.md), but they are not yet the
-party-hero persistence boundary. For the primary flow, `hero` owns map, position, core stats, life,
-corpse position and fencing epoch; starter inventory/equipment/skills/quests are session-only.
-Do not silently point character-owned normalized rows at heroes. A later explicit migration must
-add hero ownership and fencing before those systems become durable for party heroes.
+Objects, equipment, skills and multi-quest progression use separate normalized ownership tables
+documented in [`docs/persistence-model.md`](./docs/persistence-model.md). The rollback flow owns
+`character_*`; the primary party flow owns `hero_*`. Never point one family at the other. Hero
+inventory, equipment, currencies, class resource, skills, quest rows, talents, bounded cooldowns
+and timed consumable effects are durable alongside its map, position, core stats, life, corpse and
+fencing epoch. Every hero child-table mutation must include an `EXISTS` fence against
+`hero.session_epoch` (or be a server-side create before a session exists).
 
 Deploying applies migrations to production **before** shipping the code, so a column always
 exists before the code that reads it.
@@ -308,8 +309,8 @@ presence DO stores only the active lease (`connectionId`, epoch, room, zone, ins
   then removes the runtime player.
 - A stale save changes no row, logs a stale-save diagnostic, invalidates local authority,
   and closes the socket with `WS_CLOSE.PRESENCE_LOST`.
-- Inventory, equipment, resource, skill and quest state are reinitialized for each hero session in
-  this slice; do not describe those fields as durable hero data yet.
+- Hero core and normalized progression writes share the same D1 batch and epoch fence. A stale room
+  may update neither the `hero` row nor inventory, equipment, skill or quest children.
 
 Adventure-map handoff uses the same epoch fence: freeze source actions, save the source, then let
 `HeroPresence.handoff()` conditionally write destination map/position and epoch N+1. Only then
@@ -503,8 +504,8 @@ model + total parser; `shared/event-interpreter.ts` is the **pure, clockless ste
 Triggers are server-detected: the interact key near an `action` event, or a movement box landing on a
 `player-touch` event's cell — both only for `normal`-kind events with a satisfied active page. The
 client only ever sends the existing interact intent and movement; no message selects a run or supplies
-an outcome. Gold/items are per-hero and session-only in this slice (born 0, HUD-shown, not yet durable
-— exactly like inventory). See
+an outcome. Gold/items are per-hero and persisted through the same epoch-fenced hero save boundary as
+the rest of the normalized inventory. See
 [`docs/superpowers/specs/2026-07-20-interpreter-design.md`](./docs/superpowers/specs/2026-07-20-interpreter-design.md).
 
 ### Heartroot city, guards and visual readability

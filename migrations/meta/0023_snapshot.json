@@ -933,6 +933,14 @@
           "autoincrement": false,
           "default": 100
         },
+        "talents": {
+          "name": "talents",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
         "session_epoch": {
           "name": "session_epoch",
           "type": "integer",

@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "5fc916ab-61ce-41f6-ace9-11d3d158a46b",
-  "prevId": "471fb1b8-8d22-4b0a-965b-66f26489df27",
+  "id": "3233a66c-f355-486e-9ff6-413cca00350f",
+  "prevId": "46365455-8e65-4036-b2ee-ec045966149f",
   "tables": {
     "account": {
       "name": "account",
@@ -933,6 +933,77 @@
           "autoincrement": false,
           "default": 100
         },
+        "gold": {
+          "name": "gold",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "crystals": {
+          "name": "crystals",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "resource_current": {
+          "name": "resource_current",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "combat_cooldowns": {
+          "name": "combat_cooldowns",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{}'"
+        },
+        "consumable_cooldown_until": {
+          "name": "consumable_cooldown_until",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "damage_boost_until": {
+          "name": "damage_boost_until",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "forgotten_until": {
+          "name": "forgotten_until",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "invisible_until": {
+          "name": "invisible_until",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "resurrection_at": {
+          "name": "resurrection_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
         "talents": {
           "name": "talents",
           "type": "text",
@@ -1029,6 +1100,397 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
+    },
+    "hero_equipment": {
+      "name": "hero_equipment",
+      "columns": {
+        "hero_id": {
+          "name": "hero_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "slot": {
+          "name": "slot",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "hero_item_id": {
+          "name": "hero_item_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "equipped_at": {
+          "name": "equipped_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        }
+      },
+      "indexes": {
+        "hero_equipment_item_unique": {
+          "name": "hero_equipment_item_unique",
+          "columns": [
+            "hero_item_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "hero_equipment_hero_id_hero_id_fk": {
+          "name": "hero_equipment_hero_id_hero_id_fk",
+          "tableFrom": "hero_equipment",
+          "tableTo": "hero",
+          "columnsFrom": [
+            "hero_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "hero_equipment_owned_item_fk": {
+          "name": "hero_equipment_owned_item_fk",
+          "tableFrom": "hero_equipment",
+          "tableTo": "hero_item",
+          "columnsFrom": [
+            "hero_id",
+            "hero_item_id"
+          ],
+          "columnsTo": [
+            "hero_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "hero_equipment_hero_id_slot_pk": {
+          "columns": [
+            "hero_id",
+            "slot"
+          ],
+          "name": "hero_equipment_hero_id_slot_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "hero_item": {
+      "name": "hero_item",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "hero_id": {
+          "name": "hero_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "item_definition_id": {
+          "name": "item_definition_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(unixepoch() * 1000)"
+        }
+      },
+      "indexes": {
+        "hero_item_definition_unique": {
+          "name": "hero_item_definition_unique",
+          "columns": [
+            "hero_id",
+            "item_definition_id"
+          ],
+          "isUnique": true
+        },
+        "hero_item_owner_id_unique": {
+          "name": "hero_item_owner_id_unique",
+          "columns": [
+            "hero_id",
+            "id"
+          ],
+          "isUnique": true
+        },
+        "hero_item_hero_idx": {
+          "name": "hero_item_hero_idx",
+          "columns": [
+            "hero_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "hero_item_hero_id_hero_id_fk": {
+          "name": "hero_item_hero_id_hero_id_fk",
+          "tableFrom": "hero_item",
+          "tableTo": "hero",
+          "columnsFrom": [
+            "hero_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "hero_item_item_definition_id_item_definition_id_fk": {
+          "name": "hero_item_item_definition_id_item_definition_id_fk",
+          "tableFrom": "hero_item",
+          "tableTo": "item_definition",
+          "columnsFrom": [
+            "item_definition_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "hero_item_quantity_non_negative": {
+          "name": "hero_item_quantity_non_negative",
+          "value": "\"hero_item\".\"quantity\" >= 0"
+        }
+      }
+    },
+    "hero_quest": {
+      "name": "hero_quest",
+      "columns": {
+        "hero_id": {
+          "name": "hero_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quest_id": {
+          "name": "quest_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'available'"
+        },
+        "progress": {
+          "name": "progress",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "accepted_at": {
+          "name": "accepted_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "data": {
+          "name": "data",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "reward_claim_id": {
+          "name": "reward_claim_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "hero_quest_reward_claim_id_unique": {
+          "name": "hero_quest_reward_claim_id_unique",
+          "columns": [
+            "reward_claim_id"
+          ],
+          "isUnique": true
+        },
+        "hero_quest_hero_status_idx": {
+          "name": "hero_quest_hero_status_idx",
+          "columns": [
+            "hero_id",
+            "status"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "hero_quest_hero_id_hero_id_fk": {
+          "name": "hero_quest_hero_id_hero_id_fk",
+          "tableFrom": "hero_quest",
+          "tableTo": "hero",
+          "columnsFrom": [
+            "hero_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "hero_quest_hero_id_quest_id_pk": {
+          "columns": [
+            "hero_id",
+            "quest_id"
+          ],
+          "name": "hero_quest_hero_id_quest_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "hero_quest_progress_non_negative": {
+          "name": "hero_quest_progress_non_negative",
+          "value": "\"hero_quest\".\"progress\" >= 0"
+        }
+      }
+    },
+    "hero_skill": {
+      "name": "hero_skill",
+      "columns": {
+        "hero_id": {
+          "name": "hero_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "skill_id": {
+          "name": "skill_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "unlocked": {
+          "name": "unlocked",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "equipped": {
+          "name": "equipped",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "slot": {
+          "name": "slot",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "unlocked_at": {
+          "name": "unlocked_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "hero_skill_slot_unique": {
+          "name": "hero_skill_slot_unique",
+          "columns": [
+            "hero_id",
+            "slot"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "hero_skill_hero_id_hero_id_fk": {
+          "name": "hero_skill_hero_id_hero_id_fk",
+          "tableFrom": "hero_skill",
+          "tableTo": "hero",
+          "columnsFrom": [
+            "hero_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "hero_skill_hero_id_skill_id_pk": {
+          "columns": [
+            "hero_id",
+            "skill_id"
+          ],
+          "name": "hero_skill_hero_id_skill_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "hero_skill_slot_range": {
+          "name": "hero_skill_slot_range",
+          "value": "\"hero_skill\".\"slot\" IS NULL OR \"hero_skill\".\"slot\" BETWEEN 1 AND 5"
+        },
+        "hero_skill_equipped_shape": {
+          "name": "hero_skill_equipped_shape",
+          "value": "(\"hero_skill\".\"equipped\" = 0 AND \"hero_skill\".\"slot\" IS NULL) OR (\"hero_skill\".\"equipped\" = 1 AND \"hero_skill\".\"unlocked\" = 1 AND \"hero_skill\".\"slot\" IS NOT NULL)"
+        }
+      }
     },
     "item_definition": {
       "name": "item_definition",
@@ -1388,6 +1850,28 @@
           "notNull": true,
           "autoincrement": false
         },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'normal'"
+        },
+        "species": {
+          "name": "species",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "patrol_radius": {
+          "name": "patrol_radius",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -1555,6 +2039,14 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "commands": {
+          "name": "commands",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
         }
       },
       "indexes": {

@@ -136,6 +136,7 @@ import { loadAdventure } from "./adventures.js";
 import { claimQuestReward, consumeOwnedItem } from "./character-persistence.js";
 import { presenceTiming } from "./character-presence.js";
 import { createDb, party } from "./db/index.js";
+import { claimHeroQuestReward, consumeHeroOwnedItem } from "./hero-persistence.js";
 import { loadHeroProfile, saveHeroProfile } from "./hero-profile.js";
 import { HEALTH_POTION_ID } from "./items.js";
 import { BUILTIN_MAP, BUILTIN_MAP_ID, loadMap } from "./maps.js";
@@ -2406,8 +2407,8 @@ export class World extends DurableObject<Env> {
     const result = applyExperience(player.level, player.xp, definition.rewardXp);
     const resultingHp = maxHpForLevel(result.level);
     if (!(await this.#savePlayer(player, ws))) return;
-    const claimed = await claimQuestReward(createDb(this.env.DB), {
-      characterId: player.id,
+    const db = createDb(this.env.DB);
+    const reward = {
       sessionEpoch: player.sessionEpoch,
       questId: chapter,
       rewardGold: definition.rewardGold,
@@ -2415,7 +2416,11 @@ export class World extends DurableObject<Env> {
       resultingLevel: result.level,
       resultingXp: result.xp,
       resultingHp,
-    });
+    };
+    const claimed =
+      player.identityKind === "hero"
+        ? await claimHeroQuestReward(db, { heroId: player.id, ...reward })
+        : await claimQuestReward(db, { characterId: player.id, ...reward });
     if (!claimed) {
       this.#send(ws, { t: "event", code: "quest.blessing", tone: "good" });
       return;
@@ -2550,9 +2555,6 @@ export class World extends DurableObject<Env> {
     const previous = this.#itemMutations.get(player.id) ?? Promise.resolve(null);
     const run = async () => {
       if (!player.authorized || player.inventory.potions <= 0) return null;
-      // Hero inventory is intentionally session-only in this slice. Core hero stats are still
-      // fenced and persisted; inventory will move to its own normalized boundary later.
-      if (player.identityKind === "hero") return player.inventory.potions - 1;
       const db = createDb(this.env.DB);
       // The room holds the truth: potions looted since the last periodic flush exist only in
       // memory. Decrementing a stale D1 row would return a quantity below what the player
@@ -2564,11 +2566,15 @@ export class World extends DurableObject<Env> {
       // a save, not when the save lands. #savePlayer queues behind any in-flight save for this
       // character, so awaiting it also awaits that one.
       if (!(await this.#savePlayer(player, ws))) return null;
-      let remaining = await consumeOwnedItem(db, player.id, HEALTH_POTION_ID);
+      const consume = () =>
+        player.identityKind === "hero"
+          ? consumeHeroOwnedItem(db, player.id, player.sessionEpoch, HEALTH_POTION_ID)
+          : consumeOwnedItem(db, player.id, HEALTH_POTION_ID);
+      let remaining = await consume();
       // Safety net: an absent or empty row (a save that never landed) still gets one retry.
       if (remaining === null && player.inventory.potions > 0) {
         if (!(await this.#savePlayer(player, ws))) return null;
-        remaining = await consumeOwnedItem(db, player.id, HEALTH_POTION_ID);
+        remaining = await consume();
       }
       return remaining;
     };

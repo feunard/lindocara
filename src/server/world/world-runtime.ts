@@ -4,7 +4,11 @@ import {
   type PrimaryColor,
   starterEquipmentFor,
 } from "../../shared/character.js";
-import { normalizeConsumables } from "../../shared/consumables.js";
+import {
+  CONSUMABLE_COOLDOWN_MS,
+  CONSUMABLES,
+  normalizeConsumables,
+} from "../../shared/consumables.js";
 import { type CombatCooldownState, normalizeCombatCooldowns } from "../../shared/cooldowns.js";
 import type { CombatContribution, ThreatEntry } from "../../shared/cooperation.js";
 import { type LifeState, RESURRECT_COOLDOWN_MS } from "../../shared/death.js";
@@ -91,6 +95,7 @@ export interface Attachment extends Vec2 {
   instanceId?: string;
   wardRunExpiresAt?: number | null;
   resource?: ClassResourceState;
+  cooldowns?: CombatCooldownState;
   identityKind?: "character" | "hero";
   partyId?: string | null;
   consumableCooldownUntil?: number;
@@ -337,6 +342,12 @@ export function toProfile(player: PlayerRuntime): SaveableProfile {
     life: player.life,
     corpse: player.corpse === null ? null : { ...player.corpse },
     talents: [...player.talents],
+    cooldowns: combatCooldownsFromPlayer(player),
+    consumableCooldownUntil: player.consumableCooldownUntil,
+    damageBoostUntil: player.damageBoostUntil,
+    forgottenUntil: player.forgottenUntil,
+    invisibleUntil: player.invisibleUntil,
+    resurrectionAt: player.resurrectionAt,
     ...(player.resource ? { resource: { ...player.resource } } : {}),
   };
 }
@@ -377,7 +388,17 @@ export function newPlayer(
     Number.isFinite(persistedResource.current)
   )
     resource.current = Math.max(0, Math.min(resource.max, persistedResource.current));
-  const cooldowns = normalizeCombatCooldowns(restoredCooldowns, now);
+  const persistedCooldowns = normalizeCombatCooldowns(profile.cooldowns, now);
+  const presenceCooldowns = normalizeCombatCooldowns(restoredCooldowns, now);
+  const cooldowns: CombatCooldownState = {
+    attackUntil: Math.max(persistedCooldowns.attackUntil, presenceCooldowns.attackUntil),
+    healUntil: Math.max(persistedCooldowns.healUntil, presenceCooldowns.healUntil),
+    skillCooldowns: persistedCooldowns.skillCooldowns.map((deadline, index) =>
+      Math.max(deadline, presenceCooldowns.skillCooldowns[index] ?? 0),
+    ),
+    guardUntil: 0,
+    resurrectUntil: Math.max(persistedCooldowns.resurrectUntil, presenceCooldowns.resurrectUntil),
+  };
   const healCooldownMs = CLASS_STATS[profile.class].heal?.cooldownMs ?? 0;
   const guardReduction =
     CLASS_SKILLS[profile.class].find((skill) => skill.effect === "guard")?.reduction ?? 0;
@@ -428,12 +449,39 @@ export function newPlayer(
     action: null,
     identityKind: "character",
     partyId: null,
-    consumableCooldownUntil: 0,
-    damageBoostUntil: 0,
-    forgottenUntil: 0,
-    invisibleUntil: 0,
-    resurrectionAt: 0,
+    consumableCooldownUntil: boundedFutureDeadline(
+      profile.consumableCooldownUntil,
+      now,
+      CONSUMABLE_COOLDOWN_MS,
+    ),
+    damageBoostUntil: boundedFutureDeadline(
+      profile.damageBoostUntil,
+      now,
+      CONSUMABLES.damage_elixir.durationMs,
+    ),
+    forgottenUntil: boundedFutureDeadline(
+      profile.forgottenUntil,
+      now,
+      CONSUMABLES.oblivion_draught.durationMs,
+    ),
+    invisibleUntil: boundedFutureDeadline(
+      profile.invisibleUntil,
+      now,
+      CONSUMABLES.invisibility_potion.durationMs,
+    ),
+    resurrectionAt: boundedResurrectionAt(profile.resurrectionAt, now),
   };
+}
+
+function boundedFutureDeadline(value: unknown, now: number, maximumAheadMs: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= now) return 0;
+  return value <= now + maximumAheadMs ? value : 0;
+}
+
+function boundedResurrectionAt(value: unknown, now: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return 0;
+  if (value <= now) return now;
+  return value <= now + CONSUMABLES.resurrection_potion.durationMs ? value : 0;
 }
 
 export function combatCooldownsFromPlayer(
@@ -491,6 +539,12 @@ export function profileFromAttachment(
     sessionEpoch: attachment.sessionEpoch ?? 0,
     wardRunExpiresAt: attachment.wardRunExpiresAt ?? null,
     talents: normalizeTalentSelection(playerClass, level, attachment.talents),
+    ...(attachment.cooldowns ? { cooldowns: attachment.cooldowns } : {}),
+    consumableCooldownUntil: attachment.consumableCooldownUntil ?? 0,
+    damageBoostUntil: attachment.damageBoostUntil ?? 0,
+    forgottenUntil: attachment.forgottenUntil ?? 0,
+    invisibleUntil: attachment.invisibleUntil ?? 0,
+    resurrectionAt: attachment.resurrectionAt ?? 0,
     ...lifeFromAttachment(attachment),
   };
 }

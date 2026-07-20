@@ -72,8 +72,8 @@ interface HeroRow {
 }
 
 /**
- * Every column `saveHeroProfile` can write, plus the two the epoch fence guards. A hero persists
- * core stats only — there is no inventory, equipment or quest row to read back.
+ * The core columns used by the presence assertions. Normalized inventory/equipment/quest rows are
+ * covered separately; every one of those mutations is fenced by the same epoch.
  */
 async function readHeroRow(heroId: string): Promise<HeroRow> {
   const row = await env.DB.prepare(

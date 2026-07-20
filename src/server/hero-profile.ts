@@ -1,12 +1,21 @@
 import { and, eq, sql } from "drizzle-orm";
-import { type PrimaryColor, starterEquipmentFor } from "../shared/character.js";
+import {
+  isEquipmentForClass,
+  type PrimaryColor,
+  starterEquipmentFor,
+} from "../shared/character.js";
+import { normalizeConsumables } from "../shared/consumables.js";
+import { emptyCombatCooldowns, normalizeCombatCooldowns } from "../shared/cooldowns.js";
 import { isLifeState, type LifeState } from "../shared/death.js";
 import { clampRestoredPosition, isWalkable, maxHpForLevel } from "../shared/game.js";
 import { terrainFromMap } from "../shared/map-data.js";
 import { initialResource } from "../shared/resources.js";
 import type { Vec2 } from "../shared/simulation.js";
+import { CLASS_SKILLS, isSkillUnlocked } from "../shared/skills.js";
 import { normalizeTalentSelection } from "../shared/talents.js";
 import { type Db, hero, partyMember } from "./db/index.js";
+import { loadNormalizedHeroState } from "./hero-persistence.js";
+import { ownedItemId } from "./items.js";
 import { loadMap } from "./maps.js";
 import type { PlayerProfile, SaveableProfile } from "./profile.js";
 
@@ -23,6 +32,18 @@ function talentsFromRow(playerClass: typeof hero.$inferSelect.class, level: numb
   } catch {
     return [];
   }
+}
+
+function cooldownsFromRow(json: string) {
+  try {
+    return normalizeCombatCooldowns(JSON.parse(json), Date.now());
+  } catch {
+    return emptyCombatCooldowns();
+  }
+}
+
+function safeDeadline(value: number): number {
+  return Number.isFinite(value) && value > 0 ? value : 0;
 }
 
 async function restoredLife(
@@ -55,7 +76,11 @@ export async function loadHeroProfile(db: Db, heroId: string): Promise<PlayerPro
   const position = clampRestoredPosition({ x: row.x, y: row.y }, row.id, terrain);
   const level = Math.max(1, row.level);
   const life = await restoredLife(db, row);
+  const normalized = await loadNormalizedHeroState(db, row);
   const resource = initialResource(row.class);
+  if (resource && row.resourceCurrent !== null && Number.isFinite(row.resourceCurrent)) {
+    resource.current = Math.max(0, Math.min(resource.max, row.resourceCurrent));
+  }
   return {
     id: row.id,
     nick: row.name,
@@ -65,16 +90,27 @@ export async function loadHeroProfile(db: Db, heroId: string): Promise<PlayerPro
     hp: Math.min(maxHpForLevel(level), Math.max(life.life === "alive" ? 1 : 0, row.hp)),
     appearance: { body: "wayfarer", primaryColor: COLOR_TO_APPEARANCE[membership.color] },
     class: row.class,
-    equipment: starterEquipmentFor(row.class),
-    inventory: { potions: 2, gold: 0, crystals: 0 },
-    quest: { chapter: "three_offerings", status: "available", progress: 0, target: 3 },
+    equipment: normalized.equipment,
+    inventory: {
+      potions: normalized.consumables.health_potion,
+      gold: Math.max(0, row.gold),
+      crystals: Math.max(0, row.crystals),
+      consumables: normalized.consumables,
+    },
+    quest: normalized.quest,
     zoneId: row.mapId,
     instanceId: "main",
     sessionEpoch: Math.max(0, row.sessionEpoch),
-    wardRunExpiresAt: null,
+    wardRunExpiresAt: normalized.wardRunExpiresAt,
     ...life,
     ...(resource ? { resource } : {}),
     talents: talentsFromRow(row.class, level, row.talents),
+    cooldowns: cooldownsFromRow(row.combatCooldowns),
+    consumableCooldownUntil: safeDeadline(row.consumableCooldownUntil),
+    damageBoostUntil: safeDeadline(row.damageBoostUntil),
+    forgottenUntil: safeDeadline(row.forgottenUntil),
+    invisibleUntil: safeDeadline(row.invisibleUntil),
+    resurrectionAt: safeDeadline(row.resurrectionAt),
   };
 }
 
@@ -123,24 +159,160 @@ export async function relocateHero(
 }
 
 export async function saveHeroProfile(db: Db, profile: SaveableProfile): Promise<boolean> {
-  const updated = await db
-    .update(hero)
-    .set({
-      x: profile.x,
-      y: profile.y,
-      level: profile.level,
-      xp: profile.xp,
-      hp: profile.hp,
-      talents: JSON.stringify(
-        normalizeTalentSelection(profile.class, profile.level, profile.talents),
+  const equipment = isEquipmentForClass(profile.equipment, profile.class)
+    ? profile.equipment
+    : starterEquipmentFor(profile.class);
+  const consumables = normalizeConsumables(
+    profile.inventory.consumables,
+    profile.inventory.potions,
+  );
+  const chapter = profile.quest.chapter ?? "three_offerings";
+  const now = Date.now();
+  const cooldowns = normalizeCombatCooldowns(profile.cooldowns, now);
+  const statements: D1PreparedStatement[] = [
+    db.$client
+      .prepare(
+        `UPDATE hero SET
+          x = ?, y = ?, level = ?, xp = ?, hp = ?, gold = ?, crystals = ?,
+          resource_current = ?, combat_cooldowns = ?, consumable_cooldown_until = ?,
+          damage_boost_until = ?, forgotten_until = ?, invisible_until = ?, resurrection_at = ?,
+          talents = ?, life = ?, corpse_x = ?, corpse_y = ?, updated_at = ?
+         WHERE id = ? AND session_epoch = ?
+         RETURNING id`,
+      )
+      .bind(
+        profile.x,
+        profile.y,
+        profile.level,
+        profile.xp,
+        profile.hp,
+        Math.max(0, profile.inventory.gold),
+        Math.max(0, profile.inventory.crystals),
+        profile.resource?.current ?? null,
+        JSON.stringify(cooldowns),
+        safeDeadline(profile.consumableCooldownUntil ?? 0),
+        safeDeadline(profile.damageBoostUntil ?? 0),
+        safeDeadline(profile.forgottenUntil ?? 0),
+        safeDeadline(profile.invisibleUntil ?? 0),
+        safeDeadline(profile.resurrectionAt ?? 0),
+        JSON.stringify(normalizeTalentSelection(profile.class, profile.level, profile.talents)),
+        profile.life,
+        profile.corpse?.x ?? null,
+        profile.corpse?.y ?? null,
+        now,
+        profile.id,
+        profile.sessionEpoch,
       ),
-      life: profile.life,
-      corpseX: profile.corpse?.x ?? null,
-      corpseY: profile.corpse?.y ?? null,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(hero.id, profile.id), eq(hero.sessionEpoch, profile.sessionEpoch)))
-    .returning({ id: hero.id })
-    .get();
-  return updated !== undefined;
+  ];
+  for (const [definitionId, quantity] of Object.entries(consumables)) {
+    statements.push(
+      db.$client
+        .prepare(
+          `INSERT INTO hero_item (id, hero_id, item_definition_id, quantity, created_at)
+           SELECT ?, id, ?, ?, ? FROM hero WHERE id = ? AND session_epoch = ?
+           ON CONFLICT(hero_id, item_definition_id) DO UPDATE SET quantity = excluded.quantity`,
+        )
+        .bind(
+          ownedItemId(profile.id, definitionId),
+          definitionId,
+          quantity,
+          now,
+          profile.id,
+          profile.sessionEpoch,
+        ),
+    );
+  }
+  for (const [slot, definitionId] of [
+    ["main_hand", equipment.mainHand],
+    ["off_hand", equipment.offHand],
+  ] as const) {
+    if (definitionId === null) {
+      statements.push(
+        db.$client
+          .prepare(
+            `DELETE FROM hero_equipment
+             WHERE hero_id = ? AND slot = ?
+               AND EXISTS (SELECT 1 FROM hero WHERE id = ? AND session_epoch = ?)`,
+          )
+          .bind(profile.id, slot, profile.id, profile.sessionEpoch),
+      );
+      continue;
+    }
+    const itemId = ownedItemId(profile.id, definitionId);
+    statements.push(
+      db.$client
+        .prepare(
+          `INSERT INTO hero_item (id, hero_id, item_definition_id, quantity, created_at)
+           SELECT ?, id, ?, 1, ? FROM hero WHERE id = ? AND session_epoch = ?
+           ON CONFLICT(hero_id, item_definition_id) DO NOTHING`,
+        )
+        .bind(itemId, definitionId, now, profile.id, profile.sessionEpoch),
+      db.$client
+        .prepare(
+          `INSERT INTO hero_equipment (hero_id, slot, hero_item_id, equipped_at)
+           SELECT id, ?, ?, ? FROM hero WHERE id = ? AND session_epoch = ?
+           ON CONFLICT(hero_id, slot) DO UPDATE SET
+             hero_item_id = excluded.hero_item_id, equipped_at = excluded.equipped_at`,
+        )
+        .bind(slot, itemId, now, profile.id, profile.sessionEpoch),
+    );
+  }
+  statements.push(
+    db.$client
+      .prepare(
+        `INSERT INTO hero_quest
+          (hero_id, quest_id, status, progress, accepted_at, completed_at, data)
+         SELECT id, ?, ?, ?,
+           CASE WHEN ? = 'available' THEN NULL ELSE ? END,
+           CASE WHEN ? = 'completed' THEN ? ELSE NULL END, ?
+         FROM hero WHERE id = ? AND session_epoch = ?
+         ON CONFLICT(hero_id, quest_id) DO UPDATE SET
+           status = excluded.status,
+           progress = excluded.progress,
+           accepted_at = COALESCE(hero_quest.accepted_at, excluded.accepted_at),
+           completed_at = excluded.completed_at,
+           data = excluded.data
+         WHERE hero_quest.reward_claim_id IS NULL OR excluded.status = 'completed'`,
+      )
+      .bind(
+        chapter,
+        profile.quest.status,
+        profile.quest.progress,
+        profile.quest.status,
+        now,
+        profile.quest.status,
+        now,
+        profile.wardRunExpiresAt === null
+          ? null
+          : JSON.stringify({ wardRunExpiresAt: profile.wardRunExpiresAt }),
+        profile.id,
+        profile.sessionEpoch,
+      ),
+  );
+  for (const skill of CLASS_SKILLS[profile.class]) {
+    const unlocked = isSkillUnlocked(profile.level, skill.slot);
+    statements.push(
+      db.$client
+        .prepare(
+          `INSERT INTO hero_skill (hero_id, skill_id, unlocked, equipped, slot, unlocked_at)
+           SELECT id, ?, ?, ?, ?, ? FROM hero WHERE id = ? AND session_epoch = ?
+           ON CONFLICT(hero_id, skill_id) DO UPDATE SET
+             unlocked = excluded.unlocked,
+             equipped = excluded.equipped,
+             slot = excluded.slot,
+             unlocked_at = COALESCE(hero_skill.unlocked_at, excluded.unlocked_at)`,
+        )
+        .bind(
+          skill.id,
+          unlocked ? 1 : 0,
+          unlocked ? 1 : 0,
+          unlocked ? skill.slot : null,
+          unlocked ? now : null,
+          profile.id,
+          profile.sessionEpoch,
+        ),
+    );
+  }
+  const results = await db.$client.batch(statements);
+  return (results[0]?.results.length ?? 0) === 1;
 }

@@ -23,6 +23,46 @@ export const ITEM_DEFINITIONS: readonly ItemDefinitionRecord[] = [
     allowedClass: null,
   },
   {
+    id: "mana_potion",
+    type: "consumable",
+    stackable: true,
+    maxStack: 9_999,
+    equipmentSlot: null,
+    allowedClass: null,
+  },
+  {
+    id: "damage_elixir",
+    type: "consumable",
+    stackable: true,
+    maxStack: 9_999,
+    equipmentSlot: null,
+    allowedClass: null,
+  },
+  {
+    id: "oblivion_draught",
+    type: "consumable",
+    stackable: true,
+    maxStack: 9_999,
+    equipmentSlot: null,
+    allowedClass: null,
+  },
+  {
+    id: "invisibility_potion",
+    type: "consumable",
+    stackable: true,
+    maxStack: 9_999,
+    equipmentSlot: null,
+    allowedClass: null,
+  },
+  {
+    id: "resurrection_potion",
+    type: "consumable",
+    stackable: true,
+    maxStack: 9_999,
+    equipmentSlot: null,
+    allowedClass: null,
+  },
+  {
     id: "weathered_sword",
     type: "weapon",
     stackable: false,
@@ -56,8 +96,8 @@ export const ITEM_DEFINITIONS: readonly ItemDefinitionRecord[] = [
   },
 ] as const;
 
-export function ownedItemId(characterId: string, definitionId: string): string {
-  return `${characterId}:${definitionId}`;
+export function ownedItemId(ownerId: string, definitionId: string): string {
+  return `${ownerId}:${definitionId}`;
 }
 
 export function equipmentDefinitionIds(equipment: Equipment): string[] {

@@ -176,6 +176,13 @@
       "when": 1784502096671,
       "tag": "0024_sharp_thunderbolts",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1784550436193,
+      "tag": "0025_outstanding_kitty_pryde",
+      "breakpoints": true
     }
   ]
 }

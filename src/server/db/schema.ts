@@ -502,6 +502,16 @@ export const hero = sqliteTable(
     level: integer("level").notNull().default(1),
     xp: integer("xp").notNull().default(0),
     hp: integer("hp").notNull().default(100),
+    gold: integer("gold").notNull().default(0),
+    crystals: integer("crystals").notNull().default(0),
+    resourceCurrent: real("resource_current"),
+    /** JSON CombatCooldownState. Deadlines are normalized against server time on restore. */
+    combatCooldowns: text("combat_cooldowns").notNull().default("{}"),
+    consumableCooldownUntil: integer("consumable_cooldown_until").notNull().default(0),
+    damageBoostUntil: integer("damage_boost_until").notNull().default(0),
+    forgottenUntil: integer("forgotten_until").notNull().default(0),
+    invisibleUntil: integer("invisible_until").notNull().default(0),
+    resurrectionAt: integer("resurrection_at").notNull().default(0),
     /** JSON array of server-validated talent ids. Roots are derived and never stored. */
     talents: text("talents").notNull().default("[]"),
     sessionEpoch: integer("session_epoch").notNull().default(0),
@@ -515,6 +525,96 @@ export const hero = sqliteTable(
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
   },
   (table) => [index("hero_party_account_idx").on(table.partyId, table.accountId)],
+);
+
+/** Hero-owned normalized gameplay state. These tables intentionally do not point at `character`:
+ * the party/hero flow has its own ownership and fencing boundary. */
+export const heroItem = sqliteTable(
+  "hero_item",
+  {
+    id: text("id").primaryKey(),
+    heroId: text("hero_id")
+      .notNull()
+      .references(() => hero.id, { onDelete: "cascade" }),
+    itemDefinitionId: text("item_definition_id")
+      .notNull()
+      .references(() => itemDefinition.id, { onDelete: "restrict" }),
+    quantity: integer("quantity").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
+  },
+  (table) => [
+    check("hero_item_quantity_non_negative", sql`${table.quantity} >= 0`),
+    uniqueIndex("hero_item_definition_unique").on(table.heroId, table.itemDefinitionId),
+    uniqueIndex("hero_item_owner_id_unique").on(table.heroId, table.id),
+    index("hero_item_hero_idx").on(table.heroId),
+  ],
+);
+
+export const heroEquipment = sqliteTable(
+  "hero_equipment",
+  {
+    heroId: text("hero_id")
+      .notNull()
+      .references(() => hero.id, { onDelete: "cascade" }),
+    slot: text("slot", { enum: EQUIPMENT_SLOTS }).notNull(),
+    heroItemId: text("hero_item_id").notNull(),
+    equippedAt: integer("equipped_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
+  },
+  (table) => [
+    primaryKey({ columns: [table.heroId, table.slot] }),
+    uniqueIndex("hero_equipment_item_unique").on(table.heroItemId),
+    foreignKey({
+      columns: [table.heroId, table.heroItemId],
+      foreignColumns: [heroItem.heroId, heroItem.id],
+      name: "hero_equipment_owned_item_fk",
+    }).onDelete("cascade"),
+  ],
+);
+
+export const heroSkill = sqliteTable(
+  "hero_skill",
+  {
+    heroId: text("hero_id")
+      .notNull()
+      .references(() => hero.id, { onDelete: "cascade" }),
+    skillId: text("skill_id").notNull(),
+    unlocked: integer("unlocked", { mode: "boolean" }).notNull().default(false),
+    equipped: integer("equipped", { mode: "boolean" }).notNull().default(false),
+    slot: integer("slot"),
+    unlockedAt: integer("unlocked_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.heroId, table.skillId] }),
+    uniqueIndex("hero_skill_slot_unique").on(table.heroId, table.slot),
+    check("hero_skill_slot_range", sql`${table.slot} IS NULL OR ${table.slot} BETWEEN 1 AND 5`),
+    check(
+      "hero_skill_equipped_shape",
+      sql`(${table.equipped} = 0 AND ${table.slot} IS NULL) OR (${table.equipped} = 1 AND ${table.unlocked} = 1 AND ${table.slot} IS NOT NULL)`,
+    ),
+  ],
+);
+
+export const heroQuest = sqliteTable(
+  "hero_quest",
+  {
+    heroId: text("hero_id")
+      .notNull()
+      .references(() => hero.id, { onDelete: "cascade" }),
+    questId: text("quest_id").notNull(),
+    status: text("status", { enum: ["available", "active", "ready", "completed"] })
+      .notNull()
+      .default("available"),
+    progress: integer("progress").notNull().default(0),
+    acceptedAt: integer("accepted_at", { mode: "timestamp_ms" }),
+    completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+    data: text("data", { mode: "json" }).$type<Record<string, unknown>>(),
+    rewardClaimId: text("reward_claim_id").unique(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.heroId, table.questId] }),
+    check("hero_quest_progress_non_negative", sql`${table.progress} >= 0`),
+    index("hero_quest_hero_status_idx").on(table.heroId, table.status),
+  ],
 );
 
 /**
@@ -542,4 +642,8 @@ export type Adventure = typeof adventure.$inferSelect;
 export type Party = typeof party.$inferSelect;
 export type PartyMember = typeof partyMember.$inferSelect;
 export type Hero = typeof hero.$inferSelect;
+export type HeroItem = typeof heroItem.$inferSelect;
+export type HeroEquipment = typeof heroEquipment.$inferSelect;
+export type HeroSkill = typeof heroSkill.$inferSelect;
+export type HeroQuest = typeof heroQuest.$inferSelect;
 export type PartyAdventureStateRow = typeof partyAdventureState.$inferSelect;

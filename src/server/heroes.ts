@@ -5,13 +5,16 @@
  * from the owner's party_member slot.
  */
 import { and, asc, eq } from "drizzle-orm";
+import { starterEquipmentFor } from "../shared/character.js";
 import type { PlayerClass } from "../shared/game.js";
 import type { CreateHeroInput } from "../shared/hero.js";
 import { MAX_HEROES_PER_PARTY } from "../shared/hero.js";
 import { mapSpawnPoint } from "../shared/map-data.js";
 import { eventCellCentre } from "../shared/map-events.js";
+import { CLASS_SKILLS, isSkillUnlocked } from "../shared/skills.js";
 import { loadAdventure } from "./adventures.js";
 import { type Db, hero, party, partyMember } from "./db/index.js";
+import { HEALTH_POTION_ID, ownedItemId } from "./items.js";
 import { loadMap, type StoredMap } from "./maps.js";
 
 export interface StoredHero {
@@ -87,28 +90,94 @@ export async function createHero(
   const position = entryPosition(startMap, start.entryId);
 
   const id = crypto.randomUUID();
-  const result = await db.$client
-    .prepare(
-      `INSERT INTO hero (id, party_id, account_id, name, class, map_id, x, y,
+  const equipment = starterEquipmentFor(input.class);
+  const now = Date.now();
+  const statements: D1PreparedStatement[] = [
+    db.$client
+      .prepare(
+        `INSERT INTO hero (id, party_id, account_id, name, class, map_id, x, y,
                          created_at, updated_at)
        SELECT ?, ?, ?, ?, ?, ?, ?, ?, (unixepoch() * 1000), (unixepoch() * 1000)
        WHERE (SELECT count(*) FROM hero WHERE party_id = ? AND account_id = ?) < ?`,
-    )
-    .bind(
-      id,
-      partyId,
-      accountId,
-      input.name,
-      input.class,
-      startMap.id,
-      position.x,
-      position.y,
-      partyId,
-      accountId,
-      MAX_HEROES_PER_PARTY,
-    )
-    .run();
-  if ((result.meta.changes ?? 0) === 0) {
+      )
+      .bind(
+        id,
+        partyId,
+        accountId,
+        input.name,
+        input.class,
+        startMap.id,
+        position.x,
+        position.y,
+        partyId,
+        accountId,
+        MAX_HEROES_PER_PARTY,
+      ),
+    db.$client
+      .prepare(
+        `INSERT INTO hero_item (id, hero_id, item_definition_id, quantity, created_at)
+         SELECT ?, id, ?, 2, ? FROM hero WHERE id = ?`,
+      )
+      .bind(ownedItemId(id, HEALTH_POTION_ID), HEALTH_POTION_ID, now, id),
+  ];
+  for (const definitionId of [equipment.mainHand, equipment.offHand].filter(
+    (candidate): candidate is NonNullable<typeof candidate> => candidate !== null,
+  )) {
+    statements.push(
+      db.$client
+        .prepare(
+          `INSERT INTO hero_item (id, hero_id, item_definition_id, quantity, created_at)
+           SELECT ?, id, ?, 1, ? FROM hero WHERE id = ?`,
+        )
+        .bind(ownedItemId(id, definitionId), definitionId, now, id),
+    );
+  }
+  statements.push(
+    db.$client
+      .prepare(
+        `INSERT INTO hero_equipment (hero_id, slot, hero_item_id, equipped_at)
+         SELECT id, 'main_hand', ?, ? FROM hero WHERE id = ?`,
+      )
+      .bind(ownedItemId(id, equipment.mainHand), now, id),
+  );
+  if (equipment.offHand !== null) {
+    statements.push(
+      db.$client
+        .prepare(
+          `INSERT INTO hero_equipment (hero_id, slot, hero_item_id, equipped_at)
+           SELECT id, 'off_hand', ?, ? FROM hero WHERE id = ?`,
+        )
+        .bind(ownedItemId(id, equipment.offHand), now, id),
+    );
+  }
+  statements.push(
+    db.$client
+      .prepare(
+        `INSERT INTO hero_quest (hero_id, quest_id, status, progress)
+         SELECT id, 'three_offerings', 'available', 0 FROM hero WHERE id = ?`,
+      )
+      .bind(id),
+  );
+  for (const skill of CLASS_SKILLS[input.class]) {
+    const unlocked = isSkillUnlocked(1, skill.slot);
+    statements.push(
+      db.$client
+        .prepare(
+          `INSERT INTO hero_skill (hero_id, skill_id, unlocked, equipped, slot, unlocked_at)
+           SELECT id, ?, ?, ?, ?, ? FROM hero WHERE id = ?`,
+        )
+        .bind(
+          skill.id,
+          unlocked ? 1 : 0,
+          unlocked ? 1 : 0,
+          unlocked ? skill.slot : null,
+          unlocked ? now : null,
+          id,
+        ),
+    );
+  }
+  const results = await db.$client.batch(statements);
+  if ((results[0]?.meta.changes ?? 0) === 0) {
     throw new Error("cap: too many heroes in this party");
   }
   const [created] = await db.select().from(hero).where(eq(hero.id, id)).limit(1);
