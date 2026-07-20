@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   check:
-    name: map, lint, typecheck, test, ui, build
+    name: generated assets, lint, typecheck, test, ui, build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -26,20 +26,8 @@ jobs:
 
       - run: npm ci
 
-      - name: Generated tilemaps are current
-        run: npm run map:check
-
-      - name: Lint and format check
-        run: npm run lint
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Worker tests
-        run: npm run test
-
-      - name: React UI tests
-        run: npm run test:ui
+      - name: Full validation
+        run: npm run check
 
       # Catches Vite/Wrangler bundling errors that typecheck and tests cannot see.
       - name: Build

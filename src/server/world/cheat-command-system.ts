@@ -1,4 +1,5 @@
 import { CHEAT_COMMAND_SYNTAX, type CheatCommand } from "../../shared/cheats.js";
+import { normalizeConsumables } from "../../shared/consumables.js";
 import { maxHpForLevel } from "../../shared/game.js";
 import type { EventCode, EventParams, EventTone } from "../../shared/protocol.js";
 import { normalizeTalentSelection } from "../../shared/talents.js";
@@ -91,7 +92,13 @@ export function executeCheatCommand(
     return { event: event("cheat.cooldowns"), stateChanged: true };
   }
   if (command.kind === "loot") {
-    player.inventory.potions += 10;
+    const consumables = normalizeConsumables(
+      player.inventory.consumables,
+      player.inventory.potions,
+    );
+    consumables.health_potion += 10;
+    player.inventory.consumables = consumables;
+    player.inventory.potions = consumables.health_potion;
     player.inventory.gold += 1_000;
     player.inventory.crystals += 100;
     player.dirty = true;

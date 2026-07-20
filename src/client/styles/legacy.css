@@ -1290,7 +1290,7 @@ kbd {
   cursor: var(--tiny-cursor-link, pointer);
 }
 
-.settings-toggle input {
+#root .settings-toggle input {
   width: 1rem;
   height: 1rem;
   accent-color: var(--gold);
@@ -1479,7 +1479,7 @@ kbd {
   gap: 0.55rem;
 }
 
-.settings-session-actions button {
+#root .settings-session-actions button {
   min-height: 2.65rem;
   padding: 0.48rem 0.55rem;
   border-color: rgb(207 180 101 / 38%);
@@ -2400,7 +2400,7 @@ kbd {
     pointer-events: auto;
   }
 
-  .mobile-utilities button {
+  #root .mobile-utilities button {
     display: grid;
     place-items: center;
     width: 2.45rem;
@@ -2574,7 +2574,7 @@ kbd {
   margin: 0 0 8px;
 }
 
-.connection-overlay__panel button {
+#root .connection-overlay__panel button {
   margin-top: 8px;
 }
 

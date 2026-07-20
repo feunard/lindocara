@@ -5,12 +5,11 @@
 
 import { env, runInDurableObject, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { D1_SAVE_EVERY_TICKS, RESYNC_COOLDOWN_MS } from "../src/server/world/world-runtime.js";
+import { RESYNC_COOLDOWN_MS } from "../src/server/world/world-runtime.js";
 import { type Attachment, positionFromAttachment } from "../src/server/world.js";
 import { WS_CLOSE } from "../src/shared/close-codes.js";
 import { CORPSE_RECLAIM_RANGE, RESURRECT_HP_RATIO } from "../src/shared/death.js";
 import {
-  ATTACK_COOLDOWN_MS,
   CEMETERIES,
   isWalkable,
   maxHpForLevel,
@@ -486,115 +485,41 @@ describe("World", () => {
 
   // Loot enters the room, not D1: the count only reaches the database on the five-second flush.
   // A drink that trusts D1's quantity in that window destroys everything picked up since.
-  it("keeps a potion looted inside the D1 flush window", { timeout: 110_000 }, async () => {
+  it("keeps a potion added inside the D1 flush window", async () => {
     const drinker = await Client.join("potion_window", {
       zoneId: "verdant-reach",
       instanceId: "potion-window",
-      // Cleave is directional: stand just left of the authored goblin spawn rather than directly
-      // on top of it, so the default right-facing attack has a real frontal target.
-      position: { x: 1840, y: 820 },
-      level: 100,
-      hp: 1_000,
+      hp: 20,
     });
-    const welcome = await until("potion window welcome", () => drinker.welcome);
-    expect(welcome.self.inventory.potions).toBe(2);
+    try {
+      const welcome = await until("potion window welcome", () => drinker.welcome);
+      expect(welcome.self.inventory.potions).toBe(2);
 
-    // D1 only catches up every D1_SAVE_EVERY_TICKS. Keep casting early in each flush window until
-    // an impact lands on a potion tick, so pickup and drink both happen while D1 still says two.
-    // Snapshot ticks arrive at half the simulation rate and may keep one parity forever; the
-    // authoritative active frame, not the launch snapshot, decides the loot tick.
-    const isEarlyInFlushWindow = () => {
-      const tick = drinker.latestSnapshot?.tick;
-      return tick !== undefined && tick % D1_SAVE_EVERY_TICKS <= 40;
-    };
-    const potionPickups = () =>
-      drinker.received.filter(
-        (message) =>
-          message.t === "event" &&
-          message.code === "loot.picked" &&
-          message.params?.kind === "potion",
-      ).length;
-    const lootPickups = () =>
-      drinker.received.filter((message) => message.t === "event" && message.code === "loot.picked")
-        .length;
+      // The test-only loot command mutates the same authoritative room inventory as a pickup, but
+      // does not write D1. This creates the exact five-second race deterministically.
+      drinker.chat("/loot");
+      const held = await until("the in-memory potion gain", () => {
+        const potions = drinker.latestState?.inventory.potions;
+        return potions === 12 ? potions : undefined;
+      });
+      const stale = await env.DB.prepare(
+        `SELECT quantity FROM character_item
+         WHERE character_id = ? AND item_definition_id = 'health_potion'`,
+      )
+        .bind(welcome.selfId)
+        .first<{ quantity: number }>();
+      expect(stale?.quantity).toBe(2);
 
-    let lastAttackAt = 0;
-    let nextRespawnAttackAt = 0;
-    let targetWasDead = false;
-    // Progress here is bound to *simulation* time, not wall-clock: a potion only drops on a
-    // killing blow that lands on a `tick % 4 === 0` frame, and attacks are gated to the first
-    // ~2s of each five-second flush window. Landing that phase is a stochastic search that needs
-    // several windows. Under full-suite CPU load the 20 Hz tick loop slows and snapshots lag, so a
-    // fixed wall-clock budget buys fewer effective windows and the search can starve — the old
-    // 45s deadline is exactly what made this a ~1-in-3 flake. Give the sim-bound search an
-    // adequate, still-bounded budget (comfortably inside the 110s test timeout).
-    const deadline = Date.now() + 90_000;
-    while (potionPickups() === 0 && Date.now() < deadline) {
-      const dropped = drinker.latestSnapshot?.loot.find((item) => item.kind === "potion");
-      const self = drinker.self();
-      const authoredTarget = drinker.latestSnapshot?.monsters.find(
-        (monster) => monster.id === "road-goblin-scout",
+      drinker.sendRaw(JSON.stringify({ t: "use", item: "potion" }));
+      await until("the drink to resolve", () =>
+        drinker.received.some((message) => message.t === "event" && message.code === "item.used"),
       );
-      const target = authoredTarget && !authoredTarget.dead ? authoredTarget : undefined;
-      if (dropped && self) {
-        // The pickup radius is tighter than the attack range: walk onto the drop.
-        const dx = dropped.x - self.x;
-        const dy = dropped.y - self.y;
-        drinker.press(
-          Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy > 0 ? "down" : "up",
-        );
-      } else if (target && self) {
-        if (targetWasDead) {
-          // Respawn is an exact multiple of four simulation ticks. Offset consecutive killing
-          // blows so the deterministic loot selector visits every tick phase instead of repeating
-          // the same non-potion drop forever.
-          nextRespawnAttackAt = Date.now() + (lootPickups() % 4) * TICK_DT * 1_000;
-          targetWasDead = false;
-        }
-        const dx = target.x - self.x;
-        const dy = target.y - self.y;
-        const direction =
-          Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy > 0 ? "down" : "up";
-        const facingTarget =
-          (direction === "right" && self.facing.x > 0.9) ||
-          (direction === "left" && self.facing.x < -0.9) ||
-          (direction === "down" && self.facing.y > 0.9) ||
-          (direction === "up" && self.facing.y < -0.9);
-        if (Math.hypot(dx, dy) > 24 || !facingTarget) {
-          drinker.press(direction);
-        } else {
-          drinker.release();
-          if (
-            Date.now() >= nextRespawnAttackAt &&
-            Date.now() - lastAttackAt > ATTACK_COOLDOWN_MS &&
-            isEarlyInFlushWindow()
-          ) {
-            drinker.action("attack");
-            lastAttackAt = Date.now();
-          }
-        }
-      } else {
-        if (authoredTarget?.dead) targetWasDead = true;
-        drinker.release();
-      }
-      await scheduler.wait(10);
+      // One drink costs one potion — not the ten it would lose if D1's stale count won.
+      expect(drinker.latestState?.inventory.potions).toBe(held - 1);
+    } finally {
+      drinker.close();
+      await waitForRoomSockets("verdant-reach:potion-window", 0);
     }
-    drinker.release();
-    expect(potionPickups()).toBeGreaterThan(0);
-
-    const held = await until("the looted potion in the inventory", () => {
-      const potions = drinker.latestState?.inventory.potions;
-      return potions !== undefined && potions >= 3 ? potions : undefined;
-    });
-
-    drinker.usePotion();
-    await until("the drink to resolve", () =>
-      drinker.received.some((message) => message.t === "event" && message.code === "item.used"),
-    );
-    // One drink costs one potion — not the two it would cost if D1's stale count won.
-    expect(drinker.latestState?.inventory.potions).toBe(held - 1);
-
-    drinker.close();
   });
 
   it("does not let the URL select a room", async () => {
@@ -889,52 +814,61 @@ describe("World", () => {
     client.close();
   });
 
-  it("filters snapshots and local chat by spatial interest while always including self", async () => {
+  it("filters snapshots and local chat by spatial interest while always including self", {
+    timeout: 20_000,
+  }, async () => {
     const alice = await Client.join("chat_a", { position: { x: 500, y: 1100 } });
     const bob = await Client.join("chat_b", { position: { x: 600, y: 1100 } });
     const far = await Client.join("chat_far", { position: { x: 1870, y: 820 } });
+    try {
+      // Waiting for "a snapshot exists" is not the same as waiting for the snapshot to know about
+      // Bob: he reaches Alice on the next 10Hz delta, so asserting the moment three snapshots exist
+      // races that delta and fails whenever the machine is slow enough to notice. Wait for the
+      // condition actually under test.
+      await until(
+        "interest snapshots include the neighbour",
+        () => {
+          const neighbour = bob.welcome?.selfId;
+          return neighbour &&
+            alice.latestSnapshot?.players.some((player) => player.id === neighbour) &&
+            bob.latestSnapshot &&
+            far.latestSnapshot
+            ? true
+            : undefined;
+        },
+        10_000,
+      );
 
-    // Waiting for "a snapshot exists" is not the same as waiting for the snapshot to know about
-    // Bob: he reaches Alice on the next 10Hz delta, so asserting the moment three snapshots exist
-    // races that delta and fails whenever the machine is slow enough to notice. Wait for the
-    // condition actually under test.
-    await until("interest snapshots include the neighbour", () => {
-      const neighbour = bob.welcome?.selfId;
-      return neighbour &&
-        alice.latestSnapshot?.players.some((player) => player.id === neighbour) &&
-        bob.latestSnapshot &&
-        far.latestSnapshot
-        ? true
-        : undefined;
-    });
+      const aliceId = alice.welcome?.selfId;
+      const bobId = bob.welcome?.selfId;
+      const farId = far.welcome?.selfId;
+      expect(alice.latestSnapshot?.players.map((player) => player.id)).toEqual(
+        expect.arrayContaining([aliceId, bobId]),
+      );
+      expect(alice.latestSnapshot?.players.map((player) => player.id)).not.toContain(farId);
+      expect(far.latestSnapshot?.players.map((player) => player.id)).toContain(farId);
+      expect(far.latestSnapshot?.players.map((player) => player.id)).not.toContain(aliceId);
 
-    const aliceId = alice.welcome?.selfId;
-    const bobId = bob.welcome?.selfId;
-    const farId = far.welcome?.selfId;
-    expect(alice.latestSnapshot?.players.map((player) => player.id)).toEqual(
-      expect.arrayContaining([aliceId, bobId]),
-    );
-    expect(alice.latestSnapshot?.players.map((player) => player.id)).not.toContain(farId);
-    expect(far.latestSnapshot?.players.map((player) => player.id)).toContain(farId);
-    expect(far.latestSnapshot?.players.map((player) => player.id)).not.toContain(aliceId);
-
-    alice.chat("  hello   world  ");
-    const relayed = await until("chat relay", () =>
-      bob.received.find((message) => message.t === "chat" && message.from === "chat_a"),
-    );
-    expect(relayed).toMatchObject({
-      t: "chat",
-      channel: "local",
-      from: "chat_a",
-      text: "hello world",
-    });
-    await scheduler.wait(200);
-    expect(
-      far.received.some((message) => message.t === "chat" && message.text === "hello world"),
-    ).toBe(false);
-    alice.close();
-    bob.close();
-    far.close();
+      alice.chat("  hello   world  ");
+      const relayed = await until("chat relay", () =>
+        bob.received.find((message) => message.t === "chat" && message.from === "chat_a"),
+      );
+      expect(relayed).toMatchObject({
+        t: "chat",
+        channel: "local",
+        from: "chat_a",
+        text: "hello world",
+      });
+      await scheduler.wait(200);
+      expect(
+        far.received.some((message) => message.t === "chat" && message.text === "hello world"),
+      ).toBe(false);
+    } finally {
+      alice.close();
+      bob.close();
+      far.close();
+      await waitForRoomSockets(VERDANT_ROOM_KEY, 0);
+    }
   });
 
   // A Durable Object is rebuilt on deploys and evictions, not only when it hibernates idle.
