@@ -80,32 +80,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 192,
+        "height": 128
+      }
     }
   },
   {
@@ -186,32 +166,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 192,
+        "height": 128
+      }
     }
   },
   {
@@ -324,48 +284,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -2,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": 2,
-          "row": -1
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        },
-        {
-          "col": 2,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -160,
+        "y": -128,
+        "width": 320,
+        "height": 128
+      }
     }
   },
   {
@@ -422,24 +346,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -496,24 +408,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -570,24 +470,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -680,32 +568,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 192,
+        "height": 128
+      }
     }
   },
   {
@@ -770,24 +638,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -868,32 +724,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 192,
+        "height": 128
+      }
     }
   },
   {
@@ -974,32 +810,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 192,
+        "height": 128
+      }
     }
   },
   {
@@ -1112,48 +928,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -2,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": 2,
-          "row": -1
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        },
-        {
-          "col": 2,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -160,
+        "y": -128,
+        "width": 320,
+        "height": 128
+      }
     }
   },
   {
@@ -1210,24 +990,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -1284,24 +1052,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -1358,24 +1114,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -1468,32 +1212,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 192,
+        "height": 128
+      }
     }
   },
   {
@@ -1558,24 +1282,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -1656,32 +1368,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 192,
+        "height": 128
+      }
     }
   },
   {
@@ -1762,32 +1454,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 192,
+        "height": 128
+      }
     }
   },
   {
@@ -1900,48 +1572,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -2,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": 2,
-          "row": -1
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        },
-        {
-          "col": 2,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -160,
+        "y": -128,
+        "width": 320,
+        "height": 128
+      }
     }
   },
   {
@@ -1998,24 +1634,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -2072,24 +1696,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -2146,24 +1758,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -2256,32 +1856,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 192,
+        "height": 128
+      }
     }
   },
   {
@@ -2346,24 +1926,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -2444,32 +2012,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 192,
+        "height": 128
+      }
     }
   },
   {
@@ -2550,32 +2098,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 192,
+        "height": 128
+      }
     }
   },
   {
@@ -2688,48 +2216,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -2,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": 2,
-          "row": -1
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        },
-        {
-          "col": 2,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -160,
+        "y": -128,
+        "width": 320,
+        "height": 128
+      }
     }
   },
   {
@@ -2786,24 +2278,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -2860,24 +2340,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -2934,24 +2402,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -3044,32 +2500,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 192,
+        "height": 128
+      }
     }
   },
   {
@@ -3134,24 +2570,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -3232,32 +2656,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 192,
+        "height": 128
+      }
     }
   },
   {
@@ -3338,32 +2742,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 192,
+        "height": 128
+      }
     }
   },
   {
@@ -3476,48 +2860,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -2,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": 2,
-          "row": -1
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        },
-        {
-          "col": 2,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -160,
+        "y": -128,
+        "width": 320,
+        "height": 128
+      }
     }
   },
   {
@@ -3574,24 +2922,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -3648,24 +2984,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -3722,24 +3046,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -3832,32 +3144,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 192,
+        "height": 128
+      }
     }
   },
   {
@@ -3922,24 +3214,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -4000,24 +3280,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -4079,24 +3347,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -4181,40 +3437,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -2,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -160,
+        "y": -128,
+        "width": 256,
+        "height": 128
+      }
     }
   },
   {
@@ -4299,40 +3527,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -2,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -160,
+        "y": -128,
+        "width": 256,
+        "height": 128
+      }
     }
   },
   {
@@ -4448,48 +3648,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -2,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": 2,
-          "row": -1
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        },
-        {
-          "col": 2,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -160,
+        "y": -128,
+        "width": 320,
+        "height": 128
+      }
     }
   },
   {
@@ -4605,48 +3769,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -2,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": 2,
-          "row": -1
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        },
-        {
-          "col": 2,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -160,
+        "y": -128,
+        "width": 320,
+        "height": 128
+      }
     }
   },
   {
@@ -4762,48 +3890,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -2,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": 2,
-          "row": -1
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        },
-        {
-          "col": 2,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -160,
+        "y": -128,
+        "width": 320,
+        "height": 128
+      }
     }
   },
   {
@@ -4919,48 +4011,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -2,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": 2,
-          "row": -1
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        },
-        {
-          "col": 2,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -160,
+        "y": -128,
+        "width": 320,
+        "height": 128
+      }
     }
   },
   {
@@ -5076,48 +4132,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -2,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": 2,
-          "row": -1
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        },
-        {
-          "col": 2,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -160,
+        "y": -128,
+        "width": 320,
+        "height": 128
+      }
     }
   },
   {
@@ -5233,48 +4253,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -2,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": 2,
-          "row": -1
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        },
-        {
-          "col": 2,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -160,
+        "y": -128,
+        "width": 320,
+        "height": 128
+      }
     }
   },
   {
@@ -5334,24 +4318,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -5411,24 +4383,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -5488,24 +4448,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -5565,24 +4513,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -5642,24 +4578,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -5719,24 +4643,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -5804,24 +4716,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -5889,24 +4789,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -5974,24 +4862,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -6059,24 +4935,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -6144,24 +5008,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -6229,24 +5081,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": -1
-        },
-        {
-          "col": 0,
-          "row": -1
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -96,
+        "y": -128,
+        "width": 128,
+        "height": 128
+      }
     }
   },
   {
@@ -6282,8 +5122,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "small-decor",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -6319,8 +5158,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "small-decor",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -6356,8 +5194,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "small-decor",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -6393,8 +5230,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "small-decor",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -6430,8 +5266,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "small-decor",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -6467,8 +5302,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "small-decor",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -6504,8 +5338,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "small-decor",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -6541,8 +5374,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "small-decor",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -6578,8 +5410,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "small-decor",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -6615,8 +5446,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "small-decor",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -6652,8 +5482,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "small-decor",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -6689,8 +5518,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "small-decor",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -6726,8 +5554,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "small-decor",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -6763,8 +5590,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "small-decor",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -6800,8 +5626,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "small-decor",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -6841,8 +5666,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "small-decor",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -6882,8 +5706,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "signs",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -6951,8 +5774,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "small-decor",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -7008,8 +5830,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "vegetation",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -7065,8 +5886,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "vegetation",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -7122,8 +5942,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "vegetation",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -7179,8 +5998,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "vegetation",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -7282,72 +6100,12 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass",
         "water"
       ],
-      "collisionFootprint": [
-        {
-          "col": -8,
-          "row": 0
-        },
-        {
-          "col": -7,
-          "row": 0
-        },
-        {
-          "col": -6,
-          "row": 0
-        },
-        {
-          "col": -5,
-          "row": 0
-        },
-        {
-          "col": -4,
-          "row": 0
-        },
-        {
-          "col": -3,
-          "row": 0
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        },
-        {
-          "col": 2,
-          "row": 0
-        },
-        {
-          "col": 3,
-          "row": 0
-        },
-        {
-          "col": 4,
-          "row": 0
-        },
-        {
-          "col": 5,
-          "row": 0
-        },
-        {
-          "col": 6,
-          "row": 0
-        },
-        {
-          "col": 7,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -20,
+        "y": -14,
+        "width": 40,
+        "height": 14
+      }
     }
   },
   {
@@ -7449,72 +6207,12 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass",
         "water"
       ],
-      "collisionFootprint": [
-        {
-          "col": -8,
-          "row": 0
-        },
-        {
-          "col": -7,
-          "row": 0
-        },
-        {
-          "col": -6,
-          "row": 0
-        },
-        {
-          "col": -5,
-          "row": 0
-        },
-        {
-          "col": -4,
-          "row": 0
-        },
-        {
-          "col": -3,
-          "row": 0
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        },
-        {
-          "col": 2,
-          "row": 0
-        },
-        {
-          "col": 3,
-          "row": 0
-        },
-        {
-          "col": 4,
-          "row": 0
-        },
-        {
-          "col": 5,
-          "row": 0
-        },
-        {
-          "col": 6,
-          "row": 0
-        },
-        {
-          "col": 7,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -20,
+        "y": -14,
+        "width": 40,
+        "height": 14
+      }
     }
   },
   {
@@ -7616,72 +6314,12 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass",
         "water"
       ],
-      "collisionFootprint": [
-        {
-          "col": -8,
-          "row": 0
-        },
-        {
-          "col": -7,
-          "row": 0
-        },
-        {
-          "col": -6,
-          "row": 0
-        },
-        {
-          "col": -5,
-          "row": 0
-        },
-        {
-          "col": -4,
-          "row": 0
-        },
-        {
-          "col": -3,
-          "row": 0
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        },
-        {
-          "col": 2,
-          "row": 0
-        },
-        {
-          "col": 3,
-          "row": 0
-        },
-        {
-          "col": 4,
-          "row": 0
-        },
-        {
-          "col": 5,
-          "row": 0
-        },
-        {
-          "col": 6,
-          "row": 0
-        },
-        {
-          "col": 7,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -20,
+        "y": -14,
+        "width": 40,
+        "height": 14
+      }
     }
   },
   {
@@ -7783,72 +6421,12 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass",
         "water"
       ],
-      "collisionFootprint": [
-        {
-          "col": -8,
-          "row": 0
-        },
-        {
-          "col": -7,
-          "row": 0
-        },
-        {
-          "col": -6,
-          "row": 0
-        },
-        {
-          "col": -5,
-          "row": 0
-        },
-        {
-          "col": -4,
-          "row": 0
-        },
-        {
-          "col": -3,
-          "row": 0
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        },
-        {
-          "col": 2,
-          "row": 0
-        },
-        {
-          "col": 3,
-          "row": 0
-        },
-        {
-          "col": 4,
-          "row": 0
-        },
-        {
-          "col": 5,
-          "row": 0
-        },
-        {
-          "col": 6,
-          "row": 0
-        },
-        {
-          "col": 7,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -20,
+        "y": -14,
+        "width": 40,
+        "height": 14
+      }
     }
   },
   {
@@ -7887,12 +6465,12 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass",
         "water"
       ],
-      "collisionFootprint": [
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -20,
+        "y": -14,
+        "width": 40,
+        "height": 14
+      }
     }
   },
   {
@@ -7931,12 +6509,12 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass",
         "water"
       ],
-      "collisionFootprint": [
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -20,
+        "y": -14,
+        "width": 40,
+        "height": 14
+      }
     }
   },
   {
@@ -7975,12 +6553,12 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass",
         "water"
       ],
-      "collisionFootprint": [
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -20,
+        "y": -14,
+        "width": 40,
+        "height": 14
+      }
     }
   },
   {
@@ -8019,12 +6597,12 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass",
         "water"
       ],
-      "collisionFootprint": [
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -20,
+        "y": -14,
+        "width": 40,
+        "height": 14
+      }
     }
   },
   {
@@ -8065,8 +6643,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "small-decor",
       "allowedTerrain": [
         "water"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -8114,8 +6691,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "resources",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -8164,8 +6740,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "resources",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -8213,8 +6788,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "resources",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -8263,8 +6837,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "resources",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -8312,8 +6885,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "resources",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -8362,8 +6934,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "resources",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -8411,8 +6982,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "resources",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -8463,16 +7033,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -20,
+        "y": -14,
+        "width": 40,
+        "height": 14
+      }
     }
   },
   {
@@ -8523,16 +7089,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -20,
+        "y": -14,
+        "width": 40,
+        "height": 14
+      }
     }
   },
   {
@@ -8583,16 +7145,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -20,
+        "y": -14,
+        "width": 40,
+        "height": 14
+      }
     }
   },
   {
@@ -8643,16 +7201,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -20,
+        "y": -14,
+        "width": 40,
+        "height": 14
+      }
     }
   },
   {
@@ -8703,16 +7257,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -20,
+        "y": -14,
+        "width": 40,
+        "height": 14
+      }
     }
   },
   {
@@ -8763,16 +7313,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -20,
+        "y": -14,
+        "width": 40,
+        "height": 14
+      }
     }
   },
   {
@@ -8808,8 +7354,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "resources",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -8847,8 +7392,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "farm-and-village",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -8886,8 +7430,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "farm-and-village",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -8925,8 +7468,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "farm-and-village",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -8964,8 +7506,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "farm-and-village",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -9048,12 +7589,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -12,
+        "y": -20,
+        "width": 24,
+        "height": 20
+      }
     }
   },
   {
@@ -9136,12 +7677,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -12,
+        "y": -20,
+        "width": 24,
+        "height": 20
+      }
     }
   },
   {
@@ -9224,12 +7765,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -12,
+        "y": -20,
+        "width": 24,
+        "height": 20
+      }
     }
   },
   {
@@ -9312,12 +7853,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -12,
+        "y": -20,
+        "width": 24,
+        "height": 20
+      }
     }
   },
   {
@@ -9407,12 +7948,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -12,
+        "y": -20,
+        "width": 24,
+        "height": 20
+      }
     }
   },
   {
@@ -9502,12 +8043,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -12,
+        "y": -20,
+        "width": 24,
+        "height": 20
+      }
     }
   },
   {
@@ -9585,12 +8126,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -12,
+        "y": -20,
+        "width": 24,
+        "height": 20
+      }
     }
   },
   {
@@ -9668,12 +8209,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "allowedTerrain": [
         "grass"
       ],
-      "collisionFootprint": [
-        {
-          "col": 0,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -12,
+        "y": -20,
+        "width": 24,
+        "height": 20
+      }
     }
   },
   {
@@ -9709,8 +8250,7 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "resources",
       "allowedTerrain": [
         "grass"
-      ],
-      "collisionFootprint": []
+      ]
     }
   },
   {
@@ -9757,7 +8297,6 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": 0
         }
       ],
-      "collisionFootprint": [],
       "terrainOverride": "walkable",
       "sourceRect": {
         "x": 0,
@@ -9811,7 +8350,6 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": 0
         }
       ],
-      "collisionFootprint": [],
       "terrainOverride": "walkable",
       "sourceRect": {
         "x": 0,
@@ -9981,72 +8519,12 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass",
         "water"
       ],
-      "collisionFootprint": [
-        {
-          "col": -8,
-          "row": 0
-        },
-        {
-          "col": -7,
-          "row": 0
-        },
-        {
-          "col": -6,
-          "row": 0
-        },
-        {
-          "col": -5,
-          "row": 0
-        },
-        {
-          "col": -4,
-          "row": 0
-        },
-        {
-          "col": -3,
-          "row": 0
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        },
-        {
-          "col": 2,
-          "row": 0
-        },
-        {
-          "col": 3,
-          "row": 0
-        },
-        {
-          "col": 4,
-          "row": 0
-        },
-        {
-          "col": 5,
-          "row": 0
-        },
-        {
-          "col": 6,
-          "row": 0
-        },
-        {
-          "col": 7,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -20,
+        "y": -14,
+        "width": 40,
+        "height": 14
+      }
     }
   },
   {
@@ -10209,72 +8687,12 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass",
         "water"
       ],
-      "collisionFootprint": [
-        {
-          "col": -8,
-          "row": 0
-        },
-        {
-          "col": -7,
-          "row": 0
-        },
-        {
-          "col": -6,
-          "row": 0
-        },
-        {
-          "col": -5,
-          "row": 0
-        },
-        {
-          "col": -4,
-          "row": 0
-        },
-        {
-          "col": -3,
-          "row": 0
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        },
-        {
-          "col": 2,
-          "row": 0
-        },
-        {
-          "col": 3,
-          "row": 0
-        },
-        {
-          "col": 4,
-          "row": 0
-        },
-        {
-          "col": 5,
-          "row": 0
-        },
-        {
-          "col": 6,
-          "row": 0
-        },
-        {
-          "col": 7,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -20,
+        "y": -14,
+        "width": 40,
+        "height": 14
+      }
     }
   },
   {
@@ -10437,72 +8855,12 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass",
         "water"
       ],
-      "collisionFootprint": [
-        {
-          "col": -8,
-          "row": 0
-        },
-        {
-          "col": -7,
-          "row": 0
-        },
-        {
-          "col": -6,
-          "row": 0
-        },
-        {
-          "col": -5,
-          "row": 0
-        },
-        {
-          "col": -4,
-          "row": 0
-        },
-        {
-          "col": -3,
-          "row": 0
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        },
-        {
-          "col": 2,
-          "row": 0
-        },
-        {
-          "col": 3,
-          "row": 0
-        },
-        {
-          "col": 4,
-          "row": 0
-        },
-        {
-          "col": 5,
-          "row": 0
-        },
-        {
-          "col": 6,
-          "row": 0
-        },
-        {
-          "col": 7,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -20,
+        "y": -14,
+        "width": 40,
+        "height": 14
+      }
     }
   },
   {
@@ -10665,72 +9023,12 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass",
         "water"
       ],
-      "collisionFootprint": [
-        {
-          "col": -8,
-          "row": 0
-        },
-        {
-          "col": -7,
-          "row": 0
-        },
-        {
-          "col": -6,
-          "row": 0
-        },
-        {
-          "col": -5,
-          "row": 0
-        },
-        {
-          "col": -4,
-          "row": 0
-        },
-        {
-          "col": -3,
-          "row": 0
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
-          "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        },
-        {
-          "col": 2,
-          "row": 0
-        },
-        {
-          "col": 3,
-          "row": 0
-        },
-        {
-          "col": 4,
-          "row": 0
-        },
-        {
-          "col": 5,
-          "row": 0
-        },
-        {
-          "col": 6,
-          "row": 0
-        },
-        {
-          "col": 7,
-          "row": 0
-        }
-      ]
+      "collider": {
+        "x": -20,
+        "y": -14,
+        "width": 40,
+        "height": 14
+      }
     }
   }
 ] as const satisfies readonly EditorAssetDefinition[];

@@ -3122,8 +3122,7 @@
         "category": "resources",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -3175,8 +3174,7 @@
         "category": "resources",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -3260,8 +3258,7 @@
         "category": "resources",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -3313,8 +3310,7 @@
         "category": "resources",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -3398,8 +3394,7 @@
         "category": "resources",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -3451,8 +3446,7 @@
         "category": "resources",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -3611,8 +3605,7 @@
         "category": "small-decor",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -3651,8 +3644,7 @@
         "category": "small-decor",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -3691,8 +3683,7 @@
         "category": "small-decor",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -3731,8 +3722,7 @@
         "category": "small-decor",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -3771,8 +3761,7 @@
         "category": "small-decor",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -3811,8 +3800,7 @@
         "category": "small-decor",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -3851,8 +3839,7 @@
         "category": "small-decor",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -3891,8 +3878,7 @@
         "category": "small-decor",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -3931,8 +3917,7 @@
         "category": "small-decor",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -3971,8 +3956,7 @@
         "category": "small-decor",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -4011,8 +3995,7 @@
         "category": "small-decor",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -4051,8 +4034,7 @@
         "category": "small-decor",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -4091,8 +4073,7 @@
         "category": "small-decor",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -4131,8 +4112,7 @@
         "category": "small-decor",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -4171,8 +4151,7 @@
         "category": "small-decor",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -4215,8 +4194,7 @@
         "category": "small-decor",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -4259,8 +4237,7 @@
         "category": "signs",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -4331,8 +4308,7 @@
         "category": "small-decor",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -4523,72 +4499,12 @@
           "grass",
           "water"
         ],
-        "collisionFootprint": [
-          {
-            "col": -8,
-            "row": 0
-          },
-          {
-            "col": -7,
-            "row": 0
-          },
-          {
-            "col": -6,
-            "row": 0
-          },
-          {
-            "col": -5,
-            "row": 0
-          },
-          {
-            "col": -4,
-            "row": 0
-          },
-          {
-            "col": -3,
-            "row": 0
-          },
-          {
-            "col": -2,
-            "row": 0
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          },
-          {
-            "col": 2,
-            "row": 0
-          },
-          {
-            "col": 3,
-            "row": 0
-          },
-          {
-            "col": 4,
-            "row": 0
-          },
-          {
-            "col": 5,
-            "row": 0
-          },
-          {
-            "col": 6,
-            "row": 0
-          },
-          {
-            "col": 7,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -20,
+          "y": -14,
+          "width": 40,
+          "height": 14
+        }
       }
     },
     {
@@ -4754,72 +4670,12 @@
           "grass",
           "water"
         ],
-        "collisionFootprint": [
-          {
-            "col": -8,
-            "row": 0
-          },
-          {
-            "col": -7,
-            "row": 0
-          },
-          {
-            "col": -6,
-            "row": 0
-          },
-          {
-            "col": -5,
-            "row": 0
-          },
-          {
-            "col": -4,
-            "row": 0
-          },
-          {
-            "col": -3,
-            "row": 0
-          },
-          {
-            "col": -2,
-            "row": 0
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          },
-          {
-            "col": 2,
-            "row": 0
-          },
-          {
-            "col": 3,
-            "row": 0
-          },
-          {
-            "col": 4,
-            "row": 0
-          },
-          {
-            "col": 5,
-            "row": 0
-          },
-          {
-            "col": 6,
-            "row": 0
-          },
-          {
-            "col": 7,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -20,
+          "y": -14,
+          "width": 40,
+          "height": 14
+        }
       }
     },
     {
@@ -4985,72 +4841,12 @@
           "grass",
           "water"
         ],
-        "collisionFootprint": [
-          {
-            "col": -8,
-            "row": 0
-          },
-          {
-            "col": -7,
-            "row": 0
-          },
-          {
-            "col": -6,
-            "row": 0
-          },
-          {
-            "col": -5,
-            "row": 0
-          },
-          {
-            "col": -4,
-            "row": 0
-          },
-          {
-            "col": -3,
-            "row": 0
-          },
-          {
-            "col": -2,
-            "row": 0
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          },
-          {
-            "col": 2,
-            "row": 0
-          },
-          {
-            "col": 3,
-            "row": 0
-          },
-          {
-            "col": 4,
-            "row": 0
-          },
-          {
-            "col": 5,
-            "row": 0
-          },
-          {
-            "col": 6,
-            "row": 0
-          },
-          {
-            "col": 7,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -20,
+          "y": -14,
+          "width": 40,
+          "height": 14
+        }
       }
     },
     {
@@ -5216,72 +5012,12 @@
           "grass",
           "water"
         ],
-        "collisionFootprint": [
-          {
-            "col": -8,
-            "row": 0
-          },
-          {
-            "col": -7,
-            "row": 0
-          },
-          {
-            "col": -6,
-            "row": 0
-          },
-          {
-            "col": -5,
-            "row": 0
-          },
-          {
-            "col": -4,
-            "row": 0
-          },
-          {
-            "col": -3,
-            "row": 0
-          },
-          {
-            "col": -2,
-            "row": 0
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          },
-          {
-            "col": 2,
-            "row": 0
-          },
-          {
-            "col": 3,
-            "row": 0
-          },
-          {
-            "col": 4,
-            "row": 0
-          },
-          {
-            "col": 5,
-            "row": 0
-          },
-          {
-            "col": 6,
-            "row": 0
-          },
-          {
-            "col": 7,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -20,
+          "y": -14,
+          "width": 40,
+          "height": 14
+        }
       }
     },
     {
@@ -5531,40 +5267,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -2,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": -2,
-            "row": 0
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -160,
+          "y": -128,
+          "width": 256,
+          "height": 128
+        }
       }
     },
     {
@@ -5652,40 +5360,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -2,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": -2,
-            "row": 0
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -160,
+          "y": -128,
+          "width": 256,
+          "height": 128
+        }
       }
     },
     {
@@ -5839,24 +5519,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -5921,24 +5589,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -6386,24 +6042,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -6474,24 +6118,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -6562,24 +6194,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -6650,24 +6270,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -6738,24 +6346,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -6826,24 +6422,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -6906,24 +6490,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -6986,24 +6558,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -7066,24 +6626,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -7146,24 +6694,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -7226,24 +6762,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -7306,24 +6830,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -7442,48 +6954,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -2,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": 2,
-            "row": -1
-          },
-          {
-            "col": -2,
-            "row": 0
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          },
-          {
-            "col": 2,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -160,
+          "y": -128,
+          "width": 320,
+          "height": 128
+        }
       }
     },
     {
@@ -7602,48 +7078,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -2,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": 2,
-            "row": -1
-          },
-          {
-            "col": -2,
-            "row": 0
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          },
-          {
-            "col": 2,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -160,
+          "y": -128,
+          "width": 320,
+          "height": 128
+        }
       }
     },
     {
@@ -7762,48 +7202,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -2,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": 2,
-            "row": -1
-          },
-          {
-            "col": -2,
-            "row": 0
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          },
-          {
-            "col": 2,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -160,
+          "y": -128,
+          "width": 320,
+          "height": 128
+        }
       }
     },
     {
@@ -7922,48 +7326,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -2,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": 2,
-            "row": -1
-          },
-          {
-            "col": -2,
-            "row": 0
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          },
-          {
-            "col": 2,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -160,
+          "y": -128,
+          "width": 320,
+          "height": 128
+        }
       }
     },
     {
@@ -8082,48 +7450,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -2,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": 2,
-            "row": -1
-          },
-          {
-            "col": -2,
-            "row": 0
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          },
-          {
-            "col": 2,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -160,
+          "y": -128,
+          "width": 320,
+          "height": 128
+        }
       }
     },
     {
@@ -8242,48 +7574,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -2,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": 2,
-            "row": -1
-          },
-          {
-            "col": -2,
-            "row": 0
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          },
-          {
-            "col": 2,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -160,
+          "y": -128,
+          "width": 320,
+          "height": 128
+        }
       }
     },
     {
@@ -9238,32 +8534,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 192,
+          "height": 128
+        }
       }
     },
     {
@@ -9347,32 +8623,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 192,
+          "height": 128
+        }
       }
     },
     {
@@ -9488,48 +8744,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -2,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": 2,
-            "row": -1
-          },
-          {
-            "col": -2,
-            "row": 0
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          },
-          {
-            "col": 2,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -160,
+          "y": -128,
+          "width": 320,
+          "height": 128
+        }
       }
     },
     {
@@ -9589,24 +8809,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -9666,24 +8874,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -9743,24 +8939,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -9856,32 +9040,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 192,
+          "height": 128
+        }
       }
     },
     {
@@ -9949,24 +9113,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -10050,32 +9202,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 192,
+          "height": 128
+        }
       }
     },
     {
@@ -10159,32 +9291,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 192,
+          "height": 128
+        }
       }
     },
     {
@@ -10300,48 +9412,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -2,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": 2,
-            "row": -1
-          },
-          {
-            "col": -2,
-            "row": 0
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          },
-          {
-            "col": 2,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -160,
+          "y": -128,
+          "width": 320,
+          "height": 128
+        }
       }
     },
     {
@@ -10401,24 +9477,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -10478,24 +9542,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -10555,24 +9607,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -10668,32 +9708,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 192,
+          "height": 128
+        }
       }
     },
     {
@@ -10761,24 +9781,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -10862,32 +9870,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 192,
+          "height": 128
+        }
       }
     },
     {
@@ -10971,32 +9959,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 192,
+          "height": 128
+        }
       }
     },
     {
@@ -11112,48 +10080,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -2,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": 2,
-            "row": -1
-          },
-          {
-            "col": -2,
-            "row": 0
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          },
-          {
-            "col": 2,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -160,
+          "y": -128,
+          "width": 320,
+          "height": 128
+        }
       }
     },
     {
@@ -11213,24 +10145,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -11290,24 +10210,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -11367,24 +10275,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -11480,32 +10376,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 192,
+          "height": 128
+        }
       }
     },
     {
@@ -11573,24 +10449,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -11674,32 +10538,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 192,
+          "height": 128
+        }
       }
     },
     {
@@ -11783,32 +10627,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 192,
+          "height": 128
+        }
       }
     },
     {
@@ -11924,48 +10748,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -2,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": 2,
-            "row": -1
-          },
-          {
-            "col": -2,
-            "row": 0
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          },
-          {
-            "col": 2,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -160,
+          "y": -128,
+          "width": 320,
+          "height": 128
+        }
       }
     },
     {
@@ -12025,24 +10813,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -12102,24 +10878,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -12179,24 +10943,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -12292,32 +11044,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 192,
+          "height": 128
+        }
       }
     },
     {
@@ -12385,24 +11117,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -12486,32 +11206,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 192,
+          "height": 128
+        }
       }
     },
     {
@@ -12595,32 +11295,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 192,
+          "height": 128
+        }
       }
     },
     {
@@ -12736,48 +11416,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -2,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": 2,
-            "row": -1
-          },
-          {
-            "col": -2,
-            "row": 0
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          },
-          {
-            "col": 2,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -160,
+          "y": -128,
+          "width": 320,
+          "height": 128
+        }
       }
     },
     {
@@ -12837,24 +11481,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -12914,24 +11546,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -12991,24 +11611,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -13104,32 +11712,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": 1,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 192,
+          "height": 128
+        }
       }
     },
     {
@@ -13197,24 +11785,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": -1
-          },
-          {
-            "col": 0,
-            "row": -1
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -96,
+          "y": -128,
+          "width": 128,
+          "height": 128
+        }
       }
     },
     {
@@ -23471,12 +22047,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -12,
+          "y": -20,
+          "width": 24,
+          "height": 20
+        }
       }
     },
     {
@@ -23562,12 +22138,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -12,
+          "y": -20,
+          "width": 24,
+          "height": 20
+        }
       }
     },
     {
@@ -23653,12 +22229,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -12,
+          "y": -20,
+          "width": 24,
+          "height": 20
+        }
       }
     },
     {
@@ -23744,12 +22320,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -12,
+          "y": -20,
+          "width": 24,
+          "height": 20
+        }
       }
     },
     {
@@ -23842,12 +22418,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -12,
+          "y": -20,
+          "width": 24,
+          "height": 20
+        }
       }
     },
     {
@@ -23940,12 +22516,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -12,
+          "y": -20,
+          "width": 24,
+          "height": 20
+        }
       }
     },
     {
@@ -24026,12 +22602,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -12,
+          "y": -20,
+          "width": 24,
+          "height": 20
+        }
       }
     },
     {
@@ -24112,12 +22688,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -12,
+          "y": -20,
+          "width": 24,
+          "height": 20
+        }
       }
     },
     {
@@ -24156,8 +22732,7 @@
         "category": "resources",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -24198,8 +22773,7 @@
         "category": "farm-and-village",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -24240,8 +22814,7 @@
         "category": "farm-and-village",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -24282,8 +22855,7 @@
         "category": "farm-and-village",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -24324,8 +22896,7 @@
         "category": "farm-and-village",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -24364,8 +22935,7 @@
         "category": "resources",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -24517,16 +23087,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -20,
+          "y": -14,
+          "width": 40,
+          "height": 14
+        }
       }
     },
     {
@@ -24616,16 +23182,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -20,
+          "y": -14,
+          "width": 40,
+          "height": 14
+        }
       }
     },
     {
@@ -24715,16 +23277,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -20,
+          "y": -14,
+          "width": 40,
+          "height": 14
+        }
       }
     },
     {
@@ -24814,16 +23372,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -20,
+          "y": -14,
+          "width": 40,
+          "height": 14
+        }
       }
     },
     {
@@ -24913,16 +23467,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -20,
+          "y": -14,
+          "width": 40,
+          "height": 14
+        }
       }
     },
     {
@@ -25012,16 +23562,12 @@
         "allowedTerrain": [
           "grass"
         ],
-        "collisionFootprint": [
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -20,
+          "y": -14,
+          "width": 40,
+          "height": 14
+        }
       }
     },
     {
@@ -25108,8 +23654,7 @@
         "category": "resources",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -25202,8 +23747,7 @@
         "category": "vegetation",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -25262,8 +23806,7 @@
         "category": "vegetation",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -25322,8 +23865,7 @@
         "category": "vegetation",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -25382,8 +23924,7 @@
         "category": "vegetation",
         "allowedTerrain": [
           "grass"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -25427,8 +23968,7 @@
         "category": "small-decor",
         "allowedTerrain": [
           "water"
-        ],
-        "collisionFootprint": []
+        ]
       }
     },
     {
@@ -25533,72 +24073,12 @@
           "grass",
           "water"
         ],
-        "collisionFootprint": [
-          {
-            "col": -8,
-            "row": 0
-          },
-          {
-            "col": -7,
-            "row": 0
-          },
-          {
-            "col": -6,
-            "row": 0
-          },
-          {
-            "col": -5,
-            "row": 0
-          },
-          {
-            "col": -4,
-            "row": 0
-          },
-          {
-            "col": -3,
-            "row": 0
-          },
-          {
-            "col": -2,
-            "row": 0
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          },
-          {
-            "col": 2,
-            "row": 0
-          },
-          {
-            "col": 3,
-            "row": 0
-          },
-          {
-            "col": 4,
-            "row": 0
-          },
-          {
-            "col": 5,
-            "row": 0
-          },
-          {
-            "col": 6,
-            "row": 0
-          },
-          {
-            "col": 7,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -20,
+          "y": -14,
+          "width": 40,
+          "height": 14
+        }
       }
     },
     {
@@ -25703,72 +24183,12 @@
           "grass",
           "water"
         ],
-        "collisionFootprint": [
-          {
-            "col": -8,
-            "row": 0
-          },
-          {
-            "col": -7,
-            "row": 0
-          },
-          {
-            "col": -6,
-            "row": 0
-          },
-          {
-            "col": -5,
-            "row": 0
-          },
-          {
-            "col": -4,
-            "row": 0
-          },
-          {
-            "col": -3,
-            "row": 0
-          },
-          {
-            "col": -2,
-            "row": 0
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          },
-          {
-            "col": 2,
-            "row": 0
-          },
-          {
-            "col": 3,
-            "row": 0
-          },
-          {
-            "col": 4,
-            "row": 0
-          },
-          {
-            "col": 5,
-            "row": 0
-          },
-          {
-            "col": 6,
-            "row": 0
-          },
-          {
-            "col": 7,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -20,
+          "y": -14,
+          "width": 40,
+          "height": 14
+        }
       }
     },
     {
@@ -25873,72 +24293,12 @@
           "grass",
           "water"
         ],
-        "collisionFootprint": [
-          {
-            "col": -8,
-            "row": 0
-          },
-          {
-            "col": -7,
-            "row": 0
-          },
-          {
-            "col": -6,
-            "row": 0
-          },
-          {
-            "col": -5,
-            "row": 0
-          },
-          {
-            "col": -4,
-            "row": 0
-          },
-          {
-            "col": -3,
-            "row": 0
-          },
-          {
-            "col": -2,
-            "row": 0
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          },
-          {
-            "col": 2,
-            "row": 0
-          },
-          {
-            "col": 3,
-            "row": 0
-          },
-          {
-            "col": 4,
-            "row": 0
-          },
-          {
-            "col": 5,
-            "row": 0
-          },
-          {
-            "col": 6,
-            "row": 0
-          },
-          {
-            "col": 7,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -20,
+          "y": -14,
+          "width": 40,
+          "height": 14
+        }
       }
     },
     {
@@ -26043,72 +24403,12 @@
           "grass",
           "water"
         ],
-        "collisionFootprint": [
-          {
-            "col": -8,
-            "row": 0
-          },
-          {
-            "col": -7,
-            "row": 0
-          },
-          {
-            "col": -6,
-            "row": 0
-          },
-          {
-            "col": -5,
-            "row": 0
-          },
-          {
-            "col": -4,
-            "row": 0
-          },
-          {
-            "col": -3,
-            "row": 0
-          },
-          {
-            "col": -2,
-            "row": 0
-          },
-          {
-            "col": -1,
-            "row": 0
-          },
-          {
-            "col": 0,
-            "row": 0
-          },
-          {
-            "col": 1,
-            "row": 0
-          },
-          {
-            "col": 2,
-            "row": 0
-          },
-          {
-            "col": 3,
-            "row": 0
-          },
-          {
-            "col": 4,
-            "row": 0
-          },
-          {
-            "col": 5,
-            "row": 0
-          },
-          {
-            "col": 6,
-            "row": 0
-          },
-          {
-            "col": 7,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -20,
+          "y": -14,
+          "width": 40,
+          "height": 14
+        }
       }
     },
     {
@@ -26366,12 +24666,12 @@
           "grass",
           "water"
         ],
-        "collisionFootprint": [
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -20,
+          "y": -14,
+          "width": 40,
+          "height": 14
+        }
       }
     },
     {
@@ -26413,12 +24713,12 @@
           "grass",
           "water"
         ],
-        "collisionFootprint": [
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -20,
+          "y": -14,
+          "width": 40,
+          "height": 14
+        }
       }
     },
     {
@@ -26460,12 +24760,12 @@
           "grass",
           "water"
         ],
-        "collisionFootprint": [
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -20,
+          "y": -14,
+          "width": 40,
+          "height": 14
+        }
       }
     },
     {
@@ -26507,12 +24807,12 @@
           "grass",
           "water"
         ],
-        "collisionFootprint": [
-          {
-            "col": 0,
-            "row": 0
-          }
-        ]
+        "collider": {
+          "x": -20,
+          "y": -14,
+          "width": 40,
+          "height": 14
+        }
       }
     },
     {

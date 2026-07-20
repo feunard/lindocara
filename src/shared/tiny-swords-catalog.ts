@@ -1,3 +1,4 @@
+import type { Rect } from "./game.js";
 import {
   GENERATED_EDITOR_ASSETS,
   GENERATED_TINY_SWORDS_UI_ASSETS,
@@ -59,7 +60,18 @@ export interface EditorPlacementMetadata {
   allowedTerrain: readonly EditorTerrain[];
   renderLayer: EditorRenderLayer;
   visualFootprint: readonly CellOffset[];
-  collisionFootprint: readonly CellOffset[];
+  /**
+   * Sub-cell collision, in pixels relative to the sprite's ANCHOR point — the same point
+   * `createCatalogElementView` positions the container at, i.e. `col*64 + 32` horizontally and
+   * `(row+1)*64 + footOffset` vertically. Anchor space, not cell space: `footOffset` can push the
+   * art's foot most of a cell below the anchor cell, so cell-relative numbers would need re-tuning
+   * every time the art's foot moves.
+   *
+   * Absent means the asset does not collide at all — the correct value for bushes, flowers and any
+   * pure decoration. This replaces `collisionFootprint`: a whole-cell footprint was the only shape
+   * expressible before, and it made every tree block a 64x64 square you could see straight through.
+   */
+  collider?: Rect;
   /** A bridge can replace solid water with walkable ground under its authored deck. */
   terrainOverride?: "walkable";
   sourceRect?: AssetSourceRect;

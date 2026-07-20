@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import type { Rect } from "../src/shared/game.js";
 import type {
   AssetDomain,
   AssetFrameMetadata,
@@ -237,14 +238,31 @@ function visualCells(width: number, height: number): { col: number; row: number 
   return result;
 }
 
-function bottomCollision(width: number, rows = 1): { col: number; row: number }[] {
-  const cols = Math.max(1, Math.ceil(width / 64));
+// Anchor-space collider math shares this with the build invariant below: the sprite's ANCHOR sits
+// at cell-centre horizontally (col*64+32) and at the cell's bottom edge vertically before footOffset
+// is added, so a cell-wide box centred on the anchor spans [-32, 32) in x and [-64, 0) in y per row.
+const TILE_PX = 64;
+
+// Trees (Tree1-4, Stump): a trunk, not a canopy. 192x192 art, footOffset 22, anchor bottom-centre.
+// The trunk is ~24px wide, centred on the anchor, rising ~20px from the foot.
+const TREE_COLLIDER: Rect = { x: -12, y: -20, width: 24, height: 20 };
+
+// Rocks: squatter and wider than a trunk.
+const ROCK_COLLIDER: Rect = { x: -20, y: -14, width: 40, height: 14 };
+
+// Buildings still block their whole visual footprint (unchanged behavior this tranche) — just
+// expressed in anchor space instead of cells, so the collider survives the removal of
+// `collisionFootprint` without a gameplay change.
+function buildingCollider(width: number, height: number): Rect {
+  const cols = Math.max(1, Math.ceil(width / TILE_PX));
+  const rows = Math.min(2, Math.ceil(height / TILE_PX));
   const firstCol = -Math.floor(cols / 2);
-  const result: { col: number; row: number }[] = [];
-  for (let row = -(rows - 1); row <= 0; row++) {
-    for (let col = firstCol; col < firstCol + cols; col++) result.push({ col, row });
-  }
-  return result;
+  return {
+    x: firstCol * TILE_PX - TILE_PX / 2,
+    y: -(rows * TILE_PX),
+    width: cols * TILE_PX,
+    height: rows * TILE_PX,
+  };
 }
 
 function editorMetadata(
@@ -265,7 +283,7 @@ function editorMetadata(
       ...common,
       category: "buildings",
       allowedTerrain: ["grass"],
-      collisionFootprint: bottomCollision(frameWidth, Math.min(2, Math.ceil(frameHeight / 64))),
+      collider: buildingCollider(frameWidth, frameHeight),
     };
   }
 
@@ -275,7 +293,7 @@ function editorMetadata(
       category: raw.name.startsWith("Tree") ? "trees" : "farm-and-village",
       allowedTerrain: ["grass"],
       renderLayer: raw.name.startsWith("Tree") ? "canopy" : "object",
-      collisionFootprint: [{ col: 0, row: 0 }],
+      collider: TREE_COLLIDER,
     };
   }
 
@@ -284,7 +302,6 @@ function editorMetadata(
       ...common,
       category: "vegetation",
       allowedTerrain: ["grass"],
-      collisionFootprint: [],
     };
   }
 
@@ -295,7 +312,7 @@ function editorMetadata(
       // The legacy editor allowed its four dry rock variants in shallows. Preserve that authored
       // map behavior while also exposing the pack's dedicated water-rock families.
       allowedTerrain: ["grass", "water"],
-      collisionFootprint: bottomCollision(frameWidth),
+      collider: ROCK_COLLIDER,
     };
   }
 
@@ -304,7 +321,7 @@ function editorMetadata(
       ...common,
       category: "rocks",
       allowedTerrain: ["grass", "water"],
-      collisionFootprint: bottomCollision(frameWidth),
+      collider: ROCK_COLLIDER,
     };
   }
 
@@ -313,7 +330,6 @@ function editorMetadata(
       ...common,
       category: "small-decor",
       allowedTerrain: ["water"],
-      collisionFootprint: [],
     };
   }
 
@@ -322,7 +338,6 @@ function editorMetadata(
       ...common,
       category: raw.name === "17" ? "signs" : "small-decor",
       allowedTerrain: ["grass"],
-      collisionFootprint: [],
     };
   }
 
@@ -336,7 +351,9 @@ function editorMetadata(
       ...common,
       category: raw.category.includes("Tools") ? "farm-and-village" : "resources",
       allowedTerrain: ["grass"],
-      collisionFootprint: raw.category.includes("Gold Stones") ? bottomCollision(frameWidth) : [],
+      // Gold stone piles read the same as a small rock outcrop underfoot; reuse ROCK_COLLIDER
+      // rather than invent a third fixed footprint for one resource variant.
+      ...(raw.category.includes("Gold Stones") ? { collider: ROCK_COLLIDER } : {}),
     };
   }
 
@@ -552,10 +569,24 @@ export function validateCatalog(
       if (entry.editor.allowedTerrain.length === 0 || entry.editor.visualFootprint.length === 0) {
         fail(errors, `incoherent editor placement: ${entry.id}`);
       }
-      const visual = new Set(entry.editor.visualFootprint.map((cell) => `${cell.col}:${cell.row}`));
-      for (const cell of entry.editor.collisionFootprint) {
-        if (!visual.has(`${cell.col}:${cell.row}`))
-          fail(errors, `collision outside visual footprint: ${entry.id}`);
+      const editor = entry.editor;
+      if (editor.collider) {
+        // Anchor space, not cell space (see TILE_PX comment above): a footprint cell at (col, row)
+        // spans x in [col*64-32, (col+1)*64-32) and y in [(row-1)*64, row*64) once you account for
+        // every row up to the footprint's lowest (closest to the anchor) row sitting at y=0.
+        const cols = editor.visualFootprint.map((cell) => cell.col);
+        const rows = editor.visualFootprint.map((cell) => cell.row);
+        const minX = Math.min(...cols) * TILE_PX - TILE_PX / 2;
+        const maxX = (Math.max(...cols) + 1) * TILE_PX - TILE_PX / 2;
+        const minY = (Math.min(...rows) - Math.max(...rows) - 1) * TILE_PX;
+        if (
+          editor.collider.x < minX ||
+          editor.collider.x + editor.collider.width > maxX ||
+          editor.collider.y < minY ||
+          editor.collider.y + editor.collider.height > 0
+        ) {
+          fail(errors, `${entry.id}: collider escapes its visual footprint`);
+        }
       }
     }
   }
@@ -611,7 +642,6 @@ function bridgeDefinitions(catalog: TinySwordsCatalogFile): EditorAssetDefinitio
           { col: 0, row: 0 },
           { col: 1, row: 0 },
         ],
-        collisionFootprint: [],
         terrainOverride: "walkable",
         sourceRect: { x: 0, y: 0, width: 192, height: 64 },
       },
@@ -630,7 +660,6 @@ function bridgeDefinitions(catalog: TinySwordsCatalogFile): EditorAssetDefinitio
           { col: 0, row: -1 },
           { col: 0, row: 0 },
         ],
-        collisionFootprint: [],
         terrainOverride: "walkable",
         sourceRect: { x: 0, y: 64, width: 64, height: 192 },
       },
