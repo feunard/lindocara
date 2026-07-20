@@ -54,8 +54,9 @@ export interface BufferedDialogue {
 
 /** An effect the drain hands back to `World` to dispatch with its authority: a state mutation (up to
  *  the coordinator), a teleport (authoritative position set / cross-map handoff), or a gold/items
- *  change (parked for tranche-5 Task 5). `wait` and the dialogue effects never appear here — `wait`
- *  is resolved into the context's `resumeAtTick` in the drain, and dialogue goes to `dialogue`. */
+ *  change (the triggerer's session inventory). `wait` and the dialogue effects never appear here —
+ *  `wait` is resolved into the context's `resumeAtTick` in the drain, and dialogue goes to
+ *  `dialogue`. */
 export interface DispatchEffect {
   readonly heroId: string;
   readonly runId: string;
@@ -99,12 +100,28 @@ export interface StartRunParams {
 }
 
 /**
- * Start a run for a triggered event, or DROP it silently when the event already has a live context
- * (Q4's one-run-per-event lock). `World` has already resolved that the event's active page holds and
- * carries a non-empty program, and that the hero is in range/on the cell; this only owns the lock.
+ * Start a run for a triggered event, or DROP it silently when it cannot begin. Two silent locks
+ * apply, both the precedent-following kind (a refusal is never an error the player sees):
+ *
+ *  - Q4's one-run-per-event lock: an event already holding a live context refuses a second trigger.
+ *  - The per-hero dialogue cap (T4 review, WoW's one-conversation-at-a-time): a hero already parked
+ *    on a `say`/`choices` panel (`waiting-advance`/`waiting-choice`) cannot open a SECOND dialogue.
+ *    The cap is scoped to dialogue-waiting contexts alone — a hero whose only live run is `running`
+ *    or `waiting-timer` is mid-execution, not holding a panel, so it never blocks a new trigger.
+ *
+ * `World` has already resolved that the event's active page holds and carries a non-empty program,
+ * and that the hero is in range/on the cell; this owns only the locks.
  */
 export function startRun(runtime: EventRunRuntime, params: StartRunParams): boolean {
   if (runtime.contexts.has(params.event.id)) return false;
+  for (const context of runtime.contexts.values()) {
+    if (
+      context.heroId === params.heroId &&
+      (context.status === "waiting-advance" || context.status === "waiting-choice")
+    ) {
+      return false;
+    }
+  }
   runtime.contexts.set(
     params.event.id,
     startEventRun({

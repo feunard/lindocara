@@ -67,6 +67,50 @@ describe("the one-run-per-event lock (Q4)", () => {
   });
 });
 
+describe("the per-hero dialogue cap (T4 review, one conversation at a time)", () => {
+  it("refuses a second run for a hero already parked on a say, then allows it once the panel closes", () => {
+    const runtime = createEventRunRuntime();
+    // Hero h1 opens a say on event `a` and parks (waiting-advance).
+    expect(begin(runtime, "a", [{ t: "say", text: "hi", name: null }], { heroId: "h1" })).toBe(
+      true,
+    );
+    drainRuns(runtime, { state: EMPTY_ADVENTURE_STATE, tick: 0 });
+    expect(runtime.contexts.get("a")?.status).toBe("waiting-advance");
+
+    // MUTATION PROOF (b): remove the waiting-advance/waiting-choice scan in startRun and this second
+    // dialogue starts (returns true), so `b` would live and the size assertion below reads 2.
+    expect(begin(runtime, "b", [{ t: "say", text: "again", name: null }], { heroId: "h1" })).toBe(
+      false,
+    );
+    expect(runtime.contexts.has("b")).toBe(false);
+
+    // A DIFFERENT hero is unaffected — the cap is per-hero.
+    expect(begin(runtime, "b", [{ t: "say", text: "other", name: null }], { heroId: "h2" })).toBe(
+      true,
+    );
+
+    // Advancing the say to completion releases h1's panel; a new dialogue is then allowed.
+    drainRuns(runtime, { state: EMPTY_ADVENTURE_STATE, tick: 1 });
+    advanceRun(runtime, "h1", "run-a"); // one page say -> resumes -> done, releasing the lock
+    drainRuns(runtime, { state: EMPTY_ADVENTURE_STATE, tick: 2 });
+    expect(runtime.contexts.has("a")).toBe(false);
+    expect(begin(runtime, "c", [{ t: "say", text: "fresh", name: null }], { heroId: "h1" })).toBe(
+      true,
+    );
+  });
+
+  it("does NOT cap a hero whose only live run is non-dialogue (running / waiting-timer)", () => {
+    const runtime = createEventRunRuntime();
+    // A spinning loop is `running`, never parked on a panel — it must not block a new trigger.
+    begin(runtime, "spin", [{ t: "loop", body: [{ t: "comment", text: "x" }] }], { heroId: "h1" });
+    drainRuns(runtime, { state: EMPTY_ADVENTURE_STATE, tick: 0 });
+    expect(runtime.contexts.get("spin")?.status).toBe("running");
+    expect(begin(runtime, "talk", [{ t: "say", text: "hi", name: null }], { heroId: "h1" })).toBe(
+      true,
+    );
+  });
+});
+
 describe("the per-tick budget", () => {
   it("executes exactly the budget across a finite over-budget program", () => {
     // 30 sequential setVariable adds — more than the 16 budget. One drain does exactly 16.

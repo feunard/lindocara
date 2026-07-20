@@ -358,6 +358,7 @@ export const EVENT_CODES = [
   "merchant.insufficient",
   "player.down",
   "loot.picked",
+  "item.full",
   "heal.cast",
   "heal.received",
   "death.fallen",

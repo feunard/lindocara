@@ -5,7 +5,7 @@
  * back down to every room. Everything drives the REAL objects through the harness, exactly like the
  * hero-world and adventure-state-runtime suites; the only non-client pokes are the coordinator's
  * `installAdventureState`/`getAdventureState` RPCs (for the version guard and alarm proofs) and the
- * `roomDiagnostics` run/dialogue seam standing in for the not-yet-existing dialogue protocol.
+ * `roomDiagnostics` run seam. Dialogue itself rides the wire now (Task 4), asserted off the client.
  */
 import { env, evictDurableObject, runDurableObjectAlarm, SELF } from "cloudflare:test";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
@@ -923,6 +923,217 @@ describe("the coordinator", () => {
 
     const saved = await readPersistedState(party.partyId);
     expect(saved?.switches["0001"]).toBe(true);
+  });
+});
+
+describe("gold and items (Task 5)", () => {
+  it("grants gold to the triggerer's own snapshot alone (per-hero, Q5)", async () => {
+    const scriptId = crypto.randomUUID();
+    const party = await testParty("gold", {
+      maps: [
+        testMapInput("gold ground", {
+          spawn: { col: 10, row: 15 },
+          events: [scriptEvent(scriptId, 5, 15, "action", [{ t: "changeGold", amount: 25 }])],
+        }),
+      ],
+    });
+    const heroA = await testHero("GoldA", {
+      party,
+      account: party.host,
+      position: { x: 5 * TILE_SIZE + TILE_SIZE / 2, y: 15 * TILE_SIZE + TILE_SIZE / 2 },
+    });
+    const heroB = await testHero("GoldB", {
+      party,
+      position: { x: 10 * TILE_SIZE + TILE_SIZE / 2, y: 15 * TILE_SIZE + TILE_SIZE / 2 },
+    });
+    const clientA = await Client.joinHero(heroA);
+    const clientB = await Client.joinHero(heroB);
+    await until("both welcomed", () => clientA.welcome && clientB.welcome);
+
+    clientA.action("interact");
+    await until(
+      "A's own snapshot shows +25 gold",
+      () => clientA.latestState?.inventory.gold === 25,
+    );
+    // B is a different hero: the grant is personal and never touched B's inventory.
+    expect(clientB.latestState?.inventory.gold ?? 0).toBe(0);
+  });
+
+  it("clamps a change that would drive gold below zero to exactly zero", async () => {
+    // `changeGold +10; changeGold -50` in one program: 0 -> 10 -> clamp 0. MUTATION PROOF (a): remove
+    // `Math.max(0, ...)` in `#dispatchGold` and the balance lands at -40, failing the `=== 0` below.
+    const scriptId = crypto.randomUUID();
+    const party = await testParty("clamp", {
+      maps: [
+        testMapInput("clamp ground", {
+          events: [
+            scriptEvent(scriptId, 5, 5, "action", [
+              { t: "changeGold", amount: 10 },
+              { t: "changeGold", amount: -50 },
+            ]),
+          ],
+        }),
+      ],
+    });
+    const hero = await testHero("Clamper", {
+      party,
+      account: party.host,
+      position: { x: 5 * TILE_SIZE + TILE_SIZE / 2, y: 5 * TILE_SIZE + TILE_SIZE / 2 },
+    });
+    const client = await Client.joinHero(hero);
+    await until("welcomed", () => client.welcome);
+
+    client.action("interact");
+    // The +10 grant emits a personal loot beat — proof the run executed at all (0 -> 0 is invisible).
+    await until("the grant landed", () =>
+      client.received.some((m) => m.t === "event" && m.code === "loot.picked"),
+    );
+    await scheduler.wait(200); // let the -50 apply on top
+    expect(client.latestState?.inventory.gold).toBe(0);
+  });
+
+  it("lands an item grant in the session inventory, and drops a grant against a full stack", async () => {
+    // +3 mana potions land (from 0); then a program fills to the cap and one more is refused with the
+    // personal `item.full` code — the loot precedent for a pickup that cannot land.
+    const grantId = crypto.randomUUID();
+    const fillId = crypto.randomUUID();
+    const party = await testParty("items", {
+      maps: [
+        testMapInput("items ground", {
+          spawn: { col: 20, row: 15 },
+          events: [
+            scriptEvent(grantId, 5, 5, "action", [
+              { t: "changeItems", itemId: "mana_potion", count: 3 },
+            ]),
+            scriptEvent(fillId, 8, 5, "action", [
+              { t: "changeItems", itemId: "mana_potion", count: 99 },
+              { t: "changeItems", itemId: "mana_potion", count: 5 },
+            ]),
+          ],
+        }),
+      ],
+    });
+    const hero = await testHero("Collector", {
+      party,
+      account: party.host,
+      position: { x: 5 * TILE_SIZE + TILE_SIZE / 2, y: 5 * TILE_SIZE + TILE_SIZE / 2 },
+    });
+    const client = await Client.joinHero(hero);
+    await until("welcomed", () => client.welcome);
+
+    // Grant lands: 0 -> 3 mana potions in the session bag.
+    client.action("interact");
+    await until(
+      "three mana potions in the bag",
+      () => client.latestState?.inventory.consumables?.mana_potion === 3,
+    );
+
+    // Walk to the fill event (8,5): it grants 99 (3 -> capped at 99), then a further 5 is dropped as
+    // the stack is already full — the hero is told with `item.full`.
+    client.press("right");
+    await until(
+      "reached the fill event",
+      () => (client.self()?.x ?? 0) > 8 * TILE_SIZE - TILE_SIZE,
+    );
+    client.release();
+    client.action("interact");
+    await until("stack full-drop reported", () =>
+      client.received.some((m) => m.t === "event" && m.code === "item.full"),
+    );
+    expect(client.latestState?.inventory.consumables?.mana_potion).toBe(99);
+  });
+
+  it("refuses an unknown item id ONCE per room lifetime, not every tick (dedupe)", async () => {
+    // `loop { changeItems <unknown> +1 }` refuses on every command forever. MUTATION PROOF (c): drop
+    // the `#itemRefusalsLogged` dedupe and the spinning loop emits a refusal log every tick.
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    onTestFinished(() => warnSpy.mockRestore());
+
+    const spinId = crypto.randomUUID();
+    const party = await testParty("unknown-item", {
+      maps: [
+        testMapInput("unknown ground", {
+          events: [
+            scriptEvent(spinId, 5, 5, "action", [
+              { t: "loop", body: [{ t: "changeItems", itemId: "dragon_egg", count: 1 }] },
+            ]),
+          ],
+        }),
+      ],
+    });
+    const hero = await testHero("Seeker", {
+      party,
+      account: party.host,
+      position: { x: 5 * TILE_SIZE + TILE_SIZE / 2, y: 5 * TILE_SIZE + TILE_SIZE / 2 },
+    });
+    const client = await Client.joinHero(hero);
+    await until("welcomed", () => client.welcome);
+
+    client.action("interact");
+    await scheduler.wait(400); // many ticks: each would flood a log without the dedupe
+    const refusals = warnSpy.mock.calls.filter(
+      ([arg]) => typeof arg === "string" && arg.includes("event_item_refused"),
+    );
+    expect(refusals).toHaveLength(1);
+  });
+});
+
+describe("the per-hero dialogue cap (Task 4 review)", () => {
+  it("refuses a second dialogue while the first panel is open, and allows it once closed", async () => {
+    // A touch event opens dialogue "one"; an adjacent action event's dialogue "two" must be refused
+    // while "one" is open (WoW: one conversation at a time), then allowed after "one" closes. The
+    // deterministic cap mutation proof (b) lives in the unit suite; this pins the end-to-end behaviour.
+    const touchId = crypto.randomUUID();
+    const actionId = crypto.randomUUID();
+    const party = await testParty("cap", {
+      maps: [
+        testMapInput("cap ground", {
+          spawn: { col: 5, row: 5 },
+          events: [
+            scriptEvent(touchId, 6, 5, "player-touch", [{ t: "say", text: "one", name: null }]),
+            scriptEvent(actionId, 6, 6, "action", [{ t: "say", text: "two", name: null }]),
+          ],
+        }),
+      ],
+    });
+    const hero = await testHero("Capped", {
+      party,
+      account: party.host,
+      position: { x: 5 * TILE_SIZE + TILE_SIZE / 2, y: 5 * TILE_SIZE + TILE_SIZE / 2 },
+    });
+    const client = await Client.joinHero(hero);
+    await until("welcomed", () => client.welcome);
+
+    // 1) Walk one cell right onto the touch cell -> "one" parks the run.
+    client.press("right");
+    await until(
+      "entered the touch cell",
+      () => Math.floor((client.self()?.x ?? 0) / TILE_SIZE) >= 6,
+    );
+    client.release();
+    const one = await until(
+      "first dialogue (touch)",
+      () =>
+        client.received.find((m) => m.t === "event.say" && m.text === "one") as
+          | Extract<ServerMessage, { t: "event.say" }>
+          | undefined,
+    );
+
+    // 2) Interact the adjacent action event WHILE parked -> the per-hero cap drops it silently.
+    client.action("interact");
+    await scheduler.wait(300); // give the room ticks to (wrongly) start a second dialogue
+    expect(client.received.some((m) => m.t === "event.say" && m.text === "two")).toBe(false);
+    const capped = await env.WORLD.getByName(hero.roomKey).roomDiagnostics();
+    expect(capped.eventRuns).toHaveLength(1);
+    expect(capped.eventRuns[0]?.runId).toBe(one.runId);
+
+    // 3) Close "one" (advance the single-page say to done), then interact again -> now allowed.
+    client.sendRaw(JSON.stringify({ t: "event.advance", runId: one.runId }));
+    await awaitDiag(hero.roomKey, "first run released", (d) => d.eventRuns.length === 0);
+    client.action("interact");
+    await until("second dialogue now allowed", () =>
+      client.received.some((m) => m.t === "event.say" && m.text === "two"),
+    );
   });
 });
 

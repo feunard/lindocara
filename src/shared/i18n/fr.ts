@@ -594,6 +594,7 @@ export const fr: Record<keyof typeof en, string> = {
   "event.merchant.insufficient": "Vous n'avez pas assez de {currency}.",
   "event.player.down": "{name} a été terrassé.",
   "event.loot.picked": "Ramassé : {amount} × {kind}.",
+  "event.item.full": "Inventaire plein : impossible de recevoir plus de {item}.",
   "event.heal.cast": "Vous soignez {name} : +{amount} PV.",
   "event.heal.received": "{name} vous soigne : +{amount} PV.",
   "event.death.fallen":

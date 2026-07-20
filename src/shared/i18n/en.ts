@@ -585,6 +585,7 @@ export const en = {
   "event.merchant.insufficient": "You do not have enough {currency}.",
   "event.player.down": "{name} was knocked out.",
   "event.loot.picked": "Picked up {amount} {kind}.",
+  "event.item.full": "Your pack is full — cannot take any more {item}.",
   "event.heal.cast": "You mend {name} for {amount}.",
   "event.heal.received": "{name} mends you for {amount}.",
   "event.death.fallen": "You have fallen. Wait for a priest, or press [R] to release your spirit.",

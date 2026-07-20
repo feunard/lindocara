@@ -21,6 +21,12 @@ export interface ConsumableDefinition {
 export const CONSUMABLE_COOLDOWN_MS = 10_000;
 export const RESURRECTION_DELAY_MS = 10_000;
 
+/** The per-consumable session-inventory capacity an authored `changeItems` grant respects. A stack
+ *  already at this ceiling is "full": the grant is dropped and the hero is told, the existing loot
+ *  precedent for a pickup that cannot land. The merchant path predates events and does not enforce
+ *  this — the cap is the event grant's own rule for this session-inventory slice. */
+export const CONSUMABLE_MAX_STACK = 99;
+
 export const CONSUMABLES: Readonly<Record<ConsumableId, ConsumableDefinition>> = {
   health_potion: {
     id: "health_potion",

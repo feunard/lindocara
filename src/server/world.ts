@@ -18,8 +18,10 @@ import {
 } from "../shared/combat-actions.js";
 import {
   CONSUMABLE_COOLDOWN_MS,
+  CONSUMABLE_MAX_STACK,
   CONSUMABLES,
   type ConsumableId,
+  isConsumableId,
   normalizeConsumables,
 } from "../shared/consumables.js";
 import {
@@ -321,6 +323,10 @@ export class World extends DurableObject<Env> {
    *  `loop { teleport <unwalkable> }` warns ONCE per pair per room lifetime rather than every tick
    *  (the observability law forbids per-event tick logging). Reset when the room empties. */
   #teleportRefusalsLogged = new Set<string>();
+  /** (eventId, itemId) pairs already logged for a refused authored `changeItems`, so an authored
+   *  `loop { changeItems <unknown> +1 }` warns ONCE per pair per room lifetime, not every tick. Reset
+   *  when the room empties, beside `#teleportRefusalsLogged`. */
+  #itemRefusalsLogged = new Set<string>();
   #occupiedExitByPlayerId = new Map<string, string>();
   /** How often this room re-asserts its players' leases. Read once from `Env`, never from a client. */
   readonly #presenceHeartbeatMs: number;
@@ -972,20 +978,9 @@ export class World extends DurableObject<Env> {
      *  back-to-back cross-map teleport claims the transition synchronously and launches exactly one. */
     crossMapTeleports: number;
     activeEvents: readonly ActiveWorldEvent[];
-    /** The live event runs and the buffered dialogue beats — the Task-3 test seam standing in for
-     *  the not-yet-existing dialogue protocol (Task 4 sends `dialogue` on the wire). */
+    /** The live event runs — the run/lock diagnostics seam. Dialogue itself now rides the wire
+     *  (Task 4's `event.say`/`choices`/`close`); tests assert conversations off the client. */
     eventRuns: { eventId: string; runId: string; heroId: string; status: string }[];
-    eventDialogue: {
-      heroId: string;
-      runId: string;
-      message: {
-        kind: string;
-        text?: string;
-        name?: string | null;
-        prompt?: string;
-        options?: readonly string[];
-      };
-    }[];
   }> {
     return {
       roomKey: this.#location?.roomKey ?? null,
@@ -1012,11 +1007,6 @@ export class World extends DurableObject<Env> {
         runId: context.runId,
         heroId: context.heroId,
         status: context.status,
-      })),
-      eventDialogue: this.#eventRuns.dialogue.map((buffered) => ({
-        heroId: buffered.heroId,
-        runId: buffered.runId,
-        message: buffered.message,
       })),
     };
   }
@@ -2859,8 +2849,9 @@ export class World extends DurableObject<Env> {
   /**
    * Step every live run its budgeted slice, then dispatch the effects that need this room's
    * authority: state mutations are batched into ONE coordinator RPC (the single writer), a teleport
-   * sets an authoritative position, gold/items are parked for Task 5. Dialogue effects buffer in the
-   * run runtime and are flushed to the triggerer's socket at the end of the drain (`#flushDialogue`).
+   * sets an authoritative position, gold/items land on the triggerer's session inventory. Dialogue
+   * effects buffer in the run runtime and are flushed to the triggerer's socket at the end of the
+   * drain (`#flushDialogue`).
    *
    * Order: close any walked-away dialogue FIRST (it buffers a `closeDialogue` beat and releases the
    * lock), then drain the survivors, then flush every buffered beat — a run's `say`/`choices` and its
@@ -2880,17 +2871,10 @@ export class World extends DurableObject<Env> {
           mutations.push(effect.op);
         } else if (effect.kind === "teleport") {
           this.#dispatchTeleport(dispatch, effect, now);
+        } else if (effect.kind === "changeGold") {
+          this.#dispatchGold(dispatch, effect);
         } else {
-          // changeGold / changeItems land in Task 5 — do NOT silently drop; record and continue so the
-          // run keeps running. The hero-session gold/inventory wiring is the remaining effect work.
-          console.log(
-            JSON.stringify({
-              event: "event_effect_unimplemented",
-              kind: effect.kind,
-              heroId: dispatch.heroId,
-              roomKey: this.#location?.roomKey ?? null,
-            }),
-          );
+          this.#dispatchItems(dispatch, effect);
         }
       }
       if (mutations.length > 0 && this.#heroPartyId !== null) {
@@ -2975,6 +2959,106 @@ export class World extends DurableObject<Env> {
     if (this.#teleportRefusalsLogged.has(key)) return;
     this.#teleportRefusalsLogged.add(key);
     console.warn(JSON.stringify({ event: "event_teleport_refused", reason, eventId, ...extra }));
+  }
+
+  /**
+   * A `changeGold` grant lands on the triggerer's session inventory (the same `inventory.gold` the
+   * merchant spends and the HUD reads through the self snapshot). The balance clamps at zero — a
+   * `changeGold -50` on 10 gold leaves 0, never a debt — and a positive grant tells the hero with
+   * `loot.picked` (kind "gold"), the existing personal loot-event the pickup path already uses.
+   */
+  #dispatchGold(
+    dispatch: DispatchEffect,
+    effect: Extract<DispatchEffect["effect"], { kind: "changeGold" }>,
+  ): void {
+    const socket = this.#socketByPlayerId.get(dispatch.heroId);
+    const player = socket ? this.#players.get(socket) : undefined;
+    if (!socket || !player?.authorized) return;
+    player.inventory.gold = Math.max(0, player.inventory.gold + effect.amount);
+    player.dirty = true;
+    if (effect.amount > 0) {
+      this.#send(socket, {
+        t: "event",
+        code: "loot.picked",
+        params: { amount: effect.amount, kind: "gold" },
+        tone: "good",
+      });
+    }
+    this.#sendState(socket, player);
+  }
+
+  /**
+   * A `changeItems` change lands on the triggerer's session consumable bag — the only stackable
+   * inventory a party hero owns this slice, and the one the merchant already fills. The runtime is
+   * the item-id authority (the Task-1 carry: the parser only shape-checks the slug): an id that is
+   * not a grantable consumable is REFUSED with a deduped structured log, never a player message,
+   * exactly like a refused teleport. A positive grant respects the per-stack capacity — a stack
+   * already at `CONSUMABLE_MAX_STACK` is full, so the grant is dropped and the hero is told with the
+   * `item.full` personal code (the loot precedent for a pickup that cannot land); otherwise it adds
+   * up to the ceiling and reports what landed with `loot.picked`. A negative change removes, clamped
+   * at zero. Any change syncs the legacy `potions` mirror and reships the self snapshot.
+   */
+  #dispatchItems(
+    dispatch: DispatchEffect,
+    effect: Extract<DispatchEffect["effect"], { kind: "changeItems" }>,
+  ): void {
+    const socket = this.#socketByPlayerId.get(dispatch.heroId);
+    const player = socket ? this.#players.get(socket) : undefined;
+    if (!socket || !player?.authorized) return;
+    if (!isConsumableId(effect.itemId)) {
+      this.#logItemRefusedOnce(dispatch.eventId, effect.itemId, { heroId: player.id });
+      return;
+    }
+    const item: ConsumableId = effect.itemId;
+    const counts = normalizeConsumables(player.inventory.consumables, player.inventory.potions);
+    player.inventory.consumables = counts;
+    if (effect.count > 0) {
+      if (counts[item] >= CONSUMABLE_MAX_STACK) {
+        this.#send(socket, {
+          t: "event",
+          code: "item.full",
+          params: { item },
+          tone: "bad",
+        });
+        return;
+      }
+      const added = Math.min(effect.count, CONSUMABLE_MAX_STACK - counts[item]);
+      counts[item] += added;
+      if (item === "health_potion") player.inventory.potions = counts.health_potion;
+      player.dirty = true;
+      this.#send(socket, {
+        t: "event",
+        code: "loot.picked",
+        params: { amount: added, kind: item },
+        tone: "good",
+      });
+    } else {
+      counts[item] = Math.max(0, counts[item] + effect.count);
+      if (item === "health_potion") player.inventory.potions = counts.health_potion;
+      player.dirty = true;
+    }
+    this.#sendState(socket, player);
+  }
+
+  /**
+   * Warn about a refused authored `changeItems` at most ONCE per (event, itemId) per room lifetime —
+   * the same dedupe discipline `#logTeleportRefusedOnce` follows, so an authored
+   * `loop { changeItems <unknown> +1 }` warns once, not `EVENT_COMMANDS_PER_TICK` times a tick. The
+   * (event, itemId) set is small and bounded and resets on room empty beside the teleport set.
+   */
+  #logItemRefusedOnce(eventId: string, itemId: string, extra: Record<string, unknown>): void {
+    const key = `${eventId}:${itemId}`;
+    if (this.#itemRefusalsLogged.has(key)) return;
+    this.#itemRefusalsLogged.add(key);
+    console.warn(
+      JSON.stringify({
+        event: "event_item_refused",
+        reason: "unknown_item",
+        eventId,
+        itemId,
+        ...extra,
+      }),
+    );
   }
 
   #dispatchTeleport(
@@ -3683,6 +3767,7 @@ export class World extends DurableObject<Env> {
     this.#stopLoop();
     resetEventRunRuntime(this.#eventRuns);
     this.#teleportRefusalsLogged.clear();
+    this.#itemRefusalsLogged.clear();
     this.#crossMapTeleports = 0;
     this.#loot = [];
     this.#projectiles = [];
