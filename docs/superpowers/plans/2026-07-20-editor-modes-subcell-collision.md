@@ -673,6 +673,22 @@ describe("sub-cell element collision", () => {
     expect(shifted.y - aligned.y).toBe(16);
   });
 
+  it("stands the collider exactly on the cell's ground line", () => {
+    // THE regression guard for the coordinate-space bug, and the only place it is mechanically
+    // checkable: this is the one function that turns an authored rect into world pixels. The
+    // catalogue authors in foot space, so a tree's collider must end exactly on `(row+1)*TILE_SIZE`.
+    // Reintroducing the renderer's `footOffset` here — "to match createCatalogElementView" — pushes
+    // it 22 px south, into the next cell, and this assertion is what catches that.
+    const rect = elementWorldCollider({
+      col: 2, row: 3, offsetX: 0, offsetY: 0, assetId: TREE,
+    });
+    expect(rect).not.toBeNull();
+    if (!rect) return;
+    expect(rect.y + rect.height).toBe(4 * TILE_SIZE);
+    // And horizontally centred on the cell, not on its left edge.
+    expect(rect.x + rect.width / 2).toBe(2 * TILE_SIZE + TILE_SIZE / 2);
+  });
+
   it("gives a non-colliding asset no collider", () => {
     expect(elementWorldCollider({
       col: 1, row: 1, offsetX: 0, offsetY: 0,
