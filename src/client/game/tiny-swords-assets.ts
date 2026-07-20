@@ -41,6 +41,8 @@ export function applyTinySwordsTheme(root: HTMLElement = document.documentElemen
   set("--tiny-button-red-pressed", cssUrl(TINY_SWORDS_UI.button.red.pressed));
   set("--tiny-button-red-disabled", cssUrl(TINY_SWORDS_UI.button.red.disabled));
   set("--tiny-panel-carved", cssUrl(TINY_SWORDS_UI.panel.carved));
+  set("--tiny-ribbon-blue", cssUrl(TINY_SWORDS_UI.ribbon.blue));
+  set("--tiny-ribbon-yellow", cssUrl(TINY_SWORDS_UI.ribbon.yellow));
   set("--tiny-paper", cssUrl(TINY_SWORDS_UI.panel.paper));
   set("--tiny-checkbox-normal", cssUrl(TINY_SWORDS_UI.control.checkbox.normal));
   set("--tiny-checkbox-checked", cssUrl(TINY_SWORDS_UI.control.checkbox.checked));

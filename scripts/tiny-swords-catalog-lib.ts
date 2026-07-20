@@ -702,6 +702,10 @@ export function uiAssets(catalog: TinySwordsCatalogFile) {
       carved: ref("UI/Banners/Carved_9Slides.png"),
       paper: ref("UI Elements/UI Elements/Papers/RegularPaper.png"),
     },
+    ribbon: {
+      blue: ref("UI/Ribbons/Ribbon_Blue_3Slides.png"),
+      yellow: ref("UI/Ribbons/Ribbon_Yellow_3Slides.png"),
+    },
     control: {
       checkbox: {
         normal: ref("UI Elements/UI Elements/Buttons/SmallBlueSquareButton_Regular.png"),

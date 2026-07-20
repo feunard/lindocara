@@ -37,22 +37,22 @@ export const fr: Record<keyof typeof en, string> = {
   "consumable.resurrection_potion.name": "Cordial du phénix",
   "consumable.resurrection_potion.description":
     "Une fois à terre, ramène à la vie après 10 secondes.",
-  "title.eyebrow": "Créateur d'aventures RPG coopératives",
-  "title.tagline":
-    "Créez des mondes. Partagez une sauvegarde. Incarnez les héros qui terminent l'histoire.",
-  "title.start": "Commencer",
   // Écran de connexion
   "auth.eyebrow": "Un petit monde en ligne",
   "auth.subtitle": "La Combe Sauvage",
   "auth.tagline":
     "Éveillez-vous sous le Cœur-Racine. Prêtez le serment d'Elowen. Affrontez l'étrange vie du Bois-Crépuscule.",
   "auth.tab.login": "Connexion",
-  "auth.back_title": "Retour au titre",
   "auth.tab.register": "Créer un compte",
   "auth.username": "Nom d'utilisateur",
   "auth.password": "Mot de passe",
   "auth.password_confirm": "Confirmez le mot de passe",
   "auth.submit.login": "Entrer dans la Combe",
+  "auth.guest": "Continuer en invité",
+  "auth.guest.hint":
+    "Crée un compte enregistré dans ce navigateur. Videz ses données et les héros partent avec.",
+  "auth.switch.to_register": "Pas encore de compte ? Créez-en un",
+  "auth.switch.to_login": "Vous avez déjà un compte ? Connectez-vous",
   "auth.submit.register": "Créer le compte",
   "auth.error.username_taken": "Ce nom d'utilisateur est déjà pris.",
   "auth.error.invalid_credentials": "Nom d'utilisateur ou mot de passe incorrect.",

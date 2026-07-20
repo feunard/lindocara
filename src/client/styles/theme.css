@@ -34,7 +34,18 @@
   justify-content: center;
   min-width: 9rem;
   min-height: 3.25rem;
-  padding: 0 0.35rem;
+  /* The art is not centred inside its own box, so flex-centring the label is not enough. In
+     Button_Blue_3Slides.png the teal plate the label sits on spans rows 9-39 of 64: its centre is
+     at 37.5% of the height, not 50%, because the bottom of the sprite carries a shadow lip and 8
+     rows of transparent skirt. `border-image-slice: 0 64` stretches all 64 rows over the element,
+     so that ratio survives at any height and the label lands a quarter-button too low.
+     Bottom padding of 2 x (50% - plateCentre) x height pulls the centring back onto the plate;
+     box-sizing is border-box here, so min-height still describes the whole button.
+     The 2px trim is optical, not geometric: with `line-height: 1` the browser centres the em box,
+     but the label is uppercase, so it never fills the descender space the em box reserves and its
+     visible mass already sits high. Padding moves the label by half its value, so 2px = 1px down. */
+  --tiny-button-plate-drop: calc(3.25rem * 0.25 - 2px);
+  padding: 0 0.35rem var(--tiny-button-plate-drop);
   line-height: 1;
   border-style: solid;
   border-width: 0 32px;
@@ -67,11 +78,17 @@
 .tiny-button.tiny-button:active:not(:disabled),
 .tiny-button.tiny-button[aria-pressed="true"] {
   border-image-source: var(--tiny-button-pressed);
+  /* The pressed sprite is the plate pushed down into its own shadow: rows 6-50, centre at 43.75%.
+     It needs half the idle correction, which is why the label looked right pressed and wrong idle.
+     Same 2px optical trim: the uppercase em-box bias is a property of the text, not of the sprite. */
+  --tiny-button-plate-drop: calc(3.25rem * 0.125 - 2px);
   translate: 0 1px;
 }
 
 .tiny-button.tiny-button:disabled {
   border-image-source: var(--tiny-button-disabled);
+  /* The disabled sprite is drawn flat, plate centre 51.6% — near enough to centred to need none. */
+  --tiny-button-plate-drop: 0px;
   opacity: 1;
   cursor: var(--tiny-cursor-unavailable, not-allowed);
 }
@@ -79,6 +96,8 @@
 .tiny-button.tiny-button--link {
   min-width: 0;
   min-height: 0;
+  /* No sprite, so no plate to correct for — and this variant is sized by its text, not by 3.25rem. */
+  --tiny-button-plate-drop: 0px;
   border: 0;
   color: inherit;
   text-shadow: none;
@@ -340,12 +359,44 @@ select:disabled {
   cursor: var(--tiny-cursor-default, default);
 }
 
+/* Tiny Swords cursors are game chrome. Creator surfaces keep the native OS cursors, the same
+   two-tree rule the components follow. `data-cursor` is present on `#stage` for exactly as long as
+   the editor owns that canvas (set on open, deleted on dispose), so it is the editor marker here. */
+#stage[data-cursor] {
+  cursor: default;
+}
+
 #stage[data-cursor="paint"] {
-  cursor: var(--tiny-cursor-paint, crosshair);
+  cursor: crosshair;
 }
 
 #stage[data-cursor="move"] {
-  cursor: var(--tiny-cursor-move, grab);
+  cursor: grab;
+}
+
+/* `.editor-root` covers the editor shell; `[data-slot="dialog-content"]` covers the dialogs Radix
+   portals out to <body>, outside `.editor-root`, which would otherwise inherit the game chrome from
+   the `html, body, #root` rule above. Deliberately NOT a bare `[data-slot]`: the Tiny Swords
+   superset is built on the same shadcn structure, so TinyButton/TinyLabel/TinyKbd carry data-slot
+   too and a blanket rule would strip the game's own skin off them. `DialogContent` is editor-only. */
+.editor-root,
+[data-slot="dialog-content"] {
+  cursor: auto;
+  /* Same reason the cursors are fenced: `:root` sets the game's handwriting face and it would
+     inherit straight into the creator tools, which have to stay dense and sober. A rule on the
+     element beats inheritance whatever the specificity, so this needs no fight with `:root`.
+     The fallback is spelled out because app.css declares `--font-sans` under `@theme inline`,
+     which is not guaranteed to emit the custom property onto `:root`. */
+  font-family: var(--font-sans, "Geist Variable", ui-sans-serif, system-ui, sans-serif);
+}
+
+:is(.editor-root, [data-slot="dialog-content"])
+  :is(button, a, summary, label:has(input), select, input[type="range"]) {
+  cursor: pointer;
+}
+
+:is(.editor-root, [data-slot="dialog-content"]) :is(button, input, select):disabled {
+  cursor: not-allowed;
 }
 
 .asset-browser {
@@ -553,26 +604,4 @@ select:disabled {
     width: auto;
     max-height: 48vh;
   }
-}
-.title-screen {
-  display: grid;
-  place-items: center;
-}
-
-.title-screen__panel {
-  position: relative;
-  z-index: 1;
-  width: min(38rem, calc(100vw - 2rem));
-  padding: 2.5rem;
-  text-align: center;
-}
-
-.title-screen__panel h1 {
-  margin: 0.35rem 0;
-  font-size: clamp(3rem, 10vw, 6rem);
-}
-
-.title-screen__panel p {
-  margin: 0 auto 1.5rem;
-  max-width: 34rem;
 }

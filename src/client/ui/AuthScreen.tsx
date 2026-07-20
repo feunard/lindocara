@@ -3,9 +3,9 @@ import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
 import { TinyInput } from "@/ui/tiny-swords/TinyInput.js";
 import { TinyLabel } from "@/ui/tiny-swords/TinyLabel.js";
 import { api, authErrorText, errorCode, type Me } from "../api.js";
+import { continueAsGuest } from "../guest.js";
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
-import { Tabs } from "./Tabs.js";
 import { TinySwordsMenuScene } from "./TinySwordsMenuScene.js";
 
 type Tab = "login" | "register";
@@ -16,6 +16,19 @@ export function AuthScreen() {
   const [tab, setTab] = useState<Tab>("login");
   const [error, setError] = useState<string | null>(null); // machine code, not text
   const [busy, setBusy] = useState(false);
+
+  async function guest() {
+    setError(null);
+    setBusy(true);
+    try {
+      await continueAsGuest();
+      setScreen("parties");
+    } catch (caught) {
+      setError(errorCode(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -51,23 +64,12 @@ export function AuthScreen() {
           <span className="auth-intro__rule" aria-hidden="true" />
         </header>
 
-        <section className="auth-panel framed parchment">
-          <Tabs
-            tabs={[
-              { id: "login", label: t("auth.tab.login") },
-              { id: "register", label: t("auth.tab.register") },
-            ]}
-            active={tab}
-            onSelect={(id) => {
-              setTab(id as Tab);
-              setError(null);
-            }}
-          />
-          <TinyButton type="button" variant="secondary" onClick={() => setScreen("title")}>
-            {t("auth.back_title")}
-          </TinyButton>
+        <section className="auth-panel">
+          <h2 className="auth-panel__title">
+            {t(tab === "login" ? "auth.tab.login" : "auth.tab.register")}
+          </h2>
           <form key={tab} onSubmit={submit} className="auth-form flex flex-col gap-3">
-            <div>
+            <div className="auth-field">
               <TinyLabel htmlFor="auth-username">{t("auth.username")}</TinyLabel>
               <TinyInput
                 id="auth-username"
@@ -80,7 +82,7 @@ export function AuthScreen() {
                 required
               />
             </div>
-            <div>
+            <div className="auth-field">
               <TinyLabel htmlFor="auth-password">{t("auth.password")}</TinyLabel>
               <TinyInput
                 id="auth-password"
@@ -93,7 +95,7 @@ export function AuthScreen() {
               />
             </div>
             {tab === "register" && (
-              <div>
+              <div className="auth-field">
                 <TinyLabel htmlFor="auth-confirm">{t("auth.password_confirm")}</TinyLabel>
                 <TinyInput
                   id="auth-confirm"
@@ -111,6 +113,23 @@ export function AuthScreen() {
             </TinyButton>
             {error && <p role="alert">{authErrorText(error)}</p>}
           </form>
+
+          <div className="auth-alternatives">
+            <button type="button" className="auth-link" onClick={guest} disabled={busy}>
+              {t("auth.guest")}
+            </button>
+            <p className="auth-hint">{t("auth.guest.hint")}</p>
+            <button
+              type="button"
+              className="auth-link auth-link--switch"
+              onClick={() => {
+                setTab(tab === "login" ? "register" : "login");
+                setError(null);
+              }}
+            >
+              {t(tab === "login" ? "auth.switch.to_register" : "auth.switch.to_login")}
+            </button>
+          </div>
         </section>
       </div>
     </main>

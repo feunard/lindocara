@@ -10831,6 +10831,16 @@ export const GENERATED_TINY_SWORDS_UI_ASSETS = {
       "sourcePath": "Tiny Swords (Free Pack)/UI Elements/UI Elements/Papers/RegularPaper.png"
     }
   },
+  "ribbon": {
+    "blue": {
+      "id": "ui.ribbon.ribbon-blue-3slides",
+      "sourcePath": "Tiny Swords (Update 010)/UI/Ribbons/Ribbon_Blue_3Slides.png"
+    },
+    "yellow": {
+      "id": "ui.ribbon.ribbon-yellow-3slides",
+      "sourcePath": "Tiny Swords (Update 010)/UI/Ribbons/Ribbon_Yellow_3Slides.png"
+    }
+  },
   "control": {
     "checkbox": {
       "normal": {

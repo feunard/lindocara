@@ -20,7 +20,6 @@ import { Prompt } from "./Prompt.js";
 import { SettingsMenu } from "./SettingsMenu.js";
 import { StatusBar } from "./StatusBar.js";
 import { TalentTree } from "./TalentTree.js";
-import { TitleScreen } from "./TitleScreen.js";
 import { VictoryOverlay } from "./VictoryOverlay.js";
 import { WorldMap } from "./WorldMap.js";
 
@@ -37,7 +36,7 @@ export function App() {
   useEffect(() => {
     fetchMe().then((me) => {
       setAccountId(me?.id ?? null);
-      setScreen(me ? "parties" : "title");
+      setScreen(me ? "parties" : "auth");
     });
   }, [setScreen, setAccountId]);
 
@@ -48,7 +47,6 @@ export function App() {
           dense editor shell owns its whole viewport, so keep these Tiny Swords widgets off it. */}
       {screen !== "adventure-editor" && <LocaleToggle />}
       {screen !== "adventure-editor" && <StatusBar />}
-      {screen === "title" && <TitleScreen />}
       {screen === "auth" && <AuthScreen />}
       {screen === "adventure-editor" && (
         <Suspense fallback={null}>

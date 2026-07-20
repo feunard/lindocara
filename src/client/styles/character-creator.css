@@ -87,37 +87,207 @@
   box-shadow: 0 2px 0 #2c1b0c;
 }
 
+/* The login board.
+ *
+ * The fiction is a village notice board: you are not "logging in", you are signing the roster
+ * before the party rides out. So the panel is a light parchment board and every field is a darker
+ * slot cut into it. Those two tones are not invented — the pack ships the same weave drawn twice,
+ * Banner.png in cream and Banner_Slots.png in tan, with identical pixel counts and only the tint
+ * changed. scripts/derive-ui-nine-slices.mjs lifts each sheet's centre cell into a 64px repeating
+ * tile; the outline and the sunken edges are rebuilt below in the packs' own ink, which scales to
+ * any panel size instead of stretching one fixed sheet.
+ *
+ * Every colour here is sampled from the art, none are picked by eye. */
 .auth-panel {
+  --board: #dcdca5; /* Banner.png's field */
+  --slot: #ccb88d; /* Banner_Slots.png */
+  --paper: #eee1c6; /* RegularPaper.png — the lightest of the three, so it reads as fresh paper */
+  --ink: #161c2e; /* the outline colour shared by every sprite in both packs */
+  --ribbon: #41919d; /* Ribbon_Blue_3Slides.png's band */
   position: relative;
   grid-column: 2;
   width: 100%;
-  padding: clamp(1.1rem, 3vw, 1.75rem);
-  box-shadow: 0 18px 55px rgb(0 0 0 / 55%);
-}
-
-.auth-panel::before {
-  content: "";
-  position: absolute;
-  top: -0.65rem;
-  left: 50%;
-  width: 48%;
-  height: 0.8rem;
-  translate: -50% 0;
-  border: 2px solid #4a2d12;
-  background: linear-gradient(#e3c86e, #8c6124);
+  /* The ribbons are lifted out of the panel's border box by the tablist's negative margin, so the
+     layout has to be told they are there. Without this they overlap whatever sits above — on a
+     narrow viewport the intro stops being fixed and collides with them. Matches that lift. */
+  margin-top: 2.35rem;
+  padding: clamp(1.3rem, 3vw, 1.9rem);
+  border: 3px solid var(--ink);
+  border-radius: 14px;
+  background: var(--board) url("../assets/ui/weave-cream.png") repeat;
+  background-size: 64px 64px;
   box-shadow:
-    inset 0 2px #fff0a4,
-    0 3px 0 rgb(0 0 0 / 30%);
+    inset 0 0 0 3px rgb(255 255 255 / 28%),
+    0 18px 55px rgb(0 0 0 / 55%);
+  color: var(--ink);
+  image-rendering: pixelated;
 }
 
-.auth-panel [role="tablist"] {
-  margin-bottom: 1rem;
+/* The board's title, on the pack's blue ribbon pinned across the top edge — the same composition
+   the Tiny Swords sheets use for their own headings. Ribbon_Blue_3Slides.png is the three-slice
+   geometry the buttons use (64px swallowtail caps, stretched middle), so it takes any title width.
+   The negative margin lifts it to straddle the edge; nothing clips it because the board has no
+   overflow rule, and .auth-panel's matching top margin reserves the room it needs. */
+.auth-panel__title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.15rem;
+  margin: -2.35rem auto 1.4rem;
+  padding: 0 0.9rem calc(3.15rem * 0.297); /* the ribbon's band is rows 3-42 of 64: centre at 35.2% */
+  border: 0 solid transparent;
+  border-width: 0 32px;
+  border-image-source: var(--tiny-ribbon-blue);
+  border-image-slice: 0 64 fill;
+  border-image-width: 0 32px;
+  border-image-repeat: stretch;
+  color: #eef6f5;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: 1.02rem;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  /* A wrapped title breaks out of the band, which is a fixed 40px of a 64px sprite and cannot grow
+     with the text. One line, always. */
+  white-space: nowrap;
+  text-shadow: 0 2px 0 rgb(9 20 32 / 70%);
 }
 
+/* Everything that is not the primary action, kept quiet and clearly below it. */
+.auth-alternatives {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  margin-top: 1.1rem;
+}
+
+.auth-link {
+  padding: 0.2rem 0.35rem;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+.auth-link:hover {
+  color: #3d2a12;
+  text-decoration-color: var(--ribbon);
+}
+
+.auth-link:focus-visible {
+  outline: 3px solid var(--ribbon);
+  outline-offset: 1px;
+}
+
+.auth-link:disabled {
+  opacity: 0.5;
+}
+
+/* Separated by a rule rather than more space: switching between logging in and signing up is a
+   different question from how you sign in, and the board should say so. */
+.auth-link--switch {
+  width: 100%;
+  margin-top: 0.7rem;
+  padding-top: 0.75rem;
+  border-top: 2px solid rgb(22 28 46 / 22%);
+  border-radius: 0;
+}
+
+.auth-hint {
+  max-width: 24rem;
+  margin: 0;
+  color: rgb(22 28 46 / 68%);
+  font-family: var(--font-ui);
+  font-size: 0.86rem;
+  line-height: 1.35;
+  text-align: center;
+}
+
+/* A slot cut into the board: same weave, darker tint, sunk with an inner top shadow and a hairline
+   of board light along the bottom so it reads as a recess rather than a sticker. */
+.auth-field {
+  padding: 0.65rem 0.85rem 0.9rem;
+  border: 3px solid var(--ink);
+  border-radius: 10px;
+  /* The tan weave has roughly three times the internal contrast of the cream one — Banner_Slots'
+     two tones differ by 14 in green where Banner's differ by 5 — so at full strength the hatch
+     shouts louder than the board it is supposed to sit quietly inside. A flat wash of the same
+     tan over the top keeps the texture legible without letting it become the loudest thing here. */
+  background:
+    linear-gradient(rgb(204 184 141 / 55%), rgb(204 184 141 / 55%)),
+    var(--slot) url("../assets/ui/weave-tan.png") repeat;
+  background-size:
+    auto,
+    64px 64px;
+  box-shadow:
+    inset 0 4px 0 rgb(22 28 46 / 13%),
+    0 2px 0 rgb(255 255 255 / 25%);
+  image-rendering: pixelated;
+}
+
+/* Hand-written on the board, so the body face rather than the pixel face the game HUD uses. */
+.auth-field label {
+  display: block;
+  margin: 0 0 0.3rem;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 1.05rem;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 0 rgb(255 255 255 / 30%);
+}
+
+.auth-field input {
+  width: 100%;
+  padding: 0.45rem 0.65rem;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  background: var(--paper);
+  box-shadow: inset 0 2px 0 rgb(22 28 46 / 12%);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 1.02rem;
+  letter-spacing: normal;
+  text-shadow: none;
+}
+
+.auth-field input::placeholder {
+  color: rgb(22 28 46 / 45%);
+}
+
+.auth-field input:focus-visible {
+  outline: 3px solid var(--ribbon);
+  outline-offset: 2px;
+}
+
+/* Not full-bleed: stretched to the board's width the sprite's 64px swallowtail caps smear and the
+   thing reads as a bar rather than a button. Centred at a little under two thirds keeps its
+   silhouette and lets the board breathe around the one action that matters. */
+.auth-form > .tiny-button {
+  align-self: center;
+  min-width: 64%;
+  margin-top: 0.55rem;
+}
+
+/* Errors get their own slot rather than loose red text: the board's vocabulary is slots, and a
+   message pinned to it should look pinned. */
 .auth-form [role="alert"] {
   margin: 0;
-  color: #8b251f;
-  font-weight: 700;
+  padding: 0.55rem 0.8rem;
+  border: 3px solid var(--ink);
+  border-radius: 10px;
+  background: #c4674f;
+  box-shadow: inset 0 3px 0 rgb(22 28 46 / 16%);
+  color: #fff3e4;
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  font-weight: 400;
+  text-shadow: 0 1px 0 rgb(22 28 46 / 55%);
 }
 
 :where(.auth-shell[data-busy]) .menu-scene__building--castle {
