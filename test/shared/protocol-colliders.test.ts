@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MAX_MAP_ELEMENTS } from "../../src/shared/map-data.js";
 import { parseWorldColliders } from "../../src/shared/protocol.js";
 
 describe("wire colliders", () => {
@@ -17,8 +18,15 @@ describe("wire colliders", () => {
     expect(parseWorldColliders([[1, 2, 3, Number.NaN]])).toBeNull();
   });
 
+  it("accepts exactly the maximum number of colliders a map could hold", () => {
+    const max = Array.from({ length: MAX_MAP_ELEMENTS }, () => [0, 0, 1, 1] as const);
+    const parsed = parseWorldColliders(max);
+    expect(parsed).not.toBeNull();
+    expect(parsed).toHaveLength(MAX_MAP_ELEMENTS);
+  });
+
   it("rejects more colliders than a map could hold", () => {
-    const many = Array.from({ length: 401 }, () => [0, 0, 1, 1] as const);
+    const many = Array.from({ length: MAX_MAP_ELEMENTS + 1 }, () => [0, 0, 1, 1] as const);
     expect(parseWorldColliders(many)).toBeNull();
   });
 });
