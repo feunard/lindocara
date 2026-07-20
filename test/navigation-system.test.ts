@@ -13,20 +13,23 @@ import { isWalkable, type Rect, type TerrainGeometry } from "../src/shared/game.
 import { DEFAULT_ZONE_NAVIGATION } from "../src/shared/navigation.js";
 import type { TileMap } from "../src/shared/tilemap.js";
 import { ZONES, zoneDefinition } from "../src/shared/zones.js";
-import { tileMapFromRects } from "./support/tiles.js";
+import { noColliders, tileMapFromRects } from "./support/tiles.js";
 
+const BASE_TILES = tileMapFromRects(480, 320, []);
 const baseTerrain: TerrainGeometry = {
   width: 480,
   height: 320,
   obstacles: [],
   spawnPoints: [{ x: 40, y: 40 }],
   safeZone: { x: 0, y: 280, width: 80, height: 40 },
-  tiles: tileMapFromRects(480, 320, []),
+  tiles: BASE_TILES,
+  colliders: noColliders(BASE_TILES),
 };
 
 /** Rebuilds `tiles` to match a test's ad hoc `obstacles`, since `isWalkable` reads only the grid. */
 function terrainWith(obstacles: readonly Rect[]): TerrainGeometry {
-  return { ...baseTerrain, obstacles, tiles: tileMapFromRects(480, 320, obstacles) };
+  const tiles = tileMapFromRects(480, 320, obstacles);
+  return { ...baseTerrain, obstacles, tiles, colliders: noColliders(tiles) };
 }
 
 function monster(id: string, x: number, y: number): MonsterRuntime {
@@ -223,6 +226,7 @@ describe("budgeted zone navigation", () => {
       spawnPoints: [{ x: 16, y: 16 }],
       safeZone: { x: 0, y: 0, width: 1, height: 1 },
       tiles,
+      colliders: noColliders(tiles),
     };
     const grid = createNavigationGrid(terrain);
     expect(grid.walkable[0]).toBe(0); // row 0: water by kind — unwalkable either way.

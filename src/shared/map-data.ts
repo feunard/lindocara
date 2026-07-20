@@ -9,7 +9,8 @@
  * reason.
  */
 
-import type { TerrainGeometry } from "./game.js";
+import { colliderIndexFrom } from "./collider.js";
+import type { Rect, TerrainGeometry } from "./game.js";
 import { isMonsterSpecies, type MonsterSpecies } from "./game.js";
 import { parseTileLayer, type TileLayer } from "./tile-layer-codec.js";
 import { TILE_SIZE, type TileKind, type TileMap } from "./tilemap.js";
@@ -224,6 +225,7 @@ export function terrainFromMap(data: MapData): TerrainGeometry {
     spawnPoints: [mapSpawnPoint(data)],
     safeZone: null,
     tiles,
+    colliders: colliderIndexFrom(elementColliders(data.elements), tiles.cols, tiles.rows),
   };
 }
 
@@ -232,18 +234,43 @@ export function canPlaceElement(assetId: EditorAssetId, on: TileKind): boolean {
   return asset?.editor.allowedTerrain.some((terrain) => terrain === on) ?? false;
 }
 
-export function elementCells(
-  element: MapElement,
-  footprint: "visual" | "collision" = "visual",
-): { col: number; row: number }[] {
+export function elementCells(element: MapElement): { col: number; row: number }[] {
   const asset = editorAsset(element.assetId);
   if (!asset) return [];
-  const offsets =
-    footprint === "collision" ? asset.editor.collisionFootprint : asset.editor.visualFootprint;
-  return offsets.map((offset) => ({
+  return asset.editor.visualFootprint.map((offset) => ({
     col: element.col + offset.col,
     row: element.row + offset.row,
   }));
+}
+
+/**
+ * An element's collider in world pixels, or null when the asset does not collide.
+ *
+ * The catalogue authors the rect in foot space, so this translation needs no `footOffset`: the
+ * art's visible foot always lands on the cell's bottom edge, because the renderer's `footOffset`
+ * cancels against the frame's own bottom padding. Do NOT reintroduce `footOffset` here to "match"
+ * `createCatalogElementView` — that would push every collider a padding's worth south of its sprite.
+ */
+export function elementWorldCollider(element: MapElement): Rect | null {
+  const collider = editorAsset(element.assetId)?.editor.collider;
+  if (!collider) return null;
+  const footX = element.col * TILE_SIZE + TILE_SIZE / 2 + element.offsetX * ELEMENT_OFFSET_PX;
+  const footY = (element.row + 1) * TILE_SIZE + element.offsetY * ELEMENT_OFFSET_PX;
+  return {
+    x: footX + collider.x,
+    y: footY + collider.y,
+    width: collider.width,
+    height: collider.height,
+  };
+}
+
+export function elementColliders(elements: readonly MapElement[]): Rect[] {
+  const rects: Rect[] = [];
+  for (const element of elements) {
+    const rect = elementWorldCollider(element);
+    if (rect) rects.push(rect);
+  }
+  return rects;
 }
 
 export function elementCoversCell(element: MapElement, col: number, row: number): boolean {
@@ -256,8 +283,9 @@ export function elementPlacementCells(element: MapElement): { col: number; row: 
   const asset = editorAsset(element.assetId);
   if (!asset) return [];
   if (asset.editor.terrainOverride) return elementCells(element);
-  const collision = elementCells(element, "collision");
-  return collision.length > 0 ? collision : [{ col: element.col, row: element.row }];
+  // No collision footprint to stand on any more: an asset is placed on its anchor cell, and its
+  // collider — if any — is checked as geometry, not as ground.
+  return [{ col: element.col, row: element.row }];
 }
 
 export function elementFitsMap(element: MapElement, cols: number, rows: number): boolean {
@@ -312,8 +340,9 @@ export function bakeCollision(map: MapData): TileMap {
   return bakeElements(tiles, map.elements);
 }
 
-/** The element pass, unchanged: walkable overrides reclaim water, collision footprints become
- *  forest. Split out only so `bakeCollision` reads as two steps rather than four loops. */
+/** The element pass. Walkable overrides still reclaim water in the grid, because that is a grid
+ *  operation. Collision footprints are gone: an element's solidity is a sub-cell collider now
+ *  (`elementWorldCollider`), carried on the geometry beside the tiles rather than burned into them. */
 function bakeElements(tiles: TileMap, elements: readonly MapElement[]): TileMap {
   const kinds = [...tiles.kinds];
   for (const element of elements) {
@@ -328,12 +357,6 @@ function bakeElements(tiles: TileMap, elements: readonly MapElement[]): TileMap 
     for (const cell of elementCells(element)) {
       const index = cell.row * tiles.cols + cell.col;
       if (kinds[index] === "water") kinds[index] = "grass";
-    }
-  }
-  for (const element of elements) {
-    for (const cell of elementCells(element, "collision")) {
-      const index = cell.row * tiles.cols + cell.col;
-      if (kinds[index] === "grass") kinds[index] = "forest";
     }
   }
   return { ...tiles, kinds };

@@ -1,3 +1,4 @@
+import { emptyColliderIndex } from "./collider.js";
 import {
   CITY_GUARDS,
   type GuardDefinition,
@@ -106,6 +107,7 @@ export const TEST_ZONE_TERRAIN: TerrainGeometry = {
   spawnPoints: TEST_ZONE_SPAWNS,
   safeZone: TEST_ZONE_SAFE_ZONE,
   tiles: MMO_TEST_ZONE_TILES,
+  colliders: emptyColliderIndex(MMO_TEST_ZONE_TILES.cols, MMO_TEST_ZONE_TILES.rows),
 };
 
 export const ZONES: Readonly<Record<ZoneId, ZoneDefinition>> = {

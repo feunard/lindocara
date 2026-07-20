@@ -20,16 +20,18 @@ import {
 } from "../src/shared/combat-actions.js";
 import type { TerrainGeometry } from "../src/shared/game.js";
 import type { ProjectileKind } from "../src/shared/protocol.js";
-import { tileMapFromRects } from "./support/tiles.js";
+import { noColliders, tileMapFromRects } from "./support/tiles.js";
 
 function terrain(obstacles: TerrainGeometry["obstacles"] = []): TerrainGeometry {
+  const tiles = tileMapFromRects(500, 300, obstacles);
   return {
     width: 500,
     height: 300,
     spawnPoints: [{ x: 0, y: 0 }],
     obstacles,
     safeZone: null,
-    tiles: tileMapFromRects(500, 300, obstacles),
+    tiles,
+    colliders: noColliders(tiles),
   };
 }
 

@@ -283,7 +283,15 @@ export interface WorldInfo {
    * happens on the authority. A client cannot disagree with a map it did not compute.
    */
   tiles: string[];
-  /** What to draw on the ground. Scenery only — collision is already in `tiles` above. */
+  /**
+   * What to draw on the ground — and, since sub-cell colliders, the ONE exception to the
+   * "collision is already in `tiles`" rule that `layers` and `events` still follow.
+   *
+   * A tree blocks its trunk, not its cell, so its solidity cannot be expressed in the tile grid at
+   * all. Both sides therefore build the collider index from THIS list with the same pure
+   * `elementColliders`/`elementWorldCollider` — one function, exactly the `step()` argument — and
+   * `isWalkable` remains the single junction where the grid and the rectangles meet.
+   */
   elements: readonly MapElement[];
   /** Which tileset `layers` index into. */
   tilesetId: string;

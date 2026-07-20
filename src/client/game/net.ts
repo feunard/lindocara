@@ -1,6 +1,8 @@
+import { colliderIndexFrom } from "../../shared/collider.js";
 import type { ConsumableId } from "../../shared/consumables.js";
 import { canMove, type LifeState, speedForLife } from "../../shared/death.js";
 import { resolveTerrain, type TerrainGeometry } from "../../shared/game.js";
+import { elementColliders } from "../../shared/map-data.js";
 import {
   CORRECTION_SMOOTHING_MS,
   MAX_ACCUMULATED_SECONDS,
@@ -296,15 +298,22 @@ export class WorldClient {
    *
    * `spawnPoints` is empty on purpose: only the server picks where anyone appears, and a client
    * that carried a list of spawns would be carrying an opinion it is not entitled to have.
+   *
+   * The colliders are rebuilt from `world.elements` with the same shared `elementColliders` the
+   * server bakes with. Sub-cell solidity cannot ride the tile grid, so this is the one part of
+   * collision the client derives rather than decodes — and it is safe for exactly the reason
+   * `step()` is: it is literally the same function, over the same authored payload.
    */
   static geometryFrom(world: WorldInfo): TerrainGeometry {
+    const tiles = decodeTileMap(world.tiles);
     return {
       width: world.width,
       height: world.height,
       obstacles: world.obstacles,
       spawnPoints: [],
       safeZone: world.safeZone,
-      tiles: decodeTileMap(world.tiles),
+      tiles,
+      colliders: colliderIndexFrom(elementColliders(world.elements), tiles.cols, tiles.rows),
     };
   }
 

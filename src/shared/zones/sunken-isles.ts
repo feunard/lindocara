@@ -11,6 +11,7 @@
  * lobe ever floats free. The islets below are detached ON PURPOSE and carry nothing — no spawn, no
  * portal, no building — precisely because they are unreachable.
  */
+import { emptyColliderIndex } from "../collider.js";
 import type { Rect, TerrainGeometry, WorldLandmark } from "../game.js";
 import type { Vec2, WorldBounds } from "../simulation.js";
 import { SUNKEN_ISLES_TILES } from "./sunken-isles-tiles.js";
@@ -106,4 +107,5 @@ export const SUNKEN_ISLES_TERRAIN: TerrainGeometry = {
   spawnPoints: SUNKEN_ISLES_SPAWNS,
   safeZone: SUNKEN_ISLES_SAFE_ZONE,
   tiles: SUNKEN_ISLES_TILES,
+  colliders: emptyColliderIndex(SUNKEN_ISLES_TILES.cols, SUNKEN_ISLES_TILES.rows),
 };

@@ -103,10 +103,29 @@ describe("Tiny Swords semantic catalogue", () => {
     for (const entry of editor) {
       expect(entry.editor.allowedTerrain.length, entry.id).toBeGreaterThan(0);
       expect(entry.editor.visualFootprint.length, entry.id).toBeGreaterThan(0);
-      const visual = new Set(entry.editor.visualFootprint.map((cell) => `${cell.col}:${cell.row}`));
-      for (const cell of entry.editor.collisionFootprint) {
-        expect(visual.has(`${cell.col}:${cell.row}`), entry.id).toBe(true);
+      const collider = entry.editor.collider;
+      if (!collider) continue;
+      // The collider is authored in FOOT space — origin `(col*64 + 32, (row+1)*64)` — so the
+      // visual footprint's cells have to be translated into that same space before they can bound
+      // it. Mirrors `buildingCollider` in `scripts/tiny-swords-catalog-lib.ts`: an asset may never
+      // collide outside the cells it visibly occupies.
+      const TILE_PX = 64;
+      let left = Number.POSITIVE_INFINITY;
+      let top = Number.POSITIVE_INFINITY;
+      let right = Number.NEGATIVE_INFINITY;
+      let bottom = Number.NEGATIVE_INFINITY;
+      for (const cell of entry.editor.visualFootprint) {
+        left = Math.min(left, cell.col * TILE_PX - TILE_PX / 2);
+        right = Math.max(right, (cell.col + 1) * TILE_PX - TILE_PX / 2);
+        top = Math.min(top, cell.row * TILE_PX - TILE_PX);
+        bottom = Math.max(bottom, (cell.row + 1) * TILE_PX - TILE_PX);
       }
+      expect(collider.width, entry.id).toBeGreaterThan(0);
+      expect(collider.height, entry.id).toBeGreaterThan(0);
+      expect(collider.x, entry.id).toBeGreaterThanOrEqual(left);
+      expect(collider.y, entry.id).toBeGreaterThanOrEqual(top);
+      expect(collider.x + collider.width, entry.id).toBeLessThanOrEqual(right);
+      expect(collider.y + collider.height, entry.id).toBeLessThanOrEqual(bottom);
     }
   });
 

@@ -1,3 +1,4 @@
+import { type ColliderIndex, emptyColliderIndex, overlapsCollider } from "./collider.js";
 import {
   clampToWorld,
   PLAYER_SIZE,
@@ -40,6 +41,13 @@ export interface TerrainGeometry extends WorldBounds {
   /** The collision truth — and, since Task 4, the line-of-sight truth too. `obstacles` survives
    *  only for the minimap, and goes away in a later slice. */
   tiles: TileMap;
+  /**
+   * The OTHER half of collision truth: sub-cell rectangles, for things that occupy part of a cell
+   * (a tree trunk under a canopy). Required, not optional — a geometry silently missing its
+   * colliders is a world where trees are walk-through, and TypeScript should refuse it at every
+   * construction site rather than let one slip.
+   */
+  colliders: ColliderIndex;
 }
 
 export interface NpcDefinition extends Vec2 {
@@ -550,6 +558,7 @@ export const VERDANT_REACH_TERRAIN: TerrainGeometry = {
   spawnPoints: SPAWN_POINTS,
   safeZone: SAFE_ZONE,
   tiles: VERDANT_REACH_TILES,
+  colliders: emptyColliderIndex(VERDANT_REACH_TILES.cols, VERDANT_REACH_TILES.rows),
 };
 
 export const MONSTER_SPAWNS: readonly MonsterSpawn[] = [
@@ -832,13 +841,18 @@ export function safeZoneShelters(
  * monster movement and mobility skills all reach the world through this one function — which is
  * why moving it onto tiles converts the entire game at once, and why free continuous movement is
  * completely unaffected.
+ *
+ * It is also where collision's TWO sources meet, and the only place they do: the tile grid answers
+ * for whole cells, the collider index for sub-cell rectangles. A caller that consults one without
+ * the other reintroduces the silent client/server divergence this junction exists to prevent.
  */
 export function isWalkable(
   position: Vec2,
   size: number = PLAYER_SIZE,
   geometry: TerrainGeometry = VERDANT_REACH_TERRAIN,
 ): boolean {
-  return isWalkableBox(geometry.tiles, position, size);
+  if (!isWalkableBox(geometry.tiles, position, size)) return false;
+  return !overlapsCollider(geometry.colliders, position, size);
 }
 
 /** Axis-separated collision resolution preserves wall sliding and never trusts the client. */

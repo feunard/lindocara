@@ -16,9 +16,11 @@ import { newPlayer, type PlayerRuntime } from "../src/server/world/world-runtime
 import { starterEquipmentFor } from "../src/shared/character.js";
 import { PLAYER_ACTIONS } from "../src/shared/combat-actions.js";
 import type { TerrainGeometry } from "../src/shared/game.js";
-import { tileMapFromRects } from "./support/tiles.js";
+import { noColliders, tileMapFromRects } from "./support/tiles.js";
 
 const OBSTACLES = [{ x: 80, y: 0, width: 20, height: 120 }];
+
+const WORLD_TILES = tileMapFromRects(400, 300, OBSTACLES);
 
 const terrain: TerrainGeometry = {
   width: 400,
@@ -26,7 +28,8 @@ const terrain: TerrainGeometry = {
   spawnPoints: [{ x: 10, y: 10 }],
   safeZone: { x: 0, y: 200, width: 100, height: 100 },
   obstacles: OBSTACLES,
-  tiles: tileMapFromRects(400, 300, OBSTACLES),
+  tiles: WORLD_TILES,
+  colliders: noColliders(WORLD_TILES),
 };
 
 function player(): PlayerRuntime {

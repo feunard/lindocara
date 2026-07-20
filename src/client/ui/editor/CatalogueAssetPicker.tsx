@@ -117,7 +117,7 @@ function AssetChoice({
   selected: boolean;
   onSelect(assetId: EditorAssetId): void;
 }) {
-  const collides = asset.editor.collisionFootprint.length > 0;
+  const collides = asset.editor.collider !== undefined;
   const crop =
     asset.editor.sourceRect ??
     (asset.frame

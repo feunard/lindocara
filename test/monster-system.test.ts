@@ -27,7 +27,7 @@ import { DEFAULT_ZONE_NAVIGATION } from "../src/shared/navigation.js";
 import { PLAYER_SIZE, TICK_DT } from "../src/shared/simulation.js";
 import { type ZoneDefinition, zoneDefinition } from "../src/shared/zones.js";
 import { mapDataFromBlocks } from "./support/map-fixtures.js";
-import { tileMapFromRects } from "./support/tiles.js";
+import { noColliders, tileMapFromRects } from "./support/tiles.js";
 
 /**
  * A single small rect, thinner than one tile, that the rasteriser (any-overlap; conservative in
@@ -38,13 +38,17 @@ import { tileMapFromRects } from "./support/tiles.js";
  */
 const OBSTACLE = { x: 300, y: 300, width: 8, height: 8 };
 
+const TERRAIN_TILES = tileMapFromRects(640, 640, [OBSTACLE]);
+const WALL_TILES = tileMapFromRects(320, 192, [{ x: 64, y: 0, width: 64, height: 128 }]);
+
 const terrain: TerrainGeometry = {
   width: 640,
   height: 640,
   obstacles: [OBSTACLE],
   spawnPoints: [{ x: 20, y: 20 }],
   safeZone: { x: 600, y: 600, width: 20, height: 20 },
-  tiles: tileMapFromRects(640, 640, [OBSTACLE]),
+  tiles: TERRAIN_TILES,
+  colliders: noColliders(TERRAIN_TILES),
 };
 
 const zone: ZoneDefinition = {
@@ -196,7 +200,8 @@ describe("monster navigation on the tile grid", () => {
       obstacles: [{ x: 64, y: 0, width: 64, height: 128 }],
       spawnPoints: [{ x: 20, y: 20 }],
       safeZone: { x: 0, y: 0, width: 1, height: 1 },
-      tiles: tileMapFromRects(320, 192, [{ x: 64, y: 0, width: 64, height: 128 }]),
+      tiles: WALL_TILES,
+      colliders: noColliders(WALL_TILES),
     };
     const wallZone: ZoneDefinition = {
       ...zone,
@@ -285,7 +290,8 @@ describe("monster navigation on the tile grid", () => {
       obstacles: [{ x: 64, y: 0, width: 64, height: 128 }],
       spawnPoints: [{ x: 20, y: 20 }],
       safeZone: { x: 0, y: 0, width: 1, height: 1 },
-      tiles: tileMapFromRects(320, 192, [{ x: 64, y: 0, width: 64, height: 128 }]),
+      tiles: WALL_TILES,
+      colliders: noColliders(WALL_TILES),
     };
     const wallZone: ZoneDefinition = {
       ...zone,

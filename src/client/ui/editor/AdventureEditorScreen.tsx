@@ -1238,7 +1238,7 @@ function SelectionInspector({
       {selectedElement && (
         <p className="text-[11px] text-zinc-500">
           {selectedElement.assetId}
-          {editorAsset(selectedElement.assetId)?.editor.collisionFootprint.length
+          {editorAsset(selectedElement.assetId)?.editor.collider
             ? ` · ${t("editor.palette.collision")}`
             : ` · ${t("editor.inspector.walkable")}`}
         </p>

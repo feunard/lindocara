@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { emptyColliderIndex } from "../src/shared/collider.js";
 import { speedForLife } from "../src/shared/death.js";
 import { resolveTerrain, type TerrainGeometry, VERDANT_REACH_TERRAIN } from "../src/shared/game.js";
 import { predictStep, prunePending, reconcile } from "../src/shared/prediction.js";
@@ -176,6 +177,7 @@ describe("predictStep against a zone wider than Verdant Reach", () => {
     safeZone: { x: 0, y: 0, width: 0, height: 0 },
     // Fully open grass: only the outer bound can stop this square, never a tile.
     tiles: { cols, rows, kinds: new Array(cols * rows).fill("grass") },
+    colliders: emptyColliderIndex(cols, rows),
   };
 
   // Exactly Verdant Reach's own right-edge clamp (WORLD_WIDTH - PLAYER_SIZE). A client that

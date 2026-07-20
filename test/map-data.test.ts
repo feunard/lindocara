@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { isWalkable } from "../src/shared/game.js";
 import {
   bakeCollision,
   canPlaceElement,
   EMPTY_MARKERS,
+  elementWorldCollider,
   MARKER_LABEL_MAX,
   type MapData,
   mapSpawnPoint,
@@ -38,16 +40,25 @@ describe("baking a map's collision", () => {
     expect(isSolidKind(kindAt(tiles, 1, 1))).toBe(true);
   });
 
-  it("bakes a tree solid but leaves a bush walkable", () => {
-    const tiles = bakeCollision({
-      ...MAP,
-      elements: [
-        { col: 0, row: 0, offsetX: 0, offsetY: 0, assetId: TREE },
-        { col: 3, row: 0, offsetX: 0, offsetY: 0, assetId: BUSH },
-      ],
-    });
-    expect(isSolidKind(kindAt(tiles, 0, 0))).toBe(true);
+  it("no longer bakes a tree into the grid — its trunk is a collider", () => {
+    // The intended behaviour change: an element's solidity left the tile grid. A tree used to turn
+    // its whole 64x64 cell to "forest", so you bumped into a canopy you could see straight through.
+    // The cell now stays grass and the trunk rectangle blocks instead; a bush still blocks nothing.
+    const tree = { col: 0, row: 0, offsetX: 0, offsetY: 0, assetId: TREE } as const;
+    const bush = { col: 3, row: 0, offsetX: 0, offsetY: 0, assetId: BUSH } as const;
+    const map: MapData = { ...MAP, elements: [tree, bush] };
+    const tiles = bakeCollision(map);
+    expect(isSolidKind(kindAt(tiles, 0, 0))).toBe(false);
     expect(isSolidKind(kindAt(tiles, 3, 0))).toBe(false);
+
+    const terrain = terrainFromMap(map);
+    const trunk = elementWorldCollider(tree);
+    expect(trunk).not.toBeNull();
+    if (!trunk) return;
+    expect(isWalkable({ x: trunk.x, y: trunk.y }, 8, terrain)).toBe(false);
+    // Beside the trunk, inside the same cell, is open ground now.
+    expect(isWalkable({ x: 0, y: 0 }, 8, terrain)).toBe(true);
+    expect(elementWorldCollider(bush)).toBeNull();
   });
 
   it("leaves a stone on water solid — it was already water", () => {
