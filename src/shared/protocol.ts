@@ -879,7 +879,7 @@ function isWorldInfo(value: unknown): value is WorldInfo {
     return false;
   }
   const tiles = parseTileMap(value.tiles);
-  if (!tiles || parseMapElements(value.elements) === null) return false;
+  if (!tiles || parseMapElements(value.elements, tiles.cols, tiles.rows) === null) return false;
   return (
     isBoundedString(value.zoneNameKey, 128) &&
     typeof value.tilesetId === "string" &&
@@ -1081,9 +1081,9 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       value.world.revision >= 0 &&
       // The terrain arrives as data now, so it gets checked like data. `decodeTileMap` throws on a
       // ragged row or an unknown character — fine for a map read off disk at build time, fatal for
-      // one arriving on a socket. Drop the frame instead of crashing the first paint.
-      parseTileMap(value.world.tiles) !== null &&
-      parseMapElements(value.world.elements) !== null &&
+      // one arriving on a socket. Drop the frame instead of crashing the first paint. `isWorldInfo`
+      // above already parses `tiles` and bounds-checks `elements` against it (it needs the same
+      // cols/rows to do that), so there is nothing left to re-check here.
       // `layers` is appearance only — the same rule `elements` already follows — so validation only
       // needs to confirm the shape is well-formed, never re-derive collision from it.
       typeof value.world.tilesetId === "string" &&

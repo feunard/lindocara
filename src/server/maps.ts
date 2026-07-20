@@ -457,11 +457,21 @@ function toStoredMap(
 
 async function elementsOf(db: Db, mapId: string): Promise<MapElement[]> {
   const rows = await db.select().from(mapElement).where(eq(mapElement.mapId, mapId));
+  // The `map_element` table has no offset columns yet (a later tranche), so every row read back is
+  // aligned to its cell origin — the same "absent is 0" default `parseOffsetStep` applies on the wire.
   return rows.flatMap((row): MapElement[] =>
     isEditorAssetId(row.kind)
-      ? [{ col: row.col, row: row.row, assetId: row.kind }]
+      ? [{ col: row.col, row: row.row, offsetX: 0, offsetY: 0, assetId: row.kind }]
       : isElementKind(row.kind)
-        ? [{ col: row.col, row: row.row, assetId: legacyElementAssetId(row.kind, row.variant) }]
+        ? [
+            {
+              col: row.col,
+              row: row.row,
+              offsetX: 0,
+              offsetY: 0,
+              assetId: legacyElementAssetId(row.kind, row.variant),
+            },
+          ]
         : // A kind this build does not know is scenery it cannot draw. Drop the element rather than
           // fail the whole map: one bad row must not make a world unenterable.
           [],

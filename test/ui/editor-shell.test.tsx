@@ -708,7 +708,13 @@ describe("AdventureEditorScreen shell", () => {
       name: "Verdant Reach",
       layers: OPEN_TILE_LAYERS,
       elements: [
-        { col: 2, row: 3, assetId: "resource.terrain-resources-wood-trees.tree4" as const },
+        {
+          col: 2,
+          row: 3,
+          offsetX: 0,
+          offsetY: 0,
+          assetId: "resource.terrain-resources-wood-trees.tree4" as const,
+        },
       ],
       spawn: { col: 20, row: 15 },
       markers: EMPTY_MARKERS,
@@ -734,7 +740,13 @@ describe("AdventureEditorScreen shell", () => {
       name: "Verdant Reach",
       layers: OPEN_TILE_LAYERS,
       elements: [
-        { col: 2, row: 3, assetId: "resource.terrain-resources-wood-trees.tree4" as const },
+        {
+          col: 2,
+          row: 3,
+          offsetX: 0,
+          offsetY: 0,
+          assetId: "resource.terrain-resources-wood-trees.tree4" as const,
+        },
       ],
       spawn: { col: 20, row: 15 },
       markers: EMPTY_MARKERS,

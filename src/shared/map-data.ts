@@ -20,9 +20,18 @@ import { type EditorAssetId, editorAsset, isEditorAssetId } from "./tiny-swords-
 export const ELEMENT_KINDS = ["tree", "bush", "stone"] as const;
 export type ElementKind = (typeof ELEMENT_KINDS)[number];
 
+/** A quarter tile. The offset space covers exactly one cell — no overlap, no gap between
+ *  neighbours — so every sub-cell position has exactly one `(col, offset)` encoding. */
+export const ELEMENT_OFFSET_STEPS = 4;
+export const ELEMENT_OFFSET_PX = TILE_SIZE / ELEMENT_OFFSET_STEPS;
+
 export interface MapElement {
   col: number;
   row: number;
+  /** Integer in `0..ELEMENT_OFFSET_STEPS - 1`, quarter tiles right of the cell origin. */
+  offsetX: number;
+  /** Integer in `0..ELEMENT_OFFSET_STEPS - 1`, quarter tiles below the cell origin. */
+  offsetY: number;
   assetId: EditorAssetId;
 }
 
@@ -333,11 +342,12 @@ function bakeElements(tiles: TileMap, elements: readonly MapElement[]): TileMap 
 /**
  * Elements off the wire, checked like the untrusted data they are.
  *
- * Bounds are NOT checked here: the caller knows the map's size and this does not. An element with a
- * silly cell draws nowhere and collides with nothing — collision is already baked into the tiles by
- * the time these arrive — so the shape is what matters.
+ * Bounds ARE checked here now, and the caller must supply them. They deliberately were not before:
+ * collision was fully baked into the tiles by the time elements arrived, so a silly cell drew
+ * nowhere and collided with nothing. Elements now carry colliders, so an out-of-range element is a
+ * collider somewhere no author put one.
  */
-export function parseMapElements(value: unknown): MapElement[] | null {
+export function parseMapElements(value: unknown, cols: number, rows: number): MapElement[] | null {
   if (!Array.isArray(value)) return null;
   const parsed: MapElement[] = [];
   for (const raw of value) {
@@ -345,14 +355,28 @@ export function parseMapElements(value: unknown): MapElement[] | null {
     const item = raw as Record<string, unknown>;
     const { col, row } = item;
     if (!Number.isSafeInteger(col) || !Number.isSafeInteger(row)) return null;
+    if ((col as number) < 0 || (col as number) >= cols) return null;
+    if ((row as number) < 0 || (row as number) >= rows) return null;
+    const offsetX = parseOffsetStep(item.offsetX);
+    const offsetY = parseOffsetStep(item.offsetY);
+    if (offsetX === null || offsetY === null) return null;
     let assetId: EditorAssetId;
     if (isEditorAssetId(item.assetId)) assetId = item.assetId;
     else if (isElementKind(item.kind) && Number.isSafeInteger(item.variant)) {
       assetId = legacyElementAssetId(item.kind, item.variant as number);
     } else return null;
-    parsed.push({ col: col as number, row: row as number, assetId });
+    parsed.push({ col: col as number, row: row as number, offsetX, offsetY, assetId });
   }
   return parsed;
+}
+
+/** Absent is 0: maps authored before offsets existed are aligned to their cell. */
+function parseOffsetStep(value: unknown): number | null {
+  if (value === undefined || value === null) return 0;
+  if (!Number.isSafeInteger(value)) return null;
+  const step = value as number;
+  if (step < 0 || step >= ELEMENT_OFFSET_STEPS) return null;
+  return step;
 }
 
 /**
@@ -386,12 +410,8 @@ export function parseMapData(value: unknown): MapData | null {
     parsedLayers.push(layer);
   }
 
-  const parsed = parseMapElements(elements);
+  const parsed = parseMapElements(elements, width, height);
   if (!parsed) return null;
-  for (const element of parsed) {
-    if (element.col < 0 || element.col >= width || element.row < 0 || element.row >= height)
-      return null;
-  }
 
   if (typeof spawn !== "object" || spawn === null) return null;
   const spawnRecord = spawn as Record<string, unknown>;

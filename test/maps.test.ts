@@ -73,7 +73,7 @@ function rockGrid(count: number, spawn: { col: number; row: number }): MapElemen
   for (let row = 0; elements.length < count; row++) {
     for (let col = 0; col < cols && elements.length < count; col++) {
       if (col === spawn.col && row === spawn.row) continue;
-      elements.push({ col, row, assetId: STONE });
+      elements.push({ col, row, offsetX: 0, offsetY: 0, assetId: STONE });
     }
   }
   return elements;
@@ -227,6 +227,8 @@ describe("maps", () => {
       const tooMany = Array.from({ length: MAX_MAP_ELEMENTS + 1 }, (_, i) => ({
         col: i % MAP_COLS,
         row: i % MAP_ROWS,
+        offsetX: 0,
+        offsetY: 0,
         assetId: BUSH,
       }));
       await expect(createMap(db, { ...validInput, elements: tooMany })).rejects.toThrow(
@@ -252,7 +254,10 @@ describe("maps", () => {
     it("refuses a tree in the sea", async () => {
       const db = createDb(env.DB);
       await expect(
-        createMap(db, { ...validInput, elements: [{ col: 1, row: 1, assetId: TREE }] }),
+        createMap(db, {
+          ...validInput,
+          elements: [{ col: 1, row: 1, offsetX: 0, offsetY: 0, assetId: TREE }],
+        }),
       ).rejects.toThrow(/placement/);
     });
 
@@ -260,7 +265,7 @@ describe("maps", () => {
       const db = createDb(env.DB);
       const ok = await createMap(db, {
         ...validInput,
-        elements: [{ col: 1, row: 1, assetId: STONE }],
+        elements: [{ col: 1, row: 1, offsetX: 0, offsetY: 0, assetId: STONE }],
       });
       expect(ok.elements).toHaveLength(1);
     });
@@ -275,7 +280,7 @@ describe("maps", () => {
       await expect(
         createMap(db, {
           ...validInput,
-          elements: [{ col: 3, row: 3, assetId: TREE }],
+          elements: [{ col: 3, row: 3, offsetX: 0, offsetY: 0, assetId: TREE }],
           spawn: { col: 3, row: 3 },
         }),
       ).rejects.toThrow(/spawn/);
@@ -286,7 +291,7 @@ describe("maps", () => {
       await expect(
         createMap(db, {
           ...validInput,
-          elements: [{ col: 3, row: 3, assetId: BUSH }],
+          elements: [{ col: 3, row: 3, offsetX: 0, offsetY: 0, assetId: BUSH }],
           spawn: { col: 3, row: 3 },
         }),
       ).rejects.toThrow(/spawn/);
@@ -297,7 +302,9 @@ describe("maps", () => {
       await expect(
         createMap(db, {
           ...validInput,
-          elements: [{ col: 4, row: 4, assetId: "ui.cursor.default" as never }],
+          elements: [
+            { col: 4, row: 4, offsetX: 0, offsetY: 0, assetId: "ui.cursor.default" as never },
+          ],
         }),
       ).rejects.toThrow(/unknown asset/);
     });
@@ -307,7 +314,9 @@ describe("maps", () => {
       await expect(
         createMap(db, {
           ...validInput,
-          elements: [{ col: MAP_COLS - 1, row: MAP_ROWS - 1, assetId: CASTLE }],
+          elements: [
+            { col: MAP_COLS - 1, row: MAP_ROWS - 1, offsetX: 0, offsetY: 0, assetId: CASTLE },
+          ],
         }),
       ).rejects.toThrow(/bounds/);
     });
@@ -318,8 +327,8 @@ describe("maps", () => {
         createMap(db, {
           ...validInput,
           elements: [
-            { col: 4, row: 4, assetId: STONE },
-            { col: 4, row: 4, assetId: STONE_ALT },
+            { col: 4, row: 4, offsetX: 0, offsetY: 0, assetId: STONE },
+            { col: 4, row: 4, offsetX: 0, offsetY: 0, assetId: STONE_ALT },
           ],
         }),
       ).rejects.toThrow(/overlaps/);
@@ -333,8 +342,8 @@ describe("maps", () => {
         ...validInput,
         // Clear of the spawn at (0,0) — a tree standing on it is refused, and rightly so.
         elements: [
-          { col: 4, row: 3, assetId: TREE_ALT },
-          { col: 1, row: 1, assetId: STONE_ALT },
+          { col: 4, row: 3, offsetX: 0, offsetY: 0, assetId: TREE_ALT },
+          { col: 1, row: 1, offsetX: 0, offsetY: 0, assetId: STONE_ALT },
         ],
       });
       const loaded = await loadMap(db, created.id);
@@ -348,16 +357,16 @@ describe("maps", () => {
       const db = createDb(env.DB);
       const created = await createMap(db, {
         ...validInput,
-        elements: [{ col: 4, row: 3, assetId: TREE }],
+        elements: [{ col: 4, row: 3, offsetX: 0, offsetY: 0, assetId: TREE }],
       });
       await updateMap(db, created.id, {
         ...validInput,
         name: "Renamed",
-        elements: [{ col: 3, row: 3, assetId: BUSH }],
+        elements: [{ col: 3, row: 3, offsetX: 0, offsetY: 0, assetId: BUSH }],
       });
       const loaded = await loadMap(db, created.id);
       expect(loaded?.name).toBe("Renamed");
-      expect(loaded?.elements).toEqual([{ col: 3, row: 3, assetId: BUSH }]);
+      expect(loaded?.elements).toEqual([{ col: 3, row: 3, offsetX: 0, offsetY: 0, assetId: BUSH }]);
     });
 
     it("converts a legacy row only as part of a successful whole-map update", async () => {
@@ -370,7 +379,9 @@ describe("maps", () => {
         .run();
 
       const loaded = await loadMap(db, created.id);
-      expect(loaded?.elements).toEqual([{ col: 4, row: 3, assetId: TREE_ALT }]);
+      expect(loaded?.elements).toEqual([
+        { col: 4, row: 3, offsetX: 0, offsetY: 0, assetId: TREE_ALT },
+      ]);
       if (!loaded) throw new Error("legacy map missing");
 
       await expect(updateMap(db, created.id, { ...loaded, name: "" })).rejects.toThrow(/^name:/);

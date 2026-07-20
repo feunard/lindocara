@@ -35,8 +35,20 @@ const islandInput: MapInput = {
   name: "Island",
   ...layeredTerrain(islandBlocks()),
   elements: [
-    { col: 5, row: 5, assetId: "resource.terrain-resources-wood-trees.tree3" },
-    { col: 7, row: 5, assetId: "decoration.terrain-decorations-rocks.rock2" },
+    {
+      col: 5,
+      row: 5,
+      offsetX: 0,
+      offsetY: 0,
+      assetId: "resource.terrain-resources-wood-trees.tree3",
+    },
+    {
+      col: 7,
+      row: 5,
+      offsetX: 0,
+      offsetY: 0,
+      assetId: "decoration.terrain-decorations-rocks.rock2",
+    },
   ],
   spawn: { col: 2, row: 2 },
 };

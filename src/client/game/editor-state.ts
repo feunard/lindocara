@@ -887,7 +887,9 @@ export function applyTool(
       return { ...map, layers };
     }
     case "element": {
-      const placed: MapElement = { col, row, assetId: tool.assetId };
+      // The element tool doesn't author sub-cell placement yet (a later tranche) — every element it
+      // places stays aligned to its cell origin.
+      const placed: MapElement = { col, row, offsetX: 0, offsetY: 0, assetId: tool.assetId };
       if (!placementTerrainValid(map, placed)) return null;
       if (elementCoversCell(placed, map.spawn.col, map.spawn.row)) return null;
       const sameAnchor = map.elements.filter(

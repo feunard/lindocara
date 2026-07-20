@@ -58,7 +58,15 @@ describe("a D1 map's shoreline", () => {
     // A baked tree is `forest` — land. It must not punch a hole in the shoreline.
     const tiles = bakeCollision({
       ...ISLAND,
-      elements: [{ col: 1, row: 1, assetId: "resource.terrain-resources-wood-trees.tree3" }],
+      elements: [
+        {
+          col: 1,
+          row: 1,
+          offsetX: 0,
+          offsetY: 0,
+          assetId: "resource.terrain-resources-wood-trees.tree3",
+        },
+      ],
     });
     expect(needsFoam(tiles, 1, 1)).toBe(true);
     expect(landMask(tiles, 2, 2)).toBe(0b1111);

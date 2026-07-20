@@ -122,7 +122,7 @@ describe("applyTool: block", () => {
     const next = applyTool(map, waterTool, 3, 4);
     expect(next).not.toBeNull();
     expect(next).not.toBe(map);
-    expect(next?.elements).toEqual([{ col: 3, row: 4, assetId: STONE }]);
+    expect(next?.elements).toEqual([{ col: 3, row: 4, offsetX: 0, offsetY: 0, assetId: STONE }]);
     expect(map.elements).toEqual(beforeElements);
   });
 
@@ -157,7 +157,7 @@ describe("applyTool: element", () => {
     const next = applyTool(map, stoneTool, 3, 4);
     expect(next).not.toBeNull();
     expect(next).not.toBe(map);
-    expect(next?.elements).toEqual([{ col: 3, row: 4, assetId: STONE }]);
+    expect(next?.elements).toEqual([{ col: 3, row: 4, offsetX: 0, offsetY: 0, assetId: STONE }]);
     expect(map.elements).toEqual(beforeElements);
   });
 
@@ -172,7 +172,7 @@ describe("applyTool: element", () => {
     const next = applyTool(map, treeTool, 3, 4);
     expect(next).not.toBeNull();
     expect(next).not.toBe(map);
-    expect(next?.elements).toEqual([{ col: 3, row: 4, assetId: TREE }]);
+    expect(next?.elements).toEqual([{ col: 3, row: 4, offsetX: 0, offsetY: 0, assetId: TREE }]);
     expect(map.elements).toEqual(beforeElements);
   });
 
@@ -190,6 +190,8 @@ describe("applyTool: element", () => {
     const elements: MapElement[] = Array.from({ length: MAX_MAP_ELEMENTS }, (_, i) => ({
       col: i % 100,
       row: Math.floor(i / 100),
+      offsetX: 0,
+      offsetY: 0,
       assetId: SMALL_DECOR,
     }));
     const full: EditorMap = { ...base, elements };
@@ -329,7 +331,7 @@ describe("applyTool: rect", () => {
     map = applyTool(map, tool, 2, 2, false) as EditorMap; // shrink back and release here
 
     // The final rectangle never touched (5, 5): the tree must survive.
-    expect(map.elements).toEqual([{ col: 5, row: 5, assetId: TREE }]);
+    expect(map.elements).toEqual([{ col: 5, row: 5, offsetX: 0, offsetY: 0, assetId: TREE }]);
     const expectedGround = eraseRect(
       withTree.layers[0] as TileLayer,
       TINY_SWORDS_TILESET,
@@ -883,14 +885,16 @@ describe("applyTool: eraser precedence event > element", () => {
     };
     const stacked: EditorMap = {
       ...base,
-      elements: [{ col: 3, row: 4, assetId: BUSH }],
+      elements: [{ col: 3, row: 4, offsetX: 0, offsetY: 0, assetId: BUSH }],
       events: [event],
     };
 
     // Stroke 1: the event goes; the element stays.
     const afterEvent = applyTool(stacked, { kind: "eraser" }, 3, 4) as EditorMap;
     expect(afterEvent.events).toEqual([]);
-    expect(afterEvent.elements).toEqual([{ col: 3, row: 4, assetId: BUSH }]);
+    expect(afterEvent.elements).toEqual([
+      { col: 3, row: 4, offsetX: 0, offsetY: 0, assetId: BUSH },
+    ]);
 
     // Stroke 2: the element goes.
     const afterElement = applyTool(afterEvent, { kind: "eraser" }, 3, 4) as EditorMap;

@@ -42,8 +42,8 @@ describe("baking a map's collision", () => {
     const tiles = bakeCollision({
       ...MAP,
       elements: [
-        { col: 0, row: 0, assetId: TREE },
-        { col: 3, row: 0, assetId: BUSH },
+        { col: 0, row: 0, offsetX: 0, offsetY: 0, assetId: TREE },
+        { col: 3, row: 0, offsetX: 0, offsetY: 0, assetId: BUSH },
       ],
     });
     expect(isSolidKind(kindAt(tiles, 0, 0))).toBe(true);
@@ -53,7 +53,7 @@ describe("baking a map's collision", () => {
   it("leaves a stone on water solid — it was already water", () => {
     const tiles = bakeCollision({
       ...MAP,
-      elements: [{ col: 1, row: 1, assetId: STONE }],
+      elements: [{ col: 1, row: 1, offsetX: 0, offsetY: 0, assetId: STONE }],
     });
     expect(isSolidKind(kindAt(tiles, 1, 1))).toBe(true);
     // Still water, not "forest": a stone does not turn the sea into land, and the renderer must
@@ -62,7 +62,7 @@ describe("baking a map's collision", () => {
   });
 
   it("does not mutate the map it was handed", () => {
-    const elements = [{ col: 0, row: 0, assetId: TREE } as const];
+    const elements = [{ col: 0, row: 0, offsetX: 0, offsetY: 0, assetId: TREE } as const];
     const source: MapData = { ...MAP, elements };
     bakeCollision(source);
     expect(source.layers).toEqual(MAP.layers);
@@ -178,7 +178,7 @@ describe("parsing a map off the wire", () => {
 describe("terrainFromMap", () => {
   const data = mapDataFromBlocks({
     blocks: ["####", "#..#", "#..#", "####"],
-    elements: [{ col: 1, row: 1, assetId: TREE }],
+    elements: [{ col: 1, row: 1, offsetX: 0, offsetY: 0, assetId: TREE }],
     spawn: { col: 2, row: 2 },
   });
 
