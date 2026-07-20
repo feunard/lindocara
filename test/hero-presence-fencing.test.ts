@@ -13,7 +13,7 @@
  * vitest.config.ts. mission-2a cost ~59s proving the same things against the real 30s/10s clock.
  */
 
-import { env, runInDurableObject } from "cloudflare:test";
+import { env, runInDurableObject, SELF } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   PRESENCE_HEARTBEAT_MS,
@@ -318,6 +318,65 @@ describe("hero command queue cleanup", () => {
 });
 
 describe("hero post-revocation commands", () => {
+  it("revokes the live lease when its hero is deleted through the API", async () => {
+    const party = await seedParty("deletehero");
+    const hero = await testHero("Deleted", { party, class: "warrior" });
+    const client = await Client.joinHero(hero);
+    await until("deleted hero welcome", () => client.welcome);
+
+    const response = await SELF.fetch(
+      `https://lindocara.test/api/parties/${hero.partyId}/heroes/${hero.heroId}`,
+      { method: "DELETE", headers: { Cookie: hero.cookie } },
+    );
+    expect(response.status).toBe(204);
+
+    const closed = await until("deleted hero close", () => client.closeInfo ?? undefined);
+    expect(closed.code).toBe(WS_CLOSE.CHARACTER_DELETED);
+    expect(await env.HERO_PRESENCE.getByName(hero.heroId).current()).toBeNull();
+    expect(await env.WORLD.getByName(hero.roomKey).persistCharacter(hero.heroId)).toBeNull();
+    expect(
+      await env.DB.prepare("SELECT id FROM hero WHERE id = ?").bind(hero.heroId).first(),
+    ).toBeNull();
+  }, 15_000);
+
+  it("revokes every live hero when the host deletes their party", async () => {
+    const party = await seedParty("deleteparty");
+    const hostHero = await testHero("HostGone", {
+      party,
+      account: party.host,
+      class: "warrior",
+    });
+    const guestHero = await testHero("GuestGone", { party, class: "priest" });
+    const hostClient = await Client.joinHero(hostHero);
+    const guestClient = await Client.joinHero(guestHero);
+    await until("host hero welcome", () => hostClient.welcome);
+    await until("guest hero welcome", () => guestClient.welcome);
+
+    const response = await SELF.fetch(`https://lindocara.test/api/parties/${party.partyId}`, {
+      method: "DELETE",
+      headers: { Cookie: party.host.cookie },
+    });
+    expect(response.status).toBe(204);
+
+    for (const [label, hero, client] of [
+      ["host", hostHero, hostClient],
+      ["guest", guestHero, guestClient],
+    ] as const) {
+      const closed = await until(
+        `${label} party-delete close`,
+        () => client.closeInfo ?? undefined,
+      );
+      expect(closed.code).toBe(WS_CLOSE.CHARACTER_DELETED);
+      expect(await env.HERO_PRESENCE.getByName(hero.heroId).current()).toBeNull();
+      expect(await env.WORLD.getByName(hero.roomKey).persistCharacter(hero.heroId)).toBeNull();
+    }
+    expect(
+      await env.DB.prepare("SELECT count(*) AS count FROM hero WHERE party_id = ?")
+        .bind(party.partyId)
+        .first<{ count: number }>(),
+    ).toEqual({ count: 0 });
+  }, 15_000);
+
   it("ignores every gameplay action after CHARACTER_REPLACED", async () => {
     const party = await seedParty("replaced");
     const hero = await testHero("Displaced", { party, class: "warrior", level: 5 });

@@ -7,7 +7,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { CreatePartyInput, PartyColor } from "../shared/party.js";
 import { loadAdventure } from "./adventures.js";
-import { adventure, type Db, party, partyMember } from "./db/index.js";
+import { adventure, type Db, hero, party, partyMember } from "./db/index.js";
 
 export interface PartyListing {
   id: string;
@@ -207,11 +207,18 @@ export async function joinParty(
   throw new Error("full: party admission lost its atomic guard");
 }
 
-export async function deleteParty(db: Db, accountId: string, partyId: string): Promise<void> {
+export async function deleteParty(db: Db, accountId: string, partyId: string): Promise<string[]> {
   const row = await loadPartyRow(db, partyId);
   if (!row || row.hostAccountId !== accountId) throw new Error("not_found: no such party");
-  await db.batch([
+
+  // Return every deleted hero so the HTTP boundary can revoke its presence lease after the
+  // transaction commits. Deleting the hero rows explicitly (rather than relying only on the
+  // party FK cascade) makes the identity set deterministic and keeps the delete atomic with the
+  // party itself: no active save can survive merely because its account was not the host.
+  const [deletedHeroes] = await db.batch([
+    db.delete(hero).where(eq(hero.partyId, partyId)).returning({ id: hero.id }),
     db.delete(partyMember).where(eq(partyMember.partyId, partyId)),
     db.delete(party).where(eq(party.id, partyId)),
   ]);
+  return deletedHeroes.map((deleted) => deleted.id);
 }

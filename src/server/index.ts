@@ -847,7 +847,12 @@ async function handleDeleteParty(
   const auth = await requireSession(request, env, url);
   if (auth instanceof Response) return auth;
   try {
-    await deleteParty(createDb(env.DB), auth.session.id, id);
+    const deletedHeroIds = await deleteParty(createDb(env.DB), auth.session.id, id);
+    await Promise.all(
+      deletedHeroIds.map((heroId) =>
+        env.HERO_PRESENCE.getByName(heroId).revoke(WS_CLOSE.CHARACTER_DELETED, "party deleted"),
+      ),
+    );
     return new Response(null, { status: 204 });
   } catch (error) {
     return partyErrorResponse(error);
@@ -897,6 +902,7 @@ async function handleDeleteHero(
   if (auth instanceof Response) return auth;
   try {
     await deleteHero(createDb(env.DB), auth.session.id, partyId, heroId);
+    await env.HERO_PRESENCE.getByName(heroId).revoke(WS_CLOSE.CHARACTER_DELETED, "hero deleted");
     return new Response(null, { status: 204 });
   } catch (error) {
     return heroErrorResponse(error);
