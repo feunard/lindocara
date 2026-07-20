@@ -128,18 +128,24 @@ The editor grid gains quarter sub-divisions in Element mode only.
 `EditorPlacementMetadata.collisionFootprint` (a cell list) is replaced by:
 
 ```ts
-collider?: Rect; // pixels, relative to the sprite's anchor point
+collider?: Rect; // pixels, relative to the sprite's visible foot
 ```
 
-The origin is the point `createCatalogElementView` already positions the sprite at:
-`anchorX = col * 64 + 32 + offsetX * 16`, `anchorY = (row + 1) * 64 + footOffset + offsetY * 16`.
-World AABB: `{ x: anchorX + collider.x, y: anchorY + collider.y, width, height }`. The offset
-therefore carries the collider with the sprite for free.
+The origin is where the art's visible foot lands: `footX = col * 64 + 32 + offsetX * 16`,
+`footY = (row + 1) * 64 + offsetY * 16`. World AABB:
+`{ x: footX + collider.x, y: footY + collider.y, width, height }`. The offset therefore carries the
+collider with the sprite for free.
 
-Anchor space rather than cell space: `footOffset` reaches 49 px on some assets, putting the art's
-foot most of a cell below its anchor cell. Cell-relative numbers would be negative or out of range
-for exactly the assets that need a collider, and would need re-tuning every time the art's foot
-moved. In anchor space you measure the trunk on the PNG and are done.
+**Foot space, deliberately not anchor space.** `createCatalogElementView` positions the sprite
+container at `(row + 1) * 64 + footOffset`, which is *not* where the art appears: `footOffset` is
+`frameHeight - alphaBboxBottom`, so it cancels out and the visible foot always lands exactly on the
+cell's bottom edge. The container point is `footOffset` px *below* the pixels. Authoring against it
+would make every collider `footOffset`-dependent — the exact coupling this encoding exists to avoid,
+and one that silently plants a tree's collider in the empty cell to its south. Foot space is
+`footOffset`-independent by construction: you measure the trunk up from the ground line on the PNG,
+and the same numbers work for every asset.
+
+Cell space was rejected for the same family of reasons, plus needing an extra `+32` in every value.
 
 This is the same indirection the tiles already use — `tile id → tileset → passable`, authored once
 per tile, never per cell. Per-placement collider editing is explicitly out of scope (YAGNI); the

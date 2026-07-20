@@ -262,7 +262,9 @@ git commit -m "feat: add bucketed sub-cell collider index"
 
 ### Task 2: Author colliders on the catalogue
 
-The collider is a property of the asset, resolved once, exactly like `tile id → tileset → passable`. It is expressed in **sprite-anchor space**: the origin is the point `createCatalogElementView` computes (`col*64 + 32`, `(row+1)*64 + footOffset`), which is where the art's foot actually lands. Cell-origin coordinates were rejected because `footOffset` can be 49 px, putting the real collider outside the anchor cell and forcing a re-tune whenever `footOffset` changes.
+The collider is a property of the asset, resolved once, exactly like `tile id → tileset → passable`. It is expressed in **foot space**: the origin is where the art's visible foot lands, `(col*64 + 32, (row+1)*64)`.
+
+Not the sprite container's position. `createCatalogElementView` places the container at `(row+1)*64 + footOffset`, and `footOffset` is `frameHeight - alphaBboxBottom`, so it cancels out — the visible pixels always end exactly on the cell's bottom edge, and the container point sits `footOffset` px *below* them. Authoring against the container would make every collider `footOffset`-dependent and would plant a tree's collider in the empty cell south of it. Foot space is `footOffset`-independent: measure the trunk up from the ground line on the PNG.
 
 **Files:**
 - Modify: `src/shared/tiny-swords-catalog.ts` (the `EditorPlacementMetadata` interface)
@@ -272,7 +274,7 @@ The collider is a property of the asset, resolved once, exactly like `tile id �
 
 **Interfaces:**
 - Consumes: `Rect` from `src/shared/game.ts`.
-- Produces: `EditorPlacementMetadata.collider?: Rect` — pixels, relative to the sprite anchor point. `collisionFootprint` is **removed** from the type and from the generator.
+- Produces: `EditorPlacementMetadata.collider?: Rect` — pixels, relative to the sprite's visible foot. `collisionFootprint` is **removed** from the type and from the generator.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -280,6 +282,7 @@ Create `test/shared/catalog-collider.test.ts`:
 
 ```ts
 import { describe, expect, it } from "vitest";
+import { TILE_SIZE } from "../../src/shared/tilemap.js";
 import { CURATED_EDITOR_ASSET_IDS, editorAsset } from "../../src/shared/tiny-swords-catalog.js";
 
 describe("catalogue colliders", () => {
@@ -289,8 +292,8 @@ describe("catalogue colliders", () => {
     expect(collider).toBeDefined();
     if (!collider) return;
     expect(collider.width).toBeGreaterThan(0);
-    expect(collider.width).toBeLessThan(64);
-    expect(collider.height).toBeLessThan(64);
+    expect(collider.width).toBeLessThan(TILE_SIZE);
+    expect(collider.height).toBeLessThan(TILE_SIZE);
   });
 
   it("leaves the curated bush non-colliding, as before", () => {
@@ -306,11 +309,31 @@ describe("catalogue colliders", () => {
       const cells = asset.editor.visualFootprint;
       const minCol = Math.min(...cells.map((c) => c.col));
       const maxCol = Math.max(...cells.map((c) => c.col));
-      // Anchor space: x = 0 is the cell centre, so the footprint spans
-      // [minCol*64 - 32, (maxCol+1)*64 - 32).
-      expect(collider.x).toBeGreaterThanOrEqual(minCol * 64 - 32);
-      expect(collider.x + collider.width).toBeLessThanOrEqual((maxCol + 1) * 64 - 32);
+      const minRow = Math.min(...cells.map((c) => c.row));
+      const maxRow = Math.max(...cells.map((c) => c.row));
+      // Foot space: x = 0 is the cell centre, so the footprint spans
+      // [minCol*TILE_SIZE - TILE_SIZE/2, (maxCol+1)*TILE_SIZE - TILE_SIZE/2).
+      expect(collider.x).toBeGreaterThanOrEqual(minCol * TILE_SIZE - TILE_SIZE / 2);
+      expect(collider.x + collider.width).toBeLessThanOrEqual(
+        (maxCol + 1) * TILE_SIZE - TILE_SIZE / 2,
+      );
+      // And y = 0 is the ground line. A collider must rise from it, never hang below it: a
+      // collider with y + height > 0 sits in the cell SOUTH of the art it belongs to, blocking
+      // empty ground while leaving the trunk walkable.
+      expect(collider.y + collider.height).toBeLessThanOrEqual(0);
+      expect(collider.y).toBeGreaterThanOrEqual((minRow - maxRow - 1) * TILE_SIZE);
     }
+  });
+
+  it("puts the curated tree's collider above the ground line, not below it", () => {
+    // The regression guard for the coordinate-space bug: authoring against the sprite CONTAINER
+    // (which sits footOffset px below the visible pixels) instead of the visible foot put this
+    // collider entirely inside the next cell south.
+    const collider = editorAsset("resource.terrain-resources-wood-trees.tree3")?.editor.collider;
+    expect(collider).toBeDefined();
+    if (!collider) return;
+    expect(collider.y).toBeLessThan(0);
+    expect(collider.y + collider.height).toBeLessThanOrEqual(0);
   });
 });
 ```
@@ -326,11 +349,15 @@ In `src/shared/tiny-swords-catalog.ts`, in `EditorPlacementMetadata` (around lin
 
 ```ts
   /**
-   * Sub-cell collision, in pixels relative to the sprite's ANCHOR point — the same point
-   * `createCatalogElementView` positions the container at, i.e. `col*64 + 32` horizontally and
-   * `(row+1)*64 + footOffset` vertically. Anchor space, not cell space: `footOffset` can push the
-   * art's foot most of a cell below the anchor cell, so cell-relative numbers would need re-tuning
-   * every time the art's foot moves.
+   * Sub-cell collision, in pixels relative to the sprite's VISIBLE FOOT — `col*64 + 32`
+   * horizontally, `(row+1)*64` vertically. So `y` is negative: the collider rises from the ground
+   * line the art stands on.
+   *
+   * Deliberately NOT the sprite container's position. `createCatalogElementView` places the
+   * container at `(row+1)*64 + footOffset`, and `footOffset` is `frameHeight - alphaBboxBottom`, so
+   * it cancels: the visible pixels always end exactly on the cell's bottom edge and the container
+   * point sits `footOffset` px BELOW them. Authoring against the container would make every value
+   * `footOffset`-dependent and would put a tree's collider in the empty cell south of the tree.
    *
    * Absent means the asset does not collide at all — the correct value for bushes, flowers and any
    * pure decoration. This replaces `collisionFootprint`: a whole-cell footprint was the only shape
@@ -354,19 +381,19 @@ In `scripts/tiny-swords-catalog-lib.ts`, in `editorMetadata()`: remove every `co
 The two curated assets, measured against their art:
 
 ```ts
-// Trees (Tree1-4, Stump): a trunk, not a canopy. 192x192 art, footOffset 22, anchor bottom-centre.
-// The trunk is ~24px wide, centred on the anchor, rising ~20px from the foot.
+// Foot space: y = 0 is the ground line the art stands on, so a collider rises into negative y.
+// Trees (Tree1-4, Stump): a trunk, not a canopy. ~24px wide, centred, rising ~20px from the ground.
 const TREE_COLLIDER = { x: -12, y: -20, width: 24, height: 20 };
 
 // Rocks: squatter and wider than a trunk.
 const ROCK_COLLIDER = { x: -20, y: -14, width: 40, height: 14 };
 ```
 
-Apply `TREE_COLLIDER` where the tree branch previously set `collisionFootprint: [{ col: 0, row: 0 }]` (around line 278), `ROCK_COLLIDER` on the rock branch, and emit **no** `collider` where the previous value was `[]` (bushes, line ~287, and every other decoration). Buildings keep whole-cell blocking: emit a collider covering their footprint cells in anchor space, `{ x: minCol*64 - 32, y: -(rows*64), width: (maxCol-minCol+1)*64, height: rows*64 }` computed from their existing footprint, so building collision does not change in this tranche.
+Apply `TREE_COLLIDER` where the tree branch previously set `collisionFootprint: [{ col: 0, row: 0 }]` (around line 278), `ROCK_COLLIDER` on the rock branch, and emit **no** `collider` where the previous value was `[]` (bushes, line ~287, and every other decoration). Buildings keep whole-cell blocking: emit a collider covering their footprint cells in foot space, `{ x: minCol*64 - 32, y: -(rows*64), width: (maxCol-minCol+1)*64, height: rows*64 }` computed from their existing footprint, so building collision does not change in this tranche.
 
 - [ ] **Step 5: Change the build invariant**
 
-In `scripts/tiny-swords-catalog-lib.ts` around lines 552-558, replace the "every collision cell is in the visual footprint" check with the anchor-space equivalent:
+In `scripts/tiny-swords-catalog-lib.ts` around lines 552-558, replace the "every collision cell is in the visual footprint" check with the foot-space equivalent. In foot space `y = 0` is the ground line, so `y + height > 0` means the collider hangs below the art — which is exactly the failure that would put a tree's collider in the cell to its south. That check is load-bearing; do not relax it:
 
 ```ts
 if (editor.collider) {
@@ -697,21 +724,19 @@ Add, next to it:
 /**
  * An element's collider in world pixels, or null when the asset does not collide.
  *
- * The catalogue authors the rect in sprite-anchor space; this is the ONE place that translates it,
- * using the identical anchor arithmetic `createCatalogElementView` renders with. Two copies of this
- * formula would be a collider that does not sit under its own sprite.
+ * The catalogue authors the rect in foot space, so this translation needs no `footOffset`: the
+ * art's visible foot always lands on the cell's bottom edge, because the renderer's `footOffset`
+ * cancels against the frame's own bottom padding. Do NOT reintroduce `footOffset` here to "match"
+ * `createCatalogElementView` — that would push every collider a padding's worth south of its sprite.
  */
 export function elementWorldCollider(element: MapElement): Rect | null {
   const collider = editorAsset(element.assetId)?.editor.collider;
   if (!collider) return null;
-  const anchorX = element.col * TILE_SIZE + TILE_SIZE / 2 + element.offsetX * ELEMENT_OFFSET_PX;
-  const anchorY =
-    (element.row + 1) * TILE_SIZE +
-    (editorAsset(element.assetId)?.footOffset ?? 0) +
-    element.offsetY * ELEMENT_OFFSET_PX;
+  const footX = element.col * TILE_SIZE + TILE_SIZE / 2 + element.offsetX * ELEMENT_OFFSET_PX;
+  const footY = (element.row + 1) * TILE_SIZE + element.offsetY * ELEMENT_OFFSET_PX;
   return {
-    x: anchorX + collider.x,
-    y: anchorY + collider.y,
+    x: footX + collider.x,
+    y: footY + collider.y,
     width: collider.width,
     height: collider.height,
   };
