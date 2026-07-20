@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { emptyColliderIndex } from "../src/shared/collider.js";
+import { colliderIndexFrom, emptyColliderIndex } from "../src/shared/collider.js";
 import { speedForLife } from "../src/shared/death.js";
 import { resolveTerrain, type TerrainGeometry, VERDANT_REACH_TERRAIN } from "../src/shared/game.js";
 import { predictStep, prunePending, reconcile } from "../src/shared/prediction.js";
@@ -155,6 +155,60 @@ describe("prediction against a non-default zone's geometry", () => {
     );
     expect(server).toEqual({ x: 173, y: 160 });
     expect(reconcile(arrivalSpawn, pending, TEST_ZONE_TERRAIN, "alive")).toEqual(server);
+  });
+});
+
+describe("prediction against a sub-cell collider", () => {
+  // All grass, one 16x16 rect sitting in the middle of cell (2,2): nothing in `tiles` blocks
+  // anything, so if the client and server land in different places it can ONLY be about the
+  // collider. This is the sub-cell sibling of "lands exactly where the server will": elements are
+  // collision now, and a collider one side applies and the other does not is a silent desync that
+  // draws the square short of the server forever, with nothing in the protocol to complain.
+  const cols = 5;
+  const rows = 5;
+  const rect = { x: 2 * TILE_SIZE + 24, y: 2 * TILE_SIZE + 24, width: 16, height: 16 };
+  const grass: TerrainGeometry = {
+    width: cols * TILE_SIZE,
+    height: rows * TILE_SIZE,
+    obstacles: [],
+    spawnPoints: [{ x: 0, y: 0 }],
+    safeZone: { x: 0, y: 0, width: 0, height: 0 },
+    tiles: { cols, rows, kinds: new Array(cols * rows).fill("grass") },
+    colliders: colliderIndexFrom([rect], cols, rows),
+  };
+  // Start on the collider's own y-band so a rightward run walks straight into its left edge.
+  const start: Vec2 = { x: TILE_SIZE, y: 2 * TILE_SIZE + 24 };
+  const commands = Array.from({ length: 12 }, (_, index) => command(index + 1, { right: true }));
+
+  it("replays commands identically against a sub-cell collider", () => {
+    // The server, applying one command per tick from the same starting point and geometry.
+    let server: Vec2 = start;
+    for (const c of commands) {
+      server = resolveTerrain(server, step(server, c.input, TICK_DT, PLAYER_SPEED, grass), grass);
+    }
+
+    // The client, reconciling from the stale start and replaying the same pending commands.
+    const client = reconcile(start, commands, grass, "alive");
+
+    expect(client.x).toBeCloseTo(server.x, 6);
+    expect(client.y).toBeCloseTo(server.y, 6);
+
+    // …and the collider actually stopped the square, or the equality above proves nothing: it
+    // would hold just as well on an empty world where both sides walk clean through. The server
+    // must land short of the collider's left edge, and an identical run on an EMPTY index (same
+    // tiles, no rect) must reach further right — that gap IS the collider doing its job.
+    const open: TerrainGeometry = { ...grass, colliders: emptyColliderIndex(cols, rows) };
+    let unobstructed: Vec2 = start;
+    for (const c of commands) {
+      unobstructed = resolveTerrain(
+        unobstructed,
+        step(unobstructed, c.input, TICK_DT, PLAYER_SPEED, open),
+        open,
+      );
+    }
+    expect(server.x).toBeLessThan(rect.x);
+    expect(unobstructed.x).toBeGreaterThan(server.x);
+    expect(unobstructed.x).toBeGreaterThan(rect.x);
   });
 });
 

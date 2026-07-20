@@ -4,6 +4,7 @@ import type { AdventureGraph } from "../src/shared/adventure.js";
 import { WS_CLOSE } from "../src/shared/close-codes.js";
 import { ATTACK_COOLDOWN_MS, MONSTER_STATS, maxHpForLevel } from "../src/shared/game.js";
 import type { MapElement } from "../src/shared/map-data.js";
+import { PLAYER_SIZE } from "../src/shared/simulation.js";
 import { TILE_SIZE } from "../src/shared/tilemap.js";
 import { layeredWireTerrain } from "./support/map-fixtures.js";
 import {
@@ -94,6 +95,35 @@ function shieldBashTreeMapInput(): TestMapBody {
   };
   return { ...map, elements: [tree] };
 }
+
+/**
+ * One tree, no monsters — the plainest authoritative proof that a sub-cell collider blocks a body
+ * and that it blocks only the SUB-CELL it occupies, not the whole tile.
+ *
+ * `tree3` is authored in FOOT space: its foot lands at `(col*64 + 32, (row+1)*64)` and its collider
+ * is `{ x: -12, y: -20, w: 24, h: 20 }` around that foot. At col 8 / row 7 that is the rect
+ * x∈[532,556), y∈[492,512) — the bottom 20px of cell (8,7), horizontally centred. `TREE_TRUNK`
+ * records those edges so the test asserts against the geometry, never a magic number.
+ */
+function subcellTreeMapInput(): TestMapBody {
+  const map = testMapInput("Sub-cell tree", {
+    cols: 20,
+    rows: 15,
+    spawn: { col: 2, row: 2 },
+    exit: { col: 18, row: 13 },
+  });
+  const tree: MapElement = {
+    col: 8,
+    row: 7,
+    offsetX: 0,
+    offsetY: 0,
+    assetId: "resource.terrain-resources-wood-trees.tree3",
+  };
+  return { ...map, elements: [tree] };
+}
+
+/** The trunk collider `subcellTreeMapInput`'s tree bakes onto the geometry, in world pixels. */
+const TREE_TRUNK = { left: 532, right: 556, top: 492, bottom: 512 } as const;
 
 /** Two maps in a line: mapA's exit leads to mapB's entry, mapB's exit ends the adventure. Binds the
  *  maps' entry/exit EVENT uuids (UX wave #12), read back from the authored bodies via `anchors`. */
@@ -353,6 +383,68 @@ describe("party hero admission and authored runtime", { timeout: 20_000 }, () =>
       ).toBe(false);
     } finally {
       client.close();
+    }
+  });
+
+  /**
+   * The server-side counterpart of the sub-cell prediction test: a real body, driven by real
+   * movement commands over the real Durable Object, must stop on the same collider the client
+   * predicts against. Two heroes walk the same rightward line into cell (8,7):
+   *
+   *  - `Blocked` sits on the trunk's own y-band, so a correct collider stops it at the trunk's
+   *    left edge — its box may never cross `TREE_TRUNK.left`.
+   *  - `Clear` sits higher in the SAME cell (8,7) but above the 20px trunk rect, so it walks
+   *    straight through. If the tree had regressed to a whole solid cell, `Clear` would be blocked
+   *    too; that it passes is what distinguishes sub-cell collision from a solid tile.
+   *
+   * Positions are authored explicitly (never spawn-relative), so no `awayFromNearestWall`. The room
+   * is a singleton across this file, so every assertion is keyed to a specific hero id.
+   */
+  it("stops a body on a sub-cell collider while a body above the trunk passes through", {
+    timeout: 15_000,
+  }, async () => {
+    const party = await testParty("subcell-tree", { maps: [subcellTreeMapInput()] });
+    // `Blocked`'s 32px box on the trunk's y-band (492..524 overlaps the trunk's 492..512).
+    const blocked = await testHero("Blocked", {
+      party,
+      account: party.host,
+      position: { x: 400, y: TREE_TRUNK.top },
+    });
+    // `Clear`'s box (450..482) is inside cell (8,7) but entirely above the trunk rect.
+    const clear = await testHero("Clear", { party, position: { x: 400, y: 450 } });
+    const blockedClient = await Client.joinHero(blocked);
+    const clearClient = await Client.joinHero(clear);
+    try {
+      await until("blocked hero welcome", () => blockedClient.welcome);
+      await until("clear hero welcome", () => clearClient.welcome);
+
+      blockedClient.press("right");
+      clearClient.press("right");
+
+      // Wait until the unobstructed hero has walked clean past the trunk's right edge; by then the
+      // blocked hero has had the same wall-clock time and has settled against the trunk.
+      const passed = await until(
+        "clear hero passes the trunk",
+        () => {
+          const x = clearClient.self()?.x;
+          return x !== undefined && x > TREE_TRUNK.right + PLAYER_SIZE ? x : undefined;
+        },
+        10_000,
+      );
+      expect(passed).toBeGreaterThan(TREE_TRUNK.right + PLAYER_SIZE);
+
+      const blockedSelf = blockedClient.self();
+      if (!blockedSelf) throw new Error("expected the blocked hero in its own snapshot");
+      // Moved toward the trunk from x=400, but its box never crossed the trunk's left edge.
+      expect(blockedSelf.x).toBeGreaterThan(440);
+      expect(blockedSelf.x + PLAYER_SIZE).toBeLessThanOrEqual(TREE_TRUNK.left);
+
+      // And the clear hero really is the OTHER hero, above the trunk, in the same room.
+      const clearSelf = clearClient.self();
+      expect(clearSelf?.y).toBe(450);
+    } finally {
+      blockedClient.close();
+      clearClient.close();
     }
   });
 
