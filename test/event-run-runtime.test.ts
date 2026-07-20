@@ -129,9 +129,9 @@ afterEach(async () => {
   await env.DB.exec("DELETE FROM map_element");
   await env.DB.exec("DELETE FROM map");
   await env.DB.exec("DELETE FROM account");
-});
+}, 20_000);
 
-describe("triggers, the run, and cross-room state", () => {
+describe("triggers, the run, and cross-room state", { timeout: 20_000 }, () => {
   it("an interact runs a program whose switch flip is visible on another map room", async () => {
     // Map A: a scripted action event at (5,5) that flips 0001, plus a gate on map A; map B: a gate.
     const scriptId = crypto.randomUUID();
@@ -368,7 +368,7 @@ describe("triggers, the run, and cross-room state", () => {
   });
 });
 
-describe("the dialogue conversation (Task 4)", () => {
+describe("the dialogue conversation (Task 4)", { timeout: 20_000 }, () => {
   it("runs say -> advance -> choices -> choose(1), the chosen branch's flip landing", async () => {
     // A door-keeper scene: greet, then offer two answers. Option 0 flips 0001; option 1 flips 0007.
     // choosing 1 must land 0007 (not 0001), then the run ends and the panel closes.
@@ -531,7 +531,7 @@ describe("the dialogue conversation (Task 4)", () => {
   });
 });
 
-describe("teleport", () => {
+describe("teleport", { timeout: 20_000 }, () => {
   it("clears the command queue on a same-map teleport (no post-teleport sprint)", async () => {
     // A scripted action event at (6,15) teleports the hero straight UP to (6,5) on the same map. The
     // triggerer arrives holding a full queue of RIGHT commands; if the queue is not cleared they
@@ -588,7 +588,9 @@ describe("teleport", () => {
     expect(Math.abs(restingX - destColumnX)).toBeLessThan(TILE_SIZE);
   });
 
-  it("launches exactly ONE handoff for two back-to-back cross-map teleports", async () => {
+  it("launches exactly ONE handoff for two back-to-back cross-map teleports", {
+    timeout: 20_000,
+  }, async () => {
     // A program with two consecutive cross-map teleports. `transitioning` is claimed synchronously by
     // the first dispatch, so the second is dropped and only one handoff launches. Mutation proof: move
     // the claim back into the async handoff and BOTH dispatches launch (crossMapTeleports === 2).
@@ -799,7 +801,7 @@ describe("teleport", () => {
 
 const PLACEHOLDER_MAP = "00000000-0000-4000-8000-000000000000";
 
-describe("aborts", () => {
+describe("aborts", { timeout: 20_000 }, () => {
   it("aborts a hero's run when they disconnect (no zombie context)", async () => {
     const scriptId = crypto.randomUUID();
     const party = await testParty("dc", {
@@ -984,7 +986,7 @@ describe("aborts", () => {
   });
 });
 
-describe("the coordinator", () => {
+describe("the coordinator", { timeout: 20_000 }, () => {
   it("drops a stale out-of-order install and accepts an equal-version one (the >= guard)", async () => {
     const roomKey = `guard:${crypto.randomUUID()}`;
     const partyId = crypto.randomUUID();
@@ -1031,7 +1033,7 @@ describe("the coordinator", () => {
   });
 });
 
-describe("gold and items (Task 5)", () => {
+describe("gold and items (Task 5)", { timeout: 20_000 }, () => {
   it("grants gold to the triggerer's own snapshot alone (per-hero, Q5)", async () => {
     const scriptId = crypto.randomUUID();
     const party = await testParty("gold", {
@@ -1327,7 +1329,7 @@ describe("gold and items (Task 5)", () => {
   });
 });
 
-describe("the per-hero dialogue cap (Task 4 review)", () => {
+describe("the per-hero dialogue cap (Task 4 review)", { timeout: 20_000 }, () => {
   it("refuses a second dialogue while the first panel is open, and allows it once closed", async () => {
     // A touch event opens dialogue "one"; an adjacent action event's dialogue "two" must be refused
     // while "one" is open (WoW: one conversation at a time), then allowed after "one" closes. The

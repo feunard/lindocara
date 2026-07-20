@@ -335,7 +335,9 @@ describe("adventure lifecycle over the wire", () => {
     expect(await foreign.json()).toEqual({ error: "adventure_maps" });
   });
 
-  it("accepts a realistic 16-map graph with all 128 exits through the HTTP boundary", async () => {
+  it("accepts a realistic 16-map graph with all 128 exits through the HTTP boundary", {
+    timeout: 15_000,
+  }, async () => {
     const advId = await createDraft();
     // Each map carries one entry EVENT and eight exit EVENTS. Event uuids are minted per map and
     // per event because a `map_event` id is a global primary key — all 144 must be distinct.

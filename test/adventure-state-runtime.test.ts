@@ -158,9 +158,9 @@ afterEach(async () => {
   await env.DB.exec("DELETE FROM map_element");
   await env.DB.exec("DELETE FROM map");
   await env.DB.exec("DELETE FROM account");
-});
+}, 20_000);
 
-describe("adventure state runtime", () => {
+describe("adventure state runtime", { timeout: 20_000 }, () => {
   it("loads the party snapshot once and pushes the same state to both map rooms", async () => {
     const fixture = await seedFixture("snapshot");
     const persisted: PartyAdventureState = {

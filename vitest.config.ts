@@ -41,6 +41,12 @@ export default defineConfig({
     include: ["test/**/*.test.ts"],
     exclude: ["**/node_modules/**", "**/dist/**"],
     setupFiles: ["./test/setup.ts"],
+    // Integration files provision D1, accounts, maps and real Durable Objects before reaching
+    // their assertions. Five seconds is below the observed healthy cost of multi-room handoffs on
+    // Windows and made a different test time out depending on file order. Narrow mutation/latency
+    // tests keep their explicit lower overrides; this is the reliable ceiling for the real harness.
+    testTimeout: 20_000,
+    hookTimeout: 20_000,
     // World and CharacterPresence Durable Objects are process-wide singletons in workerd.
     // Parallel test files would share live rooms and flake on capacity, combat, and loot.
     fileParallelism: false,
