@@ -457,18 +457,26 @@ function toStoredMap(
 
 async function elementsOf(db: Db, mapId: string): Promise<MapElement[]> {
   const rows = await db.select().from(mapElement).where(eq(mapElement.mapId, mapId));
-  // The `map_element` table has no offset columns yet (a later tranche), so every row read back is
-  // aligned to its cell origin — the same "absent is 0" default `parseOffsetStep` applies on the wire.
+  // `offset_x`/`offset_y` are part of the row's identity (the primary key), so they always exist and
+  // round-trip exactly what was authored — no "absent is 0" degrade needed here.
   return rows.flatMap((row): MapElement[] =>
     isEditorAssetId(row.kind)
-      ? [{ col: row.col, row: row.row, offsetX: 0, offsetY: 0, assetId: row.kind }]
+      ? [
+          {
+            col: row.col,
+            row: row.row,
+            offsetX: row.offsetX,
+            offsetY: row.offsetY,
+            assetId: row.kind,
+          },
+        ]
       : isElementKind(row.kind)
         ? [
             {
               col: row.col,
               row: row.row,
-              offsetX: 0,
-              offsetY: 0,
+              offsetX: row.offsetX,
+              offsetY: row.offsetY,
               assetId: legacyElementAssetId(row.kind, row.variant),
             },
           ]
@@ -621,6 +629,8 @@ function elementRows(mapId: string, elements: readonly MapElement[]) {
     mapId,
     col: element.col,
     row: element.row,
+    offsetX: element.offsetX,
+    offsetY: element.offsetY,
     kind: element.assetId,
     variant: 0,
   }));
@@ -628,16 +638,16 @@ function elementRows(mapId: string, elements: readonly MapElement[]) {
 
 /**
  * D1 refuses any single query bound to more than 100 parameters. A multi-row `INSERT` binds one
- * parameter per column of `elementRows` above — mapId, col, row, kind, variant, five today — so one
- * unchunked statement tops out around `100 / 5` = 20 rows, well under `MAX_MAP_ELEMENTS` (400): a
- * map decorated with more than about twenty elements failed to save entirely, with nothing in
- * `validateMapInput` to catch it first. The chunk size is derived from the real column count rather
- * than a literal row number, so it keeps working if `mapElement` gains a column later, and it
- * targets 60% of the cap rather than sitting on it, so that future growth doesn't immediately
- * regress the headroom back onto the line.
+ * parameter per column of `elementRows` above — mapId, col, row, offsetX, offsetY, kind, variant,
+ * seven today — so one unchunked statement tops out around `100 / 7` = 14 rows, well under
+ * `MAX_MAP_ELEMENTS` (400): a map decorated with more than about fourteen elements failed to save
+ * entirely, with nothing in `validateMapInput` to catch it first. The chunk size is derived from the
+ * real column count rather than a literal row number, so it keeps working if `mapElement` gains a
+ * column later, and it targets 60% of the cap rather than sitting on it, so that future growth
+ * doesn't immediately regress the headroom back onto the line.
  */
 const D1_MAX_BOUND_PARAMETERS = 100;
-const MAP_ELEMENT_PARAMS_PER_ROW = 5; // mapId, col, row, kind, variant — mirrors `mapElement` in db/schema.ts
+const MAP_ELEMENT_PARAMS_PER_ROW = 7; // mapId, col, row, offsetX, offsetY, kind, variant — mirrors `mapElement` in db/schema.ts
 const MAP_ELEMENT_CHUNK_ROWS = Math.floor(
   (D1_MAX_BOUND_PARAMETERS * 0.6) / MAP_ELEMENT_PARAMS_PER_ROW,
 );

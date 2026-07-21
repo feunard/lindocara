@@ -298,8 +298,10 @@ export const map = sqliteTable(
 );
 
 /**
- * One element per cell — and that is the primary key, not a rule somebody has to remember to check.
- * "You can't set another tree on it" is enforced by the database itself.
+ * Element identity now includes its quarter-tile offset, not just its cell — the primary key is
+ * `(mapId, col, row, offsetX, offsetY)`, not a rule somebody has to remember to check. A cell can
+ * hold up to `ELEMENT_OFFSET_STEPS`² = 16 decorations, one per distinct offset; "you can't set two
+ * elements at the same cell AND offset" is enforced by the database itself.
  */
 export const mapElement = sqliteTable(
   "map_element",
@@ -309,12 +311,16 @@ export const mapElement = sqliteTable(
       .references(() => map.id, { onDelete: "cascade" }),
     col: integer("col").notNull(),
     row: integer("row").notNull(),
+    /** Integer in `0..ELEMENT_OFFSET_STEPS - 1` (shared/map-data.ts), quarter tiles right of origin. */
+    offsetX: integer("offset_x").notNull().default(0),
+    /** Integer in `0..ELEMENT_OFFSET_STEPS - 1` (shared/map-data.ts), quarter tiles below origin. */
+    offsetY: integer("offset_y").notNull().default(0),
     /** Stable Tiny Swords editor asset id; legacy tree/bush/stone rows are normalized on read. */
     kind: text("kind").notNull(),
     variant: integer("variant").notNull().default(0),
   },
   (table) => [
-    primaryKey({ columns: [table.mapId, table.col, table.row] }),
+    primaryKey({ columns: [table.mapId, table.col, table.row, table.offsetX, table.offsetY] }),
     index("map_element_map_idx").on(table.mapId),
   ],
 );

@@ -24,7 +24,7 @@ import {
   mapEvent,
   mapEventPage,
 } from "../src/server/db/index.js";
-import { BUILTIN_MAP } from "../src/server/maps.js";
+import { BUILTIN_MAP, loadMap } from "../src/server/maps.js";
 import { hashPassword } from "../src/server/password.js";
 import { acquireSessionEpoch, loadProfile, saveProfile } from "../src/server/profile.js";
 import { starterEquipmentFor } from "../src/shared/character.js";
@@ -559,6 +559,81 @@ describe("the map tables", () => {
     await db.delete(map).where(eq(map.id, "map-cascade"));
     const left = await db.select().from(mapElement).where(eq(mapElement.mapId, "map-cascade"));
     expect(left).toEqual([]);
+  });
+});
+
+describe("map element offsets", () => {
+  // The pool does not isolate storage between tests. Elements before maps (FK); the owning adventure
+  // (and its account) after the maps that reference it. Mirrors "the map tables" above.
+  afterEach(async () => {
+    await env.DB.exec("DELETE FROM map_element");
+    await env.DB.exec("DELETE FROM map");
+    await env.DB.exec("DELETE FROM adventure");
+    await env.DB.exec("DELETE FROM account");
+  });
+
+  const TREE = "resource.terrain-resources-wood-trees.tree3" as const;
+  const STONE = "decoration.terrain-decorations-rocks.rock1" as const;
+
+  async function seedMap(id: string): Promise<void> {
+    const db = createDb(env.DB);
+    await ensureMapOwner(db);
+    await db.insert(map).values({
+      id,
+      adventureId: MAP_OWNER_ADVENTURE,
+      name: "Offset test",
+      cols: 4,
+      rows: 4,
+      tilesetId: TINY_SWORDS_TILESET_ID,
+      layers: JSON.stringify(["0*16", "0*16", "0*16"]),
+      spawnCol: 0,
+      spawnRow: 0,
+    });
+  }
+
+  // Writes go straight at `mapElement` (bypassing `validateMapInput`'s coarser "one visual footprint
+  // per cell" authoring rule, which is a separate concern from this task) so this exercises exactly
+  // the D1 boundary: the columns exist, and `elementsOf` reads them back instead of hardcoding 0.
+  it("round-trips element offsets through D1", async () => {
+    const db = createDb(env.DB);
+    await seedMap("map-offset-roundtrip");
+    await db.insert(mapElement).values({
+      mapId: "map-offset-roundtrip",
+      col: 1,
+      row: 1,
+      offsetX: 3,
+      offsetY: 2,
+      kind: TREE,
+    });
+    const loaded = await loadMap(db, "map-offset-roundtrip");
+    expect(loaded?.elements).toEqual([{ col: 1, row: 1, offsetX: 3, offsetY: 2, assetId: TREE }]);
+  });
+
+  it("keeps two elements in one cell at different offsets", async () => {
+    const db = createDb(env.DB);
+    await seedMap("map-offset-shared-cell");
+    await db.insert(mapElement).values({
+      mapId: "map-offset-shared-cell",
+      col: 2,
+      row: 2,
+      offsetX: 0,
+      offsetY: 0,
+      kind: TREE,
+    });
+    await db.insert(mapElement).values({
+      mapId: "map-offset-shared-cell",
+      col: 2,
+      row: 2,
+      offsetX: 3,
+      offsetY: 1,
+      kind: STONE,
+    });
+    const loaded = await loadMap(db, "map-offset-shared-cell");
+    expect(loaded?.elements.length).toBe(2);
+    const atOrigin = loaded?.elements.find((el) => el.offsetX === 0 && el.offsetY === 0);
+    const atShifted = loaded?.elements.find((el) => el.offsetX === 3 && el.offsetY === 1);
+    expect(atOrigin).toEqual({ col: 2, row: 2, offsetX: 0, offsetY: 0, assetId: TREE });
+    expect(atShifted).toEqual({ col: 2, row: 2, offsetX: 3, offsetY: 1, assetId: STONE });
   });
 });
 

@@ -183,6 +183,13 @@
       "when": 1784550436193,
       "tag": "0025_outstanding_kitty_pryde",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1784621282578,
+      "tag": "0026_eminent_nemesis",
+      "breakpoints": true
     }
   ]
 }
