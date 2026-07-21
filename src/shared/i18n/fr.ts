@@ -709,6 +709,8 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.inspector.event": "Événement",
   "editor.inspector.spawn": "Point d’apparition du héros",
   "editor.inspector.walkable": "Praticable",
+  "editor.inspector.offsetX": "Décalage X",
+  "editor.inspector.offsetY": "Décalage Y",
   "editor.inspector.openEditor": "Ouvrir l’éditeur",
   "editor.tool.variant": "Variante",
   "editor.markers.species": "Espèce",

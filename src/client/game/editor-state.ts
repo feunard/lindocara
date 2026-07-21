@@ -4,6 +4,7 @@ import type { MonsterSpecies } from "../../shared/game.js";
 import {
   bakeCollision,
   canPlaceElement,
+  ELEMENT_OFFSET_STEPS,
   EMPTY_MARKERS,
   elementCoversCell,
   elementFitsMap,
@@ -292,6 +293,7 @@ export function moveSelection(
       const without = deleteSelection(map, selection);
       // An element move is an Element-mode operation whatever tool is active, so it names its own
       // mode rather than depending on the UI's — otherwise the mode gate would refuse the re-place.
+      // The sub-cell offset rides along so a drag preserves the quarter-cell alignment.
       return applyTool(
         without,
         { kind: "element", assetId: element.assetId },
@@ -299,6 +301,8 @@ export function moveSelection(
         row,
         true,
         "element",
+        element.offsetX,
+        element.offsetY,
       );
     }
     case "event": {
@@ -331,9 +335,12 @@ export function updateSelectedElementAsset(
   selection: Extract<EditorSelection, { kind: "element" }>,
   assetId: EditorAssetId,
 ): EditorMap | null {
+  const existing = map.elements.find(
+    (candidate) => candidate.col === selection.col && candidate.row === selection.row,
+  );
   const without = deleteSelection(map, selection);
   // Swapping an element's asset is an Element-mode operation; it names its own mode so the gate does
-  // not refuse the re-place, the same as `moveSelection`.
+  // not refuse the re-place, the same as `moveSelection`. The sub-cell offset is preserved.
   return applyTool(
     without,
     { kind: "element", assetId },
@@ -341,6 +348,36 @@ export function updateSelectedElementAsset(
     selection.row,
     true,
     "element",
+    existing?.offsetX ?? 0,
+    existing?.offsetY ?? 0,
+  );
+}
+
+/** Re-place the selected element at its cell with a new quarter-cell offset, clamped to
+ *  `0..ELEMENT_OFFSET_STEPS - 1`. Like the asset swap and the move it re-runs `applyTool`, so the same
+ *  placement validation (terrain, spawn clearance, overlap) governs the corrected position. */
+export function updateSelectedElementOffset(
+  map: EditorMap,
+  selection: Extract<EditorSelection, { kind: "element" }>,
+  offsetX: number,
+  offsetY: number,
+): EditorMap | null {
+  const element = map.elements.find(
+    (candidate) => candidate.col === selection.col && candidate.row === selection.row,
+  );
+  if (!element) return null;
+  const clamp = (value: number): number =>
+    Math.max(0, Math.min(ELEMENT_OFFSET_STEPS - 1, Math.trunc(value)));
+  const without = deleteSelection(map, selection);
+  return applyTool(
+    without,
+    { kind: "element", assetId: element.assetId },
+    selection.col,
+    selection.row,
+    true,
+    "element",
+    clamp(offsetX),
+    clamp(offsetY),
   );
 }
 
@@ -847,6 +884,8 @@ export function applyTool(
   row: number,
   isStrokeStart = true,
   mode: EditorMode = "field",
+  offsetX = 0,
+  offsetY = 0,
 ): EditorMap | null {
   // A tool belongs to exactly one mode. Reaching applyTool with a mismatched pair means the UI let a
   // stale tool survive a mode switch; drop the stroke rather than write to a collection the author is
@@ -946,9 +985,10 @@ export function applyTool(
       return { ...map, layers };
     }
     case "element": {
-      // The element tool doesn't author sub-cell placement yet (a later tranche) — every element it
-      // places stays aligned to its cell origin.
-      const placed: MapElement = { col, row, offsetX: 0, offsetY: 0, assetId: tool.assetId };
+      // Element placement is quarter-cell: the stage resolves the pointer to a cell plus a 0..3
+      // sub-step per axis and threads it here. Field/Event callers leave the offsets at 0, so those
+      // modes stay grid-forced.
+      const placed: MapElement = { col, row, offsetX, offsetY, assetId: tool.assetId };
       if (!placementTerrainValid(map, placed)) return null;
       if (elementCoversCell(placed, map.spawn.col, map.spawn.row)) return null;
       const sameAnchor = map.elements.filter(

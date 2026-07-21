@@ -696,6 +696,8 @@ export const en = {
   "editor.inspector.event": "Event",
   "editor.inspector.spawn": "Hero spawn",
   "editor.inspector.walkable": "Walkable",
+  "editor.inspector.offsetX": "Offset X",
+  "editor.inspector.offsetY": "Offset Y",
   "editor.inspector.openEditor": "Open editor",
   "editor.tool.variant": "Variant",
   "editor.markers.species": "Species",

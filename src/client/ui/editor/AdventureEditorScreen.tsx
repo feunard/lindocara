@@ -1094,6 +1094,9 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
                   selection={selection}
                   map={currentMap}
                   onMove={(col, row) => handleRef.current?.moveSelected(col, row)}
+                  onSetOffset={(offsetX, offsetY) =>
+                    handleRef.current?.setSelectedElementOffset(offsetX, offsetY)
+                  }
                   onOpenEditor={() => {
                     if (selection.kind === "event") setOpenEventId(selection.id);
                   }}
@@ -1216,12 +1219,14 @@ function SelectionInspector({
   selection,
   map,
   onMove,
+  onSetOffset,
   onOpenEditor,
   onDelete,
 }: {
   selection: EditorSelection;
   map: EditorMap;
   onMove(col: number, row: number): void;
+  onSetOffset(offsetX: number, offsetY: number): void;
   onOpenEditor(): void;
   onDelete(): void;
 }) {
@@ -1302,6 +1307,47 @@ function SelectionInspector({
               min={0}
               defaultValue={position.row}
               onBlur={(event) => onMove(position.col, Number(event.currentTarget.value))}
+            />
+          </div>
+        </div>
+      )}
+
+      {selectedElement && (
+        <div className="flex gap-2">
+          <div className="flex flex-1 flex-col gap-1">
+            <Label htmlFor="inspector-offset-x" className="text-[11px] text-zinc-500">
+              {t("editor.inspector.offsetX")}
+            </Label>
+            <Input
+              id="inspector-offset-x"
+              key={`ox:${selectedElement.col},${selectedElement.row},${selectedElement.offsetX}`}
+              type="number"
+              className="h-7 text-xs"
+              min={0}
+              max={3}
+              step={1}
+              defaultValue={selectedElement.offsetX}
+              onBlur={(event) =>
+                onSetOffset(Number(event.currentTarget.value), selectedElement.offsetY)
+              }
+            />
+          </div>
+          <div className="flex flex-1 flex-col gap-1">
+            <Label htmlFor="inspector-offset-y" className="text-[11px] text-zinc-500">
+              {t("editor.inspector.offsetY")}
+            </Label>
+            <Input
+              id="inspector-offset-y"
+              key={`oy:${selectedElement.col},${selectedElement.row},${selectedElement.offsetY}`}
+              type="number"
+              className="h-7 text-xs"
+              min={0}
+              max={3}
+              step={1}
+              defaultValue={selectedElement.offsetY}
+              onBlur={(event) =>
+                onSetOffset(selectedElement.offsetX, Number(event.currentTarget.value))
+              }
             />
           </div>
         </div>

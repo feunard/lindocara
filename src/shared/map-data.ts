@@ -234,6 +234,22 @@ export function canPlaceElement(assetId: EditorAssetId, on: TileKind): boolean {
   return asset?.editor.allowedTerrain.some((terrain) => terrain === on) ?? false;
 }
 
+/** A world pixel to the cell and quarter-step it lands in. `Math.floor` on both, so a negative
+ *  pixel yields a negative col with a non-negative offset rather than a negative offset. */
+export function quarterCellAt(
+  x: number,
+  y: number,
+): { col: number; row: number; offsetX: number; offsetY: number } {
+  const col = Math.floor(x / TILE_SIZE);
+  const row = Math.floor(y / TILE_SIZE);
+  return {
+    col,
+    row,
+    offsetX: Math.floor((x - col * TILE_SIZE) / ELEMENT_OFFSET_PX),
+    offsetY: Math.floor((y - row * TILE_SIZE) / ELEMENT_OFFSET_PX),
+  };
+}
+
 export function elementCells(element: MapElement): { col: number; row: number }[] {
   const asset = editorAsset(element.assetId);
   if (!asset) return [];

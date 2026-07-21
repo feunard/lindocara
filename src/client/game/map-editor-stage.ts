@@ -12,7 +12,13 @@
  * is React, the canvas is Pixi, and the two only meet at `setTool`/`current`/`setName`/`dispose`.
  */
 import { type Application, Assets, Container, Graphics, Sprite, Text, type Texture } from "pixi.js";
-import { bakeCollision, MAP_LAYERS } from "../../shared/map-data.js";
+import {
+  bakeCollision,
+  ELEMENT_OFFSET_PX,
+  ELEMENT_OFFSET_STEPS,
+  MAP_LAYERS,
+  quarterCellAt,
+} from "../../shared/map-data.js";
 import type { EventKind, MapEvent } from "../../shared/map-events.js";
 import type { TileLayer } from "../../shared/tile-layer-codec.js";
 import { TILE_SIZE, type TileMap } from "../../shared/tilemap.js";
@@ -53,6 +59,7 @@ import {
   toMapData,
   undoEditorHistory,
   updateSelectedElementAsset,
+  updateSelectedElementOffset,
 } from "./editor-state.js";
 import { acquireStageApp } from "./stage-application.js";
 import { foamFrameAt } from "./terrain-visuals.js";
@@ -92,6 +99,9 @@ export interface MapEditorStageHandle {
   selected(): EditorSelection | null;
   moveSelected(col: number, row: number): boolean;
   setSelectedElementAsset(assetId: EditorAssetId): boolean;
+  /** Re-place the selected element at a new quarter-cell offset (0..3 per axis) as one history entry;
+   *  a no-op for any non-element selection. */
+  setSelectedElementOffset(offsetX: number, offsetY: number): boolean;
   deleteSelected(): boolean;
   /** A detached draft copy of one event for the dialog to edit, or `null` if the id names no live
    *  event. Reads the live map; writes nothing. */
@@ -194,9 +204,11 @@ export function paintHoverCell(
   row: number,
   mode: EditorMode,
   container: Container,
+  offsetX = 0,
+  offsetY = 0,
 ): { illegal: boolean } {
-  const x = col * TILE_SIZE;
-  const y = row * TILE_SIZE;
+  const x = col * TILE_SIZE + offsetX * ELEMENT_OFFSET_PX;
+  const y = row * TILE_SIZE + offsetY * ELEMENT_OFFSET_PX;
   const illegal = !placementLegalAt(tool, map, col, row, mode);
   if (illegal) {
     const fill = new Graphics();
@@ -460,6 +472,7 @@ function inertHandle(map: EditorMap): MapEditorStageHandle {
     selected: () => null,
     moveSelected: () => false,
     setSelectedElementAsset: () => false,
+    setSelectedElementOffset: () => false,
     deleteSelected: () => false,
     beginEventDraft: () => null,
     commitEventDraft() {},
@@ -750,10 +763,31 @@ async function buildSession(
     markerLayer.addChild(marker);
   }
 
-  /** The 1px cell grid across the whole map, built once and toggled by `gridLayer.visible`. */
+  /** The 1px cell grid across the whole map, built once and toggled by `gridLayer.visible`. In
+   *  Element mode it also draws the quarter-cell sub-divisions at a lower alpha, so the author sees
+   *  where a decoration will snap; Field and Event modes stay whole-cell. */
   function drawGrid(): void {
     for (const child of gridLayer.removeChildren()) child.destroy();
     const { cols, rows } = editorMapSize(map);
+    if (history.activeMode === "element") {
+      const subGrid = new Graphics();
+      const mapW = cols * TILE_SIZE;
+      const mapH = rows * TILE_SIZE;
+      for (let col = 0; col < cols; col++) {
+        for (let step = 1; step < ELEMENT_OFFSET_STEPS; step++) {
+          const x = col * TILE_SIZE + step * ELEMENT_OFFSET_PX;
+          subGrid.moveTo(x, 0).lineTo(x, mapH);
+        }
+      }
+      for (let row = 0; row < rows; row++) {
+        for (let step = 1; step < ELEMENT_OFFSET_STEPS; step++) {
+          const y = row * TILE_SIZE + step * ELEMENT_OFFSET_PX;
+          subGrid.moveTo(0, y).lineTo(mapW, y);
+        }
+      }
+      subGrid.stroke({ width: 1, color: GRID_COLOR, alpha: 0.14 });
+      gridLayer.addChild(subGrid);
+    }
     const grid = new Graphics();
     for (let col = 0; col <= cols; col++) {
       grid.moveTo(col * TILE_SIZE, 0).lineTo(col * TILE_SIZE, rows * TILE_SIZE);
@@ -767,19 +801,34 @@ async function buildSession(
   }
 
   // The cell the pointer is currently over, so the hover overlay redraws only when it changes cell (or
-  // when the tool/map under it changes), never per pixel. `NaN` is the off-canvas state.
+  // when the tool/map under it changes), never per pixel. `NaN` is the off-canvas state. In Element
+  // mode `hoverOffsetX`/`hoverOffsetY` carry the quarter-step within that cell so the preview snaps to
+  // the same pixel a placement would.
   let hoverCol = Number.NaN;
   let hoverRow = Number.NaN;
+  let hoverOffsetX = 0;
+  let hoverOffsetY = 0;
 
   /** Repaint the hover preview for the current cell/tool/map: cleared when off-canvas, out of bounds,
-   *  or the active tool has no placement to preview (select/pan). */
+   *  or the active tool has no placement to preview (select/pan). Element mode shifts the preview by
+   *  the quarter-cell offset; Field and Event modes stay whole-cell. */
   function drawHover(): void {
     for (const child of hoverLayer.removeChildren()) child.destroy();
     if (!shouldShowHoverPreview(tool)) return;
     if (Number.isNaN(hoverCol) || Number.isNaN(hoverRow)) return;
     const { cols, rows } = editorMapSize(map);
     if (hoverCol < 0 || hoverRow < 0 || hoverCol >= cols || hoverRow >= rows) return;
-    paintHoverCell(tool, map, hoverCol, hoverRow, history.activeMode, hoverLayer);
+    const inElementMode = history.activeMode === "element";
+    paintHoverCell(
+      tool,
+      map,
+      hoverCol,
+      hoverRow,
+      history.activeMode,
+      hoverLayer,
+      inElementMode ? hoverOffsetX : 0,
+      inElementMode ? hoverOffsetY : 0,
+    );
   }
 
   // ── Pointer: paint, or pan the camera ─────────────────────────────────────────────────────────
@@ -788,10 +837,10 @@ async function buildSession(
   let spaceHeld = false;
   let panLastX = 0;
   let panLastY = 0;
-  // The last cell this stroke painted, so dragging across one cell rebuilds the scene once, not on
-  // every pointermove event.
-  let lastPaintedCol = Number.NaN;
-  let lastPaintedRow = Number.NaN;
+  // The last placement this stroke painted, so dragging within one cell (or one quarter-cell, in
+  // Element mode) rebuilds the scene once, not on every pointermove event. `""` is the pre-stroke
+  // state, distinct from any real placement key.
+  let lastPaintedKey = "";
   let strokeStart: EditorMap | null = null;
 
   // The last cell handed to `onCursorCell`, so a pointer sliding within one cell reports once, not
@@ -805,18 +854,40 @@ async function buildSession(
     onCursorCell(col, row);
   };
 
-  function cellAt(clientX: number, clientY: number): { col: number; row: number } {
+  function worldAt(clientX: number, clientY: number): { x: number; y: number } {
     const rect = canvas.getBoundingClientRect();
-    const worldX = (clientX - rect.left - world.x) / world.scale.x;
-    const worldY = (clientY - rect.top - world.y) / world.scale.y;
-    return { col: Math.floor(worldX / TILE_SIZE), row: Math.floor(worldY / TILE_SIZE) };
+    return {
+      x: (clientX - rect.left - world.x) / world.scale.x,
+      y: (clientY - rect.top - world.y) / world.scale.y,
+    };
+  }
+
+  function cellAt(clientX: number, clientY: number): { col: number; row: number } {
+    const point = worldAt(clientX, clientY);
+    return { col: Math.floor(point.x / TILE_SIZE), row: Math.floor(point.y / TILE_SIZE) };
+  }
+
+  /** The placement the pointer resolves to under the active mode: whole-cell for Field/Event (offsets
+   *  stay 0, those modes are grid-forced), quarter-cell for Element mode. */
+  function placementAt(
+    clientX: number,
+    clientY: number,
+  ): { col: number; row: number; offsetX: number; offsetY: number } {
+    const point = worldAt(clientX, clientY);
+    if (history.activeMode === "element") return quarterCellAt(point.x, point.y);
+    return {
+      col: Math.floor(point.x / TILE_SIZE),
+      row: Math.floor(point.y / TILE_SIZE),
+      offsetX: 0,
+      offsetY: 0,
+    };
   }
 
   function paintAt(clientX: number, clientY: number, isStrokeStart: boolean): void {
-    const { col, row } = cellAt(clientX, clientY);
-    if (col === lastPaintedCol && row === lastPaintedRow) return;
-    lastPaintedCol = col;
-    lastPaintedRow = row;
+    const { col, row, offsetX, offsetY } = placementAt(clientX, clientY);
+    const paintKey = `${col},${row},${offsetX},${offsetY}`;
+    if (paintKey === lastPaintedKey) return;
+    lastPaintedKey = paintKey;
     if (tool.kind === "select") {
       // No redraw: no non-event selection renders anything on the stage (the marker/element/spawn
       // inspector is React), and the EV overlay is hidden under the select tool — so a select-click
@@ -837,7 +908,16 @@ async function buildSession(
         return;
       }
     }
-    const next = applyTool(map, tool, col, row, isStrokeStart, history.activeMode);
+    const next = applyTool(
+      map,
+      tool,
+      col,
+      row,
+      isStrokeStart,
+      history.activeMode,
+      offsetX,
+      offsetY,
+    );
     // null → refused (does nothing visible); same reference → a no-op edit (eraser on empty).
     if (!next || next === map) return;
     map = next;
@@ -852,6 +932,8 @@ async function buildSession(
     // that was legal on grass is now illegal over freshly-painted water).
     hoverCol = col;
     hoverRow = row;
+    hoverOffsetX = offsetX;
+    hoverOffsetY = offsetY;
     drawHover();
   }
 
@@ -870,13 +952,12 @@ async function buildSession(
     if (event.button !== 0) return;
     painting = true;
     strokeStart = map;
-    lastPaintedCol = Number.NaN;
-    lastPaintedRow = Number.NaN;
+    lastPaintedKey = "";
     paintAt(event.clientX, event.clientY, true);
   };
 
   const onPointerMove = (event: PointerEvent): void => {
-    const hovered = cellAt(event.clientX, event.clientY);
+    const hovered = placementAt(event.clientX, event.clientY);
     reportCursor(hovered.col, hovered.row);
     if (panning) {
       world.x += event.clientX - panLastX;
@@ -886,9 +967,16 @@ async function buildSession(
       clampCamera();
       return;
     }
-    if (hovered.col !== hoverCol || hovered.row !== hoverRow) {
+    if (
+      hovered.col !== hoverCol ||
+      hovered.row !== hoverRow ||
+      hovered.offsetX !== hoverOffsetX ||
+      hovered.offsetY !== hoverOffsetY
+    ) {
       hoverCol = hovered.col;
       hoverRow = hovered.row;
+      hoverOffsetX = hovered.offsetX;
+      hoverOffsetY = hovered.offsetY;
       drawHover();
     }
     if (painting) paintAt(event.clientX, event.clientY, false);
@@ -898,6 +986,8 @@ async function buildSession(
     reportCursor(null, null);
     hoverCol = Number.NaN;
     hoverRow = Number.NaN;
+    hoverOffsetX = 0;
+    hoverOffsetY = 0;
     drawHover();
   };
 
@@ -1069,6 +1159,10 @@ async function buildSession(
     setActiveMode(mode) {
       history = setActiveMode(history, mode);
       applyModeDim(tileLayers, elementContainers, eventLayer, mode, dim);
+      // The quarter-cell sub-grid and the hover snap belong to Element mode only, so both are rebuilt
+      // when the active mode changes.
+      drawGrid();
+      drawHover();
     },
     setDim(next) {
       dim = next;
@@ -1128,6 +1222,10 @@ async function buildSession(
       if (selected?.kind !== "element") return false;
       ensureAsset(assetId);
       return commitInspectorChange(updateSelectedElementAsset(map, selected, assetId));
+    },
+    setSelectedElementOffset(offsetX, offsetY) {
+      if (selected?.kind !== "element") return false;
+      return commitInspectorChange(updateSelectedElementOffset(map, selected, offsetX, offsetY));
     },
     deleteSelected() {
       if (!selected || selected.kind === "spawn") return false;
