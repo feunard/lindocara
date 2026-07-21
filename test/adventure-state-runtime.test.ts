@@ -12,7 +12,8 @@
  */
 import { env, runDurableObjectAlarm } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
-import type { PartyAdventureState } from "../src/shared/adventure-state.js";
+import type { AdventureRegistry, PartyAdventureState } from "../src/shared/adventure-state.js";
+import { ATTACK_COOLDOWN_MS } from "../src/shared/game.js";
 import type { MapEvent, MapEventPage } from "../src/shared/map-events.js";
 import {
   Client,
@@ -22,6 +23,7 @@ import {
   testHero,
   testMapInput,
   testParty,
+  tileCentre,
   until,
 } from "./support/world-harness.js";
 
@@ -146,6 +148,15 @@ async function readPersistedState(partyId: string): Promise<PartyAdventureState 
   };
 }
 
+async function seedAdventureRegistry(
+  adventureId: string,
+  registry: AdventureRegistry,
+): Promise<void> {
+  await env.DB.prepare("UPDATE adventure SET registry = ? WHERE id = ?")
+    .bind(JSON.stringify(registry), adventureId)
+    .run();
+}
+
 afterEach(async () => {
   await drainHeroRooms();
   await env.DB.exec("DELETE FROM party_adventure_state");
@@ -161,6 +172,108 @@ afterEach(async () => {
 }, 20_000);
 
 describe("adventure state runtime", { timeout: 20_000 }, () => {
+  it("runs a monster defeat hook and pushes the authored quest tracker to the hero", async () => {
+    const monsterEventId = crypto.randomUUID();
+    const monster: MapEvent = {
+      id: monsterEventId,
+      col: 10,
+      row: 8,
+      name: "Quest wolf",
+      ordinal: 3,
+      kind: "monster",
+      species: "torch_goblin",
+      patrolRadius: 32,
+      pages: [
+        page({
+          commands: [{ t: "advanceQuest", questId: "0001", objectiveId: "0001", amount: 1 }],
+        }),
+      ],
+    };
+    const party = await testParty("monster-quest", {
+      maps: [
+        testMapInput("Quest hunt", {
+          cols: 24,
+          rows: 15,
+          spawn: { col: 2, row: 2 },
+          exit: { col: 22, row: 13 },
+          events: [monster],
+        }),
+      ],
+    });
+    await seedAdventureRegistry(party.adventureId, {
+      switches: [],
+      variables: [],
+      quests: [
+        {
+          id: "0001",
+          title: "Clear the old road",
+          description: "Defeat the prowling beast.",
+          objectives: [{ id: "0001", label: "Defeat the beast", target: 1 }],
+        },
+      ],
+    });
+
+    const hero = await testHero("Hunter", {
+      party,
+      account: party.host,
+      class: "warrior",
+      level: 10,
+      position: tileCentre(10, 8),
+    });
+    const client = await Client.joinHero(hero);
+    await until("quest hunter welcomed", () => client.welcome);
+
+    const coordinator = env.GAME_SESSION.getByName(party.partyId);
+    await coordinator.applyStateChanges(party.partyId, [{ type: "startQuest", questId: "0001" }]);
+    await until("authored quest started", () =>
+      client.received.find(
+        (message) => message.t === "state" && message.self.authoredQuests?.[0]?.status === "active",
+      ),
+    );
+
+    let lastAttackAt = 0;
+    await until("quest monster defeated", () => {
+      if (Date.now() - lastAttackAt >= ATTACK_COOLDOWN_MS) {
+        lastAttackAt = Date.now();
+        client.action("attack");
+      }
+      return client.received.find(
+        (message) => message.t === "event" && message.code === "monster.defeated",
+      );
+    });
+
+    const progressed = await until("monster objective advanced", () =>
+      client.received.find(
+        (message) =>
+          message.t === "state" && message.self.authoredQuests?.[0]?.objectives[0]?.progress === 1,
+      ),
+    );
+    expect(progressed).toMatchObject({
+      t: "state",
+      self: {
+        authoredQuests: [
+          {
+            id: "0001",
+            title: "Clear the old road",
+            status: "ready",
+            objectives: [{ id: "0001", progress: 1, target: 1 }],
+          },
+        ],
+      },
+    });
+
+    // A shaped but unregistered id cannot inflate or corrupt the party's durable quest state.
+    await coordinator.applyStateChanges(party.partyId, [{ type: "startQuest", questId: "9999" }]);
+    const held = await coordinator.getAdventureState(party.partyId);
+    expect(held.state.quests?.["9999"]).toBeUndefined();
+
+    client.close();
+    await drainHeroRooms();
+    // Wait for the coordinator's normal party-empty persistence boundary before fixture teardown;
+    // otherwise its debounced alarm can race the next test's D1 cleanup.
+    await coordinator.roomEmptied(party.partyId, hero.roomKey);
+  });
+
   it("loads the party snapshot once and pushes the same state to both map rooms", async () => {
     const fixture = await seedFixture("snapshot");
     const persisted: PartyAdventureState = {

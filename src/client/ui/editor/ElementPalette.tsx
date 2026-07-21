@@ -15,9 +15,8 @@ interface ElementPaletteProps {
  * `{elementCount}/{MAX_MAP_ELEMENTS}` budget counter. Stock shadcn + inline sprite previews only —
  * no Tiny Swords component ever reaches the creator tree.
  *
- * Split out of `TerrainPalette`'s old "Décor" section (Task 11), moved verbatim into its own
- * mode-scoped body dispatched by `EditorPalette`. The quarter-cell placement + offset inspector is a
- * later task and does not live here yet.
+ * Split out of `TerrainPalette`'s old scenery section into its own mode-scoped body. Placement uses
+ * quarter-cell offsets and the selection inspector can adjust the exact slot.
  */
 export function ElementPalette({
   selectedAsset,

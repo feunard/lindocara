@@ -117,9 +117,8 @@ export interface MapEventPage {
   optThrough: boolean;
   optOnTop: boolean;
   trigger: EventTrigger;
-  /** Tranche 5: the page's authored command program. Empty until authored, and always empty on a
-   *  non-`normal` (entry/exit/monster) event — `parseMapEvents` refuses a non-empty program there,
-   *  the same way it refuses those anchors extra pages. */
+  /** The authored command program. Normal events run it on their trigger; monster events run their
+   * single page on defeat. Entry/exit anchors must keep it empty. */
   commands: readonly EventCommand[];
 }
 
@@ -277,8 +276,8 @@ function parseEventPage(raw: unknown): MapEventPage | null {
   if (!isEventTrigger(trigger)) return null;
   // A page missing its `commands` (an old client that predates tranche 5) means the empty program;
   // anything present is parsed in full, and a malformed program fails the whole page — the parser
-  // stays total. The per-kind rule (only `normal` events may carry commands) is enforced by
-  // `parseMapEvents`, which owns the kind; this page-level parse is kind-agnostic.
+  // stays total. Per-kind command rules are enforced by `parseMapEvents`, which owns the kind; this
+  // page-level parse is deliberately kind-agnostic.
   const parsedCommands = commands === undefined ? [] : parseEventCommands(commands);
   if (!parsedCommands) return null;
 
@@ -370,14 +369,16 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
 
     const parsedPages = parseEventPages(pages);
     if (!parsedPages) return null;
-    // Entry/exit/monster are anchors, not scripts: exactly one page, conditions-disabled. The
-    // single page is a default page the editor never surfaces; refusing extra pages here keeps the
-    // "hidden in the UI" promise from being bypassed over the wire.
+    // Functional events have exactly one conditions-disabled page. A monster may use that page's
+    // program as an on-defeat hook; entry/exit remain pure anchors.
     if (kind !== "normal" && parsedPages.length !== 1) return null;
-    // Commands are scripted behaviour; entry/exit/monster events are anchors, not scripts. A
-    // non-normal event carrying a non-empty program is refused outright, the same way its extra
-    // pages are — nothing over the wire may smuggle behaviour onto an anchor.
-    if (kind !== "normal" && parsedPages.some((page) => page.commands.length > 0)) return null;
+    // Nothing over the wire may smuggle scripted behaviour onto an entry/exit anchor.
+    if (
+      (kind === "entry" || kind === "exit") &&
+      parsedPages.some((page) => page.commands.length > 0)
+    ) {
+      return null;
+    }
 
     seenCells.add(cellKey);
     seenIds.add(id);

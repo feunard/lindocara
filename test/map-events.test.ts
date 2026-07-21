@@ -245,6 +245,20 @@ describe("parseMapEvents: commands thread through pages", () => {
     const entry = event({ kind: "entry", pages: [page({ commands: [] })] });
     expect(parseMapEvents([entry], COLS, ROWS)).not.toBeNull();
   });
+
+  it("accepts a monster on-defeat program", () => {
+    const monster = event({
+      kind: "monster",
+      species: "spear_goblin",
+      patrolRadius: 96,
+      pages: [
+        page({
+          commands: [{ t: "advanceQuest", questId: "0001", objectiveId: "0001", amount: 1 }],
+        }),
+      ],
+    });
+    expect(parseMapEvents([monster], COLS, ROWS)).toEqual([monster]);
+  });
 });
 
 describe("mutation proofs", () => {

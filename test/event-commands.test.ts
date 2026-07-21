@@ -44,6 +44,9 @@ const ONE_OF_EACH: EventCommand[] = [
   { t: "teleport", mapId: UUID, col: 0, row: 12 },
   { t: "changeGold", amount: -50 },
   { t: "changeItems", itemId: "health_potion", count: 3 },
+  { t: "startQuest", questId: "0001" },
+  { t: "advanceQuest", questId: "0001", objectiveId: "0002", amount: 1 },
+  { t: "completeQuest", questId: "0001" },
   { t: "comment", text: "author note" },
 ];
 

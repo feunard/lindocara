@@ -163,11 +163,9 @@ function CheckRow({
 }
 
 /**
- * A monster event's kind-specific fields: a curated species picker and a bounded patrol-radius input.
- * The species list is the curated allowlist (UX wave #13), but an event already carrying a
- * non-curated species keeps it as an option so opening the dialog never silently rewrites it. Edits
- * fold straight into the draft through `setEventDraftMonster`; a `monster` draft always carries a
- * non-null species/radius, so the `??` fallbacks only guard the impossible.
+ * A monster event's kind-specific fields: every runtime-supported species and a bounded patrol
+ * radius. Edits fold straight into the draft through `setEventDraftMonster`; a `monster` draft
+ * always carries a non-null species/radius, so the `??` fallbacks only guard the impossible.
  */
 function MonsterEventFields({
   draft,
@@ -240,7 +238,8 @@ interface EventDialogProps {
  * simply drops the draft. Nothing here executes; conditions, movement, options and trigger are
  * authored data for a later tranche.
  *
- * The command column is the tranche-5 placeholder: a disabled pane, no list built yet.
+ * Normal pages and monster defeat hooks share the live command editor and authoritative runtime
+ * interpreter.
  */
 export function EventDialog({
   event,
@@ -322,13 +321,28 @@ export function EventDialog({
           </div>
         </DialogHeader>
 
-        {/* Monster events carry species + patrol radius, nothing scripted — a dense kind-specific
-            block that replaces the whole pages/conditions machinery below. */}
+        {/* Monster events carry species, patrol radius and one focused on-defeat program — a dense
+            kind-specific block that replaces the normal event's page/condition machinery. */}
         {draft.kind === "monster" && (
-          <MonsterEventFields
-            draft={draft}
-            onChange={(species, radius) => setDraft(setEventDraftMonster(draft, species, radius))}
-          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <MonsterEventFields
+              draft={draft}
+              onChange={(species, radius) => setDraft(setEventDraftMonster(draft, species, radius))}
+            />
+            <div className="rounded-lg border border-zinc-200 p-3">
+              <p className="mb-2 text-xs text-muted-foreground">
+                {t("editor.event.monster.defeatHint")}
+              </p>
+              <EventCommandEditor
+                commands={page.commands}
+                switches={registry.switches}
+                variables={registry.variables}
+                quests={registry.quests ?? []}
+                maps={maps}
+                onChange={(commands) => update({ commands })}
+              />
+            </div>
+          </div>
         )}
 
         {/* Entry/exit events are pure anchors: their only field is the label (the header Name input),
@@ -339,9 +353,8 @@ export function EventDialog({
           </p>
         )}
 
-        {/* The full scripted editor — pages, conditions, movement, options, commands — shows only for
-            `normal` events. Functional kinds (entry/exit/monster) hide it: the wire parser refuses a
-            functional event that carries extra pages, so it must never be authorable here. */}
+        {/* The full paged editor belongs to normal events. Entry/exit remain pure anchors; monsters
+            expose only their focused on-defeat program below. */}
         {draft.kind === "normal" && (
           <>
             {/* Page tabs: 1..n, add (≤ MAX_PAGES_PER_EVENT), delete (disabled at one page). */}
@@ -497,6 +510,7 @@ export function EventDialog({
                     {t("editor.event.appearance")}
                   </h3>
                   <CatalogueAssetPicker
+                    usage="event"
                     value={page.graphicAssetId}
                     onSelectAsset={(assetId) => update({ graphicAssetId: assetId })}
                     onSelectNone={() => update({ graphicAssetId: null })}
@@ -604,6 +618,7 @@ export function EventDialog({
                 commands={page.commands}
                 switches={registry.switches}
                 variables={registry.variables}
+                quests={registry.quests ?? []}
                 maps={maps}
                 onChange={(commands) => update({ commands })}
               />

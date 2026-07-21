@@ -74,6 +74,7 @@ export function Hud() {
 
   const { potions, gold, crystals } = selfState.inventory;
   const { quest } = selfState;
+  const authoredQuests = selfState.authoredQuests ?? [];
   const questChapter = quest.chapter ?? "three_offerings";
   const showQuestBar = quest.status === "active" || quest.status === "ready";
   const remainingSeconds =
@@ -184,7 +185,6 @@ export function Hud() {
           </div>
           <span>{questText(quest)}</span>
           {showQuestBar && (
-            // "ready" shows a full bar, same as legacy renderState (value = target, not progress).
             <Bar
               value={quest.status === "ready" ? quest.target : quest.progress}
               max={quest.target}
@@ -197,6 +197,26 @@ export function Hud() {
             </strong>
           )}
         </section>
+
+        {authoredQuests.map((authored) => (
+          <section key={authored.id} className="panel quest">
+            <div className="panel-title">
+              <span className="panel-icon panel-icon--oath" aria-hidden="true" />
+              <strong>{authored.title}</strong>
+            </div>
+            {authored.description && <span>{authored.description}</span>}
+            {authored.objectives.map((objective) => (
+              <div key={objective.id} className="flex flex-col gap-1">
+                <span>
+                  {objective.label} ({objective.progress}/{objective.target})
+                </span>
+                <Bar value={objective.progress} max={objective.target} variant="quest" />
+              </div>
+            ))}
+            {authored.status === "ready" && <strong>{t("quest.ready")}</strong>}
+            {authored.status === "completed" && <strong>{t("quest.completed")}</strong>}
+          </section>
+        ))}
 
         <CooldownBar />
         {self.class === "priest" && <HealCooldownBar />}

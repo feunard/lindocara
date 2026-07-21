@@ -5,8 +5,11 @@
 import { DurableObject } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import {
+  type AdventureRegistry,
   activePageIndex,
+  authoredQuestTrackers,
   EMPTY_ADVENTURE_STATE,
+  EMPTY_REGISTRY,
   type PartyAdventureState,
 } from "../shared/adventure-state.js";
 import { parseCheatCommand } from "../shared/cheats.js";
@@ -292,6 +295,7 @@ export class World extends DurableObject<Env> {
    * push — still evaluates cleanly (everything reads its neutral default).
    */
   #adventureState: PartyAdventureState = EMPTY_ADVENTURE_STATE;
+  #adventureRegistry: AdventureRegistry = EMPTY_REGISTRY;
   /**
    * The monotone version of `#adventureState` (spec Decision 1). Rooms may receive coordinator
    * pushes out of order, so `installAdventureState` keeps a snapshot only when its version is `>=`
@@ -375,6 +379,7 @@ export class World extends DurableObject<Env> {
           const held = await this.env.GAME_SESSION.getByName(partyId).getAdventureState(partyId);
           this.#adventureState = held.state;
           this.#adventureStateVersion = held.version;
+          this.#adventureRegistry = held.registry;
           this.#evaluateActiveEvents();
         } catch (error) {
           console.error(
@@ -807,6 +812,7 @@ export class World extends DurableObject<Env> {
     partyId: string,
     state: PartyAdventureState,
     version: number,
+    registry: AdventureRegistry = EMPTY_REGISTRY,
   ): Promise<void> {
     if (this.#heroPartyId !== null && this.#heroPartyId !== partyId) return;
     // The `>=` guard (kept as `version < current -> drop`): rooms may receive pushes out of order,
@@ -815,11 +821,17 @@ export class World extends DurableObject<Env> {
     if (version < this.#adventureStateVersion) return;
     this.#adventureStateVersion = version;
     this.#adventureState = state;
+    this.#adventureRegistry = registry;
     // Abort BEFORE re-evaluation: a flip that changes an event's active page must kill that event's
     // run so no zombie context keeps executing the page it was reading (XP's behaviour). Ordering
     // the abort ahead of `#evaluateActiveEvents` is what the zombie test pins.
     this.#abortRunsForStalePages();
     this.#evaluateActiveEvents();
+    for (const [socket, player] of this.#players) {
+      if (player.identityKind === "hero" && player.partyId === partyId && player.authorized) {
+        this.#sendState(socket, player);
+      }
+    }
   }
 
   /** Kill any run whose event's active page no longer matches the page the run started on (the state
@@ -957,6 +969,7 @@ export class World extends DurableObject<Env> {
    */
   #recoverEventsAfterFailedStateRestore(): void {
     this.#adventureState = EMPTY_ADVENTURE_STATE;
+    this.#adventureRegistry = EMPTY_REGISTRY;
     this.#evaluateActiveEvents();
   }
 
@@ -1972,7 +1985,27 @@ export class World extends DurableObject<Env> {
       this.#sendState(socket, recipient);
       recipient.dirty = true;
     }
+    this.#triggerMonsterDefeatEvent(player, monster);
     clearMonsterCombat(monster);
+  }
+
+  /** A monster event's program is its on-defeat hook. Runtime ids are `mon-${event.id}`, so the
+   * stable event uuid is already the binding between the authored monster and its quest logic. */
+  #triggerMonsterDefeatEvent(player: Player, monster: Monster): void {
+    if (player.identityKind !== "hero" || !monster.id.startsWith("mon-")) return;
+    const eventId = monster.id.slice(4);
+    const event = this.#location?.definition.events?.find(
+      (candidate) => candidate.kind === "monster" && candidate.id === eventId,
+    );
+    const program = event?.pages[0]?.commands;
+    if (!event || !program || program.length === 0) return;
+    startRun(this.#eventRuns, {
+      event,
+      pageIndex: 0,
+      program,
+      heroId: player.id,
+      runId: crypto.randomUUID(),
+    });
   }
 
   #creditUndeadQuest(ws: WebSocket, player: Player, monster: Monster): void {
@@ -3820,13 +3853,21 @@ export class World extends DurableObject<Env> {
 
   #selfState(player: Player): SelfState {
     const chapter = player.quest.chapter ?? "three_offerings";
-    return selfState(player, this.#questDefinition(chapter)?.target);
+    return selfState(
+      player,
+      this.#questDefinition(chapter)?.target,
+      authoredQuestTrackers(this.#adventureRegistry, this.#adventureState),
+    );
   }
 
   #sendState(ws: WebSocket, player: Player): void {
     const chapter = player.quest.chapter ?? "three_offerings";
-    sendState(ws, player, this.#questDefinition(chapter)?.target, (socket, message) =>
-      this.#send(socket, message),
+    sendState(
+      ws,
+      player,
+      this.#questDefinition(chapter)?.target,
+      (socket, message) => this.#send(socket, message),
+      authoredQuestTrackers(this.#adventureRegistry, this.#adventureState),
     );
   }
 

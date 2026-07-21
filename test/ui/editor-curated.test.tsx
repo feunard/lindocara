@@ -35,7 +35,7 @@ describe("editor asset catalogue", () => {
     expect(editorAsset("decoration.terrain-decorations-bushes.bushe2")).not.toBeNull();
   });
 
-  it("the monster event kind offers only the one curated species", () => {
+  it("the monster event kind offers every supported runtime species", () => {
     setLocale("en");
     render(
       <EventPalette
@@ -51,7 +51,7 @@ describe("editor asset catalogue", () => {
     );
     const species = screen.getByLabelText("Species") as HTMLSelectElement;
     expect(species.options).toHaveLength(CURATED_MONSTER_SPECIES.length);
-    expect(species.options).toHaveLength(1);
+    expect(species.options.length).toBeGreaterThan(1);
     expect(species.options[0]?.value).toBe("spear_goblin");
   });
 });

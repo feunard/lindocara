@@ -183,18 +183,8 @@ export function editorAsset(value: string): EditorAssetDefinition | null {
   return EDITOR_ASSET_BY_ID.get(value) ?? null;
 }
 
-/**
- * UX wave #13: the rigorously-tested subset of the catalogue an author may PLACE from the editor
- * palette — exactly one bush, one tree, and the two functional wood bridges (load-bearing water
- * crossings, the only assets carrying `terrainOverride: "walkable"`). The tree and bush chosen are the
- * ones the test/fixture harnesses already exercise most. Every other catalogue asset is hidden from
- * the palette until it, too, is tested rigorously.
- *
- * This gates AUTHORING only, never RENDERING: `editorAsset` / `EDITOR_ASSET_BY_ID` still resolve every
- * definition, so a stored map that already references a non-curated asset (older content, fixtures)
- * keeps drawing exactly as before. Narrowing what the palette OFFERS must never narrow what the
- * renderer can SHOW.
- */
+/** Historical focused-test subset retained for fixture compatibility. It no longer gates the
+ * authoring palettes; those use `PLACEABLE_EDITOR_ASSETS` and `EVENT_GRAPHIC_ASSETS` below. */
 export const CURATED_EDITOR_ASSET_IDS = [
   "resource.terrain-resources-wood-trees.tree3",
   "decoration.terrain-decorations-bushes.bushe1",
@@ -204,12 +194,39 @@ export const CURATED_EDITOR_ASSET_IDS = [
 
 const CURATED_EDITOR_ASSET_ID_SET: ReadonlySet<string> = new Set(CURATED_EDITOR_ASSET_IDS);
 
-/** The curated allowlist as full definitions, in catalogue order — the palette decor grid's source. */
+/** Historical focused-test definitions in catalogue order. */
 export const CURATED_EDITOR_ASSETS: readonly EditorAssetDefinition[] = EDITOR_ASSETS.filter(
   (asset) => CURATED_EDITOR_ASSET_ID_SET.has(asset.id),
 );
 
-/** Whether an asset id is on the curated authoring allowlist (rendering is never gated by this). */
+function effectiveAssetSize(asset: EditorAssetDefinition): { width: number; height: number } {
+  const crop = asset.editor.sourceRect;
+  return {
+    width: crop?.width ?? asset.frame?.width ?? asset.width,
+    height: crop?.height ?? asset.frame?.height ?? asset.height,
+  };
+}
+
+/** Palette-safe scenery. Technical source sheets stay resolvable for old maps but are not offered
+ * as placeable objects; an author sees only individually cropped props with bounded footprints. */
+export const PLACEABLE_EDITOR_ASSETS: readonly EditorAssetDefinition[] = EDITOR_ASSETS.filter(
+  (asset) => {
+    if (asset.domain === "character" || asset.domain === "enemy") return false;
+    if (asset.role === "terrain-source") return false;
+    const { width, height } = effectiveAssetSize(asset);
+    return width <= 384 && height <= 384 && asset.editor.visualFootprint.length <= 36;
+  },
+);
+
+/** Event appearances include palette-safe scenery plus cropped idle NPC/creature sprites. */
+export const EVENT_GRAPHIC_ASSETS: readonly EditorAssetDefinition[] = EDITOR_ASSETS.filter(
+  (asset) =>
+    PLACEABLE_EDITOR_ASSETS.includes(asset) ||
+    asset.domain === "character" ||
+    asset.domain === "enemy",
+);
+
+/** Whether an asset id belongs to the historical focused-test subset. */
 export function isCuratedEditorAssetId(value: unknown): value is EditorAssetId {
   return typeof value === "string" && CURATED_EDITOR_ASSET_ID_SET.has(value);
 }

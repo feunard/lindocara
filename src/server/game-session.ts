@@ -1,5 +1,11 @@
 import { DurableObject } from "cloudflare:workers";
-import { EMPTY_ADVENTURE_STATE, type PartyAdventureState } from "../shared/adventure-state.js";
+import {
+  type AdventureRegistry,
+  EMPTY_ADVENTURE_STATE,
+  EMPTY_REGISTRY,
+  normalizeAuthoredQuestProgress,
+  type PartyAdventureState,
+} from "../shared/adventure-state.js";
 import { applyStateMutation, type StateMutation } from "../shared/event-interpreter.js";
 import type { ServerMessage } from "../shared/protocol.js";
 import {
@@ -7,7 +13,9 @@ import {
   loadPartyAdventureState,
   savePartyAdventureState,
 } from "./adventure-state-store.js";
+import { loadAdventure } from "./adventures.js";
 import { createDb } from "./db/index.js";
+import { loadPartyForRuntime } from "./parties.js";
 
 /**
  * How long a state change waits before its debounced D1 write, matching the hero profile flush
@@ -20,6 +28,25 @@ const ADVENTURE_STATE_SAVE_DEBOUNCE_MS = 5_000;
 interface VersionedState {
   state: PartyAdventureState;
   version: number;
+  registry: AdventureRegistry;
+}
+
+/** Quest commands are authored map data, so their ids are shape-checked at the map boundary and
+ * membership-checked here, where the party's authoritative adventure registry is available. */
+function mutationBelongsToRegistry(registry: AdventureRegistry, mutation: StateMutation): boolean {
+  if (
+    mutation.type !== "startQuest" &&
+    mutation.type !== "advanceQuest" &&
+    mutation.type !== "completeQuest"
+  ) {
+    return true;
+  }
+  const quest = (registry.quests ?? []).find((candidate) => candidate.id === mutation.questId);
+  if (!quest) return false;
+  return (
+    mutation.type !== "advanceQuest" ||
+    quest.objectives.some((objective) => objective.id === mutation.objectiveId)
+  );
 }
 
 /**
@@ -79,7 +106,7 @@ export class GameSession extends DurableObject<Env> {
   async getAdventureState(partyId: string): Promise<VersionedState> {
     const storedPartyId = await this.ctx.storage.get<string>("partyId");
     if (storedPartyId !== undefined && storedPartyId !== partyId) {
-      return { state: EMPTY_ADVENTURE_STATE, version: 0 };
+      return { state: EMPTY_ADVENTURE_STATE, version: 0, registry: EMPTY_REGISTRY };
     }
     return this.#ensureState(partyId);
   }
@@ -95,7 +122,17 @@ export class GameSession extends DurableObject<Env> {
       const version = (await this.ctx.storage.get<number>("stateVersion")) ?? 0;
       this.#dirty = (await this.ctx.storage.get<boolean>("stateDirty")) ?? false;
       const state = liveState ?? (await loadPartyAdventureState(createDb(this.env.DB), partyId));
-      this.#state = { state, version };
+      const db = createDb(this.env.DB);
+      const party = await loadPartyForRuntime(db, partyId);
+      const authored = party
+        ? await loadAdventure(db, party.hostAccountId, party.adventureId)
+        : null;
+      const registry = authored?.registry ?? EMPTY_REGISTRY;
+      this.#state = {
+        state: normalizeAuthoredQuestProgress(registry, state),
+        version,
+        registry,
+      };
     }
     return this.#state;
   }
@@ -119,6 +156,7 @@ export class GameSession extends DurableObject<Env> {
       partyId,
       held.state,
       held.version,
+      held.registry,
     );
     return this.env.WORLD.getByName(roomKey).fetch(request);
   }
@@ -167,10 +205,15 @@ export class GameSession extends DurableObject<Env> {
    */
   async applyStateChanges(partyId: string, mutations: readonly StateMutation[]): Promise<void> {
     if (mutations.length === 0) return;
+    const current = await this.#ensureState(partyId);
+    const accepted = mutations.filter((mutation) =>
+      mutationBelongsToRegistry(current.registry, mutation),
+    );
+    if (accepted.length === 0) return;
     await this.#applyStateChange(partyId, (state) => {
       let next = state;
-      for (const mutation of mutations) next = applyStateMutation(next, mutation);
-      return next;
+      for (const mutation of accepted) next = applyStateMutation(next, mutation);
+      return normalizeAuthoredQuestProgress(current.registry, next);
     });
   }
 
@@ -199,7 +242,11 @@ export class GameSession extends DurableObject<Env> {
     const storedPartyId = await this.ctx.storage.get<string>("partyId");
     if (storedPartyId !== partyId) return;
     const current = await this.#ensureState(partyId);
-    const next: VersionedState = { state: mutate(current.state), version: current.version + 1 };
+    const next: VersionedState = {
+      state: mutate(current.state),
+      version: current.version + 1,
+      registry: current.registry,
+    };
     this.#state = next;
     this.#dirty = true;
     // Persist the dirty state durably BEFORE scheduling the alarm: an eviction that clears this
@@ -217,7 +264,12 @@ export class GameSession extends DurableObject<Env> {
     const rooms = (await this.ctx.storage.get<string[]>("rooms")) ?? [];
     await Promise.all(
       rooms.map((roomKey) =>
-        this.env.WORLD.getByName(roomKey).installAdventureState(partyId, held.state, held.version),
+        this.env.WORLD.getByName(roomKey).installAdventureState(
+          partyId,
+          held.state,
+          held.version,
+          held.registry,
+        ),
       ),
     );
   }

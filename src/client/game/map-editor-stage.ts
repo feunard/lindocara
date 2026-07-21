@@ -47,8 +47,10 @@ import {
   beginEventDraft,
   commitEditorHistory,
   commitEventDraft,
+  convertElementToEvent,
   createEditorHistory,
   deleteSelection,
+  type ElementEventBinding,
   editorMapSize,
   isEditorHistoryDirty,
   markEditorHistorySaved,
@@ -119,6 +121,8 @@ export interface MapEditorStageHandle {
   commitEventDraft(draft: MapEvent): void;
   /** Delete an event by id as its own history entry (the dialog's delete-event). */
   deleteEvent(id: string): void;
+  /** Turn the selected scenery into a normal event, preserving its real graphic. */
+  bindSelectedElement(binding: ElementEventBinding): string | null;
   dispose(): void;
 }
 
@@ -175,20 +179,14 @@ export function eventChipLabel(ordinal: number): string {
   return `EV${String(ordinal).padStart(3, "0")}`;
 }
 
-/** The event overlay is a mode, not always-on: events show only while the event tool is the active
- *  tool (the wireframe's EV layer), and are hidden under every other tool. Pure so the visibility
- *  gate can be pinned without the rest of the stage, exactly like `applyLayerDim`. */
-export function shouldShowEventOverlay(tool: EditorTool): boolean {
-  return tool.kind === "event";
+/** RPG objects stay visible in every editing mode, so changing terrain layers never makes authored
+ * events appear to vanish. Kept pure because stage tests pin this visibility contract. */
+export function shouldShowEventOverlay(_tool: EditorTool): boolean {
+  return true;
 }
 
-/**
- * Whether switching from `prev` to `next` flips the EV overlay's visibility — the ONE thing `setTool`
- * must `redraw()` for. The overlay is the only stage content that reacts to the active tool; every
- * other tool swap (pencil↔rect↔fill↔eraser↔select) changes nothing drawn, so gating the redraw on
- * this predicate is what stops each P/R/F/E/S keypress from rebuilding the whole map for nothing.
- * Pure so the gate can be pinned without the stage, exactly like `shouldShowEventOverlay`.
- */
+/** Compatibility predicate for the stage visibility contract. Events are now always visible, so a
+ * tool switch never flips the overlay and never needs a full-map redraw. */
 export function eventOverlayToggled(prev: EditorTool, next: EditorTool): boolean {
   return shouldShowEventOverlay(prev) !== shouldShowEventOverlay(next);
 }
@@ -529,6 +527,7 @@ function inertHandle(map: EditorMap): MapEditorStageHandle {
     beginEventDraft: () => null,
     commitEventDraft() {},
     deleteEvent() {},
+    bindSelectedElement: () => null,
     dispose() {},
   };
 }
@@ -557,12 +556,12 @@ export function openMapEditorStage(
   initial: EditorMap,
   onChange: (map: EditorMap, state: MapEditorStageState) => void,
   onCursorCell?: (col: number | null, row: number | null) => void,
-  onOpenEvent?: (id: string) => void,
+  onOpenSelection?: (selection: EditorSelection) => void,
   onZoomChange?: (percent: number) => void,
 ): Promise<MapEditorStageHandle> {
   const generation = ++openGeneration;
   return enqueue(() =>
-    buildSession(initial, onChange, generation, onCursorCell, onOpenEvent, onZoomChange),
+    buildSession(initial, onChange, generation, onCursorCell, onOpenSelection, onZoomChange),
   );
 }
 
@@ -571,7 +570,7 @@ async function buildSession(
   onChange: (map: EditorMap, state: MapEditorStageState) => void,
   generation: number,
   onCursorCell?: (col: number | null, row: number | null) => void,
-  onOpenEvent?: (id: string) => void,
+  onOpenSelection?: (selection: EditorSelection) => void,
   onZoomChange?: (percent: number) => void,
 ): Promise<MapEditorStageHandle> {
   // A newer open already superseded this one before the chain reached it: build nothing, bind no
@@ -645,8 +644,8 @@ async function buildSession(
   const gridLayer = new Container();
   let gridVisible = true;
   const markerLayer = new Container();
-  // Events are the topmost plane, above markers and props, and only shown in "EV mode" (the event
-  // tool). Its visibility is driven by `shouldShowEventOverlay(tool)`, never by content.
+  // Events are the topmost plane, above markers and props, and stay visible in every mode so authors
+  // keep the RPG context while painting terrain or arranging scenery.
   const eventLayer = new Container();
   eventLayer.visible = shouldShowEventOverlay(tool);
   // The hover preview overlay (UX wave #9) sits above everything, so its outline and opaque-red
@@ -785,8 +784,8 @@ async function buildSession(
     drawEvents();
   }
 
-  /** Every authored event on the EV overlay: its page-1 graphic or the blank placeholder, its chip,
-   *  and a selection outline on the selected one. Hidden unless the event tool is active. */
+  /** Every authored event on the event overlay: its page-1 graphic or the blank placeholder, its
+   * chip, and a selection outline on the selected one. */
   function drawEvents(): void {
     eventLayer.visible = shouldShowEventOverlay(tool);
     for (const event of map.events) {
@@ -938,11 +937,6 @@ async function buildSession(
     };
   }
 
-  function cellAt(clientX: number, clientY: number): { col: number; row: number } {
-    const point = worldAt(clientX, clientY);
-    return { col: Math.floor(point.x / TILE_SIZE), row: Math.floor(point.y / TILE_SIZE) };
-  }
-
   /** The placement the pointer resolves to under the active mode: whole-cell for Field/Event (offsets
    *  stay 0, those modes are grid-forced), quarter-cell for Element mode. */
   function placementAt(
@@ -965,10 +959,28 @@ async function buildSession(
     if (paintKey === lastPaintedKey) return;
     lastPaintedKey = paintKey;
     if (tool.kind === "select") {
-      // No redraw: no non-event selection renders anything on the stage (the marker/element/spawn
-      // inspector is React), and the EV overlay is hidden under the select tool — so a select-click
-      // rebuilds nothing. Only the React-facing `notify()` needs to fire.
+      // Events remain visible in Select, so redraw their selection outline as well as notifying the
+      // React inspector.
       selected = selectionAt(map, col, row);
+      redraw();
+      notify();
+      return;
+    }
+    // Re-clicking an occupied quarter-slot selects it instead of needlessly replacing it. Empty
+    // slots in the same cell remain placeable, preserving main's stacked-decoration contract.
+    const existingElement =
+      isStrokeStart && tool.kind === "element"
+        ? map.elements.find(
+            (candidate) =>
+              candidate.col === col &&
+              candidate.row === row &&
+              candidate.offsetX === offsetX &&
+              candidate.offsetY === offsetY,
+          )
+        : undefined;
+    if (existingElement) {
+      selected = { kind: "element", col, row, offsetX, offsetY };
+      redraw();
       notify();
       return;
     }
@@ -1107,13 +1119,32 @@ async function buildSession(
     onZoomChange?.(Math.round(scale * 100));
   };
 
-  // Double-click in EV mode opens the event under the cursor, if any — the wireframe's route into the
-  // event dialog. Threaded to React through `onOpenEvent`; the stage itself owns no dialog.
+  // Double-click opens an existing event or the friendly scenery-to-RPG binding dialog. Threaded to
+  // React through `onOpenSelection`; the stage itself owns no dialog.
   const onDoubleClick = (event: MouseEvent): void => {
-    if (tool.kind !== "event" || !onOpenEvent) return;
-    const { col, row } = cellAt(event.clientX, event.clientY);
-    const target = map.events.find((candidate) => candidate.col === col && candidate.row === row);
-    if (target) onOpenEvent(target.id);
+    if (!onOpenSelection) return;
+    const { col, row, offsetX, offsetY } = placementAt(event.clientX, event.clientY);
+    const cellTarget = selectionAt(map, col, row);
+    // An event remains topmost. In Element mode, otherwise prefer the exact quarter-slot under the
+    // pointer so two stacked props in one cell can each be promoted independently.
+    const exactElement =
+      history.activeMode === "element" && cellTarget?.kind !== "event"
+        ? map.elements.find(
+            (candidate) =>
+              candidate.col === col &&
+              candidate.row === row &&
+              candidate.offsetX === offsetX &&
+              candidate.offsetY === offsetY,
+          )
+        : undefined;
+    const target: EditorSelection | null = exactElement
+      ? { kind: "element", col, row, offsetX, offsetY }
+      : cellTarget;
+    if (!target) return;
+    selected = target;
+    redraw();
+    notify();
+    onOpenSelection(target);
   };
 
   const onContextMenu = (event: Event): void => event.preventDefault();
@@ -1201,17 +1232,13 @@ async function buildSession(
 
   return {
     setTool(next) {
-      const overlayFlipped = eventOverlayToggled(tool, next);
       tool = next;
       if (next.kind === "element") ensureAsset(next.assetId);
       // A pending event graphic is what a freshly placed event will draw with, so its art must be
       // loaded before the first placement, not only after the overlay's next spontaneous redraw.
       if (next.kind === "event" && next.graphic != null) ensureAsset(next.graphic);
       eventLayer.visible = shouldShowEventOverlay(next);
-      // Only entering or leaving EV mode changes anything drawn, so only then repaint — a redraw on
-      // every tool swap rebuilt the whole map on each P/R/F/E/S keypress for nothing. Entering paints
-      // the just-shown overlay's events (and selection); leaving is covered by the visibility flip.
-      if (overlayFlipped) redraw();
+      // Events are always visible, so changing tools does not require a full-map redraw.
       // The hovered cell's legality/preview depends on the tool, so re-evaluate it for the new tool
       // (and hide it entirely when switching to select/pan).
       drawHover();
@@ -1326,6 +1353,13 @@ async function buildSession(
     },
     deleteEvent(id) {
       commitInspectorChange(deleteSelection(map, { kind: "event", id }), null);
+    },
+    bindSelectedElement(binding) {
+      if (selected?.kind !== "element") return null;
+      const converted = convertElementToEvent(map, selected, binding);
+      if (!converted) return null;
+      commitInspectorChange(converted.map, { kind: "event", id: converted.eventId });
+      return converted.eventId;
     },
     dispose() {
       // Serialized like open: a dispose must not race a queued open onto the shared canvas. Idempotent

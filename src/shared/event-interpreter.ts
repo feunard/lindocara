@@ -43,6 +43,7 @@
  */
 import {
   type PartyAdventureState,
+  QUEST_OBJECTIVE_TARGET_MAX,
   selfSwitchIsOn,
   selfSwitchKey,
   switchIsOn,
@@ -105,7 +106,15 @@ export type StateMutation =
       readonly op: "set" | "add";
       readonly value: number;
     }
-  | { readonly type: "setSelfSwitch"; readonly key: string; readonly value: boolean };
+  | { readonly type: "setSelfSwitch"; readonly key: string; readonly value: boolean }
+  | { readonly type: "startQuest"; readonly questId: string }
+  | {
+      readonly type: "advanceQuest";
+      readonly questId: string;
+      readonly objectiveId: string;
+      readonly amount: number;
+    }
+  | { readonly type: "completeQuest"; readonly questId: string };
 
 /**
  * Apply one mutation to a party's adventure state, returning a NEW state (the interpreter never
@@ -132,6 +141,48 @@ export function applyStateMutation(
         ...state,
         selfSwitches: { ...state.selfSwitches, [mutation.key]: mutation.value },
       };
+    case "startQuest": {
+      const quests = state.quests ?? {};
+      if (quests[mutation.questId]) return state;
+      return {
+        ...state,
+        quests: {
+          ...quests,
+          [mutation.questId]: { status: "active", objectives: {} },
+        },
+      };
+    }
+    case "advanceQuest": {
+      const quests = state.quests ?? {};
+      const quest = quests[mutation.questId];
+      if (quest?.status !== "active") return state;
+      const current = quest.objectives[mutation.objectiveId] ?? 0;
+      return {
+        ...state,
+        quests: {
+          ...quests,
+          [mutation.questId]: {
+            ...quest,
+            objectives: {
+              ...quest.objectives,
+              [mutation.objectiveId]: Math.min(
+                QUEST_OBJECTIVE_TARGET_MAX,
+                Math.max(0, current + mutation.amount),
+              ),
+            },
+          },
+        },
+      };
+    }
+    case "completeQuest": {
+      const quests = state.quests ?? {};
+      const quest = quests[mutation.questId];
+      if (!quest || quest.status === "completed") return state;
+      return {
+        ...state,
+        quests: { ...quests, [mutation.questId]: { ...quest, status: "completed" } },
+      };
+    }
   }
 }
 
@@ -369,6 +420,31 @@ function executeCommand(
       return {
         context: running(context, advanceTop(frames)),
         effects: [{ kind: "changeItems", itemId: command.itemId, count: command.count }],
+      };
+    case "startQuest":
+      return {
+        context: running(context, advanceTop(frames)),
+        effects: [{ kind: "mutateState", op: { type: "startQuest", questId: command.questId } }],
+      };
+    case "advanceQuest":
+      return {
+        context: running(context, advanceTop(frames)),
+        effects: [
+          {
+            kind: "mutateState",
+            op: {
+              type: "advanceQuest",
+              questId: command.questId,
+              objectiveId: command.objectiveId,
+              amount: command.amount,
+            },
+          },
+        ],
+      };
+    case "completeQuest":
+      return {
+        context: running(context, advanceTop(frames)),
+        effects: [{ kind: "mutateState", op: { type: "completeQuest", questId: command.questId } }],
       };
     case "comment":
       // A no-op beat: consume it and carry on with no effect.

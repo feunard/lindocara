@@ -3,6 +3,8 @@ import {
   EDITOR_ASSETS,
   type EditorAssetDefinition,
   type EditorAssetId,
+  EVENT_GRAPHIC_ASSETS,
+  PLACEABLE_EDITOR_ASSETS,
 } from "../../../shared/tiny-swords-catalog.js";
 import { tinySwordsSourceUrl } from "../../game/tiny-swords-assets.js";
 import { t, useLocale } from "../../i18n.js";
@@ -13,6 +15,7 @@ interface CatalogueAssetPickerProps {
   onSelectAsset(assetId: EditorAssetId): void;
   onSelectNone?: (() => void) | undefined;
   noneLabel?: string | undefined;
+  usage?: "scenery" | "event";
 }
 
 const ASSET_PAGE_SIZE = 12;
@@ -112,31 +115,35 @@ export function CatalogueAssetPicker({
   onSelectAsset,
   onSelectNone,
   noneLabel,
+  usage = "scenery",
 }: CatalogueAssetPickerProps) {
   useLocale();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [visibleCount, setVisibleCount] = useState(ASSET_PAGE_SIZE);
 
+  const source = usage === "event" ? EVENT_GRAPHIC_ASSETS : PLACEABLE_EDITOR_ASSETS;
   const categories = useMemo(
     () =>
-      [...new Set(EDITOR_ASSETS.map((asset) => asset.editor.category))].sort(
+      [...new Set(source.map((asset) => asset.editor.category))].sort(
         (left, right) => categoryRank(left) - categoryRank(right),
       ),
-    [],
+    [source],
   );
 
   const filteredAssets = useMemo(() => {
     const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    return EDITOR_ASSETS.filter((asset) => {
-      if (category !== "all" && asset.editor.category !== category) return false;
-      const haystack =
-        `${asset.id} ${asset.role} ${asset.category} ${asset.tags.join(" ")}`.toLowerCase();
-      return terms.every((term) => haystack.includes(term));
-    }).sort(
-      (left, right) => categoryRank(left.editor.category) - categoryRank(right.editor.category),
-    );
-  }, [category, query]);
+    return source
+      .filter((asset) => {
+        if (category !== "all" && asset.editor.category !== category) return false;
+        const haystack =
+          `${asset.id} ${asset.role} ${asset.category} ${asset.tags.join(" ")}`.toLowerCase();
+        return terms.every((term) => haystack.includes(term));
+      })
+      .sort(
+        (left, right) => categoryRank(left.editor.category) - categoryRank(right.editor.category),
+      );
+  }, [category, query, source]);
 
   const groups = useMemo(() => {
     const grouped = new Map<string, EditorAssetDefinition[]>();

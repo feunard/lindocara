@@ -2,11 +2,10 @@ import { describe, expect, it } from "vitest";
 import { createCatalogElementView } from "../../src/client/game/catalog-element-render.js";
 import { ELEMENT_OFFSET_PX } from "../../src/shared/map-data.js";
 import type { EditorAssetId } from "../../src/shared/tiny-swords-catalog.js";
-import { stubEditorAssetArt } from "./helpers/editor-asset-art-stub.js";
+import { stubEditorAssetArt } from "../client/helpers/editor-asset-art-stub.js";
 
-// `EditorAssetDefinition.id` is a plain `string` (the catalogue is shared, non-literal), while
-// `MapElement.assetId` is the narrow `EditorAssetId` union — so the fixture id is kept here,
-// typed, rather than read back off `art.definition.id`.
+// Pixi objects belong in the jsdom client suite, not the workerd server suite. Keeping this test
+// here also avoids workerd trying to resolve Pixi's Node-only XML dependency on Windows paths.
 const ASSET_ID: EditorAssetId = "resource.terrain-resources-wood-trees.tree3";
 
 describe("element render offset", () => {
