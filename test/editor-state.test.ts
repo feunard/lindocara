@@ -183,7 +183,10 @@ describe("applyTool: element", () => {
     expect(map.elements).toEqual(beforeElements);
   });
 
-  it("replaces the existing element on an occupied cell (one per cell)", () => {
+  it("replaces the existing element only on an exact sub-position match", () => {
+    // Task 12b changed the identity from `(col, row)` to the full sub-position, so REPLACE now means
+    // "same cell AND same offset". Both placements here land at offset (0,0), so the tree replaces
+    // the bush (length stays 1); a distinct offset would instead STACK — covered in editor-modes.
     let map = blankMap("m", 20, 15);
     const bushTool: EditorTool = { kind: "element", assetId: BUSH };
     const withBush = place(map, bushTool, 3, 4, true, "element");

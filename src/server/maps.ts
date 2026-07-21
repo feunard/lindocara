@@ -26,7 +26,6 @@ import {
   elementCoversCell,
   elementFitsMap,
   elementPlacementCells,
-  elementsOverlap,
   isElementKind,
   legacyElementAssetId,
   MAP_LAYERS,
@@ -35,6 +34,7 @@ import {
   type MapElement,
   type MapMarkers,
   parseMapMarkers,
+  sameElementSlot,
 } from "../shared/map-data.js";
 import {
   entryEvents,
@@ -380,8 +380,13 @@ export function validateMapInput(input: MapInput): MapData & { name: string; eve
     if (elementCoversCell(element, input.spawn.col, input.spawn.row)) {
       throw new Error("spawn: cannot be covered by scenery");
     }
-    if (input.elements.slice(0, index).some((other) => elementsOverlap(other, element))) {
-      throw new Error(`placement: ${element.assetId} overlaps another element`);
+    // Decorations may STACK in a cell at distinct quarter-cell offsets (the editor authors them so),
+    // so visual-footprint overlap no longer rejects a save. What must still be rejected is an exact
+    // duplicate of the D1 primary key `(mapId, col, row, offsetX, offsetY)`: two elements in the same
+    // slot would collide on insert. A well-behaved editor never sends one — it replaces in place — so
+    // this is the defensive guard against a malformed payload, not a normal path.
+    if (input.elements.slice(0, index).some((other) => sameElementSlot(other, element))) {
+      throw new Error(`placement: ${element.assetId} duplicates another element's slot`);
     }
   }
   const baked = bakeCollision(data);

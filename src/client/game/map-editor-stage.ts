@@ -1225,7 +1225,21 @@ async function buildSession(
     },
     setSelectedElementOffset(offsetX, offsetY) {
       if (selected?.kind !== "element") return false;
-      return commitInspectorChange(updateSelectedElementOffset(map, selected, offsetX, offsetY));
+      // Identity is the full 4-tuple, and this edit MOVES the element within its cell, so the
+      // descriptor must follow to the element's NEW sub-position — clamped exactly as
+      // `updateSelectedElementOffset` clamps it — or the inspector detaches from the element it is
+      // editing on the next commit.
+      const clamp = (value: number): number =>
+        Math.max(0, Math.min(ELEMENT_OFFSET_STEPS - 1, Math.trunc(value)));
+      const nextSelection: EditorSelection = {
+        ...selected,
+        offsetX: clamp(offsetX),
+        offsetY: clamp(offsetY),
+      };
+      return commitInspectorChange(
+        updateSelectedElementOffset(map, selected, offsetX, offsetY),
+        nextSelection,
+      );
     },
     deleteSelected() {
       if (!selected || selected.kind === "spawn") return false;

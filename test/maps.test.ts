@@ -321,7 +321,9 @@ describe("maps", () => {
       ).rejects.toThrow(/bounds/);
     });
 
-    it("refuses overlapping visual footprints", async () => {
+    it("refuses two elements in the exact same sub-position slot", async () => {
+      // Same cell AND same offset collides on the D1 primary key, so it stays rejected — but the
+      // rejection is now about the slot, not the visual footprint.
       const db = createDb(env.DB);
       await expect(
         createMap(db, {
@@ -331,7 +333,28 @@ describe("maps", () => {
             { col: 4, row: 4, offsetX: 0, offsetY: 0, assetId: STONE_ALT },
           ],
         }),
-      ).rejects.toThrow(/overlaps/);
+      ).rejects.toThrow(/duplicates another element's slot/);
+    });
+
+    it("accepts a stack of decorations in one cell at distinct offsets", async () => {
+      // Task 12b: decorations may share a cell at different quarter-cell offsets. Visual-footprint
+      // overlap no longer rejects — only an exact slot collision does.
+      const db = createDb(env.DB);
+      const created = await createMap(db, {
+        ...validInput,
+        elements: [
+          { col: 4, row: 4, offsetX: 0, offsetY: 0, assetId: STONE },
+          { col: 4, row: 4, offsetX: 3, offsetY: 1, assetId: STONE_ALT },
+        ],
+      });
+      // Both rows survive the D1 primary key `(mapId, col, row, offsetX, offsetY)` — the whole point.
+      const loaded = await loadMap(db, created.id);
+      expect(loaded?.elements).toHaveLength(2);
+      const offsets = loaded?.elements
+        .filter((e) => e.col === 4 && e.row === 4)
+        .map((e) => `${e.offsetX},${e.offsetY}`)
+        .sort();
+      expect(offsets).toEqual(["0,0", "3,1"]);
     });
   });
 

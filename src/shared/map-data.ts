@@ -315,6 +315,23 @@ export function elementsOverlap(left: MapElement, right: MapElement): boolean {
   return elementCells(right).some((cell) => occupied.has(`${cell.col}:${cell.row}`));
 }
 
+/**
+ * Full sub-position identity: two elements share a slot only when their cell AND their quarter-tile
+ * offset both match — exactly the D1 primary key `(mapId, col, row, offsetX, offsetY)`.
+ *
+ * This is the identity element placement, selection and the eraser key on now that a cell can hold a
+ * stack of decorations at distinct offsets. `(col, row)` alone can no longer tell two stacked
+ * decorations apart, and visual-footprint overlap (`elementsOverlap`) deliberately no longer rejects
+ * placement — decorations are meant to overlap. The parameter is the minimal slot shape so a
+ * selection descriptor (which carries no `assetId`) can be compared against a `MapElement`.
+ */
+export function sameElementSlot(
+  a: { col: number; row: number; offsetX: number; offsetY: number },
+  b: { col: number; row: number; offsetX: number; offsetY: number },
+): boolean {
+  return a.col === b.col && a.row === b.row && a.offsetX === b.offsetX && a.offsetY === b.offsetY;
+}
+
 /** Whether a tile blocks movement, resolved through the tileset. An empty cell blocks nothing —
  *  on the ground layer it is the void, which the ground pass has already called water. */
 function tileBlocks(tileset: Tileset, id: number): boolean {

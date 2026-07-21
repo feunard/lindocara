@@ -9,7 +9,6 @@ import {
   elementCoversCell,
   elementFitsMap,
   elementPlacementCells,
-  elementsOverlap,
   MAP_LAYERS,
   MAX_MAP_ELEMENTS,
   MAX_PATROL_RADIUS,
@@ -18,6 +17,7 @@ import {
   type MapMarkers,
   MIN_PATROL_RADIUS,
   parseMapData,
+  sameElementSlot,
 } from "../../shared/map-data.js";
 import {
   type EventKind,
@@ -163,7 +163,10 @@ export function toolAllowedInMode(tool: EditorTool, mode: EditorMode): boolean {
 }
 
 export type EditorSelection =
-  | { kind: "element"; col: number; row: number }
+  // The full sub-position, not just `(col, row)`: a cell can hold a stack of decorations at distinct
+  // quarter-cell offsets now, so the descriptor must carry the offset to name WHICH element of a
+  // stack is selected. Every reader matches on the 4-tuple via `sameElementSlot`.
+  | { kind: "element"; col: number; row: number; offsetX: number; offsetY: number }
   | { kind: "event"; id: string }
   | { kind: "spawn" };
 
@@ -256,8 +259,19 @@ export function selectionAt(map: EditorMap, col: number, row: number): EditorSel
   // they answer a click before any element on the same cell — the same precedence the eraser follows.
   const event = map.events.find((candidate) => candidate.col === col && candidate.row === row);
   if (event) return { kind: "event", id: event.id };
-  const element = map.elements.find((candidate) => elementCoversCell(candidate, col, row));
-  if (element) return { kind: "element", col: element.col, row: element.row };
+  // The TOPMOST covering element — the last in array order, which is the last one drawn. A stack of
+  // decorations in one cell selects the one on top, matching the eraser's peel-from-the-top rule.
+  const covering = map.elements.filter((candidate) => elementCoversCell(candidate, col, row));
+  const element = covering[covering.length - 1];
+  if (element) {
+    return {
+      kind: "element",
+      col: element.col,
+      row: element.row,
+      offsetX: element.offsetX,
+      offsetY: element.offsetY,
+    };
+  }
   if (map.spawn.col === col && map.spawn.row === row) return { kind: "spawn" };
   return null;
 }
@@ -265,11 +279,11 @@ export function selectionAt(map: EditorMap, col: number, row: number): EditorSel
 export function deleteSelection(map: EditorMap, selection: EditorSelection): EditorMap {
   switch (selection.kind) {
     case "element":
+      // Only the selected slot — a stacked cell keeps its other decorations. Matching on `(col, row)`
+      // here would delete the whole stack out from under the one the author picked.
       return {
         ...map,
-        elements: map.elements.filter(
-          (element) => element.col !== selection.col || element.row !== selection.row,
-        ),
+        elements: map.elements.filter((element) => !sameElementSlot(element, selection)),
       };
     case "event":
       return { ...map, events: map.events.filter((event) => event.id !== selection.id) };
@@ -286,9 +300,7 @@ export function moveSelection(
 ): EditorMap | null {
   switch (selection.kind) {
     case "element": {
-      const element = map.elements.find(
-        (candidate) => candidate.col === selection.col && candidate.row === selection.row,
-      );
+      const element = map.elements.find((candidate) => sameElementSlot(candidate, selection));
       if (!element) return null;
       const without = deleteSelection(map, selection);
       // An element move is an Element-mode operation whatever tool is active, so it names its own
@@ -335,12 +347,12 @@ export function updateSelectedElementAsset(
   selection: Extract<EditorSelection, { kind: "element" }>,
   assetId: EditorAssetId,
 ): EditorMap | null {
-  const existing = map.elements.find(
-    (candidate) => candidate.col === selection.col && candidate.row === selection.row,
-  );
+  const existing = map.elements.find((candidate) => sameElementSlot(candidate, selection));
+  if (!existing) return null;
   const without = deleteSelection(map, selection);
   // Swapping an element's asset is an Element-mode operation; it names its own mode so the gate does
-  // not refuse the re-place, the same as `moveSelection`. The sub-cell offset is preserved.
+  // not refuse the re-place, the same as `moveSelection`. The sub-cell slot is preserved, so the
+  // selection descriptor's identity does not change.
   return applyTool(
     without,
     { kind: "element", assetId },
@@ -348,8 +360,8 @@ export function updateSelectedElementAsset(
     selection.row,
     true,
     "element",
-    existing?.offsetX ?? 0,
-    existing?.offsetY ?? 0,
+    selection.offsetX,
+    selection.offsetY,
   );
 }
 
@@ -362,9 +374,7 @@ export function updateSelectedElementOffset(
   offsetX: number,
   offsetY: number,
 ): EditorMap | null {
-  const element = map.elements.find(
-    (candidate) => candidate.col === selection.col && candidate.row === selection.row,
-  );
+  const element = map.elements.find((candidate) => sameElementSlot(candidate, selection));
   if (!element) return null;
   const clamp = (value: number): number =>
     Math.max(0, Math.min(ELEMENT_OFFSET_STEPS - 1, Math.trunc(value)));
@@ -630,10 +640,6 @@ function isWalkableCell(map: EditorMap, col: number, row: number): boolean {
   return !isSolidKind(kindAt(bakeCollision(toMapData(map)), col, row));
 }
 
-function withoutElementAt(elements: MapElement[], col: number, row: number): MapElement[] {
-  return elements.filter((element) => !elementCoversCell(element, col, row));
-}
-
 function keepsSpawnClear(map: EditorMap): boolean {
   return (
     isWalkableCell(map, map.spawn.col, map.spawn.row) &&
@@ -739,11 +745,15 @@ function erasedTerrainMap(map: EditorMap, col: number, row: number): EditorMap |
   return keepsSpawnClear(next) ? next : null;
 }
 
-/** Element-mode eraser: drop any element covering the cell, or the map unchanged (same reference)
- *  when none is there. Never touches events or terrain. */
+/** Element-mode eraser: drop the TOPMOST element covering the cell (the last in array/render order),
+ *  or the map unchanged (same reference) when none is there. Peeling one at a time is what lets a
+ *  stacked cell be cleared one click per decoration rather than wholesale. Never touches events or
+ *  terrain. */
 function erasedElement(map: EditorMap, col: number, row: number): EditorMap {
-  const elements = withoutElementAt(map.elements, col, row);
-  return elements.length === map.elements.length ? map : { ...map, elements };
+  const covering = map.elements.filter((element) => elementCoversCell(element, col, row));
+  const target = covering[covering.length - 1];
+  if (!target) return map;
+  return { ...map, elements: map.elements.filter((element) => element !== target) };
 }
 
 /** Event-mode eraser: drop the event on the cell (the topmost plane), or the map unchanged (same
@@ -991,12 +1001,13 @@ export function applyTool(
       const placed: MapElement = { col, row, offsetX, offsetY, assetId: tool.assetId };
       if (!placementTerrainValid(map, placed)) return null;
       if (elementCoversCell(placed, map.spawn.col, map.spawn.row)) return null;
-      const sameAnchor = map.elements.filter(
-        (element) => element.col === col && element.row === row,
-      );
-      const retained = map.elements.filter((element) => element.col !== col || element.row !== row);
-      if (retained.some((element) => elementsOverlap(element, placed))) return null;
-      if (sameAnchor.length === 0 && map.elements.length >= MAX_MAP_ELEMENTS) return null;
+      // Identity is the full sub-position now, so a new `(col, row, offsetX, offsetY)` ADDS and only an
+      // exact match REPLACES — that is what lets one cell hold a stack of decorations. The
+      // visual-footprint overlap rejection is gone on purpose: stacked decor is meant to overlap, and
+      // overlapping colliders are harmless (both simply block). Spawn and terrain guards stay.
+      const isReplacement = map.elements.some((element) => sameElementSlot(element, placed));
+      const retained = map.elements.filter((element) => !sameElementSlot(element, placed));
+      if (!isReplacement && map.elements.length >= MAX_MAP_ELEMENTS) return null;
       const next = { ...map, elements: [...retained, placed] };
       return keepsSpawnClear(next) ? next : null;
     }

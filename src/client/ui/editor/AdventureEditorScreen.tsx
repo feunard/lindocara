@@ -9,7 +9,7 @@ import {
 import type { AdventureInput } from "../../../shared/adventure.js";
 import { type AdventureRegistry, EMPTY_REGISTRY } from "../../../shared/adventure-state.js";
 import type { MonsterSpecies } from "../../../shared/game.js";
-import { EMPTY_MARKERS, type MapData } from "../../../shared/map-data.js";
+import { EMPTY_MARKERS, type MapData, sameElementSlot } from "../../../shared/map-data.js";
 import type { EventKind, MapEvent } from "../../../shared/map-events.js";
 import { type EditorAssetId, editorAsset } from "../../../shared/tiny-swords-catalog.js";
 import { setStart } from "../../adventure-draft.js";
@@ -1235,9 +1235,7 @@ function SelectionInspector({
     selection.kind === "event" ? map.events.find((event) => event.id === selection.id) : undefined;
   const selectedElement =
     selection.kind === "element"
-      ? map.elements.find(
-          (element) => element.col === selection.col && element.row === selection.row,
-        )
+      ? map.elements.find((element) => sameElementSlot(element, selection))
       : undefined;
   const position =
     selectedEvent ?? selectedElement ?? (selection.kind === "spawn" ? map.spawn : undefined);
