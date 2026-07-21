@@ -1,5 +1,5 @@
 import { Container, Sprite, type Texture } from "pixi.js";
-import type { MapElement } from "../../shared/map-data.js";
+import { ELEMENT_OFFSET_PX, type MapElement } from "../../shared/map-data.js";
 import { TILE_SIZE } from "../../shared/tilemap.js";
 import type { EditorAssetArt } from "./editor-asset-art.js";
 
@@ -14,15 +14,22 @@ export interface CatalogElementView {
   y: number;
 }
 
-/** One placement/render contract shared by the editor and the authoritative game's renderer. */
+/**
+ * One placement/render contract shared by the editor and the authoritative game's renderer.
+ *
+ * This arithmetic is duplicated by `elementWorldCollider` in `map-data.ts` on purpose (shared
+ * cannot import client) and the two must be changed together, or a collider stops sitting under
+ * its sprite.
+ */
 export function createCatalogElementView(
   element: MapElement,
   art: EditorAssetArt,
 ): CatalogElementView | null {
   const first = art.frames[0];
   if (!first) return null;
-  const x = element.col * TILE_SIZE + TILE_SIZE / 2;
-  const y = (element.row + 1) * TILE_SIZE + art.definition.footOffset;
+  const x = element.col * TILE_SIZE + TILE_SIZE / 2 + element.offsetX * ELEMENT_OFFSET_PX;
+  const y =
+    (element.row + 1) * TILE_SIZE + art.definition.footOffset + element.offsetY * ELEMENT_OFFSET_PX;
   const container = new Container();
   container.position.set(x, y);
   const sprite = new Sprite(first);

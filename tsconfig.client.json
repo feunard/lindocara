@@ -12,6 +12,7 @@
     "src/client/**/*.tsx",
     "src/shared/**/*.ts",
     "test/ui/**/*.ts",
-    "test/ui/**/*.tsx"
+    "test/ui/**/*.tsx",
+    "test/client/**/*.ts"
   ]
 }
