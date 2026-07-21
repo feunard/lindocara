@@ -241,6 +241,15 @@ describe("paintEventCell", () => {
     // The selection outline is one extra child; nothing else differs between the two draws.
     expect(selected.children.length).toBe(unselected.children.length + 1);
   });
+
+  it("adds a highlight ring only when the event is list-hovered (D14)", () => {
+    const plain = new Container();
+    paintEventCell(eventAt(1, null), undefined, false, plain);
+    const highlighted = new Container();
+    paintEventCell(eventAt(1, null), undefined, false, highlighted, undefined, true);
+    // The amber highlight ring is one extra child, independent of selection.
+    expect(highlighted.children.length).toBe(plain.children.length + 1);
+  });
 });
 
 /**

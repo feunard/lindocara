@@ -36,7 +36,6 @@ import {
   GRASS_SLOTS,
   TINY_SWORDS_TILESET,
 } from "../src/shared/tilesets/tiny-swords.js";
-import { EDITOR_ASSETS, type EditorAssetId } from "../src/shared/tiny-swords-catalog.js";
 
 /** The ground slot at a cell, or -1 for the void. Every terrain assertion below reads this rather
  *  than a raw id: the id carries an autotile variant the neighbourhood decides, and no test here is
@@ -815,22 +814,41 @@ describe("applyTool: event placement", () => {
     expect(two.events[0]?.id).not.toBe(two.events[1]?.id);
   });
 
-  it("stamps the tool's pending graphic onto the new event's page 1", () => {
+  it("pre-fills a preset event's page 1 with its command program and trigger (D13)", () => {
     const base = blankMap("m", 20, 15);
-    const graphic = EDITOR_ASSETS[0]?.id as EditorAssetId;
-    const next = place(base, { kind: "event", eventKind: "normal", graphic }, 3, 4) as EditorMap;
-    // The pending graphic (the palette's Événements picker) becomes page 1's appearance; every other
-    // page field stays the wireframe default.
-    expect(next.events[0]?.pages[0]?.graphicAssetId).toBe(graphic);
-    expect(next.events[0]?.pages[0]?.moveSpeed).toBe(4);
+    const mapId = crypto.randomUUID();
+    // Teleporter: a player-touch trigger + a same-map teleport command the author retargets.
+    const tp = place(
+      base,
+      { kind: "event", eventKind: "normal", preset: "teleporter", selfMapId: mapId },
+      3,
+      4,
+    ) as EditorMap;
+    expect(tp.events[0]?.kind).toBe("normal");
+    expect(tp.events[0]?.pages[0]?.trigger).toBe("player-touch");
+    expect(tp.events[0]?.pages[0]?.commands).toEqual([{ t: "teleport", mapId, col: 0, row: 0 }]);
+
+    // Sign: an interact-triggered say. Chest: a changeGold. Raw (default): the blank program.
+    const sign = place(
+      base,
+      { kind: "event", eventKind: "normal", preset: "sign" },
+      6,
+      6,
+    ) as EditorMap;
+    expect(sign.events[0]?.pages[0]?.commands).toEqual([{ t: "say", text: "", name: null }]);
+    const chest = place(
+      base,
+      { kind: "event", eventKind: "normal", preset: "chest" },
+      7,
+      7,
+    ) as EditorMap;
+    expect(chest.events[0]?.pages[0]?.commands).toEqual([{ t: "changeGold", amount: 10 }]);
+    const raw = place(base, { kind: "event", eventKind: "normal" }, 8, 8) as EditorMap;
+    expect(raw.events[0]?.pages[0]?.commands).toEqual([]);
   });
 
-  it("leaves page 1's graphic null when the tool carries no graphic", () => {
+  it("leaves a raw/normal event's page 1 graphic null (the graphic is chosen in the dialog now)", () => {
     const base = blankMap("m", 20, 15);
-    expect(
-      (place(base, { kind: "event", eventKind: "normal", graphic: null }, 3, 4) as EditorMap)
-        .events[0]?.pages[0]?.graphicAssetId,
-    ).toBeNull();
     expect(
       (place(base, { kind: "event", eventKind: "normal" }, 3, 4) as EditorMap).events[0]?.pages[0]
         ?.graphicAssetId,

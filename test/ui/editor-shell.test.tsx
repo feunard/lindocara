@@ -12,7 +12,6 @@ import { EMPTY_MARKERS } from "../../src/shared/map-data.js";
 import { layersFromBlocks } from "../../src/shared/map-migrate.js";
 import { encodeTileLayer } from "../../src/shared/tile-layer-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "../../src/shared/tilesets/tiny-swords.js";
-import { CURATED_EDITOR_ASSETS } from "../../src/shared/tiny-swords-catalog.js";
 
 // The painting stage is Pixi on a real canvas — untestable in jsdom. A fake handle stands in so the
 // tests exercise the shell's own behaviour: which EditorTool it pushes, that the mode selector
@@ -37,6 +36,8 @@ const stageMock = vi.hoisted(() => ({
   beginEventDraft: vi.fn(),
   commitEventDraft: vi.fn(),
   deleteEvent: vi.fn(),
+  highlightEvent: vi.fn(),
+  selectEvent: vi.fn(),
   dispose: vi.fn(),
 }));
 
@@ -66,6 +67,8 @@ function stageHandle() {
     beginEventDraft: stageMock.beginEventDraft,
     commitEventDraft: stageMock.commitEventDraft,
     deleteEvent: stageMock.deleteEvent,
+    highlightEvent: stageMock.highlightEvent,
+    selectEvent: stageMock.selectEvent,
     dispose: stageMock.dispose,
   };
 }
@@ -315,7 +318,8 @@ describe("AdventureEditorScreen shell", () => {
     expect(stageMock.setTool).toHaveBeenLastCalledWith({
       kind: "event",
       eventKind: "normal",
-      graphic: null,
+      preset: "raw",
+      selfMapId: "m1",
     });
   });
 
@@ -412,58 +416,44 @@ describe("AdventureEditorScreen shell", () => {
     });
   });
 
-  it("shows the Événements palette section only while EV mode is active", async () => {
+  it("shows the preset placements only while EV mode is active, and no graphic picker (D13)", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady();
 
-    expect(screen.queryByText(t("editor.shell.events.graphic.heading"))).toBeNull();
+    // The sidebar graphic catalogue (D13) is gone from EV mode entirely.
+    expect(screen.queryByTestId("event-presets")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.event") }));
-    expect(screen.getByText(t("editor.shell.events.graphic.heading"))).toBeVisible();
+    expect(screen.getByTestId("event-presets")).toBeVisible();
+    expect(screen.queryByText(t("editor.shell.events.graphic.heading"))).toBeNull();
   });
 
-  it("picking a graphic in EV mode pushes it as the next placement's default", async () => {
+  it("picking a preset in EV mode pushes a scripted event tool with that preset (D13)", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady();
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.event") }));
     const palette = screen.getByRole("complementary", { name: t("editor.shell.palette.aria") });
 
-    // An asset whose last id segment is unique across the CURATED palette (UX wave #13 hides the rest),
-    // so its grid card is found by that text alone — this test is about the picker→tool wiring.
-    const shortCounts = new Map<string, number>();
-    for (const candidate of CURATED_EDITOR_ASSETS) {
-      const segment = candidate.id.split(".").at(-1) ?? candidate.id;
-      shortCounts.set(segment, (shortCounts.get(segment) ?? 0) + 1);
-    }
-    const asset = CURATED_EDITOR_ASSETS.find(
-      (candidate) => shortCounts.get(candidate.id.split(".").at(-1) ?? candidate.id) === 1,
+    await userEvent.click(
+      within(palette).getByRole("button", { name: t("editor.event.preset.teleporter") }),
     );
-    if (!asset) throw new Error("no uniquely-named catalogue asset");
-    const shortId = asset.id.split(".").at(-1) ?? asset.id;
-    fireEvent.change(within(palette).getByRole("searchbox", { name: t("editor.palette.search") }), {
-      target: { value: shortId },
-    });
-    // The raw dotted id is no longer visible body text on the card (C2) — it survives only as a
-    // `data-asset-id` attribute, which is exactly what a test needing an unambiguous hook wants.
-    const card = palette.querySelector(`[data-asset-id="${asset.id}"]`);
-    if (!card) throw new Error("asset card not found");
-    await userEvent.click(card);
-    // The pending graphic reaches the event tool the stage places with (applyTool then stamps it on
-    // page 1 — proven directly in editor-state.test.ts).
+    // The preset reaches the event tool the stage places with; applyTool then pre-fills page 1 from it
+    // (proven directly in editor-state.test.ts / event-presets.test.ts).
     expect(stageMock.setTool).toHaveBeenLastCalledWith({
       kind: "event",
       eventKind: "normal",
-      graphic: asset.id,
+      preset: "teleporter",
+      selfMapId: "m1",
     });
 
-    // And "No graphic" clears back to the placeholder default.
     await userEvent.click(
-      within(palette).getByRole("button", { name: t("editor.shell.events.graphic.none") }),
+      within(palette).getByRole("button", { name: t("editor.event.preset.raw") }),
     );
     expect(stageMock.setTool).toHaveBeenLastCalledWith({
       kind: "event",
       eventKind: "normal",
-      graphic: null,
+      preset: "raw",
+      selfMapId: "m1",
     });
   });
 
@@ -706,7 +696,9 @@ describe("AdventureEditorScreen shell", () => {
     });
 
     // The inspector shows the entry event (its EV id and name), and Delete reaches deleteSelected.
-    expect(screen.getByText(/EV001/)).toBeInTheDocument();
+    // Scoped to the inspector: the D14 sidebar event list now also carries this event's EV001 chip.
+    const inspector = screen.getByRole("complementary", { name: t("editor.inspector.title") });
+    expect(within(inspector).getByText(/EV001/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: t("editor.delete") }));
     expect(stageMock.deleteSelected).toHaveBeenCalledTimes(1);
   });
@@ -1026,7 +1018,8 @@ describe("AdventureEditorScreen shell", () => {
       expect(stageMock.setTool).toHaveBeenLastCalledWith({
         kind: "event",
         eventKind: "normal",
-        graphic: null,
+        preset: "raw",
+        selfMapId: "m1",
       });
     });
 

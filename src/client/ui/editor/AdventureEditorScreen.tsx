@@ -9,6 +9,7 @@ import {
 } from "react";
 import type { AdventureInput } from "../../../shared/adventure.js";
 import { type AdventureRegistry, EMPTY_REGISTRY } from "../../../shared/adventure-state.js";
+import type { EventPreset } from "../../../shared/event-presets.js";
 import type { MonsterSpecies } from "../../../shared/game.js";
 import { EMPTY_MARKERS, type MapData, sameElementSlot } from "../../../shared/map-data.js";
 import {
@@ -95,17 +96,22 @@ function isPaintToolKey(key: ToolKey | null): key is EditorPaintTool {
   );
 }
 
-/** The event `EditorTool` for the current EV kind, bundling the pending graphic (normal) or the
- *  species/radius (monster) the placement needs. Markers are dead — every entry/exit/monster is an
- *  event now, chosen by `eventKind` on the one event tool. */
+/** The event `EditorTool` for the current EV kind. A `normal` placement carries its PRESET (D13) and
+ *  the current map's uuid (the teleporter preset's same-map destination default); a `monster` carries
+ *  its species/radius. Markers are dead — every entry/exit/monster is an event now, chosen by
+ *  `eventKind` on the one event tool. */
 function eventToolFor(
   eventKind: EventKind,
-  graphic: EditorAssetId | null,
+  preset: EventPreset,
   species: MonsterSpecies,
   patrolRadius: number,
+  selfMapId: string | null,
 ): EditorTool {
   if (eventKind === "monster") return { kind: "event", eventKind, species, patrolRadius };
-  if (eventKind === "normal") return { kind: "event", eventKind, graphic };
+  if (eventKind === "normal")
+    return selfMapId === null
+      ? { kind: "event", eventKind, preset }
+      : { kind: "event", eventKind, preset, selfMapId };
   return { kind: "event", eventKind };
 }
 
@@ -327,9 +333,6 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   const [toolKey, setToolKey] = useState<ToolKey | null>("pencil");
   const [content, setContent] = useState<RectFillContent>(DEFAULT_CONTENT);
   const [selectedAsset, setSelectedAsset] = useState<EditorAssetId | null>(null);
-  // The default graphic a newly placed event's page 1 receives, carried on the event tool; `null` is
-  // the wireframe's "no graphic" default (a blank placeholder on the overlay).
-  const [pendingEventGraphic, setPendingEventGraphic] = useState<EditorAssetId | null>(null);
   const [mode, setActiveMode] = useState<EditorMode>("field");
   const [showGrid, setShowGrid] = useState(true);
   const [showDim, setShowDim] = useState(false);
@@ -353,6 +356,8 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   // The kind the EV tool places (normal / entry / exit / monster), and the monster kind's default
   // species/radius. Markers are dead — these drive the one event tool's placement.
   const [eventKind, setEventKind] = useState<EventKind>("normal");
+  // The preset a `normal` placement uses (D13): `raw` is the blank scripted event, the default.
+  const [eventPreset, setEventPreset] = useState<EventPreset>("raw");
   const [markerSpecies, setMarkerSpecies] = useState<MonsterSpecies>("spear_goblin");
   const [markerRadius, setMarkerRadius] = useState(96);
   const [stageStatus, setStageStatus] = useState<StageStatus>("loading");
@@ -621,22 +626,23 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     pushTool({ kind: "element", assetId });
   }
 
-  // The EV kind selector: switch which kind the event tool places, re-pushing so the very next
-  // placement is of the chosen kind (the monster re-push effect keeps species/radius fresh too).
+  // The EV kind selector (entry/exit/monster): switch which kind the event tool places, re-pushing so
+  // the very next placement is of the chosen kind (the monster re-push effect keeps species/radius
+  // fresh too).
   function selectEventKind(kind: EventKind): void {
     setEventKind(kind);
     if (toolKey === "event") {
-      pushTool(eventToolFor(kind, pendingEventGraphic, markerSpecies, markerRadius));
+      pushTool(eventToolFor(kind, eventPreset, markerSpecies, markerRadius, map?.id ?? null));
     }
   }
 
-  // The Événements palette picker sets the default graphic future `normal` events get; while the
-  // normal event kind is active it re-pushes so the next placement uses it (a "none" pick clears back
-  // to the placeholder).
-  function selectEventGraphic(assetId: EditorAssetId | null): void {
-    setPendingEventGraphic(assetId);
-    if (toolKey === "event" && eventKind === "normal") {
-      pushTool({ kind: "event", eventKind: "normal", graphic: assetId });
+  // The preset selector (D13): pick a popular scripted-event template. Every preset places a `normal`
+  // event; re-push so the next placement uses the chosen preset.
+  function selectEventPreset(preset: EventPreset): void {
+    setEventKind("normal");
+    setEventPreset(preset);
+    if (toolKey === "event") {
+      pushTool(eventToolFor("normal", preset, markerSpecies, markerRadius, map?.id ?? null));
     }
   }
 
@@ -696,7 +702,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     }
     setToolKey("event");
     setSelectedAsset(null);
-    pushTool(eventToolFor(eventKind, pendingEventGraphic, markerSpecies, markerRadius));
+    pushTool(eventToolFor(eventKind, eventPreset, markerSpecies, markerRadius, map?.id ?? null));
   }
 
   function toggleGrid(): void {
@@ -1218,13 +1224,18 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
               }}
               event={{
                 eventKind,
-                pendingEventGraphic,
+                eventPreset,
+                teleporterEnabled: map !== null,
                 markerSpecies,
                 markerRadius,
+                events: currentMap?.events ?? [],
+                selectedEventId: selection?.kind === "event" ? selection.id : null,
+                onSelectPreset: selectEventPreset,
                 onSelectEventKind: selectEventKind,
-                onSelectEventGraphic: selectEventGraphic,
                 onMarkerSpeciesChange: setMarkerSpecies,
                 onMarkerRadiusChange: setMarkerRadius,
+                onHoverEvent: (id) => handleRef.current?.highlightEvent(id),
+                onSelectEvent: (id) => handleRef.current?.selectEvent(id),
               }}
             />
           </ResizablePanel>

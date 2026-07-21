@@ -29,13 +29,18 @@ function elementBody() {
 function eventBody() {
   return {
     eventKind: "normal" as const,
-    pendingEventGraphic: null,
+    eventPreset: "raw" as const,
+    teleporterEnabled: true,
     markerSpecies: "spear_goblin" as const,
     markerRadius: 96,
+    events: [],
+    selectedEventId: null,
+    onSelectPreset: () => {},
     onSelectEventKind: () => {},
-    onSelectEventGraphic: () => {},
     onMarkerSpeciesChange: () => {},
     onMarkerRadiusChange: () => {},
+    onHoverEvent: () => {},
+    onSelectEvent: () => {},
   };
 }
 

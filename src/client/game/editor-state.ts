@@ -1,5 +1,7 @@
 /** Pure map-editor mutations. Placement, footprints and collision all come from the shared
  * catalogue, so the browser and authoritative map API cannot disagree. */
+
+import { type EventPreset, presetEvent } from "../../shared/event-presets.js";
 import type { MonsterSpecies } from "../../shared/game.js";
 import {
   bakeCollision,
@@ -118,9 +120,8 @@ export type EditorTool =
    * UX wave #12: the one placement tool for every event kind — markers are dead, their meaning is a
    * typed event now. `eventKind` selects what is placed:
    *
-   * - `normal`  — the scripted wireframe event; page 1 gets `graphic` as its default appearance (the
-   *   palette's Événements picker sets it, "none"/`null` leaves a blank placeholder). The graphic is a
-   *   NEW-placement default only — editing an existing event's graphic is the dialog's job.
+   * - `normal`  — the scripted event, placed via a `preset` (D13): `raw` is blank, the others pre-fill
+   *   page 1 with one canonical command. Its graphic is chosen in the event dialog, not at placement.
    * - `entry`/`exit` — a spawn/arrival or departure anchor the adventure graph binds by the EVENT's
    *   uuid. Single default page, no graphic.
    * - `monster` — a monster spawn carrying `species` + `patrolRadius`.
@@ -133,6 +134,15 @@ export type EditorTool =
       kind: "event";
       eventKind: EventKind;
       graphic?: EditorAssetId | null;
+      /**
+       * The popular-event PRESET a fresh `normal` event is pre-filled from (D13): `raw` is the blank
+       * scripted event, `teleporter`/`sign`/`chest` seed page 1 with one canonical command. Ignored
+       * for entry/exit/monster kinds. Defaults to `raw` when absent.
+       */
+      preset?: EventPreset;
+      /** The current map's uuid, used only by the `teleporter` preset for its same-map destination
+       *  default (`teleport.mapId` is a real uuid the author retargets in the event dialog). */
+      selfMapId?: string;
       species?: MonsterSpecies;
       patrolRadius?: number;
     };
@@ -1109,19 +1119,18 @@ export function applyTool(
       if (!functionalEventPlacementOk(map, tool.eventKind, col, row)) return null;
       const ordinal = nextEventOrdinal(map.events);
       if (tool.eventKind === "normal") {
-        const event: MapEvent = {
+        // D13: a scripted event is placed via a PRESET (default `raw`, the blank event). `raw` yields
+        // the historical empty page; `teleporter`/`sign`/`chest` pre-fill page 1 with one canonical
+        // command out of the existing model. The graphic is no longer a placement default — it is
+        // chosen in the event dialog — so a fresh event opens with the blank placeholder.
+        const event = presetEvent({
           id: crypto.randomUUID(),
           col,
           row,
-          name: "",
           ordinal,
-          kind: "normal",
-          species: null,
-          patrolRadius: null,
-          // Page 1 adopts the tool's pending graphic (the palette's Événements picker); "none" leaves
-          // the default page's null graphic, i.e. the blank placeholder on the overlay.
-          pages: [{ ...defaultEventPage(), graphicAssetId: tool.graphic ?? null }],
-        };
+          preset: tool.preset ?? "raw",
+          selfMapId: tool.selfMapId ?? "",
+        });
         return { ...map, events: [...map.events, event] };
       }
       if (tool.eventKind === "monster") {

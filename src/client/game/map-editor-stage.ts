@@ -133,6 +133,12 @@ export interface MapEditorStageHandle {
   deleteEvent(id: string): void;
   /** Turn the selected scenery into a normal event, preserving its real graphic. */
   bindSelectedElement(binding: ElementEventBinding): string | null;
+  /** D14: emphasise the event with this id on the canvas (the sidebar list's hover), or clear the
+   *  emphasis with `null`. Purely visual — it never changes the selection or the map. */
+  highlightEvent(id: string | null): void;
+  /** D14: select the event with this id as if it were clicked on the canvas — updates the inspector
+   *  selection, no dialog. A no-op if the id names no live event. */
+  selectEvent(id: string): void;
   dispose(): void;
 }
 
@@ -297,6 +303,10 @@ const EVENT_CHIP_TEXT_COLOR = 0xfafafa;
 /** D2: the same selection outline treatment for a selected element as an event already gets below —
  *  one colour, so "this is what's selected" reads identically whichever plane it is on. */
 const SELECTION_OUTLINE_COLOR = 0xffffff;
+/** D14: the hover-highlight ring drawn when the sidebar event list points at this event — a distinct
+ *  amber, so "this list row is that event on the canvas" reads apart from the white selection outline
+ *  even when the highlighted event is also the selected one. */
+const EVENT_HIGHLIGHT_COLOR = 0xf59e0b;
 
 /**
  * The placeholder swatch colour per event kind, so the four kinds read apart at a glance on the EV
@@ -337,6 +347,7 @@ export function paintEventCell(
   selected: boolean,
   container: Container,
   semanticFrame?: Texture,
+  highlighted = false,
 ): EventCellDraw {
   const x = event.col * TILE_SIZE;
   const y = event.row * TILE_SIZE;
@@ -391,6 +402,16 @@ export function paintEventCell(
   });
   chip.position.set(x + 2, y + 1);
   container.addChild(chip);
+
+  if (highlighted) {
+    // D14: a slightly inset amber ring, drawn UNDER the white selection outline so a highlighted +
+    // selected event shows both cues rather than the amber hiding the selection.
+    const ring = new Graphics();
+    ring
+      .rect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 4)
+      .stroke({ width: 3, color: EVENT_HIGHLIGHT_COLOR, alpha: 0.95 });
+    container.addChild(ring);
+  }
 
   if (selected) {
     const outline = new Graphics();
@@ -660,6 +681,8 @@ function inertHandle(map: EditorMap): MapEditorStageHandle {
     commitEventDraft() {},
     deleteEvent() {},
     bindSelectedElement: () => null,
+    highlightEvent() {},
+    selectEvent() {},
     dispose() {},
   };
 }
@@ -734,6 +757,9 @@ async function buildSession(
   let map = initial;
   let history = createEditorHistory(initial);
   let selected: EditorSelection | null = null;
+  // D14: the event the sidebar list is hovering, emphasised on the overlay. Purely visual — never the
+  // selection — so hovering a list row never disturbs what is actually selected.
+  let highlightedEventId: string | null = null;
   let tool: EditorTool = { kind: "block", block: "grass" };
   let dim = false;
   // C7: counts refused element/event placement clicks, so the screen can flash a "can't place here"
@@ -934,13 +960,14 @@ async function buildSession(
   }
 
   /** Every authored event on the event overlay: its page-1 graphic or the blank placeholder, its
-   * chip, and a selection outline on the selected one. */
+   * chip, a selection outline on the selected one and an amber highlight ring on the list-hovered one. */
   function drawEvents(): void {
     eventLayer.visible = shouldShowEventOverlay(tool);
     for (const event of map.events) {
       const graphicId = event.pages[0]?.graphicAssetId ?? null;
       const art = graphicId === null ? undefined : textures.editorAssets.get(graphicId);
       const isSelected = selected?.kind === "event" && selected.id === event.id;
+      const isHighlighted = highlightedEventId === event.id;
       const semanticFrame =
         event.kind === "monster" && event.species
           ? textures.monsters.get(event.species)
@@ -949,8 +976,15 @@ async function buildSession(
             : event.kind === "exit"
               ? textures.eventSign
               : undefined;
-      paintEventCell(event, art, isSelected, eventLayer, semanticFrame);
+      paintEventCell(event, art, isSelected, eventLayer, semanticFrame, isHighlighted);
     }
+  }
+
+  /** D14: rebuild ONLY the event overlay — the sidebar hover changes an emphasis ring, nothing else on
+   *  the map — so a mouse sweep across the event list never triggers a full terrain/prop redraw. */
+  function redrawEvents(): void {
+    for (const child of eventLayer.removeChildren()) child.destroy({ children: true });
+    drawEvents();
   }
 
   /** Props, painted the way `renderer.ts`'s `#buildMapElements` does: y-sorted so a lower tree
@@ -1518,6 +1552,18 @@ async function buildSession(
       if (!converted) return null;
       commitInspectorChange(converted.map, { kind: "event", id: converted.eventId });
       return converted.eventId;
+    },
+    highlightEvent(id) {
+      if (id === highlightedEventId) return;
+      highlightedEventId = id;
+      redrawEvents();
+    },
+    selectEvent(id) {
+      const event = map.events.find((candidate) => candidate.id === id);
+      if (!event) return;
+      selected = { kind: "event", id };
+      redraw();
+      notify();
     },
     dispose() {
       // Serialized like open: a dispose must not race a queued open onto the shared canvas. Idempotent

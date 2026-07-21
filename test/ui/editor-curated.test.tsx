@@ -40,13 +40,18 @@ describe("editor asset catalogue", () => {
     render(
       <EventPalette
         eventKind="monster"
-        pendingEventGraphic={null}
+        eventPreset="raw"
+        teleporterEnabled
         markerSpecies="spear_goblin"
         markerRadius={96}
+        events={[]}
+        selectedEventId={null}
+        onSelectPreset={() => {}}
         onSelectEventKind={() => {}}
-        onSelectEventGraphic={() => {}}
         onMarkerSpeciesChange={() => {}}
         onMarkerRadiusChange={() => {}}
+        onHoverEvent={() => {}}
+        onSelectEvent={() => {}}
       />,
     );
     const species = screen.getByLabelText("Species") as HTMLSelectElement;
