@@ -51,8 +51,9 @@ npm run dev
 same runtime that serves production.
 
 ```bash
-npm run check    # lint + typecheck + test
-npm run deploy   # build, then ship
+npm run check:runtime # lint + typecheck + runtime server/player UI tests + build
+npm run check         # full repository gates, including catalog and authored-map checks
+npm run deploy        # build, then ship
 ```
 
 ## Local load testing
@@ -65,12 +66,14 @@ npm run loadtest -- --players=10 --duration=60 --scenario=mixed
 ```
 
 Available scenarios are `idle`, `movement`, `combat`, `mixed`, `reconnect`, and
-`zone-transition`. The runner creates or reuses deterministic `loadNNN` accounts and characters,
-opens authenticated WebSockets, and prints connection, throughput, message-size, acknowledgement
-latency, transition, disconnect, and protocol-error metrics. It targets
+`zone-transition`. The runner creates or reuses deterministic `loadNNN` accounts, groups them into
+parties of up to four, provisions two-map adventures with nearby monsters, creates party heroes,
+and opens `/api/ws?party=...&hero=...` WebSockets. It prints connection, throughput, message-size,
+acknowledgement latency, transition, disconnect, and protocol-error metrics. It targets
 `http://localhost:5173` by default and refuses any remote target unless
 `--allow-remote=true` is explicit; the production hostname needs the additional
-`--allow-production=true` safeguard.
+`--allow-production=true` safeguard. Each scenario uses its own resumable party so durable combat
+or death state cannot contaminate a later reconnect or transition run.
 
 ## How it works
 

@@ -8,6 +8,8 @@
   "include": [
     "vite.config.ts",
     "vitest.config.ts",
+    "vitest.runtime.config.ts",
+    "vitest.runtime.ui.config.ts",
     "vitest.catalog.config.ts",
     "drizzle.config.ts",
     "scripts/**/*.ts",

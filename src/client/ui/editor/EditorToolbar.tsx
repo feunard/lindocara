@@ -3,13 +3,16 @@ import {
   FilePlus,
   Grid3x3,
   Layers,
+  Mountain,
   MousePointer2,
   PaintBucket,
   Pencil,
   Play,
   Save,
+  Sparkles,
   Square,
   Trash2,
+  Trees,
   ZoomIn,
 } from "lucide-react";
 import type { ComponentType } from "react";
@@ -43,7 +46,11 @@ const PAINT_TOOLS: { key: EditorPaintTool; icon: ComponentType }[] = [
   { key: "eraser", icon: Eraser },
 ];
 
-const LAYERS: (0 | 1 | 2)[] = [0, 1, 2];
+const LAYERS = [
+  { index: 0 as const, label: "editor.shell.layer.terrain" as const, icon: Mountain },
+  { index: 1 as const, label: "editor.shell.layer.details" as const, icon: Sparkles },
+  { index: 2 as const, label: "editor.shell.layer.overlay" as const, icon: Trees },
+] as const;
 
 interface EditorToolbarProps {
   activeTool: EditorPaintTool | null;
@@ -128,26 +135,27 @@ export function EditorToolbar({
       <Separator />
 
       <div className="flex items-center gap-0.5 rounded-lg bg-zinc-100 p-0.5">
-        {LAYERS.map((layer) => (
+        {LAYERS.map(({ index, label, icon: Icon }) => (
           <Button
-            key={layer}
-            variant={activeLayer === layer ? "secondary" : "ghost"}
-            size="icon-sm"
-            aria-label={t("editor.shell.layer", { n: layer + 1 })}
-            aria-pressed={activeLayer === layer}
-            onClick={() => onSelectLayer(layer)}
+            key={index}
+            variant={activeLayer === index && !eventActive ? "secondary" : "ghost"}
+            size="sm"
+            aria-label={t(label)}
+            aria-pressed={activeLayer === index && !eventActive}
+            onClick={() => onSelectLayer(index)}
           >
-            {layer + 1}
+            <Icon />
+            {t(label)}
           </Button>
         ))}
         <Button
           variant={eventActive ? "secondary" : "ghost"}
-          size="icon-sm"
+          size="sm"
           aria-label={t("editor.shell.events")}
           aria-pressed={eventActive}
           onClick={onSelectEvents}
         >
-          {t("editor.shell.events.short")}
+          {t("editor.shell.events")}
         </Button>
       </div>
 

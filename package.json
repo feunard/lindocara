@@ -14,6 +14,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest run -c vitest.ui.config.ts",
+    "test:runtime": "vitest run -c vitest.runtime.config.ts",
+    "test:ui:runtime": "vitest run -c vitest.runtime.ui.config.ts",
     "test:catalog": "vitest run -c vitest.catalog.config.ts",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
@@ -29,7 +31,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "wrangler d1 migrations apply lindocara --local",
     "db:migrate:remote": "wrangler d1 migrations apply lindocara --remote",
-    "check": "npm run catalog:check && npm run map:check && npm run lint && npm run typecheck && npm run test && npm run test:ui"
+    "check": "npm run catalog:check && npm run map:check && npm run lint && npm run typecheck && npm run test && npm run test:ui",
+    "check:runtime": "npm run lint && npm run typecheck && npm run test:runtime && npm run test:ui:runtime && npm run build"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.3",

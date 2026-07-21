@@ -1,6 +1,7 @@
 import {
   type FocusEvent as ReactFocusEvent,
   type KeyboardEvent as ReactKeyboardEvent,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -10,9 +11,21 @@ import type { AdventureInput } from "../../../shared/adventure.js";
 import { type AdventureRegistry, EMPTY_REGISTRY } from "../../../shared/adventure-state.js";
 import type { MonsterSpecies } from "../../../shared/game.js";
 import { EMPTY_MARKERS, type MapData } from "../../../shared/map-data.js";
-import type { EventKind, MapEvent } from "../../../shared/map-events.js";
+import {
+  type EventKind,
+  entryEvents,
+  exitEvents,
+  type MapEvent,
+  monsterEvents,
+} from "../../../shared/map-events.js";
 import { type EditorAssetId, editorAsset } from "../../../shared/tiny-swords-catalog.js";
-import { setStart } from "../../adventure-draft.js";
+import {
+  type AdventureDraft,
+  type DraftMemberInfo,
+  refreshMember,
+  setStart,
+  toAdventureInput,
+} from "../../adventure-draft.js";
 import {
   authErrorText,
   createAdventureApi,
@@ -29,6 +42,7 @@ import {
   type EditorTool,
   editorLayersFromPayload,
   type RectFillContent,
+  solidMaskFromMapPayload,
   toMapData,
   toSaveInput,
 } from "../../game/editor-state.js";
@@ -42,6 +56,7 @@ import { Label } from "../components/label.js";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../components/resizable.js";
 import { AdventureSettingsDialog } from "./AdventureSettingsDialog.js";
 import { loadAdventureSession } from "./adventure-session.js";
+import { EditorAssetPreview } from "./CatalogueAssetPicker.js";
 import { EditorMenuBar } from "./EditorMenuBar.js";
 import { EditorStatusBar } from "./EditorStatusBar.js";
 import { type EditorPaintTool, EditorToolbar, toolLabelText } from "./EditorToolbar.js";
@@ -102,6 +117,26 @@ function toEditorMap(map: MapPayload): EditorMap {
     // carries and never authors one, so it opens with `EMPTY_MARKERS` and saves the same.
     markers: EMPTY_MARKERS,
     events: map.events ?? [],
+  };
+}
+
+/** Draft-facing facts from the exact in-memory map being saved. This is the bridge that lets a new
+ * entry/exit id and its graph binding be validated and committed in the same server transaction. */
+function memberInfoFromEditor(mapId: string, revision: number, edited: EditorMap): DraftMemberInfo {
+  const entries = entryEvents(edited.events);
+  const exits = exitEvents(edited.events);
+  const labels = (events: readonly { id: string; name: string }[]) =>
+    Object.fromEntries(events.flatMap((event) => (event.name ? [[event.id, event.name]] : [])));
+  return {
+    mapId,
+    name: edited.name,
+    revision,
+    solid: solidMaskFromMapPayload(toMapData(edited)),
+    monsterCount: monsterEvents(edited.events).length,
+    entryIds: entries.map((event) => event.id),
+    exitIds: exits.map((event) => event.id),
+    entryLabels: labels(entries),
+    exitLabels: labels(exits),
   };
 }
 
@@ -288,9 +323,10 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   const [showGrid, setShowGrid] = useState(true);
   const [showDim, setShowDim] = useState(false);
   const [cursor, setCursor] = useState<{ col: number; row: number } | null>(null);
-  const [zoom, setZoom] = useState(100);
+  const [zoom, setZoomState] = useState(100);
   const [elementCount, setElementCount] = useState(0);
   const [dirty, setDirty] = useState(false);
+  const [savingMap, setSavingMap] = useState(false);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [selection, setSelection] = useState<EditorSelection | null>(null);
@@ -325,11 +361,14 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   // Bumped after every save/create so the map panel refetches names and dimensions.
   const [mapsRefreshNonce, setMapsRefreshNonce] = useState(0);
 
-  function fail(caught: unknown): void {
-    const code = errorCode(caught);
-    if (isSessionError(code)) setScreen("auth");
-    else setError(code);
-  }
+  const fail = useCallback(
+    (caught: unknown): void => {
+      const code = errorCode(caught);
+      if (isSessionError(code)) setScreen("auth");
+      else setError(code);
+    },
+    [setScreen],
+  );
 
   // UX wave #15: remember this as the last-edited adventure so the next editor open lands straight in
   // it. This is the single write point — the bootstrap, the load dialog and the instant-create all
@@ -397,6 +436,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     openMapEditorStage(
       editedRef.current ?? toEditorMap(map),
       (changed, state) => {
+        editedRef.current = changed;
         setError(null);
         setElementCount(changed.elements.length);
         setDirty(state.dirty);
@@ -406,6 +446,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       },
       (col, row) => setCursor(col === null || row === null ? null : { col, row }),
       (id) => setOpenEventId(id),
+      (percent) => setZoomState(percent),
     )
       .then((handle) => {
         if (cancelled) {
@@ -430,7 +471,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       handleRef.current?.dispose();
       handleRef.current = null;
     };
-  }, [map, previewing]);
+  }, [map?.id, previewing]);
 
   // The sandbox walk. Only while previewing; Esc ends it, which reopens the editor with edits intact.
   useEffect(() => {
@@ -440,13 +481,20 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     const data: MapData = toMapData(edited);
     let stopped = false;
     let preview: { stop(): void } | null = null;
-    void startMapPreview(data).then((started) => {
-      if (stopped) {
-        started.stop();
-        return;
-      }
-      preview = started;
-    });
+    void startMapPreview(data)
+      .then((started) => {
+        if (stopped) {
+          started.stop();
+          return;
+        }
+        preview = started;
+      })
+      .catch((caught) => {
+        if (!stopped) {
+          setPreviewing(false);
+          fail(caught);
+        }
+      });
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.code !== "Escape") return;
       event.preventDefault();
@@ -458,7 +506,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       window.removeEventListener("keydown", onKeyDown);
       preview?.stop();
     };
-  }, [previewing]);
+  }, [previewing, fail]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -572,6 +620,13 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     pendingLayerRef.current = layer;
     setActiveLayer(layer);
     handleRef.current?.setActiveLayer(layer);
+    // A layer button means "paint this terrain layer". Leaving the EV/scenery/spawn tool active made
+    // these buttons appear broken because their click changed a hidden value but not the visible mode.
+    if (toolKey === "event" || toolKey === "spawn" || selectedAsset !== null) {
+      setToolKey("pencil");
+      setSelectedAsset(null);
+      pushTool(paintToolFor("pencil", content));
+    }
   }
 
   function toggleGrid(): void {
@@ -592,8 +647,14 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     });
   }
 
+  function setEditorZoom(percent: number): void {
+    handleRef.current?.setZoom(percent);
+  }
+
   function cycleZoom(): void {
-    setZoom((current) => (current >= 200 ? 100 : 200));
+    const stops = [50, 75, 100, 125, 150, 200] as const;
+    const next = stops.find((stop) => stop > zoom) ?? stops[0];
+    setEditorZoom(next);
   }
 
   function test(): void {
@@ -613,25 +674,72 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
 
   // The map save itself, ungated: writes the stage's current map to D1. Both the direct path and the
   // first-save popup's continuation land here so there is one definition of "persist this map".
-  async function doSaveMap(): Promise<void> {
+  async function doSaveMap(draftOverride?: AdventureDraft): Promise<AdventureDraft | null> {
     const handle = handleRef.current;
-    if (!handle || !map || stageStatus !== "ready") return;
+    if (!handle || !map || stageStatus !== "ready" || savingMap) return null;
+    const savedSnapshot = handle.current();
+    const currentSession = useUiStore.getState().adventureEditorSession;
+    const baseDraft = draftOverride ?? currentSession?.draft;
+    const tracksCurrentMap = baseDraft?.members.some((member) => member.mapId === map.id) ?? false;
+    const refreshed =
+      baseDraft && tracksCurrentMap
+        ? Array.isArray(savedSnapshot.events)
+          ? refreshMember(baseDraft, memberInfoFromEditor(map.id, map.revision, savedSnapshot))
+              .draft
+          : baseDraft
+        : null;
+    const adventureInput = refreshed ? toAdventureInput(refreshed) : null;
+    if (currentSession && refreshed) {
+      setSession({ ...currentSession, draft: refreshed });
+    }
+    // A newly placed exit has no destination yet. Open the graph settings on that new binding rather
+    // than issuing a request the server must reject; its Save comes back through this same function.
+    if (refreshed && !adventureInput) {
+      setSettingsOpen(true);
+      return null;
+    }
     setError(null);
+    setSavingMap(true);
     try {
-      const updated = await updateMapApi(map.id, toSaveInput(handle.current()));
-      handle.markSaved();
-      setDirty(false);
+      const updated = await updateMapApi(
+        map.id,
+        toSaveInput(savedSnapshot),
+        adventureInput ?? undefined,
+        map.revision,
+      );
+      handle.markSaved(savedSnapshot);
       setMap((current) => (current ? { ...current, ...updated } : current));
       setMapsRefreshNonce((n) => n + 1);
+      const savedDraft =
+        refreshed && Array.isArray(savedSnapshot.events)
+          ? refreshMember(refreshed, memberInfoFromEditor(map.id, updated.revision, savedSnapshot))
+              .draft
+          : refreshed;
+      const latestSession = useUiStore.getState().adventureEditorSession;
+      if (latestSession && savedDraft) {
+        setSession({
+          ...latestSession,
+          draft: savedDraft,
+          invalidatedLinks: [],
+          savedDraft: JSON.stringify(savedDraft),
+        });
+      }
+      return savedDraft;
     } catch (caught) {
+      // Settings owns the visible modal error surface. Let that caller translate/render the failure;
+      // direct toolbar/shortcut saves still report through the editor shell here.
+      if (draftOverride) throw caught;
       fail(caught);
+      return null;
+    } finally {
+      setSavingMap(false);
     }
   }
 
   // The save entry point (⌘S and the menu/toolbar Save): on an unnamed fresh adventure it opens the
   // first-save name popup instead of saving; the popup's Confirm continues into `doSaveMap`.
   async function save(): Promise<void> {
-    if (stageStatus !== "ready") return;
+    if (stageStatus !== "ready" || savingMap) return;
     if (titleUntouched) {
       setFirstSaveOpen(true);
       return;
@@ -678,6 +786,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
 
   // The map panel's "select to switch" load path: guard unsaved edits, then swap the stage's map.
   function loadMap(id: string): void {
+    if (savingMap) return;
     if (id === map?.id) return;
     if (dirty && !window.confirm(t("editor.shell.exit.confirm"))) return;
     setError(null);
@@ -778,6 +887,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   }
 
   function exit(force = false): void {
+    if (!force && savingMap) return;
     if (!force && dirty && !window.confirm(t("editor.shell.exit.confirm"))) {
       return;
     }
@@ -806,7 +916,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   // - the stage has not finished opening (`stageStatus !== "ready"`), matching every other action in
   //   this file guarding on stage readiness.
   function handleShortcutKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
-    if (stageStatus !== "ready") return;
+    if (stageStatus !== "ready" || savingMap) return;
     if (
       newMapOpen ||
       confirmDeleteId !== null ||
@@ -827,15 +937,23 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     }
 
     const key = event.key.toLowerCase();
-    if (event.metaKey && key === "s") {
+    if ((event.metaKey || event.ctrlKey) && key === "s") {
       event.preventDefault();
+      event.stopPropagation();
       void save();
       return;
     }
-    if (event.metaKey && key === "z") {
+    if ((event.metaKey || event.ctrlKey) && key === "z") {
       event.preventDefault();
+      event.stopPropagation();
       if (event.shiftKey) redo();
       else undo();
+      return;
+    }
+    if ((event.metaKey || event.ctrlKey) && key === "y") {
+      event.preventDefault();
+      event.stopPropagation();
+      redo();
       return;
     }
     // Enter opens the dialog of the selected event — the keyboard twin of a stage double-click.
@@ -967,7 +1085,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         onSelectTool={selectTool}
         onToggleGrid={toggleGrid}
         onToggleDim={toggleDim}
-        onSetZoom={setZoom}
+        onSetZoom={setEditorZoom}
         onTest={test}
       />
 
@@ -978,7 +1096,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         showGrid={showGrid}
         showDim={showDim}
         zoom={zoom}
-        canSave={stageStatus === "ready"}
+        canSave={stageStatus === "ready" && !savingMap}
         onNewMap={() => setNewMapOpen(true)}
         onSave={() => void save()}
         onDeleteMap={() => setConfirmDeleteId(map?.id ?? null)}
@@ -1033,6 +1151,14 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
             {stageStatus === "loading" && (
               <p className="absolute left-3 top-3 z-10 text-sm text-zinc-500" role="status">
                 {t("editor.shell.stage.loading")}
+              </p>
+            )}
+            {savingMap && (
+              <p
+                className="pointer-events-none absolute right-3 top-3 z-10 rounded-md bg-white/90 px-2 py-1 text-xs text-zinc-600 shadow-sm"
+                role="status"
+              >
+                {t("editor.shell.saving")}
               </p>
             )}
             {stageStatus === "error" && (
@@ -1106,12 +1232,12 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       <AdventureSettingsDialog
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
+        onSaveDraft={doSaveMap}
         onSaved={() => {
           // A settings save is an explicit adventure save that includes the title, so it counts as
           // the name being confirmed: the first-save popup must not fire afterwards (UX wave #14).
           setTitleUntouched(false);
           setMapsRefreshNonce((n) => n + 1);
-          refreshSession();
         }}
         onSessionExpired={() => setScreen("auth")}
       />
@@ -1204,6 +1330,7 @@ function SelectionInspector({
           (element) => element.col === selection.col && element.row === selection.row,
         )
       : undefined;
+  const selectedElementAsset = selectedElement ? editorAsset(selectedElement.assetId) : undefined;
   const position =
     selectedEvent ?? selectedElement ?? (selection.kind === "spawn" ? map.spawn : undefined);
 
@@ -1236,12 +1363,15 @@ function SelectionInspector({
       )}
 
       {selectedElement && (
-        <p className="text-[11px] text-zinc-500">
-          {selectedElement.assetId}
-          {editorAsset(selectedElement.assetId)?.editor.collisionFootprint.length
-            ? ` · ${t("editor.palette.collision")}`
-            : ` · ${t("editor.inspector.walkable")}`}
-        </p>
+        <div className="flex items-center gap-2">
+          {selectedElementAsset && <EditorAssetPreview asset={selectedElementAsset} size={48} />}
+          <p className="min-w-0 text-[11px] text-zinc-500">
+            <span className="block truncate">{selectedElement.assetId}</span>
+            {selectedElementAsset?.editor.collisionFootprint.length
+              ? t("editor.palette.collision")
+              : t("editor.inspector.walkable")}
+          </p>
+        </div>
       )}
 
       {position && (
