@@ -15,6 +15,7 @@ const PRESET_LABEL: Record<EventPreset, MessageKey> = {
   teleporter: "editor.event.preset.teleporter",
   sign: "editor.event.preset.sign",
   chest: "editor.event.preset.chest",
+  endgame: "editor.event.preset.endgame",
 };
 
 /** The functional kinds kept alongside the presets (a later tranche folds these into presets too).

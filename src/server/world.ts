@@ -343,6 +343,10 @@ export class World extends DurableObject<Env> {
    *  `#teleportRefusalsLogged`. Currently the only reason is a grant landing mid cross-map handoff.
    *  Reset when the room empties. */
   #goldRefusalsLogged = new Set<string>();
+  /** Set once an authored `endAdventure` command has marked the party's save complete, so an author's
+   *  `loop { endAdventure }` (or a re-trigger) never hammers `completeParty`/the victory broadcast more
+   *  than once per room lifetime. Reset when the room empties, beside `#teleportRefusalsLogged`. */
+  #adventureEndDispatched = false;
   #occupiedExitByPlayerId = new Map<string, string>();
   /** How often this room re-asserts its players' leases. Read once from `Env`, never from a client. */
   readonly #presenceHeartbeatMs: number;
@@ -2942,6 +2946,8 @@ export class World extends DurableObject<Env> {
           mutations.push(effect.op);
         } else if (effect.kind === "teleport") {
           this.#dispatchTeleport(dispatch, effect, now);
+        } else if (effect.kind === "endAdventure") {
+          this.#dispatchEndAdventure(dispatch);
         } else if (effect.kind === "changeGold") {
           this.#dispatchGold(dispatch, effect);
         } else {
@@ -3241,6 +3247,51 @@ export class World extends DurableObject<Env> {
           }),
         );
       }),
+    );
+  }
+
+  /**
+   * The authored `endAdventure` effect: mark the party's save complete and broadcast victory, exactly
+   * like the graph's `dest: "end"` exit branch, but fired by a scripted event command rather than the
+   * exit-anchor graph (D25's optional end-game EVENT). Guarded by `#adventureEndDispatched` so an
+   * author's `loop { endAdventure }` or a re-trigger runs `completeParty` at most once per room
+   * lifetime. The completion is fire-and-forget via `waitUntil`: the run continues locally regardless,
+   * and `completeParty` is idempotent (only the first completion broadcasts).
+   */
+  #dispatchEndAdventure(dispatch: DispatchEffect): void {
+    if (this.#adventureEndDispatched) return;
+    const socket = this.#socketByPlayerId.get(dispatch.heroId);
+    const player = socket ? this.#players.get(socket) : undefined;
+    if (!socket || !player?.authorized || player.identityKind !== "hero") return;
+    const partyId = player.partyId;
+    if (!partyId) return;
+    this.#adventureEndDispatched = true;
+    this.ctx.waitUntil(
+      (async () => {
+        try {
+          const db = createDb(this.env.DB);
+          const firstCompletion = await completeParty(db, partyId);
+          if (firstCompletion) {
+            await this.env.GAME_SESSION.getByName(partyId).broadcast(partyId, {
+              t: "event",
+              code: "adventure.victory",
+              tone: "good",
+            });
+          }
+        } catch (error) {
+          // A failed completion frees the guard so a later trigger can retry, mirroring the teleport
+          // handoff's release-on-failure discipline.
+          this.#adventureEndDispatched = false;
+          console.error(
+            JSON.stringify({
+              event: "event_end_adventure_failed",
+              partyId,
+              eventId: dispatch.eventId,
+              error: error instanceof Error ? error.message : String(error),
+            }),
+          );
+        }
+      })(),
     );
   }
 
@@ -3946,6 +3997,7 @@ export class World extends DurableObject<Env> {
     this.#teleportRefusalsLogged.clear();
     this.#itemRefusalsLogged.clear();
     this.#goldRefusalsLogged.clear();
+    this.#adventureEndDispatched = false;
     this.#crossMapTeleports = 0;
     this.#loot = [];
     this.#projectiles = [];

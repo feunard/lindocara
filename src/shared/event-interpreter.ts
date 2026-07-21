@@ -201,6 +201,7 @@ export type EventEffect =
       readonly col: number;
       readonly row: number;
     }
+  | { readonly kind: "endAdventure" }
   | { readonly kind: "changeGold"; readonly amount: number }
   | { readonly kind: "changeItems"; readonly itemId: string; readonly count: number }
   | { readonly kind: "closeDialogue" }
@@ -410,6 +411,14 @@ function executeCommand(
       return {
         context: running(context, advanceTop(frames)),
         effects: [{ kind: "teleport", mapId: command.mapId, col: command.col, row: command.row }],
+      };
+    case "endAdventure":
+      // Emit the end-of-adventure effect and carry on; `World` marks the party's save complete and
+      // broadcasts victory. Like `changeGold`, this consumes itself and lets the program continue —
+      // an author may script an epilogue `say` after the ending fires.
+      return {
+        context: running(context, advanceTop(frames)),
+        effects: [{ kind: "endAdventure" }],
       };
     case "changeGold":
       return {

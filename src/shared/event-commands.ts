@@ -10,8 +10,8 @@
  *
  * The vocabulary is the tranche-5 catalogue (spec Decision 2/6, `2026-07-20-interpreter-design.md`):
  * show text · show choices · set switch · set variable (set/add) · set self-switch · conditional
- * (with else) · loop · break loop · exit event processing · wait · teleport · change gold · change
- * items · comment. Switch/variable ids reuse `map-events.ts`'s registry-less 4-digit shape check —
+ * (with else) · loop · break loop · exit event processing · wait · teleport · end adventure · change
+ * gold · change items · comment. Switch/variable ids reuse `map-events.ts`'s registry-less shape —
  * the registry that gives an id meaning is a later concern, and pretending it exists here would move
  * the validation gap somewhere less honest, the same choice `map-events.ts` documents.
  */
@@ -105,6 +105,7 @@ export type EventCommand =
   | { readonly t: "exitRun" }
   | { readonly t: "wait"; readonly frames: number }
   | { readonly t: "teleport"; readonly mapId: string; readonly col: number; readonly row: number }
+  | { readonly t: "endAdventure" }
   | { readonly t: "changeGold"; readonly amount: number }
   | { readonly t: "changeItems"; readonly itemId: string; readonly count: number }
   | { readonly t: "startQuest"; readonly questId: string }
@@ -251,6 +252,10 @@ function parseCommand(raw: unknown, depth: number, counter: Counter): EventComma
       if (col < 0 || row < 0) return null;
       return { t: "teleport", mapId: record.mapId, col, row };
     }
+    case "endAdventure":
+      // The optional end-game beat: marks the party's save complete when it runs. Field-free, like
+      // `exitRun`/`breakLoop` — an author drops it wherever the ending should fire.
+      return { t: "endAdventure" };
     case "changeGold": {
       if (!Number.isSafeInteger(record.amount)) return null;
       return { t: "changeGold", amount: record.amount as number };

@@ -65,6 +65,7 @@ export interface DispatchEffect {
     EventEffect,
     | { kind: "mutateState" }
     | { kind: "teleport" }
+    | { kind: "endAdventure" }
     | { kind: "changeGold" }
     | { kind: "changeItems" }
   >;

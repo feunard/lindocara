@@ -72,7 +72,7 @@ const COMMAND_CATEGORIES: readonly {
   { key: "messages", kinds: ["say", "choices"] },
   { key: "quests", kinds: ["startQuest", "advanceQuest", "completeQuest"] },
   { key: "progression", kinds: ["setSwitch", "setVariable", "setSelfSwitch"] },
-  { key: "control", kinds: ["if", "loop", "breakLoop", "exitRun"] },
+  { key: "control", kinds: ["if", "loop", "breakLoop", "exitRun", "endAdventure"] },
   { key: "character", kinds: ["teleport", "wait"] },
   { key: "party", kinds: ["changeGold", "changeItems"] },
   { key: "other", kinds: ["comment"] },
@@ -117,6 +117,8 @@ function defaultCommand(
       return { t: "breakLoop" };
     case "exitRun":
       return { t: "exitRun" };
+    case "endAdventure":
+      return { t: "endAdventure" };
     case "wait":
       return { t: "wait", frames: WAIT_FRAMES_MIN };
     case "teleport": {
@@ -278,6 +280,8 @@ function commandLine(command: EventCommand, maps: readonly TeleportMap[]): strin
       return t("editor.event.cmd.breakLoop");
     case "exitRun":
       return t("editor.event.cmd.exitRun");
+    case "endAdventure":
+      return t("editor.event.cmd.endAdventure");
     case "wait":
       return t("editor.event.cmd.wait", { frames: command.frames });
     case "teleport": {

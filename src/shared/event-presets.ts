@@ -21,7 +21,7 @@ import {
   type MapEventPage,
 } from "./map-events.js";
 
-export const EVENT_PRESETS = ["raw", "teleporter", "sign", "chest"] as const;
+export const EVENT_PRESETS = ["raw", "teleporter", "sign", "chest", "endgame"] as const;
 export type EventPreset = (typeof EVENT_PRESETS)[number];
 
 /** The default gold a `chest` preset grants until the author edits it — a positive, non-zero amount
@@ -47,6 +47,10 @@ export function presetPageContent(
       return { trigger: "action", commands: [{ t: "say", text: "", name: null }] };
     case "chest":
       return { trigger: "action", commands: [{ t: "changeGold", amount: CHEST_DEFAULT_GOLD }] };
+    case "endgame":
+      // The optional adventure goal: stepping on this cell marks the party's save complete. The
+      // author retargets the trigger or adds an epilogue `say` in the dialog.
+      return { trigger: "player-touch", commands: [{ t: "endAdventure" }] };
   }
 }
 

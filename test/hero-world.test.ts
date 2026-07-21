@@ -4,6 +4,7 @@ import type { AdventureGraph } from "../src/shared/adventure.js";
 import { WS_CLOSE } from "../src/shared/close-codes.js";
 import { ATTACK_COOLDOWN_MS, MONSTER_STATS, maxHpForLevel } from "../src/shared/game.js";
 import type { MapElement } from "../src/shared/map-data.js";
+import { defaultEventPage, type MapEvent } from "../src/shared/map-events.js";
 import { PLAYER_SIZE } from "../src/shared/simulation.js";
 import { TILE_SIZE } from "../src/shared/tilemap.js";
 import { layeredWireTerrain } from "./support/map-fixtures.js";
@@ -1561,4 +1562,145 @@ describe("party state inside a hero room", { timeout: 20_000 }, () => {
     const after = first.received.filter((message) => message.t === "party.state").length;
     expect(after).toBe(before);
   }, 20_000);
+});
+
+/**
+ * Author-command routing (D21/D25): a teleport is a generic scripted `player-touch` event carrying a
+ * cross-map destination, not an exit-anchor. An ending is a scripted `endAdventure` command, not a
+ * graph `dest: "end"`. These prove both mechanisms end-to-end against the real Durable Object, the
+ * same authority the exit-anchor tests use.
+ */
+describe("authored teleport and ending events", { timeout: 20_000 }, () => {
+  /** PUT an authored map body as its host, asserting the 200 the API promises. */
+  async function putMap(host: TestAccount, mapId: string, body: TestMapBody): Promise<void> {
+    const response = await SELF.fetch(`${ORIGIN}/api/maps/${mapId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Cookie: host.cookie },
+      body: JSON.stringify(body),
+    });
+    expect(response.status).toBe(200);
+  }
+
+  /** A generic scripted event: one page, no conditions, the given trigger and command program. */
+  function scriptedEvent(
+    cell: { col: number; row: number },
+    ordinal: number,
+    trigger: MapEvent["pages"][number]["trigger"],
+    commands: MapEvent["pages"][number]["commands"],
+  ): MapEvent {
+    return {
+      id: crypto.randomUUID(),
+      col: cell.col,
+      row: cell.row,
+      name: "",
+      ordinal,
+      kind: "normal",
+      species: null,
+      patrolRadius: null,
+      pages: [{ ...defaultEventPage(), trigger, commands }],
+    };
+  }
+
+  it("moves a hero cross-map when they step on an authored teleport event", async () => {
+    const mapA = testMapInput("Teleport source", {
+      cols: 20,
+      rows: 15,
+      spawn: { col: 2, row: 2 },
+      exit: { col: 18, row: 13 },
+    });
+    const mapB = testMapInput("Teleport destination", {
+      cols: 20,
+      rows: 15,
+      spawn: { col: 3, row: 3 },
+      exit: { col: 18, row: 13 },
+    });
+    const party = await testParty("xmap-teleport", { maps: [mapA, mapB] });
+    const [mapAId, mapBId] = party.mapIds;
+    if (!mapAId || !mapBId) throw new Error("expected two seeded maps");
+
+    // Re-author the source map with a player-touch teleport event one cell east of the spawn, aimed at
+    // the DESTINATION map's uuid (only known now the map exists). The original entry/exit events stay,
+    // so the adventure graph the harness bound is still valid.
+    const destCell = { col: 7, row: 7 };
+    const teleport = scriptedEvent({ col: 3, row: 2 }, 3, "player-touch", [
+      { t: "teleport", mapId: mapBId, col: destCell.col, row: destCell.row },
+    ]);
+    await putMap(party.host, mapAId, { ...mapA, events: [...mapA.events, teleport] });
+
+    const hero = await testHero("Walker", {
+      party,
+      account: party.host,
+      position: centre(2, 2),
+    });
+    const source = await Client.joinHero(hero);
+    await until("teleport source welcome", () => source.welcome);
+    expect(source.welcome?.world.zoneId).toBe(mapAId);
+
+    // Walk east onto the teleport cell; the server-authoritative player-touch trigger fires the run.
+    source.press("right");
+    const close = await until("cross-map teleport handoff", () => source.closeInfo ?? undefined);
+    expect(close.code).toBe(WS_CLOSE.ZONE_TRANSITION);
+
+    // Reconnect resumes on the DESTINATION map at the AUTHORED teleport cell (7,7) — the server read it
+    // from D1. Landing here rather than mapB's entry (3,3) proves the move came from the teleport
+    // COMMAND, not the exit-anchor graph the harness also wired.
+    const destination = await Client.joinHero(hero);
+    const welcome = await until("teleport destination welcome", () => destination.welcome);
+    expect(welcome.world.zoneId).toBe(mapBId);
+    expect(destination.self()).toMatchObject(centre(destCell.col, destCell.row));
+    const persisted = await env.DB.prepare("SELECT map_id, x, y FROM hero WHERE id = ?")
+      .bind(hero.heroId)
+      .first<{ map_id: string; x: number; y: number }>();
+    expect(persisted?.map_id).toBe(mapBId);
+    expect(persisted?.x).toBeCloseTo(centre(destCell.col, destCell.row).x, 1);
+    expect(persisted?.y).toBeCloseTo(centre(destCell.col, destCell.row).y, 1);
+  });
+
+  it("completes the party when a hero triggers an authored endAdventure event", async () => {
+    const mapA = testMapInput("Ending source", {
+      cols: 20,
+      rows: 15,
+      spawn: { col: 2, row: 2 },
+      exit: { col: 18, row: 13 },
+    });
+    const party = await testParty("authored-ending", { maps: [mapA] });
+    const [mapAId] = party.mapIds;
+    if (!mapAId) throw new Error("expected one seeded map");
+
+    // A goal tile: stepping on it runs the endAdventure command, marking the party's save complete —
+    // no graph `dest: "end"` link involved.
+    const goal = scriptedEvent({ col: 3, row: 2 }, 3, "player-touch", [{ t: "endAdventure" }]);
+    await putMap(party.host, mapAId, { ...mapA, events: [...mapA.events, goal] });
+
+    const hero = await testHero("Champion", {
+      party,
+      account: party.host,
+      position: centre(2, 2),
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      await until("ending source welcome", () => client.welcome);
+      client.press("right");
+      await until("authored victory broadcast", () =>
+        client.received.find(
+          (message) => message.t === "event" && message.code === "adventure.victory",
+        ),
+      );
+      // The hero is NOT kicked — an ending is a state change, not a transition.
+      expect(client.closeInfo).toBeNull();
+      // Fired exactly once even as the hero keeps standing on the goal cell for a beat.
+      await scheduler.wait(700);
+      expect(
+        client.received.filter(
+          (message) => message.t === "event" && message.code === "adventure.victory",
+        ),
+      ).toHaveLength(1);
+      const completed = await env.DB.prepare("SELECT status FROM party WHERE id = ?")
+        .bind(party.partyId)
+        .first<{ status: string }>();
+      expect(completed?.status).toBe("completed");
+    } finally {
+      client.close();
+    }
+  });
 });
