@@ -970,6 +970,7 @@ export const en = {
   "editor.event.kind.entry": "Entry",
   "editor.event.kind.exit": "Exit",
   "editor.event.kind.monster": "Monster",
+  "editor.event.kind.spawn": "Spawn",
   "editor.event.kind.anchor.hint":
     "The adventure graph binds this anchor by id. Name it to tell anchors apart.",
   "editor.event.preset.heading": "Place",

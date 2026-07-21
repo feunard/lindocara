@@ -121,10 +121,11 @@ export async function createParty(
 ): Promise<StoredParty> {
   const adv = await loadAdventure(db, accountId, input.adventureId);
   if (!adv) throw new Error("adventure: no such adventure");
-  // A draft adventure (no start authored) has nowhere for heroes to spawn. Refuse the party at
-  // creation with a DISTINCT code rather than letting hero creation later fail as a misleading
-  // "hero not found" — the fault is the adventure, not the hero.
-  if (!adv.graph.start) throw new Error("not_playable: adventure has no start");
+  // D25: the first map + spawn are DERIVED (`resolveAdventureStart`) — a spawn event, else the legacy
+  // graph start, else the first map's walkable spawn — so no `graph.start` is required to play. Only a
+  // mapless adventure has nowhere for heroes to spawn. Refuse it at creation with a DISTINCT code
+  // rather than letting hero creation later fail as a misleading "hero not found".
+  if (adv.mapIds.length === 0) throw new Error("not_playable: adventure has no map");
   const id = crypto.randomUUID();
   const row = {
     id,

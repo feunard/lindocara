@@ -13,7 +13,7 @@ import { isValidClass } from "../shared/game.js";
 import { parseCreateHeroInput } from "../shared/hero.js";
 import { isUuid } from "../shared/identifiers.js";
 import { mapSpawnPoint, parseMapData } from "../shared/map-data.js";
-import { eventCellCentre, parseMapEvents } from "../shared/map-events.js";
+import { parseMapEvents } from "../shared/map-events.js";
 import { parseCreatePartyInput, parseJoinPartyInput } from "../shared/party.js";
 import { encodeTileLayer } from "../shared/tile-layer-codec.js";
 import {
@@ -28,6 +28,7 @@ import {
   deleteAdventure,
   listAdventures,
   loadAdventure,
+  resolveAdventureStart,
   updateAdventure,
 } from "./adventures.js";
 import { authRequestAllowed } from "./auth-rate-limit.js";
@@ -404,20 +405,19 @@ async function handleJoinHero(request: Request, env: Env, url: URL): Promise<Res
   const adventure = await loadAdventure(db, partyRow.hostAccountId, partyRow.adventureId);
   if (!adventure) return closedWebSocket(WS_CLOSE.INVALID_LOCATION, "party adventure missing");
 
-  const start = adventure.graph.start;
   let mapId = owned.mapId;
   let stored = adventure.mapIds.includes(mapId) ? await loadMap(db, mapId) : null;
   let fallbackPosition: { x: number; y: number } | null = null;
   if (!stored) {
-    // A draft adventure (no start) has no room to admit the hero into.
-    if (!start) return closedWebSocket(WS_CLOSE.INVALID_LOCATION, "adventure has no start");
+    // The hero's stored map is gone (deleted, or never a member). Re-derive the adventure's start —
+    // a spawn event, else the legacy graph start, else the first map's walkable spawn (D25) — and
+    // move the hero there. Only a mapless adventure has no room to admit the hero into.
+    const start = await resolveAdventureStart(db, adventure);
+    if (!start) return closedWebSocket(WS_CLOSE.INVALID_LOCATION, "adventure has no map");
     mapId = start.mapId;
     stored = await loadMap(db, mapId);
     if (!stored) return closedWebSocket(WS_CLOSE.INVALID_LOCATION, "adventure start missing");
-    const entry = stored.events.find(
-      (event) => event.kind === "entry" && event.id === start.entryId,
-    );
-    fallbackPosition = entry ? eventCellCentre(entry) : mapSpawnPoint(stored);
+    fallbackPosition = { x: start.x, y: start.y };
   }
 
   const roomKey = `${partyId}:${mapId}`;

@@ -8,7 +8,7 @@
  * A freshly created adventure is an empty draft: no maps, `EMPTY_GRAPH`. Maps are created under it
  * afterward (`createMap`), and the graph is authored through `updateAdventure` once maps exist.
  */
-import { asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
   type AdventureGraph,
   type AdventureInput,
@@ -23,8 +23,10 @@ import {
   EMPTY_REGISTRY,
   parseAdventureRegistry,
 } from "../shared/adventure-state.js";
+import { mapSpawnPoint } from "../shared/map-data.js";
+import { eventCellCentre } from "../shared/map-events.js";
 import { adventure, type Db, map, mapEvent, party } from "./db/index.js";
-import { DEFAULT_FIRST_MAP_NAME, prepareDefaultMap, type StoredMap } from "./maps.js";
+import { DEFAULT_FIRST_MAP_NAME, loadMap, prepareDefaultMap, type StoredMap } from "./maps.js";
 
 export interface StoredAdventure {
   id: string;
@@ -178,7 +180,6 @@ export async function listAdventures(
       id: adventure.id,
       title: adventure.title,
       maxPlayers: adventure.maxPlayers,
-      graph: adventure.graph,
     })
     .from(adventure)
     .where(eq(adventure.accountId, accountId))
@@ -190,20 +191,16 @@ export async function listAdventures(
     .groupBy(map.adventureId);
   const countByAdventure = new Map(counts.map((row) => [row.adventureId, Number(row.count)]));
   return rows.map((row) => {
-    // A draft adventure (no start authored) is not playable — the picker badges it. A corrupt graph
-    // reads as a draft, which is the safe default (it cannot admit a party either way).
-    let playable = false;
-    try {
-      playable = parseAdventureGraph(JSON.parse(row.graph))?.start != null;
-    } catch {
-      playable = false;
-    }
+    // D25: an adventure is playable as soon as it owns a map. The first map + spawn position are
+    // DERIVED (`resolveAdventureStart`) — a spawn event, else the legacy graph start, else the first
+    // map's walkable spawn — so no `graph.start` is required. Only a mapless draft is unplayable.
+    const mapCount = countByAdventure.get(row.id) ?? 0;
     return {
       id: row.id,
       title: row.title,
       maxPlayers: row.maxPlayers,
-      mapCount: countByAdventure.get(row.id) ?? 0,
-      playable,
+      mapCount,
+      playable: mapCount > 0,
     };
   });
 }
@@ -224,6 +221,61 @@ export async function loadAdventure(
     row,
     members.map((m) => m.id),
   );
+}
+
+/**
+ * Where a hero spawns in this adventure (D25). The FIRST map is DERIVED, not read from
+ * `graph.start`, in three tiers of decreasing preference:
+ *
+ *  1. Spawn EVENT — the earliest-created member map carrying a `spawn`-kind event; the hero spawns
+ *     on that event's cell. This is the authored, graph-free start of the new model: the map with a
+ *     spawn event IS the first map.
+ *  2. Graph start — COMPAT for adventures authored before spawn events: `graph.start` names a member
+ *     map + entry event, and the hero spawns on that entry (or the map's fallback spawn if the entry
+ *     event is gone). This keeps every existing deployed adventure spawning exactly where it did.
+ *  3. First map — a deterministic silent fallback: the earliest-created member map at its authored
+ *     walkable spawn point. There is no "missing spawn" error — any adventure with a map is
+ *     enterable, which is what lets a party launch a spawn-less draft.
+ *
+ * Returns null only for an adventure with no maps at all (nowhere to admit a hero).
+ */
+export async function resolveAdventureStart(
+  db: Db,
+  advnt: StoredAdventure,
+): Promise<{ mapId: string; x: number; y: number } | null> {
+  if (advnt.mapIds.length === 0) return null;
+  // Tier 1: the earliest-created member map carrying a spawn event.
+  const spawnRows = await db
+    .select({ mapId: mapEvent.mapId, col: mapEvent.col, row: mapEvent.row })
+    .from(mapEvent)
+    .where(and(inArray(mapEvent.mapId, advnt.mapIds), eq(mapEvent.kind, "spawn")));
+  if (spawnRows.length > 0) {
+    for (const mapId of advnt.mapIds) {
+      // Deterministic pick if an author placed more than one spawn on a single map.
+      const chosen = spawnRows
+        .filter((row) => row.mapId === mapId)
+        .sort((a, b) => a.row - b.row || a.col - b.col)[0];
+      if (chosen) return { mapId, ...eventCellCentre(chosen) };
+    }
+  }
+  // Tier 2: the legacy graph start (an entry event on a member map).
+  const start = advnt.graph.start;
+  if (start && advnt.mapIds.includes(start.mapId)) {
+    const startMap = await loadMap(db, start.mapId);
+    if (startMap) {
+      const entry = startMap.events.find(
+        (event) => event.kind === "entry" && event.id === start.entryId,
+      );
+      return { mapId: startMap.id, ...(entry ? eventCellCentre(entry) : mapSpawnPoint(startMap)) };
+    }
+  }
+  // Tier 3: the first member map at its walkable spawn point.
+  const firstMapId = advnt.mapIds[0];
+  if (firstMapId) {
+    const firstMap = await loadMap(db, firstMapId);
+    if (firstMap) return { mapId: firstMap.id, ...mapSpawnPoint(firstMap) };
+  }
+  return null;
 }
 
 export async function updateAdventure(

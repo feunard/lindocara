@@ -19,14 +19,16 @@ const PRESET_LABEL: Record<EventPreset, MessageKey> = {
 };
 
 /** The functional kinds kept alongside the presets (a later tranche folds these into presets too).
- *  `normal` is intentionally absent — the presets ARE how a scripted event is placed now. */
-const FUNCTIONAL_KINDS = ["entry", "exit", "monster"] as const;
+ *  `normal` is intentionally absent — the presets ARE how a scripted event is placed now. `spawn` is
+ *  D25's adventure-start anchor: the map it sits on becomes the first map, no graph required. */
+const FUNCTIONAL_KINDS = ["spawn", "entry", "exit", "monster"] as const;
 
 const EVENT_KIND_LABEL: Record<EventKind, MessageKey> = {
   normal: "editor.event.kind.normal",
   entry: "editor.event.kind.entry",
   exit: "editor.event.kind.exit",
   monster: "editor.event.kind.monster",
+  spawn: "editor.event.kind.spawn",
 };
 
 /** The wireframe's `EV{ordinal}` chip text, zero-padded to three digits — display only, identity is
@@ -131,7 +133,7 @@ export function EventPalette({
                   source={EDITOR_MARKER_PREVIEWS[kind]}
                   {...(kind === "monster"
                     ? { frame: 256 }
-                    : kind === "entry"
+                    : kind === "entry" || kind === "spawn"
                       ? { frame: 192 }
                       : {})}
                 />

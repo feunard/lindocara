@@ -432,9 +432,32 @@ async function testAdventure(
     anchors.push(mapAnchors(mapId, input));
   }
   const graph = (options.graph ?? defaultGraph)(anchors);
-  if (!graph.start) throw new Error("a playable adventure graph needs a start");
   await putAs(host, `/api/adventures/${adventure.id}`, { title, maxPlayers, graph }, 200);
-  return { adventureId: adventure.id, mapIds, startMapId: graph.start.mapId };
+  return {
+    adventureId: adventure.id,
+    mapIds,
+    startMapId: resolveStartMapId(inputs, mapIds, graph),
+  };
+}
+
+/**
+ * The map a hero spawns on, mirroring the server's `resolveAdventureStart` precedence (D25): a spawn
+ * event wins, else the legacy `graph.start`, else the first map. Kept in the harness so a spawn-driven
+ * or graph-less adventure fixture still reports the right `startMapId`/`roomKey`.
+ */
+function resolveStartMapId(
+  inputs: readonly TestMapBody[],
+  mapIds: readonly string[],
+  graph: AdventureGraph,
+): string {
+  for (const [index, input] of inputs.entries()) {
+    const id = mapIds[index];
+    if (id && input.events.some((event) => event.kind === "spawn")) return id;
+  }
+  if (graph.start) return graph.start.mapId;
+  const first = mapIds[0];
+  if (!first) throw new Error("an adventure needs at least one map");
+  return first;
 }
 
 /** Add an account to a party, tolerating a membership it already has. */

@@ -991,6 +991,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.kind.entry": "Entrée",
   "editor.event.kind.exit": "Sortie",
   "editor.event.kind.monster": "Monstre",
+  "editor.event.kind.spawn": "Apparition",
   "editor.event.kind.anchor.hint":
     "Le graphe d’aventure lie cet ancrage par identifiant. Nommez-le pour distinguer les ancrages.",
   "editor.event.preset.heading": "Placer",

@@ -9,13 +9,10 @@ import { starterEquipmentFor } from "../shared/character.js";
 import type { PlayerClass } from "../shared/game.js";
 import type { CreateHeroInput } from "../shared/hero.js";
 import { MAX_HEROES_PER_PARTY } from "../shared/hero.js";
-import { mapSpawnPoint } from "../shared/map-data.js";
-import { eventCellCentre } from "../shared/map-events.js";
 import { CLASS_SKILLS, isSkillUnlocked } from "../shared/skills.js";
-import { loadAdventure } from "./adventures.js";
+import { loadAdventure, resolveAdventureStart } from "./adventures.js";
 import { type Db, hero, party, partyMember } from "./db/index.js";
 import { HEALTH_POTION_ID, ownedItemId } from "./items.js";
-import { loadMap, type StoredMap } from "./maps.js";
 
 export interface StoredHero {
   id: string;
@@ -49,13 +46,6 @@ function toStored(row: typeof hero.$inferSelect): StoredHero {
   };
 }
 
-/** The pixel centre of the named entry EVENT's cell, or the map's fallback spawn if it is gone. */
-function entryPosition(map: StoredMap, entryId: string): { x: number; y: number } {
-  const entry = map.events.find((event) => event.kind === "entry" && event.id === entryId);
-  if (!entry) return mapSpawnPoint(map);
-  return eventCellCentre(entry);
-}
-
 export async function createHero(
   db: Db,
   accountId: string,
@@ -79,15 +69,14 @@ export async function createHero(
   if (existing.length >= MAX_HEROES_PER_PARTY)
     throw new Error("cap: too many heroes in this party");
 
-  // The adventure is owned by the party host; load it through them to read the start entry.
+  // The adventure is owned by the party host; load it through them to derive where a hero spawns.
   const adventure = await loadAdventure(db, partyRow.hostAccountId, partyRow.adventureId);
   if (!adventure) throw new Error("not_found: party adventure is unavailable");
-  // A draft adventure has no start authored yet — a hero has nowhere to spawn.
-  const start = adventure.graph.start;
-  if (!start) throw new Error("not_found: party adventure has no start");
-  const startMap = await loadMap(db, start.mapId);
-  if (!startMap) throw new Error("not_found: start map is unavailable");
-  const position = entryPosition(startMap, start.entryId);
+  // D25: the first map + position are DERIVED — a spawn event, else the legacy graph start, else the
+  // first map's walkable spawn. Only a mapless adventure leaves a hero nowhere to spawn.
+  const start = await resolveAdventureStart(db, adventure);
+  if (!start) throw new Error("not_found: party adventure has no map");
+  const position = { x: start.x, y: start.y };
 
   const id = crypto.randomUUID();
   const equipment = starterEquipmentFor(input.class);
@@ -106,7 +95,7 @@ export async function createHero(
         accountId,
         input.name,
         input.class,
-        startMap.id,
+        start.mapId,
         position.x,
         position.y,
         partyId,

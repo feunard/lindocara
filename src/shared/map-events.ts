@@ -30,13 +30,17 @@ import { type EditorAssetId, isEditorAssetId } from "./tiny-swords-catalog.js";
  * - `entry`  — a spawn/arrival anchor the adventure graph binds by the EVENT's uuid.
  * - `exit`   — a departure anchor the graph binds by the EVENT's uuid.
  * - `monster` — a monster spawn: `species` + `patrolRadius` ride the event, nothing else.
+ * - `spawn`  — the adventure's START anchor (D25): the map that carries a spawn event IS the first
+ *   map, and heroes spawn on that event's cell. Unlike `entry`, a spawn is not bound by the graph —
+ *   `resolveAdventureStart` (server/adventures.ts) derives the first map from it directly, so a
+ *   spawn-driven adventure needs no `graph.start` at all. Inert at runtime, like `entry`.
  *
- * Entry/exit/monster events are single-page and conditions-disabled this tranche (see
- * `parseMapEvents`): they are anchors, not scripted behaviour, so the pages/conditions machinery
- * is hidden in the editor and refused by the parser. `docs/superpowers/plans/2026-07-19-ux-wave.md`
- * Task 5 is the record of that choice.
+ * Entry/exit/monster/spawn events are single-page and conditions-disabled (see `parseMapEvents`):
+ * they are anchors, not scripted behaviour, so the pages/conditions machinery is hidden in the
+ * editor and refused by the parser. `docs/superpowers/plans/2026-07-19-ux-wave.md` Task 5 is the
+ * record of that choice.
  */
-export const EVENT_KINDS = ["normal", "entry", "exit", "monster"] as const;
+export const EVENT_KINDS = ["normal", "entry", "exit", "monster", "spawn"] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
 
 export function isEventKind(value: unknown): value is EventKind {
@@ -156,6 +160,11 @@ export function exitEvents(events: readonly MapEvent[]): MapEvent[] {
 
 export function monsterEvents(events: readonly MapEvent[]): MapEvent[] {
   return events.filter((event) => event.kind === "monster");
+}
+
+/** The adventure-start anchors on a map (D25). A map with at least one is a candidate first map. */
+export function spawnEvents(events: readonly MapEvent[]): MapEvent[] {
+  return events.filter((event) => event.kind === "spawn");
 }
 
 /**
@@ -372,9 +381,9 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
     // Functional events have exactly one conditions-disabled page. A monster may use that page's
     // program as an on-defeat hook; entry/exit remain pure anchors.
     if (kind !== "normal" && parsedPages.length !== 1) return null;
-    // Nothing over the wire may smuggle scripted behaviour onto an entry/exit anchor.
+    // Nothing over the wire may smuggle scripted behaviour onto an entry/exit/spawn anchor.
     if (
-      (kind === "entry" || kind === "exit") &&
+      (kind === "entry" || kind === "exit" || kind === "spawn") &&
       parsedPages.some((page) => page.commands.length > 0)
     ) {
       return null;

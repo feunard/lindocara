@@ -4,7 +4,7 @@ import type { AdventureGraph } from "../src/shared/adventure.js";
 import { WS_CLOSE } from "../src/shared/close-codes.js";
 import { ATTACK_COOLDOWN_MS, MONSTER_STATS, maxHpForLevel } from "../src/shared/game.js";
 import type { MapElement } from "../src/shared/map-data.js";
-import { defaultEventPage, type MapEvent } from "../src/shared/map-events.js";
+import { defaultEventPage, functionalEvent, type MapEvent } from "../src/shared/map-events.js";
 import { PLAYER_SIZE } from "../src/shared/simulation.js";
 import { TILE_SIZE } from "../src/shared/tilemap.js";
 import { layeredWireTerrain } from "./support/map-fixtures.js";
@@ -1699,6 +1699,117 @@ describe("authored teleport and ending events", { timeout: 20_000 }, () => {
         .bind(party.partyId)
         .first<{ status: string }>();
       expect(completed?.status).toBe("completed");
+    } finally {
+      client.close();
+    }
+  });
+});
+
+describe("spawn-event first-map derivation (D25)", { timeout: 20_000 }, () => {
+  /** A pure `spawn`-kind anchor: the map it sits on becomes the adventure's first map. */
+  function spawnEvent(cell: { col: number; row: number }, ordinal: number): MapEvent {
+    return functionalEvent({ id: crypto.randomUUID(), ...cell, ordinal, kind: "spawn" });
+  }
+
+  it("spawns a hero on the map carrying a spawn event, at that event's cell", async () => {
+    const mapA = testMapInput("No spawn here", {
+      cols: 20,
+      rows: 15,
+      spawn: { col: 2, row: 2 },
+      exit: { col: 18, row: 13 },
+    });
+    const spawnCell = { col: 6, row: 6 };
+    const mapB = testMapInput("Carries the spawn", {
+      cols: 20,
+      rows: 15,
+      spawn: { col: 3, row: 3 },
+      exit: { col: 18, row: 13 },
+      events: [spawnEvent(spawnCell, 3)],
+    });
+    // The harness's default corridor graph still binds mapA's entry as the LEGACY start; the spawn
+    // event on the second map must win, making mapB the first map (D25, spawn beats graph.start).
+    const party = await testParty("spawn-first-map", { maps: [mapA, mapB] });
+    const [mapAId, mapBId] = party.mapIds;
+    if (!mapAId || !mapBId) throw new Error("expected two seeded maps");
+    expect(party.startMapId).toBe(mapBId);
+
+    const hero = await testHero("Newborn", { party, account: party.host });
+    const client = await Client.joinHero(hero);
+    try {
+      const welcome = await until("spawn-event welcome", () => client.welcome);
+      // First map derived from the spawn event's map, not the graph start's mapA.
+      expect(welcome.world.zoneId).toBe(mapBId);
+      expect(client.self()).toMatchObject(centre(spawnCell.col, spawnCell.row));
+      const row = await env.DB.prepare("SELECT map_id, x, y FROM hero WHERE id = ?")
+        .bind(hero.heroId)
+        .first<{ map_id: string; x: number; y: number }>();
+      expect(row?.map_id).toBe(mapBId);
+      expect(row?.x).toBeCloseTo(centre(spawnCell.col, spawnCell.row).x, 1);
+      expect(row?.y).toBeCloseTo(centre(spawnCell.col, spawnCell.row).y, 1);
+    } finally {
+      client.close();
+    }
+  });
+
+  it("admits a hero on the first map's walkable spawn with no spawn event and no graph, and plays", async () => {
+    const only = testMapInput("Graph-less ground", {
+      cols: 20,
+      rows: 15,
+      spawn: { col: 5, row: 5 },
+      exit: { col: 18, row: 13 },
+    });
+    // A genuinely graph-less adventure: no spawn event, an explicitly draft graph. Under the old
+    // model this was unplayable; under D25 it is enterable at the first map's walkable spawn.
+    const party = await testParty("spawnless", {
+      maps: [only],
+      graph: () => ({ start: null, links: [] }),
+    });
+    const [mapId] = party.mapIds;
+    if (!mapId) throw new Error("expected one seeded map");
+    expect(party.startMapId).toBe(mapId);
+
+    const hero = await testHero("Drifter", { party, account: party.host });
+    const client = await Client.joinHero(hero);
+    try {
+      const welcome = await until("fallback welcome", () => client.welcome);
+      expect(welcome.world.zoneId).toBe(mapId);
+      // Tier-3 fallback: the first map's authored walkable spawn point, no error/close.
+      expect(client.self()).toMatchObject(centre(5, 5));
+      expect(client.closeInfo).toBeNull();
+      // And the graph-less adventure is fully playable — the hero can move east across open ground.
+      const before = client.self();
+      if (!before) throw new Error("expected a self snapshot");
+      client.press("right");
+      await until("hero moves in a graph-less adventure", () => {
+        const now = client.self();
+        return now && now.x - before.x > TILE_SIZE / 2 ? now : undefined;
+      });
+    } finally {
+      client.close();
+    }
+  });
+
+  it("still admits a hero at the graph entry for a legacy adventure with no spawn event", async () => {
+    const entryCell = { col: 4, row: 4 };
+    const only = testMapInput("Legacy entry", {
+      cols: 20,
+      rows: 15,
+      spawn: entryCell,
+      exit: { col: 18, row: 13 },
+    });
+    // Default corridor graph binds the entry event on this map as the start; no spawn event exists,
+    // so the derivation falls to the legacy graph start (tier-2 compat) — deployed content is intact.
+    const party = await testParty("legacy-entry", { maps: [only] });
+    const [mapId] = party.mapIds;
+    if (!mapId) throw new Error("expected one seeded map");
+    expect(party.startMapId).toBe(mapId);
+
+    const hero = await testHero("Veteran", { party, account: party.host });
+    const client = await Client.joinHero(hero);
+    try {
+      const welcome = await until("legacy-entry welcome", () => client.welcome);
+      expect(welcome.world.zoneId).toBe(mapId);
+      expect(client.self()).toMatchObject(centre(entryCell.col, entryCell.row));
     } finally {
       client.close();
     }

@@ -320,6 +320,7 @@ const EVENT_KIND_PLACEHOLDER_COLOR: Record<EventKind, number> = {
   entry: 0x6fd44c,
   exit: 0x9a6cf0,
   monster: 0xd9484a,
+  spawn: 0x2563eb,
 };
 
 /** What `paintEventCell` decided and drew for one event: the chip text, whether it drew the page-1
@@ -971,7 +972,7 @@ async function buildSession(
       const semanticFrame =
         event.kind === "monster" && event.species
           ? textures.monsters.get(event.species)
-          : event.kind === "entry"
+          : event.kind === "entry" || event.kind === "spawn"
             ? textures.spawn
             : event.kind === "exit"
               ? textures.eventSign
