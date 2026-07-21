@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { setLocale } from "../../src/client/i18n.js";
 import { CatalogueAssetPicker } from "../../src/client/ui/editor/CatalogueAssetPicker.js";
-import { TerrainPalette } from "../../src/client/ui/editor/TerrainPalette.js";
+import { EventPalette } from "../../src/client/ui/editor/EventPalette.js";
 import { CURATED_MONSTER_SPECIES } from "../../src/shared/game.js";
 import { editorAsset } from "../../src/shared/tiny-swords-catalog.js";
 
@@ -34,23 +34,11 @@ describe("editor curated catalogue", () => {
   it("the monster event kind offers only the one curated species", () => {
     setLocale("en");
     render(
-      <TerrainPalette
-        content={{ kind: "block", block: "grass" }}
-        terrainActive={false}
-        fillActive={false}
-        stairsActive={false}
-        spawnActive={false}
-        eventMode={true}
+      <EventPalette
         eventKind="monster"
         pendingEventGraphic={null}
-        selectedAsset={null}
         markerSpecies="spear_goblin"
         markerRadius={96}
-        elementCount={0}
-        onPickContent={() => {}}
-        onSelectStairs={() => {}}
-        onSelectSpawn={() => {}}
-        onSelectAsset={() => {}}
         onSelectEventKind={() => {}}
         onSelectEventGraphic={() => {}}
         onMarkerSpeciesChange={() => {}}

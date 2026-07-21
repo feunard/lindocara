@@ -892,6 +892,9 @@ describe("AdventureEditorScreen shell", () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady();
 
+    // The catalogue only renders in Element mode (Task 11 split the sidebar per mode).
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.element") }));
+
     const search = screen.getByRole("searchbox", { name: t("editor.palette.search") });
     // `fireEvent.change` rather than `userEvent.type`: this suite's jsdom focus resolution for this
     // particular input delivers keydown events with `target` on the shortcut-host container instead
@@ -1066,6 +1069,9 @@ describe("AdventureEditorScreen shell", () => {
     it("does not switch tools on a keydown targeting the palette search box (no dialog open)", async () => {
       vi.stubGlobal("fetch", mapsFetchMock());
       await mountReady();
+
+      // The catalogue only renders in Element mode (Task 11 split the sidebar per mode).
+      await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.element") }));
 
       const search = screen.getByRole("searchbox", { name: t("editor.palette.search") });
       const before = stageMock.setTool.mock.calls.length;

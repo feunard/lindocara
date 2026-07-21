@@ -44,6 +44,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../compone
 import { AdventureSettingsDialog } from "./AdventureSettingsDialog.js";
 import { loadAdventureSession } from "./adventure-session.js";
 import { EditorMenuBar } from "./EditorMenuBar.js";
+import { EditorPalette } from "./EditorPalette.js";
 import { EditorStatusBar } from "./EditorStatusBar.js";
 import { type EditorPaintTool, EditorToolbar, toolLabelText } from "./EditorToolbar.js";
 import { EventDialog } from "./EventDialog.js";
@@ -56,7 +57,6 @@ import { FirstSaveDialog } from "./FirstSaveDialog.js";
 import { LoadAdventureDialog } from "./LoadAdventureDialog.js";
 import { MapListPanel } from "./MapListPanel.js";
 import { RegistryDialog } from "./RegistryDialog.js";
-import { TerrainPalette } from "./TerrainPalette.js";
 
 /** The default terrain a fresh stroke paints with until the Task 9 terrain palette lands: flat grass,
  *  matching the stage's own default tool so what the toolbar shows and what the stage paints agree. */
@@ -1022,27 +1022,33 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
           maxSize="30"
           className="editor-chrome min-h-0"
         >
-          <TerrainPalette
-            content={content}
-            terrainActive={toolKey === "pencil" || toolKey === "rect" || toolKey === "fill"}
-            fillActive={toolKey === "fill"}
-            stairsActive={toolKey === "stairs"}
-            spawnActive={toolKey === "spawn"}
-            eventMode={toolKey === "event"}
-            eventKind={eventKind}
-            pendingEventGraphic={pendingEventGraphic}
-            selectedAsset={selectedAsset}
-            markerSpecies={markerSpecies}
-            markerRadius={markerRadius}
-            elementCount={elementCount}
-            onPickContent={pickContent}
-            onSelectStairs={() => selectTool("stairs")}
-            onSelectSpawn={selectSpawn}
-            onSelectAsset={selectAsset}
-            onSelectEventKind={selectEventKind}
-            onSelectEventGraphic={selectEventGraphic}
-            onMarkerSpeciesChange={setMarkerSpecies}
-            onMarkerRadiusChange={setMarkerRadius}
+          <EditorPalette
+            mode={mode}
+            field={{
+              content,
+              terrainActive: toolKey === "pencil" || toolKey === "rect" || toolKey === "fill",
+              fillActive: toolKey === "fill",
+              stairsActive: toolKey === "stairs",
+              spawnActive: toolKey === "spawn",
+              onPickContent: pickContent,
+              onSelectStairs: () => selectTool("stairs"),
+              onSelectSpawn: selectSpawn,
+            }}
+            element={{
+              selectedAsset,
+              elementCount,
+              onSelectAsset: selectAsset,
+            }}
+            event={{
+              eventKind,
+              pendingEventGraphic,
+              markerSpecies,
+              markerRadius,
+              onSelectEventKind: selectEventKind,
+              onSelectEventGraphic: selectEventGraphic,
+              onMarkerSpeciesChange: setMarkerSpecies,
+              onMarkerRadiusChange: setMarkerRadius,
+            }}
           />
         </ResizablePanel>
         <ResizableHandle className="editor-chrome" />

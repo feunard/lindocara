@@ -61,7 +61,7 @@ export function CatalogueAssetPicker({
   }, [query]);
 
   return (
-    <>
+    <div data-testid="catalogue-picker" className="flex flex-col gap-2">
       {onSelectNone && (
         <button
           type="button"
@@ -101,7 +101,7 @@ export function CatalogueAssetPicker({
           </div>
         ))}
       </div>
-    </>
+    </div>
   );
 }
 
