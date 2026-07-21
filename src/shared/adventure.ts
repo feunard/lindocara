@@ -142,12 +142,19 @@ export function parseAdventureInput(value: unknown): AdventureInput | null {
 }
 
 /**
- * Throws "title:|players:|maps:|graph:" — the prefix is the machine code, per server convention.
+ * Throws "title:|players:|graph:" — the prefix is the machine code, per server convention.
+ *
+ * This enforces REFERENTIAL INTEGRITY only — never completeness. An adventure must always be saveable
+ * regardless of how far its graph is wired: an unlinked exit, no start, and no reachable ending are
+ * all valid, work-in-progress states, not errors. What is still rejected is a graph that NAMES
+ * something that does not exist — a start or destination pointing at a non-member map or a missing
+ * entry, a link from a non-member map or a missing exit, or the same exit bound twice — because those
+ * would persist a graph the runtime could never resolve.
  *
  * `markersByMap` is the adventure's OWNED maps (server/adventures.ts builds it from `map.adventure_id`),
  * so a graph that names a map not in this set is by construction a foreign-map reference and is
- * rejected. A draft graph (`start === null`) is valid with no members and no links — an adventure
- * being built before its first map exists.
+ * rejected. A draft graph (`start === null`) is valid, with or without links, as long as every link it
+ * does carry is referentially sound.
  */
 export function validateAdventure(
   input: { title: string; maxPlayers: number; graph: AdventureGraph },
@@ -162,27 +169,20 @@ export function validateAdventure(
   }
 
   const { start, links } = input.graph;
-  if (start === null) {
-    // A draft: nothing is wired yet. Links without a start make no sense.
-    if (links.length > 0) throw new Error("graph: a draft adventure cannot have links");
-    return;
-  }
-
   const members = new Set(markersByMap.keys());
-  if (members.size === 0 || members.size > MAX_ADVENTURE_MAPS) {
-    throw new Error(`maps: 1 to ${MAX_ADVENTURE_MAPS} maps`);
-  }
-
   const entryExists = (mapId: string, entryId: string): boolean =>
     (markersByMap.get(mapId)?.entryIds ?? []).includes(entryId);
 
-  if (!members.has(start.mapId) || !entryExists(start.mapId, start.entryId)) {
+  // A start, IF set, must name a member map and one of its real entries. A null start is a draft — no
+  // start is required for the adventure to save.
+  if (start !== null && (!members.has(start.mapId) || !entryExists(start.mapId, start.entryId))) {
     throw new Error("graph: start must name a member map and one of its entries");
   }
 
+  // Every link that IS present must be referentially sound; unbound exits are simply omitted from the
+  // graph and never enforced here. Completeness (bind every exit, reach an ending) is deliberately not
+  // checked — a partially-wired adventure is a valid save.
   const bound = new Set<string>();
-  const destinations = new Map<string, Set<string>>();
-  const endingMaps = new Set<string>();
   for (const link of links) {
     if (!members.has(link.mapId)) throw new Error(`graph: link from non-member map ${link.mapId}`);
     if (!(markersByMap.get(link.mapId)?.exitIds ?? []).includes(link.exitId)) {
@@ -192,39 +192,9 @@ export function validateAdventure(
     if (bound.has(key))
       throw new Error(`graph: exit ${link.exitId} on map ${link.mapId} bound twice`);
     bound.add(key);
-    if (link.dest === "end") {
-      endingMaps.add(link.mapId);
-      continue;
-    }
+    if (link.dest === "end") continue;
     if (!members.has(link.dest.mapId) || !entryExists(link.dest.mapId, link.dest.entryId)) {
       throw new Error(`graph: exit ${link.exitId} leads to a missing map or entry`);
     }
-    const next = destinations.get(link.mapId) ?? new Set<string>();
-    next.add(link.dest.mapId);
-    destinations.set(link.mapId, next);
   }
-  for (const [mapId, markers] of markersByMap) {
-    for (const exitId of markers.exitIds) {
-      if (!bound.has(`${mapId}:${exitId}`)) {
-        throw new Error(`graph: exit ${exitId} on map ${mapId} is unbound`);
-      }
-    }
-  }
-  const reachable = new Set<string>([start.mapId]);
-  const pending = [start.mapId];
-  while (pending.length > 0) {
-    const current = pending.shift();
-    if (!current) continue;
-    for (const destination of destinations.get(current) ?? []) {
-      if (reachable.has(destination)) continue;
-      reachable.add(destination);
-      pending.push(destination);
-    }
-  }
-  if (![...endingMaps].some((mapId) => reachable.has(mapId))) {
-    throw new Error("graph: no adventure ending is reachable from the start");
-  }
-  // No "every owned map must be reachable" rule: under implicit membership (UX wave #5) a map the
-  // adventure owns but has not wired into the graph yet is a work-in-progress, not an error — an
-  // author adds a map before linking it. Playability still requires a reachable ending above.
 }

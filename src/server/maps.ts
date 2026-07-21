@@ -41,7 +41,6 @@ import {
 import {
   entryEvents,
   exitEvents,
-  functionalEvent,
   MAX_EVENTS_PER_MAP,
   type MapEvent,
   parseMapEvents,
@@ -135,9 +134,6 @@ export const MAP_MIN_ROWS = 15;
 export const MAP_MAX_ROWS = 100;
 export const MAP_NAME_MAX = 48;
 
-/** UX wave #7: every new map is a 5x5 block of grass, spawn dead centre, water everywhere else. */
-export const DEFAULT_MAP_LAND = 5;
-
 /** UX wave #16: the name the atomic adventure-create gives its born map. A fresh adventure owns zero
  *  maps, so the lowest free `MapN` is unconditionally `Map1` — a constant, not a list to consult, so
  *  the server stays dumb. Every subsequent map's `MapN` is computed client-side (`nextMapName`) and
@@ -145,55 +141,22 @@ export const DEFAULT_MAP_LAND = 5;
 export const DEFAULT_FIRST_MAP_NAME = "Map1";
 
 /**
- * The one shape a new map is ever created in (#7): a `MAP_MIN_COLS x MAP_MIN_ROWS` field of water
- * with a centred `DEFAULT_MAP_LAND x DEFAULT_MAP_LAND` block of grass, spawn on that block's centre.
- * The edges are autotile-resolved by the same brush the editor paints with (`layersFromBlocks`), so
- * the block is indistinguishable from one drawn by hand. Sizing is a later resize tool's job — map
- * create ignores any client-supplied dimensions and always builds this.
+ * The one shape a new map is ever created in: a `MAP_MIN_COLS x MAP_MIN_ROWS` field of flat grass,
+ * walkable everywhere, spawn dead centre — no elements and, deliberately, no events.
+ *
+ * It is GENUINELY BLANK: a clean slate an author paints onto (water, elevation, props, events), never
+ * a template whose inherited terrain and phantom entry/exit events have to be deleted first. A map
+ * needs no auto entry event to be valid — spawn/entry become explicit author choices — so a fresh map
+ * starts with zero events. Sizing is a later resize tool's job; map create ignores any client-supplied
+ * dimensions and always builds this.
  */
 export function defaultMapInput(name: string): MapInput {
   const cols = MAP_MIN_COLS;
   const rows = MAP_MIN_ROWS;
-  const colStart = Math.floor((cols - DEFAULT_MAP_LAND) / 2);
-  const rowStart = Math.floor((rows - DEFAULT_MAP_LAND) / 2);
-  const blocks: string[] = [];
-  for (let row = 0; row < rows; row += 1) {
-    let line = "";
-    for (let col = 0; col < cols; col += 1) {
-      const land =
-        col >= colStart &&
-        col < colStart + DEFAULT_MAP_LAND &&
-        row >= rowStart &&
-        row < rowStart + DEFAULT_MAP_LAND;
-      line += land ? "." : "#";
-    }
-    blocks.push(line);
-  }
-  const { layers } = layersFromBlocks(blocks);
-  const spawn = {
-    col: colStart + Math.floor(DEFAULT_MAP_LAND / 2),
-    row: rowStart + Math.floor(DEFAULT_MAP_LAND / 2),
-  };
-  // UX wave #12: the default map is born with a start-ENTRY event on the spawn cell and an end-EXIT
-  // event on a corner of the land block (walkable, and not the spawn cell). A freshly created
-  // adventure's graph binds these events' uuids — start -> the entry, the exit -> "end" — so the born
-  // graph is playable and passes `validateAdventure` on the very first save.
-  const events: MapEvent[] = [
-    functionalEvent({
-      id: crypto.randomUUID(),
-      col: spawn.col,
-      row: spawn.row,
-      ordinal: 1,
-      kind: "entry",
-    }),
-    functionalEvent({
-      id: crypto.randomUUID(),
-      col: colStart,
-      row: rowStart,
-      ordinal: 2,
-      kind: "exit",
-    }),
-  ];
+  // Every cell is grass ("."): the same autotile-resolving brush the editor paints with settles the
+  // (uniform) edges, so the field is indistinguishable from one drawn by hand.
+  const { layers } = layersFromBlocks(Array.from({ length: rows }, () => ".".repeat(cols)));
+  const spawn = { col: Math.floor(cols / 2), row: Math.floor(rows / 2) };
   return {
     name,
     tilesetId: TINY_SWORDS_TILESET_ID,
@@ -203,17 +166,17 @@ export function defaultMapInput(name: string): MapInput {
     elements: [],
     spawn,
     markers: EMPTY_MARKERS,
-    events,
+    events: [],
   };
 }
 
 /**
- * The map an adventure is born with (UX wave #2/#3): the 5x5 template plus the start-entry and
- * end-exit EVENTS (UX wave #12) so the adventure's graph validates immediately. Returns the drizzle
- * INSERTs to compose into the adventure's create batch (one transaction) — the map row and its event
- * rows/pages — the entry/exit event uuids the born graph binds, and the `StoredMap` the caller hands
- * back to the client. The `is_first` flag is decided by the database at insert time exactly as
- * `createMap` does.
+ * The map an adventure is born with (UX wave #2/#3): the blank flat-grass template, with no events.
+ * Returns the drizzle INSERTs to compose into the adventure's create batch (one transaction) — the map
+ * row (a blank map has no event rows) — and the `StoredMap` the caller hands back to the client. The
+ * born adventure is a DRAFT (no start, no links): entry/exit are explicit author choices now, not
+ * auto-seeded, so there is nothing to bind a born graph to. The `is_first` flag is decided by the
+ * database at insert time exactly as `createMap` does.
  */
 export function prepareDefaultMap(
   db: Db,
@@ -223,8 +186,6 @@ export function prepareDefaultMap(
 ): {
   id: string;
   inserts: BatchItem<"sqlite">[];
-  entryEventId: string;
-  exitEventId: string;
   stored: StoredMap;
 } {
   const input = defaultMapInput(name);
@@ -244,16 +205,11 @@ export function prepareDefaultMap(
     markers: markersJson(data.markers),
     isFirst: sql`CASE WHEN (SELECT count(*) FROM ${map} WHERE ${map.accountId} = ${accountId}) = 0 THEN 1 ELSE 0 END`,
   });
-  const entryEventId = entryEvents(data.events)[0]?.id;
-  const exitEventId = exitEvents(data.events)[0]?.id;
-  if (!entryEventId || !exitEventId) {
-    throw new Error("default map lost its start entry or end exit event");
-  }
   return {
     id,
+    // `data.events` is empty, so `insertEventStatements` contributes nothing — the map row is the
+    // whole write. Kept in the spread so a future seeded default would flow through unchanged.
     inserts: [mapInsert, ...insertEventStatements(db, id, data.events)],
-    entryEventId,
-    exitEventId,
     stored: { id, accountId, adventureId, revision: 1, ...data },
   };
 }

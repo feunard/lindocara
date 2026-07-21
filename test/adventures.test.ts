@@ -19,7 +19,12 @@ import { deleteMap as deleteOwnedMap, loadOwnedMap, updateMap } from "../src/ser
 import type { AdventureGraph } from "../src/shared/adventure.js";
 import { EMPTY_REGISTRY } from "../src/shared/adventure-state.js";
 import { EMPTY_MARKERS } from "../src/shared/map-data.js";
-import { entryEvents, functionalEvent, type MapEvent } from "../src/shared/map-events.js";
+import {
+  entryEvents,
+  exitEvents,
+  functionalEvent,
+  type MapEvent,
+} from "../src/shared/map-events.js";
 import { authorMap, seedAdventure } from "./support/adventure-fixtures.js";
 import { layeredTerrain } from "./support/map-fixtures.js";
 
@@ -144,17 +149,16 @@ describe("adventure CRUD", () => {
     const mapA = await authorMap(db, "owner", advId, mapInput("A", eventsA()));
     const mapB = await authorMap(db, "owner", advId, mapInput("B", eventsB()));
 
-    // B's exit is left unbound (no ending reachable) — refused.
-    await expect(
-      updateAdventure(db, "owner", advId, {
-        title: "Donjon",
-        maxPlayers: 2,
-        graph: {
-          start: { mapId: mapA.id, entryId: ENTRY_A },
-          links: [{ mapId: mapA.id, exitId: EXIT_A, dest: { mapId: mapB.id, entryId: ENTRY_B } }],
-        },
-      }),
-    ).rejects.toThrow(/^graph:/);
+    // B's exit is left unbound (no ending reachable): partial wiring is a valid save now, not refused.
+    const partial = await updateAdventure(db, "owner", advId, {
+      title: "Donjon",
+      maxPlayers: 2,
+      graph: {
+        start: { mapId: mapA.id, entryId: ENTRY_A },
+        links: [{ mapId: mapA.id, exitId: EXIT_A, dest: { mapId: mapB.id, entryId: ENTRY_B } }],
+      },
+    });
+    expect(partial.graph.start).toEqual({ mapId: mapA.id, entryId: ENTRY_A });
 
     // A graph that names a map the adventure does not own is a foreign reference — refused.
     await expect(
@@ -373,17 +377,20 @@ describe("marker reference guard", () => {
     );
     expect(entryEvents(grown.events)).toHaveLength(2);
 
-    // A new unbound exit event would break the saved graph, so the map change is refused and its
-    // monotone revision does not move.
-    await expect(
-      updateMap(
-        db,
-        "owner",
-        mapA.id,
-        mapInput("A", eventsA([ev(SIDE_A, "entry", 3, 3), ev(UNBOUND_A, "exit", 9, 9)])),
-      ),
-    ).rejects.toThrow(/^referenced:.*unbound/);
-    expect((await loadOwnedMap(db, "owner", mapA.id))?.revision).toBe(grown.revision);
+    // A new UNBOUND exit event no longer breaks the saved graph (partial wiring is valid): the map
+    // change is accepted and its monotone revision moves. The still-bound exit/entry remain intact.
+    const withUnbound = await updateMap(
+      db,
+      "owner",
+      mapA.id,
+      mapInput("A", eventsA([ev(SIDE_A, "entry", 3, 3), ev(UNBOUND_A, "exit", 9, 9)])),
+    );
+    expect(withUnbound.revision).toBe(grown.revision + 1);
+    expect(
+      exitEvents(withUnbound.events)
+        .map((e) => e.id)
+        .sort(),
+    ).toEqual([EXIT_A, UNBOUND_A].sort());
 
     // once the adventure is gone, the map is gone too (cascade), so there is nothing left to guard.
     await deleteAdventure(db, "owner", advId);

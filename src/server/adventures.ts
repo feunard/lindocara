@@ -127,15 +127,15 @@ export async function createAdventure(
 }
 
 /**
- * One atomic POST creates an adventure AND the map it is born with (UX wave #2/#3): a single
- * `db.batch` writes the adventure row and its default map (5x5 template + start entry + end exit),
- * and the adventure's graph is born valid — `start` points at the default map's entry and its exit
- * binds to `"end"`. The response carries both the stored adventure and its default map so the client
- * lands straight in the editor with no second round-trip.
+ * One atomic POST creates an adventure AND the blank map it is born with (UX wave #2/#3): a single
+ * `db.batch` writes the adventure row and its default flat-grass map. The response carries both the
+ * stored adventure and its default map so the client lands straight in the editor with no second
+ * round-trip.
  *
- * The defensive `validateAdventure` below is load-bearing: if the born graph ever loses its end-bound
- * exit (or its start entry), it throws here rather than persisting an adventure whose first PUT would
- * 400 on the reachable-ending rule.
+ * The born adventure is a DRAFT (`EMPTY_GRAPH`): the map is genuinely blank with no auto-seeded
+ * entry/exit events, so there is nothing to point a start at or bind an exit to. Spawn/entry are
+ * explicit author choices — the author places them and wires the graph later, and validation never
+ * blocks the save while the graph is incomplete.
  */
 export async function createAdventureWithDefaultMap(
   db: Db,
@@ -149,19 +149,6 @@ export async function createAdventureWithDefaultMap(
   // The born map is named `Map1` (UX wave #16), never the adventure title: a fresh adventure has zero
   // maps, so the lowest free `MapN` is unconditionally the first.
   const prepared = prepareDefaultMap(db, accountId, adventureId, DEFAULT_FIRST_MAP_NAME);
-  const graph: AdventureGraph = {
-    start: { mapId: prepared.id, entryId: prepared.entryEventId },
-    links: [{ mapId: prepared.id, exitId: prepared.exitEventId, dest: "end" }],
-  };
-  // Derive the anchor set from the entry/exit EVENTS the map was actually prepared with (UX wave
-  // #12): if the default map ever loses its start entry or end-bound exit, this throws here rather
-  // than persisting an adventure whose first save would 400.
-  validateAdventure(
-    { title, maxPlayers: input.maxPlayers, graph },
-    new Map([
-      [prepared.id, { entryIds: [prepared.entryEventId], exitIds: [prepared.exitEventId] }],
-    ]),
-  );
   // The adventure row is inserted before its map so the map's `adventure_id` foreign key resolves
   // within the one transaction.
   await db.batch([
@@ -170,7 +157,7 @@ export async function createAdventureWithDefaultMap(
       accountId,
       title,
       maxPlayers: input.maxPlayers,
-      graph: JSON.stringify(graph),
+      graph: JSON.stringify(EMPTY_GRAPH),
       ...(input.registry !== undefined ? { registry: JSON.stringify(input.registry) } : {}),
     }),
     ...prepared.inserts,

@@ -4,7 +4,6 @@ import {
   type AdventureLink,
   EMPTY_GRAPH,
   MAX_ADVENTURE_LINKS,
-  MAX_ADVENTURE_MAPS,
   type MapMarkerIds,
   parseAdventureGraph,
   parseAdventureInput,
@@ -36,15 +35,6 @@ function goodInput(): AdventureInput {
       ],
     },
   };
-}
-
-function markersFor(count: number): Map<string, MapMarkerIds> {
-  return new Map(
-    Array.from({ length: count }, (_, index) => [
-      `map-${index}`,
-      { entryIds: ["start"], exitIds: [] } as MapMarkerIds,
-    ]),
-  );
 }
 
 function repeatedLinks(count: number): AdventureLink[] {
@@ -119,7 +109,21 @@ describe("validateAdventure", () => {
     ).not.toThrow();
   });
 
-  it("rejects a draft that carries links", () => {
+  it("accepts a draft (null start) that carries referentially-sound links", () => {
+    // Completeness is not enforced: a null start with a real, end-bound link is a valid save.
+    expect(() =>
+      validateAdventure(
+        {
+          title: "Draft",
+          maxPlayers: 4,
+          graph: { start: null, links: [{ mapId: "map-a", exitId: EAST, dest: "end" }] },
+        },
+        MARKERS,
+      ),
+    ).not.toThrow();
+  });
+
+  it("still rejects a link from a non-member map, even in a draft", () => {
     expect(() =>
       validateAdventure(
         { title: "Draft", maxPlayers: 4, graph: { start: null, links: repeatedLinks(1) } },
@@ -149,28 +153,25 @@ describe("validateAdventure", () => {
     expect(() => validateAdventure(foreignLink, MARKERS)).toThrow(/^graph:/);
   });
 
-  it("rejects a non-draft graph with no member maps, or more than MAX_ADVENTURE_MAPS", () => {
-    expect(() => validateAdventure(goodInput(), new Map())).toThrow(/^maps:/);
-    const startAnchor = { mapId: "map-0", entryId: "start" };
-    expect(() =>
-      validateAdventure(
-        { title: "Too many", maxPlayers: 4, graph: { start: startAnchor, links: [] } },
-        markersFor(MAX_ADVENTURE_MAPS + 1),
-      ),
-    ).toThrow(/^maps:/);
+  it("rejects a start that names a non-member map (referential integrity)", () => {
+    // A start pointing at a map the adventure does not own is a dangling reference, not a draft.
+    expect(() => validateAdventure(goodInput(), new Map())).toThrow(/^graph:/);
   });
 
-  it("requires the start to name a member map and a real entry", () => {
+  it("requires the start, IF set, to name a member map and a real entry", () => {
     const input = goodInput();
     input.graph = { ...input.graph, start: { mapId: "map-b", entryId: "start" } };
     expect(() => validateAdventure(input, MARKERS)).toThrow(/^graph:/);
   });
 
-  it("requires every exit bound exactly once, to a real entry", () => {
+  it("allows an unbound exit (partial wiring is a valid save)", () => {
+    // map-b's exit is left unbound: no ending is reachable, but that no longer blocks the save.
     const unbound = goodInput();
     unbound.graph = { ...unbound.graph, links: [unbound.graph.links[0] as never] };
-    expect(() => validateAdventure(unbound, MARKERS)).toThrow(/^graph:/);
+    expect(() => validateAdventure(unbound, MARKERS)).not.toThrow();
+  });
 
+  it("still rejects a double-bound exit or a link to a missing entry", () => {
     const duplicate = goodInput();
     duplicate.graph = {
       ...duplicate.graph,
@@ -189,7 +190,7 @@ describe("validateAdventure", () => {
     expect(() => validateAdventure(badEntry, MARKERS)).toThrow(/^graph:/);
   });
 
-  it("requires at least one end", () => {
+  it("accepts a graph with no ending (completeness is not enforced)", () => {
     const endless = goodInput();
     endless.graph = {
       ...endless.graph,
@@ -198,10 +199,10 @@ describe("validateAdventure", () => {
         { mapId: "map-b", exitId: BOSS_GATE, dest: { mapId: "map-a", entryId: START } },
       ],
     };
-    expect(() => validateAdventure(endless, MARKERS)).toThrow(/^graph:/);
+    expect(() => validateAdventure(endless, MARKERS)).not.toThrow();
   });
 
-  it("refuses an ending that cannot be reached from the start", () => {
+  it("accepts an ending that cannot be reached from the start", () => {
     const markers = new Map<string, MapMarkerIds>([
       ["map-a", { entryIds: ["start"], exitIds: ["east"] }],
       ["map-b", { entryIds: ["west-door"], exitIds: ["return"] }],
@@ -219,12 +220,12 @@ describe("validateAdventure", () => {
         ],
       },
     };
-    expect(() => validateAdventure(input, markers)).toThrow(/ending is reachable/);
+    expect(() => validateAdventure(input, markers)).not.toThrow();
   });
 
   it("allows an owned map that is not yet wired into the graph (work in progress)", () => {
     // map-c is owned but unlinked — under implicit membership that is a draft-in-progress, not an
-    // error, as long as an ending is still reachable from the start (map-a here).
+    // error, and completeness is not checked either way.
     const markers = new Map<string, MapMarkerIds>([
       ["map-a", { entryIds: ["start"], exitIds: ["finish"] }],
       ["map-c", { entryIds: ["island"], exitIds: [] }],

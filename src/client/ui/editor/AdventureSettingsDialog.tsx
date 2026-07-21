@@ -4,7 +4,7 @@ import type { ExitDestination } from "../../../shared/adventure.js";
 import {
   type AdventureDraft,
   bindExit,
-  draftComplete,
+  draftSaveable,
   draftValidationIssues,
   toAdventureInput,
 } from "../../adventure-draft.js";
@@ -221,7 +221,9 @@ function EditForm({
 }) {
   useLocale();
   const validationIssues = draftValidationIssues(draft);
-  const canSave = draftComplete(draft);
+  // Save is gated on title/players only — the graph never blocks persistence (D25). The validation
+  // issues below are non-blocking warnings.
+  const canSave = draftSaveable(draft);
 
   return (
     <div className="flex flex-col gap-4">
@@ -295,7 +297,8 @@ function EditForm({
         {validationIssues.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t("adventure.validation.valid")}</p>
         ) : (
-          <ul className="flex flex-col gap-0.5 text-sm text-destructive">
+          // Non-blocking warnings (amber), not errors: an incomplete graph never disables Save.
+          <ul className="flex flex-col gap-0.5 text-sm text-amber-600">
             {validationIssues.map((issue) => {
               const member =
                 "mapId" in issue
@@ -315,7 +318,9 @@ function EditForm({
         )}
       </section>
 
-      {!canSave && <p className="text-sm text-muted-foreground">{t("adventure.incomplete")}</p>}
+      {validationIssues.length > 0 && (
+        <p className="text-sm text-muted-foreground">{t("adventure.incomplete")}</p>
+      )}
 
       <div className="flex items-center justify-end gap-2">
         <Button variant="destructive" disabled={saving} onClick={onDelete}>

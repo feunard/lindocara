@@ -4,8 +4,8 @@ import {
   addMember,
   bindExit,
   type DraftMemberInfo,
-  draftComplete,
   draftFromAdventure,
+  draftSaveable,
   draftValidationIssues,
   emptyDraft,
   moveMember,
@@ -55,18 +55,16 @@ describe("adventure draft", () => {
     expect(addMember(draft as AdventureDraft, A)).toBeNull(); // duplicate refused
   });
 
-  it("completes only when start, every binding and one end are set", () => {
+  it("is saveable on title and player count alone — graph completeness never blocks Save", () => {
     const draft = fullDraft();
-    expect(draftComplete(draft)).toBe(true);
-    expect(draftComplete({ ...draft, start: null })).toBe(false);
-    expect(draftComplete({ ...draft, title: "  " })).toBe(false);
+    expect(draftSaveable(draft)).toBe(true);
+    // A missing start, an unbound exit and no reachable ending are all still SAVEABLE (D25): only an
+    // invalid title/player count blocks persistence.
+    expect(draftSaveable({ ...draft, start: null })).toBe(true);
     const unbound = bindExit(draft, "map-a", "east", null) as AdventureDraft;
-    expect(draftComplete(unbound)).toBe(false);
-    const endless = bindExit(draft, "map-b", "boss", {
-      mapId: "map-a",
-      entryId: "door",
-    }) as AdventureDraft;
-    expect(draftComplete(endless)).toBe(false); // no end left
+    expect(draftSaveable(unbound)).toBe(true);
+    expect(draftSaveable({ ...draft, title: "  " })).toBe(false);
+    expect(draftSaveable({ ...draft, maxPlayers: 5 })).toBe(false);
   });
 
   it("produces the exact AdventureInput wire shape", () => {
@@ -82,7 +80,22 @@ describe("adventure draft", () => {
       },
       registry: { switches: [], variables: [] },
     });
+    // An empty draft has no title, so it is not saveable and yields no input.
     expect(toAdventureInput(emptyDraft())).toBeNull();
+  });
+
+  it("saves a partially-wired draft: a null start and unbound exits, omitted from the graph", () => {
+    // A titled draft with a member map but no start and its exit unbound still produces a wire input —
+    // start null, no links — so the settings dialog can persist it.
+    let draft = emptyDraft();
+    draft = { ...draft, title: "Work in progress", maxPlayers: 3 };
+    draft = addMember(draft, A) as AdventureDraft;
+    expect(toAdventureInput(draft)).toEqual({
+      title: "Work in progress",
+      maxPlayers: 3,
+      graph: { start: null, links: [] },
+      registry: { switches: [], variables: [] },
+    });
   });
 
   it("removing a member clears its bindings, dangling destinations and the start", () => {

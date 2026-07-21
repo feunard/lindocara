@@ -1052,7 +1052,8 @@ export const en = {
   "adventure.bindings.title": "Exits",
   "adventure.bindings.end": "End of the adventure",
   "adventure.bindings.unbound": "Choose a destination",
-  "adventure.incomplete": "Set a start, bind every exit, and end the adventure at least once.",
+  "adventure.incomplete":
+    "The adventure is not fully wired yet, but you can save it anyway — these are optional.",
   "adventure.validation.title": "Adventure validation",
   "adventure.validation.valid": "The adventure graph is playable.",
   "adventure.validation.missing_start": "The starting entry is missing.",

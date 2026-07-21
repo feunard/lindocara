@@ -10,12 +10,7 @@ import { createAdventure } from "../src/server/adventures.js";
 import { createDb } from "../src/server/db/index.js";
 import { SESSION_COOKIE } from "../src/server/session.js";
 import { EMPTY_MARKERS } from "../src/shared/map-data.js";
-import {
-  entryEvents,
-  exitEvents,
-  functionalEvent,
-  type MapEvent,
-} from "../src/shared/map-events.js";
+import { functionalEvent, type MapEvent } from "../src/shared/map-events.js";
 import { layeredWireTerrain } from "./support/map-fixtures.js";
 
 const ORIGIN = "https://lindocara.test";
@@ -151,7 +146,7 @@ describe("session gate", () => {
 });
 
 describe("adventure lifecycle over the wire", () => {
-  it("creates an adventure with its default map and a playable graph in one POST", async () => {
+  it("creates an adventure with a blank default map and a draft graph in one POST", async () => {
     const createRes = await authed("/api/adventures", {
       method: "POST",
       body: JSON.stringify({ title: "Donjon", maxPlayers: 4 }),
@@ -167,22 +162,17 @@ describe("adventure lifecycle over the wire", () => {
       };
     };
     expect(created).toMatchObject({ title: "Donjon", maxPlayers: 4, version: 1 });
-    // Atomic: exactly one default map, born with an entry EVENT on the spawn and an end-bound exit
-    // EVENT (UX wave #12), and a graph that already points start -> that entry and binds the exit ->
-    // "end" by the events' uuids.
+    // Atomic: exactly one default map, born GENUINELY BLANK — no auto-seeded entry/exit events (B2) —
+    // so the born adventure is a DRAFT (no start, no links). Spawn/entry are explicit author choices;
+    // an author places them and wires the graph later, never gated on a save.
     expect(created.mapIds).toHaveLength(1);
     const mapId = created.mapIds[0];
-    const entries = entryEvents(created.defaultMap.events);
-    const exits = exitEvents(created.defaultMap.events);
-    expect(entries.map((e) => e.id)).toHaveLength(1);
-    expect(exits.map((e) => e.id)).toHaveLength(1);
-    const entryId = entries[0]?.id;
-    const exitId = exits[0]?.id;
-    expect(created.graph.start).toEqual({ mapId, entryId });
-    expect(created.graph.links).toEqual([{ mapId, exitId, dest: "end" }]);
+    expect(created.defaultMap.events).toEqual([]);
+    expect(created.graph.start).toBeNull();
+    expect(created.graph.links).toEqual([]);
     expect(created.defaultMap.id).toBe(mapId);
 
-    // The D1 rows exist: one adventure, exactly one map owned by it.
+    // The D1 rows exist: one adventure, exactly one map owned by it, and no event rows for it.
     const advRows = await env.DB.prepare("SELECT id FROM adventure WHERE id = ?")
       .bind(created.id)
       .all();
@@ -191,6 +181,10 @@ describe("adventure lifecycle over the wire", () => {
       .bind(created.id)
       .all();
     expect(mapRows.results.map((r) => r.id)).toEqual([mapId]);
+    const eventRows = await env.DB.prepare("SELECT id FROM map_event WHERE map_id = ?")
+      .bind(mapId)
+      .all();
+    expect(eventRows.results).toHaveLength(0);
   });
 
   it("authors maps and saves the graph, then deletes", async () => {
@@ -256,12 +250,13 @@ describe("adventure lifecycle over the wire", () => {
       ).json(),
     ).toEqual({ error: "adventure_players" });
 
-    // Graph validation is gated on the PUT, against the adventure's own maps.
+    // Graph integrity is gated on the PUT, against the adventure's own maps. Completeness is NOT: a
+    // partially-wired graph (map B's exit left unbound, no reachable ending) now SAVES.
     const advId = await createDraft();
     const mapA = await authorMap(advId, mapBody("A"));
     const mapB = await authorMap(advId, mapBody("B", eventsB()));
 
-    const unbound = await authed(`/api/adventures/${advId}`, {
+    const partial = await authed(`/api/adventures/${advId}`, {
       method: "PUT",
       body: JSON.stringify({
         title: "Donjon",
@@ -272,10 +267,9 @@ describe("adventure lifecycle over the wire", () => {
         },
       }),
     });
-    expect(unbound.status).toBe(400);
-    expect(await unbound.json()).toEqual({ error: "adventure_graph" });
+    expect(partial.status).toBe(200);
 
-    // A graph naming a map the adventure does not own is a foreign reference.
+    // A graph naming a map the adventure does not own is a foreign reference — still refused.
     const foreign = await authed(`/api/adventures/${advId}`, {
       method: "PUT",
       body: JSON.stringify({
@@ -331,8 +325,9 @@ describe("adventure lifecycle over the wire", () => {
       rival,
     );
     expect(foreign.status).toBe(400);
-    // The rival's adventure owns no maps, so a graph over another account's maps has no members.
-    expect(await foreign.json()).toEqual({ error: "adventure_maps" });
+    // The rival's adventure owns no maps, so the graph's start (and links) name non-member maps — a
+    // dangling reference, refused as a graph integrity error.
+    expect(await foreign.json()).toEqual({ error: "adventure_graph" });
   });
 
   it("accepts a realistic 16-map graph with all 128 exits through the HTTP boundary", {

@@ -161,9 +161,9 @@ describe("session gate", () => {
 });
 
 describe("create under an adventure", () => {
-  it("creates the 5x5 template, ignoring any client terrain", async () => {
+  it("creates the blank flat-grass template with no events, ignoring any client terrain", async () => {
     const adventureId = await newAdventure();
-    // Deliberately send terrain — the server must ignore it and build the template.
+    // Deliberately send terrain — the server must ignore it and build the blank template.
     const res = await authed("/api/maps", {
       method: "POST",
       body: JSON.stringify({ adventureId, ...mapBody(), name: "Fresh" }),
@@ -174,8 +174,16 @@ describe("create under an adventure", () => {
       cols: number;
       rows: number;
       spawn: unknown;
+      events: unknown[];
     };
-    expect(created).toMatchObject({ name: "Fresh", cols: 20, rows: 15, spawn: { col: 9, row: 7 } });
+    // Spawn dead centre of the MAP_MIN field, and genuinely blank — no auto-seeded events (B2).
+    expect(created).toMatchObject({
+      name: "Fresh",
+      cols: 20,
+      rows: 15,
+      spawn: { col: 10, row: 7 },
+    });
+    expect(created.events).toEqual([]);
   });
 
   it("refuses creating a map under an adventure the caller does not own (404)", async () => {

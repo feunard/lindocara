@@ -1076,7 +1076,7 @@ export const fr: Record<keyof typeof en, string> = {
   "adventure.bindings.end": "Fin de l'aventure",
   "adventure.bindings.unbound": "Choisir une destination",
   "adventure.incomplete":
-    "Définis un départ, relie chaque sortie et termine l'aventure au moins une fois.",
+    "L’aventure n’est pas encore entièrement reliée, mais tu peux l’enregistrer : c’est optionnel.",
 
   "adventure.validation.title": "Validation de l’aventure",
   "adventure.validation.valid": "Le graphe de l’aventure est jouable.",

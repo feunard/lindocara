@@ -218,4 +218,39 @@ describe("AdventureSettingsDialog", () => {
       ),
     ).toBeInTheDocument();
   });
+
+  it("saves a partially-wired adventure — no start, unbound exit — with Save enabled (D25)", async () => {
+    const partial: AdventureDraft = {
+      title: "Draft",
+      maxPlayers: 4,
+      members: [member("m1", "Verdant", "door", "gate")],
+      // No start and the sole exit unbound: the old model blocked Save here; it must persist now.
+      start: null,
+      bindings: [{ mapId: "m1", exitId: "gate", dest: null }],
+      registry: EMPTY_REGISTRY,
+    };
+    seedSession(partial, "adv-1");
+    const mock = backend();
+    vi.stubGlobal("fetch", mock);
+    render(
+      <AdventureSettingsDialog open onOpenChange={noop} onSaved={noop} onSessionExpired={noop} />,
+    );
+
+    const save = await screen.findByRole("button", { name: t("editor.save") });
+    expect(save).toBeEnabled();
+    await userEvent.click(save);
+
+    await waitFor(() => {
+      const put = mock.mock.calls.find(
+        ([url, init]) => url === "/api/adventures/adv-1" && (init as RequestInit)?.method === "PUT",
+      );
+      expect(put).toBeDefined();
+      const body = JSON.parse(String((put?.[1] as RequestInit)?.body)) as {
+        graph: { start: unknown; links: unknown[] };
+      };
+      // The unwired graph rides the PUT: a null start and no links (the unbound exit is omitted).
+      expect(body.graph.start).toBeNull();
+      expect(body.graph.links).toEqual([]);
+    });
+  });
 });

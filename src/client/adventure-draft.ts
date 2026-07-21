@@ -222,24 +222,29 @@ export function draftValidationIssues(draft: AdventureDraft): AdventureDraftIssu
   return issues;
 }
 
-export function draftComplete(draft: AdventureDraft): boolean {
+/**
+ * Whether the draft can be SAVED — title and player count only. Graph completeness (a start, bound
+ * exits, a reachable ending) is deliberately NOT a save gate: an adventure must persist regardless of
+ * how far its graph is wired. `draftValidationIssues` still surfaces the incomplete-graph items, but
+ * as non-blocking warnings, never as a reason to disable Save. The server (`validateAdventure`) is the
+ * referential-integrity authority; it too accepts a partially-wired or unwired graph.
+ */
+export function draftSaveable(draft: AdventureDraft): boolean {
   const title = draft.title.trim();
-  const blockingIssues = draftValidationIssues(draft).some(
-    (issue) => issue.code !== "map_without_entry" && issue.code !== "map_without_exit",
-  );
   return (
     title.length >= 1 &&
     title.length <= ADVENTURE_TITLE_MAX &&
     Number.isSafeInteger(draft.maxPlayers) &&
     draft.maxPlayers >= 1 &&
-    draft.maxPlayers <= 4 &&
-    draft.members.length >= 1 &&
-    !blockingIssues
+    draft.maxPlayers <= 4
   );
 }
 
 export function toAdventureInput(draft: AdventureDraft): AdventureInput | null {
-  if (!draftComplete(draft) || draft.start === null) return null;
+  // Saveable regardless of graph completeness: a null start (a draft) and unbound exits (simply
+  // omitted from `links`) are both valid, so the only thing that yields `null` here is a title or
+  // player count the server itself would reject.
+  if (!draftSaveable(draft)) return null;
   const links = draft.bindings.flatMap((binding) =>
     binding.dest === null
       ? []
