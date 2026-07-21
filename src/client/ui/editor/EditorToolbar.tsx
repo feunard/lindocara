@@ -7,16 +7,15 @@ import {
   PaintBucket,
   Pencil,
   Play,
-  Save,
   Square,
-  Trash2,
   ZoomIn,
 } from "lucide-react";
-import type { ComponentType } from "react";
+import type { ComponentProps, ComponentType } from "react";
 import type { MessageKey } from "../../../shared/i18n/index.js";
 import type { EditorMode } from "../../game/editor-state.js";
 import { t, useLocale } from "../../i18n.js";
 import { Button } from "../components/button.js";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../components/tooltip.js";
 import { EditorModeControl } from "./EditorModeControl.js";
 
 /** The five paint tools the toolbar exposes as buttons. `stairs` and scenery live in the palette. */
@@ -51,10 +50,7 @@ interface EditorToolbarProps {
   showGrid: boolean;
   showDim: boolean;
   zoom: number;
-  canSave: boolean;
   onNewMap(): void;
-  onSave(): void;
-  onDeleteMap(): void;
   onSelectTool(tool: EditorPaintTool): void;
   onSelectMode(mode: EditorMode): void;
   onToggleGrid(): void;
@@ -63,18 +59,44 @@ interface EditorToolbarProps {
   onTest(): void;
 }
 
-/** The wireframe's 42px toolbar: file actions · paint tools · Field/Element/Event mode control ·
- *  view toggles · zoom · flex spacer · Tester. Stock shadcn buttons and lucide icons only. */
+/** D16: every icon-only toolbar button gets a hover tooltip carrying the same string as its
+ *  `aria-label` — a generic lucide glyph otherwise gives zero hint of what it does. `TooltipTrigger`'s
+ *  `render` prop merges its hover/focus listeners onto the given `Button` (the same merge
+ *  `DialogPrimitive.Close render={<Button .../>}` already relies on in `dialog.tsx`), so the button
+ *  keeps its own `onClick`/`aria-pressed`/etc. untouched. */
+function ToolbarIconButton({
+  label,
+  children,
+  ...props
+}: ComponentProps<typeof Button> & { label: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button aria-label={label} {...props}>
+            {children}
+          </Button>
+        }
+      />
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** The wireframe's 42px toolbar: new-map · paint tools · Field/Element/Event mode control · view
+ *  toggles · zoom · flex spacer · Tester. Stock shadcn buttons and lucide icons only.
+ *
+ *  C10: the toolbar no longer carries a Save or Delete-map icon button — both were redundant with
+ *  ⌘S/autosave and the Cartes panel's own per-map delete, and left an author guessing which trash can
+ *  or disk icon they were about to hit. Save stays reachable via ⌘S and the File-menu item; map
+ *  deletion stays only in `MapListPanel`. */
 export function EditorToolbar({
   activeTool,
   mode,
   showGrid,
   showDim,
   zoom,
-  canSave,
   onNewMap,
-  onSave,
-  onDeleteMap,
   onSelectTool,
   onSelectMode,
   onToggleGrid,
@@ -85,40 +107,23 @@ export function EditorToolbar({
   useLocale();
   return (
     <div className="flex h-[42px] flex-none items-center gap-1 border-b border-zinc-200 bg-zinc-50 px-2">
-      <Button variant="ghost" size="icon" aria-label={t("editor.new")} onClick={onNewMap}>
+      <ToolbarIconButton label={t("editor.new")} variant="ghost" size="icon" onClick={onNewMap}>
         <FilePlus />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label={t("editor.save")}
-        disabled={!canSave}
-        onClick={onSave}
-      >
-        <Save />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label={t("editor.shell.deleteMap")}
-        onClick={onDeleteMap}
-      >
-        <Trash2 />
-      </Button>
+      </ToolbarIconButton>
 
       <Separator />
 
       {PAINT_TOOLS.map(({ key, icon: Icon }) => (
-        <Button
+        <ToolbarIconButton
           key={key}
+          label={toolLabelText(key)}
           variant={activeTool === key ? "secondary" : "ghost"}
           size="icon"
-          aria-label={toolLabelText(key)}
           aria-pressed={activeTool === key}
           onClick={() => onSelectTool(key)}
         >
           <Icon />
-        </Button>
+        </ToolbarIconButton>
       ))}
 
       <Separator />
@@ -127,34 +132,34 @@ export function EditorToolbar({
 
       <Separator />
 
-      <Button
+      <ToolbarIconButton
+        label={t("editor.shell.grid.aria")}
         variant={showGrid ? "secondary" : "ghost"}
         size="icon"
-        aria-label={t("editor.shell.grid.aria")}
         aria-pressed={showGrid}
         onClick={onToggleGrid}
       >
         <Grid3x3 />
-      </Button>
-      <Button
+      </ToolbarIconButton>
+      <ToolbarIconButton
+        label={t("editor.shell.dimOtherLayers")}
         variant={showDim ? "secondary" : "ghost"}
         size="icon"
-        aria-label={t("editor.shell.dimOtherLayers")}
         aria-pressed={showDim}
         onClick={onToggleDim}
       >
         <Layers />
-      </Button>
-      <Button
+      </ToolbarIconButton>
+      <ToolbarIconButton
+        label={t("editor.shell.zoom.aria")}
         variant="outline"
         size="sm"
-        aria-label={t("editor.shell.zoom.aria")}
         className="tabular-nums"
         onClick={onCycleZoom}
       >
         <ZoomIn />
         {zoom} %
-      </Button>
+      </ToolbarIconButton>
 
       <div className="flex-1" />
 

@@ -742,7 +742,11 @@ describe("AdventureEditorScreen shell", () => {
     vi.stubGlobal("fetch", mock);
     await mountReady();
 
-    await userEvent.click(screen.getByRole("button", { name: t("editor.save") }));
+    // C10 removed the toolbar's Save icon button — saving now goes through ⌘S or, as exercised
+    // here, the File menu's own Save item.
+    screen.getByRole("menuitem", { name: t("editor.shell.menu.file") }).focus();
+    await userEvent.keyboard("{Enter}");
+    await userEvent.click(await screen.findByRole("menuitem", { name: /^Save/ }));
     await waitFor(() =>
       expect(mock).toHaveBeenCalledWith(
         "/api/maps/m1",
@@ -1244,15 +1248,34 @@ describe("AdventureEditorScreen shell", () => {
       });
     }
 
-    it("shows a static Editor brand chip, not a clickable exit button (UX wave #16)", async () => {
+    it("shows a static Editor brand chip beside a dedicated Quit button (UX wave #16, C8)", async () => {
       vi.stubGlobal("fetch", mapsFetchMock());
       await mountReady();
 
       // The brand text is present…
       expect(screen.getByText(t("editor.shell.brand"))).toBeInTheDocument();
-      // …but it is not a button and there is no "exit" chip button any more.
+      // …but the chip itself is not a button: leaving is a distinct affordance beside it.
       expect(screen.queryByRole("button", { name: t("editor.shell.brand") })).toBeNull();
-      expect(screen.queryByRole("button", { name: t("editor.shell.exit.aria") })).toBeNull();
+      // C8: a small icon-only Quit button now sits in the menu bar row, discoverable without opening
+      // the File menu.
+      expect(screen.getByRole("button", { name: t("editor.shell.exit.aria") })).toBeInTheDocument();
+    });
+
+    it("the menu bar's Quit button leaves the editor, dirty-guarded like the File-menu item (C8)", async () => {
+      vi.stubGlobal("fetch", mapsFetchMock());
+      await mountReady();
+      markDirty();
+
+      const quitButton = screen.getByRole("button", { name: t("editor.shell.exit.aria") });
+      const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+      await userEvent.click(quitButton);
+      expect(confirm).toHaveBeenCalledWith(t("editor.shell.exit.confirm"));
+      expect(useUiStore.getState().screen).toBe("adventure-editor");
+
+      confirm.mockReturnValue(true);
+      await userEvent.click(quitButton);
+      expect(useUiStore.getState().screen).toBe("parties");
+      confirm.mockRestore();
     });
 
     it("opens the Load-adventure dialog from the File menu and switching swaps the session", async () => {
@@ -1543,7 +1566,7 @@ describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
     seedUnnamed(true);
     const mock = editorBackend();
     vi.stubGlobal("fetch", mock);
-    await mountReady();
+    const rendered = await mountReady();
 
     // Rename through the adventure settings dialog and save it: an explicit naming.
     screen.getByRole("menuitem", { name: t("editor.shell.menu.file") }).focus();
@@ -1563,10 +1586,9 @@ describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
     expect(settingsBody.adventure.title).toBe("Ironhold");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
-    // A normal Save now writes the map directly — no first-save popup, because the title is confirmed.
-    const saveButton = screen.getByRole("button", { name: t("editor.save") });
-    await waitFor(() => expect(saveButton).toBeEnabled());
-    await userEvent.click(saveButton);
+    // A normal Save now writes the map directly — no first-save popup, because the title is
+    // confirmed. C10 removed the toolbar's Save button, so this exercises ⌘S instead.
+    fireEvent.keyDown(shell(rendered), { key: "s", metaKey: true });
     await waitFor(() => expect(mapPutCalls(mock)).toHaveLength(2));
     expect(screen.queryByText(t("editor.firstSave.title"))).toBeNull();
   });

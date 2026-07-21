@@ -55,6 +55,7 @@ import { Button } from "../components/button.js";
 import { Input } from "../components/input.js";
 import { Label } from "../components/label.js";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../components/resizable.js";
+import { TooltipProvider } from "../components/tooltip.js";
 import { AdventureSettingsDialog } from "./AdventureSettingsDialog.js";
 import { loadAdventureSession } from "./adventure-session.js";
 import { EditorAssetPreview } from "./CatalogueAssetPicker.js";
@@ -1078,246 +1079,246 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   }
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: shortcut-key host, not an interactive widget
-    <div
-      ref={containerRef}
-      tabIndex={-1}
-      onKeyDown={handleShortcutKeyDown}
-      onBlur={handleContainerBlur}
-      className="editor-root flex h-screen flex-col overflow-hidden text-zinc-950 select-none outline-none"
-    >
-      <EditorMenuBar
-        canUndo={canUndo && stageStatus === "ready"}
-        canRedo={canRedo && stageStatus === "ready"}
-        showGrid={showGrid}
-        showDim={showDim}
-        onExit={() => exit()}
-        onOpenLoad={() => setLoadOpen(true)}
-        onNewMap={() => setNewMapOpen(true)}
-        onSave={() => void save()}
-        onDeleteMap={() => setConfirmDeleteId(map?.id ?? null)}
-        onOpenSettings={() => setSettingsOpen(true)}
-        onOpenDatabase={() => setDatabaseOpen(true)}
-        onUndo={undo}
-        onRedo={redo}
-        onSelectMode={selectMode}
-        onSelectTool={selectTool}
-        onToggleGrid={toggleGrid}
-        onToggleDim={toggleDim}
-        onSetZoom={setEditorZoom}
-        onTest={test}
-      />
-
-      <EditorToolbar
-        activeTool={isPaintToolKey(toolKey) ? toolKey : null}
-        mode={mode}
-        showGrid={showGrid}
-        showDim={showDim}
-        zoom={zoom}
-        canSave={stageStatus === "ready" && !savingMap}
-        onNewMap={() => setNewMapOpen(true)}
-        onSave={() => void save()}
-        onDeleteMap={() => setConfirmDeleteId(map?.id ?? null)}
-        onSelectTool={selectTool}
-        onSelectMode={selectMode}
-        onToggleGrid={toggleGrid}
-        onToggleDim={toggleDim}
-        onCycleZoom={cycleZoom}
-        onTest={test}
-      />
-
-      <ResizablePanelGroup orientation="horizontal" className="editor-body min-h-0 flex-1">
-        <ResizablePanel
-          defaultSize="18"
-          minSize="12"
-          maxSize="30"
-          className="editor-chrome min-h-0"
-        >
-          <EditorPalette
-            mode={mode}
-            field={{
-              content,
-              terrainActive: toolKey === "pencil" || toolKey === "rect" || toolKey === "fill",
-              fillActive: toolKey === "fill",
-              stairsActive: toolKey === "stairs",
-              spawnActive: toolKey === "spawn",
-              onPickContent: pickContent,
-              onSelectStairs: () => selectTool("stairs"),
-              onSelectSpawn: selectSpawn,
-            }}
-            element={{
-              selectedAsset,
-              elementCount,
-              onSelectAsset: selectAsset,
-            }}
-            event={{
-              eventKind,
-              pendingEventGraphic,
-              markerSpecies,
-              markerRadius,
-              onSelectEventKind: selectEventKind,
-              onSelectEventGraphic: selectEventGraphic,
-              onMarkerSpeciesChange: setMarkerSpecies,
-              onMarkerRadiusChange: setMarkerRadius,
-            }}
-          />
-        </ResizablePanel>
-        <ResizableHandle className="editor-chrome" />
-
-        <ResizablePanel defaultSize="64" className="min-h-0">
-          {/* The stage draws on the sibling #stage canvas behind #root; this pane is its viewport.
-              The decoration palette now lives in the left TerrainPalette, not floating over here. */}
-          <section
-            className="relative h-full min-h-0 overflow-hidden"
-            aria-label={t("editor.shell.stage.aria")}
-          >
-            {stageStatus === "loading" && (
-              <p className="absolute left-3 top-3 z-10 text-sm text-zinc-500" role="status">
-                {t("editor.shell.stage.loading")}
-              </p>
-            )}
-            {savingMap && (
-              <p
-                className="pointer-events-none absolute right-3 top-3 z-10 rounded-md bg-white/90 px-2 py-1 text-xs text-zinc-600 shadow-sm"
-                role="status"
-              >
-                {t("editor.shell.saving")}
-              </p>
-            )}
-            {stageStatus === "error" && (
-              <p className="absolute left-3 top-3 z-10 text-sm text-red-600" role="alert">
-                {t("editor.shell.stage.error")}
-              </p>
-            )}
-            {stageStatus === "empty" && (
-              <div className="pointer-events-auto absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 text-center">
-                <p className="text-sm font-semibold text-zinc-300">
-                  {t("editor.shell.stage.empty.title")}
-                </p>
-                <p className="max-w-xs text-xs text-zinc-400">
-                  {t("editor.shell.stage.empty.hint")}
-                </p>
-                <Button size="sm" onClick={() => setNewMapOpen(true)}>
-                  {t("editor.new")}
-                </Button>
-              </div>
-            )}
-            {error && (
-              <p className="absolute left-3 bottom-3 z-10 text-sm text-red-600" role="alert">
-                {authErrorText(error)}
-              </p>
-            )}
-            {selection && currentMap && (
-              <div className="pointer-events-auto absolute bottom-3 left-3 z-10 w-64">
-                <SelectionInspector
-                  selection={selection}
-                  map={currentMap}
-                  onMove={(col, row) => handleRef.current?.moveSelected(col, row)}
-                  onSetOffset={(offsetX, offsetY) =>
-                    handleRef.current?.setSelectedElementOffset(offsetX, offsetY)
-                  }
-                  onOpenEditor={() => {
-                    if (selection.kind === "event") setOpenEventId(selection.id);
-                  }}
-                  onDelete={() => handleRef.current?.deleteSelected()}
-                />
-              </div>
-            )}
-          </section>
-        </ResizablePanel>
-        <ResizableHandle className="editor-chrome" />
-
-        <ResizablePanel
-          defaultSize="18"
-          minSize="12"
-          maxSize="30"
-          className="editor-chrome min-h-0"
-        >
-          <MapListPanel
-            adventureId={adventureId}
-            activeMapId={map?.id ?? null}
-            startMapId={startMapId}
-            startableMapIds={startableMapIds}
-            dirty={dirty}
-            refreshNonce={mapsRefreshNonce}
-            newMapOpen={newMapOpen}
-            onNewMapOpenChange={setNewMapOpen}
-            confirmDeleteId={confirmDeleteId}
-            onConfirmDeleteIdChange={setConfirmDeleteId}
-            onRequestOpen={loadMap}
-            onOpenPayload={openPayload}
-            onActiveDeleted={activeMapDeleted}
-            onSetStart={setStartMap}
-            onOpenSettings={() => setSettingsOpen(true)}
-            onError={(code) => setError(code === "" ? null : code)}
-            onSessionExpired={() => setScreen("auth")}
-          />
-        </ResizablePanel>
-      </ResizablePanelGroup>
-
-      <AdventureSettingsDialog
-        open={settingsOpen}
-        onOpenChange={setSettingsOpen}
-        onSaveDraft={doSaveMap}
-        onSaved={() => {
-          // A settings save is an explicit adventure save that includes the title, so it counts as
-          // the name being confirmed: the first-save popup must not fire afterwards (UX wave #14).
-          setTitleUntouched(false);
-          setMapsRefreshNonce((n) => n + 1);
-        }}
-        onSessionExpired={() => setScreen("auth")}
-      />
-
-      <FirstSaveDialog
-        key={`${adventureId}:${firstSaveOpen}`}
-        open={firstSaveOpen}
-        defaultTitle={draftTitle}
-        onConfirm={(title) => void confirmFirstSave(title)}
-        onCancel={() => setFirstSaveOpen(false)}
-      />
-
-      <RegistryDialog
-        open={databaseOpen}
-        onOpenChange={setDatabaseOpen}
-        onSessionExpired={() => setScreen("auth")}
-      />
-
-      <LoadAdventureDialog
-        open={loadOpen}
-        onOpenChange={setLoadOpen}
-        onPick={loadAdventure}
-        onSessionExpired={() => setScreen("auth")}
-      />
-
-      {eventDraft && (
-        <EventDialog
-          key={eventDraft.id}
-          event={eventDraft}
-          registry={registry}
-          maps={teleportMaps}
-          onCommit={(draft) => {
-            handleRef.current?.commitEventDraft(draft);
-            setOpenEventId(null);
-          }}
-          onDelete={() => {
-            if (openEventId) handleRef.current?.deleteEvent(openEventId);
-            setOpenEventId(null);
-          }}
-          onCancel={() => setOpenEventId(null)}
+    // D16: one TooltipProvider for the whole shell, so every icon-only button's tooltip (toolbar,
+    // menu bar, Cartes panel) shares the same hover/focus timing instead of each mounting its own.
+    <TooltipProvider>
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: shortcut-key host, not an interactive widget */}
+      <div
+        ref={containerRef}
+        tabIndex={-1}
+        onKeyDown={handleShortcutKeyDown}
+        onBlur={handleContainerBlur}
+        className="editor-root flex h-screen flex-col overflow-hidden text-zinc-950 select-none outline-none"
+      >
+        <EditorMenuBar
+          canUndo={canUndo && stageStatus === "ready"}
+          canRedo={canRedo && stageStatus === "ready"}
+          showGrid={showGrid}
+          showDim={showDim}
+          onExit={() => exit()}
+          onOpenLoad={() => setLoadOpen(true)}
+          onNewMap={() => setNewMapOpen(true)}
+          onSave={() => void save()}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenDatabase={() => setDatabaseOpen(true)}
+          onUndo={undo}
+          onRedo={redo}
+          onSelectMode={selectMode}
+          onSelectTool={selectTool}
+          onToggleGrid={toggleGrid}
+          onToggleDim={toggleDim}
+          onSetZoom={setEditorZoom}
+          onTest={test}
         />
-      )}
 
-      <EditorStatusBar
-        mapName={map?.name ?? "—"}
-        cols={map?.cols ?? 0}
-        rows={map?.rows ?? 0}
-        cursor={cursorText}
-        saved={map !== null && !dirty && stageStatus === "ready"}
-        mode={mode}
-        toolLabel={toolLabel}
-        zoom={zoom}
-      />
-    </div>
+        <EditorToolbar
+          activeTool={isPaintToolKey(toolKey) ? toolKey : null}
+          mode={mode}
+          showGrid={showGrid}
+          showDim={showDim}
+          zoom={zoom}
+          onNewMap={() => setNewMapOpen(true)}
+          onSelectTool={selectTool}
+          onSelectMode={selectMode}
+          onToggleGrid={toggleGrid}
+          onToggleDim={toggleDim}
+          onCycleZoom={cycleZoom}
+          onTest={test}
+        />
+
+        <ResizablePanelGroup orientation="horizontal" className="editor-body min-h-0 flex-1">
+          <ResizablePanel
+            defaultSize="18"
+            minSize="12"
+            maxSize="30"
+            className="editor-chrome min-h-0"
+          >
+            <EditorPalette
+              mode={mode}
+              field={{
+                content,
+                terrainActive: toolKey === "pencil" || toolKey === "rect" || toolKey === "fill",
+                fillActive: toolKey === "fill",
+                stairsActive: toolKey === "stairs",
+                spawnActive: toolKey === "spawn",
+                onPickContent: pickContent,
+                onSelectStairs: () => selectTool("stairs"),
+                onSelectSpawn: selectSpawn,
+              }}
+              element={{
+                selectedAsset,
+                elementCount,
+                onSelectAsset: selectAsset,
+              }}
+              event={{
+                eventKind,
+                pendingEventGraphic,
+                markerSpecies,
+                markerRadius,
+                onSelectEventKind: selectEventKind,
+                onSelectEventGraphic: selectEventGraphic,
+                onMarkerSpeciesChange: setMarkerSpecies,
+                onMarkerRadiusChange: setMarkerRadius,
+              }}
+            />
+          </ResizablePanel>
+          <ResizableHandle className="editor-chrome" />
+
+          <ResizablePanel defaultSize="64" className="min-h-0">
+            {/* The stage draws on the sibling #stage canvas behind #root; this pane is its viewport.
+              The decoration palette now lives in the left TerrainPalette, not floating over here. */}
+            <section
+              className="relative h-full min-h-0 overflow-hidden"
+              aria-label={t("editor.shell.stage.aria")}
+            >
+              {stageStatus === "loading" && (
+                <p className="absolute left-3 top-3 z-10 text-sm text-zinc-500" role="status">
+                  {t("editor.shell.stage.loading")}
+                </p>
+              )}
+              {savingMap && (
+                <p
+                  className="pointer-events-none absolute right-3 top-3 z-10 rounded-md bg-white/90 px-2 py-1 text-xs text-zinc-600 shadow-sm"
+                  role="status"
+                >
+                  {t("editor.shell.saving")}
+                </p>
+              )}
+              {stageStatus === "error" && (
+                <p className="absolute left-3 top-3 z-10 text-sm text-red-600" role="alert">
+                  {t("editor.shell.stage.error")}
+                </p>
+              )}
+              {stageStatus === "empty" && (
+                <div className="pointer-events-auto absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 text-center">
+                  <p className="text-sm font-semibold text-zinc-300">
+                    {t("editor.shell.stage.empty.title")}
+                  </p>
+                  <p className="max-w-xs text-xs text-zinc-400">
+                    {t("editor.shell.stage.empty.hint")}
+                  </p>
+                  <Button size="sm" onClick={() => setNewMapOpen(true)}>
+                    {t("editor.new")}
+                  </Button>
+                </div>
+              )}
+              {error && (
+                <p className="absolute left-3 bottom-3 z-10 text-sm text-red-600" role="alert">
+                  {authErrorText(error)}
+                </p>
+              )}
+              {selection && currentMap && (
+                <div className="pointer-events-auto absolute bottom-3 left-3 z-10 w-64">
+                  <SelectionInspector
+                    selection={selection}
+                    map={currentMap}
+                    onMove={(col, row) => handleRef.current?.moveSelected(col, row)}
+                    onSetOffset={(offsetX, offsetY) =>
+                      handleRef.current?.setSelectedElementOffset(offsetX, offsetY)
+                    }
+                    onOpenEditor={() => {
+                      if (selection.kind === "event") setOpenEventId(selection.id);
+                    }}
+                    onDelete={() => handleRef.current?.deleteSelected()}
+                  />
+                </div>
+              )}
+            </section>
+          </ResizablePanel>
+          <ResizableHandle className="editor-chrome" />
+
+          <ResizablePanel
+            defaultSize="18"
+            minSize="12"
+            maxSize="30"
+            className="editor-chrome min-h-0"
+          >
+            <MapListPanel
+              adventureId={adventureId}
+              activeMapId={map?.id ?? null}
+              startMapId={startMapId}
+              startableMapIds={startableMapIds}
+              dirty={dirty}
+              refreshNonce={mapsRefreshNonce}
+              newMapOpen={newMapOpen}
+              onNewMapOpenChange={setNewMapOpen}
+              confirmDeleteId={confirmDeleteId}
+              onConfirmDeleteIdChange={setConfirmDeleteId}
+              onRequestOpen={loadMap}
+              onOpenPayload={openPayload}
+              onActiveDeleted={activeMapDeleted}
+              onSetStart={setStartMap}
+              onOpenSettings={() => setSettingsOpen(true)}
+              onError={(code) => setError(code === "" ? null : code)}
+              onSessionExpired={() => setScreen("auth")}
+            />
+          </ResizablePanel>
+        </ResizablePanelGroup>
+
+        <AdventureSettingsDialog
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          onSaveDraft={doSaveMap}
+          onSaved={() => {
+            // A settings save is an explicit adventure save that includes the title, so it counts as
+            // the name being confirmed: the first-save popup must not fire afterwards (UX wave #14).
+            setTitleUntouched(false);
+            setMapsRefreshNonce((n) => n + 1);
+          }}
+          onSessionExpired={() => setScreen("auth")}
+        />
+
+        <FirstSaveDialog
+          key={`${adventureId}:${firstSaveOpen}`}
+          open={firstSaveOpen}
+          defaultTitle={draftTitle}
+          onConfirm={(title) => void confirmFirstSave(title)}
+          onCancel={() => setFirstSaveOpen(false)}
+        />
+
+        <RegistryDialog
+          open={databaseOpen}
+          onOpenChange={setDatabaseOpen}
+          onSessionExpired={() => setScreen("auth")}
+        />
+
+        <LoadAdventureDialog
+          open={loadOpen}
+          onOpenChange={setLoadOpen}
+          onPick={loadAdventure}
+          onSessionExpired={() => setScreen("auth")}
+        />
+
+        {eventDraft && (
+          <EventDialog
+            key={eventDraft.id}
+            event={eventDraft}
+            registry={registry}
+            maps={teleportMaps}
+            onCommit={(draft) => {
+              handleRef.current?.commitEventDraft(draft);
+              setOpenEventId(null);
+            }}
+            onDelete={() => {
+              if (openEventId) handleRef.current?.deleteEvent(openEventId);
+              setOpenEventId(null);
+            }}
+            onCancel={() => setOpenEventId(null)}
+          />
+        )}
+
+        <EditorStatusBar
+          mapName={map?.name ?? "—"}
+          cols={map?.cols ?? 0}
+          rows={map?.rows ?? 0}
+          cursor={cursorText}
+          saved={map !== null && !dirty && stageStatus === "ready"}
+          mode={mode}
+          toolLabel={toolLabel}
+          zoom={zoom}
+        />
+      </div>
+    </TooltipProvider>
   );
 }
 

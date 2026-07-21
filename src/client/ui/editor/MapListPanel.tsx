@@ -24,6 +24,7 @@ import {
 } from "../components/dialog.js";
 import { Input } from "../components/input.js";
 import { Label } from "../components/label.js";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../components/tooltip.js";
 
 /** A stored payload made into the create/update body: everything but the server-minted id/revision. */
 function saveInputFromPayload(payload: MapPayload): MapSaveInput {
@@ -273,27 +274,41 @@ export function MapListPanel({
                   {t("editor.shell.maps.dims", { cols: map.cols, rows: map.rows })}
                 </span>
               </button>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                aria-label={`${t("editor.shell.maps.rename")} ${map.name}`}
-                className="opacity-0 group-hover:opacity-100"
-                onClick={() => {
-                  setRenaming(map);
-                  setRenameValue(map.name);
-                }}
-              >
-                <Pencil />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                aria-label={`${t("editor.delete")} ${map.name}`}
-                className="text-destructive opacity-0 group-hover:opacity-100"
-                onClick={() => onConfirmDeleteIdChange(map.id)}
-              >
-                <Trash2 />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label={`${t("editor.shell.maps.rename")} ${map.name}`}
+                      className="opacity-0 group-hover:opacity-100"
+                      onClick={() => {
+                        setRenaming(map);
+                        setRenameValue(map.name);
+                      }}
+                    >
+                      <Pencil />
+                    </Button>
+                  }
+                />
+                <TooltipContent>{t("editor.shell.maps.rename")}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label={`${t("editor.delete")} ${map.name}`}
+                      className="text-destructive opacity-0 group-hover:opacity-100"
+                      onClick={() => onConfirmDeleteIdChange(map.id)}
+                    >
+                      <Trash2 />
+                    </Button>
+                  }
+                />
+                <TooltipContent>{t("editor.delete")}</TooltipContent>
+              </Tooltip>
             </div>
           );
         })}

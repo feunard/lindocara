@@ -769,8 +769,6 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.load.empty": "Aucune aventure pour l'instant.",
   "editor.shell.exit.aria": "Quitter l'éditeur",
   "editor.shell.exit.confirm": "Quitter l'éditeur et abandonner les modifications ?",
-  "editor.shell.deleteMap": "Supprimer la carte",
-  "editor.shell.deleteMap.confirm": "Supprimer « {name} » ? Cette action est définitive.",
   "editor.shell.preview.hint":
     "Testez votre carte avec un guerrier de niveau 1. Appuyez sur Échap pour revenir.",
   "editor.shell.adventureFallback": "Aventure",
@@ -837,7 +835,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.shell.grid.hide": "Masquer la grille",
   "editor.shell.grid.show": "Afficher la grille",
   "editor.shell.grid.aria": "Grille",
-  "editor.shell.dimOtherLayers": "Estomper les autres calques",
+  "editor.shell.dimOtherLayers": "Estomper les autres modes",
   "editor.shell.zoomTo": "Zoom {value}%",
   "editor.shell.zoom.aria": "Zoom",
   "editor.shell.test": "Tester",

@@ -1,6 +1,7 @@
-import { Box } from "lucide-react";
+import { Box, LogOut } from "lucide-react";
 import type { EditorMode } from "../../game/editor-state.js";
 import { t, useLocale } from "../../i18n.js";
+import { Button } from "../components/button.js";
 import {
   Menubar,
   MenubarContent,
@@ -10,6 +11,7 @@ import {
   MenubarShortcut,
   MenubarTrigger,
 } from "../components/menubar.js";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../components/tooltip.js";
 import type { EditorPaintTool } from "./EditorToolbar.js";
 
 interface EditorMenuBarProps {
@@ -17,13 +19,13 @@ interface EditorMenuBarProps {
   canRedo: boolean;
   showGrid: boolean;
   showDim: boolean;
-  /** Quit the editor back to the parties screen (dirty-guarded), from File → « Quitter l'éditeur ». */
+  /** Quit the editor back to the parties screen (dirty-guarded), from File → « Quitter l'éditeur »
+   *  AND from the menu bar's own Quit button (C8: the File-menu item alone was undiscoverable). */
   onExit(): void;
   /** Open the "Load an adventure" dialog, from File → « Charger une aventure ». */
   onOpenLoad(): void;
   onNewMap(): void;
   onSave(): void;
-  onDeleteMap(): void;
   onOpenSettings(): void;
   onOpenDatabase(): void;
   onUndo(): void;
@@ -38,10 +40,10 @@ interface EditorMenuBarProps {
 
 /**
  * The wireframe's 32px menu row: a static « Editor » brand chip (UX wave #16 — no longer the
- * adventure name, and no longer clickable; leaving is File → « Quitter l'éditeur ») and the six
- * menus. File → « Charger une aventure » opens the load dialog; Jeu → « Base de données… » opens the
- * registry editor. No account menu: the store carries no username/email to fill it, and inventing
- * that plumbing is out of scope.
+ * adventure name, and still not itself clickable), a dedicated Quit icon button beside it (C8), and
+ * the six menus. File → « Charger une aventure » opens the load dialog; Jeu → « Base de données… »
+ * opens the registry editor. No account menu: the store carries no username/email to fill it, and
+ * inventing that plumbing is out of scope.
  */
 export function EditorMenuBar({
   canUndo,
@@ -52,7 +54,6 @@ export function EditorMenuBar({
   onOpenLoad,
   onNewMap,
   onSave,
-  onDeleteMap,
   onOpenSettings,
   onOpenDatabase,
   onUndo,
@@ -76,6 +77,26 @@ export function EditorMenuBar({
         <span className="text-[12.5px] font-semibold">{t("editor.shell.brand")}</span>
       </div>
 
+      {/* C8: a small, always-visible Quit affordance beside the brand chip — the File-menu item
+          alone left leaving the editor buried two clicks deep. Reuses the pre-existing (previously
+          orphaned) `exit.aria` string rather than the File-menu's own "Quit the editor" label, so the
+          icon-only button and the menu item read as two distinct affordances, not a duplicate. */}
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t("editor.shell.exit.aria")}
+              onClick={onExit}
+            >
+              <LogOut />
+            </Button>
+          }
+        />
+        <TooltipContent>{t("editor.shell.exit.aria")}</TooltipContent>
+      </Tooltip>
+
       <Menubar className="h-8 gap-0 rounded-none border-none bg-transparent p-0">
         <MenubarMenu>
           <MenubarTrigger>{t("editor.shell.menu.file")}</MenubarTrigger>
@@ -91,10 +112,6 @@ export function EditorMenuBar({
             </MenubarItem>
             <MenubarSeparator />
             <MenubarItem onClick={onOpenSettings}>{t("editor.shell.settings")}</MenubarItem>
-            <MenubarSeparator />
-            <MenubarItem variant="destructive" onClick={onDeleteMap}>
-              {t("editor.shell.deleteMap")}
-            </MenubarItem>
             <MenubarSeparator />
             <MenubarItem onClick={onExit}>{t("editor.shell.quit")}</MenubarItem>
           </MenubarContent>

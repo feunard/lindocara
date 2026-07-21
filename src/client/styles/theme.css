@@ -374,13 +374,24 @@ select:disabled {
   cursor: grab;
 }
 
-/* `.editor-root` covers the editor shell; `[data-slot="dialog-content"]` covers the dialogs Radix
-   portals out to <body>, outside `.editor-root`, which would otherwise inherit the game chrome from
-   the `html, body, #root` rule above. Deliberately NOT a bare `[data-slot]`: the Tiny Swords
-   superset is built on the same shadcn structure, so TinyButton/TinyLabel/TinyKbd carry data-slot
-   too and a blanket rule would strip the game's own skin off them. `DialogContent` is editor-only. */
+/* `.editor-root` covers the editor shell; the `[data-slot="…"]` selectors cover every portal Base
+   UI opens out to <body>, outside `.editor-root` — dialogs, menu bar dropdowns, plain dropdowns,
+   selects and tooltips — which would otherwise inherit the game chrome from the `html, body, #root`
+   rule above. Deliberately NOT a bare `[data-slot]`: the Tiny Swords superset is built on the same
+   shadcn structure, so TinyButton/TinyLabel/TinyKbd carry data-slot too and a blanket rule would
+   strip the game's own skin off them. This list mirrors legacy.css's color-scheme fence below
+   (D23) — minus `dialog-overlay`, which carries no text — because that fence already re-pins these
+   same portaled slots to the light palette but never touched the font, so the menu bar's
+   File/Edit/Mode/… dropdowns (and tooltips, selects, …) rendered their text in the game's
+   handwritten face instead of the shadcn sans-serif. */
 .editor-root,
-[data-slot="dialog-content"] {
+[data-slot="dialog-content"],
+[data-slot="menubar-content"],
+[data-slot="menubar-sub-content"],
+[data-slot="dropdown-menu-content"],
+[data-slot="dropdown-menu-sub-content"],
+[data-slot="select-content"],
+[data-slot="tooltip-content"] {
   cursor: auto;
   /* Same reason the cursors are fenced: `:root` sets the game's handwriting face and it would
      inherit straight into the creator tools, which have to stay dense and sober. A rule on the
