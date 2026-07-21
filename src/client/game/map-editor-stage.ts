@@ -24,6 +24,7 @@ import {
   sameElementSlot,
 } from "../../shared/map-data.js";
 import type { EventKind, MapEvent } from "../../shared/map-events.js";
+import { STAIRS_FOOTPRINT_COLS, STAIRS_FOOTPRINT_ROWS } from "../../shared/tile-brush.js";
 import type { TileLayer } from "../../shared/tile-layer-codec.js";
 import { isSolidKind, TILE_SIZE, type TileMap } from "../../shared/tilemap.js";
 import type { Tileset } from "../../shared/tileset.js";
@@ -225,11 +226,29 @@ const HOVER_OUTLINE_COLOR = 0xffffff;
 const HOVER_OUTLINE_WIDTH = 3;
 const HOVER_ILLEGAL_COLOR = 0xd41f1f;
 
+/** The cells a tool's stamp will touch, anchored at `(col,row)`. Every tool proposes a single cell
+ *  except the stairs gateway, which is 4 wide × 2 rows — so its hover preview outlines the whole
+ *  footprint, not just the anchor. Pure and Pixi-free, exported so the footprint pins in a test. */
+export function stampFootprintCells(
+  tool: EditorTool,
+  col: number,
+  row: number,
+): { col: number; row: number }[] {
+  if (tool.kind !== "stairs") return [{ col, row }];
+  const cells: { col: number; row: number }[] = [];
+  for (let dRow = 0; dRow < STAIRS_FOOTPRINT_ROWS; dRow += 1) {
+    for (let dCol = 0; dCol < STAIRS_FOOTPRINT_COLS; dCol += 1) {
+      cells.push({ col: col + dCol, row: row + dRow });
+    }
+  }
+  return cells;
+}
+
 /**
- * Draws the UX wave #9 hover feedback for ONE cell into `container`: always a thick preview outline,
- * plus an OPAQUE red cell fill UNDER that outline when `placementLegalAt` says the active tool cannot
- * place here. Returns whether it drew the illegal fill, which is the render decision the stage test
- * pins.
+ * Draws the UX wave #9 hover feedback into `container`: a thick preview outline over every cell the
+ * active tool's stamp will touch (one cell for most tools, the 4×2 gateway for stairs), plus an
+ * OPAQUE red cell fill UNDER those outlines when `placementLegalAt` says the tool cannot place here.
+ * Returns whether it drew the illegal fill, which is the render decision the stage test pins.
  *
  * Exported and kept Pixi-object-only like `paintEventCell`/`paintLandCell` — `Graphics` constructs
  * without a live renderer — so the red-vs-clear decision can be pinned without the WebGL context the
@@ -245,24 +264,26 @@ export function paintHoverCell(
   offsetX = 0,
   offsetY = 0,
 ): { illegal: boolean } {
-  const x = col * TILE_SIZE + offsetX * ELEMENT_OFFSET_PX;
-  const y = row * TILE_SIZE + offsetY * ELEMENT_OFFSET_PX;
   const illegal = !placementLegalAt(tool, map, col, row, mode);
-  if (illegal) {
-    const fill = new Graphics();
-    fill.rect(x, y, TILE_SIZE, TILE_SIZE).fill({ color: HOVER_ILLEGAL_COLOR, alpha: 1 });
-    container.addChild(fill);
-  }
-  const outline = new Graphics();
   const inset = HOVER_OUTLINE_WIDTH / 2;
-  outline
-    .rect(x + inset, y + inset, TILE_SIZE - HOVER_OUTLINE_WIDTH, TILE_SIZE - HOVER_OUTLINE_WIDTH)
-    .stroke({
-      width: HOVER_OUTLINE_WIDTH,
-      color: illegal ? HOVER_ILLEGAL_COLOR : HOVER_OUTLINE_COLOR,
-      alpha: 1,
-    });
-  container.addChild(outline);
+  for (const cell of stampFootprintCells(tool, col, row)) {
+    const x = cell.col * TILE_SIZE + offsetX * ELEMENT_OFFSET_PX;
+    const y = cell.row * TILE_SIZE + offsetY * ELEMENT_OFFSET_PX;
+    if (illegal) {
+      const fill = new Graphics();
+      fill.rect(x, y, TILE_SIZE, TILE_SIZE).fill({ color: HOVER_ILLEGAL_COLOR, alpha: 1 });
+      container.addChild(fill);
+    }
+    const outline = new Graphics();
+    outline
+      .rect(x + inset, y + inset, TILE_SIZE - HOVER_OUTLINE_WIDTH, TILE_SIZE - HOVER_OUTLINE_WIDTH)
+      .stroke({
+        width: HOVER_OUTLINE_WIDTH,
+        color: illegal ? HOVER_ILLEGAL_COLOR : HOVER_OUTLINE_COLOR,
+        alpha: 1,
+      });
+    container.addChild(outline);
+  }
   return { illegal };
 }
 

@@ -381,24 +381,39 @@ function syncWall(
     : eraseTile(walls, tileset, col, row);
 }
 
+/** The stairs gateway's footprint: 4 columns wide, 2 rows tall, anchored at its top-left `(col,row)`.
+ *  Exported so the editor's hover preview draws exactly the cells the stamp will touch. */
+export const STAIRS_FOOTPRINT_COLS = 4;
+export const STAIRS_FOOTPRINT_ROWS = 2;
+
 /**
- * The tileset's four ramp fixed tiles as a 2x2 stamp, always onto **layer 1** — top-left,
- * bottom-left, top-right, bottom-right at `(col,row)..(col+1,row+1)`, i.e. `fixedId(0)`,
- * `fixedId(1)`, `fixedId(2)`, `fixedId(3)`. Layer 1 because that is where a cliff wall lives, and a
- * ramp's entire job is to punch a passable hole through one — `bakeCollision`
- * (`shared/map-data.ts`) reads "any impassable tile on any layer" as solid, so overwriting the wall
- * layer there is what actually joins the two elevation levels; writing to layer 0 would leave the
- * wall on layer 1 standing, unbaked and still solid, right under the stamp.
+ * A ramp GATEWAY: a 4-cell-wide, 2-row opening through a cliff, anchored at top-left `(col,row)`.
  *
- * Refused — the exact same `layers` reference back — if any of the four cells is out of bounds, or
- * `layers` has no layer 1 at all. Otherwise, like `fillRect`'s rectangle (and unlike `syncWall`'s
+ * The tileset's four "ramp" fixed tiles are NOT a compact 2x2 block — they are two 1x2 slope BANKS
+ * separated by a 2-cell gap in the atlas (a left bank at atlas col 0, a right bank at atlas col 3).
+ * They are the two sides of a gateway whose middle two cells are the walkable path. So the stamp is:
+ *
+ *   [left bank] [path] [path] [right bank]      columns `col` · `col+1` · `col+2` · `col+3`
+ *
+ * - The LEFT bank (`fixedId(0)` top, `fixedId(1)` bottom) lands at `col`; the RIGHT bank
+ *   (`fixedId(2)` top, `fixedId(3)` bottom) at `col+3`, three columns apart, exactly their atlas
+ *   spacing — so they visually flank the opening instead of mashing together (the old 2x2 bug).
+ * - The two MIDDLE columns are the walkable path. On **layer 1** (where a cliff wall lives) they are
+ *   CLEARED, so the ramp punches a passable hole through the wall — `bakeCollision`
+ *   (`shared/map-data.ts`) reads "any impassable tile on any layer" as solid, so clearing the wall
+ *   layer there is what actually joins the two elevation levels. On **layer 0** they become lower
+ *   grass (the level the ramp descends to), so the opening is a walkable notch rather than a void.
+ *
+ * Refused — the exact same `layers` reference back — if any of the 4x2 cells is out of bounds, or
+ * `layers` has no layer 0/1 at all. Otherwise, like `fillRect`'s rectangle (and unlike `syncWall`'s
  * ambient wall upkeep, which since Task 2 refuses to touch a fixed tile) this is explicit authoring
  * intent: a cliff wall under the stamp is overwritten exactly like an autotile would be.
  *
- * After the write, a mask only ever reads a cell's own 4-neighbourhood, and only these four cells
+ * After the write, a mask only ever reads a cell's own 4-neighbourhood, and only these eight cells
  * changed slot — so only their orthogonal neighbours can have a stale variant, the same one-hop
- * border idea `floodFill` re-resolves around its region. A neighbour that is itself one of the four
- * stamp cells is skipped naturally: `resolvedId` returns null for a fixed tile.
+ * border idea `floodFill` re-resolves around its region. A neighbour that is itself a stamp cell is
+ * skipped naturally: `resolvedId` returns null for a fixed or an emptied cell. Layer 0's path fill
+ * goes through `paintRectAutotile`, which re-resolves its own region and border.
  */
 export function paintStairs(
   layers: readonly TileLayer[],
@@ -406,24 +421,48 @@ export function paintStairs(
   col: number,
   row: number,
 ): TileLayer[] {
+  const ground = layers[0];
   const walls = layers[1];
-  if (!walls) return layers as TileLayer[];
-  const cells: readonly { col: number; row: number; index: number }[] = [
+  if (!ground || !walls) return layers as TileLayer[];
+
+  const bankCells: readonly { col: number; row: number; index: number }[] = [
     { col, row, index: 0 },
     { col, row: row + 1, index: 1 },
-    { col: col + 1, row, index: 2 },
-    { col: col + 1, row: row + 1, index: 3 },
+    { col: col + 3, row, index: 2 },
+    { col: col + 3, row: row + 1, index: 3 },
   ];
-  if (cells.some((cell) => !inBounds(walls, cell.col, cell.row))) return layers as TileLayer[];
+  const pathCols: readonly [number, number] = [col + 1, col + 2];
+  const pathCells: readonly { col: number; row: number }[] = pathCols.flatMap((pathCol) => [
+    { col: pathCol, row },
+    { col: pathCol, row: row + 1 },
+  ]);
+  const allCells: readonly { col: number; row: number }[] = [...bankCells, ...pathCells];
+  if (allCells.some((cell) => !inBounds(walls, cell.col, cell.row))) return layers as TileLayer[];
 
+  // Layer 0: the two path columns become lower-level grass — the ground the ramp descends to — so
+  // the gateway is a walkable notch, not a hole. `paintRectAutotile` re-resolves region + border.
+  const paintedGround = paintRectAutotile(
+    ground,
+    tileset,
+    GRASS_SLOTS[0],
+    pathCols[0],
+    row,
+    pathCols[1],
+    row + 1,
+  );
+
+  // Layer 1: banks are the four fixed ramp tiles; the path clears the cliff wall so it is not solid.
   const ids = [...walls.ids];
-  for (const cell of cells) {
+  for (const cell of bankCells) {
     ids[indexOf(walls, cell.col, cell.row)] = fixedId(cell.index);
+  }
+  for (const cell of pathCells) {
+    ids[indexOf(walls, cell.col, cell.row)] = EMPTY_TILE;
   }
   const draft: TileLayer = { ...walls, ids };
 
   const resolveVisited = new Set<number>();
-  for (const cell of cells) {
+  for (const cell of allCells) {
     const neighbours: readonly { col: number; row: number }[] = [
       { col: cell.col, row: cell.row - 1 },
       { col: cell.col + 1, row: cell.row },
@@ -440,5 +479,9 @@ export function paintStairs(
     }
   }
   const newWalls: TileLayer = { ...walls, ids };
-  return layers.map((layer, index) => (index === 1 ? newWalls : layer));
+  return layers.map((layer, index) => {
+    if (index === 0) return paintedGround;
+    if (index === 1) return newWalls;
+    return layer;
+  });
 }
