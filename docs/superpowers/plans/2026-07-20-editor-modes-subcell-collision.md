@@ -2062,6 +2062,147 @@ git commit -m "feat: quarter-cell element placement and offset inspector"
 
 ---
 
+### Task 12b: Stack multiple decorations per cell
+
+Added mid-execution. Task 7b widened the D1 primary key to `(mapId, col, row, offsetX, offsetY)` so
+up to 16 decorations can share a cell, but editor placement still keys element identity on `(col,
+row)` — placing in an occupied cell REPLACES, and `elementsOverlap` (visual footprint) rejects any
+two elements sharing a cell. So the 16-per-cell capacity is reachable in D1 but not through the
+editor. **User decision:** the editor should let decorations stack in a cell at different offsets.
+
+The change couples five seams — placement, selection identity, the inspector, the stage highlight,
+the eraser — because the selection descriptor `{kind:"element", col, row}` cannot tell two stacked
+elements apart. All must move together.
+
+**Design decisions (flag to the user if any looks wrong, do not silently vary):**
+- **Identity becomes the full 4-tuple** `(col, row, offsetX, offsetY)`. Placing at a sub-position that
+  is empty ADDS; placing at one already occupied by the same sub-position REPLACES only that one.
+- **The visual-footprint overlap rejection is dropped.** Decorations may overlap visually — that is
+  the point of stacking. The spawn-clear guard and the terrain-validity guard STAY. Overlapping
+  colliders are harmless (both simply block).
+- **Selection and the eraser pick the TOPMOST element** covering the clicked cell — the last match in
+  render order (elements later in the array draw on top). The eraser removes that ONE element, so a
+  stack peels one click at a time rather than clearing wholesale.
+
+**Files:**
+- Modify: `src/client/game/editor-state.ts` — the `element` branch of `applyTool` (~987), the
+  selection descriptor type and `selectionAt` (~259), `erasedElement`/`withoutElementAt` (~634, ~745),
+  and the inspector-commit helpers that find the selected element by identity.
+- Modify: `src/shared/map-data.ts` — a helper to test full-identity equality if one is warranted;
+  leave `elementsOverlap`/`elementCoversCell` intact (other callers may still need footprint logic).
+- Modify: `src/client/game/map-editor-stage.ts` — the selection highlight, which reads the descriptor.
+- Modify: `src/client/ui/editor/AdventureEditorScreen.tsx` — the inspector reads the selected element
+  by the new descriptor identity.
+- Test: `test/editor-modes.test.ts` (or the editor-state test file).
+
+**Interfaces:**
+- The element selection descriptor gains `offsetX`/`offsetY`:
+  `{ kind: "element"; col: number; row: number; offsetX: number; offsetY: number }`.
+
+- [ ] **Step 1: Write the failing tests**
+
+In the editor-state test file:
+
+```ts
+it("stacks two decorations in one cell at different offsets", () => {
+  // Place TREE at (2,2) offset (0,0), then at (2,2) offset (3,1). Both survive.
+  // Assert elements has length 2 and both offsets are present.
+});
+
+it("replaces only the element at the exact same sub-position", () => {
+  // Place at (2,2,0,0), then a different asset at (2,2,0,0). Length stays 1, asset is the new one.
+});
+
+it("erases the topmost element of a stack, leaving the rest", () => {
+  // Two elements in one cell; eraser at that cell removes one (the topmost), length goes 2 -> 1.
+});
+
+it("still refuses to place a decoration on the spawn cell", () => {
+  // The spawn guard survives the overlap-rule relaxation.
+});
+```
+
+Fill each body against the real `applyTool`/fixture shapes. The assertions are the contract.
+
+- [ ] **Step 2: Run to verify they fail**
+
+Run: `npx vitest run test/editor-modes.test.ts`
+Expected: the stack test fails (second placement replaces the first — length 1, not 2).
+
+- [ ] **Step 3: Rework placement**
+
+In the `element` branch of `applyTool` (`editor-state.ts` ~987):
+
+```ts
+    case "element": {
+      const placed: MapElement = { col, row, offsetX, offsetY, assetId: tool.assetId };
+      if (!placementTerrainValid(map, placed)) return null;
+      if (elementCoversCell(placed, map.spawn.col, map.spawn.row)) return null;
+      // Identity is the full sub-position now, so a new sub-position ADDS and only an exact match
+      // REPLACES — that is what lets a cell hold a stack. The visual-footprint overlap rejection is
+      // gone on purpose: stacked decor is meant to overlap. Spawn and terrain guards stay.
+      const isReplacement = map.elements.some((e) => sameElementSlot(e, placed));
+      const retained = map.elements.filter((e) => !sameElementSlot(e, placed));
+      if (!isReplacement && map.elements.length >= MAX_MAP_ELEMENTS) return null;
+      const next = { ...map, elements: [...retained, placed] };
+      return keepsSpawnClear(next) ? next : null;
+    }
+```
+
+Add `sameElementSlot(a, b)` (col/row/offsetX/offsetY equality) wherever the other element helpers
+live (`map-data.ts` if shared, else `editor-state.ts`).
+
+- [ ] **Step 4: Rework selection and the eraser to topmost**
+
+`selectionAt` (~259): pick the LAST element covering the cell (topmost), and return the full identity:
+
+```ts
+  const covering = map.elements.filter((candidate) => elementCoversCell(candidate, col, row));
+  const element = covering[covering.length - 1];
+  if (element) {
+    return { kind: "element", col: element.col, row: element.row,
+             offsetX: element.offsetX, offsetY: element.offsetY };
+  }
+```
+
+Update the `ElementSelection` descriptor type to carry `offsetX`/`offsetY`. `erasedElement` removes
+the topmost single covering element instead of all:
+
+```ts
+function erasedElement(map: EditorMap, col: number, row: number): EditorMap {
+  const covering = map.elements.filter((e) => elementCoversCell(e, col, row));
+  const target = covering[covering.length - 1];
+  if (!target) return map;
+  const elements = map.elements.filter((e) => e !== target);
+  return { ...map, elements };
+}
+```
+
+- [ ] **Step 5: Thread the identity through the stage and inspector**
+
+Every reader of the element selection descriptor must match by the full 4-tuple, not `(col, row)`:
+`map-editor-stage.ts`'s selection highlight, and `AdventureEditorScreen.tsx`'s inspector lookup and
+its offset/asset edit commits. When the inspector edits a field, the selection descriptor must follow
+to the element's NEW identity so the inspector stays bound to the same element. Grep for the
+descriptor's construction/consumption and fix each site; a missed site leaves the highlight or
+inspector pointing at the wrong element of a stack.
+
+- [ ] **Step 6: Run the tests**
+
+Run: `npm run check`
+Expected: PASS, including the four new tests. Watch for an existing test that asserted
+"placing replaces the cell's element" — that behaviour is intentionally gone for distinct
+sub-positions; update it to the new model (replace only on an exact sub-position match) and note it.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/shared/map-data.ts src/client/game/ src/client/ui/editor/ test/
+git commit -m "feat: stack multiple decorations per cell at different offsets"
+```
+
+---
+
 ### Task 13: Update the load-bearing comments and docs
 
 The "one source of collision truth" invariant is asserted in four places. Left alone, all four now lie.
