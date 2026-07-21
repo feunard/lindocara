@@ -306,6 +306,10 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   // Mirrors `showGrid` (UX wave #8), so the grid-visible state a resolving stage installs is the one
   // in effect — on by default — even if the toggle was pressed while the stage was opening.
   const pendingGridRef = useRef(true);
+  // Mirrors `showCollisions` (D18), off by default, for the same reason `pendingGridRef` mirrors
+  // `showGrid`: a toggle pressed while the stage is still opening must be installed by the resolving
+  // `.then`, not lost.
+  const pendingCollisionsRef = useRef(false);
   // The live edits captured when Tester is pressed, carried across the preview round-trip so the
   // stage reopens from them rather than the pristine payload.
   const editedRef = useRef<EditorMap | null>(null);
@@ -325,6 +329,9 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   const [mode, setActiveMode] = useState<EditorMode>("field");
   const [showGrid, setShowGrid] = useState(true);
   const [showDim, setShowDim] = useState(false);
+  // D18: the collision-visualisation overlay toggle. Off by default so a fresh editor looks exactly
+  // as it did before this overlay existed.
+  const [showCollisions, setShowCollisions] = useState(false);
   const [cursor, setCursor] = useState<{ col: number; row: number } | null>(null);
   const [zoom, setZoomState] = useState(100);
   const [elementCount, setElementCount] = useState(0);
@@ -490,6 +497,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         handle.setActiveMode(pendingModeRef.current);
         handle.setDim(pendingDimRef.current);
         handle.setGrid(pendingGridRef.current);
+        handle.setCollisions(pendingCollisionsRef.current);
         setStageStatus("ready");
       })
       .catch((caught) => {
@@ -698,6 +706,15 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       const next = !current;
       pendingDimRef.current = next;
       handleRef.current?.setDim(next);
+      return next;
+    });
+  }
+
+  function toggleCollisions(): void {
+    setShowCollisions((current) => {
+      const next = !current;
+      pendingCollisionsRef.current = next;
+      handleRef.current?.setCollisions(next);
       return next;
     });
   }
@@ -1130,6 +1147,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
           canRedo={canRedo && stageStatus === "ready"}
           showGrid={showGrid}
           showDim={showDim}
+          showCollisions={showCollisions}
           onExit={() => exit()}
           onOpenLoad={() => setLoadOpen(true)}
           onNewMap={() => setNewMapOpen(true)}
@@ -1142,6 +1160,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
           onSelectTool={selectTool}
           onToggleGrid={toggleGrid}
           onToggleDim={toggleDim}
+          onToggleCollisions={toggleCollisions}
           onSetZoom={setEditorZoom}
           onTest={test}
         />
@@ -1151,12 +1170,14 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
           mode={mode}
           showGrid={showGrid}
           showDim={showDim}
+          showCollisions={showCollisions}
           zoom={zoom}
           onNewMap={() => setNewMapOpen(true)}
           onSelectTool={selectTool}
           onSelectMode={selectMode}
           onToggleGrid={toggleGrid}
           onToggleDim={toggleDim}
+          onToggleCollisions={toggleCollisions}
           onCycleZoom={cycleZoom}
           onTest={test}
         />

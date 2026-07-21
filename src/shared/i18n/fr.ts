@@ -836,6 +836,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.shell.grid.show": "Afficher la grille",
   "editor.shell.grid.aria": "Grille",
   "editor.shell.dimOtherLayers": "Estomper les autres modes",
+  "editor.shell.collisions.aria": "Collisions",
   "editor.shell.zoomTo": "Zoom {value}%",
   "editor.shell.zoom.aria": "Zoom",
   "editor.shell.test": "Tester",

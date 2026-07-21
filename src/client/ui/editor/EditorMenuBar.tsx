@@ -19,6 +19,9 @@ interface EditorMenuBarProps {
   canRedo: boolean;
   showGrid: boolean;
   showDim: boolean;
+  /** D18: the collision-visualisation overlay toggle's current state, mirrored in the View menu
+   *  exactly like `showGrid`/`showDim`. */
+  showCollisions: boolean;
   /** Quit the editor back to the parties screen (dirty-guarded), from File → « Quitter l'éditeur »
    *  AND from the menu bar's own Quit button (C8: the File-menu item alone was undiscoverable). */
   onExit(): void;
@@ -34,6 +37,7 @@ interface EditorMenuBarProps {
   onSelectTool(tool: EditorPaintTool): void;
   onToggleGrid(): void;
   onToggleDim(): void;
+  onToggleCollisions(): void;
   onSetZoom(zoom: number): void;
   onTest(): void;
 }
@@ -50,6 +54,7 @@ export function EditorMenuBar({
   canRedo,
   showGrid,
   showDim,
+  showCollisions,
   onExit,
   onOpenLoad,
   onNewMap,
@@ -62,6 +67,7 @@ export function EditorMenuBar({
   onSelectTool,
   onToggleGrid,
   onToggleDim,
+  onToggleCollisions,
   onSetZoom,
   onTest,
 }: EditorMenuBarProps) {
@@ -176,6 +182,10 @@ export function EditorMenuBar({
             <MenubarItem onClick={onToggleDim}>
               {showDim ? "✓ " : ""}
               {t("editor.shell.dimOtherLayers")}
+            </MenubarItem>
+            <MenubarItem onClick={onToggleCollisions}>
+              {showCollisions ? "✓ " : ""}
+              {t("editor.shell.collisions.aria")}
             </MenubarItem>
             <MenubarSeparator />
             <MenubarItem onClick={() => onSetZoom(100)}>

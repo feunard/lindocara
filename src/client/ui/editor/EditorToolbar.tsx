@@ -1,4 +1,5 @@
 import {
+  Blocks,
   Eraser,
   FilePlus,
   Grid3x3,
@@ -49,12 +50,16 @@ interface EditorToolbarProps {
   mode: EditorMode;
   showGrid: boolean;
   showDim: boolean;
+  /** D18: the collision-visualisation overlay toggle — shades solid tiles and outlines element
+   *  colliders. Off by default, threaded to the stage exactly like `showGrid`/`showDim`. */
+  showCollisions: boolean;
   zoom: number;
   onNewMap(): void;
   onSelectTool(tool: EditorPaintTool): void;
   onSelectMode(mode: EditorMode): void;
   onToggleGrid(): void;
   onToggleDim(): void;
+  onToggleCollisions(): void;
   onCycleZoom(): void;
   onTest(): void;
 }
@@ -95,12 +100,14 @@ export function EditorToolbar({
   mode,
   showGrid,
   showDim,
+  showCollisions,
   zoom,
   onNewMap,
   onSelectTool,
   onSelectMode,
   onToggleGrid,
   onToggleDim,
+  onToggleCollisions,
   onCycleZoom,
   onTest,
 }: EditorToolbarProps) {
@@ -149,6 +156,15 @@ export function EditorToolbar({
         onClick={onToggleDim}
       >
         <Layers />
+      </ToolbarIconButton>
+      <ToolbarIconButton
+        label={t("editor.shell.collisions.aria")}
+        variant={showCollisions ? "secondary" : "ghost"}
+        size="icon"
+        aria-pressed={showCollisions}
+        onClick={onToggleCollisions}
+      >
+        <Blocks />
       </ToolbarIconButton>
       <ToolbarIconButton
         label={t("editor.shell.zoom.aria")}

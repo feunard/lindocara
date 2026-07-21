@@ -819,6 +819,7 @@ export const en = {
   "editor.shell.grid.show": "Show grid",
   "editor.shell.grid.aria": "Grid",
   "editor.shell.dimOtherLayers": "Dim other modes",
+  "editor.shell.collisions.aria": "Collisions",
   "editor.shell.zoomTo": "Zoom {value}%",
   "editor.shell.zoom.aria": "Zoom",
   "editor.shell.test": "Test",

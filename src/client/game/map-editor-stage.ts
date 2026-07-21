@@ -17,12 +17,15 @@ import {
   bakeCollision,
   ELEMENT_OFFSET_PX,
   ELEMENT_OFFSET_STEPS,
+  elementWorldCollider,
   MAP_LAYERS,
+  type MapElement,
   quarterCellAt,
+  sameElementSlot,
 } from "../../shared/map-data.js";
 import type { EventKind, MapEvent } from "../../shared/map-events.js";
 import type { TileLayer } from "../../shared/tile-layer-codec.js";
-import { TILE_SIZE, type TileMap } from "../../shared/tilemap.js";
+import { isSolidKind, TILE_SIZE, type TileMap } from "../../shared/tilemap.js";
 import type { Tileset } from "../../shared/tileset.js";
 import {
   TINY_SWORDS_SHEET_COLS,
@@ -98,6 +101,12 @@ export interface MapEditorStageHandle {
   /** UX wave #8: toggle the cell grid overlay. On by default so a fresh editor shows the grid; React
    *  owns the displayed value and pushes it down here. */
   setGrid(show: boolean): void;
+  /** D18: toggle the collision-visualisation overlay — shades every solid baked tile and outlines
+   *  every element's sub-cell collider (`elementWorldCollider`), so sub-cell collision (a tree's
+   *  trunk, not its canopy) is finally visible to the author. Off by default; React owns the
+   *  displayed value and pushes it down here, exactly like `setGrid`/`setDim`. Never touches the game
+   *  renderer — it is an editor-only debug layer. */
+  setCollisions(show: boolean): void;
   /** Set the real Pixi camera scale from the React zoom controls. */
   setZoom(percent: number): void;
   current(): EditorMap;
@@ -251,7 +260,9 @@ const GRID_COLOR = 0x0e1a12;
 const EVENT_BOX_COLOR = 0x27272a;
 const EVENT_CHIP_BG_COLOR = 0x18181b;
 const EVENT_CHIP_TEXT_COLOR = 0xfafafa;
-const EVENT_SELECTION_COLOR = 0xffffff;
+/** D2: the same selection outline treatment for a selected element as an event already gets below —
+ *  one colour, so "this is what's selected" reads identically whichever plane it is on. */
+const SELECTION_OUTLINE_COLOR = 0xffffff;
 
 /**
  * The placeholder swatch colour per event kind, so the four kinds read apart at a glance on the EV
@@ -351,11 +362,97 @@ export function paintEventCell(
     const outline = new Graphics();
     outline
       .rect(x, y, TILE_SIZE, TILE_SIZE)
-      .stroke({ width: 2, color: EVENT_SELECTION_COLOR, alpha: 0.95 });
+      .stroke({ width: 2, color: SELECTION_OUTLINE_COLOR, alpha: 0.95 });
     container.addChild(outline);
   }
 
   return { chipText, hasGraphic, selected };
+}
+
+/**
+ * D2: the element twin of the selection outline drawn above for a selected event — same stroke
+ * weight and colour, so "this is the selected thing" reads identically whichever plane it is on.
+ * Positioned at the element's quarter-cell anchor (the same `col*TILE_SIZE + offsetX*ELEMENT_OFFSET_PX`
+ * arithmetic `paintHoverCell` already uses for an Element-mode preview), one cell wide/tall, so a
+ * stack of decorations at distinct offsets in one cell each get a distinguishable outline rather than
+ * all four sharing one whole-cell box.
+ *
+ * Exported and Pixi-object-only like `paintEventCell` — `Graphics` constructs without a live
+ * renderer — so the outline's position can be pinned without the WebGL context the rest of the stage
+ * needs. Rendering only: it never mutates the map.
+ */
+export function paintElementSelectionOutline(
+  selection: { col: number; row: number; offsetX: number; offsetY: number },
+  container: Container,
+): void {
+  const x = selection.col * TILE_SIZE + selection.offsetX * ELEMENT_OFFSET_PX;
+  const y = selection.row * TILE_SIZE + selection.offsetY * ELEMENT_OFFSET_PX;
+  const outline = new Graphics();
+  outline
+    .rect(x, y, TILE_SIZE, TILE_SIZE)
+    .stroke({ width: 2, color: SELECTION_OUTLINE_COLOR, alpha: 0.95 });
+  container.addChild(outline);
+}
+
+/** D18: the shading colour for a solid baked tile (water/forest/building — `isSolidKind`) when the
+ *  collision overlay is on. A separate, brighter colour marks an element's own sub-cell collider
+ *  rect, so "the whole cell blocks" and "only this rect of the cell blocks" read apart at a glance —
+ *  the exact distinction a tree's trunk-only collider needs to communicate. */
+const COLLISION_TILE_COLOR = 0xef4444;
+const COLLISION_TILE_ALPHA = 0.28;
+const COLLISION_ELEMENT_COLOR = 0xf59e0b;
+const COLLISION_ELEMENT_FILL_ALPHA = 0.45;
+const COLLISION_ELEMENT_STROKE_ALPHA = 0.9;
+
+/** What `paintCollisionOverlay` drew: how many solid tiles were shaded and how many element
+ *  colliders were outlined — the two counts the stage test pins instead of pixels. */
+export interface CollisionOverlayDraw {
+  solidCells: number;
+  colliderRects: number;
+}
+
+/**
+ * D18: draws the collision-visualisation overlay into `container` — a translucent shade over every
+ * solid baked tile (read through `isSolidKind`, the same authority `isWalkableBox` collides against),
+ * plus an outlined rect over every element's world-pixel collider (`elementWorldCollider`, shared with
+ * `terrainFromMap`). Reuses both rather than re-deriving solidity, so the overlay can never disagree
+ * with what actually blocks movement.
+ *
+ * Exported and Pixi-object-only like `paintLandCell`/`paintEventCell` — `Graphics` constructs without
+ * a live renderer — so the shade/outline counts can be pinned without the WebGL context the rest of
+ * the stage needs. Rendering only: it never mutates the map and nothing here runs in the game.
+ */
+export function paintCollisionOverlay(
+  tiles: TileMap,
+  elements: readonly MapElement[],
+  container: Container,
+): CollisionOverlayDraw {
+  let solidCells = 0;
+  for (let row = 0; row < tiles.rows; row++) {
+    for (let col = 0; col < tiles.cols; col++) {
+      const kind = tiles.kinds[row * tiles.cols + col];
+      if (kind === undefined || !isSolidKind(kind)) continue;
+      const shade = new Graphics();
+      shade
+        .rect(col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+        .fill({ color: COLLISION_TILE_COLOR, alpha: COLLISION_TILE_ALPHA });
+      container.addChild(shade);
+      solidCells += 1;
+    }
+  }
+  let colliderRects = 0;
+  for (const element of elements) {
+    const rect = elementWorldCollider(element);
+    if (!rect) continue;
+    const box = new Graphics();
+    box
+      .rect(rect.x, rect.y, rect.width, rect.height)
+      .fill({ color: COLLISION_ELEMENT_COLOR, alpha: COLLISION_ELEMENT_FILL_ALPHA })
+      .stroke({ width: 1, color: COLLISION_ELEMENT_COLOR, alpha: COLLISION_ELEMENT_STROKE_ALPHA });
+    container.addChild(box);
+    colliderRects += 1;
+  }
+  return { solidCells, colliderRects };
 }
 
 /** The page-1 graphic ids across a set of events, deduplicated by the caller's loader. Only page 1
@@ -513,6 +610,7 @@ function inertHandle(map: EditorMap): MapEditorStageHandle {
     setActiveMode() {},
     setDim() {},
     setGrid() {},
+    setCollisions() {},
     setZoom() {},
     current: () => map,
     setName() {},
@@ -638,6 +736,12 @@ async function buildSession(
   // once (Field/Event modes dim it together).
   const elementContainers = [groundElementLayer, objectElementLayer, canopyElementLayer];
   const aboveLandLayer = new Container();
+  // D18: the collision-visualisation overlay, above terrain/props (it shades solid tiles and outlines
+  // element colliders that sit among them) but below the grid lines, so the grid stays legible drawn
+  // over the shading. Rebuilt every `redraw()` like the terrain itself — content depends on the baked
+  // tiles and the element list — but toggled by `.visible` exactly like `gridLayer`, off by default.
+  const collisionLayer = new Container();
+  let collisionsVisible = false;
   // The cell grid (UX wave #8), above the terrain/props so it reads over both land and sea, below the
   // markers so a spawn/entry diamond still sits clearly on top. Built once (map size is fixed for a
   // session) and toggled by `.visible`, not rebuilt per stroke.
@@ -659,6 +763,7 @@ async function buildSession(
     objectElementLayer,
     canopyElementLayer,
     aboveLandLayer,
+    collisionLayer,
     gridLayer,
     markerLayer,
     eventLayer,
@@ -717,6 +822,7 @@ async function buildSession(
       objectElementLayer,
       canopyElementLayer,
       aboveLandLayer,
+      collisionLayer,
       markerLayer,
       eventLayer,
     ]) {
@@ -782,6 +888,15 @@ async function buildSession(
     drawElements();
     drawSpawnMarker();
     drawEvents();
+    drawCollisions(tiles);
+  }
+
+  /** D18: rebuilds the collision overlay from the just-baked tiles and the current element list, then
+   *  applies the toggle's current `.visible` — content always tracks the map, visibility is the only
+   *  thing the toolbar button controls. */
+  function drawCollisions(tiles: TileMap): void {
+    paintCollisionOverlay(tiles, map.elements, collisionLayer);
+    collisionLayer.visible = collisionsVisible;
   }
 
   /** Every authored event on the event overlay: its page-1 graphic or the blank placeholder, its
@@ -806,7 +921,9 @@ async function buildSession(
 
   /** Props, painted the way `renderer.ts`'s `#buildMapElements` does: y-sorted so a lower tree
    *  overlaps a higher one, anchored bottom-centre and pushed down by each sheet's empty footer so
-   *  the object stands on its cell rather than floating over it. */
+   *  the object stands on its cell rather than floating over it. D2: the selected element (if any)
+   *  gets the same outline treatment `drawEvents` already gives a selected event, added to the exact
+   *  container the element itself drew into so it dims/hides in lockstep with the prop. */
   function drawElements(): void {
     const ordered = [...map.elements].sort((a, b) => a.row - b.row || a.col - b.col);
     for (const element of ordered) {
@@ -823,6 +940,9 @@ async function buildSession(
       layer.addChild(view.container);
       if (view.frames.length > 1)
         swaySprites.push({ sprite: view.sprite, frames: [...view.frames] });
+      if (selected?.kind === "element" && sameElementSlot(selected, element)) {
+        paintElementSelectionOutline(selected, layer);
+      }
     }
   }
 
@@ -1260,6 +1380,10 @@ async function buildSession(
     setGrid(next) {
       gridVisible = next;
       gridLayer.visible = next;
+    },
+    setCollisions(next) {
+      collisionsVisible = next;
+      collisionLayer.visible = next;
     },
     setZoom(percent) {
       setCameraZoom(percent);

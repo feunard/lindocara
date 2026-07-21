@@ -1,4 +1,4 @@
-import { Container, Sprite, Text, Texture } from "pixi.js";
+import { Container, Graphics, Sprite, Text, Texture } from "pixi.js";
 import { describe, expect, it } from "vitest";
 import type { EditorAssetArt } from "../../src/client/game/editor-asset-art.js";
 import type { EditorMap, EditorTool } from "../../src/client/game/editor-state.js";
@@ -7,14 +7,18 @@ import {
   applyModeDim,
   eventChipLabel,
   eventOverlayToggled,
+  paintCollisionOverlay,
+  paintElementSelectionOutline,
   paintEventCell,
   paintHoverCell,
   paintLandCell,
   shouldShowEventOverlay,
   shouldShowHoverPreview,
 } from "../../src/client/game/map-editor-stage.js";
+import type { MapElement } from "../../src/shared/map-data.js";
 import type { MapEvent } from "../../src/shared/map-events.js";
 import type { TileLayer } from "../../src/shared/tile-layer-codec.js";
+import type { TileMap } from "../../src/shared/tilemap.js";
 import type { Tileset } from "../../src/shared/tileset.js";
 import { fixedId } from "../../src/shared/tileset.js";
 import type { EditorAssetDefinition, EditorAssetId } from "../../src/shared/tiny-swords-catalog.js";
@@ -222,6 +226,63 @@ describe("paintEventCell", () => {
   });
 });
 
+/**
+ * D2: a selected element previously drew NO highlight at all, so a stack of decorations in one cell
+ * was indistinguishable. `paintElementSelectionOutline` mirrors `paintEventCell`'s selection outline
+ * — same exported, Pixi-object-only shape, pinned without a live renderer.
+ */
+describe("paintElementSelectionOutline", () => {
+  it("draws exactly one outline for the selected slot", () => {
+    const container = new Container();
+    paintElementSelectionOutline({ col: 2, row: 1, offsetX: 0, offsetY: 0 }, container);
+    expect(container.children).toHaveLength(1);
+    expect(container.children[0]).toBeInstanceOf(Graphics);
+  });
+
+  it("draws one outline per quarter-cell offset, distinguishing a stack in one cell", () => {
+    // Two decorations stacked in the same cell at different offsets each get their own outline call;
+    // nothing about the function itself collapses or dedupes them.
+    const container = new Container();
+    paintElementSelectionOutline({ col: 0, row: 0, offsetX: 0, offsetY: 0 }, container);
+    paintElementSelectionOutline({ col: 0, row: 0, offsetX: 3, offsetY: 2 }, container);
+    expect(container.children).toHaveLength(2);
+  });
+});
+
+/**
+ * D18: before this overlay existed, an author had no way to see a tile's baked solidity or an
+ * element's sub-cell collider. `paintCollisionOverlay` reuses `isSolidKind` (the same authority
+ * `isWalkableBox` collides against) and `elementWorldCollider` (shared with `terrainFromMap`), so the
+ * overlay can never disagree with what actually blocks movement — pinned here without a live renderer,
+ * exactly like `paintLandCell`.
+ */
+describe("paintCollisionOverlay", () => {
+  // Real catalogue ids already established in test/map-data.test.ts: a tree trunk collides, a bush
+  // does not (its footprint is decorative only).
+  const TREE = "resource.terrain-resources-wood-trees.tree3" as const;
+  const BUSH = "decoration.terrain-decorations-bushes.bushe1" as const;
+
+  it("shades every solid tile and skips walkable ones", () => {
+    const tiles: TileMap = { cols: 2, rows: 1, kinds: ["grass", "water"] };
+    const container = new Container();
+    const result = paintCollisionOverlay(tiles, [], container);
+    expect(result).toEqual({ solidCells: 1, colliderRects: 0 });
+    expect(container.children).toHaveLength(1);
+  });
+
+  it("outlines a colliding element but skips one with no collider", () => {
+    const tiles: TileMap = { cols: 1, rows: 1, kinds: ["grass"] };
+    const elements: MapElement[] = [
+      { col: 0, row: 0, offsetX: 0, offsetY: 0, assetId: TREE as EditorAssetId },
+      { col: 0, row: 0, offsetX: 0, offsetY: 0, assetId: BUSH as EditorAssetId },
+    ];
+    const container = new Container();
+    const result = paintCollisionOverlay(tiles, elements, container);
+    expect(result).toEqual({ solidCells: 0, colliderRects: 1 });
+    expect(container.children).toHaveLength(1);
+  });
+});
+
 describe("eventChipLabel", () => {
   it("zero-pads the ordinal to three digits", () => {
     expect(eventChipLabel(1)).toBe("EV001");
@@ -241,6 +302,24 @@ describe("shouldShowEventOverlay", () => {
       { kind: "spawn" },
     ];
     for (const tool of inactive) expect(shouldShowEventOverlay(tool)).toBe(true);
+  });
+
+  /**
+   * D15 regression: activating the Select tool while in Event mode used to hide the event overlay
+   * entirely. Visibility must depend on MODE (and the mode-dim rule), never on which tool is active.
+   * Pins both halves of that contract: the overlay's `.visible` gate (`shouldShowEventOverlay`) stays
+   * true under Select, AND `applyModeDim` still reports full opacity for the event plane while the
+   * active mode is "event" — so the events read as fully, not just technically, visible.
+   */
+  it("D15: stays visible (and undimmed) in Event mode when the Select tool is active", () => {
+    const selectTool: EditorTool = { kind: "select" };
+    expect(shouldShowEventOverlay(selectTool)).toBe(true);
+
+    const tiles = [new Container()];
+    const elements = [new Container()];
+    const events = new Container();
+    applyModeDim(tiles, elements, events, "event", true);
+    expect(events.alpha).toBe(1);
   });
 });
 

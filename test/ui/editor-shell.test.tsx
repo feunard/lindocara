@@ -23,6 +23,7 @@ const stageMock = vi.hoisted(() => ({
   setActiveMode: vi.fn(),
   setDim: vi.fn(),
   setGrid: vi.fn(),
+  setCollisions: vi.fn(),
   setZoom: vi.fn(),
   current: vi.fn(),
   setName: vi.fn(),
@@ -49,6 +50,7 @@ function stageHandle() {
     setActiveMode: stageMock.setActiveMode,
     setDim: stageMock.setDim,
     setGrid: stageMock.setGrid,
+    setCollisions: stageMock.setCollisions,
     setZoom: stageMock.setZoom,
     current: stageMock.current,
     setName: stageMock.setName,
@@ -259,6 +261,24 @@ describe("AdventureEditorScreen shell", () => {
       "aria-pressed",
       "true",
     );
+  });
+
+  it("D18: the collision overlay toggle is off by default and reaches the stage handle", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    await mountReady();
+    // Off by default, unlike the grid — a fresh editor must look exactly as it did before this
+    // overlay existed.
+    await waitFor(() => expect(stageMock.setCollisions).toHaveBeenCalledWith(false));
+    const toggle = () => screen.getByRole("button", { name: t("editor.shell.collisions.aria") });
+    expect(toggle()).toHaveAttribute("aria-pressed", "false");
+
+    await userEvent.click(toggle());
+    expect(stageMock.setCollisions).toHaveBeenLastCalledWith(true);
+    expect(toggle()).toHaveAttribute("aria-pressed", "true");
+
+    await userEvent.click(toggle());
+    expect(stageMock.setCollisions).toHaveBeenLastCalledWith(false);
+    expect(toggle()).toHaveAttribute("aria-pressed", "false");
   });
 
   it("keeps selection exclusive: a terrain pick clears the spawn tool and vice versa (UX wave #11)", async () => {
