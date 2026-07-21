@@ -563,20 +563,31 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   // Switches which of the three authored collections (terrain / elements / events) the tools act on.
   // A mode owns a collection, so a tool left over from the previous mode would either be silently
   // dropped by `toolAllowedInMode` or, worse, keep looking selected while doing nothing — so every
-  // mode change also resets the active tool to that mode's own default: Field always re-arms the
-  // pencil; Element re-arms the last selected decoration if one exists, else falls back to select
+  // ACTUAL mode change also resets the active tool to that mode's own default: Field always re-arms
+  // the pencil; Element re-arms the last selected decoration if one exists, else falls back to select
   // (there is no canonical "first" decoration to default to); Event re-arms the event tool with its
   // current kind/graphic/species/radius — the same push `selectEvents` used to do before Event became
   // a mode instead of a toolbar toggle.
-  function selectMode(mode: EditorMode): void {
-    pendingModeRef.current = mode;
-    setActiveMode(mode);
-    handleRef.current?.setActiveMode(mode);
-    if (mode === "field") {
+  //
+  // "Actual" matters: the segmented control's own clicks never re-fire for the already-active segment
+  // (Base UI swallows a repeat-click), but the `1`/`2`/`3` shortcuts and the Mode menu items call this
+  // unconditionally, so re-selecting the mode the user is already in must not disturb whatever tool
+  // they had picked inside it. Compared against `mode` — the committed React state that is also what
+  // the toolbar/menu render as the current selection — not `pendingModeRef`, which exists solely so
+  // the async stage-open `.then()` above can read the latest mode past its own stale effect-closure;
+  // it is written in lockstep with `mode` by this very function, so it carries no extra information
+  // for an equality check and reusing it here would just restate what this call is about to write.
+  function selectMode(nextMode: EditorMode): void {
+    const changed = nextMode !== mode;
+    pendingModeRef.current = nextMode;
+    setActiveMode(nextMode);
+    handleRef.current?.setActiveMode(nextMode);
+    if (!changed) return;
+    if (nextMode === "field") {
       selectTool("pencil");
       return;
     }
-    if (mode === "element") {
+    if (nextMode === "element") {
       if (selectedAsset) {
         setToolKey(null);
         pushTool({ kind: "element", assetId: selectedAsset });

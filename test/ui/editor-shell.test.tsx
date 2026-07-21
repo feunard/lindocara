@@ -954,6 +954,40 @@ describe("AdventureEditorScreen shell", () => {
       expect(gridButton).toHaveAttribute("aria-pressed", "false");
     });
 
+    it("re-selecting the current mode via its shortcut leaves the active tool untouched", async () => {
+      vi.stubGlobal("fetch", mapsFetchMock());
+      const rendered = await mountReady();
+      const host = shell(rendered);
+
+      // Field is the default mode; pick a non-default tool inside it.
+      fireEvent.keyDown(host, { key: "r" });
+      expect(stageMock.setTool).toHaveBeenLastCalledWith({
+        kind: "rect",
+        content: { kind: "block", block: "grass" },
+      });
+      const callsBeforeReselect = stageMock.setTool.mock.calls.length;
+
+      // "1" re-selects Field — the mode does not change, so this must be a no-op for the tool. This
+      // is the unguarded entry point: unlike the segmented control (which never re-fires a click on
+      // its own active segment), the shortcut calls `selectMode` unconditionally.
+      fireEvent.keyDown(host, { key: "1" });
+
+      expect(stageMock.setTool).toHaveBeenCalledTimes(callsBeforeReselect);
+      expect(stageMock.setTool).toHaveBeenLastCalledWith({
+        kind: "rect",
+        content: { kind: "block", block: "grass" },
+      });
+
+      // A genuine mode change still resets the tool to that mode's default: switching to Event via
+      // "3" re-arms the event tool regardless of the rect tool still active in Field.
+      fireEvent.keyDown(host, { key: "3" });
+      expect(stageMock.setTool).toHaveBeenLastCalledWith({
+        kind: "event",
+        eventKind: "normal",
+        graphic: null,
+      });
+    });
+
     it("forwards ⌘Z to undo and ⇧⌘Z to redo on the stage handle", async () => {
       vi.stubGlobal("fetch", mapsFetchMock());
       const rendered = await mountReady();
