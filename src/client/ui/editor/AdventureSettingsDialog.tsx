@@ -1,13 +1,5 @@
-import type * as React from "react";
 import { useEffect, useState } from "react";
-import type { ExitDestination } from "../../../shared/adventure.js";
-import {
-  type AdventureDraft,
-  bindExit,
-  draftSaveable,
-  draftValidationIssues,
-  toAdventureInput,
-} from "../../adventure-draft.js";
+import { type AdventureDraft, draftSaveable, toAdventureInput } from "../../adventure-draft.js";
 import { authErrorText, deleteAdventureApi, errorCode, updateAdventureApi } from "../../api.js";
 import { t, useLocale } from "../../i18n.js";
 import { useUiStore } from "../../store.js";
@@ -26,37 +18,6 @@ function isSessionError(code: string): boolean {
   return code === "session_expired" || code === "unauthorized";
 }
 
-function markerName(labels: Readonly<Record<string, string>>, id: string): string {
-  return labels[id] ?? id;
-}
-
-/** "end" or "mapId::entryId" — both id alphabets exclude ":". */
-function encodeDest(dest: ExitDestination | null): string {
-  if (dest === null) return "";
-  if (dest === "end") return "end";
-  return `${dest.mapId}::${dest.entryId}`;
-}
-
-function decodeDest(value: string): ExitDestination | null {
-  if (value === "") return null;
-  if (value === "end") return "end";
-  const [mapId, entryId] = value.split("::");
-  if (!mapId || !entryId) return null;
-  return { mapId, entryId };
-}
-
-/** Dense native select, styled to sit with the shadcn Input in creator surfaces. Native so the
- *  binding pickers stay keyboard- and test-driveable, unlike a portalled listbox. */
-function FieldSelect(props: React.ComponentProps<"select">) {
-  const { className, ...rest } = props;
-  return (
-    <select
-      className={`h-8 w-full rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 ${className ?? ""}`}
-      {...rest}
-    />
-  );
-}
-
 interface AdventureSettingsDialogProps {
   open: boolean;
   onOpenChange(open: boolean): void;
@@ -69,14 +30,15 @@ interface AdventureSettingsDialogProps {
 }
 
 /**
- * Adventure-level settings for the adventure currently open in the editor (UX wave #2/#5/#6): title,
- * max players, the exit→entry bindings, the graph-validation readout, save and delete. Secondary
- * chrome reached from the menu bar's Fichier menu and the map panel — never a screen of its own.
+ * Adventure-level settings for the adventure currently open in the editor: title, max players, save
+ * and delete. Secondary chrome reached from the menu bar's Fichier menu and the map panel — never a
+ * screen of its own.
  *
- * Deliberately slim: membership is implicit now (a map belongs to exactly one adventure, so every
- * owned map is a member — there is no add/remove/reorder), and the starting map is chosen in the
- * Cartes panel, not here. Which adventure is edited is carried by the store's `adventureEditorSession`
- * draft, populated by the picker before the editor mounts.
+ * Deliberately slim since the graph teardown: there are no exit→entry bindings, no start picker and
+ * no graph-validation readout any more — the adventure graph is no longer authored. Membership is
+ * implicit (a map belongs to exactly one adventure, so every owned map is a member — no
+ * add/remove/reorder), and where a hero spawns is derived server-side from a placed spawn event.
+ * Which adventure is edited is carried by the store's `adventureEditorSession` draft.
  */
 export function AdventureSettingsDialog({
   open,
@@ -220,9 +182,7 @@ function EditForm({
   onDelete(): void;
 }) {
   useLocale();
-  const validationIssues = draftValidationIssues(draft);
-  // Save is gated on title/players only — the graph never blocks persistence (D25). The validation
-  // issues below are non-blocking warnings.
+  // Save is gated on title/players only — there is no graph to validate any more.
   const canSave = draftSaveable(draft);
 
   return (
@@ -249,78 +209,6 @@ function EditForm({
           }
         />
       </div>
-
-      <section className="flex flex-col gap-2" aria-label={t("adventure.bindings.title")}>
-        <h3 className="text-sm font-semibold">{t("adventure.bindings.title")}</h3>
-        {draft.bindings.map((binding) => {
-          const owner = draft.members.find((member) => member.mapId === binding.mapId);
-          const selectId = `binding-${binding.mapId}-${binding.exitId}`;
-          return (
-            <div key={selectId} className="flex flex-col gap-1.5">
-              <Label htmlFor={selectId}>
-                {owner?.name} · {markerName(owner?.exitLabels ?? {}, binding.exitId)}
-              </Label>
-              <FieldSelect
-                id={selectId}
-                value={encodeDest(binding.dest)}
-                onChange={(event) =>
-                  onUpdate(
-                    bindExit(
-                      draft,
-                      binding.mapId,
-                      binding.exitId,
-                      decodeDest(event.currentTarget.value),
-                    ),
-                  )
-                }
-              >
-                <option value="">{t("adventure.bindings.unbound")}</option>
-                <option value="end">{t("adventure.bindings.end")}</option>
-                {draft.members.flatMap((member) =>
-                  member.entryIds.map((entryId) => (
-                    <option
-                      key={`${member.mapId}::${entryId}`}
-                      value={`${member.mapId}::${entryId}`}
-                    >
-                      {member.name} · {markerName(member.entryLabels, entryId)}
-                    </option>
-                  )),
-                )}
-              </FieldSelect>
-            </div>
-          );
-        })}
-      </section>
-
-      <section className="flex flex-col gap-1" aria-label={t("adventure.validation.title")}>
-        <h3 className="text-sm font-semibold">{t("adventure.validation.title")}</h3>
-        {validationIssues.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t("adventure.validation.valid")}</p>
-        ) : (
-          // Non-blocking warnings (amber), not errors: an incomplete graph never disables Save.
-          <ul className="flex flex-col gap-0.5 text-sm text-amber-600">
-            {validationIssues.map((issue) => {
-              const member =
-                "mapId" in issue
-                  ? draft.members.find((candidate) => candidate.mapId === issue.mapId)
-                  : undefined;
-              const exit =
-                issue.code === "unbound_exit"
-                  ? markerName(member?.exitLabels ?? {}, issue.exitId)
-                  : "";
-              return (
-                <li key={`${issue.code}:${"mapId" in issue ? issue.mapId : ""}:${exit}`}>
-                  {t(`adventure.validation.${issue.code}`, { map: member?.name ?? "", exit })}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
-      {validationIssues.length > 0 && (
-        <p className="text-sm text-muted-foreground">{t("adventure.incomplete")}</p>
-      )}
 
       <div className="flex items-center justify-end gap-2">
         <Button variant="destructive" disabled={saving} onClick={onDelete}>

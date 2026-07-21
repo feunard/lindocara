@@ -796,10 +796,6 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.shell.maps.dims": "{cols}×{rows}",
   "editor.shell.maps.rename": "Renommer",
   "editor.shell.maps.create": "Créer la carte",
-  "editor.shell.maps.start": "Définir comme carte de départ",
-  "editor.shell.maps.start.active": "Carte de départ",
-  "editor.shell.maps.start.noEntry":
-    "Ajoutez un marqueur d'entrée sur cette carte pour en faire la carte de départ",
   "editor.picker.title": "Aventures",
   "editor.picker.subtitle": "Choisissez une aventure à éditer, ou créez-en une nouvelle.",
   "editor.picker.empty": "Aucune aventure pour l'instant. Créez la première ci-dessous.",
@@ -1084,22 +1080,6 @@ export const fr: Record<keyof typeof en, string> = {
   "adventure.start.title": "Départ",
   "adventure.start.map": "Carte de départ",
   "adventure.start.entry": "Entrée",
-  "adventure.bindings.title": "Sorties",
-  "adventure.bindings.end": "Fin de l'aventure",
-  "adventure.bindings.unbound": "Choisir une destination",
-  "adventure.incomplete":
-    "L’aventure n’est pas encore entièrement reliée, mais tu peux l’enregistrer : c’est optionnel.",
-
-  "adventure.validation.title": "Validation de l’aventure",
-  "adventure.validation.valid": "Le graphe de l’aventure est jouable.",
-  "adventure.validation.missing_start": "L’entrée de départ est manquante.",
-  "adventure.validation.unbound_exit": "{map} : la sortie {exit} n’est pas reliée.",
-  "adventure.validation.unreachable_end": "Aucune fin n’est accessible depuis le départ.",
-  "adventure.validation.unreachable_map": "{map} n’est pas accessible depuis le départ.",
-  "adventure.validation.map_without_entry": "{map} n’a aucune entrée.",
-  "adventure.validation.map_without_exit": "{map} n’a aucune sortie.",
-  "adventure.validation.marker_changed":
-    "Une liaison enregistrée a été vidée car son marqueur a changé.",
 
   // Parties (accueil)
   "parties.title": "Parties coopératives",

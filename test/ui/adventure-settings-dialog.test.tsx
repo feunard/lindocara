@@ -128,8 +128,6 @@ describe("AdventureSettingsDialog", () => {
       title: "Original",
       maxPlayers: 4,
       members: [member("m1", "Verdant", "door", "east")],
-      start: { mapId: "m1", entryId: "door" },
-      bindings: [{ mapId: "m1", exitId: "east", dest: "end" }],
       registry: EMPTY_REGISTRY,
     };
     seedSession(complete, "adv-1");
@@ -167,8 +165,6 @@ describe("AdventureSettingsDialog", () => {
       title: "Donjon",
       maxPlayers: 4,
       members: [member("m1", "Verdant", "door", "east")],
-      start: { mapId: "m1", entryId: "door" },
-      bindings: [{ mapId: "m1", exitId: "east", dest: "end" }],
       registry: EMPTY_REGISTRY,
     };
     seedSession(complete, "adv-1");
@@ -197,39 +193,34 @@ describe("AdventureSettingsDialog", () => {
     await waitFor(() => expect(useUiStore.getState().adventureEditorSession).toBeNull());
   });
 
-  it("renders the validation message for a graph with an unbound exit", async () => {
-    const withUnbound: AdventureDraft = {
+  it("shows no graph bindings or validation section — the graph is not authored here", async () => {
+    const draft: AdventureDraft = {
       title: "Draft",
       maxPlayers: 4,
       members: [member("m1", "Verdant", "door", "gate")],
-      start: { mapId: "m1", entryId: "door" },
-      bindings: [{ mapId: "m1", exitId: "gate", dest: null }],
       registry: EMPTY_REGISTRY,
     };
-    seedSession(withUnbound, "adv-1");
+    seedSession(draft, "adv-1");
     vi.stubGlobal("fetch", backend());
     render(
       <AdventureSettingsDialog open onOpenChange={noop} onSaved={noop} onSessionExpired={noop} />,
     );
 
-    expect(
-      await screen.findByText(
-        t("adventure.validation.unbound_exit", { map: "Verdant", exit: "gate" }),
-      ),
-    ).toBeInTheDocument();
+    // Only the shell fields remain — no Exits/bindings destination selects, no validation readout.
+    expect(await screen.findByLabelText(t("adventure.name"))).toBeInTheDocument();
+    expect(screen.getByLabelText(t("adventure.players"))).toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(screen.queryByText(/validation/i)).toBeNull();
   });
 
-  it("saves a partially-wired adventure — no start, unbound exit — with Save enabled (D25)", async () => {
-    const partial: AdventureDraft = {
+  it("saves the shell without a graph in the PUT body", async () => {
+    const draft: AdventureDraft = {
       title: "Draft",
       maxPlayers: 4,
       members: [member("m1", "Verdant", "door", "gate")],
-      // No start and the sole exit unbound: the old model blocked Save here; it must persist now.
-      start: null,
-      bindings: [{ mapId: "m1", exitId: "gate", dest: null }],
       registry: EMPTY_REGISTRY,
     };
-    seedSession(partial, "adv-1");
+    seedSession(draft, "adv-1");
     const mock = backend();
     vi.stubGlobal("fetch", mock);
     render(
@@ -245,12 +236,10 @@ describe("AdventureSettingsDialog", () => {
         ([url, init]) => url === "/api/adventures/adv-1" && (init as RequestInit)?.method === "PUT",
       );
       expect(put).toBeDefined();
-      const body = JSON.parse(String((put?.[1] as RequestInit)?.body)) as {
-        graph: { start: unknown; links: unknown[] };
-      };
-      // The unwired graph rides the PUT: a null start and no links (the unbound exit is omitted).
-      expect(body.graph.start).toBeNull();
-      expect(body.graph.links).toEqual([]);
+      const body = JSON.parse(String((put?.[1] as RequestInit)?.body)) as Record<string, unknown>;
+      // No graph rides the PUT: the server preserves the stored graph untouched.
+      expect(body.graph).toBeUndefined();
+      expect(body.title).toBe("Draft");
     });
   });
 });

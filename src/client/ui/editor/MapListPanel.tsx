@@ -1,4 +1,4 @@
-import { Pencil, Plus, Settings2, Star, Trash2 } from "lucide-react";
+import { Pencil, Plus, Settings2, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { MAX_ADVENTURE_MAPS } from "../../../shared/adventure.js";
 import { nextMapName } from "../../../shared/map-naming.js";
@@ -40,13 +40,6 @@ interface MapListPanelProps {
   /** The map currently mounted in the stage, so the panel marks it and knows what "delete the open
    *  map" targets. */
   activeMapId: string | null;
-  /** The adventure's starting map (UX wave #6), so the panel fills that row's start affordance. Null
-   *  for a draft with no start authored. */
-  startMapId: string | null;
-  /** The maps that CAN be the start — those with at least one entry for the graph to point at. The
-   *  start star is disabled (with a hint) on every other map, so an entry-less map gives feedback
-   *  instead of the misleading `adventure_maps` error the star used to raise. */
-  startableMapIds: ReadonlySet<string>;
   /** Whether the open map has unsaved stage edits, so renaming it in place can guard them: rename
    *  persists the *stored* payload and re-mounts, which would otherwise drop those edits silently. */
   dirty: boolean;
@@ -64,8 +57,6 @@ interface MapListPanelProps {
   onOpenPayload(payload: MapPayload): void;
   /** The open map was deleted: the screen decides what to show next. */
   onActiveDeleted(): void;
-  /** Make this map the adventure's starting map (via its first entry), persisted by the screen. */
-  onSetStart(mapId: string): void;
   onOpenSettings(): void;
   onError(code: string): void;
   onSessionExpired(): void;
@@ -87,8 +78,6 @@ function isSessionError(code: string): boolean {
 export function MapListPanel({
   adventureId,
   activeMapId,
-  startMapId,
-  startableMapIds,
   dirty,
   refreshNonce,
   newMapOpen,
@@ -98,7 +87,6 @@ export function MapListPanel({
   onRequestOpen,
   onOpenPayload,
   onActiveDeleted,
-  onSetStart,
   onOpenSettings,
   onError,
   onSessionExpired,
@@ -233,10 +221,6 @@ export function MapListPanel({
 
       <div className="flex flex-1 flex-col gap-1 overflow-auto p-2">
         {maps.map((map) => {
-          const isStart = map.id === startMapId;
-          // A map with no entry cannot be the start (the graph start binds an entry). Disable the star
-          // there with a hint, rather than raising the misleading `adventure_maps` error on click.
-          const canStart = isStart || startableMapIds.has(map.id);
           return (
             <div
               key={map.id}
@@ -246,20 +230,6 @@ export function MapListPanel({
                   : "border-transparent hover:bg-zinc-200/60"
               }`}
             >
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                disabled={!canStart}
-                aria-label={
-                  isStart ? t("editor.shell.maps.start.active") : t("editor.shell.maps.start")
-                }
-                title={canStart ? undefined : t("editor.shell.maps.start.noEntry")}
-                aria-pressed={isStart}
-                className={isStart ? "text-amber-500" : "text-zinc-300 hover:text-zinc-500"}
-                onClick={() => onSetStart(map.id)}
-              >
-                <Star fill={isStart ? "currentColor" : "none"} />
-              </Button>
               <button
                 type="button"
                 className="flex min-w-0 flex-1 flex-col items-start text-left"

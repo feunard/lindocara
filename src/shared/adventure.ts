@@ -37,12 +37,20 @@ export interface AdventureGraph {
 /** The graph a freshly created (draft) adventure carries: no start, no links. */
 export const EMPTY_GRAPH: AdventureGraph = { start: null, links: [] };
 
-/** What `updateAdventure` accepts: the graph plus its shell fields. Membership is implicit (the
- *  adventure's owned maps), so there is no `mapIds` on the wire any more. */
+/** What `updateAdventure` accepts: its shell fields, and an OPTIONAL graph.
+ *
+ *  The adventure graph is no longer authored (UX teardown): the editor removed every affordance that
+ *  wrote a start, an exit binding or a link, so a normal PUT from the client omits `graph` entirely
+ *  and the stored graph is preserved untouched. The field survives as a COMPAT seam only — the test
+ *  harness and any legacy writer may still send a full graph to seed or route an existing adventure,
+ *  and it is validated (`validateAdventure`) and written only when explicitly present. Membership is
+ *  implicit (the adventure's owned maps), so there is no `mapIds` on the wire. */
 export interface AdventureInput {
   title: string;
   maxPlayers: number;
-  graph: AdventureGraph;
+  /** COMPAT-only. Absent on every real authoring PUT (the stored graph is then preserved); present
+   *  only when a legacy/test writer seeds the graph for runtime routing. */
+  graph?: AdventureGraph;
   /** The switch/variable registry, when the client sends one. `undefined` means "leave the stored
    *  registry untouched" — a PUT that omits it never wipes the column. */
   registry?: AdventureRegistry;
@@ -130,13 +138,21 @@ export function parseCreateAdventureInput(value: unknown): CreateAdventureInput 
 export function parseAdventureInput(value: unknown): AdventureInput | null {
   const shell = parseShell(value);
   if (!shell) return null;
-  const graph = parseAdventureGraph((value as Record<string, unknown>).graph);
-  if (!graph) return null;
+  // A missing `graph` is the normal case now (the editor never sends one): the stored graph is
+  // preserved. A present-but-malformed graph is still rejected, so a legacy/test writer cannot
+  // persist a graph the runtime could never parse.
+  let graph: AdventureGraph | undefined;
+  const rawGraph = (value as Record<string, unknown>).graph;
+  if (rawGraph !== undefined) {
+    const parsed = parseAdventureGraph(rawGraph);
+    if (!parsed) return null;
+    graph = parsed;
+  }
   const registry = parseOptionalRegistry(value);
   if (!registry) return null;
   return {
     ...shell,
-    graph,
+    ...(graph !== undefined ? { graph } : {}),
     ...(registry.registry !== undefined ? { registry: registry.registry } : {}),
   };
 }

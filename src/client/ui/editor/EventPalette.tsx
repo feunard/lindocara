@@ -18,10 +18,16 @@ const PRESET_LABEL: Record<EventPreset, MessageKey> = {
   endgame: "editor.event.preset.endgame",
 };
 
-/** The functional kinds kept alongside the presets (a later tranche folds these into presets too).
- *  `normal` is intentionally absent — the presets ARE how a scripted event is placed now. `spawn` is
- *  D25's adventure-start anchor: the map it sits on becomes the first map, no graph required. */
-const FUNCTIONAL_KINDS = ["spawn", "entry", "exit", "monster"] as const;
+/** The kind-tagged placements shown alongside the command PRESETS. Entry/exit are GONE from authoring
+ *  (the adventure graph is no longer authored — a teleporter preset replaces an exit, and a hero
+ *  spawns on a placed `spawn` event); `normal` is absent because the presets ARE how a scripted event
+ *  is placed. What remains are the two placements that still map to live runtime behaviour: `spawn`
+ *  (D25's adventure-start anchor — the map it sits on becomes the first map) and `monster` (spawns a
+ *  patrolling monster with the chosen species/radius). Both stay kind-tagged because the runtime
+ *  detects them by kind; the palette presents them as one-click placements, not a "kind selector".
+ *  Existing entry/exit events on an old adventure's map still render and list — they just cannot be
+ *  authored anew. */
+const FUNCTIONAL_KINDS = ["spawn", "monster"] as const;
 
 const EVENT_KIND_LABEL: Record<EventKind, MessageKey> = {
   normal: "editor.event.kind.normal",
@@ -131,11 +137,7 @@ export function EventPalette({
               preview={
                 <SpriteSheetPreview
                   source={EDITOR_MARKER_PREVIEWS[kind]}
-                  {...(kind === "monster"
-                    ? { frame: 256 }
-                    : kind === "entry" || kind === "spawn"
-                      ? { frame: 192 }
-                      : {})}
+                  {...(kind === "monster" ? { frame: 256 } : { frame: 192 })}
                 />
               }
               onClick={() => onSelectEventKind(kind)}

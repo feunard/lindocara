@@ -87,11 +87,8 @@ function mapsBackend(maps: MapSummary[] = twoMaps) {
 function Harness(overrides: {
   adventureId?: string | null;
   activeMapId?: string | null;
-  startMapId?: string | null;
-  startableMapIds?: ReadonlySet<string>;
   dirty?: boolean;
   onOpenPayload?: (payload: MapPayload) => void;
-  onSetStart?: (mapId: string) => void;
   onSessionExpired?: () => void;
 }) {
   const [newMapOpen, setNewMapOpen] = useState(false);
@@ -100,8 +97,6 @@ function Harness(overrides: {
     <MapListPanel
       adventureId={overrides.adventureId ?? "adv-1"}
       activeMapId={overrides.activeMapId ?? null}
-      startMapId={overrides.startMapId ?? null}
-      startableMapIds={overrides.startableMapIds ?? new Set(["m1", "m2"])}
       dirty={overrides.dirty ?? false}
       refreshNonce={0}
       newMapOpen={newMapOpen}
@@ -111,7 +106,6 @@ function Harness(overrides: {
       onRequestOpen={() => {}}
       onOpenPayload={overrides.onOpenPayload ?? (() => {})}
       onActiveDeleted={() => {}}
-      onSetStart={overrides.onSetStart ?? (() => {})}
       onOpenSettings={() => {}}
       onError={() => {}}
       onSessionExpired={overrides.onSessionExpired ?? (() => {})}
@@ -134,23 +128,13 @@ describe("MapListPanel", () => {
     expect(screen.getByText("48×32")).toBeInTheDocument();
   });
 
-  it("disables the start star on a map with no entry, with a hint (UX wave #6 review fix)", async () => {
+  it("has no start affordance now — the graph is no longer authored", async () => {
     vi.stubGlobal("fetch", mapsBackend());
-    const onSetStart = vi.fn();
-    // Only m1 has an entry to point the graph start at; m2 has none.
-    render(<Harness startableMapIds={new Set(["m1"])} onSetStart={onSetStart} />);
+    render(<Harness />);
     await screen.findByRole("button", { name: "Frostfen" });
-
-    const stars = screen.getAllByRole("button", { name: t("editor.shell.maps.start") });
-    expect(stars[0]).toBeEnabled();
-    expect(stars[1]).toBeDisabled();
-    expect(stars[1]).toHaveAttribute("title", t("editor.shell.maps.start.noEntry"));
-
-    // The disabled star raises nothing; the enabled one sets the start (no misleading error path).
-    await userEvent.click(stars[1] as HTMLElement);
-    expect(onSetStart).not.toHaveBeenCalled();
-    await userEvent.click(stars[0] as HTMLElement);
-    expect(onSetStart).toHaveBeenCalledWith("m1");
+    // The start-star (which set the adventure's graph start) is gone; where a hero spawns is derived
+    // server-side from a placed spawn event.
+    expect(screen.queryByRole("button", { name: /start/i })).toBeNull();
   });
 
   it("asks for confirmation before deleting, then refreshes the list", async () => {

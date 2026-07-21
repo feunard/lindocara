@@ -472,96 +472,6 @@ describe("AdventureEditorScreen shell", () => {
     ).toBeInTheDocument();
   });
 
-  it("makes a map the start from the Cartes panel, persisting the entry binding through the adventure PUT", async () => {
-    // A two-map corridor whose start is m1; the Cartes-panel star moves it to m2.
-    useUiStore.setState({
-      adventureEditorSession: {
-        adventureId: "adv-1",
-        draftId: "draft-1",
-        draft: {
-          title: "Donjon",
-          maxPlayers: 4,
-          members: [
-            {
-              mapId: "m1",
-              name: "Verdant Reach",
-              revision: 1,
-              solid: ["."],
-              monsterCount: 0,
-              entryIds: ["door"],
-              exitIds: ["gate"],
-              entryLabels: {},
-              exitLabels: {},
-            },
-            {
-              mapId: "m2",
-              name: "Frostfen",
-              revision: 1,
-              solid: ["."],
-              monsterCount: 0,
-              entryIds: ["west"],
-              exitIds: ["boss"],
-              entryLabels: {},
-              exitLabels: {},
-            },
-          ],
-          start: { mapId: "m1", entryId: "door" },
-          bindings: [
-            { mapId: "m1", exitId: "gate", dest: { mapId: "m2", entryId: "west" } },
-            { mapId: "m2", exitId: "boss", dest: "end" },
-          ],
-          registry: { switches: [], variables: [] },
-        },
-        invalidatedLinks: [],
-        savedDraft: null,
-      },
-    });
-    const adventurePayload = {
-      id: "adv-1",
-      accountId: "acct",
-      title: "Donjon",
-      maxPlayers: 4,
-      version: 1,
-      mapIds: ["m1", "m2"],
-      graph: { start: { mapId: "m2", entryId: "west" }, links: [] },
-      registry: { switches: [], variables: [] },
-    };
-    const mock = vi.fn((url: string, init?: RequestInit) => {
-      const method = init?.method ?? "GET";
-      if (url.startsWith("/api/maps?adventure=") && method === "GET")
-        return Promise.resolve(jsonResponse(twoMaps));
-      const mapMatch = url.match(/^\/api\/maps\/([^/]+)$/);
-      if (mapMatch?.[1] && method === "GET") {
-        const summary = twoMaps.find((m) => m.id === mapMatch[1]);
-        if (summary) return Promise.resolve(jsonResponse(payloadFor(summary)));
-      }
-      if (url === "/api/adventures/adv-1" && method === "PUT")
-        return Promise.resolve(jsonResponse(adventurePayload));
-      if (url === "/api/adventures/adv-1" && method === "GET")
-        return Promise.resolve(jsonResponse(adventurePayload));
-      return Promise.resolve(jsonResponse({ error: "not_found" }, 404));
-    });
-    vi.stubGlobal("fetch", mock);
-    await mountReady();
-
-    // m1 is the start (its star reads "active"); click m2's "set as start" affordance.
-    await userEvent.click(
-      await screen.findByRole("button", { name: t("editor.shell.maps.start") }),
-    );
-
-    await waitFor(() => {
-      const put = mock.mock.calls.find(
-        ([url, init]) => url === "/api/adventures/adv-1" && (init as RequestInit)?.method === "PUT",
-      );
-      expect(put).toBeDefined();
-      const body = JSON.parse(String((put?.[1] as RequestInit)?.body)) as {
-        graph: { start: { mapId: string; entryId: string } };
-      };
-      // The start carries the ENTRY binding, not just the map id — a bare map id would be rejected.
-      expect(body.graph.start).toEqual({ mapId: "m2", entryId: "west" });
-    });
-  });
-
   it("installs the mode selected while the stage was still opening, not the mode captured when the open effect started", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     // Hold the stage-open promise open so the effect's `.then` has not run yet when we click.
@@ -655,14 +565,14 @@ describe("AdventureEditorScreen shell", () => {
     await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(2));
   });
 
-  it("authors an entry EVENT: the EV entry kind places one, and the inspector deletes it", async () => {
+  it("places a spawn EVENT: the EV spawn kind places one, and the inspector deletes it", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady();
 
-    // Enter EV mode, then pick the entry kind — the event tool it pushes carries eventKind: "entry".
+    // Enter EV mode, then pick the spawn anchor — the event tool it pushes carries eventKind: "spawn".
     await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.event") }));
-    await userEvent.click(screen.getByRole("button", { name: t("editor.event.kind.entry") }));
-    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "event", eventKind: "entry" });
+    await userEvent.click(screen.getByRole("button", { name: t("editor.event.kind.spawn") }));
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "event", eventKind: "spawn" });
 
     // A selected event lights the inspector: its EV id shows, and Delete reaches deleteSelected.
     stageMock.current.mockReturnValue({
@@ -676,9 +586,9 @@ describe("AdventureEditorScreen shell", () => {
           id: "ev-door",
           col: 1,
           row: 1,
-          name: "Front gate",
+          name: "Hero start",
           ordinal: 1,
-          kind: "entry",
+          kind: "spawn",
           species: null,
           patrolRadius: null,
           pages: [defaultEventPage()],
@@ -703,14 +613,15 @@ describe("AdventureEditorScreen shell", () => {
     expect(stageMock.deleteSelected).toHaveBeenCalledTimes(1);
   });
 
-  it("authors event kinds and forwards monster species and radius to the stage", async () => {
+  it("places the spawn/monster events and forwards monster species and radius to the stage", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady();
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.event") }));
 
-    await userEvent.click(screen.getByRole("button", { name: t("editor.event.kind.exit") }));
-    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "event", eventKind: "exit" });
+    // Entry/exit authoring is gone; the spawn anchor and the monster placement remain.
+    await userEvent.click(screen.getByRole("button", { name: t("editor.event.kind.spawn") }));
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "event", eventKind: "spawn" });
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.event.kind.monster") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({
@@ -1406,8 +1317,6 @@ describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
               exitLabels: {},
             },
           ],
-          start: { mapId: "m1", entryId: "door" },
-          bindings: [{ mapId: "m1", exitId: "gate", dest: "end" }],
           registry: { switches: [], variables: [] },
         },
         invalidatedLinks: [],

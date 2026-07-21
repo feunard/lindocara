@@ -29,8 +29,6 @@ function completeDraft(registry: AdventureRegistry): AdventureDraft {
     title: "Donjon",
     maxPlayers: 4,
     members: [member("m1", "Verdant", "door", "east")],
-    start: { mapId: "m1", entryId: "door" },
-    bindings: [{ mapId: "m1", exitId: "east", dest: "end" }],
     registry,
   };
 }

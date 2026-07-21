@@ -36,7 +36,6 @@ const ROWS = 15;
 const ENTRY_A = "aaaaaaaa-0000-4000-8000-000000000001";
 const EXIT_A = "aaaaaaaa-0000-4000-8000-000000000002";
 const SIDE_A = "aaaaaaaa-0000-4000-8000-000000000003";
-const UNBOUND_A = "aaaaaaaa-0000-4000-8000-000000000004";
 const ENTRY_B = "bbbbbbbb-0000-4000-8000-000000000001";
 const EXIT_B = "bbbbbbbb-0000-4000-8000-000000000002";
 
@@ -345,30 +344,37 @@ describe("map deletion guard", () => {
   });
 });
 
-describe("marker reference guard", () => {
-  it("revalidates the owning adventure before accepting a referenced-map update", async () => {
+describe("map edits after the graph teardown", () => {
+  it("no longer guards a plain map edit against the stored graph, and preserves that graph", async () => {
+    // The map-save graph-integrity guard only runs when a legacy/test writer explicitly re-seeds the
+    // graph. A normal `updateMap` (no `proposedAdventure`) never touches the stored graph now, so an
+    // edit that would once have broken a bound reference is accepted — the runtime routing is
+    // defensive, and the author has no UI to re-author the graph anyway.
     const db = createDb(env.DB);
     await seedAccount("owner");
     const advId = await seedAdventure(db, "owner", "Donjon");
     const mapA = await authorMap(db, "owner", advId, mapInput("A", eventsA()));
     const mapB = await authorMap(db, "owner", advId, mapInput("B", eventsB()));
-    await updateAdventure(db, "owner", advId, {
-      title: "Donjon",
-      maxPlayers: 2,
-      graph: corridorGraph(mapA.id, mapB.id),
-    });
+    const graph = corridorGraph(mapA.id, mapB.id);
+    await updateAdventure(db, "owner", advId, { title: "Donjon", maxPlayers: 2, graph });
 
-    // removing A's bound exit event → refused
-    await expect(
-      updateMap(db, "owner", mapA.id, mapInput("A", [ev(ENTRY_A, "entry", 5, 5)])),
-    ).rejects.toThrow(/^referenced:/);
+    // Removing A's previously-bound exit event is now ACCEPTED (the guard is gone for plain edits).
+    const trimmed = await updateMap(
+      db,
+      "owner",
+      mapA.id,
+      mapInput("A", [ev(ENTRY_A, "entry", 5, 5)]),
+    );
+    expect(exitEvents(trimmed.events)).toHaveLength(0);
 
-    // removing B's entry event (destination of A's exit) → refused
-    await expect(
-      updateMap(db, "owner", mapB.id, mapInput("B", [ev(EXIT_B, "exit", 7, 7)])),
-    ).rejects.toThrow(/^referenced:/);
+    // Removing B's entry (A's exit destination) is likewise accepted.
+    await updateMap(db, "owner", mapB.id, mapInput("B", [ev(EXIT_B, "exit", 7, 7)]));
 
-    // adding an entry event while keeping the bound ones → allowed
+    // The stored graph is untouched by those map edits — the runtime still reads it for compat routing.
+    const reloaded = await loadAdventure(db, "owner", advId);
+    expect(reloaded?.graph).toEqual(graph);
+
+    // Growing the event set still works, and the revision moves monotonically.
     const grown = await updateMap(
       db,
       "owner",
@@ -377,22 +383,7 @@ describe("marker reference guard", () => {
     );
     expect(entryEvents(grown.events)).toHaveLength(2);
 
-    // A new UNBOUND exit event no longer breaks the saved graph (partial wiring is valid): the map
-    // change is accepted and its monotone revision moves. The still-bound exit/entry remain intact.
-    const withUnbound = await updateMap(
-      db,
-      "owner",
-      mapA.id,
-      mapInput("A", eventsA([ev(SIDE_A, "entry", 3, 3), ev(UNBOUND_A, "exit", 9, 9)])),
-    );
-    expect(withUnbound.revision).toBe(grown.revision + 1);
-    expect(
-      exitEvents(withUnbound.events)
-        .map((e) => e.id)
-        .sort(),
-    ).toEqual([EXIT_A, UNBOUND_A].sort());
-
-    // once the adventure is gone, the map is gone too (cascade), so there is nothing left to guard.
+    // once the adventure is gone, the map is gone too (cascade).
     await deleteAdventure(db, "owner", advId);
     expect(await loadOwnedMap(db, "owner", mapA.id)).toBeNull();
   });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  type AdventureInput,
+  type AdventureGraph,
   type AdventureLink,
   EMPTY_GRAPH,
   MAX_ADVENTURE_LINKS,
@@ -9,6 +9,11 @@ import {
   parseAdventureInput,
   validateAdventure,
 } from "../src/shared/adventure.js";
+
+// `validateAdventure` still takes a REQUIRED graph (it is the compat/seed validator). `AdventureInput`
+// made the graph optional (the editor no longer authors one), so these graph-shape fixtures use a
+// local graph-required type rather than `AdventureInput`.
+type ValidateInput = { title: string; maxPlayers: number; graph: AdventureGraph };
 
 // UX wave #12: `parseAdventureGraph` binds entry/exit EVENT uuids, so the round-trip fixtures use
 // real uuids. (`validateAdventure` itself never checks id shape — only membership — but its member
@@ -23,7 +28,7 @@ const MARKERS = new Map<string, MapMarkerIds>([
   ["map-b", { entryIds: [WEST_DOOR], exitIds: [BOSS_GATE] }],
 ]);
 
-function goodInput(): AdventureInput {
+function goodInput(): ValidateInput {
   return {
     title: "Donjon",
     maxPlayers: 4,
@@ -52,13 +57,22 @@ describe("parseAdventureInput", () => {
       null,
       { ...good, title: 7 },
       { ...good, maxPlayers: "four" },
-      { ...good, graph: undefined },
+      // A present-but-malformed graph is still rejected (a legacy/test writer must not persist an
+      // unparseable graph).
       {
         ...good,
         graph: { ...good.graph, links: [{ mapId: "map-a", exitId: "east", dest: "nowhere" }] },
       },
     ];
     for (const value of bad) expect(parseAdventureInput(value)).toBeNull();
+  });
+
+  it("treats an omitted graph as valid — the editor never authors one now", () => {
+    // The stored graph is preserved by the server when a PUT omits it, so a graph-free body must
+    // parse. Round-trips to just the shell (no `graph` key).
+    const shell = { title: "Donjon", maxPlayers: 4 };
+    expect(parseAdventureInput(shell)).toEqual(shell);
+    expect(parseAdventureInput({ ...shell, graph: undefined })).toEqual(shell);
   });
 });
 
@@ -208,7 +222,7 @@ describe("validateAdventure", () => {
       ["map-b", { entryIds: ["west-door"], exitIds: ["return"] }],
       ["map-c", { entryIds: ["island"], exitIds: ["finish"] }],
     ]);
-    const input: AdventureInput = {
+    const input: ValidateInput = {
       title: "Endless loop",
       maxPlayers: 4,
       graph: {
@@ -230,7 +244,7 @@ describe("validateAdventure", () => {
       ["map-a", { entryIds: ["start"], exitIds: ["finish"] }],
       ["map-c", { entryIds: ["island"], exitIds: [] }],
     ]);
-    const input: AdventureInput = {
+    const input: ValidateInput = {
       title: "In progress",
       maxPlayers: 4,
       graph: {

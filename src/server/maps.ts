@@ -791,29 +791,19 @@ export async function updateMap(
   if (expectedRevision !== undefined && existing.revision !== expectedRevision) {
     throw new Error("conflict: map was changed by another editor");
   }
-  // A map belongs to exactly one adventure (UX wave #5), so revalidation is against THAT adventure's
-  // graph alone — the cross-account loop is gone, ownership is guaranteed by the fk. Editing this
-  // map's markers must not break its owning adventure's saved graph (a bound exit removed, a start
-  // entry gone). A draft graph (`start === null`) protects nothing, so the edit passes freely.
-  if (existing.adventureId) {
+  // COMPAT: the editor no longer authors a graph, so a normal map save never touches its owning
+  // adventure's stored graph — the marker edit passes freely and the graph is preserved as-is. The
+  // referential-integrity guard and the live-party start pin run ONLY when a legacy/test writer
+  // explicitly re-seeds the graph alongside the map (`proposedAdventure.graph` present). A map belongs
+  // to exactly one adventure (UX wave #5), so that revalidation is against THAT adventure alone.
+  if (existing.adventureId && proposedAdventure?.graph) {
+    const proposedGraph = proposedAdventure.graph;
     const [owner] = await db
-      .select({
-        id: adventure.id,
-        title: adventure.title,
-        maxPlayers: adventure.maxPlayers,
-        graph: adventure.graph,
-      })
+      .select({ id: adventure.id, title: adventure.title, graph: adventure.graph })
       .from(adventure)
       .where(eq(adventure.id, existing.adventureId))
       .limit(1);
     if (owner) {
-      let graph: AdventureGraph | null = null;
-      try {
-        graph = parseAdventureGraph(JSON.parse(owner.graph));
-      } catch {
-        graph = null;
-      }
-      if (!graph) throw new Error(`referenced: adventure "${owner.title}" has a corrupt graph`);
       // The graph binds entry/exit EVENT uuids now (UX wave #12). This map's anchors come from the
       // events being saved (`data.events`); every OTHER member map's from its stored `map_event` rows.
       const memberRows = await db
@@ -841,35 +831,35 @@ export async function updateMap(
         entryIds: entryEvents(data.events).map((event) => event.id),
         exitIds: exitEvents(data.events).map((event) => event.id),
       });
-      const nextAdventure = proposedAdventure ?? {
-        title: owner.title,
-        maxPlayers: owner.maxPlayers,
-        graph,
-      };
       try {
-        validateAdventure(nextAdventure, markersByMap);
+        validateAdventure(
+          {
+            title: proposedAdventure.title,
+            maxPlayers: proposedAdventure.maxPlayers,
+            graph: proposedGraph,
+          },
+          markersByMap,
+        );
       } catch (error) {
         const reason = error instanceof Error ? error.message : "invalid graph";
         throw new Error(`referenced: adventure "${owner.title}" would become invalid (${reason})`);
       }
-      if (proposedAdventure) {
-        const storedStart = graph.start;
-        const nextStart = proposedAdventure.graph.start;
-        const startMoved =
-          storedStart === null
-            ? nextStart !== null
-            : nextStart === null ||
-              nextStart.mapId !== storedStart.mapId ||
-              nextStart.entryId !== storedStart.entryId;
-        if (startMoved) {
-          const used = await db
-            .select({ id: party.id })
-            .from(party)
-            .where(eq(party.adventureId, owner.id))
-            .limit(1);
-          if (used.length > 0) {
-            throw new Error("referenced: a live party pins this adventure start");
-          }
+      const storedStart = parseAdventureGraph(JSON.parse(owner.graph))?.start ?? null;
+      const nextStart = proposedGraph.start;
+      const startMoved =
+        storedStart === null
+          ? nextStart !== null
+          : nextStart === null ||
+            nextStart.mapId !== storedStart.mapId ||
+            nextStart.entryId !== storedStart.entryId;
+      if (startMoved) {
+        const used = await db
+          .select({ id: party.id })
+          .from(party)
+          .where(eq(party.adventureId, owner.id))
+          .limit(1);
+        if (used.length > 0) {
+          throw new Error("referenced: a live party pins this adventure start");
         }
       }
     }
@@ -905,7 +895,11 @@ export async function updateMap(
           .set({
             title: proposedAdventure.title.trim(),
             maxPlayers: proposedAdventure.maxPlayers,
-            graph: JSON.stringify(proposedAdventure.graph),
+            // Graph and registry are preserved when the PUT omits them (the authoring PUT always does
+            // for the graph now); a present value is the compat/seed write.
+            ...(proposedAdventure.graph !== undefined
+              ? { graph: JSON.stringify(proposedAdventure.graph) }
+              : {}),
             ...(proposedAdventure.registry !== undefined
               ? { registry: JSON.stringify(proposedAdventure.registry) }
               : {}),

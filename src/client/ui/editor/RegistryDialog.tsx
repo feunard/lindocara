@@ -103,7 +103,7 @@ export function RegistryDialog({ open, onOpenChange, onSessionExpired }: Registr
     try {
       const payload = await fetchAdventure(id);
       // Registry editing does not need member map thumbnails, so an empty infos map is enough: the
-      // draft carries the graph and registry, and only a complete graph enables Save (below).
+      // draft carries the shell + registry, and Save is gated only on a valid title/player count.
       const draft = draftFromAdventure(payload, new Map());
       setSession({
         adventureId: id,

@@ -1,14 +1,15 @@
 /**
  * A client-side adventure under construction, as pure rules — the AdventureEditor screen's
- * counterpart to editor-state.ts. A draft may be incomplete (unbound exits, no start); the server
- * only ever sees a complete AdventureInput, and remains the validation authority. Convention
- * follows applyTool: a returned null means "refused", an unchanged input is never mutated.
+ * counterpart to editor-state.ts. Since the graph teardown, a draft carries only the adventure's
+ * shell (title, max players, its switch/variable registry) and the list of its member maps; it no
+ * longer models a graph (start, exit bindings, validation). The server remains the storage authority
+ * for the stored graph, which the runtime still reads for compat routing — the editor simply never
+ * authors it. Convention follows applyTool: a returned null means "refused", an unchanged input is
+ * never mutated.
  */
 import {
   ADVENTURE_TITLE_MAX,
-  type AdventureGraph,
   type AdventureInput,
-  type ExitDestination,
   MAX_ADVENTURE_MAPS,
 } from "../shared/adventure.js";
 import { type AdventureRegistry, EMPTY_REGISTRY } from "../shared/adventure-state.js";
@@ -20,44 +21,27 @@ export interface DraftMemberInfo {
   /** Display-only solid mask, one `#`/`.` per cell — the thumbnail, never a save. */
   solid: readonly string[];
   monsterCount: number;
+  /** The map's entry/exit-EVENT uuids — descriptive facts read from its stored events. No longer wired
+   *  into a graph (authoring is gone); kept so the panel/thumbnail can describe a map's anchors. */
   entryIds: readonly string[];
   exitIds: readonly string[];
   entryLabels: Readonly<Record<string, string>>;
   exitLabels: Readonly<Record<string, string>>;
 }
 
-export interface DraftBinding {
-  mapId: string;
-  exitId: string;
-  dest: ExitDestination | null;
-}
-
 export interface AdventureDraft {
   title: string;
   maxPlayers: number;
   members: DraftMemberInfo[];
-  start: { mapId: string; entryId: string } | null;
-  bindings: DraftBinding[];
-  /** The switch/variable registry, authored in `RegistryDialog` and persisted on the adventure
-   *  PUT. Never gates graph completeness — it rides the same save but is independent of it. */
+  /** The switch/variable registry, authored in `RegistryDialog` and persisted on the adventure PUT. */
   registry: AdventureRegistry;
 }
-
-export type AdventureDraftIssue =
-  | { code: "missing_start" }
-  | { code: "unbound_exit"; mapId: string; exitId: string }
-  | { code: "unreachable_end" }
-  | { code: "unreachable_map"; mapId: string }
-  | { code: "map_without_entry"; mapId: string }
-  | { code: "map_without_exit"; mapId: string };
 
 export function emptyDraft(): AdventureDraft {
   return {
     title: "",
     maxPlayers: 4,
     members: [],
-    start: null,
-    bindings: [],
     registry: EMPTY_REGISTRY,
   };
 }
@@ -65,25 +49,11 @@ export function emptyDraft(): AdventureDraft {
 export function addMember(draft: AdventureDraft, info: DraftMemberInfo): AdventureDraft | null {
   if (draft.members.length >= MAX_ADVENTURE_MAPS) return null;
   if (draft.members.some((member) => member.mapId === info.mapId)) return null;
-  const added: DraftBinding[] = info.exitIds.map((exitId) => ({
-    mapId: info.mapId,
-    exitId,
-    dest: null,
-  }));
-  return { ...draft, members: [...draft.members, info], bindings: [...draft.bindings, ...added] };
+  return { ...draft, members: [...draft.members, info] };
 }
 
 export function removeMember(draft: AdventureDraft, mapId: string): AdventureDraft {
-  const members = draft.members.filter((member) => member.mapId !== mapId);
-  const bindings = draft.bindings
-    .filter((binding) => binding.mapId !== mapId)
-    .map((binding) =>
-      binding.dest !== null && binding.dest !== "end" && binding.dest.mapId === mapId
-        ? { ...binding, dest: null }
-        : binding,
-    );
-  const start = draft.start?.mapId === mapId ? null : draft.start;
-  return { ...draft, members, bindings, start };
+  return { ...draft, members: draft.members.filter((member) => member.mapId !== mapId) };
 }
 
 export function moveMember(
@@ -103,131 +73,21 @@ export function moveMember(
   return { ...draft, members };
 }
 
-export interface RefreshedMember {
-  draft: AdventureDraft;
-  invalidated: string[];
-}
-
-/** Refresh one edited map without inventing replacements for deleted marker ids. */
-export function refreshMember(draft: AdventureDraft, info: DraftMemberInfo): RefreshedMember {
+/** Refresh one edited map's facts in the draft — add it if new, otherwise replace its entry. Purely
+ *  the member list now; there is no graph binding to reconcile. */
+export function refreshMember(draft: AdventureDraft, info: DraftMemberInfo): AdventureDraft {
   if (!draft.members.some((member) => member.mapId === info.mapId)) {
-    const added = addMember(draft, info);
-    return { draft: added ?? draft, invalidated: [] };
+    return addMember(draft, info) ?? draft;
   }
-  const members = draft.members.map((member) => (member.mapId === info.mapId ? info : member));
-  const memberById = new Map(members.map((member) => [member.mapId, member]));
-  const invalidated: string[] = [];
-  const oldBindings = new Map<string, DraftBinding>(
-    draft.bindings.map((binding) => [`${binding.mapId}:${binding.exitId}`, binding] as const),
-  );
-  const bindings = members.flatMap((member) =>
-    member.exitIds.map((exitId) => {
-      const key = `${member.mapId}:${exitId}`;
-      const prior = oldBindings.get(key);
-      let dest = prior?.dest ?? null;
-      if (dest !== null && dest !== "end") {
-        const target = memberById.get(dest.mapId);
-        if (!target?.entryIds.includes(dest.entryId)) {
-          invalidated.push(key);
-          dest = null;
-        }
-      }
-      return { mapId: member.mapId, exitId, dest };
-    }),
-  );
-  for (const binding of draft.bindings) {
-    if (
-      binding.mapId === info.mapId &&
-      !info.exitIds.includes(binding.exitId) &&
-      binding.dest !== null
-    ) {
-      invalidated.push(`${binding.mapId}:${binding.exitId}`);
-    }
-  }
-  const start =
-    draft.start && memberById.get(draft.start.mapId)?.entryIds.includes(draft.start.entryId)
-      ? draft.start
-      : null;
-  if (draft.start && !start) invalidated.push(`start:${draft.start.mapId}:${draft.start.entryId}`);
-  return { draft: { ...draft, members, bindings, start }, invalidated };
-}
-
-function entryExists(draft: AdventureDraft, mapId: string, entryId: string): boolean {
-  const member = draft.members.find((candidate) => candidate.mapId === mapId);
-  return member?.entryIds.includes(entryId) ?? false;
-}
-
-export function setStart(
-  draft: AdventureDraft,
-  mapId: string,
-  entryId: string,
-): AdventureDraft | null {
-  if (!entryExists(draft, mapId, entryId)) return null;
-  return { ...draft, start: { mapId, entryId } };
-}
-
-export function bindExit(
-  draft: AdventureDraft,
-  mapId: string,
-  exitId: string,
-  dest: ExitDestination | null,
-): AdventureDraft | null {
-  if (!draft.bindings.some((binding) => binding.mapId === mapId && binding.exitId === exitId))
-    return null;
-  if (dest !== null && dest !== "end" && !entryExists(draft, dest.mapId, dest.entryId)) return null;
-  const bindings = draft.bindings.map((binding) =>
-    binding.mapId === mapId && binding.exitId === exitId ? { ...binding, dest } : binding,
-  );
-  return { ...draft, bindings };
-}
-
-export function draftValidationIssues(draft: AdventureDraft): AdventureDraftIssue[] {
-  const issues: AdventureDraftIssue[] = [];
-  if (!draft.start) issues.push({ code: "missing_start" });
-  for (const member of draft.members) {
-    if (member.entryIds.length === 0)
-      issues.push({ code: "map_without_entry", mapId: member.mapId });
-    if (member.exitIds.length === 0) issues.push({ code: "map_without_exit", mapId: member.mapId });
-  }
-  for (const binding of draft.bindings) {
-    if (binding.dest === null) {
-      issues.push({ code: "unbound_exit", mapId: binding.mapId, exitId: binding.exitId });
-    }
-  }
-  if (draft.start) {
-    const reachable = new Set<string>([draft.start.mapId]);
-    const pending = [draft.start.mapId];
-    while (pending.length > 0) {
-      const source = pending.shift();
-      if (!source) continue;
-      for (const binding of draft.bindings) {
-        if (binding.mapId !== source || binding.dest === null || binding.dest === "end") continue;
-        if (!reachable.has(binding.dest.mapId)) {
-          reachable.add(binding.dest.mapId);
-          pending.push(binding.dest.mapId);
-        }
-      }
-    }
-    const reachesEnd = draft.bindings.some(
-      (binding) => binding.dest === "end" && reachable.has(binding.mapId),
-    );
-    if (!reachesEnd) issues.push({ code: "unreachable_end" });
-    for (const member of draft.members) {
-      if (!reachable.has(member.mapId))
-        issues.push({ code: "unreachable_map", mapId: member.mapId });
-    }
-  } else if (draft.members.length > 0) {
-    issues.push({ code: "unreachable_end" });
-  }
-  return issues;
+  return {
+    ...draft,
+    members: draft.members.map((member) => (member.mapId === info.mapId ? info : member)),
+  };
 }
 
 /**
- * Whether the draft can be SAVED — title and player count only. Graph completeness (a start, bound
- * exits, a reachable ending) is deliberately NOT a save gate: an adventure must persist regardless of
- * how far its graph is wired. `draftValidationIssues` still surfaces the incomplete-graph items, but
- * as non-blocking warnings, never as a reason to disable Save. The server (`validateAdventure`) is the
- * referential-integrity authority; it too accepts a partially-wired or unwired graph.
+ * Whether the draft can be SAVED — title and player count only. This has always been the sole save
+ * gate; with the graph gone, there is nothing else to check.
  */
 export function draftSaveable(draft: AdventureDraft): boolean {
   const title = draft.title.trim();
@@ -241,19 +101,12 @@ export function draftSaveable(draft: AdventureDraft): boolean {
 }
 
 export function toAdventureInput(draft: AdventureDraft): AdventureInput | null {
-  // Saveable regardless of graph completeness: a null start (a draft) and unbound exits (simply
-  // omitted from `links`) are both valid, so the only thing that yields `null` here is a title or
-  // player count the server itself would reject.
   if (!draftSaveable(draft)) return null;
-  const links = draft.bindings.flatMap((binding) =>
-    binding.dest === null
-      ? []
-      : [{ mapId: binding.mapId, exitId: binding.exitId, dest: binding.dest }],
-  );
+  // No `graph`: the editor never authors one, so the PUT omits it and the server preserves the stored
+  // graph. The registry rides along independently.
   return {
     title: draft.title.trim(),
     maxPlayers: draft.maxPlayers,
-    graph: { start: draft.start, links },
     registry: draft.registry,
   };
 }
@@ -263,7 +116,6 @@ export function draftFromAdventure(
     title: string;
     maxPlayers: number;
     mapIds: readonly string[];
-    graph: AdventureGraph;
     /** Optional so a caller round-tripping through `AdventureInput` (registry optional) still fits;
      *  a payload without one rebuilds an empty registry. */
     registry?: AdventureRegistry;
@@ -274,22 +126,10 @@ export function draftFromAdventure(
     const info = infos.get(mapId);
     return info ? [info] : [];
   });
-  const links = new Map(
-    payload.graph.links.map((link) => [`${link.mapId} ${link.exitId}`, link.dest] as const),
-  );
-  const bindings = members.flatMap((member) =>
-    member.exitIds.map((exitId) => ({
-      mapId: member.mapId,
-      exitId,
-      dest: links.get(`${member.mapId} ${exitId}`) ?? null,
-    })),
-  );
   return {
     title: payload.title,
     maxPlayers: payload.maxPlayers,
     members,
-    start: payload.graph.start,
-    bindings,
     registry: payload.registry ?? EMPTY_REGISTRY,
   };
 }

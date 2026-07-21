@@ -24,7 +24,6 @@ import {
   type AdventureDraft,
   type DraftMemberInfo,
   refreshMember,
-  setStart,
   toAdventureInput,
 } from "../../adventure-draft.js";
 import {
@@ -264,31 +263,16 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   const setScreen = useUiStore((state) => state.setScreen);
   const setSession = useUiStore((state) => state.setAdventureEditorSession);
   const accountId = useUiStore((state) => state.accountId);
-  // The starting map (UX wave #6) is the graph start's map — surfaced in the Cartes panel below.
-  const startMapId = useUiStore(
-    (state) => state.adventureEditorSession?.draft.start?.mapId ?? null,
-  );
   // The switch/variable registry rides the loaded adventure session's draft. When no adventure is
   // loaded (the common map-first case) it is empty, which falls the event dialog's condition pickers
   // back to free text. Loading an adventure in the database dialog fills it.
   const registry: AdventureRegistry = useUiStore(
     (state) => state.adventureEditorSession?.draft.registry ?? EMPTY_REGISTRY,
   );
-  // The maps that can be made the start (UX wave #6 review fix): a map is a valid start only if it has
-  // an entry to point the graph at. The Cartes panel disables the start star on the rest, so the user
-  // gets a hint instead of the misleading `adventure_maps` error the star used to raise.
+  // The adventure's member maps, used to offer a `teleport` command its destinations (below).
   const draftMembers = useUiStore((state) => state.adventureEditorSession?.draft.members);
   // The first-save popup prefills with the adventure's current (default) title.
   const draftTitle = useUiStore((state) => state.adventureEditorSession?.draft.title ?? "");
-  const startableMapIds = useMemo(
-    () =>
-      new Set(
-        (draftMembers ?? [])
-          .filter((member) => member.entryIds.length > 0)
-          .map((member) => member.mapId),
-      ),
-    [draftMembers],
-  );
   // The adventure's maps a `teleport` command may target, with the dims the dialog clamps the
   // destination cell against. Dims come off the member's display solid mask (rows = its length,
   // cols = a row's length) — the same thumbnail the Cartes panel already carries, no extra fetch.
@@ -773,18 +757,13 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       baseDraft && tracksCurrentMap
         ? Array.isArray(savedSnapshot.events)
           ? refreshMember(baseDraft, memberInfoFromEditor(map.id, map.revision, savedSnapshot))
-              .draft
           : baseDraft
         : null;
+    // The map save rides the adventure's shell (title/players/registry) atomically; it never carries a
+    // graph now (the editor authors none), so the server preserves the stored graph untouched.
     const adventureInput = refreshed ? toAdventureInput(refreshed) : null;
     if (currentSession && refreshed) {
       setSession({ ...currentSession, draft: refreshed });
-    }
-    // A newly placed exit has no destination yet. Open the graph settings on that new binding rather
-    // than issuing a request the server must reject; its Save comes back through this same function.
-    if (refreshed && !adventureInput) {
-      setSettingsOpen(true);
-      return null;
     }
     setError(null);
     setSavingMap(true);
@@ -801,7 +780,6 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       const savedDraft =
         refreshed && Array.isArray(savedSnapshot.events)
           ? refreshMember(refreshed, memberInfoFromEditor(map.id, updated.revision, savedSnapshot))
-              .draft
           : refreshed;
       const latestSession = useUiStore.getState().adventureEditorSession;
       if (latestSession && savedDraft) {
@@ -836,9 +814,9 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   }
 
   // First-save popup Confirm: persist the confirmed title through the adventure PUT, drop the unnamed
-  // flag, then continue the pending map save. The graph is built from the current draft's bound links
-  // directly (the adventure was born valid, so this is a title-only change over a complete graph). A
-  // PUT failure leaves the popup's abort semantics intact: nothing partial is claimed as saved.
+  // flag, then continue the pending map save. This is a title-only change now — no graph rides the
+  // PUT, so the server preserves the stored graph. A PUT failure leaves the popup's abort semantics
+  // intact: nothing partial is claimed as saved.
   async function confirmFirstSave(title: string): Promise<void> {
     const current = useUiStore.getState().adventureEditorSession;
     if (!current) {
@@ -849,14 +827,6 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     const input: AdventureInput = {
       title,
       maxPlayers: draft.maxPlayers,
-      graph: {
-        start: draft.start,
-        links: draft.bindings.flatMap((binding) =>
-          binding.dest === null
-            ? []
-            : [{ mapId: binding.mapId, exitId: binding.exitId, dest: binding.dest }],
-        ),
-      },
       registry: draft.registry,
     };
     setError(null);
@@ -888,9 +858,8 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     })();
   }
 
-  // Reload the editor session from the server so the draft's members (and thus the start indicator
-  // and the settings dialog's bindings) reflect maps just created, deleted or re-marked. Best-effort:
-  // a failure here never blocks the map edit that triggered it.
+  // Reload the editor session from the server so the draft's members reflect maps just created,
+  // deleted or renamed. Best-effort: a failure here never blocks the map edit that triggered it.
   function refreshSession(): void {
     void (async () => {
       try {
@@ -898,50 +867,6 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       } catch (caught) {
         const code = errorCode(caught);
         if (isSessionError(code)) setScreen("auth");
-      }
-    })();
-  }
-
-  // The Cartes-panel start affordance (UX wave #6): make `mapId` the graph start via its first entry,
-  // and persist through the adventure PUT. The default map always has an entry; a map with none is
-  // refused with the "maps" code rather than writing a start the server would reject.
-  function setStartMap(mapId: string): void {
-    const current = useUiStore.getState().adventureEditorSession;
-    if (!current) return;
-    const member = current.draft.members.find((candidate) => candidate.mapId === mapId);
-    const entryId = member?.entryIds[0];
-    if (!member || entryId === undefined) {
-      setError("adventure_maps");
-      return;
-    }
-    const nextDraft = setStart(current.draft, mapId, entryId);
-    if (!nextDraft) return;
-    setSession({ ...current, draft: nextDraft });
-    // Persist the start (with its entry binding) through the adventure PUT. The graph is built from
-    // the draft's bound links directly rather than via `toAdventureInput`, whose completeness gate is
-    // stricter than the server: the server allows a map that is no longer reachable from the moved
-    // start, so a start change on an otherwise-valid graph is not blocked client-side. The server
-    // remains the validation authority — an unbound exit still comes back as an error.
-    const input: AdventureInput = {
-      title: nextDraft.title.trim(),
-      maxPlayers: nextDraft.maxPlayers,
-      graph: {
-        start: { mapId, entryId },
-        links: nextDraft.bindings.flatMap((binding) =>
-          binding.dest === null
-            ? []
-            : [{ mapId: binding.mapId, exitId: binding.exitId, dest: binding.dest }],
-        ),
-      },
-      registry: nextDraft.registry,
-    };
-    setError(null);
-    void (async () => {
-      try {
-        await updateAdventureApi(adventureId, input);
-        setSession(await loadAdventureSession(adventureId));
-      } catch (caught) {
-        fail(caught);
       }
     })();
   }
@@ -1325,8 +1250,6 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
             <MapListPanel
               adventureId={adventureId}
               activeMapId={map?.id ?? null}
-              startMapId={startMapId}
-              startableMapIds={startableMapIds}
               dirty={dirty}
               refreshNonce={mapsRefreshNonce}
               newMapOpen={newMapOpen}
@@ -1336,7 +1259,6 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
               onRequestOpen={loadMap}
               onOpenPayload={openPayload}
               onActiveDeleted={activeMapDeleted}
-              onSetStart={setStartMap}
               onOpenSettings={() => setSettingsOpen(true)}
               onError={(code) => setError(code === "" ? null : code)}
               onSessionExpired={() => setScreen("auth")}

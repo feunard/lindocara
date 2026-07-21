@@ -286,34 +286,45 @@ export async function updateAdventure(
 ): Promise<StoredAdventure> {
   const row = await ownedRow(db, accountId, id);
   if (!row) throw new Error("not_found: no such adventure");
-  validateAdventure(input, await markerIdsFor(db, id));
-  // A live party pins where its heroes spawn (the adventure's start). Refuse nulling or moving the
-  // start while a party still references this adventure — mirrors `deleteAdventure`'s party guard.
-  // Edits that leave the start where it is (links, title, players) are allowed mid-play.
-  const storedStart = parseAdventureGraph(JSON.parse(row.graph))?.start ?? null;
-  const nextStart = input.graph.start;
-  const startMoved =
-    storedStart === null
-      ? nextStart !== null
-      : nextStart === null ||
-        nextStart.mapId !== storedStart.mapId ||
-        nextStart.entryId !== storedStart.entryId;
-  if (startMoved) {
-    const used = await db
-      .select({ partyId: party.id })
-      .from(party)
-      .where(eq(party.adventureId, id))
-      .limit(1);
-    if (used.length > 0) throw new Error("in_use: a party still references this adventure");
+  const title = input.title.trim();
+  if (title.length === 0 || title.length > 48) throw new Error("title: 1-48 characters");
+  if (input.maxPlayers < 1 || input.maxPlayers > 4) throw new Error("players: between 1 and 4");
+  // The editor no longer authors a graph, so a real PUT omits it and the stored graph is preserved
+  // exactly. A graph is validated and written only when a legacy/test writer explicitly seeds one —
+  // that (and only that) path keeps the referential-integrity guard and the live-party start pin.
+  const proposedGraph = input.graph;
+  if (proposedGraph !== undefined) {
+    validateAdventure(
+      { title: input.title, maxPlayers: input.maxPlayers, graph: proposedGraph },
+      await markerIdsFor(db, id),
+    );
+    // A live party pins where its heroes spawn (the adventure's start). Refuse nulling or moving the
+    // start while a party still references this adventure — mirrors `deleteAdventure`'s party guard.
+    const storedStart = parseAdventureGraph(JSON.parse(row.graph))?.start ?? null;
+    const nextStart = proposedGraph.start;
+    const startMoved =
+      storedStart === null
+        ? nextStart !== null
+        : nextStart === null ||
+          nextStart.mapId !== storedStart.mapId ||
+          nextStart.entryId !== storedStart.entryId;
+    if (startMoved) {
+      const used = await db
+        .select({ partyId: party.id })
+        .from(party)
+        .where(eq(party.adventureId, id))
+        .limit(1);
+      if (used.length > 0) throw new Error("in_use: a party still references this adventure");
+    }
   }
   await db
     .update(adventure)
     .set({
-      title: input.title.trim(),
+      title,
       maxPlayers: input.maxPlayers,
-      graph: JSON.stringify(input.graph),
-      // Only a body that carries a registry rewrites the column; omitting it preserves the stored
-      // one so an unrelated adventure PUT never wipes the switches/variables.
+      // Absent graph preserves the stored one (authoring never touches it now); present graph is the
+      // compat/seed write. Same rule for the registry column: omitting it never wipes the switches.
+      ...(proposedGraph !== undefined ? { graph: JSON.stringify(proposedGraph) } : {}),
       ...(input.registry !== undefined ? { registry: JSON.stringify(input.registry) } : {}),
       updatedAt: new Date(),
     })
