@@ -4,7 +4,7 @@ import type { EditorAssetArt } from "../../src/client/game/editor-asset-art.js";
 import type { EditorMap, EditorTool } from "../../src/client/game/editor-state.js";
 import { applyTool, blankMap, defaultEventPage } from "../../src/client/game/editor-state.js";
 import {
-  applyLayerDim,
+  applyModeDim,
   eventChipLabel,
   eventOverlayToggled,
   paintEventCell,
@@ -89,58 +89,58 @@ describe("paintLandCell", () => {
 });
 
 /**
- * "Dim other layers" is applied to one container per logical tile layer, so it too is pure and
- * Pixi-object-only — a `Container`'s `alpha` needs no renderer. The stage builds the same containers
- * from the same fixture-tile compositing; here we pin the alpha rule directly.
+ * "Dim other modes" fades the two authored planes the active mode does NOT own — the tile layers
+ * (Field), the element containers (Element) and the event overlay (Event). It is pure and
+ * Pixi-object-only, a `Container`'s `alpha` needs no renderer, so the alpha rule pins directly.
  */
-describe("applyLayerDim", () => {
-  function tileLayers(): Container[] {
-    // One below-priority land container per logical tile layer, painted from the fixture so each
-    // holds a real tile — exactly the shape the stage dims.
-    const below = { atlas: "sheet", col: 0, row: 0, passable: true, priority: "below" } as const;
-    const dimFixture: Tileset = { id: "dim", autotiles: [], fixed: [below] };
-    const dimSheet: Texture[][] = [[Texture.WHITE]];
-    return Array.from({ length: 3 }, () => {
-      const container = new Container();
-      paintLandCell(
-        dimFixture,
-        [{ cols: 1, rows: 1, ids: [fixedId(0)] }],
-        dimSheet,
-        0,
-        0,
-        container,
-        new Container(),
-      );
-      return container;
-    });
+describe("applyModeDim", () => {
+  /** The three planes `applyModeDim` fades: some tile-layer containers, some element containers, and
+   *  the single event overlay. Content-free — `alpha` is set regardless of what a container holds. */
+  function planes(): { tiles: Container[]; elements: Container[]; events: Container } {
+    return {
+      tiles: [new Container(), new Container(), new Container()],
+      elements: [new Container(), new Container(), new Container()],
+      events: new Container(),
+    };
   }
 
-  it("fades every layer but the active one when dim is on", () => {
-    const layers = tileLayers();
-    applyLayerDim(layers, 1, true);
-    expect(layers[0]?.alpha).toBe(0.35);
-    expect(layers[1]?.alpha).toBe(1);
-    expect(layers[2]?.alpha).toBe(0.35);
+  function alphas(p: { tiles: Container[]; elements: Container[]; events: Container }): {
+    tiles: number;
+    elements: number;
+    events: number;
+  } {
+    return {
+      tiles: p.tiles[0]?.alpha ?? Number.NaN,
+      elements: p.elements[0]?.alpha ?? Number.NaN,
+      events: p.events.alpha,
+    };
+  }
+
+  it("Field mode dims the element and event planes, not the tiles", () => {
+    const p = planes();
+    applyModeDim(p.tiles, p.elements, p.events, "field", true);
+    expect(alphas(p)).toEqual({ tiles: 1, elements: 0.35, events: 0.35 });
+    for (const c of p.tiles) expect(c.alpha).toBe(1);
+    for (const c of p.elements) expect(c.alpha).toBe(0.35);
   });
 
-  it("moves which container is dimmed when the active layer changes", () => {
-    const layers = tileLayers();
-    applyLayerDim(layers, 0, true);
-    expect(layers[0]?.alpha).toBe(1);
-    expect(layers[1]?.alpha).toBe(0.35);
-    expect(layers[2]?.alpha).toBe(0.35);
-
-    applyLayerDim(layers, 2, true);
-    expect(layers[0]?.alpha).toBe(0.35);
-    expect(layers[1]?.alpha).toBe(0.35);
-    expect(layers[2]?.alpha).toBe(1);
+  it("Element mode dims the tiles and the event overlay, not the elements", () => {
+    const p = planes();
+    applyModeDim(p.tiles, p.elements, p.events, "element", true);
+    expect(alphas(p)).toEqual({ tiles: 0.35, elements: 1, events: 0.35 });
   });
 
-  it("restores full opacity on every layer when dim is off", () => {
-    const layers = tileLayers();
-    applyLayerDim(layers, 0, true);
-    applyLayerDim(layers, 0, false);
-    for (const layer of layers) expect(layer.alpha).toBe(1);
+  it("Event mode dims the tiles and the element containers, not the events", () => {
+    const p = planes();
+    applyModeDim(p.tiles, p.elements, p.events, "event", true);
+    expect(alphas(p)).toEqual({ tiles: 0.35, elements: 0.35, events: 1 });
+  });
+
+  it("restores full opacity on every plane when dim is off", () => {
+    const p = planes();
+    applyModeDim(p.tiles, p.elements, p.events, "element", true);
+    applyModeDim(p.tiles, p.elements, p.events, "element", false);
+    for (const c of [...p.tiles, ...p.elements, p.events]) expect(c.alpha).toBe(1);
   });
 });
 
@@ -313,7 +313,7 @@ describe("paintHoverCell", () => {
 
   it("draws only the preview outline on a legal cell (no red fill)", () => {
     const container = new Container();
-    const decision = paintHoverCell(TREE_TOOL, blankMap("m", 20, 15), 3, 4, 0, container);
+    const decision = paintHoverCell(TREE_TOOL, blankMap("m", 20, 15), 3, 4, "element", container);
     expect(decision.illegal).toBe(false);
     expect(container.children).toHaveLength(1);
   });
@@ -321,7 +321,7 @@ describe("paintHoverCell", () => {
   it("draws an opaque red fill UNDER the outline on an illegal cell", () => {
     const map = waterAt(blankMap("m", 20, 15), 3, 4);
     const container = new Container();
-    const decision = paintHoverCell(TREE_TOOL, map, 3, 4, 0, container);
+    const decision = paintHoverCell(TREE_TOOL, map, 3, 4, "element", container);
     expect(decision.illegal).toBe(true);
     // Fill first, outline on top: two children, the red fill drawn beneath the border.
     expect(container.children).toHaveLength(2);

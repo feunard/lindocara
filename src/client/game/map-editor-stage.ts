@@ -34,7 +34,7 @@ import {
   loadEditorAssetArt,
   loadEditorAssetArts,
 } from "./editor-asset-art.js";
-import type { EditorMap, EditorSelection, EditorTool } from "./editor-state.js";
+import type { EditorMap, EditorMode, EditorSelection, EditorTool } from "./editor-state.js";
 import {
   applyTool,
   beginEventDraft,
@@ -49,7 +49,7 @@ import {
   placementLegalAt,
   redoEditorHistory,
   selectionAt,
-  setActiveLayer,
+  setActiveMode,
   toMapData,
   undoEditorHistory,
   updateSelectedElementAsset,
@@ -72,12 +72,13 @@ import {
  */
 export interface MapEditorStageHandle {
   setTool(tool: EditorTool): void;
-  /** Which layer the paint-adjacent tools (eraser; rect/fill when their selection is layer-free)
-   *  write to. Lives on `EditorHistory`, survives undo/redo, and is threaded into every `applyTool`
-   *  call from `paintAt`. React owns the displayed value and pushes it down here. */
-  setActiveLayer(layer: 0 | 1 | 2): void;
-  /** Editor-only "dim other layers": with it on, every logical tile layer but the active one drops
-   *  to `DIM_ALPHA`, so the author can see which layer a stroke lands on. Never touches the game
+  /** Which of the three authored collections (terrain / elements / events) the editor is working in.
+   *  Routes the eraser, gates every other tool, and drives the dim overlay. Lives on `EditorHistory`,
+   *  survives undo/redo, and is threaded into every `applyTool` call from `paintAt`. React owns the
+   *  displayed value and pushes it down here. */
+  setActiveMode(mode: EditorMode): void;
+  /** Editor-only "dim other modes": with it on, the two planes the active mode does NOT own drop to
+   *  `DIM_ALPHA`, so the author can see which collection a stroke lands on. Never touches the game
    *  renderer. React owns the toggle and pushes it down here. */
   setDim(dim: boolean): void;
   /** UX wave #8: toggle the cell grid overlay. On by default so a fresh editor shows the grid; React
@@ -114,24 +115,30 @@ export interface MapEditorStageState {
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 2;
 
-/** How far a non-active tile layer fades when "dim other layers" is on. Editor-only; the game
+/** How far the two non-active planes fade when "dim other modes" is on. Editor-only; the game
  *  renderer never applies it. */
 const DIM_ALPHA = 0.35;
 
 /**
- * Apply "dim other layers" to one container per logical tile layer: with `dim` on, every container
- * but `activeLayer` fades to `DIM_ALPHA`, and the active one — and every layer when `dim` is off —
- * stays fully opaque. Pure and Pixi-object-only (a `Container`'s `alpha` needs no renderer), so it
- * pins the dim rule without the rest of the stage, exactly like `paintLandCell`.
+ * Apply "dim other modes" across the three authored planes: the tile layers (Field), the element
+ * containers (Element) and the event overlay (Event). With `dim` on, the two planes the active mode
+ * does NOT own drop to `DIM_ALPHA`; the active plane — and every plane when `dim` is off — stays fully
+ * opaque. Pure and Pixi-object-only (a `Container`'s `alpha` needs no renderer), so it pins the dim
+ * rule without the rest of the stage, exactly like `paintLandCell`.
  */
-export function applyLayerDim(
-  containers: readonly Container[],
-  activeLayer: number,
+export function applyModeDim(
+  tileLayers: readonly Container[],
+  elementContainers: readonly Container[],
+  eventOverlay: Container,
+  mode: EditorMode,
   dim: boolean,
 ): void {
-  containers.forEach((container, index) => {
-    container.alpha = dim && index !== activeLayer ? DIM_ALPHA : 1;
-  });
+  const tileAlpha = dim && mode !== "field" ? DIM_ALPHA : 1;
+  const elementAlpha = dim && mode !== "element" ? DIM_ALPHA : 1;
+  const eventAlpha = dim && mode !== "event" ? DIM_ALPHA : 1;
+  for (const container of tileLayers) container.alpha = tileAlpha;
+  for (const container of elementContainers) container.alpha = elementAlpha;
+  eventOverlay.alpha = eventAlpha;
 }
 
 /** The wireframe's `EV{ordinal}` chip text: the creation ordinal zero-padded to three digits, so the
@@ -185,12 +192,12 @@ export function paintHoverCell(
   map: EditorMap,
   col: number,
   row: number,
-  activeLayer: 0 | 1 | 2,
+  mode: EditorMode,
   container: Container,
 ): { illegal: boolean } {
   const x = col * TILE_SIZE;
   const y = row * TILE_SIZE;
-  const illegal = !placementLegalAt(tool, map, col, row, activeLayer);
+  const illegal = !placementLegalAt(tool, map, col, row, mode);
   if (illegal) {
     const fill = new Graphics();
     fill.rect(x, y, TILE_SIZE, TILE_SIZE).fill({ color: HOVER_ILLEGAL_COLOR, alpha: 1 });
@@ -442,7 +449,7 @@ function enqueue<T>(job: () => Promise<T> | T): Promise<T> {
 function inertHandle(map: EditorMap): MapEditorStageHandle {
   return {
     setTool() {},
-    setActiveLayer() {},
+    setActiveMode() {},
     setDim() {},
     setGrid() {},
     current: () => map,
@@ -555,6 +562,9 @@ async function buildSession(
   const groundElementLayer = new Container();
   const objectElementLayer = new Container();
   const canopyElementLayer = new Container();
+  // The three prop containers as one group, so `applyModeDim` can fade the whole Element plane at
+  // once (Field/Event modes dim it together).
+  const elementContainers = [groundElementLayer, objectElementLayer, canopyElementLayer];
   const aboveLandLayer = new Container();
   // The cell grid (UX wave #8), above the terrain/props so it reads over both land and sea, below the
   // markers so a spawn/entry diamond still sits clearly on top. Built once (map size is fixed for a
@@ -769,7 +779,7 @@ async function buildSession(
     if (Number.isNaN(hoverCol) || Number.isNaN(hoverRow)) return;
     const { cols, rows } = editorMapSize(map);
     if (hoverCol < 0 || hoverRow < 0 || hoverCol >= cols || hoverRow >= rows) return;
-    paintHoverCell(tool, map, hoverCol, hoverRow, history.activeLayer, hoverLayer);
+    paintHoverCell(tool, map, hoverCol, hoverRow, history.activeMode, hoverLayer);
   }
 
   // ── Pointer: paint, or pan the camera ─────────────────────────────────────────────────────────
@@ -827,7 +837,7 @@ async function buildSession(
         return;
       }
     }
-    const next = applyTool(map, tool, col, row, isStrokeStart, history.activeLayer);
+    const next = applyTool(map, tool, col, row, isStrokeStart, history.activeMode);
     // null → refused (does nothing visible); same reference → a no-op edit (eraser on empty).
     if (!next || next === map) return;
     map = next;
@@ -1056,13 +1066,13 @@ async function buildSession(
       canvas.dataset.cursor =
         tool.kind === "pan" ? "move" : tool.kind === "select" ? "select" : "paint";
     },
-    setActiveLayer(layer) {
-      history = setActiveLayer(history, layer);
-      applyLayerDim(tileLayers, layer, dim);
+    setActiveMode(mode) {
+      history = setActiveMode(history, mode);
+      applyModeDim(tileLayers, elementContainers, eventLayer, mode, dim);
     },
     setDim(next) {
       dim = next;
-      applyLayerDim(tileLayers, history.activeLayer, dim);
+      applyModeDim(tileLayers, elementContainers, eventLayer, history.activeMode, dim);
     },
     setGrid(next) {
       gridVisible = next;

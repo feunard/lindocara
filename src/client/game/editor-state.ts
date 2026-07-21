@@ -94,9 +94,9 @@ const GROUND_LAYER = 0;
 /**
  * What a rect or fill stroke paints. Deliberately the same vocabulary the single-cell `block` and
  * `elevation` tools already use — rect/fill are shape modifiers over an existing terrain selection,
- * not a new kind of content. Both are always ground-layer content (the spec's targeting rule: a
- * terrain selection always targets the ground layer and its wall upkeep, whatever `activeLayer`
- * says), so unlike the eraser, `activeLayer` never routes them elsewhere.
+ * not a new kind of content. Both are always ground-layer content: a terrain selection always
+ * targets the ground layer and its wall upkeep, the same fixed rule the single-cell `block`/
+ * `elevation` tools follow — the active mode never routes them elsewhere.
  */
 export type RectFillContent =
   | { kind: "block"; block: "grass" | "water" }
@@ -136,6 +136,31 @@ export type EditorTool =
       patrolRadius?: number;
     };
 
+/**
+ * Which of the three authored collections the editor is working in. This is the selector the old
+ * `Layer 1/2/3` control never actually was: painting always wrote layer 0 (plus automatic cliff-wall
+ * upkeep on layer 1) and stairs always wrote layer 1, so the layer control only ever routed the
+ * ERASER. The three REAL collections — the tile layers, `MapData.elements` and `MapEvent[]` — had no
+ * selector at all. `activeMode` names them: `field` owns the terrain layers, `element` the props,
+ * `event` the authored events.
+ */
+export type EditorMode = "field" | "element" | "event";
+
+/**
+ * The tools each mode owns. A tool reaching `applyTool` under a mode that does not list it is dropped
+ * (see `toolAllowedInMode`): the terrain brushes belong to Field, the prop tool to Element, the event
+ * tool to Event, and select/pan/eraser are shared because they act on whatever the active mode owns.
+ */
+const MODE_TOOLS: Record<EditorMode, readonly EditorTool["kind"][]> = {
+  field: ["block", "elevation", "rect", "fill", "stairs", "spawn", "eraser", "select", "pan"],
+  element: ["element", "eraser", "select", "pan"],
+  event: ["event", "eraser", "select", "pan"],
+};
+
+export function toolAllowedInMode(tool: EditorTool, mode: EditorMode): boolean {
+  return MODE_TOOLS[mode].includes(tool.kind);
+}
+
 export type EditorSelection =
   | { kind: "element"; col: number; row: number }
   | { kind: "event"; id: string }
@@ -147,14 +172,14 @@ export interface EditorHistory {
   future: EditorMap[];
   saved: string;
   /**
-   * Which layer paint-adjacent tools (the eraser; rect/fill when a future selection is layer-free)
-   * target. Lives here, not on `EditorMap`, because it must survive undo/redo unchanged — undo
-   * reverts *content*, never which layer the author happens to be looking at — and because history
-   * snapshots already flow through every `commitEditorHistory`/`undoEditorHistory`/`redoEditorHistory`
-   * call via `{ ...history, ... }`, so it rides along for free without a bespoke carve-out in any of
-   * them.
+   * Which of the three authored collections (terrain / elements / events) the editor is working in —
+   * the selector that routes the eraser and gates every other tool. Lives here, not on `EditorMap`,
+   * because it must survive undo/redo unchanged — undo reverts *content*, never which collection the
+   * author happens to be looking at — and because history snapshots already flow through every
+   * `commitEditorHistory`/`undoEditorHistory`/`redoEditorHistory` call via `{ ...history, ... }`, so
+   * it rides along for free without a bespoke carve-out in any of them.
    */
-  activeLayer: 0 | 1 | 2;
+  activeMode: EditorMode;
 }
 
 /**
@@ -175,13 +200,13 @@ function serializedMap(map: EditorMap): string {
 }
 
 export function createEditorHistory(map: EditorMap): EditorHistory {
-  return { past: [], present: map, future: [], saved: serializedMap(map), activeLayer: 0 };
+  return { past: [], present: map, future: [], saved: serializedMap(map), activeMode: "field" };
 }
 
-/** The one setter `activeLayer` needs: a plain field swap, no undo entry — switching which layer an
- *  author is looking at is not an edit. */
-export function setActiveLayer(history: EditorHistory, layer: 0 | 1 | 2): EditorHistory {
-  return { ...history, activeLayer: layer };
+/** The one setter `activeMode` needs: a plain field swap, no undo entry — switching which collection
+ *  an author is looking at is not an edit. */
+export function setActiveMode(history: EditorHistory, mode: EditorMode): EditorHistory {
+  return { ...history, activeMode: mode };
 }
 
 /** Commit one semantic operation. A caller painting a stroke passes only its final map here. */
@@ -265,7 +290,16 @@ export function moveSelection(
       );
       if (!element) return null;
       const without = deleteSelection(map, selection);
-      return applyTool(without, { kind: "element", assetId: element.assetId }, col, row);
+      // An element move is an Element-mode operation whatever tool is active, so it names its own
+      // mode rather than depending on the UI's — otherwise the mode gate would refuse the re-place.
+      return applyTool(
+        without,
+        { kind: "element", assetId: element.assetId },
+        col,
+        row,
+        true,
+        "element",
+      );
     }
     case "event": {
       const event = map.events.find((candidate) => candidate.id === selection.id);
@@ -298,7 +332,16 @@ export function updateSelectedElementAsset(
   assetId: EditorAssetId,
 ): EditorMap | null {
   const without = deleteSelection(map, selection);
-  return applyTool(without, { kind: "element", assetId }, selection.col, selection.row);
+  // Swapping an element's asset is an Element-mode operation; it names its own mode so the gate does
+  // not refuse the re-place, the same as `moveSelection`.
+  return applyTool(
+    without,
+    { kind: "element", assetId },
+    selection.col,
+    selection.row,
+    true,
+    "element",
+  );
 }
 
 /**
@@ -643,6 +686,37 @@ function erasedTerrain(map: EditorMap, col: number, row: number): TileLayer[] | 
   return syncElevationWalls([erased, ...map.layers.slice(1)], TINY_SWORDS_TILESET, col, row);
 }
 
+/**
+ * Field-mode eraser: clear the ground at one cell (with cliff-wall upkeep) and keep the spawn on
+ * walkable ground, but — unlike a paint stroke's `commitTerrain` — never drop an element standing
+ * over the drowned cell. A mode owns exactly one collection, so a Field erase takes ONLY terrain; the
+ * decor floating above it is Element mode's to remove. Same reference when the cell was already void,
+ * so a repeated click reads as a no-op. Refused (`null`) only when the erase would drown the spawn —
+ * the one guard `commitTerrain` provides that Field erase still wants.
+ */
+function erasedTerrainMap(map: EditorMap, col: number, row: number): EditorMap | null {
+  const layers = erasedTerrain(map, col, row);
+  if (!layers) return null;
+  if (sameLayers(map.layers, layers)) return map;
+  const next: EditorMap = { ...map, layers };
+  return keepsSpawnClear(next) ? next : null;
+}
+
+/** Element-mode eraser: drop any element covering the cell, or the map unchanged (same reference)
+ *  when none is there. Never touches events or terrain. */
+function erasedElement(map: EditorMap, col: number, row: number): EditorMap {
+  const elements = withoutElementAt(map.elements, col, row);
+  return elements.length === map.elements.length ? map : { ...map, elements };
+}
+
+/** Event-mode eraser: drop the event on the cell (the topmost plane), or the map unchanged (same
+ *  reference) when none is there. Never touches elements or terrain. */
+function erasedEvent(map: EditorMap, col: number, row: number): EditorMap {
+  const index = map.events.findIndex((event) => event.col === col && event.row === row);
+  if (index === -1) return map;
+  return { ...map, events: map.events.filter((_event, i) => i !== index) };
+}
+
 /** The cells one elevation-aware stroke can change: the cell itself and the wall row beneath it. */
 function terrainStrokeCells(col: number, row: number): readonly { col: number; row: number }[] {
   return [
@@ -766,34 +840,20 @@ function fillContent(
   return floodFill(ground, TINY_SWORDS_TILESET, slot, col, row);
 }
 
-/**
- * Erase one cell of layer 1 or layer 2 directly — no wall upkeep, because only the ground's own
- * elevation drives `syncElevationWalls`; a layer 1/2 cell holds no elevation of its own to react to.
- * This is also why clearing a hand-placed ramp does not bring an ambient wall back on its own,
- * matching `syncWall`'s "wall upkeep never overwrites a fixed tile" rule: an author who wants the
- * wall back repaints the ground elevation, the same as the single-cell eraser already requires.
- *
- * Guarded the same way every other terrain write is, even though an erase can only ever remove a
- * collider, never add one: consistency over cleverness.
- */
-function eraseOnLayer(map: EditorMap, layer: 1 | 2, col: number, row: number): EditorMap | null {
-  const target = map.layers[layer];
-  if (!target) return null;
-  const erased = eraseTile(target, TINY_SWORDS_TILESET, col, row);
-  const layers = map.layers.map((existing, index) => (index === layer ? erased : existing));
-  if (sameLayers(map.layers, layers)) return map;
-  const next = { ...map, layers };
-  return keepsSpawnClear(next) ? next : null;
-}
-
 export function applyTool(
   map: EditorMap,
   tool: EditorTool,
   col: number,
   row: number,
   isStrokeStart = true,
-  activeLayer: 0 | 1 | 2 = 0,
+  mode: EditorMode = "field",
 ): EditorMap | null {
+  // A tool belongs to exactly one mode. Reaching applyTool with a mismatched pair means the UI let a
+  // stale tool survive a mode switch; drop the stroke rather than write to a collection the author is
+  // not looking at. The default `mode` is a test-ergonomics convenience only — the stage always
+  // passes an explicit mode.
+  if (!toolAllowedInMode(tool, mode)) return null;
+
   const { cols, rows } = editorMapSize(map);
   if (col < 0 || row < 0 || col >= cols || row >= rows) return null;
 
@@ -820,9 +880,8 @@ export function applyTool(
      * own pre-stroke snapshot to whatever this returns on the drag's last cell, so there is nothing
      * further to do "on release": the last call already *is* the release.
      *
-     * Always ground + wall upkeep, regardless of `activeLayer` — a terrain selection targets the
-     * ground layer whatever layer is active, the same rule the single-cell `block`/`elevation` tools
-     * already follow.
+     * Always ground + wall upkeep — a terrain selection targets the ground layer whatever the active
+     * mode is, the same fixed rule the single-cell `block`/`elevation` tools already follow.
      */
     case "rect": {
       if (isStrokeStart) {
@@ -856,7 +915,7 @@ export function applyTool(
         anchor.elements,
       );
     }
-    /** One click, one flood region. Same ground + wall-upkeep targeting as `rect`; `activeLayer`
+    /** One click, one flood region. Same ground + wall-upkeep targeting as `rect`; the active mode
      *  never applies since the content is always terrain. */
     case "fill": {
       const ground = map.layers[GROUND_LAYER];
@@ -878,9 +937,9 @@ export function applyTool(
         terrainRectCells(bounds.c0, bounds.r0, bounds.c1, bounds.r1),
       );
     }
-    /** Layer 1 by its own fixed rule, never `activeLayer` — a ramp is a wall-layer fixture no matter
-     *  which layer the author is looking at. `paintStairs` itself refuses (same-reference) an
-     *  out-of-bounds stamp; that refusal is passed straight through. */
+    /** Layer 1 by its own fixed rule — a ramp is a wall-layer fixture no matter the active mode.
+     *  `paintStairs` itself refuses (same-reference) an out-of-bounds stamp; that refusal is passed
+     *  straight through. */
     case "stairs": {
       const layers = paintStairs(map.layers, TINY_SWORDS_TILESET, col, row);
       if (layers === map.layers) return null;
@@ -902,38 +961,21 @@ export function applyTool(
       return keepsSpawnClear(next) ? next : null;
     }
     /**
-     * Erase whatever is on the cell, topmost first: an event or element if there is one, otherwise
-     * the terrain. That last step is the same operation as the water tool — on the ground layer an
-     * empty cell *is* water — so a single click on a bare cell never does nothing.
+     * Mode-scoped, not cascading. The old order (event, then element, then terrain) meant an eraser
+     * stroke aimed at a bush could silently take the ground out from under it once the bush was gone.
+     * A mode owns exactly one collection, so the eraser can only take from that: Event mode peels an
+     * event, Element mode a prop, Field mode the terrain (leaving any decor above it standing — that
+     * is Element mode's to clear).
      *
-     * The terrain fall-through only fires on `isStrokeStart`: a drag must keep clearing events and
-     * elements it passes over, but must not also carve the ground underneath them. Without this, an
-     * eraser stroke dragged across a clearing full of trees would leave behind a continuous water
-     * trail nobody asked for — the same result as the water tool, but as a surprising side effect of
-     * clearing decor. A deliberate single click on bare ground still erases it, same as before.
-     *
-     * The terrain fall-through is "layer-free": it has no terrain selection of its own, so it is the
-     * one case the spec's targeting rule routes by `activeLayer` — ground (with wall upkeep) when
-     * `activeLayer` is 0, a plain single-layer clear on layer 1 or 2 otherwise.
+     * The `!isStrokeStart` guard drops every drag cell for every mode: a click erases one cell, a drag
+     * never smears a second. (This deliberately removes the old behaviour where a drag kept peeling
+     * elements it passed over — mode-scoping makes one stroke, one cell, one collection.)
      */
     case "eraser": {
-      // Topmost plane first, exactly one plane per stroke: an event outranks an element, and an
-      // element outranks the bare terrain underneath. Events and elements occupy independent planes,
-      // so a cell may hold both at once; successive strokes then peel them off in that order. (Markers
-      // are dead — their functional meaning is a typed event now, cleared by this same event branch.)
-      const eventIndex = map.events.findIndex((event) => event.col === col && event.row === row);
-      if (eventIndex !== -1) {
-        return { ...map, events: map.events.filter((_event, index) => index !== eventIndex) };
-      }
-      const elements = withoutElementAt(map.elements, col, row);
-      if (elements.length !== map.elements.length) {
-        return { ...map, elements };
-      }
       if (!isStrokeStart) return null;
-      if (activeLayer !== 0) return eraseOnLayer(map, activeLayer, col, row);
-      const layers = erasedTerrain(map, col, row);
-      if (!layers) return null;
-      return commitTerrain(map, layers, terrainStrokeCells(col, row));
+      if (mode === "event") return erasedEvent(map, col, row);
+      if (mode === "element") return erasedElement(map, col, row);
+      return erasedTerrainMap(map, col, row);
     }
     case "spawn": {
       if (map.elements.some((element) => elementCoversCell(element, col, row))) return null;
@@ -1029,8 +1071,11 @@ export function placementLegalAt(
   map: EditorMap,
   col: number,
   row: number,
-  activeLayer: 0 | 1 | 2 = 0,
+  mode: EditorMode = "field",
 ): boolean {
+  // A tool the active mode does not own can never place — the same gate `applyTool` runs, applied
+  // here too so the fill short-circuit below respects the mode rather than reading as legal.
+  if (!toolAllowedInMode(tool, mode)) return false;
   // Fill's legality is position-independent past the content check. `floodFill` never fails on
   // position — out of bounds or already-filled it returns the layer unchanged — so `applyTool`'s
   // fill branch is null only when the content has no fill slot (water). Answer that directly instead
@@ -1041,5 +1086,5 @@ export function placementLegalAt(
     if (col < 0 || row < 0 || col >= cols || row >= rows) return false;
     return contentSlot(tool.content) !== null;
   }
-  return applyTool(map, tool, col, row, true, activeLayer) !== null;
+  return applyTool(map, tool, col, row, true, mode) !== null;
 }
