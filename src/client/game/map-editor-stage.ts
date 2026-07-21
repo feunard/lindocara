@@ -127,6 +127,15 @@ export interface MapEditorStageState {
   canRedo: boolean;
   dirty: boolean;
   selection: EditorSelection | null;
+  /**
+   * A monotone counter (C7), bumped every time a real element/event placement click is refused —
+   * e.g. a tree on water, an event on an occupied cell. The hover-illegal red fill (UX wave #9,
+   * `paintHoverCell`) already warns BEFORE the click; this is the click itself, which otherwise does
+   * nothing observable at all (the placed-count simply stays put). `null` until the first rejection
+   * this session. A counter, not a boolean, so the screen can show its transient hint again even if
+   * the previous one is still fading and the author immediately retries the same illegal cell.
+   */
+  placementRejectedAt: number | null;
 }
 
 /** Camera zoom is clamped to this range, both to keep pixels legible and to stop the map sailing
@@ -596,6 +605,9 @@ async function buildSession(
   let selected: EditorSelection | null = null;
   let tool: EditorTool = { kind: "block", block: "grass" };
   let dim = false;
+  // C7: counts refused element/event placement clicks, so the screen can flash a "can't place here"
+  // hint even though the map itself never changes. See `MapEditorStageState.placementRejectedAt`.
+  let placementRejections = 0;
 
   const notify = (): void => {
     onChange(map, {
@@ -603,6 +615,7 @@ async function buildSession(
       canRedo: history.future.length > 0,
       dirty: isEditorHistoryDirty(history, map),
       selection: selected,
+      placementRejectedAt: placementRejections > 0 ? placementRejections : null,
     });
   };
 
@@ -981,8 +994,19 @@ async function buildSession(
       offsetX,
       offsetY,
     );
-    // null → refused (does nothing visible); same reference → a no-op edit (eraser on empty).
-    if (!next || next === map) return;
+    // null → refused; same reference → a no-op edit (eraser on empty cell) — neither changes the map.
+    if (next === null) {
+      // Only the element/event tools "place something", so only their refusal is the C7 "tried to
+      // place and couldn't" case (a tree on water, an event over the spawn). Field/fill/stairs
+      // returning null are terrain rules with their own reasons (out of bounds, no fill slot) that
+      // already read clearly from the tool itself, not a silent no-op worth flashing a hint over.
+      if (tool.kind === "element" || tool.kind === "event") {
+        placementRejections += 1;
+        notify();
+      }
+      return;
+    }
+    if (next === map) return;
     map = next;
     // A freshly placed event is selected so it reads as active and its double-click has a target.
     if (tool.kind === "event") {

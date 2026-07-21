@@ -13,7 +13,15 @@ describe("editor asset catalogue", () => {
     setLocale("en");
     render(<CatalogueAssetPicker value={null} onSelectAsset={() => {}} />);
 
-    expect(screen.getAllByText("Archery").length).toBeGreaterThan(0);
+    // Buildings are the biggest category and sort last (D3 décor-first ordering), so — unlike
+    // before — Archery is not on the unfiltered first page; search for it explicitly instead. Its
+    // five recoloured variants are also disambiguated by pack/colour now (C3), so this matches by
+    // accessible name substring rather than the old exact "Archery" text.
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search placeable assets" }), {
+      target: { value: "archery" },
+    });
+    expect(screen.getAllByRole("button", { name: /archery/i }).length).toBeGreaterThan(0);
+
     fireEvent.change(screen.getByRole("searchbox", { name: "Search placeable assets" }), {
       target: { value: "tree2" },
     });

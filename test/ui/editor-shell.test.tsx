@@ -421,7 +421,9 @@ describe("AdventureEditorScreen shell", () => {
     fireEvent.change(within(palette).getByRole("searchbox", { name: t("editor.palette.search") }), {
       target: { value: shortId },
     });
-    const card = within(palette).getByText(shortId).closest("button");
+    // The raw dotted id is no longer visible body text on the card (C2) — it survives only as a
+    // `data-asset-id` attribute, which is exactly what a test needing an unambiguous hook wants.
+    const card = palette.querySelector(`[data-asset-id="${asset.id}"]`);
     if (!card) throw new Error("asset card not found");
     await userEvent.click(card);
     // The pending graphic reaches the event tool the stage places with (applyTool then stamps it on
@@ -915,7 +917,9 @@ describe("AdventureEditorScreen shell", () => {
     // below) — real keystrokes here would leak "r"/"e"/"3" to the global shortcut handler and switch
     // modes/tools out from under this search, which is not what this test is about.
     fireEvent.change(search, { target: { value: "tree3" } });
-    await userEvent.click(screen.getByRole("button", { name: /tree3grasssolid/i }));
+    // D4 relabels the collision badge from "Solid" to "Collision" to stay truthful about sub-cell
+    // collision (a tree blocks only its trunk, not the whole cell).
+    await userEvent.click(screen.getByRole("button", { name: /tree3grasscollision/i }));
     await waitFor(() =>
       expect(stageMock.setTool).toHaveBeenCalledWith({
         kind: "element",

@@ -58,7 +58,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../compone
 import { TooltipProvider } from "../components/tooltip.js";
 import { AdventureSettingsDialog } from "./AdventureSettingsDialog.js";
 import { loadAdventureSession } from "./adventure-session.js";
-import { EditorAssetPreview } from "./CatalogueAssetPicker.js";
+import { assetDisplayName, EditorAssetPreview } from "./CatalogueAssetPicker.js";
 import { EditorMenuBar } from "./EditorMenuBar.js";
 import { EditorPalette } from "./EditorPalette.js";
 import { EditorStatusBar } from "./EditorStatusBar.js";
@@ -332,6 +332,12 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [selection, setSelection] = useState<EditorSelection | null>(null);
+  // C7: a brief "can't place here" hint over the stage. Driven by the stage's monotone
+  // `placementRejectedAt` counter rather than a boolean, so retrying the same illegal cell while the
+  // previous hint is still fading restarts its timer instead of silently doing nothing.
+  const [placementHint, setPlacementHint] = useState(false);
+  const lastRejectionRef = useRef<number | null>(null);
+  const placementHintTimeoutRef = useRef<number | null>(null);
   // The kind the EV tool places (normal / entry / exit / monster), and the monster kind's default
   // species/radius. Markers are dead — these drive the one event tool's placement.
   const [eventKind, setEventKind] = useState<EventKind>("normal");
@@ -445,6 +451,20 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         setCanUndo(state.canUndo);
         setCanRedo(state.canRedo);
         setSelection(state.selection);
+        // C7: a new rejection count flashes the "can't place here" hint, restarting its timer even
+        // if the previous flash is still fading (see the `placementHint` state declaration above).
+        const rejectedAt = state.placementRejectedAt ?? null;
+        if (rejectedAt !== null && rejectedAt !== lastRejectionRef.current) {
+          lastRejectionRef.current = rejectedAt;
+          setPlacementHint(true);
+          if (placementHintTimeoutRef.current !== null) {
+            window.clearTimeout(placementHintTimeoutRef.current);
+          }
+          placementHintTimeoutRef.current = window.setTimeout(() => {
+            setPlacementHint(false);
+            placementHintTimeoutRef.current = null;
+          }, 1400);
+        }
       },
       (col, row) => setCursor(col === null || row === null ? null : { col, row }),
       (id) => setOpenEventId(id),
@@ -472,6 +492,10 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       cancelled = true;
       handleRef.current?.dispose();
       handleRef.current = null;
+      if (placementHintTimeoutRef.current !== null) {
+        window.clearTimeout(placementHintTimeoutRef.current);
+        placementHintTimeoutRef.current = null;
+      }
     };
   }, [map?.id, previewing]);
 
@@ -1184,6 +1208,17 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
                   {t("editor.shell.saving")}
                 </p>
               )}
+              {placementHint && (
+                // C7: the hover-illegal red fill already warns before the click; this covers the
+                // click itself, which otherwise leaves no trace at all (the placed count just stays
+                // put). Non-intrusive: a small fading pill, not a blocking dialog.
+                <p
+                  className="pointer-events-none absolute bottom-3 right-3 z-10 rounded-md bg-red-600/90 px-2 py-1 text-xs font-medium text-white shadow-sm"
+                  role="status"
+                >
+                  {t("editor.error.placement")}
+                </p>
+              )}
               {stageStatus === "error" && (
                 <p className="absolute left-3 top-3 z-10 text-sm text-red-600" role="alert">
                   {t("editor.shell.stage.error")}
@@ -1393,7 +1428,13 @@ function SelectionInspector({
         <div className="flex items-center gap-2">
           {selectedElementAsset && <EditorAssetPreview asset={selectedElementAsset} size={48} />}
           <p className="min-w-0 text-[11px] text-zinc-500">
-            <span className="block truncate">{selectedElement.assetId}</span>
+            {/* The friendly name, not the raw dotted catalogue id (C2) — that id is dev clutter for
+             * an author and is kept only as a `title` tooltip below, never as visible body text. */}
+            <span className="block truncate" title={selectedElement.assetId}>
+              {selectedElementAsset
+                ? assetDisplayName(selectedElementAsset)
+                : selectedElement.assetId}
+            </span>
             {selectedElementAsset?.editor.collider
               ? t("editor.palette.collision")
               : t("editor.inspector.walkable")}

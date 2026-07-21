@@ -17,6 +17,93 @@ interface CatalogueAssetPickerProps {
 
 const ASSET_PAGE_SIZE = 12;
 
+/**
+ * Décor-first category order (D3). The palette exists mainly to place scenery (trees, bushes,
+ * rocks) — Buildings is simply the biggest `editor.category` (62 of 126 assets) and, in raw
+ * catalogue order, its five recoloured sets come first, so an un-ordered "All categories" view
+ * buries every tree behind pages of Archery/Barracks recolours. Ranking puts every non-Buildings
+ * category ahead of it (both in the dropdown and in the grouped "All" view below), and is also
+ * applied to `filteredAssets` before pagination slices the first page — otherwise the first
+ * `ASSET_PAGE_SIZE` items would still all be Buildings even though the *groups* are shown in the
+ * right order afterwards. Unlisted categories rank last, just after Buildings (defensive, if a
+ * future asset ships a category this list doesn't know about).
+ */
+const CATEGORY_ORDER = [
+  "trees",
+  "vegetation",
+  "small-decor",
+  "rocks",
+  "farm-and-village",
+  "resources",
+  "bridges",
+  "signs",
+  "buildings",
+] as const;
+
+function categoryRank(category: string): number {
+  const index = CATEGORY_ORDER.indexOf(category as (typeof CATEGORY_ORDER)[number]);
+  return index === -1 ? CATEGORY_ORDER.length : index;
+}
+
+// Buildings ship five recolours of the same file name inside a "<Colour> Buildings" source
+// folder (Black/Blue/Purple/Red/Yellow) — two "Archery" cards read as duplicates (C3). Matches
+// that folder shape so its colour can suffix the name; returns null for every other asset, which
+// never needed a suffix before and shouldn't gain a noisy one now.
+const COLOR_BUILDING_FOLDER = /^(.+)\s+Buildings$/i;
+
+function folderVariant(asset: EditorAssetDefinition): string | null {
+  const parts = asset.sourcePath.split("/");
+  const folder = parts.length >= 2 ? parts[parts.length - 2] : undefined;
+  if (!folder) return null;
+  const match = folder.match(COLOR_BUILDING_FOLDER);
+  return match?.[1] ?? null;
+}
+
+function baseAssetName(asset: EditorAssetDefinition): string {
+  return (
+    asset.sourcePath
+      .split("/")
+      .at(-1)
+      ?.replace(/\.png$/i, "")
+      .replaceAll("_", " ")
+      .replaceAll("-", " ") ??
+    asset.id.split(".").at(-1) ??
+    asset.id
+  );
+}
+
+/** Every asset's display name, disambiguated (C3) only where the plain file-derived name actually
+ * collides with another asset's — most assets need no suffix at all, so this never adds one to a
+ * name that is already unique. Computed once at module scope: `EDITOR_ASSETS` is a static import,
+ * so there is nothing to recompute per render. The rare pair that even shares a source folder (the
+ * wood bridge's horizontal/vertical placement, one sprite sheet) falls back to the asset id's own
+ * last segment, which is guaranteed distinct — that's what the id space is for. */
+const ASSET_DISPLAY_NAMES: ReadonlyMap<EditorAssetId, string> = (() => {
+  const baseNames = new Map<EditorAssetId, string>();
+  const counts = new Map<string, number>();
+  for (const asset of EDITOR_ASSETS) {
+    const name = baseAssetName(asset);
+    baseNames.set(asset.id as EditorAssetId, name);
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+  const names = new Map<EditorAssetId, string>();
+  for (const asset of EDITOR_ASSETS) {
+    const assetId = asset.id as EditorAssetId;
+    const name = baseNames.get(assetId) ?? asset.id;
+    if ((counts.get(name) ?? 0) <= 1) {
+      names.set(assetId, name);
+      continue;
+    }
+    const variant = folderVariant(asset) ?? asset.id.split(".").at(-1) ?? asset.id;
+    names.set(assetId, `${name} (${variant})`);
+  }
+  return names;
+})();
+
+export function assetDisplayName(asset: EditorAssetDefinition): string {
+  return ASSET_DISPLAY_NAMES.get(asset.id as EditorAssetId) ?? asset.id;
+}
+
 /** Searchable access to every asset carrying editor placement metadata. The catalogue is the
  * authority for crop, footprint, collision, terrain and render layer, so the palette and stage can
  * expose the complete set without inventing per-component exceptions. */
@@ -32,7 +119,10 @@ export function CatalogueAssetPicker({
   const [visibleCount, setVisibleCount] = useState(ASSET_PAGE_SIZE);
 
   const categories = useMemo(
-    () => [...new Set(EDITOR_ASSETS.map((asset) => asset.editor.category))].sort(),
+    () =>
+      [...new Set(EDITOR_ASSETS.map((asset) => asset.editor.category))].sort(
+        (left, right) => categoryRank(left) - categoryRank(right),
+      ),
     [],
   );
 
@@ -43,7 +133,9 @@ export function CatalogueAssetPicker({
       const haystack =
         `${asset.id} ${asset.role} ${asset.category} ${asset.tags.join(" ")}`.toLowerCase();
       return terms.every((term) => haystack.includes(term));
-    });
+    }).sort(
+      (left, right) => categoryRank(left.editor.category) - categoryRank(right.editor.category),
+    );
   }, [category, query]);
 
   const groups = useMemo(() => {
@@ -53,7 +145,9 @@ export function CatalogueAssetPicker({
       list.push(asset);
       grouped.set(asset.editor.category, list);
     }
-    return [...grouped.entries()].sort(([left], [right]) => left.localeCompare(right));
+    return [...grouped.entries()].sort(
+      ([left], [right]) => categoryRank(left) - categoryRank(right),
+    );
   }, [filteredAssets, visibleCount]);
 
   return (
@@ -146,18 +240,15 @@ function AssetChoice({
   onSelect(assetId: EditorAssetId): void;
 }) {
   const collides = asset.editor.collider !== undefined;
-  const displayName =
-    asset.sourcePath
-      .split("/")
-      .at(-1)
-      ?.replace(/\.png$/i, "")
-      .replaceAll("_", " ")
-      .replaceAll("-", " ") ?? asset.id.split(".").at(-1);
+  const displayName = assetDisplayName(asset);
+  // The raw dotted catalogue id (C2) is dev clutter for an author, not author-facing UI — kept only
+  // as a data attribute (useful for debugging/tests), never as visible or sr-only text.
   return (
     <button
       type="button"
       aria-pressed={selected}
-      title={`${asset.role} · ${asset.editor.allowedTerrain.join(", ")}`}
+      data-asset-id={asset.id}
+      title={`${displayName} · ${asset.role} · ${asset.editor.allowedTerrain.join(", ")}`}
       onClick={() => onSelect(asset.id as EditorAssetId)}
       className={`flex min-w-0 flex-col items-center gap-0.5 rounded-md border p-1 text-center ${
         selected ? "border-zinc-900 bg-white" : "border-zinc-200 bg-white hover:border-zinc-400"
@@ -175,8 +266,6 @@ function AssetChoice({
           {t("editor.palette.collision")}
         </span>
       )}
-      <span className="sr-only">{asset.id.split(".").at(-1)}</span>
-      <span className="sr-only">{asset.id}</span>
     </button>
   );
 }
