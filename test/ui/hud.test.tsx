@@ -47,6 +47,46 @@ describe("Hud", () => {
     expect(screen.getByText("Niveau 3")).toBeInTheDocument();
   });
 
+  it("shows authored quest progress without hiding the built-in quest", () => {
+    useUiStore.setState({
+      self: {
+        nick: "Questkeeper",
+        level: 3,
+        hp: 100,
+        maxHp: 124,
+        life: "alive",
+        corpseDistance: null,
+        class: "warrior",
+        appearance: { body: "wayfarer", primaryColor: "azure" },
+        equipment: { mainHand: "weathered_sword", offHand: "oak_shield" },
+      },
+      selfState: {
+        xp: 40,
+        xpToNext: 220,
+        life: "alive",
+        corpse: null,
+        inventory: { potions: 2, gold: 9, crystals: 1 },
+        quest: { status: "active", progress: 1, target: 3 },
+        authoredQuests: [
+          {
+            id: "0001",
+            title: "Clear the old road",
+            description: "Defeat the prowling beasts.",
+            status: "active",
+            objectives: [{ id: "0001", label: "Defeat the beasts", progress: 2, target: 3 }],
+          },
+        ],
+      },
+    });
+
+    render(<Hud />);
+    expect(
+      screen.getByText("Gather heartwood, provisions, then sun-ore (1/3)"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Clear the old road")).toBeInTheDocument();
+    expect(screen.getByText("Defeat the beasts (2/3)")).toBeInTheDocument();
+  });
+
   it("shows the class name and a heal bar for priests", () => {
     useUiStore.setState({
       self: {

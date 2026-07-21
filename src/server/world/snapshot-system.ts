@@ -1,3 +1,4 @@
+import type { AuthoredQuestTracker } from "../../shared/adventure-state.js";
 import { type QuestChapter, xpForNextLevel } from "../../shared/game.js";
 import type {
   SelfState,
@@ -17,7 +18,11 @@ import { combatCooldownsFromPlayer, type PlayerRuntime } from "./world-runtime.j
 export type SendMessage = (socket: WebSocket, message: ServerMessage) => void;
 export type ViewForPlayer = (player: PlayerRuntime) => WorldView;
 
-export function selfState(player: PlayerRuntime, questTarget?: number): SelfState {
+export function selfState(
+  player: PlayerRuntime,
+  questTarget?: number,
+  authoredQuests: readonly AuthoredQuestTracker[] = [],
+): SelfState {
   const serverNow = Date.now();
   const chapter = player.quest.chapter ?? "three_offerings";
   const timerEndsAt =
@@ -37,6 +42,7 @@ export function selfState(player: PlayerRuntime, questTarget?: number): SelfStat
       target: questTarget ?? player.quest.target,
       ...(timerEndsAt === undefined ? {} : { timerEndsAt }),
     },
+    authoredQuests,
     life: player.life,
     corpse: player.corpse === null ? null : { ...player.corpse },
     serverNow,
@@ -58,8 +64,9 @@ export function sendState(
   player: PlayerRuntime,
   questTarget: number | undefined,
   send: SendMessage,
+  authoredQuests: readonly AuthoredQuestTracker[] = [],
 ): void {
-  send(socket, { t: "state", self: selfState(player, questTarget) });
+  send(socket, { t: "state", self: selfState(player, questTarget, authoredQuests) });
 }
 
 export function broadcastNetworkUpdates(

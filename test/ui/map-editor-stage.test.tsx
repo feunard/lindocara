@@ -231,7 +231,7 @@ describe("eventChipLabel", () => {
 });
 
 describe("shouldShowEventOverlay", () => {
-  it("is true only while the event tool is active", () => {
+  it("keeps authored RPG objects visible in every tool", () => {
     expect(shouldShowEventOverlay({ kind: "event", eventKind: "normal" })).toBe(true);
     expect(shouldShowEventOverlay({ kind: "event", eventKind: "entry" })).toBe(true);
     const inactive: EditorTool[] = [
@@ -240,7 +240,7 @@ describe("shouldShowEventOverlay", () => {
       { kind: "eraser" },
       { kind: "spawn" },
     ];
-    for (const tool of inactive) expect(shouldShowEventOverlay(tool)).toBe(false);
+    for (const tool of inactive) expect(shouldShowEventOverlay(tool)).toBe(true);
   });
 });
 
@@ -269,16 +269,16 @@ describe("eventOverlayToggled", () => {
     ).toBe(false);
   });
 
-  it("is true exactly when the overlay's visibility flips", () => {
+  it("never flips because RPG objects remain visible", () => {
     expect(eventOverlayToggled({ kind: "select" }, { kind: "event", eventKind: "normal" })).toBe(
-      true,
+      false,
     );
     expect(
       eventOverlayToggled(
         { kind: "event", eventKind: "normal" },
         { kind: "block", block: "grass" },
       ),
-    ).toBe(true);
+    ).toBe(false);
   });
 });
 

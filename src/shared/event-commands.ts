@@ -107,6 +107,14 @@ export type EventCommand =
   | { readonly t: "teleport"; readonly mapId: string; readonly col: number; readonly row: number }
   | { readonly t: "changeGold"; readonly amount: number }
   | { readonly t: "changeItems"; readonly itemId: string; readonly count: number }
+  | { readonly t: "startQuest"; readonly questId: string }
+  | {
+      readonly t: "advanceQuest";
+      readonly questId: string;
+      readonly objectiveId: string;
+      readonly amount: number;
+    }
+  | { readonly t: "completeQuest"; readonly questId: string }
   | { readonly t: "comment"; readonly text: string };
 
 function isConditionId(value: unknown): value is string {
@@ -256,6 +264,22 @@ function parseCommand(raw: unknown, depth: number, counter: Counter): EventComma
       if (count === 0) return null;
       return { t: "changeItems", itemId: record.itemId, count };
     }
+    case "startQuest":
+      return isConditionId(record.questId) ? { t: "startQuest", questId: record.questId } : null;
+    case "advanceQuest": {
+      if (!isConditionId(record.questId) || !isConditionId(record.objectiveId)) return null;
+      if (!Number.isSafeInteger(record.amount)) return null;
+      const amount = record.amount as number;
+      if (amount === 0) return null;
+      return {
+        t: "advanceQuest",
+        questId: record.questId,
+        objectiveId: record.objectiveId,
+        amount,
+      };
+    }
+    case "completeQuest":
+      return isConditionId(record.questId) ? { t: "completeQuest", questId: record.questId } : null;
     case "comment": {
       const text = parseText(record.text);
       if (text === null) return null;

@@ -394,8 +394,8 @@ export const mapEventPage = sqliteTable(
     /** Tranche 5: the page's authored command program, a JSON array parsed by `parseEventCommands`
      *  (`shared/event-commands.ts`). Stored as one TEXT blob (not one row per command) so nested
      *  bodies persist without a self-referential table; `'[]'` is the empty program a page carries
-     *  until authored, and the column default so every pre-tranche-5 page reads back as empty. Only
-     *  `normal` events carry commands — `parseMapEvents` refuses a non-empty program on other kinds. */
+     *  until authored, and the column default so every pre-tranche-5 page reads back as empty. Normal
+     *  events run it on trigger; monster events may run it on defeat; entry/exit keep it empty. */
     commands: text("commands").notNull().default("[]"),
   },
   (table) => [
@@ -624,13 +624,12 @@ export const heroQuest = sqliteTable(
 );
 
 /**
- * A party's live adventure-state save: which switches are on, what each variable holds, and
- * which per-event self-switches are set. One row per party — state is party-owned, not
+ * A party's live adventure-state save: switches, variables, per-event self-switches and authored
+ * quest progress. One row per party — state is party-owned, not
  * hero-owned (adventure-state design Decision 2), because a party is the save and four heroes
- * in it share one set of switches. `GameSession` is the only writer; this tranche only installs
- * it (load on first room admission, upsert on debounce/party-empty) — nothing mutates a single
- * switch/variable yet, that is tranche 5's interpreter. `switches`/`variables`/`self_switches`
- * are JSON columns, validated on read by `shared/adventure-state.ts`'s `parsePartyAdventureState`
+ * in it share one state. `GameSession` is the only writer; the event interpreter sends mutations
+ * to it and it upserts on debounce/party-empty. The four state fields are JSON columns, validated
+ * on read by `shared/adventure-state.ts`'s `parsePartyAdventureState`
  * with the same never-throw degrade discipline `maps.ts`'s `decodeLayers` uses for a corrupt or
  * missing map-layer row.
  */
@@ -641,6 +640,7 @@ export const partyAdventureState = sqliteTable("party_adventure_state", {
   switches: text("switches").notNull(),
   variables: text("variables").notNull(),
   selfSwitches: text("self_switches").notNull(),
+  quests: text("quests").notNull().default("{}"),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
 });
 

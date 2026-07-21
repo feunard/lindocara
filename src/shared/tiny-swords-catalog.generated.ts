@@ -5090,6 +5090,4921 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "character.units-black-units-archer.archer-idle",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Archer/Archer_Idle.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Archer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "archer",
+      "idle",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 56,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-lancer.lancer-idle",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Lancer/Lancer_Idle.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "lancer",
+      "idle",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 12,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 122,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -2,
+          "row": -4
+        },
+        {
+          "col": -1,
+          "row": -4
+        },
+        {
+          "col": 0,
+          "row": -4
+        },
+        {
+          "col": 1,
+          "row": -4
+        },
+        {
+          "col": 2,
+          "row": -4
+        },
+        {
+          "col": -2,
+          "row": -3
+        },
+        {
+          "col": -1,
+          "row": -3
+        },
+        {
+          "col": 0,
+          "row": -3
+        },
+        {
+          "col": 1,
+          "row": -3
+        },
+        {
+          "col": 2,
+          "row": -3
+        },
+        {
+          "col": -2,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": 2,
+          "row": -2
+        },
+        {
+          "col": -2,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": 2,
+          "row": -1
+        },
+        {
+          "col": -2,
+          "row": 0
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        },
+        {
+          "col": 2,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-monk.idle",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Monk/Idle.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Monk",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "monk",
+      "idle",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 58,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-pawn.pawn-idle",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Idle.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "pawn",
+      "idle",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-pawn.pawn-idle-axe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Idle Axe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "pawn",
+      "idle",
+      "axe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-pawn.pawn-idle-gold",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Idle Gold.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "pawn",
+      "idle",
+      "gold",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-pawn.pawn-idle-hammer",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Idle Hammer.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "pawn",
+      "idle",
+      "hammer",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-pawn.pawn-idle-knife",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Idle Knife.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "pawn",
+      "idle",
+      "knife",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-pawn.pawn-idle-meat",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Idle Meat.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "pawn",
+      "idle",
+      "meat",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-pawn.pawn-idle-pickaxe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Idle Pickaxe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "pawn",
+      "idle",
+      "pickaxe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-pawn.pawn-idle-wood",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Idle Wood.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "pawn",
+      "idle",
+      "wood",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-black-units-warrior.warrior-idle",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Warrior/Warrior_Idle.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Black Units/Warrior",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "black",
+      "warrior",
+      "idle",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 55,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-archer.archer-idle",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Archer/Archer_Idle.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Archer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "archer",
+      "idle",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 56,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-lancer.lancer-idle",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Lancer/Lancer_Idle.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "lancer",
+      "idle",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 12,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 122,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -2,
+          "row": -4
+        },
+        {
+          "col": -1,
+          "row": -4
+        },
+        {
+          "col": 0,
+          "row": -4
+        },
+        {
+          "col": 1,
+          "row": -4
+        },
+        {
+          "col": 2,
+          "row": -4
+        },
+        {
+          "col": -2,
+          "row": -3
+        },
+        {
+          "col": -1,
+          "row": -3
+        },
+        {
+          "col": 0,
+          "row": -3
+        },
+        {
+          "col": 1,
+          "row": -3
+        },
+        {
+          "col": 2,
+          "row": -3
+        },
+        {
+          "col": -2,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": 2,
+          "row": -2
+        },
+        {
+          "col": -2,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": 2,
+          "row": -1
+        },
+        {
+          "col": -2,
+          "row": 0
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        },
+        {
+          "col": 2,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-monk.idle",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Monk/Idle.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Monk",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "monk",
+      "idle",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 58,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-pawn.pawn-idle",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Idle.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "pawn",
+      "idle",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-pawn.pawn-idle-axe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Idle Axe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "pawn",
+      "idle",
+      "axe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-pawn.pawn-idle-gold",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Idle Gold.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "pawn",
+      "idle",
+      "gold",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-pawn.pawn-idle-hammer",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Idle Hammer.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "pawn",
+      "idle",
+      "hammer",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-pawn.pawn-idle-knife",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Idle Knife.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "pawn",
+      "idle",
+      "knife",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-pawn.pawn-idle-meat",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Idle Meat.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "pawn",
+      "idle",
+      "meat",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-pawn.pawn-idle-pickaxe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Idle Pickaxe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "pawn",
+      "idle",
+      "pickaxe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-pawn.pawn-idle-wood",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Idle Wood.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "pawn",
+      "idle",
+      "wood",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-blue-units-warrior.warrior-idle",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Warrior/Warrior_Idle.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Blue Units/Warrior",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "blue",
+      "warrior",
+      "idle",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 55,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-archer.archer-idle",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Archer/Archer_Idle.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Archer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "archer",
+      "idle",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 56,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-lancer.lancer-idle",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Lancer/Lancer_Idle.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "lancer",
+      "idle",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 12,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 122,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -2,
+          "row": -4
+        },
+        {
+          "col": -1,
+          "row": -4
+        },
+        {
+          "col": 0,
+          "row": -4
+        },
+        {
+          "col": 1,
+          "row": -4
+        },
+        {
+          "col": 2,
+          "row": -4
+        },
+        {
+          "col": -2,
+          "row": -3
+        },
+        {
+          "col": -1,
+          "row": -3
+        },
+        {
+          "col": 0,
+          "row": -3
+        },
+        {
+          "col": 1,
+          "row": -3
+        },
+        {
+          "col": 2,
+          "row": -3
+        },
+        {
+          "col": -2,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": 2,
+          "row": -2
+        },
+        {
+          "col": -2,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": 2,
+          "row": -1
+        },
+        {
+          "col": -2,
+          "row": 0
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        },
+        {
+          "col": 2,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-monk.idle",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Monk/Idle.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Monk",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "monk",
+      "idle",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 58,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-pawn.pawn-idle",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Idle.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "pawn",
+      "idle",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-pawn.pawn-idle-axe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Idle Axe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "pawn",
+      "idle",
+      "axe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-pawn.pawn-idle-gold",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Idle Gold.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "pawn",
+      "idle",
+      "gold",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-pawn.pawn-idle-hammer",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Idle Hammer.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "pawn",
+      "idle",
+      "hammer",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-pawn.pawn-idle-knife",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Idle Knife.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "pawn",
+      "idle",
+      "knife",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-pawn.pawn-idle-meat",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Idle Meat.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "pawn",
+      "idle",
+      "meat",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-pawn.pawn-idle-pickaxe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Idle Pickaxe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "pawn",
+      "idle",
+      "pickaxe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-pawn.pawn-idle-wood",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Idle Wood.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "pawn",
+      "idle",
+      "wood",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-purple-units-warrior.warrior-idle",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Warrior/Warrior_Idle.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Purple Units/Warrior",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "purple",
+      "warrior",
+      "idle",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 55,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-archer.archer-idle",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Archer/Archer_Idle.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Archer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "archer",
+      "idle",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 56,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-lancer.lancer-idle",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Lancer/Lancer_Idle.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "lancer",
+      "idle",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 12,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 122,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -2,
+          "row": -4
+        },
+        {
+          "col": -1,
+          "row": -4
+        },
+        {
+          "col": 0,
+          "row": -4
+        },
+        {
+          "col": 1,
+          "row": -4
+        },
+        {
+          "col": 2,
+          "row": -4
+        },
+        {
+          "col": -2,
+          "row": -3
+        },
+        {
+          "col": -1,
+          "row": -3
+        },
+        {
+          "col": 0,
+          "row": -3
+        },
+        {
+          "col": 1,
+          "row": -3
+        },
+        {
+          "col": 2,
+          "row": -3
+        },
+        {
+          "col": -2,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": 2,
+          "row": -2
+        },
+        {
+          "col": -2,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": 2,
+          "row": -1
+        },
+        {
+          "col": -2,
+          "row": 0
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        },
+        {
+          "col": 2,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-monk.idle",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Monk/Idle.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Monk",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "monk",
+      "idle",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 58,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-pawn.pawn-idle",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Idle.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "pawn",
+      "idle",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-pawn.pawn-idle-axe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Idle Axe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "pawn",
+      "idle",
+      "axe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-pawn.pawn-idle-gold",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Idle Gold.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "pawn",
+      "idle",
+      "gold",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-pawn.pawn-idle-hammer",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Idle Hammer.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "pawn",
+      "idle",
+      "hammer",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-pawn.pawn-idle-knife",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Idle Knife.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "pawn",
+      "idle",
+      "knife",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-pawn.pawn-idle-meat",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Idle Meat.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "pawn",
+      "idle",
+      "meat",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-pawn.pawn-idle-pickaxe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Idle Pickaxe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "pawn",
+      "idle",
+      "pickaxe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-pawn.pawn-idle-wood",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Idle Wood.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "pawn",
+      "idle",
+      "wood",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-red-units-warrior.warrior-idle",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Warrior/Warrior_Idle.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Red Units/Warrior",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "red",
+      "warrior",
+      "idle",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 55,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-archer.archer-idle",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Archer/Archer_Idle.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Archer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "archer",
+      "idle",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 56,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-lancer.lancer-idle",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Lancer/Lancer_Idle.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Lancer",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "lancer",
+      "idle",
+      "character",
+      "free"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 12,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 122,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -2,
+          "row": -4
+        },
+        {
+          "col": -1,
+          "row": -4
+        },
+        {
+          "col": 0,
+          "row": -4
+        },
+        {
+          "col": 1,
+          "row": -4
+        },
+        {
+          "col": 2,
+          "row": -4
+        },
+        {
+          "col": -2,
+          "row": -3
+        },
+        {
+          "col": -1,
+          "row": -3
+        },
+        {
+          "col": 0,
+          "row": -3
+        },
+        {
+          "col": 1,
+          "row": -3
+        },
+        {
+          "col": 2,
+          "row": -3
+        },
+        {
+          "col": -2,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": 2,
+          "row": -2
+        },
+        {
+          "col": -2,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": 2,
+          "row": -1
+        },
+        {
+          "col": -2,
+          "row": 0
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        },
+        {
+          "col": 2,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-monk.idle",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Monk/Idle.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Monk",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "monk",
+      "idle",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 58,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-pawn.pawn-idle",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Idle.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "pawn",
+      "idle",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-pawn.pawn-idle-axe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Idle Axe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "pawn",
+      "idle",
+      "axe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-pawn.pawn-idle-gold",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Idle Gold.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "pawn",
+      "idle",
+      "gold",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-pawn.pawn-idle-hammer",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Idle Hammer.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "pawn",
+      "idle",
+      "hammer",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-pawn.pawn-idle-knife",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Idle Knife.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "pawn",
+      "idle",
+      "knife",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-pawn.pawn-idle-meat",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Idle Meat.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "pawn",
+      "idle",
+      "meat",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-pawn.pawn-idle-pickaxe",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Idle Pickaxe.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "pawn",
+      "idle",
+      "pickaxe",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-pawn.pawn-idle-wood",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Idle Wood.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Pawn",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "pawn",
+      "idle",
+      "wood",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "character.units-yellow-units-warrior.warrior-idle",
+    "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Warrior/Warrior_Idle.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "character",
+    "category": "Units/Yellow Units/Warrior",
+    "role": "character-animation",
+    "tags": [
+      "units",
+      "yellow",
+      "warrior",
+      "idle",
+      "character",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 55,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "characters",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
     "id": "decoration.deco.01",
     "sourcePath": "Tiny Swords (Update 010)/Deco/01.png",
     "pack": "Tiny Swords (Update 010)",
@@ -6643,6 +11558,1930 @@ export const GENERATED_EDITOR_ASSETS = [
       "category": "small-decor",
       "allowedTerrain": [
         "water"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-caveborn-bear.bear-idle",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Bear/Bear_Idle.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Caveborn/Bear",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "caveborn",
+      "bear",
+      "idle"
+    ],
+    "width": 256,
+    "height": 256,
+    "nature": "animated",
+    "frame": {
+      "width": 256,
+      "height": 256,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 79,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -2,
+          "row": -3
+        },
+        {
+          "col": -1,
+          "row": -3
+        },
+        {
+          "col": 0,
+          "row": -3
+        },
+        {
+          "col": 1,
+          "row": -3
+        },
+        {
+          "col": -2,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -2,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -2,
+          "row": 0
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-caveborn-lizard.lizard-idle",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Lizard/Lizard_Idle.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Caveborn/Lizard",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "caveborn",
+      "lizard",
+      "idle"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 7,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 40,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-caveborn-snake.snake-idle",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Snake/Snake_Idle.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Caveborn/Snake",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "caveborn",
+      "snake",
+      "idle"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 69,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-caveborn-spider.spider-idle",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Spider/Spider_Idle.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Caveborn/Spider",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "caveborn",
+      "spider",
+      "idle"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 55,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-caveborn-turtle.turtle-idle",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Caveborn/Turtle/Turtle_Idle.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Caveborn/Turtle",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "caveborn",
+      "turtle",
+      "idle"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 10,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 112,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -2,
+          "row": -4
+        },
+        {
+          "col": -1,
+          "row": -4
+        },
+        {
+          "col": 0,
+          "row": -4
+        },
+        {
+          "col": 1,
+          "row": -4
+        },
+        {
+          "col": 2,
+          "row": -4
+        },
+        {
+          "col": -2,
+          "row": -3
+        },
+        {
+          "col": -1,
+          "row": -3
+        },
+        {
+          "col": 0,
+          "row": -3
+        },
+        {
+          "col": 1,
+          "row": -3
+        },
+        {
+          "col": 2,
+          "row": -3
+        },
+        {
+          "col": -2,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": 2,
+          "row": -2
+        },
+        {
+          "col": -2,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": 2,
+          "row": -1
+        },
+        {
+          "col": -2,
+          "row": 0
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        },
+        {
+          "col": 2,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-gnoll.gnoll-idle",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Gnoll/Gnoll_Idle.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Gnoll",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "gnoll",
+      "idle"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-gnome.gnome-idle",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Gnome/Gnome_Idle.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Gnome",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "gnome",
+      "idle"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 65,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-goblin-raiders-hex-shaman.hex-shaman-idle",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Hex Shaman/Hex Shaman_Idle.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Goblin Raiders/Hex Shaman",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "goblin",
+      "raiders",
+      "hex",
+      "shaman",
+      "idle"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 55,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-goblin-raiders-pig-rider-spear-goblin.pig-rider-idle",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Pig Rider Spear Goblin/Pig Rider_Idle.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Goblin Raiders/Pig Rider Spear Goblin",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "goblin",
+      "raiders",
+      "pig",
+      "rider",
+      "spear",
+      "idle"
+    ],
+    "width": 256,
+    "height": 256,
+    "nature": "animated",
+    "frame": {
+      "width": 256,
+      "height": 256,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 90,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -2,
+          "row": -3
+        },
+        {
+          "col": -1,
+          "row": -3
+        },
+        {
+          "col": 0,
+          "row": -3
+        },
+        {
+          "col": 1,
+          "row": -3
+        },
+        {
+          "col": -2,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -2,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -2,
+          "row": 0
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-goblin-raiders-pig.pig-idle",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Pig/Pig_Idle.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Goblin Raiders/Pig",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "goblin",
+      "raiders",
+      "pig",
+      "idle"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 10,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 58,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-goblin-raiders-spear-goblin.spear-goblin-idle",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Spear Goblin/Spear Goblin_Idle.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Goblin Raiders/Spear Goblin",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "goblin",
+      "raiders",
+      "spear",
+      "idle"
+    ],
+    "width": 256,
+    "height": 256,
+    "nature": "animated",
+    "frame": {
+      "width": 256,
+      "height": 256,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 80,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -2,
+          "row": -3
+        },
+        {
+          "col": -1,
+          "row": -3
+        },
+        {
+          "col": 0,
+          "row": -3
+        },
+        {
+          "col": 1,
+          "row": -3
+        },
+        {
+          "col": -2,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -2,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -2,
+          "row": 0
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-goblin-raiders-torch-goblin.torch-goblin-idle",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Torch Goblin/Torch Goblin_Idle.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Goblin Raiders/Torch Goblin",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "goblin",
+      "raiders",
+      "torch",
+      "idle"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 59,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-minotaur.minotaur-idle",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Minotaur/Minotaur_Idle.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Minotaur",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "minotaur",
+      "idle"
+    ],
+    "width": 320,
+    "height": 320,
+    "nature": "animated",
+    "frame": {
+      "width": 320,
+      "height": 320,
+      "count": 16,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 106,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -2,
+          "row": -4
+        },
+        {
+          "col": -1,
+          "row": -4
+        },
+        {
+          "col": 0,
+          "row": -4
+        },
+        {
+          "col": 1,
+          "row": -4
+        },
+        {
+          "col": 2,
+          "row": -4
+        },
+        {
+          "col": -2,
+          "row": -3
+        },
+        {
+          "col": -1,
+          "row": -3
+        },
+        {
+          "col": 0,
+          "row": -3
+        },
+        {
+          "col": 1,
+          "row": -3
+        },
+        {
+          "col": 2,
+          "row": -3
+        },
+        {
+          "col": -2,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": 2,
+          "row": -2
+        },
+        {
+          "col": -2,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": 2,
+          "row": -1
+        },
+        {
+          "col": -2,
+          "row": 0
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        },
+        {
+          "col": 2,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-panda.panda-idle",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Panda/Panda_Idle.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Panda",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "panda",
+      "idle"
+    ],
+    "width": 256,
+    "height": 256,
+    "nature": "animated",
+    "frame": {
+      "width": 256,
+      "height": 256,
+      "count": 10,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 84,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -2,
+          "row": -3
+        },
+        {
+          "col": -1,
+          "row": -3
+        },
+        {
+          "col": 0,
+          "row": -3
+        },
+        {
+          "col": 1,
+          "row": -3
+        },
+        {
+          "col": -2,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -2,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -2,
+          "row": 0
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-pirate-fish-bomb-fish.bomb-fish-idle",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Pirate Fish/Bomb Fish/Bomb Fish_Idle.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Pirate Fish/Bomb Fish",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "pirate",
+      "fish",
+      "bomb",
+      "idle"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-pirate-fish-bomb.bomb-idle",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Pirate Fish/Bomb/Bomb_Idle.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Pirate Fish/Bomb",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "pirate",
+      "fish",
+      "bomb",
+      "idle"
+    ],
+    "width": 128,
+    "height": 128,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 43,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-pirate-fish-harpoon-shark.harpoon-shark-idle",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Pirate Fish/Harpoon Shark/Harpoon Shark_Idle.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Pirate Fish/Harpoon Shark",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "pirate",
+      "fish",
+      "harpoon",
+      "shark",
+      "idle"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 56,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-pirate-fish-paddle-shark.paddle-shark-idle",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Pirate Fish/Paddle Shark/Paddle Shark_Idle.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Pirate Fish/Paddle Shark",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "pirate",
+      "fish",
+      "paddle",
+      "shark",
+      "idle"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 56,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-skull.skull-idle",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Skull/Skull_Idle.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Skull",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "skull",
+      "idle"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 62,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-thief.thief-idle",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Thief/Thief_Idle.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Thief",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "thief",
+      "idle"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 6,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 60,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
+      ]
+    }
+  },
+  {
+    "id": "enemy.enemy-pack-enemies-troll.troll-idle",
+    "sourcePath": "Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Troll/Troll_Idle.png",
+    "pack": "Tiny Swords (Enemy Pack)",
+    "domain": "enemy",
+    "category": "Enemy Pack/Enemies/Troll",
+    "role": "enemy-animation",
+    "tags": [
+      "enemy",
+      "pack",
+      "enemies",
+      "troll",
+      "idle"
+    ],
+    "width": 384,
+    "height": 384,
+    "nature": "animated",
+    "frame": {
+      "width": 384,
+      "height": 384,
+      "count": 12,
+      "axis": "x",
+      "durationMs": 1400
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 87,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -3,
+          "row": -5
+        },
+        {
+          "col": -2,
+          "row": -5
+        },
+        {
+          "col": -1,
+          "row": -5
+        },
+        {
+          "col": 0,
+          "row": -5
+        },
+        {
+          "col": 1,
+          "row": -5
+        },
+        {
+          "col": 2,
+          "row": -5
+        },
+        {
+          "col": -3,
+          "row": -4
+        },
+        {
+          "col": -2,
+          "row": -4
+        },
+        {
+          "col": -1,
+          "row": -4
+        },
+        {
+          "col": 0,
+          "row": -4
+        },
+        {
+          "col": 1,
+          "row": -4
+        },
+        {
+          "col": 2,
+          "row": -4
+        },
+        {
+          "col": -3,
+          "row": -3
+        },
+        {
+          "col": -2,
+          "row": -3
+        },
+        {
+          "col": -1,
+          "row": -3
+        },
+        {
+          "col": 0,
+          "row": -3
+        },
+        {
+          "col": 1,
+          "row": -3
+        },
+        {
+          "col": 2,
+          "row": -3
+        },
+        {
+          "col": -3,
+          "row": -2
+        },
+        {
+          "col": -2,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": 2,
+          "row": -2
+        },
+        {
+          "col": -3,
+          "row": -1
+        },
+        {
+          "col": -2,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": 2,
+          "row": -1
+        },
+        {
+          "col": -3,
+          "row": 0
+        },
+        {
+          "col": -2,
+          "row": 0
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        },
+        {
+          "col": 2,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "creatures",
+      "allowedTerrain": [
+        "grass"
       ]
     }
   },

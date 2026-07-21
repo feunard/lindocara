@@ -5,6 +5,7 @@
  * server can acknowledge exactly what it applied; actions are still just intent.
  */
 
+import type { AuthoredQuestTracker } from "./adventure-state.js";
 import {
   type CharacterAppearance,
   type Equipment,
@@ -159,6 +160,8 @@ export interface SelfState {
   xpToNext: number;
   inventory: Inventory;
   quest: QuestState;
+  /** Authored party quests. Optional while rolling across an older server/client pair. */
+  authoredQuests?: readonly AuthoredQuestTracker[];
   life: LifeState;
   /** Where your body lies, so the HUD can point you at it. Null unless you are dead. */
   corpse: { x: number; y: number } | null;
@@ -786,6 +789,32 @@ function isSelfState(value: unknown): value is SelfState {
     return false;
   }
   if (value.life === "alive" ? value.corpse !== null : value.corpse === null) return false;
+  if (
+    value.authoredQuests !== undefined &&
+    (!Array.isArray(value.authoredQuests) ||
+      value.authoredQuests.length > 64 ||
+      !value.authoredQuests.every(
+        (quest) =>
+          isRecord(quest) &&
+          typeof quest.id === "string" &&
+          isBoundedString(quest.title, 64) &&
+          isBoundedString(quest.description, 240, true) &&
+          (quest.status === "active" || quest.status === "ready" || quest.status === "completed") &&
+          Array.isArray(quest.objectives) &&
+          quest.objectives.length <= 8 &&
+          quest.objectives.every(
+            (objective) =>
+              isRecord(objective) &&
+              typeof objective.id === "string" &&
+              isBoundedString(objective.label, 96, true) &&
+              isNonNegativeInteger(objective.progress) &&
+              isNonNegativeInteger(objective.target) &&
+              objective.target > 0,
+          ),
+      ))
+  ) {
+    return false;
+  }
   if (
     value.resource !== undefined &&
     (!isRecord(value.resource) ||

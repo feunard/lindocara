@@ -5,6 +5,7 @@ import {
   blankMap,
   commitEditorHistory,
   commitEventDraft,
+  convertElementToEvent,
   createEditorHistory,
   defaultEventPage,
   deleteSelection,
@@ -239,6 +240,35 @@ describe("applyTool: element", () => {
     expect(replaced?.elements.find((e) => e.col === 10 && e.row === 2)?.assetId).toBe(
       SMALL_DECOR_ALT,
     );
+  });
+});
+
+describe("convertElementToEvent", () => {
+  it("preserves the real asset and makes one-shot loot non-repeatable", () => {
+    const placed = applyTool(
+      blankMap("m", 20, 15),
+      { kind: "element", assetId: BUSH },
+      4,
+      4,
+      true,
+      "element",
+      2,
+      1,
+    );
+    expect(placed).not.toBeNull();
+    const converted = convertElementToEvent(
+      placed as EditorMap,
+      { kind: "element", col: 4, row: 4, offsetX: 2, offsetY: 1 },
+      { name: "Coffre", commands: [{ t: "changeGold", amount: 10 }], once: true },
+    );
+    expect(converted).not.toBeNull();
+    expect(converted?.map.elements).toEqual([]);
+    expect(converted?.map.events[0]?.pages[0]?.graphicAssetId).toBe(BUSH);
+    expect(converted?.map.events[0]?.pages[0]?.commands).toEqual([
+      { t: "changeGold", amount: 10 },
+      { t: "setSelfSwitch", selfSwitch: "A", value: true },
+    ]);
+    expect(converted?.map.events[0]?.pages[1]?.condSelfSwitch).toBe("A");
   });
 });
 

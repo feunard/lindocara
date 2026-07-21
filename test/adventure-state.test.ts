@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import {
   type AdventureRegistry,
   activePageIndex,
+  authoredQuestTrackers,
   EMPTY_ADVENTURE_STATE,
   EMPTY_REGISTRY,
   MAX_REGISTRY_SWITCHES,
@@ -80,6 +81,38 @@ describe("parseAdventureRegistry: good payloads round-trip unchanged", () => {
       variables: [entry({ id: "0001", name: "Or" })],
     };
     expect(parseAdventureRegistry(registry)).toEqual(registry);
+  });
+
+  it("round-trips authored quests and derives a ready player tracker", () => {
+    const registry: AdventureRegistry = {
+      switches: [],
+      variables: [],
+      quests: [
+        {
+          id: "0001",
+          title: "Chasse aux gobelins",
+          description: "Protéger le village.",
+          objectives: [{ id: "0001", label: "Gobelins vaincus", target: 2 }],
+        },
+      ],
+    };
+    expect(parseAdventureRegistry(registry)).toEqual(registry);
+    expect(
+      authoredQuestTrackers(
+        registry,
+        state({
+          quests: { "0001": { status: "active", objectives: { "0001": 2 } } },
+        }),
+      ),
+    ).toEqual([
+      {
+        id: "0001",
+        title: "Chasse aux gobelins",
+        description: "Protéger le village.",
+        status: "ready",
+        objectives: [{ id: "0001", label: "Gobelins vaincus", progress: 2, target: 2 }],
+      },
+    ]);
   });
 
   it("accepts exactly the name length maximum", () => {

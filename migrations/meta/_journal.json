@@ -190,6 +190,13 @@
       "when": 1784621282578,
       "tag": "0026_eminent_nemesis",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1784653353935,
+      "tag": "0027_secret_stone_men",
+      "breakpoints": true
     }
   ]
 }

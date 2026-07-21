@@ -20,6 +20,7 @@ import { describe, expect, it } from "vitest";
 import { EMPTY_ADVENTURE_STATE, type PartyAdventureState } from "../src/shared/adventure-state.js";
 import type { EventCommand } from "../src/shared/event-commands.js";
 import {
+  applyStateMutation,
   type EventEffect,
   type RunContext,
   resumeWithAdvance,
@@ -139,6 +140,26 @@ describe("stepEventRun — the per-opcode table", () => {
       { kind: "changeItems", itemId: "health_potion", count: 2 },
     ]);
     expect(drained.context.status).toBe("done");
+  });
+
+  it("starts, advances and completes a party-owned authored quest", () => {
+    let snapshot = state();
+    snapshot = applyStateMutation(snapshot, { type: "startQuest", questId: "0001" });
+    snapshot = applyStateMutation(snapshot, {
+      type: "advanceQuest",
+      questId: "0001",
+      objectiveId: "0001",
+      amount: 2,
+    });
+    snapshot = applyStateMutation(snapshot, { type: "completeQuest", questId: "0001" });
+    expect(snapshot.quests).toEqual({
+      "0001": { status: "completed", objectives: { "0001": 2 } },
+    });
+
+    const result = stepEventRun(run([{ t: "startQuest", questId: "0002" }]), snapshot);
+    expect(result.effects).toEqual([
+      { kind: "mutateState", op: { type: "startQuest", questId: "0002" } },
+    ]);
   });
 
   it("comment produces no effect and advances", () => {

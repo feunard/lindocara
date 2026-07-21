@@ -48,9 +48,31 @@ export const REGISTRY_ENTRY_NAME_MAX = 32;
 export const MAX_REGISTRY_SWITCHES = 200;
 export const MAX_REGISTRY_VARIABLES = 200;
 
+export const MAX_AUTHORED_QUESTS = 64;
+export const MAX_QUEST_OBJECTIVES = 8;
+export const QUEST_TITLE_MAX = 64;
+export const QUEST_DESCRIPTION_MAX = 240;
+export const QUEST_OBJECTIVE_LABEL_MAX = 96;
+export const QUEST_OBJECTIVE_TARGET_MAX = 9999;
+
+export interface AuthoredQuestObjective {
+  id: string;
+  label: string;
+  target: number;
+}
+
+export interface AuthoredQuestDefinition {
+  id: string;
+  title: string;
+  description: string;
+  objectives: readonly AuthoredQuestObjective[];
+}
+
 export interface AdventureRegistry {
   switches: readonly RegistryEntry[];
   variables: readonly RegistryEntry[];
+  /** Optional on old API payloads; parsers normalize it to an empty list. */
+  quests?: readonly AuthoredQuestDefinition[];
 }
 
 export const EMPTY_REGISTRY: AdventureRegistry = { switches: [], variables: [] };
@@ -67,7 +89,7 @@ const MAX_REGISTRY_ORDINAL = 9999;
  * Returns `null` when the highest ordinal is already `9999` (no monotone id is left); callers gate
  * the add affordance on that and on the per-list size cap.
  */
-export function mintRegistryId(entries: readonly RegistryEntry[]): string | null {
+export function mintRegistryId(entries: readonly { id: string }[]): string | null {
   let highest = 0;
   for (const entry of entries) {
     const ordinal = Number.parseInt(entry.id, 10);
@@ -116,13 +138,61 @@ function parseRegistryList(value: unknown, max: number): RegistryEntry[] | null 
   return entries;
 }
 
+function boundedText(value: unknown, max: number): string | null {
+  if (typeof value !== "string") return null;
+  const text = value.trim();
+  return text.length <= max ? text : null;
+}
+
+function parseQuestObjective(raw: unknown): AuthoredQuestObjective | null {
+  if (!isPlainObject(raw) || typeof raw.id !== "string" || !REGISTRY_ID_PATTERN.test(raw.id)) {
+    return null;
+  }
+  const label = boundedText(raw.label, QUEST_OBJECTIVE_LABEL_MAX);
+  if (label === null || !Number.isSafeInteger(raw.target)) return null;
+  const target = raw.target as number;
+  if (target < 1 || target > QUEST_OBJECTIVE_TARGET_MAX) return null;
+  return { id: raw.id, label, target };
+}
+
+function parseQuests(value: unknown): AuthoredQuestDefinition[] | null {
+  // Adventures saved before authored quests existed have no `quests` key.
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > MAX_AUTHORED_QUESTS) return null;
+  const ids = new Set<string>();
+  const quests: AuthoredQuestDefinition[] = [];
+  for (const raw of value) {
+    if (!isPlainObject(raw) || typeof raw.id !== "string" || !REGISTRY_ID_PATTERN.test(raw.id)) {
+      return null;
+    }
+    if (ids.has(raw.id)) return null;
+    const title = boundedText(raw.title, QUEST_TITLE_MAX);
+    const description = boundedText(raw.description, QUEST_DESCRIPTION_MAX);
+    if (title === null || description === null) return null;
+    if (!Array.isArray(raw.objectives) || raw.objectives.length > MAX_QUEST_OBJECTIVES) return null;
+    const objectiveIds = new Set<string>();
+    const objectives: AuthoredQuestObjective[] = [];
+    for (const objectiveRaw of raw.objectives) {
+      const objective = parseQuestObjective(objectiveRaw);
+      if (!objective || objectiveIds.has(objective.id)) return null;
+      objectiveIds.add(objective.id);
+      objectives.push(objective);
+    }
+    ids.add(raw.id);
+    quests.push({ id: raw.id, title, description, objectives });
+  }
+  return quests;
+}
+
 export function parseAdventureRegistry(value: unknown): AdventureRegistry | null {
   if (!isPlainObject(value)) return null;
   const switches = parseRegistryList(value.switches, MAX_REGISTRY_SWITCHES);
   if (!switches) return null;
   const variables = parseRegistryList(value.variables, MAX_REGISTRY_VARIABLES);
   if (!variables) return null;
-  return { switches, variables };
+  const quests = parseQuests(value.quests);
+  if (!quests) return null;
+  return { switches, variables, ...(quests.length > 0 ? { quests } : {}) };
 }
 
 /**
@@ -136,6 +206,26 @@ export interface PartyAdventureState {
   switches: Record<string, boolean>;
   variables: Record<string, number>;
   selfSwitches: Record<string, boolean>;
+  /** Optional only for source compatibility with saves created before authored quests. */
+  quests?: Record<string, AuthoredQuestProgress>;
+}
+
+export interface AuthoredQuestProgress {
+  status: "active" | "completed";
+  objectives: Record<string, number>;
+}
+
+export interface AuthoredQuestTracker {
+  id: string;
+  title: string;
+  description: string;
+  status: "active" | "ready" | "completed";
+  objectives: readonly {
+    id: string;
+    label: string;
+    progress: number;
+    target: number;
+  }[];
 }
 
 export const EMPTY_ADVENTURE_STATE: PartyAdventureState = {
@@ -193,6 +283,33 @@ function parseSelfSwitches(value: unknown): Record<string, boolean> | null {
   return selfSwitches;
 }
 
+function parseQuestProgress(value: unknown): Record<string, AuthoredQuestProgress> | null {
+  if (value === undefined) return {};
+  if (!isPlainObject(value) || Object.keys(value).length > MAX_AUTHORED_QUESTS) return null;
+  const quests: Record<string, AuthoredQuestProgress> = {};
+  for (const [questId, raw] of Object.entries(value)) {
+    if (!REGISTRY_ID_PATTERN.test(questId) || !isPlainObject(raw)) return null;
+    if (raw.status !== "active" && raw.status !== "completed") return null;
+    if (!isPlainObject(raw.objectives)) return null;
+    const entries = Object.entries(raw.objectives);
+    if (entries.length > MAX_QUEST_OBJECTIVES) return null;
+    const objectives: Record<string, number> = {};
+    for (const [objectiveId, progress] of entries) {
+      if (
+        !REGISTRY_ID_PATTERN.test(objectiveId) ||
+        !Number.isSafeInteger(progress) ||
+        (progress as number) < 0 ||
+        (progress as number) > QUEST_OBJECTIVE_TARGET_MAX
+      ) {
+        return null;
+      }
+      objectives[objectiveId] = progress as number;
+    }
+    quests[questId] = { status: raw.status, objectives };
+  }
+  return quests;
+}
+
 export function parsePartyAdventureState(value: unknown): PartyAdventureState | null {
   if (!isPlainObject(value)) return null;
   const switches = parseSwitches(value.switches);
@@ -201,7 +318,68 @@ export function parsePartyAdventureState(value: unknown): PartyAdventureState | 
   if (!variables) return null;
   const selfSwitches = parseSelfSwitches(value.selfSwitches);
   if (!selfSwitches) return null;
-  return { switches, variables, selfSwitches };
+  const quests = parseQuestProgress(value.quests);
+  if (!quests) return null;
+  return {
+    switches,
+    variables,
+    selfSwitches,
+    ...(Object.keys(quests).length > 0 ? { quests } : {}),
+  };
+}
+
+/** The player-facing tracker is derived from authored definitions plus party-owned progress. */
+export function authoredQuestTrackers(
+  registry: AdventureRegistry,
+  state: PartyAdventureState,
+): AuthoredQuestTracker[] {
+  const progressByQuest = state.quests ?? {};
+  const trackers: AuthoredQuestTracker[] = [];
+  for (const quest of registry.quests ?? []) {
+    const progress = progressByQuest[quest.id];
+    if (!progress) continue;
+    const objectives = quest.objectives.map((objective) => ({
+      ...objective,
+      progress: Math.min(objective.target, progress.objectives[objective.id] ?? 0),
+    }));
+    const ready = objectives.length > 0 && objectives.every((item) => item.progress >= item.target);
+    trackers.push({
+      id: quest.id,
+      title: quest.title || `Quête ${quest.id}`,
+      description: quest.description,
+      status: progress.status === "completed" ? "completed" : ready ? "ready" : "active",
+      objectives,
+    });
+  }
+  return trackers;
+}
+
+/**
+ * Keep durable quest progress inside the currently-authored registry. This is the runtime's
+ * referential-integrity boundary: stale quest/objective ids are dropped and stored progress is
+ * clamped to the authored target, so deleting or reducing an objective cannot leave an invalid save
+ * behind. The event language validates id shape rather than registry membership; the party
+ * coordinator applies this normalization because it owns both the registry and the save.
+ */
+export function normalizeAuthoredQuestProgress(
+  registry: AdventureRegistry,
+  state: PartyAdventureState,
+): PartyAdventureState {
+  if (state.quests === undefined) return state;
+  const definitions = new Map((registry.quests ?? []).map((quest) => [quest.id, quest]));
+  const quests: Record<string, AuthoredQuestProgress> = {};
+  for (const [questId, progress] of Object.entries(state.quests)) {
+    const definition = definitions.get(questId);
+    if (!definition) continue;
+    const objectives: Record<string, number> = {};
+    for (const objective of definition.objectives) {
+      const value = progress.objectives[objective.id];
+      if (value !== undefined) objectives[objective.id] = Math.min(objective.target, value);
+    }
+    quests[questId] = { status: progress.status, objectives };
+  }
+  const { quests: _staleQuests, ...base } = state;
+  return Object.keys(quests).length > 0 ? { ...base, quests } : base;
 }
 
 /**

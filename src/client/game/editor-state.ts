@@ -391,6 +391,63 @@ export function updateSelectedElementOffset(
   );
 }
 
+export interface ElementEventBinding {
+  name: string;
+  commands: readonly MapEventPage["commands"][number][];
+  /** One-shot objects (chests/loot) switch to an empty second page after their first run. */
+  once?: boolean;
+}
+
+/** Promote scenery into a stable scripted event while preserving its cell and catalogue graphic. */
+export function convertElementToEvent(
+  map: EditorMap,
+  selection: Extract<EditorSelection, { kind: "element" }>,
+  binding: ElementEventBinding,
+): { map: EditorMap; eventId: string } | null {
+  if (map.events.length >= MAX_EVENTS_PER_MAP) return null;
+  const element = map.elements.find((candidate) => sameElementSlot(candidate, selection));
+  if (!element) return null;
+  if (map.events.some((event) => event.col === element.col && event.row === element.row))
+    return null;
+  const eventId = crypto.randomUUID();
+  const firstPage: MapEventPage = {
+    ...defaultEventPage(),
+    graphicAssetId: element.assetId,
+    commands: binding.once
+      ? [...binding.commands, { t: "setSelfSwitch", selfSwitch: "A", value: true }]
+      : binding.commands,
+  };
+  const pages: MapEventPage[] = binding.once
+    ? [
+        firstPage,
+        {
+          ...defaultEventPage(),
+          condSelfSwitch: "A",
+          optThrough: true,
+        },
+      ]
+    : [firstPage];
+  const event: MapEvent = {
+    id: eventId,
+    col: element.col,
+    row: element.row,
+    name: binding.name,
+    ordinal: nextEventOrdinal(map.events),
+    kind: "normal",
+    species: null,
+    patrolRadius: null,
+    pages,
+  };
+  return {
+    eventId,
+    map: {
+      ...map,
+      elements: map.elements.filter((candidate) => !sameElementSlot(candidate, selection)),
+      events: [...map.events, event],
+    },
+  };
+}
+
 /**
  * The event dialog edits a detached DRAFT, never the live map: `beginEventDraft` hands back a deep
  * copy of one event, the pure mutators below fold changes into that copy, and only `commitEventDraft`

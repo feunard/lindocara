@@ -8,7 +8,7 @@ import { EditorModeControl } from "../../src/client/ui/editor/EditorModeControl.
 describe("EditorModeControl", () => {
   it("marks the active mode pressed", () => {
     render(<EditorModeControl mode="element" onSelect={() => {}} />);
-    expect(screen.getByRole("button", { name: /element|élément/i })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: /scenery|décors/i })).toHaveAttribute(
       "aria-pressed",
       "true",
     );

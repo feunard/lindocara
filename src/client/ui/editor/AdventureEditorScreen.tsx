@@ -71,6 +71,7 @@ import {
 import { FirstSaveDialog } from "./FirstSaveDialog.js";
 import { LoadAdventureDialog } from "./LoadAdventureDialog.js";
 import { MapListPanel } from "./MapListPanel.js";
+import { ObjectBindingDialog } from "./ObjectBindingDialog.js";
 import { RegistryDialog } from "./RegistryDialog.js";
 
 /** The default terrain a fresh stroke paints with until the Task 9 terrain palette lands: flat grass,
@@ -359,6 +360,10 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   // The event whose dialog is open, keyed by uuid. Set by a stage double-click (`onOpenEvent`) or by
   // pressing Enter on a selected event; cleared on save/delete/cancel.
   const [openEventId, setOpenEventId] = useState<string | null>(null);
+  const [bindingSelection, setBindingSelection] = useState<Extract<
+    EditorSelection,
+    { kind: "element" }
+  > | null>(null);
   // Bumped after every save/create so the map panel refetches names and dimensions.
   const [mapsRefreshNonce, setMapsRefreshNonce] = useState(0);
 
@@ -446,7 +451,12 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         setSelection(state.selection);
       },
       (col, row) => setCursor(col === null || row === null ? null : { col, row }),
-      (id) => setOpenEventId(id),
+      (target: EditorSelection | string) => {
+        // Keep compatibility with the former callback shape used by older stage mocks.
+        if (typeof target === "string") setOpenEventId(target);
+        else if (target.kind === "event") setOpenEventId(target.id);
+        else if (target.kind === "element") setBindingSelection(target);
+      },
       (percent) => setZoomState(percent),
     )
       .then((handle) => {
@@ -944,6 +954,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       databaseOpen ||
       loadOpen ||
       openEventId !== null ||
+      bindingSelection !== null ||
       firstSaveOpen
     )
       return;
@@ -1166,7 +1177,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
 
         <ResizablePanel defaultSize="64" className="min-h-0">
           {/* The stage draws on the sibling #stage canvas behind #root; this pane is its viewport.
-              The decoration palette now lives in the left TerrainPalette, not floating over here. */}
+              The active mode's palette lives in the left pane, not floating over the canvas. */}
           <section
             className="relative h-full min-h-0 overflow-hidden"
             aria-label={t("editor.shell.stage.aria")}
@@ -1218,6 +1229,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
                   }
                   onOpenEditor={() => {
                     if (selection.kind === "event") setOpenEventId(selection.id);
+                    if (selection.kind === "element") setBindingSelection(selection);
                   }}
                   onDelete={() => handleRef.current?.deleteSelected()}
                 />
@@ -1307,6 +1319,31 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         />
       )}
 
+      {bindingSelection &&
+        currentMap &&
+        (() => {
+          const element = currentMap.elements.find((candidate) =>
+            sameElementSlot(candidate, bindingSelection),
+          );
+          if (!element) return null;
+          return (
+            <ObjectBindingDialog
+              assetId={element.assetId}
+              quests={registry.quests ?? []}
+              onCancel={() => setBindingSelection(null)}
+              onOpenQuestDatabase={() => {
+                setBindingSelection(null);
+                setDatabaseOpen(true);
+              }}
+              onBind={(binding) => {
+                const id = handleRef.current?.bindSelectedElement(binding) ?? null;
+                setBindingSelection(null);
+                if (id) setOpenEventId(id);
+              }}
+            />
+          );
+        })()}
+
       <EditorStatusBar
         mapName={map?.name ?? "—"}
         cols={map?.cols ?? 0}
@@ -1389,15 +1426,23 @@ function SelectionInspector({
       )}
 
       {selectedElement && (
-        <div className="flex items-center gap-2">
-          {selectedElementAsset && <EditorAssetPreview asset={selectedElementAsset} size={48} />}
-          <p className="min-w-0 text-[11px] text-zinc-500">
-            <span className="block truncate">{selectedElement.assetId}</span>
-            {selectedElementAsset?.editor.collider
-              ? t("editor.palette.collision")
-              : t("editor.inspector.walkable")}
+        <>
+          <div className="flex items-center gap-2">
+            {selectedElementAsset && <EditorAssetPreview asset={selectedElementAsset} size={48} />}
+            <p className="min-w-0 text-[11px] text-zinc-500">
+              <span className="block truncate">{selectedElement.assetId}</span>
+              {selectedElementAsset?.editor.collider
+                ? t("editor.palette.collision")
+                : t("editor.inspector.walkable")}
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={onOpenEditor}>
+            {t("editor.binding.makeInteractive")}
+          </Button>
+          <p className="text-[10.5px] text-muted-foreground">
+            {t("editor.binding.doubleClickHint")}
           </p>
-        </div>
+        </>
       )}
 
       {position && (

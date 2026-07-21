@@ -286,9 +286,9 @@ describe("EventCommandEditor", () => {
 
     await user.click(screen.getByRole("button", { name: t("editor.event.cmd.insert") }));
     const menu = screen.getByRole("menu", { name: t("editor.event.cmd.insert") });
-    // Fourteen commands ship this tranche; deferred ones (common event, input number, move route,
-    // audio/screen) are absent.
-    expect(within(menu).getAllByRole("menuitem")).toHaveLength(14);
+    // The core event language plus three authored-quest commands; deferred common-event/audio and
+    // screen commands remain absent.
+    expect(within(menu).getAllByRole("menuitem")).toHaveLength(17);
     expect(within(menu).queryByText(/common event/i)).toBeNull();
     expect(within(menu).queryByText(/BGM/i)).toBeNull();
   });

@@ -1,10 +1,10 @@
 /**
- * `party_adventure_state`, the D1 boundary for a party's live switches/variables/self-switches
+ * `party_adventure_state`, the D1 boundary for a party's switches, variables, self-switches and
+ * authored quest progress
  * (`docs/superpowers/specs/2026-07-19-adventure-state-design.md`, Decision 2). This tranche only
  * installs the state: `GameSession` loads it once on first room admission and holds a read-only
- * snapshot for its rooms; nothing mutates a single switch/variable yet (tranche 5's interpreter),
- * so the only writes here are whole-state upserts on the coordinator's save debounce and on
- * party-empty.
+ * snapshot for its rooms. The interpreter mutates the held copy through the coordinator; writes
+ * here remain whole-state upserts on the save debounce and on party-empty.
  *
  * `loadPartyAdventureState` never throws: a missing row (no party has ever touched state) and a
  * corrupt row (should not happen, since the only writer is `savePartyAdventureState` below, but a
@@ -66,6 +66,7 @@ export async function loadPartyAdventureState(
       switches: JSON.parse(row.switches),
       variables: JSON.parse(row.variables),
       selfSwitches: JSON.parse(row.selfSwitches),
+      quests: JSON.parse(row.quests),
     };
   } catch {
     warnCorruptPartyState(partyId, "invalid_json");
@@ -119,6 +120,7 @@ export async function savePartyAdventureState(
     switches: JSON.stringify(pruned.switches),
     variables: JSON.stringify(pruned.variables),
     selfSwitches: JSON.stringify(pruned.selfSwitches),
+    quests: JSON.stringify(pruned.quests ?? {}),
     updatedAt: new Date(),
   };
   await db
@@ -130,6 +132,7 @@ export async function savePartyAdventureState(
         switches: values.switches,
         variables: values.variables,
         selfSwitches: values.selfSwitches,
+        quests: values.quests,
         updatedAt: values.updatedAt,
       },
     });

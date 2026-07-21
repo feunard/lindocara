@@ -94,6 +94,7 @@ export function EventPalette({
               {t("editor.shell.events.graphic.heading")}
             </div>
             <CatalogueAssetPicker
+              usage="event"
               value={pendingEventGraphic}
               onSelectAsset={onSelectEventGraphic}
               onSelectNone={() => onSelectEventGraphic(null)}

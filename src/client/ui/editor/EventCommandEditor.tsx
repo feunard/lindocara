@@ -1,6 +1,6 @@
 import type * as React from "react";
 import { useMemo, useState } from "react";
-import type { RegistryEntry } from "../../../shared/adventure-state.js";
+import type { AuthoredQuestDefinition, RegistryEntry } from "../../../shared/adventure-state.js";
 import { CONSUMABLE_IDS } from "../../../shared/consumables.js";
 import {
   COMMAND_TEXT_MAX,
@@ -48,6 +48,7 @@ interface EventCommandEditorProps {
    *  empty. */
   switches: readonly RegistryEntry[];
   variables: readonly RegistryEntry[];
+  quests?: readonly AuthoredQuestDefinition[];
   /** The adventure's maps, for a `teleport` destination Select. */
   maps: readonly TeleportMap[];
   onChange(commands: readonly EventCommand[]): void;
@@ -55,13 +56,21 @@ interface EventCommandEditorProps {
 
 /** The picker's vocabulary, grouped exactly as the wireframe's categories (minus the deferred
  *  commands). Each entry names the opcode a fresh command carries. */
-type CategoryKey = "messages" | "progression" | "control" | "character" | "party" | "other";
+type CategoryKey =
+  | "messages"
+  | "quests"
+  | "progression"
+  | "control"
+  | "character"
+  | "party"
+  | "other";
 
 const COMMAND_CATEGORIES: readonly {
   readonly key: CategoryKey;
   readonly kinds: readonly EventCommand["t"][];
 }[] = [
   { key: "messages", kinds: ["say", "choices"] },
+  { key: "quests", kinds: ["startQuest", "advanceQuest", "completeQuest"] },
   { key: "progression", kinds: ["setSwitch", "setVariable", "setSelfSwitch"] },
   { key: "control", kinds: ["if", "loop", "breakLoop", "exitRun"] },
   { key: "character", kinds: ["teleport", "wait"] },
@@ -80,6 +89,7 @@ function defaultCommand(
   ctx: {
     switches: readonly RegistryEntry[];
     variables: readonly RegistryEntry[];
+    quests: readonly AuthoredQuestDefinition[];
     maps: readonly TeleportMap[];
   },
 ): EventCommand | null {
@@ -118,6 +128,21 @@ function defaultCommand(
     case "changeItems": {
       const itemId = CONSUMABLE_IDS[0];
       return { t: "changeItems", itemId, count: 1 };
+    }
+    case "startQuest": {
+      const questId = ctx.quests[0]?.id;
+      return questId ? { t: "startQuest", questId } : null;
+    }
+    case "advanceQuest": {
+      const quest = ctx.quests.find((item) => item.objectives.length > 0);
+      const objectiveId = quest?.objectives[0]?.id;
+      return quest && objectiveId
+        ? { t: "advanceQuest", questId: quest.id, objectiveId, amount: 1 }
+        : null;
+    }
+    case "completeQuest": {
+      const questId = ctx.quests[0]?.id;
+      return questId ? { t: "completeQuest", questId } : null;
     }
     case "comment":
       return { t: "comment", text: "" };
@@ -270,6 +295,16 @@ function commandLine(command: EventCommand, maps: readonly TeleportMap[]): strin
         item: command.itemId,
         count: signed(command.count),
       });
+    case "startQuest":
+      return t("editor.event.cmd.startQuest", { id: command.questId });
+    case "advanceQuest":
+      return t("editor.event.cmd.advanceQuest", {
+        quest: command.questId,
+        objective: command.objectiveId,
+        amount: signed(command.amount),
+      });
+    case "completeQuest":
+      return t("editor.event.cmd.completeQuest", { id: command.questId });
     case "comment":
       return t("editor.event.cmd.comment", { text: command.text });
   }
@@ -325,6 +360,7 @@ export function EventCommandEditor({
   commands,
   switches,
   variables,
+  quests = [],
   maps,
   onChange,
 }: EventCommandEditorProps) {
@@ -335,7 +371,7 @@ export function EventCommandEditor({
 
   const rows = useMemo(() => flattenCommands(commands), [commands]);
   const selected = selection ? commandAt(commands, selection) : null;
-  const ctx = { switches, variables, maps };
+  const ctx = { switches, variables, quests, maps };
 
   const insert = (kind: EventCommand["t"]): void => {
     const command = defaultCommand(kind, ctx);
@@ -443,14 +479,23 @@ export function EventCommandEditor({
                     {t(`editor.event.cmd.cat.${category.key}`)}
                   </span>
                   {category.kinds.map((kind) => {
-                    const disabled = kind === "teleport" && maps.length === 0;
+                    const disabled =
+                      (kind === "teleport" && maps.length === 0) ||
+                      ((kind === "startQuest" || kind === "completeQuest") &&
+                        quests.length === 0) ||
+                      (kind === "advanceQuest" &&
+                        !quests.some((quest) => quest.objectives.length > 0));
+                    const disabledTitle =
+                      kind === "teleport"
+                        ? t("editor.event.cmd.teleport.noMaps")
+                        : t("editor.event.cmd.quest.noQuests");
                     return (
                       <button
                         key={kind}
                         type="button"
                         role="menuitem"
                         disabled={disabled}
-                        title={disabled ? t("editor.event.cmd.teleport.noMaps") : undefined}
+                        title={disabled ? disabledTitle : undefined}
                         className="rounded-md px-2 py-1 text-left text-xs text-zinc-800 hover:bg-zinc-100 disabled:text-zinc-300 disabled:hover:bg-transparent"
                         onClick={() => insert(kind)}
                       >
@@ -496,6 +541,7 @@ export function EventCommandEditor({
             command={selected}
             switches={switches}
             variables={variables}
+            quests={quests}
             maps={maps}
             onChange={replaceSelected}
           />
@@ -581,12 +627,14 @@ function ParamEditor({
   command,
   switches,
   variables,
+  quests,
   maps,
   onChange,
 }: {
   command: EventCommand;
   switches: readonly RegistryEntry[];
   variables: readonly RegistryEntry[];
+  quests: readonly AuthoredQuestDefinition[];
   maps: readonly TeleportMap[];
   onChange(command: EventCommand): void;
 }) {
@@ -600,6 +648,7 @@ function ParamEditor({
         command={command}
         switches={switches}
         variables={variables}
+        quests={quests}
         maps={maps}
         onChange={onChange}
       />
@@ -611,12 +660,14 @@ function ParamBody({
   command,
   switches,
   variables,
+  quests,
   maps,
   onChange,
 }: {
   command: EventCommand;
   switches: readonly RegistryEntry[];
   variables: readonly RegistryEntry[];
+  quests: readonly AuthoredQuestDefinition[];
   maps: readonly TeleportMap[];
   onChange(command: EventCommand): void;
 }) {
@@ -787,6 +838,17 @@ function ParamBody({
           </Field>
         </div>
       );
+    case "startQuest":
+    case "completeQuest":
+      return (
+        <QuestSelect
+          quests={quests}
+          value={command.questId}
+          onChange={(questId) => onChange({ ...command, questId })}
+        />
+      );
+    case "advanceQuest":
+      return <QuestProgressParams command={command} quests={quests} onChange={onChange} />;
     case "comment":
       return (
         <Field label={t("editor.event.cmd.field.comment")}>
@@ -802,6 +864,88 @@ function ParamBody({
     default:
       return <p className="text-[11.5px] text-zinc-400">{t("editor.event.cmd.noParam")}</p>;
   }
+}
+
+function QuestSelect({
+  quests,
+  value,
+  onChange,
+}: {
+  quests: readonly AuthoredQuestDefinition[];
+  value: string;
+  onChange(id: string): void;
+}) {
+  return (
+    <Field label={t("editor.event.cmd.field.quest")}>
+      <FieldSelect
+        aria-label={t("editor.event.cmd.field.quest")}
+        className="w-full"
+        value={value}
+        onChange={(event) => onChange(event.currentTarget.value)}
+      >
+        {quests.map((quest) => (
+          <option key={quest.id} value={quest.id}>
+            {quest.title || quest.id}
+          </option>
+        ))}
+      </FieldSelect>
+    </Field>
+  );
+}
+
+function QuestProgressParams({
+  command,
+  quests,
+  onChange,
+}: {
+  command: Extract<EventCommand, { t: "advanceQuest" }>;
+  quests: readonly AuthoredQuestDefinition[];
+  onChange(command: EventCommand): void;
+}) {
+  const quest = quests.find((item) => item.id === command.questId) ?? quests[0];
+  const objectives = quest?.objectives ?? [];
+  return (
+    <div className="flex flex-wrap items-end gap-2">
+      <QuestSelect
+        quests={quests}
+        value={command.questId}
+        onChange={(questId) => {
+          const selected = quests.find((item) => item.id === questId);
+          onChange({
+            ...command,
+            questId,
+            objectiveId: selected?.objectives[0]?.id ?? command.objectiveId,
+          });
+        }}
+      />
+      <Field label={t("editor.event.cmd.field.objective")}>
+        <FieldSelect
+          aria-label={t("editor.event.cmd.field.objective")}
+          className="w-48"
+          value={command.objectiveId}
+          onChange={(event) => onChange({ ...command, objectiveId: event.currentTarget.value })}
+        >
+          {objectives.map((objective) => (
+            <option key={objective.id} value={objective.id}>
+              {objective.label || objective.id}
+            </option>
+          ))}
+        </FieldSelect>
+      </Field>
+      <Field label={t("editor.event.cmd.field.amount")}>
+        <NumberField
+          ariaLabel={t("editor.event.cmd.field.amount")}
+          className="w-20"
+          value={command.amount}
+          onChange={(amount) => onChange({ ...command, amount })}
+          onBlur={() => {
+            const amount = clampInt(command.amount, -999, 999, 1);
+            onChange({ ...command, amount: amount === 0 ? 1 : amount });
+          }}
+        />
+      </Field>
+    </div>
+  );
 }
 
 function SayParams({

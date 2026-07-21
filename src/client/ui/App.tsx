@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect } from "react";
 import { fetchMe } from "../api.js";
+import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
 import { AuthScreen } from "./AuthScreen.js";
 import { Chat } from "./Chat.js";
@@ -29,6 +30,7 @@ const AdventureEditorScreen = lazy(async () => {
 });
 
 export function App() {
+  useLocale();
   const screen = useUiStore((s) => s.screen);
   const setScreen = useUiStore((s) => s.setScreen);
   const setAccountId = useUiStore((s) => s.setAccountId);
@@ -49,7 +51,19 @@ export function App() {
       {screen !== "adventure-editor" && <StatusBar />}
       {screen === "auth" && <AuthScreen />}
       {screen === "adventure-editor" && (
-        <Suspense fallback={null}>
+        <Suspense
+          fallback={
+            <div className="fixed inset-0 grid place-items-center bg-background text-foreground">
+              <div className="flex items-center gap-3 rounded-lg border bg-card px-4 py-3 text-sm shadow-sm">
+                <span
+                  className="size-4 animate-spin rounded-full border-2 border-muted border-t-foreground"
+                  aria-hidden="true"
+                />
+                <span>{t("editor.stage.loading")}</span>
+              </div>
+            </div>
+          }
+        >
           <AdventureEditorScreen />
         </Suspense>
       )}

@@ -280,6 +280,16 @@ function editorMetadata(
     renderLayer: "object" as const,
   };
 
+  // Idle character/enemy sheets are valid event appearances (NPCs, quest actors and encounter
+  // previews). Their detected frame metadata crops one real frame instead of exposing the sheet.
+  if ((domain === "character" || domain === "enemy") && /idle/i.test(raw.name)) {
+    return {
+      ...common,
+      category: domain === "character" ? "characters" : "creatures",
+      allowedTerrain: ["grass"],
+    };
+  }
+
   if (domain === "building" && raw.est_frames === 1 && !raw.category.includes("Enemy Pack")) {
     return {
       ...common,
