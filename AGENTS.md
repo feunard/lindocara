@@ -676,6 +676,8 @@ the same `Env`.
 
 ## Conventions
 
+- Browser checks (running the app, screenshots, driving the editor UI): use the `playwright-cli`
+  skill, never the Claude-in-Chrome extension.
 - Biome formats and lints. `noNonNullAssertion` is on: no `!`, narrow properly.
 - Never trust a client message. `parseClientMessage` returns `null` and the frame is dropped.
 - Prefer a test that drives the real Durable Object over one that mocks it. The existing
