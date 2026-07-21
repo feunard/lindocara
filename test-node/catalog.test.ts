@@ -129,6 +129,41 @@ describe("Tiny Swords semantic catalogue", () => {
     }
   });
 
+  it("crops every multi-frame editor sprite to one frame, never the whole sheet", () => {
+    // Regression for D20: rocks-in-water and the rubber duck are horizontal strips of many square
+    // frames. Without a `frame` (to slice) or an `editor.sourceRect` (to crop), `sliceFrames` returns
+    // the entire strip as one texture and the editor/game draw the rock a dozen times side by side.
+    const bySource = new Map(raw.files.map((file) => [file.path, file]));
+    for (const entry of editorDefinitions(catalog)) {
+      const source = bySource.get(entry.sourcePath);
+      if (!source || source.est_frames <= 1) continue;
+      const cropped = entry.frame !== undefined || entry.editor.sourceRect !== undefined;
+      expect(cropped, entry.id).toBe(true);
+    }
+  });
+
+  it("slices water rocks and the rubber duck into square, geometry-exact frames", () => {
+    // Their raw frame estimate is unreliable (a 16-frame strip is counted as 18/20), so the fix pins
+    // the count to `width / height`; the frame must be one square cell, not the estimate.
+    const byId = new Map(editorDefinitions(catalog).map((entry) => [entry.id, entry]));
+    const cases = [
+      "decoration.terrain-decorations-rocks-in-the-water.water-rocks-01",
+      "terrain.terrain-water-rocks.rocks-01",
+      "decoration.terrain-decorations-rubber-duck.rubber-duck",
+    ];
+    for (const id of cases) {
+      const entry = byId.get(id);
+      expect(entry?.frame, id).toBeDefined();
+      const frame = entry?.frame;
+      if (!frame) continue;
+      const source = catalog.entries.find((candidate) => candidate.id === id);
+      expect(frame.width, id).toBe(frame.height);
+      expect(frame.width, id).toBe(source?.height);
+      expect(frame.count, id).toBe((source?.width ?? 0) / (source?.height ?? 1));
+      expect(frame.count, id).toBeGreaterThan(1);
+    }
+  });
+
   it("fails when a raw entry is added without a classification", () => {
     const first = raw.files[0];
     expect(first).toBeDefined();

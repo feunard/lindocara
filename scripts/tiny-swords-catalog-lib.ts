@@ -187,7 +187,32 @@ function tagsOf(raw: RawAsset, domain: AssetDomain): string[] {
   return [...new Set(words)];
 }
 
+/**
+ * Water rocks and the rubber duck ship as horizontal strips of SQUARE animation frames (foam ripples
+ * around a static rock; the duck bobs). `isAnimation` excludes the terrain/decoration domains these
+ * live in, so without this branch they fall through to `nature: "static"` with no `frame`, and the
+ * renderer's `sliceFrames` draws the ENTIRE 1024px strip as one sprite — the "rock rendered eight
+ * times side by side" bug (D20). Their raw frame estimate is unreliable (alpha-bbox noise counts a
+ * 16-frame strip as 18 or 20), but the cell is always the sheet's height, so the frame count is
+ * exactly `w / h`; that is why this cannot lean on `x_frames`/`est_frames` like the generic path does.
+ */
+const SQUARE_STRIP_ANIMATION_CATEGORIES = new Set<string>([
+  "Terrain/Water/Rocks",
+  "Terrain/Decorations/Rocks in the Water",
+  "Terrain/Decorations/Rubber Duck",
+]);
+
+function isSquareStripAnimation(raw: RawAsset): boolean {
+  return (
+    SQUARE_STRIP_ANIMATION_CATEGORIES.has(raw.category) &&
+    raw.w > raw.h &&
+    raw.w % raw.h === 0 &&
+    raw.est_frames > 1
+  );
+}
+
 function isAnimation(raw: RawAsset, domain: AssetDomain): boolean {
+  if (isSquareStripAnimation(raw)) return true;
   if (domain === "ui" || domain === "terrain" || raw.category === "Deco") return false;
   if (/Buildings/.test(raw.category)) return false;
   if (/(_Idle|_Run|_Attack|_Move|_Spawn|_Highlight|Tree[1-4]|Bushe[1-4])$/i.test(raw.name)) {
@@ -198,6 +223,11 @@ function isAnimation(raw: RawAsset, domain: AssetDomain): boolean {
 
 function frameOf(raw: RawAsset, domain: AssetDomain): AssetFrameMetadata | undefined {
   if (!isAnimation(raw, domain)) return undefined;
+  if (isSquareStripAnimation(raw)) {
+    // Square cells, count fixed by geometry (see `isSquareStripAnimation`): one frame per `h`-wide
+    // column across a `w`-wide strip.
+    return { width: raw.h, height: raw.h, count: raw.w / raw.h, axis: "x", durationMs: 1_400 };
+  }
   const axis = raw.x_frames > 1 || raw.w >= raw.h ? "x" : "y";
   const count = Math.max(1, axis === "x" ? raw.x_frames : raw.y_frames, raw.est_frames);
   const width = axis === "x" ? Math.floor(raw.w / count) : raw.w;

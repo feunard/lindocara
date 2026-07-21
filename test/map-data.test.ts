@@ -4,6 +4,7 @@ import {
   bakeCollision,
   canPlaceElement,
   EMPTY_MARKERS,
+  elementPlacementCells,
   elementWorldCollider,
   MARKER_LABEL_MAX,
   type MapData,
@@ -98,6 +99,42 @@ describe("placement rules", () => {
     expect(editorAsset(TREE)?.editor.allowedTerrain).toEqual(["grass"]);
     expect(canPlaceElement(TREE, "grass")).toBe(true);
     expect(canPlaceElement(TREE, "water")).toBe(false);
+  });
+
+  it("checks a tree's trunk cell, not its anchor, so an offset trunk over water is caught (D19)", () => {
+    // A 4x4 shoreline: column 0 grass, column 1 water. A tree anchored on the grass column but nudged
+    // a full offset step short of the water still keeps its trunk on grass; nudged all the way it does
+    // not. The anchor cell reads grass in BOTH cases — only the trunk collider tells them apart.
+    const shore: MapData = mapDataFromBlocks({
+      blocks: [".#..", ".#..", ".#..", ".#.."],
+      elements: [],
+      spawn: { col: 3, row: 3 },
+    });
+    const ground = bakeCollision({ ...shore, elements: [] });
+    expect(kindAt(ground, 0, 0)).toBe("grass");
+    expect(kindAt(ground, 1, 0)).toBe("water");
+
+    // Trunk still on the grass column: placeable, canopy free to overhang the water beside it.
+    const overhang = { col: 0, row: 0, offsetX: 0, offsetY: 0, assetId: TREE } as const;
+    expect(
+      elementPlacementCells(overhang).every((cell) =>
+        canPlaceElement(TREE, kindAt(ground, cell.col, cell.row)),
+      ),
+    ).toBe(true);
+
+    // Offset a full cell toward the water: the trunk now stands in cell (1,0), which is water — refused.
+    const inWater = { col: 0, row: 0, offsetX: 3, offsetY: 0, assetId: TREE } as const;
+    const trunkCells = elementPlacementCells(inWater);
+    expect(trunkCells).toContainEqual({ col: 1, row: 0 });
+    expect(
+      trunkCells.every((cell) => canPlaceElement(TREE, kindAt(ground, cell.col, cell.row))),
+    ).toBe(false);
+  });
+
+  it("keeps a collider-less decoration on its anchor cell for placement (D19)", () => {
+    // A bush has no trunk, so nothing overhangs and nothing sinks — its anchor cell is the whole rule.
+    const bush = { col: 2, row: 2, offsetX: 3, offsetY: 3, assetId: BUSH } as const;
+    expect(elementPlacementCells(bush)).toEqual([{ col: 2, row: 2 }]);
   });
 });
 

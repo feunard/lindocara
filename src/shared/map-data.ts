@@ -293,15 +293,35 @@ export function elementCoversCell(element: MapElement, col: number, row: number)
   return elementCells(element).some((cell) => cell.col === col && cell.row === row);
 }
 
+/** The cells a world-pixel rect overlaps, far edge exclusive — the same box→cell convention
+ *  `isWalkableBox` uses, so a rect flush against a cell boundary does not claim the next cell. */
+function rectCells(rect: Rect): { col: number; row: number }[] {
+  const c0 = Math.floor(rect.x / TILE_SIZE);
+  const c1 = Math.floor((rect.x + rect.width - 1) / TILE_SIZE);
+  const r0 = Math.floor(rect.y / TILE_SIZE);
+  const r1 = Math.floor((rect.y + rect.height - 1) / TILE_SIZE);
+  const cells: { col: number; row: number }[] = [];
+  for (let row = r0; row <= r1; row += 1) {
+    for (let col = c0; col <= c1; col += 1) cells.push({ col, row });
+  }
+  return cells;
+}
+
 /** Cells whose ground type constrains placement. Canopies may overhang shoreline; solid bases and
  * walkable bridge decks must stand on terrain allowed by the catalogue. */
 export function elementPlacementCells(element: MapElement): { col: number; row: number }[] {
   const asset = editorAsset(element.assetId);
   if (!asset) return [];
   if (asset.editor.terrainOverride) return elementCells(element);
-  // No collision footprint to stand on any more: an asset is placed on its anchor cell, and its
-  // collider — if any — is checked as geometry, not as ground.
-  return [{ col: element.col, row: element.row }];
+  // A solid base — a tree's trunk, a rock — is what must stand on allowed terrain; the canopy above it
+  // is free to overhang water. So when the asset carries a collider, the cells that collider actually
+  // covers ARE the base the terrain rule governs. Anchor-only validation missed this: a quarter-cell
+  // offset can push the trunk off its grass anchor and onto adjacent water while the anchor cell still
+  // reads grass, leaving a tree standing in the sea (D19). A collider-less decoration (a bush, a sign)
+  // has no solid base, so it keeps the plain anchor-cell rule and may sit wherever its anchor is legal.
+  const collider = elementWorldCollider(element);
+  if (!collider) return [{ col: element.col, row: element.row }];
+  return rectCells(collider);
 }
 
 export function elementFitsMap(element: MapElement, cols: number, rows: number): boolean {

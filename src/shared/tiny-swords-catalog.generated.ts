@@ -10934,9 +10934,16 @@ export const GENERATED_EDITOR_ASSETS = [
       "decoration",
       "free"
     ],
-    "width": 1024,
+    "width": 64,
     "height": 64,
-    "nature": "static",
+    "nature": "animated",
+    "frame": {
+      "width": 64,
+      "height": 64,
+      "count": 16,
+      "axis": "x",
+      "durationMs": 1400
+    },
     "anchor": {
       "x": 0.5,
       "y": 1
@@ -10945,67 +10952,7 @@ export const GENERATED_EDITOR_ASSETS = [
     "editor": {
       "visualFootprint": [
         {
-          "col": -8,
-          "row": 0
-        },
-        {
-          "col": -7,
-          "row": 0
-        },
-        {
-          "col": -6,
-          "row": 0
-        },
-        {
-          "col": -5,
-          "row": 0
-        },
-        {
-          "col": -4,
-          "row": 0
-        },
-        {
-          "col": -3,
-          "row": 0
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
           "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        },
-        {
-          "col": 2,
-          "row": 0
-        },
-        {
-          "col": 3,
-          "row": 0
-        },
-        {
-          "col": 4,
-          "row": 0
-        },
-        {
-          "col": 5,
-          "row": 0
-        },
-        {
-          "col": 6,
-          "row": 0
-        },
-        {
-          "col": 7,
           "row": 0
         }
       ],
@@ -11041,9 +10988,16 @@ export const GENERATED_EDITOR_ASSETS = [
       "decoration",
       "free"
     ],
-    "width": 1024,
+    "width": 64,
     "height": 64,
-    "nature": "static",
+    "nature": "animated",
+    "frame": {
+      "width": 64,
+      "height": 64,
+      "count": 16,
+      "axis": "x",
+      "durationMs": 1400
+    },
     "anchor": {
       "x": 0.5,
       "y": 1
@@ -11052,67 +11006,7 @@ export const GENERATED_EDITOR_ASSETS = [
     "editor": {
       "visualFootprint": [
         {
-          "col": -8,
-          "row": 0
-        },
-        {
-          "col": -7,
-          "row": 0
-        },
-        {
-          "col": -6,
-          "row": 0
-        },
-        {
-          "col": -5,
-          "row": 0
-        },
-        {
-          "col": -4,
-          "row": 0
-        },
-        {
-          "col": -3,
-          "row": 0
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
           "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        },
-        {
-          "col": 2,
-          "row": 0
-        },
-        {
-          "col": 3,
-          "row": 0
-        },
-        {
-          "col": 4,
-          "row": 0
-        },
-        {
-          "col": 5,
-          "row": 0
-        },
-        {
-          "col": 6,
-          "row": 0
-        },
-        {
-          "col": 7,
           "row": 0
         }
       ],
@@ -11148,9 +11042,16 @@ export const GENERATED_EDITOR_ASSETS = [
       "decoration",
       "free"
     ],
-    "width": 1024,
+    "width": 64,
     "height": 64,
-    "nature": "static",
+    "nature": "animated",
+    "frame": {
+      "width": 64,
+      "height": 64,
+      "count": 16,
+      "axis": "x",
+      "durationMs": 1400
+    },
     "anchor": {
       "x": 0.5,
       "y": 1
@@ -11159,67 +11060,7 @@ export const GENERATED_EDITOR_ASSETS = [
     "editor": {
       "visualFootprint": [
         {
-          "col": -8,
-          "row": 0
-        },
-        {
-          "col": -7,
-          "row": 0
-        },
-        {
-          "col": -6,
-          "row": 0
-        },
-        {
-          "col": -5,
-          "row": 0
-        },
-        {
-          "col": -4,
-          "row": 0
-        },
-        {
-          "col": -3,
-          "row": 0
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
           "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        },
-        {
-          "col": 2,
-          "row": 0
-        },
-        {
-          "col": 3,
-          "row": 0
-        },
-        {
-          "col": 4,
-          "row": 0
-        },
-        {
-          "col": 5,
-          "row": 0
-        },
-        {
-          "col": 6,
-          "row": 0
-        },
-        {
-          "col": 7,
           "row": 0
         }
       ],
@@ -11255,9 +11096,16 @@ export const GENERATED_EDITOR_ASSETS = [
       "decoration",
       "free"
     ],
-    "width": 1024,
+    "width": 64,
     "height": 64,
-    "nature": "static",
+    "nature": "animated",
+    "frame": {
+      "width": 64,
+      "height": 64,
+      "count": 16,
+      "axis": "x",
+      "durationMs": 1400
+    },
     "anchor": {
       "x": 0.5,
       "y": 1
@@ -11266,67 +11114,7 @@ export const GENERATED_EDITOR_ASSETS = [
     "editor": {
       "visualFootprint": [
         {
-          "col": -8,
-          "row": 0
-        },
-        {
-          "col": -7,
-          "row": 0
-        },
-        {
-          "col": -6,
-          "row": 0
-        },
-        {
-          "col": -5,
-          "row": 0
-        },
-        {
-          "col": -4,
-          "row": 0
-        },
-        {
-          "col": -3,
-          "row": 0
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
-          "col": -1,
-          "row": 0
-        },
-        {
           "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        },
-        {
-          "col": 2,
-          "row": 0
-        },
-        {
-          "col": 3,
-          "row": 0
-        },
-        {
-          "col": 4,
-          "row": 0
-        },
-        {
-          "col": 5,
-          "row": 0
-        },
-        {
-          "col": 6,
-          "row": 0
-        },
-        {
-          "col": 7,
           "row": 0
         }
       ],
@@ -11535,9 +11323,16 @@ export const GENERATED_EDITOR_ASSETS = [
       "decoration",
       "free"
     ],
-    "width": 96,
+    "width": 32,
     "height": 32,
-    "nature": "static",
+    "nature": "animated",
+    "frame": {
+      "width": 32,
+      "height": 32,
+      "count": 3,
+      "axis": "x",
+      "durationMs": 1400
+    },
     "anchor": {
       "x": 0.5,
       "y": 1
@@ -11545,10 +11340,6 @@ export const GENERATED_EDITOR_ASSETS = [
     "footOffset": 4,
     "editor": {
       "visualFootprint": [
-        {
-          "col": -1,
-          "row": 0
-        },
         {
           "col": 0,
           "row": 0
@@ -15213,9 +15004,16 @@ export const GENERATED_EDITOR_ASSETS = [
       "update",
       "010"
     ],
-    "width": 1024,
+    "width": 128,
     "height": 128,
-    "nature": "static",
+    "nature": "animated",
+    "frame": {
+      "width": 128,
+      "height": 128,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
     "anchor": {
       "x": 0.5,
       "y": 1
@@ -15224,34 +15022,6 @@ export const GENERATED_EDITOR_ASSETS = [
     "editor": {
       "visualFootprint": [
         {
-          "col": -8,
-          "row": -1
-        },
-        {
-          "col": -7,
-          "row": -1
-        },
-        {
-          "col": -6,
-          "row": -1
-        },
-        {
-          "col": -5,
-          "row": -1
-        },
-        {
-          "col": -4,
-          "row": -1
-        },
-        {
-          "col": -3,
-          "row": -1
-        },
-        {
-          "col": -2,
-          "row": -1
-        },
-        {
           "col": -1,
           "row": -1
         },
@@ -15260,95 +15030,11 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": 2,
-          "row": -1
-        },
-        {
-          "col": 3,
-          "row": -1
-        },
-        {
-          "col": 4,
-          "row": -1
-        },
-        {
-          "col": 5,
-          "row": -1
-        },
-        {
-          "col": 6,
-          "row": -1
-        },
-        {
-          "col": 7,
-          "row": -1
-        },
-        {
-          "col": -8,
-          "row": 0
-        },
-        {
-          "col": -7,
-          "row": 0
-        },
-        {
-          "col": -6,
-          "row": 0
-        },
-        {
-          "col": -5,
-          "row": 0
-        },
-        {
-          "col": -4,
-          "row": 0
-        },
-        {
-          "col": -3,
-          "row": 0
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
           "col": -1,
           "row": 0
         },
         {
           "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        },
-        {
-          "col": 2,
-          "row": 0
-        },
-        {
-          "col": 3,
-          "row": 0
-        },
-        {
-          "col": 4,
-          "row": 0
-        },
-        {
-          "col": 5,
-          "row": 0
-        },
-        {
-          "col": 6,
-          "row": 0
-        },
-        {
-          "col": 7,
           "row": 0
         }
       ],
@@ -15381,9 +15067,16 @@ export const GENERATED_EDITOR_ASSETS = [
       "update",
       "010"
     ],
-    "width": 1024,
+    "width": 128,
     "height": 128,
-    "nature": "static",
+    "nature": "animated",
+    "frame": {
+      "width": 128,
+      "height": 128,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
     "anchor": {
       "x": 0.5,
       "y": 1
@@ -15392,34 +15085,6 @@ export const GENERATED_EDITOR_ASSETS = [
     "editor": {
       "visualFootprint": [
         {
-          "col": -8,
-          "row": -1
-        },
-        {
-          "col": -7,
-          "row": -1
-        },
-        {
-          "col": -6,
-          "row": -1
-        },
-        {
-          "col": -5,
-          "row": -1
-        },
-        {
-          "col": -4,
-          "row": -1
-        },
-        {
-          "col": -3,
-          "row": -1
-        },
-        {
-          "col": -2,
-          "row": -1
-        },
-        {
           "col": -1,
           "row": -1
         },
@@ -15428,95 +15093,11 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": 2,
-          "row": -1
-        },
-        {
-          "col": 3,
-          "row": -1
-        },
-        {
-          "col": 4,
-          "row": -1
-        },
-        {
-          "col": 5,
-          "row": -1
-        },
-        {
-          "col": 6,
-          "row": -1
-        },
-        {
-          "col": 7,
-          "row": -1
-        },
-        {
-          "col": -8,
-          "row": 0
-        },
-        {
-          "col": -7,
-          "row": 0
-        },
-        {
-          "col": -6,
-          "row": 0
-        },
-        {
-          "col": -5,
-          "row": 0
-        },
-        {
-          "col": -4,
-          "row": 0
-        },
-        {
-          "col": -3,
-          "row": 0
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
           "col": -1,
           "row": 0
         },
         {
           "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        },
-        {
-          "col": 2,
-          "row": 0
-        },
-        {
-          "col": 3,
-          "row": 0
-        },
-        {
-          "col": 4,
-          "row": 0
-        },
-        {
-          "col": 5,
-          "row": 0
-        },
-        {
-          "col": 6,
-          "row": 0
-        },
-        {
-          "col": 7,
           "row": 0
         }
       ],
@@ -15549,9 +15130,16 @@ export const GENERATED_EDITOR_ASSETS = [
       "update",
       "010"
     ],
-    "width": 1024,
+    "width": 128,
     "height": 128,
-    "nature": "static",
+    "nature": "animated",
+    "frame": {
+      "width": 128,
+      "height": 128,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
     "anchor": {
       "x": 0.5,
       "y": 1
@@ -15560,34 +15148,6 @@ export const GENERATED_EDITOR_ASSETS = [
     "editor": {
       "visualFootprint": [
         {
-          "col": -8,
-          "row": -1
-        },
-        {
-          "col": -7,
-          "row": -1
-        },
-        {
-          "col": -6,
-          "row": -1
-        },
-        {
-          "col": -5,
-          "row": -1
-        },
-        {
-          "col": -4,
-          "row": -1
-        },
-        {
-          "col": -3,
-          "row": -1
-        },
-        {
-          "col": -2,
-          "row": -1
-        },
-        {
           "col": -1,
           "row": -1
         },
@@ -15596,95 +15156,11 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": 2,
-          "row": -1
-        },
-        {
-          "col": 3,
-          "row": -1
-        },
-        {
-          "col": 4,
-          "row": -1
-        },
-        {
-          "col": 5,
-          "row": -1
-        },
-        {
-          "col": 6,
-          "row": -1
-        },
-        {
-          "col": 7,
-          "row": -1
-        },
-        {
-          "col": -8,
-          "row": 0
-        },
-        {
-          "col": -7,
-          "row": 0
-        },
-        {
-          "col": -6,
-          "row": 0
-        },
-        {
-          "col": -5,
-          "row": 0
-        },
-        {
-          "col": -4,
-          "row": 0
-        },
-        {
-          "col": -3,
-          "row": 0
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
           "col": -1,
           "row": 0
         },
         {
           "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        },
-        {
-          "col": 2,
-          "row": 0
-        },
-        {
-          "col": 3,
-          "row": 0
-        },
-        {
-          "col": 4,
-          "row": 0
-        },
-        {
-          "col": 5,
-          "row": 0
-        },
-        {
-          "col": 6,
-          "row": 0
-        },
-        {
-          "col": 7,
           "row": 0
         }
       ],
@@ -15717,9 +15193,16 @@ export const GENERATED_EDITOR_ASSETS = [
       "update",
       "010"
     ],
-    "width": 1024,
+    "width": 128,
     "height": 128,
-    "nature": "static",
+    "nature": "animated",
+    "frame": {
+      "width": 128,
+      "height": 128,
+      "count": 8,
+      "axis": "x",
+      "durationMs": 1400
+    },
     "anchor": {
       "x": 0.5,
       "y": 1
@@ -15728,34 +15211,6 @@ export const GENERATED_EDITOR_ASSETS = [
     "editor": {
       "visualFootprint": [
         {
-          "col": -8,
-          "row": -1
-        },
-        {
-          "col": -7,
-          "row": -1
-        },
-        {
-          "col": -6,
-          "row": -1
-        },
-        {
-          "col": -5,
-          "row": -1
-        },
-        {
-          "col": -4,
-          "row": -1
-        },
-        {
-          "col": -3,
-          "row": -1
-        },
-        {
-          "col": -2,
-          "row": -1
-        },
-        {
           "col": -1,
           "row": -1
         },
@@ -15764,95 +15219,11 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
-          "col": 1,
-          "row": -1
-        },
-        {
-          "col": 2,
-          "row": -1
-        },
-        {
-          "col": 3,
-          "row": -1
-        },
-        {
-          "col": 4,
-          "row": -1
-        },
-        {
-          "col": 5,
-          "row": -1
-        },
-        {
-          "col": 6,
-          "row": -1
-        },
-        {
-          "col": 7,
-          "row": -1
-        },
-        {
-          "col": -8,
-          "row": 0
-        },
-        {
-          "col": -7,
-          "row": 0
-        },
-        {
-          "col": -6,
-          "row": 0
-        },
-        {
-          "col": -5,
-          "row": 0
-        },
-        {
-          "col": -4,
-          "row": 0
-        },
-        {
-          "col": -3,
-          "row": 0
-        },
-        {
-          "col": -2,
-          "row": 0
-        },
-        {
           "col": -1,
           "row": 0
         },
         {
           "col": 0,
-          "row": 0
-        },
-        {
-          "col": 1,
-          "row": 0
-        },
-        {
-          "col": 2,
-          "row": 0
-        },
-        {
-          "col": 3,
-          "row": 0
-        },
-        {
-          "col": 4,
-          "row": 0
-        },
-        {
-          "col": 5,
-          "row": 0
-        },
-        {
-          "col": 6,
-          "row": 0
-        },
-        {
-          "col": 7,
           "row": 0
         }
       ],
