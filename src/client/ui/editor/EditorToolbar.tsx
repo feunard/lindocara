@@ -14,8 +14,10 @@ import {
 } from "lucide-react";
 import type { ComponentType } from "react";
 import type { MessageKey } from "../../../shared/i18n/index.js";
+import type { EditorMode } from "../../game/editor-state.js";
 import { t, useLocale } from "../../i18n.js";
 import { Button } from "../components/button.js";
+import { EditorModeControl } from "./EditorModeControl.js";
 
 /** The five paint tools the toolbar exposes as buttons. `stairs` and scenery live in the palette. */
 export type EditorPaintTool = "select" | "pencil" | "rect" | "fill" | "eraser";
@@ -43,12 +45,9 @@ const PAINT_TOOLS: { key: EditorPaintTool; icon: ComponentType }[] = [
   { key: "eraser", icon: Eraser },
 ];
 
-const LAYERS: (0 | 1 | 2)[] = [0, 1, 2];
-
 interface EditorToolbarProps {
   activeTool: EditorPaintTool | null;
-  activeLayer: 0 | 1 | 2;
-  eventActive: boolean;
+  mode: EditorMode;
   showGrid: boolean;
   showDim: boolean;
   zoom: number;
@@ -57,20 +56,18 @@ interface EditorToolbarProps {
   onSave(): void;
   onDeleteMap(): void;
   onSelectTool(tool: EditorPaintTool): void;
-  onSelectLayer(layer: 0 | 1 | 2): void;
-  onSelectEvents(): void;
+  onSelectMode(mode: EditorMode): void;
   onToggleGrid(): void;
   onToggleDim(): void;
   onCycleZoom(): void;
   onTest(): void;
 }
 
-/** The wireframe's 42px toolbar: file actions · paint tools · layer group (+ reserved EV slot) ·
+/** The wireframe's 42px toolbar: file actions · paint tools · Field/Element/Event mode control ·
  *  view toggles · zoom · flex spacer · Tester. Stock shadcn buttons and lucide icons only. */
 export function EditorToolbar({
   activeTool,
-  activeLayer,
-  eventActive,
+  mode,
   showGrid,
   showDim,
   zoom,
@@ -79,8 +76,7 @@ export function EditorToolbar({
   onSave,
   onDeleteMap,
   onSelectTool,
-  onSelectLayer,
-  onSelectEvents,
+  onSelectMode,
   onToggleGrid,
   onToggleDim,
   onCycleZoom,
@@ -127,29 +123,7 @@ export function EditorToolbar({
 
       <Separator />
 
-      <div className="flex items-center gap-0.5 rounded-lg bg-zinc-100 p-0.5">
-        {LAYERS.map((layer) => (
-          <Button
-            key={layer}
-            variant={activeLayer === layer ? "secondary" : "ghost"}
-            size="icon-sm"
-            aria-label={t("editor.shell.layer", { n: layer + 1 })}
-            aria-pressed={activeLayer === layer}
-            onClick={() => onSelectLayer(layer)}
-          >
-            {layer + 1}
-          </Button>
-        ))}
-        <Button
-          variant={eventActive ? "secondary" : "ghost"}
-          size="icon-sm"
-          aria-label={t("editor.shell.events")}
-          aria-pressed={eventActive}
-          onClick={onSelectEvents}
-        >
-          {t("editor.shell.events.short")}
-        </Button>
-      </div>
+      <EditorModeControl mode={mode} onSelect={onSelectMode} />
 
       <Separator />
 

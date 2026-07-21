@@ -15,12 +15,12 @@ import { TINY_SWORDS_TILESET_ID } from "../../src/shared/tilesets/tiny-swords.js
 import { CURATED_EDITOR_ASSETS } from "../../src/shared/tiny-swords-catalog.js";
 
 // The painting stage is Pixi on a real canvas — untestable in jsdom. A fake handle stands in so the
-// tests exercise the shell's own behaviour: which EditorTool it pushes, that the layer selector
-// reaches setActiveLayer, and that mount/unmount open and dispose the stage exactly once each.
+// tests exercise the shell's own behaviour: which EditorTool it pushes, that the mode selector
+// reaches setActiveMode, and that mount/unmount open and dispose the stage exactly once each.
 const stageMock = vi.hoisted(() => ({
   openMapEditorStage: vi.fn(),
   setTool: vi.fn(),
-  setActiveLayer: vi.fn(),
+  setActiveMode: vi.fn(),
   setDim: vi.fn(),
   setGrid: vi.fn(),
   current: vi.fn(),
@@ -45,7 +45,7 @@ vi.mock("../../src/client/game/map-editor-stage.js", () => ({
 function stageHandle() {
   return {
     setTool: stageMock.setTool,
-    setActiveLayer: stageMock.setActiveLayer,
+    setActiveMode: stageMock.setActiveMode,
     setDim: stageMock.setDim,
     setGrid: stageMock.setGrid,
     current: stageMock.current,
@@ -172,6 +172,14 @@ async function mountReady(): Promise<ReturnType<typeof render>> {
   return rendered;
 }
 
+/** The status strip: its mode echo (`t("editor.shell.mode.*")`) renders the same text as the
+ *  toolbar's mode segment, so a query for it must scope here rather than use a bare `getByText`. */
+function statusBar(rendered: { container: HTMLElement }): HTMLElement {
+  const bar = rendered.container.querySelector(".border-t.border-zinc-200.bg-zinc-50");
+  if (!bar) throw new Error("status bar not found");
+  return bar as HTMLElement;
+}
+
 describe("AdventureEditorScreen shell", () => {
   beforeEach(() => {
     setLocale("en");
@@ -277,7 +285,7 @@ describe("AdventureEditorScreen shell", () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady();
 
-    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.events") }));
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.event") }));
     // The event tool is what turns the stage's EV overlay on (shouldShowEventOverlay), so this call
     // reaching the handle IS the overlay flag reaching the stage.
     expect(stageMock.setTool).toHaveBeenLastCalledWith({
@@ -385,7 +393,7 @@ describe("AdventureEditorScreen shell", () => {
     await mountReady();
 
     expect(screen.queryByText(t("editor.shell.events.graphic.heading"))).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.events") }));
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.event") }));
     expect(screen.getByText(t("editor.shell.events.graphic.heading"))).toBeVisible();
   });
 
@@ -393,7 +401,7 @@ describe("AdventureEditorScreen shell", () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady();
 
-    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.events") }));
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.event") }));
     const palette = screen.getByRole("complementary", { name: t("editor.shell.palette.aria") });
 
     // An asset whose last id segment is unique across the CURATED palette (UX wave #13 hides the rest),
@@ -430,15 +438,19 @@ describe("AdventureEditorScreen shell", () => {
     });
   });
 
-  it("threads the layer selector to setActiveLayer and reflects it in the status bar", async () => {
+  it("threads the mode selector to setActiveMode and reflects it in the status bar", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
-    await mountReady();
+    const rendered = await mountReady();
 
-    expect(screen.getByText(t("editor.shell.layer", { n: 1 }))).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.layer", { n: 2 }) }));
+    // "Element" appears twice at once (the mode control's own segment label and the status bar
+    // echo), so both assertions below scope to the status bar strip rather than a bare getByText.
+    expect(within(statusBar(rendered)).getByText(t("editor.shell.mode.field"))).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.element") }));
 
-    expect(stageMock.setActiveLayer).toHaveBeenLastCalledWith(1);
-    expect(screen.getByText(t("editor.shell.layer", { n: 2 }))).toBeInTheDocument();
+    expect(stageMock.setActiveMode).toHaveBeenLastCalledWith("element");
+    expect(
+      within(statusBar(rendered)).getByText(t("editor.shell.mode.element")),
+    ).toBeInTheDocument();
   });
 
   it("makes a map the start from the Cartes panel, persisting the entry binding through the adventure PUT", async () => {
@@ -531,7 +543,7 @@ describe("AdventureEditorScreen shell", () => {
     });
   });
 
-  it("installs the layer selected while the stage was still opening, not the layer captured when the open effect started", async () => {
+  it("installs the mode selected while the stage was still opening, not the mode captured when the open effect started", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     // Hold the stage-open promise open so the effect's `.then` has not run yet when we click.
     let resolveOpen!: (handle: ReturnType<typeof stageHandle>) => void;
@@ -543,18 +555,18 @@ describe("AdventureEditorScreen shell", () => {
     render(<AdventureEditorScreen />);
     await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(1));
 
-    // The handle does not exist yet, so selecting layer 3 here can only reach the stage through
+    // The handle does not exist yet, so selecting Event mode here can only reach the stage through
     // whatever the `.then` callback reads once it resolves — this is the race.
-    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.layer", { n: 3 }) }));
-    expect(stageMock.setActiveLayer).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.event") }));
+    expect(stageMock.setActiveMode).not.toHaveBeenCalled();
 
     resolveOpen(stageHandle());
-    await waitFor(() => expect(stageMock.setActiveLayer).toHaveBeenCalled());
+    await waitFor(() => expect(stageMock.setActiveMode).toHaveBeenCalled());
 
-    // Must be the layer selected during the open window (index 2), never the stale layer (index 0)
+    // Must be the mode selected during the open window ("event"), never the stale mode ("field")
     // that was active when the effect started running.
-    expect(stageMock.setActiveLayer).toHaveBeenCalledTimes(1);
-    expect(stageMock.setActiveLayer).toHaveBeenLastCalledWith(2);
+    expect(stageMock.setActiveMode).toHaveBeenCalledTimes(1);
+    expect(stageMock.setActiveMode).toHaveBeenLastCalledWith("event");
   });
 
   it("opens the registry database dialog from the Game menu", async () => {
@@ -629,7 +641,7 @@ describe("AdventureEditorScreen shell", () => {
     await mountReady();
 
     // Enter EV mode, then pick the entry kind — the event tool it pushes carries eventKind: "entry".
-    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.events") }));
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.event") }));
     await userEvent.click(screen.getByRole("button", { name: t("editor.event.kind.entry") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "event", eventKind: "entry" });
 
@@ -674,7 +686,7 @@ describe("AdventureEditorScreen shell", () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady();
 
-    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.events") }));
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.mode.event") }));
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.event.kind.exit") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "event", eventKind: "exit" });
@@ -881,7 +893,12 @@ describe("AdventureEditorScreen shell", () => {
     await mountReady();
 
     const search = screen.getByRole("searchbox", { name: t("editor.palette.search") });
-    await userEvent.type(search, "tree3");
+    // `fireEvent.change` rather than `userEvent.type`: this suite's jsdom focus resolution for this
+    // particular input delivers keydown events with `target` on the shortcut-host container instead
+    // of the input (the same pre-existing gap `keeps tool shortcuts inert…`'s sibling test documents
+    // below) — real keystrokes here would leak "r"/"e"/"3" to the global shortcut handler and switch
+    // modes/tools out from under this search, which is not what this test is about.
+    fireEvent.change(search, { target: { value: "tree3" } });
     await userEvent.click(screen.getByRole("button", { name: /tree3grasssolid/i }));
     await waitFor(() =>
       expect(stageMock.setTool).toHaveBeenCalledWith({
@@ -898,7 +915,7 @@ describe("AdventureEditorScreen shell", () => {
       return rendered.container.firstElementChild as HTMLElement;
     }
 
-    it("dispatches the paint-tool, layer and grid shortcuts to the same actions the toolbar uses", async () => {
+    it("dispatches the paint-tool, mode and grid shortcuts to the same actions the toolbar uses", async () => {
       vi.stubGlobal("fetch", mapsFetchMock());
       const rendered = await mountReady();
       const host = shell(rendered);
@@ -925,8 +942,11 @@ describe("AdventureEditorScreen shell", () => {
       expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "block", block: "grass" });
 
       fireEvent.keyDown(host, { key: "2" });
-      expect(stageMock.setActiveLayer).toHaveBeenLastCalledWith(1);
-      expect(screen.getByText(t("editor.shell.layer", { n: 2 }))).toBeInTheDocument();
+      expect(stageMock.setActiveMode).toHaveBeenLastCalledWith("element");
+      expect(screen.getByRole("button", { name: t("editor.shell.mode.element") })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
 
       const gridButton = screen.getByRole("button", { name: t("editor.shell.grid.aria") });
       expect(gridButton).toHaveAttribute("aria-pressed", "true");
@@ -1056,19 +1076,19 @@ describe("AdventureEditorScreen shell", () => {
       cancelButton.focus();
       expect(cancelButton).toHaveFocus();
 
-      // The stage-open effect already calls `setActiveLayer(0)` once while wiring the handle, so the
-      // gate is proven by an unchanged call count, not "never called at all".
-      const before = stageMock.setActiveLayer.mock.calls.length;
+      // The stage-open effect already calls `setActiveMode("field")` once while wiring the handle, so
+      // the gate is proven by an unchanged call count, not "never called at all".
+      const before = stageMock.setActiveMode.mock.calls.length;
       // React portal events still bubble to this screen's React ancestors, which is exactly why a
       // shortcut fired at the dialog's button used to reach `handleShortcutKeyDown` at all.
       fireEvent.keyDown(cancelButton, { key: "2" });
-      expect(stageMock.setActiveLayer.mock.calls).toHaveLength(before);
+      expect(stageMock.setActiveMode.mock.calls).toHaveLength(before);
 
       await userEvent.click(cancelButton);
       await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
       fireEvent.keyDown(host, { key: "2" });
-      expect(stageMock.setActiveLayer).toHaveBeenLastCalledWith(1);
+      expect(stageMock.setActiveMode).toHaveBeenLastCalledWith("element");
     });
   });
 

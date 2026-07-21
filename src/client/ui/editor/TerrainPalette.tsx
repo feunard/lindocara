@@ -107,7 +107,7 @@ export function TerrainPalette({
     >
       <div className="flex h-8 flex-none items-center justify-between border-b border-zinc-200 px-3">
         <span className="text-[11px] font-semibold tracking-wide text-zinc-500 uppercase">
-          {eventMode ? t("editor.shell.events") : t("editor.shell.terrain.heading")}
+          {eventMode ? t("editor.shell.mode.event") : t("editor.shell.terrain.heading")}
         </span>
       </div>
 

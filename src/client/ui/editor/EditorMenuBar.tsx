@@ -1,4 +1,5 @@
 import { Box } from "lucide-react";
+import type { EditorMode } from "../../game/editor-state.js";
 import { t, useLocale } from "../../i18n.js";
 import {
   Menubar,
@@ -27,8 +28,7 @@ interface EditorMenuBarProps {
   onOpenDatabase(): void;
   onUndo(): void;
   onRedo(): void;
-  onSelectLayer(layer: 0 | 1 | 2): void;
-  onSelectEvents(): void;
+  onSelectMode(mode: EditorMode): void;
   onSelectTool(tool: EditorPaintTool): void;
   onToggleGrid(): void;
   onToggleDim(): void;
@@ -57,8 +57,7 @@ export function EditorMenuBar({
   onOpenDatabase,
   onUndo,
   onRedo,
-  onSelectLayer,
-  onSelectEvents,
+  onSelectMode,
   onSelectTool,
   onToggleGrid,
   onToggleDim,
@@ -118,17 +117,15 @@ export function EditorMenuBar({
         <MenubarMenu>
           <MenubarTrigger>{t("editor.shell.menu.mode")}</MenubarTrigger>
           <MenubarContent>
-            <MenubarItem onClick={() => onSelectLayer(0)}>
-              {t("editor.shell.layer", { n: 1 })}
+            <MenubarItem onClick={() => onSelectMode("field")}>
+              {t("editor.shell.mode.field")}
             </MenubarItem>
-            <MenubarItem onClick={() => onSelectLayer(1)}>
-              {t("editor.shell.layer", { n: 2 })}
+            <MenubarItem onClick={() => onSelectMode("element")}>
+              {t("editor.shell.mode.element")}
             </MenubarItem>
-            <MenubarItem onClick={() => onSelectLayer(2)}>
-              {t("editor.shell.layer", { n: 3 })}
+            <MenubarItem onClick={() => onSelectMode("event")}>
+              {t("editor.shell.mode.event")}
             </MenubarItem>
-            <MenubarSeparator />
-            <MenubarItem onClick={onSelectEvents}>{t("editor.shell.events")}</MenubarItem>
           </MenubarContent>
         </MenubarMenu>
 

@@ -25,6 +25,7 @@ import {
 } from "../../api.js";
 import {
   type EditorMap,
+  type EditorMode,
   type EditorSelection,
   type EditorTool,
   editorLayersFromPayload,
@@ -257,12 +258,12 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
 
   const handleRef = useRef<MapEditorStageHandle | null>(null);
   const pendingToolRef = useRef<EditorTool>(paintToolFor("pencil", DEFAULT_CONTENT));
-  // Mirrors `activeLayer` the same way `pendingToolRef` mirrors the pending tool: the async stage-open
-  // `.then` below must read the layer selected *while it was opening*, not the one captured when the
-  // effect started running. Without this, clicking a layer during the open window is silently
-  // overwritten by the stale initial layer once the stage resolves.
-  const pendingLayerRef = useRef<0 | 1 | 2>(0);
-  // Mirrors `dim` for the same reason `pendingLayerRef` mirrors the active layer: a dim toggled while
+  // Mirrors `mode` the same way `pendingToolRef` mirrors the pending tool: the async stage-open
+  // `.then` below must read the mode selected *while it was opening*, not the one captured when the
+  // effect started running. Without this, clicking a mode during the open window is silently
+  // overwritten by the stale initial mode once the stage resolves.
+  const pendingModeRef = useRef<EditorMode>("field");
+  // Mirrors `dim` for the same reason `pendingModeRef` mirrors the active mode: a dim toggled while
   // the stage is still opening must be installed by the resolving `.then`, not lost.
   const pendingDimRef = useRef(false);
   // Mirrors `showGrid` (UX wave #8), so the grid-visible state a resolving stage installs is the one
@@ -284,7 +285,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   // The default graphic a newly placed event's page 1 receives, carried on the event tool; `null` is
   // the wireframe's "no graphic" default (a blank placeholder on the overlay).
   const [pendingEventGraphic, setPendingEventGraphic] = useState<EditorAssetId | null>(null);
-  const [activeLayer, setActiveLayer] = useState<0 | 1 | 2>(0);
+  const [mode, setActiveMode] = useState<EditorMode>("field");
   const [showGrid, setShowGrid] = useState(true);
   const [showDim, setShowDim] = useState(false);
   const [cursor, setCursor] = useState<{ col: number; row: number } | null>(null);
@@ -387,7 +388,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
 
   // The painting stage. Not mounted while previewing — the sandbox owns the one `#stage` app then —
   // and reopened from the captured edits when the preview ends. Opening is async; a screen unmount or
-  // a preview start before it resolves still disposes it. `activeLayer` is intentionally excluded
+  // a preview start before it resolves still disposes it. `mode` is intentionally excluded
   // from the deps: it is pushed live through the handle below, never by re-opening the stage.
   // biome-ignore lint/correctness/useExhaustiveDependencies: stage identity is (map, previewing)
   useEffect(() => {
@@ -414,7 +415,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         }
         handleRef.current = handle;
         handle.setTool(pendingToolRef.current);
-        handle.setActiveLayer(pendingLayerRef.current);
+        handle.setActiveMode(pendingModeRef.current);
         handle.setDim(pendingDimRef.current);
         handle.setGrid(pendingGridRef.current);
         setStageStatus("ready");
@@ -525,15 +526,6 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     pushTool({ kind: "element", assetId });
   }
 
-  // The EV slot and the Mode › Événements item both land here: activate the event tool, carrying the
-  // current kind and its fields (a normal event's pending graphic, a monster's species/radius) so a
-  // first placement already has them.
-  function selectEvents(): void {
-    setToolKey("event");
-    setSelectedAsset(null);
-    pushTool(eventToolFor(eventKind, pendingEventGraphic, markerSpecies, markerRadius));
-  }
-
   // The EV kind selector: switch which kind the event tool places, re-pushing so the very next
   // placement is of the chosen kind (the monster re-push effect keeps species/radius fresh too).
   function selectEventKind(kind: EventKind): void {
@@ -568,10 +560,34 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     pushTool(paintToolFor("pencil", next));
   }
 
-  function selectLayer(layer: 0 | 1 | 2): void {
-    pendingLayerRef.current = layer;
-    setActiveLayer(layer);
-    handleRef.current?.setActiveLayer(layer);
+  // Switches which of the three authored collections (terrain / elements / events) the tools act on.
+  // A mode owns a collection, so a tool left over from the previous mode would either be silently
+  // dropped by `toolAllowedInMode` or, worse, keep looking selected while doing nothing — so every
+  // mode change also resets the active tool to that mode's own default: Field always re-arms the
+  // pencil; Element re-arms the last selected decoration if one exists, else falls back to select
+  // (there is no canonical "first" decoration to default to); Event re-arms the event tool with its
+  // current kind/graphic/species/radius — the same push `selectEvents` used to do before Event became
+  // a mode instead of a toolbar toggle.
+  function selectMode(mode: EditorMode): void {
+    pendingModeRef.current = mode;
+    setActiveMode(mode);
+    handleRef.current?.setActiveMode(mode);
+    if (mode === "field") {
+      selectTool("pencil");
+      return;
+    }
+    if (mode === "element") {
+      if (selectedAsset) {
+        setToolKey(null);
+        pushTool({ kind: "element", assetId: selectedAsset });
+      } else {
+        selectTool("select");
+      }
+      return;
+    }
+    setToolKey("event");
+    setSelectedAsset(null);
+    pushTool(eventToolFor(eventKind, pendingEventGraphic, markerSpecies, markerRadius));
   }
 
   function toggleGrid(): void {
@@ -786,7 +802,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     setScreen("parties");
   }
 
-  // ⌘S save, ⌘Z/⇧⌘Z undo/redo, 1/2/3 active layer, P/R/F/E/S tools, G grid — dispatched straight to
+  // ⌘S save, ⌘Z/⇧⌘Z undo/redo, 1/2/3 mode (field/element/event), P/R/F/E/S tools, G grid — dispatched straight to
   // the same actions the menu bar and toolbar call, never a parallel implementation. Inert while:
   // - an input/textarea/select owns the keystroke (checked on `event.target`, since typing "r" into
   //   the new-map name field must not switch tools);
@@ -849,13 +865,13 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     if (event.metaKey || event.ctrlKey || event.altKey) return;
     switch (key) {
       case "1":
-        selectLayer(0);
+        selectMode("field");
         return;
       case "2":
-        selectLayer(1);
+        selectMode("element");
         return;
       case "3":
-        selectLayer(2);
+        selectMode("event");
         return;
       case "p":
         selectTool("pencil");
@@ -962,8 +978,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         onOpenDatabase={() => setDatabaseOpen(true)}
         onUndo={undo}
         onRedo={redo}
-        onSelectLayer={selectLayer}
-        onSelectEvents={selectEvents}
+        onSelectMode={selectMode}
         onSelectTool={selectTool}
         onToggleGrid={toggleGrid}
         onToggleDim={toggleDim}
@@ -973,8 +988,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
 
       <EditorToolbar
         activeTool={isPaintToolKey(toolKey) ? toolKey : null}
-        activeLayer={activeLayer}
-        eventActive={toolKey === "event"}
+        mode={mode}
         showGrid={showGrid}
         showDim={showDim}
         zoom={zoom}
@@ -983,8 +997,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         onSave={() => void save()}
         onDeleteMap={() => setConfirmDeleteId(map?.id ?? null)}
         onSelectTool={selectTool}
-        onSelectLayer={selectLayer}
-        onSelectEvents={selectEvents}
+        onSelectMode={selectMode}
         onToggleGrid={toggleGrid}
         onToggleDim={toggleDim}
         onCycleZoom={cycleZoom}
@@ -1161,7 +1174,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         rows={map?.rows ?? 0}
         cursor={cursorText}
         saved={map !== null && !dirty && stageStatus === "ready"}
-        activeLayer={activeLayer}
+        mode={mode}
         toolLabel={toolLabel}
         zoom={zoom}
       />

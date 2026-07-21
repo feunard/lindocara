@@ -1,4 +1,5 @@
 import { Check } from "lucide-react";
+import type { EditorMode } from "../../game/editor-state.js";
 import { t, useLocale } from "../../i18n.js";
 
 interface EditorStatusBarProps {
@@ -7,20 +8,20 @@ interface EditorStatusBarProps {
   rows: number;
   cursor: string;
   saved: boolean;
-  activeLayer: 0 | 1 | 2;
+  mode: EditorMode;
   toolLabel: string;
   zoom: number;
 }
 
 /** The wireframe's 26px status strip: current map, dimensions, cursor cell, saved flag, active
- *  layer, active tool, zoom. Purely static-prop-driven; Task 9 wires the live cursor cell. */
+ *  mode, active tool, zoom. Purely static-prop-driven; Task 9 wires the live cursor cell. */
 export function EditorStatusBar({
   mapName,
   cols,
   rows,
   cursor,
   saved,
-  activeLayer,
+  mode,
   toolLabel,
   zoom,
 }: EditorStatusBarProps) {
@@ -47,7 +48,7 @@ export function EditorStatusBar({
           <Divider />
         </>
       )}
-      <span>{t("editor.shell.layer", { n: activeLayer + 1 })}</span>
+      <span>{t(`editor.shell.mode.${mode}`)}</span>
       <Divider />
       <span>{toolLabel}</span>
       <Divider />
