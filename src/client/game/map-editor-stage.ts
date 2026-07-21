@@ -157,8 +157,21 @@ const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 2;
 
 /** How far the two non-active planes fade when "dim other modes" is on. Editor-only; the game
- *  renderer never applies it. */
-const DIM_ALPHA = 0.35;
+ *  renderer never applies it. Deliberately strong (D12): the RPG-Maker-XP intent is that the active
+ *  plane clearly *pops*, so the inactive planes drop to a faint context wash — visible enough to keep
+ *  your bearings, dim enough that the active layer's content is unmistakably the foreground. */
+const DIM_ALPHA = 0.2;
+
+/**
+ * D12: the default "dim other modes" state for a given mode. Entering Element or Event mode turns the
+ * dim ON by default so the active plane pops the moment you switch; Field mode leaves every plane
+ * fully opaque (there is no "other layer" worth fading when you are painting terrain). The manual
+ * toggle still overrides this within a mode — this only decides the default reapplied on each mode
+ * CHANGE. Pure so the screen's per-mode default is pinned by a unit test rather than by hand.
+ */
+export function defaultDimForMode(mode: EditorMode): boolean {
+  return mode !== "field";
+}
 
 /**
  * Apply "dim other modes" across the three authored planes: the tile layers (Field), the element

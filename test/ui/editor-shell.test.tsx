@@ -42,6 +42,8 @@ const stageMock = vi.hoisted(() => ({
 
 vi.mock("../../src/client/game/map-editor-stage.js", () => ({
   openMapEditorStage: stageMock.openMapEditorStage,
+  // The screen calls this pure helper to pick the per-mode dim default (D12); mirror its real rule.
+  defaultDimForMode: (mode: string) => mode !== "field",
 }));
 
 function stageHandle() {

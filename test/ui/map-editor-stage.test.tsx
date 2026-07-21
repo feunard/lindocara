@@ -5,6 +5,7 @@ import type { EditorMap, EditorTool } from "../../src/client/game/editor-state.j
 import { applyTool, blankMap, defaultEventPage } from "../../src/client/game/editor-state.js";
 import {
   applyModeDim,
+  defaultDimForMode,
   eventChipLabel,
   eventOverlayToggled,
   paintCollisionOverlay,
@@ -123,21 +124,21 @@ describe("applyModeDim", () => {
   it("Field mode dims the element and event planes, not the tiles", () => {
     const p = planes();
     applyModeDim(p.tiles, p.elements, p.events, "field", true);
-    expect(alphas(p)).toEqual({ tiles: 1, elements: 0.35, events: 0.35 });
+    expect(alphas(p)).toEqual({ tiles: 1, elements: 0.2, events: 0.2 });
     for (const c of p.tiles) expect(c.alpha).toBe(1);
-    for (const c of p.elements) expect(c.alpha).toBe(0.35);
+    for (const c of p.elements) expect(c.alpha).toBe(0.2);
   });
 
   it("Element mode dims the tiles and the event overlay, not the elements", () => {
     const p = planes();
     applyModeDim(p.tiles, p.elements, p.events, "element", true);
-    expect(alphas(p)).toEqual({ tiles: 0.35, elements: 1, events: 0.35 });
+    expect(alphas(p)).toEqual({ tiles: 0.2, elements: 1, events: 0.2 });
   });
 
   it("Event mode dims the tiles and the element containers, not the events", () => {
     const p = planes();
     applyModeDim(p.tiles, p.elements, p.events, "event", true);
-    expect(alphas(p)).toEqual({ tiles: 0.35, elements: 0.35, events: 1 });
+    expect(alphas(p)).toEqual({ tiles: 0.2, elements: 0.2, events: 1 });
   });
 
   it("restores full opacity on every plane when dim is off", () => {
@@ -145,6 +146,22 @@ describe("applyModeDim", () => {
     applyModeDim(p.tiles, p.elements, p.events, "element", true);
     applyModeDim(p.tiles, p.elements, p.events, "element", false);
     for (const c of [...p.tiles, ...p.elements, p.events]) expect(c.alpha).toBe(1);
+  });
+
+  it("dims strongly enough to pop the active plane, yet keeps context faintly visible", () => {
+    const p = planes();
+    applyModeDim(p.tiles, p.elements, p.events, "element", true);
+    // The tiles are the inactive plane here: strong dim (well below half) but never invisible.
+    expect(p.tiles[0]?.alpha).toBeLessThan(0.3);
+    expect(p.tiles[0]?.alpha).toBeGreaterThan(0);
+  });
+});
+
+describe("defaultDimForMode (D12)", () => {
+  it("auto-enables the dim in Element and Event modes, disables it in Field", () => {
+    expect(defaultDimForMode("field")).toBe(false);
+    expect(defaultDimForMode("element")).toBe(true);
+    expect(defaultDimForMode("event")).toBe(true);
   });
 });
 

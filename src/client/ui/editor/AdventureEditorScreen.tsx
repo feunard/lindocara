@@ -47,7 +47,11 @@ import {
   toMapData,
   toSaveInput,
 } from "../../game/editor-state.js";
-import { type MapEditorStageHandle, openMapEditorStage } from "../../game/map-editor-stage.js";
+import {
+  defaultDimForMode,
+  type MapEditorStageHandle,
+  openMapEditorStage,
+} from "../../game/map-editor-stage.js";
 import { startMapPreview } from "../../game/map-preview.js";
 import { t, useLocale } from "../../i18n.js";
 import { type AdventureEditorSession, useUiStore } from "../../store.js";
@@ -674,6 +678,9 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     setActiveMode(nextMode);
     handleRef.current?.setActiveMode(nextMode);
     if (!changed) return;
+    // D12: reapply the mode's default emphasis on every real mode change — dim ON in Element/Event so
+    // the active plane pops, OFF in Field. The manual toggle still overrides it until the next switch.
+    applyDim(defaultDimForMode(nextMode));
     if (nextMode === "field") {
       selectTool("pencil");
       return;
@@ -701,13 +708,16 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     });
   }
 
+  // Push a dim state to React, the stage handle and the async-open ref in lockstep. Shared by the
+  // manual toggle and by `selectMode`'s per-mode auto-default (D12).
+  function applyDim(next: boolean): void {
+    setShowDim(next);
+    pendingDimRef.current = next;
+    handleRef.current?.setDim(next);
+  }
+
   function toggleDim(): void {
-    setShowDim((current) => {
-      const next = !current;
-      pendingDimRef.current = next;
-      handleRef.current?.setDim(next);
-      return next;
-    });
+    applyDim(!showDim);
   }
 
   function toggleCollisions(): void {

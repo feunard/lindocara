@@ -136,7 +136,18 @@ export async function startMapPreview(data: MapData): Promise<{ stop(): void }> 
       // hero never turns, since nothing else in this local loop ever touches `facing`.
       facing = facingFromInput(input, facing);
     }
-    const moved: PlayerSnapshot = { ...self, x: position.x, y: position.y, facing };
+    // The DRAWN position carries the leftover sub-tick time as a partial step, byte-for-byte
+    // `net.ts`'s `#samplePredictedPosition`: `position` above advances only in whole `TICK_DT` ticks
+    // (the 20Hz authoritative cadence), so drawing it raw makes the local hero jerk forward at 20Hz on
+    // a 60/120Hz screen (D22). Adding the leftover `accumulator` as one fractional `step()` — the same
+    // shared movement truth, not a second copy — draws the own square smoothly every frame, exactly as
+    // the live client predicts its own square between ticks.
+    const drawn = resolveTerrain(
+      position,
+      step(position, input, accumulator, PLAYER_SPEED, geometry),
+      geometry,
+    );
+    const moved: PlayerSnapshot = { ...self, x: drawn.x, y: drawn.y, facing };
     const context: RenderContext = {
       self: moved,
       quest: PREVIEW_QUEST,
