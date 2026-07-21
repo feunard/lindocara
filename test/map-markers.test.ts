@@ -13,10 +13,10 @@ import {
   type MapEvent,
   monsterEvents,
 } from "@lindocara/engine/map-events.js";
+import { account, createDb } from "@lindocara/server/db/index.js";
+import { loadMap, type MapInput, validateMapInput } from "@lindocara/server/maps.js";
+import { SESSION_COOKIE } from "@lindocara/server/session.js";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { account, createDb } from "../src/server/db/index.js";
-import { loadMap, type MapInput, validateMapInput } from "../src/server/maps.js";
-import { SESSION_COOKIE } from "../src/server/session.js";
 import { authorMap, seedAdventure } from "./support/adventure-fixtures.js";
 import { layeredTerrain, layeredWireTerrain } from "./support/map-fixtures.js";
 

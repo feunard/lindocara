@@ -7,9 +7,8 @@ import {
   type MapEventPage,
 } from "@lindocara/engine/map-events.js";
 import { fixedId } from "@lindocara/engine/tileset.js";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { loadAdventure } from "../src/server/adventures.js";
-import { account, createDb, type Db } from "../src/server/db/index.js";
+import { loadAdventure } from "@lindocara/server/adventures.js";
+import { account, createDb, type Db } from "@lindocara/server/db/index.js";
 import {
   BUILTIN_MAP_ID,
   deleteMap as deleteOwnedMap,
@@ -20,7 +19,8 @@ import {
   resolveMapFor as resolveOwnedMapFor,
   setFirstMap as setOwnedFirstMap,
   updateMap as updateOwnedMap,
-} from "../src/server/maps.js";
+} from "@lindocara/server/maps.js";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { authorMap, seedAdventure } from "./support/adventure-fixtures.js";
 import { layeredTerrain } from "./support/map-fixtures.js";
 

@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "lindocara",
-  "main": "./src/server/index.ts",
+  "main": "./packages/server/src/index.ts",
 
   // Pinned to the runtime bundled with the wrangler version in package.json. Bumping this
   // opts into new runtime behaviour, so do it deliberately, not incidentally.

@@ -7,17 +7,17 @@ import type { AdventureInput } from "@lindocara/engine/adventure.js";
 import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
 import { functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js";
 import { MAX_HOSTED_PARTIES } from "@lindocara/engine/party.js";
-import { afterEach, describe, expect, it } from "vitest";
-import { createAdventure, deleteAdventure, updateAdventure } from "../src/server/adventures.js";
-import { account, createDb } from "../src/server/db/index.js";
-import type { MapInput } from "../src/server/maps.js";
+import { createAdventure, deleteAdventure, updateAdventure } from "@lindocara/server/adventures.js";
+import { account, createDb } from "@lindocara/server/db/index.js";
+import type { MapInput } from "@lindocara/server/maps.js";
 import {
   createParty,
   deleteParty,
   joinParty,
   listPublicParties,
   listPublicPartiesPage,
-} from "../src/server/parties.js";
+} from "@lindocara/server/parties.js";
+import { afterEach, describe, expect, it } from "vitest";
 import { authorMap } from "./support/adventure-fixtures.js";
 import { layeredTerrain } from "./support/map-fixtures.js";
 

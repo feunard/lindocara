@@ -14,11 +14,18 @@ import { env } from "cloudflare:test";
 import type { AdventureGraph } from "@lindocara/engine/adventure.js";
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import type { MapMarkers } from "@lindocara/engine/map-data.js";
+import {
+  adventure,
+  createDb,
+  type Db,
+  map,
+  party,
+  partyMember,
+} from "@lindocara/server/db/index.js";
+import { createHero } from "@lindocara/server/heroes.js";
+import { migrateMarkersToEvents } from "@lindocara/server/map-marker-event-migrate.js";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
-import { adventure, createDb, type Db, map, party, partyMember } from "../src/server/db/index.js";
-import { createHero } from "../src/server/heroes.js";
-import { migrateMarkersToEvents } from "../src/server/map-marker-event-migrate.js";
 import { layeredWireTerrain } from "./support/map-fixtures.js";
 import {
   Client,

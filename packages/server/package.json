@@ -1,0 +1,12 @@
+{
+  "name": "@lindocara/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./src/*"
+  },
+  "dependencies": {
+    "@lindocara/engine": "*"
+  }
+}

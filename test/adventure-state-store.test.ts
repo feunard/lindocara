@@ -12,15 +12,15 @@ import {
 } from "@lindocara/engine/adventure-state.js";
 import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
 import { functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js";
-import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   loadPartyAdventureState,
   savePartyAdventureState,
-} from "../src/server/adventure-state-store.js";
-import { createAdventure, updateAdventure } from "../src/server/adventures.js";
-import { account, createDb, type Db, partyAdventureState } from "../src/server/db/index.js";
-import type { MapInput } from "../src/server/maps.js";
-import { createParty } from "../src/server/parties.js";
+} from "@lindocara/server/adventure-state-store.js";
+import { createAdventure, updateAdventure } from "@lindocara/server/adventures.js";
+import { account, createDb, type Db, partyAdventureState } from "@lindocara/server/db/index.js";
+import type { MapInput } from "@lindocara/server/maps.js";
+import { createParty } from "@lindocara/server/parties.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { authorMap } from "./support/adventure-fixtures.js";
 import { layeredTerrain } from "./support/map-fixtures.js";
 

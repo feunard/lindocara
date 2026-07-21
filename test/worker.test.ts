@@ -1,12 +1,12 @@
 import { SELF } from "cloudflare:test";
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
-import { describe, expect, it } from "vitest";
 import {
   createSession,
   SESSION_COOKIE,
   SESSION_TTL_SECONDS,
   signSession,
-} from "../src/server/session.js";
+} from "@lindocara/server/session.js";
+import { describe, expect, it } from "vitest";
 
 const ORIGIN = "https://lindocara.test";
 

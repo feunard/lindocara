@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
 import {
   createRoomObservability,
   observeSend,
   observeTick,
   snapshotRoomObservability,
-} from "../src/server/world/observability-system.js";
+} from "@lindocara/server/world/observability-system.js";
+import { describe, expect, it } from "vitest";
 
 describe("room observability aggregation", () => {
   it("summarizes a bounded window and resets counters", () => {

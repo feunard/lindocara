@@ -11,7 +11,6 @@ import type { EventCommand } from "@lindocara/engine/event-commands.js";
 import { EVENT_COMMANDS_PER_TICK } from "@lindocara/engine/event-commands.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
 import { defaultEventPage } from "@lindocara/engine/map-events.js";
-import { describe, expect, it } from "vitest";
 import {
   abortRunForEvent,
   abortRunsForHero,
@@ -21,7 +20,8 @@ import {
   createEventRunRuntime,
   drainRuns,
   startRun,
-} from "../src/server/world/event-run-system.js";
+} from "@lindocara/server/world/event-run-system.js";
+import { describe, expect, it } from "vitest";
 
 /** A one-page `normal` event carrying `program`, for the lock key. Only its id matters to the run. */
 function event(id: string, program: readonly EventCommand[]): MapEvent {

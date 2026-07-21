@@ -6,11 +6,11 @@
  */
 
 import { env } from "cloudflare:test";
+import { createAccount } from "@lindocara/server/accounts.js";
+import { createCharacter } from "@lindocara/server/characters.js";
+import { createDb } from "@lindocara/server/db/index.js";
+import { acquireSessionEpoch, loadProfile, relocateProfile } from "@lindocara/server/profile.js";
 import { afterEach, describe, expect, it } from "vitest";
-import { createAccount } from "../src/server/accounts.js";
-import { createCharacter } from "../src/server/characters.js";
-import { createDb } from "../src/server/db/index.js";
-import { acquireSessionEpoch, loadProfile, relocateProfile } from "../src/server/profile.js";
 
 describe("relocateProfile", () => {
   // The pool does not isolate storage between tests.

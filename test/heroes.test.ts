@@ -8,20 +8,24 @@ import type { AdventureInput } from "@lindocara/engine/adventure.js";
 import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
 import { functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
-import { afterEach, describe, expect, it } from "vitest";
-import { updateAdventure } from "../src/server/adventures.js";
-import { account, createDb } from "../src/server/db/index.js";
+import { updateAdventure } from "@lindocara/server/adventures.js";
+import { account, createDb } from "@lindocara/server/db/index.js";
 import {
   claimHeroQuestReward,
   consumeHeroOwnedItem,
   loadHeroSkills,
   loadNormalizedHeroState,
-} from "../src/server/hero-persistence.js";
-import { acquireHeroEpoch, loadHeroProfile, saveHeroProfile } from "../src/server/hero-profile.js";
-import { createHero, deleteHero, listHeroes } from "../src/server/heroes.js";
-import { HEALTH_POTION_ID } from "../src/server/items.js";
-import type { MapInput } from "../src/server/maps.js";
-import { createParty, joinParty } from "../src/server/parties.js";
+} from "@lindocara/server/hero-persistence.js";
+import {
+  acquireHeroEpoch,
+  loadHeroProfile,
+  saveHeroProfile,
+} from "@lindocara/server/hero-profile.js";
+import { createHero, deleteHero, listHeroes } from "@lindocara/server/heroes.js";
+import { HEALTH_POTION_ID } from "@lindocara/server/items.js";
+import type { MapInput } from "@lindocara/server/maps.js";
+import { createParty, joinParty } from "@lindocara/server/parties.js";
+import { afterEach, describe, expect, it } from "vitest";
 import { authorMap, seedAdventure } from "./support/adventure-fixtures.js";
 import { layeredTerrain } from "./support/map-fixtures.js";
 

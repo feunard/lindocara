@@ -1,5 +1,5 @@
+import { authRequestAllowed } from "@lindocara/server/auth-rate-limit.js";
 import { describe, expect, it, vi } from "vitest";
-import { authRequestAllowed } from "../src/server/auth-rate-limit.js";
 
 function limiter(success: boolean): RateLimit & { limit: ReturnType<typeof vi.fn> } {
   return {

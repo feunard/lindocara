@@ -3,11 +3,12 @@
  * adventure. Single-ref attribution, multi-ref duplication (children copied + graph rewritten), and
  * orphan drop are all exercised here against plain data — the SQL mirrors this planner.
  */
-import { describe, expect, it } from "vitest";
+
 import {
   type OwnershipPlanInput,
   planOwnershipMigration,
-} from "../src/server/map-ownership-migrate.js";
+} from "@lindocara/server/map-ownership-migrate.js";
+import { describe, expect, it } from "vitest";
 
 /** A deterministic id source: "n1", "n2", … so a test can assert exact ids. */
 function counter(): () => string {

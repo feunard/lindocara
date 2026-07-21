@@ -1,15 +1,13 @@
 import { env } from "cloudflare:test";
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
-import { eq } from "drizzle-orm";
-import { afterEach, describe, expect, it } from "vitest";
 import {
   claimQuestReward,
   consumeOwnedItem,
   equipOwnedItem,
   listCharacterQuests,
   loadCharacterSkills,
-} from "../src/server/character-persistence.js";
-import { createCharacter } from "../src/server/characters.js";
+} from "@lindocara/server/character-persistence.js";
+import { createCharacter } from "@lindocara/server/characters.js";
 import {
   account,
   character,
@@ -17,9 +15,11 @@ import {
   characterItem,
   characterQuest,
   createDb,
-} from "../src/server/db/index.js";
-import { HEALTH_POTION_ID, ownedItemId } from "../src/server/items.js";
-import { handoffProfileLocation, loadProfile, saveProfile } from "../src/server/profile.js";
+} from "@lindocara/server/db/index.js";
+import { HEALTH_POTION_ID, ownedItemId } from "@lindocara/server/items.js";
+import { handoffProfileLocation, loadProfile, saveProfile } from "@lindocara/server/profile.js";
+import { eq } from "drizzle-orm";
+import { afterEach, describe, expect, it } from "vitest";
 
 let sequence = 0;
 

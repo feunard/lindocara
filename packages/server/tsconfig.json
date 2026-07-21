@@ -1,0 +1,10 @@
+{
+  // The Worker and the Durable Object: workerd runtime, no DOM. The runtime globals come from
+  // the generated worker-configuration.d.ts (included via src) and the vitest-pool-workers types.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["@cloudflare/vitest-pool-workers/types"]
+  },
+  "include": ["src"]
+}

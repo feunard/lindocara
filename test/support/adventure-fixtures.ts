@@ -13,9 +13,9 @@ import {
   functionalEvent,
   type MapEvent,
 } from "@lindocara/engine/map-events.js";
-import { createAdventure } from "../../src/server/adventures.js";
-import type { Db } from "../../src/server/db/index.js";
-import { createMap, type MapInput, type StoredMap, updateMap } from "../../src/server/maps.js";
+import { createAdventure } from "@lindocara/server/adventures.js";
+import type { Db } from "@lindocara/server/db/index.js";
+import { createMap, type MapInput, type StoredMap, updateMap } from "@lindocara/server/maps.js";
 
 export interface EventMapCells {
   entry: { col: number; row: number };

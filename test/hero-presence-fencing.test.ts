@@ -16,15 +16,15 @@
 import { env, runInDurableObject, SELF } from "cloudflare:test";
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import { NO_INPUT, PLAYER_SPEED, TICK_DT } from "@lindocara/engine/simulation.js";
-import { afterEach, describe, expect, it } from "vitest";
 import {
   PRESENCE_HEARTBEAT_MS,
   PRESENCE_TTL_MS,
   presenceTiming,
-} from "../src/server/character-presence.js";
-import { createDb } from "../src/server/db/index.js";
-import { loadHeroProfile, saveHeroProfile } from "../src/server/hero-profile.js";
-import type { Attachment } from "../src/server/world.js";
+} from "@lindocara/server/character-presence.js";
+import { createDb } from "@lindocara/server/db/index.js";
+import { loadHeroProfile, saveHeroProfile } from "@lindocara/server/hero-profile.js";
+import type { Attachment } from "@lindocara/server/world.js";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   Client,
   drainHeroRooms,

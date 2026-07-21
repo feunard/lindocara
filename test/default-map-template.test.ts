@@ -9,8 +9,8 @@ import { bakeCollision } from "@lindocara/engine/map-data.js";
 import { resolveWholeLayer } from "@lindocara/engine/tile-brush.js";
 import { isSolidKind, kindAt } from "@lindocara/engine/tilemap.js";
 import { TINY_SWORDS_TILESET } from "@lindocara/engine/tilesets/tiny-swords.js";
+import { defaultMapInput, MAP_MIN_COLS, MAP_MIN_ROWS } from "@lindocara/server/maps.js";
 import { describe, expect, it } from "vitest";
-import { defaultMapInput, MAP_MIN_COLS, MAP_MIN_ROWS } from "../src/server/maps.js";
 
 function template() {
   const input = defaultMapInput("Fresh");

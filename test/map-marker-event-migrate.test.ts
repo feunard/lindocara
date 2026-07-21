@@ -5,11 +5,11 @@
  */
 
 import type { MapMarkers } from "@lindocara/engine/map-data.js";
-import { describe, expect, it } from "vitest";
 import {
   type MarkerMigrationInput,
   planMarkerEventMigration,
-} from "../src/server/map-marker-event-migrate.js";
+} from "@lindocara/server/map-marker-event-migrate.js";
+import { describe, expect, it } from "vitest";
 
 function counter(): () => string {
   let n = 0;

@@ -1,20 +1,19 @@
 {
-  // The Worker, the Durable Object, and the tests that exercise them — all run in workerd.
-  // No DOM lib here; the runtime globals come from the generated worker-configuration.d.ts.
-  "extends": "./tsconfig.json",
+  // The workerd-side test program: the DO/integration tests under test/ (excluding the jsdom
+  // React suite and the plain client suite). Package *sources* are typechecked by their own
+  // per-package tsconfig; this program covers the tests that exercise them. The runtime globals
+  // come from the generated worker-configuration.d.ts and the vitest-pool-workers types.
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2022"],
     "types": ["@cloudflare/vitest-pool-workers/types"]
   },
   "include": [
-    "src/server/**/*.ts",
-    "src/shared/**/*.ts",
     "test/**/*.ts",
-    "src/worker-configuration.d.ts",
-    "src/env.d.ts"
+    "packages/server/src/worker-configuration.d.ts",
+    "packages/server/src/env.d.ts"
   ],
-  // test/ui/ is the jsdom-backed React suite and test/client/ is the plain (non-React) client
-  // suite (both tsconfig.client.json). Neither has DOM lib here, so leave those files to the
-  // client program.
+  // test/ui/ is the jsdom React suite and test/client/ is the plain (non-React) client suite,
+  // both checked by tsconfig.client.json.
   "exclude": ["test/ui", "test/client"]
 }

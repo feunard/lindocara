@@ -22,11 +22,11 @@ import { encodeTileLayer, type TileLayer } from "@lindocara/engine/tile-layer-co
 import { fixedId } from "@lindocara/engine/tileset.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { EDITOR_ASSETS, editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
+import { createAdventure } from "@lindocara/server/adventures.js";
+import { createDb } from "@lindocara/server/db/index.js";
+import { BUILTIN_MAP_ID } from "@lindocara/server/maps.js";
+import { SESSION_COOKIE } from "@lindocara/server/session.js";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { createAdventure } from "../src/server/adventures.js";
-import { createDb } from "../src/server/db/index.js";
-import { BUILTIN_MAP_ID } from "../src/server/maps.js";
-import { SESSION_COOKIE } from "../src/server/session.js";
 import { layeredWireTerrain } from "./support/map-fixtures.js";
 
 const ORIGIN = "https://lindocara.test";

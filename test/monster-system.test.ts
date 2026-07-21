@@ -11,21 +11,21 @@ import { EMPTY_MARKERS, type MapData, terrainFromMap } from "@lindocara/engine/m
 import { DEFAULT_ZONE_NAVIGATION } from "@lindocara/engine/navigation.js";
 import { PLAYER_SIZE, TICK_DT } from "@lindocara/engine/simulation.js";
 import { type ZoneDefinition, zoneDefinition } from "@lindocara/engine/zones.js";
-import { describe, expect, it, vi } from "vitest";
 import {
   advanceGuards,
   advanceMonsters,
   type MonsterSystemContext,
-} from "../src/server/world/monster-system.js";
-import { createNavigationRuntime } from "../src/server/world/navigation-system.js";
-import { SpatialGrid } from "../src/server/world/spatial-grid.js";
+} from "@lindocara/server/world/monster-system.js";
+import { createNavigationRuntime } from "@lindocara/server/world/navigation-system.js";
+import { SpatialGrid } from "@lindocara/server/world/spatial-grid.js";
 import {
   createGuards,
   createMonsters,
   type MonsterRuntime,
   newPlayer,
   type PlayerRuntime,
-} from "../src/server/world/world-runtime.js";
+} from "@lindocara/server/world/world-runtime.js";
+import { describe, expect, it, vi } from "vitest";
 import { mapDataFromBlocks } from "./support/map-fixtures.js";
 import { noColliders, tileMapFromRects } from "./support/tiles.js";
 

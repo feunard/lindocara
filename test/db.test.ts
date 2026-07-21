@@ -7,16 +7,14 @@ import { env } from "cloudflare:test";
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
 import { mapSpawnPoint } from "@lindocara/engine/map-data.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
-import { asc, eq } from "drizzle-orm";
-import { afterEach, describe, expect, it } from "vitest";
-import { createAccount, verifyCredentials } from "../src/server/accounts.js";
+import { createAccount, verifyCredentials } from "@lindocara/server/accounts.js";
 import {
   characterOwnedBy,
   createCharacter,
   deleteCharacter,
   listCharacters,
   MAX_CHARACTERS_PER_ACCOUNT,
-} from "../src/server/characters.js";
+} from "@lindocara/server/characters.js";
 import {
   account,
   adventure,
@@ -26,10 +24,12 @@ import {
   mapElement,
   mapEvent,
   mapEventPage,
-} from "../src/server/db/index.js";
-import { BUILTIN_MAP, loadMap } from "../src/server/maps.js";
-import { hashPassword } from "../src/server/password.js";
-import { acquireSessionEpoch, loadProfile, saveProfile } from "../src/server/profile.js";
+} from "@lindocara/server/db/index.js";
+import { BUILTIN_MAP, loadMap } from "@lindocara/server/maps.js";
+import { hashPassword } from "@lindocara/server/password.js";
+import { acquireSessionEpoch, loadProfile, saveProfile } from "@lindocara/server/profile.js";
+import { asc, eq } from "drizzle-orm";
+import { afterEach, describe, expect, it } from "vitest";
 
 describe("account and character tables", () => {
   // The pool does not isolate storage between tests. Truncate children before parents (FK).

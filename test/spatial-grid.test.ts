@@ -1,5 +1,5 @@
+import { queryWithHysteresis, SpatialGrid } from "@lindocara/server/spatial-grid.js";
 import { describe, expect, it } from "vitest";
-import { queryWithHysteresis, SpatialGrid } from "../src/server/spatial-grid.js";
 
 interface Entity {
   id: string;

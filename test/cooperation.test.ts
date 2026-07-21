@@ -14,14 +14,14 @@ import {
   skillResourceCost,
   spendResource,
 } from "@lindocara/engine/resources.js";
-import { describe, expect, it } from "vitest";
 import {
   beginRewardAttribution,
   removePlayerCombatState,
-} from "../src/server/world/contribution-system.js";
-import { canSeeLoot } from "../src/server/world/interest-system.js";
-import type { GroundLoot } from "../src/server/world/world-runtime.js";
-import { createMonsters } from "../src/server/world/world-runtime.js";
+} from "@lindocara/server/world/contribution-system.js";
+import { canSeeLoot } from "@lindocara/server/world/interest-system.js";
+import type { GroundLoot } from "@lindocara/server/world/world-runtime.js";
+import { createMonsters } from "@lindocara/server/world/world-runtime.js";
+import { describe, expect, it } from "vitest";
 
 describe("cooperative combat rules", () => {
   it("selects the eligible player with the most threat deterministically", () => {

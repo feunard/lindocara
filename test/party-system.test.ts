@@ -1,6 +1,5 @@
 import type { ServerMessage } from "@lindocara/engine/protocol.js";
-import { describe, expect, it, vi } from "vitest";
-import type { PlayerProfile } from "../src/server/profile.js";
+import type { PlayerProfile } from "@lindocara/server/profile.js";
 import {
   answerPartyInvite,
   broadcastPartyStateIfChanged,
@@ -13,8 +12,9 @@ import {
   type PartySystemContext,
   removePlayerFromParties,
   sendPartyChat,
-} from "../src/server/world/party-system.js";
-import { newPlayer } from "../src/server/world/world-runtime.js";
+} from "@lindocara/server/world/party-system.js";
+import { newPlayer } from "@lindocara/server/world/world-runtime.js";
+import { describe, expect, it, vi } from "vitest";
 
 function profile(id: string): PlayerProfile {
   return {

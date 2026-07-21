@@ -14,7 +14,6 @@ import {
   functionalEvent,
   type MapEvent,
 } from "@lindocara/engine/map-events.js";
-import { afterEach, describe, expect, it } from "vitest";
 import {
   createAdventure,
   deleteAdventure,
@@ -22,9 +21,10 @@ import {
   loadAdventure,
   updateAdventure,
   updateAdventureRegistry,
-} from "../src/server/adventures.js";
-import { account, createDb, type Db, party } from "../src/server/db/index.js";
-import { deleteMap as deleteOwnedMap, loadOwnedMap, updateMap } from "../src/server/maps.js";
+} from "@lindocara/server/adventures.js";
+import { account, createDb, type Db, party } from "@lindocara/server/db/index.js";
+import { deleteMap as deleteOwnedMap, loadOwnedMap, updateMap } from "@lindocara/server/maps.js";
+import { afterEach, describe, expect, it } from "vitest";
 import { authorMap, seedAdventure } from "./support/adventure-fixtures.js";
 import { layeredTerrain } from "./support/map-fixtures.js";
 

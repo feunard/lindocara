@@ -31,9 +31,9 @@ import {
   WORLD_WIDTH,
 } from "@lindocara/engine/simulation.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
+import { RESYNC_COOLDOWN_MS } from "@lindocara/server/world/world-runtime.js";
+import { type Attachment, positionFromAttachment } from "@lindocara/server/world.js";
 import { describe, expect, it } from "vitest";
-import { RESYNC_COOLDOWN_MS } from "../src/server/world/world-runtime.js";
-import { type Attachment, positionFromAttachment } from "../src/server/world.js";
 import {
   awayFromNearestWall,
   Client,

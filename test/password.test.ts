@@ -1,5 +1,5 @@
+import { hashPassword, PBKDF2_ITERATIONS, verifyPassword } from "@lindocara/server/password.js";
 import { describe, expect, it } from "vitest";
-import { hashPassword, PBKDF2_ITERATIONS, verifyPassword } from "../src/server/password.js";
 
 describe("password hashing", () => {
   it("round-trips a password", async () => {

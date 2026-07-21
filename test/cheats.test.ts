@@ -1,11 +1,11 @@
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
 import { CHEAT_COMMAND_SYNTAX, parseCheatCommand } from "@lindocara/engine/cheats.js";
 import { maxHpForLevel, PLAYER_CLASSES, type PlayerClass } from "@lindocara/engine/game.js";
+import type { PlayerProfile } from "@lindocara/server/profile.js";
+import { executeCheatCommand } from "@lindocara/server/world/cheat-command-system.js";
+import { isPlayerInvulnerable } from "@lindocara/server/world/combat-system.js";
+import { newPlayer } from "@lindocara/server/world/world-runtime.js";
 import { describe, expect, it } from "vitest";
-import type { PlayerProfile } from "../src/server/profile.js";
-import { executeCheatCommand } from "../src/server/world/cheat-command-system.js";
-import { isPlayerInvulnerable } from "../src/server/world/combat-system.js";
-import { newPlayer } from "../src/server/world/world-runtime.js";
 
 function profile(playerClass: PlayerClass): PlayerProfile {
   return {

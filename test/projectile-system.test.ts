@@ -5,21 +5,21 @@ import {
 } from "@lindocara/engine/combat-actions.js";
 import type { TerrainGeometry } from "@lindocara/engine/game.js";
 import type { ProjectileKind } from "@lindocara/engine/protocol.js";
-import { describe, expect, it, vi } from "vitest";
 import {
   advanceProjectiles,
   type ProjectileSystemContext,
   removeProjectilesByOwner,
   spawnProjectile,
-} from "../src/server/world/projectile-system.js";
-import { SpatialGrid } from "../src/server/world/spatial-grid.js";
+} from "@lindocara/server/world/projectile-system.js";
+import { SpatialGrid } from "@lindocara/server/world/spatial-grid.js";
 import {
   createMonsters,
   type MonsterRuntime,
   newPlayer,
   type PlayerRuntime,
   type ProjectileRuntime,
-} from "../src/server/world/world-runtime.js";
+} from "@lindocara/server/world/world-runtime.js";
+import { describe, expect, it, vi } from "vitest";
 import { noColliders, tileMapFromRects } from "./support/tiles.js";
 
 function terrain(obstacles: TerrainGeometry["obstacles"] = []): TerrainGeometry {

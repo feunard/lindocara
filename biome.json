@@ -37,7 +37,11 @@
   },
   "overrides": [
     {
-      "includes": ["src/server/**", "src/client/game/session.ts", "src/client/game/input.ts"],
+      "includes": [
+        "packages/server/src/**",
+        "src/client/game/session.ts",
+        "src/client/game/input.ts"
+      ],
       "linter": {
         "enabled": true,
         "rules": {
@@ -51,7 +55,7 @@
       "includes": [
         "packages/engine/src/event-commands.ts",
         "packages/engine/src/event-interpreter.ts",
-        "src/server/world/event-run-system.ts",
+        "packages/server/src/world/event-run-system.ts",
         "src/client/ui/editor/EventCommandEditor.tsx",
         "test/**"
       ],

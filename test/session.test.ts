@@ -1,4 +1,3 @@
-import { describe, expect, it, vi } from "vitest";
 import {
   createSession,
   isValidPassword,
@@ -9,7 +8,8 @@ import {
   SESSION_TTL_SECONDS,
   signSession,
   verifySession,
-} from "../src/server/session.js";
+} from "@lindocara/server/session.js";
+import { describe, expect, it, vi } from "vitest";
 
 const SECRET = "test-session-secret-with-at-least-32-bytes";
 const ACCOUNT_ID = "11111111-1111-4111-8111-111111111111";
