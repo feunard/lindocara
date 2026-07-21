@@ -1363,6 +1363,100 @@ git commit -m "test: pin client/server agreement on sub-cell collision"
 
 ---
 
+### Task 7b: Persist element offsets in D1
+
+Added mid-execution. Task 3 put `offsetX`/`offsetY` on `MapElement` and the wire, but the `map_element`
+D1 table has no offset columns and `elementsOf` reads them back as a hardcoded `0`. So an authored
+offset is lost the moment the map is saved — the core of the Element-mode feature is broken at the
+persistence boundary. This task closes it. **User decision:** the offset is part of the row's
+identity — the primary key becomes `(mapId, col, row, offsetX, offsetY)`, so up to 16 decorations can
+share a cell at different quarter positions.
+
+**Files:**
+- Modify: `src/server/db/schema.ts` (`mapElement`, ~line 304)
+- Create: `migrations/NNNN_*.sql` (generated, committed)
+- Modify: `src/server/maps.ts` (`elementsOf` ~458, `elementRows` ~619, `MAP_ELEMENT_PARAMS_PER_ROW` ~640)
+- Test: `test/db.test.ts`
+
+**Interfaces:**
+- Consumes: `MapElement.offsetX/offsetY` (Task 3).
+- Produces: no new exported symbol; the D1 boundary now round-trips offsets instead of zeroing them.
+
+- [ ] **Step 1: Write the failing test**
+
+In `test/db.test.ts`, following the file's existing map-save/read conventions (it truncates in
+`afterEach`; never call `reset()` from `cloudflare:test`):
+
+```ts
+it("round-trips element offsets through D1", async () => {
+  // save a map with an element at offsetX: 3, offsetY: 2, read it back, assert both survived.
+});
+
+it("keeps two elements in one cell at different offsets", async () => {
+  // two elements sharing col/row but differing in offsetX/offsetY both persist — the PK change.
+  // Assert the read-back contains both, matched by their offsets, not by count alone.
+});
+```
+
+Fill both bodies against the real save/read helpers already in `test/db.test.ts`. Do not leave them
+as comments.
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `npx vitest run test/db.test.ts -t "offset"`
+Expected: FAIL — offsets read back as 0, and the same-cell pair collides on the old PK.
+
+- [ ] **Step 3: Change the schema**
+
+In `src/server/db/schema.ts`, add to `mapElement` after `row`:
+
+```ts
+    offsetX: integer("offset_x").notNull().default(0),
+    offsetY: integer("offset_y").notNull().default(0),
+```
+
+and change the primary key to `primaryKey({ columns: [table.mapId, table.col, table.row, table.offsetX, table.offsetY] })`.
+Update the table's doc comment: the offset is now part of the row identity, and a cell can hold up
+to `ELEMENT_OFFSET_STEPS²` = 16 decorations.
+
+- [ ] **Step 4: Generate and apply the migration**
+
+Run: `npm run db:generate` — inspect the emitted `migrations/NNNN_*.sql`. SQLite cannot ALTER a
+primary key, so drizzle-kit emits a table rebuild (create new, copy, drop, rename). Confirm the copy
+carries `offset_x`/`offset_y` defaulting to 0 for existing rows, and that no existing row set can
+collide under the new PK (the old PK `(map,col,row)` was already unique, and `(…,0,0)` preserves
+that). Then `npm run db:migrate`. Do NOT run `cf-typegen` — this is a table change, not a binding
+change. Commit the generated `.sql`.
+
+- [ ] **Step 5: Write and read the columns**
+
+In `src/server/maps.ts`:
+- `elementRows` (~619): add `offsetX: element.offsetX, offsetY: element.offsetY`.
+- `elementsOf` (~458): replace both hardcoded `offsetX: 0, offsetY: 0` with `row.offsetX`/`row.offsetY`,
+  and rewrite the "no offset columns yet" comment — the columns exist now.
+- `MAP_ELEMENT_PARAMS_PER_ROW` (~640): `5` → `7`, and update its inline comment and the block comment
+  above it (`mapId, col, row, offsetX, offsetY, kind, variant`). The chunk size auto-derives; confirm
+  it stays comfortably under the cap.
+
+The write path is delete-then-insert (`clearElements` at ~889 wipes the map's element rows before
+`insertElementStatements` rewrites them), so the PK widening needs no conflict-target change.
+
+- [ ] **Step 6: Run the tests**
+
+Run: `npm run check`
+Expected: PASS, including the two new round-trip tests. If a fixture elsewhere inserts a `map_element`
+row directly, it now gets `offset_x`/`offset_y` defaults for free — no change needed unless it asserts
+the old column set.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/server/db/schema.ts migrations/ src/server/maps.ts test/db.test.ts
+git commit -m "feat: persist element quarter-tile offsets in D1"
+```
+
+---
+
 ### Task 8: Render the offset
 
 One shared anchor, so the editor stage and the game renderer cannot drift.
