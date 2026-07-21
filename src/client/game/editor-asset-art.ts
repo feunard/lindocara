@@ -1,9 +1,9 @@
-import { Assets, Rectangle, Texture } from "pixi.js";
 import {
   type EditorAssetDefinition,
   type EditorAssetId,
   editorAsset,
-} from "../../shared/tiny-swords-catalog.js";
+} from "@lindocara/engine/tiny-swords-catalog.js";
+import { Assets, Rectangle, Texture } from "pixi.js";
 import { tinySwordsSourceUrl } from "./tiny-swords-assets.js";
 
 export interface EditorAssetArt {

@@ -5,9 +5,9 @@
  * block a cell", so any overlap marks the cell solid — simpler, and conservative in the same
  * direction the pathfinding tests want (a wall should never leak through a rasterised gap).
  */
-import { type ColliderIndex, emptyColliderIndex } from "../../src/shared/collider.js";
-import type { Rect } from "../../src/shared/game.js";
-import { TILE_SIZE, type TileKind, type TileMap } from "../../src/shared/tilemap.js";
+import { type ColliderIndex, emptyColliderIndex } from "@lindocara/engine/collider.js";
+import type { Rect } from "@lindocara/engine/game.js";
+import { TILE_SIZE, type TileKind, type TileMap } from "@lindocara/engine/tilemap.js";
 
 /** The sub-cell half of `TerrainGeometry`, empty. A hand-authored test terrain describes its
  *  obstacles as tiles; only an authored map's elements produce colliders. */

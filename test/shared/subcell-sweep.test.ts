@@ -1,7 +1,7 @@
+import { colliderIndexFrom, emptyColliderIndex } from "@lindocara/engine/collider.js";
+import { sweptProjectileTerrainImpact } from "@lindocara/engine/directional-combat.js";
+import { isPathWalkable, TILE_SIZE, type TileMap } from "@lindocara/engine/tilemap.js";
 import { describe, expect, it } from "vitest";
-import { colliderIndexFrom, emptyColliderIndex } from "../../src/shared/collider.js";
-import { sweptProjectileTerrainImpact } from "../../src/shared/directional-combat.js";
-import { isPathWalkable, TILE_SIZE, type TileMap } from "../../src/shared/tilemap.js";
 
 const COLS = 6;
 const ROWS = 6;

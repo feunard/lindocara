@@ -1,4 +1,4 @@
-import type { MainHandItem, OffHandItem, PrimaryColor } from "../../shared/character.js";
+import type { MainHandItem, OffHandItem, PrimaryColor } from "@lindocara/engine/character.js";
 
 export const CHARACTER_ATLAS_URL = "/assets/lindocara/atlas/world.png";
 

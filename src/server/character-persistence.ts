@@ -1,9 +1,9 @@
+import type { Equipment } from "@lindocara/engine/character.js";
+import { normalizeEquipment, starterEquipmentFor } from "@lindocara/engine/character.js";
+import { type QuestChapter, questDefinition } from "@lindocara/engine/game.js";
+import type { QuestState } from "@lindocara/engine/protocol.js";
+import { CLASS_SKILLS, isSkillUnlocked } from "@lindocara/engine/skills.js";
 import { and, eq } from "drizzle-orm";
-import type { Equipment } from "../shared/character.js";
-import { normalizeEquipment, starterEquipmentFor } from "../shared/character.js";
-import { type QuestChapter, questDefinition } from "../shared/game.js";
-import type { QuestState } from "../shared/protocol.js";
-import { CLASS_SKILLS, isSkillUnlocked } from "../shared/skills.js";
 import {
   type character,
   characterEquipment,

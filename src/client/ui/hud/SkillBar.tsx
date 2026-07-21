@@ -1,9 +1,9 @@
+import type { MessageKey } from "@lindocara/engine/i18n/index.js";
+import { skillResourceCost } from "@lindocara/engine/resources.js";
+import type { SkillSlot } from "@lindocara/engine/skills.js";
+import { CLASS_SKILLS, isSkillUnlocked, SKILL_UNLOCK_LEVEL } from "@lindocara/engine/skills.js";
+import { evolvedTalent } from "@lindocara/engine/talents.js";
 import { type CSSProperties, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import type { MessageKey } from "../../../shared/i18n/index.js";
-import { skillResourceCost } from "../../../shared/resources.js";
-import type { SkillSlot } from "../../../shared/skills.js";
-import { CLASS_SKILLS, isSkillUnlocked, SKILL_UNLOCK_LEVEL } from "../../../shared/skills.js";
-import { evolvedTalent } from "../../../shared/talents.js";
 import {
   getInputSettings,
   keyboardBindingLabel,

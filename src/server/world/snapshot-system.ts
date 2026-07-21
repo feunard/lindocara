@@ -1,18 +1,18 @@
-import type { AuthoredQuestTracker } from "../../shared/adventure-state.js";
-import { type QuestChapter, xpForNextLevel } from "../../shared/game.js";
+import type { AuthoredQuestTracker } from "@lindocara/engine/adventure-state.js";
+import { type QuestChapter, xpForNextLevel } from "@lindocara/engine/game.js";
 import type {
   SelfState,
   ServerMessage,
   WorldEventSnapshot,
   WorldView,
-} from "../../shared/protocol.js";
-import { talentState } from "../../shared/talents.js";
+} from "@lindocara/engine/protocol.js";
+import { talentState } from "@lindocara/engine/talents.js";
 import {
   buildEventDelta,
   buildWorldDelta,
   replaceWorldCache,
   seedEventCache,
-} from "../../shared/world-delta.js";
+} from "@lindocara/engine/world-delta.js";
 import { combatCooldownsFromPlayer, type PlayerRuntime } from "./world-runtime.js";
 
 export type SendMessage = (socket: WebSocket, message: ServerMessage) => void;

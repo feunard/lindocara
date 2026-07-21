@@ -1,4 +1,3 @@
-import { describe, expect, it } from "vitest";
 import {
   type AdventureGraph,
   type AdventureLink,
@@ -8,7 +7,8 @@ import {
   parseAdventureGraph,
   parseAdventureInput,
   validateAdventure,
-} from "../src/shared/adventure.js";
+} from "@lindocara/engine/adventure.js";
+import { describe, expect, it } from "vitest";
 
 // `validateAdventure` still takes a REQUIRED graph (it is the compat/seed validator). `AdventureInput`
 // made the graph optional (the editor no longer authors one), so these graph-shape fixtures use a

@@ -1,13 +1,13 @@
-import { describe, expect, it } from "vitest";
 import {
   colliderIndexFrom,
   emptyColliderIndex,
   flattenColliderIndex,
   overlapsCollider,
-} from "../../src/shared/collider.js";
-import type { Rect } from "../../src/shared/game.js";
-import type { Vec2 } from "../../src/shared/simulation.js";
-import { TILE_SIZE } from "../../src/shared/tilemap.js";
+} from "@lindocara/engine/collider.js";
+import type { Rect } from "@lindocara/engine/game.js";
+import type { Vec2 } from "@lindocara/engine/simulation.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
+import { describe, expect, it } from "vitest";
 
 const COLS = 4;
 const ROWS = 4;

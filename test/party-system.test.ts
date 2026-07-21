@@ -1,3 +1,4 @@
+import type { ServerMessage } from "@lindocara/engine/protocol.js";
 import { describe, expect, it, vi } from "vitest";
 import type { PlayerProfile } from "../src/server/profile.js";
 import {
@@ -14,7 +15,6 @@ import {
   sendPartyChat,
 } from "../src/server/world/party-system.js";
 import { newPlayer } from "../src/server/world/world-runtime.js";
-import type { ServerMessage } from "../src/shared/protocol.js";
 
 function profile(id: string): PlayerProfile {
   return {

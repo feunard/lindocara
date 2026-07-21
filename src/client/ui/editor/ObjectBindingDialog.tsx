@@ -1,7 +1,7 @@
+import type { AuthoredQuestDefinition } from "@lindocara/engine/adventure-state.js";
+import type { EventCommand } from "@lindocara/engine/event-commands.js";
+import { type EditorAssetId, editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
 import { useState } from "react";
-import type { AuthoredQuestDefinition } from "../../../shared/adventure-state.js";
-import type { EventCommand } from "../../../shared/event-commands.js";
-import { type EditorAssetId, editorAsset } from "../../../shared/tiny-swords-catalog.js";
 import type { ElementEventBinding } from "../../game/editor-state.js";
 import { t, useLocale } from "../../i18n.js";
 import { Button } from "../components/button.js";

@@ -1,4 +1,4 @@
-import { TICK_HZ, TICK_MS } from "../../shared/simulation.js";
+import { TICK_HZ, TICK_MS } from "@lindocara/engine/simulation.js";
 
 export const OBSERVABILITY_INTERVAL_TICKS = TICK_HZ * 20;
 

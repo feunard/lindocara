@@ -1,13 +1,13 @@
-import { describe, expect, it } from "vitest";
-import { bakeCollision, MAP_LAYERS, parseMapData } from "../src/shared/map-data.js";
-import { paintAutotile } from "../src/shared/tile-brush.js";
-import { emptyLayer, encodeTileLayer, type TileLayer } from "../src/shared/tile-layer-codec.js";
-import { kindAt } from "../src/shared/tilemap.js";
+import { bakeCollision, MAP_LAYERS, parseMapData } from "@lindocara/engine/map-data.js";
+import { paintAutotile } from "@lindocara/engine/tile-brush.js";
+import { emptyLayer, encodeTileLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
+import { kindAt } from "@lindocara/engine/tilemap.js";
 import {
   GRASS_SLOTS,
   TINY_SWORDS_TILESET,
   TINY_SWORDS_TILESET_ID,
-} from "../src/shared/tilesets/tiny-swords.js";
+} from "@lindocara/engine/tilesets/tiny-swords.js";
+import { describe, expect, it } from "vitest";
 
 function grassField(cols: number, rows: number): [TileLayer, TileLayer, TileLayer] {
   let ground = emptyLayer(cols, rows);

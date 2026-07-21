@@ -4,6 +4,10 @@
  * position comes from the start map's entry marker (door at col 5,row 5 → pixel centre).
  */
 import { env } from "cloudflare:test";
+import type { AdventureInput } from "@lindocara/engine/adventure.js";
+import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
+import { functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { updateAdventure } from "../src/server/adventures.js";
 import { account, createDb } from "../src/server/db/index.js";
@@ -18,10 +22,6 @@ import { createHero, deleteHero, listHeroes } from "../src/server/heroes.js";
 import { HEALTH_POTION_ID } from "../src/server/items.js";
 import type { MapInput } from "../src/server/maps.js";
 import { createParty, joinParty } from "../src/server/parties.js";
-import type { AdventureInput } from "../src/shared/adventure.js";
-import { EMPTY_MARKERS } from "../src/shared/map-data.js";
-import { functionalEvent, type MapEvent } from "../src/shared/map-events.js";
-import { TILE_SIZE } from "../src/shared/tilemap.js";
 import { authorMap, seedAdventure } from "./support/adventure-fixtures.js";
 import { layeredTerrain } from "./support/map-fixtures.js";
 

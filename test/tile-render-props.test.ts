@@ -1,3 +1,6 @@
+import { SAFE_ZONE, VERDANT_REACH_TERRAIN, WORLD_LANDMARKS } from "@lindocara/engine/game.js";
+import { WORLD_HEIGHT, WORLD_WIDTH } from "@lindocara/engine/simulation.js";
+import { isLandKind, isSolidKind, kindAtPoint } from "@lindocara/engine/tilemap.js";
 import { describe, expect, it } from "vitest";
 import {
   DECOR_REGIONS,
@@ -5,9 +8,6 @@ import {
   roadStrength,
   visualConfigFor,
 } from "../src/client/game/world-layout.js";
-import { SAFE_ZONE, VERDANT_REACH_TERRAIN, WORLD_LANDMARKS } from "../src/shared/game.js";
-import { WORLD_HEIGHT, WORLD_WIDTH } from "../src/shared/simulation.js";
-import { isLandKind, isSolidKind, kindAtPoint } from "../src/shared/tilemap.js";
 
 /**
  * The thesis of this slice is "what you SEE is what you COLLIDE with." Commit 2515569 moved

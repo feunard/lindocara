@@ -1,5 +1,4 @@
-import { describe, expect, it } from "vitest";
-import { INTERACTION_RANGE, pointDistance } from "../src/shared/game.js";
+import { INTERACTION_RANGE, pointDistance } from "@lindocara/engine/game.js";
 import {
   buildRoomKey,
   DEFAULT_INSTANCE_ID,
@@ -10,7 +9,8 @@ import {
   ZONES,
   type ZoneId,
   zoneDefinition,
-} from "../src/shared/zones.js";
+} from "@lindocara/engine/zones.js";
+import { describe, expect, it } from "vitest";
 
 describe("zone catalogue", () => {
   it("keeps migrated characters in the deterministic Verdant Reach main room", () => {

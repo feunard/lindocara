@@ -16,9 +16,12 @@
  *  (d) resumeWithChoice skips the index range check → the out-of-range drop test fails
  *      ("resumeWithChoice drops an out-of-range index").
  */
-import { describe, expect, it } from "vitest";
-import { EMPTY_ADVENTURE_STATE, type PartyAdventureState } from "../src/shared/adventure-state.js";
-import type { EventCommand } from "../src/shared/event-commands.js";
+
+import {
+  EMPTY_ADVENTURE_STATE,
+  type PartyAdventureState,
+} from "@lindocara/engine/adventure-state.js";
+import type { EventCommand } from "@lindocara/engine/event-commands.js";
 import {
   applyStateMutation,
   type EventEffect,
@@ -27,7 +30,8 @@ import {
   resumeWithChoice,
   startEventRun,
   stepEventRun,
-} from "../src/shared/event-interpreter.js";
+} from "@lindocara/engine/event-interpreter.js";
+import { describe, expect, it } from "vitest";
 
 const EVENT_ID = "11111111-1111-4111-8111-111111111111";
 const MAP_ID = "22222222-2222-4222-8222-222222222222";

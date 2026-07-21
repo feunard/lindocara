@@ -1,4 +1,12 @@
 import { env } from "cloudflare:test";
+import { MAX_MAP_ELEMENTS, type MapElement } from "@lindocara/engine/map-data.js";
+import {
+  MAX_EVENTS_PER_MAP,
+  MAX_PAGES_PER_EVENT,
+  type MapEvent,
+  type MapEventPage,
+} from "@lindocara/engine/map-events.js";
+import { fixedId } from "@lindocara/engine/tileset.js";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { loadAdventure } from "../src/server/adventures.js";
 import { account, createDb, type Db } from "../src/server/db/index.js";
@@ -13,14 +21,6 @@ import {
   setFirstMap as setOwnedFirstMap,
   updateMap as updateOwnedMap,
 } from "../src/server/maps.js";
-import { MAX_MAP_ELEMENTS, type MapElement } from "../src/shared/map-data.js";
-import {
-  MAX_EVENTS_PER_MAP,
-  MAX_PAGES_PER_EVENT,
-  type MapEvent,
-  type MapEventPage,
-} from "../src/shared/map-events.js";
-import { fixedId } from "../src/shared/tileset.js";
 import { authorMap, seedAdventure } from "./support/adventure-fixtures.js";
 import { layeredTerrain } from "./support/map-fixtures.js";
 

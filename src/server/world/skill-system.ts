@@ -1,7 +1,7 @@
-import { normalizeDirection } from "../../shared/directional-combat.js";
-import type { TerrainGeometry } from "../../shared/game.js";
-import { resolveTerrain } from "../../shared/game.js";
-import type { Input, Vec2 } from "../../shared/simulation.js";
+import { normalizeDirection } from "@lindocara/engine/directional-combat.js";
+import type { TerrainGeometry } from "@lindocara/engine/game.js";
+import { resolveTerrain } from "@lindocara/engine/game.js";
+import type { Input, Vec2 } from "@lindocara/engine/simulation.js";
 import type { SpatialGrid } from "./spatial-grid.js";
 import type { PlayerRuntime } from "./world-runtime.js";
 

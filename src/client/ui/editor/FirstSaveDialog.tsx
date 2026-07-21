@@ -1,5 +1,5 @@
+import { ADVENTURE_TITLE_MAX } from "@lindocara/engine/adventure.js";
 import { useState } from "react";
-import { ADVENTURE_TITLE_MAX } from "../../../shared/adventure.js";
 import { t, useLocale } from "../../i18n.js";
 import { Button } from "../components/button.js";
 import {

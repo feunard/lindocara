@@ -6,6 +6,14 @@
  * NOT unique: accounts claim usernames; characters do not claim names.
  */
 
+import type { MonsterSpecies } from "@lindocara/engine/game.js";
+import {
+  EVENT_KINDS,
+  EVENT_TRIGGERS,
+  MOVE_TYPES,
+  SELF_SWITCHES,
+} from "@lindocara/engine/map-events.js";
+import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 import { sql } from "drizzle-orm";
 import {
   check,
@@ -18,9 +26,6 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
-import type { MonsterSpecies } from "../../shared/game.js";
-import { EVENT_KINDS, EVENT_TRIGGERS, MOVE_TYPES, SELF_SWITCHES } from "../../shared/map-events.js";
-import type { EditorAssetId } from "../../shared/tiny-swords-catalog.js";
 
 /** Milliseconds since the epoch, as SQLite integers. `unixepoch()` is seconds. */
 const nowMs = sql`(unixepoch() * 1000)`;

@@ -1,7 +1,7 @@
+import { MAX_ADVENTURE_MAPS } from "@lindocara/engine/adventure.js";
+import { nextMapName } from "@lindocara/engine/map-naming.js";
 import { Pencil, Plus, Settings2, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { MAX_ADVENTURE_MAPS } from "../../../shared/adventure.js";
-import { nextMapName } from "../../../shared/map-naming.js";
 import {
   createMapApi,
   deleteMapApi,

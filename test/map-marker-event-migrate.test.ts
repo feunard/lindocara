@@ -3,12 +3,13 @@
  * `map-ownership-migrate.test.ts`: the deterministic `mintId` lets the attribution and graph-rewrite
  * rules be pinned without a database. The live-runtime equivalence proof lives in the runtime test.
  */
+
+import type { MapMarkers } from "@lindocara/engine/map-data.js";
 import { describe, expect, it } from "vitest";
 import {
   type MarkerMigrationInput,
   planMarkerEventMigration,
 } from "../src/server/map-marker-event-migrate.js";
-import type { MapMarkers } from "../src/shared/map-data.js";
 
 function counter(): () => string {
   let n = 0;

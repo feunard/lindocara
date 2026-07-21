@@ -1,6 +1,6 @@
-import { normalizeDirection } from "../../shared/directional-combat.js";
-import type { CombatActionKind } from "../../shared/protocol.js";
-import type { Vec2 } from "../../shared/simulation.js";
+import { normalizeDirection } from "@lindocara/engine/directional-combat.js";
+import type { CombatActionKind } from "@lindocara/engine/protocol.js";
+import type { Vec2 } from "@lindocara/engine/simulation.js";
 import type { CombatActionRuntime, MonsterRuntime, PlayerRuntime } from "./world-runtime.js";
 
 export interface StartCombatActionOptions {

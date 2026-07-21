@@ -1,3 +1,4 @@
+import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import {
   Blocks,
   Eraser,
@@ -12,7 +13,6 @@ import {
   ZoomIn,
 } from "lucide-react";
 import type { ComponentProps, ComponentType } from "react";
-import type { MessageKey } from "../../../shared/i18n/index.js";
 import type { EditorMode } from "../../game/editor-state.js";
 import { t, useLocale } from "../../i18n.js";
 import { Button } from "../components/button.js";

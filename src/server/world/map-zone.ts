@@ -6,12 +6,12 @@
  * `ZoneDefinition` shape rather than teaching `World` a second content model.
  */
 
-import { MONSTER_SPECIES_KIND, type MonsterSpawn } from "../../shared/game.js";
-import { EMPTY_MARKERS, terrainFromMap } from "../../shared/map-data.js";
-import { eventCellCentre, monsterEvents } from "../../shared/map-events.js";
-import { DEFAULT_ZONE_NAVIGATION } from "../../shared/navigation.js";
-import { encodeTileLayer } from "../../shared/tile-layer-codec.js";
-import type { ZoneDefinition, ZoneLocation } from "../../shared/zones.js";
+import { MONSTER_SPECIES_KIND, type MonsterSpawn } from "@lindocara/engine/game.js";
+import { EMPTY_MARKERS, terrainFromMap } from "@lindocara/engine/map-data.js";
+import { eventCellCentre, monsterEvents } from "@lindocara/engine/map-events.js";
+import { DEFAULT_ZONE_NAVIGATION } from "@lindocara/engine/navigation.js";
+import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
+import type { ZoneDefinition, ZoneLocation } from "@lindocara/engine/zones.js";
 import type { StoredMap } from "../maps.js";
 
 /** Rooms are small while a human is drawing them. Nothing here is built for a crowd yet. */

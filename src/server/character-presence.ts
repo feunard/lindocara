@@ -1,12 +1,12 @@
 import { DurableObject } from "cloudflare:workers";
-import { WS_CLOSE } from "../shared/close-codes.js";
+import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import {
   type CombatCooldownState,
   emptyCombatCooldowns,
   hasActiveCombatCooldowns,
   latestCombatCooldown,
   normalizeCombatCooldowns,
-} from "../shared/cooldowns.js";
+} from "@lindocara/engine/cooldowns.js";
 import { createDb } from "./db/index.js";
 import { acquireSessionEpoch, handoffProfileLocation } from "./profile.js";
 

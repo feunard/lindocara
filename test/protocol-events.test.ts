@@ -1,7 +1,7 @@
+import { parseServerMessage, type WorldEventSnapshot } from "@lindocara/engine/protocol.js";
+import { emptyLayer, encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
+import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { describe, expect, it } from "vitest";
-import { parseServerMessage, type WorldEventSnapshot } from "../src/shared/protocol.js";
-import { emptyLayer, encodeTileLayer } from "../src/shared/tile-layer-codec.js";
-import { TINY_SWORDS_TILESET_ID } from "../src/shared/tilesets/tiny-swords.js";
 
 /** A real catalogue id: `graphicAssetId` must be `null` or one of these, appearance only. */
 const GRAPHIC = "building.buildings-black-buildings.archery";

@@ -11,10 +11,10 @@
  * seam standing in for tranche 5's interpreter.
  */
 import { env, runDurableObjectAlarm } from "cloudflare:test";
+import type { AdventureRegistry, PartyAdventureState } from "@lindocara/engine/adventure-state.js";
+import { ATTACK_COOLDOWN_MS } from "@lindocara/engine/game.js";
+import type { MapEvent, MapEventPage } from "@lindocara/engine/map-events.js";
 import { afterEach, describe, expect, it } from "vitest";
-import type { AdventureRegistry, PartyAdventureState } from "../src/shared/adventure-state.js";
-import { ATTACK_COOLDOWN_MS } from "../src/shared/game.js";
-import type { MapEvent, MapEventPage } from "../src/shared/map-events.js";
 import {
   Client,
   drainHeroRooms,

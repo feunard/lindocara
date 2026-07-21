@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
 import {
   decodeTileLayer,
   emptyLayer,
   encodeTileLayer,
   parseTileLayer,
-} from "../src/shared/tile-layer-codec.js";
+} from "@lindocara/engine/tile-layer-codec.js";
+import { describe, expect, it } from "vitest";
 
 describe("tile layer codec", () => {
   it("collapses a uniform layer to a single run", () => {

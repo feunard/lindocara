@@ -11,8 +11,8 @@
  * React never touches anything in this module but the returned `MapEditorStageHandle`: the toolbar
  * is React, the canvas is Pixi, and the two only meet at `setTool`/`current`/`setName`/`dispose`.
  */
-import { type Application, Assets, Container, Graphics, Sprite, Text, type Texture } from "pixi.js";
-import type { MonsterSpecies } from "../../shared/game.js";
+
+import type { MonsterSpecies } from "@lindocara/engine/game.js";
 import {
   bakeCollision,
   ELEMENT_OFFSET_PX,
@@ -22,18 +22,19 @@ import {
   type MapElement,
   quarterCellAt,
   sameElementSlot,
-} from "../../shared/map-data.js";
-import type { EventKind, MapEvent } from "../../shared/map-events.js";
-import { STAIRS_FOOTPRINT_COLS, STAIRS_FOOTPRINT_ROWS } from "../../shared/tile-brush.js";
-import type { TileLayer } from "../../shared/tile-layer-codec.js";
-import { isSolidKind, TILE_SIZE, type TileMap } from "../../shared/tilemap.js";
-import type { Tileset } from "../../shared/tileset.js";
+} from "@lindocara/engine/map-data.js";
+import type { EventKind, MapEvent } from "@lindocara/engine/map-events.js";
+import { STAIRS_FOOTPRINT_COLS, STAIRS_FOOTPRINT_ROWS } from "@lindocara/engine/tile-brush.js";
+import type { TileLayer } from "@lindocara/engine/tile-layer-codec.js";
+import { isSolidKind, TILE_SIZE, type TileMap } from "@lindocara/engine/tilemap.js";
+import type { Tileset } from "@lindocara/engine/tileset.js";
 import {
   TINY_SWORDS_SHEET_COLS,
   TINY_SWORDS_SHEET_ROWS,
   TINY_SWORDS_TILESET,
-} from "../../shared/tilesets/tiny-swords.js";
-import type { EditorAssetId } from "../../shared/tiny-swords-catalog.js";
+} from "@lindocara/engine/tilesets/tiny-swords.js";
+import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
+import { type Application, Assets, Container, Graphics, Sprite, Text, type Texture } from "pixi.js";
 import { needsFoam } from "./autotile.js";
 import {
   catalogElementFrameAt,

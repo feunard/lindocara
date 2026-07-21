@@ -23,8 +23,8 @@
  * hang: `drainRuns` on a finite over-budget program returns exactly `budget` effects.
  */
 
-import type { PartyAdventureState } from "../../shared/adventure-state.js";
-import { EVENT_COMMANDS_PER_TICK, type EventCommand } from "../../shared/event-commands.js";
+import type { PartyAdventureState } from "@lindocara/engine/adventure-state.js";
+import { EVENT_COMMANDS_PER_TICK, type EventCommand } from "@lindocara/engine/event-commands.js";
 import {
   applyStateMutation,
   type EventEffect,
@@ -33,8 +33,8 @@ import {
   resumeWithChoice,
   startEventRun,
   stepEventRun,
-} from "../../shared/event-interpreter.js";
-import type { MapEvent } from "../../shared/map-events.js";
+} from "@lindocara/engine/event-interpreter.js";
+import type { MapEvent } from "@lindocara/engine/map-events.js";
 
 /** A dialogue beat buffered for its triggerer. Task 4 sends these on the wire; THIS task exposes
  *  them through `World.roomDiagnostics()` so the real-DO tests can assert a conversation without the

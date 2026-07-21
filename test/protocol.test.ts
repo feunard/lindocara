@@ -1,11 +1,11 @@
-import { describe, expect, it } from "vitest";
 import {
   encodeServerMessage,
   parseClientMessage,
   parseServerMessage,
-} from "../src/shared/protocol.js";
-import { emptyLayer, encodeTileLayer } from "../src/shared/tile-layer-codec.js";
-import { TINY_SWORDS_TILESET_ID } from "../src/shared/tilesets/tiny-swords.js";
+} from "@lindocara/engine/protocol.js";
+import { emptyLayer, encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
+import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
+import { describe, expect, it } from "vitest";
 
 describe("client protocol", () => {
   const targetId = "33333333-3333-4333-8333-333333333333";

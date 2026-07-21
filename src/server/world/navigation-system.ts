@@ -1,7 +1,7 @@
-import { isWalkable, type TerrainGeometry } from "../../shared/game.js";
-import type { ZoneNavigationDefinition } from "../../shared/navigation.js";
-import { PLAYER_SIZE, type Vec2 } from "../../shared/simulation.js";
-import { isSolidKind, kindAt, TILE_SIZE } from "../../shared/tilemap.js";
+import { isWalkable, type TerrainGeometry } from "@lindocara/engine/game.js";
+import type { ZoneNavigationDefinition } from "@lindocara/engine/navigation.js";
+import { PLAYER_SIZE, type Vec2 } from "@lindocara/engine/simulation.js";
+import { isSolidKind, kindAt, TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import type { MonsterRuntime } from "./world-runtime.js";
 
 const PATH_CACHE_LIMIT = 128;

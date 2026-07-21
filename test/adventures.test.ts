@@ -5,6 +5,15 @@
  * here. Same truncation discipline as db.test.ts (children first).
  */
 import { env } from "cloudflare:test";
+import type { AdventureGraph } from "@lindocara/engine/adventure.js";
+import { EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
+import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
+import {
+  entryEvents,
+  exitEvents,
+  functionalEvent,
+  type MapEvent,
+} from "@lindocara/engine/map-events.js";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   createAdventure,
@@ -16,15 +25,6 @@ import {
 } from "../src/server/adventures.js";
 import { account, createDb, type Db, party } from "../src/server/db/index.js";
 import { deleteMap as deleteOwnedMap, loadOwnedMap, updateMap } from "../src/server/maps.js";
-import type { AdventureGraph } from "../src/shared/adventure.js";
-import { EMPTY_REGISTRY } from "../src/shared/adventure-state.js";
-import { EMPTY_MARKERS } from "../src/shared/map-data.js";
-import {
-  entryEvents,
-  exitEvents,
-  functionalEvent,
-  type MapEvent,
-} from "../src/shared/map-events.js";
 import { authorMap, seedAdventure } from "./support/adventure-fixtures.js";
 import { layeredTerrain } from "./support/map-fixtures.js";
 

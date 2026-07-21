@@ -1,11 +1,3 @@
-import { describe, expect, it } from "vitest";
-import {
-  beginRewardAttribution,
-  removePlayerCombatState,
-} from "../src/server/world/contribution-system.js";
-import { canSeeLoot } from "../src/server/world/interest-system.js";
-import type { GroundLoot } from "../src/server/world/world-runtime.js";
-import { createMonsters } from "../src/server/world/world-runtime.js";
 import {
   addThreat,
   highestThreat,
@@ -14,14 +6,22 @@ import {
   splitExperience,
   tauntThreat,
   usefulHealingThreat,
-} from "../src/shared/cooperation.js";
+} from "@lindocara/engine/cooperation.js";
 import {
   canSpendResource,
   initialResource,
   regenerateResource,
   skillResourceCost,
   spendResource,
-} from "../src/shared/resources.js";
+} from "@lindocara/engine/resources.js";
+import { describe, expect, it } from "vitest";
+import {
+  beginRewardAttribution,
+  removePlayerCombatState,
+} from "../src/server/world/contribution-system.js";
+import { canSeeLoot } from "../src/server/world/interest-system.js";
+import type { GroundLoot } from "../src/server/world/world-runtime.js";
+import { createMonsters } from "../src/server/world/world-runtime.js";
 
 describe("cooperative combat rules", () => {
   it("selects the eligible player with the most threat deterministically", () => {

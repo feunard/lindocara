@@ -1,10 +1,10 @@
+import { isWalkable, resolveTerrain } from "@lindocara/engine/game.js";
+import { elementWorldCollider, type MapData, terrainFromMap } from "@lindocara/engine/map-data.js";
+import { encodeTileLayer, parseTileLayer } from "@lindocara/engine/tile-layer-codec.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
+import { autotileId, EMPTY_TILE } from "@lindocara/engine/tileset.js";
+import { GRASS_SLOTS, TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { describe, expect, it } from "vitest";
-import { isWalkable, resolveTerrain } from "../../src/shared/game.js";
-import { elementWorldCollider, type MapData, terrainFromMap } from "../../src/shared/map-data.js";
-import { encodeTileLayer, parseTileLayer } from "../../src/shared/tile-layer-codec.js";
-import { TILE_SIZE } from "../../src/shared/tilemap.js";
-import { autotileId, EMPTY_TILE } from "../../src/shared/tileset.js";
-import { GRASS_SLOTS, TINY_SWORDS_TILESET_ID } from "../../src/shared/tilesets/tiny-swords.js";
 
 const COLS = 6;
 const ROWS = 6;

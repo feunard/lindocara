@@ -1,5 +1,5 @@
+import { CONSUMABLE_IDS, normalizeConsumables } from "@lindocara/engine/consumables.js";
 import { useEffect, useRef, useState } from "react";
-import { CONSUMABLE_IDS, normalizeConsumables } from "../../shared/consumables.js";
 import { firstConnectedGamepad } from "../game/input-settings.js";
 import { consumableIconSource } from "../game/tiny-swords-art.js";
 import { t, useLocale } from "../i18n.js";

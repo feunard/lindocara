@@ -1,8 +1,8 @@
+import { CEMETERIES } from "@lindocara/engine/game.js";
+import { PLAYER_SIZE, type Vec2 } from "@lindocara/engine/simulation.js";
+import { isPathWalkable, isWalkableBox, type TileMap } from "@lindocara/engine/tilemap.js";
+import { ZONES, type ZoneDefinition, zoneDefinition } from "@lindocara/engine/zones.js";
 import { describe, expect, it } from "vitest";
-import { CEMETERIES } from "../src/shared/game.js";
-import { PLAYER_SIZE, type Vec2 } from "../src/shared/simulation.js";
-import { isPathWalkable, isWalkableBox, type TileMap } from "../src/shared/tilemap.js";
-import { ZONES, type ZoneDefinition, zoneDefinition } from "../src/shared/zones.js";
 
 const STEP = PLAYER_SIZE;
 

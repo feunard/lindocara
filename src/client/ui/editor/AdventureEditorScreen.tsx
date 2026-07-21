@@ -1,3 +1,16 @@
+import type { AdventureInput } from "@lindocara/engine/adventure.js";
+import { type AdventureRegistry, EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
+import type { EventPreset } from "@lindocara/engine/event-presets.js";
+import type { MonsterSpecies } from "@lindocara/engine/game.js";
+import { EMPTY_MARKERS, type MapData, sameElementSlot } from "@lindocara/engine/map-data.js";
+import {
+  type EventKind,
+  entryEvents,
+  exitEvents,
+  type MapEvent,
+  monsterEvents,
+} from "@lindocara/engine/map-events.js";
+import { type EditorAssetId, editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
 import {
   type FocusEvent as ReactFocusEvent,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -7,19 +20,6 @@ import {
   useRef,
   useState,
 } from "react";
-import type { AdventureInput } from "../../../shared/adventure.js";
-import { type AdventureRegistry, EMPTY_REGISTRY } from "../../../shared/adventure-state.js";
-import type { EventPreset } from "../../../shared/event-presets.js";
-import type { MonsterSpecies } from "../../../shared/game.js";
-import { EMPTY_MARKERS, type MapData, sameElementSlot } from "../../../shared/map-data.js";
-import {
-  type EventKind,
-  entryEvents,
-  exitEvents,
-  type MapEvent,
-  monsterEvents,
-} from "../../../shared/map-events.js";
-import { type EditorAssetId, editorAsset } from "../../../shared/tiny-swords-catalog.js";
 import {
   type AdventureDraft,
   type DraftMemberInfo,

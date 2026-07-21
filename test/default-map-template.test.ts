@@ -4,12 +4,13 @@
  * terrain a hero actually stands on) without a database: every cell walkable, a centred walkable
  * spawn, zero authored events, and edges the real autotile resolver already settled.
  */
+
+import { bakeCollision } from "@lindocara/engine/map-data.js";
+import { resolveWholeLayer } from "@lindocara/engine/tile-brush.js";
+import { isSolidKind, kindAt } from "@lindocara/engine/tilemap.js";
+import { TINY_SWORDS_TILESET } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { describe, expect, it } from "vitest";
 import { defaultMapInput, MAP_MIN_COLS, MAP_MIN_ROWS } from "../src/server/maps.js";
-import { bakeCollision } from "../src/shared/map-data.js";
-import { resolveWholeLayer } from "../src/shared/tile-brush.js";
-import { isSolidKind, kindAt } from "../src/shared/tilemap.js";
-import { TINY_SWORDS_TILESET } from "../src/shared/tilesets/tiny-swords.js";
 
 function template() {
   const input = defaultMapInput("Fresh");

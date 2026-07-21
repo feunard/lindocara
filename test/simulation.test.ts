@@ -1,4 +1,3 @@
-import { describe, expect, it } from "vitest";
 import {
   type Input,
   NETWORK_SNAPSHOT_HZ,
@@ -10,7 +9,8 @@ import {
   TICK_HZ,
   WORLD_HEIGHT,
   WORLD_WIDTH,
-} from "../src/shared/simulation.js";
+} from "@lindocara/engine/simulation.js";
+import { describe, expect, it } from "vitest";
 
 const input = (partial: Partial<Input>): Input => ({ ...NO_INPUT, ...partial });
 

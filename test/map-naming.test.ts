@@ -1,5 +1,5 @@
+import { nextMapName } from "@lindocara/engine/map-naming.js";
 import { describe, expect, it } from "vitest";
-import { nextMapName } from "../src/shared/map-naming.js";
 
 describe("nextMapName", () => {
   it("names the first map Map1 and counts up as maps are created", () => {

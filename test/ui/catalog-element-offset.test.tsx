@@ -1,7 +1,7 @@
+import { ELEMENT_OFFSET_PX } from "@lindocara/engine/map-data.js";
+import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
 import { createCatalogElementView } from "../../src/client/game/catalog-element-render.js";
-import { ELEMENT_OFFSET_PX } from "../../src/shared/map-data.js";
-import type { EditorAssetId } from "../../src/shared/tiny-swords-catalog.js";
 import { stubEditorAssetArt } from "../client/helpers/editor-asset-art-stub.js";
 
 // Pixi objects belong in the jsdom client suite, not the workerd server suite. Keeping this test

@@ -1,4 +1,4 @@
-import { TINY_SWORDS_UI } from "../../shared/tiny-swords-catalog.js";
+import { TINY_SWORDS_UI } from "@lindocara/engine/tiny-swords-catalog.js";
 import { tinySwordsAssetUrl } from "../game/tiny-swords-assets.js";
 
 type TinySwordsMenuSceneProps = {

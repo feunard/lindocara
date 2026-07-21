@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
 import {
   isPartyColor,
   PARTY_COLORS,
   parseCreatePartyInput,
   parseJoinPartyInput,
-} from "../src/shared/party.js";
+} from "@lindocara/engine/party.js";
+import { describe, expect, it } from "vitest";
 
 describe("party colours", () => {
   it("are exactly the four hero colours, never black", () => {

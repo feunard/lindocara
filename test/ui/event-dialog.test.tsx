@@ -1,11 +1,11 @@
+import { type AdventureRegistry, EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
+import type { MapEvent } from "@lindocara/engine/map-events.js";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultEventPage } from "../../src/client/game/editor-state.js";
 import { setLocale, t } from "../../src/client/i18n.js";
 import { EventDialog } from "../../src/client/ui/editor/EventDialog.js";
-import { type AdventureRegistry, EMPTY_REGISTRY } from "../../src/shared/adventure-state.js";
-import type { MapEvent } from "../../src/shared/map-events.js";
 
 /** A fresh single-page event to seed the dialog draft with, at the given ordinal/cell. */
 function seedEvent(overrides: Partial<MapEvent> = {}): MapEvent {

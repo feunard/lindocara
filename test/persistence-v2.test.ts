@@ -1,4 +1,5 @@
 import { env } from "cloudflare:test";
+import { starterEquipmentFor } from "@lindocara/engine/character.js";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -19,7 +20,6 @@ import {
 } from "../src/server/db/index.js";
 import { HEALTH_POTION_ID, ownedItemId } from "../src/server/items.js";
 import { handoffProfileLocation, loadProfile, saveProfile } from "../src/server/profile.js";
-import { starterEquipmentFor } from "../src/shared/character.js";
 
 let sequence = 0;
 

@@ -1,9 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { colliderIndexFrom, emptyColliderIndex } from "../src/shared/collider.js";
-import { speedForLife } from "../src/shared/death.js";
-import { resolveTerrain, type TerrainGeometry, VERDANT_REACH_TERRAIN } from "../src/shared/game.js";
-import { predictStep, prunePending, reconcile } from "../src/shared/prediction.js";
-import type { Command } from "../src/shared/protocol.js";
+import { colliderIndexFrom, emptyColliderIndex } from "@lindocara/engine/collider.js";
+import { speedForLife } from "@lindocara/engine/death.js";
+import {
+  resolveTerrain,
+  type TerrainGeometry,
+  VERDANT_REACH_TERRAIN,
+} from "@lindocara/engine/game.js";
+import { predictStep, prunePending, reconcile } from "@lindocara/engine/prediction.js";
+import type { Command } from "@lindocara/engine/protocol.js";
 import {
   type Input,
   NO_INPUT,
@@ -14,9 +17,10 @@ import {
   type Vec2,
   WORLD_HEIGHT,
   WORLD_WIDTH,
-} from "../src/shared/simulation.js";
-import { TILE_SIZE } from "../src/shared/tilemap.js";
-import { TEST_ZONE_TERRAIN } from "../src/shared/zones.js";
+} from "@lindocara/engine/simulation.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
+import { TEST_ZONE_TERRAIN } from "@lindocara/engine/zones.js";
+import { describe, expect, it } from "vitest";
 
 const input = (partial: Partial<Input>): Input => ({ ...NO_INPUT, ...partial });
 const command = (seq: number, partial: Partial<Input>): Command => ({ seq, input: input(partial) });

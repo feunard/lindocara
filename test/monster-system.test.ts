@@ -1,3 +1,16 @@
+import { starterEquipmentFor } from "@lindocara/engine/character.js";
+import {
+  MONSTER_ATTACK_COOLDOWN_MS,
+  MONSTER_ATTACK_RANGE,
+  pointDistance,
+  SAFE_ZONE,
+  safeZoneShelters,
+  type TerrainGeometry,
+} from "@lindocara/engine/game.js";
+import { EMPTY_MARKERS, type MapData, terrainFromMap } from "@lindocara/engine/map-data.js";
+import { DEFAULT_ZONE_NAVIGATION } from "@lindocara/engine/navigation.js";
+import { PLAYER_SIZE, TICK_DT } from "@lindocara/engine/simulation.js";
+import { type ZoneDefinition, zoneDefinition } from "@lindocara/engine/zones.js";
 import { describe, expect, it, vi } from "vitest";
 import {
   advanceGuards,
@@ -13,19 +26,6 @@ import {
   newPlayer,
   type PlayerRuntime,
 } from "../src/server/world/world-runtime.js";
-import { starterEquipmentFor } from "../src/shared/character.js";
-import {
-  MONSTER_ATTACK_COOLDOWN_MS,
-  MONSTER_ATTACK_RANGE,
-  pointDistance,
-  SAFE_ZONE,
-  safeZoneShelters,
-  type TerrainGeometry,
-} from "../src/shared/game.js";
-import { EMPTY_MARKERS, type MapData, terrainFromMap } from "../src/shared/map-data.js";
-import { DEFAULT_ZONE_NAVIGATION } from "../src/shared/navigation.js";
-import { PLAYER_SIZE, TICK_DT } from "../src/shared/simulation.js";
-import { type ZoneDefinition, zoneDefinition } from "../src/shared/zones.js";
 import { mapDataFromBlocks } from "./support/map-fixtures.js";
 import { noColliders, tileMapFromRects } from "./support/tiles.js";
 

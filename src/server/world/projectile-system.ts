@@ -4,7 +4,7 @@ import {
   MAX_PROJECTILES_PER_PLAYER,
   MAX_PROJECTILES_PER_ROOM,
   type ProjectileActionDefinition,
-} from "../../shared/combat-actions.js";
+} from "@lindocara/engine/combat-actions.js";
 import {
   advanceProjectile,
   firstSegmentImpact,
@@ -12,9 +12,9 @@ import {
   type SegmentImpact,
   sweptProjectileEntityImpact,
   sweptProjectileTerrainImpact,
-} from "../../shared/directional-combat.js";
-import { maxHpForLevel, type TerrainGeometry } from "../../shared/game.js";
-import { PLAYER_SIZE, TICK_DT, type Vec2 } from "../../shared/simulation.js";
+} from "@lindocara/engine/directional-combat.js";
+import { maxHpForLevel, type TerrainGeometry } from "@lindocara/engine/game.js";
+import { PLAYER_SIZE, TICK_DT, type Vec2 } from "@lindocara/engine/simulation.js";
 import type { SpatialGrid } from "./spatial-grid.js";
 import type {
   MonsterRuntime,

@@ -1,9 +1,9 @@
+import type { CharacterAppearance, Equipment, PrimaryColor } from "@lindocara/engine/character.js";
+import type { ConsumableId } from "@lindocara/engine/consumables.js";
+import type { PlayerClass } from "@lindocara/engine/game.js";
+import type { SkillSlot } from "@lindocara/engine/skills.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { Rectangle, Texture } from "pixi.js";
-import type { CharacterAppearance, Equipment, PrimaryColor } from "../../shared/character.js";
-import type { ConsumableId } from "../../shared/consumables.js";
-import type { PlayerClass } from "../../shared/game.js";
-import type { SkillSlot } from "../../shared/skills.js";
-import { TILE_SIZE } from "../../shared/tilemap.js";
 
 export const TINY_SWORDS_ROOT = "/assets/lindocara/tiny-swords";
 export const TINY_SWORDS_UNIT_FRAME = 192;

@@ -1,4 +1,3 @@
-import { describe, expect, it } from "vitest";
 import {
   MAX_PROJECTILE_LIFETIME_MS,
   MAX_PROJECTILE_RANGE,
@@ -6,9 +5,10 @@ import {
   MAX_PROJECTILES_PER_ROOM,
   MONSTER_ACTIONS,
   PLAYER_ACTIONS,
-} from "../src/shared/combat-actions.js";
-import { ATTACK_COOLDOWN_MS } from "../src/shared/game.js";
-import { CLASS_SKILLS } from "../src/shared/skills.js";
+} from "@lindocara/engine/combat-actions.js";
+import { ATTACK_COOLDOWN_MS } from "@lindocara/engine/game.js";
+import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
+import { describe, expect, it } from "vitest";
 
 describe("directional class kit contract", () => {
   it("preserves the five reference cooldowns for every class", () => {

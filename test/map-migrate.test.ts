@@ -1,9 +1,9 @@
+import { bakeCollision } from "@lindocara/engine/map-data.js";
+import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
+import { kindAt } from "@lindocara/engine/tilemap.js";
+import { decodeTileMap } from "@lindocara/engine/tilemap-codec.js";
+import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { describe, expect, it } from "vitest";
-import { bakeCollision } from "../src/shared/map-data.js";
-import { layersFromBlocks } from "../src/shared/map-migrate.js";
-import { kindAt } from "../src/shared/tilemap.js";
-import { decodeTileMap } from "../src/shared/tilemap-codec.js";
-import { TINY_SWORDS_TILESET_ID } from "../src/shared/tilesets/tiny-swords.js";
 
 const BLOCKS = [
   "####################",

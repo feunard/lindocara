@@ -3,15 +3,15 @@ import {
   normalizeEquipment,
   type PrimaryColor,
   starterEquipmentFor,
-} from "../../shared/character.js";
+} from "@lindocara/engine/character.js";
 import {
   CONSUMABLE_COOLDOWN_MS,
   CONSUMABLES,
   normalizeConsumables,
-} from "../../shared/consumables.js";
-import { type CombatCooldownState, normalizeCombatCooldowns } from "../../shared/cooldowns.js";
-import type { CombatContribution, ThreatEntry } from "../../shared/cooperation.js";
-import { type LifeState, RESURRECT_COOLDOWN_MS } from "../../shared/death.js";
+} from "@lindocara/engine/consumables.js";
+import { type CombatCooldownState, normalizeCombatCooldowns } from "@lindocara/engine/cooldowns.js";
+import type { CombatContribution, ThreatEntry } from "@lindocara/engine/cooperation.js";
+import { type LifeState, RESURRECT_COOLDOWN_MS } from "@lindocara/engine/death.js";
 import {
   ATTACK_COOLDOWN_MS,
   CLASS_STATS,
@@ -25,23 +25,23 @@ import {
   maxHpForLevel,
   spawnPosition,
   type TerrainGeometry,
-} from "../../shared/game.js";
-import { SPATIAL_CELL_SIZE } from "../../shared/interest.js";
-import type { MonsterNavigationState } from "../../shared/navigation.js";
+} from "@lindocara/engine/game.js";
+import { SPATIAL_CELL_SIZE } from "@lindocara/engine/interest.js";
+import type { MonsterNavigationState } from "@lindocara/engine/navigation.js";
 import type {
   CombatActionKind,
   Command,
   LootSnapshot,
   ProjectileKind,
   ServerMessage,
-} from "../../shared/protocol.js";
-import { type ClassResourceState, initialResource } from "../../shared/resources.js";
-import { type Input, NO_INPUT, TICK_HZ, type Vec2 } from "../../shared/simulation.js";
-import { CLASS_SKILLS } from "../../shared/skills.js";
-import { normalizeTalentSelection } from "../../shared/talents.js";
-import type { EditorAssetId } from "../../shared/tiny-swords-catalog.js";
-import { createWorldCache, type WorldCache } from "../../shared/world-delta.js";
-import type { ZoneDefinition, ZoneLocation } from "../../shared/zones.js";
+} from "@lindocara/engine/protocol.js";
+import { type ClassResourceState, initialResource } from "@lindocara/engine/resources.js";
+import { type Input, NO_INPUT, TICK_HZ, type Vec2 } from "@lindocara/engine/simulation.js";
+import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
+import { normalizeTalentSelection } from "@lindocara/engine/talents.js";
+import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
+import { createWorldCache, type WorldCache } from "@lindocara/engine/world-delta.js";
+import type { ZoneDefinition, ZoneLocation } from "@lindocara/engine/zones.js";
 import { PRESENCE_HEARTBEAT_MS } from "../character-presence.js";
 import type { PlayerProfile, SaveableProfile } from "../profile.js";
 import { SpatialGrid } from "./spatial-grid.js";

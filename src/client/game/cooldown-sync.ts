@@ -2,8 +2,8 @@ import {
   type CombatCooldownState,
   emptyCombatCooldowns,
   normalizeCombatCooldowns,
-} from "../../shared/cooldowns.js";
-import type { SkillSlot } from "../../shared/skills.js";
+} from "@lindocara/engine/cooldowns.js";
+import type { SkillSlot } from "@lindocara/engine/skills.js";
 import type { ServerClock } from "./server-clock.js";
 
 export interface ClientCooldownDeadlines {

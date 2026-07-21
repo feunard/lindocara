@@ -1,18 +1,6 @@
-import {
-  type Application,
-  Assets,
-  Container,
-  Graphics,
-  Rectangle,
-  Sprite,
-  Text,
-  Texture,
-  type Ticker,
-  TilingSprite,
-} from "pixi.js";
-import type { MainHandItem, OffHandItem, PrimaryColor } from "../../shared/character.js";
-import { MONSTER_ACTIONS, PLAYER_ACTIONS } from "../../shared/combat-actions.js";
-import { isSpirit } from "../../shared/death.js";
+import type { MainHandItem, OffHandItem, PrimaryColor } from "@lindocara/engine/character.js";
+import { MONSTER_ACTIONS, PLAYER_ACTIONS } from "@lindocara/engine/combat-actions.js";
+import { isSpirit } from "@lindocara/engine/death.js";
 import {
   entityBox,
   hashSeed,
@@ -20,10 +8,10 @@ import {
   type MonsterSpecies,
   type PlayerClass,
   pointDistance,
-} from "../../shared/game.js";
-import type { MessageKey } from "../../shared/i18n/index.js";
-import type { MapElement } from "../../shared/map-data.js";
-import type { MerchantDefinition } from "../../shared/merchant.js";
+} from "@lindocara/engine/game.js";
+import type { MessageKey } from "@lindocara/engine/i18n/index.js";
+import type { MapElement } from "@lindocara/engine/map-data.js";
+import type { MerchantDefinition } from "@lindocara/engine/merchant.js";
 import type {
   CombatActionSnapshot,
   CombatAnimation,
@@ -36,24 +24,36 @@ import type {
   ProjectileSnapshot,
   QuestState,
   WorldEventSnapshot,
-} from "../../shared/protocol.js";
-import { PLAYER_SIZE } from "../../shared/simulation.js";
-import { CLASS_SKILLS } from "../../shared/skills.js";
-import { emptyLayer, parseTileLayer, type TileLayer } from "../../shared/tile-layer-codec.js";
-import { isSolidKind, kindAt, TILE_SIZE, type TileMap } from "../../shared/tilemap.js";
-import type { TilePriority, Tileset } from "../../shared/tileset.js";
+} from "@lindocara/engine/protocol.js";
+import { PLAYER_SIZE } from "@lindocara/engine/simulation.js";
+import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
+import { emptyLayer, parseTileLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
+import { isSolidKind, kindAt, TILE_SIZE, type TileMap } from "@lindocara/engine/tilemap.js";
+import type { TilePriority, Tileset } from "@lindocara/engine/tileset.js";
 import {
   TINY_SWORDS_SHEET_COLS,
   TINY_SWORDS_SHEET_ROWS,
   tilesetById,
-} from "../../shared/tilesets/tiny-swords.js";
-import { type EditorAssetId, isEditorAssetId } from "../../shared/tiny-swords-catalog.js";
+} from "@lindocara/engine/tilesets/tiny-swords.js";
+import { type EditorAssetId, isEditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 import {
   DEFAULT_ZONE_ID,
   type PortalDefinition,
   type ZoneId,
   zoneDefinition,
-} from "../../shared/zones.js";
+} from "@lindocara/engine/zones.js";
+import {
+  type Application,
+  Assets,
+  Container,
+  Graphics,
+  Rectangle,
+  Sprite,
+  Text,
+  Texture,
+  type Ticker,
+  TilingSprite,
+} from "pixi.js";
 import { onLocaleChange, t } from "../i18n.js";
 import { landTile, needsFoam, tileVisual } from "./autotile.js";
 import {

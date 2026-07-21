@@ -1,9 +1,9 @@
+import { starterEquipmentFor } from "@lindocara/engine/character.js";
+import { emptyCombatCooldowns, normalizeCombatCooldowns } from "@lindocara/engine/cooldowns.js";
 import { describe, expect, it } from "vitest";
 import { clientCooldownDeadlines } from "../src/client/game/cooldown-sync.js";
 import { ServerClock } from "../src/client/game/server-clock.js";
 import { combatCooldownsFromPlayer, newPlayer } from "../src/server/world/world-runtime.js";
-import { starterEquipmentFor } from "../src/shared/character.js";
-import { emptyCombatCooldowns, normalizeCombatCooldowns } from "../src/shared/cooldowns.js";
 
 const NOW = 1_000_000;
 

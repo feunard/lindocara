@@ -4,7 +4,7 @@
  * highest-holding-page precedence rule, including the two mutation-proof branches called out in
  * the plan (highest-vs-lowest precedence, unknown-switch-as-true).
  */
-import { describe, expect, it } from "vitest";
+
 import {
   type AdventureRegistry,
   activePageIndex,
@@ -20,8 +20,9 @@ import {
   parsePartyAdventureState,
   REGISTRY_ENTRY_NAME_MAX,
   type RegistryEntry,
-} from "../src/shared/adventure-state.js";
-import type { MapEvent, MapEventPage } from "../src/shared/map-events.js";
+} from "@lindocara/engine/adventure-state.js";
+import type { MapEvent, MapEventPage } from "@lindocara/engine/map-events.js";
+import { describe, expect, it } from "vitest";
 
 const EVENT_A = "11111111-1111-4111-8111-111111111111";
 const EVENT_B = "22222222-2222-4222-8222-222222222222";

@@ -1,5 +1,5 @@
-import type { PlayerClass } from "../../shared/game.js";
-import { CLASS_SKILLS } from "../../shared/skills.js";
+import type { PlayerClass } from "@lindocara/engine/game.js";
+import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
 
 const ROOT = "/assets/lindocara/audio/sfx";
 

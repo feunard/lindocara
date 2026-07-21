@@ -11,14 +11,14 @@
  * shows the exit transition is denied — proving the rewrite is load-bearing.
  */
 import { env } from "cloudflare:test";
+import type { AdventureGraph } from "@lindocara/engine/adventure.js";
+import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
+import type { MapMarkers } from "@lindocara/engine/map-data.js";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import { adventure, createDb, type Db, map, party, partyMember } from "../src/server/db/index.js";
 import { createHero } from "../src/server/heroes.js";
 import { migrateMarkersToEvents } from "../src/server/map-marker-event-migrate.js";
-import type { AdventureGraph } from "../src/shared/adventure.js";
-import { WS_CLOSE } from "../src/shared/close-codes.js";
-import type { MapMarkers } from "../src/shared/map-data.js";
 import { layeredWireTerrain } from "./support/map-fixtures.js";
 import {
   Client,

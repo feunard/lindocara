@@ -5,7 +5,7 @@
  * #5) — membership is implicit, so every owned map is a member. The graph is no longer authored, so
  * the draft models only the shell + members.
  */
-import { entryEvents, exitEvents, monsterEvents } from "../../../shared/map-events.js";
+import { entryEvents, exitEvents, monsterEvents } from "@lindocara/engine/map-events.js";
 import { type DraftMemberInfo, draftFromAdventure } from "../../adventure-draft.js";
 import { fetchAdventure, fetchMap } from "../../api.js";
 import { solidMaskFromMapPayload } from "../../game/editor-state.js";

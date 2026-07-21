@@ -5,9 +5,9 @@ import {
   EMPTY_REGISTRY,
   normalizeAuthoredQuestProgress,
   type PartyAdventureState,
-} from "../shared/adventure-state.js";
-import { applyStateMutation, type StateMutation } from "../shared/event-interpreter.js";
-import type { ServerMessage } from "../shared/protocol.js";
+} from "@lindocara/engine/adventure-state.js";
+import { applyStateMutation, type StateMutation } from "@lindocara/engine/event-interpreter.js";
+import type { ServerMessage } from "@lindocara/engine/protocol.js";
 import {
   loadAdventureEventIds,
   loadPartyAdventureState,

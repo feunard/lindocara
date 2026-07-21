@@ -13,8 +13,8 @@
  * along each tile's edge, so two adjacent edge tiles close cleanly around a concave corner.
  * Verified before this was written — see docs/screenshots/autotile-proof.png.
  */
-import { EDGE16_LUT } from "../../shared/autotile.js";
-import { isLandKind, kindAt, type TileKind, type TileMap } from "../../shared/tilemap.js";
+import { EDGE16_LUT } from "@lindocara/engine/autotile.js";
+import { isLandKind, kindAt, type TileKind, type TileMap } from "@lindocara/engine/tilemap.js";
 
 /** N=1, E=2, S=4, W=8. A bit is set when that neighbour is land. */
 export function landMask(map: TileMap, col: number, row: number): number {

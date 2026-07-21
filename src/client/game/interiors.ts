@@ -1,7 +1,7 @@
-import { pointDistance } from "../../shared/game.js";
-import type { MessageKey } from "../../shared/i18n/index.js";
-import type { PlayerSnapshot } from "../../shared/protocol.js";
-import { DEFAULT_ZONE_ID, type ZoneId } from "../../shared/zones.js";
+import { pointDistance } from "@lindocara/engine/game.js";
+import type { MessageKey } from "@lindocara/engine/i18n/index.js";
+import type { PlayerSnapshot } from "@lindocara/engine/protocol.js";
+import { DEFAULT_ZONE_ID, type ZoneId } from "@lindocara/engine/zones.js";
 
 export interface InteriorDoor {
   id: string;

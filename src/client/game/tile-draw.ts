@@ -7,8 +7,8 @@
  * No PixiJS in it: it answers "which sheet cell, which container, which tint", and the caller owns
  * the sprite.
  */
-import { autotileOffset, autotileVariantCount } from "../../shared/autotile.js";
-import type { TileLayer } from "../../shared/tile-layer-codec.js";
+import { autotileOffset, autotileVariantCount } from "@lindocara/engine/autotile.js";
+import type { TileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import {
   type Autotile,
   decodeTileId,
@@ -16,7 +16,7 @@ import {
   type FixedTile,
   type TilePriority,
   type Tileset,
-} from "../../shared/tileset.js";
+} from "@lindocara/engine/tileset.js";
 
 /** An autotile's variant offset applied to its group origin — the one place the two are added. */
 function offsetCell(

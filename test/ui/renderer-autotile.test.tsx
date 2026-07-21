@@ -1,13 +1,13 @@
-import { describe, expect, it } from "vitest";
-import { autotileSheetCell } from "../../src/client/game/renderer.js";
-import { tileDrawAt } from "../../src/client/game/tile-draw.js";
-import type { TileLayer } from "../../src/shared/tile-layer-codec.js";
-import { autotileId, EMPTY_TILE, VARIANTS_PER_AUTOTILE } from "../../src/shared/tileset.js";
+import type { TileLayer } from "@lindocara/engine/tile-layer-codec.js";
+import { autotileId, EMPTY_TILE, VARIANTS_PER_AUTOTILE } from "@lindocara/engine/tileset.js";
 import {
   CLIFF_WALL_SLOT,
   GRASS_SLOTS,
   TINY_SWORDS_TILESET,
-} from "../../src/shared/tilesets/tiny-swords.js";
+} from "@lindocara/engine/tilesets/tiny-swords.js";
+import { describe, expect, it } from "vitest";
+import { autotileSheetCell } from "../../src/client/game/renderer.js";
+import { tileDrawAt } from "../../src/client/game/tile-draw.js";
 
 /**
  * `#paintLayeredCell`'s per-cell autotile arithmetic, exercised directly rather than mirrored: this

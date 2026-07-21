@@ -1,9 +1,7 @@
-import type * as React from "react";
-import { useState } from "react";
-import type { AdventureRegistry, RegistryEntry } from "../../../shared/adventure-state.js";
-import { CURATED_MONSTER_SPECIES, type MonsterSpecies } from "../../../shared/game.js";
-import type { MessageKey } from "../../../shared/i18n/index.js";
-import { MAX_PATROL_RADIUS, MIN_PATROL_RADIUS } from "../../../shared/map-data.js";
+import type { AdventureRegistry, RegistryEntry } from "@lindocara/engine/adventure-state.js";
+import { CURATED_MONSTER_SPECIES, type MonsterSpecies } from "@lindocara/engine/game.js";
+import type { MessageKey } from "@lindocara/engine/i18n/index.js";
+import { MAX_PATROL_RADIUS, MIN_PATROL_RADIUS } from "@lindocara/engine/map-data.js";
 import {
   EVENT_NAME_MAX,
   EVENT_TRIGGERS,
@@ -16,7 +14,9 @@ import {
   SELF_SWITCHES,
   type SelfSwitch,
   validateEventName,
-} from "../../../shared/map-events.js";
+} from "@lindocara/engine/map-events.js";
+import type * as React from "react";
+import { useState } from "react";
 import {
   addEventDraftPage,
   deleteEventDraftPage,

@@ -1,5 +1,5 @@
+import { type Input, NO_INPUT } from "@lindocara/engine/simulation.js";
 import { useEffect, useRef, useState } from "react";
-import { type Input, NO_INPUT } from "../../shared/simulation.js";
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
 

@@ -1,10 +1,9 @@
-import { describe, expect, it } from "vitest";
 import type {
   MonsterSnapshot,
   PlayerSnapshot,
   WorldEventSnapshot,
   WorldView,
-} from "../src/shared/protocol.js";
+} from "@lindocara/engine/protocol.js";
 import {
   applyEventDelta,
   applyWorldDelta,
@@ -15,7 +14,8 @@ import {
   interpolateSnapshots,
   seedEventCache,
   worldViewFromCache,
-} from "../src/shared/world-delta.js";
+} from "@lindocara/engine/world-delta.js";
+import { describe, expect, it } from "vitest";
 
 const player = (overrides: Partial<PlayerSnapshot> = {}): PlayerSnapshot => ({
   id: "player",

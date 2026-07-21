@@ -1,7 +1,7 @@
+import { EVENT_PRESETS, presetEvent, presetPageContent } from "@lindocara/engine/event-presets.js";
+import { isUuid } from "@lindocara/engine/identifiers.js";
+import { parseMapEvents } from "@lindocara/engine/map-events.js";
 import { describe, expect, it } from "vitest";
-import { EVENT_PRESETS, presetEvent, presetPageContent } from "../src/shared/event-presets.js";
-import { isUuid } from "../src/shared/identifiers.js";
-import { parseMapEvents } from "../src/shared/map-events.js";
 
 const MAP_ID = "11111111-1111-4111-8111-111111111111";
 

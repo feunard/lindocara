@@ -1,9 +1,9 @@
+import { presetEvent } from "@lindocara/engine/event-presets.js";
+import { functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { setLocale, t } from "../../src/client/i18n.js";
 import { EventPalette } from "../../src/client/ui/editor/EventPalette.js";
-import { presetEvent } from "../../src/shared/event-presets.js";
-import { functionalEvent, type MapEvent } from "../../src/shared/map-events.js";
 
 const MAP_ID = "11111111-1111-4111-8111-111111111111";
 

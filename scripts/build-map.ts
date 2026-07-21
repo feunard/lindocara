@@ -12,17 +12,17 @@ import {
   SAFE_ZONE,
   TERRAIN_BLOCKERS,
   WORLD_LANDMARKS,
-} from "../src/shared/game.js";
-import { VERDANT_REACH_BOUNDS, type WorldBounds } from "../src/shared/simulation.js";
-import { TILE_SIZE, type TileKind } from "../src/shared/tilemap.js";
+} from "@lindocara/engine/game.js";
+import { VERDANT_REACH_BOUNDS, type WorldBounds } from "@lindocara/engine/simulation.js";
+import { TILE_SIZE, type TileKind } from "@lindocara/engine/tilemap.js";
 import {
   SUNKEN_ISLES_BOUNDS,
   SUNKEN_ISLES_FORESTS,
   SUNKEN_ISLES_ISLETS,
   SUNKEN_ISLES_LAND,
   SUNKEN_ISLES_LANDMARKS,
-} from "../src/shared/zones/sunken-isles.js";
-import { TEST_ZONE_TERRAIN } from "../src/shared/zones.js";
+} from "@lindocara/engine/zones/sunken-isles.js";
+import { TEST_ZONE_TERRAIN } from "@lindocara/engine/zones.js";
 
 /**
  * How much of a cell must be blocked before the cell is a wall.

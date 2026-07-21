@@ -1,5 +1,5 @@
-import type { Equipment, MainHandItem, OffHandItem } from "../shared/character.js";
-import type { PlayerClass } from "../shared/game.js";
+import type { Equipment, MainHandItem, OffHandItem } from "@lindocara/engine/character.js";
+import type { PlayerClass } from "@lindocara/engine/game.js";
 import type { EquipmentSlot } from "./db/schema.js";
 
 export const HEALTH_POTION_ID = "health_potion";

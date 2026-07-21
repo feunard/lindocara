@@ -1,5 +1,5 @@
-import { applyDamage } from "../../shared/game.js";
-import { talentEffect } from "../../shared/talents.js";
+import { applyDamage } from "@lindocara/engine/game.js";
+import { talentEffect } from "@lindocara/engine/talents.js";
 import type { PlayerRuntime } from "./world-runtime.js";
 
 /** The cloud is intangible only after fade-out and before authoritative rematerialization. */

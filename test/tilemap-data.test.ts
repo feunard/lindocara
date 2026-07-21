@@ -1,4 +1,3 @@
-import { describe, expect, it } from "vitest";
 import {
   CEMETERIES,
   CITY_GUARDS,
@@ -7,19 +6,20 @@ import {
   QUEST_SITES,
   SPAWN_POINTS,
   TERRAIN_BLOCKERS,
-} from "../src/shared/game.js";
+} from "@lindocara/engine/game.js";
 // PLAYER_SIZE lives in simulation.ts, not game.ts.
-import { PLAYER_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from "../src/shared/simulation.js";
+import { PLAYER_SIZE, WORLD_HEIGHT, WORLD_WIDTH } from "@lindocara/engine/simulation.js";
 import {
   isSolidKind,
   isWalkableBox,
   kindAt,
   kindAtPoint,
   TILE_SIZE,
-} from "../src/shared/tilemap.js";
-import { SUNKEN_ISLES_SPAWNS } from "../src/shared/zones/sunken-isles.js";
-import { SUNKEN_ISLES_TILES } from "../src/shared/zones/sunken-isles-tiles.js";
-import { VERDANT_REACH_TILES } from "../src/shared/zones/verdant-reach-tiles.js";
+} from "@lindocara/engine/tilemap.js";
+import { SUNKEN_ISLES_SPAWNS } from "@lindocara/engine/zones/sunken-isles.js";
+import { SUNKEN_ISLES_TILES } from "@lindocara/engine/zones/sunken-isles-tiles.js";
+import { VERDANT_REACH_TILES } from "@lindocara/engine/zones/verdant-reach-tiles.js";
+import { describe, expect, it } from "vitest";
 
 // Frozen exactly as `src/shared/zones/verdant-reach-tiles.ts` read the moment before Task 1
 // touched the generator — copied by hand from the committed file, not computed from it, and

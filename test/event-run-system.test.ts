@@ -5,6 +5,12 @@
  * coordinator RPC) is `test/event-run-runtime.test.ts`; this file pins the invariants the drain
  * itself owns, so a budget or lock regression fails here in milliseconds, never as a room hang.
  */
+
+import { EMPTY_ADVENTURE_STATE } from "@lindocara/engine/adventure-state.js";
+import type { EventCommand } from "@lindocara/engine/event-commands.js";
+import { EVENT_COMMANDS_PER_TICK } from "@lindocara/engine/event-commands.js";
+import type { MapEvent } from "@lindocara/engine/map-events.js";
+import { defaultEventPage } from "@lindocara/engine/map-events.js";
 import { describe, expect, it } from "vitest";
 import {
   abortRunForEvent,
@@ -16,11 +22,6 @@ import {
   drainRuns,
   startRun,
 } from "../src/server/world/event-run-system.js";
-import { EMPTY_ADVENTURE_STATE } from "../src/shared/adventure-state.js";
-import type { EventCommand } from "../src/shared/event-commands.js";
-import { EVENT_COMMANDS_PER_TICK } from "../src/shared/event-commands.js";
-import type { MapEvent } from "../src/shared/map-events.js";
-import { defaultEventPage } from "../src/shared/map-events.js";
 
 /** A one-page `normal` event carrying `program`, for the lock key. Only its id matters to the run. */
 function event(id: string, program: readonly EventCommand[]): MapEvent {

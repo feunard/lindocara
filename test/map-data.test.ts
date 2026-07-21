@@ -1,5 +1,4 @@
-import { describe, expect, it } from "vitest";
-import { isWalkable } from "../src/shared/game.js";
+import { isWalkable } from "@lindocara/engine/game.js";
 import {
   bakeCollision,
   canPlaceElement,
@@ -12,12 +11,13 @@ import {
   parseMapData,
   parseMapMarkers,
   terrainFromMap,
-} from "../src/shared/map-data.js";
-import { layersFromBlocks } from "../src/shared/map-migrate.js";
-import { emptyLayer, encodeTileLayer } from "../src/shared/tile-layer-codec.js";
-import { isSolidKind, kindAt, TILE_SIZE } from "../src/shared/tilemap.js";
-import { TINY_SWORDS_TILESET_ID } from "../src/shared/tilesets/tiny-swords.js";
-import { editorAsset } from "../src/shared/tiny-swords-catalog.js";
+} from "@lindocara/engine/map-data.js";
+import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
+import { emptyLayer, encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
+import { isSolidKind, kindAt, TILE_SIZE } from "@lindocara/engine/tilemap.js";
+import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
+import { editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
+import { describe, expect, it } from "vitest";
 import { mapDataFromBlocks } from "./support/map-fixtures.js";
 
 /** Stand-in when a `layersFromBlocks` index read has to be narrowed. */

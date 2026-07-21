@@ -4,17 +4,18 @@
  * terrain/markers via `updateMap`. These wrap that two-step flow so a test that just needs an
  * authored map keeps reading like one.
  */
-import { createAdventure } from "../../src/server/adventures.js";
-import type { Db } from "../../src/server/db/index.js";
-import { createMap, type MapInput, type StoredMap, updateMap } from "../../src/server/maps.js";
-import type { MonsterSpecies } from "../../src/shared/game.js";
-import { EMPTY_MARKERS } from "../../src/shared/map-data.js";
+
+import type { MonsterSpecies } from "@lindocara/engine/game.js";
+import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
 import {
   entryEvents,
   exitEvents,
   functionalEvent,
   type MapEvent,
-} from "../../src/shared/map-events.js";
+} from "@lindocara/engine/map-events.js";
+import { createAdventure } from "../../src/server/adventures.js";
+import type { Db } from "../../src/server/db/index.js";
+import { createMap, type MapInput, type StoredMap, updateMap } from "../../src/server/maps.js";
 
 export interface EventMapCells {
   entry: { col: number; row: number };

@@ -3,17 +3,17 @@
  * by id through profile.ts after the Worker has proven ownership here.
  */
 
-import { and, eq } from "drizzle-orm";
 import {
   type CharacterAppearance,
   type Equipment,
   isValidAppearance,
   normalizeAppearance,
   starterEquipmentFor,
-} from "../shared/character.js";
-import { maxHpForLevel, type PlayerClass } from "../shared/game.js";
-import { mapSpawnPoint } from "../shared/map-data.js";
-import { CLASS_SKILLS, isSkillUnlocked } from "../shared/skills.js";
+} from "@lindocara/engine/character.js";
+import { maxHpForLevel, type PlayerClass } from "@lindocara/engine/game.js";
+import { mapSpawnPoint } from "@lindocara/engine/map-data.js";
+import { CLASS_SKILLS, isSkillUnlocked } from "@lindocara/engine/skills.js";
+import { and, eq } from "drizzle-orm";
 import { loadNormalizedCharacterState } from "./character-persistence.js";
 import {
   character,

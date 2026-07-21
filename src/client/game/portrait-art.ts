@@ -1,5 +1,5 @@
-import type { CharacterAppearance } from "../../shared/character.js";
-import type { PlayerClass } from "../../shared/game.js";
+import type { CharacterAppearance } from "@lindocara/engine/character.js";
+import type { PlayerClass } from "@lindocara/engine/game.js";
 import type { PortraitArt } from "../store.js";
 import { unitSheet } from "./tiny-swords-art.js";
 

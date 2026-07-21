@@ -5,6 +5,13 @@
  * event-id set. Truncate children before parents, same discipline as `parties.test.ts`.
  */
 import { env } from "cloudflare:test";
+import type { AdventureInput } from "@lindocara/engine/adventure.js";
+import {
+  EMPTY_ADVENTURE_STATE,
+  type PartyAdventureState,
+} from "@lindocara/engine/adventure-state.js";
+import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
+import { functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   loadPartyAdventureState,
@@ -14,10 +21,6 @@ import { createAdventure, updateAdventure } from "../src/server/adventures.js";
 import { account, createDb, type Db, partyAdventureState } from "../src/server/db/index.js";
 import type { MapInput } from "../src/server/maps.js";
 import { createParty } from "../src/server/parties.js";
-import type { AdventureInput } from "../src/shared/adventure.js";
-import { EMPTY_ADVENTURE_STATE, type PartyAdventureState } from "../src/shared/adventure-state.js";
-import { EMPTY_MARKERS } from "../src/shared/map-data.js";
-import { functionalEvent, type MapEvent } from "../src/shared/map-events.js";
 import { authorMap } from "./support/adventure-fixtures.js";
 import { layeredTerrain } from "./support/map-fixtures.js";
 

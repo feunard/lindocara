@@ -4,6 +4,9 @@
  */
 
 import { env } from "cloudflare:test";
+import { starterEquipmentFor } from "@lindocara/engine/character.js";
+import { mapSpawnPoint } from "@lindocara/engine/map-data.js";
+import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { asc, eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import { createAccount, verifyCredentials } from "../src/server/accounts.js";
@@ -27,9 +30,6 @@ import {
 import { BUILTIN_MAP, loadMap } from "../src/server/maps.js";
 import { hashPassword } from "../src/server/password.js";
 import { acquireSessionEpoch, loadProfile, saveProfile } from "../src/server/profile.js";
-import { starterEquipmentFor } from "../src/shared/character.js";
-import { mapSpawnPoint } from "../src/shared/map-data.js";
-import { TINY_SWORDS_TILESET_ID } from "../src/shared/tilesets/tiny-swords.js";
 
 describe("account and character tables", () => {
   // The pool does not isolate storage between tests. Truncate children before parents (FK).

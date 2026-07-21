@@ -1,6 +1,6 @@
-import { canAct } from "../../shared/death.js";
-import { LOOT_PICKUP_RANGE, pointDistance } from "../../shared/game.js";
-import type { ServerMessage } from "../../shared/protocol.js";
+import { canAct } from "@lindocara/engine/death.js";
+import { LOOT_PICKUP_RANGE, pointDistance } from "@lindocara/engine/game.js";
+import type { ServerMessage } from "@lindocara/engine/protocol.js";
 import type { SpatialGrid } from "./spatial-grid.js";
 import type { GroundLoot, PlayerRuntime } from "./world-runtime.js";
 

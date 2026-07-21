@@ -4,14 +4,15 @@
  * plan names (the depth cap, and the recursive — not top-level — count). The parser is the only
  * boundary between an untrusted client body and the interpreter, so the table is deliberately wide.
  */
-import { describe, expect, it } from "vitest";
+
 import {
   type EventCommand,
   MAX_CHOICE_OPTIONS,
   MAX_COMMAND_DEPTH,
   MAX_COMMANDS_PER_PAGE,
   parseEventCommands,
-} from "../src/shared/event-commands.js";
+} from "@lindocara/engine/event-commands.js";
+import { describe, expect, it } from "vitest";
 
 const UUID = "11111111-1111-4111-8111-111111111111";
 

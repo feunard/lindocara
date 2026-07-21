@@ -1,3 +1,6 @@
+import { starterEquipmentFor } from "@lindocara/engine/character.js";
+import { PLAYER_ACTIONS } from "@lindocara/engine/combat-actions.js";
+import type { TerrainGeometry } from "@lindocara/engine/game.js";
 import { describe, expect, it, vi } from "vitest";
 import {
   advanceCombatActions,
@@ -13,9 +16,6 @@ import {
 } from "../src/server/world/skill-system.js";
 import { SpatialGrid } from "../src/server/world/spatial-grid.js";
 import { newPlayer, type PlayerRuntime } from "../src/server/world/world-runtime.js";
-import { starterEquipmentFor } from "../src/shared/character.js";
-import { PLAYER_ACTIONS } from "../src/shared/combat-actions.js";
-import type { TerrainGeometry } from "../src/shared/game.js";
 import { noColliders, tileMapFromRects } from "./support/tiles.js";
 
 const OBSTACLES = [{ x: 80, y: 0, width: 20, height: 120 }];

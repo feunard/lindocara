@@ -1,11 +1,11 @@
-import { useMemo, useState } from "react";
 import {
   EDITOR_ASSETS,
   type EditorAssetDefinition,
   type EditorAssetId,
   EVENT_GRAPHIC_ASSETS,
   PLACEABLE_EDITOR_ASSETS,
-} from "../../../shared/tiny-swords-catalog.js";
+} from "@lindocara/engine/tiny-swords-catalog.js";
+import { useMemo, useState } from "react";
 import { tinySwordsSourceUrl } from "../../game/tiny-swords-assets.js";
 import { t, useLocale } from "../../i18n.js";
 import { Input } from "../components/input.js";

@@ -1,5 +1,5 @@
-import type { QuestChapter } from "../../shared/game.js";
-import type { ZoneDefinition } from "../../shared/zones.js";
+import type { QuestChapter } from "@lindocara/engine/game.js";
+import type { ZoneDefinition } from "@lindocara/engine/zones.js";
 
 export function questDefinition(zone: ZoneDefinition, chapter: QuestChapter) {
   return zone.quests.find((quest) => quest.id === chapter);

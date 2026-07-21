@@ -1,5 +1,5 @@
-import { maxHpForLevel } from "../../shared/game.js";
-import type { PartyState, ServerMessage } from "../../shared/protocol.js";
+import { maxHpForLevel } from "@lindocara/engine/game.js";
+import type { PartyState, ServerMessage } from "@lindocara/engine/protocol.js";
 import type { PlayerRuntime } from "./world-runtime.js";
 
 export const PARTY_MAX_MEMBERS = 5;

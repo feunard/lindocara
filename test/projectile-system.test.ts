@@ -1,3 +1,10 @@
+import { starterEquipmentFor } from "@lindocara/engine/character.js";
+import {
+  MAX_PROJECTILES_PER_PLAYER,
+  MAX_PROJECTILES_PER_ROOM,
+} from "@lindocara/engine/combat-actions.js";
+import type { TerrainGeometry } from "@lindocara/engine/game.js";
+import type { ProjectileKind } from "@lindocara/engine/protocol.js";
 import { describe, expect, it, vi } from "vitest";
 import {
   advanceProjectiles,
@@ -13,13 +20,6 @@ import {
   type PlayerRuntime,
   type ProjectileRuntime,
 } from "../src/server/world/world-runtime.js";
-import { starterEquipmentFor } from "../src/shared/character.js";
-import {
-  MAX_PROJECTILES_PER_PLAYER,
-  MAX_PROJECTILES_PER_ROOM,
-} from "../src/shared/combat-actions.js";
-import type { TerrainGeometry } from "../src/shared/game.js";
-import type { ProjectileKind } from "../src/shared/protocol.js";
 import { noColliders, tileMapFromRects } from "./support/tiles.js";
 
 function terrain(obstacles: TerrainGeometry["obstacles"] = []): TerrainGeometry {

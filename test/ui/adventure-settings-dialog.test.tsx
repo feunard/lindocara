@@ -1,3 +1,7 @@
+import { EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
+import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
+import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
+import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -5,10 +9,6 @@ import type { AdventureDraft, DraftMemberInfo } from "../../src/client/adventure
 import { setLocale, t } from "../../src/client/i18n.js";
 import { useUiStore } from "../../src/client/store.js";
 import { AdventureSettingsDialog } from "../../src/client/ui/editor/AdventureSettingsDialog.js";
-import { EMPTY_REGISTRY } from "../../src/shared/adventure-state.js";
-import { layersFromBlocks } from "../../src/shared/map-migrate.js";
-import { encodeTileLayer } from "../../src/shared/tile-layer-codec.js";
-import { TINY_SWORDS_TILESET_ID } from "../../src/shared/tilesets/tiny-swords.js";
 
 const OPEN_LAYERS = layersFromBlocks(Array.from({ length: 30 }, () => ".".repeat(40))).layers.map(
   encodeTileLayer,

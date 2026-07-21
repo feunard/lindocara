@@ -7,12 +7,12 @@
  * column's degrade-to-empty policy can hide.
  */
 import { env } from "cloudflare:test";
+import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
+import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { createAccount } from "../src/server/accounts.js";
 import { createDb } from "../src/server/db/index.js";
 import { loadMap, updateMap, validateMapInput } from "../src/server/maps.js";
-import { layersFromBlocks } from "../src/shared/map-migrate.js";
-import { TINY_SWORDS_TILESET_ID } from "../src/shared/tilesets/tiny-swords.js";
 import { authorMap, seedAdventure } from "./support/adventure-fixtures.js";
 
 // The size floor (20x15), with a solid water border so the ground layer is not uniformly one id —

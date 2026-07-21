@@ -6,9 +6,10 @@
  * every `runId` is a wire id; the choose index is a wire-bounded safe int (the server re-validates it
  * against the live pending offer regardless, `event-run-system.test.ts` pins that half).
  */
+
+import { COMMAND_TEXT_MAX, MAX_CHOICE_OPTIONS } from "@lindocara/engine/event-commands.js";
+import { parseClientMessage, parseServerMessage } from "@lindocara/engine/protocol.js";
 import { describe, expect, it } from "vitest";
-import { COMMAND_TEXT_MAX, MAX_CHOICE_OPTIONS } from "../src/shared/event-commands.js";
-import { parseClientMessage, parseServerMessage } from "../src/shared/protocol.js";
 
 const RUN = "run-abc_123";
 

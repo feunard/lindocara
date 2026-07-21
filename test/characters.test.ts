@@ -1,10 +1,10 @@
 import { env, SELF } from "cloudflare:test";
+import { DEFAULT_APPEARANCE } from "@lindocara/engine/character.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { createAccount } from "../src/server/accounts.js";
 import { createCharacter } from "../src/server/characters.js";
 import { createDb } from "../src/server/db/index.js";
 import { loadProfile } from "../src/server/profile.js";
-import { DEFAULT_APPEARANCE } from "../src/shared/character.js";
 import { authorMap, seedAdventure } from "./support/adventure-fixtures.js";
 import { layeredTerrain } from "./support/map-fixtures.js";
 

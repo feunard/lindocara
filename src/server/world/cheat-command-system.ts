@@ -1,8 +1,8 @@
-import { CHEAT_COMMAND_SYNTAX, type CheatCommand } from "../../shared/cheats.js";
-import { normalizeConsumables } from "../../shared/consumables.js";
-import { maxHpForLevel } from "../../shared/game.js";
-import type { EventCode, EventParams, EventTone } from "../../shared/protocol.js";
-import { normalizeTalentSelection } from "../../shared/talents.js";
+import { CHEAT_COMMAND_SYNTAX, type CheatCommand } from "@lindocara/engine/cheats.js";
+import { normalizeConsumables } from "@lindocara/engine/consumables.js";
+import { maxHpForLevel } from "@lindocara/engine/game.js";
+import type { EventCode, EventParams, EventTone } from "@lindocara/engine/protocol.js";
+import { normalizeTalentSelection } from "@lindocara/engine/talents.js";
 import { cancelCombatAction } from "./combat-action-system.js";
 import type { PlayerRuntime } from "./world-runtime.js";
 

@@ -14,6 +14,8 @@
  */
 
 import { env, runInDurableObject, SELF } from "cloudflare:test";
+import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
+import { NO_INPUT, PLAYER_SPEED, TICK_DT } from "@lindocara/engine/simulation.js";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   PRESENCE_HEARTBEAT_MS,
@@ -23,8 +25,6 @@ import {
 import { createDb } from "../src/server/db/index.js";
 import { loadHeroProfile, saveHeroProfile } from "../src/server/hero-profile.js";
 import type { Attachment } from "../src/server/world.js";
-import { WS_CLOSE } from "../src/shared/close-codes.js";
-import { NO_INPUT, PLAYER_SPEED, TICK_DT } from "../src/shared/simulation.js";
 import {
   Client,
   drainHeroRooms,

@@ -1,10 +1,10 @@
-import type { PrimaryColor } from "../../shared/character.js";
-import { WS_CLOSE } from "../../shared/close-codes.js";
-import type { ConsumableId } from "../../shared/consumables.js";
-import { isSpirit } from "../../shared/death.js";
-import { INTERACTION_RANGE, isMonsterSpecies, pointDistance } from "../../shared/game.js";
-import type { MessageKey } from "../../shared/i18n/index.js";
-import type { MerchantDefinition } from "../../shared/merchant.js";
+import type { PrimaryColor } from "@lindocara/engine/character.js";
+import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
+import type { ConsumableId } from "@lindocara/engine/consumables.js";
+import { isSpirit } from "@lindocara/engine/death.js";
+import { INTERACTION_RANGE, isMonsterSpecies, pointDistance } from "@lindocara/engine/game.js";
+import type { MessageKey } from "@lindocara/engine/i18n/index.js";
+import type { MerchantDefinition } from "@lindocara/engine/merchant.js";
 import type {
   CombatAnimation,
   EventCode,
@@ -12,11 +12,16 @@ import type {
   PlayerSnapshot,
   QuestState,
   SelfState,
-} from "../../shared/protocol.js";
-import { NO_INPUT, type Vec2 } from "../../shared/simulation.js";
-import type { SkillSlot } from "../../shared/skills.js";
-import { decodeTileMap } from "../../shared/tilemap-codec.js";
-import { DEFAULT_ZONE_ID, isKnownZone, type ZoneId, zoneDefinition } from "../../shared/zones.js";
+} from "@lindocara/engine/protocol.js";
+import { NO_INPUT, type Vec2 } from "@lindocara/engine/simulation.js";
+import type { SkillSlot } from "@lindocara/engine/skills.js";
+import { decodeTileMap } from "@lindocara/engine/tilemap-codec.js";
+import {
+  DEFAULT_ZONE_ID,
+  isKnownZone,
+  type ZoneId,
+  zoneDefinition,
+} from "@lindocara/engine/zones.js";
 import { type CharacterSummary, logout, type PartyListing, type StoredHero } from "../api.js";
 import { t } from "../i18n.js";
 import { type LocalizedText, useUiStore } from "../store.js";

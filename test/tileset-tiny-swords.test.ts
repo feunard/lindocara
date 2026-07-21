@@ -1,4 +1,3 @@
-import { describe, expect, it } from "vitest";
 import {
   CLIFF_WALL_SLOT,
   elevationOfSlot,
@@ -6,7 +5,8 @@ import {
   TINY_SWORDS_TILESET,
   TINY_SWORDS_TILESET_ID,
   tilesetById,
-} from "../src/shared/tilesets/tiny-swords.js";
+} from "@lindocara/engine/tilesets/tiny-swords.js";
+import { describe, expect, it } from "vitest";
 
 describe("the Tiny Swords tileset", () => {
   it("resolves by id", () => {

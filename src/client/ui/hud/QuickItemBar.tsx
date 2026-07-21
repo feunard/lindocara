@@ -1,5 +1,5 @@
+import { normalizeConsumables } from "@lindocara/engine/consumables.js";
 import { useEffect, useMemo, useState } from "react";
-import { normalizeConsumables } from "../../../shared/consumables.js";
 import { consumableIconSource } from "../../game/tiny-swords-art.js";
 import { t, useLocale } from "../../i18n.js";
 import { useUiStore } from "../../store.js";

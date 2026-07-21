@@ -1,4 +1,3 @@
-import { describe, expect, it } from "vitest";
 import {
   addAxisCrossings,
   isLandKind,
@@ -9,7 +8,8 @@ import {
   TILE_SIZE,
   type TileKind,
   type TileMap,
-} from "../src/shared/tilemap.js";
+} from "@lindocara/engine/tilemap.js";
+import { describe, expect, it } from "vitest";
 
 /** 4x3 map. Row 1 is a wall of water with a one-tile bridge at col 2. */
 function map(): TileMap {

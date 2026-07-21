@@ -1,13 +1,13 @@
-import { describe, expect, it } from "vitest";
-import { autotileOffset } from "../src/shared/autotile.js";
-import { decodeTileId, FIXED_BASE } from "../src/shared/tileset.js";
+import { autotileOffset } from "@lindocara/engine/autotile.js";
+import { decodeTileId, FIXED_BASE } from "@lindocara/engine/tileset.js";
 import {
   CLIFF_WALL_SLOT,
   GRASS_SLOTS,
   TINY_SWORDS_SHEET_COLS,
   TINY_SWORDS_SHEET_ROWS,
   TINY_SWORDS_TILESET,
-} from "../src/shared/tilesets/tiny-swords.js";
+} from "@lindocara/engine/tilesets/tiny-swords.js";
+import { describe, expect, it } from "vitest";
 
 /**
  * The arithmetic the renderer performs per cell, isolated so it can be asserted without Pixi.

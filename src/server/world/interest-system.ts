@@ -1,4 +1,4 @@
-import { maxHpForLevel, pointDistance } from "../../shared/game.js";
+import { maxHpForLevel, pointDistance } from "@lindocara/engine/game.js";
 import {
   CORPSE_VISIBILITY_RADIUS,
   GUARD_VISIBILITY_RADIUS,
@@ -6,7 +6,7 @@ import {
   LOOT_VISIBILITY_RADIUS,
   MONSTER_VISIBILITY_RADIUS,
   PLAYER_VISIBILITY_RADIUS,
-} from "../../shared/interest.js";
+} from "@lindocara/engine/interest.js";
 import type {
   CombatActionSnapshot,
   CorpseSnapshot,
@@ -16,7 +16,7 @@ import type {
   PlayerSnapshot,
   ProjectileSnapshot,
   WorldView,
-} from "../../shared/protocol.js";
+} from "@lindocara/engine/protocol.js";
 import { navigationDebug as navigationDebugSnapshot } from "./navigation-system.js";
 import { queryWithHysteresis, type SpatialGrid } from "./spatial-grid.js";
 import type {

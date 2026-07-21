@@ -1,3 +1,4 @@
+import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -5,7 +6,6 @@ import type { AdventureDraft, DraftMemberInfo } from "../../src/client/adventure
 import { setLocale, t } from "../../src/client/i18n.js";
 import { useUiStore } from "../../src/client/store.js";
 import { RegistryDialog } from "../../src/client/ui/editor/RegistryDialog.js";
-import type { AdventureRegistry } from "../../src/shared/adventure-state.js";
 
 const noop = () => {};
 

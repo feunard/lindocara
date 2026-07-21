@@ -1,26 +1,26 @@
-import { and, eq, sql } from "drizzle-orm";
 import {
   type CharacterAppearance,
   type Equipment,
   isEquipmentForClass,
   normalizeAppearance,
   starterEquipmentFor,
-} from "../shared/character.js";
-import type { CombatCooldownState } from "../shared/cooldowns.js";
-import { isLifeState, type LifeState } from "../shared/death.js";
+} from "@lindocara/engine/character.js";
+import type { CombatCooldownState } from "@lindocara/engine/cooldowns.js";
+import { isLifeState, type LifeState } from "@lindocara/engine/death.js";
 import {
   clampRestoredPosition,
   isWalkable,
   maxHpForLevel,
   type PlayerClass,
   type TerrainGeometry,
-} from "../shared/game.js";
-import { terrainFromMap } from "../shared/map-data.js";
-import type { Inventory, QuestState } from "../shared/protocol.js";
-import { type ClassResourceState, initialResource } from "../shared/resources.js";
-import type { Vec2 } from "../shared/simulation.js";
-import { CLASS_SKILLS, isSkillUnlocked } from "../shared/skills.js";
-import { isKnownZone, resolveZoneLocation } from "../shared/zones.js";
+} from "@lindocara/engine/game.js";
+import { terrainFromMap } from "@lindocara/engine/map-data.js";
+import type { Inventory, QuestState } from "@lindocara/engine/protocol.js";
+import { type ClassResourceState, initialResource } from "@lindocara/engine/resources.js";
+import type { Vec2 } from "@lindocara/engine/simulation.js";
+import { CLASS_SKILLS, isSkillUnlocked } from "@lindocara/engine/skills.js";
+import { isKnownZone, resolveZoneLocation } from "@lindocara/engine/zones.js";
+import { and, eq, sql } from "drizzle-orm";
 import { loadNormalizedCharacterState } from "./character-persistence.js";
 import { type Character, character, type Db } from "./db/index.js";
 import { HEALTH_POTION_ID, ownedItemId } from "./items.js";

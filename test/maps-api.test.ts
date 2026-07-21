@@ -4,29 +4,29 @@
  * register-and-cookie pattern as worker.test.ts.
  */
 import { env, SELF } from "cloudflare:test";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { createAdventure } from "../src/server/adventures.js";
-import { createDb } from "../src/server/db/index.js";
-import { BUILTIN_MAP_ID } from "../src/server/maps.js";
-import { SESSION_COOKIE } from "../src/server/session.js";
-import { MAX_ADVENTURE_MAPS } from "../src/shared/adventure.js";
-import { COMMAND_TEXT_MAX, MAX_CHOICE_OPTIONS } from "../src/shared/event-commands.js";
-import { MONSTER_SPECIES_KIND, type MonsterSpecies } from "../src/shared/game.js";
+import { MAX_ADVENTURE_MAPS } from "@lindocara/engine/adventure.js";
+import { COMMAND_TEXT_MAX, MAX_CHOICE_OPTIONS } from "@lindocara/engine/event-commands.js";
+import { MONSTER_SPECIES_KIND, type MonsterSpecies } from "@lindocara/engine/game.js";
 import {
   MARKER_LABEL_MAX,
   MAX_MAP_ENTRIES,
   MAX_MAP_EXITS,
   MAX_MAP_MONSTER_SPAWNS,
-} from "../src/shared/map-data.js";
+} from "@lindocara/engine/map-data.js";
 import {
   EVENT_NAME_MAX,
   MAX_EVENTS_PER_MAP,
   MAX_PAGES_PER_EVENT,
-} from "../src/shared/map-events.js";
-import { encodeTileLayer, type TileLayer } from "../src/shared/tile-layer-codec.js";
-import { fixedId } from "../src/shared/tileset.js";
-import { TINY_SWORDS_TILESET_ID } from "../src/shared/tilesets/tiny-swords.js";
-import { EDITOR_ASSETS, editorAsset } from "../src/shared/tiny-swords-catalog.js";
+} from "@lindocara/engine/map-events.js";
+import { encodeTileLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
+import { fixedId } from "@lindocara/engine/tileset.js";
+import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
+import { EDITOR_ASSETS, editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { createAdventure } from "../src/server/adventures.js";
+import { createDb } from "../src/server/db/index.js";
+import { BUILTIN_MAP_ID } from "../src/server/maps.js";
+import { SESSION_COOKIE } from "../src/server/session.js";
 import { layeredWireTerrain } from "./support/map-fixtures.js";
 
 const ORIGIN = "https://lindocara.test";

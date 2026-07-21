@@ -1,6 +1,6 @@
+import { ELEMENT_OFFSET_PX, type MapElement } from "@lindocara/engine/map-data.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { Container, Sprite, type Texture } from "pixi.js";
-import { ELEMENT_OFFSET_PX, type MapElement } from "../../shared/map-data.js";
-import { TILE_SIZE } from "../../shared/tilemap.js";
 import type { EditorAssetArt } from "./editor-asset-art.js";
 
 export const CATALOG_ELEMENT_CYCLE_MS = 1_400;

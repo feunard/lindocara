@@ -1,6 +1,6 @@
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
+import { CURATED_EDITOR_ASSET_IDS, editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
-import { TILE_SIZE } from "../../src/shared/tilemap.js";
-import { CURATED_EDITOR_ASSET_IDS, editorAsset } from "../../src/shared/tiny-swords-catalog.js";
 
 describe("catalogue colliders", () => {
   it("gives the curated tree a trunk collider, not a whole cell", () => {

@@ -1,9 +1,9 @@
-import { canReclaim, speedForLife } from "../../shared/death.js";
-import { facingFromInput } from "../../shared/directional-combat.js";
-import { resolveTerrain } from "../../shared/game.js";
-import { regenerateResource } from "../../shared/resources.js";
-import { NO_INPUT, step, TICK_DT } from "../../shared/simulation.js";
-import type { ZoneDefinition } from "../../shared/zones.js";
+import { canReclaim, speedForLife } from "@lindocara/engine/death.js";
+import { facingFromInput } from "@lindocara/engine/directional-combat.js";
+import { resolveTerrain } from "@lindocara/engine/game.js";
+import { regenerateResource } from "@lindocara/engine/resources.js";
+import { NO_INPUT, step, TICK_DT } from "@lindocara/engine/simulation.js";
+import type { ZoneDefinition } from "@lindocara/engine/zones.js";
 import type { SpatialGrid } from "./spatial-grid.js";
 import { MAX_STARVED_TICKS, type PlayerRuntime, toAttachment } from "./world-runtime.js";
 

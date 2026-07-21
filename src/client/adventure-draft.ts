@@ -11,8 +11,8 @@ import {
   ADVENTURE_TITLE_MAX,
   type AdventureInput,
   MAX_ADVENTURE_MAPS,
-} from "../shared/adventure.js";
-import { type AdventureRegistry, EMPTY_REGISTRY } from "../shared/adventure-state.js";
+} from "@lindocara/engine/adventure.js";
+import { type AdventureRegistry, EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
 
 export interface DraftMemberInfo {
   mapId: string;

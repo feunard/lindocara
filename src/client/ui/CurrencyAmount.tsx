@@ -1,4 +1,4 @@
-import type { ConsumableCurrency } from "../../shared/consumables.js";
+import type { ConsumableCurrency } from "@lindocara/engine/consumables.js";
 
 interface CurrencyAmountProps {
   currency: ConsumableCurrency;

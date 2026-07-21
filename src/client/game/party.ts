@@ -6,7 +6,7 @@
  * has to become an id *before* it reaches the socket, or the chat command kicks the player who
  * used it.
  */
-import type { PlayerSnapshot } from "../../shared/protocol.js";
+import type { PlayerSnapshot } from "@lindocara/engine/protocol.js";
 
 export type PartyTargetResolution =
   | { ok: true; playerId: string }

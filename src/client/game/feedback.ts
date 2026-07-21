@@ -1,5 +1,9 @@
-import { DEFAULT_APPEARANCE, isPrimaryColor, type PrimaryColor } from "../../shared/character.js";
-import type { EventCode } from "../../shared/protocol.js";
+import {
+  DEFAULT_APPEARANCE,
+  isPrimaryColor,
+  type PrimaryColor,
+} from "@lindocara/engine/character.js";
+import type { EventCode } from "@lindocara/engine/protocol.js";
 
 export const MAX_ACTIVE_WORLD_EFFECTS = 28;
 

@@ -4,11 +4,8 @@
  */
 
 import { env, runInDurableObject, SELF } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
-import { RESYNC_COOLDOWN_MS } from "../src/server/world/world-runtime.js";
-import { type Attachment, positionFromAttachment } from "../src/server/world.js";
-import { WS_CLOSE } from "../src/shared/close-codes.js";
-import { CORPSE_RECLAIM_RANGE, RESURRECT_HP_RATIO } from "../src/shared/death.js";
+import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
+import { CORPSE_RECLAIM_RANGE, RESURRECT_HP_RATIO } from "@lindocara/engine/death.js";
 import {
   CEMETERIES,
   isWalkable,
@@ -23,8 +20,8 @@ import {
   spawnPosition,
   WORLD_BOUNDARY_DEPTH,
   WORLD_LANDMARKS,
-} from "../src/shared/game.js";
-import { GUARD_VISIBILITY_RADIUS, MONSTER_VISIBILITY_RADIUS } from "../src/shared/interest.js";
+} from "@lindocara/engine/game.js";
+import { GUARD_VISIBILITY_RADIUS, MONSTER_VISIBILITY_RADIUS } from "@lindocara/engine/interest.js";
 import {
   NO_INPUT,
   PLAYER_SIZE,
@@ -32,8 +29,11 @@ import {
   TICK_DT,
   WORLD_HEIGHT,
   WORLD_WIDTH,
-} from "../src/shared/simulation.js";
-import { TILE_SIZE } from "../src/shared/tilemap.js";
+} from "@lindocara/engine/simulation.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
+import { describe, expect, it } from "vitest";
+import { RESYNC_COOLDOWN_MS } from "../src/server/world/world-runtime.js";
+import { type Attachment, positionFromAttachment } from "../src/server/world.js";
 import {
   awayFromNearestWall,
   Client,

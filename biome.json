@@ -12,7 +12,7 @@
       "!assets/index.json",
       "!assets/lindocara-asset-catalog.json",
       "!public/assets/lindocara/tiny-swords/catalog.json",
-      "!src/shared/tiny-swords-catalog.generated.ts"
+      "!packages/engine/src/tiny-swords-catalog.generated.ts"
     ]
   },
   "formatter": {
@@ -49,8 +49,8 @@
     },
     {
       "includes": [
-        "src/shared/event-commands.ts",
-        "src/shared/event-interpreter.ts",
+        "packages/engine/src/event-commands.ts",
+        "packages/engine/src/event-interpreter.ts",
         "src/server/world/event-run-system.ts",
         "src/client/ui/editor/EventCommandEditor.tsx",
         "test/**"

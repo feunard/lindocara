@@ -4,13 +4,14 @@
  * current version and player cap. Immutable published adventure versions remain a later boundary;
  * this V1 still resolves the mutable adventure id at runtime.
  */
-import { and, desc, eq, inArray, lt, or } from "drizzle-orm";
+
 import {
   type CreatePartyInput,
   MAX_HOSTED_PARTIES,
   PARTY_LIST_PAGE_SIZE,
   type PartyColor,
-} from "../shared/party.js";
+} from "@lindocara/engine/party.js";
+import { and, desc, eq, inArray, lt, or } from "drizzle-orm";
 import { loadAdventure } from "./adventures.js";
 import { adventure, type Db, hero, party, partyMember } from "./db/index.js";
 

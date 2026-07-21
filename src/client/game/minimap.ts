@@ -2,10 +2,10 @@
  * Pure map geometry. No DOM, no Pixi, no React — which is why it is unit-testable inside
  * workerd, and why minimap-surface.ts (the canvas shell next door) has no logic in it.
  */
-import { PLAYER_VISIBILITY_RADIUS } from "../../shared/interest.js";
-import type { Vec2 } from "../../shared/simulation.js";
-import { kindAtPoint, type TileKind, type TileMap } from "../../shared/tilemap.js";
-import { type ZoneId, zoneDefinition } from "../../shared/zones.js";
+import { PLAYER_VISIBILITY_RADIUS } from "@lindocara/engine/interest.js";
+import type { Vec2 } from "@lindocara/engine/simulation.js";
+import { kindAtPoint, type TileKind, type TileMap } from "@lindocara/engine/tilemap.js";
+import { type ZoneId, zoneDefinition } from "@lindocara/engine/zones.js";
 
 /** Derived, not restated: hand-copying PLAYER_VISIBILITY_RADIUS here would let someone tune
  *  the server's radius without ever seeing this constant, and the minimap would silently start

@@ -5,10 +5,10 @@
  * All geometry lives in minimap.ts, which is pure and tested; this file is the part that
  * touches the DOM, so it is deliberately thin.
  */
-import type { PlayerSnapshot, WorldInfo } from "../../shared/protocol.js";
-import type { Vec2 } from "../../shared/simulation.js";
-import { decodeTileMap } from "../../shared/tilemap-codec.js";
-import { isKnownZone } from "../../shared/zones.js";
+import type { PlayerSnapshot, WorldInfo } from "@lindocara/engine/protocol.js";
+import type { Vec2 } from "@lindocara/engine/simulation.js";
+import { decodeTileMap } from "@lindocara/engine/tilemap-codec.js";
+import { isKnownZone } from "@lindocara/engine/zones.js";
 import {
   bakeTerrain,
   bakeZoneTerrain,

@@ -1,3 +1,4 @@
+import { TILE_KINDS, type TileKind, type TileMap } from "@lindocara/engine/tilemap.js";
 import { describe, expect, it } from "vitest";
 import {
   AUTOTILE_LUT,
@@ -6,7 +7,6 @@ import {
   needsFoam,
   tileVisual,
 } from "../src/client/game/autotile.js";
-import { TILE_KINDS, type TileKind, type TileMap } from "../src/shared/tilemap.js";
 
 function map(rows: string[]): TileMap {
   const kinds: TileKind[] = [];

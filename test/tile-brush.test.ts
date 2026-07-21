@@ -1,8 +1,8 @@
+import { eraseTile, paintAutotile, resolveWholeLayer } from "@lindocara/engine/tile-brush.js";
+import { emptyLayer } from "@lindocara/engine/tile-layer-codec.js";
+import { decodeTileId } from "@lindocara/engine/tileset.js";
+import { GRASS_SLOTS, TINY_SWORDS_TILESET } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { describe, expect, it } from "vitest";
-import { eraseTile, paintAutotile, resolveWholeLayer } from "../src/shared/tile-brush.js";
-import { emptyLayer } from "../src/shared/tile-layer-codec.js";
-import { decodeTileId } from "../src/shared/tileset.js";
-import { GRASS_SLOTS, TINY_SWORDS_TILESET } from "../src/shared/tilesets/tiny-swords.js";
 
 const GRASS = GRASS_SLOTS[0];
 const set = TINY_SWORDS_TILESET;

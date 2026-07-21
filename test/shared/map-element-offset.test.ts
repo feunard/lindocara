@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
 import {
   ELEMENT_OFFSET_PX,
   ELEMENT_OFFSET_STEPS,
   parseMapElements,
-} from "../../src/shared/map-data.js";
+} from "@lindocara/engine/map-data.js";
+import { describe, expect, it } from "vitest";
 
 const ASSET = "resource.terrain-resources-wood-trees.tree3";
 

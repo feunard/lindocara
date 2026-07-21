@@ -1,8 +1,8 @@
-import type { PrimaryColor } from "../../shared/character.js";
-import { actionForClassSlot } from "../../shared/combat-actions.js";
-import type { MonsterSpecies, PlayerClass } from "../../shared/game.js";
-import type { ProjectileKind } from "../../shared/protocol.js";
-import { CLASS_SKILLS } from "../../shared/skills.js";
+import type { PrimaryColor } from "@lindocara/engine/character.js";
+import { actionForClassSlot } from "@lindocara/engine/combat-actions.js";
+import type { MonsterSpecies, PlayerClass } from "@lindocara/engine/game.js";
+import type { ProjectileKind } from "@lindocara/engine/protocol.js";
+import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
 import { type EnemySheet, TINY_SWORDS_ENEMIES } from "./enemy-art.js";
 import type { ServerCombatTimeline } from "./server-clock.js";
 import { TINY_SWORDS_ROOT } from "./tiny-swords-art.js";

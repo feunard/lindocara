@@ -1,7 +1,7 @@
+import { MONSTER_SPAWNS } from "@lindocara/engine/game.js";
+import { dictionaries, format } from "@lindocara/engine/i18n/index.js";
+import { EVENT_CODES } from "@lindocara/engine/protocol.js";
 import { describe, expect, it } from "vitest";
-import { MONSTER_SPAWNS } from "../src/shared/game.js";
-import { dictionaries, format } from "../src/shared/i18n/index.js";
-import { EVENT_CODES } from "../src/shared/protocol.js";
 
 describe("i18n", () => {
   it("interpolates {tokens} and leaves unknown tokens visible", () => {

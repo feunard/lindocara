@@ -1,3 +1,4 @@
+import { MONSTER_SPECIES_KIND, type MonsterSpecies } from "@lindocara/engine/game.js";
 import { describe, expect, it } from "vitest";
 import {
   combatActionFrameIndex,
@@ -7,7 +8,6 @@ import {
 } from "../../src/client/game/combat-art.js";
 import { ServerClock } from "../../src/client/game/server-clock.js";
 import { skillIconArt } from "../../src/client/game/tiny-swords-art.js";
-import { MONSTER_SPECIES_KIND, type MonsterSpecies } from "../../src/shared/game.js";
 
 describe("Tiny Swords directional combat art", () => {
   it("uses the dedicated warrior, ranger and priest caster sheets", () => {

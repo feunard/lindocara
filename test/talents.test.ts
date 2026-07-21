@@ -1,5 +1,4 @@
-import { describe, expect, it } from "vitest";
-import { CLASS_SKILLS } from "../src/shared/skills.js";
+import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
 import {
   CLASS_TALENTS,
   normalizeTalentSelection,
@@ -7,7 +6,8 @@ import {
   talentEffect,
   talentState,
   unlockTalent,
-} from "../src/shared/talents.js";
+} from "@lindocara/engine/talents.js";
+import { describe, expect, it } from "vitest";
 
 describe("class talents", () => {
   it("ships four five-node branches per class, rooted in ability slots 2 through 5", () => {

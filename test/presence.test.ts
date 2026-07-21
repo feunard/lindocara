@@ -1,8 +1,8 @@
 import { env } from "cloudflare:test";
+import { emptyCombatCooldowns } from "@lindocara/engine/cooldowns.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { account, character, createDb } from "../src/server/db/index.js";
 import { loadProfile, saveProfile } from "../src/server/profile.js";
-import { emptyCombatCooldowns } from "../src/shared/cooldowns.js";
 
 async function characterFixture(label: string): Promise<string> {
   const suffix = crypto.randomUUID();

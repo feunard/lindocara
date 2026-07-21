@@ -1,10 +1,10 @@
+import type { PlayerClass } from "@lindocara/engine/game.js";
+import { HERO_CLASSES, MAX_HEROES_PER_PARTY } from "@lindocara/engine/hero.js";
 import { useEffect, useState } from "react";
 import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
 import { TinyFieldSelect } from "@/ui/tiny-swords/TinyFieldSelect.js";
 import { TinyInput } from "@/ui/tiny-swords/TinyInput.js";
 import { TinyLabel } from "@/ui/tiny-swords/TinyLabel.js";
-import type { PlayerClass } from "../../shared/game.js";
-import { HERO_CLASSES, MAX_HEROES_PER_PARTY } from "../../shared/hero.js";
 import {
   authErrorText,
   createHeroApi,

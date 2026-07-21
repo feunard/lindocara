@@ -8,11 +8,11 @@
  * `roomDiagnostics` run seam. Dialogue itself rides the wire now (Task 4), asserted off the client.
  */
 import { env, evictDurableObject, runDurableObjectAlarm, SELF } from "cloudflare:test";
+import type { EventCommand } from "@lindocara/engine/event-commands.js";
+import type { MapEvent, MapEventPage } from "@lindocara/engine/map-events.js";
+import type { ServerMessage } from "@lindocara/engine/protocol.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
-import type { EventCommand } from "../src/shared/event-commands.js";
-import type { MapEvent, MapEventPage } from "../src/shared/map-events.js";
-import type { ServerMessage } from "../src/shared/protocol.js";
-import { TILE_SIZE } from "../src/shared/tilemap.js";
 import {
   Client,
   drainHeroRooms,

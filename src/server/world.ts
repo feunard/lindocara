@@ -3,7 +3,6 @@
  * moves entities, applies damage, grants loot/XP, advances quests, and persists player profiles.
  */
 import { DurableObject } from "cloudflare:workers";
-import { eq } from "drizzle-orm";
 import {
   type AdventureRegistry,
   activePageIndex,
@@ -11,15 +10,15 @@ import {
   EMPTY_ADVENTURE_STATE,
   EMPTY_REGISTRY,
   type PartyAdventureState,
-} from "../shared/adventure-state.js";
-import { parseCheatCommand } from "../shared/cheats.js";
-import { WS_CLOSE } from "../shared/close-codes.js";
-import { flattenColliderIndex } from "../shared/collider.js";
+} from "@lindocara/engine/adventure-state.js";
+import { parseCheatCommand } from "@lindocara/engine/cheats.js";
+import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
+import { flattenColliderIndex } from "@lindocara/engine/collider.js";
 import {
   actionForClassSlot,
   LUMEN_STEP_MAX_HOLD_MS,
   MONSTER_ACTIONS,
-} from "../shared/combat-actions.js";
+} from "@lindocara/engine/combat-actions.js";
 import {
   CONSUMABLE_COOLDOWN_MS,
   CONSUMABLE_MAX_STACK,
@@ -27,7 +26,7 @@ import {
   type ConsumableId,
   isConsumableId,
   normalizeConsumables,
-} from "../shared/consumables.js";
+} from "@lindocara/engine/consumables.js";
 import {
   addThreat,
   isMeaningfulContribution,
@@ -36,14 +35,14 @@ import {
   splitExperience,
   tauntThreat,
   usefulHealingThreat,
-} from "../shared/cooperation.js";
+} from "@lindocara/engine/cooperation.js";
 import {
   CORPSE_RECLAIM_RANGE,
   canAct,
   canBeResurrected,
   RESURRECT_COOLDOWN_MS,
   resurrectHp,
-} from "../shared/death.js";
+} from "@lindocara/engine/death.js";
 import {
   circleIntersectsArc,
   circleIntersectsCapsule,
@@ -53,9 +52,9 @@ import {
   strikeCapsule,
   sweptProjectileEntityImpact,
   sweptProjectileTerrainImpact,
-} from "../shared/directional-combat.js";
-import { DIALOGUE_CLOSE_RADIUS, type EventCommand } from "../shared/event-commands.js";
-import type { StateMutation } from "../shared/event-interpreter.js";
+} from "@lindocara/engine/directional-combat.js";
+import { DIALOGUE_CLOSE_RADIUS, type EventCommand } from "@lindocara/engine/event-commands.js";
+import type { StateMutation } from "@lindocara/engine/event-interpreter.js";
 import {
   applyDamage,
   applyExperience,
@@ -78,15 +77,19 @@ import {
   type QuestChapter,
   type QuestSite,
   withinRange,
-} from "../shared/game.js";
-import { LOCAL_CHAT_RADIUS, SPATIAL_CELL_SIZE, SPATIAL_EVENT_RADIUS } from "../shared/interest.js";
+} from "@lindocara/engine/game.js";
+import {
+  LOCAL_CHAT_RADIUS,
+  SPATIAL_CELL_SIZE,
+  SPATIAL_EVENT_RADIUS,
+} from "@lindocara/engine/interest.js";
 import {
   type EventTrigger,
   eventCellCentre,
   exitEvents,
   type MapEvent,
-} from "../shared/map-events.js";
-import { merchantForRuntimeRoom } from "../shared/merchant.js";
+} from "@lindocara/engine/map-events.js";
+import { merchantForRuntimeRoom } from "@lindocara/engine/merchant.js";
 import {
   type ClientMessage,
   encodeServerMessage,
@@ -95,39 +98,39 @@ import {
   type SelfState,
   type ServerMessage,
   type WorldView,
-} from "../shared/protocol.js";
+} from "@lindocara/engine/protocol.js";
 import {
   canSpendResource,
   generateResource,
   skillResourceCost,
   spendResource,
-} from "../shared/resources.js";
+} from "@lindocara/engine/resources.js";
 import {
   NETWORK_TICKS_PER_SNAPSHOT,
   NO_INPUT,
   PLAYER_SIZE,
   TICK_MS,
   type Vec2,
-} from "../shared/simulation.js";
+} from "@lindocara/engine/simulation.js";
 import {
   CLASS_SKILLS,
   isSkillUnlocked,
   SKILL_UNLOCK_LEVEL,
   type SkillDefinition,
   type SkillSlot,
-} from "../shared/skills.js";
+} from "@lindocara/engine/skills.js";
 import {
   evolvedTalent,
   skillWithTalents,
   talentEffect,
   talentEffects,
   unlockTalent,
-} from "../shared/talents.js";
-import { emptyLayer, encodeTileLayer } from "../shared/tile-layer-codec.js";
-import { TILE_SIZE } from "../shared/tilemap.js";
-import { encodeTileMap } from "../shared/tilemap-codec.js";
-import { TINY_SWORDS_TILESET_ID } from "../shared/tilesets/tiny-swords.js";
-import { replaceWorldCache, seedEventCache } from "../shared/world-delta.js";
+} from "@lindocara/engine/talents.js";
+import { emptyLayer, encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
+import { encodeTileMap } from "@lindocara/engine/tilemap-codec.js";
+import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
+import { replaceWorldCache, seedEventCache } from "@lindocara/engine/world-delta.js";
 import {
   isKnownZone,
   isValidInstanceId,
@@ -135,7 +138,8 @@ import {
   resolveZoneLocation,
   type ZoneDefinition,
   type ZoneLocation,
-} from "../shared/zones.js";
+} from "@lindocara/engine/zones.js";
+import { eq } from "drizzle-orm";
 import { loadAdventure } from "./adventures.js";
 import { claimQuestReward, consumeOwnedItem } from "./character-persistence.js";
 import { presenceTiming } from "./character-presence.js";

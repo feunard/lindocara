@@ -13,12 +13,13 @@
  * corrupt tile-layer column. A hero's connection must never fail because a party's save data got
  * damaged; it should just start from a state with nothing flipped.
  */
-import { eq } from "drizzle-orm";
+
 import {
   EMPTY_ADVENTURE_STATE,
   type PartyAdventureState,
   parsePartyAdventureState,
-} from "../shared/adventure-state.js";
+} from "@lindocara/engine/adventure-state.js";
+import { eq } from "drizzle-orm";
 import { type Db, map, mapEvent, party, partyAdventureState } from "./db/index.js";
 
 /**

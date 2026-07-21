@@ -1,0 +1,26 @@
+{
+  // Shared compiler options for every package. Each package's tsconfig extends this and adds
+  // its own `lib`/`types` (the DOM vs workerd split is now a package boundary, not a program
+  // boundary) and its `include`.
+  "files": [],
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "exactOptionalPropertyTypes": true,
+
+    "skipLibCheck": true,
+    "noEmit": true
+  }
+}

@@ -1,15 +1,15 @@
-import { describe, expect, it } from "vitest";
-import { bakeCollision } from "../src/shared/map-data.js";
-import { paintElevation, paintStairs } from "../src/shared/tile-brush.js";
-import { emptyLayer, type TileLayer } from "../src/shared/tile-layer-codec.js";
-import { kindAt } from "../src/shared/tilemap.js";
-import { decodeTileId } from "../src/shared/tileset.js";
+import { bakeCollision } from "@lindocara/engine/map-data.js";
+import { paintElevation, paintStairs } from "@lindocara/engine/tile-brush.js";
+import { emptyLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
+import { kindAt } from "@lindocara/engine/tilemap.js";
+import { decodeTileId } from "@lindocara/engine/tileset.js";
 import {
   CLIFF_WALL_SLOT,
   GRASS_SLOTS,
   TINY_SWORDS_TILESET,
   TINY_SWORDS_TILESET_ID,
-} from "../src/shared/tilesets/tiny-swords.js";
+} from "@lindocara/engine/tilesets/tiny-swords.js";
+import { describe, expect, it } from "vitest";
 
 const set = TINY_SWORDS_TILESET;
 const COLS = 8;

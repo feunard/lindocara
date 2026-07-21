@@ -10,8 +10,7 @@
  * Placement and spawn validation live here rather than in the browser because the editor is open to
  * any logged-in player. The API is the only place these can actually be enforced.
  */
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
-import type { BatchItem } from "drizzle-orm/batch";
+
 import {
   type AdventureGraph,
   type AdventureInput,
@@ -19,8 +18,8 @@ import {
   type MapMarkerIds,
   parseAdventureGraph,
   validateAdventure,
-} from "../shared/adventure.js";
-import { parseEventCommands } from "../shared/event-commands.js";
+} from "@lindocara/engine/adventure.js";
+import { parseEventCommands } from "@lindocara/engine/event-commands.js";
 import {
   bakeCollision,
   canPlaceElement,
@@ -37,25 +36,27 @@ import {
   type MapMarkers,
   parseMapMarkers,
   sameElementSlot,
-} from "../shared/map-data.js";
+} from "@lindocara/engine/map-data.js";
 import {
   entryEvents,
   exitEvents,
   MAX_EVENTS_PER_MAP,
   type MapEvent,
   parseMapEvents,
-} from "../shared/map-events.js";
-import { layersFromBlocks } from "../shared/map-migrate.js";
+} from "@lindocara/engine/map-events.js";
+import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
 import {
   emptyLayer,
   encodeTileLayer,
   parseTileLayer,
   type TileLayer,
-} from "../shared/tile-layer-codec.js";
-import { isSolidKind, kindAt } from "../shared/tilemap.js";
-import { tileIdInTileset } from "../shared/tileset.js";
-import { TINY_SWORDS_TILESET_ID, tilesetById } from "../shared/tilesets/tiny-swords.js";
-import { isEditorAssetId } from "../shared/tiny-swords-catalog.js";
+} from "@lindocara/engine/tile-layer-codec.js";
+import { isSolidKind, kindAt } from "@lindocara/engine/tilemap.js";
+import { tileIdInTileset } from "@lindocara/engine/tileset.js";
+import { TINY_SWORDS_TILESET_ID, tilesetById } from "@lindocara/engine/tilesets/tiny-swords.js";
+import { isEditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 import { adventure, type Db, map, mapElement, mapEvent, mapEventPage, party } from "./db/index.js";
 
 export const BUILTIN_MAP_ID = "builtin";

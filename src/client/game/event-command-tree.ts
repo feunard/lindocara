@@ -16,7 +16,7 @@ import {
   type EventCommand,
   MAX_COMMAND_DEPTH,
   MAX_COMMANDS_PER_PAGE,
-} from "../../shared/event-commands.js";
+} from "@lindocara/engine/event-commands.js";
 
 /** Which sub-body of a container command a path step descends into. A number is not used directly;
  *  `{ option }` names one `choices` option's body so the three container kinds share one addressing

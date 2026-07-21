@@ -1,5 +1,5 @@
-import type { CatalogAssetRef } from "../../shared/tiny-swords-catalog.js";
-import { TINY_SWORDS_UI } from "../../shared/tiny-swords-catalog.js";
+import type { CatalogAssetRef } from "@lindocara/engine/tiny-swords-catalog.js";
+import { TINY_SWORDS_UI } from "@lindocara/engine/tiny-swords-catalog.js";
 
 const SOURCE_URLS = import.meta.glob<string>("../../../assets/Tiny Swords*/**/*.png", {
   eager: true,

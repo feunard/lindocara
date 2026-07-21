@@ -1,6 +1,6 @@
+import { WORLD_HEIGHT, WORLD_WIDTH } from "@lindocara/engine/simulation.js";
 import type { CSSProperties } from "react";
 import { useEffect, useRef } from "react";
-import { WORLD_HEIGHT, WORLD_WIDTH } from "../../shared/simulation.js";
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
 

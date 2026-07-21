@@ -1,5 +1,5 @@
+import { ATTACK_COOLDOWN_MS } from "@lindocara/engine/game.js";
 import { useEffect, useState } from "react";
-import { ATTACK_COOLDOWN_MS } from "../../../shared/game.js";
 import { t } from "../../i18n.js";
 import { useUiStore } from "../../store.js";
 import { Bar } from "./Bar.js";

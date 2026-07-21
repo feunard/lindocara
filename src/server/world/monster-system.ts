@@ -1,4 +1,4 @@
-import { MONSTER_ACTIONS } from "../../shared/combat-actions.js";
+import { MONSTER_ACTIONS } from "@lindocara/engine/combat-actions.js";
 import {
   addThreat,
   CONTRIBUTION_EXPIRES_MS,
@@ -6,7 +6,7 @@ import {
   initialProximityThreat,
   THREAT_EXPIRES_MS,
   THREAT_LEASH_DISTANCE,
-} from "../../shared/cooperation.js";
+} from "@lindocara/engine/cooperation.js";
 import {
   GUARD_ATTACK_COOLDOWN_MS,
   GUARD_ATTACK_RANGE,
@@ -19,10 +19,10 @@ import {
   pointDistance,
   resolveTerrain,
   safeZoneShelters,
-} from "../../shared/game.js";
-import { PLAYER_SIZE, TICK_DT, type Vec2 } from "../../shared/simulation.js";
-import { isPathWalkable } from "../../shared/tilemap.js";
-import type { ZoneDefinition } from "../../shared/zones.js";
+} from "@lindocara/engine/game.js";
+import { PLAYER_SIZE, TICK_DT, type Vec2 } from "@lindocara/engine/simulation.js";
+import { isPathWalkable } from "@lindocara/engine/tilemap.js";
+import type { ZoneDefinition } from "@lindocara/engine/zones.js";
 import {
   advanceWaypoint,
   invalidateBlockedWaypoint,

@@ -1,7 +1,7 @@
-import { colliderIndexFrom } from "../../shared/collider.js";
-import type { ConsumableId } from "../../shared/consumables.js";
-import { canMove, type LifeState, speedForLife } from "../../shared/death.js";
-import { resolveTerrain, type TerrainGeometry } from "../../shared/game.js";
+import { colliderIndexFrom } from "@lindocara/engine/collider.js";
+import type { ConsumableId } from "@lindocara/engine/consumables.js";
+import { canMove, type LifeState, speedForLife } from "@lindocara/engine/death.js";
+import { resolveTerrain, type TerrainGeometry } from "@lindocara/engine/game.js";
 import {
   CORRECTION_SMOOTHING_MS,
   MAX_ACCUMULATED_SECONDS,
@@ -10,7 +10,7 @@ import {
   prunePending,
   reconcile,
   SNAP_THRESHOLD_PX,
-} from "../../shared/prediction.js";
+} from "@lindocara/engine/prediction.js";
 import {
   type ClientMessage,
   type CombatAnimation,
@@ -31,7 +31,7 @@ import {
   type ServerMessage,
   type WorldEventSnapshot,
   type WorldInfo,
-} from "../../shared/protocol.js";
+} from "@lindocara/engine/protocol.js";
 import {
   type Input,
   NETWORK_TICKS_PER_SNAPSHOT,
@@ -39,9 +39,9 @@ import {
   step,
   TICK_DT,
   type Vec2,
-} from "../../shared/simulation.js";
-import type { SkillSlot } from "../../shared/skills.js";
-import { decodeTileMap } from "../../shared/tilemap-codec.js";
+} from "@lindocara/engine/simulation.js";
+import type { SkillSlot } from "@lindocara/engine/skills.js";
+import { decodeTileMap } from "@lindocara/engine/tilemap-codec.js";
 import {
   applyEventDelta,
   applyWorldDelta,
@@ -50,8 +50,8 @@ import {
   replaceWorldCache,
   seedEventCache,
   type WorldCache,
-} from "../../shared/world-delta.js";
-import { DEFAULT_ZONE_ID, zoneDefinition } from "../../shared/zones.js";
+} from "@lindocara/engine/world-delta.js";
+import { DEFAULT_ZONE_ID, zoneDefinition } from "@lindocara/engine/zones.js";
 
 // A slightly deeper buffer covers short workerd/browser scheduling bursts, so AI movement stays
 // between two authoritative snapshots rather than briefly snapping to the newest one.

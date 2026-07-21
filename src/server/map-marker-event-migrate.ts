@@ -18,10 +18,10 @@
  *   event-native maps untouched), and a graph anchor already shaped like a uuid is left alone.
  */
 
+import type { MapMarkers } from "@lindocara/engine/map-data.js";
+import { functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js";
 import { eq } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
-import type { MapMarkers } from "../shared/map-data.js";
-import { functionalEvent, type MapEvent } from "../shared/map-events.js";
 import { adventure, type Db, map, mapEvent } from "./db/index.js";
 import { insertEventStatements, markersOfRow } from "./maps.js";
 

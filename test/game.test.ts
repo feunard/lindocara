@@ -1,10 +1,9 @@
-import { describe, expect, it } from "vitest";
 import {
   isEquipmentForClass,
   isValidAppearance,
   STARTER_EQUIPMENT,
   starterEquipmentFor,
-} from "../src/shared/character.js";
+} from "@lindocara/engine/character.js";
 import {
   CORPSE_RECLAIM_RANGE,
   canAct,
@@ -14,7 +13,7 @@ import {
   RESURRECT_HP_RATIO,
   resurrectHp,
   speedForLife,
-} from "../src/shared/death.js";
+} from "@lindocara/engine/death.js";
 import {
   applyDamage,
   applyExperience,
@@ -52,16 +51,17 @@ import {
   WORLD_LANDMARKS,
   withinRange,
   xpForNextLevel,
-} from "../src/shared/game.js";
+} from "@lindocara/engine/game.js";
 import {
   PLAYER_SIZE,
   PLAYER_SPEED,
   TICK_DT,
   WORLD_HEIGHT,
   WORLD_WIDTH,
-} from "../src/shared/simulation.js";
-import { isSkillUnlocked, SKILL_UNLOCK_LEVEL } from "../src/shared/skills.js";
-import { TILE_SIZE } from "../src/shared/tilemap.js";
+} from "@lindocara/engine/simulation.js";
+import { isSkillUnlocked, SKILL_UNLOCK_LEVEL } from "@lindocara/engine/skills.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
+import { describe, expect, it } from "vitest";
 import { tileMapFromRects } from "./support/tiles.js";
 
 function expectValidRect(rect: Rect): void {

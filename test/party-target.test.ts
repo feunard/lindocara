@@ -1,6 +1,6 @@
+import type { PlayerSnapshot } from "@lindocara/engine/protocol.js";
 import { describe, expect, it } from "vitest";
 import { resolvePartyTarget } from "../src/client/game/party.js";
-import type { PlayerSnapshot } from "../src/shared/protocol.js";
 
 function player(id: string, nick: string): PlayerSnapshot {
   return {

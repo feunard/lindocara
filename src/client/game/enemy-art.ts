@@ -6,7 +6,7 @@
  * Every enemy has its own frame size. They are single-row horizontal strips, so `frame` is the
  * sheet's height and `frames` is its width divided by that. Measure; do not guess.
  */
-import type { MonsterSpecies } from "../../shared/game.js";
+import type { MonsterSpecies } from "@lindocara/engine/game.js";
 import { TINY_SWORDS_ROOT } from "./tiny-swords-art.js";
 
 const ROOT = `${TINY_SWORDS_ROOT}/enemies`;

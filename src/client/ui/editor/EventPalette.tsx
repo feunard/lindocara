@@ -1,8 +1,8 @@
-import { EVENT_PRESETS, type EventPreset } from "../../../shared/event-presets.js";
-import { CURATED_MONSTER_SPECIES, type MonsterSpecies } from "../../../shared/game.js";
-import type { MessageKey } from "../../../shared/i18n/index.js";
-import { MAX_PATROL_RADIUS, MIN_PATROL_RADIUS } from "../../../shared/map-data.js";
-import type { EventKind, MapEvent } from "../../../shared/map-events.js";
+import { EVENT_PRESETS, type EventPreset } from "@lindocara/engine/event-presets.js";
+import { CURATED_MONSTER_SPECIES, type MonsterSpecies } from "@lindocara/engine/game.js";
+import type { MessageKey } from "@lindocara/engine/i18n/index.js";
+import { MAX_PATROL_RADIUS, MIN_PATROL_RADIUS } from "@lindocara/engine/map-data.js";
+import type { EventKind, MapEvent } from "@lindocara/engine/map-events.js";
 import { t, useLocale } from "../../i18n.js";
 import { Input } from "../components/input.js";
 import { Label } from "../components/label.js";

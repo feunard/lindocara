@@ -1,3 +1,13 @@
+import type { MapElement } from "@lindocara/engine/map-data.js";
+import type { MapEvent } from "@lindocara/engine/map-events.js";
+import type { TileLayer } from "@lindocara/engine/tile-layer-codec.js";
+import type { TileMap } from "@lindocara/engine/tilemap.js";
+import type { Tileset } from "@lindocara/engine/tileset.js";
+import { fixedId } from "@lindocara/engine/tileset.js";
+import type {
+  EditorAssetDefinition,
+  EditorAssetId,
+} from "@lindocara/engine/tiny-swords-catalog.js";
 import { Container, Graphics, Sprite, Text, Texture } from "pixi.js";
 import { describe, expect, it } from "vitest";
 import type { EditorAssetArt } from "../../src/client/game/editor-asset-art.js";
@@ -16,13 +26,6 @@ import {
   shouldShowEventOverlay,
   shouldShowHoverPreview,
 } from "../../src/client/game/map-editor-stage.js";
-import type { MapElement } from "../../src/shared/map-data.js";
-import type { MapEvent } from "../../src/shared/map-events.js";
-import type { TileLayer } from "../../src/shared/tile-layer-codec.js";
-import type { TileMap } from "../../src/shared/tilemap.js";
-import type { Tileset } from "../../src/shared/tileset.js";
-import { fixedId } from "../../src/shared/tileset.js";
-import type { EditorAssetDefinition, EditorAssetId } from "../../src/shared/tiny-swords-catalog.js";
 
 /**
  * `paintLandCell` is `redraw()`'s per-cell tile routing, exported and kept Pixi-object-only (no

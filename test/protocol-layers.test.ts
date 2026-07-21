@@ -1,7 +1,7 @@
+import { parseServerMessage } from "@lindocara/engine/protocol.js";
+import { emptyLayer, encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
+import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { describe, expect, it } from "vitest";
-import { parseServerMessage } from "../src/shared/protocol.js";
-import { emptyLayer, encodeTileLayer } from "../src/shared/tile-layer-codec.js";
-import { TINY_SWORDS_TILESET_ID } from "../src/shared/tilesets/tiny-swords.js";
 
 function welcome(overrides: Record<string, unknown>) {
   const layer = encodeTileLayer(emptyLayer(4, 3));

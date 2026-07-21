@@ -1,5 +1,5 @@
+import { HERO_CLASSES, isHeroClass, parseCreateHeroInput } from "@lindocara/engine/hero.js";
 import { describe, expect, it } from "vitest";
-import { HERO_CLASSES, isHeroClass, parseCreateHeroInput } from "../src/shared/hero.js";
 
 describe("hero classes", () => {
   it("are exactly the three player classes", () => {

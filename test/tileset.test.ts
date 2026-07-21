@@ -1,5 +1,4 @@
-import { describe, expect, it } from "vitest";
-import { autotileVariantCount } from "../src/shared/autotile.js";
+import { autotileVariantCount } from "@lindocara/engine/autotile.js";
 import {
   AUTOTILE_SLOTS,
   autotileId,
@@ -9,8 +8,9 @@ import {
   fixedId,
   tileIdInTileset,
   VARIANTS_PER_AUTOTILE,
-} from "../src/shared/tileset.js";
-import { CLIFF_WALL_SLOT, TINY_SWORDS_TILESET } from "../src/shared/tilesets/tiny-swords.js";
+} from "@lindocara/engine/tileset.js";
+import { CLIFF_WALL_SLOT, TINY_SWORDS_TILESET } from "@lindocara/engine/tilesets/tiny-swords.js";
+import { describe, expect, it } from "vitest";
 
 describe("tile id space", () => {
   it("reserves zero for an empty cell", () => {

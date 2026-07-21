@@ -1,4 +1,4 @@
-import type { Vec2 } from "../shared/simulation.js";
+import type { Vec2 } from "@lindocara/engine/simulation.js";
 
 export interface SpatialEntity extends Vec2 {
   id: string;

@@ -8,7 +8,7 @@
  * A freshly created adventure is an empty draft: no maps, `EMPTY_GRAPH`. Maps are created under it
  * afterward (`createMap`), and the graph is authored through `updateAdventure` once maps exist.
  */
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+
 import {
   type AdventureGraph,
   type AdventureInput,
@@ -17,14 +17,15 @@ import {
   type MapMarkerIds,
   parseAdventureGraph,
   validateAdventure,
-} from "../shared/adventure.js";
+} from "@lindocara/engine/adventure.js";
 import {
   type AdventureRegistry,
   EMPTY_REGISTRY,
   parseAdventureRegistry,
-} from "../shared/adventure-state.js";
-import { mapSpawnPoint } from "../shared/map-data.js";
-import { eventCellCentre } from "../shared/map-events.js";
+} from "@lindocara/engine/adventure-state.js";
+import { mapSpawnPoint } from "@lindocara/engine/map-data.js";
+import { eventCellCentre } from "@lindocara/engine/map-events.js";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { adventure, type Db, map, mapEvent, party } from "./db/index.js";
 import { DEFAULT_FIRST_MAP_NAME, loadMap, prepareDefaultMap, type StoredMap } from "./maps.js";
 

@@ -1,4 +1,4 @@
-import { isUuid } from "../shared/identifiers.js";
+import { isUuid } from "@lindocara/engine/identifiers.js";
 
 /**
  * Stateless, signed sessions.

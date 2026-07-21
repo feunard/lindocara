@@ -1,6 +1,6 @@
+import { ELEMENT_OFFSET_PX, quarterCellAt } from "@lindocara/engine/map-data.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { describe, expect, it } from "vitest";
-import { ELEMENT_OFFSET_PX, quarterCellAt } from "../../src/shared/map-data.js";
-import { TILE_SIZE } from "../../src/shared/tilemap.js";
 
 describe("quarter-cell quantisation", () => {
   it("splits a cell into four steps per axis", () => {

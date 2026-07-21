@@ -3,6 +3,10 @@
  * fencing, host-only delete, and the adventure-delete guard. Truncate children before parents.
  */
 import { env } from "cloudflare:test";
+import type { AdventureInput } from "@lindocara/engine/adventure.js";
+import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
+import { functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js";
+import { MAX_HOSTED_PARTIES } from "@lindocara/engine/party.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { createAdventure, deleteAdventure, updateAdventure } from "../src/server/adventures.js";
 import { account, createDb } from "../src/server/db/index.js";
@@ -14,10 +18,6 @@ import {
   listPublicParties,
   listPublicPartiesPage,
 } from "../src/server/parties.js";
-import type { AdventureInput } from "../src/shared/adventure.js";
-import { EMPTY_MARKERS } from "../src/shared/map-data.js";
-import { functionalEvent, type MapEvent } from "../src/shared/map-events.js";
-import { MAX_HOSTED_PARTIES } from "../src/shared/party.js";
 import { authorMap } from "./support/adventure-fixtures.js";
 import { layeredTerrain } from "./support/map-fixtures.js";
 

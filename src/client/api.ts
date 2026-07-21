@@ -1,11 +1,15 @@
-import type { AdventureGraph, AdventureInput, CreateAdventureInput } from "../shared/adventure.js";
-import type { AdventureRegistry } from "../shared/adventure-state.js";
-import type { CharacterAppearance, Equipment } from "../shared/character.js";
-import type { PlayerClass } from "../shared/game.js";
-import type { MessageKey } from "../shared/i18n/index.js";
-import type { MapElement, MapMarkers } from "../shared/map-data.js";
-import type { MapEvent } from "../shared/map-events.js";
-import type { PartyColor } from "../shared/party.js";
+import type {
+  AdventureGraph,
+  AdventureInput,
+  CreateAdventureInput,
+} from "@lindocara/engine/adventure.js";
+import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
+import type { CharacterAppearance, Equipment } from "@lindocara/engine/character.js";
+import type { PlayerClass } from "@lindocara/engine/game.js";
+import type { MessageKey } from "@lindocara/engine/i18n/index.js";
+import type { MapElement, MapMarkers } from "@lindocara/engine/map-data.js";
+import type { MapEvent } from "@lindocara/engine/map-events.js";
+import type { PartyColor } from "@lindocara/engine/party.js";
 import { t } from "./i18n.js";
 
 export interface Me {

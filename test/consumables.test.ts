@@ -1,11 +1,11 @@
-import { describe, expect, it } from "vitest";
 import {
   CONSUMABLE_COOLDOWN_MS,
   CONSUMABLES,
   normalizeConsumables,
   RESURRECTION_DELAY_MS,
-} from "../src/shared/consumables.js";
-import { merchantForRuntimeRoom } from "../src/shared/merchant.js";
+} from "@lindocara/engine/consumables.js";
+import { merchantForRuntimeRoom } from "@lindocara/engine/merchant.js";
+import { describe, expect, it } from "vitest";
 
 describe("consumable catalogue", () => {
   it("keeps restorative goods on gold and rare effects on crystals", () => {

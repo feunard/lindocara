@@ -8,10 +8,10 @@
  *
  * `#` is water (an empty ground cell, solid), everything else is grass.
  */
-import type { MapData, MapElement, MapMarkers } from "../../src/shared/map-data.js";
-import { layersFromBlocks } from "../../src/shared/map-migrate.js";
-import { encodeTileLayer, type TileLayer } from "../../src/shared/tile-layer-codec.js";
-import { TINY_SWORDS_TILESET_ID } from "../../src/shared/tilesets/tiny-swords.js";
+import type { MapData, MapElement, MapMarkers } from "@lindocara/engine/map-data.js";
+import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
+import { encodeTileLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
+import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
 
 /** The size and terrain half of a `MapInput`, ready to spread. */
 export function layeredTerrain(blocks: readonly string[]): {

@@ -1,12 +1,12 @@
 import { env, SELF } from "cloudflare:test";
+import type { AdventureGraph } from "@lindocara/engine/adventure.js";
+import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
+import { ATTACK_COOLDOWN_MS, MONSTER_STATS, maxHpForLevel } from "@lindocara/engine/game.js";
+import type { MapElement } from "@lindocara/engine/map-data.js";
+import { defaultEventPage, functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js";
+import { PLAYER_SIZE } from "@lindocara/engine/simulation.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { afterEach, describe, expect, it } from "vitest";
-import type { AdventureGraph } from "../src/shared/adventure.js";
-import { WS_CLOSE } from "../src/shared/close-codes.js";
-import { ATTACK_COOLDOWN_MS, MONSTER_STATS, maxHpForLevel } from "../src/shared/game.js";
-import type { MapElement } from "../src/shared/map-data.js";
-import { defaultEventPage, functionalEvent, type MapEvent } from "../src/shared/map-events.js";
-import { PLAYER_SIZE } from "../src/shared/simulation.js";
-import { TILE_SIZE } from "../src/shared/tilemap.js";
 import { layeredWireTerrain } from "./support/map-fixtures.js";
 import {
   Client,

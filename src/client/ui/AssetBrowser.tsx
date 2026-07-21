@@ -1,11 +1,11 @@
-import { type CSSProperties, useEffect, useMemo, useState } from "react";
-import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
-import { TinyInput } from "@/ui/tiny-swords/TinyInput.js";
 import type {
   AssetDomain,
   TinySwordsCatalogEntry,
   TinySwordsPack,
-} from "../../shared/tiny-swords-catalog.js";
+} from "@lindocara/engine/tiny-swords-catalog.js";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
+import { TinyInput } from "@/ui/tiny-swords/TinyInput.js";
 import { tinySwordsSourceUrl } from "../game/tiny-swords-assets.js";
 import { t, useLocale } from "../i18n.js";
 import { TinyPanel } from "./tiny-swords/TinyPanel.js";

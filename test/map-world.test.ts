@@ -5,12 +5,12 @@
  * actually run a room.
  */
 import { env } from "cloudflare:test";
+import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
+import { bakeCollision, mapSpawnPoint } from "@lindocara/engine/map-data.js";
+import { encodeTileMap } from "@lindocara/engine/tilemap-codec.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { createDb } from "../src/server/db/index.js";
 import { deleteMap, type MapInput } from "../src/server/maps.js";
-import { WS_CLOSE } from "../src/shared/close-codes.js";
-import { bakeCollision, mapSpawnPoint } from "../src/shared/map-data.js";
-import { encodeTileMap } from "../src/shared/tilemap-codec.js";
 import { authorMap, seedAdventure } from "./support/adventure-fixtures.js";
 import { layeredTerrain } from "./support/map-fixtures.js";
 import { Client, testCharacter, until } from "./support/world-harness.js";

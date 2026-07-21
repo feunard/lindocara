@@ -1,4 +1,5 @@
 import { SELF } from "cloudflare:test";
+import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import { describe, expect, it } from "vitest";
 import {
   createSession,
@@ -6,7 +7,6 @@ import {
   SESSION_TTL_SECONDS,
   signSession,
 } from "../src/server/session.js";
-import { WS_CLOSE } from "../src/shared/close-codes.js";
 
 const ORIGIN = "https://lindocara.test";
 

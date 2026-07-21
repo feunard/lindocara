@@ -1,7 +1,5 @@
-import type * as React from "react";
-import { useMemo, useState } from "react";
-import type { AuthoredQuestDefinition, RegistryEntry } from "../../../shared/adventure-state.js";
-import { CONSUMABLE_IDS } from "../../../shared/consumables.js";
+import type { AuthoredQuestDefinition, RegistryEntry } from "@lindocara/engine/adventure-state.js";
+import { CONSUMABLE_IDS } from "@lindocara/engine/consumables.js";
 import {
   COMMAND_TEXT_MAX,
   type EventCommand,
@@ -9,8 +7,10 @@ import {
   MAX_CHOICE_OPTIONS,
   WAIT_FRAMES_MAX,
   WAIT_FRAMES_MIN,
-} from "../../../shared/event-commands.js";
-import { SELF_SWITCHES, type SelfSwitch } from "../../../shared/map-events.js";
+} from "@lindocara/engine/event-commands.js";
+import { SELF_SWITCHES, type SelfSwitch } from "@lindocara/engine/map-events.js";
+import type * as React from "react";
+import { useMemo, useState } from "react";
 import { normalizeConditionId } from "../../game/editor-state.js";
 import {
   type CommandRow,

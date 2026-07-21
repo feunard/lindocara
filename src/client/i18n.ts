@@ -3,9 +3,14 @@
  * localStorage and re-renders live — no reload.
  */
 
+import {
+  dictionaries,
+  format,
+  type Locale,
+  type MessageKey,
+} from "@lindocara/engine/i18n/index.js";
 import { useSyncExternalStore } from "react";
 import { flushSync } from "react-dom";
-import { dictionaries, format, type Locale, type MessageKey } from "../shared/i18n/index.js";
 
 const STORAGE_KEY = "lindocara_locale";
 const listeners = new Set<() => void>();

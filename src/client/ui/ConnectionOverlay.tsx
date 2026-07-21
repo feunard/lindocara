@@ -1,5 +1,5 @@
+import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import type { CSSProperties } from "react";
-import type { MessageKey } from "../../shared/i18n/index.js";
 import { TINY_SWORDS_ENEMIES } from "../game/enemy-art.js";
 import { TINY_SWORDS_EFFECT_SHEETS, unitSheet } from "../game/tiny-swords-art.js";
 import { t } from "../i18n.js";

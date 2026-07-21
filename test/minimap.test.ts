@@ -1,3 +1,5 @@
+import { PLAYER_VISIBILITY_RADIUS } from "@lindocara/engine/interest.js";
+import type { TileKind } from "@lindocara/engine/tilemap.js";
 import { describe, expect, it } from "vitest";
 import {
   type BakedWorldKey,
@@ -9,8 +11,6 @@ import {
   projectToWorldMap,
   sameBakedWorld,
 } from "../src/client/game/minimap.js";
-import { PLAYER_VISIBILITY_RADIUS } from "../src/shared/interest.js";
-import type { TileKind } from "../src/shared/tilemap.js";
 
 const SIZE = 200;
 const CENTER = { x: 2000, y: 1000 };

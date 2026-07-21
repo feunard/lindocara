@@ -1,10 +1,10 @@
+import { NO_INPUT } from "@lindocara/engine/simulation.js";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "../../src/client/i18n.js";
 import type { GameHandle } from "../../src/client/store.js";
 import { useUiStore } from "../../src/client/store.js";
 import { MobileControls, resolveJoystick } from "../../src/client/ui/MobileControls.js";
-import { NO_INPUT } from "../../src/shared/simulation.js";
 
 function gameHandle(): GameHandle {
   return {

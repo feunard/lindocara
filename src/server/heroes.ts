@@ -4,12 +4,13 @@
  * start entry so a later admission step can spawn it directly. Colour is never stored — it comes
  * from the owner's party_member slot.
  */
+
+import { starterEquipmentFor } from "@lindocara/engine/character.js";
+import type { PlayerClass } from "@lindocara/engine/game.js";
+import type { CreateHeroInput } from "@lindocara/engine/hero.js";
+import { MAX_HEROES_PER_PARTY } from "@lindocara/engine/hero.js";
+import { CLASS_SKILLS, isSkillUnlocked } from "@lindocara/engine/skills.js";
 import { and, asc, eq } from "drizzle-orm";
-import { starterEquipmentFor } from "../shared/character.js";
-import type { PlayerClass } from "../shared/game.js";
-import type { CreateHeroInput } from "../shared/hero.js";
-import { MAX_HEROES_PER_PARTY } from "../shared/hero.js";
-import { CLASS_SKILLS, isSkillUnlocked } from "../shared/skills.js";
 import { loadAdventure, resolveAdventureStart } from "./adventures.js";
 import { type Db, hero, party, partyMember } from "./db/index.js";
 import { HEALTH_POTION_ID, ownedItemId } from "./items.js";

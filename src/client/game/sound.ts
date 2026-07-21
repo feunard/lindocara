@@ -1,4 +1,4 @@
-import type { PlayerClass } from "../../shared/game.js";
+import type { PlayerClass } from "@lindocara/engine/game.js";
 import { getAudioSettings, subscribeAudioSettings } from "./audio-settings.js";
 import {
   COMBAT_SAMPLES,

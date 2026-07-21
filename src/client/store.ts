@@ -1,12 +1,12 @@
+import type { CharacterAppearance, Equipment, PrimaryColor } from "@lindocara/engine/character.js";
+import type { ConsumableId } from "@lindocara/engine/consumables.js";
+import type { LifeState } from "@lindocara/engine/death.js";
+import type { PlayerClass } from "@lindocara/engine/game.js";
+import type { MessageKey } from "@lindocara/engine/i18n/index.js";
+import type { PartyState, QuestStatus, SelfState } from "@lindocara/engine/protocol.js";
+import type { Input } from "@lindocara/engine/simulation.js";
+import type { SkillSlot } from "@lindocara/engine/skills.js";
 import { create } from "zustand";
-import type { CharacterAppearance, Equipment, PrimaryColor } from "../shared/character.js";
-import type { ConsumableId } from "../shared/consumables.js";
-import type { LifeState } from "../shared/death.js";
-import type { PlayerClass } from "../shared/game.js";
-import type { MessageKey } from "../shared/i18n/index.js";
-import type { PartyState, QuestStatus, SelfState } from "../shared/protocol.js";
-import type { Input } from "../shared/simulation.js";
-import type { SkillSlot } from "../shared/skills.js";
 import type { AdventureDraft } from "./adventure-draft.js";
 import type { PartyListing } from "./api.js";
 

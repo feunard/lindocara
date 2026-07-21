@@ -3,10 +3,10 @@
  * owner-scoped list and delete. Register-and-cookie pattern from parties-api.test.ts.
  */
 import { env, SELF } from "cloudflare:test";
+import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
+import { functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { SESSION_COOKIE } from "../src/server/session.js";
-import { EMPTY_MARKERS } from "../src/shared/map-data.js";
-import { functionalEvent, type MapEvent } from "../src/shared/map-events.js";
 import { layeredWireTerrain } from "./support/map-fixtures.js";
 
 const ORIGIN = "https://lindocara.test";

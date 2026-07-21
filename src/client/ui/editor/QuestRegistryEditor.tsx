@@ -7,7 +7,7 @@ import {
   QUEST_OBJECTIVE_LABEL_MAX,
   QUEST_OBJECTIVE_TARGET_MAX,
   QUEST_TITLE_MAX,
-} from "../../../shared/adventure-state.js";
+} from "@lindocara/engine/adventure-state.js";
 import { t, useLocale } from "../../i18n.js";
 import { Button } from "../components/button.js";
 import { Input } from "../components/input.js";

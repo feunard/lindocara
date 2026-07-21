@@ -20,14 +20,14 @@ import {
   type CharacterAppearance,
   PRIMARY_COLORS,
   starterEquipmentFor,
-} from "../../shared/character.js";
-import { facingFromInput } from "../../shared/directional-combat.js";
-import { resolveTerrain } from "../../shared/game.js";
-import { type MapData, mapSpawnPoint, terrainFromMap } from "../../shared/map-data.js";
-import { MAX_ACCUMULATED_SECONDS } from "../../shared/prediction.js";
-import type { PlayerSnapshot, QuestState } from "../../shared/protocol.js";
-import { PLAYER_SPEED, step, TICK_DT, type Vec2 } from "../../shared/simulation.js";
-import { encodeTileLayer } from "../../shared/tile-layer-codec.js";
+} from "@lindocara/engine/character.js";
+import { facingFromInput } from "@lindocara/engine/directional-combat.js";
+import { resolveTerrain } from "@lindocara/engine/game.js";
+import { type MapData, mapSpawnPoint, terrainFromMap } from "@lindocara/engine/map-data.js";
+import { MAX_ACCUMULATED_SECONDS } from "@lindocara/engine/prediction.js";
+import type { PlayerSnapshot, QuestState } from "@lindocara/engine/protocol.js";
+import { PLAYER_SPEED, step, TICK_DT, type Vec2 } from "@lindocara/engine/simulation.js";
+import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { t } from "../i18n.js";
 import { trackInput } from "./input.js";
 import { type RenderContext, Renderer } from "./renderer.js";

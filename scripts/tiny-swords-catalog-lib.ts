@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import type { Rect } from "../src/shared/game.js";
+import type { Rect } from "@lindocara/engine/game.js";
 import type {
   AssetDomain,
   AssetFrameMetadata,
@@ -10,7 +10,7 @@ import type {
   TinySwordsCatalogEntry,
   TinySwordsCatalogFile,
   TinySwordsPack,
-} from "../src/shared/tiny-swords-catalog.js";
+} from "@lindocara/engine/tiny-swords-catalog.js";
 
 export const PROJECT_ROOT = path.resolve(import.meta.dirname, "..");
 export const RAW_INDEX_PATH = path.join(PROJECT_ROOT, "assets", "index.json");

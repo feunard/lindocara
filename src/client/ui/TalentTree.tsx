@@ -1,12 +1,12 @@
-import { type CSSProperties, useEffect, useState } from "react";
-import type { MessageKey } from "../../shared/i18n/index.js";
-import { isSkillUnlocked, skillFor } from "../../shared/skills.js";
+import type { MessageKey } from "@lindocara/engine/i18n/index.js";
+import { isSkillUnlocked, skillFor } from "@lindocara/engine/skills.js";
 import {
   CLASS_TALENTS,
   type TalentEffect,
   type TalentLabel,
   unlockTalent,
-} from "../../shared/talents.js";
+} from "@lindocara/engine/talents.js";
+import { type CSSProperties, useEffect, useState } from "react";
 import { skillIconArt } from "../game/tiny-swords-art.js";
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";

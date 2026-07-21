@@ -1,6 +1,6 @@
+import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
-import type { MessageKey } from "../../shared/i18n/index.js";
 import {
   type ControlId,
   type ControllerLayout,

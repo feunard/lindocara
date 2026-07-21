@@ -4,8 +4,8 @@
  * Movement intent is polled once per predicted tick. Action keys stay edge-triggered.
  */
 
-import { type Input, NO_INPUT } from "../../shared/simulation.js";
-import type { SkillSlot } from "../../shared/skills.js";
+import { type Input, NO_INPUT } from "@lindocara/engine/simulation.js";
+import type { SkillSlot } from "@lindocara/engine/skills.js";
 import {
   type ControlId,
   firstConnectedGamepad,

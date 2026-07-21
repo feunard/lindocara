@@ -1,3 +1,7 @@
+import { isWalkable, type Rect, type TerrainGeometry } from "@lindocara/engine/game.js";
+import { DEFAULT_ZONE_NAVIGATION } from "@lindocara/engine/navigation.js";
+import type { TileMap } from "@lindocara/engine/tilemap.js";
+import { ZONES, zoneDefinition } from "@lindocara/engine/zones.js";
 import { describe, expect, it } from "vitest";
 import {
   advanceWaypoint,
@@ -9,10 +13,6 @@ import {
   requestMonsterPath,
 } from "../src/server/world/navigation-system.js";
 import { createMonsters, type MonsterRuntime } from "../src/server/world/world-runtime.js";
-import { isWalkable, type Rect, type TerrainGeometry } from "../src/shared/game.js";
-import { DEFAULT_ZONE_NAVIGATION } from "../src/shared/navigation.js";
-import type { TileMap } from "../src/shared/tilemap.js";
-import { ZONES, zoneDefinition } from "../src/shared/zones.js";
 import { noColliders, tileMapFromRects } from "./support/tiles.js";
 
 const BASE_TILES = tileMapFromRects(480, 320, []);

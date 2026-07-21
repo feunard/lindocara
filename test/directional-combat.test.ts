@@ -1,4 +1,3 @@
-import { describe, expect, it } from "vitest";
 import {
   advanceProjectile,
   circleIntersectsArc,
@@ -13,9 +12,10 @@ import {
   strikeCapsule,
   sweptProjectileEntityImpact,
   sweptProjectileTerrainImpact,
-} from "../src/shared/directional-combat.js";
-import { NO_INPUT } from "../src/shared/simulation.js";
-import type { TileKind, TileMap } from "../src/shared/tilemap.js";
+} from "@lindocara/engine/directional-combat.js";
+import { NO_INPUT } from "@lindocara/engine/simulation.js";
+import type { TileKind, TileMap } from "@lindocara/engine/tilemap.js";
+import { describe, expect, it } from "vitest";
 
 function tiles(rows: readonly (readonly TileKind[])[]): TileMap {
   return {

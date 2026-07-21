@@ -1,10 +1,10 @@
+import { CURATED_MONSTER_SPECIES } from "@lindocara/engine/game.js";
+import { editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { setLocale } from "../../src/client/i18n.js";
 import { CatalogueAssetPicker } from "../../src/client/ui/editor/CatalogueAssetPicker.js";
 import { EventPalette } from "../../src/client/ui/editor/EventPalette.js";
-import { CURATED_MONSTER_SPECIES } from "../../src/shared/game.js";
-import { editorAsset } from "../../src/shared/tiny-swords-catalog.js";
 
 /** The decoration palette exposes every asset with editor placement metadata. Monster species stay
  * curated separately because they carry authoritative runtime behaviour, not just appearance. */

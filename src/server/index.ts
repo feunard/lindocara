@@ -6,22 +6,22 @@
  * call and this handler never has to think about serving files.
  */
 
-import { parseAdventureInput, parseCreateAdventureInput } from "../shared/adventure.js";
-import { normalizeAppearance } from "../shared/character.js";
-import { WS_CLOSE } from "../shared/close-codes.js";
-import { isValidClass } from "../shared/game.js";
-import { parseCreateHeroInput } from "../shared/hero.js";
-import { isUuid } from "../shared/identifiers.js";
-import { mapSpawnPoint, parseMapData } from "../shared/map-data.js";
-import { parseMapEvents } from "../shared/map-events.js";
-import { parseCreatePartyInput, parseJoinPartyInput } from "../shared/party.js";
-import { encodeTileLayer } from "../shared/tile-layer-codec.js";
+import { parseAdventureInput, parseCreateAdventureInput } from "@lindocara/engine/adventure.js";
+import { normalizeAppearance } from "@lindocara/engine/character.js";
+import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
+import { isValidClass } from "@lindocara/engine/game.js";
+import { parseCreateHeroInput } from "@lindocara/engine/hero.js";
+import { isUuid } from "@lindocara/engine/identifiers.js";
+import { mapSpawnPoint, parseMapData } from "@lindocara/engine/map-data.js";
+import { parseMapEvents } from "@lindocara/engine/map-events.js";
+import { parseCreatePartyInput, parseJoinPartyInput } from "@lindocara/engine/party.js";
+import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import {
   isKnownZone,
   isValidInstanceId,
   resolveZoneLocation,
   type ZoneLocation,
-} from "../shared/zones.js";
+} from "@lindocara/engine/zones.js";
 import { accountExists, createAccount, verifyCredentials } from "./accounts.js";
 import {
   createAdventureWithDefaultMap,

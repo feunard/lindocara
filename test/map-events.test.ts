@@ -3,7 +3,7 @@
  * field lands on null, never a throw), bounds, duplicate cells and the two mutation-proof
  * branches called out in the plan (duplicate-cell rejection, bounds rejection).
  */
-import { describe, expect, it } from "vitest";
+
 import {
   EVENT_NAME_MAX,
   MAX_EVENTS_PER_MAP,
@@ -12,7 +12,8 @@ import {
   type MapEventPage,
   parseMapEvents,
   validateEventName,
-} from "../src/shared/map-events.js";
+} from "@lindocara/engine/map-events.js";
+import { describe, expect, it } from "vitest";
 
 const COLS = 10;
 const ROWS = 10;

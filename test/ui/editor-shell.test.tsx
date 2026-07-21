@@ -1,3 +1,7 @@
+import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
+import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
+import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
+import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,10 +12,6 @@ import { setLocale, t } from "../../src/client/i18n.js";
 import { useUiStore } from "../../src/client/store.js";
 import { AdventureEditorScreen } from "../../src/client/ui/editor/AdventureEditorScreen.js";
 import { PartiesScreen } from "../../src/client/ui/PartiesScreen.js";
-import { EMPTY_MARKERS } from "../../src/shared/map-data.js";
-import { layersFromBlocks } from "../../src/shared/map-migrate.js";
-import { encodeTileLayer } from "../../src/shared/tile-layer-codec.js";
-import { TINY_SWORDS_TILESET_ID } from "../../src/shared/tilesets/tiny-swords.js";
 
 // The painting stage is Pixi on a real canvas — untestable in jsdom. A fake handle stands in so the
 // tests exercise the shell's own behaviour: which EditorTool it pushes, that the mode selector

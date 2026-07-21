@@ -1,5 +1,5 @@
+import { PARTY_COLORS, type PartyColor } from "@lindocara/engine/party.js";
 import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
-import { PARTY_COLORS, type PartyColor } from "../../shared/party.js";
 import { t, useLocale } from "../i18n.js";
 
 /** Hex per colour so swatches read even without art; kept minimal and legible. */

@@ -1,13 +1,13 @@
-import { describe, expect, it } from "vitest";
 import {
   eraseRect,
   floodFill,
   paintRectAutotile,
   resolveWholeLayer,
-} from "../src/shared/tile-brush.js";
-import { emptyLayer } from "../src/shared/tile-layer-codec.js";
-import { decodeTileId, EMPTY_TILE, fixedId } from "../src/shared/tileset.js";
-import { GRASS_SLOTS, TINY_SWORDS_TILESET } from "../src/shared/tilesets/tiny-swords.js";
+} from "@lindocara/engine/tile-brush.js";
+import { emptyLayer } from "@lindocara/engine/tile-layer-codec.js";
+import { decodeTileId, EMPTY_TILE, fixedId } from "@lindocara/engine/tileset.js";
+import { GRASS_SLOTS, TINY_SWORDS_TILESET } from "@lindocara/engine/tilesets/tiny-swords.js";
+import { describe, expect, it } from "vitest";
 
 const GRASS = GRASS_SLOTS[0];
 const GRASS_2 = GRASS_SLOTS[1];

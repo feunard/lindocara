@@ -1,8 +1,13 @@
-import { type Rect, SAFE_ZONE, WORLD_LANDMARKS, type WorldLandmark } from "../../shared/game.js";
-import type { MessageKey } from "../../shared/i18n/index.js";
-import type { Vec2 } from "../../shared/simulation.js";
-import { SUNKEN_ISLES_LANDMARKS } from "../../shared/zones/sunken-isles.js";
-import type { ZoneId as RuntimeZoneId } from "../../shared/zones.js";
+import {
+  type Rect,
+  SAFE_ZONE,
+  WORLD_LANDMARKS,
+  type WorldLandmark,
+} from "@lindocara/engine/game.js";
+import type { MessageKey } from "@lindocara/engine/i18n/index.js";
+import type { Vec2 } from "@lindocara/engine/simulation.js";
+import { SUNKEN_ISLES_LANDMARKS } from "@lindocara/engine/zones/sunken-isles.js";
+import type { ZoneId as RuntimeZoneId } from "@lindocara/engine/zones.js";
 
 export type ZoneId =
   | "heartroot"

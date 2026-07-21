@@ -1,11 +1,11 @@
-import { describe, expect, it } from "vitest";
 import {
   autotileOffset,
   EDGE16_LUT,
   edge16Mask,
   RUN4_LUT,
   run4Mask,
-} from "../src/shared/autotile.js";
+} from "@lindocara/engine/autotile.js";
+import { describe, expect, it } from "vitest";
 
 const none = () => false;
 const all = () => true;

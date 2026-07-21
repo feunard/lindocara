@@ -1,6 +1,6 @@
+import { type EditorAssetId, editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
 import { Texture } from "pixi.js";
 import type { EditorAssetArt } from "../../../src/client/game/editor-asset-art.js";
-import { type EditorAssetId, editorAsset } from "../../../src/shared/tiny-swords-catalog.js";
 
 /** A loaded-art stand-in for tests that need `createCatalogElementView`'s real catalogue
  *  geometry (anchor, footOffset) without going through `loadEditorAssetArt`'s network/Assets

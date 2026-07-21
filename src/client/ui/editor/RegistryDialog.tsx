@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import {
   type AdventureRegistry,
   MAX_REGISTRY_SWITCHES,
@@ -6,7 +5,8 @@ import {
   mintRegistryId,
   REGISTRY_ENTRY_NAME_MAX,
   type RegistryEntry,
-} from "../../../shared/adventure-state.js";
+} from "@lindocara/engine/adventure-state.js";
+import { useEffect, useState } from "react";
 import { draftFromAdventure, toAdventureInput } from "../../adventure-draft.js";
 import {
   type AdventureSummary,

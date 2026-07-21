@@ -1,3 +1,4 @@
+import { emptyConsumables } from "@lindocara/engine/consumables.js";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,7 +8,6 @@ import { useUiStore } from "../../src/client/store.js";
 import { QuickItemBar } from "../../src/client/ui/hud/QuickItemBar.js";
 import { InventoryOverlay } from "../../src/client/ui/InventoryOverlay.js";
 import { MerchantOverlay } from "../../src/client/ui/MerchantOverlay.js";
-import { emptyConsumables } from "../../src/shared/consumables.js";
 
 function gameHandle(): GameHandle {
   return {

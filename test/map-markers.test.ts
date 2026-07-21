@@ -5,18 +5,18 @@
  * so its malformed-shape guard is kept too. Same SELF.fetch cookie pattern as maps-api.test.ts.
  */
 import { env, SELF } from "cloudflare:test";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { account, createDb } from "../src/server/db/index.js";
-import { loadMap, type MapInput, validateMapInput } from "../src/server/maps.js";
-import { SESSION_COOKIE } from "../src/server/session.js";
-import { EMPTY_MARKERS, type MapMarkers } from "../src/shared/map-data.js";
+import { EMPTY_MARKERS, type MapMarkers } from "@lindocara/engine/map-data.js";
 import {
   entryEvents,
   exitEvents,
   functionalEvent,
   type MapEvent,
   monsterEvents,
-} from "../src/shared/map-events.js";
+} from "@lindocara/engine/map-events.js";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { account, createDb } from "../src/server/db/index.js";
+import { loadMap, type MapInput, validateMapInput } from "../src/server/maps.js";
+import { SESSION_COOKIE } from "../src/server/session.js";
 import { authorMap, seedAdventure } from "./support/adventure-fixtures.js";
 import { layeredTerrain, layeredWireTerrain } from "./support/map-fixtures.js";
 

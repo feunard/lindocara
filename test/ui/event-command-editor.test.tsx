@@ -1,3 +1,5 @@
+import type { RegistryEntry } from "@lindocara/engine/adventure-state.js";
+import type { EventCommand } from "@lindocara/engine/event-commands.js";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
@@ -7,8 +9,6 @@ import {
   EventCommandEditor,
   type TeleportMap,
 } from "../../src/client/ui/editor/EventCommandEditor.js";
-import type { RegistryEntry } from "../../src/shared/adventure-state.js";
-import type { EventCommand } from "../../src/shared/event-commands.js";
 
 /** A controlled harness: the editor is controlled, so the parent must feed each `onChange` back as
  *  the next `commands`. `latest` captures the current tree for assertions. */

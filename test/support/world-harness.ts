@@ -3,18 +3,17 @@
  */
 
 import { env, runInDurableObject, SELF } from "cloudflare:test";
-import { expect } from "vitest";
-import type { AdventureGraph } from "../../src/shared/adventure.js";
-import { type PlayerClass, type QuestChapter, spawnPosition } from "../../src/shared/game.js";
-import { EMPTY_MARKERS, type MapElement, type MapMarkers } from "../../src/shared/map-data.js";
+import type { AdventureGraph } from "@lindocara/engine/adventure.js";
+import { type PlayerClass, type QuestChapter, spawnPosition } from "@lindocara/engine/game.js";
+import { EMPTY_MARKERS, type MapElement, type MapMarkers } from "@lindocara/engine/map-data.js";
 import {
   entryEvents,
   exitEvents,
   functionalEvent,
   type MapEvent,
-} from "../../src/shared/map-events.js";
-import type { PartyColor } from "../../src/shared/party.js";
-import { PARTY_COLORS } from "../../src/shared/party.js";
+} from "@lindocara/engine/map-events.js";
+import type { PartyColor } from "@lindocara/engine/party.js";
+import { PARTY_COLORS } from "@lindocara/engine/party.js";
 import {
   type CorpseSnapshot,
   type PlayerSnapshot,
@@ -23,15 +22,15 @@ import {
   type ServerMessage,
   type WorldEventSnapshot,
   type WorldView,
-} from "../../src/shared/protocol.js";
+} from "@lindocara/engine/protocol.js";
 import {
   type Input,
   NO_INPUT,
   PLAYER_SIZE,
   TICK_MS,
   WORLD_WIDTH,
-} from "../../src/shared/simulation.js";
-import { TILE_SIZE } from "../../src/shared/tilemap.js";
+} from "@lindocara/engine/simulation.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   applyEventDelta,
   applyWorldDelta,
@@ -39,8 +38,9 @@ import {
   replaceWorldCache,
   seedEventCache,
   type WorldCache,
-} from "../../src/shared/world-delta.js";
-import { isKnownZone, zoneDefinition } from "../../src/shared/zones.js";
+} from "@lindocara/engine/world-delta.js";
+import { isKnownZone, zoneDefinition } from "@lindocara/engine/zones.js";
+import { expect } from "vitest";
 import { layeredWireTerrain } from "./map-fixtures.js";
 
 export const ORIGIN = "https://lindocara.test";

@@ -1,6 +1,6 @@
+import { MAX_MAP_ELEMENTS } from "@lindocara/engine/map-data.js";
+import { parseWorldColliders } from "@lindocara/engine/protocol.js";
 import { describe, expect, it } from "vitest";
-import { MAX_MAP_ELEMENTS } from "../../src/shared/map-data.js";
-import { parseWorldColliders } from "../../src/shared/protocol.js";
 
 describe("wire colliders", () => {
   it("parses well-formed tuples", () => {

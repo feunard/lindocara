@@ -9,9 +9,10 @@
  * requirement to break silently is for everyone to assume it holds because it holds for the zone it
  * was built against — so it is pinned against a map built by hand instead.
  */
+
+import { bakeCollision, type MapData } from "@lindocara/engine/map-data.js";
 import { describe, expect, it } from "vitest";
 import { landMask, needsFoam } from "../src/client/game/autotile.js";
-import { bakeCollision, type MapData } from "../src/shared/map-data.js";
 import { mapDataFromBlocks } from "./support/map-fixtures.js";
 
 /** A 4x3 grass island in open water — the shape every shoreline rule cares about. */

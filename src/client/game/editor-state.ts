@@ -1,8 +1,8 @@
 /** Pure map-editor mutations. Placement, footprints and collision all come from the shared
  * catalogue, so the browser and authoritative map API cannot disagree. */
 
-import { type EventPreset, presetEvent } from "../../shared/event-presets.js";
-import type { MonsterSpecies } from "../../shared/game.js";
+import { type EventPreset, presetEvent } from "@lindocara/engine/event-presets.js";
+import type { MonsterSpecies } from "@lindocara/engine/game.js";
 import {
   bakeCollision,
   canPlaceElement,
@@ -20,7 +20,7 @@ import {
   MIN_PATROL_RADIUS,
   parseMapData,
   sameElementSlot,
-} from "../../shared/map-data.js";
+} from "@lindocara/engine/map-data.js";
 import {
   type EventKind,
   functionalEvent,
@@ -28,7 +28,7 @@ import {
   MAX_PAGES_PER_EVENT,
   type MapEvent,
   type MapEventPage,
-} from "../../shared/map-events.js";
+} from "@lindocara/engine/map-events.js";
 import {
   eraseRect,
   eraseTile,
@@ -38,16 +38,16 @@ import {
   paintStairs,
   resolveWholeLayer,
   syncElevationWalls,
-} from "../../shared/tile-brush.js";
-import { emptyLayer, encodeTileLayer, type TileLayer } from "../../shared/tile-layer-codec.js";
-import { isSolidKind, kindAt } from "../../shared/tilemap.js";
-import { autotileId } from "../../shared/tileset.js";
+} from "@lindocara/engine/tile-brush.js";
+import { emptyLayer, encodeTileLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
+import { isSolidKind, kindAt } from "@lindocara/engine/tilemap.js";
+import { autotileId } from "@lindocara/engine/tileset.js";
 import {
   GRASS_SLOTS,
   TINY_SWORDS_TILESET,
   TINY_SWORDS_TILESET_ID,
-} from "../../shared/tilesets/tiny-swords.js";
-import type { EditorAssetId } from "../../shared/tiny-swords-catalog.js";
+} from "@lindocara/engine/tilesets/tiny-swords.js";
+import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 
 /**
  * A map open in the editor: the three tile layers themselves, exactly as they will be saved.

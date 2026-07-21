@@ -1,5 +1,5 @@
+import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import { describe, expect, it } from "vitest";
-import { WS_CLOSE } from "../src/shared/close-codes.js";
 import { Client, until } from "./support/world-harness.js";
 
 async function formParty(

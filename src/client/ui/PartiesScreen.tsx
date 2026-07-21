@@ -1,9 +1,9 @@
+import type { PartyColor } from "@lindocara/engine/party.js";
 import { useEffect, useState } from "react";
 import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
 import { TinyFieldSelect } from "@/ui/tiny-swords/TinyFieldSelect.js";
 import { TinyInput } from "@/ui/tiny-swords/TinyInput.js";
 import { TinyLabel } from "@/ui/tiny-swords/TinyLabel.js";
-import type { PartyColor } from "../../shared/party.js";
 import {
   type AdventureSummary,
   authErrorText,
