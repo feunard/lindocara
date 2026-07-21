@@ -346,9 +346,10 @@ function tileBlocks(tileset: Tileset, id: number): boolean {
 /**
  * The ground, plus everything standing on it that you bump into.
  *
- * Unchanged in meaning from the `blocks` era: colliding things are baked into the tilemap rather
- * than taught to the collision code, so `isWalkableBox`, `step` and `prediction.ts` never learn
- * that layers or elements exist. Only the input changed.
+ * Tiles are still baked, and `step` still knows nothing. What changed is that an element is no
+ * longer expressible as a cell: its collider is a sub-cell rect, carried on `TerrainGeometry`
+ * beside these tiles and queried through the same `isWalkable`. Two structures, still one bake and
+ * still one query — `prediction.ts` and the server read the identical geometry.
  */
 export function bakeCollision(map: MapData): TileMap {
   const tileset = tilesetById(map.tilesetId);

@@ -73,6 +73,13 @@ export interface NavigationRuntime {
  * shipped with `cellSize: 40`, silently misaligning every waypoint against the collision tiles);
  * it is gone, and this function takes only the tilemap-bearing `terrain`, so there is no longer a
  * second number to disagree with it.
+ *
+ * The second pass below re-checks each node through `isWalkable` at its clamped waypoint, and that
+ * single call is also where this grid gets sub-cell colliders for free: `isWalkable` already
+ * queries `terrain.colliders` beside `terrain.tiles`, so a cell a tree trunk only partially covers
+ * is not a special case here — it is walkable if a `PLAYER_SIZE` body fits at the waypoint the
+ * pathfinder would actually send it to, and blocked otherwise, exactly like the edge-row clamping
+ * case below.
  */
 export function createNavigationGrid(terrain: TerrainGeometry): NavigationGrid {
   const columns = terrain.tiles.cols;

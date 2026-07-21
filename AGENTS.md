@@ -345,20 +345,25 @@ editor computes the autotile edge variant when you paint and freezes the result,
 an author override a single tile by hand afterwards. What an id *means* — walkable or not, drawn
 behind or in front of characters — is a tileset property authored once per tile, never a per-cell
 one, so collision stays derivable from appearance through one indirection: `tile id → tileset →
-passable`. **On the wire, `WorldInfo.tiles` is baked collision truth and `WorldInfo.layers` is
-appearance only** — the same rule `elements` already follows. An agent that reads `layers` to decide
-walkability reintroduces exactly the silent desync this design exists to prevent; collision only
-ever comes from `tiles`/`resolveTerrain()`/`isWalkableBox`. Elevation needs no engine change — a
-cliff face is its own cells, impassable, one layer above the ground — but the wall is only ever cast
-on the drop's south face: a plateau adjacent horizontally to lower ground has no cliff and is
-walkable. Appearance and collision still agree, so this is a design narrowness, not a bug, but it is
-not a gameplay barrier either. See
+passable`. Collision now has two baked sources on `TerrainGeometry`: `tiles` (the grid, whole cells)
+and `colliders` (a `ColliderIndex` of sub-cell rectangles, one per colliding element) — `isWalkable`
+is the single junction that queries both, so a tree blocks its trunk (~24x20 px), not its whole
+64x64 cell. **On the wire, `WorldInfo.tiles` and `WorldInfo.colliders` are baked collision truth and
+`WorldInfo.layers`/`WorldInfo.elements`/`WorldInfo.events` are appearance only** — never derive
+collision from any of the latter three. An agent that reads `layers` to decide walkability
+reintroduces exactly the silent desync this design exists to prevent, and reading `elements` for a
+collider is the same mistake with a second bake: collision only ever comes from `tiles`/`colliders`
+via `isWalkable`/`resolveTerrain()`/`isWalkableBox`. Elevation needs no engine change — a cliff face
+is its own cells, impassable, one layer above the ground — but the wall is only ever cast on the
+drop's south face: a plateau adjacent horizontally to lower ground has no cliff and is walkable.
+Appearance and collision still agree, so this is a design narrowness, not a bug, but it is not a
+gameplay barrier either. See
 [`docs/superpowers/specs/2026-07-18-layered-map-model-design.md`](./docs/superpowers/specs/2026-07-18-layered-map-model-design.md)
 for the full model.
 
-The welcome message includes `mapId + revision`, baked collision tiles, appearance layers,
-`tilesetId` and authored elements so prediction, renderer and mini-map share the same cache
-identity.
+The welcome message includes `mapId + revision`, baked collision tiles, sub-cell colliders,
+appearance layers, `tilesetId` and authored elements so prediction, renderer and mini-map share the
+same cache identity.
 
 The `adventures` and `map-editor` screens are gone: one `adventure-editor` screen
 (`src/client/ui/editor/`) now owns both, as menu bar / toolbar / three resizable panes (shadcn
@@ -373,12 +378,21 @@ complete marker preview.
 
 `shared/tile-brush.ts` grew a rectangle (`paintRectAutotile`/`eraseRect`), a flood fill
 (`floodFill`) and a stairs stamp (`paintStairs`) — each re-resolves neighbours the same way the
-pencil always did, and `resolveWholeLayer` is still the oracle they're tested against. `activeLayer`
-now threads from toolbar/menu bar down to the stage handle, and every tool has a keyboard shortcut,
-gated off while a dialog is open or the stage isn't ready. The stairs tool stamps the tileset's four
-ramp fixed tiles onto layer 1, so ramps are paintable — tranche 1's "declared but unpaintable"
-caveat is dead. Fill has no fill-to-empty primitive; the UI disables it rather than let it silently
-no-op.
+pencil always did, and `resolveWholeLayer` is still the oracle they're tested against. The old
+`Layer 1/2/3/EV` pill only ever routed the eraser — painting always wrote layer 0 (plus automatic
+cliff-wall upkeep on layer 1) and stairs always wrote layer 1 — so it is now a Field/Element/Event
+segmented control (`activeMode`, threaded from toolbar/menu bar down to the stage handle) that
+actually names which of the three authored collections the editor is working in: Field owns the
+tile layers, Element owns `MapData.elements`, Event owns `MapEvent[]`. The sidebar is three
+mode-scoped palettes (`TerrainPalette`/`ElementPalette`/`EventPalette`) and the eraser is
+mode-scoped too. Element mode places at quarter-cell positions: an element carries `offsetX`/
+`offsetY` (0..3, quarter tiles = 16px) on top of its `col`/`row`, so a terrain cell is a 4x4 sub-grid
+of decoration slots — up to 16 stacked decorations per cell — with an offset inspector, and each
+catalogue asset authors its own sub-cell collider (`elementWorldCollider`), no longer a whole-cell
+footprint. Every tool has a keyboard shortcut, gated off while a dialog is open or the stage isn't
+ready. The stairs tool stamps the tileset's four ramp fixed tiles onto layer 1, so ramps are
+paintable — tranche 1's "declared but unpaintable" caveat is dead. Fill has no fill-to-empty
+primitive; the UI disables it rather than let it silently no-op.
 
 The pointer-events contract is load-bearing and easy to get backwards. `#stage` stays a `position:
 fixed`, full-viewport sibling of `#root` (see the canvas gotcha below), so by default it paints and

@@ -254,10 +254,12 @@ export interface CombatAnimation {
 /**
  * The active page of an authored map event, projected to its appearance for the wire — the third
  * member of the `elements`/`layers` family. **Appearance only:** collision is already baked into
- * `tiles`, exactly the rule `elements` and `layers` follow, so nothing here is ever read for
- * walkability, movement, interaction or command execution. `graphicAssetId` is the active page's
- * catalogue graphic (`null` is the authored blank tile); `onTop` chooses whether it draws above the
- * actors (a treetop) or in the ground decor pass. One event owns exactly one cell (`col`/`row`).
+ * `tiles` and `colliders`, exactly the rule `elements` and `layers` follow, so nothing here is ever
+ * read for walkability, movement, interaction or command execution. A client must never derive
+ * collision from this list either — that would be a third, disagreeing bake. `graphicAssetId` is
+ * the active page's catalogue graphic (`null` is the authored blank tile); `onTop` chooses whether
+ * it draws above the actors (a treetop) or in the ground decor pass. One event owns exactly one
+ * cell (`col`/`row`).
  */
 export interface WorldEventSnapshot {
   id: string;
