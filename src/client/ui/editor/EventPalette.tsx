@@ -7,7 +7,7 @@ import { t, useLocale } from "../../i18n.js";
 import { Input } from "../components/input.js";
 import { Label } from "../components/label.js";
 import { CatalogueAssetPicker } from "./CatalogueAssetPicker.js";
-import { SwatchButton } from "./TerrainPalette.js";
+import { EDITOR_MARKER_PREVIEWS, SpriteSheetPreview, SwatchButton } from "./TerrainPalette.js";
 
 /** The friendly label for each event kind, shown on the EV-mode kind selector. */
 const EVENT_KIND_LABEL: Record<EventKind, MessageKey> = {
@@ -73,6 +73,16 @@ export function EventPalette({
               key={kind}
               label={t(EVENT_KIND_LABEL[kind])}
               active={eventKind === kind}
+              preview={
+                <SpriteSheetPreview
+                  source={EDITOR_MARKER_PREVIEWS[kind]}
+                  {...(kind === "monster"
+                    ? { frame: 256 }
+                    : kind === "entry"
+                      ? { frame: 192 }
+                      : {})}
+                />
+              }
               onClick={() => onSelectEventKind(kind)}
             />
           ))}

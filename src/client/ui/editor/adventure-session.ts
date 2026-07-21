@@ -35,8 +35,8 @@ export async function memberInfo(mapId: string): Promise<DraftMemberInfo> {
 /** Fetch an adventure and build the full editor session (draft + saved snapshot) for it. */
 export async function loadAdventureSession(id: string): Promise<AdventureEditorSession> {
   const payload = await fetchAdventure(id);
-  const infos = new Map<string, DraftMemberInfo>();
-  for (const mapId of payload.mapIds) infos.set(mapId, await memberInfo(mapId));
+  const loadedInfos = await Promise.all(payload.mapIds.map((mapId) => memberInfo(mapId)));
+  const infos = new Map<string, DraftMemberInfo>(loadedInfos.map((info) => [info.mapId, info]));
   const draft = draftFromAdventure(payload, infos);
   return {
     adventureId: id,

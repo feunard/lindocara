@@ -1,5 +1,6 @@
 import { Pencil, Plus, Settings2, Star, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { MAX_ADVENTURE_MAPS } from "../../../shared/adventure.js";
 import { nextMapName } from "../../../shared/map-naming.js";
 import {
   createMapApi,
@@ -106,6 +107,7 @@ export function MapListPanel({
   const [renaming, setRenaming] = useState<MapSummary | null>(null);
   const [newName, setNewName] = useState("");
   const [renameValue, setRenameValue] = useState("");
+  const [busy, setBusy] = useState(false);
 
   function fail(caught: unknown): void {
     const code = errorCode(caught);
@@ -141,8 +143,9 @@ export function MapListPanel({
   }, [newMapOpen]);
 
   async function create(): Promise<void> {
-    if (!adventureId) return;
+    if (!adventureId || maps.length >= MAX_ADVENTURE_MAPS || busy) return;
     onError("");
+    setBusy(true);
     try {
       const created = await createMapApi(adventureId, newName.trim());
       onNewMapOpenChange(false);
@@ -151,10 +154,14 @@ export function MapListPanel({
       onOpenPayload(created);
     } catch (caught) {
       fail(caught);
+    } finally {
+      setBusy(false);
     }
   }
 
   async function remove(id: string): Promise<void> {
+    if (busy) return;
+    setBusy(true);
     try {
       await deleteMapApi(id);
       onConfirmDeleteIdChange(null);
@@ -163,11 +170,13 @@ export function MapListPanel({
     } catch (caught) {
       onConfirmDeleteIdChange(null);
       fail(caught);
+    } finally {
+      setBusy(false);
     }
   }
 
   async function rename(): Promise<void> {
-    if (!renaming) return;
+    if (!renaming || busy) return;
     const target = renaming;
     // Renaming the open map re-mounts it from the stored payload, so unsaved stage edits would be
     // lost — guard them the same way the screen's map-switch does.
@@ -175,18 +184,26 @@ export function MapListPanel({
       return;
     }
     onError("");
+    setBusy(true);
     try {
       const payload = await fetchMap(target.id);
-      const updated = await updateMapApi(target.id, {
-        ...saveInputFromPayload(payload),
-        name: renameValue.trim(),
-      });
+      const updated = await updateMapApi(
+        target.id,
+        {
+          ...saveInputFromPayload(payload),
+          name: renameValue.trim(),
+        },
+        undefined,
+        payload.revision,
+      );
       setRenaming(null);
       await refresh();
       // Renaming the open map re-mounts it so the stage's in-memory name matches what was persisted.
       if (target.id === activeMapId) onOpenPayload(updated);
     } catch (caught) {
       fail(caught);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -205,6 +222,8 @@ export function MapListPanel({
           variant="ghost"
           size="icon-sm"
           aria-label={t("editor.new")}
+          disabled={!adventureId || maps.length >= MAX_ADVENTURE_MAPS || busy}
+          title={maps.length >= MAX_ADVENTURE_MAPS ? t("editor.error.limit") : undefined}
           onClick={() => onNewMapOpenChange(true)}
         >
           <Plus />
@@ -307,7 +326,12 @@ export function MapListPanel({
             <Button variant="outline" onClick={() => onNewMapOpenChange(false)}>
               {t("editor.delete.cancel")}
             </Button>
-            <Button disabled={!adventureId} onClick={() => void create()}>
+            <Button
+              disabled={
+                !adventureId || maps.length >= MAX_ADVENTURE_MAPS || busy || !newName.trim()
+              }
+              onClick={() => void create()}
+            >
               {t("editor.shell.maps.create")}
             </Button>
           </DialogFooter>
@@ -332,7 +356,9 @@ export function MapListPanel({
             <Button variant="outline" onClick={() => setRenaming(null)}>
               {t("editor.delete.cancel")}
             </Button>
-            <Button onClick={() => void rename()}>{t("editor.save")}</Button>
+            <Button disabled={busy || !renameValue.trim()} onClick={() => void rename()}>
+              {t("editor.save")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -349,7 +375,11 @@ export function MapListPanel({
             <Button variant="outline" onClick={() => onConfirmDeleteIdChange(null)}>
               {t("editor.delete.cancel")}
             </Button>
-            <Button variant="destructive" onClick={() => deleting && void remove(deleting.id)}>
+            <Button
+              variant="destructive"
+              disabled={busy}
+              onClick={() => deleting && void remove(deleting.id)}
+            >
               {t("editor.delete.confirm")}
             </Button>
           </DialogFooter>

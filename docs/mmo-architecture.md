@@ -146,10 +146,12 @@ npm run loadtest -- --players=50 --duration=60 --scenario=mixed
 ```
 
 Scenarios are `idle`, `movement`, `combat`, `mixed`, `reconnect`, and `zone-transition`. The runner
-creates/reuses accounts and characters through the real API, keeps cookies, opens real WebSockets,
-sends 20 Hz sequenced inputs and scenario actions, and reports connection rate, unexpected closes,
-messages/bytes per second, message sizes, ACK average/p95/maximum, transitions, protocol errors,
-setup time, and actual duration.
+creates/reuses accounts, two-map adventures, parties and heroes through the real API, keeps cookies,
+opens `/api/ws?party=...&hero=...` WebSockets, sends 20 Hz sequenced inputs and scenario actions, and
+reports connection rate, unexpected closes, messages/bytes per second, message sizes, ACK
+average/p95/maximum, transitions, protocol errors, setup time, and actual duration. Accounts are
+grouped four per party so the run crosses `HeroPresence`, `GameSession`, current room routing and
+normalized hero persistence instead of the rollback character seam.
 
 The default target is localhost. Remote execution requires `--allow-remote=true`; the production
 hostname additionally requires `--allow-production=true`. Prefer staging for remote capacity work:

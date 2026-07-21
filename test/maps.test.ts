@@ -1,5 +1,6 @@
 import { env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { loadAdventure } from "../src/server/adventures.js";
 import { account, createDb, type Db } from "../src/server/db/index.js";
 import {
   BUILTIN_MAP_ID,
@@ -116,6 +117,17 @@ describe("maps", () => {
     it("refuses to delete the last map", async () => {
       const db = createDb(env.DB);
       const only = await createMap(db, validInput);
+      await expect(deleteMap(db, only.id)).rejects.toThrow(/last_map/);
+      expect(await loadMap(db, only.id)).not.toBe(null);
+    });
+
+    it("refuses the last map of one adventure even when the account owns other maps", async () => {
+      const db = createDb(env.DB);
+      const only = await createMap(db, validInput);
+      const secondAdventure = await seedAdventure(db, OWNER, "Second adventure");
+      await authorMap(db, OWNER, secondAdventure, inputNamed("Elsewhere A"));
+      await authorMap(db, OWNER, secondAdventure, inputNamed("Elsewhere B"));
+
       await expect(deleteMap(db, only.id)).rejects.toThrow(/last_map/);
       expect(await loadMap(db, only.id)).not.toBe(null);
     });
@@ -593,6 +605,33 @@ describe("maps", () => {
       expect(loaded.events[0]?.pages[2]).toEqual(rich);
       expect(loaded.events[0]).toMatchObject({ id: first.id, col: 3, row: 4, name: "EV1" });
       expect(loaded.events[1]).toMatchObject({ id: second.id, col: 7, row: 8, ordinal: 2 });
+    });
+
+    it("saves new map anchors and the graph that binds them in one request", async () => {
+      const db = createDb(env.DB);
+      const created = await createMap(db, validInput);
+      const entry = { ...event(2, 2, 1, [page()]), kind: "entry" as const };
+      const exit = { ...event(3, 2, 2, [page()]), kind: "exit" as const };
+      const nextMap = withEvents([entry, exit]);
+      const nextAdventure = {
+        title: "Playable",
+        maxPlayers: 4,
+        graph: {
+          start: { mapId: created.id, entryId: entry.id },
+          links: [{ mapId: created.id, exitId: exit.id, dest: "end" as const }],
+        },
+      };
+
+      const updated = await updateOwnedMap(
+        db,
+        OWNER,
+        created.id,
+        nextMap,
+        nextAdventure,
+        created.revision,
+      );
+      expect(updated.revision).toBe(created.revision + 1);
+      expect((await loadAdventure(db, OWNER, adventureId))?.graph).toEqual(nextAdventure.graph);
     });
 
     // Regression / the tranche-1 D1 bug class: an event INSERT binds 6 params/row and a page INSERT

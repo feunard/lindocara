@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import {
-  CURATED_EDITOR_ASSETS,
+  EDITOR_ASSETS,
   type EditorAssetDefinition,
   type EditorAssetId,
 } from "../../../shared/tiny-swords-catalog.js";
@@ -9,29 +9,17 @@ import { t, useLocale } from "../../i18n.js";
 import { Input } from "../components/input.js";
 
 interface CatalogueAssetPickerProps {
-  /** The selected asset, highlighted in the grid; `null` highlights the "none" swatch when present. */
   value: EditorAssetId | null;
-  /** Picking a catalogue asset. */
   onSelectAsset(assetId: EditorAssetId): void;
-  /** When provided, a "none" swatch is rendered above the search, active while `value` is `null`.
-   *  Omitted where a catalogue pick is mandatory (the decor grid has no blank option). */
   onSelectNone?: (() => void) | undefined;
-  /** Label for the "none" swatch; only read when `onSelectNone` is provided. */
   noneLabel?: string | undefined;
 }
 
-/**
- * The catalogue picker shared by every editor surface that chooses a Tiny Swords asset: the palette's
- * decor grid, the palette's event-graphic grid, and the event dialog's appearance grid. It is the
- * search box + the category-grouped sprite grid, with an optional "none" swatch for the two callers
- * that allow a blank choice.
- *
- * Extracted from the two near-identical copies `TerrainPalette` used to inline, before the event
- * dialog would have made a third: the grouping/search rule and the `AssetChoice` sprite crop now live
- * once, so the same query selects the same asset everywhere. Surrounding headings and counts stay with
- * each caller — only the picker body is shared. Stock shadcn `Input` + inline sprite previews; no Tiny
- * Swords component ever reaches the creator tree.
- */
+const ASSET_PAGE_SIZE = 12;
+
+/** Searchable access to every asset carrying editor placement metadata. The catalogue is the
+ * authority for crop, footprint, collision, terrain and render layer, so the palette and stage can
+ * expose the complete set without inventing per-component exceptions. */
 export function CatalogueAssetPicker({
   value,
   onSelectAsset,
@@ -40,28 +28,36 @@ export function CatalogueAssetPicker({
 }: CatalogueAssetPickerProps) {
   useLocale();
   const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("all");
+  const [visibleCount, setVisibleCount] = useState(ASSET_PAGE_SIZE);
 
-  const groups = useMemo(() => {
+  const categories = useMemo(
+    () => [...new Set(EDITOR_ASSETS.map((asset) => asset.editor.category))].sort(),
+    [],
+  );
+
+  const filteredAssets = useMemo(() => {
     const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    // UX wave #13: the palette only OFFERS the curated allowlist (one bush, one tree, the wood
-    // bridges). This gates authoring, not rendering — a stored map that references any other asset
-    // still draws, because the renderer resolves every catalogue definition, not just these.
-    const filtered = CURATED_EDITOR_ASSETS.filter((asset) => {
+    return EDITOR_ASSETS.filter((asset) => {
+      if (category !== "all" && asset.editor.category !== category) return false;
       const haystack =
         `${asset.id} ${asset.role} ${asset.category} ${asset.tags.join(" ")}`.toLowerCase();
       return terms.every((term) => haystack.includes(term));
     });
+  }, [category, query]);
+
+  const groups = useMemo(() => {
     const grouped = new Map<string, EditorAssetDefinition[]>();
-    for (const asset of filtered) {
+    for (const asset of filteredAssets.slice(0, visibleCount)) {
       const list = grouped.get(asset.editor.category) ?? [];
       list.push(asset);
       grouped.set(asset.editor.category, list);
     }
     return [...grouped.entries()].sort(([left], [right]) => left.localeCompare(right));
-  }, [query]);
+  }, [filteredAssets, visibleCount]);
 
   return (
-    <div data-testid="catalogue-picker" className="flex flex-col gap-2">
+    <>
       {onSelectNone && (
         <button
           type="button"
@@ -80,13 +76,36 @@ export function CatalogueAssetPicker({
         aria-label={t("editor.palette.search")}
         placeholder={t("editor.palette.search")}
         className="h-7 text-xs"
-        onChange={(event) => setQuery(event.currentTarget.value)}
+        onChange={(event) => {
+          setQuery(event.currentTarget.value);
+          setVisibleCount(ASSET_PAGE_SIZE);
+        }}
       />
+      <select
+        className="h-7 w-full rounded-md border border-input bg-white px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
+        value={category}
+        aria-label={t("editor.palette.category.all")}
+        onChange={(event) => {
+          setCategory(event.currentTarget.value);
+          setVisibleCount(ASSET_PAGE_SIZE);
+        }}
+      >
+        <option value="all">{t("editor.palette.category.all")}</option>
+        {categories.map((item) => (
+          <option key={item} value={item}>
+            {categoryLabel(item)}
+          </option>
+        ))}
+      </select>
+
+      {groups.length === 0 && (
+        <p className="px-1 py-2 text-xs text-zinc-400">{t("editor.palette.noResults")}</p>
+      )}
       <div className="flex flex-col gap-2">
-        {groups.map(([category, assets]) => (
-          <div key={category} className="flex flex-col gap-1">
+        {groups.map(([groupCategory, assets]) => (
+          <div key={groupCategory} className="flex flex-col gap-1">
             <span className="px-0.5 text-[10.5px] font-medium text-zinc-400">
-              {category} ({assets.length})
+              {categoryLabel(groupCategory)} ({assets.length})
             </span>
             <div className="grid grid-cols-3 gap-1">
               {assets.map((asset) => (
@@ -101,13 +120,22 @@ export function CatalogueAssetPicker({
           </div>
         ))}
       </div>
-    </div>
+      {visibleCount < filteredAssets.length && (
+        <button
+          type="button"
+          className="rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-xs font-medium text-zinc-600 hover:border-zinc-400"
+          onClick={() => setVisibleCount((count) => count + ASSET_PAGE_SIZE)}
+        >
+          {t("editor.palette.showMore", {
+            shown: Math.min(visibleCount, filteredAssets.length),
+            total: filteredAssets.length,
+          })}
+        </button>
+      )}
+    </>
   );
 }
 
-/** One decoration in the catalogue grid: a cropped native-scale sprite preview above the asset's
- *  short id, its allowed terrain, and a Solid badge when it collides. The text is the button's
- *  accessible name, matching the pre-merge palette so the same searches select the same asset. */
 function AssetChoice({
   asset,
   selected,
@@ -118,39 +146,26 @@ function AssetChoice({
   onSelect(assetId: EditorAssetId): void;
 }) {
   const collides = asset.editor.collider !== undefined;
-  const crop =
-    asset.editor.sourceRect ??
-    (asset.frame
-      ? { x: 0, y: 0, width: asset.frame.width, height: asset.frame.height }
-      : { x: 0, y: 0, width: asset.width, height: asset.height });
-  const previewScale = Math.min(56 / crop.width, 56 / crop.height, 1);
+  const displayName =
+    asset.sourcePath
+      .split("/")
+      .at(-1)
+      ?.replace(/\.png$/i, "")
+      .replaceAll("_", " ")
+      .replaceAll("-", " ") ?? asset.id.split(".").at(-1);
   return (
     <button
       type="button"
       aria-pressed={selected}
       title={`${asset.role} · ${asset.editor.allowedTerrain.join(", ")}`}
       onClick={() => onSelect(asset.id as EditorAssetId)}
-      className={`flex flex-col items-center gap-0.5 rounded-md border p-1 text-center ${
+      className={`flex min-w-0 flex-col items-center gap-0.5 rounded-md border p-1 text-center ${
         selected ? "border-zinc-900 bg-white" : "border-zinc-200 bg-white hover:border-zinc-400"
       }`}
     >
-      <span
-        aria-hidden="true"
-        className="flex h-14 w-full items-center justify-center overflow-hidden rounded bg-zinc-100"
-      >
-        <span
-          style={{
-            width: crop.width,
-            height: crop.height,
-            backgroundImage: `url("${tinySwordsSourceUrl(asset.sourcePath)}")`,
-            backgroundPosition: `${-crop.x}px ${-crop.y}px`,
-            transform: `scale(${previewScale})`,
-            imageRendering: "pixelated",
-          }}
-        />
-      </span>
+      <EditorAssetPreview asset={asset} />
       <strong className="w-full truncate text-[10.5px] font-semibold text-zinc-700">
-        {asset.id.split(".").at(-1)}
+        {displayName}
       </strong>
       <small className="w-full truncate text-[9.5px] text-zinc-400">
         {asset.editor.allowedTerrain.join(" · ")}
@@ -160,6 +175,49 @@ function AssetChoice({
           {t("editor.palette.collision")}
         </span>
       )}
+      <span className="sr-only">{asset.id.split(".").at(-1)}</span>
+      <span className="sr-only">{asset.id}</span>
     </button>
   );
+}
+
+/** A correctly cropped first frame. Keeping the native-size inner sprite out of flex layout avoids
+ * the old double shrink that reduced 192–384px trees and buildings to one-pixel marks. */
+export function EditorAssetPreview({
+  asset,
+  size = 56,
+}: {
+  asset: EditorAssetDefinition;
+  size?: number;
+}) {
+  const crop =
+    asset.editor.sourceRect ??
+    (asset.frame
+      ? { x: 0, y: 0, width: asset.frame.width, height: asset.frame.height }
+      : { x: 0, y: 0, width: asset.width, height: asset.height });
+  const previewScale = Math.min(size / crop.width, size / crop.height, 1);
+  return (
+    <span
+      aria-hidden="true"
+      className="relative flex w-full items-center justify-center overflow-hidden rounded bg-zinc-100"
+      style={{ height: size }}
+    >
+      <span
+        className="absolute top-1/2 left-1/2 flex-none"
+        style={{
+          width: crop.width,
+          height: crop.height,
+          backgroundImage: `url("${tinySwordsSourceUrl(asset.sourcePath)}")`,
+          backgroundPosition: `${-crop.x}px ${-crop.y}px`,
+          backgroundRepeat: "no-repeat",
+          transform: `translate(-50%, -50%) scale(${previewScale})`,
+          imageRendering: "pixelated",
+        }}
+      />
+    </span>
+  );
+}
+
+function categoryLabel(category: string): string {
+  return t(`editor.palette.category.${category}` as Parameters<typeof t>[0]);
 }

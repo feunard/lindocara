@@ -66,10 +66,17 @@ export function RegistryDialog({ open, onOpenChange, onSessionExpired }: Registr
   const [adventures, setAdventures] = useState<AdventureSummary[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [registry, setRegistry] = useState<AdventureRegistry | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState<{
     kind: RegistryKind;
     entry: RegistryEntry;
   } | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setRegistry(session?.draft.registry ?? null);
+    setError(null);
+  }, [open, session?.draft.registry]);
 
   function fail(caught: unknown): void {
     const code = errorCode(caught);
@@ -110,44 +117,44 @@ export function RegistryDialog({ open, onOpenChange, onSessionExpired }: Registr
   }
 
   function updateRegistry(next: AdventureRegistry): void {
-    if (session) setSession({ ...session, draft: { ...session.draft, registry: next } });
+    setRegistry(next);
   }
 
   function addEntry(kind: RegistryKind): void {
-    if (!session) return;
-    const list = session.draft.registry[kind];
+    if (!registry) return;
+    const list = registry[kind];
     if (list.length >= KIND_MAX[kind]) return;
     const id = mintRegistryId(list);
     if (id === null) return;
-    updateRegistry({ ...session.draft.registry, [kind]: [...list, { id, name: "" }] });
+    updateRegistry({ ...registry, [kind]: [...list, { id, name: "" }] });
   }
 
   function renameEntry(kind: RegistryKind, id: string, name: string): void {
-    if (!session) return;
-    const list = session.draft.registry[kind].map((entry) =>
-      entry.id === id ? { ...entry, name } : entry,
-    );
-    updateRegistry({ ...session.draft.registry, [kind]: list });
+    if (!registry) return;
+    const list = registry[kind].map((entry) => (entry.id === id ? { ...entry, name } : entry));
+    updateRegistry({ ...registry, [kind]: list });
   }
 
   function deleteEntry(kind: RegistryKind, id: string): void {
-    if (!session) return;
-    const list = session.draft.registry[kind].filter((entry) => entry.id !== id);
-    updateRegistry({ ...session.draft.registry, [kind]: list });
+    if (!registry) return;
+    const list = registry[kind].filter((entry) => entry.id !== id);
+    updateRegistry({ ...registry, [kind]: list });
     setConfirmingDelete(null);
   }
 
   async function save(): Promise<void> {
-    if (!session?.adventureId || saving) return;
-    const input = toAdventureInput(session.draft);
+    if (!session?.adventureId || !registry || saving) return;
+    const savedDraft = { ...session.draft, registry };
+    const input = toAdventureInput(savedDraft);
     if (!input) return;
     setSaving(true);
     setError(null);
     try {
       await updateAdventureApi(session.adventureId, input);
       // Keep the adventure loaded so the event dialog's condition pickers reflect the saved
-      // registry; only refresh the saved snapshot.
-      setSession({ ...session, savedDraft: JSON.stringify(session.draft) });
+      // registry, refresh the saved snapshot, then close like a conventional Save action.
+      setSession({ ...session, draft: savedDraft, savedDraft: JSON.stringify(savedDraft) });
+      onOpenChange(false);
     } catch (caught) {
       fail(caught);
     } finally {
@@ -155,7 +162,8 @@ export function RegistryDialog({ open, onOpenChange, onSessionExpired }: Registr
     }
   }
 
-  const input = session?.adventureId ? toAdventureInput(session.draft) : null;
+  const input =
+    session?.adventureId && registry ? toAdventureInput({ ...session.draft, registry }) : null;
   const saveHint =
     session === null || session.adventureId !== null
       ? input === null && session?.adventureId
@@ -176,13 +184,13 @@ export function RegistryDialog({ open, onOpenChange, onSessionExpired }: Registr
           </p>
         )}
 
-        {session ? (
+        {session && registry ? (
           <div className="flex flex-col gap-5">
             <RegistryList
               kind="switches"
               heading={t("editor.registry.switches")}
-              entries={session.draft.registry.switches}
-              atCap={session.draft.registry.switches.length >= MAX_REGISTRY_SWITCHES}
+              entries={registry.switches}
+              atCap={registry.switches.length >= MAX_REGISTRY_SWITCHES}
               onAdd={() => addEntry("switches")}
               onRename={(id, name) => renameEntry("switches", id, name)}
               onDelete={(entry) => setConfirmingDelete({ kind: "switches", entry })}
@@ -190,8 +198,8 @@ export function RegistryDialog({ open, onOpenChange, onSessionExpired }: Registr
             <RegistryList
               kind="variables"
               heading={t("editor.registry.variables")}
-              entries={session.draft.registry.variables}
-              atCap={session.draft.registry.variables.length >= MAX_REGISTRY_VARIABLES}
+              entries={registry.variables}
+              atCap={registry.variables.length >= MAX_REGISTRY_VARIABLES}
               onAdd={() => addEntry("variables")}
               onRename={(id, name) => renameEntry("variables", id, name)}
               onDelete={(entry) => setConfirmingDelete({ kind: "variables", entry })}

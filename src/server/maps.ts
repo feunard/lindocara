@@ -14,6 +14,8 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import {
   type AdventureGraph,
+  type AdventureInput,
+  MAX_ADVENTURE_MAPS,
   type MapMarkerIds,
   parseAdventureGraph,
   validateAdventure,
@@ -55,7 +57,7 @@ import { isSolidKind, kindAt } from "../shared/tilemap.js";
 import { tileIdInTileset } from "../shared/tileset.js";
 import { TINY_SWORDS_TILESET_ID, tilesetById } from "../shared/tilesets/tiny-swords.js";
 import { isEditorAssetId } from "../shared/tiny-swords-catalog.js";
-import { adventure, type Db, map, mapElement, mapEvent, mapEventPage } from "./db/index.js";
+import { adventure, type Db, map, mapElement, mapEvent, mapEventPage, party } from "./db/index.js";
 
 export const BUILTIN_MAP_ID = "builtin";
 
@@ -778,6 +780,13 @@ export async function createMap(
 ): Promise<StoredMap> {
   const owner = await ownedAdventure(db, accountId, adventureId);
   if (!owner) throw new Error("not_found: no such adventure");
+  const [mapCount] = await db
+    .select({ value: sql<number>`count(*)` })
+    .from(map)
+    .where(eq(map.adventureId, adventureId));
+  if ((mapCount?.value ?? 0) >= MAX_ADVENTURE_MAPS) {
+    throw new Error(`limit: at most ${MAX_ADVENTURE_MAPS} maps per adventure`);
+  }
   const input = defaultMapInput(name);
   const data = validateMapInput(input);
   const id = crypto.randomUUID();
@@ -817,10 +826,15 @@ export async function updateMap(
   accountId: string,
   id: string,
   input: MapInput,
+  proposedAdventure?: AdventureInput,
+  expectedRevision?: number,
 ): Promise<StoredMap> {
   const data = validateMapInput(input);
   const existing = await loadOwnedMap(db, accountId, id);
   if (!existing) throw new Error("not_found: no such map");
+  if (expectedRevision !== undefined && existing.revision !== expectedRevision) {
+    throw new Error("conflict: map was changed by another editor");
+  }
   // A map belongs to exactly one adventure (UX wave #5), so revalidation is against THAT adventure's
   // graph alone — the cross-account loop is gone, ownership is guaranteed by the fk. Editing this
   // map's markers must not break its owning adventure's saved graph (a bound exit removed, a start
@@ -828,6 +842,7 @@ export async function updateMap(
   if (existing.adventureId) {
     const [owner] = await db
       .select({
+        id: adventure.id,
         title: adventure.title,
         maxPlayers: adventure.maxPlayers,
         graph: adventure.graph,
@@ -870,14 +885,36 @@ export async function updateMap(
         entryIds: entryEvents(data.events).map((event) => event.id),
         exitIds: exitEvents(data.events).map((event) => event.id),
       });
+      const nextAdventure = proposedAdventure ?? {
+        title: owner.title,
+        maxPlayers: owner.maxPlayers,
+        graph,
+      };
       try {
-        validateAdventure(
-          { title: owner.title, maxPlayers: owner.maxPlayers, graph },
-          markersByMap,
-        );
+        validateAdventure(nextAdventure, markersByMap);
       } catch (error) {
         const reason = error instanceof Error ? error.message : "invalid graph";
         throw new Error(`referenced: adventure "${owner.title}" would become invalid (${reason})`);
+      }
+      if (proposedAdventure) {
+        const storedStart = graph.start;
+        const nextStart = proposedAdventure.graph.start;
+        const startMoved =
+          storedStart === null
+            ? nextStart !== null
+            : nextStart === null ||
+              nextStart.mapId !== storedStart.mapId ||
+              nextStart.entryId !== storedStart.entryId;
+        if (startMoved) {
+          const used = await db
+            .select({ id: party.id })
+            .from(party)
+            .where(eq(party.adventureId, owner.id))
+            .limit(1);
+          if (used.length > 0) {
+            throw new Error("referenced: a live party pins this adventure start");
+          }
+        }
       }
     }
   }
@@ -905,10 +942,26 @@ export async function updateMap(
   const clearEvents = db.delete(mapEvent).where(eq(mapEvent.mapId, id));
   const elementStatements = insertElementStatements(db, id, input.elements);
   const eventStatements = insertEventStatements(db, id, data.events);
+  const adventureStatement =
+    proposedAdventure && existing.adventureId
+      ? db
+          .update(adventure)
+          .set({
+            title: proposedAdventure.title.trim(),
+            maxPlayers: proposedAdventure.maxPlayers,
+            graph: JSON.stringify(proposedAdventure.graph),
+            ...(proposedAdventure.registry !== undefined
+              ? { registry: JSON.stringify(proposedAdventure.registry) }
+              : {}),
+            updatedAt: new Date(),
+          })
+          .where(and(eq(adventure.id, existing.adventureId), eq(adventure.accountId, accountId)))
+      : null;
   // updateRow stays first so its `.returning({ revision })` is `batchResults[0]`. Deletes run before
   // inserts, and events (parents) before pages within `insertEventStatements`.
   const batchResults = await db.batch([
     updateRow,
+    ...(adventureStatement ? [adventureStatement] : []),
     clearElements,
     clearEvents,
     ...elementStatements,
@@ -963,8 +1016,9 @@ function graphReferencesMap(graphJson: string, mapId: string): boolean {
 }
 
 /**
- * Deleting the last map is refused, and deleting the front door moves the flag rather than removing
- * it. Between them, there is always exactly one map flagged and at least one map to flag.
+ * Deleting the last map OF AN ADVENTURE is refused, and deleting the account's front door moves the
+ * flag rather than removing it. Between them, every adventure keeps somewhere to run and the
+ * rollback-era account flag always has a surviving map to carry it.
  *
  * Every write is one transaction, each guarded by the same live `count(*)`, so two concurrent deletes
  * of the last two maps cannot both win: SQLite serializes the batches, the second sees the first's
@@ -990,18 +1044,17 @@ export async function deleteMap(db: Db, accountId: string, id: string): Promise<
   if (owner && graphReferencesMap(owner.graph, id)) {
     throw new Error("referenced: an adventure still uses this map");
   }
-
   const results = await db.$client.batch([
     db.$client
       .prepare(
-        `DELETE FROM map_element WHERE map_id = ? AND (SELECT count(*) FROM map WHERE account_id = ?) > 1`,
+        `DELETE FROM map_element WHERE map_id = ? AND (SELECT count(*) FROM map WHERE adventure_id = ?) > 1`,
       )
-      .bind(id, accountId),
+      .bind(id, row.adventureId),
     db.$client
       .prepare(
-        `DELETE FROM map WHERE id = ? AND account_id = ? AND (SELECT count(*) FROM map WHERE account_id = ?) > 1`,
+        `DELETE FROM map WHERE id = ? AND account_id = ? AND (SELECT count(*) FROM map WHERE adventure_id = ?) > 1`,
       )
-      .bind(id, accountId, accountId),
+      .bind(id, accountId, row.adventureId),
     // The old first row is gone before its successor is flagged, so the partial UNIQUE index never
     // observes two first maps. A non-first delete leaves the existing flag alone via NOT EXISTS.
     db.$client
@@ -1016,7 +1069,7 @@ export async function deleteMap(db: Db, accountId: string, id: string): Promise<
       )
       .bind(accountId, accountId),
   ]);
-  // The guarded DELETE refused it: this was the last owned map, and nothing in the batch changed.
+  // The guarded DELETE refused it: this was the adventure's last map, and nothing changed.
   if ((results[1]?.meta.changes ?? 0) === 0) {
     throw new Error("last_map: the world needs somewhere to be");
   }

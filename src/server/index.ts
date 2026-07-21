@@ -536,6 +536,8 @@ function mapErrorResponse(error: unknown): Response {
   const code = message.split(":")[0];
   if (code === "not_found") return json({ error: "map_not_found" }, { status: 404 });
   if (code === "last_map") return json({ error: "last_map" }, { status: 409 });
+  if (code === "limit") return json({ error: "map_limit" }, { status: 409 });
+  if (code === "conflict") return json({ error: "map_conflict" }, { status: 409 });
   if (code === "referenced") return json({ error: "map_referenced" }, { status: 409 });
   if (
     code === "placement" ||
@@ -663,8 +665,32 @@ async function handleUpdateMap(
   if (parsed instanceof Response) return parsed;
   const input = parseMapBody(parsed.value);
   if (!input) return json({ error: "map_invalid" }, { status: 400 });
+  const rawAdventure = (parsed.value as { adventure?: unknown }).adventure;
+  const proposedAdventure =
+    rawAdventure === undefined ? undefined : parseAdventureInput(rawAdventure);
+  if (rawAdventure !== undefined && !proposedAdventure) {
+    return json({ error: "adventure_invalid" }, { status: 400 });
+  }
+  const expectedRevision = (parsed.value as { expectedRevision?: unknown }).expectedRevision;
+  if (
+    expectedRevision !== undefined &&
+    (!Number.isSafeInteger(expectedRevision) || (expectedRevision as number) < 1)
+  ) {
+    return json({ error: "map_invalid" }, { status: 400 });
+  }
   try {
-    return json(mapResponseBody(await updateMap(createDb(env.DB), auth.session.id, id, input)));
+    return json(
+      mapResponseBody(
+        await updateMap(
+          createDb(env.DB),
+          auth.session.id,
+          id,
+          input,
+          proposedAdventure ?? undefined,
+          expectedRevision as number | undefined,
+        ),
+      ),
+    );
   } catch (error) {
     return mapErrorResponse(error);
   }

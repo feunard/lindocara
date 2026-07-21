@@ -9,6 +9,7 @@ import { createAdventure } from "../src/server/adventures.js";
 import { createDb } from "../src/server/db/index.js";
 import { BUILTIN_MAP_ID } from "../src/server/maps.js";
 import { SESSION_COOKIE } from "../src/server/session.js";
+import { MAX_ADVENTURE_MAPS } from "../src/shared/adventure.js";
 import { COMMAND_TEXT_MAX, MAX_CHOICE_OPTIONS } from "../src/shared/event-commands.js";
 import { MONSTER_SPECIES_KIND, type MonsterSpecies } from "../src/shared/game.js";
 import {
@@ -194,6 +195,17 @@ describe("create under an adventure", () => {
       (await authed("/api/maps", { method: "POST", body: JSON.stringify({ adventureId }) })).status,
     ).toBe(400);
   });
+
+  it(`refuses a ${MAX_ADVENTURE_MAPS + 1}th map in one adventure`, async () => {
+    const adventureId = await newAdventure();
+    for (let index = 0; index < MAX_ADVENTURE_MAPS; index += 1) {
+      expect((await newMap(adventureId, `Map ${index + 1}`)).status).toBe(201);
+    }
+
+    const refused = await newMap(adventureId, "Too many");
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toEqual({ error: "map_limit" });
+  });
 });
 
 describe("list, get, update, delete", () => {
@@ -342,6 +354,31 @@ describe("list, get, update, delete", () => {
 
     const updated = await putMap(created.id, mapBody({ name: "Revision two" }));
     expect(await updated.json()).toMatchObject({ revision: 2 });
+  });
+
+  it("refuses a save based on a stale editor revision", async () => {
+    const adventureId = await newAdventure();
+    const created = (await (await newMap(adventureId)).json()) as {
+      id: string;
+      revision: number;
+    };
+    const first = await putMap(
+      created.id,
+      mapBody({ name: "Current", expectedRevision: created.revision }),
+    );
+    expect(first.status).toBe(200);
+    expect(await first.json()).toMatchObject({ revision: 2, name: "Current" });
+
+    const stale = await putMap(
+      created.id,
+      mapBody({ name: "Stale overwrite", expectedRevision: created.revision }),
+    );
+    expect(stale.status).toBe(409);
+    expect(await stale.json()).toEqual({ error: "map_conflict" });
+    expect(await (await authed(`/api/maps/${created.id}`)).json()).toMatchObject({
+      revision: 2,
+      name: "Current",
+    });
   });
 });
 

@@ -44,7 +44,9 @@ export function ElementPalette({
             {elementCount}/{MAX_MAP_ELEMENTS}
           </span>
         </div>
-        <CatalogueAssetPicker value={selectedAsset} onSelectAsset={onSelectAsset} />
+        <div data-testid="catalogue-picker" className="contents">
+          <CatalogueAssetPicker value={selectedAsset} onSelectAsset={onSelectAsset} />
+        </div>
       </div>
     </aside>
   );

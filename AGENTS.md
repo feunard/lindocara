@@ -17,6 +17,7 @@ the existing React/Radix primitives, with Tiny Swords limited to previews and re
 | --- | --- |
 | `npm run dev` | Vite + the Worker + the Durable Object, all in workerd |
 | `npm run check` | lint, typecheck, test — run this before committing |
+| `npm run check:runtime` | lint, typecheck, runtime server/player UI tests and build; skips creator map/adventure validation |
 | `npm run loadtest -- --players=10 --duration=60 --scenario=mixed` | authenticated local WebSocket load test; remote targets require explicit opt-in |
 | `npm run lint` / `lint:fix` | Biome |
 | `npm run typecheck` | three TypeScript programs (see below) |
@@ -604,8 +605,10 @@ sampled at 1%. Do not place metrics in module globals: a metric window belongs t
 
 `scripts/loadtest.mjs` is the black-box load boundary. It provisions through `/api/*`, connects
 through `/api/ws`, sends only legal client intent and reports client-observed throughput and ACK
-latency. Its default target is localhost. Keep production behind both explicit remote and
-production opt-ins, and never put production credentials in the script.
+latency. It groups accounts into parties of up to four and must use the primary
+`?party=<partyId>&hero=<heroId>` admission route so `HeroPresence`, `GameSession` and normalized hero
+persistence are under load. Its default target is localhost. Keep production behind both explicit
+remote and production opt-ins, and never put production credentials in the script.
 
 Security limits live beside the boundary they protect: HTTP JSON is capped before parsing,
 WebSocket frames are capped at 2 KiB, identifiers are server-minted UUIDs, malformed/rate-limited

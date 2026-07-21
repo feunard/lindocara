@@ -86,8 +86,20 @@ export const fetchMaps = (adventureId: string) =>
 export const fetchMap = (id: string) => api<MapPayload>(`/api/maps/${id}`);
 export const createMapApi = (adventureId: string, name: string) =>
   api<MapPayload>("/api/maps", { method: "POST", body: JSON.stringify({ adventureId, name }) });
-export const updateMapApi = (id: string, input: MapSaveInput) =>
-  api<MapPayload>(`/api/maps/${id}`, { method: "PUT", body: JSON.stringify(input) });
+export const updateMapApi = (
+  id: string,
+  input: MapSaveInput,
+  adventure?: AdventureInput,
+  expectedRevision?: number,
+) =>
+  api<MapPayload>(`/api/maps/${id}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      ...input,
+      ...(adventure ? { adventure } : {}),
+      ...(expectedRevision !== undefined ? { expectedRevision } : {}),
+    }),
+  });
 export const deleteMapApi = (id: string) => api<void>(`/api/maps/${id}`, { method: "DELETE" });
 
 export interface AdventureSummary {
@@ -226,6 +238,8 @@ export const ERROR_KEYS: Record<string, MessageKey> = {
   map_invalid: "editor.error.invalid",
   map_not_found: "editor.error.not_found",
   last_map: "editor.error.last_map",
+  map_limit: "editor.error.limit",
+  map_conflict: "editor.error.conflict",
   map_elements: "editor.error.elements",
   map_markers: "editor.error.markers",
   map_referenced: "editor.error.referenced",
