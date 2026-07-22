@@ -3,6 +3,7 @@
  * to join. Left/right (D-pad or stick) move focus, A selects, B goes back. No dropdowns, no lists.
  */
 import type { ReactNode } from "react";
+import { menuAudio } from "../game/menu-audio.js";
 import { t } from "../i18n.js";
 import { Hint, MenuHints } from "./MainMenu.js";
 import { MenuNav, useMenuItem } from "./tiny-swords/menu-nav.js";
@@ -67,22 +68,24 @@ export function Carousel({
         <h1 className="carousel-screen__title">{title}</h1>
       </header>
 
-      {loading ? (
-        <p className="carousel-screen__status">{t("common.loading")}</p>
-      ) : cards.length === 0 ? (
-        <p className="carousel-screen__status">{emptyLabel}</p>
-      ) : (
-        <MenuNav
-          orientation="horizontal"
-          className="carousel-track"
-          aria-label={title}
-          onBack={onBack}
-        >
-          {cards.map((card, index) => (
+      {/* MenuNav is mounted in every state — including loading/empty — so B/Esc (and their back
+          sound) always work, not only when there are cards to focus. */}
+      <MenuNav
+        orientation="horizontal"
+        className="carousel-track"
+        aria-label={title}
+        onBack={onBack}
+      >
+        {loading ? (
+          <p className="carousel-screen__status">{t("common.loading")}</p>
+        ) : cards.length === 0 ? (
+          <p className="carousel-screen__status">{emptyLabel}</p>
+        ) : (
+          cards.map((card, index) => (
             <Card key={card.id} card={card} order={index} onSelect={() => onSelect(card.id)} />
-          ))}
-        </MenuNav>
-      )}
+          ))
+        )}
+      </MenuNav>
 
       <MenuHints>
         <Hint keyLabel="↔ / D-Pad">{t("menu.hint.navigate")}</Hint>
@@ -91,9 +94,15 @@ export function Carousel({
         {extraHints}
       </MenuHints>
 
-      {/* Back is reachable by B/Esc via MenuNav when cards are present; this keeps it clickable for
-          mouse users and is the back path while the carousel is empty or loading. */}
-      <button type="button" className="carousel-screen__back" onClick={onBack}>
+      {/* The visible back affordance for mouse users; plays the same back sound as B/Esc. */}
+      <button
+        type="button"
+        className="carousel-screen__back"
+        onClick={() => {
+          menuAudio.playBack();
+          onBack();
+        }}
+      >
         ‹ {t("menu.back")}
       </button>
     </main>
