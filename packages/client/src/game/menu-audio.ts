@@ -152,16 +152,13 @@ class MenuAudio {
     return this.#confirmLoad;
   }
 
-  /** Begin the looping bed, fading it in. Idempotent; call on entering any launch-menu screen —
-   *  including the title, where the first attempt is likely blocked by autoplay policy (no gesture
-   *  yet). Retrying `play()` whenever the element is paused is what heals that: the attempt is
-   *  harmless when it fails, and the next call after a real gesture (the title press) actually
-   *  starts it, rather than the bed being stuck "on" but silent. */
+  /** Begin the looping bed, fading it in. Idempotent; call on entering any launch-menu screen. */
   startMusic(): void {
+    if (this.#musicOn) return;
     const el = this.#ensureMusic();
     if (!el) return;
     this.#musicOn = true;
-    if (el.paused) void el.play().catch(() => undefined);
+    void el.play().catch(() => undefined);
     this.#fadeToTarget();
   }
 

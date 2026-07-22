@@ -60,18 +60,12 @@ export function App() {
     })();
   }, [setScreen, setAccountId]);
 
-  // The music bed plays across the whole launch experience — title, central menu and carousels — as
-  // one continuous track, and stops the moment the player drops into the game, the editor or auth.
-  // On the title it attempts to start immediately: a first visit is silent until the first gesture
-  // (browsers forbid autoplay before one), but a return visit with enough media engagement plays on
-  // load, and either way the same element carries seamlessly into the menu without a restart.
+  // The music bed plays across the launch menu (the central menu and its carousels), and stops the
+  // moment the player drops into the game, the editor, the title or auth. The title stays silent:
+  // audio is unlocked by the title-screen press, and the menu is where the bed begins.
   useEffect(() => {
     const inLaunchMenu =
-      screen === "title" ||
-      screen === "menu" ||
-      screen === "continue" ||
-      screen === "new" ||
-      screen === "join";
+      screen === "menu" || screen === "continue" || screen === "new" || screen === "join";
     if (inLaunchMenu) menuAudio.startMusic();
     else menuAudio.stopMusic();
   }, [screen]);
