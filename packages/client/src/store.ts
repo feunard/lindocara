@@ -136,6 +136,7 @@ interface UiState {
     | "new"
     | "continue"
     | "join"
+    | "credits"
     | "hero"
     | "game"
     | "adventure-editor"

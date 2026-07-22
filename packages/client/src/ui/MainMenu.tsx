@@ -58,10 +58,7 @@ export function MainMenu() {
       .catch(() => setHasSaves(false));
   }, []);
 
-  useEffect(
-    () => subscribeAudioSettings(() => setMusicOn(getAudioSettings().musicEnabled)),
-    [],
-  );
+  useEffect(() => subscribeAudioSettings(() => setMusicOn(getAudioSettings().musicEnabled)), []);
 
   return (
     <main className="main-menu">
@@ -105,6 +102,12 @@ export function MainMenu() {
         />
         <MenuItemButton
           order={4}
+          icon="✎"
+          label={t("menu.credits")}
+          onActivate={() => setScreen("credits")}
+        />
+        <MenuItemButton
+          order={5}
           icon="⎋"
           label={t("menu.quit")}
           onActivate={() => setScreen("title")}

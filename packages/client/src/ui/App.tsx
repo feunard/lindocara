@@ -7,6 +7,7 @@ import { useUiStore } from "../store.js";
 import { AuthScreen } from "./AuthScreen.js";
 import { Chat } from "./Chat.js";
 import { ConnectionOverlay } from "./ConnectionOverlay.js";
+import { CreditsScreen } from "./CreditsScreen.js";
 import { EventLog } from "./EventLog.js";
 import { HelpBar } from "./HelpBar.js";
 import { EventDialoguePanel } from "./hud/EventDialoguePanel.js";
@@ -76,7 +77,8 @@ export function App() {
     screen === "menu" ||
     screen === "new" ||
     screen === "continue" ||
-    screen === "join";
+    screen === "join" ||
+    screen === "credits";
 
   return (
     <>
@@ -91,6 +93,7 @@ export function App() {
       {screen === "continue" && <ContinueScreen />}
       {screen === "new" && <NewGameScreen />}
       {screen === "join" && <JoinScreen />}
+      {screen === "credits" && <CreditsScreen />}
       {screen === "adventure-editor" && (
         <Suspense
           fallback={
