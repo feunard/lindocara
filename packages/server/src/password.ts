@@ -6,8 +6,15 @@
  * accounts pick up the new constant.
  */
 
-/** OWASP's current PBKDF2-HMAC-SHA256 baseline. Stored per row for future upgrades. */
-export const PBKDF2_ITERATIONS = 600_000;
+/**
+ * **workerd's hard ceiling for PBKDF2 is 100,000 iterations** — `crypto.subtle.deriveBits`
+ * throws `NotSupportedError: iteration counts above 100000 are not supported` for anything higher.
+ * OWASP recommends 600,000, but on Cloudflare Workers that value makes every register/login/guest
+ * 500 in production (it slips past the test suite, which overrides the count via
+ * TEST_PBKDF2_ITERATIONS). So this is pinned to the platform maximum. The count is stored per row,
+ * so raising it later — only ever up to 100,000 — verifies old rows at their recorded count.
+ */
+export const PBKDF2_ITERATIONS = 100_000;
 const SALT_BYTES = 16;
 const HASH_BITS = 256;
 

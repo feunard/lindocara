@@ -8,6 +8,14 @@ describe("password hashing", () => {
     expect(await verifyPassword("correct horse battery staple", record)).toBe(true);
   });
 
+  it("keeps the iteration count within workerd's PBKDF2 ceiling", () => {
+    // Cloudflare Workers throws `NotSupportedError` for PBKDF2 counts above 100,000. The test
+    // runtime (miniflare) does NOT enforce that ceiling — the round-trip above happily hashed at
+    // 600,000 while every real register/login/guest 500'd in production. Only this static
+    // assertion catches it. Never raise PBKDF2_ITERATIONS past 100,000.
+    expect(PBKDF2_ITERATIONS).toBeLessThanOrEqual(100_000);
+  });
+
   it("rejects a wrong password", async () => {
     const record = await hashPassword("correct horse battery staple");
     expect(await verifyPassword("correct horse battery stable", record)).toBe(false);
