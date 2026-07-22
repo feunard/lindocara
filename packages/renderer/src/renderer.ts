@@ -35,7 +35,11 @@ import {
   TINY_SWORDS_SHEET_ROWS,
   tilesetById,
 } from "@lindocara/engine/tilesets/tiny-swords.js";
-import { type EditorAssetId, isEditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
+import {
+  type EditorAssetId,
+  type EditorRenderLayer,
+  isEditorAssetId,
+} from "@lindocara/engine/tiny-swords-catalog.js";
 import {
   DEFAULT_ZONE_ID,
   type PortalDefinition,
@@ -177,6 +181,16 @@ const ATLAS_IMAGE = "/assets/lindocara/atlas/world.png";
 const ATLAS_DATA = "/assets/lindocara/atlas/world.json";
 const STATIC_CULL_MARGIN = 180;
 const ENTITY_CULL_MARGIN = 120;
+/** How faint a canopy prop fades to while a hero stands behind it — low enough to read the hero
+ *  through the leaves, high enough that the tree is still plainly there. */
+const CANOPY_XRAY_ALPHA = 0.5;
+/** Per-frame easing toward the x-ray target, so stepping in and out of a tree dissolves. */
+const CANOPY_XRAY_EASE = 0.2;
+/** Fraction of a canopy's half-width, centred on its trunk, the hero's centre must fall within for
+ *  the x-ray to fire. A treetop sprite is mostly transparent crown padding, so testing the full
+ *  bounding box faded the whole treeline the moment a hero walked *past* it; only a hero actually
+ *  standing under the trunk-centred core should read as "behind the tree". */
+const CANOPY_XRAY_CORE = 0.55;
 const WATER_TEXTURE_SCALE = 0.5;
 const WATER_SECONDARY_ALPHA = 0.27;
 const GRID_LINE_COLOR = 0xffffff;
@@ -759,6 +773,20 @@ export function eventRenderLayer(onTop: boolean, decor: Container, above: Contai
   return onTop ? above : decor;
 }
 
+/**
+ * Which container an authored prop draws into — the ONE routing decision, extracted pure so it can
+ * be pinned without a renderer (this suite gets no WebGL context). A `ground` prop is a flat decal
+ * pinned below every actor in `decor`; an `object`/`canopy` prop joins `actors` and is Y-sorted
+ * against the heroes by its foot line, so a hero can pass *behind* a tree instead of always over it.
+ */
+export function mapElementRenderLayer(
+  layer: EditorRenderLayer,
+  decor: Container,
+  actors: Container,
+): Container {
+  return layer === "ground" ? decor : actors;
+}
+
 function reconcile<T extends { id: string }>(
   views: Map<string, EntityView<T>>,
   entities: readonly T[],
@@ -888,6 +916,19 @@ export class Renderer {
   #mapElements: readonly MapElement[] | null = null;
   #mapAssetArt = new Map<EditorAssetId, EditorAssetArt>();
   #mapElementAnimations: Array<{ sprite: Sprite; frames: readonly Texture[] }> = [];
+  /** Authored `object`/`canopy` props that live *inside* `#actors` so they Y-sort with heroes (a
+   *  tree drawn below every actor is exactly the bug this list exists to kill). They cannot be torn
+   *  down with a `removeChildren()` on `#actors` — that would take the live players with them — so a
+   *  reload destroys these by reference. `xray` marks the canopy props the occlusion pass fades when
+   *  a hero stands behind them; `left/right/top` is that prop's world AABB, `footY` its baseline. */
+  #actorElementViews: Array<{
+    container: Container;
+    footY: number;
+    left: number;
+    right: number;
+    top: number;
+    xray: boolean;
+  }> = [];
   #merchantContainer: Container | null = null;
   #merchantAnimation: { sprite: Sprite; frames: readonly Texture[] } | null = null;
   /** Read from the shared catalogue, the same place `#tiles` comes from — not from the welcome.
@@ -1104,6 +1145,11 @@ export class Renderer {
     this.#mapAssetArt = loaded;
     for (const child of this.#forestTreesLayer.removeChildren()) child.destroy({ children: true });
     for (const child of this.#decorLayer.removeChildren()) child.destroy({ children: true });
+    // Props that joined `#actors` cannot be swept by a `removeChildren()` there (it holds the live
+    // players); destroy them by reference. `.destroy()` nulls each parent, so the `#staticViews`
+    // prune below drops their entries for free.
+    for (const view of this.#actorElementViews) view.container.destroy({ children: true });
+    this.#actorElementViews = [];
     this.#mapElementAnimations = [];
     this.#staticViews = this.#staticViews.filter((view) => view.container.parent !== null);
     this.#buildMapElements(elements);
@@ -1124,6 +1170,10 @@ export class Renderer {
     this.#teardownWorldFurniture();
     for (const child of this.#forestTreesLayer.removeChildren()) child.destroy({ children: true });
     for (const child of this.#decorLayer.removeChildren()) child.destroy({ children: true });
+    // Props that joined `#actors` (see `#buildMapElements`) are destroyed by reference: a bare
+    // `removeChildren()` on `#actors` would take the live players with them.
+    for (const view of this.#actorElementViews) view.container.destroy({ children: true });
+    this.#actorElementViews = [];
     this.#mapElementAnimations = [];
     this.#cameraX = this.#zoneWidth / 2;
     this.#cameraY = this.#zoneHeight / 2;
@@ -1431,10 +1481,12 @@ export class Renderer {
    * are untinted: a D1 map has no regional palette to bend toward, and `terrainTintsAt` already
    * draws its ground at the pack's own colours (empty `worldRegions` → white).
    *
-   * Drawn row-major, not in wire order: these layers have no `sortableChildren`, so draw order is
-   * insertion order, and the elements arrive in D1 creation order. `#buildForestTrees` earns its
-   * back-to-front depth from its row-then-col loops; a copy sorted the same way earns it here, so a
-   * tree behind another never paints over the one in front regardless of which was authored first.
+   * A `ground` prop is a flat decal — it draws in `#decorLayer`, below every actor, in row-major
+   * insertion order (that container has no `sortableChildren`, so a copy sorted row-then-col earns
+   * its own back-to-front depth). An `object`/`canopy` prop instead joins `#actors` and is Y-sorted
+   * against the heroes by its foot line, so a hero whose feet are below a tree's trunk draws in
+   * front of it and one standing further up the map passes *behind* it — the whole reason this used
+   * to look wrong is that every prop was pinned below every actor irrespective of depth.
    */
   #buildMapElements(elements: readonly MapElement[]): void {
     const ordered = [...elements].sort((a, b) => a.row - b.row || a.col - b.col);
@@ -1443,11 +1495,60 @@ export class Renderer {
       if (!art) continue;
       const view = createCatalogElementView(element, art);
       if (!view) continue;
-      const layer = view.layer === "canopy" ? this.#forestTreesLayer : this.#decorLayer;
-      this.#registerStatic(view.container, view.x, view.y, TILE_SIZE * 2, layer);
+      const parent = mapElementRenderLayer(view.layer, this.#decorLayer, this.#actors);
+      // Foot-line depth for the sortable actors layer, the same key the heroes sort on (a player's
+      // zIndex is its own foot Y), so props and heroes interleave in one order. The decor layer has
+      // no `sortableChildren`, so a zIndex there is inert — harmless to set unconditionally.
+      view.container.zIndex = Math.round(view.y);
+      this.#registerStatic(view.container, view.x, view.y, TILE_SIZE * 2, parent);
+      if (parent === this.#actors) {
+        const { sprite } = view;
+        this.#actorElementViews.push({
+          container: view.container,
+          footY: view.y,
+          left: view.x - sprite.width * sprite.anchor.x,
+          right: view.x + sprite.width * (1 - sprite.anchor.x),
+          top: view.y - sprite.height * sprite.anchor.y,
+          xray: view.layer === "canopy",
+        });
+      }
       if (view.frames.length > 1) {
         this.#mapElementAnimations.push({ sprite: view.sprite, frames: view.frames });
       }
+    }
+  }
+
+  /**
+   * Fades a canopy prop while a hero stands *behind* it, so the player is never lost under a
+   * treetop — the "see them faintly through the leaves" read. A prop is occluding when a
+   * non-corpse player's foot line sits above the prop's (so the sort draws the player behind it)
+   * while the player still overlaps the prop's crown horizontally and reaches up into it. The
+   * alpha eases toward its target each frame rather than snapping, so walking in and out of a tree
+   * dissolves instead of blinking. Ground and object props never x-ray — only the `canopy` list.
+   */
+  #updateCanopyXray(players: readonly PlayerSnapshot[]): void {
+    for (const view of this.#actorElementViews) {
+      if (!view.xray) continue;
+      // Only the trunk-centred core, not the wide transparent crown, counts as "under the tree".
+      const cx = (view.left + view.right) / 2;
+      const coreHalf = ((view.right - view.left) / 2) * CANOPY_XRAY_CORE;
+      let behind = false;
+      for (const player of players) {
+        if (player.life === "corpse") continue;
+        const foot = player.y + PLAYER_SIZE;
+        const heroCx = player.x + PLAYER_SIZE / 2;
+        if (
+          foot < view.footY &&
+          foot > view.top &&
+          heroCx > cx - coreHalf &&
+          heroCx < cx + coreHalf
+        ) {
+          behind = true;
+          break;
+        }
+      }
+      const target = behind ? CANOPY_XRAY_ALPHA : 1;
+      view.container.alpha += (target - view.container.alpha) * CANOPY_XRAY_EASE;
     }
   }
 
@@ -3564,6 +3665,7 @@ export class Renderer {
       },
       (view) => this.#resetVisualAction(view),
     );
+    this.#updateCanopyXray(sample.players);
 
     reconcile(
       this.#monsters,
