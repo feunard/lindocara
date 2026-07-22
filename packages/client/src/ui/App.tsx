@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect } from "react";
 import { fetchMe } from "../api.js";
 import { menuAudio } from "../game/menu-audio.js";
+import { continueAsGuest } from "../guest.js";
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
 import { AuthScreen } from "./AuthScreen.js";
@@ -37,11 +38,26 @@ export function App() {
   const setScreen = useUiStore((s) => s.setScreen);
   const setAccountId = useUiStore((s) => s.setAccountId);
 
+  // There is no login screen in the normal flow: an unauthenticated visitor is signed straight in as
+  // the guest this browser already owns (or a freshly minted one, its creds saved to localStorage),
+  // so the app always opens on the title. A named-account path will live in Options later. Auth is
+  // kept only as a fallback for when the server can't be reached at all, so nobody is ever stranded.
   useEffect(() => {
-    fetchMe().then((me) => {
-      setAccountId(me?.id ?? null);
-      setScreen(me ? "title" : "auth");
-    });
+    void (async () => {
+      const me = await fetchMe();
+      if (me) {
+        setAccountId(me.id);
+        setScreen("title");
+        return;
+      }
+      try {
+        const guest = await continueAsGuest();
+        setAccountId(guest.id);
+        setScreen("title");
+      } catch {
+        setScreen("auth");
+      }
+    })();
   }, [setScreen, setAccountId]);
 
   // The piano bed plays across the whole launch menu (the central menu and its carousels), and
