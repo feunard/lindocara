@@ -523,6 +523,25 @@ describe("AdventureEditorScreen shell", () => {
     expect(useUiStore.getState().screen).toBe("adventure-editor");
   });
 
+  it("opens the first-class quest workspace from the Game menu", async () => {
+    vi.stubGlobal("fetch", mapsFetchMock());
+    await mountReady();
+
+    screen.getByRole("menuitem", { name: t("editor.shell.menu.game") }).focus();
+    await userEvent.keyboard("{Enter}");
+    const quests = await screen.findByRole("menuitem", { name: t("editor.shell.quests") });
+    expect(quests).not.toHaveAttribute("aria-disabled", "true");
+    await userEvent.click(quests);
+
+    expect(await screen.findByText(t("editor.quest.workspace.title"))).toBeInTheDocument();
+    expect(
+      screen
+        .getAllByRole("button", { name: t("editor.quest.add") })
+        .some((button) => !button.hasAttribute("disabled")),
+    ).toBe(true);
+    expect(previewMock.startMapPreview).not.toHaveBeenCalled();
+  });
+
   it("opens the stage once on mount and disposes it once on unmount, never touching #stage", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     const rendered = await mountReady();

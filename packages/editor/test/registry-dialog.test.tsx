@@ -3,6 +3,7 @@ import { setLocale, t } from "@lindocara/client/i18n.js";
 import { useUiStore } from "@lindocara/client/store.js";
 import { RegistryDialog } from "@lindocara/editor/ui/editor/RegistryDialog.js";
 import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
+import { createAuthoredQuestDefinition } from "@lindocara/engine/adventure-state.js";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -148,5 +149,32 @@ describe("RegistryDialog", () => {
 
     expect(await screen.findByText("Ruines")).toBeVisible();
     expect(screen.getByText(t("editor.registry.pick"))).toBeVisible();
+  });
+
+  it("keeps authored quests intact while switches and variables are edited separately", async () => {
+    const quest = {
+      ...createAuthoredQuestDefinition("0001", "Keep me"),
+      acceptance: "automatic" as const,
+      completion: "automatic" as const,
+    };
+    seedSession(completeDraft({ switches: [], variables: [], quests: [quest] }), "adv-1");
+    const mock = backend();
+    vi.stubGlobal("fetch", mock);
+    const user = userEvent.setup();
+    render(<RegistryDialog open onOpenChange={noop} onSessionExpired={noop} />);
+
+    const switches = screen.getByRole("region", { name: t("editor.registry.switches") });
+    await user.click(within(switches).getByRole("button", { name: /Add Switches/ }));
+    await user.click(screen.getByRole("button", { name: t("editor.registry.save") }));
+
+    await waitFor(() => {
+      const put = mock.mock.calls.find(
+        ([url, init]) => url === "/api/adventures/adv-1" && (init as RequestInit)?.method === "PUT",
+      );
+      const body = JSON.parse(String((put?.[1] as RequestInit | undefined)?.body)) as {
+        registry: AdventureRegistry;
+      };
+      expect(body.registry.quests).toEqual([quest]);
+    });
   });
 });

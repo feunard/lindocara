@@ -27,7 +27,6 @@ import {
 } from "@lindocara/ui/components/dialog.js";
 import { Input } from "@lindocara/ui/components/input.js";
 import { useEffect, useState } from "react";
-import { QuestRegistryEditor } from "./QuestRegistryEditor.js";
 
 function isSessionError(code: string): boolean {
   return code === "session_expired" || code === "unauthorized";
@@ -195,10 +194,6 @@ export function RegistryDialog({ open, onOpenChange, onSessionExpired }: Registr
               onAdd={() => addEntry("switches")}
               onRename={(id, name) => renameEntry("switches", id, name)}
               onDelete={(entry) => setConfirmingDelete({ kind: "switches", entry })}
-            />
-            <QuestRegistryEditor
-              quests={registry.quests ?? []}
-              onChange={(quests) => updateRegistry({ ...registry, quests })}
             />
             <RegistryList
               kind="variables"

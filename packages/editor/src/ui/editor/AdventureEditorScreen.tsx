@@ -79,6 +79,8 @@ import { FirstSaveDialog } from "./FirstSaveDialog.js";
 import { LoadAdventureDialog } from "./LoadAdventureDialog.js";
 import { MapListPanel } from "./MapListPanel.js";
 import { ObjectBindingDialog } from "./ObjectBindingDialog.js";
+import { QuestWorkspaceDialog } from "./QuestWorkspaceDialog.js";
+import type { QuestMapCatalog } from "./quest-editor-model.js";
 import { RegistryDialog } from "./RegistryDialog.js";
 
 /** The default terrain a fresh stroke paints with until the Task 9 terrain palette lands: flat grass,
@@ -362,6 +364,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   const [newMapOpen, setNewMapOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [questWorkspaceOpen, setQuestWorkspaceOpen] = useState(false);
   const [databaseOpen, setDatabaseOpen] = useState(false);
   // UX wave #15: the "Load an adventure" dialog, reached from File → « Charger une aventure ».
   const [loadOpen, setLoadOpen] = useState(false);
@@ -986,6 +989,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       newMapOpen ||
       confirmDeleteId !== null ||
       settingsOpen ||
+      questWorkspaceOpen ||
       databaseOpen ||
       loadOpen ||
       openEventId !== null ||
@@ -1080,6 +1084,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       newMapOpen ||
       confirmDeleteId !== null ||
       settingsOpen ||
+      questWorkspaceOpen ||
       databaseOpen ||
       loadOpen ||
       firstSaveOpen
@@ -1104,6 +1109,16 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   // reflects the latest positions.
   const currentMap: EditorMap | null =
     handleRef.current?.current() ?? editedRef.current ?? (map ? toEditorMap(map) : null);
+  const currentQuestMap: QuestMapCatalog | null =
+    map && currentMap
+      ? {
+          mapId: map.id,
+          name: currentMap.name,
+          cols: map.cols,
+          rows: map.rows,
+          events: currentMap.events,
+        }
+      : null;
 
   // The dialog seed: a detached draft of the open event, read off the live handle. `null` closes the
   // dialog (no open id, or the id no longer names a live event — e.g. it was just deleted).
@@ -1146,6 +1161,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
           onNewMap={() => setNewMapOpen(true)}
           onSave={() => void save()}
           onOpenSettings={() => setSettingsOpen(true)}
+          onOpenQuests={() => setQuestWorkspaceOpen(true)}
           onOpenDatabase={() => setDatabaseOpen(true)}
           onUndo={undo}
           onRedo={redo}
@@ -1346,6 +1362,14 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
           onSessionExpired={() => setScreen("auth")}
         />
 
+        <QuestWorkspaceDialog
+          open={questWorkspaceOpen}
+          onOpenChange={setQuestWorkspaceOpen}
+          onSessionExpired={() => setScreen("auth")}
+          currentMap={currentQuestMap}
+          {...(stageStatus === "ready" ? { onSaveDraft: doSaveMap } : {})}
+        />
+
         <LoadAdventureDialog
           open={loadOpen}
           onOpenChange={setLoadOpen}
@@ -1385,7 +1409,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
                 onCancel={() => setBindingSelection(null)}
                 onOpenQuestDatabase={() => {
                   setBindingSelection(null);
-                  setDatabaseOpen(true);
+                  setQuestWorkspaceOpen(true);
                 }}
                 onBind={(binding) => {
                   const id = handleRef.current?.bindSelectedElement(binding) ?? null;

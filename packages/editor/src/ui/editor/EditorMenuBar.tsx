@@ -30,6 +30,7 @@ interface EditorMenuBarProps {
   onNewMap(): void;
   onSave(): void;
   onOpenSettings(): void;
+  onOpenQuests(): void;
   onOpenDatabase(): void;
   onUndo(): void;
   onRedo(): void;
@@ -60,6 +61,7 @@ export function EditorMenuBar({
   onNewMap,
   onSave,
   onOpenSettings,
+  onOpenQuests,
   onOpenDatabase,
   onUndo,
   onRedo,
@@ -201,6 +203,8 @@ export function EditorMenuBar({
           <MenubarTrigger>{t("editor.shell.menu.game")}</MenubarTrigger>
           <MenubarContent>
             <MenubarItem onClick={onTest}>{t("editor.shell.test")}</MenubarItem>
+            <MenubarSeparator />
+            <MenubarItem onClick={onOpenQuests}>{t("editor.shell.quests")}</MenubarItem>
             <MenubarItem onClick={onOpenDatabase}>{t("editor.shell.database")}</MenubarItem>
           </MenubarContent>
         </MenubarMenu>

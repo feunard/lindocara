@@ -13,7 +13,7 @@
   "iconLibrary": "lucide",
   "aliases": {
     "components": "@lindocara/ui/components",
-    "utils": "@lindocara/ui/lib/utils",
+    "utils": "@lindocara/ui/lib/utils.js",
     "ui": "@lindocara/ui/components",
     "lib": "@lindocara/ui/lib",
     "hooks": "@lindocara/ui/hooks"
