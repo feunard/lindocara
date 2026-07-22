@@ -17,9 +17,9 @@
  */
 import { getAudioSettings, subscribeAudioSettings } from "./audio-settings.js";
 
-/** The title→menu "enter the game" confirm: a whoosh + sub-boom + bright major-chord stinger. */
-const CONFIRM_SRC = "/assets/lindocara/audio/sfx/title-enter.ogg";
-/** Pre-slider gain for the confirm — big and cinematic, this is the hand-off into the game. */
+/** The title→menu confirm: a clean bell DING with a reverb tail, hit on the first sample. */
+const CONFIRM_SRC = "/assets/lindocara/audio/sfx/title-ding.ogg";
+/** Pre-slider gain for the confirm — this is the hand-off into the game. */
 const CONFIRM_VOLUME = 0.7;
 
 /** The looping menu bed. CC0. Swap this to change the title music. */
@@ -152,13 +152,16 @@ class MenuAudio {
     return this.#confirmLoad;
   }
 
-  /** Begin the looping bed, fading it in. Idempotent; call on entering any launch-menu screen. */
+  /** Begin the looping bed, fading it in. Idempotent; call on entering any launch-menu screen —
+   *  including the title, where the first attempt is likely blocked by autoplay policy (no gesture
+   *  yet). Retrying `play()` whenever the element is paused is what heals that: the attempt is
+   *  harmless when it fails, and the next call after a real gesture (the title press) actually
+   *  starts it, rather than the bed being stuck "on" but silent. */
   startMusic(): void {
-    if (this.#musicOn) return;
     const el = this.#ensureMusic();
     if (!el) return;
     this.#musicOn = true;
-    void el.play().catch(() => undefined);
+    if (el.paused) void el.play().catch(() => undefined);
     this.#fadeToTarget();
   }
 
