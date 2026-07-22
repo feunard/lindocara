@@ -6,7 +6,10 @@ The repo root holds no deliverable; a second site would be a sibling `apps/<name
 
 ## Responsibility
 
-- `index.html` — the Vite entry (its script points at `../../packages/client/src/main.tsx`).
+- `index.html` — the Vite entry. Its script points at `src/main.ts`, a thin in-root entry that just
+  imports the client's self-mounting `@lindocara/client/main.js`. The entry lives inside the Vite
+  root so the dev server serves it as a real module (a relative `../../packages/client/...` path
+  resolves at build time but is served as the SPA fallback in dev, breaking the module's MIME type).
 - `vite.config.ts` — the Vite root is this directory. The `cloudflare()` plugin reads
   `../../packages/server/wrangler.jsonc`, runs the Worker + Durable Objects in workerd during dev, and
   emits a deployable `dist/lindocara/{index.js,wrangler.json}` beside the client bundle in `dist/client`.
