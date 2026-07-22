@@ -39,7 +39,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: lindocara-build
-          path: dist
+          path: apps/main/dist
 
       # Schema first: code that expects a column must never reach production before the
       # column does. Migrations are additive, so this is safe to run on every deploy.
@@ -48,7 +48,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: d1 migrations apply lindocara --remote
+          command: d1 migrations apply lindocara --remote --config packages/server/wrangler.jsonc
 
       # Cloudflare's deployments endpoint occasionally returns a transient 522 or an internal
       # code 10013 after the upload has completed. Retry only those known transient failures;
@@ -61,7 +61,7 @@ jobs:
           set -euo pipefail
           for attempt in 1 2 3; do
             log=$(mktemp)
-            if npx wrangler deploy --config dist/lindocara/wrangler.json 2>&1 | tee "$log"; then
+            if npx wrangler deploy --config apps/main/dist/lindocara/wrangler.json 2>&1 | tee "$log"; then
               exit 0
             fi
             if ! grep -Eq -- '-> 522|\[code: 10013\]' "$log"; then

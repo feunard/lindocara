@@ -4,16 +4,17 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "dev": "vite dev",
-    "build": "vite build",
-    "preview": "vite preview",
-    "deploy": "npm run build && wrangler deploy",
+    "dev": "npm run dev -w @lindocara/main",
+    "build": "npm run build -w @lindocara/main",
+    "preview": "npm run preview -w @lindocara/main",
+    "deploy": "npm run deploy -w @lindocara/main",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:engine": "vitest run --project engine",
@@ -41,11 +42,11 @@
     "typecheck:editor": "tsc -p packages/editor/tsconfig.json",
     "typecheck:ui": "tsc -p packages/ui/tsconfig.json",
     "typecheck:testing": "tsc -p packages/testing/tsconfig.json",
-    "cf-typegen": "wrangler types ./packages/server/src/worker-configuration.d.ts",
+    "cf-typegen": "npm run cf-typegen -w @lindocara/server",
     "ui:add": "shadcn add -c packages/ui",
     "db:generate": "drizzle-kit generate --config packages/server/drizzle.config.ts",
-    "db:migrate": "wrangler d1 migrations apply lindocara --local",
-    "db:migrate:remote": "wrangler d1 migrations apply lindocara --remote",
+    "db:migrate": "npm run db:migrate -w @lindocara/server",
+    "db:migrate:remote": "npm run db:migrate:remote -w @lindocara/server",
     "check": "npm run catalog:check && npm run map:check && npm run lint && npm run typecheck && npm run test",
     "check:runtime": "npm run lint && npm run typecheck && npm run test:runtime && npm run test:ui:runtime && npm run build"
   },

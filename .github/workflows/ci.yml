@@ -37,5 +37,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: lindocara-build
-          path: dist
+          path: apps/main/dist
           if-no-files-found: error

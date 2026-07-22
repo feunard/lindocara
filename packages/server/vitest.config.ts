@@ -12,7 +12,7 @@ const migrations = await readD1Migrations(fileURLToPath(new URL("./migrations", 
 export default defineConfig({
   plugins: [
     cloudflareTest({
-      wrangler: { configPath: "../../wrangler.jsonc" },
+      wrangler: { configPath: "./wrangler.jsonc" },
       miniflare: {
         bindings: {
           SESSION_SECRET: "test-secret-do-not-use-in-production",

@@ -1,0 +1,16 @@
+{
+  "name": "@lindocara/main",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "deploy": "npm run build && wrangler deploy --config dist/lindocara/wrangler.json"
+  },
+  "dependencies": {
+    "@lindocara/client": "*",
+    "@lindocara/server": "*"
+  }
+}

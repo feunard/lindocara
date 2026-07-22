@@ -6,7 +6,7 @@
     "types": ["node"]
   },
   "include": [
-    "vite.config.ts",
+    "apps/main/vite.config.ts",
     "vitest.config.ts",
     "packages/*/vitest.config.ts",
     "packages/server/drizzle.config.ts",
