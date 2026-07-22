@@ -128,7 +128,20 @@ export interface HeroLoadingState {
 }
 
 interface UiState {
-  screen: "boot" | "auth" | "characters" | "game" | "adventure-editor" | "parties" | "party";
+  screen:
+    | "boot"
+    | "title"
+    | "auth"
+    | "menu"
+    | "new"
+    | "continue"
+    | "join"
+    | "hero"
+    | "game"
+    | "adventure-editor"
+    | "characters"
+    | "parties"
+    | "party";
   accountId: string | null;
   activeParty: PartyListing | null;
   adventureEditorSession: AdventureEditorSession | null;

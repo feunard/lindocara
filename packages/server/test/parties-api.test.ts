@@ -158,17 +158,9 @@ describe("party lifecycle over the wire", () => {
     };
     expect(list.items.find((row) => row.id === party.id)).toMatchObject({ colors: ["blue"] });
 
-    const takenRes = await authed(`/api/parties/${party.id}/join`, guest, {
-      method: "POST",
-      body: JSON.stringify({ color: "blue" }),
-    });
-    expect(takenRes.status).toBe(409);
-    expect(await takenRes.json()).toEqual({ error: "party_color_taken" });
-
-    const joinRes = await authed(`/api/parties/${party.id}/join`, guest, {
-      method: "POST",
-      body: JSON.stringify({ color: "red" }),
-    });
+    // Colour is server-assigned now: joining takes no body and just works, the guest getting the
+    // next free colour after the host's blue.
+    const joinRes = await authed(`/api/parties/${party.id}/join`, guest, { method: "POST" });
     expect(joinRes.status).toBe(204);
 
     // guest is not the host → cannot delete

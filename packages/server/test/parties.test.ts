@@ -177,16 +177,16 @@ describe("joinParty", () => {
     const adventureId = await seedAdventure("host", 2);
     const party = await createParty(db, "host", { adventureId, name: null, color: "blue" });
 
-    await expect(joinParty(db, "host", party.id, "red")).rejects.toThrow(/^already_member:/);
-    await expect(joinParty(db, "p2", party.id, "blue")).rejects.toThrow(/^color_taken:/);
+    await expect(joinParty(db, "host", party.id)).rejects.toThrow(/^already_member:/);
 
-    await joinParty(db, "p2", party.id, "yellow");
+    // Colour is assigned automatically — the host holds "blue", so p2 takes the next free slot.
+    await joinParty(db, "p2", party.id);
     const listing = await listPublicParties(db, "host");
-    expect(listing[0]?.colors.sort()).toEqual(["blue", "yellow"]);
+    expect(listing[0]?.colors.sort()).toEqual(["blue", "red"]);
 
     // cap is 2, already full
-    await expect(joinParty(db, "p3", party.id, "purple")).rejects.toThrow(/^full:/);
-    await expect(joinParty(db, "p2", "missing-party", "red")).rejects.toThrow(/^not_found:/);
+    await expect(joinParty(db, "p3", party.id)).rejects.toThrow(/^full:/);
+    await expect(joinParty(db, "p2", "missing-party")).rejects.toThrow(/^not_found:/);
   });
 });
 
@@ -228,8 +228,8 @@ describe("joinParty concurrency", () => {
     // host holds slot 1; p2 and p3 both race for the single remaining slot, distinct
     // accounts and colours so only the cap fence can reject either.
     const results = await Promise.allSettled([
-      joinParty(db, "p2", party.id, "red"),
-      joinParty(db, "p3", party.id, "yellow"),
+      joinParty(db, "p2", party.id),
+      joinParty(db, "p3", party.id),
     ]);
     const fulfilled = results.filter((r) => r.status === "fulfilled");
     const rejected = results.filter((r) => r.status === "rejected");
@@ -251,8 +251,8 @@ describe("joinParty concurrency", () => {
     const party = await createParty(db, "host", { adventureId, name: null, color: "blue" });
 
     const outcomes = await Promise.allSettled([
-      joinParty(db, "p2", party.id, "red"),
-      joinParty(db, "p3", party.id, "red"),
+      joinParty(db, "p2", party.id),
+      joinParty(db, "p3", party.id),
     ]);
     expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
     const rejected = outcomes.find(
@@ -269,8 +269,8 @@ describe("joinParty concurrency", () => {
     const party = await createParty(db, "host", { adventureId, name: null, color: "blue" });
 
     const outcomes = await Promise.allSettled([
-      joinParty(db, "racer", party.id, "red"),
-      joinParty(db, "racer", party.id, "yellow"),
+      joinParty(db, "racer", party.id),
+      joinParty(db, "racer", party.id),
     ]);
     expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
     const rejected = outcomes.find(
@@ -287,7 +287,7 @@ describe("listPublicParties caller annotation", () => {
     await seedAccount("guest");
     const adventureId = await seedAdventure("host");
     const party = await createParty(db, "host", { adventureId, name: null, color: "blue" });
-    await joinParty(db, "guest", party.id, "red");
+    await joinParty(db, "guest", party.id);
 
     const asHost = await listPublicParties(db, "host");
     expect(asHost[0]).toMatchObject({ mine: true, myColor: "blue" });

@@ -1,0 +1,328 @@
+/*
+ * The launch experience: title → main menu → carousels → hero create. Warcraft-III flavour — a dark
+ * lit backdrop, warm stone/gold panels, heavy ornate buttons — and controller-first: the focused
+ * item glows and lifts so you always know where the stick is. Pure Tiny-Swords-side game UI; no
+ * shadcn here. (The raw art backdrops are placeholders — gradients now, cover art later.)
+ */
+
+:root {
+  --launch-gold: #e8c37a;
+  --launch-gold-bright: #ffe6a8;
+  --launch-ink: #f4e9d2;
+  --launch-stone: #2a2320;
+  --launch-stone-lit: #3a302a;
+  --launch-edge: #6b5335;
+  --launch-glow: 0 0 0 2px var(--launch-gold), 0 0 22px rgba(232, 195, 122, 0.55);
+}
+
+/* Six stable per-item accents so cards read as distinct without any colour picker. */
+[data-accent="0"] {
+  --accent: #7fb4e6;
+}
+[data-accent="1"] {
+  --accent: #e68a7f;
+}
+[data-accent="2"] {
+  --accent: #e6c87f;
+}
+[data-accent="3"] {
+  --accent: #a97fe6;
+}
+[data-accent="4"] {
+  --accent: #7fe6a3;
+}
+[data-accent="5"] {
+  --accent: #e67fc0;
+}
+
+.title-screen,
+.main-menu,
+.carousel-screen,
+.hero-create {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  color: var(--launch-ink);
+  font-family: "Cinzel", "Press Start 2P", serif;
+  background:
+    radial-gradient(ellipse at 50% 18%, rgba(232, 195, 122, 0.14), transparent 60%),
+    radial-gradient(ellipse at 50% 120%, rgba(60, 90, 60, 0.35), transparent 55%),
+    linear-gradient(180deg, #10100e 0%, #1a1712 55%, #0c0b0a 100%);
+  overflow: hidden;
+}
+
+/* ── Title ─────────────────────────────────────────────────────────────── */
+.title-screen__logo {
+  margin: 0;
+  font-size: clamp(3rem, 10vw, 7rem);
+  letter-spacing: 0.08em;
+  color: var(--launch-gold-bright);
+  text-shadow:
+    0 2px 0 #3a2c12,
+    0 0 30px rgba(232, 195, 122, 0.45);
+}
+.title-screen__tagline {
+  margin: 0.5rem 0 0;
+  font-size: clamp(0.9rem, 2vw, 1.25rem);
+  color: var(--launch-ink);
+  opacity: 0.8;
+}
+.title-screen__prompt {
+  position: absolute;
+  bottom: 12vh;
+  font-size: clamp(0.9rem, 2vw, 1.1rem);
+  letter-spacing: 0.12em;
+  color: var(--launch-gold);
+  animation: launch-pulse 1.6s ease-in-out infinite;
+}
+@keyframes launch-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ── Main menu ─────────────────────────────────────────────────────────── */
+.main-menu__logo {
+  margin: 0;
+  font-size: clamp(2rem, 6vw, 3.5rem);
+  letter-spacing: 0.1em;
+  color: var(--launch-gold-bright);
+  text-shadow: 0 0 24px rgba(232, 195, 122, 0.4);
+}
+.main-menu__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 2rem 2.5rem;
+  border: 2px solid var(--launch-edge);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(58, 48, 42, 0.92), rgba(30, 25, 22, 0.94));
+  box-shadow:
+    inset 0 0 0 1px rgba(232, 195, 122, 0.12),
+    0 24px 60px rgba(0, 0, 0, 0.55);
+  min-width: min(26rem, 82vw);
+}
+
+.menu-button {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem 1.4rem;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--launch-stone-lit), var(--launch-stone));
+  color: var(--launch-ink);
+  font: inherit;
+  font-size: clamp(1.05rem, 2.4vw, 1.4rem);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    border-color 0.12s ease;
+}
+.menu-button__icon {
+  color: var(--launch-gold);
+  font-size: 1.1em;
+}
+.menu-button--focused {
+  border-color: var(--launch-gold);
+  box-shadow: var(--launch-glow);
+  transform: translateX(6px) scale(1.02);
+  color: var(--launch-gold-bright);
+}
+.menu-button:focus-visible {
+  outline: none;
+}
+
+.main-menu__editor {
+  position: absolute;
+  left: 1.25rem;
+  bottom: 1.25rem;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid rgba(232, 195, 122, 0.25);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(244, 233, 210, 0.7);
+  font: inherit;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+}
+.main-menu__editor:hover {
+  opacity: 1;
+}
+
+/* ── Hints bar ─────────────────────────────────────────────────────────── */
+.menu-hints {
+  position: absolute;
+  bottom: 1.5rem;
+  display: flex;
+  gap: 1.5rem;
+  font-family: system-ui, sans-serif;
+  font-size: 0.85rem;
+  color: rgba(244, 233, 210, 0.75);
+}
+.menu-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.menu-hint__key {
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--launch-edge);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--launch-gold);
+  font-size: 0.78rem;
+}
+
+/* ── Carousels ─────────────────────────────────────────────────────────── */
+.carousel-screen__title,
+.hero-create__title {
+  margin: 0;
+  font-size: clamp(1.6rem, 5vw, 2.6rem);
+  color: var(--launch-gold-bright);
+  letter-spacing: 0.08em;
+}
+.carousel-screen__status {
+  color: rgba(244, 233, 210, 0.7);
+  font-family: system-ui, sans-serif;
+}
+.carousel-track,
+.class-track {
+  display: flex;
+  gap: 1.5rem;
+  max-width: 92vw;
+  padding: 1.5rem 1rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+}
+.carousel-card,
+.class-card {
+  scroll-snap-align: center;
+  flex: 0 0 auto;
+  width: 12rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 1.2rem 1rem;
+  border: 2px solid var(--launch-edge);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(58, 48, 42, 0.9), rgba(26, 22, 20, 0.92));
+  color: var(--launch-ink);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    transform 0.14s ease,
+    box-shadow 0.14s ease,
+    border-color 0.14s ease;
+}
+.carousel-card__art {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 10px;
+  background: linear-gradient(160deg, var(--accent, #7fb4e6), rgba(0, 0, 0, 0.5));
+  color: rgba(0, 0, 0, 0.55);
+  font-size: 2.5rem;
+  font-weight: 700;
+}
+.carousel-card__title,
+.class-card__name {
+  font-size: 1.1rem;
+  color: var(--launch-gold-bright);
+  letter-spacing: 0.03em;
+}
+.carousel-card__subtitle,
+.class-card__blurb {
+  font-family: system-ui, sans-serif;
+  font-size: 0.8rem;
+  color: rgba(244, 233, 210, 0.7);
+  text-align: center;
+}
+.carousel-card--focused,
+.class-card--focused {
+  border-color: var(--launch-gold);
+  box-shadow: var(--launch-glow);
+  transform: translateY(-8px) scale(1.06);
+}
+.carousel-card:focus-visible,
+.class-card:focus-visible {
+  outline: none;
+}
+
+.carousel-screen__back,
+.hero-create__error {
+  position: absolute;
+  top: 1.5rem;
+  left: 1.5rem;
+}
+.carousel-screen__back {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--launch-edge);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(244, 233, 210, 0.8);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+/* ── Hero create ───────────────────────────────────────────────────────── */
+.hero-create__head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+.class-card__emblem {
+  font-size: 2.4rem;
+  color: var(--launch-gold);
+}
+.hero-create__name {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+.hero-create__name-label {
+  font-family: system-ui, sans-serif;
+  font-size: 0.8rem;
+  color: rgba(244, 233, 210, 0.7);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.hero-create__name-input {
+  padding: 0.5rem 0.9rem;
+  border: 2px solid var(--launch-edge);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--launch-gold-bright);
+  font: inherit;
+  font-size: 1.2rem;
+  text-align: center;
+  min-width: 12rem;
+}
+.hero-create__name-input:focus-visible {
+  outline: none;
+  border-color: var(--launch-gold);
+  box-shadow: var(--launch-glow);
+}
+.hero-create__error {
+  position: static;
+  color: #e68a7f;
+  font-family: system-ui, sans-serif;
+}

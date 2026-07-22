@@ -14,7 +14,7 @@ import { parseCreateHeroInput } from "@lindocara/engine/hero.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
 import { mapSpawnPoint, parseMapData } from "@lindocara/engine/map-data.js";
 import { parseMapEvents } from "@lindocara/engine/map-events.js";
-import { parseCreatePartyInput, parseJoinPartyInput } from "@lindocara/engine/party.js";
+import { parseCreatePartyInput } from "@lindocara/engine/party.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import {
   isKnownZone,
@@ -881,12 +881,9 @@ async function handleJoinParty(
 ): Promise<Response> {
   const auth = await requireSession(request, env, url);
   if (auth instanceof Response) return auth;
-  const parsed = await readJson(request);
-  if (parsed instanceof Response) return parsed;
-  const input = parseJoinPartyInput(parsed.value);
-  if (!input) return json({ error: "party_invalid" }, { status: 400 });
+  // Joining needs no body: the server assigns the colour.
   try {
-    await joinParty(createDb(env.DB), auth.session.id, id, input.color);
+    await joinParty(createDb(env.DB), auth.session.id, id);
     return new Response(null, { status: 204 });
   } catch (error) {
     return partyErrorResponse(error);

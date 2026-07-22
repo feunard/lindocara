@@ -8,6 +8,7 @@
 import {
   type CreatePartyInput,
   MAX_HOSTED_PARTIES,
+  PARTY_COLORS,
   PARTY_LIST_PAGE_SIZE,
   type PartyColor,
 } from "@lindocara/engine/party.js";
@@ -253,12 +254,7 @@ export async function listPublicParties(db: Db, accountId: string): Promise<Part
   return (await listPublicPartiesPage(db, accountId)).items;
 }
 
-export async function joinParty(
-  db: Db,
-  accountId: string,
-  partyId: string,
-  color: PartyColor,
-): Promise<void> {
+export async function joinParty(db: Db, accountId: string, partyId: string): Promise<void> {
   const row = await loadPartyRow(db, partyId);
   if (!row) throw new Error("not_found: no such party");
   const members = await db
@@ -269,9 +265,10 @@ export async function joinParty(
     throw new Error("already_member: already in this party");
   }
   if (members.length >= row.maxPlayers) throw new Error("full: party is full");
-  if (members.some((member) => member.color === color)) {
-    throw new Error("color_taken: that colour is taken");
-  }
+  // Colour is server-assigned, never chosen: take the first free slot. With PARTY_COLORS >=
+  // maxPlayers, a not-full party always has one.
+  const color = PARTY_COLORS.find((c) => !members.some((m) => m.color === c));
+  if (!color) throw new Error("full: party is full");
   // Atomic cap backstop: the length check above is a friendly fast-path, but two concurrent joins
   // could both pass it before either inserts. This conditional insert writes only while the live
   // count is still under the cap, so a party can never exceed maxPlayers under a race (mirrors
@@ -297,10 +294,12 @@ export async function joinParty(
   if (after.some((member) => member.accountId === accountId)) {
     throw new Error("already_member: already in this party");
   }
+  // Full wins over colour: colours are server-assigned now, so a colour clash is only ever a race
+  // artifact — if the party is at cap, the honest reason the loser was rejected is that it is full.
+  if (after.length >= row.maxPlayers) throw new Error("full: party is full");
   if (after.some((member) => member.color === color)) {
     throw new Error("color_taken: that colour is taken");
   }
-  if (after.length >= row.maxPlayers) throw new Error("full: party is full");
   throw new Error("full: party admission lost its atomic guard");
 }
 

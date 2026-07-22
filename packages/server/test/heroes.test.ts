@@ -284,7 +284,7 @@ describe("createHero", () => {
     await seedAccount("host");
     await seedAccount("mate");
     const { partyId } = await seedParty("host");
-    await joinParty(db, "mate", partyId, "red");
+    await joinParty(db, "mate", partyId);
 
     await createHero(db, "host", partyId, { name: "Hostling", class: "warrior" });
     await createHero(db, "mate", partyId, { name: "Matey", class: "ranger" });
@@ -319,7 +319,7 @@ describe("deleteHero", () => {
     await seedAccount("host");
     await seedAccount("mate");
     const { partyId } = await seedParty("host");
-    await joinParty(db, "mate", partyId, "red");
+    await joinParty(db, "mate", partyId);
     const mine = await createHero(db, "host", partyId, { name: "Mine", class: "warrior" });
 
     await expect(deleteHero(db, "mate", partyId, mine.id)).rejects.toThrow(/^not_found:/);

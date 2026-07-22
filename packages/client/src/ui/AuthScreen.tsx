@@ -22,7 +22,7 @@ export function AuthScreen() {
     setBusy(true);
     try {
       await continueAsGuest();
-      setScreen("parties");
+      setScreen("menu");
     } catch (caught) {
       setError(errorCode(caught));
     } finally {
@@ -44,7 +44,7 @@ export function AuthScreen() {
         method: "POST",
         body: JSON.stringify({ username: data.get("username"), password: data.get("password") }),
       });
-      setScreen("parties");
+      setScreen("menu");
     } catch (caught) {
       setError(errorCode(caught));
     } finally {

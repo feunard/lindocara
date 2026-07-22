@@ -2,7 +2,7 @@ import { emptyDraft } from "@lindocara/client/adventure-draft.js";
 import type { MapPayload, MapSummary } from "@lindocara/client/api.js";
 import { setLocale, t } from "@lindocara/client/i18n.js";
 import { useUiStore } from "@lindocara/client/store.js";
-import { PartiesScreen } from "@lindocara/client/ui/PartiesScreen.js";
+import { MainMenu } from "@lindocara/client/ui/MainMenu.js";
 import { defaultEventPage, toMapData, toSaveInput } from "@lindocara/editor/game/editor-state.js";
 import { AdventureEditorScreen } from "@lindocara/editor/ui/editor/AdventureEditorScreen.js";
 import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
@@ -1550,24 +1550,16 @@ describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
   });
 });
 
-describe("PartiesScreen → editor navigation", () => {
+describe("main menu → editor navigation", () => {
   beforeEach(() => {
     setLocale("en");
-    useUiStore.setState({ screen: "parties", accountId: "me", activeParty: null });
+    useUiStore.setState({ screen: "menu", accountId: "me", activeParty: null });
   });
 
-  it("routes the creator-tools button to the merged adventure editor", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((url: string) => {
-        if (url === "/api/parties") return Promise.resolve(jsonResponse([]));
-        if (url === "/api/adventures") return Promise.resolve(jsonResponse([]));
-        return Promise.resolve(jsonResponse({ error: "not_found" }, 404));
-      }),
-    );
-    render(<PartiesScreen />);
+  it("routes the discreet editor button to the merged adventure editor", async () => {
+    render(<MainMenu />);
 
-    await userEvent.click(await screen.findByRole("button", { name: "Creator tools" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Editor" }));
     expect(useUiStore.getState().screen).toBe("adventure-editor");
   });
 });

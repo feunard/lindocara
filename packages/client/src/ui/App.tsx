@@ -12,15 +12,16 @@ import { Hud } from "./hud/Hud.js";
 import { Minimap } from "./hud/Minimap.js";
 import { InteriorOverlay } from "./InteriorOverlay.js";
 import { InventoryOverlay } from "./InventoryOverlay.js";
+import { ContinueScreen, JoinScreen, NewGameScreen } from "./LaunchScreens.js";
 import { LocaleToggle } from "./LocaleToggle.js";
+import { MainMenu } from "./MainMenu.js";
 import { MerchantOverlay } from "./MerchantOverlay.js";
 import { MobileControls } from "./MobileControls.js";
-import { PartiesScreen } from "./PartiesScreen.js";
-import { PartyScreen } from "./PartyScreen.js";
 import { Prompt } from "./Prompt.js";
 import { SettingsMenu } from "./SettingsMenu.js";
 import { StatusBar } from "./StatusBar.js";
 import { TalentTree } from "./TalentTree.js";
+import { TitleScreen } from "./TitleScreen.js";
 import { VictoryOverlay } from "./VictoryOverlay.js";
 import { WorldMap } from "./WorldMap.js";
 
@@ -38,18 +39,31 @@ export function App() {
   useEffect(() => {
     fetchMe().then((me) => {
       setAccountId(me?.id ?? null);
-      setScreen(me ? "parties" : "auth");
+      setScreen(me ? "title" : "auth");
     });
   }, [setScreen, setAccountId]);
+
+  const immersive =
+    screen === "adventure-editor" ||
+    screen === "title" ||
+    screen === "menu" ||
+    screen === "new" ||
+    screen === "continue" ||
+    screen === "join";
 
   return (
     <>
       {/* The floating game-chrome locale chip and status pill are anchored bottom-right and would
           collide with the editor's own bottom-right chrome (the "Adventure settings" button). The
           dense editor shell owns its whole viewport, so keep these Tiny Swords widgets off it. */}
-      {screen !== "adventure-editor" && <LocaleToggle />}
-      {screen !== "adventure-editor" && <StatusBar />}
+      {!immersive && <LocaleToggle />}
+      {!immersive && <StatusBar />}
       {screen === "auth" && <AuthScreen />}
+      {screen === "title" && <TitleScreen />}
+      {screen === "menu" && <MainMenu />}
+      {screen === "continue" && <ContinueScreen />}
+      {screen === "new" && <NewGameScreen />}
+      {screen === "join" && <JoinScreen />}
       {screen === "adventure-editor" && (
         <Suspense
           fallback={
@@ -67,8 +81,6 @@ export function App() {
           <AdventureEditorScreen />
         </Suspense>
       )}
-      {screen === "parties" && <PartiesScreen />}
-      {screen === "party" && <PartyScreen />}
       {screen === "game" && (
         <>
           <Hud />

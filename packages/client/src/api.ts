@@ -203,13 +203,10 @@ export async function fetchParties(): Promise<PartyListing[]> {
   }
   return parties;
 }
-export const createPartyApi = (input: {
-  adventureId: string;
-  name?: string | null;
-  color: PartyColor;
-}) => api<StoredParty>("/api/parties", { method: "POST", body: JSON.stringify(input) });
-export const joinPartyApi = (partyId: string, color: PartyColor) =>
-  api<void>(`/api/parties/${partyId}/join`, { method: "POST", body: JSON.stringify({ color }) });
+export const createPartyApi = (input: { adventureId: string; name?: string | null }) =>
+  api<StoredParty>("/api/parties", { method: "POST", body: JSON.stringify(input) });
+export const joinPartyApi = (partyId: string) =>
+  api<void>(`/api/parties/${partyId}/join`, { method: "POST" });
 export const deletePartyApi = (partyId: string) =>
   api<void>(`/api/parties/${partyId}`, { method: "DELETE" });
 export const fetchHeroes = (partyId: string) => api<StoredHero[]>(`/api/parties/${partyId}/heroes`);

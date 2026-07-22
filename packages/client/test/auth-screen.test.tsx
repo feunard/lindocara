@@ -53,7 +53,7 @@ describe("AuthScreen", () => {
     await userEvent.type(screen.getByLabelText("Username"), "nico");
     await userEvent.type(screen.getByLabelText("Password"), "12345678");
     await userEvent.click(screen.getByRole("button", { name: "Enter the Hollow" }));
-    await vi.waitFor(() => expect(useUiStore.getState().screen).toBe("parties"));
+    await vi.waitFor(() => expect(useUiStore.getState().screen).toBe("menu"));
   });
 
   describe("continue as guest", () => {
@@ -63,7 +63,7 @@ describe("AuthScreen", () => {
       const mock = stubFetch(200, { id: "a", username: "guest-abcdefghij" });
       render(<AuthScreen />);
       await userEvent.click(screen.getByRole("button", { name: "Continue as guest" }));
-      await vi.waitFor(() => expect(useUiStore.getState().screen).toBe("parties"));
+      await vi.waitFor(() => expect(useUiStore.getState().screen).toBe("menu"));
 
       expect(mock).toHaveBeenCalledTimes(1);
       const [path, init] = mock.mock.calls[0] as [string, RequestInit];
@@ -81,7 +81,7 @@ describe("AuthScreen", () => {
       const mock = stubFetch(200, { id: "a", username: stored.username });
       render(<AuthScreen />);
       await userEvent.click(screen.getByRole("button", { name: "Continue as guest" }));
-      await vi.waitFor(() => expect(useUiStore.getState().screen).toBe("parties"));
+      await vi.waitFor(() => expect(useUiStore.getState().screen).toBe("menu"));
 
       expect(mock).toHaveBeenCalledTimes(1);
       const [path, init] = mock.mock.calls[0] as [string, RequestInit];
@@ -114,7 +114,7 @@ describe("AuthScreen", () => {
 
       render(<AuthScreen />);
       await userEvent.click(screen.getByRole("button", { name: "Continue as guest" }));
-      await vi.waitFor(() => expect(useUiStore.getState().screen).toBe("parties"));
+      await vi.waitFor(() => expect(useUiStore.getState().screen).toBe("menu"));
 
       expect(mock.mock.calls.map(([path]) => path)).toEqual(["/api/session", "/api/register"]);
       const replaced = JSON.parse(String(localStorage.getItem("lindocara.guest"))) as {
@@ -131,7 +131,7 @@ describe("AuthScreen", () => {
       const mock = stubFetch(200, { id: "a", username: "guest-abcdefghij" });
       render(<AuthScreen />);
       await userEvent.click(screen.getByRole("button", { name: "Continue as guest" }));
-      await vi.waitFor(() => expect(useUiStore.getState().screen).toBe("parties"));
+      await vi.waitFor(() => expect(useUiStore.getState().screen).toBe("menu"));
 
       // Straight to register: storage is user-writable, so it is validated like any wire input.
       expect(mock.mock.calls.map(([path]) => path)).toEqual(["/api/register"]);
