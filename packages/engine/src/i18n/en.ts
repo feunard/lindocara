@@ -1082,6 +1082,7 @@ export const en = {
   "menu.new": "New adventure",
   "menu.join": "Join a party",
   "menu.options": "Options",
+  "menu.quit": "Quit",
   "menu.editor": "Editor",
   "menu.back": "Back",
   "menu.hint.navigate": "Navigate",

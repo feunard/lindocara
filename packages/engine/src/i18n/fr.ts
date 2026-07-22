@@ -1104,6 +1104,7 @@ export const fr: Record<keyof typeof en, string> = {
   "menu.new": "Nouvelle aventure",
   "menu.join": "Rejoindre",
   "menu.options": "Options",
+  "menu.quit": "Quitter",
   "menu.editor": "Éditeur",
   "menu.back": "Retour",
   "menu.hint.navigate": "Naviguer",

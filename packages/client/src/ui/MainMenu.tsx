@@ -3,7 +3,8 @@
  * MenuNav focus model so it is fully playable on a controller (D-pad to move, A to select). The
  * editor is a deliberately discreet corner button, kept out of the controller path.
  */
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
+import { fetchParties } from "../api.js";
 import { t } from "../i18n.js";
 import { useUiStore } from "../store.js";
 import { MenuNav, useMenuItem } from "./tiny-swords/menu-nav.js";
@@ -38,6 +39,16 @@ function MenuItemButton({
 export function MainMenu() {
   const setScreen = useUiStore((s) => s.setScreen);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
+  // "Continue" is hidden until we know the account has at least one save — no dead entry that
+  // opens onto an empty carousel. Ordering leaves a gap at 0 when hidden; MenuNav sorts by order,
+  // so the remaining items still focus correctly.
+  const [hasSaves, setHasSaves] = useState(false);
+
+  useEffect(() => {
+    void fetchParties()
+      .then((all) => setHasSaves(all.some((p) => p.mine)))
+      .catch(() => setHasSaves(false));
+  }, []);
 
   return (
     <main className="main-menu">
@@ -45,13 +56,20 @@ export function MainMenu() {
         <h1 className="main-menu__logo">Lindocara</h1>
       </div>
 
-      <MenuNav orientation="vertical" className="main-menu__panel" aria-label={t("menu.title")}>
-        <MenuItemButton
-          order={0}
-          icon="▶"
-          label={t("menu.continue")}
-          onActivate={() => setScreen("continue")}
-        />
+      <MenuNav
+        orientation="vertical"
+        className="main-menu__panel"
+        aria-label={t("menu.title")}
+        onBack={() => setScreen("title")}
+      >
+        {hasSaves && (
+          <MenuItemButton
+            order={0}
+            icon="▶"
+            label={t("menu.continue")}
+            onActivate={() => setScreen("continue")}
+          />
+        )}
         <MenuItemButton
           order={1}
           icon="⚔"
@@ -70,6 +88,12 @@ export function MainMenu() {
           label={t("menu.options")}
           onActivate={() => setSettingsOpen(true)}
         />
+        <MenuItemButton
+          order={4}
+          icon="⎋"
+          label={t("menu.quit")}
+          onActivate={() => setScreen("title")}
+        />
       </MenuNav>
 
       <button
@@ -83,6 +107,7 @@ export function MainMenu() {
       <MenuHints>
         <Hint keyLabel="↕ / D-Pad">{t("menu.hint.navigate")}</Hint>
         <Hint keyLabel="A / Enter">{t("menu.hint.select")}</Hint>
+        <Hint keyLabel="B / Esc">{t("menu.quit")}</Hint>
       </MenuHints>
     </main>
   );

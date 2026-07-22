@@ -38,7 +38,6 @@ export function TitleScreen() {
     <main className="title-screen">
       <div className="title-screen__brand">
         <h1 className="title-screen__logo">Lindocara</h1>
-        <p className="title-screen__tagline">{t("title.tagline")}</p>
       </div>
       <p className="title-screen__prompt">{t("title.press_start")}</p>
     </main>
