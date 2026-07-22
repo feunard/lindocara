@@ -15,7 +15,7 @@ import {
 } from "@lindocara/server/world/skill-system.js";
 import { SpatialGrid } from "@lindocara/server/world/spatial-grid.js";
 import { newPlayer, type PlayerRuntime } from "@lindocara/server/world/world-runtime.js";
-import { noColliders, tileMapFromRects } from "@lindocara/test-utils/tiles.js";
+import { noColliders, tileMapFromRects } from "@lindocara/testing/tiles.js";
 import { describe, expect, it, vi } from "vitest";
 
 const OBSTACLES = [{ x: 80, y: 0, width: 20, height: 120 }];

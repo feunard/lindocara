@@ -24,7 +24,7 @@ import {
 } from "@lindocara/server/db/index.js";
 import { createHero } from "@lindocara/server/heroes.js";
 import { migrateMarkersToEvents } from "@lindocara/server/map-marker-event-migrate.js";
-import { layeredWireTerrain } from "@lindocara/test-utils/map-fixtures.js";
+import { layeredWireTerrain } from "@lindocara/testing/map-fixtures.js";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import {

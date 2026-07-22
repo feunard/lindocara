@@ -24,7 +24,7 @@ import {
 } from "@lindocara/server/adventures.js";
 import { account, createDb, type Db, party } from "@lindocara/server/db/index.js";
 import { deleteMap as deleteOwnedMap, loadOwnedMap, updateMap } from "@lindocara/server/maps.js";
-import { layeredTerrain } from "@lindocara/test-utils/map-fixtures.js";
+import { layeredTerrain } from "@lindocara/testing/map-fixtures.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { authorMap, seedAdventure } from "./adventure-fixtures.js";
 

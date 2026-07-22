@@ -19,7 +19,7 @@ import {
   type PlayerRuntime,
   type ProjectileRuntime,
 } from "@lindocara/server/world/world-runtime.js";
-import { noColliders, tileMapFromRects } from "@lindocara/test-utils/tiles.js";
+import { noColliders, tileMapFromRects } from "@lindocara/testing/tiles.js";
 import { describe, expect, it, vi } from "vitest";
 
 function terrain(obstacles: TerrainGeometry["obstacles"] = []): TerrainGeometry {

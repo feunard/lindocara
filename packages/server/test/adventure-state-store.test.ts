@@ -20,7 +20,7 @@ import { createAdventure, updateAdventure } from "@lindocara/server/adventures.j
 import { account, createDb, type Db, partyAdventureState } from "@lindocara/server/db/index.js";
 import type { MapInput } from "@lindocara/server/maps.js";
 import { createParty } from "@lindocara/server/parties.js";
-import { layeredTerrain } from "@lindocara/test-utils/map-fixtures.js";
+import { layeredTerrain } from "@lindocara/testing/map-fixtures.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { authorMap } from "./adventure-fixtures.js";
 

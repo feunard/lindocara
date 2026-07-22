@@ -61,7 +61,7 @@ vi.mock("@lindocara/renderer/input.js", () => ({
 
 import { startMapPreview } from "@lindocara/editor/game/map-preview.js";
 import { TICK_DT } from "@lindocara/engine/simulation.js";
-import { mapDataFromBlocks } from "@lindocara/test-utils/map-fixtures.js";
+import { mapDataFromBlocks } from "@lindocara/testing/map-fixtures.js";
 
 // A large open room: the fixture only needs to exist, no wall is anywhere near the spawn.
 const OPEN_ROOM = mapDataFromBlocks({

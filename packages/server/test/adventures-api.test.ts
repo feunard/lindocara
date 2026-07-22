@@ -10,7 +10,7 @@ import { functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js"
 import { createAdventure } from "@lindocara/server/adventures.js";
 import { createDb } from "@lindocara/server/db/index.js";
 import { SESSION_COOKIE } from "@lindocara/server/session.js";
-import { layeredWireTerrain } from "@lindocara/test-utils/map-fixtures.js";
+import { layeredWireTerrain } from "@lindocara/testing/map-fixtures.js";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 const ORIGIN = "https://lindocara.test";

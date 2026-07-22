@@ -61,7 +61,7 @@ import {
 } from "@lindocara/engine/simulation.js";
 import { isSkillUnlocked, SKILL_UNLOCK_LEVEL } from "@lindocara/engine/skills.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
-import { tileMapFromRects } from "@lindocara/test-utils/tiles.js";
+import { tileMapFromRects } from "@lindocara/testing/tiles.js";
 import { describe, expect, it } from "vitest";
 
 function expectValidRect(rect: Rect): void {

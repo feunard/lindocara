@@ -14,7 +14,7 @@ export default defineConfig({
     environment: "jsdom",
     execArgv: ["--no-experimental-webstorage"],
     include: ["test/**/*.test.{ts,tsx}"],
-    setupFiles: [fileURLToPath(new URL("../test-utils/src/jsdom-setup.ts", import.meta.url))],
+    setupFiles: [fileURLToPath(new URL("../testing/src/jsdom-setup.ts", import.meta.url))],
     css: false,
   },
 });

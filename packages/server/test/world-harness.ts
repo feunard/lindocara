@@ -40,7 +40,7 @@ import {
   type WorldCache,
 } from "@lindocara/engine/world-delta.js";
 import { isKnownZone, zoneDefinition } from "@lindocara/engine/zones.js";
-import { layeredWireTerrain } from "@lindocara/test-utils/map-fixtures.js";
+import { layeredWireTerrain } from "@lindocara/testing/map-fixtures.js";
 import { expect } from "vitest";
 
 export const ORIGIN = "https://lindocara.test";

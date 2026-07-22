@@ -20,7 +20,7 @@ import {
   setFirstMap as setOwnedFirstMap,
   updateMap as updateOwnedMap,
 } from "@lindocara/server/maps.js";
-import { layeredTerrain } from "@lindocara/test-utils/map-fixtures.js";
+import { layeredTerrain } from "@lindocara/testing/map-fixtures.js";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { authorMap, seedAdventure } from "./adventure-fixtures.js";
 

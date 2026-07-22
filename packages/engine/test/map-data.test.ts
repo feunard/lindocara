@@ -17,7 +17,7 @@ import { emptyLayer, encodeTileLayer } from "@lindocara/engine/tile-layer-codec.
 import { isSolidKind, kindAt, TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
-import { mapDataFromBlocks } from "@lindocara/test-utils/map-fixtures.js";
+import { mapDataFromBlocks } from "@lindocara/testing/map-fixtures.js";
 import { describe, expect, it } from "vitest";
 
 /** Stand-in when a `layersFromBlocks` index read has to be narrowed. */

@@ -51,7 +51,7 @@ the new homes:
 | `@lindocara/ui` | the stock shadcn component tree (base-nova) + `cn`/utils + shadcn `globals.css` tokens — shadcn monorepo mode, its own `components.json` | npm only | browser + React |
 | `@lindocara/client` | rest of `src/client/` (app shell, HUD, Tiny-Swords tree, store, api, i18n, net/sound/session glue) | engine, renderer, ui | browser + React |
 | `@lindocara/editor` | `src/client/ui/editor/` + editor game files | engine, renderer, client, ui | browser + React |
-| `@lindocara/test-utils` | shared test fixtures (`map-fixtures`, `tiles`, jsdom setup), dev-only | engine | node/jsdom |
+| `@lindocara/testing` | shared test fixtures (`map-fixtures`, `tiles`, jsdom setup), dev-only | engine | node/jsdom |
 
 The graph is acyclic: `engine ← {server, renderer}`, `renderer ← {client}`, `client ← {editor}`
 (the client App lazy-`import()`s the editor at runtime without declaring it, so no cycle). Cross-package
@@ -61,7 +61,7 @@ checks one. **Tests are co-located per package** in `packages/<pkg>/test/`, each
 `vitest.config.ts` (engine = node, server = workerd/cloudflare-pool, renderer/client/editor = jsdom).
 The root `vitest.config.ts` aggregates them via `projects`, so `npm test` runs everything and
 `npm test -w @lindocara/<pkg>` (or `npm run test:<pkg>`) runs one. Shared test fixtures
-(`map-fixtures`, `tiles`, the jsdom setup) live in the dev-only `@lindocara/test-utils` package.
+(`map-fixtures`, `tiles`, the jsdom setup) live in the dev-only `@lindocara/testing` package.
 `public/` belongs to the client package; `drizzle.config.ts` + `migrations/` to the server package;
 `wrangler.jsonc` stays at the root (it assembles the deploy). See
 [`docs/superpowers/specs/2026-07-22-monorepo-packages-design.md`](./docs/superpowers/specs/2026-07-22-monorepo-packages-design.md)

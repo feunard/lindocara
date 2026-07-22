@@ -16,7 +16,7 @@ import {
 import { account, createDb } from "@lindocara/server/db/index.js";
 import { loadMap, type MapInput, validateMapInput } from "@lindocara/server/maps.js";
 import { SESSION_COOKIE } from "@lindocara/server/session.js";
-import { layeredTerrain, layeredWireTerrain } from "@lindocara/test-utils/map-fixtures.js";
+import { layeredTerrain, layeredWireTerrain } from "@lindocara/testing/map-fixtures.js";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { authorMap, seedAdventure } from "./adventure-fixtures.js";
 

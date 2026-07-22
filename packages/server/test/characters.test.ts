@@ -4,7 +4,7 @@ import { createAccount } from "@lindocara/server/accounts.js";
 import { createCharacter } from "@lindocara/server/characters.js";
 import { createDb } from "@lindocara/server/db/index.js";
 import { loadProfile } from "@lindocara/server/profile.js";
-import { layeredTerrain } from "@lindocara/test-utils/map-fixtures.js";
+import { layeredTerrain } from "@lindocara/testing/map-fixtures.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { authorMap, seedAdventure } from "./adventure-fixtures.js";
 

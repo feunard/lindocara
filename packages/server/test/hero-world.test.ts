@@ -6,7 +6,7 @@ import type { MapElement } from "@lindocara/engine/map-data.js";
 import { defaultEventPage, functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js";
 import { PLAYER_SIZE } from "@lindocara/engine/simulation.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
-import { layeredWireTerrain } from "@lindocara/test-utils/map-fixtures.js";
+import { layeredWireTerrain } from "@lindocara/testing/map-fixtures.js";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   Client,

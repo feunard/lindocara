@@ -12,7 +12,7 @@
 
 import { bakeCollision, type MapData } from "@lindocara/engine/map-data.js";
 import { landMask, needsFoam } from "@lindocara/renderer/autotile.js";
-import { mapDataFromBlocks } from "@lindocara/test-utils/map-fixtures.js";
+import { mapDataFromBlocks } from "@lindocara/testing/map-fixtures.js";
 import { describe, expect, it } from "vitest";
 
 /** A 4x3 grass island in open water — the shape every shoreline rule cares about. */

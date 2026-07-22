@@ -12,7 +12,7 @@ import {
   requestMonsterPath,
 } from "@lindocara/server/world/navigation-system.js";
 import { createMonsters, type MonsterRuntime } from "@lindocara/server/world/world-runtime.js";
-import { noColliders, tileMapFromRects } from "@lindocara/test-utils/tiles.js";
+import { noColliders, tileMapFromRects } from "@lindocara/testing/tiles.js";
 import { describe, expect, it } from "vitest";
 
 const BASE_TILES = tileMapFromRects(480, 320, []);

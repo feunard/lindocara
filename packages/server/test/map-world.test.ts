@@ -10,7 +10,7 @@ import { bakeCollision, mapSpawnPoint } from "@lindocara/engine/map-data.js";
 import { encodeTileMap } from "@lindocara/engine/tilemap-codec.js";
 import { createDb } from "@lindocara/server/db/index.js";
 import { deleteMap, type MapInput } from "@lindocara/server/maps.js";
-import { layeredTerrain } from "@lindocara/test-utils/map-fixtures.js";
+import { layeredTerrain } from "@lindocara/testing/map-fixtures.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { authorMap, seedAdventure } from "./adventure-fixtures.js";
 import { Client, testCharacter, until } from "./world-harness.js";

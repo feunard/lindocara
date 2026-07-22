@@ -17,7 +17,7 @@ import {
   listPublicParties,
   listPublicPartiesPage,
 } from "@lindocara/server/parties.js";
-import { layeredTerrain } from "@lindocara/test-utils/map-fixtures.js";
+import { layeredTerrain } from "@lindocara/testing/map-fixtures.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { authorMap } from "./adventure-fixtures.js";
 

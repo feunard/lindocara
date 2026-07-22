@@ -25,7 +25,7 @@ import { createHero, deleteHero, listHeroes } from "@lindocara/server/heroes.js"
 import { HEALTH_POTION_ID } from "@lindocara/server/items.js";
 import type { MapInput } from "@lindocara/server/maps.js";
 import { createParty, joinParty } from "@lindocara/server/parties.js";
-import { layeredTerrain } from "@lindocara/test-utils/map-fixtures.js";
+import { layeredTerrain } from "@lindocara/testing/map-fixtures.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { authorMap, seedAdventure } from "./adventure-fixtures.js";
 

@@ -25,8 +25,8 @@ import {
   newPlayer,
   type PlayerRuntime,
 } from "@lindocara/server/world/world-runtime.js";
-import { mapDataFromBlocks } from "@lindocara/test-utils/map-fixtures.js";
-import { noColliders, tileMapFromRects } from "@lindocara/test-utils/tiles.js";
+import { mapDataFromBlocks } from "@lindocara/testing/map-fixtures.js";
+import { noColliders, tileMapFromRects } from "@lindocara/testing/tiles.js";
 import { describe, expect, it, vi } from "vitest";
 
 /**
