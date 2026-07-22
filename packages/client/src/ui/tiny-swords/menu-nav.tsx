@@ -211,10 +211,15 @@ export function useMenuItem(options: {
   const disabled = options.disabled === true;
   const ref = useRef<HTMLButtonElement | null>(null);
 
+  // Depend on the *stable* register callback, never the whole context object: `ctx` is a fresh
+  // object on every focus change (it carries focusedId), so keying this effect on `ctx` would
+  // unregister + re-register every item on each move, and the cleanup would snap focus back to the
+  // first item — the D-pad/arrow keys and hover-to-focus would never stick. register/focus/activate
+  // are all stable, so the registration lives exactly as long as the item does.
+  const { register } = ctx;
   useEffect(
-    () =>
-      ctx.register({ id, order: options.order, disabled, activate: () => activateRef.current() }),
-    [ctx, id, options.order, disabled],
+    () => register({ id, order: options.order, disabled, activate: () => activateRef.current() }),
+    [register, id, options.order, disabled],
   );
 
   const focused = ctx.focusedId === id;
