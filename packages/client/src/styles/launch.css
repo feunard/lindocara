@@ -123,7 +123,7 @@
   font: inherit;
   font-size: clamp(1.05rem, 2.4vw, 1.4rem);
   letter-spacing: 0.04em;
-  cursor: pointer;
+  cursor: var(--tiny-cursor-link, pointer);
   transition:
     transform 0.12s ease,
     box-shadow 0.12s ease,
@@ -155,7 +155,7 @@
   font: inherit;
   font-size: 0.85rem;
   letter-spacing: 0.04em;
-  cursor: pointer;
+  cursor: var(--tiny-cursor-link, pointer);
   opacity: 0.7;
   transition: opacity 0.15s ease;
 }
@@ -223,7 +223,7 @@
   background: linear-gradient(180deg, rgba(58, 48, 42, 0.9), rgba(26, 22, 20, 0.92));
   color: var(--launch-ink);
   font: inherit;
-  cursor: pointer;
+  cursor: var(--tiny-cursor-link, pointer);
   transition:
     transform 0.14s ease,
     box-shadow 0.14s ease,
@@ -278,7 +278,7 @@
   color: rgba(244, 233, 210, 0.8);
   font: inherit;
   font-size: 0.9rem;
-  cursor: pointer;
+  cursor: var(--tiny-cursor-link, pointer);
 }
 
 /* ── Hero create ───────────────────────────────────────────────────────── */
