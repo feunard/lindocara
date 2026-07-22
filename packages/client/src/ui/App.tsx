@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect } from "react";
 import { fetchMe } from "../api.js";
+import { menuAudio } from "../game/menu-audio.js";
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
 import { AuthScreen } from "./AuthScreen.js";
@@ -42,6 +43,16 @@ export function App() {
       setScreen(me ? "title" : "auth");
     });
   }, [setScreen, setAccountId]);
+
+  // The piano bed plays across the whole launch menu (the central menu and its carousels), and
+  // stops the moment the player drops into the game, the editor, the title or auth. Audio was
+  // already unlocked by the title-screen press, so the context is running by the time we get here.
+  useEffect(() => {
+    const inLaunchMenu =
+      screen === "menu" || screen === "continue" || screen === "new" || screen === "join";
+    if (inLaunchMenu) menuAudio.startMusic();
+    else menuAudio.stopMusic();
+  }, [screen]);
 
   const immersive =
     screen === "adventure-editor" ||

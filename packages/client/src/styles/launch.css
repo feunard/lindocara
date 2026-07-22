@@ -55,6 +55,15 @@
   overflow: hidden;
 }
 
+/* Title and menu carry the login screen's illustrated diorama (`.menu-scene`). Drop it below the
+   content (z-index: -1) rather than lifting each child: the parent is a fixed stacking context, so
+   the scene still paints above the placeholder gradient the parent draws, but under the logo, panel
+   and hints — and their own `position` (the prompt is absolute) is left untouched. */
+.title-screen > .menu-scene,
+.main-menu > .menu-scene {
+  z-index: -1;
+}
+
 /* ── Title ─────────────────────────────────────────────────────────────── */
 .title-screen__logo {
   margin: 0;

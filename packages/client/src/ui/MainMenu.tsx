@@ -7,6 +7,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { fetchParties } from "../api.js";
 import { t } from "../i18n.js";
 import { useUiStore } from "../store.js";
+import { TinySwordsMenuScene } from "./TinySwordsMenuScene.js";
 import { MenuNav, useMenuItem } from "./tiny-swords/menu-nav.js";
 
 function MenuItemButton({
@@ -52,6 +53,8 @@ export function MainMenu() {
 
   return (
     <main className="main-menu">
+      {/* Reuse the login screen's illustrated backdrop, a courtyard variant for the settled menu. */}
+      <TinySwordsMenuScene variant="courtyard" />
       <div className="main-menu__brand">
         <h1 className="main-menu__logo">Lindocara</h1>
       </div>
