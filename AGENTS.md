@@ -20,7 +20,7 @@ the existing React/Radix primitives, with Tiny Swords limited to previews and re
 | `npm run check:runtime` | lint, typecheck, runtime server/player UI tests and build; skips creator map/adventure validation |
 | `npm run loadtest -- --players=10 --duration=60 --scenario=mixed` | authenticated local WebSocket load test; remote targets require explicit opt-in |
 | `npm run lint` / `lint:fix` | Biome |
-| `npm run typecheck` | three TypeScript programs (see below) |
+| `npm run typecheck` | one tsc per package + a Node tooling program (see below) |
 | `npm test` | Vitest inside workerd |
 | `npm run build` | client bundle + deployable `wrangler.json` |
 | `npm run deploy` | build, then `wrangler deploy` |
@@ -61,7 +61,7 @@ editor`; `apps/main` composes `client` + `server` into one deploy. The client Ap
 editor at runtime without declaring it, so there is no `client → editor` cycle. Cross-package imports
 use `@lindocara/<pkg>/<file>.js`; the `@` alias means the client source root everywhere.
 
-`npm run typecheck` runs every package `tsc` plus the three test programs; `npm run typecheck:<pkg>`
+`npm run typecheck` runs every package `tsc` plus the Node tooling program; `npm run typecheck:<pkg>`
 checks one. **Tests are co-located per package** in `packages/<pkg>/test/`, each with its own
 `vitest.config.ts` (engine/catalog = node, server = workerd/cloudflare-pool, renderer/client/editor =
 jsdom). The root `vitest.config.ts` aggregates them via `projects`, so `npm test` runs everything and
@@ -226,13 +226,17 @@ the same function. Two hand-synchronised copies of movement logic is the classic
 prediction unfixable. There is one copy, and `prediction.test.ts` asserts that replaying
 commands over a stale position lands exactly where the server lands.
 
-### Three tsconfigs, not one
+### Per-package tsconfigs, not one
 
 The DOM lib and the Workers runtime types both declare `WebSocket`, `Response`, and `fetch`
-with incompatible shapes. Loading both into one program produces a blizzard of nonsense
-errors. So: `tsconfig.client.json`, `tsconfig.worker.json`, `tsconfig.node.json`. Code in
-`src/shared/` is checked by both of the first two, which is the point — it must be valid in
-a browser *and* in workerd.
+with incompatible shapes — loading both into one program produces a blizzard of nonsense
+errors. The **package boundary now carries that split**: `engine` is pure (neither lib),
+`server` is Workers, `renderer`/`client`/`editor`/`ui` are DOM. Each package has one
+`tsconfig.json` extending the root `tsconfig.json` base and typechecking its own `src` **and**
+`test/`. The only root program is `tsconfig.tooling.json` (Node): the Vite/vitest/drizzle
+configs, the root `scripts/`, and the engine's tests (which use Node globals its pure src
+config can't host). `npm run typecheck` runs each package's `tsc` then the tooling one;
+`npm run typecheck:<pkg>` runs just one.
 
 ### Classes
 

@@ -1,0 +1,18 @@
+{
+  // The one root program, for files that need Node types the packages don't: the app's Vite config,
+  // every package's vitest config, the server's drizzle config, the root scripts — plus the engine's
+  // tests, which use Node globals (crypto) that the engine's deliberately pure src tsconfig can't
+  // host. Every other package typechecks its own src + test/ in its own tsconfig.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["node"]
+  },
+  "include": [
+    "apps/main/vite.config.ts",
+    "packages/*/vitest.config.ts",
+    "packages/server/drizzle.config.ts",
+    "scripts/**/*.ts",
+    "packages/engine/test/**/*.ts"
+  ]
+}

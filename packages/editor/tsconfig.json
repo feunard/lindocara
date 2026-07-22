@@ -5,12 +5,12 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["vite/client"],
+    "types": ["vite/client", "@testing-library/jest-dom"],
     "jsx": "react-jsx",
     // The client's shadcn components (imported via @lindocara/client) use the `@/` alias
     // internally; map it to the client source so they resolve when loaded through this program.
     // Matches the global Vite alias, which already points `@` at the client source.
     "paths": { "@/*": ["../client/src/*"] }
   },
-  "include": ["src"]
+  "include": ["src", "test"]
 }

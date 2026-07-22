@@ -34,7 +34,7 @@
     "catalog:build": "npm run catalog:build -w @lindocara/catalog",
     "catalog:check": "npm run catalog:check -w @lindocara/catalog",
     "format": "biome format --write .",
-    "typecheck": "npm run typecheck:engine && npm run typecheck:server && npm run typecheck:renderer && npm run typecheck:client && npm run typecheck:editor && npm run typecheck:ui && npm run typecheck:testing && npm run typecheck:catalog && tsc -p tsconfig.client.json && tsc -p tsconfig.worker.json && tsc -p tsconfig.node.json",
+    "typecheck": "npm run typecheck:engine && npm run typecheck:server && npm run typecheck:renderer && npm run typecheck:client && npm run typecheck:editor && npm run typecheck:ui && npm run typecheck:testing && npm run typecheck:catalog && tsc -p tsconfig.tooling.json",
     "typecheck:engine": "tsc -p packages/engine/tsconfig.json",
     "typecheck:server": "tsc -p packages/server/tsconfig.json",
     "typecheck:renderer": "tsc -p packages/renderer/tsconfig.json",
