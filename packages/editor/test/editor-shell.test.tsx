@@ -225,27 +225,28 @@ describe("AdventureEditorScreen shell", () => {
 
   it("pushes the matching EditorTool for each toolbar tool button", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
+    const user = userEvent.setup();
     await mountReady();
 
-    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.tool.select") }));
+    await user.click(screen.getByRole("button", { name: t("editor.shell.tool.select") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "select" });
 
-    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.tool.pencil") }));
+    await user.click(screen.getByRole("button", { name: t("editor.shell.tool.pencil") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "block", block: "grass" });
 
-    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.tool.rect") }));
+    await user.click(screen.getByRole("button", { name: t("editor.shell.tool.rect") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({
       kind: "rect",
       content: { kind: "block", block: "grass" },
     });
 
-    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.tool.fill") }));
+    await user.click(screen.getByRole("button", { name: t("editor.shell.tool.fill") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({
       kind: "fill",
       content: { kind: "block", block: "grass" },
     });
 
-    await userEvent.click(screen.getByRole("button", { name: t("editor.tool.eraser") }));
+    await user.click(screen.getByRole("button", { name: t("editor.tool.eraser") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "eraser" });
   });
 
