@@ -1,5 +1,5 @@
 {
-  "name": "@lindocara/server",
+  "name": "@lindocara/test-utils",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,8 +8,5 @@
   },
   "dependencies": {
     "@lindocara/engine": "*"
-  },
-  "scripts": {
-    "test": "vitest run"
   }
 }

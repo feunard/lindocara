@@ -1,13 +1,20 @@
 {
-  // The jsdom test program: the React UI suite (test/ui) and the plain client suite (test/client).
-  // Package sources are typechecked by their own per-package tsconfig; this covers the tests that
-  // exercise the browser packages. DOM lib, no Workers types.
+  // The jsdom test program: the renderer/client/editor package tests (React + PixiJS art).
+  // Package sources are typechecked by their own per-package tsconfig; this covers the tests.
+  // DOM lib, no Workers types. jest-dom adds the custom matcher types the setup registers.
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["vite/client"],
+    "types": ["vite/client", "@testing-library/jest-dom"],
     "jsx": "react-jsx",
     "paths": { "@/*": ["./packages/client/src/*"] }
   },
-  "include": ["test/ui/**/*.ts", "test/ui/**/*.tsx", "test/client/**/*.ts"]
+  "include": [
+    "packages/renderer/test/**/*.ts",
+    "packages/renderer/test/**/*.tsx",
+    "packages/client/test/**/*.ts",
+    "packages/client/test/**/*.tsx",
+    "packages/editor/test/**/*.ts",
+    "packages/editor/test/**/*.tsx"
+  ]
 }

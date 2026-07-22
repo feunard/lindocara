@@ -54,9 +54,14 @@ the new homes:
 The graph is acyclic: `engine ← {server, renderer}`, `renderer ← {client}`, `client ← {editor}`
 (the client App lazy-`import()`s the editor at runtime without declaring it, so no cycle). Cross-package
 imports use `@lindocara/<pkg>/<file>.js`; the `@` alias still means the client source root everywhere.
-`npm run typecheck` runs all five package `tsc`s plus the three test programs; `npm run typecheck:<pkg>`
-checks one. Tests still live in `test/` and run through the existing vitest configs (co-locating them
-per package is a documented follow-up). See
+`npm run typecheck` runs all package `tsc`s plus the three test programs; `npm run typecheck:<pkg>`
+checks one. **Tests are co-located per package** in `packages/<pkg>/test/`, each with its own
+`vitest.config.ts` (engine = node, server = workerd/cloudflare-pool, renderer/client/editor = jsdom).
+The root `vitest.config.ts` aggregates them via `projects`, so `npm test` runs everything and
+`npm test -w @lindocara/<pkg>` (or `npm run test:<pkg>`) runs one. Shared test fixtures
+(`map-fixtures`, `tiles`, the jsdom setup) live in the dev-only `@lindocara/test-utils` package.
+`public/` belongs to the client package; `drizzle.config.ts` + `migrations/` to the server package;
+`wrangler.jsonc` stays at the root (it assembles the deploy). See
 [`docs/superpowers/specs/2026-07-22-monorepo-packages-design.md`](./docs/superpowers/specs/2026-07-22-monorepo-packages-design.md)
 and [`docs/superpowers/plans/2026-07-22-monorepo-packages.md`](./docs/superpowers/plans/2026-07-22-monorepo-packages.md).
 The file map below keeps its original `src/…` prefixes; read them through the table above.

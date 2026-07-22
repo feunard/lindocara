@@ -9,5 +9,8 @@
   "dependencies": {
     "@lindocara/engine": "*",
     "pixi.js": "^8.19.0"
+  },
+  "scripts": {
+    "test": "vitest run"
   }
 }

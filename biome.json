@@ -8,10 +8,10 @@
       "!dist",
       "!.wrangler",
       "!packages/server/src/worker-configuration.d.ts",
-      "!migrations/meta",
+      "!packages/server/migrations/meta",
       "!assets/index.json",
       "!assets/lindocara-asset-catalog.json",
-      "!public/assets/lindocara/tiny-swords/catalog.json",
+      "!packages/client/public/assets/lindocara/tiny-swords/catalog.json",
       "!packages/engine/src/tiny-swords-catalog.generated.ts"
     ]
   },
@@ -57,7 +57,7 @@
         "packages/engine/src/event-interpreter.ts",
         "packages/server/src/world/event-run-system.ts",
         "packages/editor/src/ui/editor/EventCommandEditor.tsx",
-        "test/**"
+        "packages/*/test/**"
       ],
       "linter": {
         "rules": {
