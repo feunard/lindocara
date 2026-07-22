@@ -17,9 +17,10 @@
  */
 import { getAudioSettings, subscribeAudioSettings } from "./audio-settings.js";
 
-const CONFIRM_SRC = "/assets/lindocara/audio/sfx/ui-interact.ogg";
-/** Pre-slider gain for the menu confirm — louder than the in-game UI blip so the hand-off reads. */
-const CONFIRM_VOLUME = 0.55;
+/** The title→menu "enter the game" confirm: a whoosh + sub-boom + bright major-chord stinger. */
+const CONFIRM_SRC = "/assets/lindocara/audio/sfx/title-enter.ogg";
+/** Pre-slider gain for the confirm — big and cinematic, this is the hand-off into the game. */
+const CONFIRM_VOLUME = 0.7;
 
 /** The looping menu bed. CC0. Swap this to change the title music. */
 const MUSIC_SRC = "/assets/lindocara/audio/title-theme.mp3";
