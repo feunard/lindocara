@@ -198,7 +198,7 @@ export function MenuNav({
     };
     raf = requestAnimationFrame(poll);
     return () => cancelAnimationFrame(raf);
-  }, [orientation, move, activate, onBack, triggerBack]);
+  }, [orientation, move, activate, triggerBack]);
 
   const value = useMemo<MenuNavContextValue>(
     () => ({ focusedId, register, focus, activate }),

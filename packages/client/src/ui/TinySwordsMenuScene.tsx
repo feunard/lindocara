@@ -74,7 +74,11 @@ export function TinySwordsMenuScene({ variant }: TinySwordsMenuSceneProps) {
               src={SCENE.cloudThree}
               alt=""
             />
-            <img className="menu-scene__cloud menu-scene__cloud--four" src={SCENE.cloudTwo} alt="" />
+            <img
+              className="menu-scene__cloud menu-scene__cloud--four"
+              src={SCENE.cloudTwo}
+              alt=""
+            />
             <img
               className="menu-scene__cloud menu-scene__cloud--five"
               src={SCENE.cloudOne}
@@ -113,7 +117,11 @@ export function TinySwordsMenuScene({ variant }: TinySwordsMenuSceneProps) {
             src={SCENE.houseThree}
             alt=""
           />
-          <img className="menu-scene__building menu-scene__building--tower" src={SCENE.tower} alt="" />
+          <img
+            className="menu-scene__building menu-scene__building--tower"
+            src={SCENE.tower}
+            alt=""
+          />
           <img
             className="menu-scene__building menu-scene__building--castle"
             src={SCENE.castle}
