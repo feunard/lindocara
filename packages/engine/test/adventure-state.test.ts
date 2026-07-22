@@ -120,6 +120,7 @@ describe("parseAdventureRegistry: good payloads round-trip unchanged", () => {
               definitionVersion: 1,
               rewardClaimed: false,
               completionCount: 0,
+              processedEventKeys: [],
             },
           },
         }),

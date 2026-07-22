@@ -164,6 +164,7 @@ describe("stepEventRun — the per-opcode table", () => {
         definitionVersion: 1,
         rewardClaimed: false,
         completionCount: 1,
+        processedEventKeys: [],
       },
     });
 

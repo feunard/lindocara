@@ -1,6 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import {
   type AdventureRegistry,
+  type AuthoredQuestProgress,
   EMPTY_ADVENTURE_STATE,
   EMPTY_REGISTRY,
   normalizeAuthoredQuestProgress,
@@ -9,12 +10,23 @@ import {
 import { applyStateMutation, type StateMutation } from "@lindocara/engine/event-interpreter.js";
 import type { ServerMessage } from "@lindocara/engine/protocol.js";
 import {
+  buildQuestObjectiveIndex,
+  type QuestBusinessEvent,
+  type QuestObjectiveIndex,
+} from "@lindocara/engine/quest-runtime.js";
+import type { AuthoredQuestDefinition } from "@lindocara/engine/quests.js";
+import {
   loadAdventureEventIds,
   loadPartyAdventureState,
   savePartyAdventureState,
 } from "./adventure-state-store.js";
 import { loadAdventure } from "./adventures.js";
+import { type AuthoredQuestChange, processAuthoredQuestEvent } from "./authored-quest-system.js";
 import { createDb } from "./db/index.js";
+import {
+  loadHeroAuthoredQuestProgress,
+  saveHeroAuthoredQuestProgress,
+} from "./hero-persistence.js";
 import { loadPartyForRuntime } from "./parties.js";
 
 /**
@@ -42,10 +54,14 @@ function mutationBelongsToRegistry(registry: AdventureRegistry, mutation: StateM
     return true;
   }
   const quest = (registry.quests ?? []).find((candidate) => candidate.id === mutation.questId);
-  if (!quest) return false;
+  // GameSession owns PARTY progress. Personal progress is epoch-fenced in hero_quest and cannot be
+  // mutated through this party-wide command seam.
+  if (quest?.scope !== "party") return false;
   return (
     mutation.type !== "advanceQuest" ||
-    quest.objectives.some((objective) => objective.id === mutation.objectiveId)
+    quest.objectives.some(
+      (objective) => objective.id === mutation.objectiveId && objective.type === "manual",
+    )
   );
 }
 
@@ -76,6 +92,26 @@ export class GameSession extends DurableObject<Env> {
   #state: VersionedState | null = null;
   /** A change is waiting to be written. Party-empty flushes it; the alarm writes it after 5s. */
   #dirty = false;
+  /** Built once with the loaded adventure; target lookup is O(the matching bucket), not O(quests). */
+  #questIndex: QuestObjectiveIndex | null = null;
+  /** Older accepted definitions can target something the current registry no longer does. */
+  #partyPinnedQuestIndex: QuestObjectiveIndex = buildQuestObjectiveIndex([]);
+  /** Active saves pin their accepted definition. Cache its narrow index by object identity. */
+  #definitionIndexes = new WeakMap<AuthoredQuestDefinition, QuestObjectiveIndex>();
+  /** Personal progress is immediately persisted; this is only the coordinator's read-through copy. */
+  #personalQuestProgress = new Map<string, Record<string, AuthoredQuestProgress>>();
+  #personalPinnedQuestIndexes = new Map<string, QuestObjectiveIndex>();
+  /** Completion permanently closes the business-event intake for this live party. */
+  #partyCompleted = false;
+  /** RPCs can interleave at awaits. Serialize state/event mutations to avoid lost updates. */
+  #stateWriteQueue: Promise<void> = Promise.resolve();
+  /**
+   * A World tick may originate a business event and wait for this coordinator RPC. Calling that
+   * same World back before returning would form a Durable Object callback cycle. Deferred room
+   * notifications live on their own ordered queue: authority is durable first, the source RPC can
+   * return, then every versioned party/personal UI push lands in coordinator order.
+   */
+  #roomPushQueue: Promise<void> = Promise.resolve();
   /** Test seam only (null in production): a barrier the next `#flushSave` parks on just before its
    *  version-guarded dirty clear, so a test can land a mutation mid-flush deterministically and prove
    *  the guard keeps the newer version. */
@@ -128,8 +164,14 @@ export class GameSession extends DurableObject<Env> {
         ? await loadAdventure(db, party.hostAccountId, party.adventureId)
         : null;
       const registry = authored?.registry ?? EMPTY_REGISTRY;
+      this.#partyCompleted =
+        party?.status === "completed" ||
+        ((await this.ctx.storage.get<boolean>("partyCompleted")) ?? false);
+      this.#questIndex = buildQuestObjectiveIndex(registry.quests ?? []);
+      const normalizedState = normalizeAuthoredQuestProgress(registry, state);
+      this.#partyPinnedQuestIndex = this.#pinnedIndex(normalizedState.quests, "party");
       this.#state = {
-        state: normalizeAuthoredQuestProgress(registry, state),
+        state: normalizedState,
         version,
         registry,
       };
@@ -205,16 +247,167 @@ export class GameSession extends DurableObject<Env> {
    */
   async applyStateChanges(partyId: string, mutations: readonly StateMutation[]): Promise<void> {
     if (mutations.length === 0) return;
-    const current = await this.#ensureState(partyId);
-    const accepted = mutations.filter((mutation) =>
-      mutationBelongsToRegistry(current.registry, mutation),
-    );
-    if (accepted.length === 0) return;
-    await this.#applyStateChange(partyId, (state) => {
-      let next = state;
-      for (const mutation of accepted) next = applyStateMutation(next, mutation);
-      return normalizeAuthoredQuestProgress(current.registry, next);
+    await this.#enqueueStateWrite(async () => {
+      const current = await this.#ensureState(partyId);
+      const accepted = mutations.filter((mutation) =>
+        mutationBelongsToRegistry(current.registry, mutation),
+      );
+      if (accepted.length === 0) return;
+      await this.#applyStateChange(partyId, (state) => {
+        let next = state;
+        for (const mutation of accepted) next = applyStateMutation(next, mutation);
+        return normalizeAuthoredQuestProgress(current.registry, next);
+      });
     });
+  }
+
+  /**
+   * Consume one server-minted gameplay fact. World is the only caller; browser messages cannot
+   * reach a Durable Object RPC. Party progress is persisted by the existing alarm path, while each
+   * personal transition is written immediately behind the hero's session epoch fence.
+   */
+  async recordQuestEvent(
+    partyId: string,
+    event: QuestBusinessEvent,
+  ): Promise<readonly AuthoredQuestChange[]> {
+    return this.#enqueueStateWrite(async () => {
+      const storedPartyId = await this.ctx.storage.get<string>("partyId");
+      if (storedPartyId !== partyId || this.#partyCompleted) return [];
+      const current = await this.#ensureState(partyId);
+      const currentIndex =
+        this.#questIndex ?? buildQuestObjectiveIndex(current.registry.quests ?? []);
+      this.#questIndex = currentIndex;
+      const db = createDb(this.env.DB);
+      const result = await processAuthoredQuestEvent({
+        registry: current.registry,
+        partyState: current.state,
+        currentIndex,
+        partyPinnedIndex: this.#partyPinnedQuestIndex,
+        event,
+        indexForDefinition: (definition) => this.#indexForDefinition(definition),
+        loadPersonal: async (actor) => {
+          const cached = this.#personalQuestProgress.get(actor.heroId);
+          if (cached) return cached;
+          const loaded = await loadHeroAuthoredQuestProgress(db, actor.heroId);
+          this.#personalQuestProgress.set(actor.heroId, loaded);
+          this.#personalPinnedQuestIndexes.set(actor.heroId, this.#pinnedIndex(loaded, "personal"));
+          return loaded;
+        },
+        personalPinnedIndex: (actor) =>
+          this.#personalPinnedQuestIndexes.get(actor.heroId) ?? buildQuestObjectiveIndex([]),
+        savePersonal: async (actor, questId, progress) => {
+          try {
+            return await saveHeroAuthoredQuestProgress(db, {
+              heroId: actor.heroId,
+              sessionEpoch: actor.sessionEpoch,
+              questId,
+              progress,
+            });
+          } catch (error) {
+            // One failed hero write must not hide another hero's successful transition or leave the
+            // coordinator's cache ahead of D1. The failed row simply remains eligible next event.
+            console.error(
+              JSON.stringify({
+                event: "personal_quest_progress_save_failed",
+                partyId,
+                heroId: actor.heroId,
+                questId,
+                error: error instanceof Error ? error.message : String(error),
+              }),
+            );
+            return false;
+          }
+        },
+      });
+      if (result.partyChanged) {
+        await this.#applyStateChange(partyId, () => result.partyState, true);
+      }
+      for (const update of result.personalUpdates) {
+        this.#personalQuestProgress.set(update.actor.heroId, update.progress);
+        this.#deferRoomPush(partyId, () =>
+          this.#pushPersonalQuestProgress(partyId, update.actor.heroId, update.progress),
+        );
+      }
+      return result.changes;
+    });
+  }
+
+  /** Close quest progression as soon as the authoritative open -> completed fence succeeds. */
+  async markPartyCompleted(partyId: string): Promise<void> {
+    await this.#enqueueStateWrite(async () => {
+      const storedPartyId = await this.ctx.storage.get<string>("partyId");
+      if (storedPartyId !== partyId) return;
+      this.#partyCompleted = true;
+      await this.ctx.storage.put("partyCompleted", true);
+    });
+  }
+
+  #indexForDefinition(definition: AuthoredQuestDefinition): QuestObjectiveIndex {
+    const cached = this.#definitionIndexes.get(definition);
+    if (cached) return cached;
+    const index = buildQuestObjectiveIndex([definition]);
+    this.#definitionIndexes.set(definition, index);
+    return index;
+  }
+
+  #pinnedIndex(
+    progress: Readonly<Record<string, AuthoredQuestProgress>> | undefined,
+    scope: "party" | "personal",
+  ): QuestObjectiveIndex {
+    const definitions = new Map<string, AuthoredQuestDefinition>();
+    for (const item of Object.values(progress ?? {})) {
+      const definition = item.definitionSnapshot;
+      if (definition?.scope === scope) definitions.set(definition.id, definition);
+    }
+    return buildQuestObjectiveIndex([...definitions.values()]);
+  }
+
+  async #pushPersonalQuestProgress(
+    partyId: string,
+    heroId: string,
+    progress: Readonly<Record<string, AuthoredQuestProgress>>,
+  ): Promise<void> {
+    const rooms = (await this.ctx.storage.get<string[]>("rooms")) ?? [];
+    const results = await Promise.allSettled(
+      rooms.map((roomKey) =>
+        this.env.WORLD.getByName(roomKey).installPersonalQuestProgress(partyId, heroId, progress),
+      ),
+    );
+    for (const result of results) {
+      if (result.status === "rejected") {
+        console.error(
+          JSON.stringify({
+            event: "personal_quest_progress_push_failed",
+            partyId,
+            heroId,
+            error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+          }),
+        );
+      }
+    }
+  }
+
+  #enqueueStateWrite<T>(work: () => Promise<T>): Promise<T> {
+    const result = this.#stateWriteQueue.then(work);
+    this.#stateWriteQueue = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
+
+  #deferRoomPush(partyId: string, work: () => Promise<void>): void {
+    const queued = this.#roomPushQueue.then(work);
+    this.#roomPushQueue = queued.catch((error) => {
+      console.error(
+        JSON.stringify({
+          event: "quest_room_push_failed",
+          partyId,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    });
+    this.ctx.waitUntil(this.#roomPushQueue);
   }
 
   /**
@@ -238,6 +431,7 @@ export class GameSession extends DurableObject<Env> {
   async #applyStateChange(
     partyId: string,
     mutate: (state: PartyAdventureState) => PartyAdventureState,
+    deferRoomPush = false,
   ): Promise<void> {
     const storedPartyId = await this.ctx.storage.get<string>("partyId");
     if (storedPartyId !== partyId) return;
@@ -257,7 +451,11 @@ export class GameSession extends DurableObject<Env> {
       stateDirty: true,
     });
     await this.#scheduleSave();
-    await this.#pushStateToAllRooms(partyId, next);
+    if (deferRoomPush) {
+      this.#deferRoomPush(partyId, () => this.#pushStateToAllRooms(partyId, next));
+    } else {
+      await this.#pushStateToAllRooms(partyId, next);
+    }
   }
 
   async #pushStateToAllRooms(partyId: string, held: VersionedState): Promise<void> {

@@ -30,9 +30,11 @@ import {
   type AuthoredQuestDefinition,
   MAX_AUTHORED_QUESTS,
   MAX_QUEST_OBJECTIVES,
+  MAX_QUEST_PROCESSED_EVENT_KEYS,
   parseAuthoredQuestDefinition,
   parseAuthoredQuests,
   QUEST_OBJECTIVE_TARGET_MAX,
+  QUEST_PROCESSED_EVENT_KEY_MAX,
   type QuestProgressStatus,
   requiredQuestObjectivesComplete,
 } from "./quests.js";
@@ -164,6 +166,8 @@ export interface AuthoredQuestProgress {
   definitionVersion: number;
   rewardClaimed: boolean;
   completionCount: number;
+  /** Bounded idempotency window of server-minted business-event ids. */
+  processedEventKeys: readonly string[];
 }
 
 export interface AuthoredQuestTracker {
@@ -291,6 +295,18 @@ function parseQuestProgress(value: unknown): Record<string, AuthoredQuestProgres
           : 0
         : raw.completionCount;
     if (!Number.isSafeInteger(completionCount) || (completionCount as number) < 0) return null;
+    const processedEventKeys = raw.processedEventKeys === undefined ? [] : raw.processedEventKeys;
+    if (
+      !Array.isArray(processedEventKeys) ||
+      processedEventKeys.length > MAX_QUEST_PROCESSED_EVENT_KEYS ||
+      processedEventKeys.some(
+        (key) =>
+          typeof key !== "string" || key.length === 0 || key.length > QUEST_PROCESSED_EVENT_KEY_MAX,
+      ) ||
+      new Set(processedEventKeys).size !== processedEventKeys.length
+    ) {
+      return null;
+    }
     quests[questId] = {
       status: raw.status,
       objectives,
@@ -298,6 +314,7 @@ function parseQuestProgress(value: unknown): Record<string, AuthoredQuestProgres
       definitionVersion: definitionVersion as number,
       rewardClaimed,
       completionCount: completionCount as number,
+      processedEventKeys: processedEventKeys as string[],
     };
   }
   return quests;
@@ -397,6 +414,7 @@ export function normalizeAuthoredQuestProgress(
       definitionVersion: definition.version,
       rewardClaimed: progress.rewardClaimed,
       completionCount: progress.completionCount,
+      processedEventKeys: progress.processedEventKeys,
     };
   }
   const { quests: _staleQuests, ...base } = state;

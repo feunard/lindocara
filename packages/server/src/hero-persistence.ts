@@ -1,3 +1,7 @@
+import {
+  type AuthoredQuestProgress,
+  parsePartyAdventureState,
+} from "@lindocara/engine/adventure-state.js";
 import type { Equipment } from "@lindocara/engine/character.js";
 import { normalizeEquipment, starterEquipmentFor } from "@lindocara/engine/character.js";
 import {
@@ -28,11 +32,31 @@ interface PersistedHeroQuest {
   rewardClaimId: string | null;
 }
 
+function authoredProgressFromRows(
+  quests: readonly PersistedHeroQuest[],
+): Record<string, AuthoredQuestProgress> {
+  const authoredQuestProgress: Record<string, AuthoredQuestProgress> = {};
+  for (const persisted of quests) {
+    if (!/^\d{4}$/.test(persisted.questId)) continue;
+    const raw = persisted.data?.authoredProgress;
+    const parsed = parsePartyAdventureState({
+      switches: {},
+      variables: {},
+      selfSwitches: {},
+      quests: { [persisted.questId]: raw },
+    });
+    const progress = parsed?.quests?.[persisted.questId];
+    if (progress) authoredQuestProgress[persisted.questId] = progress;
+  }
+  return authoredQuestProgress;
+}
+
 export interface NormalizedHeroState {
   consumables: ConsumableCounts;
   equipment: Equipment;
   quest: QuestState;
   wardRunExpiresAt: number | null;
+  authoredQuestProgress: Record<string, AuthoredQuestProgress>;
 }
 
 export async function loadNormalizedHeroState(
@@ -69,6 +93,7 @@ export async function loadNormalizedHeroState(
       : starterEquipmentFor(row.class);
   const selected = selectPrimaryQuest(quests);
   const chapter = isQuestChapter(selected?.questId) ? selected.questId : "three_offerings";
+  const authoredQuestProgress = authoredProgressFromRows(quests);
   return {
     consumables,
     equipment,
@@ -79,11 +104,68 @@ export async function loadNormalizedHeroState(
       target: questDefinition(chapter).target,
     },
     wardRunExpiresAt: numberFromData(selected?.data, "wardRunExpiresAt"),
+    authoredQuestProgress,
   };
+}
+
+/** Immediate, epoch-fenced persistence for one personal authored quest transition. */
+export async function saveHeroAuthoredQuestProgress(
+  db: Db,
+  input: {
+    heroId: string;
+    sessionEpoch: number;
+    questId: string;
+    progress: AuthoredQuestProgress;
+  },
+): Promise<boolean> {
+  const aggregateProgress = Object.values(input.progress.objectives).reduce(
+    (total, value) => total + value,
+    0,
+  );
+  const now = Date.now();
+  const updated = await db.$client
+    .prepare(
+      `INSERT INTO hero_quest
+        (hero_id, quest_id, status, progress, accepted_at, completed_at, data)
+       SELECT id, ?, ?, ?, ?, CASE WHEN ? = 'completed' THEN ? ELSE NULL END, ?
+       FROM hero WHERE id = ? AND session_epoch = ?
+       ON CONFLICT(hero_id, quest_id) DO UPDATE SET
+         status = excluded.status,
+         progress = excluded.progress,
+         accepted_at = COALESCE(hero_quest.accepted_at, excluded.accepted_at),
+         completed_at = excluded.completed_at,
+         data = excluded.data
+       WHERE EXISTS (
+         SELECT 1 FROM hero WHERE id = ? AND session_epoch = ?
+       )
+       RETURNING quest_id`,
+    )
+    .bind(
+      input.questId,
+      input.progress.status,
+      aggregateProgress,
+      now,
+      input.progress.status,
+      now,
+      JSON.stringify({ authoredProgress: input.progress }),
+      input.heroId,
+      input.sessionEpoch,
+      input.heroId,
+      input.sessionEpoch,
+    )
+    .first<{ quest_id: string }>();
+  return updated?.quest_id === input.questId;
 }
 
 export async function listHeroQuests(db: Db, heroId: string): Promise<PersistedHeroQuest[]> {
   return db.select().from(heroQuest).where(eq(heroQuest.heroId, heroId));
+}
+
+export async function loadHeroAuthoredQuestProgress(
+  db: Db,
+  heroId: string,
+): Promise<Record<string, AuthoredQuestProgress>> {
+  return authoredProgressFromRows(await listHeroQuests(db, heroId));
 }
 
 export async function loadHeroSkills(db: Db, heroId: string) {

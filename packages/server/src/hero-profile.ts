@@ -98,6 +98,7 @@ export async function loadHeroProfile(db: Db, heroId: string): Promise<PlayerPro
       consumables: normalized.consumables,
     },
     quest: normalized.quest,
+    authoredQuestProgress: normalized.authoredQuestProgress,
     zoneId: row.mapId,
     instanceId: "main",
     sessionEpoch: Math.max(0, row.sessionEpoch),

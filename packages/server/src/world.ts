@@ -5,6 +5,7 @@
 import { DurableObject } from "cloudflare:workers";
 import {
   type AdventureRegistry,
+  type AuthoredQuestProgress,
   activePageIndex,
   authoredQuestTrackers,
   EMPTY_ADVENTURE_STATE,
@@ -99,6 +100,7 @@ import {
   type ServerMessage,
   type WorldView,
 } from "@lindocara/engine/protocol.js";
+import type { QuestActor, QuestBusinessEvent } from "@lindocara/engine/quest-runtime.js";
 import {
   canSpendResource,
   generateResource,
@@ -130,6 +132,7 @@ import { emptyLayer, encodeTileLayer } from "@lindocara/engine/tile-layer-codec.
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { encodeTileMap } from "@lindocara/engine/tilemap-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
+import { editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
 import { replaceWorldCache, seedEventCache } from "@lindocara/engine/world-delta.js";
 import {
   isKnownZone,
@@ -144,7 +147,11 @@ import { loadAdventure } from "./adventures.js";
 import { claimQuestReward, consumeOwnedItem } from "./character-persistence.js";
 import { presenceTiming } from "./character-presence.js";
 import { createDb, party } from "./db/index.js";
-import { claimHeroQuestReward, consumeHeroOwnedItem } from "./hero-persistence.js";
+import {
+  claimHeroQuestReward,
+  consumeHeroOwnedItem,
+  loadHeroAuthoredQuestProgress,
+} from "./hero-persistence.js";
 import { loadHeroProfile, saveHeroProfile } from "./hero-profile.js";
 import { HEALTH_POTION_ID } from "./items.js";
 import { BUILTIN_MAP, BUILTIN_MAP_ID, loadMap } from "./maps.js";
@@ -474,6 +481,12 @@ export class World extends DurableObject<Env> {
       },
       location.definition.terrain,
     );
+    if (identityKind === "hero") {
+      profile.authoredQuestProgress = await loadHeroAuthoredQuestProgress(
+        createDb(this.env.DB),
+        profile.id,
+      );
+    }
     const position = clampRestoredPosition(profile, profile.id, location.definition.terrain);
     profile.x = position.x;
     profile.y = position.y;
@@ -701,6 +714,15 @@ export class World extends DurableObject<Env> {
       return new Response("presence lost", { status: 409 });
     }
 
+    // Arrival is a gameplay fact, not a client claim. Reconnects are harmless: reach objectives
+    // clamp at one and every accepted progress row deduplicates the server-minted event.
+    this.#recordActorQuestEvent(player, ({ id: eventId, mapId, actor }) => ({
+      id: eventId,
+      mapId,
+      actor,
+      type: "mapEntered",
+    }));
+
     // Join-time page evaluation: the map's events are only known once the room is configured (the
     // first join), and a snapshot the coordinator pushed before that configuration could not be
     // evaluated yet. Re-derive now against whatever snapshot the room holds. Off the tick loop.
@@ -842,6 +864,27 @@ export class World extends DurableObject<Env> {
     }
   }
 
+  /** Personal quest progress is already epoch-fenced in D1 before this best-effort UI push. */
+  async installPersonalQuestProgress(
+    partyId: string,
+    heroId: string,
+    progress: Readonly<Record<string, AuthoredQuestProgress>>,
+  ): Promise<void> {
+    if (this.#heroPartyId !== null && this.#heroPartyId !== partyId) return;
+    const socket = this.#socketByPlayerId.get(heroId);
+    const player = socket ? this.#players.get(socket) : undefined;
+    if (
+      !socket ||
+      !player?.authorized ||
+      player.identityKind !== "hero" ||
+      player.partyId !== partyId
+    ) {
+      return;
+    }
+    player.authoredQuestProgress = { ...progress };
+    this.#sendState(socket, player);
+  }
+
   /** Kill any run whose event's active page no longer matches the page the run started on (the state
    *  just changed under it). An event that went dormant (no page holds) aborts too. */
   #abortRunsForStalePages(): void {
@@ -895,13 +938,25 @@ export class World extends DurableObject<Env> {
       if (best === null || distance < best.distance) best = { event, ...runnable, distance };
     }
     if (best === null) return false;
-    startRun(this.#eventRuns, {
+    const started = startRun(this.#eventRuns, {
       event: best.event,
       pageIndex: best.pageIndex,
       program: best.program,
       heroId: player.id,
       runId: crypto.randomUUID(),
     });
+    if (started) {
+      const graphic = best.event.pages[best.pageIndex]?.graphicAssetId;
+      const interaction =
+        graphic != null && editorAsset(graphic)?.domain === "character"
+          ? "npcTalked"
+          : "objectInteracted";
+      this.#recordActorQuestEvent(player, ({ id, mapId, actor }) =>
+        interaction === "npcTalked"
+          ? { id, mapId, actor, type: "npcTalked", targetEventId: best.event.id }
+          : { id, mapId, actor, type: "objectInteracted", targetEventId: best.event.id },
+      );
+    }
     return true;
   }
 
@@ -1953,6 +2008,30 @@ export class World extends DurableObject<Env> {
     // progress by party size. Park four alts at REWARD_DISTANCE and every kill pays five times.
     // Fight for your loot; stand near your friends for your XP.
     const contributors = new Set(directlyEligible);
+    const killer = this.#questActor(player);
+    if (killer && player.partyId !== null && this.#location !== null) {
+      const actorsFor = (ids: Iterable<string>): QuestActor[] => {
+        const actors: QuestActor[] = [];
+        for (const id of ids) {
+          const socket = this.#socketByPlayerId.get(id);
+          const candidate = socket ? this.#players.get(socket) : undefined;
+          if (candidate?.partyId !== player.partyId) continue;
+          const actor = this.#questActor(candidate);
+          if (actor) actors.push(actor);
+        }
+        return actors;
+      };
+      this.#recordQuestEvent(player.partyId, {
+        id: crypto.randomUUID(),
+        type: "monsterKilled",
+        mapId: this.#location.zoneId,
+        monsterId: monster.id.startsWith("mon-") ? monster.id.slice(4) : monster.id,
+        species: monster.species,
+        killer,
+        contributors: actorsFor(directlyEligible),
+        nearbyParty: actorsFor(eligible),
+      });
+    }
     const shares = splitExperience(monster.xp, [...eligible]);
     for (const [playerId, xp] of shares) {
       const socket = this.#socketByPlayerId.get(playerId);
@@ -2237,8 +2316,9 @@ export class World extends DurableObject<Env> {
         }
         if (!(await this.#savePlayer(player, ws, true))) return;
         const firstCompletion = await completeParty(db, partyId);
+        await this.#gameSession(partyId).markPartyCompleted(partyId);
         if (firstCompletion) {
-          await this.env.GAME_SESSION.getByName(partyId).broadcast(partyId, {
+          await this.#gameSession(partyId).broadcast(partyId, {
             t: "event",
             code: "adventure.victory",
             tone: "good",
@@ -2567,6 +2647,23 @@ export class World extends DurableObject<Env> {
 
     player.consumableCooldownUntil = now + CONSUMABLE_COOLDOWN_MS;
     player.dirty = true;
+    this.#recordActorQuestEvent(player, ({ id, mapId, actor }) => ({
+      id,
+      mapId,
+      actor,
+      type: "itemUsed",
+      itemId: item,
+      amount: 1,
+    }));
+    this.#recordActorQuestEvent(player, ({ id, mapId, actor }) => ({
+      id,
+      mapId,
+      actor,
+      type: "itemRemoved",
+      itemId: item,
+      amount: 1,
+      inventoryQuantity: counts[item],
+    }));
     this.#send(ws, { t: "event", code: "item.used", params: { item }, tone: "good" });
     this.#sendState(ws, player);
   }
@@ -2593,6 +2690,15 @@ export class World extends DurableObject<Env> {
     counts[item] += 1;
     if (item === "health_potion") player.inventory.potions = counts.health_potion;
     player.dirty = true;
+    this.#recordActorQuestEvent(player, ({ id, mapId, actor }) => ({
+      id,
+      mapId,
+      actor,
+      type: "itemAcquired",
+      itemId: item,
+      amount: 1,
+      inventoryQuantity: counts[item],
+    }));
     this.#send(ws, { t: "event", code: "merchant.purchased", params: { item }, tone: "good" });
     this.#sendState(ws, player);
   }
@@ -3053,6 +3159,43 @@ export class World extends DurableObject<Env> {
     return this.#gameSessionStub;
   }
 
+  #questActor(player: Player | undefined): QuestActor | null {
+    if (!player?.authorized || player.identityKind !== "hero" || player.partyId === null) {
+      return null;
+    }
+    return { heroId: player.id, sessionEpoch: player.sessionEpoch, level: player.level };
+  }
+
+  /** Queue an authoritative fact on the retained coordinator stub and keep gameplay non-blocking. */
+  #recordQuestEvent(partyId: string, event: QuestBusinessEvent): void {
+    this.ctx.waitUntil(
+      this.#gameSession(partyId)
+        .recordQuestEvent(partyId, event)
+        .catch((error: unknown) => {
+          console.error(
+            JSON.stringify({
+              event: "authored_quest_event_failed",
+              partyId,
+              questEventType: event.type,
+              questEventId: event.id,
+              roomKey: this.#location?.roomKey ?? null,
+              error: error instanceof Error ? error.message : String(error),
+            }),
+          );
+        }),
+    );
+  }
+
+  #recordActorQuestEvent(
+    player: Player,
+    create: (base: { id: string; mapId: string; actor: QuestActor }) => QuestBusinessEvent,
+  ): void {
+    const actor = this.#questActor(player);
+    const mapId = this.#location?.zoneId;
+    if (!actor || !mapId || player.partyId === null) return;
+    this.#recordQuestEvent(player.partyId, create({ id: crypto.randomUUID(), mapId, actor }));
+  }
+
   /**
    * Warn about a refused authored teleport at most ONCE per (event, reason) per room lifetime. An
    * authored `loop { teleport <unwalkable> }` would otherwise emit up to `EVENT_COMMANDS_PER_TICK`
@@ -3156,6 +3299,7 @@ export class World extends DurableObject<Env> {
     const item: ConsumableId = effect.itemId;
     const counts = normalizeConsumables(player.inventory.consumables, player.inventory.potions);
     player.inventory.consumables = counts;
+    let landed = 0;
     if (effect.count > 0) {
       if (counts[item] >= CONSUMABLE_MAX_STACK) {
         this.#send(socket, {
@@ -3168,6 +3312,7 @@ export class World extends DurableObject<Env> {
       }
       const added = Math.min(effect.count, CONSUMABLE_MAX_STACK - counts[item]);
       counts[item] += added;
+      landed = added;
       if (item === "health_potion") player.inventory.potions = counts.health_potion;
       player.dirty = true;
       this.#send(socket, {
@@ -3181,8 +3326,30 @@ export class World extends DurableObject<Env> {
       const after = Math.max(0, before + effect.count);
       if (after === before) return;
       counts[item] = after;
+      landed = after - before;
       if (item === "health_potion") player.inventory.potions = counts.health_potion;
       player.dirty = true;
+    }
+    if (landed > 0) {
+      this.#recordActorQuestEvent(player, ({ id, mapId, actor }) => ({
+        id,
+        mapId,
+        actor,
+        type: "itemAcquired",
+        itemId: item,
+        amount: landed,
+        inventoryQuantity: counts[item],
+      }));
+    } else if (landed < 0) {
+      this.#recordActorQuestEvent(player, ({ id, mapId, actor }) => ({
+        id,
+        mapId,
+        actor,
+        type: "itemRemoved",
+        itemId: item,
+        amount: -landed,
+        inventoryQuantity: counts[item],
+      }));
     }
     this.#sendState(socket, player);
   }
@@ -3275,8 +3442,9 @@ export class World extends DurableObject<Env> {
         try {
           const db = createDb(this.env.DB);
           const firstCompletion = await completeParty(db, partyId);
+          await this.#gameSession(partyId).markPartyCompleted(partyId);
           if (firstCompletion) {
-            await this.env.GAME_SESSION.getByName(partyId).broadcast(partyId, {
+            await this.#gameSession(partyId).broadcast(partyId, {
               t: "event",
               code: "adventure.victory",
               tone: "good",
@@ -3894,6 +4062,10 @@ export class World extends DurableObject<Env> {
   }
 
   #collectLoot(ws: WebSocket, player: Player): void {
+    const before = normalizeConsumables(
+      player.inventory.consumables,
+      player.inventory.potions,
+    ).health_potion;
     collectLoot(
       {
         loot: this.#loot,
@@ -3904,6 +4076,20 @@ export class World extends DurableObject<Env> {
       ws,
       player,
     );
+    const counts = normalizeConsumables(player.inventory.consumables, player.inventory.potions);
+    player.inventory.consumables = counts;
+    const acquired = counts.health_potion - before;
+    if (acquired > 0) {
+      this.#recordActorQuestEvent(player, ({ id, mapId, actor }) => ({
+        id,
+        mapId,
+        actor,
+        type: "itemAcquired",
+        itemId: HEALTH_POTION_ID,
+        amount: acquired,
+        inventoryQuantity: counts.health_potion,
+      }));
+    }
   }
 
   #selfState(player: Player): SelfState {
@@ -3911,7 +4097,7 @@ export class World extends DurableObject<Env> {
     return selfState(
       player,
       this.#questDefinition(chapter)?.target,
-      authoredQuestTrackers(this.#adventureRegistry, this.#adventureState),
+      this.#authoredQuestTrackers(player),
     );
   }
 
@@ -3922,8 +4108,50 @@ export class World extends DurableObject<Env> {
       player,
       this.#questDefinition(chapter)?.target,
       (socket, message) => this.#send(socket, message),
-      authoredQuestTrackers(this.#adventureRegistry, this.#adventureState),
+      this.#authoredQuestTrackers(player),
     );
+  }
+
+  #authoredQuestTrackers(player: Player) {
+    const definitions = this.#adventureRegistry.quests ?? [];
+    const scopeById = new Map(definitions.map((quest) => [quest.id, quest.scope]));
+    const scopedProgress = (
+      progress: Readonly<Record<string, AuthoredQuestProgress>> | undefined,
+      scope: "party" | "personal",
+    ): Record<string, AuthoredQuestProgress> =>
+      Object.fromEntries(
+        Object.entries(progress ?? {}).filter(([, value]) => {
+          const resolvedScope = value.definitionSnapshot?.scope;
+          return resolvedScope === undefined || resolvedScope === scope;
+        }),
+      );
+    const partyRegistry = {
+      ...this.#adventureRegistry,
+      quests: definitions.filter((quest) => quest.scope === "party"),
+    };
+    const personalRegistry = {
+      ...this.#adventureRegistry,
+      quests: definitions.filter((quest) => quest.scope === "personal"),
+    };
+    const partyProgress = Object.fromEntries(
+      Object.entries(scopedProgress(this.#adventureState.quests, "party")).filter(
+        ([questId, value]) =>
+          value.definitionSnapshot !== null || scopeById.get(questId) !== "personal",
+      ),
+    );
+    const personalProgress = Object.fromEntries(
+      Object.entries(scopedProgress(player.authoredQuestProgress, "personal")).filter(
+        ([questId, value]) =>
+          value.definitionSnapshot !== null || scopeById.get(questId) !== "party",
+      ),
+    );
+    return [
+      ...authoredQuestTrackers(partyRegistry, { ...this.#adventureState, quests: partyProgress }),
+      ...authoredQuestTrackers(personalRegistry, {
+        ...EMPTY_ADVENTURE_STATE,
+        quests: personalProgress,
+      }),
+    ];
   }
 
   #worldView(player: Player): WorldView {

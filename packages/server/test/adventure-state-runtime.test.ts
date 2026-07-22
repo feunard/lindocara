@@ -19,6 +19,7 @@ import {
 } from "@lindocara/engine/adventure-state.js";
 import { ATTACK_COOLDOWN_MS } from "@lindocara/engine/game.js";
 import type { MapEvent, MapEventPage } from "@lindocara/engine/map-events.js";
+import type { QuestBusinessEvent } from "@lindocara/engine/quest-runtime.js";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   Client,
@@ -276,6 +277,381 @@ describe("adventure state runtime", { timeout: 20_000 }, () => {
     // Wait for the coordinator's normal party-empty persistence boundary before fixture teardown;
     // otherwise its debounced alarm can race the next test's D1 cleanup.
     await coordinator.roomEmptied(party.partyId, hero.roomKey);
+  });
+
+  it("advances a structured kill objective from combat without an advanceQuest command", async () => {
+    const monsterEventId = crypto.randomUUID();
+    const monster: MapEvent = {
+      id: monsterEventId,
+      col: 10,
+      row: 8,
+      name: "Spear goblin",
+      ordinal: 0,
+      kind: "monster",
+      species: "spear_goblin",
+      patrolRadius: 32,
+      pages: [page({ commands: [] })],
+    };
+    const party = await testParty("automatic-monster-quest", {
+      maps: [
+        testMapInput("Automatic hunt", {
+          cols: 24,
+          rows: 15,
+          spawn: { col: 2, row: 2 },
+          exit: { col: 22, row: 13 },
+          events: [monster],
+        }),
+      ],
+    });
+    await seedAdventureRegistry(party.adventureId, {
+      switches: [],
+      variables: [],
+      quests: [
+        {
+          ...createAuthoredQuestDefinition("0001", "Chasser les gobelins à lance"),
+          objectives: [
+            {
+              id: "0001",
+              type: "kill",
+              label: "",
+              target: 1,
+              optional: false,
+              hidden: false,
+              stage: 0,
+              species: "spear_goblin",
+              mapScope: { kind: "any" },
+              credit: "contributors",
+            },
+          ],
+        },
+      ],
+    });
+    const hero = await testHero("AutoHunter", {
+      party,
+      account: party.host,
+      class: "warrior",
+      level: 10,
+      position: tileCentre(10, 8),
+    });
+    const client = await Client.joinHero(hero);
+    await until("automatic hunter welcomed", () => client.welcome);
+    const coordinator = env.GAME_SESSION.getByName(party.partyId);
+    await coordinator.applyStateChanges(party.partyId, [{ type: "startQuest", questId: "0001" }]);
+
+    let lastAttackAt = 0;
+    await until("structured target defeated", () => {
+      if (Date.now() - lastAttackAt >= ATTACK_COOLDOWN_MS) {
+        lastAttackAt = Date.now();
+        client.action("attack");
+      }
+      return client.received.find(
+        (message) => message.t === "event" && message.code === "monster.defeated",
+      );
+    });
+
+    const progressed = await until("structured kill credited", () =>
+      client.received.find(
+        (message) =>
+          message.t === "state" && message.self.authoredQuests?.[0]?.objectives[0]?.progress === 1,
+      ),
+    );
+    expect(progressed).toMatchObject({
+      t: "state",
+      self: {
+        authoredQuests: [
+          {
+            id: "0001",
+            status: "ready",
+            objectives: [{ id: "0001", progress: 1, target: 1 }],
+          },
+        ],
+      },
+    });
+    const held = await coordinator.getAdventureState(party.partyId);
+    expect(held.state.quests?.["0001"]?.processedEventKeys).toHaveLength(1);
+  });
+
+  it("serializes ten shared kill events, deduplicates retries and stops after victory", async () => {
+    const party = await testParty("ten-kills", {
+      maps: [testMapInput("Ten kills")],
+    });
+    await seedAdventureRegistry(party.adventureId, {
+      switches: [],
+      variables: [],
+      quests: [
+        {
+          ...createAuthoredQuestDefinition("0001", "Dix gobelins à lance"),
+          acceptance: "automatic",
+          objectives: [
+            {
+              id: "0001",
+              type: "kill",
+              label: "",
+              target: 10,
+              optional: false,
+              hidden: false,
+              stage: 0,
+              species: "spear_goblin",
+              mapScope: { kind: "any" },
+              credit: "nearby-party",
+            },
+          ],
+        },
+      ],
+    });
+    const hero = await testHero("Counter", { party, account: party.host, level: 8 });
+    const client = await Client.joinHero(hero);
+    await until("counter welcomed", () => client.welcome);
+    const epochRow = await env.DB.prepare("SELECT session_epoch FROM hero WHERE id = ?")
+      .bind(hero.heroId)
+      .first<{ session_epoch: number }>();
+    if (!epochRow) throw new Error("missing connected hero epoch");
+    const actor = { heroId: hero.heroId, sessionEpoch: epochRow.session_epoch, level: 8 };
+    const coordinator = env.GAME_SESSION.getByName(party.partyId);
+    const event = (id: string): QuestBusinessEvent => ({
+      id,
+      type: "monsterKilled",
+      mapId: party.startMapId,
+      monsterId: crypto.randomUUID(),
+      species: "spear_goblin",
+      killer: actor,
+      contributors: [actor],
+      nearbyParty: [actor],
+    });
+    const first = event("stable-first-kill");
+    await Promise.all([
+      coordinator.recordQuestEvent(party.partyId, first),
+      coordinator.recordQuestEvent(party.partyId, first),
+      ...Array.from({ length: 9 }, (_, index) =>
+        coordinator.recordQuestEvent(party.partyId, event(`kill-${index + 2}`)),
+      ),
+    ]);
+    let held = await coordinator.getAdventureState(party.partyId);
+    expect(held.state.quests?.["0001"]).toMatchObject({
+      status: "ready",
+      objectives: { "0001": 10 },
+    });
+
+    await coordinator.markPartyCompleted(party.partyId);
+    await coordinator.recordQuestEvent(party.partyId, event("after-victory"));
+    held = await coordinator.getAdventureState(party.partyId);
+    expect(held.state.quests?.["0001"]?.objectives["0001"]).toBe(10);
+  });
+
+  it("persists contributor credit separately for two personal quests and fences a stale hero", async () => {
+    const party = await testParty("personal-credit", {
+      maps: [testMapInput("Personal credit")],
+    });
+    await seedAdventureRegistry(party.adventureId, {
+      switches: [],
+      variables: [],
+      quests: [
+        {
+          ...createAuthoredQuestDefinition("0001", "Participation personnelle"),
+          scope: "personal",
+          acceptance: "automatic",
+          objectives: [
+            {
+              id: "0001",
+              type: "kill",
+              label: "",
+              target: 2,
+              optional: false,
+              hidden: false,
+              stage: 0,
+              species: "spear_goblin",
+              mapScope: { kind: "any" },
+              credit: "contributors",
+            },
+          ],
+        },
+      ],
+    });
+    const heroA = await testHero("PersonalA", { party, account: party.host, level: 8 });
+    const heroB = await testHero("PersonalB", { party, level: 8 });
+    const clientA = await Client.joinHero(heroA);
+    const clientB = await Client.joinHero(heroB);
+    await until("personal heroes welcomed", () => clientA.welcome && clientB.welcome);
+    const rows = await env.DB.prepare(
+      "SELECT id, session_epoch FROM hero WHERE id IN (?, ?) ORDER BY id",
+    )
+      .bind(heroA.heroId, heroB.heroId)
+      .all<{ id: string; session_epoch: number }>();
+    const actorFor = (heroId: string) => {
+      const row = rows.results.find((candidate) => candidate.id === heroId);
+      if (!row) throw new Error("missing personal hero epoch");
+      return { heroId, sessionEpoch: row.session_epoch, level: 8 };
+    };
+    const actorA = actorFor(heroA.heroId);
+    const actorB = actorFor(heroB.heroId);
+    const event: QuestBusinessEvent = {
+      id: "shared-personal-kill",
+      type: "monsterKilled",
+      mapId: party.startMapId,
+      monsterId: crypto.randomUUID(),
+      species: "spear_goblin",
+      killer: actorA,
+      contributors: [actorA, actorB],
+      nearbyParty: [actorA, actorB],
+    };
+    const coordinator = env.GAME_SESSION.getByName(party.partyId);
+    await coordinator.recordQuestEvent(party.partyId, event);
+    await until("both personal trackers updated", () => {
+      const progress = (client: Client) =>
+        [...client.received].reverse().find((message) => message.t === "state")?.self
+          .authoredQuests?.[0]?.objectives[0]?.progress;
+      return progress(clientA) === 1 && progress(clientB) === 1;
+    });
+
+    // A transport retry carries the same server event id and changes neither persisted row.
+    await coordinator.recordQuestEvent(party.partyId, event);
+    const persisted = await env.DB.prepare(
+      "SELECT hero_id, data FROM hero_quest WHERE quest_id = '0001' ORDER BY hero_id",
+    ).all<{ hero_id: string; data: string }>();
+    expect(persisted.results).toHaveLength(2);
+    for (const row of persisted.results) {
+      const data = JSON.parse(row.data) as { authoredProgress: { objectives: { "0001": number } } };
+      expect(data.authoredProgress.objectives["0001"]).toBe(1);
+    }
+
+    clientB.close();
+    const reconnectedB = await Client.joinHero(heroB);
+    const welcomeAfterReconnect = await until("personal progress restored on reconnect", () =>
+      reconnectedB.welcome?.self.authoredQuests?.[0]?.objectives[0]?.progress === 1
+        ? reconnectedB.welcome
+        : undefined,
+    );
+    expect(welcomeAfterReconnect?.self.authoredQuests?.[0]).toMatchObject({
+      id: "0001",
+      objectives: [{ id: "0001", progress: 1, target: 2 }],
+    });
+
+    // Simulate a takeover. The old actor epoch cannot write the second kill.
+    await env.DB.prepare("UPDATE hero SET session_epoch = session_epoch + 1 WHERE id = ?")
+      .bind(heroA.heroId)
+      .run();
+    await coordinator.recordQuestEvent(party.partyId, {
+      ...event,
+      id: "stale-personal-kill",
+      contributors: [actorA],
+      nearbyParty: [actorA],
+    });
+    const stale = await env.DB.prepare(
+      "SELECT data FROM hero_quest WHERE hero_id = ? AND quest_id = '0001'",
+    )
+      .bind(heroA.heroId)
+      .first<{ data: string }>();
+    if (!stale) throw new Error("missing stale personal quest row");
+    const staleData = JSON.parse(stale.data) as {
+      authoredProgress: { objectives: { "0001": number } };
+    };
+    expect(staleData.authoredProgress.objectives["0001"]).toBe(1);
+  });
+
+  it("tracks map entry, NPC conversation and item acquisition without quest commands", async () => {
+    const npcId = crypto.randomUUID();
+    const npc: MapEvent = {
+      id: npcId,
+      col: 5,
+      row: 5,
+      name: "Guide",
+      ordinal: 0,
+      kind: "normal",
+      species: null,
+      patrolRadius: null,
+      pages: [
+        page({
+          graphicAssetId: "character.units-blue-units-pawn.pawn-idle",
+          commands: [
+            { t: "changeItems", itemId: "mana_potion", count: 2 },
+            { t: "say", text: "Bienvenue.", name: "Guide" },
+          ],
+        }),
+      ],
+    };
+    const party = await testParty("arrival-and-talk", {
+      maps: [testMapInput("Arrival and talk", { events: [npc] })],
+    });
+    await seedAdventureRegistry(party.adventureId, {
+      switches: [],
+      variables: [],
+      quests: [
+        {
+          ...createAuthoredQuestDefinition("0001", "Trouver le guide"),
+          acceptance: "automatic",
+          objectives: [
+            {
+              id: "0001",
+              type: "reach",
+              label: "",
+              target: 1,
+              optional: false,
+              hidden: false,
+              stage: 0,
+              destination: { kind: "map", mapId: party.startMapId },
+            },
+            {
+              id: "0002",
+              type: "interact",
+              label: "",
+              target: 1,
+              optional: false,
+              hidden: false,
+              stage: 0,
+              targetRef: { mapId: party.startMapId, eventId: npcId },
+              interaction: "talk",
+            },
+            {
+              id: "0003",
+              type: "collect",
+              label: "",
+              target: 2,
+              optional: false,
+              hidden: false,
+              stage: 0,
+              itemId: "mana_potion",
+              counting: "acquired",
+            },
+          ],
+        },
+      ],
+    });
+    const hero = await testHero("Visitor", {
+      party,
+      account: party.host,
+      position: tileCentre(5, 5),
+    });
+    const client = await Client.joinHero(hero);
+    await until("map entry tracked", () =>
+      client.received.find(
+        (message) =>
+          message.t === "state" && message.self.authoredQuests?.[0]?.objectives[0]?.progress === 1,
+      ),
+    );
+    client.action("interact");
+    const ready = await until("NPC conversation and acquisition tracked", () =>
+      client.received.find(
+        (message) =>
+          message.t === "state" &&
+          message.self.authoredQuests?.[0]?.objectives[1]?.progress === 1 &&
+          message.self.authoredQuests[0].objectives[2]?.progress === 2,
+      ),
+    );
+    expect(ready).toMatchObject({
+      t: "state",
+      self: {
+        authoredQuests: [
+          {
+            status: "ready",
+            objectives: [
+              { id: "0001", progress: 1 },
+              { id: "0002", progress: 1 },
+              { id: "0003", progress: 2 },
+            ],
+          },
+        ],
+      },
+    });
   });
 
   it("loads the party snapshot once and pushes the same state to both map rooms", async () => {

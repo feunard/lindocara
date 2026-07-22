@@ -1,3 +1,4 @@
+import type { AuthoredQuestProgress } from "@lindocara/engine/adventure-state.js";
 import {
   type CharacterAppearance,
   type Equipment,
@@ -37,6 +38,8 @@ export interface PlayerProfile extends Vec2 {
   equipment: Equipment;
   inventory: Inventory;
   quest: QuestState;
+  /** Personal authored quests. Party-scoped authored progress lives in GameSession instead. */
+  authoredQuestProgress?: Record<string, AuthoredQuestProgress>;
   zoneId: string;
   instanceId: string;
   sessionEpoch: number;

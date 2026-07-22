@@ -56,3 +56,31 @@ broken maps, events, items, activities, switches and variables; missing acceptan
 missing or cyclic prerequisite quests; invalid next-quest links; sequential stage gaps; empty or
 optional-only objective sets; and manual compatibility objectives. Publication, full test mode and
 the quest workspace should all render these same diagnostics with localized creator-facing text.
+
+## Authoritative automatic progression
+
+`packages/engine/src/quest-runtime.ts` defines the platform-free business-event language and builds
+target indexes once per loaded adventure. A monster kill, item mutation, interaction or arrival
+looks up only the objectives registered for that species/item/event/map/area/activity; the tick loop
+never scans every quest.
+
+`GameSession` consumes server-minted events in one serialized write queue. Party quests advance once
+per event even when several members qualify. Personal quests are saved immediately in `hero_quest`
+behind the hero's `session_epoch` fence, while party progress continues to use the durable
+alarm-backed `party_adventure_state` save. Every progress row keeps a bounded set of business-event
+ids so a retry cannot grant that fact to a second objective or sequential stage. Progress stops after the
+party's authoritative `open -> completed` transition.
+
+Combat credit deliberately reuses the existing contribution model:
+
+- `killer` credits only the finishing hero;
+- `contributors` credits heroes with meaningful combat participation inside reward range;
+- `nearby-party` credits those contributors plus nearby members eligible for the existing shared XP
+  rule.
+
+World emits `monsterKilled`, `itemAcquired`, `itemRemoved`, `itemUsed`, `objectInteracted`,
+`npcTalked` and `mapEntered` only after the corresponding authoritative mutation or interaction.
+The engine also indexes `bossDefeated`, `areaEntered` and `activityCompleted` for domain systems that
+register those facts. Legacy `advanceQuest` commands remain accepted only for explicit `manual`
+objectives; they cannot double-progress a structured objective or write personal state into the
+party coordinator.

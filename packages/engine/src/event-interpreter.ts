@@ -155,6 +155,7 @@ export function applyStateMutation(
             definitionVersion: 1,
             rewardClaimed: false,
             completionCount: 0,
+            processedEventKeys: [],
           },
         },
       };

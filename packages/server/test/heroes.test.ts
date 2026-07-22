@@ -7,14 +7,21 @@ import { env } from "cloudflare:test";
 import type { AdventureInput } from "@lindocara/engine/adventure.js";
 import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
 import { functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js";
+import { createAuthoredQuestProgress } from "@lindocara/engine/quest-runtime.js";
+import {
+  createAuthoredQuestDefinition,
+  createManualQuestObjective,
+} from "@lindocara/engine/quests.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { updateAdventure } from "@lindocara/server/adventures.js";
 import { account, createDb } from "@lindocara/server/db/index.js";
 import {
   claimHeroQuestReward,
   consumeHeroOwnedItem,
+  loadHeroAuthoredQuestProgress,
   loadHeroSkills,
   loadNormalizedHeroState,
+  saveHeroAuthoredQuestProgress,
 } from "@lindocara/server/hero-persistence.js";
 import {
   acquireHeroEpoch,
@@ -254,6 +261,46 @@ describe("createHero", () => {
       hp: 112,
       inventory: { gold: 9, potions: 3 },
       quest: { status: "completed" },
+    });
+  });
+
+  it("round-trips personal authored progress and rejects a stale session epoch", async () => {
+    const db = createDb(env.DB);
+    await seedAccount("host");
+    const { partyId } = await seedParty("host");
+    const created = await createHero(db, "host", partyId, { name: "Mira", class: "priest" });
+    expect(await acquireHeroEpoch(db, created.id)).toBe(1);
+    const definition = {
+      ...createAuthoredQuestDefinition("0001", "Dix gobelins"),
+      scope: "personal" as const,
+      objectives: [{ ...createManualQuestObjective("0001"), target: 10 }],
+    };
+    const progress = {
+      ...createAuthoredQuestProgress(definition),
+      objectives: { "0001": 4 },
+      processedEventKeys: ["kill-1:0001"],
+    };
+    expect(
+      await saveHeroAuthoredQuestProgress(db, {
+        heroId: created.id,
+        sessionEpoch: 1,
+        questId: definition.id,
+        progress,
+      }),
+    ).toBe(true);
+    expect(await loadHeroAuthoredQuestProgress(db, created.id)).toEqual({ "0001": progress });
+
+    expect(await acquireHeroEpoch(db, created.id)).toBe(2);
+    expect(
+      await saveHeroAuthoredQuestProgress(db, {
+        heroId: created.id,
+        sessionEpoch: 1,
+        questId: definition.id,
+        progress: { ...progress, objectives: { "0001": 9 } },
+      }),
+    ).toBe(false);
+    expect((await loadHeroAuthoredQuestProgress(db, created.id))["0001"]?.objectives).toEqual({
+      "0001": 4,
     });
   });
 
