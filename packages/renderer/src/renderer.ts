@@ -405,7 +405,7 @@ function landTexture(
 export { autotileSheetCell } from "./tile-draw.js";
 
 const MERCHANT_IDLE_SHEET = new URL(
-  "../../../assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Gnome/Gnome_Idle.png",
+  "../../catalog/assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Gnome/Gnome_Idle.png",
   import.meta.url,
 ).href;
 

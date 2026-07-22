@@ -8,7 +8,7 @@ import {
   readCatalogSource,
   readRawIndex,
   validateCatalog,
-} from "../../../scripts/tiny-swords-catalog-lib.js";
+} from "../src/tiny-swords-catalog-lib.js";
 
 const raw = readRawIndex();
 const catalog = readCatalogSource();

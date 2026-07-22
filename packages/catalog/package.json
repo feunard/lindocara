@@ -1,0 +1,14 @@
+{
+  "name": "@lindocara/catalog",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "catalog:build": "tsx src/build-tiny-swords-catalog.ts",
+    "catalog:check": "tsx src/check-tiny-swords-catalog.ts && vitest run"
+  },
+  "dependencies": {
+    "@lindocara/engine": "*"
+  }
+}

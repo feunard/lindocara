@@ -8,11 +8,11 @@ import type { ServerCombatTimeline } from "./server-clock.js";
 import { TINY_SWORDS_ROOT } from "./tiny-swords-art.js";
 
 const HEX_SHAMAN_PROJECTILE_SOURCE = new URL(
-  "../../../assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Hex Shaman/Hex Shaman_Projectile.png",
+  "../../catalog/assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Hex Shaman/Hex Shaman_Projectile.png",
   import.meta.url,
 ).href;
 const HEX_SHAMAN_IMPACT_SOURCE = new URL(
-  "../../../assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Hex Shaman/Hex Shaman_Explosion.png",
+  "../../catalog/assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Hex Shaman/Hex Shaman_Explosion.png",
   import.meta.url,
 ).href;
 

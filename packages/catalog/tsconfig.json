@@ -1,0 +1,10 @@
+{
+  // The Tiny Swords asset pipeline: reads this package's assets/, generates the catalog into
+  // engine (tiny-swords-catalog.generated.ts) and the client's public/. Runs in Node.
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["node"]
+  },
+  "include": ["src", "test"]
+}

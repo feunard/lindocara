@@ -12,15 +12,16 @@ import type {
   TinySwordsPack,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 
-export const PROJECT_ROOT = path.resolve(import.meta.dirname, "..");
-export const RAW_INDEX_PATH = path.join(PROJECT_ROOT, "assets", "index.json");
-export const CATALOG_SOURCE_PATH = path.join(
-  PROJECT_ROOT,
-  "assets",
-  "lindocara-asset-catalog.json",
-);
+// This lib lives in packages/catalog/src. The raw art is co-located in this package's assets/;
+// the generated outputs land in their consuming packages (engine, client) and in the repo docs.
+const CATALOG_DIR = path.resolve(import.meta.dirname, "..");
+const REPO_ROOT = path.resolve(import.meta.dirname, "..", "..", "..");
+/** The catalog package root — holds the raw `assets/`. Exported for the catalog test. */
+export const PROJECT_ROOT = CATALOG_DIR;
+export const RAW_INDEX_PATH = path.join(CATALOG_DIR, "assets", "index.json");
+export const CATALOG_SOURCE_PATH = path.join(CATALOG_DIR, "assets", "lindocara-asset-catalog.json");
 export const CLIENT_CATALOG_PATH = path.join(
-  PROJECT_ROOT,
+  REPO_ROOT,
   "packages",
   "client",
   "public",
@@ -30,14 +31,14 @@ export const CLIENT_CATALOG_PATH = path.join(
   "catalog.json",
 );
 export const GENERATED_SHARED_PATH = path.join(
-  PROJECT_ROOT,
+  REPO_ROOT,
   "packages",
   "engine",
   "src",
   "tiny-swords-catalog.generated.ts",
 );
 export const COVERAGE_REPORT_PATH = path.join(
-  PROJECT_ROOT,
+  REPO_ROOT,
   "docs",
   "generated",
   "tiny-swords-catalog-coverage.md",

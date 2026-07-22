@@ -9,8 +9,8 @@
       "!.wrangler",
       "!packages/server/src/worker-configuration.d.ts",
       "!packages/server/migrations/meta",
-      "!assets/index.json",
-      "!assets/lindocara-asset-catalog.json",
+      "!packages/catalog/assets/index.json",
+      "!packages/catalog/assets/lindocara-asset-catalog.json",
       "!packages/client/public/assets/lindocara/tiny-swords/catalog.json",
       "!packages/engine/src/tiny-swords-catalog.generated.ts"
     ]

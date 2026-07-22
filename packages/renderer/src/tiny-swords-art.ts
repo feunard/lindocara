@@ -192,23 +192,23 @@ export const TINY_SWORDS_BUILDINGS = [
   `${TINY_SWORDS_ROOT}/buildings/Tower.png`,
   `${TINY_SWORDS_ROOT}/buildings/Castle.png`,
   new URL(
-    "../../../assets/Tiny Swords (Free Pack)/Buildings/Red Buildings/House1.png",
+    "../../catalog/assets/Tiny Swords (Free Pack)/Buildings/Red Buildings/House1.png",
     import.meta.url,
   ).href,
   new URL(
-    "../../../assets/Tiny Swords (Free Pack)/Buildings/Yellow Buildings/Barracks.png",
+    "../../catalog/assets/Tiny Swords (Free Pack)/Buildings/Yellow Buildings/Barracks.png",
     import.meta.url,
   ).href,
   new URL(
-    "../../../assets/Tiny Swords (Free Pack)/Buildings/Purple Buildings/Monastery.png",
+    "../../catalog/assets/Tiny Swords (Free Pack)/Buildings/Purple Buildings/Monastery.png",
     import.meta.url,
   ).href,
   new URL(
-    "../../../assets/Tiny Swords (Free Pack)/Buildings/Red Buildings/House3.png",
+    "../../catalog/assets/Tiny Swords (Free Pack)/Buildings/Red Buildings/House3.png",
     import.meta.url,
   ).href,
   new URL(
-    "../../../assets/Tiny Swords (Free Pack)/Buildings/Yellow Buildings/House2.png",
+    "../../catalog/assets/Tiny Swords (Free Pack)/Buildings/Yellow Buildings/House2.png",
     import.meta.url,
   ).href,
 ] as const;
@@ -280,7 +280,7 @@ export const TINY_SWORDS_EFFECT_SHEETS = {
 } as const;
 
 const HEX_SHAMAN_PROJECTILE_ICON = new URL(
-  "../../../assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Hex Shaman/Hex Shaman_Projectile.png",
+  "../../catalog/assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Hex Shaman/Hex Shaman_Projectile.png",
   import.meta.url,
 ).href;
 
