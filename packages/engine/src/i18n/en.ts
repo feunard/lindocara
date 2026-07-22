@@ -1084,6 +1084,8 @@ export const en = {
   "menu.options": "Options",
   "menu.quit": "Quit",
   "menu.editor": "Editor",
+  "menu.music.on": "Music: on",
+  "menu.music.off": "Music: off",
   "menu.back": "Back",
   "menu.hint.navigate": "Navigate",
   "menu.hint.select": "Select",

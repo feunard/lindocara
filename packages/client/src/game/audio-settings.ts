@@ -4,6 +4,8 @@ export interface AudioSettings {
   sfxVolume: number;
   /** 0–1 multiplier applied to the ambient music bed. */
   ambientVolume: number;
+  /** Music on/off, independent of `muted` (which silences everything) and the volume sliders. */
+  musicEnabled: boolean;
 }
 
 const STORAGE_KEY = "lindocara.audio";
@@ -12,6 +14,7 @@ export const DEFAULT_AUDIO_SETTINGS: AudioSettings = {
   muted: false,
   sfxVolume: 0.65,
   ambientVolume: 0.45,
+  musicEnabled: true,
 };
 
 const listeners = new Set<() => void>();
@@ -28,6 +31,7 @@ function loadSettings(): AudioSettings {
       muted: parsed.muted === true,
       sfxVolume: clamp01(parsed.sfxVolume ?? DEFAULT_AUDIO_SETTINGS.sfxVolume),
       ambientVolume: clamp01(parsed.ambientVolume ?? DEFAULT_AUDIO_SETTINGS.ambientVolume),
+      musicEnabled: parsed.musicEnabled !== false,
     };
   } catch {
     return { ...DEFAULT_AUDIO_SETTINGS };
@@ -58,6 +62,7 @@ export function setAudioSettings(partial: Partial<AudioSettings>): void {
     sfxVolume: partial.sfxVolume === undefined ? settings.sfxVolume : clamp01(partial.sfxVolume),
     ambientVolume:
       partial.ambientVolume === undefined ? settings.ambientVolume : clamp01(partial.ambientVolume),
+    musicEnabled: partial.musicEnabled ?? settings.musicEnabled,
   };
   persistSettings();
   notify();

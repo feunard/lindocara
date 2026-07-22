@@ -5,6 +5,11 @@
  */
 import { type ReactNode, useEffect, useState } from "react";
 import { fetchParties } from "../api.js";
+import {
+  getAudioSettings,
+  setAudioSettings,
+  subscribeAudioSettings,
+} from "../game/audio-settings.js";
 import { t } from "../i18n.js";
 import { useUiStore } from "../store.js";
 import { TinySwordsMenuScene } from "./TinySwordsMenuScene.js";
@@ -44,12 +49,19 @@ export function MainMenu() {
   // opens onto an empty carousel. Ordering leaves a gap at 0 when hidden; MenuNav sorts by order,
   // so the remaining items still focus correctly.
   const [hasSaves, setHasSaves] = useState(false);
+  // Mirror the persisted music flag so the corner toggle stays in sync with the settings menu too.
+  const [musicOn, setMusicOn] = useState(() => getAudioSettings().musicEnabled);
 
   useEffect(() => {
     void fetchParties()
       .then((all) => setHasSaves(all.some((p) => p.mine)))
       .catch(() => setHasSaves(false));
   }, []);
+
+  useEffect(
+    () => subscribeAudioSettings(() => setMusicOn(getAudioSettings().musicEnabled)),
+    [],
+  );
 
   return (
     <main className="main-menu">
@@ -105,6 +117,20 @@ export function MainMenu() {
         onClick={() => setScreen("adventure-editor")}
       >
         {t("menu.editor")}
+      </button>
+
+      <button
+        type="button"
+        className="main-menu__music"
+        aria-pressed={musicOn}
+        aria-label={t(musicOn ? "menu.music.on" : "menu.music.off")}
+        title={t(musicOn ? "menu.music.on" : "menu.music.off")}
+        data-off={musicOn ? undefined : ""}
+        onClick={() => setAudioSettings({ musicEnabled: !musicOn })}
+      >
+        <span className="main-menu__music-icon" aria-hidden="true">
+          ♪
+        </span>
       </button>
 
       <MenuHints>

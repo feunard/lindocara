@@ -177,6 +177,34 @@
   opacity: 0.7;
   transition: opacity 0.15s ease;
 }
+
+/* Music on/off, mirrored bottom-right of the discreet editor button — a corner toggle, not on the
+   controller path. Dimmed with the note struck through when music is off. */
+.main-menu__music {
+  position: absolute;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border: 1px solid rgba(232, 195, 122, 0.25);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--launch-gold);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: var(--tiny-cursor-link, pointer);
+  transition:
+    opacity 0.15s ease,
+    color 0.15s ease;
+}
+.main-menu__music[data-off] {
+  color: rgba(244, 233, 210, 0.4);
+}
+.main-menu__music[data-off] .main-menu__music-icon {
+  text-decoration: line-through;
+}
 .main-menu__editor:hover {
   opacity: 1;
 }
