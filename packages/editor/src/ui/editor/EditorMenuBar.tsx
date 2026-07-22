@@ -1,7 +1,5 @@
-import { Box, LogOut } from "lucide-react";
-import type { EditorMode } from "../../game/editor-state.js";
-import { t, useLocale } from "../../i18n.js";
-import { Button } from "../components/button.js";
+import { t, useLocale } from "@lindocara/client/i18n.js";
+import { Button } from "@lindocara/client/ui/components/button.js";
 import {
   Menubar,
   MenubarContent,
@@ -10,8 +8,14 @@ import {
   MenubarSeparator,
   MenubarShortcut,
   MenubarTrigger,
-} from "../components/menubar.js";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../components/tooltip.js";
+} from "@lindocara/client/ui/components/menubar.js";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@lindocara/client/ui/components/tooltip.js";
+import { Box, LogOut } from "lucide-react";
+import type { EditorMode } from "../../game/editor-state.js";
 import type { EditorPaintTool } from "./EditorToolbar.js";
 
 interface EditorMenuBarProps {

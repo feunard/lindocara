@@ -25,7 +25,7 @@ import { VictoryOverlay } from "./VictoryOverlay.js";
 import { WorldMap } from "./WorldMap.js";
 
 const AdventureEditorScreen = lazy(async () => {
-  const module = await import("./editor/AdventureEditorScreen.js");
+  const module = await import("@lindocara/editor/ui/editor/AdventureEditorScreen.js");
   return { default: module.AdventureEditorScreen };
 });
 

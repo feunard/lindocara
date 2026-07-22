@@ -1,5 +1,5 @@
 import { setLocale, t } from "@lindocara/client/i18n.js";
-import { EditorPalette } from "@lindocara/client/ui/editor/EditorPalette.js";
+import { EditorPalette } from "@lindocara/editor/ui/editor/EditorPalette.js";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 

@@ -1,3 +1,10 @@
+import { t, useLocale } from "@lindocara/client/i18n.js";
+import { Button } from "@lindocara/client/ui/components/button.js";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@lindocara/client/ui/components/tooltip.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import {
   Blocks,
@@ -14,9 +21,6 @@ import {
 } from "lucide-react";
 import type { ComponentProps, ComponentType } from "react";
 import type { EditorMode } from "../../game/editor-state.js";
-import { t, useLocale } from "../../i18n.js";
-import { Button } from "../components/button.js";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../components/tooltip.js";
 import { EditorModeControl } from "./EditorModeControl.js";
 
 /** The five paint tools the toolbar exposes as buttons. `stairs` and scenery live in the palette. */

@@ -1,6 +1,6 @@
 import { setLocale, t } from "@lindocara/client/i18n.js";
 import { useUiStore } from "@lindocara/client/store.js";
-import { AdventureEditorScreen } from "@lindocara/client/ui/editor/AdventureEditorScreen.js";
+import { AdventureEditorScreen } from "@lindocara/editor/ui/editor/AdventureEditorScreen.js";
 import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
@@ -11,10 +11,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // shell stays on its empty state), but importing the screen pulls the stage module in — mock it so
 // jsdom never touches PixiJS.
 const stageMock = vi.hoisted(() => ({ openMapEditorStage: vi.fn(), dispose: vi.fn() }));
-vi.mock("@lindocara/client/game/map-editor-stage.js", () => ({
+vi.mock("@lindocara/editor/game/map-editor-stage.js", () => ({
   openMapEditorStage: stageMock.openMapEditorStage,
 }));
-vi.mock("@lindocara/client/game/map-preview.js", () => ({ startMapPreview: vi.fn() }));
+vi.mock("@lindocara/editor/game/map-preview.js", () => ({ startMapPreview: vi.fn() }));
 
 const LAYERS = layersFromBlocks(Array.from({ length: 15 }, () => ".".repeat(20))).layers.map(
   encodeTileLayer,

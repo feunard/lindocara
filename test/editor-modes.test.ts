@@ -1,4 +1,4 @@
-import { applyTool, blankMap, type EditorMap } from "@lindocara/client/game/editor-state.js";
+import { applyTool, blankMap, type EditorMap } from "@lindocara/editor/game/editor-state.js";
 import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
 

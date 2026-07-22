@@ -1,8 +1,18 @@
+import {
+  type AdventureSummary,
+  authErrorText,
+  errorCode,
+  fetchAdventures,
+} from "@lindocara/client/api.js";
+import { t, useLocale } from "@lindocara/client/i18n.js";
+import { Button } from "@lindocara/client/ui/components/button.js";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@lindocara/client/ui/components/dialog.js";
 import { useEffect, useState } from "react";
-import { type AdventureSummary, authErrorText, errorCode, fetchAdventures } from "../../api.js";
-import { t, useLocale } from "../../i18n.js";
-import { Button } from "../components/button.js";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/dialog.js";
 
 function isSessionError(code: string): boolean {
   return code === "session_expired" || code === "unauthorized";

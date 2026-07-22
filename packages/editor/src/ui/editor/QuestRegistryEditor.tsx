@@ -1,3 +1,6 @@
+import { t, useLocale } from "@lindocara/client/i18n.js";
+import { Button } from "@lindocara/client/ui/components/button.js";
+import { Input } from "@lindocara/client/ui/components/input.js";
 import {
   type AuthoredQuestDefinition,
   MAX_AUTHORED_QUESTS,
@@ -8,9 +11,6 @@ import {
   QUEST_OBJECTIVE_TARGET_MAX,
   QUEST_TITLE_MAX,
 } from "@lindocara/engine/adventure-state.js";
-import { t, useLocale } from "../../i18n.js";
-import { Button } from "../components/button.js";
-import { Input } from "../components/input.js";
 
 interface QuestRegistryEditorProps {
   quests: readonly AuthoredQuestDefinition[];

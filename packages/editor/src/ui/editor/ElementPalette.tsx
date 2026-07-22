@@ -1,6 +1,6 @@
+import { t, useLocale } from "@lindocara/client/i18n.js";
 import { MAX_MAP_ELEMENTS } from "@lindocara/engine/map-data.js";
 import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
-import { t, useLocale } from "../../i18n.js";
 import { CatalogueAssetPicker } from "./CatalogueAssetPicker.js";
 
 interface ElementPaletteProps {

@@ -23,7 +23,7 @@ import {
   toSaveInput,
   undoEditorHistory,
   updateEventDraftPage,
-} from "@lindocara/client/game/editor-state.js";
+} from "@lindocara/editor/game/editor-state.js";
 import { isUuid } from "@lindocara/engine/identifiers.js";
 import { EMPTY_MARKERS, MAX_MAP_ELEMENTS, type MapElement } from "@lindocara/engine/map-data.js";
 import { entryEvents, exitEvents, type MapEvent } from "@lindocara/engine/map-events.js";

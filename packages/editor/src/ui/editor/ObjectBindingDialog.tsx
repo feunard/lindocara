@@ -1,18 +1,18 @@
-import type { AuthoredQuestDefinition } from "@lindocara/engine/adventure-state.js";
-import type { EventCommand } from "@lindocara/engine/event-commands.js";
-import { type EditorAssetId, editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
-import { useState } from "react";
-import type { ElementEventBinding } from "../../game/editor-state.js";
-import { t, useLocale } from "../../i18n.js";
-import { Button } from "../components/button.js";
+import { t, useLocale } from "@lindocara/client/i18n.js";
+import { Button } from "@lindocara/client/ui/components/button.js";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "../components/dialog.js";
-import { Input } from "../components/input.js";
+} from "@lindocara/client/ui/components/dialog.js";
+import { Input } from "@lindocara/client/ui/components/input.js";
+import type { AuthoredQuestDefinition } from "@lindocara/engine/adventure-state.js";
+import type { EventCommand } from "@lindocara/engine/event-commands.js";
+import { type EditorAssetId, editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
+import { useState } from "react";
+import type { ElementEventBinding } from "../../game/editor-state.js";
 import { EditorAssetPreview } from "./CatalogueAssetPicker.js";
 
 type BindingKind =

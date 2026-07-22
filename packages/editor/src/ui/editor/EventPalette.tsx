@@ -1,11 +1,11 @@
+import { t, useLocale } from "@lindocara/client/i18n.js";
+import { Input } from "@lindocara/client/ui/components/input.js";
+import { Label } from "@lindocara/client/ui/components/label.js";
 import { EVENT_PRESETS, type EventPreset } from "@lindocara/engine/event-presets.js";
 import { CURATED_MONSTER_SPECIES, type MonsterSpecies } from "@lindocara/engine/game.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import { MAX_PATROL_RADIUS, MIN_PATROL_RADIUS } from "@lindocara/engine/map-data.js";
 import type { EventKind, MapEvent } from "@lindocara/engine/map-events.js";
-import { t, useLocale } from "../../i18n.js";
-import { Input } from "../components/input.js";
-import { Label } from "../components/label.js";
 import { EDITOR_MARKER_PREVIEWS, SpriteSheetPreview, SwatchButton } from "./TerrainPalette.js";
 
 /** The popular presets shown as one-click placements. `raw` is the blank scripted event; the rest

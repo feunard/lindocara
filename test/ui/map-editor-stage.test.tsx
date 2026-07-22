@@ -1,5 +1,5 @@
-import type { EditorMap, EditorTool } from "@lindocara/client/game/editor-state.js";
-import { applyTool, blankMap, defaultEventPage } from "@lindocara/client/game/editor-state.js";
+import type { EditorMap, EditorTool } from "@lindocara/editor/game/editor-state.js";
+import { applyTool, blankMap, defaultEventPage } from "@lindocara/editor/game/editor-state.js";
 import {
   applyModeDim,
   defaultDimForMode,
@@ -12,7 +12,7 @@ import {
   paintLandCell,
   shouldShowEventOverlay,
   shouldShowHoverPreview,
-} from "@lindocara/client/game/map-editor-stage.js";
+} from "@lindocara/editor/game/map-editor-stage.js";
 import type { MapElement } from "@lindocara/engine/map-data.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
 import type { TileLayer } from "@lindocara/engine/tile-layer-codec.js";

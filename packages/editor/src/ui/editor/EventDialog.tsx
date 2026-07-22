@@ -1,3 +1,13 @@
+import { t, useLocale } from "@lindocara/client/i18n.js";
+import { Button } from "@lindocara/client/ui/components/button.js";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@lindocara/client/ui/components/dialog.js";
+import { Input } from "@lindocara/client/ui/components/input.js";
 import type { AdventureRegistry, RegistryEntry } from "@lindocara/engine/adventure-state.js";
 import { CURATED_MONSTER_SPECIES, type MonsterSpecies } from "@lindocara/engine/game.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
@@ -27,16 +37,6 @@ import {
   setEventDraftName,
   updateEventDraftPage,
 } from "../../game/editor-state.js";
-import { t, useLocale } from "../../i18n.js";
-import { Button } from "../components/button.js";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "../components/dialog.js";
-import { Input } from "../components/input.js";
 import { CatalogueAssetPicker } from "./CatalogueAssetPicker.js";
 import { EventCommandEditor, type TeleportMap } from "./EventCommandEditor.js";
 

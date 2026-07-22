@@ -1,6 +1,6 @@
 import type { MapPayload, MapSummary } from "@lindocara/client/api.js";
 import { setLocale, t } from "@lindocara/client/i18n.js";
-import { MapListPanel } from "@lindocara/client/ui/editor/MapListPanel.js";
+import { MapListPanel } from "@lindocara/editor/ui/editor/MapListPanel.js";
 import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
 import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";

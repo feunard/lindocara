@@ -5,11 +5,12 @@
  * #5) — membership is implicit, so every owned map is a member. The graph is no longer authored, so
  * the draft models only the shell + members.
  */
+
+import { type DraftMemberInfo, draftFromAdventure } from "@lindocara/client/adventure-draft.js";
+import { fetchAdventure, fetchMap } from "@lindocara/client/api.js";
+import type { AdventureEditorSession } from "@lindocara/client/store.js";
 import { entryEvents, exitEvents, monsterEvents } from "@lindocara/engine/map-events.js";
-import { type DraftMemberInfo, draftFromAdventure } from "../../adventure-draft.js";
-import { fetchAdventure, fetchMap } from "../../api.js";
 import { solidMaskFromMapPayload } from "../../game/editor-state.js";
-import type { AdventureEditorSession } from "../../store.js";
 
 /** One map's draft-facing facts, read from its stored payload — its entry/exit EVENT uuids (markers
  *  are dead, UX wave #12; these are descriptive now, not graph-wired), plus a thumbnail mask and the

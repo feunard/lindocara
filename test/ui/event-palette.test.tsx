@@ -1,5 +1,5 @@
 import { setLocale, t } from "@lindocara/client/i18n.js";
-import { EventPalette } from "@lindocara/client/ui/editor/EventPalette.js";
+import { EventPalette } from "@lindocara/editor/ui/editor/EventPalette.js";
 import { presetEvent } from "@lindocara/engine/event-presets.js";
 import { functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js";
 import { fireEvent, render, screen, within } from "@testing-library/react";

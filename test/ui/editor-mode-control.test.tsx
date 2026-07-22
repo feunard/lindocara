@@ -1,4 +1,4 @@
-import { EditorModeControl } from "@lindocara/client/ui/editor/EditorModeControl.js";
+import { EditorModeControl } from "@lindocara/editor/ui/editor/EditorModeControl.js";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 

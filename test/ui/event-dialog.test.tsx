@@ -1,6 +1,6 @@
-import { defaultEventPage } from "@lindocara/client/game/editor-state.js";
 import { setLocale, t } from "@lindocara/client/i18n.js";
-import { EventDialog } from "@lindocara/client/ui/editor/EventDialog.js";
+import { defaultEventPage } from "@lindocara/editor/game/editor-state.js";
+import { EventDialog } from "@lindocara/editor/ui/editor/EventDialog.js";
 import { type AdventureRegistry, EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
 import { fireEvent, render, screen, within } from "@testing-library/react";

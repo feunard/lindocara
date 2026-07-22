@@ -1,7 +1,7 @@
 import type { AdventureDraft, DraftMemberInfo } from "@lindocara/client/adventure-draft.js";
 import { setLocale, t } from "@lindocara/client/i18n.js";
 import { useUiStore } from "@lindocara/client/store.js";
-import { AdventureSettingsDialog } from "@lindocara/client/ui/editor/AdventureSettingsDialog.js";
+import { AdventureSettingsDialog } from "@lindocara/editor/ui/editor/AdventureSettingsDialog.js";
 import { EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
 import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";

@@ -1,3 +1,23 @@
+import { draftFromAdventure, toAdventureInput } from "@lindocara/client/adventure-draft.js";
+import {
+  type AdventureSummary,
+  authErrorText,
+  errorCode,
+  fetchAdventure,
+  fetchAdventures,
+  updateAdventureApi,
+} from "@lindocara/client/api.js";
+import { t, useLocale } from "@lindocara/client/i18n.js";
+import { useUiStore } from "@lindocara/client/store.js";
+import { Button } from "@lindocara/client/ui/components/button.js";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@lindocara/client/ui/components/dialog.js";
+import { Input } from "@lindocara/client/ui/components/input.js";
 import {
   type AdventureRegistry,
   MAX_REGISTRY_SWITCHES,
@@ -7,26 +27,6 @@ import {
   type RegistryEntry,
 } from "@lindocara/engine/adventure-state.js";
 import { useEffect, useState } from "react";
-import { draftFromAdventure, toAdventureInput } from "../../adventure-draft.js";
-import {
-  type AdventureSummary,
-  authErrorText,
-  errorCode,
-  fetchAdventure,
-  fetchAdventures,
-  updateAdventureApi,
-} from "../../api.js";
-import { t, useLocale } from "../../i18n.js";
-import { useUiStore } from "../../store.js";
-import { Button } from "../components/button.js";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "../components/dialog.js";
-import { Input } from "../components/input.js";
 import { QuestRegistryEditor } from "./QuestRegistryEditor.js";
 
 function isSessionError(code: string): boolean {

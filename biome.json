@@ -56,7 +56,7 @@
         "packages/engine/src/event-commands.ts",
         "packages/engine/src/event-interpreter.ts",
         "packages/server/src/world/event-run-system.ts",
-        "packages/client/src/ui/editor/EventCommandEditor.tsx",
+        "packages/editor/src/ui/editor/EventCommandEditor.tsx",
         "test/**"
       ],
       "linter": {

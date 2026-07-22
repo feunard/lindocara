@@ -1,7 +1,3 @@
-import { MAX_ADVENTURE_MAPS } from "@lindocara/engine/adventure.js";
-import { nextMapName } from "@lindocara/engine/map-naming.js";
-import { Pencil, Plus, Settings2, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
 import {
   createMapApi,
   deleteMapApi,
@@ -12,19 +8,27 @@ import {
   type MapSaveInput,
   type MapSummary,
   updateMapApi,
-} from "../../api.js";
-import { t, useLocale } from "../../i18n.js";
-import { Button } from "../components/button.js";
+} from "@lindocara/client/api.js";
+import { t, useLocale } from "@lindocara/client/i18n.js";
+import { Button } from "@lindocara/client/ui/components/button.js";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "../components/dialog.js";
-import { Input } from "../components/input.js";
-import { Label } from "../components/label.js";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../components/tooltip.js";
+} from "@lindocara/client/ui/components/dialog.js";
+import { Input } from "@lindocara/client/ui/components/input.js";
+import { Label } from "@lindocara/client/ui/components/label.js";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@lindocara/client/ui/components/tooltip.js";
+import { MAX_ADVENTURE_MAPS } from "@lindocara/engine/adventure.js";
+import { nextMapName } from "@lindocara/engine/map-naming.js";
+import { Pencil, Plus, Settings2, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 
 /** A stored payload made into the create/update body: everything but the server-minted id/revision. */
 function saveInputFromPayload(payload: MapPayload): MapSaveInput {

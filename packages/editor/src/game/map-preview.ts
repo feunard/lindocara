@@ -15,6 +15,8 @@
  * calls `startMapPreview`, and on Esc calls the returned `stop()`, which tears the preview renderer
  * off the shared `#stage` app so the editor can be reopened on the same canvas with the edits intact.
  */
+
+import { t } from "@lindocara/client/i18n.js";
 import {
   BODY_VARIANTS,
   type CharacterAppearance,
@@ -31,7 +33,6 @@ import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { trackInput } from "@lindocara/renderer/input.js";
 import { type RenderContext, Renderer } from "@lindocara/renderer/renderer.js";
 import { acquireStageApp } from "@lindocara/renderer/stage-application.js";
-import { t } from "../i18n.js";
 
 /** The synthetic hero's id, echoed to `setSelfId` so the renderer follows it with the camera and
  *  draws its self ring — the same wiring a real session uses for the local player. */

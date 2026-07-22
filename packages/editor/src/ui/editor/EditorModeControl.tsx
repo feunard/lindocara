@@ -1,6 +1,6 @@
+import { t } from "@lindocara/client/i18n.js";
+import { ToggleGroup, ToggleGroupItem } from "@lindocara/client/ui/components/toggle-group.js";
 import type { EditorMode } from "../../game/editor-state.js";
-import { t } from "../../i18n.js";
-import { ToggleGroup, ToggleGroupItem } from "../components/toggle-group.js";
 
 const MODES: readonly EditorMode[] = ["field", "element", "event"];
 

@@ -1,0 +1,16 @@
+{
+  // The creator tools: the adventure/map editor UI and its PixiJS authoring stage. Browser +
+  // React. Sits on top of the client base (i18n, api, store, shadcn components) and the renderer
+  // (the shared drawing layer). Depends on engine, renderer and client.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+    "jsx": "react-jsx",
+    // The client's shadcn components (imported via @lindocara/client) use the `@/` alias
+    // internally; map it to the client source so they resolve when loaded through this program.
+    // Matches the global Vite alias, which already points `@` at the client source.
+    "paths": { "@/*": ["../client/src/*"] }
+  },
+  "include": ["src"]
+}

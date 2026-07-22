@@ -1,7 +1,7 @@
-import type { ElementEventBinding } from "@lindocara/client/game/editor-state.js";
 import { setLocale, t } from "@lindocara/client/i18n.js";
-import { ObjectBindingDialog } from "@lindocara/client/ui/editor/ObjectBindingDialog.js";
-import { QuestRegistryEditor } from "@lindocara/client/ui/editor/QuestRegistryEditor.js";
+import type { ElementEventBinding } from "@lindocara/editor/game/editor-state.js";
+import { ObjectBindingDialog } from "@lindocara/editor/ui/editor/ObjectBindingDialog.js";
+import { QuestRegistryEditor } from "@lindocara/editor/ui/editor/QuestRegistryEditor.js";
 import type { AuthoredQuestDefinition } from "@lindocara/engine/adventure-state.js";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

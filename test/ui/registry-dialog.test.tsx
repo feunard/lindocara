@@ -1,7 +1,7 @@
 import type { AdventureDraft, DraftMemberInfo } from "@lindocara/client/adventure-draft.js";
 import { setLocale, t } from "@lindocara/client/i18n.js";
 import { useUiStore } from "@lindocara/client/store.js";
-import { RegistryDialog } from "@lindocara/client/ui/editor/RegistryDialog.js";
+import { RegistryDialog } from "@lindocara/editor/ui/editor/RegistryDialog.js";
 import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

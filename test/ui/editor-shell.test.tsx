@@ -1,10 +1,10 @@
 import { emptyDraft } from "@lindocara/client/adventure-draft.js";
 import type { MapPayload, MapSummary } from "@lindocara/client/api.js";
-import { defaultEventPage, toMapData, toSaveInput } from "@lindocara/client/game/editor-state.js";
 import { setLocale, t } from "@lindocara/client/i18n.js";
 import { useUiStore } from "@lindocara/client/store.js";
-import { AdventureEditorScreen } from "@lindocara/client/ui/editor/AdventureEditorScreen.js";
 import { PartiesScreen } from "@lindocara/client/ui/PartiesScreen.js";
+import { defaultEventPage, toMapData, toSaveInput } from "@lindocara/editor/game/editor-state.js";
+import { AdventureEditorScreen } from "@lindocara/editor/ui/editor/AdventureEditorScreen.js";
 import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
 import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
@@ -41,7 +41,7 @@ const stageMock = vi.hoisted(() => ({
   dispose: vi.fn(),
 }));
 
-vi.mock("@lindocara/client/game/map-editor-stage.js", () => ({
+vi.mock("@lindocara/editor/game/map-editor-stage.js", () => ({
   openMapEditorStage: stageMock.openMapEditorStage,
   // The screen calls this pure helper to pick the per-mode dim default (D12); mirror its real rule.
   defaultDimForMode: (mode: string) => mode !== "field",
@@ -74,7 +74,7 @@ function stageHandle() {
 }
 
 const previewMock = vi.hoisted(() => ({ startMapPreview: vi.fn(), stop: vi.fn() }));
-vi.mock("@lindocara/client/game/map-preview.js", () => ({
+vi.mock("@lindocara/editor/game/map-preview.js", () => ({
   startMapPreview: previewMock.startMapPreview,
 }));
 

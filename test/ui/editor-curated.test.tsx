@@ -1,6 +1,6 @@
 import { setLocale } from "@lindocara/client/i18n.js";
-import { CatalogueAssetPicker } from "@lindocara/client/ui/editor/CatalogueAssetPicker.js";
-import { EventPalette } from "@lindocara/client/ui/editor/EventPalette.js";
+import { CatalogueAssetPicker } from "@lindocara/editor/ui/editor/CatalogueAssetPicker.js";
+import { EventPalette } from "@lindocara/editor/ui/editor/EventPalette.js";
 import { CURATED_MONSTER_SPECIES } from "@lindocara/engine/game.js";
 import { editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
 import { fireEvent, render, screen } from "@testing-library/react";

@@ -1,3 +1,5 @@
+import { t, useLocale } from "@lindocara/client/i18n.js";
+import { Input } from "@lindocara/client/ui/components/input.js";
 import {
   EDITOR_ASSETS,
   type EditorAssetDefinition,
@@ -7,8 +9,6 @@ import {
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import { tinySwordsSourceUrl } from "@lindocara/renderer/tiny-swords-assets.js";
 import { useMemo, useState } from "react";
-import { t, useLocale } from "../../i18n.js";
-import { Input } from "../components/input.js";
 
 interface CatalogueAssetPickerProps {
   value: EditorAssetId | null;

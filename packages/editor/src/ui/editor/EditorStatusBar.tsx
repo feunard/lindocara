@@ -1,6 +1,6 @@
+import { t, useLocale } from "@lindocara/client/i18n.js";
 import { Check } from "lucide-react";
 import type { EditorMode } from "../../game/editor-state.js";
-import { t, useLocale } from "../../i18n.js";
 
 interface EditorStatusBarProps {
   mapName: string;

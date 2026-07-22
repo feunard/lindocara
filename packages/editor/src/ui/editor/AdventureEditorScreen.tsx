@@ -1,3 +1,30 @@
+import {
+  type AdventureDraft,
+  type DraftMemberInfo,
+  refreshMember,
+  toAdventureInput,
+} from "@lindocara/client/adventure-draft.js";
+import {
+  authErrorText,
+  createAdventureApi,
+  errorCode,
+  fetchMap,
+  fetchMaps,
+  type MapPayload,
+  updateAdventureApi,
+  updateMapApi,
+} from "@lindocara/client/api.js";
+import { t, useLocale } from "@lindocara/client/i18n.js";
+import { type AdventureEditorSession, useUiStore } from "@lindocara/client/store.js";
+import { Button } from "@lindocara/client/ui/components/button.js";
+import { Input } from "@lindocara/client/ui/components/input.js";
+import { Label } from "@lindocara/client/ui/components/label.js";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@lindocara/client/ui/components/resizable.js";
+import { TooltipProvider } from "@lindocara/client/ui/components/tooltip.js";
 import type { AdventureInput } from "@lindocara/engine/adventure.js";
 import { type AdventureRegistry, EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
 import type { EventPreset } from "@lindocara/engine/event-presets.js";
@@ -21,22 +48,6 @@ import {
   useState,
 } from "react";
 import {
-  type AdventureDraft,
-  type DraftMemberInfo,
-  refreshMember,
-  toAdventureInput,
-} from "../../adventure-draft.js";
-import {
-  authErrorText,
-  createAdventureApi,
-  errorCode,
-  fetchMap,
-  fetchMaps,
-  type MapPayload,
-  updateAdventureApi,
-  updateMapApi,
-} from "../../api.js";
-import {
   type EditorMap,
   type EditorMode,
   type EditorSelection,
@@ -53,13 +64,6 @@ import {
   openMapEditorStage,
 } from "../../game/map-editor-stage.js";
 import { startMapPreview } from "../../game/map-preview.js";
-import { t, useLocale } from "../../i18n.js";
-import { type AdventureEditorSession, useUiStore } from "../../store.js";
-import { Button } from "../components/button.js";
-import { Input } from "../components/input.js";
-import { Label } from "../components/label.js";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../components/resizable.js";
-import { TooltipProvider } from "../components/tooltip.js";
 import { AdventureSettingsDialog } from "./AdventureSettingsDialog.js";
 import { loadAdventureSession } from "./adventure-session.js";
 import { assetDisplayName, EditorAssetPreview } from "./CatalogueAssetPicker.js";

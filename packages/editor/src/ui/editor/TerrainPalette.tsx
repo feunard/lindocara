@@ -1,7 +1,7 @@
+import { t, useLocale } from "@lindocara/client/i18n.js";
 import { TINY_SWORDS_TERRAIN } from "@lindocara/renderer/tiny-swords-art.js";
 import type { ReactNode } from "react";
 import type { RectFillContent } from "../../game/editor-state.js";
-import { t, useLocale } from "../../i18n.js";
 
 const ELEVATION_LEVELS: (0 | 1 | 2)[] = [0, 1, 2];
 

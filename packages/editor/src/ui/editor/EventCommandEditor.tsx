@@ -1,3 +1,5 @@
+import { t, useLocale } from "@lindocara/client/i18n.js";
+import { Button } from "@lindocara/client/ui/components/button.js";
 import type { AuthoredQuestDefinition, RegistryEntry } from "@lindocara/engine/adventure-state.js";
 import { CONSUMABLE_IDS } from "@lindocara/engine/consumables.js";
 import {
@@ -28,8 +30,6 @@ import {
   selectionsEqual,
   updateCommand,
 } from "../../game/event-command-tree.js";
-import { t, useLocale } from "../../i18n.js";
-import { Button } from "../components/button.js";
 
 /** A map an authored `teleport` may target: the adventure's member maps, carrying the dims the editor
  *  clamps the destination cell against (the runtime re-validates, but a red-cell client clamp keeps
