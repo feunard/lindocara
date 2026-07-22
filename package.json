@@ -36,7 +36,7 @@
     "typecheck:editor": "tsc -p packages/editor/tsconfig.json",
     "cf-typegen": "wrangler types ./packages/server/src/worker-configuration.d.ts",
     "ui:add": "shadcn add --path packages/client/src/ui/components",
-    "db:generate": "drizzle-kit generate",
+    "db:generate": "drizzle-kit generate --config packages/server/drizzle.config.ts",
     "db:migrate": "wrangler d1 migrations apply lindocara --local",
     "db:migrate:remote": "wrangler d1 migrations apply lindocara --remote",
     "check": "npm run catalog:check && npm run map:check && npm run lint && npm run typecheck && npm run test && npm run test:ui",

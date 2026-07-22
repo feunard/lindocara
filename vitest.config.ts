@@ -4,7 +4,7 @@ import { defineConfig } from "vitest/config";
 // Read at config time, in Node, then handed to the workers runtime as a binding. The tests
 // apply these against the in-memory D1 so the test schema is the deployed schema — there is
 // no second, hand-maintained CREATE TABLE anywhere.
-const migrations = await readD1Migrations("./migrations");
+const migrations = await readD1Migrations("./packages/server/migrations");
 
 export default defineConfig({
   // Tests run inside workerd, against the real Durable Object — not a mock of it. Bindings,

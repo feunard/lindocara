@@ -9,6 +9,7 @@ export default defineConfig({
   // inside workerd during `vite dev`, and emits a deployable wrangler.json next to the
   // client build. React and Tailwind only touch the client graph.
   plugins: [cloudflare(), react(), tailwindcss()],
+  publicDir: "packages/client/public",
   resolve: {
     alias: { "@": fileURLToPath(new URL("./packages/client/src", import.meta.url)) },
   },

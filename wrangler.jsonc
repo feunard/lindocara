@@ -31,7 +31,7 @@
       "database_name": "lindocara",
       "database_id": "322daa90-dc36-41af-a319-84c3ba5456fc",
       // drizzle-kit generates numbered .sql files here; wrangler applies them.
-      "migrations_dir": "./migrations"
+      "migrations_dir": "./packages/server/migrations"
     }
   ],
 

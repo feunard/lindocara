@@ -21,6 +21,8 @@ export const CATALOG_SOURCE_PATH = path.join(
 );
 export const CLIENT_CATALOG_PATH = path.join(
   PROJECT_ROOT,
+  "packages",
+  "client",
   "public",
   "assets",
   "lindocara",
