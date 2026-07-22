@@ -65,6 +65,15 @@
 }
 
 /* ── Title ─────────────────────────────────────────────────────────────── */
+/* Lift the logo out of the flex centre and up into the sky, so it sits among the clouds rather than
+   over the castle. Absolute-positioned, so the flex container's centring no longer applies to it. */
+.title-screen__brand {
+  position: absolute;
+  top: 15vh;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+}
 .title-screen__logo {
   margin: 0;
   font-size: clamp(3rem, 10vw, 7rem);
@@ -82,7 +91,7 @@
 }
 .title-screen__prompt {
   position: absolute;
-  bottom: 12vh;
+  bottom: 15vh;
   font-size: clamp(0.9rem, 2vw, 1.1rem);
   letter-spacing: 0.12em;
   color: var(--launch-gold);
