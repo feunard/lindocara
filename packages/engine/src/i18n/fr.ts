@@ -39,15 +39,14 @@ export const fr: Record<keyof typeof en, string> = {
     "Une fois à terre, ramène à la vie après 10 secondes.",
   // Écran de connexion
   "auth.eyebrow": "Un petit monde en ligne",
-  "auth.subtitle": "La Combe Sauvage",
-  "auth.tagline":
-    "Éveillez-vous sous le Cœur-Racine. Prêtez le serment d'Elowen. Affrontez l'étrange vie du Bois-Crépuscule.",
+  "auth.subtitle": "Une aventure coopérative en 2D",
+  "auth.tagline": "Créez un héros, explorez le monde et vivez l'aventure à plusieurs.",
   "auth.tab.login": "Connexion",
   "auth.tab.register": "Créer un compte",
   "auth.username": "Nom d'utilisateur",
   "auth.password": "Mot de passe",
   "auth.password_confirm": "Confirmez le mot de passe",
-  "auth.submit.login": "Entrer dans la Combe",
+  "auth.submit.login": "Jouer",
   "auth.guest": "Continuer en invité",
   "auth.guest.hint":
     "Crée un compte enregistré dans ce navigateur. Videz ses données et les héros partent avec.",
@@ -1099,7 +1098,6 @@ export const fr: Record<keyof typeof en, string> = {
   "parties.join": "Rejoindre",
   "parties.full": "Complète",
   "common.loading": "Chargement…",
-  "title.tagline": "Réveille-toi sous le Cœurracine.",
   "title.press_start": "Appuie sur A · Entrée · Clic pour commencer",
   "menu.title": "Menu principal",
   "menu.continue": "Continuer",

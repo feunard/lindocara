@@ -43,15 +43,14 @@ export const en = {
   "consumable.resurrection_potion.description": "While fallen, return to life after 10 seconds.",
   // Auth screen
   "auth.eyebrow": "A tiny online world",
-  "auth.subtitle": "Everwild Hollow",
-  "auth.tagline":
-    "Wake beneath the Heartroot. Swear Elowen's oath. Face the strange life of the Gloamwood.",
+  "auth.subtitle": "A cooperative 2D adventure",
+  "auth.tagline": "Create a hero, explore the world, and take on the adventure together.",
   "auth.tab.login": "Log in",
   "auth.tab.register": "Create account",
   "auth.username": "Username",
   "auth.password": "Password",
   "auth.password_confirm": "Confirm password",
-  "auth.submit.login": "Enter the Hollow",
+  "auth.submit.login": "Play",
   "auth.guest": "Continue as guest",
   "auth.guest.hint":
     "Creates an account saved in this browser. Clear its data and the heroes go with it.",
@@ -1077,7 +1076,6 @@ export const en = {
   "parties.join": "Join",
   "parties.full": "Full",
   "common.loading": "Loading…",
-  "title.tagline": "Wake beneath the Heartroot.",
   "title.press_start": "Press A · Enter · Click to begin",
   "menu.title": "Main menu",
   "menu.continue": "Continue",
