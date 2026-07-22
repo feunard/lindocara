@@ -524,6 +524,46 @@ describe("maps", () => {
       expect(listed).toHaveLength(1);
       expect(listed.filter((m) => m.isFirst)).toHaveLength(1);
     });
+
+    it("lets one same-revision map save win without mixing either writer's child rows", async () => {
+      const created = await createMap(createDb(env.DB), inputNamed("Original"));
+      const revision = created.revision;
+      const writerA: MapInput = {
+        ...validInput,
+        name: "Writer A",
+        elements: [{ col: 3, row: 3, offsetX: 0, offsetY: 0, assetId: STONE }],
+      };
+      const writerB: MapInput = {
+        ...validInput,
+        name: "Writer B",
+        elements: [{ col: 4, row: 4, offsetX: 0, offsetY: 0, assetId: BUSH }],
+      };
+
+      // Separate Drizzle handles model two editor requests. Both carry the same revision; the map
+      // row and its wholesale-replaced children must be one compare-and-swap, not two independent
+      // writes that can produce Writer A's terrain with Writer B's elements.
+      const outcomes = await Promise.allSettled([
+        updateOwnedMap(createDb(env.DB), OWNER, created.id, writerA, undefined, revision),
+        updateOwnedMap(createDb(env.DB), OWNER, created.id, writerB, undefined, revision),
+      ]);
+
+      const fulfilled = outcomes.filter(
+        (outcome): outcome is PromiseFulfilledResult<Awaited<ReturnType<typeof updateOwnedMap>>> =>
+          outcome.status === "fulfilled",
+      );
+      const rejected = outcomes.filter(
+        (outcome): outcome is PromiseRejectedResult => outcome.status === "rejected",
+      );
+      expect(fulfilled).toHaveLength(1);
+      expect(rejected).toHaveLength(1);
+      expect(String(rejected[0]?.reason)).toMatch(/conflict/);
+
+      const winner = fulfilled[0]?.value;
+      const loaded = await loadMap(createDb(env.DB), created.id);
+      expect(loaded?.revision).toBe(revision + 1);
+      expect(loaded?.name).toBe(winner?.name);
+      expect(loaded?.elements).toEqual(winner?.elements);
+    });
   });
 
   describe("events", () => {

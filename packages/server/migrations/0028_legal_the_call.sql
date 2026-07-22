@@ -1,0 +1,1 @@
+ALTER TABLE `map` ADD `write_token` text DEFAULT '' NOT NULL;

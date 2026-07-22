@@ -55,7 +55,7 @@ import { isSolidKind, kindAt } from "@lindocara/engine/tilemap.js";
 import { tileIdInTileset } from "@lindocara/engine/tileset.js";
 import { TINY_SWORDS_TILESET_ID, tilesetById } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { isEditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { adventure, type Db, map, mapElement, mapEvent, mapEventPage, party } from "./db/index.js";
 
@@ -792,6 +792,13 @@ export async function updateMap(
   if (expectedRevision !== undefined && existing.revision !== expectedRevision) {
     throw new Error("conflict: map was changed by another editor");
   }
+  // Always fence the eventual batch, even for internal callers that omitted `expectedRevision`.
+  // The read above is useful for validation and response data, but it is not a lock: two requests
+  // can both observe revision N before either starts its write. `writeToken` turns the first query
+  // in the batch into a real compare-and-swap and the assertion immediately after it aborts a
+  // losing batch before any elements/events are deleted.
+  const compareRevision = expectedRevision ?? existing.revision;
+  const writeToken = crypto.randomUUID();
   // COMPAT: the editor no longer authors a graph, so a normal map save never touches its owning
   // adventure's stored graph — the marker edit passes freely and the graph is preserved as-is. The
   // referential-integrity guard and the live-party start pin run ONLY when a legacy/test writer
@@ -877,10 +884,22 @@ export async function updateMap(
       spawnRow: input.spawn.row,
       markers: markersJson(data.markers),
       revision: sql`${map.revision} + 1`,
+      writeToken,
       updatedAt: new Date(),
     })
-    .where(and(eq(map.id, id), eq(map.accountId, accountId)))
+    .where(and(eq(map.id, id), eq(map.accountId, accountId), eq(map.revision, compareRevision)))
     .returning({ revision: map.revision });
+  // `db.batch()` is one SQLite transaction. If the CAS above lost, this SELECT sees the winning
+  // row's different token and attempts to insert that row again, intentionally tripping the map
+  // primary key and rolling the entire batch back. If the CAS won, the token matches and the
+  // SELECT is empty. This is an in-transaction assertion, not a post-write check: a stale writer
+  // never reaches the destructive child-row replacement below.
+  const assertWriteOwnership = db.insert(map).select(
+    db
+      .select()
+      .from(map)
+      .where(and(eq(map.id, id), eq(map.accountId, accountId), ne(map.writeToken, writeToken))),
+  );
   // Replace wholesale (diffing would only be a slower way to reach the same rows), but as ONE
   // transaction: the new layers, elements and events land together, so a room admitted mid-update
   // can never load the new terrain paired with the old — or zero — elements or events. Clearing
@@ -906,21 +925,50 @@ export async function updateMap(
               : {}),
             updatedAt: new Date(),
           })
-          .where(and(eq(adventure.id, existing.adventureId), eq(adventure.accountId, accountId)))
+          .where(
+            and(
+              eq(adventure.id, existing.adventureId),
+              eq(adventure.accountId, accountId),
+              // A concurrently deleted map cannot leave the adventure shell partially updated.
+              sql`EXISTS (
+                SELECT 1 FROM ${map}
+                WHERE ${map.id} = ${id} AND ${map.writeToken} = ${writeToken}
+              )`,
+            ),
+          )
       : null;
-  // updateRow stays first so its `.returning({ revision })` is `batchResults[0]`. Deletes run before
+  // updateRow stays first so its `.returning({ revision })` is `batchResults[0]`; the ownership
+  // assertion MUST stay second and ahead of every destructive statement. Deletes run before
   // inserts, and events (parents) before pages within `insertEventStatements`.
-  const batchResults = await db.batch([
-    updateRow,
-    ...(adventureStatement ? [adventureStatement] : []),
-    clearElements,
-    clearEvents,
-    ...elementStatements,
-    ...eventStatements,
-  ]);
+  let batchResults: unknown[];
+  try {
+    batchResults = await db.batch([
+      updateRow,
+      assertWriteOwnership,
+      ...(adventureStatement ? [adventureStatement] : []),
+      clearElements,
+      clearEvents,
+      ...elementStatements,
+      ...eventStatements,
+    ]);
+  } catch (error) {
+    // The deliberate duplicate-key assertion is an implementation detail. Expose the same stable
+    // conflict code as the cheap preflight check so API clients get one actionable outcome.
+    const latest = await loadOwnedMap(db, accountId, id);
+    if (latest && latest.revision !== compareRevision) {
+      throw new Error("conflict: map was changed by another editor");
+    }
+    throw error;
+  }
   const updatedRows = batchResults[0] as { revision: number }[];
   const updated = updatedRows[0];
-  if (!updated) throw new Error("not_found: map ownership changed mid-update");
+  if (!updated) {
+    const latest = await loadOwnedMap(db, accountId, id);
+    if (latest && latest.revision !== compareRevision) {
+      throw new Error("conflict: map was changed by another editor");
+    }
+    throw new Error("not_found: map ownership changed mid-update");
+  }
   return { id, accountId, adventureId: existing.adventureId, revision: updated.revision, ...data };
 }
 

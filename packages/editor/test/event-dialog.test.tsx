@@ -45,25 +45,21 @@ describe("EventDialog", () => {
     setLocale("en");
   });
 
-  it("round-trips every block across two pages and commits one draft with explicit nulls", async () => {
+  it("round-trips runtime-backed controls across two pages with explicit nulls", async () => {
     const user = userEvent.setup();
     const { onCommit } = renderDialog(seedEvent());
 
     // Header: name.
     await user.type(screen.getByRole("textbox", { name: t("editor.event.name") }), "Guard");
 
-    // Page 1: switch condition on with id 0042; random movement; autorun trigger; always-on-top.
+    // Page 1: switch condition on with id 0042; Player-touch trigger; front draw layer.
     await user.click(screen.getByRole("checkbox", { name: t("editor.event.cond.switch") }));
     const switchId = screen.getByRole("textbox", { name: t("editor.event.cond.switch") });
     await user.clear(switchId);
     await user.type(switchId, "0042");
     await user.selectOptions(
-      screen.getByRole("combobox", { name: t("editor.event.move.type") }),
-      "random",
-    );
-    await user.selectOptions(
       screen.getByRole("combobox", { name: t("editor.event.trigger") }),
-      "auto",
+      "player-touch",
     );
     await user.click(screen.getByRole("checkbox", { name: t("editor.event.opt.onTop") }));
 
@@ -81,11 +77,6 @@ describe("EventDialog", () => {
       screen.getByRole("combobox", { name: t("editor.event.cond.selfSwitch") }),
       "B",
     );
-    await user.selectOptions(
-      screen.getByRole("combobox", { name: t("editor.event.move.speed") }),
-      "2",
-    );
-
     await user.click(screen.getByRole("button", { name: t("editor.event.save") }));
 
     expect(onCommit).toHaveBeenCalledTimes(1);
@@ -97,8 +88,7 @@ describe("EventDialog", () => {
     // wrong page index would cross these fields).
     const [p1, p2] = committed.pages;
     expect(p1?.condSwitchId).toBe("0042");
-    expect(p1?.moveType).toBe("random");
-    expect(p1?.trigger).toBe("auto");
+    expect(p1?.trigger).toBe("player-touch");
     expect(p1?.optOnTop).toBe(true);
     expect(p1?.condVariableId).toBeNull();
     expect(p1?.condVariableMin).toBeNull();
@@ -108,13 +98,58 @@ describe("EventDialog", () => {
     expect(p2?.condVariableId).toBe("0007");
     expect(p2?.condVariableMin).toBe(5);
     expect(p2?.condSelfSwitch).toBe("B");
-    expect(p2?.moveSpeed).toBe(2);
     expect(p2?.condSwitchId).toBeNull();
 
     // Explicit nulls, never undefined — the wire parser rejects an absent condition field.
     expect(Object.hasOwn(p1 ?? {}, "condVariableId")).toBe(true);
     expect(p2?.condSwitchId === null).toBe(true);
   }, 15_000);
+
+  it("hides non-runtime movement/options while preserving legacy page data", async () => {
+    const page = {
+      ...defaultEventPage(),
+      moveType: "random" as const,
+      moveSpeed: 1,
+      moveFreq: 4,
+      optMoveAnim: false,
+      optStopAnim: true,
+      optDirFix: true,
+      optThrough: true,
+    };
+    const { onCommit } = renderDialog(seedEvent({ pages: [page] }));
+
+    expect(screen.queryByRole("combobox", { name: t("editor.event.move.type") })).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: t("editor.event.opt.through") })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: t("editor.event.save") }));
+
+    const committed = onCommit.mock.calls[0]?.[0] as MapEvent;
+    expect(committed.pages[0]).toMatchObject({
+      moveType: "random",
+      moveSpeed: 1,
+      moveFreq: 4,
+      optMoveAnim: false,
+      optStopAnim: true,
+      optDirFix: true,
+      optThrough: true,
+    });
+  });
+
+  it("flags and converts a legacy trigger instead of presenting it as executable", async () => {
+    const { onCommit } = renderDialog(
+      seedEvent({ pages: [{ ...defaultEventPage(), trigger: "auto" }] }),
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      t("editor.event.runtime.legacy", { pages: "1" }),
+    );
+    expect(screen.getByRole("button", { name: t("editor.event.save") })).toBeDisabled();
+
+    await userEvent.click(screen.getByRole("button", { name: t("editor.event.runtime.convert") }));
+    await userEvent.click(screen.getByRole("button", { name: t("editor.event.save") }));
+
+    const committed = onCommit.mock.calls[0]?.[0] as MapEvent;
+    expect(committed.pages[0]?.trigger).toBe("action");
+  });
 
   it("discards the draft on cancel", async () => {
     const user = userEvent.setup();

@@ -97,6 +97,11 @@ const twoMaps: MapSummary[] = [
   { id: "m2", name: "Frostfen", revision: 1, cols: 40, rows: 30, isFirst: false },
 ];
 
+const threeMaps: MapSummary[] = [
+  ...twoMaps,
+  { id: "m3", name: "Ashen Keep", revision: 1, cols: 40, rows: 30, isFirst: false },
+];
+
 function payloadFor(summary: MapSummary): MapPayload {
   return {
     id: summary.id,
@@ -565,6 +570,51 @@ describe("AdventureEditorScreen shell", () => {
     await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(2));
   });
 
+  it("ignores an older map response that arrives after a newer selection", async () => {
+    let resolveM2: ((response: Response) => void) | undefined;
+    let resolveM3: ((response: Response) => void) | undefined;
+    const mock = vi.fn((url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      if (url.startsWith("/api/maps?adventure=") && method === "GET") {
+        return Promise.resolve(jsonResponse(threeMaps));
+      }
+      if (url === "/api/maps/m1" && method === "GET") {
+        return Promise.resolve(jsonResponse(payloadFor(threeMaps[0] as MapSummary)));
+      }
+      if (url === "/api/maps/m2" && method === "GET") {
+        return new Promise<Response>((resolve) => {
+          resolveM2 = resolve;
+        });
+      }
+      if (url === "/api/maps/m3" && method === "GET") {
+        return new Promise<Response>((resolve) => {
+          resolveM3 = resolve;
+        });
+      }
+      return Promise.resolve(jsonResponse({ error: "map_not_found" }, 404));
+    });
+    vi.stubGlobal("fetch", mock);
+    await mountReady();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Frostfen" }));
+    await userEvent.click(screen.getByRole("button", { name: "Ashen Keep" }));
+    if (!resolveM2 || !resolveM3) throw new Error("expected both map requests");
+
+    await act(async () => resolveM3?.(jsonResponse(payloadFor(threeMaps[2] as MapSummary))));
+    await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(2));
+    expect(stageMock.openMapEditorStage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: "Ashen Keep" }),
+      expect.any(Function),
+      expect.any(Function),
+      expect.any(Function),
+      expect.any(Function),
+    );
+
+    await act(async () => resolveM2?.(jsonResponse(payloadFor(threeMaps[1] as MapSummary))));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(2);
+  });
+
   it("places a spawn EVENT: the EV spawn kind places one, and the inspector deletes it", async () => {
     vi.stubGlobal("fetch", mapsFetchMock());
     await mountReady();
@@ -684,6 +734,61 @@ describe("AdventureEditorScreen shell", () => {
       ),
     );
     expect(stageMock.markSaved).toHaveBeenCalledTimes(1);
+  });
+
+  it("deduplicates an in-flight save and anchors it to the captured snapshot", async () => {
+    const savedSnapshot = {
+      name: "Before request",
+      layers: OPEN_TILE_LAYERS,
+      elements: [],
+      spawn: { col: 20, row: 15 },
+      markers: EMPTY_MARKERS,
+      events: [],
+    };
+    const laterEdit = { ...savedSnapshot, name: "Edited while saving" };
+    stageMock.current.mockReturnValue(savedSnapshot);
+    let resolveSave: ((response: Response) => void) | undefined;
+    const mock = vi.fn((url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      if (url.startsWith("/api/maps?adventure=") && method === "GET") {
+        return Promise.resolve(jsonResponse(twoMaps));
+      }
+      if (url === "/api/maps/m1" && method === "GET") {
+        return Promise.resolve(jsonResponse(payloadFor(twoMaps[0] as MapSummary)));
+      }
+      if (url === "/api/maps/m1" && method === "PUT") {
+        return new Promise<Response>((resolve) => {
+          resolveSave = resolve;
+        });
+      }
+      return Promise.resolve(jsonResponse({ error: "map_not_found" }, 404));
+    });
+    vi.stubGlobal("fetch", mock);
+    const rendered = await mountReady();
+    const host = rendered.container.firstElementChild as HTMLElement;
+
+    fireEvent.keyDown(host, { key: "s", metaKey: true });
+    fireEvent.keyDown(host, { key: "s", metaKey: true });
+    await waitFor(() => expect(resolveSave).toBeDefined());
+    expect(
+      mock.mock.calls.filter(
+        ([url, init]) => url === "/api/maps/m1" && (init as RequestInit)?.method === "PUT",
+      ),
+    ).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Frostfen" })).toBeDisabled();
+
+    const callback = stageMock.openMapEditorStage.mock.calls[0]?.[1];
+    act(() => {
+      callback?.(laterEdit, {
+        canUndo: true,
+        canRedo: false,
+        dirty: true,
+        selection: null,
+      });
+    });
+    await act(async () => resolveSave?.(jsonResponse({ id: "m1", revision: 2 })));
+    await waitFor(() => expect(stageMock.markSaved).toHaveBeenCalledTimes(1));
+    expect(stageMock.markSaved).toHaveBeenCalledWith(savedSnapshot);
   });
 
   it("previews the stage's current map, then Esc returns to editing with edits intact", async () => {
@@ -1337,8 +1442,7 @@ describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
     registry: { switches: [], variables: [] },
   };
 
-  /** A /api/maps + /api/adventures backend that answers the map save PUT, the adventure title PUT and
-   *  the settings reload GET, so the whole first-save round-trip can be driven. */
+  /** A /api/maps + /api/adventures backend that answers the atomic map+adventure save and reloads. */
   function editorBackend() {
     return vi.fn((url: string, init?: RequestInit) => {
       const method = init?.method ?? "GET";
@@ -1416,7 +1520,7 @@ describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
     expect(adventurePutCalls(mock)).toHaveLength(0);
   });
 
-  it("confirm saves the title then the map, in that order; a second save does not re-prompt", async () => {
+  it("confirm saves title and map atomically; a second save does not re-prompt", async () => {
     seedUnnamed(true);
     const mock = editorBackend();
     vi.stubGlobal("fetch", mock);
@@ -1431,29 +1535,21 @@ describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
       within(dialog).getByRole("button", { name: t("editor.firstSave.confirm") }),
     );
 
-    // Both writes land: the adventure title PUT, then the map PUT — the title before the map.
+    // One write lands: the map endpoint carries the adventure shell in the same D1 transaction.
     await waitFor(() => expect(mapPutCalls(mock)).toHaveLength(1));
-    const advPut = adventurePutCalls(mock);
-    expect(advPut).toHaveLength(1);
-    const advBody = JSON.parse(String((advPut[0]?.[1] as RequestInit)?.body)) as { title: string };
-    expect(advBody.title).toBe("Ashen Keep");
-    const advIndex = mock.mock.calls.findIndex(
-      ([url, init]) =>
-        url === "/api/adventures/adv-1" && (init as RequestInit | undefined)?.method === "PUT",
-    );
-    const mapIndex = mock.mock.calls.findIndex(
-      ([url, init]) =>
-        url === "/api/maps/m1" && (init as RequestInit | undefined)?.method === "PUT",
-    );
-    expect(advIndex).toBeLessThan(mapIndex);
+    expect(adventurePutCalls(mock)).toHaveLength(0);
+    const body = JSON.parse(String((mapPutCalls(mock)[0]?.[1] as RequestInit)?.body)) as {
+      adventure: { title: string };
+    };
+    expect(body.adventure.title).toBe("Ashen Keep");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
     // A second save writes the map straight through — the popup never re-appears.
     fireEvent.keyDown(shell(rendered), { key: "s", metaKey: true });
     await waitFor(() => expect(mapPutCalls(mock)).toHaveLength(2));
     expect(screen.queryByText(t("editor.firstSave.title"))).toBeNull();
-    // No second title PUT: the name was confirmed once.
-    expect(adventurePutCalls(mock)).toHaveLength(1);
+    // No standalone title PUT at all: the name was confirmed once inside the map write.
+    expect(adventurePutCalls(mock)).toHaveLength(0);
   });
 
   it("cancel aborts the whole save: neither the title nor the map is written", async () => {

@@ -88,6 +88,7 @@ function Harness(overrides: {
   adventureId?: string | null;
   activeMapId?: string | null;
   dirty?: boolean;
+  locked?: boolean;
   onOpenPayload?: (payload: MapPayload) => void;
   onSessionExpired?: () => void;
 }) {
@@ -98,6 +99,7 @@ function Harness(overrides: {
       adventureId={overrides.adventureId ?? "adv-1"}
       activeMapId={overrides.activeMapId ?? null}
       dirty={overrides.dirty ?? false}
+      locked={overrides.locked ?? false}
       refreshNonce={0}
       newMapOpen={newMapOpen}
       onNewMapOpenChange={setNewMapOpen}

@@ -24,7 +24,7 @@ import { Input } from "@lindocara/ui/components/input.js";
 import { Label } from "@lindocara/ui/components/label.js";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@lindocara/ui/components/tooltip.js";
 import { Pencil, Plus, Settings2, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /** A stored payload made into the create/update body: everything but the server-minted id/revision. */
 function saveInputFromPayload(payload: MapPayload): MapSaveInput {
@@ -43,6 +43,8 @@ interface MapListPanelProps {
   /** Whether the open map has unsaved stage edits, so renaming it in place can guard them: rename
    *  persists the *stored* payload and re-mounts, which would otherwise drop those edits silently. */
   dirty: boolean;
+  /** A whole-map save is in flight. Map mutations/navigation stay inert until its revision lands. */
+  locked: boolean;
   /** Bumped by the screen whenever a save/create lands, so the panel refetches names and dims. */
   refreshNonce: number;
   /** New-map dialog open state, lifted so the menu bar and toolbar can open it too. */
@@ -79,6 +81,7 @@ export function MapListPanel({
   adventureId,
   activeMapId,
   dirty,
+  locked,
   refreshNonce,
   newMapOpen,
   onNewMapOpenChange,
@@ -97,6 +100,7 @@ export function MapListPanel({
   const [newName, setNewName] = useState("");
   const [renameValue, setRenameValue] = useState("");
   const [busy, setBusy] = useState(false);
+  const refreshGenerationRef = useRef(0);
 
   function fail(caught: unknown): void {
     const code = errorCode(caught);
@@ -105,16 +109,18 @@ export function MapListPanel({
   }
 
   async function refresh(): Promise<void> {
+    const generation = ++refreshGenerationRef.current;
     // A map belongs to exactly one adventure: with no adventure loaded there is nothing to list, and
     // `/api/maps` requires the `adventure` param. Show an empty list and skip the fetch.
     if (!adventureId) {
-      setMaps([]);
+      if (generation === refreshGenerationRef.current) setMaps([]);
       return;
     }
     try {
-      setMaps(await fetchMaps(adventureId));
+      const loaded = await fetchMaps(adventureId);
+      if (generation === refreshGenerationRef.current) setMaps(loaded);
     } catch (caught) {
-      fail(caught);
+      if (generation === refreshGenerationRef.current) fail(caught);
     }
   }
 
@@ -132,7 +138,7 @@ export function MapListPanel({
   }, [newMapOpen]);
 
   async function create(): Promise<void> {
-    if (!adventureId || maps.length >= MAX_ADVENTURE_MAPS || busy) return;
+    if (!adventureId || maps.length >= MAX_ADVENTURE_MAPS || busy || locked) return;
     onError("");
     setBusy(true);
     try {
@@ -149,7 +155,7 @@ export function MapListPanel({
   }
 
   async function remove(id: string): Promise<void> {
-    if (busy) return;
+    if (busy || locked) return;
     setBusy(true);
     try {
       await deleteMapApi(id);
@@ -165,7 +171,7 @@ export function MapListPanel({
   }
 
   async function rename(): Promise<void> {
-    if (!renaming || busy) return;
+    if (!renaming || busy || locked) return;
     const target = renaming;
     // Renaming the open map re-mounts it from the stored payload, so unsaved stage edits would be
     // lost — guard them the same way the screen's map-switch does.
@@ -211,7 +217,7 @@ export function MapListPanel({
           variant="ghost"
           size="icon-sm"
           aria-label={t("editor.new")}
-          disabled={!adventureId || maps.length >= MAX_ADVENTURE_MAPS || busy}
+          disabled={!adventureId || maps.length >= MAX_ADVENTURE_MAPS || busy || locked}
           title={maps.length >= MAX_ADVENTURE_MAPS ? t("editor.error.limit") : undefined}
           onClick={() => onNewMapOpenChange(true)}
         >
@@ -235,6 +241,7 @@ export function MapListPanel({
                 className="flex min-w-0 flex-1 flex-col items-start text-left"
                 aria-label={map.name || t("editor.new")}
                 aria-current={map.id === activeMapId}
+                disabled={locked}
                 onClick={() => onRequestOpen(map.id)}
               >
                 <span className="w-full truncate text-[12.5px] font-medium text-zinc-800">
@@ -251,6 +258,7 @@ export function MapListPanel({
                       variant="ghost"
                       size="icon-xs"
                       aria-label={`${t("editor.shell.maps.rename")} ${map.name}`}
+                      disabled={busy || locked}
                       className="opacity-0 group-hover:opacity-100"
                       onClick={() => {
                         setRenaming(map);
@@ -270,6 +278,7 @@ export function MapListPanel({
                       variant="ghost"
                       size="icon-xs"
                       aria-label={`${t("editor.delete")} ${map.name}`}
+                      disabled={busy || locked}
                       className="text-destructive opacity-0 group-hover:opacity-100"
                       onClick={() => onConfirmDeleteIdChange(map.id)}
                     >
@@ -285,7 +294,13 @@ export function MapListPanel({
       </div>
 
       <div className="border-t border-zinc-200 p-2">
-        <Button variant="outline" size="sm" className="w-full" onClick={onOpenSettings}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full"
+          disabled={busy || locked}
+          onClick={onOpenSettings}
+        >
           <Settings2 />
           {t("editor.shell.settings")}
         </Button>
@@ -313,7 +328,11 @@ export function MapListPanel({
             </Button>
             <Button
               disabled={
-                !adventureId || maps.length >= MAX_ADVENTURE_MAPS || busy || !newName.trim()
+                !adventureId ||
+                maps.length >= MAX_ADVENTURE_MAPS ||
+                busy ||
+                locked ||
+                !newName.trim()
               }
               onClick={() => void create()}
             >
@@ -341,7 +360,7 @@ export function MapListPanel({
             <Button variant="outline" onClick={() => setRenaming(null)}>
               {t("editor.delete.cancel")}
             </Button>
-            <Button disabled={busy || !renameValue.trim()} onClick={() => void rename()}>
+            <Button disabled={busy || locked || !renameValue.trim()} onClick={() => void rename()}>
               {t("editor.save")}
             </Button>
           </DialogFooter>
@@ -362,7 +381,7 @@ export function MapListPanel({
             </Button>
             <Button
               variant="destructive"
-              disabled={busy}
+              disabled={busy || locked}
               onClick={() => deleting && void remove(deleting.id)}
             >
               {t("editor.delete.confirm")}

@@ -132,6 +132,9 @@ export function TerrainPalette({
           preview={<SpriteSheetPreview source={EDITOR_MARKER_PREVIEWS.spawn} frame={192} />}
           onClick={onSelectSpawn}
         />
+        <p className="px-2 text-[10.5px] leading-snug text-zinc-400">
+          {t("editor.tool.spawn.hint")}
+        </p>
       </div>
     </aside>
   );

@@ -11,12 +11,10 @@ import {
   fetchMap,
   fetchMaps,
   type MapPayload,
-  updateAdventureApi,
   updateMapApi,
 } from "@lindocara/client/api.js";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import { type AdventureEditorSession, useUiStore } from "@lindocara/client/store.js";
-import type { AdventureInput } from "@lindocara/engine/adventure.js";
 import { type AdventureRegistry, EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
 import type { EventPreset } from "@lindocara/engine/event-presets.js";
 import type { MonsterSpecies } from "@lindocara/engine/game.js";
@@ -292,6 +290,14 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   );
 
   const handleRef = useRef<MapEditorStageHandle | null>(null);
+  // State alone cannot fence two clicks in the same React turn. This synchronous twin closes that
+  // window before `setSavingMap(true)` has rendered, so one map revision can never be PUT twice by
+  // a rapid shortcut/button sequence.
+  const savingMapRef = useRef(false);
+  // Async map/session reads can finish out of order. Only the newest generation may install its
+  // response; opening/creating/deleting a map increments the same counter to invalidate older work.
+  const mapLoadGenerationRef = useRef(0);
+  const sessionLoadGenerationRef = useRef(0);
   const pendingToolRef = useRef<EditorTool>(paintToolFor("pencil", DEFAULT_CONTENT));
   // Mirrors `mode` the same way `pendingToolRef` mirrors the pending tool: the async stage-open
   // `.then` below must read the mode selected *while it was opening*, not the one captured when the
@@ -398,6 +404,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   // unsaved edits first, then swap the session — a new adventureId remounts this component (it is
   // keyed by it), resetting every room-local editor state cleanly.
   function loadAdventure(id: string): void {
+    if (savingMapRef.current) return;
     if (id === adventureId) {
       setLoadOpen(false);
       return;
@@ -421,11 +428,12 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   useEffect(() => {
     if (autoOpened.current) return;
     autoOpened.current = true;
+    const generation = ++mapLoadGenerationRef.current;
     void (async () => {
       try {
         // No adventure loaded means no maps to open — a first-class empty state, not an error.
         if (!adventureId) {
-          setStageStatus("empty");
+          if (generation === mapLoadGenerationRef.current) setStageStatus("empty");
           return;
         }
         const list = await fetchMaps(adventureId);
@@ -433,10 +441,12 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         // A fresh adventure has zero maps: that is a first-class empty state, not an error. Leave
         // `map` null (no stage opened) and let the centre invite a first map; the maps panel already
         // renders its own empty list with a New-map affordance.
-        if (first) setMap(await fetchMap(first.id));
-        else setStageStatus("empty");
+        if (first) {
+          const payload = await fetchMap(first.id);
+          if (generation === mapLoadGenerationRef.current) setMap(payload);
+        } else if (generation === mapLoadGenerationRef.current) setStageStatus("empty");
       } catch (caught) {
-        fail(caught);
+        if (generation === mapLoadGenerationRef.current) fail(caught);
       }
     })();
   }, []);
@@ -752,8 +762,11 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   // first-save popup's continuation land here so there is one definition of "persist this map".
   async function doSaveMap(draftOverride?: AdventureDraft): Promise<AdventureDraft | null> {
     const handle = handleRef.current;
-    if (!handle || !map || stageStatus !== "ready" || savingMap) return null;
+    if (!handle || !map || stageStatus !== "ready" || savingMapRef.current) return null;
     const savedSnapshot = handle.current();
+    const savedMapId = map.id;
+    const savedMapGeneration = mapLoadGenerationRef.current;
+    savingMapRef.current = true;
     const currentSession = useUiStore.getState().adventureEditorSession;
     const baseDraft = draftOverride ?? currentSession?.draft;
     const tracksCurrentMap = baseDraft?.members.some((member) => member.mapId === map.id) ?? false;
@@ -766,9 +779,6 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     // The map save rides the adventure's shell (title/players/registry) atomically; it never carries a
     // graph now (the editor authors none), so the server preserves the stored graph untouched.
     const adventureInput = refreshed ? toAdventureInput(refreshed) : null;
-    if (currentSession && refreshed) {
-      setSession({ ...currentSession, draft: refreshed });
-    }
     setError(null);
     setSavingMap(true);
     try {
@@ -778,14 +788,25 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         adventureInput ?? undefined,
         map.revision,
       );
-      handle.markSaved(savedSnapshot);
-      setMap((current) => (current ? { ...current, ...updated } : current));
+      // Edits made while the request was in flight remain dirty: `markSaved` receives the exact
+      // captured snapshot, never `handle.current()` after the response. A later map load cannot be
+      // overwritten by this response either.
+      if (mapLoadGenerationRef.current === savedMapGeneration) handle.markSaved(savedSnapshot);
+      setMap((current) => (current?.id === savedMapId ? { ...current, ...updated } : current));
       setMapsRefreshNonce((n) => n + 1);
-      const savedDraft =
-        refreshed && Array.isArray(savedSnapshot.events)
-          ? refreshMember(refreshed, memberInfoFromEditor(map.id, updated.revision, savedSnapshot))
-          : refreshed;
       const latestSession = useUiStore.getState().adventureEditorSession;
+      // A direct map save merges only this member into the latest session so a metadata/registry
+      // edit that landed during the network request is not rolled back by a stale captured draft.
+      // A settings/first-save override is itself the metadata that the server atomically stored, so
+      // it remains the authoritative base for that path.
+      const mergeBase = draftOverride ? refreshed : (latestSession?.draft ?? refreshed);
+      const savedDraft =
+        mergeBase && Array.isArray(savedSnapshot.events)
+          ? refreshMember(
+              mergeBase,
+              memberInfoFromEditor(savedMapId, updated.revision, savedSnapshot),
+            )
+          : mergeBase;
       if (latestSession && savedDraft) {
         setSession({
           ...latestSession,
@@ -802,6 +823,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       fail(caught);
       return null;
     } finally {
+      savingMapRef.current = false;
       setSavingMap(false);
     }
   }
@@ -809,7 +831,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   // The save entry point (⌘S and the menu/toolbar Save): on an unnamed fresh adventure it opens the
   // first-save name popup instead of saving; the popup's Confirm continues into `doSaveMap`.
   async function save(): Promise<void> {
-    if (stageStatus !== "ready" || savingMap) return;
+    if (stageStatus !== "ready" || savingMapRef.current) return;
     if (titleUntouched) {
       setFirstSaveOpen(true);
       return;
@@ -827,37 +849,38 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       setFirstSaveOpen(false);
       return;
     }
-    const draft = current.draft;
-    const input: AdventureInput = {
-      title,
-      maxPlayers: draft.maxPlayers,
-      registry: draft.registry,
-    };
     setError(null);
+    // Title + map are one `/api/maps/:id` transaction. The old two-PUT sequence could persist the
+    // title and then fail the map, despite presenting the action as one first save.
+    let saved: AdventureDraft | null;
     try {
-      await updateAdventureApi(adventureId, input);
+      saved = await doSaveMap({ ...current.draft, title });
     } catch (caught) {
       fail(caught);
       return;
     }
-    setSession({ ...current, draft: { ...draft, title }, titleUntouched: false });
+    if (!saved) return;
+    const latest = useUiStore.getState().adventureEditorSession;
+    if (latest) setSession({ ...latest, draft: saved, titleUntouched: false });
     setTitleUntouched(false);
     setFirstSaveOpen(false);
-    await doSaveMap();
   }
 
   // The map panel's "select to switch" load path: guard unsaved edits, then swap the stage's map.
   function loadMap(id: string): void {
-    if (savingMap) return;
+    if (savingMapRef.current) return;
     if (id === map?.id) return;
     if (dirty && !window.confirm(t("editor.shell.exit.confirm"))) return;
+    const generation = ++mapLoadGenerationRef.current;
     setError(null);
     void (async () => {
       try {
+        const payload = await fetchMap(id);
+        if (generation !== mapLoadGenerationRef.current) return;
         editedRef.current = null;
-        setMap(await fetchMap(id));
+        setMap(payload);
       } catch (caught) {
-        fail(caught);
+        if (generation === mapLoadGenerationRef.current) fail(caught);
       }
     })();
   }
@@ -865,10 +888,31 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   // Reload the editor session from the server so the draft's members reflect maps just created,
   // deleted or renamed. Best-effort: a failure here never blocks the map edit that triggered it.
   function refreshSession(): void {
+    const generation = ++sessionLoadGenerationRef.current;
     void (async () => {
       try {
-        setSession(await loadAdventureSession(adventureId));
+        const loaded = await loadAdventureSession(adventureId);
+        if (generation !== sessionLoadGenerationRef.current) return;
+        const current = useUiStore.getState().adventureEditorSession;
+        if (current?.adventureId !== adventureId) return;
+        // A map-list refresh owns membership/names/revisions, not adventure metadata. Preserve the
+        // latest successfully edited shell and registry so an older GET cannot roll them back.
+        const mergedDraft: AdventureDraft = {
+          ...loaded.draft,
+          title: current.draft.title,
+          maxPlayers: current.draft.maxPlayers,
+          registry: current.draft.registry,
+        };
+        setSession({
+          ...loaded,
+          draft: mergedDraft,
+          savedDraft: JSON.stringify(mergedDraft),
+          ...(current.titleUntouched === undefined
+            ? {}
+            : { titleUntouched: current.titleUntouched }),
+        });
       } catch (caught) {
+        if (generation !== sessionLoadGenerationRef.current) return;
         const code = errorCode(caught);
         if (isSessionError(code)) setScreen("auth");
       }
@@ -877,6 +921,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
 
   // A freshly created or renamed-in-place map handed back by the panel: mount it in the stage.
   function openPayload(payload: MapPayload): void {
+    ++mapLoadGenerationRef.current;
     editedRef.current = null;
     setMap(payload);
     setMapsRefreshNonce((n) => n + 1);
@@ -886,25 +931,28 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   // The open map was deleted from the panel: fall back to the author's first remaining map, or an
   // empty stage if none is left.
   function activeMapDeleted(): void {
+    const generation = ++mapLoadGenerationRef.current;
     setMapsRefreshNonce((n) => n + 1);
     refreshSession();
     void (async () => {
       try {
         const first = adventureId ? (await fetchMaps(adventureId))[0] : undefined;
+        const payload = first ? await fetchMap(first.id) : null;
+        if (generation !== mapLoadGenerationRef.current) return;
         editedRef.current = null;
-        if (first) setMap(await fetchMap(first.id));
+        if (payload) setMap(payload);
         else {
           setMap(null);
           setStageStatus("empty");
         }
       } catch (caught) {
-        fail(caught);
+        if (generation === mapLoadGenerationRef.current) fail(caught);
       }
     })();
   }
 
   function exit(force = false): void {
-    if (!force && savingMap) return;
+    if (!force && savingMapRef.current) return;
     if (!force && dirty && !window.confirm(t("editor.shell.exit.confirm"))) {
       return;
     }
@@ -1255,6 +1303,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
               adventureId={adventureId}
               activeMapId={map?.id ?? null}
               dirty={dirty}
+              locked={savingMap}
               refreshNonce={mapsRefreshNonce}
               newMapOpen={newMapOpen}
               onNewMapOpenChange={setNewMapOpen}

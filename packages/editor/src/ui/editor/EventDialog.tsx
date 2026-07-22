@@ -1,17 +1,13 @@
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import type { AdventureRegistry, RegistryEntry } from "@lindocara/engine/adventure-state.js";
 import { CURATED_MONSTER_SPECIES, type MonsterSpecies } from "@lindocara/engine/game.js";
-import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import { MAX_PATROL_RADIUS, MIN_PATROL_RADIUS } from "@lindocara/engine/map-data.js";
 import {
   EVENT_NAME_MAX,
-  EVENT_TRIGGERS,
   type EventTrigger,
   MAX_PAGES_PER_EVENT,
   type MapEvent,
   type MapEventPage,
-  MOVE_TYPES,
-  type MoveType,
   SELF_SWITCHES,
   type SelfSwitch,
   validateEventName,
@@ -47,29 +43,20 @@ function eventDisplayId(ordinal: number): string {
   return `EV${String(ordinal).padStart(3, "0")}`;
 }
 
-/** The wireframe's move-speed range: shared `moveSpeed` is 0-5 (six steps). */
-const SPEED_VALUES = [0, 1, 2, 3, 4, 5] as const;
-/** The wireframe's move-frequency range: shared `moveFreq` is 0-4 (five steps). */
-const FREQ_VALUES = [0, 1, 2, 3, 4] as const;
+/** The World runtime currently detects these two edges. Older persisted trigger values remain
+ * parseable for compatibility, but the editor labels them as legacy rather than implying that an
+ * autonomous/event-touch executor exists. */
+const RUNTIME_EVENT_TRIGGERS = [
+  "action",
+  "player-touch",
+] as const satisfies readonly EventTrigger[];
 
-/** The five per-page boolean options, in the wireframe's order, paired with their `MapEventPage`
- *  field. */
-const OPTION_FIELDS: readonly (keyof Pick<
-  MapEventPage,
-  "optMoveAnim" | "optStopAnim" | "optDirFix" | "optThrough" | "optOnTop"
->)[] = ["optMoveAnim", "optStopAnim", "optDirFix", "optThrough", "optOnTop"];
-
-const OPTION_KEY: Record<(typeof OPTION_FIELDS)[number], MessageKey> = {
-  optMoveAnim: "editor.event.opt.moveAnim",
-  optStopAnim: "editor.event.opt.stopAnim",
-  optDirFix: "editor.event.opt.dirFix",
-  optThrough: "editor.event.opt.through",
-  optOnTop: "editor.event.opt.onTop",
-};
+function runtimeTrigger(trigger: EventTrigger): boolean {
+  return (RUNTIME_EVENT_TRIGGERS as readonly EventTrigger[]).includes(trigger);
+}
 
 /** Dense native select styled to sit with the shadcn `Input`, mirroring `AdventureSettingsDialog`'s
- *  `FieldSelect`. Native so the movement/trigger pickers stay keyboard- and test-driveable, unlike a
- *  portalled listbox. */
+ *  `FieldSelect`. Native so the condition/trigger pickers stay keyboard- and test-driveable. */
 function FieldSelect(props: React.ComponentProps<"select">) {
   const { className, ...rest } = props;
   return (
@@ -235,8 +222,9 @@ interface EventDialogProps {
  * The wireframe's event editor, in stock shadcn. It edits a detached draft (a `MapEvent` copy the
  * caller seeds from `beginEventDraft`): every keystroke folds into local state through the pure
  * `editor-state` draft mutators, and only Save writes back — as ONE history entry — while Cancel
- * simply drops the draft. Nothing here executes; conditions, movement, options and trigger are
- * authored data for a later tranche.
+ * simply drops the draft. Only runtime-backed controls are authorable: page conditions, appearance,
+ * draw layer, Action/Player-touch triggers and commands. Legacy movement/options/trigger fields are
+ * preserved in the detached page data but are never advertised as working controls.
  *
  * Normal pages and monster defeat hooks share the live command editor and authoritative runtime
  * interpreter.
@@ -257,6 +245,9 @@ export function EventDialog({
   const index = Math.min(pageIndex, draft.pages.length - 1);
   const page = draft.pages[index];
   if (!page) return null;
+  const unsupportedTriggerPages = draft.pages.flatMap((candidate, candidateIndex) =>
+    runtimeTrigger(candidate.trigger) ? [] : [candidateIndex + 1],
+  );
 
   const update = (patch: Partial<MapEventPage>): void => {
     setDraft(updateEventDraftPage(draft, index, patch));
@@ -277,6 +268,7 @@ export function EventDialog({
   };
 
   const save = (): void => {
+    if (unsupportedTriggerPages.length > 0) return;
     // Re-normalize every page's condition ids/threshold here too — the per-field blur handlers
     // below cover the mouse path, but Save can fire via keyboard shortcut while a field is still
     // focused, and a blur that never happened must not let a stray free-text id reach the parser.
@@ -349,7 +341,11 @@ export function EventDialog({
             input), so no body is shown — a hint states what the placement binds. */}
         {(draft.kind === "entry" || draft.kind === "exit" || draft.kind === "spawn") && (
           <p className="border-y border-zinc-200 py-3 text-[12.5px] text-muted-foreground">
-            {t("editor.event.kind.anchor.hint")}
+            {t(
+              draft.kind === "spawn"
+                ? "editor.event.kind.spawn.hint"
+                : "editor.event.kind.anchor.hint",
+            )}
           </p>
         )}
 
@@ -516,100 +512,40 @@ export function EventDialog({
                     onSelectNone={() => update({ graphicAssetId: null })}
                     noneLabel={t("editor.shell.events.graphic.none")}
                   />
+                  <label className="flex items-center gap-2 text-[12.5px] text-zinc-700">
+                    <input
+                      type="checkbox"
+                      checked={page.optOnTop}
+                      onChange={(event) => update({ optOnTop: event.currentTarget.checked })}
+                    />
+                    {t("editor.event.opt.onTop")}
+                  </label>
                 </section>
 
                 <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
                   <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
-                    {t("editor.event.movement")}
+                    {t("editor.event.trigger")}
                   </h3>
-                  <div className="grid grid-cols-3 gap-2">
-                    {/* A `<span>` caption + `aria-label`, not a `<label>` wrapping the select: Biome's
-                    noLabelWithoutControl cannot see the native `<select>` through the `FieldSelect`
-                    component, so the label/control pairing lives on the accessible name instead. */}
-                    <span className="flex flex-col gap-1 text-[11px] text-zinc-500">
-                      {t("editor.event.move.type")}
-                      <FieldSelect
-                        aria-label={t("editor.event.move.type")}
-                        className="h-7 text-xs"
-                        value={page.moveType}
-                        onChange={(e) => update({ moveType: e.currentTarget.value as MoveType })}
-                      >
-                        {MOVE_TYPES.map((option) => (
-                          <option key={option} value={option}>
-                            {t(`editor.event.moveType.${option}`)}
-                          </option>
-                        ))}
-                      </FieldSelect>
-                    </span>
-                    <span className="flex flex-col gap-1 text-[11px] text-zinc-500">
-                      {t("editor.event.move.speed")}
-                      <FieldSelect
-                        aria-label={t("editor.event.move.speed")}
-                        className="h-7 text-xs"
-                        value={page.moveSpeed}
-                        onChange={(e) => update({ moveSpeed: Number(e.currentTarget.value) })}
-                      >
-                        {SPEED_VALUES.map((value) => (
-                          <option key={value} value={value}>
-                            {t(`editor.event.speed.${value}`)}
-                          </option>
-                        ))}
-                      </FieldSelect>
-                    </span>
-                    <span className="flex flex-col gap-1 text-[11px] text-zinc-500">
-                      {t("editor.event.move.freq")}
-                      <FieldSelect
-                        aria-label={t("editor.event.move.freq")}
-                        className="h-7 text-xs"
-                        value={page.moveFreq}
-                        onChange={(e) => update({ moveFreq: Number(e.currentTarget.value) })}
-                      >
-                        {FREQ_VALUES.map((value) => (
-                          <option key={value} value={value}>
-                            {t(`editor.event.freq.${value}`)}
-                          </option>
-                        ))}
-                      </FieldSelect>
-                    </span>
-                  </div>
-                </section>
-
-                <section className="flex gap-4 rounded-lg border border-zinc-200 p-3">
-                  <div className="flex flex-1 flex-col gap-2">
-                    <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
-                      {t("editor.event.options")}
-                    </h3>
-                    {OPTION_FIELDS.map((field) => (
-                      <label
-                        key={field}
-                        className="flex items-center gap-2 text-[12.5px] text-zinc-700"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={page[field]}
-                          onChange={(e) => update({ [field]: e.currentTarget.checked })}
-                        />
-                        {t(OPTION_KEY[field])}
-                      </label>
+                  <p className="text-[11px] text-zinc-500">{t("editor.event.runtime.hint")}</p>
+                  <FieldSelect
+                    aria-label={t("editor.event.trigger")}
+                    className="h-7 text-xs"
+                    value={page.trigger}
+                    onChange={(event) =>
+                      update({ trigger: event.currentTarget.value as EventTrigger })
+                    }
+                  >
+                    {!runtimeTrigger(page.trigger) && (
+                      <option value={page.trigger} disabled>
+                        {t(`editor.event.trigger.${page.trigger}`)} — {t("editor.event.legacy")}
+                      </option>
+                    )}
+                    {RUNTIME_EVENT_TRIGGERS.map((option) => (
+                      <option key={option} value={option}>
+                        {t(`editor.event.trigger.${option}`)}
+                      </option>
                     ))}
-                  </div>
-                  <div className="flex w-44 flex-none flex-col gap-2">
-                    <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
-                      {t("editor.event.trigger")}
-                    </h3>
-                    <FieldSelect
-                      aria-label={t("editor.event.trigger")}
-                      className="h-7 text-xs"
-                      value={page.trigger}
-                      onChange={(e) => update({ trigger: e.currentTarget.value as EventTrigger })}
-                    >
-                      {EVENT_TRIGGERS.map((option) => (
-                        <option key={option} value={option}>
-                          {t(`editor.event.trigger.${option}`)}
-                        </option>
-                      ))}
-                    </FieldSelect>
-                  </div>
+                  </FieldSelect>
                 </section>
               </div>
 
@@ -627,14 +563,45 @@ export function EventDialog({
         )}
 
         <DialogFooter className="items-center sm:justify-between">
-          <Button variant="destructive" size="sm" onClick={() => setConfirmingDelete(true)}>
-            {t("editor.event.delete")}
-          </Button>
+          <div className="flex flex-col items-start gap-1.5">
+            <Button variant="destructive" size="sm" onClick={() => setConfirmingDelete(true)}>
+              {t("editor.event.delete")}
+            </Button>
+            {unsupportedTriggerPages.length > 0 && (
+              <div className="max-w-md text-xs text-amber-700" role="alert">
+                <p>
+                  {t("editor.event.runtime.legacy", {
+                    pages: unsupportedTriggerPages.join(", "),
+                  })}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-1 h-7"
+                  onClick={() =>
+                    setDraft({
+                      ...draft,
+                      pages: draft.pages.map((candidate) =>
+                        runtimeTrigger(candidate.trigger)
+                          ? candidate
+                          : { ...candidate, trigger: "action" },
+                      ),
+                    })
+                  }
+                >
+                  {t("editor.event.runtime.convert")}
+                </Button>
+              </div>
+            )}
+          </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={onCancel}>
               {t("editor.event.cancel")}
             </Button>
-            <Button onClick={save}>{t("editor.event.save")}</Button>
+            <Button disabled={unsupportedTriggerPages.length > 0} onClick={save}>
+              {t("editor.event.save")}
+            </Button>
           </div>
         </DialogFooter>
 

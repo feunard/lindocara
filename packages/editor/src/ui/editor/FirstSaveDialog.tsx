@@ -26,8 +26,8 @@ interface FirstSaveDialogProps {
  * UX wave #14: the name popup shown at an adventure's very first save. Creating an adventure no longer
  * asks for a name — it is born with the localized default and drops the author straight into the
  * editor — so the first explicit save (⌘S or the menu) is where the real name is confirmed. Confirm
- * PUTs the title and continues the map save; Cancel writes nothing at all. Stock shadcn: this is a
- * creator surface, so the two-tree rule keeps Tiny Swords out.
+ * sends the title with the map in one atomic authoring request; Cancel writes nothing at all. Stock
+ * shadcn: this is a creator surface, so the two-tree rule keeps Tiny Swords out.
  */
 export function FirstSaveDialog({ open, defaultTitle, onConfirm, onCancel }: FirstSaveDialogProps) {
   useLocale();

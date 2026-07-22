@@ -287,6 +287,13 @@ export const map = sqliteTable(
     markers: text("markers"),
     /** Monotone authored-content revision. Cache identity is `(mapId, revision)`. */
     revision: integer("revision").notNull().default(1),
+    /**
+     * Internal compare-and-swap token for a whole-map rewrite. `updateMap` changes it in the same
+     * D1 batch as terrain, elements and events, then uses it to make a losing concurrent writer
+     * abort the transaction before it can replace the winner's child rows. It is deliberately not
+     * exposed on the authoring API; creators reason about the monotone `revision` above.
+     */
+    writeToken: text("write_token").notNull().default(""),
     /** Exactly one owned map carries this per account. Quarantined legacy rows are never selected. */
     isFirst: integer("is_first").notNull().default(0),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(nowMs),

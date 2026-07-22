@@ -12,6 +12,13 @@ export default defineConfig({
   plugins: [
     cloudflare({
       configPath: fileURLToPath(new URL("../../packages/server/wrangler.jsonc", import.meta.url)),
+      // Keep `vite dev` on the same local D1 state as the server package's
+      // `wrangler d1 migrations apply --local`. Without this explicit path Vite persists below
+      // `apps/main/.wrangler`, while `npm run db:migrate` writes below `packages/server/.wrangler`:
+      // the migration command succeeds but the running app still sees an empty database.
+      persistState: {
+        path: fileURLToPath(new URL("../../packages/server/.wrangler/state", import.meta.url)),
+      },
     }),
     react(),
     tailwindcss(),
