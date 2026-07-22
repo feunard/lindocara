@@ -4,8 +4,10 @@ Third-party audio shipped with lindocara, with its licence.
 
 ## Menu / title
 
-- **`sfx/title-confirm.mp3`** — title→menu confirm. From *"10 Retro RPG Menu Sounds"* by
-  **leohpaz** (`013_Confirm_03`), OpenGameArt. Licence: **CC-BY 4.0** — attribution required.
+- **`sfx/title-confirm.mp3`** (confirm / select), **`sfx/title-hover.mp3`** (cursor move) and
+  **`sfx/title-back.mp3`** (back) — the menu UI sounds. From *"10 Retro RPG Menu Sounds"* by
+  **leohpaz** (`013_Confirm_03`, `001_Hover_01`, `029_Decline_09`), OpenGameArt.
+  Licence: **CC-BY 4.0** — attribution required.
   https://opengameart.org/content/10-retro-rpg-menu-sounds
 - **`title-theme.mp3`** — menu music bed. *"The Field of Dreams"* by **pauliuw**, OpenGameArt.
   Licence: **CC0** (public domain, no attribution required).

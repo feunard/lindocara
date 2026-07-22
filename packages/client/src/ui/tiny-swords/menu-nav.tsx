@@ -23,6 +23,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { menuAudio } from "../../game/menu-audio.js";
 
 type Orientation = "vertical" | "horizontal";
 
@@ -71,6 +72,16 @@ export function MenuNav({
   const focusedRef = useRef<string | null>(null);
   focusedRef.current = focusedId;
 
+  // Cursor-move sound: on every focus change except the initial auto-focus (null → first item),
+  // so keyboard, gamepad and mouse-hover all click the same way. The initial landing is silent.
+  const prevFocused = useRef<string | null>(null);
+  useEffect(() => {
+    if (focusedId && prevFocused.current !== null && focusedId !== prevFocused.current) {
+      menuAudio.playHover();
+    }
+    prevFocused.current = focusedId;
+  }, [focusedId]);
+
   const ordered = useCallback(
     () => [...items.current].filter((i) => !i.disabled).sort((a, b) => a.order - b.order),
     [],
@@ -93,8 +104,18 @@ export function MenuNav({
   );
 
   const activate = useCallback((id: string) => {
-    items.current.find((i) => i.id === id && !i.disabled)?.activate();
+    const item = items.current.find((i) => i.id === id && !i.disabled);
+    if (!item) return;
+    menuAudio.playConfirm();
+    item.activate();
   }, []);
+
+  // Back sound + the nav's onBack, run together for Escape / B / any explicit back.
+  const triggerBack = useCallback(() => {
+    if (!onBack) return;
+    menuAudio.playBack();
+    onBack();
+  }, [onBack]);
 
   const move = useCallback(
     (delta: 1 | -1) => {
@@ -127,13 +148,13 @@ export function MenuNav({
       } else if (event.key === "Escape") {
         if (onBack) {
           event.preventDefault();
-          onBack();
+          triggerBack();
         }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [orientation, move, activate, onBack]);
+  }, [orientation, move, activate, onBack, triggerBack]);
 
   // Gamepad. One press = one step; holding repeats after a delay. B triggers onBack.
   useEffect(() => {
@@ -170,14 +191,14 @@ export function MenuNav({
         if (a && !prevA && focusedRef.current) activate(focusedRef.current);
         prevA = a;
         const b = pad.buttons[BTN_B]?.pressed === true;
-        if (b && !prevB && onBack) onBack();
+        if (b && !prevB) triggerBack();
         prevB = b;
       }
       raf = requestAnimationFrame(poll);
     };
     raf = requestAnimationFrame(poll);
     return () => cancelAnimationFrame(raf);
-  }, [orientation, move, activate, onBack]);
+  }, [orientation, move, activate, onBack, triggerBack]);
 
   const value = useMemo<MenuNavContextValue>(
     () => ({ focusedId, register, focus, activate }),

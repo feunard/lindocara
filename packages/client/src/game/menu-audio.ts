@@ -17,10 +17,18 @@
  */
 import { getAudioSettings, subscribeAudioSettings } from "./audio-settings.js";
 
-/** The title→menu confirm: a 16-bit JRPG-style confirm (CC-BY leohpaz — see audio/CREDITS.md). */
+// The 16-bit JRPG menu SFX (CC-BY leohpaz — see audio/CREDITS.md). Each is a one-shot sample
+// played through the AudioContext, gated by mute + the sfx slider (not the music toggle).
+/** The title→menu confirm and menu-item select. */
 const CONFIRM_SRC = "/assets/lindocara/audio/sfx/title-confirm.mp3";
-/** Pre-slider gain for the confirm — this is the hand-off into the game. */
+/** Moving the menu cursor (focus change). Quieter — it fires on every step. */
+const HOVER_SRC = "/assets/lindocara/audio/sfx/title-hover.mp3";
+/** Backing out of a menu (Escape / B / the Back item). */
+const BACK_SRC = "/assets/lindocara/audio/sfx/title-back.mp3";
+/** Pre-slider gains, before the sfx slider scales them. */
 const CONFIRM_VOLUME = 0.8;
+const HOVER_VOLUME = 0.35;
+const BACK_VOLUME = 0.6;
 
 /** The looping menu bed. CC0. Swap this to change the title music. */
 const MUSIC_SRC = "/assets/lindocara/audio/title-theme.mp3";
@@ -35,8 +43,9 @@ function clamp01(value: number): number {
 
 class MenuAudio {
   #ctx: AudioContext | null = null;
-  #confirmBuffer: AudioBuffer | null = null;
-  #confirmLoad: Promise<void> | null = null;
+  /** Decoded one-shot samples, keyed by src; and the in-flight loads, so each decodes once. */
+  #buffers = new Map<string, AudioBuffer>();
+  #loads = new Map<string, Promise<void>>();
   #music: HTMLAudioElement | null = null;
   #musicOn = false;
   #fadeTimer: ReturnType<typeof setInterval> | null = null;
@@ -81,8 +90,8 @@ class MenuAudio {
 
   /** Target element volume given the settings and whether the bed is meant to be playing. */
   #targetVolume(): number {
-    const { muted, ambientVolume } = getAudioSettings();
-    return muted || !this.#musicOn ? 0 : clamp01(MUSIC_BASE * ambientVolume);
+    const { muted, ambientVolume, musicEnabled } = getAudioSettings();
+    return muted || !musicEnabled || !this.#musicOn ? 0 : clamp01(MUSIC_BASE * ambientVolume);
   }
 
   /** Snap the bed to its target volume (used when the ambient slider or mute changes). */
@@ -119,37 +128,54 @@ class MenuAudio {
     }
   }
 
-  /** Resume audio inside a user gesture and play the menu confirm. Safe to call repeatedly. */
+  /** The title→menu hand-off / menu-item select. Resumes audio inside the title gesture. */
   playConfirm(): void {
+    this.#playSample(CONFIRM_SRC, CONFIRM_VOLUME);
+  }
+
+  /** Menu cursor move (focus change). */
+  playHover(): void {
+    this.#playSample(HOVER_SRC, HOVER_VOLUME);
+  }
+
+  /** Backing out of a menu. */
+  playBack(): void {
+    this.#playSample(BACK_SRC, BACK_VOLUME);
+  }
+
+  /** Play a one-shot sample, gated by mute + the sfx slider. Safe to call repeatedly. */
+  #playSample(src: string, volume: number): void {
     const ctx = this.#ensureContext();
     if (!ctx) return;
     if (ctx.state === "suspended") void ctx.resume();
     const { muted, sfxVolume } = getAudioSettings();
     if (muted) return;
-    void this.#loadConfirm().then(() => {
-      const buffer = this.#confirmBuffer;
+    void this.#loadSample(src).then(() => {
+      const buffer = this.#buffers.get(src);
       if (!buffer || ctx.state !== "running") return;
       const source = ctx.createBufferSource();
       const gain = ctx.createGain();
       source.buffer = buffer;
-      gain.gain.value = CONFIRM_VOLUME * sfxVolume;
+      gain.gain.value = volume * sfxVolume;
       source.connect(gain);
       gain.connect(ctx.destination);
       source.start();
     });
   }
 
-  async #loadConfirm(): Promise<void> {
-    if (this.#confirmBuffer) return;
-    if (this.#confirmLoad) return this.#confirmLoad;
+  async #loadSample(src: string): Promise<void> {
+    if (this.#buffers.has(src)) return;
+    const inFlight = this.#loads.get(src);
+    if (inFlight) return inFlight;
     const ctx = this.#ctx;
     if (!ctx) return;
-    this.#confirmLoad = (async () => {
-      const response = await fetch(CONFIRM_SRC);
+    const load = (async () => {
+      const response = await fetch(src);
       if (!response.ok) return;
-      this.#confirmBuffer = await ctx.decodeAudioData(await response.arrayBuffer());
+      this.#buffers.set(src, await ctx.decodeAudioData(await response.arrayBuffer()));
     })().catch(() => undefined);
-    return this.#confirmLoad;
+    this.#loads.set(src, load);
+    return load;
   }
 
   /** Begin the looping bed, fading it in. Idempotent; call on entering any launch-menu screen. */
