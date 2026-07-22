@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
 import {
   CombatVisualAuthority,
   clearVisualAction,
   type MutableVisualActionState,
-} from "../src/client/game/combat-visual-state.js";
+} from "@lindocara/renderer/combat-visual-state.js";
+import { describe, expect, it } from "vitest";
 
 describe("authoritative combat visual cancellation", () => {
   it("clears anticipation, future impact, telegraph and persistent action state immediately", () => {

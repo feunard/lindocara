@@ -1,3 +1,8 @@
+import {
+  getDisplaySettings,
+  setDisplaySettings,
+  subscribeDisplaySettings,
+} from "@lindocara/renderer/display-settings.js";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
 import { logout } from "../api.js";
@@ -6,11 +11,6 @@ import {
   setAudioSettings,
   subscribeAudioSettings,
 } from "../game/audio-settings.js";
-import {
-  getDisplaySettings,
-  setDisplaySettings,
-  subscribeDisplaySettings,
-} from "../game/display-settings.js";
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
 import { ControlsSettings } from "./ControlsSettings.js";

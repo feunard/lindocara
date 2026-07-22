@@ -1,6 +1,4 @@
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
-import { useEffect, useState, useSyncExternalStore } from "react";
-import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
 import {
   type ControlId,
   type ControllerLayout,
@@ -14,7 +12,9 @@ import {
   setGamepadBinding,
   setKeyboardBinding,
   subscribeInputSettings,
-} from "../game/input-settings.js";
+} from "@lindocara/renderer/input-settings.js";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
 import { t, useLocale } from "../i18n.js";
 import { TinySelect } from "./tiny-swords/TinySelect.js";
 

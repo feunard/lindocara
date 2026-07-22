@@ -18,7 +18,7 @@ const state = vi.hoisted(() => ({
   maxFPS: 0,
 }));
 
-vi.mock("../../src/client/game/renderer.js", () => ({
+vi.mock("@lindocara/renderer/renderer.js", () => ({
   Renderer: {
     create: vi.fn(async () => ({
       configureMapTerrain: vi.fn(),
@@ -36,7 +36,7 @@ vi.mock("../../src/client/game/renderer.js", () => ({
   },
 }));
 
-vi.mock("../../src/client/game/stage-application.js", () => ({
+vi.mock("@lindocara/renderer/stage-application.js", () => ({
   acquireStageApp: vi.fn(async () => ({
     ticker: {
       start: vi.fn(),
@@ -50,7 +50,7 @@ vi.mock("../../src/client/game/stage-application.js", () => ({
   })),
 }));
 
-vi.mock("../../src/client/game/input.js", () => ({
+vi.mock("@lindocara/renderer/input.js", () => ({
   trackInput: () => ({
     current: () => state.input,
     setVirtual: vi.fn(),

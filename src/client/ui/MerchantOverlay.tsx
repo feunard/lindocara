@@ -3,9 +3,9 @@ import {
   CONSUMABLES,
   normalizeConsumables,
 } from "@lindocara/engine/consumables.js";
+import { firstConnectedGamepad } from "@lindocara/renderer/input-settings.js";
+import { consumableIconSource } from "@lindocara/renderer/tiny-swords-art.js";
 import { useEffect, useRef, useState } from "react";
-import { firstConnectedGamepad } from "../game/input-settings.js";
-import { consumableIconSource } from "../game/tiny-swords-art.js";
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
 import { CurrencyAmount } from "./CurrencyAmount.js";

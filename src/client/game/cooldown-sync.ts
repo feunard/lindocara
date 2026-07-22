@@ -4,7 +4,7 @@ import {
   normalizeCombatCooldowns,
 } from "@lindocara/engine/cooldowns.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
-import type { ServerClock } from "./server-clock.js";
+import type { ServerClock } from "@lindocara/renderer/server-clock.js";
 
 export interface ClientCooldownDeadlines {
   attackUntil: number;

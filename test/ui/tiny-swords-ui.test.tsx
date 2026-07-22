@@ -1,7 +1,7 @@
+import { applyTinySwordsTheme } from "@lindocara/renderer/tiny-swords-assets.js";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { applyTinySwordsTheme } from "../../src/client/game/tiny-swords-assets.js";
 import { AssetBrowser, resetTinySwordsCatalogForTests } from "../../src/client/ui/AssetBrowser.js";
 import { TinyButton } from "../../src/client/ui/tiny-swords/TinyButton.js";
 import { TinyPanel } from "../../src/client/ui/tiny-swords/TinyPanel.js";

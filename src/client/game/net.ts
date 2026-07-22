@@ -67,18 +67,12 @@ interface BufferedSnapshot {
   projectiles: ProjectileSnapshot[];
 }
 
-export interface SceneSample {
-  players: PlayerSnapshot[];
-  monsters: MonsterSnapshot[];
-  guards: GuardSnapshot[];
-  loot: LootSnapshot[];
-  projectiles: ProjectileSnapshot[];
-  /** Bodies do not move, so they are never interpolated — the newest word is the only word. */
-  corpses: CorpseSnapshot[];
-  /** Authored events, appearance only. Static decor: never interpolated and never buffered, the
-   *  active set is drawn as-is. Room-scoped — the same set for everyone in the room. */
-  events: readonly WorldEventSnapshot[];
-}
+// SceneSample now lives in the renderer package (both the renderer and the minimap consume it,
+// and it is built from engine snapshot types). Imported for internal use and re-exported so
+// existing `from "./net"` importers are unaffected; the package edge is client -> renderer.
+import type { SceneSample } from "@lindocara/renderer/scene-sample.js";
+
+export type { SceneSample };
 
 export interface Connection {
   attack(): void;

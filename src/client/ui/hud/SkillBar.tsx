@@ -3,13 +3,13 @@ import { skillResourceCost } from "@lindocara/engine/resources.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 import { CLASS_SKILLS, isSkillUnlocked, SKILL_UNLOCK_LEVEL } from "@lindocara/engine/skills.js";
 import { evolvedTalent } from "@lindocara/engine/talents.js";
-import { type CSSProperties, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   getInputSettings,
   keyboardBindingLabel,
   subscribeInputSettings,
-} from "../../game/input-settings.js";
-import { skillIconArt } from "../../game/tiny-swords-art.js";
+} from "@lindocara/renderer/input-settings.js";
+import { skillIconArt } from "@lindocara/renderer/tiny-swords-art.js";
+import { type CSSProperties, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { t } from "../../i18n.js";
 import { useUiStore } from "../../store.js";
 

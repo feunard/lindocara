@@ -34,18 +34,32 @@ import {
   TINY_SWORDS_TILESET,
 } from "@lindocara/engine/tilesets/tiny-swords.js";
 import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
-import { type Application, Assets, Container, Graphics, Sprite, Text, type Texture } from "pixi.js";
-import { needsFoam } from "./autotile.js";
+import { needsFoam } from "@lindocara/renderer/autotile.js";
 import {
   catalogElementFrameAt,
   createCatalogElementView,
   createEventGraphicSprite,
-} from "./catalog-element-render.js";
+} from "@lindocara/renderer/catalog-element-render.js";
 import {
   type EditorAssetArt,
   loadEditorAssetArt,
   loadEditorAssetArts,
-} from "./editor-asset-art.js";
+} from "@lindocara/renderer/editor-asset-art.js";
+import { TINY_SWORDS_ENEMIES } from "@lindocara/renderer/enemy-art.js";
+import { acquireStageApp } from "@lindocara/renderer/stage-application.js";
+import { foamFrameAt } from "@lindocara/renderer/terrain-visuals.js";
+import { tileDrawAt } from "@lindocara/renderer/tile-draw.js";
+import {
+  sliceStrip,
+  sliceTilesetSheet,
+  TINY_SWORDS_FOAM_FRAME,
+  TINY_SWORDS_FOAM_FRAMES,
+  TINY_SWORDS_ROOT,
+  TINY_SWORDS_TERRAIN,
+  TINY_SWORDS_UNIT_FRAME,
+  unitSheet,
+} from "@lindocara/renderer/tiny-swords-art.js";
+import { type Application, Assets, Container, Graphics, Sprite, Text, type Texture } from "pixi.js";
 import type { EditorMap, EditorMode, EditorSelection, EditorTool } from "./editor-state.js";
 import {
   applyTool,
@@ -69,20 +83,6 @@ import {
   updateSelectedElementAsset,
   updateSelectedElementOffset,
 } from "./editor-state.js";
-import { TINY_SWORDS_ENEMIES } from "./enemy-art.js";
-import { acquireStageApp } from "./stage-application.js";
-import { foamFrameAt } from "./terrain-visuals.js";
-import { tileDrawAt } from "./tile-draw.js";
-import {
-  sliceStrip,
-  sliceTilesetSheet,
-  TINY_SWORDS_FOAM_FRAME,
-  TINY_SWORDS_FOAM_FRAMES,
-  TINY_SWORDS_ROOT,
-  TINY_SWORDS_TERRAIN,
-  TINY_SWORDS_UNIT_FRAME,
-  unitSheet,
-} from "./tiny-swords-art.js";
 
 /**
  * The one seam between React's toolbar and the Pixi stage. `current()` is a live snapshot the Save

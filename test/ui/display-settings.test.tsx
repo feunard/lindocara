@@ -1,11 +1,11 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   getDisplaySettings,
   healthBarsEnabled,
   setDisplaySettings,
   shouldShowHealthBar,
   subscribeDisplaySettings,
-} from "../../src/client/game/display-settings.js";
+} from "@lindocara/renderer/display-settings.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 afterEach(() => vi.unstubAllGlobals());
 

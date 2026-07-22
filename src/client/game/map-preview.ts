@@ -28,10 +28,10 @@ import { MAX_ACCUMULATED_SECONDS } from "@lindocara/engine/prediction.js";
 import type { PlayerSnapshot, QuestState } from "@lindocara/engine/protocol.js";
 import { PLAYER_SPEED, step, TICK_DT, type Vec2 } from "@lindocara/engine/simulation.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
+import { trackInput } from "@lindocara/renderer/input.js";
+import { type RenderContext, Renderer } from "@lindocara/renderer/renderer.js";
+import { acquireStageApp } from "@lindocara/renderer/stage-application.js";
 import { t } from "../i18n.js";
-import { trackInput } from "./input.js";
-import { type RenderContext, Renderer } from "./renderer.js";
-import { acquireStageApp } from "./stage-application.js";
 
 /** The synthetic hero's id, echoed to `setSelfId` so the renderer follows it with the camera and
  *  draws its self ring — the same wiring a real session uses for the local player. */

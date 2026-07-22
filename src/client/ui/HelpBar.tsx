@@ -1,10 +1,10 @@
-import { useSyncExternalStore } from "react";
-import { TinyKbd } from "@/ui/tiny-swords/TinyKbd.js";
 import {
   getInputSettings,
   keyboardBindingLabel,
   subscribeInputSettings,
-} from "../game/input-settings.js";
+} from "@lindocara/renderer/input-settings.js";
+import { useSyncExternalStore } from "react";
+import { TinyKbd } from "@/ui/tiny-swords/TinyKbd.js";
 import { t, useLocale } from "../i18n.js";
 
 export function HelpBar() {

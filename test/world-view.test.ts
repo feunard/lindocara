@@ -1,5 +1,4 @@
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
-import { describe, expect, it } from "vitest";
 import {
   cameraAxisOffset,
   GAME_CAMERA_ZOOM,
@@ -7,7 +6,8 @@ import {
   PLAYER_RENDER_SCALE,
   playerRenderScale,
   tileWindowForBounds,
-} from "../src/client/game/world-view.js";
+} from "@lindocara/renderer/world-view.js";
+import { describe, expect, it } from "vitest";
 
 describe("multizone camera geometry", () => {
   it("renders every hero 30% smaller and zooms every client out by 20%", () => {

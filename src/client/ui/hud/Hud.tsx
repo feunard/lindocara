@@ -1,7 +1,7 @@
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import type { QuestState } from "@lindocara/engine/protocol.js";
+import { playerPortrait } from "@lindocara/renderer/portrait-art.js";
 import { useEffect, useRef, useState } from "react";
-import { playerPortrait } from "../../game/portrait-art.js";
 import { t, useLocale } from "../../i18n.js";
 import { useUiStore } from "../../store.js";
 import { Bar } from "./Bar.js";

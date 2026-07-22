@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
 import {
   lumenStepOpacity,
   mobilityRenderOffset,
   mobilityVisual,
-} from "../src/client/game/combat-motion.js";
+} from "@lindocara/renderer/combat-motion.js";
+import { describe, expect, it } from "vitest";
 
 describe("combat mobility presentation", () => {
   it("gives charge, dash and blink distinct visual identities", () => {

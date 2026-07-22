@@ -1,7 +1,7 @@
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
+import { TINY_SWORDS_ENEMIES } from "@lindocara/renderer/enemy-art.js";
+import { TINY_SWORDS_EFFECT_SHEETS, unitSheet } from "@lindocara/renderer/tiny-swords-art.js";
 import type { CSSProperties } from "react";
-import { TINY_SWORDS_ENEMIES } from "../game/enemy-art.js";
-import { TINY_SWORDS_EFFECT_SHEETS, unitSheet } from "../game/tiny-swords-art.js";
 import { t } from "../i18n.js";
 import { useUiStore } from "../store.js";
 import { TinySwordsMenuScene } from "./TinySwordsMenuScene.js";

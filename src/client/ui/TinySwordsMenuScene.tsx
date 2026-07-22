@@ -1,5 +1,5 @@
 import { TINY_SWORDS_UI } from "@lindocara/engine/tiny-swords-catalog.js";
-import { tinySwordsAssetUrl } from "../game/tiny-swords-assets.js";
+import { tinySwordsAssetUrl } from "@lindocara/renderer/tiny-swords-assets.js";
 
 type TinySwordsMenuSceneProps = {
   variant: "gate" | "courtyard";

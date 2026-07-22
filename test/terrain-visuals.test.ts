@@ -1,4 +1,3 @@
-import { describe, expect, it } from "vitest";
 import {
   FOAM_CYCLE_MS,
   foamFrameAt,
@@ -6,8 +5,9 @@ import {
   terrainTintsAt,
   WATER_RENDER_OBJECTS,
   waterSurfaceRect,
-} from "../src/client/game/terrain-visuals.js";
-import { WORLD_ZONES } from "../src/client/game/world-layout.js";
+} from "@lindocara/renderer/terrain-visuals.js";
+import { WORLD_ZONES } from "@lindocara/renderer/world-layout.js";
+import { describe, expect, it } from "vitest";
 
 function brightness(color: number): number {
   return ((color >> 16) & 0xff) + ((color >> 8) & 0xff) + (color & 0xff);

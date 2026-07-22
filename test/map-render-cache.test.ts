@@ -1,5 +1,5 @@
+import { sameRenderedMap } from "@lindocara/renderer/map-render-cache.js";
 import { describe, expect, it } from "vitest";
-import { sameRenderedMap } from "../src/client/game/map-render-cache.js";
 
 describe("renderer map cache identity", () => {
   it("reuses an unchanged map across reconnects", () => {

@@ -1,5 +1,5 @@
+import { playerPortrait } from "@lindocara/renderer/portrait-art.js";
 import { describe, expect, it } from "vitest";
-import { playerPortrait } from "../../src/client/game/portrait-art.js";
 
 describe("Tiny Swords portrait selection", () => {
   it("uses the matching class and faction unit sheet for players", () => {

@@ -8,9 +8,9 @@ import type {
   EditorAssetDefinition,
   EditorAssetId,
 } from "@lindocara/engine/tiny-swords-catalog.js";
+import type { EditorAssetArt } from "@lindocara/renderer/editor-asset-art.js";
 import { Container, Graphics, Sprite, Text, Texture } from "pixi.js";
 import { describe, expect, it } from "vitest";
-import type { EditorAssetArt } from "../../src/client/game/editor-asset-art.js";
 import type { EditorMap, EditorTool } from "../../src/client/game/editor-state.js";
 import { applyTool, blankMap, defaultEventPage } from "../../src/client/game/editor-state.js";
 import {

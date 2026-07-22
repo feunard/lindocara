@@ -19,7 +19,7 @@ import {
   projectToWorldMap,
   sameBakedWorld,
 } from "./minimap.js";
-import type { SceneSample } from "./net.js";
+import type { SceneSample } from "./scene-sample.js";
 
 const SELF_COLOR = "#ffffff";
 const PLAYER_COLOR = "#6cc6ff";

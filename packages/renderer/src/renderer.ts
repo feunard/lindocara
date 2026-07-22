@@ -54,7 +54,6 @@ import {
   type Ticker,
   TilingSprite,
 } from "pixi.js";
-import { onLocaleChange, t } from "../i18n.js";
 import { landTile, needsFoam, tileVisual } from "./autotile.js";
 import {
   catalogElementFrameAt,
@@ -90,8 +89,9 @@ import {
   TINY_SWORDS_ENEMIES,
 } from "./enemy-art.js";
 import { MAX_ACTIVE_WORLD_EFFECTS, questSiteFeedback } from "./feedback.js";
+import { onLocaleChange, t } from "./locale.js";
 import { sameRenderedMap } from "./map-render-cache.js";
-import type { SceneSample } from "./net.js";
+import type { SceneSample } from "./scene-sample.js";
 import { ServerClock } from "./server-clock.js";
 import { acquireStageApp } from "./stage-application.js";
 import {

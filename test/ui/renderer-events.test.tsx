@@ -1,6 +1,6 @@
+import { eventRenderLayer } from "@lindocara/renderer/renderer.js";
 import { Container } from "pixi.js";
 import { describe, expect, it } from "vitest";
-import { eventRenderLayer } from "../../src/client/game/renderer.js";
 
 /**
  * `eventRenderLayer` is the renderer's ONE routing decision for an authored event's appearance: an

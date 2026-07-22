@@ -1,6 +1,6 @@
+import { applyTinySwordsTheme } from "@lindocara/renderer/tiny-swords-assets.js";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { applyTinySwordsTheme } from "./game/tiny-swords-assets.js";
 import { currentLocale } from "./i18n.js";
 import { App } from "./ui/App.js";
 import "./styles/app.css";

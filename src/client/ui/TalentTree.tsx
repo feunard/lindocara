@@ -6,8 +6,8 @@ import {
   type TalentLabel,
   unlockTalent,
 } from "@lindocara/engine/talents.js";
+import { skillIconArt } from "@lindocara/renderer/tiny-swords-art.js";
 import { type CSSProperties, useEffect, useState } from "react";
-import { skillIconArt } from "../game/tiny-swords-art.js";
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
 import { TinyButton } from "./tiny-swords/TinyButton.js";

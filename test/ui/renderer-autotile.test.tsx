@@ -5,9 +5,9 @@ import {
   GRASS_SLOTS,
   TINY_SWORDS_TILESET,
 } from "@lindocara/engine/tilesets/tiny-swords.js";
+import { autotileSheetCell } from "@lindocara/renderer/renderer.js";
+import { tileDrawAt } from "@lindocara/renderer/tile-draw.js";
 import { describe, expect, it } from "vitest";
-import { autotileSheetCell } from "../../src/client/game/renderer.js";
-import { tileDrawAt } from "../../src/client/game/tile-draw.js";
 
 /**
  * `#paintLayeredCell`'s per-cell autotile arithmetic, exercised directly rather than mirrored: this

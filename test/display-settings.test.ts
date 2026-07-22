@@ -1,5 +1,5 @@
+import { HEALTH_BAR_PROXIMITY, shouldShowHealthBar } from "@lindocara/renderer/display-settings.js";
 import { describe, expect, it } from "vitest";
-import { HEALTH_BAR_PROXIMITY, shouldShowHealthBar } from "../src/client/game/display-settings.js";
 
 describe("world health bar visibility", () => {
   it("respects proximity and ally/enemy preferences for ordinary units", () => {

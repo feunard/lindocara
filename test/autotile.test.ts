@@ -1,12 +1,12 @@
 import { TILE_KINDS, type TileKind, type TileMap } from "@lindocara/engine/tilemap.js";
-import { describe, expect, it } from "vitest";
 import {
   AUTOTILE_LUT,
   landMask,
   landTile,
   needsFoam,
   tileVisual,
-} from "../src/client/game/autotile.js";
+} from "@lindocara/renderer/autotile.js";
+import { describe, expect, it } from "vitest";
 
 function map(rows: string[]): TileMap {
   const kinds: TileKind[] = [];

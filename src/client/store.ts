@@ -61,10 +61,7 @@ export interface PartyInviteNotice {
   expiresAt: number;
 }
 
-export interface PortraitArt {
-  source: string;
-  frames: number;
-}
+export type { PortraitArt } from "@lindocara/renderer/portrait-art.js";
 
 /** What the HUD needs from the self snapshot — excludes x/y so it does not churn 60x/s. */
 export interface SelfHud {

@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
 import {
   healingEffectColor,
   MAX_ACTIVE_WORLD_EFFECTS,
   questSiteFeedback,
   shouldFloatEvent,
-} from "../src/client/game/feedback.js";
+} from "@lindocara/renderer/feedback.js";
+import { describe, expect, it } from "vitest";
 
 describe("world feedback readability", () => {
   it("keeps only spatial combat outcomes above actors", () => {

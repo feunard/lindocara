@@ -5,8 +5,8 @@ import {
   EVENT_GRAPHIC_ASSETS,
   PLACEABLE_EDITOR_ASSETS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
+import { tinySwordsSourceUrl } from "@lindocara/renderer/tiny-swords-assets.js";
 import { useMemo, useState } from "react";
-import { tinySwordsSourceUrl } from "../../game/tiny-swords-assets.js";
 import { t, useLocale } from "../../i18n.js";
 import { Input } from "../components/input.js";
 

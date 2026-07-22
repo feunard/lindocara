@@ -1,6 +1,6 @@
+import { ServerClock, serverTimestampToLocal } from "@lindocara/renderer/server-clock.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clientCooldownDeadlines } from "../src/client/game/cooldown-sync.js";
-import { ServerClock, serverTimestampToLocal } from "../src/client/game/server-clock.js";
 
 const timeline = { startedAt: 100_000, impactAt: 100_280, recoveryEndsAt: 100_650 };
 

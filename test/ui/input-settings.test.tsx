@@ -1,13 +1,13 @@
-import { fireEvent } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { trackActions, trackInput } from "../../src/client/game/input.js";
+import { trackActions, trackInput } from "@lindocara/renderer/input.js";
 import {
   gamepadBindingLabel,
   getInputSettings,
   resetInputBindings,
   setGamepadBinding,
   setKeyboardBinding,
-} from "../../src/client/game/input-settings.js";
+} from "@lindocara/renderer/input-settings.js";
+import { fireEvent } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 describe("input remapping", () => {
   beforeEach(() => resetInputBindings());

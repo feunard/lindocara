@@ -3,10 +3,10 @@ import type {
   TinySwordsCatalogEntry,
   TinySwordsPack,
 } from "@lindocara/engine/tiny-swords-catalog.js";
+import { tinySwordsSourceUrl } from "@lindocara/renderer/tiny-swords-assets.js";
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
 import { TinyInput } from "@/ui/tiny-swords/TinyInput.js";
-import { tinySwordsSourceUrl } from "../game/tiny-swords-assets.js";
 import { t, useLocale } from "../i18n.js";
 import { TinyPanel } from "./tiny-swords/TinyPanel.js";
 import { TinySelect } from "./tiny-swords/TinySelect.js";
