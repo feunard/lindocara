@@ -1,9 +1,9 @@
+import { setLocale } from "@lindocara/client/i18n.js";
+import { useUiStore } from "@lindocara/client/store.js";
+import { InteriorOverlay } from "@lindocara/client/ui/InteriorOverlay.js";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
-import { setLocale } from "../../src/client/i18n.js";
-import { useUiStore } from "../../src/client/store.js";
-import { InteriorOverlay } from "../../src/client/ui/InteriorOverlay.js";
 
 describe("InteriorOverlay", () => {
   beforeEach(() => setLocale("en"));

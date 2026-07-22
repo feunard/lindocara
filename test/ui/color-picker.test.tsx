@@ -1,8 +1,8 @@
+import { setLocale } from "@lindocara/client/i18n.js";
+import { ColorPicker } from "@lindocara/client/ui/ColorPicker.js";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { setLocale } from "../../src/client/i18n.js";
-import { ColorPicker } from "../../src/client/ui/ColorPicker.js";
 
 describe("ColorPicker", () => {
   it("picks a free colour and disables a taken one", async () => {

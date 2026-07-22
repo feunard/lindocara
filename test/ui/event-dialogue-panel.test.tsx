@@ -5,11 +5,12 @@
  * The keyboard affordances (Space advances a say, 1-4 pick a choice) are covered here, including the
  * guard that a stray number key never emits a choose when no choices offer is pending (mutation proof).
  */
+
+import { setLocale } from "@lindocara/client/i18n.js";
+import { useUiStore } from "@lindocara/client/store.js";
+import { EventDialoguePanel } from "@lindocara/client/ui/hud/EventDialoguePanel.js";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { setLocale } from "../../src/client/i18n.js";
-import { useUiStore } from "../../src/client/store.js";
-import { EventDialoguePanel } from "../../src/client/ui/hud/EventDialoguePanel.js";
 
 const eventAdvance = vi.fn();
 const eventChoose = vi.fn();

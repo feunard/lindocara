@@ -1,12 +1,12 @@
+import { setLocale } from "@lindocara/client/i18n.js";
+import { useUiStore } from "@lindocara/client/store.js";
+import { PartyScreen } from "@lindocara/client/ui/PartyScreen.js";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { setLocale } from "../../src/client/i18n.js";
-import { useUiStore } from "../../src/client/store.js";
-import { PartyScreen } from "../../src/client/ui/PartyScreen.js";
 
 const startGameAsHero = vi.hoisted(() => vi.fn<() => Promise<void>>());
-vi.mock("../../src/client/game/session.js", () => ({ startGameAsHero }));
+vi.mock("@lindocara/client/game/session.js", () => ({ startGameAsHero }));
 
 const PARTY = {
   id: "p1",

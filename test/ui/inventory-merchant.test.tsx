@@ -1,13 +1,13 @@
+import { setLocale } from "@lindocara/client/i18n.js";
+import type { GameHandle } from "@lindocara/client/store.js";
+import { useUiStore } from "@lindocara/client/store.js";
+import { QuickItemBar } from "@lindocara/client/ui/hud/QuickItemBar.js";
+import { InventoryOverlay } from "@lindocara/client/ui/InventoryOverlay.js";
+import { MerchantOverlay } from "@lindocara/client/ui/MerchantOverlay.js";
 import { emptyConsumables } from "@lindocara/engine/consumables.js";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { setLocale } from "../../src/client/i18n.js";
-import type { GameHandle } from "../../src/client/store.js";
-import { useUiStore } from "../../src/client/store.js";
-import { QuickItemBar } from "../../src/client/ui/hud/QuickItemBar.js";
-import { InventoryOverlay } from "../../src/client/ui/InventoryOverlay.js";
-import { MerchantOverlay } from "../../src/client/ui/MerchantOverlay.js";
 
 function gameHandle(): GameHandle {
   return {

@@ -1,5 +1,5 @@
+import { useUiStore } from "@lindocara/client/store.js";
 import { beforeEach, describe, expect, it } from "vitest";
-import { useUiStore } from "../../src/client/store.js";
 
 describe("launch navigation state", () => {
   beforeEach(() => {

@@ -1,6 +1,6 @@
+import { applyTool, blankMap, type EditorMap } from "@lindocara/client/game/editor-state.js";
 import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 import { describe, expect, it } from "vitest";
-import { applyTool, blankMap, type EditorMap } from "../src/client/game/editor-state.js";
 
 const TREE = "resource.terrain-resources-wood-trees.tree3" as const;
 const BUSH = "decoration.terrain-decorations-bushes.bushe1" as const;

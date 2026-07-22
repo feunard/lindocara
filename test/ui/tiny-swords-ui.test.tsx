@@ -1,11 +1,11 @@
+import { AssetBrowser, resetTinySwordsCatalogForTests } from "@lindocara/client/ui/AssetBrowser.js";
+import { TinyButton } from "@lindocara/client/ui/tiny-swords/TinyButton.js";
+import { TinyPanel } from "@lindocara/client/ui/tiny-swords/TinyPanel.js";
+import { TinyRange } from "@lindocara/client/ui/tiny-swords/TinyRange.js";
 import { applyTinySwordsTheme } from "@lindocara/renderer/tiny-swords-assets.js";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AssetBrowser, resetTinySwordsCatalogForTests } from "../../src/client/ui/AssetBrowser.js";
-import { TinyButton } from "../../src/client/ui/tiny-swords/TinyButton.js";
-import { TinyPanel } from "../../src/client/ui/tiny-swords/TinyPanel.js";
-import { TinyRange } from "../../src/client/ui/tiny-swords/TinyRange.js";
 
 const entries = [
   {

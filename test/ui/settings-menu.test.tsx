@@ -1,12 +1,12 @@
+import { getAudioSettings, setAudioSettings } from "@lindocara/client/game/audio-settings.js";
+import { setLocale } from "@lindocara/client/i18n.js";
+import { useUiStore } from "@lindocara/client/store.js";
+import { SettingsMenu } from "@lindocara/client/ui/SettingsMenu.js";
 import { getDisplaySettings, setDisplaySettings } from "@lindocara/renderer/display-settings.js";
 import { getInputSettings, resetInputBindings } from "@lindocara/renderer/input-settings.js";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getAudioSettings, setAudioSettings } from "../../src/client/game/audio-settings.js";
-import { setLocale } from "../../src/client/i18n.js";
-import { useUiStore } from "../../src/client/store.js";
-import { SettingsMenu } from "../../src/client/ui/SettingsMenu.js";
 
 describe("SettingsMenu", () => {
   beforeEach(() => {

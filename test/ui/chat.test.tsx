@@ -1,9 +1,9 @@
+import { setLocale } from "@lindocara/client/i18n.js";
+import { useUiStore } from "@lindocara/client/store.js";
+import { Chat } from "@lindocara/client/ui/Chat.js";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { setLocale } from "../../src/client/i18n.js";
-import { useUiStore } from "../../src/client/store.js";
-import { Chat } from "../../src/client/ui/Chat.js";
 
 describe("Chat", () => {
   beforeEach(() => setLocale("en"));

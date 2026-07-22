@@ -1,3 +1,10 @@
+import { emptyDraft } from "@lindocara/client/adventure-draft.js";
+import type { MapPayload, MapSummary } from "@lindocara/client/api.js";
+import { defaultEventPage, toMapData, toSaveInput } from "@lindocara/client/game/editor-state.js";
+import { setLocale, t } from "@lindocara/client/i18n.js";
+import { useUiStore } from "@lindocara/client/store.js";
+import { AdventureEditorScreen } from "@lindocara/client/ui/editor/AdventureEditorScreen.js";
+import { PartiesScreen } from "@lindocara/client/ui/PartiesScreen.js";
 import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
 import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
@@ -5,13 +12,6 @@ import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.j
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { emptyDraft } from "../../src/client/adventure-draft.js";
-import type { MapPayload, MapSummary } from "../../src/client/api.js";
-import { defaultEventPage, toMapData, toSaveInput } from "../../src/client/game/editor-state.js";
-import { setLocale, t } from "../../src/client/i18n.js";
-import { useUiStore } from "../../src/client/store.js";
-import { AdventureEditorScreen } from "../../src/client/ui/editor/AdventureEditorScreen.js";
-import { PartiesScreen } from "../../src/client/ui/PartiesScreen.js";
 
 // The painting stage is Pixi on a real canvas — untestable in jsdom. A fake handle stands in so the
 // tests exercise the shell's own behaviour: which EditorTool it pushes, that the mode selector
@@ -41,7 +41,7 @@ const stageMock = vi.hoisted(() => ({
   dispose: vi.fn(),
 }));
 
-vi.mock("../../src/client/game/map-editor-stage.js", () => ({
+vi.mock("@lindocara/client/game/map-editor-stage.js", () => ({
   openMapEditorStage: stageMock.openMapEditorStage,
   // The screen calls this pure helper to pick the per-mode dim default (D12); mirror its real rule.
   defaultDimForMode: (mode: string) => mode !== "field",
@@ -74,7 +74,7 @@ function stageHandle() {
 }
 
 const previewMock = vi.hoisted(() => ({ startMapPreview: vi.fn(), stop: vi.fn() }));
-vi.mock("../../src/client/game/map-preview.js", () => ({
+vi.mock("@lindocara/client/game/map-preview.js", () => ({
   startMapPreview: previewMock.startMapPreview,
 }));
 

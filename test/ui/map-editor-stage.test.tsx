@@ -1,3 +1,18 @@
+import type { EditorMap, EditorTool } from "@lindocara/client/game/editor-state.js";
+import { applyTool, blankMap, defaultEventPage } from "@lindocara/client/game/editor-state.js";
+import {
+  applyModeDim,
+  defaultDimForMode,
+  eventChipLabel,
+  eventOverlayToggled,
+  paintCollisionOverlay,
+  paintElementSelectionOutline,
+  paintEventCell,
+  paintHoverCell,
+  paintLandCell,
+  shouldShowEventOverlay,
+  shouldShowHoverPreview,
+} from "@lindocara/client/game/map-editor-stage.js";
 import type { MapElement } from "@lindocara/engine/map-data.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
 import type { TileLayer } from "@lindocara/engine/tile-layer-codec.js";
@@ -11,21 +26,6 @@ import type {
 import type { EditorAssetArt } from "@lindocara/renderer/editor-asset-art.js";
 import { Container, Graphics, Sprite, Text, Texture } from "pixi.js";
 import { describe, expect, it } from "vitest";
-import type { EditorMap, EditorTool } from "../../src/client/game/editor-state.js";
-import { applyTool, blankMap, defaultEventPage } from "../../src/client/game/editor-state.js";
-import {
-  applyModeDim,
-  defaultDimForMode,
-  eventChipLabel,
-  eventOverlayToggled,
-  paintCollisionOverlay,
-  paintElementSelectionOutline,
-  paintEventCell,
-  paintHoverCell,
-  paintLandCell,
-  shouldShowEventOverlay,
-  shouldShowHoverPreview,
-} from "../../src/client/game/map-editor-stage.js";
 
 /**
  * `paintLandCell` is `redraw()`'s per-cell tile routing, exported and kept Pixi-object-only (no

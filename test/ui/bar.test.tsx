@@ -1,6 +1,6 @@
+import { Bar } from "@lindocara/client/ui/hud/Bar.js";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { Bar } from "../../src/client/ui/hud/Bar.js";
 
 describe("Bar", () => {
   it("exposes progressbar semantics and proportional fill", () => {

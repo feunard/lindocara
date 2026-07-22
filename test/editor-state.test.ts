@@ -1,15 +1,3 @@
-import { isUuid } from "@lindocara/engine/identifiers.js";
-import { EMPTY_MARKERS, MAX_MAP_ELEMENTS, type MapElement } from "@lindocara/engine/map-data.js";
-import { entryEvents, exitEvents, type MapEvent } from "@lindocara/engine/map-events.js";
-import { eraseRect, paintRectAutotile, paintStairs, slotAt } from "@lindocara/engine/tile-brush.js";
-import type { TileLayer } from "@lindocara/engine/tile-layer-codec.js";
-import { EMPTY_TILE } from "@lindocara/engine/tileset.js";
-import {
-  CLIFF_WALL_SLOT,
-  GRASS_SLOTS,
-  TINY_SWORDS_TILESET,
-} from "@lindocara/engine/tilesets/tiny-swords.js";
-import { describe, expect, it } from "vitest";
 import {
   applyTool,
   beginEventDraft,
@@ -35,7 +23,19 @@ import {
   toSaveInput,
   undoEditorHistory,
   updateEventDraftPage,
-} from "../src/client/game/editor-state.js";
+} from "@lindocara/client/game/editor-state.js";
+import { isUuid } from "@lindocara/engine/identifiers.js";
+import { EMPTY_MARKERS, MAX_MAP_ELEMENTS, type MapElement } from "@lindocara/engine/map-data.js";
+import { entryEvents, exitEvents, type MapEvent } from "@lindocara/engine/map-events.js";
+import { eraseRect, paintRectAutotile, paintStairs, slotAt } from "@lindocara/engine/tile-brush.js";
+import type { TileLayer } from "@lindocara/engine/tile-layer-codec.js";
+import { EMPTY_TILE } from "@lindocara/engine/tileset.js";
+import {
+  CLIFF_WALL_SLOT,
+  GRASS_SLOTS,
+  TINY_SWORDS_TILESET,
+} from "@lindocara/engine/tilesets/tiny-swords.js";
+import { describe, expect, it } from "vitest";
 
 /** The ground slot at a cell, or -1 for the void. Every terrain assertion below reads this rather
  *  than a raw id: the id carries an autotile variant the neighbourhood decides, and no test here is

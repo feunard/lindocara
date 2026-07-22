@@ -1,7 +1,7 @@
+import { useUiStore } from "@lindocara/client/store.js";
+import { EventLog } from "@lindocara/client/ui/EventLog.js";
 import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useUiStore } from "../../src/client/store.js";
-import { EventLog } from "../../src/client/ui/EventLog.js";
 
 describe("EventLog", () => {
   beforeEach(() => {

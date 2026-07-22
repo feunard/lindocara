@@ -1,7 +1,7 @@
+import { setLocale, t } from "@lindocara/client/i18n.js";
+import { EditorPalette } from "@lindocara/client/ui/editor/EditorPalette.js";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { setLocale, t } from "../../src/client/i18n.js";
-import { EditorPalette } from "../../src/client/ui/editor/EditorPalette.js";
 
 /** `EditorPalette` requires all three body prop groups regardless of `mode` — only the
  *  mode-matching body is ever mounted, so the other two groups' values are never read. */

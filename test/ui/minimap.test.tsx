@@ -1,9 +1,9 @@
+import { setLocale } from "@lindocara/client/i18n.js";
+import type { GameHandle } from "@lindocara/client/store.js";
+import { useUiStore } from "@lindocara/client/store.js";
+import { Minimap } from "@lindocara/client/ui/hud/Minimap.js";
 import { render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { setLocale } from "../../src/client/i18n.js";
-import type { GameHandle } from "../../src/client/store.js";
-import { useUiStore } from "../../src/client/store.js";
-import { Minimap } from "../../src/client/ui/hud/Minimap.js";
 
 function mockGame(): GameHandle {
   return {

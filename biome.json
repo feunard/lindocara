@@ -7,7 +7,7 @@
       "**",
       "!dist",
       "!.wrangler",
-      "!src/worker-configuration.d.ts",
+      "!packages/server/src/worker-configuration.d.ts",
       "!migrations/meta",
       "!assets/index.json",
       "!assets/lindocara-asset-catalog.json",
@@ -39,8 +39,8 @@
     {
       "includes": [
         "packages/server/src/**",
-        "src/client/game/session.ts",
-        "src/client/game/input.ts"
+        "packages/client/src/game/session.ts",
+        "packages/renderer/src/input.ts"
       ],
       "linter": {
         "enabled": true,
@@ -56,7 +56,7 @@
         "packages/engine/src/event-commands.ts",
         "packages/engine/src/event-interpreter.ts",
         "packages/server/src/world/event-run-system.ts",
-        "src/client/ui/editor/EventCommandEditor.tsx",
+        "packages/client/src/ui/editor/EventCommandEditor.tsx",
         "test/**"
       ],
       "linter": {

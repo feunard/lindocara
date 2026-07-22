@@ -1,4 +1,3 @@
-import { describe, expect, it } from "vitest";
 import {
   type AdventureDraft,
   addMember,
@@ -10,7 +9,8 @@ import {
   refreshMember,
   removeMember,
   toAdventureInput,
-} from "../src/client/adventure-draft.js";
+} from "@lindocara/client/adventure-draft.js";
+import { describe, expect, it } from "vitest";
 
 // Since the graph teardown a draft models only the adventure shell + its member maps: no start, no
 // exit bindings, no graph validation. These pin the surviving pure rules.

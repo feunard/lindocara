@@ -1,9 +1,9 @@
+import { setLocale } from "@lindocara/client/i18n.js";
+import { useUiStore } from "@lindocara/client/store.js";
+import { ConnectionOverlay } from "@lindocara/client/ui/ConnectionOverlay.js";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { setLocale } from "../../src/client/i18n.js";
-import { useUiStore } from "../../src/client/store.js";
-import { ConnectionOverlay } from "../../src/client/ui/ConnectionOverlay.js";
 
 describe("ConnectionOverlay", () => {
   beforeEach(() => {

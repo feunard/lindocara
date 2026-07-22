@@ -1,8 +1,8 @@
+import { setLocale } from "@lindocara/client/i18n.js";
+import { useUiStore } from "@lindocara/client/store.js";
+import { Prompt } from "@lindocara/client/ui/Prompt.js";
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
-import { setLocale } from "../../src/client/i18n.js";
-import { useUiStore } from "../../src/client/store.js";
-import { Prompt } from "../../src/client/ui/Prompt.js";
 
 describe("Prompt", () => {
   beforeEach(() => {

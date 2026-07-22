@@ -1,18 +1,13 @@
 {
-  // The browser bundle. DOM lib, no Workers types.
-  "extends": "./tsconfig.json",
+  // The jsdom test program: the React UI suite (test/ui) and the plain client suite (test/client).
+  // Package sources are typechecked by their own per-package tsconfig; this covers the tests that
+  // exercise the browser packages. DOM lib, no Workers types.
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["vite/client"],
     "jsx": "react-jsx",
-    "paths": { "@/*": ["./src/client/*"] }
+    "paths": { "@/*": ["./packages/client/src/*"] }
   },
-  "include": [
-    "src/client/**/*.ts",
-    "src/client/**/*.tsx",
-    "src/shared/**/*.ts",
-    "test/ui/**/*.ts",
-    "test/ui/**/*.tsx",
-    "test/client/**/*.ts"
-  ]
+  "include": ["test/ui/**/*.ts", "test/ui/**/*.tsx", "test/client/**/*.ts"]
 }

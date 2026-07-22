@@ -1,8 +1,8 @@
+import { type ConnectionHandlers, WorldClient } from "@lindocara/client/game/net.js";
 import { MAX_PENDING_COMMANDS } from "@lindocara/engine/prediction.js";
 import type { ServerMessage } from "@lindocara/engine/protocol.js";
 import { TICK_DT } from "@lindocara/engine/simulation.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { type ConnectionHandlers, WorldClient } from "../../src/client/game/net.js";
 
 class FakeWebSocket extends EventTarget {
   static readonly OPEN = 1;

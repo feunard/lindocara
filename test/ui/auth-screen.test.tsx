@@ -1,9 +1,9 @@
+import { setLocale } from "@lindocara/client/i18n.js";
+import { useUiStore } from "@lindocara/client/store.js";
+import { AuthScreen } from "@lindocara/client/ui/AuthScreen.js";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { setLocale } from "../../src/client/i18n.js";
-import { useUiStore } from "../../src/client/store.js";
-import { AuthScreen } from "../../src/client/ui/AuthScreen.js";
 
 function stubFetch(status: number, body: unknown): ReturnType<typeof vi.fn> {
   const mock = vi.fn().mockResolvedValue(

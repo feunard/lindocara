@@ -7,7 +7,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: { "@": fileURLToPath(new URL("./src/client", import.meta.url)) },
+    alias: { "@": fileURLToPath(new URL("./packages/client/src", import.meta.url)) },
   },
   test: {
     name: "lindocara-ui",

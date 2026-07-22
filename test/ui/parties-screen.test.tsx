@@ -1,9 +1,9 @@
+import { setLocale } from "@lindocara/client/i18n.js";
+import { useUiStore } from "@lindocara/client/store.js";
+import { PartiesScreen } from "@lindocara/client/ui/PartiesScreen.js";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { setLocale } from "../../src/client/i18n.js";
-import { useUiStore } from "../../src/client/store.js";
-import { PartiesScreen } from "../../src/client/ui/PartiesScreen.js";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(body === undefined ? null : JSON.stringify(body), {

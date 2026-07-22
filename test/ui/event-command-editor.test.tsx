@@ -1,14 +1,14 @@
+import { setLocale, t } from "@lindocara/client/i18n.js";
+import {
+  EventCommandEditor,
+  type TeleportMap,
+} from "@lindocara/client/ui/editor/EventCommandEditor.js";
 import type { RegistryEntry } from "@lindocara/engine/adventure-state.js";
 import type { EventCommand } from "@lindocara/engine/event-commands.js";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
-import { setLocale, t } from "../../src/client/i18n.js";
-import {
-  EventCommandEditor,
-  type TeleportMap,
-} from "../../src/client/ui/editor/EventCommandEditor.js";
 
 /** A controlled harness: the editor is controlled, so the parent must feed each `onChange` back as
  *  the next `commands`. `latest` captures the current tree for assertions. */

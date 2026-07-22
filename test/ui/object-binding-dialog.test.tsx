@@ -1,12 +1,12 @@
+import type { ElementEventBinding } from "@lindocara/client/game/editor-state.js";
+import { setLocale, t } from "@lindocara/client/i18n.js";
+import { ObjectBindingDialog } from "@lindocara/client/ui/editor/ObjectBindingDialog.js";
+import { QuestRegistryEditor } from "@lindocara/client/ui/editor/QuestRegistryEditor.js";
 import type { AuthoredQuestDefinition } from "@lindocara/engine/adventure-state.js";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ElementEventBinding } from "../../src/client/game/editor-state.js";
-import { setLocale, t } from "../../src/client/i18n.js";
-import { ObjectBindingDialog } from "../../src/client/ui/editor/ObjectBindingDialog.js";
-import { QuestRegistryEditor } from "../../src/client/ui/editor/QuestRegistryEditor.js";
 
 const ASSET = "decoration.terrain-decorations-bushes.bushe1" as const;
 const QUESTS: AuthoredQuestDefinition[] = [

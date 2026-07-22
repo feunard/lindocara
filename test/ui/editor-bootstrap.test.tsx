@@ -1,20 +1,20 @@
+import { setLocale, t } from "@lindocara/client/i18n.js";
+import { useUiStore } from "@lindocara/client/store.js";
+import { AdventureEditorScreen } from "@lindocara/client/ui/editor/AdventureEditorScreen.js";
 import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { setLocale, t } from "../../src/client/i18n.js";
-import { useUiStore } from "../../src/client/store.js";
-import { AdventureEditorScreen } from "../../src/client/ui/editor/AdventureEditorScreen.js";
 
 // The Pixi stage never opens in these tests (the resolved adventure has an empty map list, so the
 // shell stays on its empty state), but importing the screen pulls the stage module in — mock it so
 // jsdom never touches PixiJS.
 const stageMock = vi.hoisted(() => ({ openMapEditorStage: vi.fn(), dispose: vi.fn() }));
-vi.mock("../../src/client/game/map-editor-stage.js", () => ({
+vi.mock("@lindocara/client/game/map-editor-stage.js", () => ({
   openMapEditorStage: stageMock.openMapEditorStage,
 }));
-vi.mock("../../src/client/game/map-preview.js", () => ({ startMapPreview: vi.fn() }));
+vi.mock("@lindocara/client/game/map-preview.js", () => ({ startMapPreview: vi.fn() }));
 
 const LAYERS = layersFromBlocks(Array.from({ length: 15 }, () => ".".repeat(20))).layers.map(
   encodeTileLayer,

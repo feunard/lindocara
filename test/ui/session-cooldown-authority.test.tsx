@@ -1,5 +1,5 @@
+import sessionSource from "@lindocara/client/game/session.ts?raw";
 import { describe, expect, it } from "vitest";
-import sessionSource from "../../src/client/game/session.ts?raw";
 
 describe("authoritative session cooldown ownership", () => {
   it("never mutates cooldown deadlines from skill.cast", () => {

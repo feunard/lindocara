@@ -1,3 +1,6 @@
+import type { MapPayload, MapSummary } from "@lindocara/client/api.js";
+import { setLocale, t } from "@lindocara/client/i18n.js";
+import { MapListPanel } from "@lindocara/client/ui/editor/MapListPanel.js";
 import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
 import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
@@ -6,9 +9,6 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { MapPayload, MapSummary } from "../../src/client/api.js";
-import { setLocale, t } from "../../src/client/i18n.js";
-import { MapListPanel } from "../../src/client/ui/editor/MapListPanel.js";
 
 const OPEN_LAYERS = layersFromBlocks(Array.from({ length: 30 }, () => ".".repeat(40))).layers.map(
   encodeTileLayer,

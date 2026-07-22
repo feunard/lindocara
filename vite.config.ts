@@ -10,7 +10,7 @@ export default defineConfig({
   // client build. React and Tailwind only touch the client graph.
   plugins: [cloudflare(), react(), tailwindcss()],
   resolve: {
-    alias: { "@": fileURLToPath(new URL("./src/client", import.meta.url)) },
+    alias: { "@": fileURLToPath(new URL("./packages/client/src", import.meta.url)) },
   },
   build: {
     sourcemap: true,

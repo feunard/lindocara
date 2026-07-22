@@ -1,10 +1,10 @@
+import { setLocale } from "@lindocara/client/i18n.js";
+import type { GameHandle } from "@lindocara/client/store.js";
+import { useUiStore } from "@lindocara/client/store.js";
+import { MobileControls, resolveJoystick } from "@lindocara/client/ui/MobileControls.js";
 import { NO_INPUT } from "@lindocara/engine/simulation.js";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { setLocale } from "../../src/client/i18n.js";
-import type { GameHandle } from "../../src/client/store.js";
-import { useUiStore } from "../../src/client/store.js";
-import { MobileControls, resolveJoystick } from "../../src/client/ui/MobileControls.js";
 
 function gameHandle(): GameHandle {
   return {

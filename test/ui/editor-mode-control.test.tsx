@@ -1,6 +1,6 @@
+import { EditorModeControl } from "@lindocara/client/ui/editor/EditorModeControl.js";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { EditorModeControl } from "../../src/client/ui/editor/EditorModeControl.js";
 
 // This repo's generated `toggle-group` wraps Base UI, not Radix: it renders each segment as a
 // plain <button> with `aria-pressed`, never `role="radio"` — confirmed by reading

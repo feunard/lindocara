@@ -1,8 +1,8 @@
+import { setLocale } from "@lindocara/client/i18n.js";
+import { useUiStore } from "@lindocara/client/store.js";
+import { Hud } from "@lindocara/client/ui/hud/Hud.js";
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
-import { setLocale } from "../../src/client/i18n.js";
-import { useUiStore } from "../../src/client/store.js";
-import { Hud } from "../../src/client/ui/hud/Hud.js";
 
 describe("Hud", () => {
   beforeEach(() => setLocale("en"));

@@ -1,10 +1,10 @@
+import { setLocale } from "@lindocara/client/i18n.js";
+import type { GameHandle } from "@lindocara/client/store.js";
+import { useUiStore } from "@lindocara/client/store.js";
+import { WorldMap } from "@lindocara/client/ui/WorldMap.js";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { setLocale } from "../../src/client/i18n.js";
-import type { GameHandle } from "../../src/client/store.js";
-import { useUiStore } from "../../src/client/store.js";
-import { WorldMap } from "../../src/client/ui/WorldMap.js";
 
 function mockGame(): GameHandle {
   return {
