@@ -2,7 +2,11 @@ import { setLocale, t } from "@lindocara/client/i18n.js";
 import type { ElementEventBinding } from "@lindocara/editor/game/editor-state.js";
 import { ObjectBindingDialog } from "@lindocara/editor/ui/editor/ObjectBindingDialog.js";
 import { QuestRegistryEditor } from "@lindocara/editor/ui/editor/QuestRegistryEditor.js";
-import type { AuthoredQuestDefinition } from "@lindocara/engine/adventure-state.js";
+import {
+  type AuthoredQuestDefinition,
+  createAuthoredQuestDefinition,
+  createManualQuestObjective,
+} from "@lindocara/engine/adventure-state.js";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
@@ -11,10 +15,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const ASSET = "decoration.terrain-decorations-bushes.bushe1" as const;
 const QUESTS: AuthoredQuestDefinition[] = [
   {
-    id: "0001",
-    title: "Goblin hunt",
+    ...createAuthoredQuestDefinition("0001", "Goblin hunt"),
     description: "Protect the village",
-    objectives: [{ id: "0001", label: "Defeat goblins", target: 3 }],
+    objectives: [createManualQuestObjective("0001", "Defeat goblins", 3)],
   },
 ];
 

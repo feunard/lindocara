@@ -157,7 +157,14 @@ describe("stepEventRun — the per-opcode table", () => {
     });
     snapshot = applyStateMutation(snapshot, { type: "completeQuest", questId: "0001" });
     expect(snapshot.quests).toEqual({
-      "0001": { status: "completed", objectives: { "0001": 2 } },
+      "0001": {
+        status: "completed",
+        objectives: { "0001": 2 },
+        definitionSnapshot: null,
+        definitionVersion: 1,
+        rewardClaimed: false,
+        completionCount: 1,
+      },
     });
 
     const result = stepEventRun(run([{ t: "startQuest", questId: "0002" }]), snapshot);

@@ -5,7 +5,14 @@
  * server can acknowledge exactly what it applied; actions are still just intent.
  */
 
-import type { AuthoredQuestTracker } from "./adventure-state.js";
+import {
+  type AuthoredQuestTracker,
+  MAX_AUTHORED_QUESTS,
+  MAX_QUEST_OBJECTIVES,
+  QUEST_DESCRIPTION_MAX,
+  QUEST_OBJECTIVE_LABEL_MAX,
+  QUEST_TITLE_MAX,
+} from "./adventure-state.js";
 import {
   type CharacterAppearance,
   type Equipment,
@@ -792,21 +799,25 @@ function isSelfState(value: unknown): value is SelfState {
   if (
     value.authoredQuests !== undefined &&
     (!Array.isArray(value.authoredQuests) ||
-      value.authoredQuests.length > 64 ||
+      value.authoredQuests.length > MAX_AUTHORED_QUESTS ||
       !value.authoredQuests.every(
         (quest) =>
           isRecord(quest) &&
           typeof quest.id === "string" &&
-          isBoundedString(quest.title, 64) &&
-          isBoundedString(quest.description, 240, true) &&
-          (quest.status === "active" || quest.status === "ready" || quest.status === "completed") &&
+          isBoundedString(quest.title, QUEST_TITLE_MAX) &&
+          isBoundedString(quest.description, QUEST_DESCRIPTION_MAX, true) &&
+          (quest.status === "active" ||
+            quest.status === "ready" ||
+            quest.status === "completed" ||
+            quest.status === "failed" ||
+            quest.status === "abandoned") &&
           Array.isArray(quest.objectives) &&
-          quest.objectives.length <= 8 &&
+          quest.objectives.length <= MAX_QUEST_OBJECTIVES &&
           quest.objectives.every(
             (objective) =>
               isRecord(objective) &&
               typeof objective.id === "string" &&
-              isBoundedString(objective.label, 96, true) &&
+              isBoundedString(objective.label, QUEST_OBJECTIVE_LABEL_MAX, true) &&
               isNonNegativeInteger(objective.progress) &&
               isNonNegativeInteger(objective.target) &&
               objective.target > 0,

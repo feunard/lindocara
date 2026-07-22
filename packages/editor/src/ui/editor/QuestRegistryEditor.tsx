@@ -1,6 +1,8 @@
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import {
   type AuthoredQuestDefinition,
+  createAuthoredQuestDefinition,
+  createManualQuestObjective,
   MAX_AUTHORED_QUESTS,
   MAX_QUEST_OBJECTIVES,
   mintRegistryId,
@@ -30,10 +32,7 @@ export function QuestRegistryEditor({ quests, onChange }: QuestRegistryEditorPro
     if (quests.length >= MAX_AUTHORED_QUESTS) return;
     const id = mintRegistryId(quests);
     if (!id) return;
-    onChange([
-      ...quests,
-      { id, title: t("editor.quest.newTitle"), description: "", objectives: [] },
-    ]);
+    onChange([...quests, createAuthoredQuestDefinition(id, t("editor.quest.newTitle"))]);
   };
 
   return (
@@ -108,7 +107,7 @@ export function QuestRegistryEditor({ quests, onChange }: QuestRegistryEditorPro
                       ...quest,
                       objectives: [
                         ...quest.objectives,
-                        { id, label: t("editor.quest.newObjective"), target: 1 },
+                        createManualQuestObjective(id, t("editor.quest.newObjective")),
                       ],
                     });
                   }}

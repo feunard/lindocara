@@ -1,4 +1,8 @@
 import { env } from "cloudflare:test";
+import {
+  createAuthoredQuestDefinition,
+  createManualQuestObjective,
+} from "@lindocara/engine/adventure-state.js";
 import { MAX_MAP_ELEMENTS, type MapElement } from "@lindocara/engine/map-data.js";
 import {
   MAX_EVENTS_PER_MAP,
@@ -656,6 +660,19 @@ describe("maps", () => {
       const nextAdventure = {
         title: "Playable",
         maxPlayers: 4,
+        registry: {
+          switches: [],
+          variables: [],
+          quests: [
+            {
+              ...createAuthoredQuestDefinition("0001", "Map save quest"),
+              version: 41,
+              acceptance: "automatic" as const,
+              completion: "automatic" as const,
+              objectives: [createManualQuestObjective("0001", "Step")],
+            },
+          ],
+        },
         graph: {
           start: { mapId: created.id, entryId: entry.id },
           links: [{ mapId: created.id, exitId: exit.id, dest: "end" as const }],
@@ -671,7 +688,9 @@ describe("maps", () => {
         created.revision,
       );
       expect(updated.revision).toBe(created.revision + 1);
-      expect((await loadAdventure(db, OWNER, adventureId))?.graph).toEqual(nextAdventure.graph);
+      const storedAdventure = await loadAdventure(db, OWNER, adventureId);
+      expect(storedAdventure?.graph).toEqual(nextAdventure.graph);
+      expect(storedAdventure?.registry.quests?.[0]?.version).toBe(1);
     });
 
     // Regression / the tranche-1 D1 bug class: an event INSERT binds 6 params/row and a page INSERT

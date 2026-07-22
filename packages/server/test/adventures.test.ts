@@ -6,7 +6,11 @@
  */
 import { env } from "cloudflare:test";
 import type { AdventureGraph } from "@lindocara/engine/adventure.js";
-import { EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
+import {
+  createAuthoredQuestDefinition,
+  createManualQuestObjective,
+  EMPTY_REGISTRY,
+} from "@lindocara/engine/adventure-state.js";
 import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
 import {
   entryEvents,
@@ -252,6 +256,40 @@ describe("adventure registry", () => {
     const returned = await updateAdventureRegistry(db, "owner", created.id, registry);
     expect(returned).toEqual(registry);
     expect((await loadAdventure(db, "owner", created.id))?.registry).toEqual(registry);
+  });
+
+  it("owns quest versions instead of trusting a client-supplied counter", async () => {
+    const db = createDb(env.DB);
+    await seedAccount("owner");
+    const created = await createAdventure(db, "owner", { title: "Reg", maxPlayers: 4 });
+    const initial = {
+      ...createAuthoredQuestDefinition("0001", "Première version"),
+      version: 77,
+      acceptance: "automatic" as const,
+      completion: "automatic" as const,
+      objectives: [createManualQuestObjective("0001", "Étape")],
+    };
+
+    const first = await updateAdventureRegistry(db, "owner", created.id, {
+      switches: [],
+      variables: [],
+      quests: [initial],
+    });
+    expect(first.quests?.[0]?.version).toBe(1);
+
+    const unchanged = await updateAdventureRegistry(db, "owner", created.id, {
+      switches: [],
+      variables: [],
+      quests: [{ ...initial, version: 999 }],
+    });
+    expect(unchanged.quests?.[0]?.version).toBe(1);
+
+    const edited = await updateAdventureRegistry(db, "owner", created.id, {
+      switches: [],
+      variables: [],
+      quests: [{ ...initial, version: 1, title: "Deuxième version" }],
+    });
+    expect(edited.quests?.[0]).toMatchObject({ version: 2, title: "Deuxième version" });
   });
 
   it("rejects a malformed registry and leaves the stored one untouched", async () => {

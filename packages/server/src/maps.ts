@@ -57,6 +57,7 @@ import { TINY_SWORDS_TILESET_ID, tilesetById } from "@lindocara/engine/tilesets/
 import { isEditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
+import { decodeStoredAdventureRegistry, prepareAdventureRegistry } from "./adventure-registry.js";
 import { adventure, type Db, map, mapElement, mapEvent, mapEventPage, party } from "./db/index.js";
 
 export const BUILTIN_MAP_ID = "builtin";
@@ -799,6 +800,19 @@ export async function updateMap(
   // losing batch before any elements/events are deleted.
   const compareRevision = expectedRevision ?? existing.revision;
   const writeToken = crypto.randomUUID();
+  let proposedRegistry: ReturnType<typeof prepareAdventureRegistry> | undefined;
+  if (existing.adventureId && proposedAdventure?.registry !== undefined) {
+    const owner = await db
+      .select({ registry: adventure.registry })
+      .from(adventure)
+      .where(and(eq(adventure.id, existing.adventureId), eq(adventure.accountId, accountId)))
+      .get();
+    if (!owner) throw new Error("not_found: owning adventure vanished");
+    proposedRegistry = prepareAdventureRegistry(
+      proposedAdventure.registry,
+      decodeStoredAdventureRegistry(owner.registry),
+    );
+  }
   // COMPAT: the editor no longer authors a graph, so a normal map save never touches its owning
   // adventure's stored graph — the marker edit passes freely and the graph is preserved as-is. The
   // referential-integrity guard and the live-party start pin run ONLY when a legacy/test writer
@@ -920,8 +934,8 @@ export async function updateMap(
             ...(proposedAdventure.graph !== undefined
               ? { graph: JSON.stringify(proposedAdventure.graph) }
               : {}),
-            ...(proposedAdventure.registry !== undefined
-              ? { registry: JSON.stringify(proposedAdventure.registry) }
+            ...(proposedRegistry !== undefined
+              ? { registry: JSON.stringify(proposedRegistry) }
               : {}),
             updatedAt: new Date(),
           })

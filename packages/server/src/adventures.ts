@@ -18,14 +18,11 @@ import {
   parseAdventureGraph,
   validateAdventure,
 } from "@lindocara/engine/adventure.js";
-import {
-  type AdventureRegistry,
-  EMPTY_REGISTRY,
-  parseAdventureRegistry,
-} from "@lindocara/engine/adventure-state.js";
+import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
 import { mapSpawnPoint } from "@lindocara/engine/map-data.js";
 import { eventCellCentre } from "@lindocara/engine/map-events.js";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { decodeStoredAdventureRegistry, prepareAdventureRegistry } from "./adventure-registry.js";
 import { adventure, type Db, map, mapEvent, party } from "./db/index.js";
 import { DEFAULT_FIRST_MAP_NAME, loadMap, prepareDefaultMap, type StoredMap } from "./maps.js";
 
@@ -38,15 +35,6 @@ export interface StoredAdventure {
   mapIds: string[];
   graph: AdventureGraph;
   registry: AdventureRegistry;
-}
-
-/** `''` — the column default and the sentinel for "no registry authored yet" — reads back as
- *  `EMPTY_REGISTRY`. Anything else must be valid JSON that passes `parseAdventureRegistry`. */
-function storedRegistry(raw: string): AdventureRegistry {
-  if (raw === "") return EMPTY_REGISTRY;
-  const registry = parseAdventureRegistry(JSON.parse(raw));
-  if (!registry) throw new Error("registry: stored registry is corrupt");
-  return registry;
 }
 
 /**
@@ -96,7 +84,7 @@ function toStored(row: typeof adventure.$inferSelect, mapIds: string[]): StoredA
     version: row.version,
     mapIds,
     graph,
-    registry: storedRegistry(row.registry),
+    registry: decodeStoredAdventureRegistry(row.registry),
   };
 }
 
@@ -115,6 +103,8 @@ export async function createAdventure(
   const title = input.title.trim();
   if (title.length === 0 || title.length > 48) throw new Error("title: 1-48 characters");
   if (input.maxPlayers < 1 || input.maxPlayers > 4) throw new Error("players: between 1 and 4");
+  const registry =
+    input.registry === undefined ? undefined : prepareAdventureRegistry(input.registry);
   const id = crypto.randomUUID();
   await db.insert(adventure).values({
     id,
@@ -122,7 +112,7 @@ export async function createAdventure(
     title,
     maxPlayers: input.maxPlayers,
     graph: JSON.stringify(EMPTY_GRAPH),
-    ...(input.registry !== undefined ? { registry: JSON.stringify(input.registry) } : {}),
+    ...(registry !== undefined ? { registry: JSON.stringify(registry) } : {}),
   });
   const stored = await loadAdventure(db, accountId, id);
   if (!stored) throw new Error("not_found: adventure vanished mid-create");
@@ -148,6 +138,8 @@ export async function createAdventureWithDefaultMap(
   const title = input.title.trim();
   if (title.length === 0 || title.length > 48) throw new Error("title: 1-48 characters");
   if (input.maxPlayers < 1 || input.maxPlayers > 4) throw new Error("players: between 1 and 4");
+  const registry =
+    input.registry === undefined ? undefined : prepareAdventureRegistry(input.registry);
   const adventureId = crypto.randomUUID();
   // The born map is named `Map1` (UX wave #16), never the adventure title: a fresh adventure has zero
   // maps, so the lowest free `MapN` is unconditionally the first.
@@ -161,7 +153,7 @@ export async function createAdventureWithDefaultMap(
       title,
       maxPlayers: input.maxPlayers,
       graph: JSON.stringify(EMPTY_GRAPH),
-      ...(input.registry !== undefined ? { registry: JSON.stringify(input.registry) } : {}),
+      ...(registry !== undefined ? { registry: JSON.stringify(registry) } : {}),
     }),
     ...prepared.inserts,
   ]);
@@ -294,6 +286,10 @@ export async function updateAdventure(
   // exactly. A graph is validated and written only when a legacy/test writer explicitly seeds one —
   // that (and only that) path keeps the referential-integrity guard and the live-party start pin.
   const proposedGraph = input.graph;
+  const proposedRegistry =
+    input.registry === undefined
+      ? undefined
+      : prepareAdventureRegistry(input.registry, decodeStoredAdventureRegistry(row.registry));
   if (proposedGraph !== undefined) {
     validateAdventure(
       { title: input.title, maxPlayers: input.maxPlayers, graph: proposedGraph },
@@ -326,7 +322,7 @@ export async function updateAdventure(
       // Absent graph preserves the stored one (authoring never touches it now); present graph is the
       // compat/seed write. Same rule for the registry column: omitting it never wipes the switches.
       ...(proposedGraph !== undefined ? { graph: JSON.stringify(proposedGraph) } : {}),
-      ...(input.registry !== undefined ? { registry: JSON.stringify(input.registry) } : {}),
+      ...(proposedRegistry !== undefined ? { registry: JSON.stringify(proposedRegistry) } : {}),
       updatedAt: new Date(),
     })
     .where(eq(adventure.id, id));
@@ -348,8 +344,7 @@ export async function updateAdventureRegistry(
 ): Promise<AdventureRegistry> {
   const row = await ownedRow(db, accountId, id);
   if (!row) throw new Error("not_found: no such adventure");
-  const parsed = parseAdventureRegistry(registry);
-  if (!parsed) throw new Error("registry: invalid");
+  const parsed = prepareAdventureRegistry(registry, decodeStoredAdventureRegistry(row.registry));
   await db
     .update(adventure)
     .set({ registry: JSON.stringify(parsed), updatedAt: new Date() })

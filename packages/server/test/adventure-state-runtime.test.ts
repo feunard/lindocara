@@ -11,7 +11,12 @@
  * seam standing in for tranche 5's interpreter.
  */
 import { env, runDurableObjectAlarm } from "cloudflare:test";
-import type { AdventureRegistry, PartyAdventureState } from "@lindocara/engine/adventure-state.js";
+import {
+  type AdventureRegistry,
+  createAuthoredQuestDefinition,
+  createManualQuestObjective,
+  type PartyAdventureState,
+} from "@lindocara/engine/adventure-state.js";
 import { ATTACK_COOLDOWN_MS } from "@lindocara/engine/game.js";
 import type { MapEvent, MapEventPage } from "@lindocara/engine/map-events.js";
 import { afterEach, describe, expect, it } from "vitest";
@@ -205,10 +210,9 @@ describe("adventure state runtime", { timeout: 20_000 }, () => {
       variables: [],
       quests: [
         {
-          id: "0001",
-          title: "Clear the old road",
+          ...createAuthoredQuestDefinition("0001", "Clear the old road"),
           description: "Defeat the prowling beast.",
-          objectives: [{ id: "0001", label: "Defeat the beast", target: 1 }],
+          objectives: [createManualQuestObjective("0001", "Defeat the beast")],
         },
       ],
     });

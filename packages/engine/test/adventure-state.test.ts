@@ -9,6 +9,8 @@ import {
   type AdventureRegistry,
   activePageIndex,
   authoredQuestTrackers,
+  createAuthoredQuestDefinition,
+  createManualQuestObjective,
   EMPTY_ADVENTURE_STATE,
   EMPTY_REGISTRY,
   MAX_REGISTRY_SWITCHES,
@@ -84,8 +86,8 @@ describe("parseAdventureRegistry: good payloads round-trip unchanged", () => {
     expect(parseAdventureRegistry(registry)).toEqual(registry);
   });
 
-  it("round-trips authored quests and derives a ready player tracker", () => {
-    const registry: AdventureRegistry = {
+  it("migrates legacy authored quests and derives a ready player tracker", () => {
+    const legacy = {
       switches: [],
       variables: [],
       quests: [
@@ -97,12 +99,29 @@ describe("parseAdventureRegistry: good payloads round-trip unchanged", () => {
         },
       ],
     };
-    expect(parseAdventureRegistry(registry)).toEqual(registry);
+    const quest = {
+      ...createAuthoredQuestDefinition("0001", "Chasse aux gobelins"),
+      description: "Protéger le village.",
+      journalSummary: "Protéger le village.",
+      abandonable: false,
+      objectives: [createManualQuestObjective("0001", "Gobelins vaincus", 2)],
+    };
+    const registry: AdventureRegistry = { switches: [], variables: [], quests: [quest] };
+    expect(parseAdventureRegistry(legacy)).toEqual(registry);
     expect(
       authoredQuestTrackers(
         registry,
         state({
-          quests: { "0001": { status: "active", objectives: { "0001": 2 } } },
+          quests: {
+            "0001": {
+              status: "active",
+              objectives: { "0001": 2 },
+              definitionSnapshot: null,
+              definitionVersion: 1,
+              rewardClaimed: false,
+              completionCount: 0,
+            },
+          },
         }),
       ),
     ).toEqual([

@@ -148,7 +148,14 @@ export function applyStateMutation(
         ...state,
         quests: {
           ...quests,
-          [mutation.questId]: { status: "active", objectives: {} },
+          [mutation.questId]: {
+            status: "active",
+            objectives: {},
+            definitionSnapshot: null,
+            definitionVersion: 1,
+            rewardClaimed: false,
+            completionCount: 0,
+          },
         },
       };
     }
@@ -177,10 +184,17 @@ export function applyStateMutation(
     case "completeQuest": {
       const quests = state.quests ?? {};
       const quest = quests[mutation.questId];
-      if (!quest || quest.status === "completed") return state;
+      if (!quest || (quest.status !== "active" && quest.status !== "ready")) return state;
       return {
         ...state,
-        quests: { ...quests, [mutation.questId]: { ...quest, status: "completed" } },
+        quests: {
+          ...quests,
+          [mutation.questId]: {
+            ...quest,
+            status: "completed",
+            completionCount: quest.completionCount + 1,
+          },
+        },
       };
     }
   }
