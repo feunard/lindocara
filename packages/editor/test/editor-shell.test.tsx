@@ -1204,7 +1204,7 @@ describe("AdventureEditorScreen shell", () => {
 
       confirm.mockReturnValue(true);
       await userEvent.click(quitButton);
-      expect(useUiStore.getState().screen).toBe("parties");
+      expect(useUiStore.getState().screen).toBe("title");
       confirm.mockRestore();
     });
 
@@ -1247,7 +1247,7 @@ describe("AdventureEditorScreen shell", () => {
       confirm.mockRestore();
     });
 
-    it("Quit returns to the parties screen, dirty-guarded (cancel stays in the editor)", async () => {
+    it("Quit returns to the title screen, dirty-guarded (cancel stays in the editor)", async () => {
       vi.stubGlobal("fetch", mapsFetchMock());
       await mountReady();
       markDirty();
@@ -1268,7 +1268,7 @@ describe("AdventureEditorScreen shell", () => {
 
       confirm.mockReturnValue(true);
       await openQuit();
-      expect(useUiStore.getState().screen).toBe("parties");
+      expect(useUiStore.getState().screen).toBe("title");
       confirm.mockRestore();
     });
 

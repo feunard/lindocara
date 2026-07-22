@@ -6,9 +6,9 @@ describe("launch navigation state", () => {
     useUiStore.setState({ screen: "boot", accountId: null, activeParty: null });
   });
 
-  it("navigates to the parties and party screens", () => {
-    useUiStore.getState().setScreen("parties");
-    expect(useUiStore.getState().screen).toBe("parties");
+  it("navigates between launch screens", () => {
+    useUiStore.getState().setScreen("title");
+    expect(useUiStore.getState().screen).toBe("title");
     useUiStore.getState().setScreen("party");
     expect(useUiStore.getState().screen).toBe("party");
   });

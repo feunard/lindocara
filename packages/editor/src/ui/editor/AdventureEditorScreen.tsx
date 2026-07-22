@@ -249,7 +249,7 @@ function EditorBootstrap() {
           <p role="alert" className="text-sm text-destructive">
             {authErrorText(error)}
           </p>
-          <Button variant="outline" size="sm" onClick={() => setScreen("parties")}>
+          <Button variant="outline" size="sm" onClick={() => setScreen("title")}>
             {t("editor.shell.quit")}
           </Button>
         </>
@@ -910,7 +910,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     }
     // Clear the session; the next editor open bootstraps a fresh opening adventure (UX wave #15).
     setSession(null);
-    setScreen("parties");
+    setScreen("title");
   }
 
   // ⌘S save, ⌘Z/⇧⌘Z undo/redo, 1/2/3 mode (field/element/event), P/R/F/E/S tools, G grid — dispatched straight to

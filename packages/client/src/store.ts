@@ -140,7 +140,6 @@ interface UiState {
     | "game"
     | "adventure-editor"
     | "characters"
-    | "parties"
     | "party";
   accountId: string | null;
   activeParty: PartyListing | null;
