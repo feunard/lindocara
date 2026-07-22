@@ -1,6 +1,7 @@
 import { colliderIndexFrom } from "@lindocara/engine/collider.js";
 import type { ConsumableId } from "@lindocara/engine/consumables.js";
 import { canMove, type LifeState, speedForLife } from "@lindocara/engine/death.js";
+import { facingFromInput } from "@lindocara/engine/directional-combat.js";
 import { resolveTerrain, type TerrainGeometry } from "@lindocara/engine/game.js";
 import {
   CORRECTION_SMOOTHING_MS,
@@ -524,11 +525,20 @@ export class WorldClient {
     const elapsed = now - this.#errorAt;
     const decay = Math.max(0, 1 - elapsed / CORRECTION_SMOOTHING_MS);
 
+    // Predict facing from the held input, exactly as the server derives it from a dequeued command,
+    // so your own sprite flips the frame you press a direction instead of waiting a round trip for
+    // the server's facing to come back in a snapshot. Standing still keeps the last facing; a frozen
+    // corpse never turns. The server stays authoritative for combat facing (frozen at wind-up).
+    const facing = canMove(this.#selfSnapshot.life)
+      ? facingFromInput(this.#input, this.#selfSnapshot.facing)
+      : this.#selfSnapshot.facing;
+
     return {
       ...this.#selfSnapshot,
       x: position.x + this.#error.x * decay,
       y: position.y + this.#error.y * decay,
       ack: this.#ack,
+      facing,
     };
   }
 

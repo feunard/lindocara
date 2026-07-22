@@ -131,6 +131,21 @@ describe("WorldClient lifecycle", () => {
     expect(messages.filter((message) => message.t === "world.resync")).toHaveLength(1);
   });
 
+  it("flips the self hero's facing from local input, without waiting for the server", () => {
+    const client = new WorldClient();
+    client.connect(handlers(), "hero-1", "party-1");
+    const socket = FakeWebSocket.instances[0];
+    socket?.message(WELCOME); // the welcome snapshot faces right (x: 1)
+
+    // Hold left for a few ticks. No further server snapshot arrives, so facing must be predicted.
+    for (let i = 0; i < 3; i++) {
+      client.update({ up: false, down: false, left: true, right: false }, TICK_DT);
+    }
+
+    const self = client.sample(1000).players.find((player) => player.id === "hero-1");
+    expect(self?.facing.x).toBeLessThan(0); // faces left the frame the key is held, not after a round trip
+  });
+
   it("reports an error followed by close only once", () => {
     const callbacks = handlers();
     const client = new WorldClient();
