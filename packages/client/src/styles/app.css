@@ -1,14 +1,4 @@
 @import "tailwindcss";
-
-/* The Vite root is apps/main, so Tailwind v4's automatic content detection would only scan that
- * (near-empty) dir and purge every utility the components use — the shadcn editor chrome would
- * render unstyled in the production build (dev on-demand scanning hides this). Point Tailwind at
- * the packages that carry className utilities. Paths are relative to this file. renderer is PixiJS
- * (no Tailwind), so it is not scanned. */
-@source "../";
-@source "../../../ui/src";
-@source "../../../editor/src";
-
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
@@ -23,3 +13,12 @@
  * over the client-specific sheets above exactly as they did when the block lived here. Tailwind
  * itself stays imported at the top of this file. */
 @import "@lindocara/ui/globals.css";
+
+/* The Vite root is apps/main, so Tailwind v4's automatic content detection would only scan that
+ * (near-empty) dir and purge every utility the components use — the shadcn editor chrome would
+ * render unstyled in the production build (dev on-demand scanning hides this). Point Tailwind at
+ * the packages that carry className utilities. Paths are relative to this file; must sit after all
+ * @import rules. renderer is PixiJS (no Tailwind), so it is not scanned. */
+@source "../";
+@source "../../../ui/src";
+@source "../../../editor/src";
