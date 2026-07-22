@@ -1,8 +1,8 @@
 import { TINY_SWORDS_UI } from "@lindocara/engine/tiny-swords-catalog.js";
+import { cn } from "@lindocara/ui/lib/utils.js";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Slot } from "radix-ui";
 import type * as React from "react";
-import { cn } from "@/lib/utils.js";
 
 // Accessible PixelAct/shadcn structure, skinned by Tiny Swords' authored 3-slice states. The data
 // attributes expose the stable semantic ids to tests and developer tools.

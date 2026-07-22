@@ -1,6 +1,6 @@
+import { Button } from "@lindocara/ui/components/button.js";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { Button } from "@/ui/components/button";
 
 describe("stock shadcn primitives", () => {
   it("renders a Base UI button that carries no Tiny Swords skin", () => {

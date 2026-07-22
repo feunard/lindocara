@@ -1,5 +1,5 @@
+import { cn } from "@lindocara/ui/lib/utils.js";
 import * as React from "react";
-import { cn } from "@/lib/utils.js";
 
 // Vendored from github.com/pixelact-ui/pixelact-ui (components/ui/pixelact-ui/input.tsx).
 // PixelAct's structure is kept as-is; only two touchpoints are restyled for lindocara's skin:

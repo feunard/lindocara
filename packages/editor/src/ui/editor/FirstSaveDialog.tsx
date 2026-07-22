@@ -1,15 +1,15 @@
 import { t, useLocale } from "@lindocara/client/i18n.js";
-import { Button } from "@lindocara/client/ui/components/button.js";
+import { ADVENTURE_TITLE_MAX } from "@lindocara/engine/adventure.js";
+import { Button } from "@lindocara/ui/components/button.js";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@lindocara/client/ui/components/dialog.js";
-import { Input } from "@lindocara/client/ui/components/input.js";
-import { Label } from "@lindocara/client/ui/components/label.js";
-import { ADVENTURE_TITLE_MAX } from "@lindocara/engine/adventure.js";
+} from "@lindocara/ui/components/dialog.js";
+import { Input } from "@lindocara/ui/components/input.js";
+import { Label } from "@lindocara/ui/components/label.js";
 import { useState } from "react";
 
 interface FirstSaveDialogProps {

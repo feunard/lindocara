@@ -9,15 +9,6 @@ import {
 } from "@lindocara/client/api.js";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import { useUiStore } from "@lindocara/client/store.js";
-import { Button } from "@lindocara/client/ui/components/button.js";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@lindocara/client/ui/components/dialog.js";
-import { Input } from "@lindocara/client/ui/components/input.js";
 import {
   type AdventureRegistry,
   MAX_REGISTRY_SWITCHES,
@@ -26,6 +17,15 @@ import {
   REGISTRY_ENTRY_NAME_MAX,
   type RegistryEntry,
 } from "@lindocara/engine/adventure-state.js";
+import { Button } from "@lindocara/ui/components/button.js";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@lindocara/ui/components/dialog.js";
+import { Input } from "@lindocara/ui/components/input.js";
 import { useEffect, useState } from "react";
 import { QuestRegistryEditor } from "./QuestRegistryEditor.js";
 

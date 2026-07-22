@@ -1,5 +1,4 @@
 import { t, useLocale } from "@lindocara/client/i18n.js";
-import { Button } from "@lindocara/client/ui/components/button.js";
 import type { AuthoredQuestDefinition, RegistryEntry } from "@lindocara/engine/adventure-state.js";
 import { CONSUMABLE_IDS } from "@lindocara/engine/consumables.js";
 import {
@@ -11,6 +10,7 @@ import {
   WAIT_FRAMES_MIN,
 } from "@lindocara/engine/event-commands.js";
 import { SELF_SWITCHES, type SelfSwitch } from "@lindocara/engine/map-events.js";
+import { Button } from "@lindocara/ui/components/button.js";
 import type * as React from "react";
 import { useMemo, useState } from "react";
 import { normalizeConditionId } from "../../game/editor-state.js";

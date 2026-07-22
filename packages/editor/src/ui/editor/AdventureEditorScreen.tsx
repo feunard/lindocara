@@ -16,15 +16,6 @@ import {
 } from "@lindocara/client/api.js";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import { type AdventureEditorSession, useUiStore } from "@lindocara/client/store.js";
-import { Button } from "@lindocara/client/ui/components/button.js";
-import { Input } from "@lindocara/client/ui/components/input.js";
-import { Label } from "@lindocara/client/ui/components/label.js";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@lindocara/client/ui/components/resizable.js";
-import { TooltipProvider } from "@lindocara/client/ui/components/tooltip.js";
 import type { AdventureInput } from "@lindocara/engine/adventure.js";
 import { type AdventureRegistry, EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
 import type { EventPreset } from "@lindocara/engine/event-presets.js";
@@ -38,6 +29,15 @@ import {
   monsterEvents,
 } from "@lindocara/engine/map-events.js";
 import { type EditorAssetId, editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
+import { Button } from "@lindocara/ui/components/button.js";
+import { Input } from "@lindocara/ui/components/input.js";
+import { Label } from "@lindocara/ui/components/label.js";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@lindocara/ui/components/resizable.js";
+import { TooltipProvider } from "@lindocara/ui/components/tooltip.js";
 import {
   type FocusEvent as ReactFocusEvent,
   type KeyboardEvent as ReactKeyboardEvent,

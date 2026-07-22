@@ -5,13 +5,13 @@ import {
   fetchAdventures,
 } from "@lindocara/client/api.js";
 import { t, useLocale } from "@lindocara/client/i18n.js";
-import { Button } from "@lindocara/client/ui/components/button.js";
+import { Button } from "@lindocara/ui/components/button.js";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@lindocara/client/ui/components/dialog.js";
+} from "@lindocara/ui/components/dialog.js";
 import { useEffect, useState } from "react";
 
 function isSessionError(code: string): boolean {

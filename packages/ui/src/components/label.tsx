@@ -1,6 +1,5 @@
+import { cn } from "@lindocara/ui/lib/utils.js";
 import type * as React from "react";
-
-import { cn } from "@/lib/utils";
 
 // Deviation from stock shadcn output (task-4-brief Step 9): this is a generic passthrough
 // component, and Biome's a11y rule cannot see that call sites supply `htmlFor`/nest an input.

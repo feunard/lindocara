@@ -1,5 +1,5 @@
+import { cn } from "@lindocara/ui/lib/utils.js";
 import type * as React from "react";
-import { cn } from "@/lib/utils.js";
 import { TinyBarTrack } from "./TinyBarTrack.js";
 
 export function TinyRange({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {

@@ -1,5 +1,5 @@
+import { cn } from "@lindocara/ui/lib/utils.js";
 import type * as React from "react";
-import { cn } from "@/lib/utils.js";
 
 export function TinyPanel({ className, ...props }: React.ComponentProps<"div">) {
   return (

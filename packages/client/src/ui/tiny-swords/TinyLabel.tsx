@@ -1,6 +1,6 @@
+import { cn } from "@lindocara/ui/lib/utils.js";
 import { Label as LabelPrimitive } from "radix-ui";
 import type * as React from "react";
-import { cn } from "@/lib/utils.js";
 
 // Vendored from github.com/pixelact-ui/pixelact-ui (components/ui/pixelact-ui/label.tsx),
 // with its base shadcn/ui Label inlined. Restyled for the Tiny Swords skin: it now reads the

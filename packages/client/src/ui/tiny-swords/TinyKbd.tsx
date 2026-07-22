@@ -1,5 +1,5 @@
+import { cn } from "@lindocara/ui/lib/utils.js";
 import type * as React from "react";
-import { cn } from "@/lib/utils.js";
 
 // Vendored from github.com/pixelact-ui/pixelact-ui (components/ui/pixelact-ui/kbd.tsx). No
 // base shadcn/ui component to inline — self-contained. Restyled for the Tiny Swords skin: it

@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils.js";
+import { cn } from "@lindocara/ui/lib/utils.js";
 import { setLocale, useLocale } from "../i18n.js";
 
 const LOCALES = ["en", "fr"] as const;

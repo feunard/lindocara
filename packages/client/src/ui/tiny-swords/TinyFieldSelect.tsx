@@ -1,5 +1,5 @@
+import { cn } from "@lindocara/ui/lib/utils.js";
 import * as React from "react";
-import { cn } from "@/lib/utils.js";
 
 /** Accessible native select with the same Tiny Swords surface treatment as PixelAct inputs. */
 export interface TinyFieldSelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {

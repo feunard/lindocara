@@ -1,13 +1,4 @@
 import { t, useLocale } from "@lindocara/client/i18n.js";
-import { Button } from "@lindocara/client/ui/components/button.js";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@lindocara/client/ui/components/dialog.js";
-import { Input } from "@lindocara/client/ui/components/input.js";
 import type { AdventureRegistry, RegistryEntry } from "@lindocara/engine/adventure-state.js";
 import { CURATED_MONSTER_SPECIES, type MonsterSpecies } from "@lindocara/engine/game.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
@@ -25,6 +16,15 @@ import {
   type SelfSwitch,
   validateEventName,
 } from "@lindocara/engine/map-events.js";
+import { Button } from "@lindocara/ui/components/button.js";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@lindocara/ui/components/dialog.js";
+import { Input } from "@lindocara/ui/components/input.js";
 import type * as React from "react";
 import { useState } from "react";
 import {

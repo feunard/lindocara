@@ -7,10 +7,11 @@
     "./*": "./src/*"
   },
   "dependencies": {
-    "@lindocara/engine": "*",
-    "@lindocara/renderer": "*",
     "@base-ui/react": "^1.6.0",
     "@fontsource-variable/geist": "^5.2.9",
+    "@lindocara/engine": "*",
+    "@lindocara/renderer": "*",
+    "@lindocara/ui": "*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.25.0",
