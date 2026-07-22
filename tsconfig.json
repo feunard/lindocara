@@ -1,13 +1,8 @@
 {
-  // Base options only — this project compiles nothing itself.
-  //
-  // The client and the Worker cannot share a single program: the DOM lib and the Workers
-  // runtime types both declare `WebSocket`, `Response`, `fetch` and more, with different
-  // shapes. Loading both into one program produces a blizzard of bogus errors. So there is
-  // one program per runtime, and `npm run typecheck` runs each in turn.
-  //
-  // Code under src/shared/ is checked by both, which is exactly what we want: it must be
-  // valid in a browser and in workerd.
+  // The shared compiler base every package and every test program extends. It compiles nothing
+  // itself (`files: []`). Each consumer adds its own `lib`/`types` — the DOM-vs-workerd split is a
+  // package boundary now (engine = neither, server = Workers, renderer/client/editor/ui = DOM), not
+  // a single-program concern — plus its own `include`.
   "files": [],
   "compilerOptions": {
     "target": "ES2022",

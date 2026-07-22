@@ -13,8 +13,7 @@
     "@lindocara/ui": "*",
     "lucide-react": "^1.25.0",
     "pixi.js": "^8.19.0",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react": "^19.2.7"
   },
   "scripts": {
     "test": "vitest run"

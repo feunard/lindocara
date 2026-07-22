@@ -1,7 +1,7 @@
 {
   // The PixiJS rendering layer plus local input and the locale core. Browser (DOM) but React-free
   // by design: the editor's stage and the running game both build on it, neither pulls in React.
-  "extends": "../../tsconfig.base.json",
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["vite/client"]

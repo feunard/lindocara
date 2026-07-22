@@ -3,7 +3,7 @@
   // store, api and the game-session glue (net/input/sound/session). Browser + React. Depends on
   // engine and renderer. The `@/` alias is the client source root and is shared (via the Vite
   // alias) with the editor package, which builds on this base.
-  "extends": "../../tsconfig.base.json",
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["vite/client"],

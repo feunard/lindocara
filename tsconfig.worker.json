@@ -3,7 +3,7 @@
   // typechecked by their own per-package tsconfig; this covers the tests that exercise them. The
   // runtime globals come from the generated worker-configuration.d.ts, the test env.d.ts
   // augmentation (TEST_MIGRATIONS) and the vitest-pool-workers types.
-  "extends": "./tsconfig.base.json",
+  "extends": "./tsconfig.json",
   "compilerOptions": {
     "lib": ["ES2022"],
     "types": ["@cloudflare/vitest-pool-workers/types"]

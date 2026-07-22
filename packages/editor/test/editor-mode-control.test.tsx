@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 // This repo's generated `toggle-group` wraps Base UI, not Radix: it renders each segment as a
 // plain <button> with `aria-pressed`, never `role="radio"` — confirmed by reading
-// `src/client/ui/components/toggle-group.tsx` / `toggle.tsx` (Task 10 brief step 5).
+// `packages/ui/src/components/toggle-group.tsx` / `toggle.tsx` (Task 10 brief step 5).
 describe("EditorModeControl", () => {
   it("marks the active mode pressed", () => {
     render(<EditorModeControl mode="element" onSelect={() => {}} />);

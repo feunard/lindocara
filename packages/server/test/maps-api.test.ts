@@ -533,7 +533,7 @@ describe("size caps over the wire (on the authoring PUT)", () => {
     expect(response.status).toBe(200);
   });
 
-  // `MAX_MAP_JSON_BYTES` (src/server/index.ts) is sized against the enumerated worst case: max-
+  // `MAX_MAP_JSON_BYTES` (packages/server/src/index.ts) is sized against the enumerated worst case: max-
   // length, non-compressible layers, `MAX_MAP_ELEMENTS` elements at the longest catalogue asset
   // id, and the full entry/exit/monster-spawn marker complement at their id/label caps with the
   // longest `MonsterSpecies` name. The old version of this test defaulted to `elements: []` and no

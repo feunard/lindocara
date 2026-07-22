@@ -2,7 +2,7 @@
   // The creator tools: the adventure/map editor UI and its PixiJS authoring stage. Browser +
   // React. Sits on top of the client base (i18n, api, store, shadcn components) and the renderer
   // (the shared drawing layer). Depends on engine, renderer and client.
-  "extends": "../../tsconfig.base.json",
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["vite/client"],

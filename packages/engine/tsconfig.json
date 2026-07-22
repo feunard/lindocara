@@ -2,7 +2,7 @@
   // Platform-free. Neither DOM nor Workers types: engine must be valid in a browser AND in
   // workerd, and the surest way to keep it so is to give it neither ambient lib. If a global
   // from either world leaks in, this typecheck fails — which is the whole point of the package.
-  "extends": "../../tsconfig.base.json",
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
     "lib": ["ES2022"],
     "types": []

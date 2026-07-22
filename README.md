@@ -95,7 +95,7 @@ Everyone *else* is drawn ~150 ms in the past, interpolated between the two snaps
 that instant — you can't know where a remote player is right now, and guessing looks worse than
 being slightly late.
 
-All of this hangs on `step(position, input, dt)` and `resolveTerrain()` in `src/shared/` being
+All of this hangs on `step(position, input, dt)` and `resolveTerrain()` in `packages/engine/src/` being
 pure functions that the server and the client both call. Reconciliation is only correct because
 movement and collision are literally the same code on both sides.
 
@@ -105,8 +105,8 @@ server-validated movement direction, runs anticipation/impact/recovery, advances
 and decides collisions, damage, healing, threat and rewards. The client never sends positions,
 victims, impacts, damage, healing, XP, loot, deaths, or quest completion.
 
-Movement lives in `src/shared/simulation.ts`; map geometry, collision, combat constants, and
-progression formulas live in `src/shared/game.ts`. They are platform-free and directly tested.
+Movement lives in `packages/engine/src/simulation.ts`; map geometry, collision, combat constants, and
+progression formulas live in `packages/engine/src/game.ts`. They are platform-free and directly tested.
 
 ## Play
 

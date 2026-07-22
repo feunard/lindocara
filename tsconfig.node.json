@@ -1,6 +1,6 @@
 {
   // Build tooling and the pure-logic (engine) tests: all run in Node, not a browser or workerd.
-  "extends": "./tsconfig.base.json",
+  "extends": "./tsconfig.json",
   "compilerOptions": {
     "lib": ["ES2022"],
     "types": ["node"]

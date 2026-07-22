@@ -2,7 +2,7 @@
   // The jsdom test program: the renderer/client/editor package tests (React + PixiJS art).
   // Package sources are typechecked by their own per-package tsconfig; this covers the tests.
   // DOM lib, no Workers types. jest-dom adds the custom matcher types the setup registers.
-  "extends": "./tsconfig.base.json",
+  "extends": "./tsconfig.json",
   "compilerOptions": {
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["vite/client", "@testing-library/jest-dom"],

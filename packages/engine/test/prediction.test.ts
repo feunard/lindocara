@@ -217,7 +217,7 @@ describe("prediction against a sub-cell collider", () => {
 });
 
 describe("predictStep against a zone wider than Verdant Reach", () => {
-  // step()'s own `bounds` parameter defaults to VERDANT_REACH_BOUNDS (src/shared/simulation.ts).
+  // step()'s own `bounds` parameter defaults to VERDANT_REACH_BOUNDS (packages/engine/src/simulation.ts).
   // predictStep passes `geometry` straight to `resolveTerrain`, but until it *also* forwards it
   // as `step()`'s fifth argument, `step()`'s internal clamp silently uses Verdant Reach's extent
   // no matter which zone's geometry the caller supplied. This only happened not to matter because

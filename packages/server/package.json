@@ -7,7 +7,8 @@
     "./*": "./src/*"
   },
   "dependencies": {
-    "@lindocara/engine": "*"
+    "@lindocara/engine": "*",
+    "drizzle-orm": "^0.45.2"
   },
   "scripts": {
     "test": "vitest run"
