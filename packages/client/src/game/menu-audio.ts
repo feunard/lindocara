@@ -17,10 +17,10 @@
  */
 import { getAudioSettings, subscribeAudioSettings } from "./audio-settings.js";
 
-/** The title→menu confirm: a clean bell DING with a reverb tail, hit on the first sample. */
-const CONFIRM_SRC = "/assets/lindocara/audio/sfx/title-ding.ogg";
+/** The title→menu confirm: a 16-bit JRPG-style confirm (CC-BY leohpaz — see audio/CREDITS.md). */
+const CONFIRM_SRC = "/assets/lindocara/audio/sfx/title-confirm.mp3";
 /** Pre-slider gain for the confirm — this is the hand-off into the game. */
-const CONFIRM_VOLUME = 0.7;
+const CONFIRM_VOLUME = 0.8;
 
 /** The looping menu bed. CC0. Swap this to change the title music. */
 const MUSIC_SRC = "/assets/lindocara/audio/title-theme.mp3";
