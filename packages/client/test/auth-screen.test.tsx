@@ -39,7 +39,7 @@ describe("AuthScreen", () => {
     render(<AuthScreen />);
     await userEvent.type(screen.getByLabelText("Username"), "nico");
     await userEvent.type(screen.getByLabelText("Password"), "12345678");
-    await userEvent.click(screen.getByRole("button", { name: "Enter the Hollow" }));
+    await userEvent.click(screen.getByRole("button", { name: "Play" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Wrong username or password.");
     setLocale("fr");
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -52,7 +52,7 @@ describe("AuthScreen", () => {
     render(<AuthScreen />);
     await userEvent.type(screen.getByLabelText("Username"), "nico");
     await userEvent.type(screen.getByLabelText("Password"), "12345678");
-    await userEvent.click(screen.getByRole("button", { name: "Enter the Hollow" }));
+    await userEvent.click(screen.getByRole("button", { name: "Play" }));
     await vi.waitFor(() => expect(useUiStore.getState().screen).toBe("menu"));
   });
 
