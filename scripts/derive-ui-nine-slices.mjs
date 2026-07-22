@@ -1,4 +1,4 @@
-// Extracts seamless weave tiles from the Tiny Swords packs into src/client/assets/ui/.
+// Extracts seamless weave tiles from the Tiny Swords packs into packages/client/src/assets/ui/.
 //
 // Why derive anything at all: the packs ship their parchment boards on spaced grids — 64px cells on
 // a 128px stride, gaps left transparent so the artist could draw decorative overhang (curled scroll
@@ -29,7 +29,7 @@ const TILES = [
     // The light board. Banner.png is a cream field inside a tan band inside a dark outline; the
     // centre cell is the cream field alone.
     from: "assets/Tiny Swords (Free Pack)/UI Elements/UI Elements/Banners/Banner.png",
-    to: "src/client/assets/ui/weave-cream.png",
+    to: "packages/client/src/assets/ui/weave-cream.png",
     left: CENTRE,
     top: CENTRE,
   },
@@ -37,7 +37,7 @@ const TILES = [
     // The darker zones. Banner_Slots.png is already contiguous, but its outer cells carry ragged
     // alpha edges that would show as seams once repeated, so take its centre cell too.
     from: "assets/Tiny Swords (Free Pack)/UI Elements/UI Elements/Banners/Banner_Slots.png",
-    to: "src/client/assets/ui/weave-tan.png",
+    to: "packages/client/src/assets/ui/weave-tan.png",
     left: CELL,
     top: CELL,
   },

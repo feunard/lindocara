@@ -289,13 +289,13 @@ const verdantSolid = rasteriseVerdant(VERDANT_REACH_BOUNDS);
 const verdantThinned = thinForestToTrunks(verdantSolid.kinds, verdantSolid.cols, verdantSolid.rows);
 const verdant = { ...verdantSolid, kinds: verdantThinned.kinds };
 writeFileSync(
-  "src/shared/zones/verdant-reach-tiles.ts",
+  "packages/engine/src/zones/verdant-reach-tiles.ts",
   emit("Verdant Reach", "VERDANT_REACH_TILES", verdant),
 );
 
 const test = rasteriseFlat(TEST_ZONE_TERRAIN, TEST_ZONE_TERRAIN.obstacles);
 writeFileSync(
-  "src/shared/zones/mmo-test-zone-tiles.ts",
+  "packages/engine/src/zones/mmo-test-zone-tiles.ts",
   emit("Crossing Annex", "MMO_TEST_ZONE_TILES", test),
 );
 
@@ -314,7 +314,7 @@ const islesSolid = rasteriseIslands(
 const islesThinned = thinForestToTrunks(islesSolid.kinds, islesSolid.cols, islesSolid.rows);
 const isles = { ...islesSolid, kinds: islesThinned.kinds };
 writeFileSync(
-  "src/shared/zones/sunken-isles-tiles.ts",
+  "packages/engine/src/zones/sunken-isles-tiles.ts",
   emit("Sunken Isles", "SUNKEN_ISLES_TILES", isles),
 );
 

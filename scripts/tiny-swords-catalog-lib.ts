@@ -29,8 +29,9 @@ export const CLIENT_CATALOG_PATH = path.join(
 );
 export const GENERATED_SHARED_PATH = path.join(
   PROJECT_ROOT,
+  "packages",
+  "engine",
   "src",
-  "shared",
   "tiny-swords-catalog.generated.ts",
 );
 export const COVERAGE_REPORT_PATH = path.join(
