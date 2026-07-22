@@ -35,6 +35,32 @@ The one rule that matters: **the server decides outcomes.** Clients send movemen
 intent, never positions, damage, health, heals, inventory, XP, deaths, loot, or quest
 completion.
 
+### Monorepo layout (npm workspaces)
+
+The old single `src/` is now five packages under `packages/*`, each with its own
+`package.json`/`tsconfig.json`. Tooling (Vite, wrangler, drizzle, vitest configs, `index.html`,
+`migrations/`, `test/`) stays at the repo root — the root is the app that assembles the packages
+into one deployable Worker + assets. The old path prefixes in the file map below map straight onto
+the new homes:
+
+| Package | Old path | Depends on | Runtime |
+| --- | --- | --- | --- |
+| `@lindocara/engine` | `src/shared/` | — | pure (ni DOM ni Workers) |
+| `@lindocara/server` | `src/server/` | engine | workerd |
+| `@lindocara/renderer` | drawing half of `src/client/game/` (+ `input`, `locale`, `scene-sample`) | engine | browser, React-free (PixiJS) |
+| `@lindocara/client` | rest of `src/client/` (app shell, HUD, shadcn/Tiny-Swords, store, api, i18n, net/sound/session glue) | engine, renderer | browser + React |
+| `@lindocara/editor` | `src/client/ui/editor/` + editor game files | engine, renderer, client | browser + React |
+
+The graph is acyclic: `engine ← {server, renderer}`, `renderer ← {client}`, `client ← {editor}`
+(the client App lazy-`import()`s the editor at runtime without declaring it, so no cycle). Cross-package
+imports use `@lindocara/<pkg>/<file>.js`; the `@` alias still means the client source root everywhere.
+`npm run typecheck` runs all five package `tsc`s plus the three test programs; `npm run typecheck:<pkg>`
+checks one. Tests still live in `test/` and run through the existing vitest configs (co-locating them
+per package is a documented follow-up). See
+[`docs/superpowers/specs/2026-07-22-monorepo-packages-design.md`](./docs/superpowers/specs/2026-07-22-monorepo-packages-design.md)
+and [`docs/superpowers/plans/2026-07-22-monorepo-packages.md`](./docs/superpowers/plans/2026-07-22-monorepo-packages.md).
+The file map below keeps its original `src/…` prefixes; read them through the table above.
+
 ### Current party-adventure foundation
 
 Before changing world routing, room ownership, hero location persistence, or splitting
