@@ -303,6 +303,26 @@
   pointer-events: none;
   image-rendering: pixelated;
   background: #75b9b0;
+  --drift-x: 0px;
+  --drift-y: 0px;
+}
+
+/* Ken-Burns pan: a very slow scale + drift of the whole world so the scene is never quite still.
+   Separate wrapper from the pointer drift so the two transforms don't overwrite each other. */
+.menu-scene__pan {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+  animation: menu-scene-pan 48s ease-in-out infinite alternate;
+}
+
+/* Pointer parallax lives on the `translate` property (set from JS as --drift-*), leaving `transform`
+   free for the pan above. The transition is what smooths the cursor follow. */
+.menu-scene__world {
+  position: absolute;
+  inset: 0;
+  translate: var(--drift-x) var(--drift-y);
+  transition: translate 500ms ease-out;
 }
 
 .menu-scene__sky {
@@ -346,6 +366,24 @@
   opacity: 0.52;
   animation-delay: -7s;
   animation-duration: 74s;
+}
+
+.menu-scene__cloud--four {
+  top: 12%;
+  left: -34rem;
+  width: clamp(14rem, 20vw, 22rem);
+  opacity: 0.42;
+  animation-delay: -55s;
+  animation-duration: 88s;
+}
+
+.menu-scene__cloud--five {
+  top: 2%;
+  left: -50rem;
+  width: clamp(24rem, 32vw, 32rem);
+  opacity: 0.3;
+  animation-delay: -30s;
+  animation-duration: 96s;
 }
 
 .menu-scene__ground {
@@ -631,6 +669,182 @@
 
   50% {
     translate: 5rem -1rem;
+  }
+}
+
+/* ── Day → dusk → night tint over the whole diorama (~2 min). It sits above the world but the scene
+      itself is z-index -1 under the launch screens, so it colours the landscape, never the UI. ── */
+.menu-scene__daynight {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  pointer-events: none;
+  animation: menu-daynight 120s ease-in-out infinite;
+}
+
+@keyframes menu-daynight {
+  0% {
+    background: rgb(255 210 150 / 16%);
+  }
+  22% {
+    background: rgb(255 255 255 / 0%);
+  }
+  50% {
+    background: rgb(255 146 74 / 22%);
+  }
+  74% {
+    background: rgb(24 34 84 / 50%);
+  }
+  88% {
+    background: rgb(38 48 96 / 34%);
+  }
+  100% {
+    background: rgb(255 210 150 / 16%);
+  }
+}
+
+/* ── Water sparkle: thin bands of light sliding across the water band. ── */
+.menu-scene__shimmer {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 1;
+  height: 13%;
+  pointer-events: none;
+  opacity: 0.5;
+  mix-blend-mode: screen;
+  background: repeating-linear-gradient(
+    100deg,
+    transparent 0 22px,
+    rgb(226 248 236 / 24%) 26px 30px,
+    transparent 34px 62px
+  );
+  animation: menu-water-shimmer 7s linear infinite;
+}
+
+@keyframes menu-water-shimmer {
+  to {
+    background-position: 260px 0;
+  }
+}
+
+/* ── Drifting light motes. Each span is placed + timed inline (deterministic by index). ── */
+.menu-scene__fireflies {
+  position: absolute;
+  inset: 0 0 13%;
+  z-index: 6;
+  pointer-events: none;
+}
+
+.menu-scene__firefly {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  opacity: 0;
+  background: radial-gradient(
+    circle,
+    rgb(255 246 206 / 95%),
+    rgb(255 220 120 / 25%) 55%,
+    transparent 70%
+  );
+  filter: drop-shadow(0 0 4px rgb(255 226 150 / 70%));
+  will-change: transform, opacity;
+  animation-name: menu-firefly-float;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes menu-firefly-float {
+  0% {
+    transform: translate(0, 12px) scale(0.7);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.9;
+  }
+  50% {
+    transform: translate(14px, -22px) scale(1);
+  }
+  85% {
+    opacity: 0.75;
+  }
+  100% {
+    transform: translate(-6px, -54px) scale(0.72);
+    opacity: 0;
+  }
+}
+
+/* ── A loose flock crossing the sky. Each bird is a shallow arc (::before) that flaps, carried
+      across by the element's own transform. `scale` is set inline so it stays off `transform`. ── */
+.menu-scene__birds {
+  position: absolute;
+  inset: 0 0 55%;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.menu-scene__bird {
+  position: absolute;
+  left: 0;
+  width: 18px;
+  height: 10px;
+  will-change: transform;
+  animation-name: menu-bird-fly;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.menu-scene__bird::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-top: 2px solid rgb(40 54 68 / 50%);
+  border-radius: 50% 50% 0 0;
+  transform-origin: center bottom;
+  animation: menu-bird-flap 0.45s ease-in-out infinite;
+}
+
+@keyframes menu-bird-fly {
+  0% {
+    transform: translate(-6vw, 7vh);
+  }
+  100% {
+    transform: translate(108vw, -3vh);
+  }
+}
+
+@keyframes menu-bird-flap {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(0.4);
+  }
+}
+
+/* ── Ken-Burns: a slow scale + drift of the whole world so nothing is ever perfectly still. ── */
+@keyframes menu-scene-pan {
+  0% {
+    transform: scale(1.06) translate(-1.1%, 0.5%);
+  }
+  100% {
+    transform: scale(1.1) translate(1.1%, -0.5%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu-scene__pan,
+  .menu-scene__cloud,
+  .menu-scene__firefly,
+  .menu-scene__bird,
+  .menu-scene__bird::before,
+  .menu-scene__shimmer,
+  .menu-scene__daynight {
+    animation: none;
+  }
+  .menu-scene__world {
+    transition: none;
   }
 }
 
