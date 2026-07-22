@@ -48,8 +48,10 @@ the new homes:
 | `@lindocara/engine` | `src/shared/` | — | pure (ni DOM ni Workers) |
 | `@lindocara/server` | `src/server/` | engine | workerd |
 | `@lindocara/renderer` | drawing half of `src/client/game/` (+ `input`, `locale`, `scene-sample`) | engine | browser, React-free (PixiJS) |
-| `@lindocara/client` | rest of `src/client/` (app shell, HUD, shadcn/Tiny-Swords, store, api, i18n, net/sound/session glue) | engine, renderer | browser + React |
-| `@lindocara/editor` | `src/client/ui/editor/` + editor game files | engine, renderer, client | browser + React |
+| `@lindocara/ui` | the stock shadcn component tree (base-nova) + `cn`/utils + shadcn `globals.css` tokens — shadcn monorepo mode, its own `components.json` | npm only | browser + React |
+| `@lindocara/client` | rest of `src/client/` (app shell, HUD, Tiny-Swords tree, store, api, i18n, net/sound/session glue) | engine, renderer, ui | browser + React |
+| `@lindocara/editor` | `src/client/ui/editor/` + editor game files | engine, renderer, client, ui | browser + React |
+| `@lindocara/test-utils` | shared test fixtures (`map-fixtures`, `tiles`, jsdom setup), dev-only | engine | node/jsdom |
 
 The graph is acyclic: `engine ← {server, renderer}`, `renderer ← {client}`, `client ← {editor}`
 (the client App lazy-`import()`s the editor at runtime without declaring it, so no cycle). Cross-package
@@ -718,15 +720,16 @@ the same `Env`.
 - UI is React; game code under `src/client/game/` must not import React. The store is the
   only bridge — components never call into net/renderer directly (the `GameHandle` in the
   store is the exception and the boundary).
-- Two component trees, one rule each. Player/game UI uses `ui/tiny-swords/`; creator tools and
-  any non-game surface use stock shadcn from `ui/components/`. Never import a Tiny component
-  into an editor to "match the theme", and never hand-edit `ui/components/`. See
+- Two component trees, one rule each. Player/game UI uses the client's `ui/tiny-swords/`; creator
+  tools and any non-game surface use stock shadcn from the **`@lindocara/ui`** package (`import { Button }
+  from "@lindocara/ui/components/button.js"`). Never import a Tiny component into an editor to "match
+  the theme", and never hand-edit `@lindocara/ui/src/components/`. See
   `docs/superpowers/specs/2026-07-18-shadcn-base-ui-port-design.md`.
-- Add a shadcn component with `npm run ui:add -- <name>`, then `npm run lint:fix` (stock output
-  has no semicolons; Biome requires them). Do **not** call `npx shadcn@latest add` directly: the
-  CLI resolves aliases only from a file named `tsconfig.json`, and this repo's `paths` live in
-  `tsconfig.client.json`, so without `--path` it writes into a literal `./@/ui/components/`
-  directory.
+- Add a shadcn component with `npm run ui:add -- <name>` (which runs `shadcn add -c packages/ui` in
+  shadcn's monorepo mode — the `@lindocara/ui` package has its own `components.json` whose aliases
+  point at `@lindocara/ui/*`), then `npm run lint:fix` (stock output has no semicolons; Biome requires
+  them). The old `--path`/`tsconfig.json` caveat is gone: monorepo mode resolves aliases from the
+  package's `components.json`.
 - Stock shadcn's `@layer base` sets `body { background-color; color }` **directly**, which beats
   anything `legacy.css` inherits from `:root` — CSS layers only compete with declarations on the
   same element. If game text ever turns near-white, that is why; fix it in `legacy.css`'s
