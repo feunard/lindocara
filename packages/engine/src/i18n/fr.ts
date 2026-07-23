@@ -1495,6 +1495,10 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.quest.validation.stageGap":
     "Les étapes d’objectifs séquentiels doivent commencer à 0 sans trou.",
   "editor.quest.validation.objectiveMapMissing": "Un objectif référence une carte absente.",
+  "editor.quest.validation.objectiveMonsterMissing":
+    "Aucun monstre correspondant n’existe sur les cartes autorisées par cet objectif.",
+  "editor.quest.validation.objectiveTargetNotMonster":
+    "La cible précise sélectionnée n’est plus un monstre ou un boss.",
   "editor.quest.validation.objectiveAreaMissing":
     "Aucun événement de cette carte n’enregistre l’entrée dans cette zone.",
   "editor.quest.validation.objectiveEventMissing": "Un objectif référence un PNJ ou objet absent.",

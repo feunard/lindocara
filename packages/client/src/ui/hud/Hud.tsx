@@ -50,7 +50,10 @@ export function Hud() {
   // effect: a fresh DOM node always (re)starts a CSS animation already on its className.
   // Only bump the key once the quest has actually changed, so the panel doesn't pulse on
   // its very first render.
-  const questSnapshot = selfState?.quest ?? null;
+  // The compiled catalogue quest is rollback content. Primary authored adventures always carry an
+  // `activeParty`; showing the compiled oath beside their own journal creates a quest the creator
+  // never authored and the room cannot progress.
+  const questSnapshot = activeParty ? null : (selfState?.quest ?? null);
   const [questPulseKey, setQuestPulseKey] = useState(0);
   const [now, setNow] = useState(() => Date.now());
   const prevQuestRef = useRef(questSnapshot);
@@ -189,28 +192,30 @@ export function Hud() {
           )}
         </section>
 
-        <section
-          key={questPulseKey}
-          className={questPulseKey > 0 ? "panel quest pulse" : "panel quest"}
-        >
-          <div className="panel-title">
-            <span className="panel-icon panel-icon--oath" aria-hidden="true" />
-            <strong>{t(`quest.${questChapter}.name` as MessageKey)}</strong>
-          </div>
-          <span>{questText(quest)}</span>
-          {showQuestBar && (
-            <Bar
-              value={quest.status === "ready" ? quest.target : quest.progress}
-              max={quest.target}
-              variant="quest"
-            />
-          )}
-          {quest.timerEndsAt !== undefined && (
-            <strong className="quest-timer" aria-live="polite">
-              {t("quest.timer", { seconds: remainingSeconds })}
-            </strong>
-          )}
-        </section>
+        {!activeParty && (
+          <section
+            key={questPulseKey}
+            className={questPulseKey > 0 ? "panel quest pulse" : "panel quest"}
+          >
+            <div className="panel-title">
+              <span className="panel-icon panel-icon--oath" aria-hidden="true" />
+              <strong>{t(`quest.${questChapter}.name` as MessageKey)}</strong>
+            </div>
+            <span>{questText(quest)}</span>
+            {showQuestBar && (
+              <Bar
+                value={quest.status === "ready" ? quest.target : quest.progress}
+                max={quest.target}
+                variant="quest"
+              />
+            )}
+            {quest.timerEndsAt !== undefined && (
+              <strong className="quest-timer" aria-live="polite">
+                {t("quest.timer", { seconds: remainingSeconds })}
+              </strong>
+            )}
+          </section>
+        )}
 
         {authoredQuests.length > 0 && (
           <button

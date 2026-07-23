@@ -52,10 +52,13 @@ A repeatable quest can pin the then-current definition on its next attempt.
 ## Validation
 
 `validateAuthoredQuests` emits machine diagnostics with `error` or `warning` severity. It checks
-broken maps, events, items, activities, switches and variables; missing acceptance/turn-in routes;
-missing or cyclic prerequisite quests; invalid next-quest links; sequential stage gaps; empty or
-optional-only objective sets; and manual compatibility objectives. Publication, full test mode and
-the quest workspace should all render these same diagnostics with localized creator-facing text.
+broken maps, events, items, switches and variables; missing acceptance/turn-in routes; missing or
+cyclic prerequisite quests; invalid next-quest links; sequential stage gaps; empty or optional-only
+objective sets; and manual compatibility objectives. It also proves that kill species exist on at
+least one allowed map, precise defeat targets are still authored monsters, every named activity has
+a `completeActivity` source and every named area has an `enterArea` source on a `player-touch`
+event in the selected map. Publication, full test mode and the quest workspace all render these same
+diagnostics with localized creator-facing text.
 
 ## Authoritative automatic progression
 
@@ -78,9 +81,39 @@ Combat credit deliberately reuses the existing contribution model:
 - `nearby-party` credits those contributors plus nearby members eligible for the existing shared XP
   rule.
 
-World emits `monsterKilled`, `itemAcquired`, `itemRemoved`, `itemUsed`, `objectInteracted`,
-`npcTalked` and `mapEntered` only after the corresponding authoritative mutation or interaction.
-The engine also indexes `bossDefeated`, `areaEntered` and `activityCompleted` for domain systems that
-register those facts. Legacy `advanceQuest` commands remain accepted only for explicit `manual`
-objectives; they cannot double-progress a structured objective or write personal state into the
-party coordinator.
+World emits `monsterKilled`, `bossDefeated`, `itemAcquired`, `itemRemoved`, `itemUsed`,
+`objectInteracted`, `npcTalked` and `mapEntered` only after the corresponding authoritative mutation
+or interaction. Authored `enterArea` and `completeActivity` commands become server-minted
+`areaEntered` and `activityCompleted` facts; they never mutate a counter directly. The guided
+"Make interactive" flow binds an area to a player-touch event and an activity to a named event
+completion, while the advanced command editor exposes the same typed commands. Legacy
+`advanceQuest` commands remain accepted only for explicit `manual` objectives; they cannot
+double-progress a structured objective or write personal state into the party coordinator.
+
+## Completion and reward ownership
+
+Turn-in is a coordinator operation followed by one fenced D1 batch. The batch inserts a unique
+reward claim, verifies delivery items, consumes them, persists completion, grants XP/gold/items and
+starts the next quest. If the claim or inventory requirement fails, every dependent statement is a
+no-op. Replayed messages, reconnects and concurrent turn-in attempts therefore cannot grant a
+second reward or leave a partially completed quest.
+
+A personal quest owns one attempt per hero and rewards that hero. A party quest owns one shared
+attempt and one shared completion claim; its personal XP/gold/item reward goes to the authoritative
+hero who completes or turns in that attempt. This deliberately avoids multiplying the party's
+economy by connection count. Progress, readiness, completion, state rewards and the journal remain
+shared by the whole party.
+
+## Creator and player flows
+
+The editor's main menu opens a dedicated quest workspace with search, create, duplicate, delete,
+validity state and guided panels for objectives, prerequisites, dialogues and rewards. Event and
+scenery selection can bind a giver, turn-in target, interaction objective, area entry or activity
+without exposing UUIDs or raw JSON. Per-player `!`, quiet `?` and ready-to-turn-in `?` markers are
+derived by the server and rendered over the matching event.
+
+The player journal separates active, ready and history views, displays generated objective text and
+reward previews, supports tracking and authoritative abandonment, and reports immediate progress,
+ready, completion and reward notifications. Full editor playtests use an expiring hidden party and
+hero backed by the real Durable Object runtime. Reset or close deletes that disposable save; real
+player saves are never listed, hidden or mutated by the test session.

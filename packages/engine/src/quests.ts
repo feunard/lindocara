@@ -716,6 +716,10 @@ export function reconcileAuthoredQuestVersions(
 export interface QuestValidationContext {
   readonly mapIds?: ReadonlySet<string>;
   readonly eventIdsByMap?: ReadonlyMap<string, ReadonlySet<string>>;
+  /** Authored monster species available on each map, used to reject impossible kill objectives. */
+  readonly monsterSpeciesByMap?: ReadonlyMap<string, ReadonlySet<MonsterSpecies>>;
+  /** Event ids that are still authored monsters/bosses rather than another interactive event. */
+  readonly monsterEventIdsByMap?: ReadonlyMap<string, ReadonlySet<string>>;
   /** Area ids emitted by `enterArea` commands, grouped by the map that owns the trigger. */
   readonly areaIdsByMap?: ReadonlyMap<string, ReadonlySet<string>>;
   readonly itemIds?: ReadonlySet<string>;
@@ -942,8 +946,46 @@ export function validateAuthoredQuests(
                 add("error", "quest.objective.map_missing", quest.id, objective.id, mapId);
             }
           }
+          if (context.monsterSpeciesByMap) {
+            const eligibleMaps =
+              objective.mapScope.kind === "maps"
+                ? objective.mapScope.mapIds
+                : [...context.monsterSpeciesByMap.keys()];
+            if (
+              !eligibleMaps.some((mapId) =>
+                context.monsterSpeciesByMap?.get(mapId)?.has(objective.species),
+              )
+            ) {
+              add(
+                "error",
+                "quest.objective.monster_missing",
+                quest.id,
+                objective.id,
+                objective.species,
+              );
+            }
+          }
           break;
         case "defeat-target":
+          checkEvent(quest.id, "quest.objective.event_missing", objective.targetRef, objective.id);
+          if (
+            context.monsterEventIdsByMap &&
+            context.eventIdsByMap
+              ?.get(objective.targetRef.mapId)
+              ?.has(objective.targetRef.eventId) === true &&
+            !context.monsterEventIdsByMap
+              .get(objective.targetRef.mapId)
+              ?.has(objective.targetRef.eventId)
+          ) {
+            add(
+              "error",
+              "quest.objective.target_not_monster",
+              quest.id,
+              objective.id,
+              objective.targetRef.eventId,
+            );
+          }
+          break;
         case "interact":
           checkEvent(quest.id, "quest.objective.event_missing", objective.targetRef, objective.id);
           break;

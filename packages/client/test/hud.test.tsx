@@ -5,7 +5,10 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
 describe("Hud", () => {
-  beforeEach(() => setLocale("en"));
+  beforeEach(() => {
+    setLocale("en");
+    useUiStore.setState({ activeParty: null });
+  });
 
   it("renders identity, bars, quest and inventory from the store", () => {
     useUiStore.setState({
@@ -47,8 +50,20 @@ describe("Hud", () => {
     expect(screen.getByText("Niveau 3")).toBeInTheDocument();
   });
 
-  it("shows authored quest progress without hiding the built-in quest", () => {
+  it("shows authored quest progress without leaking the compiled quest into an authored party", () => {
     useUiStore.setState({
+      activeParty: {
+        id: "party-1",
+        name: "Road patrol",
+        adventureId: "adventure-1",
+        adventureTitle: "The old road",
+        maxPlayers: 4,
+        status: "open",
+        hostAccountId: "account-1",
+        colors: ["blue"],
+        mine: true,
+        myColor: "blue",
+      },
       self: {
         nick: "Questkeeper",
         level: 3,
@@ -105,8 +120,8 @@ describe("Hud", () => {
 
     render(<Hud />);
     expect(
-      screen.getByText("Gather heartwood, provisions, then sun-ore (1/3)"),
-    ).toBeInTheDocument();
+      screen.queryByText("Gather heartwood, provisions, then sun-ore (1/3)"),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Clear the old road")).toBeInTheDocument();
     expect(screen.getByText("Defeat the beasts: 2 / 3")).toBeInTheDocument();
   });

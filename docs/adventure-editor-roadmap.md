@@ -281,11 +281,20 @@ exception, documented at the field. Every CHROME string around the panel stays i
   number-key and click affordances, the walk-away close, cross-map teleport, and the lock all
   verified end to end, plus the core author→play→choice loop 3× on fresh accounts, console clean.
 
-## Tranche 6 — The rest
+## Tranche 6 — Quest authoring and real playtest
 
-The Test button (launch the adventure from the editor — `map-preview.ts` already sandboxes a
-playable preview, start there). The "Base de données…" screen, which is the tileset editor tranche 1
-deliberately shipped as a data file instead. Audio and screen commands. Custom move routes.
+**Shipped.** Quests are now a main editor workspace rather than free counters hidden in the
+registry. Definitions, objectives, prerequisites, dialogues, rewards and bindings share the engine
+validator with publication and test mode. Progress is indexed and server-authoritative; giver,
+turn-in, journal, markers, atomic rewards and compatibility conversion are covered end to end.
+
+The Test button now launches an expiring hidden party/hero on the real Durable Object runtime. It
+can start at the adventure beginning or a chosen map, resets without touching a real save and blocks
+on the same broken quest references the editor displays. See `structured-quest-model.md` and
+`editor-quest-refactor-report.md`.
+
+Still deferred: a visual tileset database (tranche 1 deliberately ships it as data), audio/screen
+commands, custom move routes and specialised activity/escort/timed objective editors.
 
 Also the deferred tile behaviours: terrain tag, bush, counter. Terrain tag is cheap — one field on a
 tileset entry, no map migration — and gains a consumer the moment the interpreter can ask "what is
@@ -346,21 +355,18 @@ the head-under-treetop effect cannot be demonstrated until a tileset declares an
 **Migration `0018` left pre-existing maps unenterable**, not merely blank: all-empty layers bake to
 all-water, which is solid, so a hero arrives on a solid spawn. Accepted — POC, no production data.
 
-**Schema and migration disagree on `layers`' column default** (`notNull()` with no default in
-`schema.ts`, `DEFAULT ''` in the migration). The next `db:generate` will emit a spurious diff, which
-in SQLite means a table recreate nobody asked for. Cheap to reconcile.
+**Resolved:** migration `0022` rebuilt `map.layers` without the temporary `DEFAULT ''`, so the
+Drizzle schema and live table now agree.
 
-**The read path does not validate tile ids against the tileset**, unlike the write path, which does
-so twice. A bad row opens the editor blank with no message. Safe but mute.
+**Resolved:** `parseMapData` now validates every frozen tile id against its selected tileset. Invalid
+rows fail through the editor's explicit load-error state instead of reaching the renderer.
 
 **`MAX_CELLS` in `tile-layer-codec.ts` duplicates the map size cap** because `shared/` cannot import
 `server/`. Fail-closed, but it is one of the "same rule in two places" seams worth closing by moving
 the cap into `shared/`.
 
-**Two test gaps worth closing early:** `test/map-layers.test.ts` claims to check "any layer" but only
-exercises layer 1 — layer 2 is never tested for collision. And the renderer's tile-priority routing
-has no test, while the editor's does, which is backwards: the editor's exists because that exact bug
-shipped once already.
+**Resolved:** collision coverage now executes the same solid-tile assertion on authored layers 1
+and 2, and both editor and world renderer priority-routing branches have direct Pixi container tests.
 
 ## Where to read next
 

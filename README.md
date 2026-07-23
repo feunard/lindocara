@@ -150,11 +150,11 @@ future mechanic; it no longer cycles combat targets.
 
 A D1 database (`lindocara`) stores accounts, account-owned revisioned maps, adventures, persistent
 parties/members and heroes through Drizzle. The party is the saved playthrough; a hero belongs to
-both that party and its account. Hero map, position, level, XP, HP, life/corpse state and fencing
-epoch are saved periodically, on disconnect and at transitions. Inventory, equipment, skills and
-quests are initialized for each hero session in this first slice and are not yet complete save data.
-The legacy `character` tables remain for rollback compatibility but are not reachable from the
-normal post-login UI.
+both that party and its account. Hero map, position, level, XP, HP, life/corpse state, inventory,
+equipment, skills, personal quest progress and fencing epoch are saved periodically, on disconnect
+and at transitions. Shared authored-quest state belongs to the party, while unique reward claims
+make delivery consumption and XP/gold/item rewards idempotent. The legacy `character` tables remain
+for rollback compatibility but are not reachable from the normal post-login UI.
 
 ```bash
 npm run db:generate   # schema change -> migrations/NNNN_name.sql

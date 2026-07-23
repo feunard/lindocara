@@ -199,6 +199,51 @@ describe("quest editor model", () => {
     ).toEqual([]);
   });
 
+  it("flags a hunt with no matching monster and a precise target that stopped being a monster", () => {
+    const hunt = {
+      ...createAuthoredQuestDefinition("0001", "Impossible hunt"),
+      acceptance: "automatic" as const,
+      completion: "automatic" as const,
+      objectives: [
+        {
+          id: "0001",
+          type: "kill" as const,
+          label: "",
+          target: 10,
+          optional: false,
+          hidden: false,
+          stage: 0,
+          species: "torch_goblin" as const,
+          mapScope: { kind: "any" as const },
+          credit: "contributors" as const,
+        },
+        {
+          id: "0002",
+          type: "defeat-target" as const,
+          label: "",
+          target: 1,
+          optional: false,
+          hidden: false,
+          stage: 0,
+          targetRef: { mapId: MAP_ID, eventId: EVENT_ID },
+          credit: "killer" as const,
+        },
+      ],
+    };
+
+    expect(
+      validateAuthoredQuests(
+        [hunt],
+        questValidationContext({ switches: [], variables: [] }, MAPS),
+      ).map((diagnostic) => diagnostic.code),
+    ).toEqual(
+      expect.arrayContaining([
+        "quest.objective.monster_missing",
+        "quest.objective.target_not_monster",
+      ]),
+    );
+  });
+
   it("round-trips event references, creates readable slugs and deeply duplicates rewards", () => {
     const reference = { mapId: MAP_ID, eventId: EVENT_ID };
     expect(eventReferenceFromValue(eventReferenceValue(reference))).toEqual(reference);

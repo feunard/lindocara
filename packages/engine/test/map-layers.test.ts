@@ -36,14 +36,16 @@ describe("collision baked from layers", () => {
     expect(kindAt(baked, 1, 1)).toBe("grass");
   });
 
-  it("reads an impassable tile on any layer as solid", () => {
-    const [ground2, above2, top2] = grassField(4, 4);
-    const walls = paintAutotile(above2, TINY_SWORDS_TILESET, 3, 2, 2);
+  it.each([
+    1, 2,
+  ] as const)("reads an impassable tile on authored layer %i as solid", (layerIndex) => {
+    const layers = grassField(4, 4);
+    layers[layerIndex] = paintAutotile(layers[layerIndex], TINY_SWORDS_TILESET, 3, 2, 2);
     const baked = bakeCollision({
       tilesetId: TINY_SWORDS_TILESET_ID,
       cols: 4,
       rows: 4,
-      layers: [ground2, walls, top2],
+      layers,
       elements: [],
       spawn: { col: 0, row: 0 },
     });

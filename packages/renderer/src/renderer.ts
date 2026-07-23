@@ -774,6 +774,16 @@ export function eventRenderLayer(onTop: boolean, decor: Container, above: Contai
   return onTop ? above : decor;
 }
 
+/** The world renderer's single tileset-priority routing rule, exported so the editor/runtime parity
+ *  test does not need a WebGL canvas. */
+export function tileRenderLayer(
+  priority: TilePriority,
+  below: Container,
+  above: Container,
+): Container {
+  return priority === "above" ? above : below;
+}
+
 /**
  * Which container an authored prop draws into — the ONE routing decision, extracted pure so it can
  * be pinned without a renderer (this suite gets no WebGL context). A `ground` prop is a flat decal
@@ -2450,7 +2460,7 @@ export class Renderer {
     }
     const sprite = new Sprite(Texture.EMPTY);
     pool.push(sprite);
-    (above ? this.#tilesAbove : this.#tilesBelow).addChild(sprite);
+    tileRenderLayer(priority, this.#tilesBelow, this.#tilesAbove).addChild(sprite);
     return sprite;
   }
 

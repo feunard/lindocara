@@ -170,6 +170,18 @@ describe("adventure playtest sessions", () => {
           stage: 0,
           activityId: "village_defence",
         },
+        {
+          id: "0003",
+          type: "kill" as const,
+          label: "",
+          target: 10,
+          optional: false,
+          hidden: false,
+          stage: 0,
+          species: "spear_goblin" as const,
+          mapScope: { kind: "any" as const },
+          credit: "contributors" as const,
+        },
       ],
     };
     const saved = await authed(`/api/adventures/${adventure.id}`, owner, {
@@ -199,6 +211,7 @@ describe("adventure playtest sessions", () => {
         expect.objectContaining({ code: "quest.turn_in.unbound", severity: "error" }),
         expect.objectContaining({ code: "quest.objective.area_missing", severity: "error" }),
         expect.objectContaining({ code: "quest.objective.activity_missing", severity: "error" }),
+        expect.objectContaining({ code: "quest.objective.monster_missing", severity: "error" }),
       ]),
     );
     expect((await env.DB.prepare("SELECT id FROM party").all()).results).toEqual([]);

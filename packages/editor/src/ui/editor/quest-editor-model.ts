@@ -173,6 +173,22 @@ export function questValidationContext(
     eventIdsByMap: new Map(
       maps.map((map) => [map.mapId, new Set(map.events.map((event) => event.id))]),
     ),
+    monsterSpeciesByMap: new Map(
+      maps.map((map) => [
+        map.mapId,
+        new Set(
+          map.events.flatMap((event) =>
+            event.kind === "monster" && event.species ? [event.species] : [],
+          ),
+        ),
+      ]),
+    ),
+    monsterEventIdsByMap: new Map(
+      maps.map((map) => [
+        map.mapId,
+        new Set(map.events.flatMap((event) => (event.kind === "monster" ? [event.id] : []))),
+      ]),
+    ),
     areaIdsByMap,
     itemIds: new Set(CONSUMABLE_IDS),
     activityIds,

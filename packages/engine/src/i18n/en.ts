@@ -1472,6 +1472,10 @@ export const en = {
     "Advanced reward commands require a turn-in target that can run them.",
   "editor.quest.validation.stageGap": "Sequential objective stages must start at 0 without gaps.",
   "editor.quest.validation.objectiveMapMissing": "An objective references a missing map.",
+  "editor.quest.validation.objectiveMonsterMissing":
+    "No matching monster exists on the maps allowed by this objective.",
+  "editor.quest.validation.objectiveTargetNotMonster":
+    "The selected precise target is no longer a monster or boss.",
   "editor.quest.validation.objectiveAreaMissing":
     "No event on that map records entry into this area.",
   "editor.quest.validation.objectiveEventMissing":

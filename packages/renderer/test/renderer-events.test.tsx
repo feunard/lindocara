@@ -1,4 +1,4 @@
-import { eventRenderLayer } from "@lindocara/renderer/renderer.js";
+import { eventRenderLayer, tileRenderLayer } from "@lindocara/renderer/renderer.js";
 import { Container } from "pixi.js";
 import { describe, expect, it } from "vitest";
 
@@ -15,5 +15,15 @@ describe("eventRenderLayer", () => {
   it("routes an onTop page above the actors and everything else into the decor pass", () => {
     expect(eventRenderLayer(true, decor, above)).toBe(above);
     expect(eventRenderLayer(false, decor, above)).toBe(decor);
+  });
+});
+
+describe("tileRenderLayer", () => {
+  const below = new Container();
+  const above = new Container();
+
+  it("routes each tileset priority to the same world layer the editor uses", () => {
+    expect(tileRenderLayer("below", below, above)).toBe(below);
+    expect(tileRenderLayer("above", below, above)).toBe(above);
   });
 });

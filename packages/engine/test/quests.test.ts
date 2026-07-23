@@ -204,6 +204,14 @@ describe("shared quest validation", () => {
       [MAP_A, new Set([EVENT_A, EVENT_B])],
       [MAP_B, new Set<string>()],
     ]),
+    monsterSpeciesByMap: new Map([
+      [MAP_A, new Set(["spear_goblin"] as const)],
+      [MAP_B, new Set<"spear_goblin">()],
+    ]),
+    monsterEventIdsByMap: new Map([
+      [MAP_A, new Set([EVENT_A])],
+      [MAP_B, new Set<string>()],
+    ]),
     areaIdsByMap: new Map([
       [MAP_A, new Set(["village_square"])],
       [MAP_B, new Set<string>()],
@@ -250,6 +258,34 @@ describe("shared quest validation", () => {
     });
     expect(validateAuthoredQuests([areaQuest], context).map(({ code }) => code)).toContain(
       "quest.objective.area_missing",
+    );
+  });
+
+  it("rejects kill targets that cannot exist on their authored maps", () => {
+    const missingSpecies = quest({
+      objectives: [
+        {
+          ...objectiveOfType("kill"),
+          mapScope: { kind: "maps", mapIds: [MAP_B] },
+        },
+      ],
+      rewards: { ...quest().rewards, choices: [], customCommands: [] },
+    });
+    const nonMonsterTarget = quest({
+      objectives: [
+        {
+          ...objectiveOfType("defeat-target"),
+          targetRef: { mapId: MAP_A, eventId: EVENT_B },
+        },
+      ],
+      rewards: { ...quest().rewards, choices: [], customCommands: [] },
+    });
+
+    expect(validateAuthoredQuests([missingSpecies], context).map(({ code }) => code)).toContain(
+      "quest.objective.monster_missing",
+    );
+    expect(validateAuthoredQuests([nonMonsterTarget], context).map(({ code }) => code)).toContain(
+      "quest.objective.target_not_monster",
     );
   });
 
