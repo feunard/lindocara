@@ -160,11 +160,8 @@ interface UiState {
     | "continue"
     | "join"
     | "credits"
-    | "hero"
     | "game"
-    | "adventure-editor"
-    | "characters"
-    | "party";
+    | "adventure-editor";
   accountId: string | null;
   activeParty: PartyListing | null;
   adventureEditorSession: AdventureEditorSession | null;
@@ -246,11 +243,11 @@ interface UiState {
   setEventDialogue(dialogue: EventDialogue | null): void;
   setQuestDialogue(dialogue: QuestDialogue | null): void;
   setGame(game: GameHandle | null): void;
-  /** Everything a terminal disconnect must clear before character select is usable again: the
+  /** Everything a terminal disconnect must clear before a launch screen is usable again: the
    *  handle, the reconnect banner, and every full-screen overlay flag. Miss one and it survives
-   *  into the next character's session, already open over a world that has not welcomed it. */
-  resetToCharacterSelect(): void;
-  resetToParty(): void;
+   *  into the next hero's session, already open over a world that has not welcomed it. */
+  resetToTitle(): void;
+  resetToSaves(): void;
 }
 
 let eventIdCounter = 0;
@@ -482,15 +479,16 @@ export const useUiStore = create<UiState>((set) => ({
   setEventDialogue: (eventDialogue) => set({ eventDialogue }),
   setQuestDialogue: (questDialogue) => set({ questDialogue }),
   setGame: (game) => set({ game }),
-  resetToCharacterSelect: () =>
+  resetToTitle: () =>
     set({
       ...clearedGameSession(),
-      screen: "characters",
+      screen: "title",
       activeParty: null,
     }),
-  resetToParty: () =>
+  resetToSaves: () =>
     set({
       ...clearedGameSession(),
-      screen: "party",
+      screen: "continue",
+      activeParty: null,
     }),
 }));

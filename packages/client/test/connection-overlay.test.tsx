@@ -43,7 +43,7 @@ describe("ConnectionOverlay", () => {
     const view = render(<ConnectionOverlay />);
     expect(screen.getByText("Reconnecting")).toBeInTheDocument();
     expect(screen.getByText(/2\/4/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Return to characters" }));
+    await userEvent.click(screen.getByRole("button", { name: "Return to saves" }));
     expect(cancelReconnect).toHaveBeenCalledOnce();
 
     useUiStore.setState({ reconnect: { kind: "transition", attempt: 0, cancelReconnect } });

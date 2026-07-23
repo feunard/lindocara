@@ -108,7 +108,7 @@ describe("SettingsMenu", () => {
       },
     });
     render(<SettingsMenu inGame />);
-    await userEvent.click(screen.getByRole("button", { name: "Switch character" }));
+    await userEvent.click(screen.getByRole("button", { name: "Return to saves" }));
     await userEvent.click(screen.getByRole("button", { name: "Log out" }));
     expect(switchCharacter).toHaveBeenCalledOnce();
     expect(logout).toHaveBeenCalledOnce();

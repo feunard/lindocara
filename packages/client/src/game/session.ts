@@ -593,11 +593,10 @@ async function startGameIdentity(
     // world that has not sent it a welcome yet.
     const store = useUiStore.getState();
     if (store.adventureTestSession) {
-      store.resetToParty();
-      store.setActiveParty(null);
+      store.resetToSaves();
       store.setScreen("adventure-editor");
-    } else if (persistentParty) store.resetToParty();
-    else store.resetToCharacterSelect();
+    } else if (persistentParty) store.resetToSaves();
+    else store.resetToTitle();
     setStatus("status.disconnected", { reason: t(key) });
   };
   stopSession = () => {
@@ -982,11 +981,10 @@ async function launchGameIdentity(
       stopActiveSession = null;
       const store = useUiStore.getState();
       if (store.adventureTestSession) {
-        store.resetToParty();
-        store.setActiveParty(null);
+        store.resetToSaves();
         store.setScreen("adventure-editor");
-      } else if (persistentParty) store.resetToParty();
-      else store.resetToCharacterSelect();
+      } else if (persistentParty) store.resetToSaves();
+      else store.resetToTitle();
     }
     throw error;
   }

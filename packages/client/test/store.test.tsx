@@ -9,8 +9,8 @@ describe("launch navigation state", () => {
   it("navigates between launch screens", () => {
     useUiStore.getState().setScreen("title");
     expect(useUiStore.getState().screen).toBe("title");
-    useUiStore.getState().setScreen("party");
-    expect(useUiStore.getState().screen).toBe("party");
+    useUiStore.getState().setScreen("continue");
+    expect(useUiStore.getState().screen).toBe("continue");
   });
 
   it("tracks the account id and the active party", () => {
@@ -55,7 +55,7 @@ describe("ui store", () => {
     expect(state.chat.find((line) => line.channel === "system")?.text).toBe("event 0");
   });
 
-  it("resetToCharacterSelect clears the game handle, reconnect banner, and every overlay flag", () => {
+  it("resetToTitle clears the game handle, reconnect banner, and every overlay flag", () => {
     useUiStore.setState({
       game: {
         attack: () => {},
@@ -117,13 +117,13 @@ describe("ui store", () => {
       worldSize: { width: 100, height: 200 },
     });
 
-    useUiStore.getState().resetToCharacterSelect();
+    useUiStore.getState().resetToTitle();
 
     const state = useUiStore.getState();
     expect(state.game).toBeNull();
     expect(state.reconnect).toBeNull();
     expect(state.heroLoading).toBeNull();
-    expect(state.screen).toBe("characters");
+    expect(state.screen).toBe("title");
     expect(state.mapOpen).toBe(false);
     expect(state.talentsOpen).toBe(false);
     expect(state.inventoryOpen).toBe(false);
@@ -146,7 +146,7 @@ describe("ui store", () => {
     expect(state.worldSize).toBeNull();
   });
 
-  it("resetToParty clears the session but preserves the selected save", () => {
+  it("resetToSaves clears the session and returns to the resumable save list", () => {
     const activeParty = {
       id: "p1",
       name: "Save",
@@ -174,10 +174,10 @@ describe("ui store", () => {
       },
     });
 
-    useUiStore.getState().resetToParty();
+    useUiStore.getState().resetToSaves();
 
-    expect(useUiStore.getState().screen).toBe("party");
-    expect(useUiStore.getState().activeParty).toBe(activeParty);
+    expect(useUiStore.getState().screen).toBe("continue");
+    expect(useUiStore.getState().activeParty).toBeNull();
     expect(useUiStore.getState().events).toEqual([]);
     expect(useUiStore.getState().chat).toEqual([]);
     expect(useUiStore.getState().selfState).toBeNull();
