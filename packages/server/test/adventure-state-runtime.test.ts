@@ -17,6 +17,7 @@ import {
   createManualQuestObjective,
   type PartyAdventureState,
 } from "@lindocara/engine/adventure-state.js";
+import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import { ATTACK_COOLDOWN_MS } from "@lindocara/engine/game.js";
 import type { MapEvent, MapEventPage } from "@lindocara/engine/map-events.js";
 import type { QuestBusinessEvent } from "@lindocara/engine/quest-runtime.js";
@@ -609,6 +610,319 @@ describe("adventure state runtime", { timeout: 20_000 }, () => {
         : undefined,
     );
     expect(restored?.self.inventory).toMatchObject({ gold: 7, potions: 2 });
+  });
+
+  it("completes the full kill-ten lifecycle across a real map handoff and rewards once", {
+    timeout: 30_000,
+  }, async () => {
+    const giverId = crypto.randomUUID();
+    const turnInId = crypto.randomUUID();
+    const giver: MapEvent = {
+      id: giverId,
+      col: 4,
+      row: 5,
+      name: "Capitaine Mira",
+      ordinal: 0,
+      kind: "normal",
+      species: null,
+      patrolRadius: null,
+      pages: [
+        page({
+          graphicAssetId: "character.units-blue-units-pawn.pawn-idle",
+          commands: [],
+        }),
+      ],
+    };
+    const turnInTarget: MapEvent = {
+      id: turnInId,
+      col: 3,
+      row: 3,
+      name: "Éclaireuse Nara",
+      ordinal: 0,
+      kind: "normal",
+      species: null,
+      patrolRadius: null,
+      pages: [
+        page({
+          graphicAssetId: "character.units-yellow-units-pawn.pawn-idle",
+          commands: [],
+        }),
+      ],
+    };
+    const fiveGoblinSpawns = (col: number, row: number) =>
+      Array.from({ length: 5 }, (_, index) => ({
+        col: col + index,
+        row,
+        species: "spear_goblin" as const,
+        patrolRadius: 32,
+      }));
+    const party = await testParty("kill-ten-complete", {
+      maps: [
+        testMapInput("Route des lances", {
+          cols: 20,
+          rows: 15,
+          spawn: { col: 2, row: 5 },
+          exit: { col: 11, row: 5 },
+          monsterSpawns: fiveGoblinSpawns(5, 5),
+          events: [giver],
+        }),
+        testMapInput("Avant-poste", {
+          cols: 20,
+          rows: 15,
+          spawn: { col: 2, row: 3 },
+          exit: { col: 18, row: 13 },
+          monsterSpawns: fiveGoblinSpawns(4, 3),
+          events: [turnInTarget],
+        }),
+      ],
+    });
+    const [mapA, mapB] = party.mapIds;
+    if (!mapA || !mapB) throw new Error("expected two quest maps");
+    await seedAdventureRegistry(party.adventureId, {
+      switches: [],
+      variables: [],
+      quests: [
+        {
+          ...createAuthoredQuestDefinition("0001", "Dix gobelins à lance"),
+          description: "Sécuriser la route et l’avant-poste.",
+          journalSummary: "Éliminer dix gobelins à lance.",
+          giver: { mapId: mapA, eventId: giverId },
+          turnInTarget: { mapId: mapB, eventId: turnInId },
+          objectives: [
+            {
+              id: "0001",
+              type: "kill",
+              label: "",
+              target: 10,
+              optional: false,
+              hidden: false,
+              stage: 0,
+              species: "spear_goblin",
+              mapScope: { kind: "maps", mapIds: [mapA, mapB] },
+              credit: "contributors",
+            },
+          ],
+          rewards: {
+            experience: 60,
+            gold: 17,
+            items: [{ itemId: "mana_potion", quantity: 2 }],
+            choices: [],
+            nextQuestId: null,
+            stateChanges: [],
+            customCommands: [],
+          },
+          dialogues: {
+            offer: "Éliminez dix gobelins à lance.",
+            accepted: "La route vous attend.",
+            refused: "Revenez si vous changez d’avis.",
+            reminder: "Il reste des gobelins.",
+            ready: "La route est sûre.",
+            turnIn: "L’avant-poste vous remercie.",
+            completed: "Votre victoire restera dans les mémoires.",
+            unavailable: "",
+          },
+        },
+      ],
+    });
+    const hero = await testHero("DixLances", {
+      party,
+      account: party.host,
+      class: "ranger",
+      level: 20,
+      position: tileCentre(4, 5),
+    });
+    const source = await Client.joinHero(hero);
+    const sourceWelcome = await until("kill-ten giver welcome", () => source.welcome);
+    expect(sourceWelcome.world.zoneId).toBe(mapA);
+    expect(sourceWelcome.monsters).toHaveLength(5);
+    expect(sourceWelcome.self.authoredQuestMarkers).toEqual([
+      { eventId: giverId, kind: "available" },
+    ]);
+
+    source.action("interact");
+    const offer = await until("kill-ten offer", () =>
+      source.received.find(
+        (message) =>
+          message.t === "quest.open" &&
+          message.entries.some(
+            (entry) => entry.questId === "0001" && entry.phase === "offer" && entry.canAccept,
+          ),
+      ),
+    );
+    if (offer?.t !== "quest.open") throw new Error("missing kill-ten offer");
+    source.sendRaw(
+      JSON.stringify({
+        t: "quest.action",
+        conversationId: offer.conversationId,
+        questId: "0001",
+        action: "accept",
+      }),
+    );
+    await until("kill-ten accepted", () =>
+      source.received.find(
+        (message) => message.t === "quest.result" && message.outcome === "accepted",
+      ),
+    );
+
+    source.press("right");
+    await scheduler.wait(80);
+    source.release();
+    let sourceLastAttack = 0;
+    await until(
+      "five real goblins defeated on the first map",
+      () => {
+        if (Date.now() - sourceLastAttack >= ATTACK_COOLDOWN_MS) {
+          sourceLastAttack = Date.now();
+          source.action("attack");
+        }
+        const latest = source.latestState?.authoredQuests?.[0];
+        return latest?.objectives[0]?.progress === 5 ? latest : undefined;
+      },
+      8_000,
+    );
+    expect(
+      source.received.filter(
+        (message) => message.t === "event" && message.code === "monster.defeated",
+      ),
+    ).toHaveLength(5);
+
+    source.press("right");
+    const transition = await until(
+      "kill-ten authoritative map transition",
+      () => source.closeInfo ?? undefined,
+      8_000,
+    );
+    expect(transition.code).toBe(WS_CLOSE.ZONE_TRANSITION);
+    const destination = await Client.joinHero(hero);
+    const destinationWelcome = await until("kill-ten destination welcome", () =>
+      destination.welcome?.world.zoneId === mapB ? destination.welcome : undefined,
+    );
+    expect(destinationWelcome.monsters).toHaveLength(5);
+    expect(destinationWelcome.self.authoredQuests?.[0]).toMatchObject({
+      id: "0001",
+      status: "active",
+      objectives: [{ id: "0001", progress: 5, target: 10 }],
+    });
+
+    destination.press("right");
+    await scheduler.wait(80);
+    destination.release();
+    let destinationLastAttack = 0;
+    const ready = await until(
+      "five real goblins defeated on the second map",
+      () => {
+        if (Date.now() - destinationLastAttack >= ATTACK_COOLDOWN_MS) {
+          destinationLastAttack = Date.now();
+          destination.action("attack");
+        }
+        const latest = destination.latestState?.authoredQuests?.[0];
+        return latest?.status === "ready" && latest.objectives[0]?.progress === 10
+          ? latest
+          : undefined;
+      },
+      8_000,
+    );
+    expect(ready.objectives[0]).toMatchObject({ progress: 10, target: 10 });
+    expect(destination.latestState?.authoredQuestMarkers).toEqual([
+      { eventId: turnInId, kind: "ready" },
+    ]);
+    // Loot is intentionally random. Let nearby pickups settle, then prove the authored reward is
+    // an exact delta over whatever the ten real kills produced rather than asserting a lucky seed.
+    await scheduler.wait(150);
+    const rewardBaseline = destination.latestState;
+    if (!rewardBaseline) throw new Error("missing pre-reward hero state");
+
+    destination.action("interact");
+    const turnIn = await until("kill-ten turn-in dialogue", () =>
+      destination.received.find(
+        (message) =>
+          message.t === "quest.open" &&
+          message.entries.some(
+            (entry) => entry.questId === "0001" && entry.phase === "ready" && entry.canTurnIn,
+          ),
+      ),
+    );
+    if (turnIn?.t !== "quest.open") throw new Error("missing kill-ten turn-in");
+    const turnInIntent = {
+      t: "quest.action",
+      conversationId: turnIn.conversationId,
+      questId: "0001",
+      action: "turn-in",
+    };
+    destination.sendRaw(JSON.stringify(turnInIntent));
+    await until("kill-ten reward notification", () =>
+      destination.received.find(
+        (message) =>
+          message.t === "event" &&
+          message.code === "authored_quest.reward" &&
+          message.params?.experience === 60 &&
+          message.params?.gold === 17 &&
+          message.params?.items === 2,
+      ),
+    );
+    await until("kill-ten reward reflected in authoritative state", () => {
+      const state = destination.latestState;
+      return state?.inventory.gold === rewardBaseline.inventory.gold + 17 &&
+        state.xp === rewardBaseline.xp + 60
+        ? state
+        : undefined;
+    });
+    destination.sendRaw(JSON.stringify(turnInIntent));
+    await scheduler.wait(150);
+
+    const claim = await env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM authored_quest_reward_claim WHERE recipient_hero_id = ? AND quest_id = '0001'",
+    )
+      .bind(hero.heroId)
+      .first<{ count: number }>();
+    expect(claim?.count).toBe(1);
+    expect(
+      destination.received.filter(
+        (message) => message.t === "event" && message.code === "authored_quest.reward",
+      ),
+    ).toHaveLength(1);
+    expect(
+      await env.DB.prepare("SELECT level, xp, gold, map_id FROM hero WHERE id = ?")
+        .bind(hero.heroId)
+        .first(),
+    ).toEqual({
+      level: 20,
+      xp: rewardBaseline.xp + 60,
+      gold: rewardBaseline.inventory.gold + 17,
+      map_id: mapB,
+    });
+    expect(
+      await env.DB.prepare(
+        "SELECT quantity FROM hero_item WHERE hero_id = ? AND item_definition_id = 'mana_potion'",
+      )
+        .bind(hero.heroId)
+        .first(),
+    ).toEqual({ quantity: 2 });
+    expect(
+      (await env.GAME_SESSION.getByName(party.partyId).getAdventureState(party.partyId)).state,
+    ).toMatchObject({
+      quests: {
+        "0001": {
+          status: "completed",
+          objectives: { "0001": 10 },
+          rewardClaimed: true,
+          completionCount: 1,
+        },
+      },
+    });
+
+    destination.close();
+    const reconnected = await Client.joinHero(hero);
+    const restored = await until("kill-ten completion restored", () =>
+      reconnected.welcome?.self.authoredQuests?.[0]?.status === "completed"
+        ? reconnected.welcome
+        : undefined,
+    );
+    expect(restored?.self.authoredQuests?.[0]?.objectives[0]).toMatchObject({
+      progress: 10,
+      target: 10,
+    });
+    expect(restored?.self.inventory).toMatchObject({ gold: rewardBaseline.inventory.gold + 17 });
   });
 
   it("claims an automatic interaction reward once without an advanceQuest command", async () => {
