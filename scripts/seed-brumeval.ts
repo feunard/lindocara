@@ -16,7 +16,15 @@ import { CONSUMABLE_IDS } from "@lindocara/engine/consumables.js";
 import type { EventCommand } from "@lindocara/engine/event-commands.js";
 import { isWalkable } from "@lindocara/engine/game.js";
 import type { MonsterSpecies } from "@lindocara/engine/game.js";
-import { parseMapData, terrainFromMap } from "@lindocara/engine/map-data.js";
+import {
+  bakeCollision,
+  canPlaceElement,
+  elementFitsMap,
+  elementPlacementCells,
+  parseMapData,
+  terrainFromMap,
+} from "@lindocara/engine/map-data.js";
+import { kindAt } from "@lindocara/engine/tilemap.js";
 import { type MapEvent, eventCellCentre, parseMapEvents } from "@lindocara/engine/map-events.js";
 import {
   collectQuestCommandBindings,
@@ -102,6 +110,21 @@ function validateMapLocally(map: MapContent): string[] {
   if (!events) {
     problems.push(`${map.key}: parseMapEvents rejected the events`);
     return problems;
+  }
+  const ground = bakeCollision({ ...data, elements: [] });
+  for (const element of data.elements) {
+    if (!elementFitsMap(element, ground.cols, ground.rows)) {
+      problems.push(`${map.key}: ${element.assetId} at (${element.col},${element.row}) exceeds bounds`);
+      continue;
+    }
+    for (const cell of elementPlacementCells(element)) {
+      const under = kindAt(ground, cell.col, cell.row);
+      if (!canPlaceElement(element.assetId, under)) {
+        problems.push(
+          `${map.key}: ${element.assetId} at (${element.col},${element.row}) cannot stand on ${under}`,
+        );
+      }
+    }
   }
   const terrain = terrainFromMap(data);
   const walkabilityChecks: { label: string; col: number; row: number }[] = [

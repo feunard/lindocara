@@ -185,8 +185,8 @@ export function buildAbbaye(): { content: MapContent; refs: Pick<BrumevalRefs, "
       [17, 19, 21, 23, 25].map((col) => element("decoration.terrain-decorations-bushes.bushe2", col, row)),
     ),
     // Tree line along the north and scattered accents.
-    element("resource.terrain-resources-wood-trees.tree1", 13, 2),
-    element("resource.terrain-resources-wood-trees.tree2", 16, 2),
+    element("resource.terrain-resources-wood-trees.tree1", 13, 3),
+    element("resource.terrain-resources-wood-trees.tree2", 16, 3),
     element("resource.terrain-resources-wood-trees.tree3", 2, 14),
     element("resource.terrain-resources-wood-trees.tree1", 25, 15),
     element("decoration.terrain-decorations-rocks.rock1", 7, 13),
