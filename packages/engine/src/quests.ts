@@ -820,6 +820,12 @@ export function validateAuthoredQuests(
         add("error", "quest.next.missing", quest.id, undefined, quest.rewards.nextQuestId);
       }
     }
+    if (quest.completion === "automatic" && quest.rewards.choices.length > 0) {
+      add("error", "quest.reward.choices_require_turn_in", quest.id);
+    }
+    if (quest.completion === "automatic" && quest.rewards.customCommands.length > 0) {
+      add("error", "quest.reward.commands_require_turn_in", quest.id);
+    }
     for (const condition of quest.prerequisites.conditions) {
       if (
         condition.type === "switch" &&

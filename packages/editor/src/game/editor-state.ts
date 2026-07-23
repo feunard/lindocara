@@ -406,6 +406,16 @@ export interface ElementEventBinding {
   commands: readonly MapEventPage["commands"][number][];
   /** One-shot objects (chests/loot) switch to an empty second page after their first run. */
   once?: boolean;
+  /** Editor-only linkage applied to the adventure registry after this event receives its id. */
+  questBinding?:
+    | { readonly kind: "giver"; readonly questId: string }
+    | { readonly kind: "turn-in"; readonly questId: string }
+    | {
+        readonly kind: "objective";
+        readonly questId: string;
+        readonly objectiveId: string;
+        readonly interaction: "talk" | "interact";
+      };
 }
 
 /** Promote scenery into a stable scripted event while preserving its cell and catalogue graphic. */

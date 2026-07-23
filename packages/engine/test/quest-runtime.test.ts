@@ -1,14 +1,19 @@
 import { EMPTY_ADVENTURE_STATE } from "@lindocara/engine/adventure-state.js";
 import {
   applyQuestBusinessEvent,
+  authoredQuestRuntimeState,
+  buildQuestInteractionIndex,
   buildQuestObjectiveIndex,
   completedQuestIds,
   createAuthoredQuestProgress,
+  createAuthoredQuestProgressForAcceptance,
   type QuestActor,
   type QuestBusinessEvent,
   questEventActors,
+  questMarkerForTarget,
   questObjectiveCandidates,
   questPrerequisitesHold,
+  questTargetCandidates,
 } from "@lindocara/engine/quest-runtime.js";
 import {
   type AuthoredQuestDefinition,
@@ -211,6 +216,69 @@ describe("automatic progress", () => {
     };
     const result = applyQuestBusinessEvent(definition, ready, removed, ["0001"]);
     expect(result.progress).toMatchObject({ status: "active", objectives: { "0001": 2 } });
+  });
+
+  it("observes held inventory on acceptance without crediting acquisition objectives", () => {
+    const definition = killQuest({
+      objectives: [
+        {
+          id: "0001",
+          type: "deliver",
+          label: "",
+          target: 2,
+          optional: false,
+          hidden: false,
+          stage: 0,
+          itemId: "health_potion",
+          consume: true,
+        },
+        {
+          id: "0002",
+          type: "collect",
+          label: "",
+          target: 2,
+          optional: true,
+          hidden: false,
+          stage: 0,
+          itemId: "health_potion",
+          counting: "acquired",
+        },
+      ],
+    });
+    expect(
+      createAuthoredQuestProgressForAcceptance(definition, { health_potion: 3 }),
+    ).toMatchObject({
+      status: "ready",
+      objectives: { "0001": 2 },
+      completionCount: 0,
+    });
+  });
+
+  it("pins an inventory-complete automatic acceptance to a single reward attempt", () => {
+    const definition = killQuest({
+      completion: "automatic",
+      objectives: [
+        {
+          id: "0001",
+          type: "collect",
+          label: "",
+          target: 1,
+          optional: false,
+          hidden: false,
+          stage: 0,
+          itemId: "health_potion",
+          counting: "inventory",
+        },
+      ],
+    });
+    expect(
+      createAuthoredQuestProgressForAcceptance(definition, { health_potion: 1 }, 4),
+    ).toMatchObject({
+      status: "completed",
+      objectives: { "0001": 1 },
+      completionCount: 5,
+      rewardClaimed: false,
+    });
   });
 
   it("unlocks only the current stage of a sequential quest", () => {
@@ -472,5 +540,56 @@ describe("credit and prerequisites", () => {
     expect(questObjectiveCandidates(buildQuestObjectiveIndex([definition]), killEvent())).toEqual(
       [],
     );
+  });
+});
+
+describe("quest giver and turn-in bindings", () => {
+  const giver = { mapId: MAP_A, eventId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" };
+  const turnIn = { mapId: MAP_B, eventId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc" };
+  const context = {
+    level: alice.level,
+    completedQuestIds: new Set<string>(),
+    adventureState: EMPTY_ADVENTURE_STATE,
+  };
+
+  it("indexes bound targets and derives classic marker priority states", () => {
+    const definition = killQuest({ acceptance: "manual", giver, turnInTarget: turnIn });
+    const index = buildQuestInteractionIndex([definition]);
+    const giverCandidate = questTargetCandidates(index, giver)[0];
+    const turnInCandidate = questTargetCandidates(index, turnIn)[0];
+    expect(giverCandidate?.role).toBe("giver");
+    expect(turnInCandidate?.role).toBe("turn-in");
+    expect(
+      giverCandidate &&
+        questMarkerForTarget(
+          giverCandidate,
+          authoredQuestRuntimeState(definition, undefined, context),
+        ),
+    ).toBe("available");
+
+    const active = createAuthoredQuestProgress(definition);
+    expect(
+      turnInCandidate &&
+        questMarkerForTarget(
+          turnInCandidate,
+          authoredQuestRuntimeState(definition, active, context),
+        ),
+    ).toBe("active");
+    const ready = { ...active, objectives: { "0001": 10 } };
+    expect(authoredQuestRuntimeState(definition, ready, context)).toBe("ready");
+    expect(turnInCandidate && questMarkerForTarget(turnInCandidate, "ready")).toBe("ready");
+  });
+
+  it("keeps unavailable and completed non-repeatable quests marker-free", () => {
+    const locked = killQuest({
+      acceptance: "manual",
+      giver,
+      prerequisites: { minLevel: 99, previousQuestId: null, mode: "all", conditions: [] },
+    });
+    const candidate = questTargetCandidates(buildQuestInteractionIndex([locked]), giver)[0];
+    expect(authoredQuestRuntimeState(locked, undefined, context)).toBe("unavailable");
+    expect(candidate && questMarkerForTarget(candidate, "unavailable")).toBeNull();
+    const complete = { ...createAuthoredQuestProgress(locked), status: "completed" as const };
+    expect(authoredQuestRuntimeState(locked, complete, context)).toBe("completed");
   });
 });

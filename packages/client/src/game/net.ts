@@ -97,6 +97,12 @@ export interface Connection {
   /** Turn the current say page — the two dialogue intents (spec Decision 4). */
   eventAdvance(runId: string): void;
   eventChoose(runId: string, index: number): void;
+  questAction(
+    conversationId: string,
+    action: "accept" | "refuse" | "turn-in" | "close",
+    questId?: string,
+    rewardChoiceId?: string,
+  ): void;
   close(): void;
 }
 
@@ -113,6 +119,18 @@ export interface ConnectionHandlers {
   onEventSay(runId: string, text: string, name?: string): void;
   onEventChoices(runId: string, prompt: string, options: string[]): void;
   onEventClose(runId: string): void;
+  onQuestOpen(
+    conversationId: string,
+    entries: import("@lindocara/engine/protocol.js").QuestDialogueEntry[],
+  ): void;
+  onQuestResult(
+    conversationId: string,
+    questId: string,
+    title: string,
+    text: string,
+    outcome: "accepted" | "refused" | "completed" | "failed",
+  ): void;
+  onQuestClose(conversationId: string): void;
   onEvent(
     code: EventCode,
     params: EventParams | undefined,
@@ -233,6 +251,14 @@ export class WorldClient {
       partyDissolve: () => this.#send({ t: "party.dissolve" }),
       eventAdvance: (runId) => this.#send({ t: "event.advance", runId }),
       eventChoose: (runId, index) => this.#send({ t: "event.choose", runId, index }),
+      questAction: (conversationId, action, questId, rewardChoiceId) =>
+        this.#send({
+          t: "quest.action",
+          conversationId,
+          action,
+          ...(questId === undefined ? {} : { questId }),
+          ...(rewardChoiceId === undefined ? {} : { rewardChoiceId }),
+        }),
       close: () => socket.close(1000, "client left"),
     };
   }
@@ -437,6 +463,24 @@ export class WorldClient {
     }
     if (message.t === "event.close") {
       handlers.onEventClose(message.runId);
+      return;
+    }
+    if (message.t === "quest.open") {
+      handlers.onQuestOpen(message.conversationId, message.entries);
+      return;
+    }
+    if (message.t === "quest.result") {
+      handlers.onQuestResult(
+        message.conversationId,
+        message.questId,
+        message.title,
+        message.text,
+        message.outcome,
+      );
+      return;
+    }
+    if (message.t === "quest.close") {
+      handlers.onQuestClose(message.conversationId);
       return;
     }
     handlers.onEvent(message.code, message.params, message.tone, message.x, message.y);

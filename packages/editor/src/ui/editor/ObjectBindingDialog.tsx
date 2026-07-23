@@ -1,6 +1,7 @@
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import type { AuthoredQuestDefinition } from "@lindocara/engine/adventure-state.js";
 import type { EventCommand } from "@lindocara/engine/event-commands.js";
+import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import { type EditorAssetId, editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
 import { Button } from "@lindocara/ui/components/button.js";
 import {
@@ -18,9 +19,9 @@ import { EditorAssetPreview } from "./CatalogueAssetPicker.js";
 type BindingKind =
   | "dialogue"
   | "loot"
-  | "quest-start"
-  | "quest-progress"
-  | "quest-complete"
+  | "quest-giver"
+  | "quest-objective"
+  | "quest-turn-in"
   | "custom";
 
 interface ObjectBindingDialogProps {
@@ -45,12 +46,14 @@ export function ObjectBindingDialog({
   const [name, setName] = useState("");
   const [questId, setQuestId] = useState(quests[0]?.id ?? "");
   const selectedQuest = quests.find((quest) => quest.id === questId) ?? quests[0];
-  const [objectiveId, setObjectiveId] = useState(selectedQuest?.objectives[0]?.id ?? "");
+  const interactionObjectives =
+    selectedQuest?.objectives.filter((objective) => objective.type === "interact") ?? [];
+  const [objectiveId, setObjectiveId] = useState(interactionObjectives[0]?.id ?? "");
   const [amount, setAmount] = useState(1);
   const asset = editorAsset(assetId);
   const questBinding = kind.startsWith("quest-");
   const canBind =
-    !questBinding || Boolean(selectedQuest && (kind !== "quest-progress" || objectiveId));
+    !questBinding || Boolean(selectedQuest && (kind !== "quest-objective" || objectiveId));
 
   const bind = (): void => {
     const commands: EventCommand[] = [];
@@ -60,27 +63,26 @@ export function ObjectBindingDialog({
       commands.push({ t: "say", name: null, text: "" }, { t: "changeGold", amount });
       once = true;
     }
-    if (kind === "quest-start" && selectedQuest) {
-      commands.push(
-        { t: "say", name: name || null, text: "" },
-        { t: "startQuest", questId: selectedQuest.id },
-      );
-    }
-    if (kind === "quest-progress" && selectedQuest && objectiveId) {
-      commands.push({
-        t: "advanceQuest",
-        questId: selectedQuest.id,
-        objectiveId,
-        amount,
-      });
-    }
-    if (kind === "quest-complete" && selectedQuest) {
-      commands.push(
-        { t: "say", name: name || null, text: "" },
-        { t: "completeQuest", questId: selectedQuest.id },
-      );
-    }
-    onBind({ name: name.trim(), commands, once });
+    const questLink =
+      kind === "quest-giver" && selectedQuest
+        ? ({ kind: "giver", questId: selectedQuest.id } as const)
+        : kind === "quest-turn-in" && selectedQuest
+          ? ({ kind: "turn-in", questId: selectedQuest.id } as const)
+          : kind === "quest-objective" && selectedQuest && objectiveId
+            ? ({
+                kind: "objective",
+                questId: selectedQuest.id,
+                objectiveId,
+                interaction:
+                  asset?.domain === "character" ? ("talk" as const) : ("interact" as const),
+              } as const)
+            : undefined;
+    onBind({
+      name: name.trim(),
+      commands,
+      once,
+      ...(questLink ? { questBinding: questLink } : {}),
+    });
   };
 
   return (
@@ -105,9 +107,9 @@ export function ObjectBindingDialog({
             [
               "dialogue",
               "loot",
-              "quest-start",
-              "quest-progress",
-              "quest-complete",
+              "quest-giver",
+              "quest-objective",
+              "quest-turn-in",
               "custom",
             ] as const
           ).map((option) => (
@@ -125,7 +127,7 @@ export function ObjectBindingDialog({
             </button>
           ))}
         </div>
-        {(kind === "dialogue" || kind === "quest-start" || kind === "quest-complete") && (
+        {(kind === "dialogue" || kind === "quest-giver" || kind === "quest-turn-in") && (
           <Input
             aria-label={t("editor.binding.name")}
             placeholder={t("editor.binding.name")}
@@ -152,7 +154,9 @@ export function ObjectBindingDialog({
                     const id = event.currentTarget.value;
                     setQuestId(id);
                     setObjectiveId(
-                      quests.find((quest) => quest.id === id)?.objectives[0]?.id ?? "",
+                      quests
+                        .find((quest) => quest.id === id)
+                        ?.objectives.find((objective) => objective.type === "interact")?.id ?? "",
                     );
                   }}
                 >
@@ -162,16 +166,17 @@ export function ObjectBindingDialog({
                     </option>
                   ))}
                 </select>
-                {kind === "quest-progress" && (
+                {kind === "quest-objective" && (
                   <select
                     aria-label={t("editor.event.cmd.field.objective")}
                     className="h-8 rounded-md border border-input bg-white px-2 text-xs"
                     value={objectiveId}
                     onChange={(event) => setObjectiveId(event.currentTarget.value)}
                   >
-                    {selectedQuest?.objectives.map((objective) => (
+                    {interactionObjectives.map((objective) => (
                       <option key={objective.id} value={objective.id}>
-                        {objective.label || objective.id}
+                        {objective.label ||
+                          t(`editor.quest.objective.type.${objective.type}` as MessageKey)}
                       </option>
                     ))}
                   </select>
@@ -180,13 +185,11 @@ export function ObjectBindingDialog({
             )}
           </div>
         )}
-        {(kind === "loot" || kind === "quest-progress") && (
+        {kind === "loot" && (
           <Input
             type="number"
             min={1}
-            aria-label={
-              kind === "loot" ? t("editor.binding.gold") : t("editor.event.cmd.field.amount")
-            }
+            aria-label={t("editor.binding.gold")}
             value={amount}
             onChange={(event) =>
               setAmount(Math.max(1, Math.trunc(Number(event.currentTarget.value) || 1)))

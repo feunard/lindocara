@@ -9,6 +9,7 @@ import type {
   AuthoredQuestObjective,
   QuestCreditRule,
   QuestEventReference,
+  QuestRuntimeState,
 } from "./quests.js";
 import { MAX_QUEST_PROCESSED_EVENT_KEYS, requiredQuestObjectivesComplete } from "./quests.js";
 
@@ -106,8 +107,74 @@ export interface QuestObjectiveIndex {
   readonly activityById: ReadonlyMap<string, readonly QuestObjectiveReference[]>;
 }
 
+export interface QuestInteractionIndex {
+  readonly definitions: ReadonlyMap<string, AuthoredQuestDefinition>;
+  readonly giverByEvent: ReadonlyMap<string, readonly string[]>;
+  readonly turnInByEvent: ReadonlyMap<string, readonly string[]>;
+}
+
+export type QuestMarkerKind = "available" | "active" | "ready";
+
+export interface QuestTargetCandidate {
+  readonly definition: AuthoredQuestDefinition;
+  readonly role: "giver" | "turn-in";
+}
+
 function eventKey(reference: QuestEventReference): string {
   return `${reference.mapId}:${reference.eventId}`;
+}
+
+function addQuestId(
+  index: Map<string, string[]>,
+  reference: QuestEventReference,
+  id: string,
+): void {
+  const key = eventKey(reference);
+  const current = index.get(key);
+  if (current) current.push(id);
+  else index.set(key, [id]);
+}
+
+/** Build once with the adventure registry, beside the objective index. */
+export function buildQuestInteractionIndex(
+  definitions: readonly AuthoredQuestDefinition[],
+): QuestInteractionIndex {
+  const giverByEvent = new Map<string, string[]>();
+  const turnInByEvent = new Map<string, string[]>();
+  for (const definition of definitions) {
+    if (definition.giver) addQuestId(giverByEvent, definition.giver, definition.id);
+    if (definition.turnInTarget) {
+      addQuestId(turnInByEvent, definition.turnInTarget, definition.id);
+    }
+  }
+  return {
+    definitions: new Map(definitions.map((definition) => [definition.id, definition])),
+    giverByEvent,
+    turnInByEvent,
+  };
+}
+
+/** O(quests bound to this event), preserving authored order and both roles on a shared target. */
+export function questTargetCandidates(
+  index: QuestInteractionIndex,
+  reference: QuestEventReference,
+): QuestTargetCandidate[] {
+  const key = eventKey(reference);
+  const candidates: QuestTargetCandidate[] = [];
+  const seen = new Set<string>();
+  for (const [role, ids] of [
+    ["turn-in", index.turnInByEvent.get(key)],
+    ["giver", index.giverByEvent.get(key)],
+  ] as const) {
+    for (const id of ids ?? []) {
+      const identity = `${role}:${id}`;
+      if (seen.has(identity)) continue;
+      seen.add(identity);
+      const definition = index.definitions.get(id);
+      if (definition) candidates.push({ definition, role });
+    }
+  }
+  return candidates;
 }
 
 function areaKey(mapId: string, areaId: string): string {
@@ -380,6 +447,39 @@ export function createAuthoredQuestProgress(
   };
 }
 
+/**
+ * Create accepted progress while observing inventory-backed objectives immediately. Holding an
+ * item is already an authoritative fact when the quest is accepted; requiring a later pickup just
+ * to refresh that fact would make collection and delivery objectives appear broken.
+ */
+export function createAuthoredQuestProgressForAcceptance(
+  definition: AuthoredQuestDefinition,
+  inventory: Readonly<Record<string, number>>,
+  completionCount = 0,
+): AuthoredQuestProgress {
+  const objectives: Record<string, number> = {};
+  for (const objective of definition.objectives) {
+    if (
+      (objective.type === "collect" && objective.counting === "inventory") ||
+      objective.type === "deliver"
+    ) {
+      const quantity = Math.min(
+        objective.target,
+        Math.max(0, Math.floor(inventory[objective.itemId] ?? 0)),
+      );
+      if (quantity > 0) objectives[objective.id] = quantity;
+    }
+  }
+  const complete = requiredQuestObjectivesComplete(definition, objectives);
+  const completedAutomatically = complete && definition.completion === "automatic";
+  return {
+    ...createAuthoredQuestProgress(definition, completionCount),
+    objectives,
+    status: complete ? (completedAutomatically ? "completed" : "ready") : "active",
+    completionCount: completionCount + (completedAutomatically ? 1 : 0),
+  };
+}
+
 function currentSequentialStage(
   definition: AuthoredQuestDefinition,
   progress: Readonly<Record<string, number>>,
@@ -530,6 +630,55 @@ export function questPrerequisitesHold(
     return false;
   });
   return prerequisites.mode === "all" ? values.every(Boolean) : values.some(Boolean);
+}
+
+/** Derive the public quest state without mutating or trusting a client-supplied transition. */
+export function authoredQuestRuntimeState(
+  definition: AuthoredQuestDefinition,
+  progress: AuthoredQuestProgress | undefined,
+  context: QuestPrerequisiteContext,
+): QuestRuntimeState {
+  if (!progress) {
+    return questPrerequisitesHold(definition, context) ? "available" : "unavailable";
+  }
+  if (progress.status === "active" || progress.status === "ready") {
+    return requiredQuestObjectivesComplete(definition, progress.objectives) ? "ready" : "active";
+  }
+  if (
+    (progress.status === "completed" && definition.repeatable) ||
+    progress.status === "abandoned"
+  ) {
+    return questPrerequisitesHold(definition, context) ? "available" : "unavailable";
+  }
+  return progress.status;
+}
+
+/** The classic marker for one binding. Consumers aggregate with `questMarkerPriority`. */
+export function questMarkerForTarget(
+  candidate: QuestTargetCandidate,
+  state: QuestRuntimeState,
+): QuestMarkerKind | null {
+  if (
+    candidate.role === "giver" &&
+    state === "available" &&
+    candidate.definition.acceptance === "manual"
+  ) {
+    return "available";
+  }
+  if (candidate.role === "turn-in" && state === "ready") return "ready";
+  if (
+    state === "active" &&
+    (candidate.role === "giver" || candidate.definition.completion === "turn-in")
+  ) {
+    return "active";
+  }
+  return null;
+}
+
+export function questMarkerPriority(marker: QuestMarkerKind): number {
+  if (marker === "ready") return 3;
+  if (marker === "available") return 2;
+  return 1;
 }
 
 export function completedQuestIds(

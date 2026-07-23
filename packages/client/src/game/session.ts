@@ -322,6 +322,7 @@ async function startGameIdentity(
     const receivedAt = performance.now();
     if (typeof state.serverNow === "number") serverClock.sample(state.serverNow, receivedAt);
     renderState(state);
+    renderer.setAuthoredQuestMarkers(state.authoredQuestMarkers ?? []);
     const deadlines = clientCooldownDeadlines(state.cooldowns, serverClock);
     const store = useUiStore.getState();
     store.setAttackCooldownUntil(deadlines.attackUntil);
@@ -343,6 +344,7 @@ async function startGameIdentity(
       // A reconnect lands a fresh welcome and the server aborted any run this hero triggered on the
       // disconnect, so no run is left to answer the panel — clear it rather than strand a dead panel.
       useUiStore.getState().setEventDialogue(null);
+      useUiStore.getState().setQuestDialogue(null);
       if (!welcomed) {
         useUiStore.getState().setHeroLoading({
           name: identity.name,
@@ -444,6 +446,29 @@ async function startGameIdentity(
     onEventClose: (runId) => {
       const store = useUiStore.getState();
       if (store.eventDialogue?.runId === runId) store.setEventDialogue(null);
+    },
+    onQuestOpen: (conversationId, entries) => {
+      sound.interact();
+      const store = useUiStore.getState();
+      store.setEventDialogue(null);
+      store.setQuestDialogue({ kind: "open", conversationId, entries });
+    },
+    onQuestResult: (conversationId, questId, title, text, outcome) => {
+      const store = useUiStore.getState();
+      if (store.questDialogue?.conversationId !== conversationId) return;
+      store.setQuestDialogue({
+        kind: "result",
+        conversationId,
+        questId,
+        title,
+        text,
+        outcome,
+      });
+      if (outcome === "accepted" || outcome === "completed") sound.loot();
+    },
+    onQuestClose: (conversationId) => {
+      const store = useUiStore.getState();
+      if (store.questDialogue?.conversationId === conversationId) store.setQuestDialogue(null);
     },
     onEvent: (code, params, tone, x, y) => {
       const text = eventText(code, params, currentSelf?.class ?? identity.class);
@@ -660,6 +685,10 @@ async function startGameIdentity(
       input.reset();
       return;
     }
+    if (useUiStore.getState().questDialogue) {
+      input.reset();
+      return;
+    }
     if (interiorOpen()) {
       closeInterior();
       input.reset();
@@ -842,6 +871,8 @@ async function startGameIdentity(
     partyDissolve: () => connection?.partyDissolve(),
     eventAdvance: (runId) => connection?.eventAdvance(runId),
     eventChoose: (runId, index) => connection?.eventChoose(runId, index),
+    questAction: (conversationId, action, questId, rewardChoiceId) =>
+      connection?.questAction(conversationId, action, questId, rewardChoiceId),
     switchCharacter,
     logout: logoutAndReload,
     attachMinimap: (canvas) => {

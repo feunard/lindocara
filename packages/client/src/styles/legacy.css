@@ -1732,6 +1732,43 @@ kbd {
   gap: 0.5rem;
 }
 
+.quest-dialogue {
+  max-height: min(38rem, calc(100vh - 11rem));
+  overflow-y: auto;
+}
+.quest-dialogue__list {
+  display: grid;
+  gap: 0.7rem;
+}
+.quest-dialogue__entry {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.7rem;
+  border: 1px solid rgb(255 230 161 / 20%);
+  border-radius: 0.45rem;
+  background: rgb(0 0 0 / 18%);
+}
+.quest-dialogue__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.quest-dialogue__phase {
+  margin: 0;
+  color: #d6cdb9;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.quest-dialogue__phase--offer,
+.quest-dialogue__phase--ready {
+  color: #ffe271;
+}
+.quest-dialogue__actions {
+  gap: 0.45rem;
+}
+
 .item-overlay.panel {
   position: fixed;
   z-index: 85;

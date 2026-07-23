@@ -9,6 +9,7 @@ import type {
   QuestEventReference,
   QuestValidationContext,
 } from "@lindocara/engine/quests.js";
+import type { ElementEventBinding } from "../../game/editor-state.js";
 
 export type StructuredObjectiveType = Exclude<AuthoredQuestObjective["type"], "manual">;
 
@@ -216,4 +217,44 @@ export function duplicateAuthoredQuest(
       conditions: quest.prerequisites.conditions.map((condition) => ({ ...condition })),
     },
   };
+}
+
+/** Apply the friendly "make interactive" choice once the promoted event owns a stable id. */
+export function bindQuestTarget(
+  registry: AdventureRegistry,
+  binding: ElementEventBinding["questBinding"],
+  reference: QuestEventReference,
+): AdventureRegistry | null {
+  if (!binding) return registry;
+  const quests = registry.quests ?? [];
+  const index = quests.findIndex((quest) => quest.id === binding.questId);
+  const quest = quests[index];
+  if (!quest) return null;
+  let updated: AuthoredQuestDefinition;
+  if (binding.kind === "giver") {
+    updated = { ...quest, version: quest.version + 1, acceptance: "manual", giver: reference };
+  } else if (binding.kind === "turn-in") {
+    updated = {
+      ...quest,
+      version: quest.version + 1,
+      completion: "turn-in",
+      turnInTarget: reference,
+    };
+  } else {
+    const objectiveIndex = quest.objectives.findIndex(
+      (objective) => objective.id === binding.objectiveId && objective.type === "interact",
+    );
+    const objective = quest.objectives[objectiveIndex];
+    if (objective?.type !== "interact") return null;
+    const objectives = [...quest.objectives];
+    objectives[objectiveIndex] = {
+      ...objective,
+      interaction: binding.interaction,
+      targetRef: reference,
+    };
+    updated = { ...quest, version: quest.version + 1, objectives };
+  }
+  const next = [...quests];
+  next[index] = updated;
+  return { ...registry, quests: next };
 }

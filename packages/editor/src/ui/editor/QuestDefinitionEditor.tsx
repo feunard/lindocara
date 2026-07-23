@@ -58,6 +58,8 @@ const DIAGNOSTIC_MESSAGES: Readonly<Record<string, MessageKey>> = {
   "quest.reward.switch_missing": "editor.quest.validation.rewardSwitchMissing",
   "quest.reward.variable_missing": "editor.quest.validation.rewardVariableMissing",
   "quest.reward.item_missing": "editor.quest.validation.rewardItemMissing",
+  "quest.reward.choices_require_turn_in": "editor.quest.validation.rewardChoicesRequireTurnIn",
+  "quest.reward.commands_require_turn_in": "editor.quest.validation.rewardCommandsRequireTurnIn",
   "quest.objectives.stage_gap": "editor.quest.validation.stageGap",
   "quest.objective.map_missing": "editor.quest.validation.objectiveMapMissing",
   "quest.objective.event_missing": "editor.quest.validation.objectiveEventMissing",

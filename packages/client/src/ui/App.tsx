@@ -13,6 +13,7 @@ import { HelpBar } from "./HelpBar.js";
 import { EventDialoguePanel } from "./hud/EventDialoguePanel.js";
 import { Hud } from "./hud/Hud.js";
 import { Minimap } from "./hud/Minimap.js";
+import { QuestDialoguePanel } from "./hud/QuestDialoguePanel.js";
 import { InteriorOverlay } from "./InteriorOverlay.js";
 import { InventoryOverlay } from "./InventoryOverlay.js";
 import { ContinueScreen, JoinScreen, NewGameScreen } from "./LaunchScreens.js";
@@ -123,6 +124,7 @@ export function App() {
           <InventoryOverlay />
           <MerchantOverlay />
           <EventDialoguePanel />
+          <QuestDialoguePanel />
           <WorldMap />
           <TalentTree />
           <MobileControls />

@@ -105,6 +105,9 @@ function handlers(): ConnectionHandlers {
     onEventSay: vi.fn(),
     onEventChoices: vi.fn(),
     onEventClose: vi.fn(),
+    onQuestOpen: vi.fn(),
+    onQuestResult: vi.fn(),
+    onQuestClose: vi.fn(),
     onClose: vi.fn(),
   };
 }

@@ -211,7 +211,27 @@ describe("shared quest validation", () => {
   };
 
   it("accepts a fully-resolved automatic quest", () => {
-    expect(validateAuthoredQuests([quest()], context)).toEqual([]);
+    const automatic = quest({
+      rewards: { ...quest().rewards, choices: [], customCommands: [] },
+    });
+    expect(validateAuthoredQuests([automatic], context)).toEqual([]);
+  });
+
+  it("requires a turn-in interaction for reward choices and advanced commands", () => {
+    const automatic = quest({
+      completion: "automatic",
+      rewards: {
+        ...quest().rewards,
+        choices: [{ id: "0001", label: "Potion", experience: 0, gold: 0, items: [] }],
+        customCommands: [{ t: "say", text: "Bravo", name: null }],
+      },
+    });
+    expect(validateAuthoredQuests([automatic], context).map(({ code }) => code)).toEqual(
+      expect.arrayContaining([
+        "quest.reward.choices_require_turn_in",
+        "quest.reward.commands_require_turn_in",
+      ]),
+    );
   });
 
   it("reports broken references and missing manual acceptance/turn-in routes", () => {

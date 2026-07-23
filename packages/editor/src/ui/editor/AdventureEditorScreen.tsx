@@ -80,7 +80,7 @@ import { LoadAdventureDialog } from "./LoadAdventureDialog.js";
 import { MapListPanel } from "./MapListPanel.js";
 import { ObjectBindingDialog } from "./ObjectBindingDialog.js";
 import { QuestWorkspaceDialog } from "./QuestWorkspaceDialog.js";
-import type { QuestMapCatalog } from "./quest-editor-model.js";
+import { bindQuestTarget, type QuestMapCatalog } from "./quest-editor-model.js";
 import { RegistryDialog } from "./RegistryDialog.js";
 
 /** The default terrain a fresh stroke paints with until the Task 9 terrain palette lands: flat grass,
@@ -1413,6 +1413,25 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
                 }}
                 onBind={(binding) => {
                   const id = handleRef.current?.bindSelectedElement(binding) ?? null;
+                  if (id && binding.questBinding && map) {
+                    const latest = useUiStore.getState().adventureEditorSession;
+                    if (latest) {
+                      const nextRegistry = bindQuestTarget(
+                        latest.draft.registry,
+                        binding.questBinding,
+                        {
+                          mapId: map.id,
+                          eventId: id,
+                        },
+                      );
+                      if (nextRegistry) {
+                        setSession({
+                          ...latest,
+                          draft: { ...latest.draft, registry: nextRegistry },
+                        });
+                      }
+                    }
+                  }
                   setBindingSelection(null);
                   if (id) setOpenEventId(id);
                 }}

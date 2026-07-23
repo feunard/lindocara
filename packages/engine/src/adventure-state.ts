@@ -183,6 +183,11 @@ export interface AuthoredQuestTracker {
   }[];
 }
 
+export interface AuthoredQuestMarker {
+  eventId: string;
+  kind: "available" | "active" | "ready";
+}
+
 export const EMPTY_ADVENTURE_STATE: PartyAdventureState = {
   switches: {},
   variables: {},

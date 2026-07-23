@@ -7,20 +7,28 @@ import {
   normalizeAuthoredQuestProgress,
   type PartyAdventureState,
 } from "@lindocara/engine/adventure-state.js";
+import { CONSUMABLE_IDS, CONSUMABLE_MAX_STACK } from "@lindocara/engine/consumables.js";
 import { applyStateMutation, type StateMutation } from "@lindocara/engine/event-interpreter.js";
+import { applyExperience, maxHpForLevel } from "@lindocara/engine/game.js";
 import type { ServerMessage } from "@lindocara/engine/protocol.js";
 import {
+  authoredQuestRuntimeState,
   buildQuestObjectiveIndex,
+  completedQuestIds,
+  createAuthoredQuestProgress,
+  createAuthoredQuestProgressForAcceptance,
   type QuestBusinessEvent,
   type QuestObjectiveIndex,
+  questPrerequisitesHold,
 } from "@lindocara/engine/quest-runtime.js";
-import type { AuthoredQuestDefinition } from "@lindocara/engine/quests.js";
+import type { AuthoredQuestDefinition, QuestEventReference } from "@lindocara/engine/quests.js";
 import {
   loadAdventureEventIds,
   loadPartyAdventureState,
   savePartyAdventureState,
 } from "./adventure-state-store.js";
 import { loadAdventure } from "./adventures.js";
+import { claimAuthoredQuestReward } from "./authored-quest-rewards.js";
 import { type AuthoredQuestChange, processAuthoredQuestEvent } from "./authored-quest-system.js";
 import { createDb } from "./db/index.js";
 import {
@@ -35,6 +43,39 @@ import { loadPartyForRuntime } from "./parties.js";
  * relies on the timer surviving.
  */
 const ADVENTURE_STATE_SAVE_DEBOUNCE_MS = 5_000;
+
+export type QuestAcceptanceResult =
+  | { readonly ok: true; readonly progress: AuthoredQuestProgress }
+  | {
+      readonly ok: false;
+      readonly reason: "party" | "quest" | "target" | "state" | "prerequisite" | "fence";
+    };
+
+export type QuestTurnInResult =
+  | {
+      readonly ok: true;
+      readonly experience: number;
+      readonly gold: number;
+      readonly items: readonly { itemId: string; quantity: number }[];
+      readonly consumed: readonly { itemId: string; quantity: number }[];
+      readonly customCommands: AuthoredQuestDefinition["rewards"]["customCommands"];
+    }
+  | {
+      readonly ok: false;
+      readonly reason:
+        | "party"
+        | "quest"
+        | "target"
+        | "state"
+        | "choice"
+        | "items"
+        | "inventory"
+        | "fence";
+    };
+
+function sameEventReference(left: QuestEventReference | null, right: QuestEventReference): boolean {
+  return left?.mapId === right.mapId && left.eventId === right.eventId;
+}
 
 /** The party's held snapshot plus the monotone version rooms use to drop out-of-order pushes. */
 interface VersionedState {
@@ -329,6 +370,288 @@ export class GameSession extends DurableObject<Env> {
         );
       }
       return result.changes;
+    });
+  }
+
+  /** Accept a standard giver offer after re-validating every fact behind the client button. */
+  async acceptAuthoredQuest(
+    partyId: string,
+    actor: { heroId: string; sessionEpoch: number; level: number },
+    questId: string,
+    target: QuestEventReference,
+    inventory: Readonly<Record<string, number>>,
+  ): Promise<QuestAcceptanceResult> {
+    return this.#enqueueStateWrite(async () => {
+      const storedPartyId = await this.ctx.storage.get<string>("partyId");
+      if (storedPartyId !== partyId || this.#partyCompleted) {
+        return { ok: false, reason: "party" };
+      }
+      const current = await this.#ensureState(partyId);
+      const definition = (current.registry.quests ?? []).find((quest) => quest.id === questId);
+      if (definition?.acceptance !== "manual") {
+        return { ok: false, reason: "quest" };
+      }
+      if (!sameEventReference(definition.giver, target)) {
+        return { ok: false, reason: "target" };
+      }
+      const db = createDb(this.env.DB);
+      let personal = this.#personalQuestProgress.get(actor.heroId);
+      if (!personal) {
+        personal = await loadHeroAuthoredQuestProgress(db, actor.heroId);
+        this.#personalQuestProgress.set(actor.heroId, personal);
+        this.#personalPinnedQuestIndexes.set(actor.heroId, this.#pinnedIndex(personal, "personal"));
+      }
+      const progress =
+        definition.scope === "party" ? current.state.quests?.[questId] : personal[questId];
+      const completed = new Set([
+        ...completedQuestIds(current.state.quests),
+        ...completedQuestIds(personal),
+      ]);
+      const prerequisiteContext = {
+        level: actor.level,
+        completedQuestIds: completed,
+        adventureState: current.state,
+      };
+      if (authoredQuestRuntimeState(definition, progress, prerequisiteContext) !== "available") {
+        return { ok: false, reason: "state" };
+      }
+      if (!questPrerequisitesHold(definition, prerequisiteContext)) {
+        return { ok: false, reason: "prerequisite" };
+      }
+      const accepted = createAuthoredQuestProgressForAcceptance(
+        definition,
+        inventory,
+        progress?.completionCount ?? 0,
+      );
+      if (definition.scope === "party") {
+        const quests = { ...(current.state.quests ?? {}), [questId]: accepted };
+        await this.#applyStateChange(partyId, (state) => ({ ...state, quests }), true);
+      } else {
+        const saved = await saveHeroAuthoredQuestProgress(db, {
+          heroId: actor.heroId,
+          sessionEpoch: actor.sessionEpoch,
+          questId,
+          progress: accepted,
+        });
+        if (!saved) return { ok: false, reason: "fence" };
+        personal = { ...personal, [questId]: accepted };
+        this.#personalQuestProgress.set(actor.heroId, personal);
+        this.#personalPinnedQuestIndexes.set(actor.heroId, this.#pinnedIndex(personal, "personal"));
+        const pushed = personal;
+        this.#deferRoomPush(partyId, () =>
+          this.#pushPersonalQuestProgress(partyId, actor.heroId, pushed),
+        );
+      }
+      return { ok: true, progress: accepted };
+    });
+  }
+
+  /** Atomically consume deliveries, complete progress and grant one authored reward attempt. */
+  async completeAuthoredQuest(
+    partyId: string,
+    actor: { heroId: string; sessionEpoch: number; level: number },
+    questId: string,
+    target: QuestEventReference | null,
+    rewardChoiceId: string | undefined,
+    heroState: {
+      level: number;
+      xp: number;
+      hp: number;
+      inventory: Readonly<Record<string, number>>;
+    },
+  ): Promise<QuestTurnInResult> {
+    return this.#enqueueStateWrite(async () => {
+      const storedPartyId = await this.ctx.storage.get<string>("partyId");
+      if (storedPartyId !== partyId || this.#partyCompleted) {
+        return { ok: false, reason: "party" };
+      }
+      const current = await this.#ensureState(partyId);
+      const db = createDb(this.env.DB);
+      let personal = this.#personalQuestProgress.get(actor.heroId);
+      if (!personal) {
+        personal = await loadHeroAuthoredQuestProgress(db, actor.heroId);
+        this.#personalQuestProgress.set(actor.heroId, personal);
+        this.#personalPinnedQuestIndexes.set(actor.heroId, this.#pinnedIndex(personal, "personal"));
+      }
+      const partyProgress = current.state.quests?.[questId];
+      const personalProgress = personal[questId];
+      const progress = partyProgress ?? personalProgress;
+      const definition =
+        progress?.definitionSnapshot ??
+        (current.registry.quests ?? []).find((quest) => quest.id === questId);
+      if (!definition || !progress) {
+        return { ok: false, reason: "quest" };
+      }
+      if (
+        definition.completion === "turn-in" &&
+        (target === null || !sameEventReference(definition.turnInTarget, target))
+      ) {
+        return { ok: false, reason: "target" };
+      }
+      if (
+        (definition.completion === "turn-in"
+          ? progress.status !== "ready"
+          : progress.status !== "completed") ||
+        progress.rewardClaimed
+      ) {
+        return { ok: false, reason: "state" };
+      }
+      const choice =
+        rewardChoiceId === undefined
+          ? undefined
+          : definition.rewards.choices.find((candidate) => candidate.id === rewardChoiceId);
+      if (
+        (definition.rewards.choices.length > 0 && !choice) ||
+        (definition.rewards.choices.length === 0 && rewardChoiceId !== undefined)
+      ) {
+        return { ok: false, reason: "choice" };
+      }
+      const aggregateItems = (
+        items: readonly { itemId: string; quantity: number }[],
+      ): { itemId: string; quantity: number }[] => {
+        const quantities = new Map<string, number>();
+        for (const item of items) {
+          quantities.set(item.itemId, (quantities.get(item.itemId) ?? 0) + item.quantity);
+        }
+        return [...quantities].map(([itemId, quantity]) => ({ itemId, quantity }));
+      };
+      const items = aggregateItems([...definition.rewards.items, ...(choice?.items ?? [])]);
+      const consumed = aggregateItems(
+        definition.objectives.flatMap((objective) =>
+          objective.type === "deliver" && objective.consume
+            ? [{ itemId: objective.itemId, quantity: objective.target }]
+            : [],
+        ),
+      );
+      if (
+        [...items, ...consumed].some(
+          (item) => !(CONSUMABLE_IDS as readonly string[]).includes(item.itemId),
+        )
+      ) {
+        return { ok: false, reason: "items" };
+      }
+      const consumedById = new Map(consumed.map((item) => [item.itemId, item.quantity]));
+      const rewardsById = new Map(items.map((item) => [item.itemId, item.quantity]));
+      for (const itemId of new Set([...consumedById.keys(), ...rewardsById.keys()])) {
+        const currentQuantity = heroState.inventory[itemId] ?? 0;
+        if (currentQuantity < (consumedById.get(itemId) ?? 0)) {
+          return { ok: false, reason: "inventory" };
+        }
+        const resulting =
+          currentQuantity - (consumedById.get(itemId) ?? 0) + (rewardsById.get(itemId) ?? 0);
+        if (resulting > CONSUMABLE_MAX_STACK) return { ok: false, reason: "inventory" };
+      }
+      const experience = definition.rewards.experience + (choice?.experience ?? 0);
+      const gold = definition.rewards.gold + (choice?.gold ?? 0);
+      const xp = applyExperience(heroState.level, heroState.xp, experience);
+      const completed: AuthoredQuestProgress = {
+        ...progress,
+        status: "completed",
+        rewardClaimed: true,
+        completionCount:
+          definition.completion === "automatic"
+            ? Math.max(1, progress.completionCount)
+            : progress.completionCount + 1,
+      };
+      let nextPartyState = current.state;
+      const nextPersonal = { ...personal };
+      if (definition.scope === "party") {
+        nextPartyState = {
+          ...nextPartyState,
+          quests: { ...(nextPartyState.quests ?? {}), [questId]: completed },
+        };
+      } else {
+        nextPersonal[questId] = completed;
+      }
+      for (const change of definition.rewards.stateChanges) {
+        nextPartyState = applyStateMutation(
+          nextPartyState,
+          change.type === "switch"
+            ? { type: "setSwitch", switchId: change.switchId, value: change.value }
+            : {
+                type: "setVariable",
+                variableId: change.variableId,
+                op: change.op,
+                value: change.value,
+              },
+        );
+      }
+      let createdNextPersonal: { questId: string; progress: AuthoredQuestProgress } | undefined;
+      const nextDefinition = definition.rewards.nextQuestId
+        ? (current.registry.quests ?? []).find(
+            (candidate) => candidate.id === definition.rewards.nextQuestId,
+          )
+        : undefined;
+      if (nextDefinition?.scope === "party" && !nextPartyState.quests?.[nextDefinition.id]) {
+        nextPartyState = {
+          ...nextPartyState,
+          quests: {
+            ...(nextPartyState.quests ?? {}),
+            [nextDefinition.id]: createAuthoredQuestProgress(nextDefinition),
+          },
+        };
+      } else if (nextDefinition?.scope === "personal" && !nextPersonal[nextDefinition.id]) {
+        const nextProgress = createAuthoredQuestProgress(nextDefinition);
+        nextPersonal[nextDefinition.id] = nextProgress;
+        createdNextPersonal = { questId: nextDefinition.id, progress: nextProgress };
+      }
+      const partyChanged = nextPartyState !== current.state;
+      const personalChanged = definition.scope === "personal" || createdNextPersonal !== undefined;
+      const claimed = await claimAuthoredQuestReward(this.env.DB, {
+        ownerKind: definition.scope,
+        ownerId: definition.scope === "party" ? partyId : actor.heroId,
+        partyId,
+        heroId: actor.heroId,
+        sessionEpoch: actor.sessionEpoch,
+        questId,
+        attempt: completed.completionCount,
+        resultingLevel: xp.level,
+        resultingXp: xp.xp,
+        resultingHp: maxHpForLevel(xp.level),
+        gold,
+        items,
+        consumeItems: consumed,
+        ...(definition.scope === "personal"
+          ? { completedPersonal: { questId, progress: completed } }
+          : {}),
+        ...(createdNextPersonal ? { nextPersonal: createdNextPersonal } : {}),
+        ...(partyChanged ? { partyState: nextPartyState } : {}),
+      });
+      if (!claimed) return { ok: false, reason: "fence" };
+      if (partyChanged) {
+        const next = {
+          state: nextPartyState,
+          version: current.version + 1,
+          registry: current.registry,
+        };
+        this.#state = next;
+        this.#dirty = false;
+        await this.ctx.storage.put({
+          liveState: next.state,
+          stateVersion: next.version,
+          stateDirty: false,
+        });
+        await this.ctx.storage.deleteAlarm();
+        this.#partyPinnedQuestIndex = this.#pinnedIndex(nextPartyState.quests, "party");
+        this.#deferRoomPush(partyId, () => this.#pushStateToAllRooms(partyId, next));
+      }
+      if (personalChanged) {
+        personal = nextPersonal;
+        this.#personalQuestProgress.set(actor.heroId, personal);
+        this.#personalPinnedQuestIndexes.set(actor.heroId, this.#pinnedIndex(personal, "personal"));
+        const pushed = personal;
+        this.#deferRoomPush(partyId, () =>
+          this.#pushPersonalQuestProgress(partyId, actor.heroId, pushed),
+        );
+      }
+      return {
+        ok: true,
+        experience,
+        gold,
+        items,
+        consumed,
+        customCommands: definition.rewards.customCommands,
+      };
     });
   }
 

@@ -1017,13 +1017,20 @@ describe("the coordinator", { timeout: 20_000 }, () => {
     const client = await Client.joinHero(hero);
     await until("welcomed", () => client.welcome);
 
-    await env.GAME_SESSION.getByName(party.partyId).applyStateChangeForTest(party.partyId, {
+    // `GameSession.fetch()` delegates the live WebSocket to World. workerd correctly refuses to
+    // evict a DO with that request still in flight, so drain it before arming the mutation this test
+    // wants to survive. The explicit idempotent notification is a rendezvous with room teardown.
+    const coordinator = env.GAME_SESSION.getByName(party.partyId);
+    client.close();
+    await drainHeroRooms();
+    await coordinator.roomEmptied(party.partyId, hero.roomKey);
+
+    await coordinator.applyStateChangeForTest(party.partyId, {
       switchId: "0001",
       value: true,
     });
     expect(await readPersistedState(party.partyId)).toBeNull(); // debounced, not yet in D1
 
-    const coordinator = env.GAME_SESSION.getByName(party.partyId);
     await evictDurableObject(coordinator); // clear the coordinator's in-memory dirty state
     const ran = await runDurableObjectAlarm(coordinator);
     expect(ran).toBe(true);

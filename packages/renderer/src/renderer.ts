@@ -1,3 +1,4 @@
+import type { AuthoredQuestMarker } from "@lindocara/engine/adventure-state.js";
 import type { MainHandItem, OffHandItem, PrimaryColor } from "@lindocara/engine/character.js";
 import { MONSTER_ACTIONS, PLAYER_ACTIONS } from "@lindocara/engine/combat-actions.js";
 import { isSpirit } from "@lindocara/engine/death.js";
@@ -841,6 +842,7 @@ export class Renderer {
   #ambient = new Container();
   #actors = new Container();
   #worldLabels = new Container();
+  #questMarkerLayer = new Container();
   #overlay = new Graphics();
   #navigationDebug = new Graphics();
   #navigationDebugLabels = new Container();
@@ -865,6 +867,9 @@ export class Renderer {
   /** Drawn authored events, keyed by event id. Appearance only — nothing gameplay reads these; the
    *  server already resolved which page is active and baked collision into the tilemap. */
   #events = new Map<string, EventView>();
+  #questMarkerKinds = new Map<string, AuthoredQuestMarker["kind"]>();
+  #drawnQuestMarkerKinds = new Map<string, AuthoredQuestMarker["kind"]>();
+  #questMarkerViews = new Map<string, Text>();
   /** Loaded art for event page graphics, filled on demand — an event's asset need not be one the
    *  authored-element preload already fetched. */
   #eventAssetArt = new Map<EditorAssetId, EditorAssetArt>();
@@ -1224,6 +1229,50 @@ export class Renderer {
       if (!view.container.destroyed) view.container.destroy({ children: true });
       this.#events.delete(id);
     }
+    this.#reconcileQuestMarkers();
+  }
+
+  /** Install the per-player marker projection carried by `SelfState`. */
+  setAuthoredQuestMarkers(markers: readonly AuthoredQuestMarker[]): void {
+    this.#questMarkerKinds = new Map(markers.map((marker) => [marker.eventId, marker.kind]));
+    this.#reconcileQuestMarkers();
+  }
+
+  #reconcileQuestMarkers(): void {
+    const present = new Set<string>();
+    for (const [eventId, kind] of this.#questMarkerKinds) {
+      const event = this.#events.get(eventId)?.data;
+      if (!event) continue;
+      present.add(eventId);
+      let label = this.#questMarkerViews.get(eventId);
+      if (!label || label.destroyed || this.#drawnQuestMarkerKinds.get(eventId) !== kind) {
+        if (label && !label.destroyed) label.destroy();
+        const ready = kind === "ready";
+        label = new Text({
+          text: kind === "available" ? "!" : "?",
+          style: {
+            fontFamily: "Georgia, serif",
+            fontSize: ready ? 34 : kind === "available" ? 30 : 22,
+            fontWeight: "bold",
+            fill: ready ? 0xffef70 : kind === "available" ? 0xffcf45 : 0xd8d2b8,
+            stroke: { color: 0x21170c, width: ready ? 5 : 4 },
+            dropShadow: { color: 0x000000, alpha: 0.75, blur: 3, distance: 2 },
+          },
+        });
+        label.anchor.set(0.5, 1);
+        this.#questMarkerLayer.addChild(label);
+        this.#questMarkerViews.set(eventId, label);
+        this.#drawnQuestMarkerKinds.set(eventId, kind);
+      }
+      label.position.set(event.col * TILE_SIZE + TILE_SIZE / 2, event.row * TILE_SIZE - 4);
+      label.alpha = kind === "active" ? 0.72 : 1;
+    }
+    for (const [eventId, label] of this.#questMarkerViews) {
+      if (present.has(eventId)) continue;
+      if (!label.destroyed) label.destroy();
+      this.#questMarkerViews.delete(eventId);
+      this.#drawnQuestMarkerKinds.delete(eventId);
+    }
   }
 
   /** Paint one event's active-page graphic into its container via the shared event crop. A `null`
@@ -1257,6 +1306,11 @@ export class Renderer {
       if (!view.container.destroyed) view.container.destroy({ children: true });
     }
     this.#events.clear();
+    for (const marker of this.#questMarkerViews.values()) {
+      if (!marker.destroyed) marker.destroy();
+    }
+    this.#questMarkerViews.clear();
+    this.#drawnQuestMarkerKinds.clear();
   }
 
   #clearTransientCombatViews(): void {
@@ -1316,6 +1370,7 @@ export class Renderer {
       // cannot see when you need it.
       this.#hitboxOverlay,
       this.#worldLabels,
+      this.#questMarkerLayer,
       this.#navigationDebug,
       this.#navigationDebugLabels,
       this.#overlay,

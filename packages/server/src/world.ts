@@ -5,6 +5,7 @@
 import { DurableObject } from "cloudflare:workers";
 import {
   type AdventureRegistry,
+  type AuthoredQuestMarker,
   type AuthoredQuestProgress,
   activePageIndex,
   authoredQuestTrackers,
@@ -96,11 +97,26 @@ import {
   encodeServerMessage,
   type ProjectileSnapshot,
   parseClientMessage,
+  type QuestDialogueEntry,
   type SelfState,
   type ServerMessage,
   type WorldView,
 } from "@lindocara/engine/protocol.js";
-import type { QuestActor, QuestBusinessEvent } from "@lindocara/engine/quest-runtime.js";
+import {
+  authoredQuestRuntimeState,
+  buildQuestInteractionIndex,
+  completedQuestIds,
+  type QuestActor,
+  type QuestBusinessEvent,
+  questMarkerForTarget,
+  questMarkerPriority,
+  questTargetCandidates,
+} from "@lindocara/engine/quest-runtime.js";
+import type {
+  AuthoredQuestDefinition,
+  QuestEventReference,
+  QuestRuntimeState,
+} from "@lindocara/engine/quests.js";
 import {
   canSpendResource,
   generateResource,
@@ -147,6 +163,7 @@ import { loadAdventure } from "./adventures.js";
 import { claimQuestReward, consumeOwnedItem } from "./character-persistence.js";
 import { presenceTiming } from "./character-presence.js";
 import { createDb, party } from "./db/index.js";
+import type { QuestTurnInResult } from "./game-session.js";
 import {
   claimHeroQuestReward,
   consumeHeroOwnedItem,
@@ -274,6 +291,14 @@ function emptyEncodedLayers(cols: number, rows: number): readonly string[] {
   return [layer, layer, layer];
 }
 
+interface PendingQuestConversation {
+  readonly id: string;
+  readonly heroId: string;
+  readonly target: QuestEventReference;
+  readonly questIds: ReadonlySet<string>;
+  resolved: boolean;
+}
+
 export class World extends DurableObject<Env> {
   #players = new Map<WebSocket, Player>();
   #socketByPlayerId = new Map<string, WebSocket>();
@@ -322,6 +347,7 @@ export class World extends DurableObject<Env> {
   /** The room's live event runs: the one-run-per-event lock, the budgeted drain and the buffered
    *  dialogue seam (`world/event-run-system.ts`). Cleared when the room empties. */
   #eventRuns: EventRunRuntime = createEventRunRuntime();
+  #questConversations = new Map<string, PendingQuestConversation>();
   /**
    * A mutation batch whose coordinator push has not completed yet. Simulation keeps ticking while
    * this is set, but event runs pause so their next drain cannot seed its working copy from a stale
@@ -913,6 +939,252 @@ export class World extends DurableObject<Env> {
     return { pageIndex, program: page.commands };
   }
 
+  #questDialogueEntries(player: Player, target: QuestEventReference): QuestDialogueEntry[] {
+    const definitions = this.#questDefinitionsForPlayer(player);
+    const index = buildQuestInteractionIndex(definitions);
+    const completed = new Set([
+      ...completedQuestIds(this.#adventureState.quests),
+      ...completedQuestIds(player.authoredQuestProgress),
+    ]);
+    const selected = new Map<
+      string,
+      {
+        candidate: ReturnType<typeof questTargetCandidates>[number];
+        state: QuestRuntimeState;
+        rank: number;
+      }
+    >();
+    for (const candidate of questTargetCandidates(index, target)) {
+      const progress = this.#questProgressForPlayer(player, candidate.definition);
+      const state = authoredQuestRuntimeState(candidate.definition, progress, {
+        level: player.level,
+        completedQuestIds: completed,
+        adventureState: this.#adventureState,
+      });
+      const rank =
+        state === "ready" && candidate.role === "turn-in"
+          ? 5
+          : state === "available" &&
+              candidate.role === "giver" &&
+              candidate.definition.acceptance === "manual"
+            ? 4
+            : state === "active"
+              ? 3
+              : state === "completed"
+                ? 2
+                : state === "unavailable"
+                  ? 1
+                  : 0;
+      if (rank === 0) continue;
+      const current = selected.get(candidate.definition.id);
+      if (!current || rank > current.rank)
+        selected.set(candidate.definition.id, { candidate, state, rank });
+    }
+    return [...selected.values()]
+      .sort((left, right) => right.rank - left.rank)
+      .flatMap(({ candidate, state }) => {
+        const definition = candidate.definition;
+        const phase =
+          state === "available"
+            ? "offer"
+            : state === "active" ||
+                state === "ready" ||
+                state === "completed" ||
+                state === "unavailable"
+              ? state
+              : null;
+        if (!phase) return [];
+        const text =
+          phase === "offer"
+            ? definition.dialogues.offer || definition.description
+            : phase === "active"
+              ? definition.dialogues.reminder || definition.journalSummary || definition.description
+              : phase === "ready"
+                ? definition.dialogues.ready || definition.journalSummary || definition.description
+                : phase === "completed"
+                  ? definition.dialogues.completed
+                  : definition.dialogues.unavailable;
+        // Completed/unavailable entries are useful only when the creator authored an explicit line;
+        // otherwise they would crowd a multi-quest giver with inert cards.
+        if ((phase === "completed" || phase === "unavailable") && text.length === 0) return [];
+        const canTurnIn = phase === "ready" && candidate.role === "turn-in";
+        return [
+          {
+            questId: definition.id,
+            title: definition.title || `Quête ${definition.id}`,
+            text,
+            phase,
+            canAccept:
+              phase === "offer" && candidate.role === "giver" && definition.acceptance === "manual",
+            canTurnIn,
+            rewardChoices: canTurnIn
+              ? definition.rewards.choices.map((choice) => ({ id: choice.id, label: choice.label }))
+              : [],
+          },
+        ];
+      });
+  }
+
+  /** Open the standard quest panel for the nearest bound action event. */
+  #triggerQuestTargetNearby(ws: WebSocket, player: Player): boolean {
+    if (player.identityKind !== "hero" || player.partyId === null) return false;
+    const mapId = this.#location?.zoneId;
+    if (!mapId) return false;
+    let nearest: { event: MapEvent; pageIndex: number; distance: number } | null = null;
+    for (const event of this.#location?.definition.events ?? []) {
+      if (event.kind !== "normal") continue;
+      const pageIndex = activePageIndex(event, this.#adventureState);
+      if (pageIndex === null) continue;
+      const page = event.pages[pageIndex];
+      if (page?.trigger !== "action") continue;
+      const distance = pointDistance(player, eventCellCentre(event));
+      if (distance > INTERACTION_RANGE) continue;
+      const entries = this.#questDialogueEntries(player, { mapId, eventId: event.id });
+      if (entries.length === 0) continue;
+      if (!nearest || distance < nearest.distance) nearest = { event, pageIndex, distance };
+    }
+    if (!nearest) return false;
+    const target = { mapId, eventId: nearest.event.id };
+    const entries = this.#questDialogueEntries(player, target);
+    if (entries.length === 0) return false;
+    const conversation: PendingQuestConversation = {
+      id: crypto.randomUUID(),
+      heroId: player.id,
+      target,
+      questIds: new Set(entries.map((entry) => entry.questId)),
+      resolved: false,
+    };
+    this.#questConversations.set(player.id, conversation);
+    this.#send(ws, { t: "quest.open", conversationId: conversation.id, entries });
+    const graphic = nearest.event.pages[nearest.pageIndex]?.graphicAssetId;
+    const interaction =
+      graphic != null && editorAsset(graphic)?.domain === "character"
+        ? "npcTalked"
+        : "objectInteracted";
+    this.#recordActorQuestEvent(player, ({ id, mapId: eventMapId, actor }) =>
+      interaction === "npcTalked"
+        ? { id, mapId: eventMapId, actor, type: "npcTalked", targetEventId: nearest.event.id }
+        : {
+            id,
+            mapId: eventMapId,
+            actor,
+            type: "objectInteracted",
+            targetEventId: nearest.event.id,
+          },
+    );
+    return true;
+  }
+
+  async #handleQuestAction(
+    ws: WebSocket,
+    player: Player,
+    message: Extract<ClientMessage, { t: "quest.action" }>,
+  ): Promise<void> {
+    const conversation = this.#questConversations.get(player.id);
+    if (!conversation || conversation.id !== message.conversationId) return;
+    if (message.action === "close") {
+      this.#questConversations.delete(player.id);
+      this.#send(ws, { t: "quest.close", conversationId: conversation.id });
+      return;
+    }
+    if (conversation.resolved || !message.questId || !conversation.questIds.has(message.questId)) {
+      return;
+    }
+    const event = this.#location?.definition.events?.find(
+      (candidate) => candidate.id === conversation.target.eventId,
+    );
+    const pageIndex = event ? activePageIndex(event, this.#adventureState) : null;
+    const page = pageIndex === null ? undefined : event?.pages[pageIndex];
+    if (
+      pageIndex === null ||
+      !event ||
+      !page ||
+      page.trigger !== "action" ||
+      pointDistance(player, eventCellCentre(event)) > DIALOGUE_CLOSE_RADIUS
+    ) {
+      this.#questConversations.delete(player.id);
+      this.#send(ws, { t: "quest.close", conversationId: conversation.id });
+      return;
+    }
+    const definition = this.#questDefinitionsForPlayer(player).find(
+      (quest) => quest.id === message.questId,
+    );
+    const entry = this.#questDialogueEntries(player, conversation.target).find(
+      (candidate) => candidate.questId === message.questId,
+    );
+    if (!definition || !entry) return;
+    if (message.action === "refuse") {
+      if (!entry.canAccept) return;
+      conversation.resolved = true;
+      this.#send(ws, {
+        t: "quest.result",
+        conversationId: conversation.id,
+        questId: definition.id,
+        title: definition.title || `Quête ${definition.id}`,
+        text: definition.dialogues.refused,
+        outcome: "refused",
+      });
+      return;
+    }
+    const actor = this.#questActor(player);
+    if (!actor || player.partyId === null) return;
+    if (message.action === "accept") {
+      if (!entry.canAccept) return;
+      const inventory = normalizeConsumables(
+        player.inventory.consumables,
+        player.inventory.potions,
+      );
+      const result = await this.#gameSession(player.partyId).acceptAuthoredQuest(
+        player.partyId,
+        actor,
+        definition.id,
+        conversation.target,
+        inventory,
+      );
+      conversation.resolved = true;
+      this.#send(ws, {
+        t: "quest.result",
+        conversationId: conversation.id,
+        questId: definition.id,
+        title: definition.title || `Quête ${definition.id}`,
+        text: result.ok ? definition.dialogues.accepted : "",
+        outcome: result.ok ? "accepted" : "failed",
+      });
+      if (result.ok && result.progress.status === "completed") {
+        await this.#claimAutomaticQuestReward(player, definition.id);
+      }
+      return;
+    }
+    if (!entry.canTurnIn) return;
+    if (!(await this.#savePlayer(player, ws))) return;
+    const counts = normalizeConsumables(player.inventory.consumables, player.inventory.potions);
+    const result = await this.#gameSession(player.partyId).completeAuthoredQuest(
+      player.partyId,
+      actor,
+      definition.id,
+      conversation.target,
+      message.rewardChoiceId,
+      {
+        level: player.level,
+        xp: player.xp,
+        hp: player.hp,
+        inventory: counts,
+      },
+    );
+    conversation.resolved = true;
+    if (result.ok) {
+      this.#applyAuthoredQuestReward(ws, player, result, { event, pageIndex });
+    }
+    this.#send(ws, {
+      t: "quest.result",
+      conversationId: conversation.id,
+      questId: definition.id,
+      title: definition.title || `Quête ${definition.id}`,
+      text: result.ok ? definition.dialogues.turnIn : "",
+      outcome: result.ok ? "completed" : "failed",
+    });
+  }
+
   /**
    * The interact-key trigger: the nearest `action` event within `INTERACTION_RANGE` starts a run.
    * Returns true when an action event was FOUND (so `#interact` stops here even if the run was
@@ -1263,6 +1535,10 @@ export class World extends DurableObject<Env> {
     }
     if (message.t === "interact") {
       await this.#interact(ws, player);
+      return;
+    }
+    if (message.t === "quest.action") {
+      await this.#handleQuestAction(ws, player, message);
       return;
     }
     // The two dialogue intents (cheap intents, the connection window cost class). Both are validated
@@ -2141,6 +2417,9 @@ export class World extends DurableObject<Env> {
       }
       return;
     }
+    // Standard authored quest bindings win before the same event's advanced command program. If no
+    // quest has anything relevant to show, the event program remains the full-control fallback.
+    if (this.#triggerQuestTargetNearby(ws, player)) return;
     // Authored `action` events sit between the life-critical resurrection above and the legacy
     // quest keepers below (see `#triggerActionEventNearby`).
     if (this.#triggerActionEventNearby(player)) return;
@@ -3166,11 +3445,103 @@ export class World extends DurableObject<Env> {
     return { heroId: player.id, sessionEpoch: player.sessionEpoch, level: player.level };
   }
 
+  #applyAuthoredQuestReward(
+    ws: WebSocket,
+    player: Player,
+    result: Extract<QuestTurnInResult, { ok: true }>,
+    customRun?: { event: MapEvent; pageIndex: number },
+  ): void {
+    const counts = normalizeConsumables(player.inventory.consumables, player.inventory.potions);
+    const beforeLevel = player.level;
+    for (const item of result.consumed) {
+      const itemId = item.itemId as ConsumableId;
+      counts[itemId] = Math.max(0, counts[itemId] - item.quantity);
+      this.#recordActorQuestEvent(player, ({ id, mapId, actor }) => ({
+        id,
+        mapId,
+        actor,
+        type: "itemRemoved",
+        itemId,
+        amount: item.quantity,
+        inventoryQuantity: counts[itemId],
+      }));
+    }
+    for (const item of result.items) {
+      const itemId = item.itemId as ConsumableId;
+      counts[itemId] = Math.min(CONSUMABLE_MAX_STACK, counts[itemId] + item.quantity);
+      this.#recordActorQuestEvent(player, ({ id, mapId, actor }) => ({
+        id,
+        mapId,
+        actor,
+        type: "itemAcquired",
+        itemId,
+        amount: item.quantity,
+        inventoryQuantity: counts[itemId],
+      }));
+    }
+    player.inventory.consumables = counts;
+    player.inventory.potions = counts.health_potion;
+    player.inventory.gold += result.gold;
+    const gained = applyExperience(player.level, player.xp, result.experience);
+    player.level = gained.level;
+    player.xp = gained.xp;
+    player.hp = maxHpForLevel(gained.level);
+    player.dirty = true;
+    this.#sendState(ws, player);
+    if (player.level > beforeLevel) {
+      this.#send(ws, {
+        t: "event",
+        code: "level_up",
+        params: { level: player.level },
+        tone: "good",
+      });
+    }
+    if (result.customCommands.length > 0 && customRun) {
+      startRun(this.#eventRuns, {
+        event: customRun.event,
+        pageIndex: customRun.pageIndex,
+        program: result.customCommands,
+        heroId: player.id,
+        runId: crypto.randomUUID(),
+      });
+    }
+  }
+
+  async #claimAutomaticQuestReward(player: Player, questId: string): Promise<void> {
+    const ws = this.#socketByPlayerId.get(player.id);
+    const actor = this.#questActor(player);
+    if (!ws || !actor || player.partyId === null) return;
+    if (!(await this.#savePlayer(player, ws))) return;
+    const counts = normalizeConsumables(player.inventory.consumables, player.inventory.potions);
+    const result = await this.#gameSession(player.partyId).completeAuthoredQuest(
+      player.partyId,
+      actor,
+      questId,
+      null,
+      undefined,
+      { level: player.level, xp: player.xp, hp: player.hp, inventory: counts },
+    );
+    if (result.ok) this.#applyAuthoredQuestReward(ws, player, result);
+  }
+
   /** Queue an authoritative fact on the retained coordinator stub and keep gameplay non-blocking. */
   #recordQuestEvent(partyId: string, event: QuestBusinessEvent): void {
     this.ctx.waitUntil(
       this.#gameSession(partyId)
         .recordQuestEvent(partyId, event)
+        .then((changes) => {
+          const fallbackHeroId =
+            event.type === "monsterKilled" || event.type === "bossDefeated"
+              ? event.killer.heroId
+              : event.actor.heroId;
+          for (const change of changes) {
+            if (change.status !== "completed") continue;
+            const heroId = change.heroId ?? fallbackHeroId;
+            const socket = this.#socketByPlayerId.get(heroId);
+            const player = socket ? this.#players.get(socket) : undefined;
+            if (player) this.ctx.waitUntil(this.#claimAutomaticQuestReward(player, change.questId));
+          }
+        })
         .catch((error: unknown) => {
           console.error(
             JSON.stringify({
@@ -4098,6 +4469,7 @@ export class World extends DurableObject<Env> {
       player,
       this.#questDefinition(chapter)?.target,
       this.#authoredQuestTrackers(player),
+      this.#authoredQuestMarkers(player),
     );
   }
 
@@ -4109,6 +4481,7 @@ export class World extends DurableObject<Env> {
       this.#questDefinition(chapter)?.target,
       (socket, message) => this.#send(socket, message),
       this.#authoredQuestTrackers(player),
+      this.#authoredQuestMarkers(player),
     );
   }
 
@@ -4152,6 +4525,66 @@ export class World extends DurableObject<Env> {
         quests: personalProgress,
       }),
     ];
+  }
+
+  #questDefinitionsForPlayer(player: Player): AuthoredQuestDefinition[] {
+    const definitions = new Map(
+      (this.#adventureRegistry.quests ?? []).map((definition) => [definition.id, definition]),
+    );
+    for (const progress of Object.values(this.#adventureState.quests ?? {})) {
+      if (
+        progress.definitionSnapshot?.scope === "party" &&
+        (progress.status !== "completed" || !progress.definitionSnapshot.repeatable)
+      ) {
+        definitions.set(progress.definitionSnapshot.id, progress.definitionSnapshot);
+      }
+    }
+    for (const progress of Object.values(player.authoredQuestProgress ?? {})) {
+      if (
+        progress.definitionSnapshot?.scope === "personal" &&
+        (progress.status !== "completed" || !progress.definitionSnapshot.repeatable)
+      ) {
+        definitions.set(progress.definitionSnapshot.id, progress.definitionSnapshot);
+      }
+    }
+    return [...definitions.values()];
+  }
+
+  #questProgressForPlayer(
+    player: Player,
+    definition: AuthoredQuestDefinition,
+  ): AuthoredQuestProgress | undefined {
+    return definition.scope === "party"
+      ? this.#adventureState.quests?.[definition.id]
+      : player.authoredQuestProgress?.[definition.id];
+  }
+
+  #authoredQuestMarkers(player: Player): AuthoredQuestMarker[] {
+    const mapId = this.#location?.zoneId;
+    if (!mapId) return [];
+    const index = buildQuestInteractionIndex(this.#questDefinitionsForPlayer(player));
+    const completed = new Set([
+      ...completedQuestIds(this.#adventureState.quests),
+      ...completedQuestIds(player.authoredQuestProgress),
+    ]);
+    const markers = new Map<string, AuthoredQuestMarker["kind"]>();
+    for (const event of this.#activeEvents) {
+      for (const candidate of questTargetCandidates(index, { mapId, eventId: event.id })) {
+        const progress = this.#questProgressForPlayer(player, candidate.definition);
+        const state = authoredQuestRuntimeState(candidate.definition, progress, {
+          level: player.level,
+          completedQuestIds: completed,
+          adventureState: this.#adventureState,
+        });
+        const marker = questMarkerForTarget(candidate, state);
+        if (!marker) continue;
+        const current = markers.get(event.id);
+        if (!current || questMarkerPriority(marker) > questMarkerPriority(current)) {
+          markers.set(event.id, marker);
+        }
+      }
+    }
+    return [...markers].map(([eventId, kind]) => ({ eventId, kind }));
   }
 
   #worldView(player: Player): WorldView {
@@ -4204,6 +4637,7 @@ export class World extends DurableObject<Env> {
 
   #removePlayer(ws: WebSocket, player: Player): void {
     this.#occupiedExitByPlayerId.delete(player.id);
+    this.#questConversations.delete(player.id);
     // A hero leaving (disconnect or map transition) aborts every run they triggered.
     abortRunsForHero(this.#eventRuns, player.id);
     cancelCombatAction(player);
@@ -4226,6 +4660,7 @@ export class World extends DurableObject<Env> {
     }
     this.#stopLoop();
     resetEventRunRuntime(this.#eventRuns);
+    this.#questConversations.clear();
     this.#teleportRefusalsLogged.clear();
     this.#itemRefusalsLogged.clear();
     this.#goldRefusalsLogged.clear();

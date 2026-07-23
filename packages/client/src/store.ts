@@ -3,7 +3,12 @@ import type { ConsumableId } from "@lindocara/engine/consumables.js";
 import type { LifeState } from "@lindocara/engine/death.js";
 import type { PlayerClass } from "@lindocara/engine/game.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
-import type { PartyState, QuestStatus, SelfState } from "@lindocara/engine/protocol.js";
+import type {
+  PartyState,
+  QuestDialogueEntry,
+  QuestStatus,
+  SelfState,
+} from "@lindocara/engine/protocol.js";
 import type { Input } from "@lindocara/engine/simulation.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 import { create } from "zustand";
@@ -53,6 +58,17 @@ export interface ChatLine {
 export type EventDialogue =
   | { kind: "say"; runId: string; text: string; name?: string }
   | { kind: "choices"; runId: string; prompt: string; options: string[] };
+
+export type QuestDialogue =
+  | { kind: "open"; conversationId: string; entries: QuestDialogueEntry[] }
+  | {
+      kind: "result";
+      conversationId: string;
+      questId: string;
+      title: string;
+      text: string;
+      outcome: "accepted" | "refused" | "completed" | "failed";
+    };
 
 export interface PartyInviteNotice {
   inviteId: string;
@@ -104,6 +120,12 @@ export interface GameHandle {
   /** The two dialogue intents (spec Decision 4). The panel calls these; the server re-validates. */
   eventAdvance?(runId: string): void;
   eventChoose?(runId: string, index: number): void;
+  questAction?(
+    conversationId: string,
+    action: "accept" | "refuse" | "turn-in" | "close",
+    questId?: string,
+    rewardChoiceId?: string,
+  ): void;
   switchCharacter(): void;
   logout(): void;
   /** React owns the canvas; the game loop draws into it. The store stays free of world x/y. */
@@ -179,6 +201,7 @@ interface UiState {
   adventureVictory: boolean;
   /** The open dialogue panel, or null. Owned entirely by session.ts's event handlers. */
   eventDialogue: EventDialogue | null;
+  questDialogue: QuestDialogue | null;
   game: GameHandle | null;
 
   setScreen(screen: UiState["screen"]): void;
@@ -212,6 +235,7 @@ interface UiState {
   setHeroLoading(heroLoading: HeroLoadingState | null): void;
   setAdventureVictory(visible: boolean): void;
   setEventDialogue(dialogue: EventDialogue | null): void;
+  setQuestDialogue(dialogue: QuestDialogue | null): void;
   setGame(game: GameHandle | null): void;
   /** Everything a terminal disconnect must clear before character select is usable again: the
    *  handle, the reconnect banner, and every full-screen overlay flag. Miss one and it survives
@@ -303,6 +327,7 @@ function clearedGameSession() {
     heroLoading: null,
     adventureVictory: false,
     eventDialogue: null,
+    questDialogue: null,
     game: null,
   };
 }
@@ -340,6 +365,7 @@ export const useUiStore = create<UiState>((set) => ({
   heroLoading: null,
   adventureVictory: false,
   eventDialogue: null,
+  questDialogue: null,
   game: null,
 
   setScreen: (screen) => set({ screen }),
@@ -436,6 +462,7 @@ export const useUiStore = create<UiState>((set) => ({
   setHeroLoading: (heroLoading) => set({ heroLoading }),
   setAdventureVictory: (adventureVictory) => set({ adventureVictory }),
   setEventDialogue: (eventDialogue) => set({ eventDialogue }),
+  setQuestDialogue: (questDialogue) => set({ questDialogue }),
   setGame: (game) => set({ game }),
   resetToCharacterSelect: () =>
     set({

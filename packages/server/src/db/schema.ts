@@ -635,6 +635,33 @@ export const heroQuest = sqliteTable(
   ],
 );
 
+/** Idempotency fence for authored rewards, including repeatable quest attempts. */
+export const authoredQuestRewardClaim = sqliteTable(
+  "authored_quest_reward_claim",
+  {
+    id: text("id").primaryKey(),
+    ownerKind: text("owner_kind", { enum: ["party", "personal"] }).notNull(),
+    /** Party id for shared quests, hero id for personal quests. */
+    ownerId: text("owner_id").notNull(),
+    recipientHeroId: text("recipient_hero_id")
+      .notNull()
+      .references(() => hero.id, { onDelete: "cascade" }),
+    questId: text("quest_id").notNull(),
+    attempt: integer("attempt").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
+  },
+  (table) => [
+    uniqueIndex("authored_quest_reward_owner_attempt_unique").on(
+      table.ownerKind,
+      table.ownerId,
+      table.questId,
+      table.attempt,
+    ),
+    index("authored_quest_reward_recipient_idx").on(table.recipientHeroId),
+    check("authored_quest_reward_attempt_positive", sql`${table.attempt} >= 1`),
+  ],
+);
+
 /**
  * A party's live adventure-state save: switches, variables, per-event self-switches and authored
  * quest progress. One row per party — state is party-owned, not
@@ -664,4 +691,5 @@ export type HeroItem = typeof heroItem.$inferSelect;
 export type HeroEquipment = typeof heroEquipment.$inferSelect;
 export type HeroSkill = typeof heroSkill.$inferSelect;
 export type HeroQuest = typeof heroQuest.$inferSelect;
+export type AuthoredQuestRewardClaim = typeof authoredQuestRewardClaim.$inferSelect;
 export type PartyAdventureStateRow = typeof partyAdventureState.$inferSelect;

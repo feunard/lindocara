@@ -1,4 +1,7 @@
-import type { AuthoredQuestTracker } from "@lindocara/engine/adventure-state.js";
+import type {
+  AuthoredQuestMarker,
+  AuthoredQuestTracker,
+} from "@lindocara/engine/adventure-state.js";
 import { type QuestChapter, xpForNextLevel } from "@lindocara/engine/game.js";
 import type {
   SelfState,
@@ -22,6 +25,7 @@ export function selfState(
   player: PlayerRuntime,
   questTarget?: number,
   authoredQuests: readonly AuthoredQuestTracker[] = [],
+  authoredQuestMarkers: readonly AuthoredQuestMarker[] = [],
 ): SelfState {
   const serverNow = Date.now();
   const chapter = player.quest.chapter ?? "three_offerings";
@@ -43,6 +47,7 @@ export function selfState(
       ...(timerEndsAt === undefined ? {} : { timerEndsAt }),
     },
     authoredQuests,
+    authoredQuestMarkers,
     life: player.life,
     corpse: player.corpse === null ? null : { ...player.corpse },
     serverNow,
@@ -65,8 +70,12 @@ export function sendState(
   questTarget: number | undefined,
   send: SendMessage,
   authoredQuests: readonly AuthoredQuestTracker[] = [],
+  authoredQuestMarkers: readonly AuthoredQuestMarker[] = [],
 ): void {
-  send(socket, { t: "state", self: selfState(player, questTarget, authoredQuests) });
+  send(socket, {
+    t: "state",
+    self: selfState(player, questTarget, authoredQuests, authoredQuestMarkers),
+  });
 }
 
 export function broadcastNetworkUpdates(

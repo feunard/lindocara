@@ -4,7 +4,6 @@ import { ObjectBindingDialog } from "@lindocara/editor/ui/editor/ObjectBindingDi
 import {
   type AuthoredQuestDefinition,
   createAuthoredQuestDefinition,
-  createManualQuestObjective,
 } from "@lindocara/engine/adventure-state.js";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -15,7 +14,22 @@ const QUESTS: AuthoredQuestDefinition[] = [
   {
     ...createAuthoredQuestDefinition("0001", "Goblin hunt"),
     description: "Protect the village",
-    objectives: [createManualQuestObjective("0001", "Defeat goblins", 3)],
+    objectives: [
+      {
+        id: "0001",
+        type: "interact",
+        label: "Talk to Mira",
+        target: 1,
+        optional: false,
+        hidden: false,
+        stage: 0,
+        interaction: "talk",
+        targetRef: {
+          mapId: "11111111-1111-4111-8111-111111111111",
+          eventId: "22222222-2222-4222-8222-222222222222",
+        },
+      },
+    ],
   },
 ];
 
@@ -34,12 +48,18 @@ describe("ObjectBindingDialog", () => {
         onOpenQuestDatabase={() => {}}
       />,
     );
-    await user.click(screen.getByText(t("editor.binding.kind.quest-progress")));
+    await user.click(screen.getByText(t("editor.binding.kind.quest-objective")));
     await user.click(screen.getByRole("button", { name: t("editor.binding.continue") }));
     expect(onBind).toHaveBeenCalledWith({
       name: "",
-      commands: [{ t: "advanceQuest", questId: "0001", objectiveId: "0001", amount: 1 }],
+      commands: [],
       once: false,
+      questBinding: {
+        kind: "objective",
+        questId: "0001",
+        objectiveId: "0001",
+        interaction: "interact",
+      },
     });
   });
 

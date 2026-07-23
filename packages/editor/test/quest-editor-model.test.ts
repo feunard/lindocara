@@ -1,4 +1,5 @@
 import {
+  bindQuestTarget,
   createStructuredQuestObjective,
   creatorSlug,
   duplicateAuthoredQuest,
@@ -133,5 +134,46 @@ describe("quest editor model", () => {
     expect(duplicate.rewards).not.toBe(original.rewards);
     expect(duplicate.rewards.items).not.toBe(original.rewards.items);
     expect(duplicate.rewards.customCommands).not.toBe(original.rewards.customCommands);
+  });
+
+  it("binds giver, turn-in and interaction targets by stable event reference", () => {
+    const quest = {
+      ...createAuthoredQuestDefinition("0001", "Audience"),
+      objectives: [
+        {
+          id: "0001",
+          type: "interact" as const,
+          label: "",
+          target: 1,
+          optional: false,
+          hidden: false,
+          stage: 0,
+          interaction: "talk" as const,
+          targetRef: { mapId: MAP_ID, eventId: MONSTER_ID },
+        },
+      ],
+    };
+    const base = { switches: [], variables: [], quests: [quest] };
+    const reference = { mapId: MAP_ID, eventId: EVENT_ID };
+    const withGiver = bindQuestTarget(base, { kind: "giver", questId: "0001" }, reference);
+    const withTurnIn = bindQuestTarget(
+      withGiver ?? base,
+      { kind: "turn-in", questId: "0001" },
+      reference,
+    );
+    const bound = bindQuestTarget(
+      withTurnIn ?? base,
+      { kind: "objective", questId: "0001", objectiveId: "0001", interaction: "interact" },
+      reference,
+    );
+
+    expect(bound?.quests?.[0]).toMatchObject({
+      acceptance: "manual",
+      completion: "turn-in",
+      giver: reference,
+      turnInTarget: reference,
+      version: 4,
+      objectives: [{ type: "interact", interaction: "interact", targetRef: reference }],
+    });
   });
 });

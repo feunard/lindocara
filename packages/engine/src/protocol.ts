@@ -6,6 +6,7 @@
  */
 
 import {
+  type AuthoredQuestMarker,
   type AuthoredQuestTracker,
   MAX_AUTHORED_QUESTS,
   MAX_QUEST_OBJECTIVES,
@@ -48,6 +49,7 @@ import { isUuid } from "./identifiers.js";
 import type { ChatChannel } from "./interest.js";
 import { MAP_LAYERS, MAX_MAP_ELEMENTS, type MapElement, parseMapElements } from "./map-data.js";
 import type { MerchantDefinition } from "./merchant.js";
+import { MAX_QUEST_REWARD_CHOICES, QUEST_DIALOGUE_TEXT_MAX } from "./quests.js";
 import type { ClassResourceState } from "./resources.js";
 import type { Input, Vec2 } from "./simulation.js";
 import { isSkillSlot, type SkillSlot } from "./skills.js";
@@ -169,6 +171,8 @@ export interface SelfState {
   quest: QuestState;
   /** Authored party quests. Optional while rolling across an older server/client pair. */
   authoredQuests?: readonly AuthoredQuestTracker[];
+  /** Per-player quest punctuation for active authored events on the current map. */
+  authoredQuestMarkers?: readonly AuthoredQuestMarker[];
   life: LifeState;
   /** Where your body lies, so the HUD can point you at it. Null unless you are dead. */
   corpse: { x: number; y: number } | null;
@@ -341,6 +345,18 @@ export interface WorldInfo {
   merchant: MerchantDefinition | null;
 }
 
+export type QuestDialoguePhase = "offer" | "active" | "ready" | "completed" | "unavailable";
+
+export interface QuestDialogueEntry {
+  questId: string;
+  title: string;
+  text: string;
+  phase: QuestDialoguePhase;
+  canAccept: boolean;
+  canTurnIn: boolean;
+  rewardChoices: readonly { id: string; label: string }[];
+}
+
 /** Sent by the browser. Actions contain intent only; every outcome is validated by the server. */
 export type ClientMessage =
   | { t: "input"; seq: number; input: Input }
@@ -369,7 +385,14 @@ export type ClientMessage =
   // the panel belongs to; `index` is a wire-bounded option index the server RE-VALIDATES against the
   // live pending offer regardless — client input is never an authoritative outcome.
   | { t: "event.advance"; runId: string }
-  | { t: "event.choose"; runId: string; index: number };
+  | { t: "event.choose"; runId: string; index: number }
+  | {
+      t: "quest.action";
+      conversationId: string;
+      questId?: string;
+      action: "accept" | "refuse" | "turn-in" | "close";
+      rewardChoiceId?: string;
+    };
 
 export type EventTone = "info" | "good" | "bad";
 
@@ -521,7 +544,21 @@ export type ServerMessage =
   // can hold it. Every field is still size-capped and defensively parsed like any other wire data.
   | { t: "event.say"; runId: string; text: string; name?: string }
   | { t: "event.choices"; runId: string; prompt: string; options: string[] }
-  | { t: "event.close"; runId: string };
+  | { t: "event.close"; runId: string }
+  | {
+      t: "quest.open";
+      conversationId: string;
+      entries: QuestDialogueEntry[];
+    }
+  | {
+      t: "quest.result";
+      conversationId: string;
+      questId: string;
+      title: string;
+      text: string;
+      outcome: "accepted" | "refused" | "completed" | "failed";
+    }
+  | { t: "quest.close"; conversationId: string };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -827,6 +864,19 @@ function isSelfState(value: unknown): value is SelfState {
     return false;
   }
   if (
+    value.authoredQuestMarkers !== undefined &&
+    (!Array.isArray(value.authoredQuestMarkers) ||
+      value.authoredQuestMarkers.length > MAX_AUTHORED_QUESTS * 2 ||
+      !value.authoredQuestMarkers.every(
+        (marker) =>
+          isRecord(marker) &&
+          isWireId(marker.eventId) &&
+          (marker.kind === "available" || marker.kind === "active" || marker.kind === "ready"),
+      ))
+  ) {
+    return false;
+  }
+  if (
     value.resource !== undefined &&
     (!isRecord(value.resource) ||
       (value.resource.kind !== "endurance" &&
@@ -1117,6 +1167,31 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
     return { t: "event.choose", runId: value.runId, index: value.index };
   }
   if (
+    value.t === "quest.action" &&
+    isWireId(value.conversationId) &&
+    (value.action === "accept" ||
+      value.action === "refuse" ||
+      value.action === "turn-in" ||
+      value.action === "close") &&
+    (value.questId === undefined || isWireId(value.questId)) &&
+    (value.rewardChoiceId === undefined || isWireId(value.rewardChoiceId)) &&
+    hasOnlyKeys(value, ["t", "conversationId", "questId", "action", "rewardChoiceId"])
+  ) {
+    if (value.action === "close") {
+      return value.questId === undefined && value.rewardChoiceId === undefined
+        ? { t: "quest.action", conversationId: value.conversationId, action: "close" }
+        : null;
+    }
+    if (value.questId === undefined) return null;
+    return {
+      t: "quest.action",
+      conversationId: value.conversationId,
+      questId: value.questId,
+      action: value.action,
+      ...(value.rewardChoiceId === undefined ? {} : { rewardChoiceId: value.rewardChoiceId }),
+    };
+  }
+  if (
     (value.t === "party.create" || value.t === "party.leave" || value.t === "party.dissolve") &&
     hasOnlyKeys(value, ["t"])
   )
@@ -1319,6 +1394,53 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       return value as unknown as ServerMessage;
     }
     if (value.t === "event.close" && isWireId(value.runId)) {
+      return value as unknown as ServerMessage;
+    }
+    if (
+      value.t === "quest.open" &&
+      isWireId(value.conversationId) &&
+      Array.isArray(value.entries) &&
+      value.entries.length >= 1 &&
+      value.entries.length <= MAX_AUTHORED_QUESTS &&
+      value.entries.every(
+        (entry) =>
+          isRecord(entry) &&
+          isWireId(entry.questId) &&
+          isBoundedString(entry.title, QUEST_TITLE_MAX) &&
+          isBoundedString(entry.text, QUEST_DIALOGUE_TEXT_MAX, true) &&
+          (entry.phase === "offer" ||
+            entry.phase === "active" ||
+            entry.phase === "ready" ||
+            entry.phase === "completed" ||
+            entry.phase === "unavailable") &&
+          typeof entry.canAccept === "boolean" &&
+          typeof entry.canTurnIn === "boolean" &&
+          Array.isArray(entry.rewardChoices) &&
+          entry.rewardChoices.length <= MAX_QUEST_REWARD_CHOICES &&
+          entry.rewardChoices.every(
+            (choice) =>
+              isRecord(choice) &&
+              isWireId(choice.id) &&
+              isBoundedString(choice.label, QUEST_TITLE_MAX),
+          ),
+      )
+    ) {
+      return value as unknown as ServerMessage;
+    }
+    if (
+      value.t === "quest.result" &&
+      isWireId(value.conversationId) &&
+      isWireId(value.questId) &&
+      isBoundedString(value.title, QUEST_TITLE_MAX) &&
+      isBoundedString(value.text, QUEST_DIALOGUE_TEXT_MAX, true) &&
+      (value.outcome === "accepted" ||
+        value.outcome === "refused" ||
+        value.outcome === "completed" ||
+        value.outcome === "failed")
+    ) {
+      return value as unknown as ServerMessage;
+    }
+    if (value.t === "quest.close" && isWireId(value.conversationId)) {
       return value as unknown as ServerMessage;
     }
     return null;

@@ -371,6 +371,284 @@ describe("adventure state runtime", { timeout: 20_000 }, () => {
     expect(held.state.quests?.["0001"]?.processedEventKeys).toHaveLength(1);
   });
 
+  it("accepts at a bound giver and turns in one atomic reward exactly once", async () => {
+    const npcId = crypto.randomUUID();
+    const npc: MapEvent = {
+      id: npcId,
+      col: 5,
+      row: 5,
+      name: "Warden Mira",
+      ordinal: 0,
+      kind: "normal",
+      species: null,
+      patrolRadius: null,
+      pages: [
+        page({
+          graphicAssetId: "character.units-blue-units-pawn.pawn-idle",
+          commands: [],
+        }),
+      ],
+    };
+    const party = await testParty("bound-quest-lifecycle", {
+      maps: [testMapInput("Bound quest", { events: [npc] })],
+    });
+    await seedAdventureRegistry(party.adventureId, {
+      switches: [{ id: "0001", name: "Mira helped" }],
+      variables: [],
+      quests: [
+        {
+          ...createAuthoredQuestDefinition("0001", "Mira's request"),
+          giver: { mapId: party.startMapId, eventId: npcId },
+          turnInTarget: { mapId: party.startMapId, eventId: npcId },
+          objectives: [
+            {
+              id: "0001",
+              type: "deliver",
+              label: "Bring one healing potion",
+              target: 1,
+              optional: false,
+              hidden: false,
+              stage: 0,
+              itemId: "health_potion",
+              consume: true,
+            },
+          ],
+          dialogues: {
+            offer: "Can you secure the road?",
+            accepted: "Return when it is safe.",
+            refused: "Another time, then.",
+            reminder: "The road is still unsafe.",
+            ready: "You have done it.",
+            turnIn: "The village is in your debt.",
+            completed: "We remember your help.",
+            unavailable: "",
+          },
+          rewards: {
+            experience: 60,
+            gold: 7,
+            items: [{ itemId: "mana_potion", quantity: 2 }],
+            choices: [
+              {
+                id: "0001",
+                label: "Healing potion",
+                experience: 0,
+                gold: 0,
+                items: [{ itemId: "health_potion", quantity: 1 }],
+              },
+            ],
+            nextQuestId: null,
+            stateChanges: [{ type: "switch", switchId: "0001", value: true }],
+            customCommands: [],
+          },
+        },
+      ],
+    });
+    const hero = await testHero("QuestTurnIn", {
+      party,
+      account: party.host,
+      position: tileCentre(5, 5),
+    });
+    const client = await Client.joinHero(hero);
+    const welcome = await until("bound quest welcome", () => client.welcome);
+    expect(welcome?.self.authoredQuestMarkers).toEqual([{ eventId: npcId, kind: "available" }]);
+
+    client.action("interact");
+    const offer = await until("quest offer opened", () =>
+      client.received.find(
+        (message) => message.t === "quest.open" && message.entries[0]?.phase === "offer",
+      ),
+    );
+    if (offer?.t !== "quest.open") throw new Error("missing quest offer");
+    client.sendRaw(
+      JSON.stringify({
+        t: "quest.action",
+        conversationId: offer.conversationId,
+        questId: "0001",
+        action: "accept",
+      }),
+    );
+    await until("quest accepted", () =>
+      client.received.find(
+        (message) => message.t === "quest.result" && message.outcome === "accepted",
+      ),
+    );
+    const coordinator = env.GAME_SESSION.getByName(party.partyId);
+    await until("quest ready marker", () =>
+      client.received.find(
+        (message) =>
+          message.t === "state" && message.self.authoredQuestMarkers?.[0]?.kind === "ready",
+      ),
+    );
+
+    client.action("interact");
+    const turnIn = await until("quest turn-in opened", () =>
+      [...client.received]
+        .reverse()
+        .find(
+          (message) =>
+            message.t === "quest.open" &&
+            message.entries[0]?.phase === "ready" &&
+            message.entries[0]?.canTurnIn,
+        ),
+    );
+    if (turnIn?.t !== "quest.open") throw new Error("missing quest turn-in");
+    const turnInIntent = {
+      t: "quest.action",
+      conversationId: turnIn.conversationId,
+      questId: "0001",
+      action: "turn-in",
+      rewardChoiceId: "0001",
+    };
+    client.sendRaw(JSON.stringify(turnInIntent));
+    await until("quest reward completed", () =>
+      client.received.find(
+        (message) => message.t === "quest.result" && message.outcome === "completed",
+      ),
+    );
+    client.sendRaw(JSON.stringify(turnInIntent));
+
+    const claim = await env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM authored_quest_reward_claim WHERE quest_id = '0001'",
+    ).first<{ count: number }>();
+    expect(claim?.count).toBe(1);
+    const rewarded = await env.DB.prepare("SELECT xp, gold FROM hero WHERE id = ?")
+      .bind(hero.heroId)
+      .first<{ xp: number; gold: number }>();
+    expect(rewarded).toEqual({ xp: 60, gold: 7 });
+    const items = await env.DB.prepare(
+      "SELECT item_definition_id, quantity FROM hero_item WHERE hero_id = ? AND item_definition_id IN ('health_potion', 'mana_potion') ORDER BY item_definition_id",
+    )
+      .bind(hero.heroId)
+      .all<{ item_definition_id: string; quantity: number }>();
+    expect(items.results).toEqual([
+      { item_definition_id: "health_potion", quantity: 2 },
+      { item_definition_id: "mana_potion", quantity: 2 },
+    ]);
+    const held = await coordinator.getAdventureState(party.partyId);
+    expect(held.state).toMatchObject({
+      switches: { "0001": true },
+      quests: { "0001": { status: "completed", rewardClaimed: true, completionCount: 1 } },
+    });
+
+    client.close();
+    const reconnected = await Client.joinHero(hero);
+    const restored = await until("completed quest restored", () =>
+      reconnected.welcome?.self.authoredQuests?.[0]?.status === "completed"
+        ? reconnected.welcome
+        : undefined,
+    );
+    expect(restored?.self.inventory).toMatchObject({ gold: 7, potions: 2 });
+  });
+
+  it("claims an automatic interaction reward once without an advanceQuest command", async () => {
+    const npcId = crypto.randomUUID();
+    const npc: MapEvent = {
+      id: npcId,
+      col: 5,
+      row: 5,
+      name: "Scout",
+      ordinal: 0,
+      kind: "normal",
+      species: null,
+      patrolRadius: null,
+      pages: [
+        page({
+          graphicAssetId: "character.units-blue-units-pawn.pawn-idle",
+          commands: [],
+        }),
+      ],
+    };
+    const party = await testParty("automatic-quest-reward", {
+      maps: [testMapInput("Automatic reward", { events: [npc] })],
+    });
+    await seedAdventureRegistry(party.adventureId, {
+      switches: [],
+      variables: [],
+      quests: [
+        {
+          ...createAuthoredQuestDefinition("0001", "Meet the scout"),
+          giver: { mapId: party.startMapId, eventId: npcId },
+          completion: "automatic",
+          objectives: [
+            {
+              id: "0001",
+              type: "interact",
+              label: "Talk to the scout",
+              target: 1,
+              optional: false,
+              hidden: false,
+              stage: 0,
+              interaction: "talk",
+              targetRef: { mapId: party.startMapId, eventId: npcId },
+            },
+          ],
+          rewards: {
+            experience: 25,
+            gold: 11,
+            items: [{ itemId: "mana_potion", quantity: 1 }],
+            choices: [],
+            nextQuestId: null,
+            stateChanges: [],
+            customCommands: [],
+          },
+        },
+      ],
+    });
+    const hero = await testHero("AutomaticReward", {
+      party,
+      account: party.host,
+      position: tileCentre(5, 5),
+    });
+    const client = await Client.joinHero(hero);
+    await until("automatic quest welcome", () => client.welcome);
+
+    client.action("interact");
+    const offer = await until("automatic quest offer", () =>
+      client.received.find(
+        (message) => message.t === "quest.open" && message.entries[0]?.canAccept,
+      ),
+    );
+    if (offer?.t !== "quest.open") throw new Error("missing automatic quest offer");
+    client.sendRaw(
+      JSON.stringify({
+        t: "quest.action",
+        conversationId: offer.conversationId,
+        questId: "0001",
+        action: "accept",
+      }),
+    );
+    await until("automatic quest accepted", () =>
+      client.received.find(
+        (message) => message.t === "quest.result" && message.outcome === "accepted",
+      ),
+    );
+
+    client.action("interact");
+    await until("automatic quest reward applied", () =>
+      client.received.find(
+        (message) => message.t === "state" && message.self.inventory.gold === 11,
+      ),
+    );
+    client.action("interact");
+
+    const claim = await env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM authored_quest_reward_claim WHERE recipient_hero_id = ? AND quest_id = '0001'",
+    )
+      .bind(hero.heroId)
+      .first<{ count: number }>();
+    expect(claim?.count).toBe(1);
+    const rewarded = await env.DB.prepare("SELECT xp, gold FROM hero WHERE id = ?")
+      .bind(hero.heroId)
+      .first<{ xp: number; gold: number }>();
+    expect(rewarded).toEqual({ xp: 25, gold: 11 });
+    const mana = await env.DB.prepare(
+      "SELECT quantity FROM hero_item WHERE hero_id = ? AND item_definition_id = 'mana_potion'",
+    )
+      .bind(hero.heroId)
+      .first<{ quantity: number }>();
+    expect(mana?.quantity).toBe(1);
+  });
+
   it("serializes ten shared kill events, deduplicates retries and stops after victory", async () => {
     const party = await testParty("ten-kills", {
       maps: [testMapInput("Ten kills")],
