@@ -1681,4 +1681,71 @@ describe("adventure state runtime", { timeout: 20_000 }, () => {
     expect(saved.switches).toEqual({ "0001": true });
     expect(saved.selfSwitches).toEqual({});
   });
+
+  it("closes an open quest conversation when the hero dies", async () => {
+    const npcId = crypto.randomUUID();
+    const npc: MapEvent = {
+      id: npcId,
+      col: 6,
+      row: 5,
+      name: "Frère Anselme",
+      ordinal: 0,
+      kind: "normal",
+      species: null,
+      patrolRadius: null,
+      pages: [
+        page({
+          graphicAssetId: "character.units-blue-units-pawn.pawn-idle",
+          commands: [],
+        }),
+      ],
+    };
+    const party = await testParty("dead-quest-conversation", {
+      maps: [testMapInput("Dead conversation", { events: [npc] })],
+    });
+    await seedAdventureRegistry(party.adventureId, {
+      switches: [],
+      variables: [],
+      quests: [
+        {
+          ...createAuthoredQuestDefinition("0001", "A last request"),
+          giver: { mapId: party.startMapId, eventId: npcId },
+          turnInTarget: { mapId: party.startMapId, eventId: npcId },
+          objectives: [createManualQuestObjective("0001", "Do the thing")],
+          dialogues: {
+            offer: "Will you help?",
+            accepted: "",
+            refused: "",
+            reminder: "",
+            ready: "",
+            turnIn: "",
+            completed: "",
+            unavailable: "",
+          },
+        },
+      ],
+    });
+    const hero = await testHero("DeadTalker", {
+      party,
+      account: party.host,
+      position: tileCentre(5, 5),
+    });
+    const client = await Client.joinHero(hero);
+    await until("welcomed before dying", () => client.welcome);
+
+    client.action("interact");
+    const opened = await until("conversation opened", () =>
+      client.received.find((message) => message.t === "quest.open"),
+    );
+    if (opened?.t !== "quest.open") throw new Error("missing quest conversation");
+
+    // The /die cheat forces the corpse state; the life transition must end the conversation.
+    client.chat("/die");
+    const closed = await until("conversation closed by death", () =>
+      client.received.find(
+        (message) => message.t === "quest.close" && message.conversationId === opened.conversationId,
+      ),
+    );
+    expect(closed?.t).toBe("quest.close");
+  });
 });

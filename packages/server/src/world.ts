@@ -1551,6 +1551,12 @@ export class World extends DurableObject<Env> {
       await this.#handleQuestAbandon(ws, player, message.questId);
       return;
     }
+    // Closing the quest panel is journal management too: a hero downed mid-conversation must never
+    // be stuck behind a panel no click can dismiss (other quest.actions stay gated on canAct below).
+    if (message.t === "quest.action" && message.action === "close") {
+      await this.#handleQuestAction(ws, player, message);
+      return;
+    }
     // The dead act only through the explicit non-physical exits above. Chat is the one thing a
     // spirit keeps in the room.
     if (message.t !== "chat" && !canAct(player.life)) return;
@@ -4417,6 +4423,14 @@ export class World extends DurableObject<Env> {
     player.lastInput = NO_INPUT;
     player.queue = [];
     player.starvedTicks = 0;
+    // A life transition also ends any open quest conversation, the same rule the event dialogue
+    // follows: a panel opened in one life state must not linger into another.
+    const staleConversation = this.#questConversations.get(player.id);
+    if (staleConversation) {
+      this.#questConversations.delete(player.id);
+      const socket = this.#socketByPlayerId.get(player.id);
+      if (socket) this.#send(socket, { t: "quest.close", conversationId: staleConversation.id });
+    }
     // A life transition aborts the hero's event runs, the same reason it clears the command queue:
     // a run buffered across a death/revive must not resume against a different life state.
     abortRunsForHero(this.#eventRuns, player.id);
