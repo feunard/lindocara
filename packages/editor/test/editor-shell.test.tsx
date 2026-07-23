@@ -78,11 +78,52 @@ vi.mock("@lindocara/editor/game/map-preview.js", () => ({
   startMapPreview: previewMock.startMapPreview,
 }));
 
+const gameSessionMock = vi.hoisted(() => ({ startGameAsHero: vi.fn() }));
+vi.mock("@lindocara/client/game/session.js", () => ({
+  startGameAsHero: gameSessionMock.startGameAsHero,
+}));
+
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(body === undefined ? null : JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+function runtimeTestSession() {
+  return {
+    id: "test-1",
+    adventureId: "adv-1",
+    startMapId: null,
+    expiresAt: Date.now() + 60_000,
+    diagnostics: [],
+    party: {
+      id: "party-1",
+      name: null,
+      adventureId: "adv-1",
+      adventureTitle: "Runtime Lab",
+      maxPlayers: 1,
+      status: "open" as const,
+      hostAccountId: "account-1",
+      colors: ["blue" as const],
+      mine: true,
+      myColor: "blue" as const,
+    },
+    hero: {
+      id: "hero-1",
+      partyId: "party-1",
+      accountId: "account-1",
+      name: "Testeur",
+      class: "warrior" as const,
+      mapId: "m1",
+      x: 160,
+      y: 160,
+      level: 1,
+      xp: 0,
+      hp: 100,
+      life: "alive" as const,
+    },
+  };
 }
 
 const OPEN_TILE_LAYERS = layersFromBlocks(Array.from({ length: 30 }, () => ".".repeat(40))).layers;
@@ -208,6 +249,7 @@ describe("AdventureEditorScreen shell", () => {
         invalidatedLinks: [],
         savedDraft: null,
       },
+      adventureTestSession: null,
     });
     for (const fn of Object.values(stageMock)) fn.mockReset();
     stageMock.openMapEditorStage.mockResolvedValue(stageHandle());
@@ -221,6 +263,8 @@ describe("AdventureEditorScreen shell", () => {
     });
     previewMock.startMapPreview.mockReset();
     previewMock.startMapPreview.mockResolvedValue({ stop: previewMock.stop });
+    gameSessionMock.startGameAsHero.mockReset();
+    gameSessionMock.startGameAsHero.mockResolvedValue(undefined);
   });
 
   it("pushes the matching EditorTool for each toolbar tool button", async () => {
@@ -811,7 +855,7 @@ describe("AdventureEditorScreen shell", () => {
     expect(stageMock.markSaved).toHaveBeenCalledWith(savedSnapshot);
   });
 
-  it("previews the stage's current map, then Esc returns to editing with edits intact", async () => {
+  it("opens the test workspace, then its explicit quick preview returns on Esc with edits intact", async () => {
     const edited = {
       name: "Verdant Reach",
       layers: OPEN_TILE_LAYERS,
@@ -833,6 +877,9 @@ describe("AdventureEditorScreen shell", () => {
     await mountReady();
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.shell.test") }));
+    expect(screen.getByRole("heading", { name: t("editor.test.title") })).toBeInTheDocument();
+    expect(previewMock.startMapPreview).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: t("editor.test.quick.action") }));
     await waitFor(() =>
       expect(previewMock.startMapPreview).toHaveBeenCalledWith(toMapData(edited)),
     );
@@ -848,6 +895,120 @@ describe("AdventureEditorScreen shell", () => {
         expect.any(Function),
       ),
     );
+  });
+
+  it("launches a disposable full-runtime session without creating a normal save", async () => {
+    const draft = emptyDraft();
+    draft.title = "Runtime Lab";
+    draft.members = [
+      {
+        mapId: "m1",
+        name: "Verdant Reach",
+        revision: 1,
+        solid: Array.from({ length: 30 }, () => ".".repeat(40)),
+        monsterCount: 0,
+        entryIds: [],
+        exitIds: [],
+        entryLabels: {},
+        exitLabels: {},
+      },
+    ];
+    useUiStore.setState({
+      adventureEditorSession: {
+        adventureId: "adv-1",
+        draftId: "draft-1",
+        draft,
+        invalidatedLinks: [],
+        savedDraft: JSON.stringify(draft),
+      },
+    });
+    const mapBackend = mapsFetchMock();
+    const testSession = runtimeTestSession();
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (url === "/api/adventures/adv-1/test-sessions" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse(testSession, 201));
+      }
+      return mapBackend(url, init);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await mountReady();
+
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.test") }));
+    await userEvent.click(screen.getByRole("button", { name: t("editor.test.launch") }));
+
+    await waitFor(() => expect(gameSessionMock.startGameAsHero).toHaveBeenCalledTimes(1));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/adventures/adv-1/test-sessions",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ startMapId: null, heroClass: "warrior" }),
+      }),
+    );
+    expect(useUiStore.getState().adventureTestSession).toEqual(testSession);
+    expect(gameSessionMock.startGameAsHero).toHaveBeenCalledWith(
+      testSession.hero,
+      testSession.party,
+    );
+    expect(stageMock.dispose).toHaveBeenCalledTimes(1);
+    expect(stageMock.dispose.mock.invocationCallOrder[0]).toBeLessThan(
+      gameSessionMock.startGameAsHero.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+    );
+    expect(previewMock.startMapPreview).not.toHaveBeenCalled();
+  });
+
+  it("deletes a failed runtime launch and reopens the editor stage", async () => {
+    const draft = emptyDraft();
+    draft.title = "Runtime Lab";
+    draft.members = [
+      {
+        mapId: "m1",
+        name: "Verdant Reach",
+        revision: 1,
+        solid: Array.from({ length: 30 }, () => ".".repeat(40)),
+        monsterCount: 0,
+        entryIds: [],
+        exitIds: [],
+        entryLabels: {},
+        exitLabels: {},
+      },
+    ];
+    useUiStore.setState({
+      adventureEditorSession: {
+        adventureId: "adv-1",
+        draftId: "draft-1",
+        draft,
+        invalidatedLinks: [],
+        savedDraft: JSON.stringify(draft),
+      },
+    });
+    const mapBackend = mapsFetchMock();
+    const testSession = runtimeTestSession();
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (url === "/api/adventures/adv-1/test-sessions" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse(testSession, 201));
+      }
+      if (url === "/api/adventure-test-sessions/test-1" && init?.method === "DELETE") {
+        return Promise.resolve(jsonResponse(undefined, 204));
+      }
+      return mapBackend(url, init);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    gameSessionMock.startGameAsHero.mockRejectedValueOnce(new Error("renderer failed"));
+    await mountReady();
+
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.test") }));
+    await userEvent.click(screen.getByRole("button", { name: t("editor.test.launch") }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/adventure-test-sessions/test-1",
+        expect.objectContaining({ method: "DELETE" }),
+      ),
+    );
+    await waitFor(() => expect(stageMock.openMapEditorStage).toHaveBeenCalledTimes(2));
+    expect(stageMock.dispose).toHaveBeenCalledTimes(1);
+    expect(useUiStore.getState().adventureTestSession).toBeNull();
+    expect(screen.getByText(t("auth.error.generic"))).toBeInTheDocument();
   });
 
   it("forwards undo and redo once the stage reports available history", async () => {

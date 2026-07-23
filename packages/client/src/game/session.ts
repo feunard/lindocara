@@ -267,6 +267,7 @@ async function startGameIdentity(
 ): Promise<void> {
   const loadingStartedAt = performance.now();
   const initialStore = useUiStore.getState();
+  initialStore.setActiveParty(persistentParty);
   initialStore.setAdventureVictory(false);
   initialStore.setHeroLoading({
     name: identity.name,
@@ -590,8 +591,13 @@ async function startGameIdentity(
     // Also clears mapOpen and settingsOpen: without that, either overlay survives a terminal
     // disconnect and reappears full-screen the instant the next character's world loads, over a
     // world that has not sent it a welcome yet.
-    if (persistentParty) useUiStore.getState().resetToParty();
-    else useUiStore.getState().resetToCharacterSelect();
+    const store = useUiStore.getState();
+    if (store.adventureTestSession) {
+      store.resetToParty();
+      store.setActiveParty(null);
+      store.setScreen("adventure-editor");
+    } else if (persistentParty) store.resetToParty();
+    else store.resetToCharacterSelect();
     setStatus("status.disconnected", { reason: t(key) });
   };
   stopSession = () => {
@@ -974,8 +980,13 @@ async function launchGameIdentity(
     if (launchId === activeLaunchId) {
       stopCurrentSession();
       stopActiveSession = null;
-      if (persistentParty) useUiStore.getState().resetToParty();
-      else useUiStore.getState().resetToCharacterSelect();
+      const store = useUiStore.getState();
+      if (store.adventureTestSession) {
+        store.resetToParty();
+        store.setActiveParty(null);
+        store.setScreen("adventure-editor");
+      } else if (persistentParty) store.resetToParty();
+      else store.resetToCharacterSelect();
     }
     throw error;
   }
@@ -988,4 +999,11 @@ export function startGame(character: CharacterSummary): Promise<void> {
 
 export function startGameAsHero(hero: StoredHero, party: PartyListing): Promise<void> {
   return launchGameIdentity(hero, party);
+}
+
+/** Cleanly tear down the current renderer/socket before an editor playtest reset or return. */
+export function stopActiveGameSession(): void {
+  activeLaunchId += 1;
+  stopCurrentSession();
+  stopActiveSession = null;
 }

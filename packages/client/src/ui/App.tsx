@@ -4,6 +4,7 @@ import { menuAudio } from "../game/menu-audio.js";
 import { continueAsGuest } from "../guest.js";
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
+import { AdventureTestOverlay } from "./AdventureTestOverlay.js";
 import { AuthScreen } from "./AuthScreen.js";
 import { Chat } from "./Chat.js";
 import { ConnectionOverlay } from "./ConnectionOverlay.js";
@@ -132,6 +133,7 @@ export function App() {
           <MobileControls />
           <ConnectionOverlay />
           <VictoryOverlay />
+          <AdventureTestOverlay />
         </>
       )}
       <SettingsMenu inGame={screen === "game"} />

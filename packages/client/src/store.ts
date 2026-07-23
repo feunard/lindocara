@@ -13,7 +13,7 @@ import type { Input } from "@lindocara/engine/simulation.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 import { create } from "zustand";
 import type { AdventureDraft } from "./adventure-draft.js";
-import type { PartyListing } from "./api.js";
+import type { AdventureTestSession, PartyListing } from "./api.js";
 
 export interface AdventureEditorSession {
   adventureId: string | null;
@@ -168,6 +168,8 @@ interface UiState {
   accountId: string | null;
   activeParty: PartyListing | null;
   adventureEditorSession: AdventureEditorSession | null;
+  /** Disposable real-runtime session launched by the creator editor. Never appears as a save. */
+  adventureTestSession: AdventureTestSession | null;
   self: SelfHud | null;
   selfState: SelfState | null;
   questStatus: QuestStatus;
@@ -212,6 +214,7 @@ interface UiState {
   setAccountId(accountId: string | null): void;
   setActiveParty(activeParty: PartyListing | null): void;
   setAdventureEditorSession(session: AdventureEditorSession | null): void;
+  setAdventureTestSession(session: AdventureTestSession | null): void;
   setSelf(self: SelfHud | null): void;
   setSelfState(state: SelfState): void;
   setQuestStatus(status: QuestStatus): void;
@@ -347,6 +350,7 @@ export const useUiStore = create<UiState>((set) => ({
   accountId: null,
   activeParty: null,
   adventureEditorSession: null,
+  adventureTestSession: null,
   self: null,
   selfState: null,
   questStatus: "available",
@@ -382,6 +386,7 @@ export const useUiStore = create<UiState>((set) => ({
   setAccountId: (accountId) => set({ accountId }),
   setActiveParty: (activeParty) => set({ activeParty }),
   setAdventureEditorSession: (adventureEditorSession) => set({ adventureEditorSession }),
+  setAdventureTestSession: (adventureTestSession) => set({ adventureTestSession }),
   setSelf: (self) =>
     set((state) => {
       if (selfHudEqual(state.self, self)) return {};

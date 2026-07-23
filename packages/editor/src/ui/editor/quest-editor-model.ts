@@ -1,6 +1,5 @@
 import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
 import { CONSUMABLE_IDS } from "@lindocara/engine/consumables.js";
-import type { EventCommand } from "@lindocara/engine/event-commands.js";
 import { CURATED_MONSTER_SPECIES } from "@lindocara/engine/game.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
 import type {
@@ -9,6 +8,7 @@ import type {
   QuestEventReference,
   QuestValidationContext,
 } from "@lindocara/engine/quests.js";
+import { collectQuestCommandBindings } from "@lindocara/engine/quests.js";
 import type { ElementEventBinding } from "../../game/editor-state.js";
 
 export type StructuredObjectiveType = Exclude<AuthoredQuestObjective["type"], "manual">;
@@ -145,25 +145,6 @@ export function creatorSlug(value: string, fallback = "activity"): string {
   return slug || fallback;
 }
 
-function scanCommands(
-  commands: readonly EventCommand[],
-  offered: Set<string>,
-  turnIns: Set<string>,
-): void {
-  for (const command of commands) {
-    if (command.t === "startQuest") offered.add(command.questId);
-    if (command.t === "completeQuest") turnIns.add(command.questId);
-    if (command.t === "if") {
-      scanCommands(command.then, offered, turnIns);
-      scanCommands(command.else, offered, turnIns);
-    }
-    if (command.t === "loop") scanCommands(command.body, offered, turnIns);
-    if (command.t === "choices") {
-      for (const option of command.options) scanCommands(option.body, offered, turnIns);
-    }
-  }
-}
-
 export function questValidationContext(
   registry: AdventureRegistry,
   maps: readonly QuestMapCatalog[],
@@ -173,7 +154,7 @@ export function questValidationContext(
   for (const map of maps) {
     for (const event of map.events) {
       for (const page of event.pages) {
-        scanCommands(page.commands, offeredQuestIds, turnInQuestIds);
+        collectQuestCommandBindings(page.commands, offeredQuestIds, turnInQuestIds);
       }
     }
   }

@@ -40,6 +40,7 @@ export function Hud() {
   const party = useUiStore((s) => s.party);
   const partyInvite = useUiStore((s) => s.partyInvite);
   const activeParty = useUiStore((s) => s.activeParty);
+  const adventureTestSession = useUiStore((s) => s.adventureTestSession);
   const questTracking = useUiStore((s) => s.questTracking);
   const setQuestJournalOpen = useUiStore((s) => s.setQuestJournalOpen);
 
@@ -137,15 +138,17 @@ export function Hud() {
             <strong>{t("party.title")}</strong>
           </div>
           {activeParty ? (
-            <div>
+            <div className="party-save">
               <strong>{activeParty.name ?? activeParty.adventureTitle}</strong>
               <span>
-                {t("party.saved_session", {
-                  status:
-                    activeParty.status === "completed"
-                      ? t("parties.completed")
-                      : t("party.in_progress"),
-                })}
+                {adventureTestSession
+                  ? t("party.test_session")
+                  : t("party.saved_session", {
+                      status:
+                        activeParty.status === "completed"
+                          ? t("parties.completed")
+                          : t("party.in_progress"),
+                    })}
               </span>
             </div>
           ) : party ? (

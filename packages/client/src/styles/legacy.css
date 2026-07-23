@@ -461,6 +461,16 @@ button:not(:where([data-slot], [data-slot] *, .editor-root *)):disabled {
   text-transform: uppercase;
 }
 
+.party-save {
+  display: grid;
+  gap: 0.08rem;
+}
+
+.party-save > span {
+  color: var(--legacy-muted);
+  font-size: 0.62rem;
+}
+
 .panel-icon {
   display: inline-block;
   width: 1rem;

@@ -545,6 +545,38 @@ export const hero = sqliteTable(
   (table) => [index("hero_party_account_idx").on(table.partyId, table.accountId)],
 );
 
+/**
+ * A disposable, editor-owned playtest envelope around a normal party/hero runtime.
+ *
+ * The party is intentionally real so the authoritative World/GameSession path is exercised, but
+ * this row keeps it out of save/join lists and gives it a bounded lifetime. Deleting the party
+ * cascades this row, its hero and every progression/reward child, leaving no player save behind.
+ */
+export const adventureTestSession = sqliteTable(
+  "adventure_test_session",
+  {
+    id: text("id").primaryKey(),
+    accountId: text("account_id")
+      .notNull()
+      .references(() => account.id, { onDelete: "cascade" }),
+    adventureId: text("adventure_id")
+      .notNull()
+      .references(() => adventure.id, { onDelete: "cascade" }),
+    partyId: text("party_id")
+      .notNull()
+      .references(() => party.id, { onDelete: "cascade" }),
+    /** Null means the authored global adventure start; otherwise the map's fallback/test point. */
+    startMapId: text("start_map_id"),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
+  },
+  (table) => [
+    uniqueIndex("adventure_test_session_account_unique").on(table.accountId),
+    uniqueIndex("adventure_test_session_party_unique").on(table.partyId),
+    index("adventure_test_session_expiry_idx").on(table.expiresAt),
+  ],
+);
+
 /** Hero-owned normalized gameplay state. These tables intentionally do not point at `character`:
  * the party/hero flow has its own ownership and fencing boundary. */
 export const heroItem = sqliteTable(
@@ -687,6 +719,7 @@ export type Adventure = typeof adventure.$inferSelect;
 export type Party = typeof party.$inferSelect;
 export type PartyMember = typeof partyMember.$inferSelect;
 export type Hero = typeof hero.$inferSelect;
+export type AdventureTestSession = typeof adventureTestSession.$inferSelect;
 export type HeroItem = typeof heroItem.$inferSelect;
 export type HeroEquipment = typeof heroEquipment.$inferSelect;
 export type HeroSkill = typeof heroSkill.$inferSelect;

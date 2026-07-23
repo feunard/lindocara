@@ -4,12 +4,14 @@ import type {
   CreateAdventureInput,
 } from "@lindocara/engine/adventure.js";
 import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
+import type { CreateAdventureTestSessionInput } from "@lindocara/engine/adventure-test.js";
 import type { CharacterAppearance, Equipment } from "@lindocara/engine/character.js";
 import type { PlayerClass } from "@lindocara/engine/game.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import type { MapElement, MapMarkers } from "@lindocara/engine/map-data.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
 import type { PartyColor } from "@lindocara/engine/party.js";
+import type { QuestDiagnostic } from "@lindocara/engine/quests.js";
 import { t } from "./i18n.js";
 
 export interface Me {
@@ -28,7 +30,10 @@ export interface CharacterSummary {
 
 /** API errors carry stable machine codes the UI maps to i18n keys. */
 export class ApiError extends Error {
-  constructor(readonly code: string) {
+  constructor(
+    readonly code: string,
+    readonly details?: unknown,
+  ) {
     super(code);
   }
 }
@@ -45,7 +50,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
       typeof body === "object" && body !== null && "error" in body && typeof body.error === "string"
         ? body.error
         : "generic";
-    throw new ApiError(code);
+    throw new ApiError(code, body);
   }
   return body as T;
 }
@@ -143,6 +148,28 @@ export const updateAdventureApi = (id: string, input: AdventureInput) =>
   api<AdventurePayload>(`/api/adventures/${id}`, { method: "PUT", body: JSON.stringify(input) });
 export const deleteAdventureApi = (id: string) =>
   api<void>(`/api/adventures/${id}`, { method: "DELETE" });
+
+export interface AdventureTestSession {
+  id: string;
+  adventureId: string;
+  startMapId: string | null;
+  expiresAt: number;
+  party: PartyListing;
+  hero: StoredHero;
+  diagnostics: QuestDiagnostic[];
+}
+
+export const createAdventureTestSessionApi = (
+  adventureId: string,
+  input: CreateAdventureTestSessionInput,
+) =>
+  api<AdventureTestSession>(`/api/adventures/${adventureId}/test-sessions`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+
+export const deleteAdventureTestSessionApi = (sessionId: string) =>
+  api<void>(`/api/adventure-test-sessions/${sessionId}`, { method: "DELETE" });
 
 export interface PartyListing {
   id: string;
@@ -253,6 +280,8 @@ export const ERROR_KEYS: Record<string, MessageKey> = {
   adventure_not_found: "adventure.error.not_found",
   adventure_not_playable: "adventure.error.not_playable",
   adventure_in_use: "adventure.error.in_use",
+  adventure_test_invalid: "editor.test.error.invalid",
+  adventure_test_not_found: "editor.test.error.expired",
   party_invalid: "party.error.invalid",
   party_not_found: "party.error.not_found",
   party_adventure: "party.error.adventure",

@@ -725,6 +725,35 @@ export interface QuestValidationContext {
   readonly turnInQuestIds?: ReadonlySet<string>;
 }
 
+/**
+ * Find classic event-command acceptance and turn-in bindings for semantic validation.
+ *
+ * This belongs beside the validator so the editor and the server agree even when a binding is
+ * nested inside a condition, loop or choice branch.
+ */
+export function collectQuestCommandBindings(
+  commands: readonly EventCommand[],
+  offeredQuestIds: Set<string>,
+  turnInQuestIds: Set<string>,
+): void {
+  for (const command of commands) {
+    if (command.t === "startQuest") offeredQuestIds.add(command.questId);
+    if (command.t === "completeQuest") turnInQuestIds.add(command.questId);
+    if (command.t === "if") {
+      collectQuestCommandBindings(command.then, offeredQuestIds, turnInQuestIds);
+      collectQuestCommandBindings(command.else, offeredQuestIds, turnInQuestIds);
+    }
+    if (command.t === "loop") {
+      collectQuestCommandBindings(command.body, offeredQuestIds, turnInQuestIds);
+    }
+    if (command.t === "choices") {
+      for (const option of command.options) {
+        collectQuestCommandBindings(option.body, offeredQuestIds, turnInQuestIds);
+      }
+    }
+  }
+}
+
 export type QuestDiagnosticSeverity = "error" | "warning";
 
 export interface QuestDiagnostic {

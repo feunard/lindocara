@@ -5,8 +5,11 @@ import {
   toAdventureInput,
 } from "@lindocara/client/adventure-draft.js";
 import {
+  ApiError,
   authErrorText,
   createAdventureApi,
+  createAdventureTestSessionApi,
+  deleteAdventureTestSessionApi,
   errorCode,
   fetchMap,
   fetchMaps,
@@ -26,6 +29,7 @@ import {
   type MapEvent,
   monsterEvents,
 } from "@lindocara/engine/map-events.js";
+import type { QuestDiagnostic } from "@lindocara/engine/quests.js";
 import { type EditorAssetId, editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
 import { Button } from "@lindocara/ui/components/button.js";
 import { Input } from "@lindocara/ui/components/input.js";
@@ -63,6 +67,7 @@ import {
 } from "../../game/map-editor-stage.js";
 import { startMapPreview } from "../../game/map-preview.js";
 import { AdventureSettingsDialog } from "./AdventureSettingsDialog.js";
+import { AdventureTestDialog, type AdventureTestOptions } from "./AdventureTestDialog.js";
 import { loadAdventureSession } from "./adventure-session.js";
 import { assetDisplayName, EditorAssetPreview } from "./CatalogueAssetPicker.js";
 import { EditorMenuBar } from "./EditorMenuBar.js";
@@ -324,6 +329,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   // typing risks being intercepted. It needs `tabIndex={-1}` to be programmatically focusable — see
   // the focus effect below.
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const pendingTestOptionsRef = useRef<AdventureTestOptions | null>(null);
 
   const [map, setMap] = useState<MapPayload | null>(null);
   const [toolKey, setToolKey] = useState<ToolKey | null>("pencil");
@@ -357,6 +363,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   const [markerSpecies, setMarkerSpecies] = useState<MonsterSpecies>("spear_goblin");
   const [markerRadius, setMarkerRadius] = useState(96);
   const [stageStatus, setStageStatus] = useState<StageStatus>("loading");
+  const [stageEpoch, setStageEpoch] = useState(0);
   const [previewing, setPreviewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Right-pane / dialog coordination, lifted here so the menu bar, toolbar and map panel all reach
@@ -366,6 +373,10 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [questWorkspaceOpen, setQuestWorkspaceOpen] = useState(false);
   const [databaseOpen, setDatabaseOpen] = useState(false);
+  const [testOpen, setTestOpen] = useState(false);
+  const [testBusy, setTestBusy] = useState(false);
+  const [testError, setTestError] = useState<string | null>(null);
+  const [testDiagnostics, setTestDiagnostics] = useState<readonly QuestDiagnostic[]>([]);
   // UX wave #15: the "Load an adventure" dialog, reached from File → « Charger une aventure ».
   const [loadOpen, setLoadOpen] = useState(false);
   // UX wave #14: a freshly created adventure is born with the default title, so its first explicit
@@ -525,7 +536,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         placementHintTimeoutRef.current = null;
       }
     };
-  }, [map?.id, previewing]);
+  }, [map?.id, previewing, stageEpoch]);
 
   // The sandbox walk. Only while previewing; Esc ends it, which reopens the editor with edits intact.
   useEffect(() => {
@@ -747,10 +758,85 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   }
 
   function test(): void {
+    if (stageStatus !== "ready") return;
+    setTestError(null);
+    setTestDiagnostics([]);
+    setTestOpen(true);
+  }
+
+  function quickPreview(): void {
     const handle = handleRef.current;
     if (!handle) return;
     editedRef.current = handle.current();
+    setTestOpen(false);
     setPreviewing(true);
+  }
+
+  async function launchAdventureTest(
+    options: AdventureTestOptions,
+    mapAlreadySaved = false,
+  ): Promise<void> {
+    if (!adventureId || testBusy) return;
+    setTestBusy(true);
+    setTestError(null);
+    setTestDiagnostics([]);
+    let createdSessionId: string | null = null;
+    let releasedStage = false;
+    try {
+      if (!mapAlreadySaved && dirty) {
+        const saved = await doSaveMap();
+        if (!saved) return;
+      }
+      const session = await createAdventureTestSessionApi(adventureId, options);
+      createdSessionId = session.id;
+      useUiStore.getState().setAdventureTestSession(session);
+      setTestOpen(false);
+      // Hand the one shared Pixi canvas over synchronously. If React unmounts the editor after the
+      // game has already acquired/started that app, the editor effect cleanup would otherwise stop
+      // the ticker again and strand the hero-loading overlay at 90% despite live server snapshots.
+      handleRef.current?.dispose();
+      handleRef.current = null;
+      releasedStage = true;
+      const { startGameAsHero } = await import("@lindocara/client/game/session.js");
+      await startGameAsHero(session.hero, session.party);
+    } catch (caught) {
+      if (createdSessionId) {
+        // A runtime/bootstrap failure must not leave an invisible disposable party behind. The TTL
+        // remains a backstop if this best-effort cleanup itself cannot reach the server.
+        try {
+          await deleteAdventureTestSessionApi(createdSessionId);
+        } catch {
+          // Preserve the original launch error: it is the actionable failure shown to the creator.
+        }
+        const store = useUiStore.getState();
+        store.setAdventureTestSession(null);
+        store.setActiveParty(null);
+      }
+      if (releasedStage) setStageEpoch((current) => current + 1);
+      const code = errorCode(caught);
+      if (isSessionError(code)) {
+        setScreen("auth");
+        return;
+      }
+      if (caught instanceof ApiError && code === "adventure_test_invalid") {
+        const diagnostics = (caught.details as { diagnostics?: unknown } | null)?.diagnostics;
+        if (Array.isArray(diagnostics)) setTestDiagnostics(diagnostics as QuestDiagnostic[]);
+      }
+      setTestError(authErrorText(code));
+      setTestOpen(true);
+    } finally {
+      setTestBusy(false);
+    }
+  }
+
+  function requestAdventureTest(options: AdventureTestOptions): void {
+    if (titleUntouched) {
+      pendingTestOptionsRef.current = options;
+      setTestOpen(false);
+      setFirstSaveOpen(true);
+      return;
+    }
+    void launchAdventureTest(options);
   }
 
   function undo(): void {
@@ -867,6 +953,9 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     if (latest) setSession({ ...latest, draft: saved, titleUntouched: false });
     setTitleUntouched(false);
     setFirstSaveOpen(false);
+    const pendingTest = pendingTestOptionsRef.current;
+    pendingTestOptionsRef.current = null;
+    if (pendingTest) void launchAdventureTest(pendingTest, true);
   }
 
   // The map panel's "select to switch" load path: guard unsaved edits, then swap the stage's map.
@@ -991,6 +1080,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       settingsOpen ||
       questWorkspaceOpen ||
       databaseOpen ||
+      testOpen ||
       loadOpen ||
       openEventId !== null ||
       bindingSelection !== null ||
@@ -1086,6 +1176,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       settingsOpen ||
       questWorkspaceOpen ||
       databaseOpen ||
+      testOpen ||
       loadOpen ||
       firstSaveOpen
     )
@@ -1348,12 +1439,29 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
           onSessionExpired={() => setScreen("auth")}
         />
 
+        <AdventureTestDialog
+          open={testOpen}
+          maps={draftMembers ?? []}
+          currentMapId={map?.id ?? null}
+          quests={registry.quests ?? []}
+          dirty={dirty}
+          busy={testBusy}
+          error={testError}
+          diagnostics={testDiagnostics}
+          onOpenChange={setTestOpen}
+          onQuickPreview={quickPreview}
+          onLaunch={requestAdventureTest}
+        />
+
         <FirstSaveDialog
           key={`${adventureId}:${firstSaveOpen}`}
           open={firstSaveOpen}
           defaultTitle={draftTitle}
           onConfirm={(title) => void confirmFirstSave(title)}
-          onCancel={() => setFirstSaveOpen(false)}
+          onCancel={() => {
+            pendingTestOptionsRef.current = null;
+            setFirstSaveOpen(false);
+          }}
         />
 
         <RegistryDialog

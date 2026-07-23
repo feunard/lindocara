@@ -12,9 +12,9 @@ import {
   PARTY_LIST_PAGE_SIZE,
   type PartyColor,
 } from "@lindocara/engine/party.js";
-import { and, desc, eq, inArray, lt, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import { loadAdventure } from "./adventures.js";
-import { adventure, type Db, hero, party, partyMember } from "./db/index.js";
+import { adventure, adventureTestSession, type Db, hero, party, partyMember } from "./db/index.js";
 
 export interface PartyListing {
   id: string;
@@ -148,7 +148,13 @@ export async function createParty(
            (id, adventure_id, adventure_version, max_players, host_account_id, name, status,
             created_at, updated_at)
          SELECT ?, ?, ?, ?, ?, ?, ?, (unixepoch() * 1000), (unixepoch() * 1000)
-         WHERE (SELECT count(*) FROM party WHERE host_account_id = ?) < ?`,
+         WHERE (SELECT count(*)
+                FROM party AS hosted
+                WHERE hosted.host_account_id = ?
+                  AND NOT EXISTS (
+                    SELECT 1 FROM adventure_test_session AS test
+                    WHERE test.party_id = hosted.id
+                  )) < ?`,
       )
       .bind(
         row.id,
@@ -206,13 +212,18 @@ export async function listPublicPartiesPage(
   const base = db
     .select(fields)
     .from(party)
-    .innerJoin(adventure, eq(party.adventureId, adventure.id));
+    .innerJoin(adventure, eq(party.adventureId, adventure.id))
+    .leftJoin(adventureTestSession, eq(adventureTestSession.partyId, party.id));
+  const visibleCondition = isNull(adventureTestSession.id);
   const rows = cursorCondition
     ? await base
-        .where(cursorCondition)
+        .where(and(visibleCondition, cursorCondition))
         .orderBy(desc(party.createdAt), desc(party.id))
         .limit(limit + 1)
-    : await base.orderBy(desc(party.createdAt), desc(party.id)).limit(limit + 1);
+    : await base
+        .where(visibleCondition)
+        .orderBy(desc(party.createdAt), desc(party.id))
+        .limit(limit + 1);
   const hasMore = rows.length > limit;
   const pageRows = rows.slice(0, limit);
   if (pageRows.length === 0) return { items: [], nextCursor: null };
@@ -257,6 +268,12 @@ export async function listPublicParties(db: Db, accountId: string): Promise<Part
 export async function joinParty(db: Db, accountId: string, partyId: string): Promise<void> {
   const row = await loadPartyRow(db, partyId);
   if (!row) throw new Error("not_found: no such party");
+  const testSession = await db
+    .select({ id: adventureTestSession.id })
+    .from(adventureTestSession)
+    .where(eq(adventureTestSession.partyId, partyId))
+    .get();
+  if (testSession) throw new Error("not_found: no such party");
   const members = await db
     .select({ accountId: partyMember.accountId, color: partyMember.color })
     .from(partyMember)

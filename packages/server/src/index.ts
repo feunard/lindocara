@@ -7,6 +7,7 @@
  */
 
 import { parseAdventureInput, parseCreateAdventureInput } from "@lindocara/engine/adventure.js";
+import { parseCreateAdventureTestSessionInput } from "@lindocara/engine/adventure-test.js";
 import { normalizeAppearance } from "@lindocara/engine/character.js";
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import { isValidClass } from "@lindocara/engine/game.js";
@@ -23,6 +24,12 @@ import {
   type ZoneLocation,
 } from "@lindocara/engine/zones.js";
 import { accountExists, createAccount, verifyCredentials } from "./accounts.js";
+import {
+  adventureTestPartyAccess,
+  cleanupExpiredAdventureTestSessions,
+  createAdventureTestSession,
+  deleteAdventureTestSession,
+} from "./adventure-test-sessions.js";
 import {
   createAdventureWithDefaultMap,
   deleteAdventure,
@@ -400,6 +407,18 @@ async function handleJoinHero(request: Request, env: Env, url: URL): Promise<Res
   if (!isUuid(partyId) || !isUuid(heroId)) return json({ error: "invalid_hero" }, { status: 400 });
   const partyRow = await loadPartyForMember(db, session.id, partyId);
   if (!partyRow) return json({ error: "forbidden" }, { status: 403 });
+  const testAccess = await adventureTestPartyAccess(db, session.id, partyId);
+  if (testAccess.kind === "forbidden") {
+    // An expired test is disposable by definition. Remove it before any presence lease is acquired,
+    // then revoke a possible old socket from the same hero identity.
+    const deletedHeroIds = await deleteAdventureTestSession(db, session.id, testAccess.sessionId);
+    await Promise.all(
+      deletedHeroIds.map((id) =>
+        env.HERO_PRESENCE.getByName(id).revoke(WS_CLOSE.CHARACTER_DELETED, "playtest expired"),
+      ),
+    );
+    return closedWebSocket(WS_CLOSE.INVALID_LOCATION, "adventure playtest expired");
+  }
   const owned = await loadOwnedHero(db, session.id, partyId, heroId);
   if (!owned) return json({ error: "forbidden" }, { status: 403 });
   const adventure = await loadAdventure(db, partyRow.hostAccountId, partyRow.adventureId);
@@ -765,10 +784,90 @@ function heroErrorResponse(error: unknown): Response {
   throw error;
 }
 
+function adventureTestErrorResponse(error: unknown): Response {
+  const message = error instanceof Error ? error.message : "";
+  const code = message.split(":")[0];
+  if (code === "not_found") return json({ error: "adventure_test_not_found" }, { status: 404 });
+  if (code === "adventure") return json({ error: "adventure_not_found" }, { status: 404 });
+  if (code === "map") return json({ error: "map_not_found" }, { status: 404 });
+  if (code === "not_playable") {
+    return json({ error: "adventure_not_playable" }, { status: 409 });
+  }
+  throw error;
+}
+
+async function revokeTestHeroes(
+  env: Env,
+  heroIds: readonly string[],
+  reason: string,
+): Promise<void> {
+  await Promise.all(
+    heroIds.map((heroId) =>
+      env.HERO_PRESENCE.getByName(heroId).revoke(WS_CLOSE.CHARACTER_DELETED, reason),
+    ),
+  );
+}
+
 async function handleListAdventures(request: Request, env: Env, url: URL): Promise<Response> {
   const auth = await requireSession(request, env, url);
   if (auth instanceof Response) return auth;
-  return json(await listAdventures(createDb(env.DB), auth.session.id));
+  const db = createDb(env.DB);
+  const expiredHeroIds = await cleanupExpiredAdventureTestSessions(db);
+  await revokeTestHeroes(env, expiredHeroIds, "playtest expired");
+  return json(await listAdventures(db, auth.session.id));
+}
+
+async function handleCreateAdventureTestSession(
+  request: Request,
+  env: Env,
+  url: URL,
+  adventureId: string,
+): Promise<Response> {
+  const auth = await requireSession(request, env, url);
+  if (auth instanceof Response) return auth;
+  const parsed = await readJson(request);
+  if (parsed instanceof Response) return parsed;
+  const input = parseCreateAdventureTestSessionInput(parsed.value);
+  if (!input) return json({ error: "adventure_test_invalid" }, { status: 400 });
+  try {
+    const result = await createAdventureTestSession(
+      createDb(env.DB),
+      auth.session.id,
+      adventureId,
+      input,
+    );
+    if (!result.ok) {
+      return json(
+        { error: "adventure_test_invalid", diagnostics: result.diagnostics },
+        { status: 422 },
+      );
+    }
+    await revokeTestHeroes(env, result.replacedHeroIds, "playtest reset");
+    return json(result.session, { status: 201 });
+  } catch (error) {
+    return adventureTestErrorResponse(error);
+  }
+}
+
+async function handleDeleteAdventureTestSession(
+  request: Request,
+  env: Env,
+  url: URL,
+  sessionId: string,
+): Promise<Response> {
+  const auth = await requireSession(request, env, url);
+  if (auth instanceof Response) return auth;
+  try {
+    const deletedHeroIds = await deleteAdventureTestSession(
+      createDb(env.DB),
+      auth.session.id,
+      sessionId,
+    );
+    await revokeTestHeroes(env, deletedHeroIds, "playtest closed");
+    return new Response(null, { status: 204 });
+  } catch (error) {
+    return adventureTestErrorResponse(error);
+  }
 }
 
 async function handleCreateAdventure(request: Request, env: Env, url: URL): Promise<Response> {
@@ -1034,12 +1133,24 @@ export default {
     if (url.pathname === "/api/adventures" && request.method === "POST") {
       return handleCreateAdventure(request, env, url);
     }
+    const adventureTestCreateRoute = url.pathname.match(
+      /^\/api\/adventures\/([A-Za-z0-9-]{1,64})\/test-sessions$/,
+    );
+    if (adventureTestCreateRoute?.[1] && request.method === "POST") {
+      return handleCreateAdventureTestSession(request, env, url, adventureTestCreateRoute[1]);
+    }
     const adventureRoute = url.pathname.match(/^\/api\/adventures\/([A-Za-z0-9-]{1,64})$/);
     if (adventureRoute?.[1]) {
       const id = adventureRoute[1];
       if (request.method === "GET") return handleGetAdventure(request, env, url, id);
       if (request.method === "PUT") return handleUpdateAdventure(request, env, url, id);
       if (request.method === "DELETE") return handleDeleteAdventure(request, env, url, id);
+    }
+    const adventureTestDeleteRoute = url.pathname.match(
+      /^\/api\/adventure-test-sessions\/([A-Za-z0-9-]{1,64})$/,
+    );
+    if (adventureTestDeleteRoute?.[1] && request.method === "DELETE") {
+      return handleDeleteAdventureTestSession(request, env, url, adventureTestDeleteRoute[1]);
     }
 
     if (url.pathname === "/api/parties" && request.method === "GET") {
