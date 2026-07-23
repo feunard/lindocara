@@ -1636,6 +1636,19 @@ export class World extends DurableObject<Env> {
     } else if (result.transition === "revive") {
       this.#cheatRevive(player);
     }
+    if (result.teleport) {
+      const destination = eventCellCentre(result.teleport);
+      const terrain = this.#zone().terrain;
+      const landable =
+        destination.x < terrain.width &&
+        destination.y < terrain.height &&
+        isWalkable(destination, PLAYER_SIZE, terrain);
+      if (!landable) {
+        this.#send(ws, { t: "event", code: "cheat.tp_blocked", tone: "bad" });
+        return;
+      }
+      this.#teleportSameMap(player, result.teleport.col, result.teleport.row, "cheat");
+    }
     if (result.stateChanged) this.#sendState(ws, player);
     this.#send(ws, { t: "event", ...result.event, x: player.x, y: player.y });
   }

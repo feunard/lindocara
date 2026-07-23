@@ -476,6 +476,8 @@ export const EVENT_CODES = [
   "cheat.revive",
   "cheat.reset",
   "cheat.where",
+  "cheat.tp",
+  "cheat.tp_blocked",
   "cheat.alive_only",
   "cheat.already_alive",
   "cheat.already_ghost",

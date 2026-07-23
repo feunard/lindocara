@@ -6,7 +6,7 @@
  * and parsing cannot silently drift apart.
  */
 export const CHEAT_COMMAND_SYNTAX =
-  "/up1…/up10 · /nodead · /heal · /hurt · /resource · /resetcd · /loot · /die · /ghost · /revive · /reset · /where";
+  "/up1…/up10 · /nodead · /heal · /hurt · /resource · /resetcd · /loot · /die · /ghost · /revive · /reset · /where · /tp col row";
 
 export type CheatCommand =
   | { kind: "help" }
@@ -22,6 +22,7 @@ export type CheatCommand =
   | { kind: "revive" }
   | { kind: "reset" }
   | { kind: "where" }
+  | { kind: "teleport"; col: number; row: number }
   | { kind: "unknown" };
 
 /** Null means ordinary chat; every slash-prefixed line stays private and is treated as a command. */
@@ -42,5 +43,7 @@ export function parseCheatCommand(text: string): CheatCommand | null {
   if (command === "/revive") return { kind: "revive" };
   if (command === "/reset") return { kind: "reset" };
   if (command === "/where") return { kind: "where" };
+  const teleport = /^\/tp\s+(\d{1,3})\s+(\d{1,3})$/.exec(command.replace(/\s+/g, " "));
+  if (teleport) return { kind: "teleport", col: Number(teleport[1]), row: Number(teleport[2]) };
   return { kind: "unknown" };
 }

@@ -699,6 +699,8 @@ export const en = {
   "event.cheat.revive": "Revived on the spot at full health.",
   "event.cheat.reset": "Test state reset: alive, full health/resource, cooldowns ready.",
   "event.cheat.where": "Server position — map {map}, x {x}, y {y}.",
+  "event.cheat.tp": "Teleported to cell ({col}, {row}).",
+  "event.cheat.tp_blocked": "Target cell is unreachable: out of the map or not walkable.",
   "event.cheat.alive_only": "This command requires a living hero.",
   "event.cheat.already_alive": "The hero is already alive.",
   "event.cheat.already_ghost": "The hero is already a ghost.",

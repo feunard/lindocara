@@ -12,6 +12,8 @@ export interface CheatCommandResult {
   event: { code: EventCode; params?: EventParams; tone: EventTone };
   stateChanged: boolean;
   transition?: CheatLifeTransition;
+  /** World applies it with terrain validation; the executor only relays the intent. */
+  teleport?: { col: number; row: number };
 }
 
 function event(
@@ -115,6 +117,13 @@ export function executeCheatCommand(
         y: Math.round(player.y),
       }),
       stateChanged: false,
+    };
+  }
+  if (command.kind === "teleport") {
+    return {
+      event: event("cheat.tp", "info", { col: command.col, row: command.row }),
+      stateChanged: true,
+      teleport: { col: command.col, row: command.row },
     };
   }
   if (command.kind === "die") {
