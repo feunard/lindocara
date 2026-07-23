@@ -146,6 +146,21 @@ describe("stepEventRun — the per-opcode table", () => {
     expect(drained.context.status).toBe("done");
   });
 
+  it("emits structured area and activity facts without mutating quest counters directly", () => {
+    const program: EventCommand[] = [
+      { t: "enterArea", areaId: "north_gate" },
+      { t: "completeActivity", activityId: "village_defence" },
+    ];
+    const drained = drain(run(program), state());
+    expect(drained.effects.filter((effect) => effect.kind !== "closeDialogue")).toEqual([
+      { kind: "questFact", fact: { type: "areaEntered", areaId: "north_gate" } },
+      {
+        kind: "questFact",
+        fact: { type: "activityCompleted", activityId: "village_defence" },
+      },
+    ]);
+  });
+
   it("starts, advances and completes a party-owned authored quest", () => {
     let snapshot = state();
     snapshot = applyStateMutation(snapshot, { type: "startQuest", questId: "0001" });

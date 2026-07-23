@@ -151,10 +151,20 @@ export function questValidationContext(
 ): QuestValidationContext {
   const offeredQuestIds = new Set<string>();
   const turnInQuestIds = new Set<string>();
+  const activityIds = new Set<string>();
+  const areaIdsByMap = new Map<string, Set<string>>();
   for (const map of maps) {
+    const areaIds = new Set<string>();
+    areaIdsByMap.set(map.mapId, areaIds);
     for (const event of map.events) {
       for (const page of event.pages) {
-        collectQuestCommandBindings(page.commands, offeredQuestIds, turnInQuestIds);
+        collectQuestCommandBindings(
+          page.commands,
+          offeredQuestIds,
+          turnInQuestIds,
+          activityIds,
+          page.trigger === "player-touch" ? areaIds : undefined,
+        );
       }
     }
   }
@@ -163,7 +173,9 @@ export function questValidationContext(
     eventIdsByMap: new Map(
       maps.map((map) => [map.mapId, new Set(map.events.map((event) => event.id))]),
     ),
+    areaIdsByMap,
     itemIds: new Set(CONSUMABLE_IDS),
+    activityIds,
     switchIds: new Set(registry.switches.map((entry) => entry.id)),
     variableIds: new Set(registry.variables.map((entry) => entry.id)),
     offeredQuestIds,
@@ -221,7 +233,7 @@ export function bindQuestTarget(
       completion: "turn-in",
       turnInTarget: reference,
     };
-  } else {
+  } else if (binding.kind === "objective") {
     const objectiveIndex = quest.objectives.findIndex(
       (objective) => objective.id === binding.objectiveId && objective.type === "interact",
     );
@@ -232,6 +244,21 @@ export function bindQuestTarget(
       ...objective,
       interaction: binding.interaction,
       targetRef: reference,
+    };
+    updated = { ...quest, version: quest.version + 1, objectives };
+  } else {
+    const objectiveIndex = quest.objectives.findIndex(
+      (objective) =>
+        objective.id === binding.objectiveId &&
+        objective.type === "reach" &&
+        objective.destination.kind === "area",
+    );
+    const objective = quest.objectives[objectiveIndex];
+    if (objective?.type !== "reach" || objective.destination.kind !== "area") return null;
+    const objectives = [...quest.objectives];
+    objectives[objectiveIndex] = {
+      ...objective,
+      destination: { ...objective.destination, mapId: reference.mapId },
     };
     updated = { ...quest, version: quest.version + 1, objectives };
   }

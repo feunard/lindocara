@@ -5,6 +5,7 @@ import {
   COMMAND_TEXT_MAX,
   type EventCommand,
   type EventCondition,
+  ITEM_ID_MAX,
   MAX_CHOICE_OPTIONS,
   WAIT_FRAMES_MAX,
   WAIT_FRAMES_MIN,
@@ -70,7 +71,10 @@ const COMMAND_CATEGORIES: readonly {
   readonly kinds: readonly EventCommand["t"][];
 }[] = [
   { key: "messages", kinds: ["say", "choices"] },
-  { key: "quests", kinds: ["startQuest", "advanceQuest", "completeQuest"] },
+  {
+    key: "quests",
+    kinds: ["startQuest", "advanceQuest", "completeQuest", "enterArea", "completeActivity"],
+  },
   { key: "progression", kinds: ["setSwitch", "setVariable", "setSelfSwitch"] },
   { key: "control", kinds: ["if", "loop", "breakLoop", "exitRun", "endAdventure"] },
   { key: "character", kinds: ["teleport", "wait"] },
@@ -131,6 +135,10 @@ function defaultCommand(
       const itemId = CONSUMABLE_IDS[0];
       return { t: "changeItems", itemId, count: 1 };
     }
+    case "enterArea":
+      return { t: "enterArea", areaId: "area" };
+    case "completeActivity":
+      return { t: "completeActivity", activityId: "activity" };
     case "startQuest": {
       const questId = ctx.quests[0]?.id;
       return questId ? { t: "startQuest", questId } : null;
@@ -299,6 +307,10 @@ function commandLine(command: EventCommand, maps: readonly TeleportMap[]): strin
         item: command.itemId,
         count: signed(command.count),
       });
+    case "enterArea":
+      return t("editor.event.cmd.enterArea", { id: command.areaId });
+    case "completeActivity":
+      return t("editor.event.cmd.completeActivity", { id: command.activityId });
     case "startQuest":
       return t("editor.event.cmd.startQuest", { id: command.questId });
     case "advanceQuest":
@@ -853,6 +865,24 @@ function ParamBody({
       );
     case "advanceQuest":
       return <QuestProgressParams command={command} quests={quests} onChange={onChange} />;
+    case "enterArea":
+      return (
+        <QuestFactIdField
+          label={t("editor.event.cmd.field.area")}
+          value={command.areaId}
+          fallback="area"
+          onChange={(areaId) => onChange({ ...command, areaId })}
+        />
+      );
+    case "completeActivity":
+      return (
+        <QuestFactIdField
+          label={t("editor.event.cmd.field.activity")}
+          value={command.activityId}
+          fallback="activity"
+          onChange={(activityId) => onChange({ ...command, activityId })}
+        />
+      );
     case "comment":
       return (
         <Field label={t("editor.event.cmd.field.comment")}>
@@ -868,6 +898,43 @@ function ParamBody({
     default:
       return <p className="text-[11.5px] text-zinc-400">{t("editor.event.cmd.noParam")}</p>;
   }
+}
+
+function QuestFactIdField({
+  label,
+  value,
+  fallback,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  fallback: string;
+  onChange(value: string): void;
+}) {
+  return (
+    <Field label={label}>
+      <input
+        aria-label={label}
+        className="h-7 w-full rounded-lg border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        maxLength={ITEM_ID_MAX}
+        value={value.replaceAll("_", " ")}
+        onChange={(event) =>
+          onChange(
+            event.currentTarget.value
+              .normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "")
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, "_")
+              .replace(/^_+/, "")
+              .slice(0, ITEM_ID_MAX),
+          )
+        }
+        onBlur={() => {
+          onChange(value.replace(/_+$/g, "") || fallback);
+        }}
+      />
+    </Field>
+  );
 }
 
 function QuestSelect({

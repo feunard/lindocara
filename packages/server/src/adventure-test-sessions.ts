@@ -58,10 +58,20 @@ export type AdventureTestPartyAccess =
 function questContext(registry: AdventureRegistry, maps: StoredMap[]) {
   const offeredQuestIds = new Set<string>();
   const turnInQuestIds = new Set<string>();
+  const activityIds = new Set<string>();
+  const areaIdsByMap = new Map<string, Set<string>>();
   for (const map of maps) {
+    const areaIds = new Set<string>();
+    areaIdsByMap.set(map.id, areaIds);
     for (const event of map.events) {
       for (const page of event.pages) {
-        collectQuestCommandBindings(page.commands, offeredQuestIds, turnInQuestIds);
+        collectQuestCommandBindings(
+          page.commands,
+          offeredQuestIds,
+          turnInQuestIds,
+          activityIds,
+          page.trigger === "player-touch" ? areaIds : undefined,
+        );
       }
     }
   }
@@ -70,7 +80,9 @@ function questContext(registry: AdventureRegistry, maps: StoredMap[]) {
     eventIdsByMap: new Map(
       maps.map((map) => [map.id, new Set(map.events.map((event) => event.id))]),
     ),
+    areaIdsByMap,
     itemIds: new Set(CONSUMABLE_IDS),
+    activityIds,
     switchIds: new Set(registry.switches.map((entry) => entry.id)),
     variableIds: new Set(registry.variables.map((entry) => entry.id)),
     offeredQuestIds,

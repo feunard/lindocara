@@ -3366,8 +3366,31 @@ export class World extends DurableObject<Env> {
           this.#dispatchEndAdventure(dispatch);
         } else if (effect.kind === "changeGold") {
           this.#dispatchGold(dispatch, effect);
-        } else {
+        } else if (effect.kind === "changeItems") {
           this.#dispatchItems(dispatch, effect);
+        } else {
+          const socket = this.#socketByPlayerId.get(dispatch.heroId);
+          const player = socket ? this.#players.get(socket) : undefined;
+          if (player) {
+            this.#recordActorQuestEvent(player, ({ id, mapId, actor }) =>
+              effect.fact.type === "areaEntered"
+                ? {
+                    id,
+                    mapId,
+                    actor,
+                    type: "areaEntered",
+                    areaId: effect.fact.areaId,
+                  }
+                : {
+                    id,
+                    mapId,
+                    actor,
+                    type: "activityCompleted",
+                    activityId: effect.fact.activityId,
+                    amount: 1,
+                  },
+            );
+          }
         }
       }
       if (mutations.length > 0 && this.#heroPartyId !== null) {

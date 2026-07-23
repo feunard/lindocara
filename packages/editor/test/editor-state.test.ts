@@ -269,6 +269,32 @@ describe("convertElementToEvent", () => {
     ]);
     expect(converted?.map.events[0]?.pages[1]?.condSelfSwitch).toBe("A");
   });
+
+  it("preserves the guided player-touch trigger for an authored area", () => {
+    const placed = applyTool(
+      blankMap("m", 20, 15),
+      { kind: "element", assetId: BUSH },
+      7,
+      6,
+      true,
+      "element",
+      0,
+      0,
+    );
+    const converted = convertElementToEvent(
+      placed as EditorMap,
+      { kind: "element", col: 7, row: 6, offsetX: 0, offsetY: 0 },
+      {
+        name: "North gate",
+        trigger: "player-touch",
+        commands: [{ t: "enterArea", areaId: "north_gate" }],
+      },
+    );
+    expect(converted?.map.events[0]?.pages[0]).toMatchObject({
+      trigger: "player-touch",
+      commands: [{ t: "enterArea", areaId: "north_gate" }],
+    });
+  });
 });
 
 describe("applyTool: eraser (mode-scoped)", () => {

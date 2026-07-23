@@ -12,6 +12,7 @@ import {
   createAuthoredQuestDefinition,
   validateAuthoredQuests,
 } from "@lindocara/engine/adventure-state.js";
+import type { EventCommand } from "@lindocara/engine/event-commands.js";
 import { defaultEventPage, functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js";
 import { describe, expect, it } from "vitest";
 
@@ -19,7 +20,12 @@ const MAP_ID = "11111111-1111-4111-8111-111111111111";
 const EVENT_ID = "22222222-2222-4222-8222-222222222222";
 const MONSTER_ID = "33333333-3333-4333-8333-333333333333";
 
-function event(commands = defaultEventPage().commands): MapEvent {
+function event(
+  commands: readonly EventCommand[] = [
+    { t: "completeActivity", activityId: "activity" },
+    { t: "enterArea", areaId: "north_gate" },
+  ],
+): MapEvent {
   return {
     id: EVENT_ID,
     col: 2,
@@ -29,7 +35,7 @@ function event(commands = defaultEventPage().commands): MapEvent {
     kind: "normal",
     species: null,
     patrolRadius: null,
-    pages: [{ ...defaultEventPage(), commands }],
+    pages: [{ ...defaultEventPage(), trigger: "player-touch", commands }],
   };
 }
 
@@ -113,6 +119,84 @@ describe("quest editor model", () => {
 
     expect(context.offeredQuestIds?.has("0007")).toBe(true);
     expect(context.turnInQuestIds?.has("0007")).toBe(true);
+  });
+
+  it("validates area and activity objectives against facts authored on real events", () => {
+    const quest = {
+      ...createAuthoredQuestDefinition("0001", "Defend the north gate"),
+      acceptance: "automatic" as const,
+      completion: "automatic" as const,
+      objectives: [
+        {
+          id: "0001",
+          type: "reach" as const,
+          label: "",
+          target: 1,
+          optional: false,
+          hidden: false,
+          stage: 0,
+          destination: { kind: "area" as const, mapId: MAP_ID, areaId: "north_gate" },
+        },
+        {
+          id: "0002",
+          type: "activity" as const,
+          label: "",
+          target: 1,
+          optional: false,
+          hidden: false,
+          stage: 0,
+          activityId: "village_defence",
+        },
+      ],
+    };
+    const missing = validateAuthoredQuests(
+      [quest],
+      questValidationContext({ switches: [], variables: [] }, MAPS),
+    );
+    expect(missing.map((diagnostic) => diagnostic.code)).toContain(
+      "quest.objective.activity_missing",
+    );
+    expect(missing.map((diagnostic) => diagnostic.code)).not.toContain(
+      "quest.objective.area_missing",
+    );
+
+    const actionOnlyMap = {
+      ...MAPS[0],
+      events: [
+        {
+          ...event([]),
+          pages: [
+            {
+              ...defaultEventPage(),
+              trigger: "action" as const,
+              commands: [{ t: "enterArea" as const, areaId: "north_gate" }],
+            },
+          ],
+        },
+      ],
+    };
+    expect(
+      validateAuthoredQuests(
+        [quest],
+        questValidationContext({ switches: [], variables: [] }, [actionOnlyMap]),
+      ).map((diagnostic) => diagnostic.code),
+    ).toContain("quest.objective.area_missing");
+
+    const configuredMap = {
+      ...MAPS[0],
+      events: [
+        event([
+          { t: "enterArea", areaId: "north_gate" },
+          { t: "completeActivity", activityId: "village_defence" },
+        ]),
+      ],
+    };
+    expect(
+      validateAuthoredQuests(
+        [quest],
+        questValidationContext({ switches: [], variables: [] }, [configuredMap]),
+      ).filter((diagnostic) => diagnostic.severity === "error"),
+    ).toEqual([]);
   });
 
   it("round-trips event references, creates readable slugs and deeply duplicates rewards", () => {

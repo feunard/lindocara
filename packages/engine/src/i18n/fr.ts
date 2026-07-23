@@ -1269,12 +1269,18 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.cmd.new.startQuest": "Démarrer une quête",
   "editor.event.cmd.new.advanceQuest": "Faire progresser un objectif",
   "editor.event.cmd.new.completeQuest": "Terminer une quête",
+  "editor.event.cmd.new.enterArea": "Enregistrer l’entrée dans une zone",
+  "editor.event.cmd.new.completeActivity": "Terminer une activité",
   "editor.event.cmd.startQuest": "Démarrer la quête {id}",
   "editor.event.cmd.advanceQuest": "Quête {quest} · objectif {objective} {amount}",
   "editor.event.cmd.completeQuest": "Terminer la quête {id}",
+  "editor.event.cmd.enterArea": "Entrer dans la zone {id}",
+  "editor.event.cmd.completeActivity": "Terminer l’activité {id}",
   "editor.event.cmd.field.quest": "Quête",
   "editor.event.cmd.field.objective": "Objectif",
   "editor.event.cmd.field.amount": "Progression",
+  "editor.event.cmd.field.area": "Nom de la zone",
+  "editor.event.cmd.field.activity": "Nom de l’activité",
   "editor.event.monster.defeatHint":
     "À la défaite : ces commandes sont exécutées une fois pour le groupe. Utilisez-les pour faire progresser une quête ou accorder une récompense.",
   "editor.quest.heading": "Quêtes",
@@ -1489,10 +1495,12 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.quest.validation.stageGap":
     "Les étapes d’objectifs séquentiels doivent commencer à 0 sans trou.",
   "editor.quest.validation.objectiveMapMissing": "Un objectif référence une carte absente.",
+  "editor.quest.validation.objectiveAreaMissing":
+    "Aucun événement de cette carte n’enregistre l’entrée dans cette zone.",
   "editor.quest.validation.objectiveEventMissing": "Un objectif référence un PNJ ou objet absent.",
   "editor.quest.validation.objectiveItemMissing": "Un objectif référence un objet inconnu.",
   "editor.quest.validation.objectiveActivityMissing":
-    "Un objectif référence une activité inconnue.",
+    "Aucun événement n’enregistre la fin de cette activité.",
   "editor.quest.validation.manualObjective":
     "Un ancien objectif manuel ne peut pas progresser automatiquement avant sa conversion.",
   "editor.quest.validation.unknown": "Cette quête contient une référence ou une règle invalide.",
@@ -1510,12 +1518,20 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.binding.kind.quest-objective": "Objectif d’interaction",
   "editor.binding.kind.quest-objective.hint":
     "Valide automatiquement une discussion ou interaction",
+  "editor.binding.kind.quest-area": "Objectif d’entrée dans une zone",
+  "editor.binding.kind.quest-area.hint":
+    "Valide l’objectif lorsque le héros atteint cet emplacement",
+  "editor.binding.kind.quest-activity": "Terminer une activité",
+  "editor.binding.kind.quest-activity.hint":
+    "Enregistre un combat, une défense, une arène ou une activité nommée",
   "editor.binding.kind.quest-turn-in": "Rendre une quête",
   "editor.binding.kind.quest-turn-in.hint": "Lie cette cible à la restitution et aux récompenses",
   "editor.binding.kind.custom": "Comportement libre",
   "editor.binding.kind.custom.hint": "Événement vide à configurer",
   "editor.binding.noQuest": "Aucune quête n’a encore été créée.",
   "editor.binding.createQuest": "Créer une quête",
+  "editor.binding.noMatchingObjective": "Cette quête ne contient aucun objectif de ce type.",
+  "editor.binding.editQuest": "Modifier les quêtes",
   "editor.binding.gold": "Quantité d’or",
   "editor.binding.continue": "Créer et ouvrir le contenu",
   "editor.binding.makeInteractive": "Rendre interactif…",

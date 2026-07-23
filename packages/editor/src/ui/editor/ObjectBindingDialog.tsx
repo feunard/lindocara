@@ -21,6 +21,8 @@ type BindingKind =
   | "loot"
   | "quest-giver"
   | "quest-objective"
+  | "quest-area"
+  | "quest-activity"
   | "quest-turn-in"
   | "custom";
 
@@ -46,14 +48,26 @@ export function ObjectBindingDialog({
   const [name, setName] = useState("");
   const [questId, setQuestId] = useState(quests[0]?.id ?? "");
   const selectedQuest = quests.find((quest) => quest.id === questId) ?? quests[0];
-  const interactionObjectives =
-    selectedQuest?.objectives.filter((objective) => objective.type === "interact") ?? [];
-  const [objectiveId, setObjectiveId] = useState(interactionObjectives[0]?.id ?? "");
+  const objectivesFor = (bindingKind: BindingKind, quest = selectedQuest) =>
+    quest?.objectives.filter((objective) => {
+      if (bindingKind === "quest-objective") return objective.type === "interact";
+      if (bindingKind === "quest-activity") return objective.type === "activity";
+      return (
+        bindingKind === "quest-area" &&
+        objective.type === "reach" &&
+        objective.destination.kind === "area"
+      );
+    }) ?? [];
+  const matchingObjectives = objectivesFor(kind);
+  const [objectiveId, setObjectiveId] = useState(
+    selectedQuest?.objectives.find((objective) => objective.type === "interact")?.id ?? "",
+  );
   const [amount, setAmount] = useState(1);
   const asset = editorAsset(assetId);
   const questBinding = kind.startsWith("quest-");
   const canBind =
-    !questBinding || Boolean(selectedQuest && (kind !== "quest-objective" || objectiveId));
+    !questBinding ||
+    Boolean(selectedQuest && (kind === "quest-giver" || kind === "quest-turn-in" || objectiveId));
 
   const bind = (): void => {
     const commands: EventCommand[] = [];
@@ -62,6 +76,17 @@ export function ObjectBindingDialog({
     if (kind === "loot") {
       commands.push({ t: "say", name: null, text: "" }, { t: "changeGold", amount });
       once = true;
+    }
+    const selectedObjective = matchingObjectives.find((objective) => objective.id === objectiveId);
+    if (kind === "quest-activity" && selectedObjective?.type === "activity") {
+      commands.push({ t: "completeActivity", activityId: selectedObjective.activityId });
+    }
+    if (
+      kind === "quest-area" &&
+      selectedObjective?.type === "reach" &&
+      selectedObjective.destination.kind === "area"
+    ) {
+      commands.push({ t: "enterArea", areaId: selectedObjective.destination.areaId });
     }
     const questLink =
       kind === "quest-giver" && selectedQuest
@@ -76,11 +101,18 @@ export function ObjectBindingDialog({
                 interaction:
                   asset?.domain === "character" ? ("talk" as const) : ("interact" as const),
               } as const)
-            : undefined;
+            : kind === "quest-area" && selectedQuest && objectiveId
+              ? ({
+                  kind: "area",
+                  questId: selectedQuest.id,
+                  objectiveId,
+                } as const)
+              : undefined;
     onBind({
       name: name.trim(),
       commands,
       once,
+      ...(kind === "quest-area" ? { trigger: "player-touch" as const } : {}),
       ...(questLink ? { questBinding: questLink } : {}),
     });
   };
@@ -109,6 +141,8 @@ export function ObjectBindingDialog({
               "loot",
               "quest-giver",
               "quest-objective",
+              "quest-area",
+              "quest-activity",
               "quest-turn-in",
               "custom",
             ] as const
@@ -118,7 +152,10 @@ export function ObjectBindingDialog({
               type="button"
               aria-pressed={kind === option}
               className={`rounded-lg border p-2 text-left text-xs ${kind === option ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-200 hover:border-zinc-400"}`}
-              onClick={() => setKind(option)}
+              onClick={() => {
+                setKind(option);
+                setObjectiveId(objectivesFor(option)[0]?.id ?? "");
+              }}
             >
               <strong className="block">{t(`editor.binding.kind.${option}`)}</strong>
               <span className={kind === option ? "text-zinc-300" : "text-muted-foreground"}>
@@ -152,12 +189,9 @@ export function ObjectBindingDialog({
                   value={selectedQuest?.id ?? ""}
                   onChange={(event) => {
                     const id = event.currentTarget.value;
+                    const nextQuest = quests.find((quest) => quest.id === id);
                     setQuestId(id);
-                    setObjectiveId(
-                      quests
-                        .find((quest) => quest.id === id)
-                        ?.objectives.find((objective) => objective.type === "interact")?.id ?? "",
-                    );
+                    setObjectiveId(objectivesFor(kind, nextQuest)[0]?.id ?? "");
                   }}
                 >
                   {quests.map((quest) => (
@@ -166,21 +200,37 @@ export function ObjectBindingDialog({
                     </option>
                   ))}
                 </select>
-                {kind === "quest-objective" && (
-                  <select
-                    aria-label={t("editor.event.cmd.field.objective")}
-                    className="h-8 rounded-md border border-input bg-white px-2 text-xs"
-                    value={objectiveId}
-                    onChange={(event) => setObjectiveId(event.currentTarget.value)}
-                  >
-                    {interactionObjectives.map((objective) => (
-                      <option key={objective.id} value={objective.id}>
-                        {objective.label ||
-                          t(`editor.quest.objective.type.${objective.type}` as MessageKey)}
-                      </option>
-                    ))}
-                  </select>
-                )}
+                {(kind === "quest-objective" ||
+                  kind === "quest-area" ||
+                  kind === "quest-activity") &&
+                  matchingObjectives.length > 0 && (
+                    <select
+                      aria-label={t("editor.event.cmd.field.objective")}
+                      className="h-8 rounded-md border border-input bg-white px-2 text-xs"
+                      value={objectiveId}
+                      onChange={(event) => setObjectiveId(event.currentTarget.value)}
+                    >
+                      {matchingObjectives.map((objective) => (
+                        <option key={objective.id} value={objective.id}>
+                          {objective.label ||
+                            t(`editor.quest.objective.type.${objective.type}` as MessageKey)}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                {(kind === "quest-objective" ||
+                  kind === "quest-area" ||
+                  kind === "quest-activity") &&
+                  matchingObjectives.length === 0 && (
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs text-muted-foreground">
+                        {t("editor.binding.noMatchingObjective")}
+                      </p>
+                      <Button size="sm" variant="outline" onClick={onOpenQuestDatabase}>
+                        {t("editor.binding.editQuest")}
+                      </Button>
+                    </div>
+                  )}
               </>
             )}
           </div>

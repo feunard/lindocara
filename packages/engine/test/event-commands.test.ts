@@ -45,6 +45,8 @@ const ONE_OF_EACH: EventCommand[] = [
   { t: "teleport", mapId: UUID, col: 0, row: 12 },
   { t: "changeGold", amount: -50 },
   { t: "changeItems", itemId: "health_potion", count: 3 },
+  { t: "enterArea", areaId: "north_gate" },
+  { t: "completeActivity", activityId: "village_defence" },
   { t: "startQuest", questId: "0001" },
   { t: "advanceQuest", questId: "0001", objectiveId: "0002", amount: 1 },
   { t: "completeQuest", questId: "0001" },
@@ -157,6 +159,8 @@ describe("parseEventCommands: totality — every malformed field lands on null",
     ],
     "changeItems: zero count": [{ t: "changeItems", itemId: "health_potion", count: 0 }],
     "changeItems: non-integer count": [{ t: "changeItems", itemId: "health_potion", count: 1.2 }],
+    "enterArea: bad id shape": [{ t: "enterArea", areaId: "North gate" }],
+    "completeActivity: bad id shape": [{ t: "completeActivity", activityId: "village-defence" }],
     "comment: non-string text": [{ t: "comment", text: 9 }],
   };
 

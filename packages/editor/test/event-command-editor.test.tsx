@@ -212,6 +212,28 @@ describe("EventCommandEditor", () => {
     expect(latest.current[0]).toEqual({ t: "setSwitch", switchId: "0001", value: true });
   });
 
+  it("authors readable area and activity facts instead of raw quest counters", async () => {
+    const user = userEvent.setup();
+    const latest = { current: [] as readonly EventCommand[] };
+    render(<Harness latest={latest} />);
+
+    await insertVia(user, "enterArea")();
+    const area = screen.getByRole("textbox", { name: t("editor.event.cmd.field.area") });
+    await user.clear(area);
+    await user.type(area, "North Gate");
+    await insertVia(user, "completeActivity")();
+    const activity = screen.getByRole("textbox", {
+      name: t("editor.event.cmd.field.activity"),
+    });
+    await user.clear(activity);
+    await user.type(activity, "Défense du Village");
+
+    expect(latest.current).toEqual([
+      { t: "enterArea", areaId: "north_gate" },
+      { t: "completeActivity", activityId: "defense_du_village" },
+    ]);
+  });
+
   it("adds and removes choice options and nests into a chosen option's branch", async () => {
     const user = userEvent.setup();
     const latest = { current: [] as readonly EventCommand[] };
@@ -286,9 +308,9 @@ describe("EventCommandEditor", () => {
 
     await user.click(screen.getByRole("button", { name: t("editor.event.cmd.insert") }));
     const menu = screen.getByRole("menu", { name: t("editor.event.cmd.insert") });
-    // The core event language plus three authored-quest commands and the endAdventure ending beat;
+    // The core event language plus the authored quest/fact commands and the endAdventure beat;
     // deferred common-event/audio and screen commands remain absent.
-    expect(within(menu).getAllByRole("menuitem")).toHaveLength(18);
+    expect(within(menu).getAllByRole("menuitem")).toHaveLength(20);
     expect(within(menu).queryByText(/common event/i)).toBeNull();
     expect(within(menu).queryByText(/BGM/i)).toBeNull();
   });

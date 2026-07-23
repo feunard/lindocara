@@ -141,12 +141,43 @@ describe("adventure playtest sessions", () => {
     const owner = await register("invalid");
     const adventure = await createAdventure(owner);
     const invalidQuest = createAuthoredQuestDefinition("0001", "Mission sans parcours");
+    const impossibleQuest = {
+      ...createAuthoredQuestDefinition("0002", "Mission sans source"),
+      acceptance: "automatic" as const,
+      completion: "automatic" as const,
+      objectives: [
+        {
+          id: "0001",
+          type: "reach" as const,
+          label: "",
+          target: 1,
+          optional: false,
+          hidden: false,
+          stage: 0,
+          destination: {
+            kind: "area" as const,
+            mapId: adventure.firstMapId,
+            areaId: "north_gate",
+          },
+        },
+        {
+          id: "0002",
+          type: "activity" as const,
+          label: "",
+          target: 1,
+          optional: false,
+          hidden: false,
+          stage: 0,
+          activityId: "village_defence",
+        },
+      ],
+    };
     const saved = await authed(`/api/adventures/${adventure.id}`, owner, {
       method: "PUT",
       body: JSON.stringify({
         title: "Laboratoire",
         maxPlayers: 4,
-        registry: { switches: [], variables: [], quests: [invalidQuest] },
+        registry: { switches: [], variables: [], quests: [invalidQuest, impossibleQuest] },
       }),
     });
     expect(saved.status).toBe(200);
@@ -166,6 +197,8 @@ describe("adventure playtest sessions", () => {
         expect.objectContaining({ code: "quest.objectives.empty", severity: "error" }),
         expect.objectContaining({ code: "quest.acceptance.unbound", severity: "error" }),
         expect.objectContaining({ code: "quest.turn_in.unbound", severity: "error" }),
+        expect.objectContaining({ code: "quest.objective.area_missing", severity: "error" }),
+        expect.objectContaining({ code: "quest.objective.activity_missing", severity: "error" }),
       ]),
     );
     expect((await env.DB.prepare("SELECT id FROM party").all()).results).toEqual([]);

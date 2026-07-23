@@ -62,6 +62,7 @@ const DIAGNOSTIC_MESSAGES: Readonly<Record<string, MessageKey>> = {
   "quest.reward.commands_require_turn_in": "editor.quest.validation.rewardCommandsRequireTurnIn",
   "quest.objectives.stage_gap": "editor.quest.validation.stageGap",
   "quest.objective.map_missing": "editor.quest.validation.objectiveMapMissing",
+  "quest.objective.area_missing": "editor.quest.validation.objectiveAreaMissing",
   "quest.objective.event_missing": "editor.quest.validation.objectiveEventMissing",
   "quest.objective.item_missing": "editor.quest.validation.objectiveItemMissing",
   "quest.objective.activity_missing": "editor.quest.validation.objectiveActivityMissing",

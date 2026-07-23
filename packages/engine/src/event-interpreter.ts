@@ -219,6 +219,12 @@ export type EventEffect =
   | { readonly kind: "endAdventure" }
   | { readonly kind: "changeGold"; readonly amount: number }
   | { readonly kind: "changeItems"; readonly itemId: string; readonly count: number }
+  | {
+      readonly kind: "questFact";
+      readonly fact:
+        | { readonly type: "areaEntered"; readonly areaId: string }
+        | { readonly type: "activityCompleted"; readonly activityId: string };
+    }
   | { readonly kind: "closeDialogue" }
   | { readonly kind: "wait"; readonly frames: number };
 
@@ -444,6 +450,21 @@ function executeCommand(
       return {
         context: running(context, advanceTop(frames)),
         effects: [{ kind: "changeItems", itemId: command.itemId, count: command.count }],
+      };
+    case "enterArea":
+      return {
+        context: running(context, advanceTop(frames)),
+        effects: [{ kind: "questFact", fact: { type: "areaEntered", areaId: command.areaId } }],
+      };
+    case "completeActivity":
+      return {
+        context: running(context, advanceTop(frames)),
+        effects: [
+          {
+            kind: "questFact",
+            fact: { type: "activityCompleted", activityId: command.activityId },
+          },
+        ],
       };
     case "startQuest":
       return {

@@ -108,6 +108,10 @@ export type EventCommand =
   | { readonly t: "endAdventure" }
   | { readonly t: "changeGold"; readonly amount: number }
   | { readonly t: "changeItems"; readonly itemId: string; readonly count: number }
+  /** Emit a server-authored area-arrival fact for structured reach objectives. */
+  | { readonly t: "enterArea"; readonly areaId: string }
+  /** Emit a server-authored activity-completion fact for structured activity objectives. */
+  | { readonly t: "completeActivity"; readonly activityId: string }
   | { readonly t: "startQuest"; readonly questId: string }
   | {
       readonly t: "advanceQuest";
@@ -269,6 +273,18 @@ function parseCommand(raw: unknown, depth: number, counter: Counter): EventComma
       if (count === 0) return null;
       return { t: "changeItems", itemId: record.itemId, count };
     }
+    case "enterArea":
+      return typeof record.areaId === "string" &&
+        record.areaId.length <= ITEM_ID_MAX &&
+        ITEM_ID_PATTERN.test(record.areaId)
+        ? { t: "enterArea", areaId: record.areaId }
+        : null;
+    case "completeActivity":
+      return typeof record.activityId === "string" &&
+        record.activityId.length <= ITEM_ID_MAX &&
+        ITEM_ID_PATTERN.test(record.activityId)
+        ? { t: "completeActivity", activityId: record.activityId }
+        : null;
     case "startQuest":
       return isConditionId(record.questId) ? { t: "startQuest", questId: record.questId } : null;
     case "advanceQuest": {

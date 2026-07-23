@@ -1317,6 +1317,108 @@ describe("adventure state runtime", { timeout: 20_000 }, () => {
     });
   });
 
+  it("records area entry and activity completion from authored event facts", async () => {
+    const objectiveEventId = crypto.randomUUID();
+    const objectiveEvent: MapEvent = {
+      id: objectiveEventId,
+      col: EVENT_COL,
+      row: EVENT_ROW,
+      name: "North gate defence",
+      ordinal: 0,
+      kind: "normal",
+      species: null,
+      patrolRadius: null,
+      pages: [
+        page({
+          trigger: "player-touch",
+          commands: [
+            { t: "enterArea", areaId: "north_gate" },
+            { t: "completeActivity", activityId: "village_defence" },
+          ],
+        }),
+      ],
+    };
+    const party = await testParty("area-activity-facts", {
+      maps: [
+        testMapInput("North gate", {
+          spawn: { col: EVENT_COL - 3, row: EVENT_ROW },
+          events: [objectiveEvent],
+        }),
+      ],
+    });
+    await seedAdventureRegistry(party.adventureId, {
+      switches: [],
+      variables: [],
+      quests: [
+        {
+          ...createAuthoredQuestDefinition("0001", "Defend the north gate"),
+          acceptance: "automatic",
+          completion: "automatic",
+          objectives: [
+            {
+              id: "0001",
+              type: "reach",
+              label: "",
+              target: 1,
+              optional: false,
+              hidden: false,
+              stage: 0,
+              destination: {
+                kind: "area",
+                mapId: party.startMapId,
+                areaId: "north_gate",
+              },
+            },
+            {
+              id: "0002",
+              type: "activity",
+              label: "",
+              target: 1,
+              optional: false,
+              hidden: false,
+              stage: 0,
+              activityId: "village_defence",
+            },
+          ],
+        },
+      ],
+    });
+    const hero = await testHero("AreaRunner", {
+      party,
+      account: party.host,
+    });
+    const client = await Client.joinHero(hero);
+    await until("area runner welcomed", () => client.welcome);
+    client.press("right");
+    const completed = await until("area and activity facts tracked", () =>
+      [...client.received]
+        .reverse()
+        .find(
+          (message) =>
+            message.t === "state" &&
+            message.self.authoredQuests?.[0]?.status === "completed" &&
+            message.self.authoredQuests[0].objectives.every(
+              (objective) => objective.progress === 1,
+            ),
+        ),
+    );
+    if (completed?.t !== "state") throw new Error("missing completed activity state");
+    expect(completed.self.authoredQuests?.[0]?.objectives).toMatchObject([
+      { id: "0001", progress: 1, target: 1 },
+      { id: "0002", progress: 1, target: 1 },
+    ]);
+    expect(
+      (await env.GAME_SESSION.getByName(party.partyId).getAdventureState(party.partyId)).state,
+    ).toMatchObject({
+      quests: {
+        "0001": {
+          status: "completed",
+          objectives: { "0001": 1, "0002": 1 },
+        },
+      },
+    });
+  });
+
   it("loads the party snapshot once and pushes the same state to both map rooms", async () => {
     const fixture = await seedFixture("snapshot");
     const persisted: PartyAdventureState = {

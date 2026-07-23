@@ -404,6 +404,8 @@ export function updateSelectedElementOffset(
 export interface ElementEventBinding {
   name: string;
   commands: readonly MapEventPage["commands"][number][];
+  /** Guided zone bindings use player touch; every other preset keeps the action trigger. */
+  trigger?: MapEventPage["trigger"];
   /** One-shot objects (chests/loot) switch to an empty second page after their first run. */
   once?: boolean;
   /** Editor-only linkage applied to the adventure registry after this event receives its id. */
@@ -415,7 +417,8 @@ export interface ElementEventBinding {
         readonly questId: string;
         readonly objectiveId: string;
         readonly interaction: "talk" | "interact";
-      };
+      }
+    | { readonly kind: "area"; readonly questId: string; readonly objectiveId: string };
 }
 
 /** Promote scenery into a stable scripted event while preserving its cell and catalogue graphic. */
@@ -433,6 +436,7 @@ export function convertElementToEvent(
   const firstPage: MapEventPage = {
     ...defaultEventPage(),
     graphicAssetId: element.assetId,
+    trigger: binding.trigger ?? "action",
     commands: binding.once
       ? [...binding.commands, { t: "setSelfSwitch", selfSwitch: "A", value: true }]
       : binding.commands,

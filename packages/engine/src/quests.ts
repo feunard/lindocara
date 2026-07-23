@@ -716,6 +716,8 @@ export function reconcileAuthoredQuestVersions(
 export interface QuestValidationContext {
   readonly mapIds?: ReadonlySet<string>;
   readonly eventIdsByMap?: ReadonlyMap<string, ReadonlySet<string>>;
+  /** Area ids emitted by `enterArea` commands, grouped by the map that owns the trigger. */
+  readonly areaIdsByMap?: ReadonlyMap<string, ReadonlySet<string>>;
   readonly itemIds?: ReadonlySet<string>;
   readonly activityIds?: ReadonlySet<string>;
   readonly switchIds?: ReadonlySet<string>;
@@ -735,20 +737,48 @@ export function collectQuestCommandBindings(
   commands: readonly EventCommand[],
   offeredQuestIds: Set<string>,
   turnInQuestIds: Set<string>,
+  activityIds?: Set<string>,
+  areaIds?: Set<string>,
 ): void {
   for (const command of commands) {
     if (command.t === "startQuest") offeredQuestIds.add(command.questId);
     if (command.t === "completeQuest") turnInQuestIds.add(command.questId);
+    if (command.t === "completeActivity") activityIds?.add(command.activityId);
+    if (command.t === "enterArea") areaIds?.add(command.areaId);
     if (command.t === "if") {
-      collectQuestCommandBindings(command.then, offeredQuestIds, turnInQuestIds);
-      collectQuestCommandBindings(command.else, offeredQuestIds, turnInQuestIds);
+      collectQuestCommandBindings(
+        command.then,
+        offeredQuestIds,
+        turnInQuestIds,
+        activityIds,
+        areaIds,
+      );
+      collectQuestCommandBindings(
+        command.else,
+        offeredQuestIds,
+        turnInQuestIds,
+        activityIds,
+        areaIds,
+      );
     }
     if (command.t === "loop") {
-      collectQuestCommandBindings(command.body, offeredQuestIds, turnInQuestIds);
+      collectQuestCommandBindings(
+        command.body,
+        offeredQuestIds,
+        turnInQuestIds,
+        activityIds,
+        areaIds,
+      );
     }
     if (command.t === "choices") {
       for (const option of command.options) {
-        collectQuestCommandBindings(option.body, offeredQuestIds, turnInQuestIds);
+        collectQuestCommandBindings(
+          option.body,
+          offeredQuestIds,
+          turnInQuestIds,
+          activityIds,
+          areaIds,
+        );
       }
     }
   }
@@ -948,6 +978,20 @@ export function validateAuthoredQuests(
               quest.id,
               objective.id,
               objective.destination.mapId,
+            );
+          } else if (
+            objective.destination.kind === "area" &&
+            context.areaIdsByMap &&
+            !context.areaIdsByMap
+              .get(objective.destination.mapId)
+              ?.has(objective.destination.areaId)
+          ) {
+            add(
+              "error",
+              "quest.objective.area_missing",
+              quest.id,
+              objective.id,
+              objective.destination.areaId,
             );
           }
           break;

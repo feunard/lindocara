@@ -54,7 +54,8 @@ export interface BufferedDialogue {
 
 /** An effect the drain hands back to `World` to dispatch with its authority: a state mutation (up to
  *  the coordinator), a teleport (authoritative position set / cross-map handoff), or a gold/items
- *  change (the triggerer's session inventory). `wait` and the dialogue effects never appear here —
+ *  change (the triggerer's session inventory), or a structured quest fact minted by the room.
+ *  `wait` and the dialogue effects never appear here —
  *  `wait` is resolved into the context's `resumeAtTick` in the drain, and dialogue goes to
  *  `dialogue`. */
 export interface DispatchEffect {
@@ -68,6 +69,7 @@ export interface DispatchEffect {
     | { kind: "endAdventure" }
     | { kind: "changeGold" }
     | { kind: "changeItems" }
+    | { kind: "questFact" }
   >;
 }
 

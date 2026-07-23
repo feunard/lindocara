@@ -204,6 +204,10 @@ describe("shared quest validation", () => {
       [MAP_A, new Set([EVENT_A, EVENT_B])],
       [MAP_B, new Set<string>()],
     ]),
+    areaIdsByMap: new Map([
+      [MAP_A, new Set(["village_square"])],
+      [MAP_B, new Set<string>()],
+    ]),
     itemIds: new Set(["health_potion", "mana_potion"]),
     activityIds: new Set(["village_defence"]),
     switchIds: new Set(["0001"]),
@@ -231,6 +235,21 @@ describe("shared quest validation", () => {
         "quest.reward.choices_require_turn_in",
         "quest.reward.commands_require_turn_in",
       ]),
+    );
+  });
+
+  it("rejects an area that no authored event can enter", () => {
+    const areaQuest = quest({
+      objectives: [
+        {
+          ...objectiveOfType("reach"),
+          destination: { kind: "area", mapId: MAP_A, areaId: "missing_area" },
+        },
+      ],
+      rewards: { ...quest().rewards, choices: [], customCommands: [] },
+    });
+    expect(validateAuthoredQuests([areaQuest], context).map(({ code }) => code)).toContain(
+      "quest.objective.area_missing",
     );
   });
 
