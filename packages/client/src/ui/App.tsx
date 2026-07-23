@@ -22,6 +22,7 @@ import { MainMenu } from "./MainMenu.js";
 import { MerchantOverlay } from "./MerchantOverlay.js";
 import { MobileControls } from "./MobileControls.js";
 import { Prompt } from "./Prompt.js";
+import { QuestJournalOverlay } from "./QuestJournalOverlay.js";
 import { SettingsMenu } from "./SettingsMenu.js";
 import { StatusBar } from "./StatusBar.js";
 import { TalentTree } from "./TalentTree.js";
@@ -125,6 +126,7 @@ export function App() {
           <MerchantOverlay />
           <EventDialoguePanel />
           <QuestDialoguePanel />
+          <QuestJournalOverlay />
           <WorldMap />
           <TalentTree />
           <MobileControls />

@@ -126,6 +126,7 @@ export interface GameHandle {
     questId?: string,
     rewardChoiceId?: string,
   ): void;
+  abandonQuest?(questId: string): void;
   switchCharacter(): void;
   logout(): void;
   /** React owns the canvas; the game loop draws into it. The store stays free of world x/y. */
@@ -185,6 +186,9 @@ interface UiState {
   mapOpen: boolean;
   talentsOpen: boolean;
   inventoryOpen: boolean;
+  questJournalOpen: boolean;
+  /** Per-session player overrides; absent means active/ready quests are tracked by default. */
+  questTracking: Record<string, boolean>;
   merchantOpen: boolean;
   quickItems: readonly [ConsumableId | null, ConsumableId | null, ConsumableId | null];
   /** The current zone's i18n key, carried by the welcome message. Null until the first
@@ -227,6 +231,8 @@ interface UiState {
   setMapOpen(open: boolean): void;
   setTalentsOpen(open: boolean): void;
   setInventoryOpen(open: boolean): void;
+  setQuestJournalOpen(open: boolean): void;
+  setQuestTracked(questId: string, tracked: boolean): void;
   setMerchantOpen(open: boolean): void;
   setQuickItem(index: 0 | 1 | 2, item: ConsumableId | null): void;
   setZoneNameKey(key: MessageKey): void;
@@ -320,6 +326,8 @@ function clearedGameSession() {
     mapOpen: false,
     talentsOpen: false,
     inventoryOpen: false,
+    questJournalOpen: false,
+    questTracking: {},
     merchantOpen: false,
     zoneNameKey: null,
     worldSize: null,
@@ -357,6 +365,8 @@ export const useUiStore = create<UiState>((set) => ({
   mapOpen: false,
   talentsOpen: false,
   inventoryOpen: false,
+  questJournalOpen: false,
+  questTracking: {},
   merchantOpen: false,
   quickItems: ["health_potion", "mana_potion", "invisibility_potion"],
   zoneNameKey: null,
@@ -445,6 +455,9 @@ export const useUiStore = create<UiState>((set) => ({
   setMapOpen: (open) => set({ mapOpen: open }),
   setTalentsOpen: (open) => set({ talentsOpen: open }),
   setInventoryOpen: (open) => set({ inventoryOpen: open }),
+  setQuestJournalOpen: (open) => set({ questJournalOpen: open }),
+  setQuestTracked: (questId, tracked) =>
+    set((state) => ({ questTracking: { ...state.questTracking, [questId]: tracked } })),
   setMerchantOpen: (open) => set({ merchantOpen: open }),
   setQuickItem: (index, item) =>
     set((state) => {

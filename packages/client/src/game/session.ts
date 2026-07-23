@@ -31,6 +31,7 @@ import { type RenderContext, Renderer } from "@lindocara/renderer/renderer.js";
 import { ServerClock } from "@lindocara/renderer/server-clock.js";
 import { type CharacterSummary, logout, type PartyListing, type StoredHero } from "../api.js";
 import { t } from "../i18n.js";
+import { questTrackerNotifications } from "../quest-presentation.js";
 import { type LocalizedText, useUiStore } from "../store.js";
 import { clientCooldownDeadlines } from "./cooldown-sync.js";
 import { type Connection, type ConnectionHandlers, WorldClient } from "./net.js";
@@ -72,6 +73,7 @@ function gameplayPaused(): boolean {
     settingsOpen() ||
     talentsOpen() ||
     store.inventoryOpen ||
+    store.questJournalOpen ||
     store.merchantOpen ||
     store.heroLoading !== null
   );
@@ -321,7 +323,13 @@ async function startGameIdentity(
   const applyAuthoritativeState = (state: SelfState) => {
     const receivedAt = performance.now();
     if (typeof state.serverNow === "number") serverClock.sample(state.serverNow, receivedAt);
+    const previous = useUiStore.getState().selfState;
+    const notifications = previous
+      ? questTrackerNotifications(previous.authoredQuests ?? [], state.authoredQuests ?? [])
+      : [];
     renderState(state);
+    for (const notification of notifications) addEvent(notification.text, notification.tone);
+    if (notifications.some((notification) => notification.tone === "good")) sound.loot();
     renderer.setAuthoredQuestMarkers(state.authoredQuestMarkers ?? []);
     const deadlines = clientCooldownDeadlines(state.cooldowns, serverClock);
     const store = useUiStore.getState();
@@ -420,6 +428,7 @@ async function startGameIdentity(
       store.setTalentsOpen(false);
       store.setSettingsOpen(false);
       store.setInventoryOpen(false);
+      store.setQuestJournalOpen(false);
       store.setMerchantOpen(true);
       input.reset();
     },
@@ -506,6 +515,7 @@ async function startGameIdentity(
           );
           break;
         case "loot.picked":
+        case "authored_quest.reward":
         case "quest.accepted":
         case "quest.site_harvested":
         case "item.used":
@@ -770,6 +780,11 @@ async function startGameIdentity(
       return;
     }
     const overlayStore = useUiStore.getState();
+    if (overlayStore.questJournalOpen) {
+      overlayStore.setQuestJournalOpen(false);
+      input.reset();
+      return;
+    }
     if (overlayStore.inventoryOpen || overlayStore.merchantOpen) {
       overlayStore.setInventoryOpen(false);
       overlayStore.setMerchantOpen(false);
@@ -801,6 +816,7 @@ async function startGameIdentity(
         const store = useUiStore.getState();
         store.setTalentsOpen(false);
         store.setInventoryOpen(false);
+        store.setQuestJournalOpen(false);
         store.setMerchantOpen(false);
         store.setMapOpen(!store.mapOpen);
       },
@@ -809,6 +825,7 @@ async function startGameIdentity(
         store.setMapOpen(false);
         store.setSettingsOpen(false);
         store.setInventoryOpen(false);
+        store.setQuestJournalOpen(false);
         store.setMerchantOpen(false);
         store.setTalentsOpen(!store.talentsOpen);
         input.reset();
@@ -818,8 +835,19 @@ async function startGameIdentity(
         store.setMapOpen(false);
         store.setTalentsOpen(false);
         store.setSettingsOpen(false);
+        store.setQuestJournalOpen(false);
         store.setMerchantOpen(false);
         store.setInventoryOpen(!store.inventoryOpen);
+        input.reset();
+      },
+      toggleQuests: () => {
+        const store = useUiStore.getState();
+        store.setMapOpen(false);
+        store.setTalentsOpen(false);
+        store.setSettingsOpen(false);
+        store.setInventoryOpen(false);
+        store.setMerchantOpen(false);
+        store.setQuestJournalOpen(!store.questJournalOpen);
         input.reset();
       },
       toggleSettings,
@@ -873,6 +901,7 @@ async function startGameIdentity(
     eventChoose: (runId, index) => connection?.eventChoose(runId, index),
     questAction: (conversationId, action, questId, rewardChoiceId) =>
       connection?.questAction(conversationId, action, questId, rewardChoiceId),
+    abandonQuest: (questId) => connection?.abandonQuest(questId),
     switchCharacter,
     logout: logoutAndReload,
     attachMinimap: (canvas) => {

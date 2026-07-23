@@ -31,6 +31,7 @@ describe("input remapping", () => {
     expect(getInputSettings().keyboard.skill5).toEqual([{ code: "KeyJ" }, { code: "Numpad4" }]);
     expect(getInputSettings().keyboard.map).toEqual([{ code: "KeyC" }]);
     expect(getInputSettings().keyboard.talents).toEqual([{ code: "KeyH" }]);
+    expect(getInputSettings().keyboard.quests).toEqual([{ code: "KeyN" }]);
     expect(getInputSettings().gamepad.talents).toEqual([{ kind: "button", index: 5 }]);
   });
 
@@ -179,6 +180,31 @@ describe("input remapping", () => {
 
     fireEvent.keyDown(window, { code: "KeyH" });
     expect(toggleTalents).toHaveBeenCalledOnce();
+    stop();
+  });
+
+  it("toggles the quest journal even while gameplay actions are paused", () => {
+    const interact = vi.fn();
+    const toggleQuests = vi.fn();
+    const stop = trackActions(
+      {
+        attack: vi.fn(),
+        interact,
+        usePotion: vi.fn(),
+        release: vi.fn(),
+        castSkill: vi.fn(),
+        focusChat: vi.fn(),
+        toggleMap: vi.fn(),
+        toggleQuests,
+        toggleSettings: vi.fn(),
+      },
+      () => false,
+    );
+
+    fireEvent.keyDown(window, { code: "KeyN" });
+    fireEvent.keyDown(window, { code: "KeyE" });
+    expect(toggleQuests).toHaveBeenCalledOnce();
+    expect(interact).not.toHaveBeenCalled();
     stop();
   });
 

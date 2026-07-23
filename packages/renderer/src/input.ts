@@ -35,6 +35,7 @@ const ACTION_CONTROLS = [
   "map",
   "talents",
   "inventory",
+  "quests",
   "chat",
   "settings",
 ] as const satisfies readonly ControlId[];
@@ -124,6 +125,7 @@ export interface ActionHandlers {
   toggleMap(): void;
   toggleTalents?(): void;
   toggleInventory?(): void;
+  toggleQuests?(): void;
   toggleSettings(): void;
 }
 
@@ -142,6 +144,7 @@ function invokeAction(control: (typeof ACTION_CONTROLS)[number], handlers: Actio
   else if (control === "map") handlers.toggleMap();
   else if (control === "talents") handlers.toggleTalents?.();
   else if (control === "inventory") handlers.toggleInventory?.();
+  else if (control === "quests") handlers.toggleQuests?.();
   else if (control === "chat") handlers.focusChat();
   else handlers.toggleSettings();
 }
@@ -185,6 +188,7 @@ export function trackActions(
       control !== "settings" &&
       control !== "talents" &&
       control !== "inventory" &&
+      control !== "quests" &&
       !actionsEnabled()
     )
       return;
@@ -246,6 +250,7 @@ export function trackActions(
           (control === "settings" ||
             control === "talents" ||
             control === "inventory" ||
+            control === "quests" ||
             actionsEnabled())
         ) {
           invokeAction(control, handlers);

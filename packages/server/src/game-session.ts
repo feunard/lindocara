@@ -51,6 +51,13 @@ export type QuestAcceptanceResult =
       readonly reason: "party" | "quest" | "target" | "state" | "prerequisite" | "fence";
     };
 
+export type QuestAbandonResult =
+  | { readonly ok: true; readonly progress: AuthoredQuestProgress }
+  | {
+      readonly ok: false;
+      readonly reason: "party" | "quest" | "state" | "forbidden" | "fence";
+    };
+
 export type QuestTurnInResult =
   | {
       readonly ok: true;
@@ -443,6 +450,62 @@ export class GameSession extends DurableObject<Env> {
         );
       }
       return { ok: true, progress: accepted };
+    });
+  }
+
+  /** Abandon an active attempt from the journal; ownership and the pinned rule stay authoritative. */
+  async abandonAuthoredQuest(
+    partyId: string,
+    actor: { heroId: string; sessionEpoch: number; level: number },
+    questId: string,
+  ): Promise<QuestAbandonResult> {
+    return this.#enqueueStateWrite(async () => {
+      const storedPartyId = await this.ctx.storage.get<string>("partyId");
+      if (storedPartyId !== partyId || this.#partyCompleted) {
+        return { ok: false, reason: "party" };
+      }
+      const current = await this.#ensureState(partyId);
+      const db = createDb(this.env.DB);
+      let personal = this.#personalQuestProgress.get(actor.heroId);
+      if (!personal) {
+        personal = await loadHeroAuthoredQuestProgress(db, actor.heroId);
+        this.#personalQuestProgress.set(actor.heroId, personal);
+        this.#personalPinnedQuestIndexes.set(actor.heroId, this.#pinnedIndex(personal, "personal"));
+      }
+      const partyProgress = current.state.quests?.[questId];
+      const personalProgress = personal[questId];
+      const progress = partyProgress ?? personalProgress;
+      const definition =
+        progress?.definitionSnapshot ??
+        (current.registry.quests ?? []).find((quest) => quest.id === questId);
+      if (!definition || !progress) return { ok: false, reason: "quest" };
+      if (!definition.abandonable) return { ok: false, reason: "forbidden" };
+      if ((progress.status !== "active" && progress.status !== "ready") || progress.rewardClaimed) {
+        return { ok: false, reason: "state" };
+      }
+      const abandoned: AuthoredQuestProgress = { ...progress, status: "abandoned" };
+      if (definition.scope === "party") {
+        if (!partyProgress) return { ok: false, reason: "quest" };
+        const quests = { ...(current.state.quests ?? {}), [questId]: abandoned };
+        await this.#applyStateChange(partyId, (state) => ({ ...state, quests }), true);
+      } else {
+        if (!personalProgress) return { ok: false, reason: "quest" };
+        const saved = await saveHeroAuthoredQuestProgress(db, {
+          heroId: actor.heroId,
+          sessionEpoch: actor.sessionEpoch,
+          questId,
+          progress: abandoned,
+        });
+        if (!saved) return { ok: false, reason: "fence" };
+        personal = { ...personal, [questId]: abandoned };
+        this.#personalQuestProgress.set(actor.heroId, personal);
+        this.#personalPinnedQuestIndexes.set(actor.heroId, this.#pinnedIndex(personal, "personal"));
+        const pushed = personal;
+        this.#deferRoomPush(partyId, () =>
+          this.#pushPersonalQuestProgress(partyId, actor.heroId, pushed),
+        );
+      }
+      return { ok: true, progress: abandoned };
     });
   }
 

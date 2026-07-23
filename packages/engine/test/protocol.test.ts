@@ -290,6 +290,70 @@ describe("server protocol", () => {
     expect(message).not.toBeNull();
   });
 
+  it("validates the complete structured quest tracker payload", () => {
+    const tracker = {
+      id: "0001",
+      title: "Goblin watch",
+      description: "Keep the road open.",
+      journalSummary: "Defeat the spear goblins.",
+      recommendedLevel: 2,
+      scope: "party",
+      repeatable: false,
+      abandonable: true,
+      completion: "turn-in",
+      objectiveMode: "simultaneous",
+      status: "active",
+      objectives: [
+        {
+          id: "0001",
+          label: "",
+          progress: 4,
+          target: 10,
+          rule: {
+            id: "0001",
+            label: "",
+            target: 10,
+            optional: false,
+            hidden: false,
+            stage: 0,
+            type: "kill",
+            species: "spear_goblin",
+            mapScope: { kind: "any" },
+            credit: "contributors",
+          },
+        },
+      ],
+      rewards: {
+        experience: 100,
+        gold: 20,
+        items: [{ itemId: "health_potion", quantity: 1 }],
+        choices: [],
+      },
+    };
+    expect(
+      parseServerMessage(
+        JSON.stringify({ ...welcomeBase, world, self: { ...self, authoredQuests: [tracker] } }),
+      ),
+    ).toMatchObject({ t: "welcome", self: { authoredQuests: [{ id: "0001" }] } });
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          ...welcomeBase,
+          world,
+          self: {
+            ...self,
+            authoredQuests: [
+              {
+                ...tracker,
+                objectives: [{ ...tracker.objectives[0], target: 9 }],
+              },
+            ],
+          },
+        }),
+      ),
+    ).toBeNull();
+  });
+
   it("rejects incomplete state and entity snapshots before they reach the client", () => {
     expect(
       parseServerMessage(JSON.stringify({ ...welcomeBase, world, self: { life: "alive" } })),

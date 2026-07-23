@@ -10,8 +10,14 @@ import {
   type AuthoredQuestTracker,
   MAX_AUTHORED_QUESTS,
   MAX_QUEST_OBJECTIVES,
+  MAX_QUEST_REWARD_CHOICES,
+  MAX_QUEST_REWARD_ITEMS,
+  parseAuthoredQuestObjective,
   QUEST_DESCRIPTION_MAX,
+  QUEST_JOURNAL_SUMMARY_MAX,
   QUEST_OBJECTIVE_LABEL_MAX,
+  QUEST_RECOMMENDED_LEVEL_MAX,
+  QUEST_REWARD_AMOUNT_MAX,
   QUEST_TITLE_MAX,
 } from "./adventure-state.js";
 import {
@@ -30,7 +36,12 @@ import {
 } from "./consumables.js";
 import type { CombatCooldownState } from "./cooldowns.js";
 import { isLifeState, type LifeState } from "./death.js";
-import { COMMAND_TEXT_MAX, MAX_CHOICE_OPTIONS } from "./event-commands.js";
+import {
+  COMMAND_TEXT_MAX,
+  ITEM_ID_MAX,
+  ITEM_ID_PATTERN,
+  MAX_CHOICE_OPTIONS,
+} from "./event-commands.js";
 import {
   type Cemetery,
   isMonsterSpecies,
@@ -49,7 +60,7 @@ import { isUuid } from "./identifiers.js";
 import type { ChatChannel } from "./interest.js";
 import { MAP_LAYERS, MAX_MAP_ELEMENTS, type MapElement, parseMapElements } from "./map-data.js";
 import type { MerchantDefinition } from "./merchant.js";
-import { MAX_QUEST_REWARD_CHOICES, QUEST_DIALOGUE_TEXT_MAX } from "./quests.js";
+import { QUEST_DIALOGUE_TEXT_MAX } from "./quests.js";
 import type { ClassResourceState } from "./resources.js";
 import type { Input, Vec2 } from "./simulation.js";
 import { isSkillSlot, type SkillSlot } from "./skills.js";
@@ -392,7 +403,9 @@ export type ClientMessage =
       questId?: string;
       action: "accept" | "refuse" | "turn-in" | "close";
       rewardChoiceId?: string;
-    };
+    }
+  /** Journal intent only. The coordinator resolves ownership, status and abandonability. */
+  | { t: "quest.abandon"; questId: string };
 
 export type EventTone = "info" | "good" | "bad";
 
@@ -417,6 +430,8 @@ export const EVENT_CODES = [
   "quest.run_expired",
   "quest.chapter_ready",
   "quest.site_harvested",
+  "authored_quest.action_failed",
+  "authored_quest.reward",
   "potion.used",
   "item.used",
   "item.cooldown",
@@ -820,6 +835,95 @@ function isQuestState(value: unknown): value is QuestState {
   );
 }
 
+function isQuestRewardItem(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.itemId === "string" &&
+    value.itemId.length <= ITEM_ID_MAX &&
+    ITEM_ID_PATTERN.test(value.itemId) &&
+    Number.isSafeInteger(value.quantity) &&
+    (value.quantity as number) > 0 &&
+    (value.quantity as number) <= QUEST_REWARD_AMOUNT_MAX
+  );
+}
+
+function isQuestRewardChoice(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isWireId(value.id) &&
+    isBoundedString(value.label, QUEST_OBJECTIVE_LABEL_MAX) &&
+    isNonNegativeInteger(value.experience) &&
+    value.experience <= QUEST_REWARD_AMOUNT_MAX &&
+    isNonNegativeInteger(value.gold) &&
+    value.gold <= QUEST_REWARD_AMOUNT_MAX &&
+    Array.isArray(value.items) &&
+    value.items.length <= MAX_QUEST_REWARD_ITEMS &&
+    value.items.every(isQuestRewardItem)
+  );
+}
+
+function isAuthoredQuestTracker(value: unknown): value is AuthoredQuestTracker {
+  if (
+    !isRecord(value) ||
+    !isWireId(value.id) ||
+    !isBoundedString(value.title, QUEST_TITLE_MAX) ||
+    !isBoundedString(value.description, QUEST_DESCRIPTION_MAX, true) ||
+    !isBoundedString(value.journalSummary, QUEST_JOURNAL_SUMMARY_MAX, true) ||
+    !(
+      value.recommendedLevel === null ||
+      (Number.isSafeInteger(value.recommendedLevel) &&
+        (value.recommendedLevel as number) >= 1 &&
+        (value.recommendedLevel as number) <= QUEST_RECOMMENDED_LEVEL_MAX)
+    ) ||
+    (value.scope !== "personal" && value.scope !== "party") ||
+    typeof value.repeatable !== "boolean" ||
+    typeof value.abandonable !== "boolean" ||
+    (value.completion !== "automatic" && value.completion !== "turn-in") ||
+    (value.objectiveMode !== "simultaneous" && value.objectiveMode !== "sequential") ||
+    (value.status !== "active" &&
+      value.status !== "ready" &&
+      value.status !== "completed" &&
+      value.status !== "failed" &&
+      value.status !== "abandoned") ||
+    !Array.isArray(value.objectives) ||
+    value.objectives.length > MAX_QUEST_OBJECTIVES ||
+    !isRecord(value.rewards)
+  ) {
+    return false;
+  }
+  if (
+    !value.objectives.every((objective) => {
+      if (
+        !isRecord(objective) ||
+        !isWireId(objective.id) ||
+        !isBoundedString(objective.label, QUEST_OBJECTIVE_LABEL_MAX, true) ||
+        !isNonNegativeInteger(objective.progress) ||
+        !isNonNegativeInteger(objective.target) ||
+        objective.target <= 0 ||
+        objective.progress > objective.target
+      ) {
+        return false;
+      }
+      const rule = parseAuthoredQuestObjective(objective.rule);
+      return rule !== null && rule.id === objective.id && rule.target === objective.target;
+    })
+  ) {
+    return false;
+  }
+  return (
+    isNonNegativeInteger(value.rewards.experience) &&
+    value.rewards.experience <= QUEST_REWARD_AMOUNT_MAX &&
+    isNonNegativeInteger(value.rewards.gold) &&
+    value.rewards.gold <= QUEST_REWARD_AMOUNT_MAX &&
+    Array.isArray(value.rewards.items) &&
+    value.rewards.items.length <= MAX_QUEST_REWARD_ITEMS &&
+    value.rewards.items.every(isQuestRewardItem) &&
+    Array.isArray(value.rewards.choices) &&
+    value.rewards.choices.length <= MAX_QUEST_REWARD_CHOICES &&
+    value.rewards.choices.every(isQuestRewardChoice)
+  );
+}
+
 function isSelfState(value: unknown): value is SelfState {
   if (
     !isRecord(value) ||
@@ -837,29 +941,7 @@ function isSelfState(value: unknown): value is SelfState {
     value.authoredQuests !== undefined &&
     (!Array.isArray(value.authoredQuests) ||
       value.authoredQuests.length > MAX_AUTHORED_QUESTS ||
-      !value.authoredQuests.every(
-        (quest) =>
-          isRecord(quest) &&
-          typeof quest.id === "string" &&
-          isBoundedString(quest.title, QUEST_TITLE_MAX) &&
-          isBoundedString(quest.description, QUEST_DESCRIPTION_MAX, true) &&
-          (quest.status === "active" ||
-            quest.status === "ready" ||
-            quest.status === "completed" ||
-            quest.status === "failed" ||
-            quest.status === "abandoned") &&
-          Array.isArray(quest.objectives) &&
-          quest.objectives.length <= MAX_QUEST_OBJECTIVES &&
-          quest.objectives.every(
-            (objective) =>
-              isRecord(objective) &&
-              typeof objective.id === "string" &&
-              isBoundedString(objective.label, QUEST_OBJECTIVE_LABEL_MAX, true) &&
-              isNonNegativeInteger(objective.progress) &&
-              isNonNegativeInteger(objective.target) &&
-              objective.target > 0,
-          ),
-      ))
+      !value.authoredQuests.every(isAuthoredQuestTracker))
   ) {
     return false;
   }
@@ -1190,6 +1272,13 @@ export function parseClientMessage(raw: string | ArrayBuffer): ClientMessage | n
       action: value.action,
       ...(value.rewardChoiceId === undefined ? {} : { rewardChoiceId: value.rewardChoiceId }),
     };
+  }
+  if (
+    value.t === "quest.abandon" &&
+    isWireId(value.questId) &&
+    hasOnlyKeys(value, ["t", "questId"])
+  ) {
+    return { t: "quest.abandon", questId: value.questId };
   }
   if (
     (value.t === "party.create" || value.t === "party.leave" || value.t === "party.dissolve") &&

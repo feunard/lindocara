@@ -480,6 +480,64 @@ describe("adventure state runtime", { timeout: 20_000 }, () => {
       ),
     );
 
+    client.sendRaw(JSON.stringify({ t: "quest.abandon", questId: "0001" }));
+    await until("quest abandoned from journal", () =>
+      [...client.received]
+        .reverse()
+        .find(
+          (message) =>
+            message.t === "state" && message.self.authoredQuests?.[0]?.status === "abandoned",
+        ),
+    );
+    expect((await coordinator.getAdventureState(party.partyId)).state).toMatchObject({
+      quests: { "0001": { status: "abandoned", rewardClaimed: false } },
+    });
+    client.sendRaw(JSON.stringify({ t: "quest.abandon", questId: "0001" }));
+    await until("repeated abandonment rejected", () =>
+      client.received.find(
+        (message) => message.t === "event" && message.code === "authored_quest.action_failed",
+      ),
+    );
+
+    client.action("interact");
+    const repeatedOffer = await until("abandoned quest offered again", () =>
+      [...client.received]
+        .reverse()
+        .find(
+          (message) =>
+            message.t === "quest.open" &&
+            message.conversationId !== offer.conversationId &&
+            message.entries[0]?.phase === "offer" &&
+            message.entries[0]?.canAccept,
+        ),
+    );
+    if (repeatedOffer?.t !== "quest.open") throw new Error("missing repeated quest offer");
+    client.sendRaw(
+      JSON.stringify({
+        t: "quest.action",
+        conversationId: repeatedOffer.conversationId,
+        questId: "0001",
+        action: "accept",
+      }),
+    );
+    await until("quest accepted after abandonment", () =>
+      client.received.filter(
+        (message) => message.t === "quest.result" && message.outcome === "accepted",
+      ).length >= 2
+        ? true
+        : undefined,
+    );
+    await until("reaccepted quest ready", () =>
+      [...client.received]
+        .reverse()
+        .find(
+          (message) =>
+            message.t === "state" &&
+            message.self.authoredQuests?.[0]?.status === "ready" &&
+            message.self.authoredQuestMarkers?.[0]?.kind === "ready",
+        ),
+    );
+
     client.action("interact");
     const turnIn = await until("quest turn-in opened", () =>
       [...client.received]
@@ -505,12 +563,25 @@ describe("adventure state runtime", { timeout: 20_000 }, () => {
         (message) => message.t === "quest.result" && message.outcome === "completed",
       ),
     );
+    await until("quest reward notification", () =>
+      client.received.find(
+        (message) =>
+          message.t === "event" &&
+          message.code === "authored_quest.reward" &&
+          message.params?.experience === 60,
+      ),
+    );
     client.sendRaw(JSON.stringify(turnInIntent));
 
     const claim = await env.DB.prepare(
       "SELECT COUNT(*) AS count FROM authored_quest_reward_claim WHERE quest_id = '0001'",
     ).first<{ count: number }>();
     expect(claim?.count).toBe(1);
+    expect(
+      client.received.filter(
+        (message) => message.t === "event" && message.code === "authored_quest.reward",
+      ),
+    ).toHaveLength(1);
     const rewarded = await env.DB.prepare("SELECT xp, gold FROM hero WHERE id = ?")
       .bind(hero.heroId)
       .first<{ xp: number; gold: number }>();

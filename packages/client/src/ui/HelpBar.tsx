@@ -26,6 +26,7 @@ export function HelpBar() {
       <TinyKbd>{key("potion")}</TinyKbd> {t("help.tonic")}
       <TinyKbd>{key("release")}</TinyKbd> {t("help.release")}
       <TinyKbd>{key("map")}</TinyKbd> {t("help.map")}
+      <TinyKbd>{key("quests")}</TinyKbd> {t("help.quests")}
       <TinyKbd>{key("settings")}</TinyKbd> {t("help.settings")}
     </div>
   );

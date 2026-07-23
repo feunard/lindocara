@@ -17,6 +17,7 @@ export const CONTROL_IDS = [
   "map",
   "talents",
   "inventory",
+  "quests",
   "chat",
   "settings",
 ] as const;
@@ -39,7 +40,7 @@ export interface InputSettings {
 }
 
 const STORAGE_KEY = "lindocara.input";
-const INPUT_BINDINGS_VERSION = 2;
+const INPUT_BINDINGS_VERSION = 3;
 const GAMEPAD_AXIS_THRESHOLD = 0.55;
 const listeners = new Set<() => void>();
 
@@ -65,6 +66,7 @@ export const DEFAULT_INPUT_SETTINGS: InputSettings = {
     map: [{ code: "KeyC" }],
     talents: [{ code: "KeyH" }],
     inventory: [{ code: "KeyB" }],
+    quests: [{ code: "KeyN" }],
     chat: [{ code: "Enter" }],
     settings: [{ code: "Escape" }],
   },
@@ -99,6 +101,7 @@ export const DEFAULT_INPUT_SETTINGS: InputSettings = {
     map: [{ kind: "button", index: 8 }],
     talents: [{ kind: "button", index: 5 }],
     inventory: [{ kind: "button", index: 16 }],
+    quests: [{ kind: "button", index: 18 }],
     chat: [{ kind: "button", index: 11 }],
     settings: [{ kind: "button", index: 9 }],
   },

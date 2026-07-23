@@ -130,8 +130,24 @@ describe("parseAdventureRegistry: good payloads round-trip unchanged", () => {
         id: "0001",
         title: "Chasse aux gobelins",
         description: "Protéger le village.",
+        journalSummary: "Protéger le village.",
+        recommendedLevel: null,
+        scope: "party",
+        repeatable: false,
+        abandonable: false,
+        completion: "turn-in",
+        objectiveMode: "simultaneous",
         status: "ready",
-        objectives: [{ id: "0001", label: "Gobelins vaincus", progress: 2, target: 2 }],
+        objectives: [
+          {
+            id: "0001",
+            label: "Gobelins vaincus",
+            progress: 2,
+            target: 2,
+            rule: createManualQuestObjective("0001", "Gobelins vaincus", 2),
+          },
+        ],
+        rewards: { experience: 0, gold: 0, items: [], choices: [] },
       },
     ]);
   });

@@ -103,6 +103,7 @@ export interface Connection {
     questId?: string,
     rewardChoiceId?: string,
   ): void;
+  abandonQuest(questId: string): void;
   close(): void;
 }
 
@@ -259,6 +260,7 @@ export class WorldClient {
           ...(questId === undefined ? {} : { questId }),
           ...(rewardChoiceId === undefined ? {} : { rewardChoiceId }),
         }),
+      abandonQuest: (questId) => this.#send({ t: "quest.abandon", questId }),
       close: () => socket.close(1000, "client left"),
     };
   }

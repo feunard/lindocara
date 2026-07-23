@@ -3,6 +3,7 @@ import type { QuestState } from "@lindocara/engine/protocol.js";
 import { playerPortrait } from "@lindocara/renderer/portrait-art.js";
 import { useEffect, useRef, useState } from "react";
 import { t, useLocale } from "../../i18n.js";
+import { questObjectiveProgressText } from "../../quest-presentation.js";
 import { useUiStore } from "../../store.js";
 import { Bar } from "./Bar.js";
 import { CooldownBar } from "./CooldownBar.js";
@@ -39,6 +40,8 @@ export function Hud() {
   const party = useUiStore((s) => s.party);
   const partyInvite = useUiStore((s) => s.partyInvite);
   const activeParty = useUiStore((s) => s.activeParty);
+  const questTracking = useUiStore((s) => s.questTracking);
+  const setQuestJournalOpen = useUiStore((s) => s.setQuestJournalOpen);
 
   // Legacy juice (styles/legacy.css: .pulse / @keyframes panel-pulse) removed and re-added
   // the class on every state update, forcing a reflow in between so the animation could
@@ -75,6 +78,14 @@ export function Hud() {
   const { potions, gold, crystals } = selfState.inventory;
   const { quest } = selfState;
   const authoredQuests = selfState.authoredQuests ?? [];
+  const trackedAuthoredQuests = authoredQuests
+    .filter(
+      (authored) =>
+        (authored.status === "active" || authored.status === "ready") &&
+        (questTracking[authored.id] ?? true),
+    )
+    .sort((left, right) => Number(right.status === "ready") - Number(left.status === "ready"))
+    .slice(0, 3);
   const questChapter = quest.chapter ?? "three_offerings";
   const showQuestBar = quest.status === "active" || quest.status === "ready";
   const remainingSeconds =
@@ -198,23 +209,39 @@ export function Hud() {
           )}
         </section>
 
-        {authoredQuests.map((authored) => (
-          <section key={authored.id} className="panel quest">
+        {authoredQuests.length > 0 && (
+          <button
+            type="button"
+            className="panel quest-journal-launch"
+            onClick={() => setQuestJournalOpen(true)}
+          >
+            <span className="panel-icon panel-icon--oath" aria-hidden="true" />
+            <strong>{t("quest.journal.open")}</strong>
+            <span className="quest-journal-launch__hint">{t("quest.journal.openHint")}</span>
+          </button>
+        )}
+
+        {trackedAuthoredQuests.map((authored) => (
+          <section
+            key={`${authored.id}:${authored.status}:${authored.objectives
+              .map((objective) => objective.progress)
+              .join("-")}`}
+            className="panel quest pulse"
+          >
             <div className="panel-title">
               <span className="panel-icon panel-icon--oath" aria-hidden="true" />
               <strong>{authored.title}</strong>
             </div>
-            {authored.description && <span>{authored.description}</span>}
+            {(authored.journalSummary || authored.description) && (
+              <span>{authored.journalSummary || authored.description}</span>
+            )}
             {authored.objectives.map((objective) => (
               <div key={objective.id} className="flex flex-col gap-1">
-                <span>
-                  {objective.label} ({objective.progress}/{objective.target})
-                </span>
+                <span>{questObjectiveProgressText(objective)}</span>
                 <Bar value={objective.progress} max={objective.target} variant="quest" />
               </div>
             ))}
             {authored.status === "ready" && <strong>{t("quest.ready")}</strong>}
-            {authored.status === "completed" && <strong>{t("quest.completed")}</strong>}
           </section>
         ))}
 

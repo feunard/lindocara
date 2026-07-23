@@ -43,12 +43,14 @@ export function MobileControls() {
   const settingsOpen = useUiStore((state) => state.settingsOpen);
   const talentsOpen = useUiStore((state) => state.talentsOpen);
   const inventoryOpen = useUiStore((state) => state.inventoryOpen);
+  const questJournalOpen = useUiStore((state) => state.questJournalOpen);
   const merchantOpen = useUiStore((state) => state.merchantOpen);
   const chatFocusRequest = useUiStore((state) => state.chatFocusRequest);
   const setMapOpen = useUiStore((state) => state.setMapOpen);
   const setSettingsOpen = useUiStore((state) => state.setSettingsOpen);
   const setTalentsOpen = useUiStore((state) => state.setTalentsOpen);
   const setInventoryOpen = useUiStore((state) => state.setInventoryOpen);
+  const setQuestJournalOpen = useUiStore((state) => state.setQuestJournalOpen);
   const setMerchantOpen = useUiStore((state) => state.setMerchantOpen);
   const requestChatFocus = useUiStore((state) => state.requestChatFocus);
   const activePointer = useRef<number | null>(null);
@@ -68,6 +70,7 @@ export function MobileControls() {
       !settingsOpen &&
       !talentsOpen &&
       !inventoryOpen &&
+      !questJournalOpen &&
       !merchantOpen &&
       chatFocusRequest === 0
     )
@@ -75,7 +78,16 @@ export function MobileControls() {
     activePointer.current = null;
     setThumb({ x: 0, y: 0 });
     game?.setMovement?.({ ...NO_INPUT });
-  }, [chatFocusRequest, game, inventoryOpen, mapOpen, merchantOpen, settingsOpen, talentsOpen]);
+  }, [
+    chatFocusRequest,
+    game,
+    inventoryOpen,
+    mapOpen,
+    merchantOpen,
+    questJournalOpen,
+    settingsOpen,
+    talentsOpen,
+  ]);
 
   if (!game || !self) return null;
   const drinkPotion = game.usePotion;
@@ -147,6 +159,7 @@ export function MobileControls() {
               setMapOpen(false);
               setTalentsOpen(false);
               setSettingsOpen(false);
+              setQuestJournalOpen(false);
               setMerchantOpen(false);
               setInventoryOpen(!inventoryOpen);
             })
@@ -157,7 +170,14 @@ export function MobileControls() {
         </button>
         <button
           type="button"
-          onClick={() => openOverlay(() => setMapOpen(!mapOpen))}
+          onClick={() =>
+            openOverlay(() => {
+              setTalentsOpen(false);
+              setInventoryOpen(false);
+              setQuestJournalOpen(false);
+              setMapOpen(!mapOpen);
+            })
+          }
           aria-label={t("mobile.map")}
         >
           <span aria-hidden="true">&#10021;</span>
@@ -168,6 +188,7 @@ export function MobileControls() {
             openOverlay(() => {
               setMapOpen(false);
               setSettingsOpen(false);
+              setQuestJournalOpen(false);
               setTalentsOpen(!talentsOpen);
             })
           }
@@ -177,14 +198,40 @@ export function MobileControls() {
         </button>
         <button
           type="button"
-          onClick={() => openOverlay(requestChatFocus)}
+          onClick={() =>
+            openOverlay(() => {
+              setMapOpen(false);
+              setSettingsOpen(false);
+              setTalentsOpen(false);
+              setInventoryOpen(false);
+              setMerchantOpen(false);
+              setQuestJournalOpen(!questJournalOpen);
+            })
+          }
+          aria-label={t("mobile.quests")}
+        >
+          <span aria-hidden="true">!</span>
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            openOverlay(() => {
+              setQuestJournalOpen(false);
+              requestChatFocus();
+            })
+          }
           aria-label={t("mobile.chat")}
         >
           <span aria-hidden="true">&#8230;</span>
         </button>
         <button
           type="button"
-          onClick={() => openOverlay(() => setSettingsOpen(true))}
+          onClick={() =>
+            openOverlay(() => {
+              setQuestJournalOpen(false);
+              setSettingsOpen(true);
+            })
+          }
           aria-label={t("mobile.settings")}
         >
           <span aria-hidden="true">&#8801;</span>

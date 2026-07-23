@@ -41,6 +41,15 @@ describe("quest dialogue protocol", () => {
         JSON.stringify({ t: "quest.action", conversationId: "conversation-1", action: "accept" }),
       ),
     ).toBeNull();
+    expect(parseClientMessage(JSON.stringify({ t: "quest.abandon", questId: "0001" }))).toEqual({
+      t: "quest.abandon",
+      questId: "0001",
+    });
+    expect(
+      parseClientMessage(
+        JSON.stringify({ t: "quest.abandon", questId: "0001", status: "completed" }),
+      ),
+    ).toBeNull();
   });
 
   it("parses authored quest panels and bounds every prose and choice field", () => {

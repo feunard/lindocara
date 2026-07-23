@@ -370,6 +370,39 @@ describe("definition pinning for saves already in progress", () => {
     });
   });
 
+  it("keeps hidden rules off the player payload until progress reveals them", () => {
+    const hidden = {
+      ...createManualQuestObjective("0001", "Passage secret", 2),
+      hidden: true,
+    };
+    const definition = quest({ objectives: [hidden] });
+    const progress = (amount: number) => ({
+      switches: {},
+      variables: {},
+      selfSwitches: {},
+      quests: {
+        "0001": {
+          status: "active" as const,
+          objectives: { "0001": amount },
+          definitionSnapshot: definition,
+          definitionVersion: 1,
+          rewardClaimed: false,
+          completionCount: 0,
+          processedEventKeys: [],
+        },
+      },
+    });
+
+    expect(
+      authoredQuestTrackers({ switches: [], variables: [], quests: [definition] }, progress(0))[0]
+        ?.objectives,
+    ).toEqual([]);
+    expect(
+      authoredQuestTrackers({ switches: [], variables: [], quests: [definition] }, progress(1))[0]
+        ?.objectives,
+    ).toMatchObject([{ label: "Passage secret", progress: 1, rule: { hidden: true } }]);
+  });
+
   it("requires every non-optional objective but not optional bonus goals", () => {
     const definition = quest({
       objectives: [

@@ -1185,6 +1185,27 @@ export class World extends DurableObject<Env> {
     });
   }
 
+  /** Journal abandonment is an intent: the coordinator rechecks ownership, state and the pinned rule. */
+  async #handleQuestAbandon(ws: WebSocket, player: Player, questId: string): Promise<void> {
+    const actor = this.#questActor(player);
+    if (!actor || player.partyId === null) return;
+    const result = await this.#gameSession(player.partyId).abandonAuthoredQuest(
+      player.partyId,
+      actor,
+      questId,
+    );
+    if (!result.ok) {
+      this.#send(ws, { t: "event", code: "authored_quest.action_failed", tone: "bad" });
+      return;
+    }
+    const conversation = this.#questConversations.get(player.id);
+    if (conversation) {
+      this.#questConversations.delete(player.id);
+      this.#send(ws, { t: "quest.close", conversationId: conversation.id });
+    }
+    // The pushed authoritative snapshot drives the actor and every party member's journal notice.
+  }
+
   /**
    * The interact-key trigger: the nearest `action` event within `INTERACTION_RANGE` starts a run.
    * Returns true when an action event was FOUND (so `#interact` stops here even if the run was
@@ -1525,7 +1546,13 @@ export class World extends DurableObject<Env> {
       await this.#useConsumable(ws, player, message.item);
       return;
     }
-    // The dead act only through the two exits above. Chat is the one thing a spirit keeps.
+    // Journal management is not a physical world action and remains available while downed.
+    if (message.t === "quest.abandon") {
+      await this.#handleQuestAbandon(ws, player, message.questId);
+      return;
+    }
+    // The dead act only through the explicit non-physical exits above. Chat is the one thing a
+    // spirit keeps in the room.
     if (message.t !== "chat" && !canAct(player.life)) return;
     if (message.t === "attack") {
       if (this.#startPlayerAction(ws, player, 1)) {
@@ -3488,6 +3515,19 @@ export class World extends DurableObject<Env> {
     player.hp = maxHpForLevel(gained.level);
     player.dirty = true;
     this.#sendState(ws, player);
+    const rewardedItemCount = result.items.reduce((total, item) => total + item.quantity, 0);
+    if (result.experience > 0 || result.gold > 0 || rewardedItemCount > 0) {
+      this.#send(ws, {
+        t: "event",
+        code: "authored_quest.reward",
+        params: {
+          experience: result.experience,
+          gold: result.gold,
+          items: rewardedItemCount,
+        },
+        tone: "good",
+      });
+    }
     if (player.level > beforeLevel) {
       this.#send(ws, {
         t: "event",

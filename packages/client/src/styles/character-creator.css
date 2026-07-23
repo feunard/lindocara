@@ -1555,8 +1555,12 @@
   background: linear-gradient(#9a4036, #6e251f);
 }
 
-button:focus-visible,
-input:focus-visible,
+:root button:focus-visible,
+:root input:focus-visible {
+  outline: 3px solid #e2c66f;
+  outline-offset: 3px;
+}
+
 .class-card:focus-within,
 .creator-swatches label:focus-within {
   outline: 3px solid #e2c66f;

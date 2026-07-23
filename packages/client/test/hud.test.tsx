@@ -72,8 +72,32 @@ describe("Hud", () => {
             id: "0001",
             title: "Clear the old road",
             description: "Defeat the prowling beasts.",
+            journalSummary: "Make the road safe.",
+            recommendedLevel: 3,
+            scope: "party",
+            repeatable: false,
+            abandonable: true,
+            completion: "turn-in",
+            objectiveMode: "simultaneous",
             status: "active",
-            objectives: [{ id: "0001", label: "Defeat the beasts", progress: 2, target: 3 }],
+            objectives: [
+              {
+                id: "0001",
+                label: "Defeat the beasts",
+                progress: 2,
+                target: 3,
+                rule: {
+                  id: "0001",
+                  type: "manual",
+                  label: "Defeat the beasts",
+                  target: 3,
+                  optional: false,
+                  hidden: false,
+                  stage: 0,
+                },
+              },
+            ],
+            rewards: { experience: 25, gold: 5, items: [], choices: [] },
           },
         ],
       },
@@ -84,7 +108,7 @@ describe("Hud", () => {
       screen.getByText("Gather heartwood, provisions, then sun-ore (1/3)"),
     ).toBeInTheDocument();
     expect(screen.getByText("Clear the old road")).toBeInTheDocument();
-    expect(screen.getByText("Defeat the beasts (2/3)")).toBeInTheDocument();
+    expect(screen.getByText("Defeat the beasts: 2 / 3")).toBeInTheDocument();
   });
 
   it("shows the class name and a heal bar for priests", () => {
