@@ -87,6 +87,31 @@ function candidateQuestIds(index: QuestObjectiveIndex, event: QuestBusinessEvent
   return new Set(questObjectiveCandidates(index, event).map((candidate) => candidate.questId));
 }
 
+/**
+ * Every AUTOMATIC quest in the registry, for the given scope.
+ *
+ * An automatic quest used to be created only when a business event happened to match one of its own
+ * objectives — so a chain's opening quest ("present yourself to Frère Anselme", objective: talk to
+ * Anselme) sprang into existence only once the player had already talked to Anselme. Until then the
+ * hero had no journal at all: `authoredQuestTrackers` skips a quest with no progress, and the HUD
+ * hides its launcher when the tracker list is empty. A player spawned into an authored adventure with
+ * no objective, no marker and no hint of where to go.
+ *
+ * Automatic acceptance means the quest starts on its own, so these are candidates on EVERY event: the
+ * event is merely the moment the room notices, not the thing that grants the quest. Prerequisites and
+ * scope are still checked per quest below, so nothing starts out of order.
+ */
+function automaticQuestIds(
+  definitions: ReadonlyMap<string, AuthoredQuestDefinition>,
+  scope: "party" | "personal",
+): string[] {
+  const ids: string[] = [];
+  for (const [questId, definition] of definitions) {
+    if (definition.acceptance === "automatic" && definition.scope === scope) ids.push(questId);
+  }
+  return ids;
+}
+
 function prerequisitesHold(
   definition: AuthoredQuestDefinition,
   actor: QuestActor,
@@ -124,6 +149,7 @@ export async function processAuthoredQuestEvent(
   const partyCandidates = new Set([
     ...currentCandidates,
     ...candidateQuestIds(context.partyPinnedIndex, context.event),
+    ...automaticQuestIds(definitions, "party"),
   ]);
 
   for (const questId of partyCandidates) {
@@ -133,7 +159,6 @@ export async function processAuthoredQuestEvent(
     if (definition?.scope !== "party") continue;
     const index = context.indexForDefinition(definition);
     const objectiveIds = objectiveIdsFor(definition, index, context.event);
-    if (objectiveIds.length === 0) continue;
     if (!progress) {
       if (
         definition.acceptance !== "automatic" ||
@@ -143,9 +168,19 @@ export async function processAuthoredQuestEvent(
         continue;
       }
       progress = createAuthoredQuestProgress(definition);
+    } else if (objectiveIds.length === 0) {
+      continue;
     }
+    const coldStart = wasNew && objectiveIds.length === 0;
     const applied = applyQuestBusinessEvent(definition, progress, context.event, objectiveIds);
-    if (!applied.eventConsumed) continue;
+    // A COLD start is written even though this event advanced nothing: the quest has no objective
+    // this event could touch, so starting it IS the change, and it is what puts the quest in the
+    // journal before its objective is reachable at all.
+    //
+    // Deliberately not "any new quest": when the event DOES match an objective, the old rule stands
+    // and only an actor the event actually credited gets a row. Otherwise a party member who merely
+    // stood near someone else's kill would have that quest written into their save.
+    if (!applied.eventConsumed && !coldStart) continue;
     partyQuests[questId] = applied.progress;
     partyChanged = true;
     if (
@@ -172,6 +207,7 @@ export async function processAuthoredQuestEvent(
     const personalCandidates = new Set([
       ...currentCandidates,
       ...candidateQuestIds(context.personalPinnedIndex(actor), context.event),
+      ...automaticQuestIds(definitions, "personal"),
     ]);
     let personalChanged = false;
     for (const questId of personalCandidates) {
@@ -185,7 +221,6 @@ export async function processAuthoredQuestEvent(
         context.event,
         actor.heroId,
       );
-      if (objectiveIds.length === 0) continue;
       if (!progress) {
         if (
           definition.acceptance !== "automatic" ||
@@ -194,9 +229,19 @@ export async function processAuthoredQuestEvent(
           continue;
         }
         progress = createAuthoredQuestProgress(definition);
+      } else if (objectiveIds.length === 0) {
+        continue;
       }
+      // Actor-free on purpose: `objectiveIds` above is already credit-filtered for THIS hero, so a
+      // non-contributor standing near someone else's kill would otherwise look like a cold start and
+      // get the quest written into their save. This asks the different question — could this event
+      // ever touch one of the quest's objectives at all? — and only then treats it as credit.
+      const coldStart =
+        wasNew &&
+        objectiveIdsFor(definition, context.indexForDefinition(definition), context.event)
+          .length === 0;
       const applied = applyQuestBusinessEvent(definition, progress, context.event, objectiveIds);
-      if (!applied.eventConsumed) continue;
+      if (!applied.eventConsumed && !coldStart) continue;
       if (!(await context.savePersonal(actor, questId, applied.progress))) continue;
       personal[questId] = applied.progress;
       personalChanged = true;

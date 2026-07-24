@@ -161,7 +161,7 @@ import {
   type ZoneLocation,
 } from "@lindocara/engine/zones.js";
 import { eq } from "drizzle-orm";
-import { loadAdventure } from "./adventures.js";
+import { loadAdventureById } from "./adventures.js";
 import { claimQuestReward, consumeOwnedItem } from "./character-persistence.js";
 import { presenceTiming } from "./character-presence.js";
 import { createDb, party } from "./db/index.js";
@@ -2639,11 +2639,8 @@ export class World extends DurableObject<Env> {
     const db = createDb(this.env.DB);
     const storedParty = await loadPartyForRuntime(db, partyId);
     if (!storedParty || !player.authorized) return;
-    const authoredAdventure = await loadAdventure(
-      db,
-      storedParty.hostAccountId,
-      storedParty.adventureId,
-    );
+    // By id: the owner fence would deny every exit to a party whose host is not the author.
+    const authoredAdventure = await loadAdventureById(db, storedParty.adventureId);
     const link = authoredAdventure?.graph.links.find(
       (candidate) => candidate.mapId === this.#location?.zoneId && candidate.exitId === exitId,
     );
@@ -4038,11 +4035,9 @@ export class World extends DurableObject<Env> {
       const db = createDb(this.env.DB);
       const storedParty = await loadPartyForRuntime(db, partyId);
       if (!storedParty || !player.authorized) return;
-      const authoredAdventure = await loadAdventure(
-        db,
-        storedParty.hostAccountId,
-        storedParty.adventureId,
-      );
+      // By id, same reason: an owner fence here refuses every cross-map teleport in someone else's
+      // adventure. Membership of `mapIds` is still the authority on where a teleport may land.
+      const authoredAdventure = await loadAdventureById(db, storedParty.adventureId);
       if (!authoredAdventure?.mapIds.includes(mapId)) {
         this.#send(ws, { t: "event", code: "zone.transition_denied", tone: "bad" });
         return;

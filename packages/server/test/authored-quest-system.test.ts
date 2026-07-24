@@ -125,6 +125,70 @@ describe("authoritative authored quest orchestration", () => {
     expect(stored.clara).toBeUndefined();
   });
 
+  it("cold-starts an automatic quest whose objective this event could never touch", async () => {
+    // The onboarding hole this closes: a chain's opening quest ("present yourself to Frère Anselme")
+    // used to spring into existence only once the player had ALREADY talked to Anselme, because a
+    // quest with no progress row has no tracker and the HUD hides its journal launcher entirely. A
+    // player spawned into an authored adventure with no objective and no idea where to go.
+    const talkQuest = quest("personal", {
+      objectives: [
+        {
+          id: "0001",
+          type: "interact",
+          label: "",
+          target: 1,
+          optional: false,
+          hidden: false,
+          stage: 0,
+          interaction: "talk",
+          targetRef: { mapId: MAP_ID, eventId: "22222222-2222-4222-8222-222222222222" },
+        },
+      ],
+    });
+    const stored: Record<string, Record<string, AuthoredQuestProgress>> = {};
+    const result = await process({
+      definition: talkQuest,
+      personal: stored,
+      // Arriving on the map cannot advance a "talk to X" objective — the quest still starts.
+      event: { id: "enter-1", type: "mapEntered", mapId: MAP_ID, actor: alice },
+    });
+
+    expect(result.personalUpdates.map((update) => update.actor.heroId)).toEqual(["alice"]);
+    expect(stored.alice?.["0001"]?.status).toBe("active");
+    // Nothing advanced — the quest is simply present, which is the whole point.
+    expect(stored.alice?.["0001"]?.objectives).toEqual({});
+    expect(result.changes).toEqual([
+      { scope: "personal", heroId: "alice", questId: "0001", objectiveIds: [], status: "active" },
+    ]);
+  });
+
+  it("still refuses to cold-start a quest whose prerequisites do not hold", async () => {
+    const gated = quest("personal", {
+      objectives: [
+        {
+          id: "0001",
+          type: "interact",
+          label: "",
+          target: 1,
+          optional: false,
+          hidden: false,
+          stage: 0,
+          interaction: "talk",
+          targetRef: { mapId: MAP_ID, eventId: "22222222-2222-4222-8222-222222222222" },
+        },
+      ],
+      prerequisites: { minLevel: 99, previousQuestId: null, mode: "all", conditions: [] },
+    });
+    const stored: Record<string, Record<string, AuthoredQuestProgress>> = {};
+    const result = await process({
+      definition: gated,
+      personal: stored,
+      event: { id: "enter-2", type: "mapEntered", mapId: MAP_ID, actor: alice },
+    });
+    expect(result.personalUpdates).toEqual([]);
+    expect(stored.alice).toBeUndefined();
+  });
+
   it("does not start a manually accepted quest from a matching gameplay event", async () => {
     const result = await process({
       definition: quest("party", { acceptance: "manual" }),

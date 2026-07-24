@@ -27,7 +27,7 @@ import {
   loadPartyAdventureState,
   savePartyAdventureState,
 } from "./adventure-state-store.js";
-import { loadAdventure } from "./adventures.js";
+import { loadAdventureById } from "./adventures.js";
 import { claimAuthoredQuestReward } from "./authored-quest-rewards.js";
 import { type AuthoredQuestChange, processAuthoredQuestEvent } from "./authored-quest-system.js";
 import { createDb } from "./db/index.js";
@@ -208,9 +208,12 @@ export class GameSession extends DurableObject<Env> {
       const state = liveState ?? (await loadPartyAdventureState(createDb(this.env.DB), partyId));
       const db = createDb(this.env.DB);
       const party = await loadPartyForRuntime(db, partyId);
-      const authored = party
-        ? await loadAdventure(db, party.hostAccountId, party.adventureId)
-        : null;
+      // BY ID, not by owner. `loadAdventure` fences to the adventure's AUTHOR, and since server-wide
+      // discovery let anyone start anyone's playable adventure, that fence silently handed every
+      // non-author party an EMPTY registry — no quests, no switches, no variables, for the whole
+      // session. Ownership is settled when the party is created; this is a runtime read of authored
+      // content the party has already been admitted to.
+      const authored = party ? await loadAdventureById(db, party.adventureId) : null;
       const registry = authored?.registry ?? EMPTY_REGISTRY;
       this.#partyCompleted =
         party?.status === "completed" ||
