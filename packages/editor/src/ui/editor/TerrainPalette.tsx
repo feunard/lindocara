@@ -258,9 +258,33 @@ function TerrainTilePreview({
   level: 0 | 1 | 2;
   direction?: StairsDirection;
 }) {
+  if (kind === "stairs") {
+    return (
+      <span
+        aria-hidden="true"
+        className="relative size-8 flex-none overflow-hidden rounded border border-black/10 bg-zinc-100"
+      >
+        <span
+          className="absolute top-1/2 left-1/2"
+          style={{
+            width: 64,
+            height: 128,
+            backgroundImage: `url("${TINY_SWORDS_TERRAIN.tileset}")`,
+            backgroundPosition: "0 -256px",
+            backgroundRepeat: "no-repeat",
+            filter: level === 1 ? "brightness(.86)" : undefined,
+            imageRendering: "pixelated",
+            transform: `translate(-50%, -50%) scale(.25) rotate(${directionRotation(direction)}deg)`,
+            transformOrigin: "center",
+          }}
+        />
+      </span>
+    );
+  }
+
   const isWater = kind === "water";
-  const atlasCol = kind === "stairs" ? 0 : level === 0 ? 0 : 5;
-  const atlasRow = kind === "stairs" ? 4 : 0;
+  const atlasCol = level === 0 ? 0 : 5;
+  const atlasRow = 0;
   return (
     <span
       aria-hidden="true"
@@ -289,9 +313,9 @@ function oppositeDirection(direction: StairsDirection): StairsDirection {
 }
 
 function directionRotation(direction: StairsDirection): number {
-  if (direction === "east") return 90;
-  if (direction === "south") return 180;
-  if (direction === "west") return 270;
+  if (direction === "south") return 90;
+  if (direction === "west") return 180;
+  if (direction === "north") return 270;
   return 0;
 }
 

@@ -854,7 +854,7 @@ export const en = {
   "editor.shell.decor.heading": "Elements",
   "editor.shell.fill.water_disabled": "Fill cannot paint water — pick another tool for water.",
   "editor.shell.tool.stairs": "Stairs",
-  "editor.stairs.highSide": "High side (uphill direction)",
+  "editor.stairs.highSide": "High exit (uphill direction)",
   "editor.stairs.direction.north": "Top",
   "editor.stairs.direction.east": "Right",
   "editor.stairs.direction.south": "Bottom",
@@ -862,7 +862,7 @@ export const en = {
   "editor.stairs.transition": "Connected levels",
   "editor.stairs.transitionLevels": "Level {low} ↔ {high}",
   "editor.stairs.hint":
-    "The stairs use 1 cell. Paint both elevations first, then click the low cell at the foot of the cliff. Heroes climb towards {up} and descend towards {down}.",
+    "The official asset uses 2 cells. Paint both elevations, then click its low entrance cell: the other half is placed automatically. Heroes climb towards {up} and descend towards {down}.",
   "editor.shell.stage.loading": "Loading the map…",
   "editor.shell.saving": "Saving…",
   "editor.shell.stage.error": "The map could not be loaded.",
@@ -951,7 +951,7 @@ export const en = {
     "Draws the three ground layers: grass, water, paths, elevation and stairs. A map’s test point is only its local fallback start.",
   "editor.help.maps.mode.elements": "Scenery",
   "editor.help.maps.mode.elements.body":
-    "Places visible items on a fine grid: trees, buildings, characters and props. Their trunk or base may block movement.",
+    "Places visible items on a fine grid: trees, buildings, characters and props. Every item may be placed over any terrain, including water; its trunk or base may still block movement.",
   "editor.help.maps.mode.events": "Events",
   "editor.help.maps.mode.events.body":
     "Places things that act: the start, dialogue, chests, teleporters, monsters, quest goals or the ending. An event can have multiple pages based on world state.",
@@ -979,9 +979,9 @@ export const en = {
   "editor.help.maps.relief.step3":
     "Choose the high side: top, right, bottom or left. The arrow shows the uphill direction.",
   "editor.help.maps.relief.step4":
-    "Click the low cell directly at the foot of the cliff. The preview shows the single occupied cell; the stairs rotate and replace that blocking cliff face.",
+    "Click the low entrance cell. The preview shows both cells of the official asset; its high half automatically turns toward the chosen side and replaces the blocking cliff face.",
   "editor.help.maps.relief.rule":
-    "Walk toward the selected high side to climb; traverse the same stairs in the opposite direction to descend. Painting water over its cell removes it automatically.",
+    "Walk toward the selected high side to climb; traverse the same stairs in the opposite direction to descend. Painting water over either occupied cell removes the whole staircase automatically.",
   "editor.help.maps.multimap.title": "Create multiple maps",
   "editor.help.maps.multimap.body":
     "Add each place in the Maps panel. Put a Teleporter event at the first place’s exit, choose the destination map and cell, then create a return path if needed. A single Start event defines the global opening.",

@@ -491,7 +491,7 @@ describe("paintPlacementAssetPreview", () => {
     expect(container.children[0]).toBeInstanceOf(Sprite);
   });
 
-  it("draws the one oriented ramp asset, not an anonymous footprint", () => {
+  it("draws both halves of the oriented official ramp asset", () => {
     const container = new Container();
     const sheet = Array.from({ length: 6 }, () => Array.from({ length: 9 }, () => Texture.WHITE));
     expect(
@@ -506,10 +506,13 @@ describe("paintPlacementAssetPreview", () => {
         { editorAssets: new Map(), tileset: sheet },
       ),
     ).toBe(true);
-    expect(container.children).toHaveLength(1);
-    expect(container.children[0]).toBeInstanceOf(Sprite);
-    expect((container.children[0] as Sprite).width).toBe(64);
-    expect((container.children[0] as Sprite).height).toBe(64);
+    expect(container.children).toHaveLength(2);
+    for (const child of container.children) {
+      expect(child).toBeInstanceOf(Sprite);
+      expect((child as Sprite).width).toBe(64);
+      expect((child as Sprite).height).toBe(64);
+      expect((child as Sprite).rotation).toBe((3 * Math.PI) / 2);
+    }
   });
 });
 
@@ -528,10 +531,25 @@ describe("paintHoverCell", () => {
     expect(container.children).toHaveLength(1);
   });
 
-  it("draws a translucent red warning fill UNDER the outline on an illegal cell", () => {
+  it("keeps the decoration hover legal over water", () => {
     const map = waterAt(blankMap("m", 20, 15), 3, 4);
     const container = new Container();
     const decision = paintHoverCell(TREE_TOOL, map, 3, 4, "element", container);
+    expect(decision.illegal).toBe(false);
+    expect(container.children).toHaveLength(1);
+  });
+
+  it("draws a translucent red warning fill UNDER the outline on an illegal cell", () => {
+    const map = blankMap("m", 20, 15);
+    const container = new Container();
+    const decision = paintHoverCell(
+      TREE_TOOL,
+      map,
+      map.spawn.col,
+      map.spawn.row,
+      "element",
+      container,
+    );
     expect(decision.illegal).toBe(true);
     // Fill first, outline on top: two children, the red fill drawn beneath the border.
     expect(container.children).toHaveLength(2);
@@ -539,10 +557,26 @@ describe("paintHoverCell", () => {
 });
 
 describe("directional staircase hover footprint", () => {
-  it("uses exactly the one low cell for every orientation", () => {
+  it("uses the clicked low cell plus the correctly rotated companion", () => {
     const north = stampFootprintCells({ kind: "stairs", direction: "north", lowLevel: 0 }, 3, 4);
     const east = stampFootprintCells({ kind: "stairs", direction: "east", lowLevel: 1 }, 3, 4);
-    expect(north).toEqual([{ col: 3, row: 4 }]);
-    expect(east).toEqual([{ col: 3, row: 4 }]);
+    const south = stampFootprintCells({ kind: "stairs", direction: "south", lowLevel: 0 }, 3, 4);
+    const west = stampFootprintCells({ kind: "stairs", direction: "west", lowLevel: 1 }, 3, 4);
+    expect(north).toEqual([
+      { col: 3, row: 4 },
+      { col: 2, row: 4 },
+    ]);
+    expect(east).toEqual([
+      { col: 3, row: 4 },
+      { col: 3, row: 3 },
+    ]);
+    expect(south).toEqual([
+      { col: 3, row: 4 },
+      { col: 4, row: 4 },
+    ]);
+    expect(west).toEqual([
+      { col: 3, row: 4 },
+      { col: 3, row: 5 },
+    ]);
   });
 });

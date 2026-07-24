@@ -71,16 +71,19 @@ Two deliberate choices:
 
 ## Blocks and elements
 
-Blocks are the ground. Elements stand on it.
+Blocks are the ground. Elements stand above it. The original terrain restrictions below were
+superseded on 2026-07-24: authored scenery is now terrain-independent, so every known catalogue
+asset may be placed on grass or water. Bounds, duplicate sub-cell slots, spawn safety and collision
+remain server-validated.
 
 | element | may be placed on | collides |
 | --- | --- | --- |
-| tree | grass | yes |
-| bush | grass | no |
+| tree | grass **or** water | yes |
+| bush | grass **or** water | no |
 | stone | grass **or** water | yes |
 
-Placement rules are validated **server-side** on write. The editor is open to any logged-in user, so
-the API is the only place they can be enforced; a client that posts a tree onto water is rejected.
+Placement safety is validated **server-side** on write. The API accepts a tree on water, but still
+rejects unknown assets, out-of-bounds footprints, duplicate storage slots and blocked spawns.
 
 ## Collision: baked, not taught
 
@@ -170,8 +173,8 @@ saved position on that map, or arriving after a fallback, starts there.
 - **Protocol** — malformed terrain drops the frame and does not throw.
 - **Fallbacks** — deleted map routes to first; last-map delete refused; first-map delete moves the
   flag; empty database yields the built-in.
-- **Placement validation** — tree on water rejected; stone on water accepted; spawn on a solid cell
-  rejected.
+- **Placement validation** — all known scenery accepted on water; unknown/out-of-bounds/duplicate
+  placements and a spawn on a solid cell rejected.
 - **Real Durable Object** — a character loads a D1 map, walks, disconnects, and returns to the same
   map and position with the epoch fence intact.
 

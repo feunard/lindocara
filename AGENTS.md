@@ -435,13 +435,16 @@ mode-scoped too. Element mode places at quarter-cell positions: an element carri
 `offsetY` (0..3, quarter tiles = 16px) on top of its `col`/`row`, so a terrain cell is a 4x4 sub-grid
 of decoration slots — up to 16 stacked decorations per cell — with an offset inspector, and each
 catalogue asset authors its own sub-cell collider (`elementWorldCollider`), no longer a whole-cell
-footprint. Every tool has a keyboard shortcut, gated off while a dialog is open or the stage isn't
-ready. The stairs tool replaces one lower cliff-face cell with the tileset's simple passable ramp,
-rotated toward the chosen high side for a 0↔1 or 1↔2 boundary. It never paints elevation itself:
-the author paints both levels first, and flat ground, mismatched levels and cliff corners are
-refused. Water or any later terrain edit that invalidates the boundary removes the ramp and restores
-normal cliff upkeep. Fill has no fill-to-empty primitive; the UI disables it rather than let it
-silently no-op.
+footprint. Scenery placement is terrain-independent: every known catalogue asset may be placed on
+grass, cliffs or water; `allowedTerrain` remains catalogue guidance, not a save-time restriction.
+Every tool has a keyboard shortcut, gated off while a dialog is open or the stage isn't ready. The
+stairs tool stamps the official two-tile 64×128 Tiny Swords stair composition on layer 1, rotated so
+its high side faces north/east/south/west for a 0↔1 or 1↔2 boundary. The clicked cell is the low
+entrance and the preview shows both occupied cells. It never paints elevation itself: the author
+paints both levels first, and flat ground, mismatched levels and cliff corners are refused. Painting
+water over either stair tile, or any later terrain edit that invalidates either endpoint, removes
+the whole pair and restores normal cliff upkeep. Fill has no fill-to-empty primitive; the UI
+disables it rather than let it silently no-op.
 
 The pointer-events contract is load-bearing and easy to get backwards. `#stage` stays a `position:
 fixed`, full-viewport sibling of `#root` (see the canvas gotcha below), so by default it paints and

@@ -33,6 +33,7 @@ import {
   paintStairs,
   slotAt,
   stairsFixedIndex,
+  stairsTilePlacements,
 } from "@lindocara/engine/tile-brush.js";
 import type { TileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { decodeTileId, EMPTY_TILE } from "@lindocara/engine/tileset.js";
@@ -124,7 +125,7 @@ describe("applyTool: block", () => {
     expect(groundSlot(map, 3, 4)).toBe(GRASS_SLOTS[0]);
   });
 
-  it("painting water under a tree removes it (a tree cannot stand on water)", () => {
+  it("painting water under a tree keeps it because scenery is terrain-independent", () => {
     let map = blankMap("m", 20, 15);
     const treeTool: EditorTool = { kind: "element", assetId: TREE };
     const withTree = place(map, treeTool, 3, 4);
@@ -135,11 +136,11 @@ describe("applyTool: block", () => {
     const next = place(map, waterTool, 3, 4);
     expect(next).not.toBeNull();
     expect(next).not.toBe(map);
-    expect(next?.elements).toEqual([]);
+    expect(next?.elements).toEqual([{ col: 3, row: 4, offsetX: 0, offsetY: 0, assetId: TREE }]);
     expect(map.elements).toEqual(beforeElements);
   });
 
-  it("painting water under a stone keeps it (a stone stands in the shallows)", () => {
+  it("painting water under a stone keeps it too", () => {
     let map = blankMap("m", 20, 15);
     const stoneTool: EditorTool = { kind: "element", assetId: STONE };
     const withStone = place(map, stoneTool, 3, 4);
@@ -163,7 +164,7 @@ describe("applyTool: block", () => {
 });
 
 describe("applyTool: element", () => {
-  it("refuses placing a tree on water", () => {
+  it("allows placing a tree on water", () => {
     let map = blankMap("m", 20, 15);
     const waterTool: EditorTool = { kind: "block", block: "water" };
     const withWater = place(map, waterTool, 3, 4);
@@ -171,7 +172,8 @@ describe("applyTool: element", () => {
     map = withWater as EditorMap;
     const treeTool: EditorTool = { kind: "element", assetId: TREE };
     const next = place(map, treeTool, 3, 4, true, "element");
-    expect(next).toBeNull();
+    expect(next).not.toBeNull();
+    expect(next?.elements).toEqual([{ col: 3, row: 4, offsetX: 0, offsetY: 0, assetId: TREE }]);
   });
 
   it("allows placing a stone on water", () => {
@@ -413,7 +415,7 @@ describe("applyTool: rect", () => {
     expect(place(base, tool, 3, 3, false)).toBeNull();
   });
 
-  it("does not permanently drop an element the drag passed over but the final rectangle excludes", () => {
+  it("keeps scenery throughout a water rectangle drag", () => {
     const base = blankMap("m", 20, 15);
     const withTree = place(base, { kind: "element", assetId: TREE }, 5, 5) as EditorMap;
     expect(withTree).not.toBeNull();
@@ -421,11 +423,11 @@ describe("applyTool: rect", () => {
     const tool: EditorTool = { kind: "rect", content: { kind: "block", block: "water" } };
     let map = place(withTree, tool, 1, 1, true) as EditorMap;
     map = place(map, tool, 5, 5, false) as EditorMap; // drag out over the tree
-    // Mid-drag, the rectangle covers the tree's cell with water, which a tree cannot stand on.
-    expect(map.elements).toEqual([]);
+    // Mid-drag, the rectangle covers the tree's cell with water and the scenery remains authored.
+    expect(map.elements).toEqual([{ col: 5, row: 5, offsetX: 0, offsetY: 0, assetId: TREE }]);
     map = place(map, tool, 2, 2, false) as EditorMap; // shrink back and release here
 
-    // The final rectangle never touched (5, 5): the tree must survive.
+    // Shrinking the terrain preview also leaves the independent scenery untouched.
     expect(map.elements).toEqual([{ col: 5, row: 5, offsetX: 0, offsetY: 0, assetId: TREE }]);
     const expectedGround = eraseRect(
       withTree.layers[0] as TileLayer,
@@ -475,10 +477,12 @@ describe("applyTool: fill", () => {
 
 describe("applyTool: stairs", () => {
   function northBoundary(): EditorMap {
-    return place(blankMap("m", 20, 15), { kind: "elevation", level: 1 }, 5, 4) as EditorMap;
+    // Native north orientation: click low entrance (5,5), high half lands at (4,5), and the
+    // elevated endpoint is one cell north at (4,4).
+    return place(blankMap("m", 20, 15), { kind: "elevation", level: 1 }, 4, 4) as EditorMap;
   }
 
-  it("stamps one ramp on the low cell of an existing boundary as one undo entry", () => {
+  it("stamps both official ramp halves from the low entrance as one undo entry", () => {
     const base = northBoundary();
     const tool: EditorTool = { kind: "stairs", direction: "north", lowLevel: 0 };
     const next = place(base, tool, 5, 5) as EditorMap;
@@ -487,7 +491,11 @@ describe("applyTool: stairs", () => {
     expect(next.layers[1]).toEqual(expectedWalls);
     expect(decodeTileId(next.layers[1]?.ids[5 * 20 + 5] ?? EMPTY_TILE)).toEqual({
       kind: "fixed",
-      index: stairsFixedIndex("north", 0),
+      index: stairsFixedIndex("north", 0, "low"),
+    });
+    expect(decodeTileId(next.layers[1]?.ids[5 * 20 + 4] ?? EMPTY_TILE)).toEqual({
+      kind: "fixed",
+      index: stairsFixedIndex("north", 0, "high"),
     });
 
     const history = commitEditorHistory(createEditorHistory(base), next);
@@ -512,9 +520,12 @@ describe("applyTool: stairs", () => {
     ) as EditorMap;
     const drowned = place(ramp, { kind: "block", block: "water" }, 5, 5) as EditorMap;
     expect(groundSlot(drowned, 5, 5)).toBe(-1);
-    const wall = decodeTileId(drowned.layers[1]?.ids[5 * 20 + 5] ?? EMPTY_TILE);
-    expect(wall).not.toEqual({ kind: "fixed", index: stairsFixedIndex("north", 0) });
-    expect(wall.kind).toBe("autotile");
+    for (const placement of stairsTilePlacements("north", 0)) {
+      const wall = decodeTileId(
+        drowned.layers[1]?.ids[(5 + placement.row) * 20 + 5 + placement.col] ?? EMPTY_TILE,
+      );
+      expect(wall).not.toEqual({ kind: "fixed", index: placement.fixedIndex });
+    }
   });
 
   it("a water rectangle removes every ramp cell it covers", () => {
@@ -528,8 +539,12 @@ describe("applyTool: stairs", () => {
     let drowned = place(ramp, water, 4, 5, true) as EditorMap;
     drowned = place(drowned, water, 6, 6, false) as EditorMap;
     expect(groundSlot(drowned, 5, 5)).toBe(-1);
-    const wall = decodeTileId(drowned.layers[1]?.ids[5 * 20 + 5] ?? EMPTY_TILE);
-    expect(wall).not.toEqual({ kind: "fixed", index: stairsFixedIndex("north", 0) });
+    for (const placement of stairsTilePlacements("north", 0)) {
+      const wall = decodeTileId(
+        drowned.layers[1]?.ids[(5 + placement.row) * 20 + 5 + placement.col] ?? EMPTY_TILE,
+      );
+      expect(wall).not.toEqual({ kind: "fixed", index: placement.fixedIndex });
+    }
   });
 });
 
@@ -1050,7 +1065,7 @@ describe("event serialization", () => {
 describe("placementLegalAt (UX wave #9 hover legality)", () => {
   const TREE_TOOL: EditorTool = { kind: "element", assetId: TREE };
 
-  /** Paint one water cell so the "on water" cases have real solid ground to reject. */
+  /** Paint one water cell so terrain-independent scenery and functional-event rules are distinct. */
   function withWaterAt(map: EditorMap, col: number, row: number): EditorMap {
     return place(map, { kind: "block", block: "water" }, col, row) as EditorMap;
   }
@@ -1059,9 +1074,9 @@ describe("placementLegalAt (UX wave #9 hover legality)", () => {
     expect(placementLegalAt(TREE_TOOL, blankMap("m", 20, 15), 3, 4, "element")).toBe(true);
   });
 
-  it("illegal: a decoration on water", () => {
+  it("legal: a decoration on water", () => {
     const map = withWaterAt(blankMap("m", 20, 15), 3, 4);
-    expect(placementLegalAt(TREE_TOOL, map, 3, 4, "element")).toBe(false);
+    expect(placementLegalAt(TREE_TOOL, map, 3, 4, "element")).toBe(true);
   });
 
   it("legal: an entry event on grass, illegal on water", () => {

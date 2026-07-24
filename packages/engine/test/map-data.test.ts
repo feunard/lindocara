@@ -83,28 +83,22 @@ describe("baking a map's collision", () => {
 });
 
 describe("placement rules", () => {
-  it("refuses a tree or a bush on water, and allows a stone there", () => {
-    expect(canPlaceElement(TREE, "water")).toBe(false);
-    expect(canPlaceElement(BUSH, "water")).toBe(false);
-    expect(canPlaceElement(STONE, "water")).toBe(true);
-  });
-
-  it("allows all three on grass", () => {
+  it("allows every known scenery asset on grass and water", () => {
     for (const assetId of [TREE, BUSH, STONE] as const) {
       expect(canPlaceElement(assetId, "grass")).toBe(true);
+      expect(canPlaceElement(assetId, "water")).toBe(true);
     }
   });
 
-  it("reads the same placement metadata exposed to client and server code", () => {
+  it("keeps catalogue terrain metadata advisory instead of using it as an authoring gate", () => {
     expect(editorAsset(TREE)?.editor.allowedTerrain).toEqual(["grass"]);
     expect(canPlaceElement(TREE, "grass")).toBe(true);
-    expect(canPlaceElement(TREE, "water")).toBe(false);
+    expect(canPlaceElement(TREE, "water")).toBe(true);
   });
 
-  it("checks a tree's trunk cell, not its anchor, so an offset trunk over water is caught (D19)", () => {
-    // A 4x4 shoreline: column 0 grass, column 1 water. A tree anchored on the grass column but nudged
-    // a full offset step short of the water still keeps its trunk on grass; nudged all the way it does
-    // not. The anchor cell reads grass in BOTH cases — only the trunk collider tells them apart.
+  it("keeps base geometry precise while allowing an offset tree across a shoreline", () => {
+    // Base geometry remains useful for diagnostics/collision even though it no longer decides which
+    // terrain an author may decorate.
     const shore: MapData = mapDataFromBlocks({
       blocks: [".#..", ".#..", ".#..", ".#.."],
       elements: [],
@@ -114,7 +108,6 @@ describe("placement rules", () => {
     expect(kindAt(ground, 0, 0)).toBe("grass");
     expect(kindAt(ground, 1, 0)).toBe("water");
 
-    // Trunk still on the grass column: placeable, canopy free to overhang the water beside it.
     const overhang = { col: 0, row: 0, offsetX: 0, offsetY: 0, assetId: TREE } as const;
     expect(
       elementPlacementCells(overhang).every((cell) =>
@@ -122,13 +115,14 @@ describe("placement rules", () => {
       ),
     ).toBe(true);
 
-    // Offset a full cell toward the water: the trunk now stands in cell (1,0), which is water — refused.
+    // Offset a full cell toward the water: the trunk cell is correctly reported in water and the
+    // scenery is still legal there.
     const inWater = { col: 0, row: 0, offsetX: 3, offsetY: 0, assetId: TREE } as const;
     const trunkCells = elementPlacementCells(inWater);
     expect(trunkCells).toContainEqual({ col: 1, row: 0 });
     expect(
       trunkCells.every((cell) => canPlaceElement(TREE, kindAt(ground, cell.col, cell.row))),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("keeps a collider-less decoration on its anchor cell for placement (D19)", () => {

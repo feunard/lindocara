@@ -404,14 +404,29 @@ describe("list, get, update, delete", () => {
 });
 
 describe("validation (on the authoring PUT)", () => {
-  it("rejects a tree standing in the water", async () => {
+  it("accepts and persists a tree standing in the water", async () => {
     const id = await newMapId(await newAdventure());
+    const blocks = validBlocks();
+    blocks[5] = `${".".repeat(5)}#${".".repeat(MAP_COLS - 6)}`;
     const response = await putMap(
       id,
-      mapBody({ elements: [{ col: 1, row: 1, kind: "tree", variant: 0 }] }),
+      mapBody({
+        ...layeredWireTerrain(blocks),
+        elements: [{ col: 5, row: 5, kind: "tree", variant: 0 }],
+      }),
     );
-    expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({ error: "map_placement" });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      elements: [
+        {
+          col: 5,
+          row: 5,
+          offsetX: 0,
+          offsetY: 0,
+          assetId: "resource.terrain-resources-wood-trees.tree3",
+        },
+      ],
+    });
   });
 
   it("rejects a map smaller than the size floor", async () => {

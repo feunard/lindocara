@@ -16,17 +16,9 @@ import { CONSUMABLE_IDS } from "@lindocara/engine/consumables.js";
 import type { EventCommand } from "@lindocara/engine/event-commands.js";
 import type { MonsterSpecies } from "@lindocara/engine/game.js";
 import { isWalkable } from "@lindocara/engine/game.js";
-import {
-  bakeCollision,
-  canPlaceElement,
-  elementFitsMap,
-  elementPlacementCells,
-  parseMapData,
-  terrainFromMap,
-} from "@lindocara/engine/map-data.js";
+import { elementFitsMap, parseMapData, terrainFromMap } from "@lindocara/engine/map-data.js";
 import { eventCellCentre, type MapEvent, parseMapEvents } from "@lindocara/engine/map-events.js";
 import { collectQuestCommandBindings, validateAuthoredQuests } from "@lindocara/engine/quests.js";
-import { kindAt } from "@lindocara/engine/tilemap.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { type BuiltWorld, buildWorld, type MapContent } from "./brumeval/maps.js";
 import { buildRegistry, type MapIdByKey } from "./brumeval/quests.js";
@@ -108,21 +100,11 @@ function validateMapLocally(map: MapContent): string[] {
     problems.push(`${map.key}: parseMapEvents rejected the events`);
     return problems;
   }
-  const ground = bakeCollision({ ...data, elements: [] });
   for (const element of data.elements) {
-    if (!elementFitsMap(element, ground.cols, ground.rows)) {
+    if (!elementFitsMap(element, data.cols, data.rows)) {
       problems.push(
         `${map.key}: ${element.assetId} at (${element.col},${element.row}) exceeds bounds`,
       );
-      continue;
-    }
-    for (const cell of elementPlacementCells(element)) {
-      const under = kindAt(ground, cell.col, cell.row);
-      if (!canPlaceElement(element.assetId, under)) {
-        problems.push(
-          `${map.key}: ${element.assetId} at (${element.col},${element.row}) cannot stand on ${under}`,
-        );
-      }
     }
   }
   const terrain = terrainFromMap(data);

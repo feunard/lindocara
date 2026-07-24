@@ -5,12 +5,10 @@ import { type EventPreset, presetEvent } from "@lindocara/engine/event-presets.j
 import type { MonsterSpecies } from "@lindocara/engine/game.js";
 import {
   bakeCollision,
-  canPlaceElement,
   ELEMENT_OFFSET_STEPS,
   EMPTY_MARKERS,
   elementCoversCell,
   elementFitsMap,
-  elementPlacementCells,
   MAP_LAYERS,
   MAX_MAP_ELEMENTS,
   MAX_PATROL_RADIUS,
@@ -39,7 +37,6 @@ import {
   resolveWholeLayer,
   type StairsDirection,
   type StairsLowLevel,
-  stairsFootprint,
   syncElevationWalls,
 } from "@lindocara/engine/tile-brush.js";
 import { emptyLayer, encodeTileLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
@@ -91,7 +88,7 @@ export interface EditorMap {
    * Deliberately excluded from `serializedMap`: it is stroke-local plumbing, not map content, and
    * must never make the map read as dirty or unsaved on its own.
    */
-  strokeAnchor?: { col: number; row: number; layers: TileLayer[]; elements: MapElement[] };
+  strokeAnchor?: { col: number; row: number; layers: TileLayer[] };
 }
 
 /** Terrain strokes write the ground; only `paintElevation` reaches past it, and it owns the reach. */
@@ -751,14 +748,9 @@ function functionalEventPlacementOk(
   return true;
 }
 
-function placementTerrainValid(map: EditorMap, element: MapElement): boolean {
-  const ground = bakeCollision({ ...toMapData(map), elements: [] });
-  if (!elementFitsMap(element, ground.cols, ground.rows)) return false;
-  // Every occupied visual cell must satisfy the asset's catalogue terrain rule. This also validates
-  // multi-cell buildings and both bridge orientations, rather than checking only their anchor.
-  return elementPlacementCells(element).every((cell) =>
-    canPlaceElement(element.assetId, kindAt(ground, cell.col, cell.row)),
-  );
+function placementFitsMap(map: EditorMap, element: MapElement): boolean {
+  const { cols, rows } = editorMapSize(map);
+  return elementFitsMap(element, cols, rows);
 }
 
 /** Two layer stacks hold the same ids. Compared cell by cell, not by reference: the brush returns
@@ -775,32 +767,13 @@ function sameLayers(a: readonly TileLayer[], b: readonly TileLayer[]): boolean {
 /**
  * Adopt a repainted layer stack, or refuse it.
  *
- * `cells` are the cells the stroke touched: an element standing on one of them is dropped when the
- * new terrain no longer accepts it (a tree in fresh water), the same narrow rule the block tool had.
- * A stroke that would drown the spawn or a marker is refused outright, because adventure graphs bind
- * marker ids.
- *
- * `sourceElements` defaults to the live map's elements, which is exactly right for the single-cell
- * tools: each of their strokes is one independent mutation, so folding one frame's drop into the next
- * frame's input is the intended behaviour. The rect tool instead passes its anchor's pristine
- * elements, because its frames are not independent — they are repeated redraws of one in-flight
- * rectangle — so every frame must re-derive its drops from the same pristine set the anchor recorded,
- * never from what an earlier, larger or differently-shaped frame of the *same* drag already dropped.
+ * Scenery is deliberately independent from terrain: painting water, grass or elevation underneath a
+ * prop never deletes it. A stroke that would make the map's technical spawn unwalkable is still
+ * refused outright.
  */
-function commitTerrain(
-  map: EditorMap,
-  layers: TileLayer[],
-  cells: readonly { col: number; row: number }[],
-  sourceElements: readonly MapElement[] = map.elements,
-): EditorMap | null {
+function commitTerrain(map: EditorMap, layers: TileLayer[]): EditorMap | null {
   if (sameLayers(map.layers, layers)) return map;
-  const candidate: EditorMap = { ...map, layers };
-  const elements = sourceElements.filter(
-    (element) =>
-      !cells.some((cell) => elementCoversCell(element, cell.col, cell.row)) ||
-      placementTerrainValid(candidate, element),
-  );
-  const next = { ...candidate, elements };
+  const next: EditorMap = { ...map, layers };
   return keepsSpawnClear(next) ? next : null;
 }
 
@@ -846,33 +819,6 @@ function erasedEvent(map: EditorMap, col: number, row: number): EditorMap {
   const index = map.events.findIndex((event) => event.col === col && event.row === row);
   if (index === -1) return map;
   return { ...map, events: map.events.filter((_event, i) => i !== index) };
-}
-
-/** The cells one elevation-aware stroke can change: the ground cell plus one face on every side. */
-function terrainStrokeCells(col: number, row: number): readonly { col: number; row: number }[] {
-  return [
-    { col, row },
-    { col, row: row - 1 },
-    { col: col + 1, row },
-    { col, row: row + 1 },
-    { col: col - 1, row },
-  ];
-}
-
-/** The same idea as `terrainStrokeCells`, widened to a rectangle: every cell the region can change,
- * plus its one-cell face border. The four diagonal extras keep the bookkeeping rectangular and are
- * harmless: `commitTerrain` still tests actual terrain before dropping any decoration. */
-function terrainRectCells(
-  c0: number,
-  r0: number,
-  c1: number,
-  r1: number,
-): readonly { col: number; row: number }[] {
-  const cells: { col: number; row: number }[] = [];
-  for (let row = r0 - 1; row <= r1 + 1; row += 1) {
-    for (let col = c0 - 1; col <= c1 + 1; col += 1) cells.push({ col, row });
-  }
-  return cells;
 }
 
 /** `syncElevationWalls` for one cell, widened to a rectangle. Each call already checks the cell and
@@ -1002,11 +948,11 @@ export function applyTool(
           ? paintElevation(map.layers, TINY_SWORDS_TILESET, 0, col, row)
           : erasedTerrain(map, col, row);
       if (!layers) return null;
-      return commitTerrain(map, layers, terrainStrokeCells(col, row));
+      return commitTerrain(map, layers);
     }
     case "elevation": {
       const layers = paintElevation(map.layers, TINY_SWORDS_TILESET, tool.level, col, row);
-      return commitTerrain(map, layers, terrainStrokeCells(col, row));
+      return commitTerrain(map, layers);
     }
     /**
      * Anchors on stroke start, then every later cell of the same drag repaints the whole rectangle
@@ -1020,7 +966,7 @@ export function applyTool(
      */
     case "rect": {
       if (isStrokeStart) {
-        return { ...map, strokeAnchor: { col, row, layers: map.layers, elements: map.elements } };
+        return { ...map, strokeAnchor: { col, row, layers: map.layers } };
       }
       const anchor = map.strokeAnchor;
       if (!anchor) return null;
@@ -1043,12 +989,7 @@ export function applyTool(
         bounds.c1,
         bounds.r1,
       );
-      return commitTerrain(
-        map,
-        layers,
-        terrainRectCells(bounds.c0, bounds.r0, bounds.c1, bounds.r1),
-        anchor.elements,
-      );
+      return commitTerrain(map, layers);
     }
     /** One click, one flood region. Same ground + wall-upkeep targeting as `rect`; the active mode
      *  never applies since the content is always terrain. */
@@ -1066,11 +1007,7 @@ export function applyTool(
         bounds.c1,
         bounds.r1,
       );
-      return commitTerrain(
-        map,
-        layers,
-        terrainRectCells(bounds.c0, bounds.r0, bounds.c1, bounds.r1),
-      );
+      return commitTerrain(map, layers);
     }
     /** Layer 1 by its own fixed rule — a ramp is a wall-layer fixture no matter the active mode.
      *  `paintStairs` itself refuses (same-reference) an out-of-bounds stamp; that refusal is passed
@@ -1085,24 +1022,19 @@ export function applyTool(
         tool.lowLevel,
       );
       if (layers === map.layers) return null;
-      const footprint = stairsFootprint(tool.direction);
-      return commitTerrain(
-        map,
-        layers,
-        terrainRectCells(col, row, col + footprint.cols - 1, row + footprint.rows - 1),
-      );
+      return commitTerrain(map, layers);
     }
     case "element": {
       // Element placement is quarter-cell: the stage resolves the pointer to a cell plus a 0..3
       // sub-step per axis and threads it here. Field/Event callers leave the offsets at 0, so those
       // modes stay grid-forced.
       const placed: MapElement = { col, row, offsetX, offsetY, assetId: tool.assetId };
-      if (!placementTerrainValid(map, placed)) return null;
+      if (!placementFitsMap(map, placed)) return null;
       if (elementCoversCell(placed, map.spawn.col, map.spawn.row)) return null;
       // Identity is the full sub-position now, so a new `(col, row, offsetX, offsetY)` ADDS and only an
       // exact match REPLACES — that is what lets one cell hold a stack of decorations. The
       // visual-footprint overlap rejection is gone on purpose: stacked decor is meant to overlap, and
-      // overlapping colliders are harmless (both simply block). Spawn and terrain guards stay.
+      // overlapping colliders are harmless (both simply block). Bounds and spawn guards stay.
       const isReplacement = map.elements.some((element) => sameElementSlot(element, placed));
       const retained = map.elements.filter((element) => !sameElementSlot(element, placed));
       if (!isReplacement && map.elements.length >= MAX_MAP_ELEMENTS) return null;
@@ -1208,7 +1140,7 @@ export function applyTool(
  * active, plus a translucent red wash when the placement is illegal there.
  *
  * It DELEGATES to `applyTool` rather than re-deriving the placement rules, so the hover preview can
- * never disagree with what a real click does: terrain fit (`canPlaceElement`), cell occupancy,
+ * never disagree with what a real click does: map bounds, exact-slot replacement, element caps,
  * one-event-per-cell, marker limits/validity and spawn coverage are all exactly the checks the click
  * would run. `applyTool` returns `null` only when a placement is refused, so "legal" is precisely "not
  * refused". Tools with no per-cell refusal (select/pan, a terrain no-op, the rect anchor) come back

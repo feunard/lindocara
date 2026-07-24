@@ -150,8 +150,9 @@ coastline are exactly what preview must prove.
   `test/map-world.test.ts`, a character loads a D1 map, walks, disconnects, and returns to the same
   map and position with the epoch fence intact; a deleted map relocates (persisted) to the first
   map; an empty database lands on the builtin floor.
-- **API:** create → list → update → delete round trip; unauthenticated 401; tree-on-water 400;
-  bad spawn 400; oversized map 400; last-map delete 409; deleting the flagged map moves the flag;
+- **API:** create → list → update → delete round trip; unauthenticated 401; known scenery accepted
+  on water; unknown/out-of-bounds/duplicate-slot scenery and a bad spawn return 400; oversized map
+  400; last-map delete 409; deleting the flagged map moves the flag;
   the 32 KiB boundary accepts a max-size map and rejects beyond it.
 - **Editor:** UI tests for palette rules (imported, not retyped), the one-spawn invariant, and the
   delete confirm, following the existing UI test suite.

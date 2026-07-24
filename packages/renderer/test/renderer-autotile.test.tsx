@@ -1,3 +1,4 @@
+import { stairsFixedIndex } from "@lindocara/engine/tile-brush.js";
 import type { TileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import {
   autotileId,
@@ -78,21 +79,41 @@ describe("tileDrawAt", () => {
     expect(flat?.tint).toBe(0xffffff);
   });
 
-  it("carries each directional ramp id's tileset-owned rotation", () => {
-    for (const turns of [0, 1, 2, 3] as const) {
-      const draw = tileDrawAt(TINY_SWORDS_TILESET, layerOf(fixedId(turns * 4)), 0, 0);
-      expect(draw?.cell).toEqual({ col: 0, row: 4 });
-      expect(draw?.rotationQuarterTurns).toBe(turns);
+  it("carries each directional stair half's tileset-owned source and rotation", () => {
+    const rotations = { north: 3, east: 0, south: 1, west: 2 } as const;
+    for (const direction of ["north", "east", "south", "west"] as const) {
+      for (const part of ["high", "low"] as const) {
+        const draw = tileDrawAt(
+          TINY_SWORDS_TILESET,
+          layerOf(fixedId(stairsFixedIndex(direction, 0, part))),
+          0,
+          0,
+        );
+        expect(draw?.cell).toEqual({ col: 0, row: part === "high" ? 4 : 5 });
+        expect(draw?.rotationQuarterTurns).toBe(rotations[direction]);
+      }
     }
   });
 
-  it("uses the same simple source cell at both supported transition elevations", () => {
-    const low = tileDrawAt(TINY_SWORDS_TILESET, layerOf(fixedId(0)), 0, 0);
-    const raised = tileDrawAt(TINY_SWORDS_TILESET, layerOf(fixedId(1)), 0, 0);
-    expect(low?.cell).toEqual({ col: 0, row: 4 });
-    expect(raised?.cell).toEqual(low?.cell);
-    expect(low?.tint).toBe(0xffffff);
-    expect(raised?.tint).toBe(TINY_SWORDS_TILESET.autotiles[GRASS_SLOTS[1]]?.tint);
+  it("uses the same two source cells at both supported transition elevations", () => {
+    for (const part of ["high", "low"] as const) {
+      const low = tileDrawAt(
+        TINY_SWORDS_TILESET,
+        layerOf(fixedId(stairsFixedIndex("east", 0, part))),
+        0,
+        0,
+      );
+      const raised = tileDrawAt(
+        TINY_SWORDS_TILESET,
+        layerOf(fixedId(stairsFixedIndex("east", 1, part))),
+        0,
+        0,
+      );
+      expect(low?.cell).toEqual({ col: 0, row: part === "high" ? 4 : 5 });
+      expect(raised?.cell).toEqual(low?.cell);
+      expect(low?.tint).toBe(0xffffff);
+      expect(raised?.tint).toBe(TINY_SWORDS_TILESET.autotiles[GRASS_SLOTS[1]]?.tint);
+    }
   });
 
   it("draws nothing for an empty cell, an out-of-bounds cell or an undeclared slot", () => {

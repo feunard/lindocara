@@ -65,14 +65,16 @@ regions, bounded by the map. Both are tested against `resolveWholeLayer` as the 
 mutation proofs — the property-test discipline that caught real bugs in tranche 1.
 
 **The ramp stamp makes every straight elevation edge climbable.** The author chooses its high side
-(north/east/south/west) and transition (0↔1 or 1↔2), then clicks the lower cell of an elevation
-boundary that was already painted. The brush replaces that cell's impassable face with one full-cell
-simple ramp asset and rotates it toward the high side. The route is naturally bidirectional without
-changing movement or prediction; the brush refuses flat ground, mismatched levels and corners.
+(north/east/south/west) and transition (0↔1 or 1↔2), then clicks the low entrance of an elevation
+boundary that was already painted. The brush stamps both 64 px cells of the official 64×128 Tiny
+Swords stair composition and rotates the pair toward the high side. The route is naturally
+bidirectional without changing movement or prediction; the brush refuses flat ground, mismatched
+levels and corners.
 
 Wall upkeep owns ambient cliff tiles on all four sides and preserves a ramp only while its terrain
-still matches the ramp's direction and levels. Repainting either side — especially painting water
-over its lower cell — removes the ramp and lets ordinary cliff upkeep close the crossing again.
+still matches the ramp's direction and levels. Repainting either endpoint, or painting water over
+either of its two tiles, removes the whole pair and lets ordinary cliff upkeep close the crossing
+again.
 
 **Keyboard.** ⌘S save, ⌘Z/⇧⌘Z undo/redo, 1/2/3 active layer, P pencil, R rect, F fill, E eraser,
 S select, G grid toggle. Shortcuts live on the shell component, not on `document`, and are

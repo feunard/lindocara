@@ -229,9 +229,15 @@ export function terrainFromMap(data: MapData): TerrainGeometry {
   };
 }
 
-export function canPlaceElement(assetId: EditorAssetId, on: TileKind): boolean {
-  const asset = editorAsset(assetId);
-  return asset?.editor.allowedTerrain.some((terrain) => terrain === on) ?? false;
+/**
+ * Scenery is an appearance layer, so every known editor asset may be authored over every terrain.
+ *
+ * `on` stays in the signature for compatibility with catalogue tooling and older callers, but it no
+ * longer gates placement: water, cliffs and elevation decide world collision, not whether an author
+ * may put a visual prop there. Unknown assets remain invalid.
+ */
+export function canPlaceElement(assetId: EditorAssetId, _on: TileKind): boolean {
+  return editorAsset(assetId) !== undefined;
 }
 
 /** A world pixel to the cell and quarter-step it lands in. `Math.floor` on both, so a negative
@@ -307,18 +313,21 @@ function rectCells(rect: Rect): { col: number; row: number }[] {
   return cells;
 }
 
-/** Cells whose ground type constrains placement. Canopies may overhang shoreline; solid bases and
- * walkable bridge decks must stand on terrain allowed by the catalogue. */
+/**
+ * Cells occupied by an element's functional base.
+ *
+ * Kept as shared geometry for catalogue diagnostics and tools that need to locate a base; these
+ * cells no longer restrict which terrain may sit underneath scenery.
+ */
 export function elementPlacementCells(element: MapElement): { col: number; row: number }[] {
   const asset = editorAsset(element.assetId);
   if (!asset) return [];
   if (asset.editor.terrainOverride) return elementCells(element);
   // A solid base — a tree's trunk, a rock — is what must stand on allowed terrain; the canopy above it
   // is free to overhang water. So when the asset carries a collider, the cells that collider actually
-  // covers ARE the base the terrain rule governs. Anchor-only validation missed this: a quarter-cell
-  // offset can push the trunk off its grass anchor and onto adjacent water while the anchor cell still
-  // reads grass, leaving a tree standing in the sea (D19). A collider-less decoration (a bush, a sign)
-  // has no solid base, so it keeps the plain anchor-cell rule and may sit wherever its anchor is legal.
+  // covers ARE its functional base. A quarter-cell offset can push a trunk beyond its anchor, so
+  // callers that inspect base geometry must use these collider cells instead of guessing from the
+  // anchor. A collider-less decoration (a bush, a sign) uses its plain anchor cell.
   const collider = elementWorldCollider(element);
   if (!collider) return [{ col: element.col, row: element.row }];
   return rectCells(collider);

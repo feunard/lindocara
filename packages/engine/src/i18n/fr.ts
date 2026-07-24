@@ -869,7 +869,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.shell.fill.water_disabled":
     "Le remplissage ne peut pas peindre l'eau — choisissez un autre outil pour l'eau.",
   "editor.shell.tool.stairs": "Escalier",
-  "editor.stairs.highSide": "Côté haut (sens de la montée)",
+  "editor.stairs.highSide": "Sortie haute (sens de la montée)",
   "editor.stairs.direction.north": "Haut",
   "editor.stairs.direction.east": "Droite",
   "editor.stairs.direction.south": "Bas",
@@ -877,7 +877,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.stairs.transition": "Niveaux reliés",
   "editor.stairs.transitionLevels": "Niveau {low} ↔ {high}",
   "editor.stairs.hint":
-    "L’escalier occupe 1 case. Peignez d’abord les deux hauteurs, puis cliquez sur la case basse, au pied de la paroi. Les héros montent vers {up} et redescendent vers {down}.",
+    "L’asset officiel occupe 2 cases. Peignez les deux hauteurs, puis cliquez sur sa case d’entrée basse : l’autre moitié s’ajoute automatiquement. Les héros montent vers {up} et redescendent vers {down}.",
   "editor.shell.stage.loading": "Chargement de la carte…",
   "editor.shell.saving": "Enregistrement…",
   "editor.shell.stage.error": "La carte n'a pas pu être chargée.",
@@ -966,7 +966,7 @@ export const fr: Record<keyof typeof en, string> = {
     "Dessine les trois couches du sol : herbe, eau, chemins, relief et escaliers. Le point de test de la carte sert uniquement au démarrage local de secours.",
   "editor.help.maps.mode.elements": "Décors",
   "editor.help.maps.mode.elements.body":
-    "Place les éléments visibles sur une grille fine : arbres, bâtiments, personnages et accessoires. Leur tronc ou leur base peut bloquer le passage.",
+    "Place les éléments visibles sur une grille fine : arbres, bâtiments, personnages et accessoires. Tous peuvent être posés sur n’importe quel terrain, eau comprise ; leur tronc ou leur base peut toutefois bloquer le passage.",
   "editor.help.maps.mode.events": "Événements",
   "editor.help.maps.mode.events.body":
     "Place ce qui agit : début, dialogue, coffre, téléporteur, monstre, objectif de quête ou fin. Un événement peut avoir plusieurs pages selon l’état du monde.",
@@ -994,9 +994,9 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.help.maps.relief.step3":
     "Choisissez le côté haut : haut, droite, bas ou gauche. La flèche indique le sens de la montée.",
   "editor.help.maps.relief.step4":
-    "Cliquez sur la case basse, juste au pied de la paroi. L’aperçu montre l’unique case utilisée ; l’escalier s’oriente et remplace cette paroi bloquante.",
+    "Cliquez sur la case d’entrée basse. L’aperçu montre les 2 cases de l’asset officiel ; sa moitié haute s’oriente automatiquement vers le côté choisi et remplace la paroi bloquante.",
   "editor.help.maps.relief.rule":
-    "On monte vers le côté haut sélectionné ; on descend par le même escalier dans le sens opposé. Repeindre sa case avec de l’eau supprime automatiquement l’escalier.",
+    "On monte vers le côté haut sélectionné ; on descend par le même escalier dans le sens opposé. Repeindre l’une de ses 2 cases avec de l’eau supprime automatiquement tout l’escalier.",
   "editor.help.maps.multimap.title": "Créer plusieurs cartes",
   "editor.help.maps.multimap.body":
     "Ajoutez chaque lieu dans le panneau Cartes. Placez un événement Téléporteur sur la sortie du premier lieu, choisissez la carte et la cellule d’arrivée, puis créez si nécessaire le trajet de retour. Un seul événement Départ définit le début global.",

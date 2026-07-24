@@ -38,15 +38,25 @@ const RAISED_2_TINT = 0xb8b8b8;
 export const GRASS_SLOTS: readonly [number, number, number] = [0, 1, 2];
 export const CLIFF_WALL_SLOT = 3;
 
-const RAMP_ROTATIONS = [0, 1, 2, 3] as const;
 /**
- * Four frozen ids per direction keep the historical fixed-id band stable. The first two are the
- * authored 0↔1 and 1↔2 transitions; the next two deliberately duplicate them so maps saved by the
- * short-lived four-bank implementation still resolve to a harmless simple ramp instead of an
- * undeclared tile. New stamps only write offsets 0 and 1.
+ * Stable stored groups remain north/east/south/west. The newly verified source art faces east, so
+ * those semantic groups use 270°/0°/90°/180° instead of changing the meaning of an existing id.
  */
-const RAMP_LEVELS = [0, 1, 0, 1] as const;
-export const RAMP_FIXED_TILE_COUNT = RAMP_LEVELS.length * RAMP_ROTATIONS.length;
+const RAMP_DIRECTIONS = [
+  { direction: "north", rotationQuarterTurns: 3 },
+  { direction: "east", rotationQuarterTurns: 0 },
+  { direction: "south", rotationQuarterTurns: 1 },
+  { direction: "west", rotationQuarterTurns: 2 },
+] as const;
+/**
+ * The official stair is one 64×128 asset split across two atlas cells: its high half is row 4 and
+ * its low half row 5. Each half has a 0↔1 and 1↔2 tinted entry, making four ids per rotation while
+ * preserving the existing sixteen-id ramp band and the cliff ids that follow it.
+ */
+const RAMP_PARTS = [{ row: 4 }, { row: 5 }] as const;
+const RAMP_LEVELS = [0, 1] as const;
+export const RAMP_FIXED_TILE_COUNT =
+  RAMP_PARTS.length * RAMP_LEVELS.length * RAMP_DIRECTIONS.length;
 
 /** A middle cliff-face cell repeated along an edge. The source faces south (high ground north);
  * rotations make the other three orientations without inventing a second transform channel. */
@@ -86,22 +96,25 @@ export const TINY_SWORDS_TILESET: Tileset = {
     // no directional passage: a cliff face is simply a cell you cannot walk into.
     { atlas: ATLAS, origin: { col: 5, row: 4 }, kind: "run4", passable: false, priority: "below" },
   ],
-  // A ramp is one ordinary 64px atlas cell, on the lower cell of an already-authored elevation
-  // boundary. The atlas ships one north-facing illustration; four fixed-id groups rotate that same
-  // simple asset. Its tint follows the lower level, so a 1↔2 ramp belongs visually to level 1.
+  // Pixel Frog's native stair is the two-cell, east-facing asset at atlas (0,4) + (0,5). Rotating
+  // both cells and their destination positions produces the other three requested high sides
+  // without scaling or redrawing the art. Tint follows the lower level, so a 1↔2 stair belongs
+  // visually to level 1.
   fixed: [
-    ...RAMP_ROTATIONS.flatMap((rotationQuarterTurns) =>
-      RAMP_LEVELS.map((lowLevel) => ({
-        atlas: ATLAS,
-        col: 0,
-        row: 4,
-        passable: true,
-        priority: "below" as const,
-        ...(lowLevel === 1 ? { tint: RAISED_1_TINT } : {}),
-        rotationQuarterTurns,
-      })),
+    ...RAMP_DIRECTIONS.flatMap(({ rotationQuarterTurns }) =>
+      RAMP_PARTS.flatMap((part) =>
+        RAMP_LEVELS.map((lowLevel) => ({
+          atlas: ATLAS,
+          col: 0,
+          row: part.row,
+          passable: true,
+          priority: "below" as const,
+          ...(lowLevel === 1 ? { tint: RAISED_1_TINT } : {}),
+          rotationQuarterTurns,
+        })),
+      ),
     ),
-    ...RAMP_ROTATIONS.map((rotationQuarterTurns) => ({
+    ...([0, 1, 2, 3] as const).map((rotationQuarterTurns) => ({
       ...CLIFF_FACE,
       rotationQuarterTurns,
     })),

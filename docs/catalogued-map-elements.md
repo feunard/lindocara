@@ -6,14 +6,18 @@ Map scenery is persisted with Tiny Swords catalogue ids. A canonical element is:
 interface MapElement {
   col: number;
   row: number;
+  offsetX: 0 | 1 | 2 | 3;
+  offsetY: 0 | 1 | 2 | 3;
   assetId: EditorAssetId;
 }
 ```
 
-`col` and `row` are the authored ground anchor. `assetId` is stable across physical file moves and
-is the only client-selectable art reference accepted by the map API. Source paths, animation frames,
-anchors, foot offsets, placement terrain, render layer, visual footprint and collision footprint
-come from `src/shared/tiny-swords-catalog.ts` on both sides of the network.
+`col` and `row` are the authored ground anchor; `offsetX` and `offsetY` choose one of the cell's
+sixteen quarter-tile slots. `assetId` is stable across physical file moves and is the only
+client-selectable art reference accepted by the map API. Source paths, animation frames, anchors,
+foot offsets, suggested placement terrain, render layer, visual footprint and collision footprint
+come from `src/shared/tiny-swords-catalog.ts` on both sides of the network. Suggested terrain is
+advisory: every known scenery asset may be placed on grass, cliffs or water.
 
 ## Validation order
 
@@ -22,11 +26,10 @@ one pass before any D1 write:
 
 1. the id exists and is explicitly available to the editor;
 2. the full visual footprint stays inside the map;
-3. solid bases or bridge decks stand on allowed terrain;
-4. visual footprints do not overlap;
-5. no footprint covers the spawn;
-6. the collision bake leaves the spawn walkable;
-7. the element count remains at or below 400.
+3. no second element already occupies the same cell + quarter-tile slot;
+4. no footprint covers the spawn;
+5. the collision bake leaves the spawn walkable;
+6. the element count remains at or below 400.
 
 Collision uses only the explicit catalogue footprint. It never derives gameplay collision from an
 image's alpha bounds. Bridges may declare a walkable terrain override for their deck; all other
@@ -46,8 +49,9 @@ footprint overhangs the map; newly authored placements must satisfy the stricter
 
 ## Current limits
 
-- Elements have one anchor and no rotation, tint, arbitrary scale or per-instance animation state.
-- Overlap is deliberately conservative: any visual-footprint overlap is refused.
+- Elements have one quarter-tile anchor and no rotation, tint, arbitrary scale or per-instance
+  animation state.
+- Visual overlap is allowed; only an identical cell + quarter-tile storage slot is refused.
 - Terrain is three layered tile ids over an authored tileset, with a three-level elevation brush;
   see [`docs/superpowers/specs/2026-07-18-layered-map-model-design.md`](./superpowers/specs/2026-07-18-layered-map-model-design.md).
 - Static scenery and simple authored strips are placeable. Mobile units, AI, NPCs, events,

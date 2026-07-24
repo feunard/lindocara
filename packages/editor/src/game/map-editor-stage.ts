@@ -4,9 +4,9 @@
  * This is the WYSIWYG twin of the world renderer: it draws a map the exact way `renderer.ts` draws
  * a wire zone (the same `bakeCollision` tilemap, the same `landTile`/`needsFoam` autotiling, the
  * same native-scale Tiny Swords props), so what a builder paints here is what a player will stand
- * on. It never decides a *rule*: every placement is answered by `applyTool` (editor-state.ts),
- * which calls the same `canPlaceElement`/`bakeCollision` the server validates with. A pointer here
- * computes a cell, asks `applyTool`, and only adopts a non-null, changed result.
+ * on. It never decides a *rule*: every placement is answered by `applyTool` (editor-state.ts), which
+ * shares bounds, spawn and collision rules with the server. A pointer here computes a cell, asks
+ * `applyTool`, and only adopts a non-null, changed result.
  *
  * React never touches anything in this module but the returned `MapEditorStageHandle`: the toolbar
  * is React, the canvas is Pixi, and the two only meet at `setTool`/`current`/`setName`/`dispose`.
@@ -24,7 +24,7 @@ import {
   sameElementSlot,
 } from "@lindocara/engine/map-data.js";
 import type { EventKind, MapEvent } from "@lindocara/engine/map-events.js";
-import { stairsFixedIndex, stairsFootprint } from "@lindocara/engine/tile-brush.js";
+import { stairsTilePlacements } from "@lindocara/engine/tile-brush.js";
 import type { TileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { isSolidKind, TILE_SIZE, type TileMap } from "@lindocara/engine/tilemap.js";
 import { fixedId, type Tileset } from "@lindocara/engine/tileset.js";
@@ -150,7 +150,7 @@ export interface MapEditorStageState {
   selection: EditorSelection | null;
   /**
    * A monotone counter (C7), bumped every time a real element/event placement click is refused —
-   * e.g. a tree on water, an event on an occupied cell. The hover-illegal red fill (UX wave #9,
+   * e.g. scenery over the spawn, an event on an occupied cell. The hover-illegal red fill (UX wave #9,
    * `paintHoverCell`) already warns BEFORE the click; this is the click itself, which otherwise does
    * nothing observable at all (the placed-count simply stays put). `null` until the first rejection
    * this session. A counter, not a boolean, so the screen can show its transient hint again even if
@@ -236,22 +236,18 @@ const HOVER_GHOST_ALPHA = 0.68;
 const HOVER_ILLEGAL_GHOST_ALPHA = 0.48;
 const HOVER_ILLEGAL_FILL_ALPHA = 0.28;
 
-/** The cells a tool's stamp will touch, anchored at `(col,row)`. A simple ramp, like every other
- *  placement tool, proposes one cell. Pure and Pixi-free so the footprint stays pinned by a test. */
+/** The cells a tool's stamp will touch, anchored at its low entrance `(col,row)`. Tiny Swords'
+ *  official stair is a two-cell 64×128 asset, rotated into a 128×64 pair for north/south. */
 export function stampFootprintCells(
   tool: EditorTool,
   col: number,
   row: number,
 ): { col: number; row: number }[] {
   if (tool.kind !== "stairs") return [{ col, row }];
-  const footprint = stairsFootprint(tool.direction);
-  const cells: { col: number; row: number }[] = [];
-  for (let dRow = 0; dRow < footprint.rows; dRow += 1) {
-    for (let dCol = 0; dCol < footprint.cols; dCol += 1) {
-      cells.push({ col: col + dCol, row: row + dRow });
-    }
-  }
-  return cells;
+  return stairsTilePlacements(tool.direction, tool.lowLevel).map((placement) => ({
+    col: col + placement.col,
+    row: row + placement.row,
+  }));
 }
 
 /** The already-loaded art the under-cursor placement ghost may use. Optional semantic textures keep
@@ -268,7 +264,7 @@ export interface PlacementPreviewTextures {
  * Draw the thing the next click will place, at its real anchor and scale.
  *
  * Elements reuse `createCatalogElementView`, events reuse `createEventGraphicSprite`, and stairs
- * reuse their one frozen fixed id through `tileDrawAt`. This is deliberately the same rendering
+ * reuse their two frozen fixed ids through `tileDrawAt`. This is deliberately the same rendering
  * path as committed content: a building, decoration, monster, spawn point or ramp can no longer be
  * represented by an anonymous square while it follows the pointer.
  */
@@ -298,25 +294,34 @@ export function paintPlacementAssetPreview(
   }
 
   if (tool.kind === "stairs" && textures.tileset) {
-    const layer: TileLayer = {
-      cols: 1,
-      rows: 1,
-      ids: [fixedId(stairsFixedIndex(tool.direction, tool.lowLevel))],
-    };
-    const draw = tileDrawAt(TINY_SWORDS_TILESET, layer, 0, 0);
-    if (!draw) return false;
-    const texture = textures.tileset[draw.cell.row]?.[draw.cell.col];
-    if (!texture) return false;
-    const sprite = new Sprite(texture);
-    sprite.anchor.set(0.5);
-    sprite.position.set(col * TILE_SIZE + TILE_SIZE / 2, row * TILE_SIZE + TILE_SIZE / 2);
-    sprite.width = TILE_SIZE;
-    sprite.height = TILE_SIZE;
-    sprite.rotation = draw.rotationQuarterTurns * (Math.PI / 2);
-    sprite.tint = draw.tint;
-    sprite.alpha = alpha;
-    container.addChild(sprite);
-    return true;
+    let drew = false;
+    for (const placement of stairsTilePlacements(tool.direction, tool.lowLevel)) {
+      const layer: TileLayer = {
+        cols: 1,
+        rows: 1,
+        ids: [fixedId(placement.fixedIndex)],
+      };
+      const draw = tileDrawAt(TINY_SWORDS_TILESET, layer, 0, 0);
+      if (!draw) continue;
+      const texture = textures.tileset[draw.cell.row]?.[draw.cell.col];
+      if (!texture) continue;
+      const targetCol = col + placement.col;
+      const targetRow = row + placement.row;
+      const sprite = new Sprite(texture);
+      sprite.anchor.set(0.5);
+      sprite.position.set(
+        targetCol * TILE_SIZE + TILE_SIZE / 2,
+        targetRow * TILE_SIZE + TILE_SIZE / 2,
+      );
+      sprite.width = TILE_SIZE;
+      sprite.height = TILE_SIZE;
+      sprite.rotation = draw.rotationQuarterTurns * (Math.PI / 2);
+      sprite.tint = draw.tint;
+      sprite.alpha = alpha;
+      container.addChild(sprite);
+      drew = true;
+    }
+    return drew;
   }
 
   let frame: Texture | undefined;
@@ -1309,7 +1314,7 @@ async function buildSession(
     // null → refused; same reference → a no-op edit (eraser on empty cell) — neither changes the map.
     if (next === null) {
       // Only the element/event tools "place something", so only their refusal is the C7 "tried to
-      // place and couldn't" case (a tree on water, an event over the spawn). Field/fill/stairs
+      // place and couldn't" case (scenery over the spawn, an event over the spawn). Field/fill/stairs
       // returning null are terrain rules with their own reasons (out of bounds, no fill slot) that
       // already read clearly from the tool itself, not a silent no-op worth flashing a hint over.
       if (tool.kind === "element" || tool.kind === "event") {
@@ -1327,8 +1332,7 @@ async function buildSession(
     }
     redraw();
     notify();
-    // The terrain under the cursor just changed, so the hover legality may have too (e.g. a decoration
-    // that was legal on grass is now illegal over freshly-painted water).
+    // The map under the cursor just changed, so refresh the shared hover decision too.
     hoverCol = col;
     hoverRow = row;
     hoverOffsetX = offsetX;

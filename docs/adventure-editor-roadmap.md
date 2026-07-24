@@ -91,9 +91,10 @@ consumer (`AuthScreen`) of the old one, nothing to decide.
   palette's "recent assets" section is also gone; the terrain palette has no equivalent. Neither is
   scheduled to come back; note it here rather than let it surface as a silent regression later.
 
-Ramps are paintable now — the stairs tool replaces one lower cliff-face cell with the tileset's
-simple passable ramp, rotated toward the chosen high side for a 0↔1 or 1↔2 boundary. It refuses flat
-ground, mismatched levels and corners, and water removes the ramp before restoring normal cliff
+Ramps are paintable now — the stairs tool stamps the official two-tile 64×128 Tiny Swords stair,
+rotated toward the chosen high side for a 0↔1 or 1↔2 boundary. The clicked cell is the low entrance
+and the cursor preview shows the full two-cell footprint. It refuses flat ground, mismatched levels
+and corners; water over either half removes the complete stair before restoring normal cliff
 upkeep. Fill still has no fill-to-empty primitive; the palette disables it while water is the active
 content instead of shipping a dead brush.
 
@@ -206,8 +207,9 @@ snag. Tranche 5 does not start until that gate is cleared.
 end to end and passed with zero console errors in every context: register → creator → instant
 "Nouvelle aventure" (5×5 land in a 20×15 canvas, born with an entry + exit event) → name-at-first-save
 popup → build map 1 (pencil/rect/fill terrain, elevation + stairs, curated tree/bush — the palette
-offers *only* the four curated assets and the one curated species — red illegal-placement feedback on
-water, a switch `0001` in the Database, a monster event, a normal event with a graphic and a switch
+offers *only* the four curated assets and the one curated species — full asset preview under the
+cursor, scenery accepted even on water, red feedback reserved for genuinely invalid bounds/spawn
+placements, a switch `0001` in the Database, a monster event, a normal event with a graphic and a switch
 condition) → add map 2 → wire map 1's exit → map 2's entry and map 2's exit → end → PLAYABLE badge →
 create a party → hero → play (terrain collision, the monster attacks, the normal event visible, take
 the exit and arrive on map 2 → Victory). Two-account multiplayer was verified in a second browser

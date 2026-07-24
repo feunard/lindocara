@@ -71,8 +71,8 @@ function inputNamed(name: string): MapInput {
 }
 
 /** A grid of single-cell rocks big enough to blow past D1's 100-bound-parameter cap on a single
- *  `INSERT` (roughly 20 rows at 5 params each) — up to `MAX_MAP_ELEMENTS`, every cell distinct so
- *  none overlap, all grass so `rock1`'s `allowedTerrain` accepts every cell, and never the spawn. */
+ *  `INSERT` (roughly 20 rows at 5 params each) — up to `MAX_MAP_ELEMENTS`, every cell distinct,
+ *  in-bounds and never on the spawn. */
 function rockGrid(count: number, spawn: { col: number; row: number }): MapElement[] {
   const cols = 20;
   const elements: MapElement[] = [];
@@ -270,18 +270,20 @@ describe("maps", () => {
     });
   });
 
-  describe("placement is enforced on write, not in the browser", () => {
-    it("refuses a tree in the sea", async () => {
+  describe("placement integrity is enforced on write", () => {
+    it("accepts a tree in the sea because scenery is terrain-independent", async () => {
       const db = createDb(env.DB);
-      await expect(
-        createMap(db, {
-          ...validInput,
-          elements: [{ col: 1, row: 1, offsetX: 0, offsetY: 0, assetId: TREE }],
-        }),
-      ).rejects.toThrow(/placement/);
+      const blocks = validBlocks();
+      blocks[5] = `${".".repeat(5)}#${".".repeat(MAP_COLS - 6)}`;
+      const ok = await createMap(db, {
+        ...validInput,
+        ...layeredTerrain(blocks),
+        elements: [{ col: 5, row: 5, offsetX: 0, offsetY: 0, assetId: TREE }],
+      });
+      expect(ok.elements).toEqual([{ col: 5, row: 5, offsetX: 0, offsetY: 0, assetId: TREE }]);
     });
 
-    it("accepts a stone in the shallows", async () => {
+    it("continues to accept a stone in the shallows", async () => {
       const db = createDb(env.DB);
       const ok = await createMap(db, {
         ...validInput,

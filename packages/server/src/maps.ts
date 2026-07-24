@@ -22,11 +22,9 @@ import {
 import { parseEventCommands } from "@lindocara/engine/event-commands.js";
 import {
   bakeCollision,
-  canPlaceElement,
   EMPTY_MARKERS,
   elementCoversCell,
   elementFitsMap,
-  elementPlacementCells,
   isElementKind,
   legacyElementAssetId,
   MAP_LAYERS,
@@ -276,8 +274,9 @@ function markersJson(markers: MapMarkers | undefined): string | null {
 /**
  * Rejects a map nobody could play before it reaches the database.
  *
- * A tree in the sea and a spawn inside a tree are the same class of bug: a map that loads fine and
- * is simply wrong. Both are cheap to check here and impossible to notice later.
+ * Scenery may be authored over any terrain, including water. The authoritative boundary still
+ * rejects unknown assets, out-of-map footprints, duplicate storage slots and scenery covering the
+ * technical spawn, then verifies that gameplay-critical spawn/events remain usable.
  */
 export function validateMapInput(input: MapInput): MapData & { name: string; events: MapEvent[] } {
   const name = input.name.trim();
@@ -323,19 +322,12 @@ export function validateMapInput(input: MapInput): MapData & { name: string; eve
     elements: input.elements,
     spawn: input.spawn,
   };
-  const ground = bakeCollision({ ...data, elements: [] });
   for (const [index, element] of input.elements.entries()) {
     if (!isEditorAssetId(element.assetId)) {
       throw new Error(`placement: unknown asset ${String(element.assetId)}`);
     }
-    if (!elementFitsMap(element, ground.cols, ground.rows)) {
+    if (!elementFitsMap(element, cols, rows)) {
       throw new Error(`placement: ${element.assetId} exceeds map bounds`);
-    }
-    for (const cell of elementPlacementCells(element)) {
-      const under = kindAt(ground, cell.col, cell.row);
-      if (!canPlaceElement(element.assetId, under)) {
-        throw new Error(`placement: ${element.assetId} cannot stand on ${under}`);
-      }
     }
     if (elementCoversCell(element, input.spawn.col, input.spawn.row)) {
       throw new Error("spawn: cannot be covered by scenery");
