@@ -2,23 +2,24 @@
  * The three Brumeval maps, built with the same pure brushes the editor uses.
  * Content tables: docs/superpowers/specs/2026-07-24-brumeval-adventure-design.md
  */
-import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
+
+import type { EventCommand } from "@lindocara/engine/event-commands.js";
+import type { MonsterSpecies } from "@lindocara/engine/game.js";
 import type { MapElement } from "@lindocara/engine/map-data.js";
 import {
-  type MapEvent,
-  type MapEventPage,
   defaultEventPage,
   functionalEvent,
+  type MapEvent,
+  type MapEventPage,
 } from "@lindocara/engine/map-events.js";
-import type { EventCommand } from "@lindocara/engine/event-commands.js";
 import {
   paintElevation,
   paintRectAutotile,
   resolveWholeLayer,
 } from "@lindocara/engine/tile-brush.js";
-import { type TileLayer, emptyLayer, encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
-import type { MonsterSpecies } from "@lindocara/engine/game.js";
+import { emptyLayer, encodeTileLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { GRASS_SLOTS, TINY_SWORDS_TILESET } from "@lindocara/engine/tilesets/tiny-swords.js";
+import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 
 export interface ExitPlan {
   event: MapEvent;
@@ -50,11 +51,11 @@ export interface BrumevalRefs {
   areaCampGnoll: MapEvent;
 }
 
-const MONK: Record<string, EditorAssetId> = {
+const MONK = {
   blue: "character.units-blue-units-monk.idle" as EditorAssetId,
   red: "character.units-red-units-monk.idle" as EditorAssetId,
   purple: "character.units-purple-units-monk.idle" as EditorAssetId,
-};
+} as const;
 
 const CACHE_GRAPHIC = "decoration.deco.09" as EditorAssetId;
 
@@ -170,7 +171,10 @@ function cacheEvent(col: number, row: number, name: string): MapEvent {
   });
 }
 
-export function buildAbbaye(): { content: MapContent; refs: Pick<BrumevalRefs, "anselme" | "aldric"> } {
+export function buildAbbaye(): {
+  content: MapContent;
+  refs: Pick<BrumevalRefs, "anselme" | "aldric">;
+} {
   const cols = 28;
   const rows = 20;
   const layers = grassBase(cols, rows);
@@ -182,7 +186,9 @@ export function buildAbbaye(): { content: MapContent; refs: Pick<BrumevalRefs, "
     element("building.buildings-blue-buildings.house2", 3, 10),
     // Vineyard rows, east side: bushes as vines.
     ...[5, 8, 11].flatMap((row) =>
-      [17, 19, 21, 23, 25].map((col) => element("decoration.terrain-decorations-bushes.bushe2", col, row)),
+      [17, 19, 21, 23, 25].map((col) =>
+        element("decoration.terrain-decorations-bushes.bushe2", col, row),
+      ),
     ),
     // Tree line along the north and scattered accents.
     element("resource.terrain-resources-wood-trees.tree1", 13, 3),
@@ -290,16 +296,18 @@ export function buildRonceclair(): {
     ...[4, 8, 12, 16, 20, 24, 28, 33].map((col) => element(`${trees}.tree2`, col, 3)),
     ...[3, 7, 11, 15, 21, 26, 31, 36].map((col) => element(`${trees}.tree1`, col, 22)),
     // Mid-forest clumps shaping the paths.
-    ...[
-      [6, 7],
-      [15, 6],
-      [23, 9],
-      [18, 13],
-      [11, 17],
-      [22, 18],
-      [27, 5],
-      [34, 20],
-    ].map(([col, row]) => element(`${trees}.tree3`, col, row)),
+    ...(
+      [
+        [6, 7],
+        [15, 6],
+        [23, 9],
+        [18, 13],
+        [11, 17],
+        [22, 18],
+        [27, 5],
+        [34, 20],
+      ] as const
+    ).map(([col, row]) => element(`${trees}.tree3`, col, row)),
     // A funnel toward the gnoll camp: trees force the (29,12) corridor.
     element(`${trees}.tree1`, 29, 9),
     element(`${trees}.tree2`, 29, 15),
@@ -439,7 +447,9 @@ export function buildAntre(): {
     patrolRadius: 160,
   });
   // On-defeat program: raise the victory switch the NPC pages and the finale read.
-  malgrin.pages[0].commands = [{ t: "setSwitch", switchId: SWITCH_MALGRIN, value: true }];
+  const malgrinPage = malgrin.pages[0];
+  if (!malgrinPage) throw new Error("malgrin event lost its page");
+  malgrinPage.commands = [{ t: "setSwitch", switchId: SWITCH_MALGRIN, value: true }];
 
   const entryWest = fEvent({ col: 2, row: 7, name: "Entrée ouest", kind: "entry" });
   const exitWest = fEvent({ col: 2, row: 9, name: "Vers Ronceclair", kind: "exit" });

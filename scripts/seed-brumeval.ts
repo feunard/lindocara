@@ -14,8 +14,8 @@
 import type { AdventureGraph, AdventureLink } from "@lindocara/engine/adventure.js";
 import { CONSUMABLE_IDS } from "@lindocara/engine/consumables.js";
 import type { EventCommand } from "@lindocara/engine/event-commands.js";
-import { isWalkable } from "@lindocara/engine/game.js";
 import type { MonsterSpecies } from "@lindocara/engine/game.js";
+import { isWalkable } from "@lindocara/engine/game.js";
 import {
   bakeCollision,
   canPlaceElement,
@@ -24,15 +24,12 @@ import {
   parseMapData,
   terrainFromMap,
 } from "@lindocara/engine/map-data.js";
+import { eventCellCentre, type MapEvent, parseMapEvents } from "@lindocara/engine/map-events.js";
+import { collectQuestCommandBindings, validateAuthoredQuests } from "@lindocara/engine/quests.js";
 import { kindAt } from "@lindocara/engine/tilemap.js";
-import { type MapEvent, eventCellCentre, parseMapEvents } from "@lindocara/engine/map-events.js";
-import {
-  collectQuestCommandBindings,
-  validateAuthoredQuests,
-} from "@lindocara/engine/quests.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
-import { type BuiltWorld, type MapContent, buildWorld } from "./brumeval/maps.js";
-import { type MapIdByKey, buildRegistry } from "./brumeval/quests.js";
+import { type BuiltWorld, buildWorld, type MapContent } from "./brumeval/maps.js";
+import { buildRegistry, type MapIdByKey } from "./brumeval/quests.js";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 const PRODUCTION_HOST = "lindocara.alepha.dev";
@@ -114,7 +111,9 @@ function validateMapLocally(map: MapContent): string[] {
   const ground = bakeCollision({ ...data, elements: [] });
   for (const element of data.elements) {
     if (!elementFitsMap(element, ground.cols, ground.rows)) {
-      problems.push(`${map.key}: ${element.assetId} at (${element.col},${element.row}) exceeds bounds`);
+      problems.push(
+        `${map.key}: ${element.assetId} at (${element.col},${element.row}) exceeds bounds`,
+      );
       continue;
     }
     for (const cell of elementPlacementCells(element)) {
@@ -356,7 +355,10 @@ async function seed(config: Config, world: BuiltWorld): Promise<void> {
         dest:
           exit.dest === "end"
             ? "end"
-            : { mapId: mapId[exit.dest.toMap], entryId: entryId(exit.dest.toMap, exit.dest.entryKey) },
+            : {
+                mapId: mapId[exit.dest.toMap],
+                entryId: entryId(exit.dest.toMap, exit.dest.entryKey),
+              },
       });
     }
     const graph: AdventureGraph = { start: null, links: [...boundLinks] };

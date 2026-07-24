@@ -162,7 +162,8 @@ export function buildQuests(mapId: MapIdByKey, refs: BrumevalRefs): AuthoredQues
           refused: "Aldric doit pourtant savoir...",
           reminder: "Aldric garde la porte sud. Il attend ton rapport.",
           ready: "Un rapport ? Parle, voyageur.",
-          turnIn: "Des lances gobelines dans les vignes... C'est Ronceclair qui déborde. Merci du rapport.",
+          turnIn:
+            "Des lances gobelines dans les vignes... C'est Ronceclair qui déborde. Merci du rapport.",
           completed: "Ton rapport a été précieux.",
           unavailable: "Occupe-toi d'abord des vignes.",
         }),
@@ -205,7 +206,8 @@ export function buildQuests(mapId: MapIdByKey, refs: BrumevalRefs): AuthoredQues
         dialogues: dialogues({
           offer:
             "La route du sud traverse Ronceclair. Un camp gobelin la tient : des incendiaires, et nos fioles volées dans leurs caches. Rends-nous les deux.",
-          accepted: "Prends la porte sud. Et méfie-toi des torches — elles brûlent plus que les lances.",
+          accepted:
+            "Prends la porte sud. Et méfie-toi des torches — elles brûlent plus que les lances.",
           refused: "La route restera coupée, alors.",
           reminder: "Le camp gobelin tient toujours la route, au cœur de Ronceclair.",
           completed: "La route respire enfin.",

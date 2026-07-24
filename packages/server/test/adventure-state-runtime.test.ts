@@ -1743,7 +1743,8 @@ describe("adventure state runtime", { timeout: 20_000 }, () => {
     client.chat("/die");
     const closed = await until("conversation closed by death", () =>
       client.received.find(
-        (message) => message.t === "quest.close" && message.conversationId === opened.conversationId,
+        (message) =>
+          message.t === "quest.close" && message.conversationId === opened.conversationId,
       ),
     );
     expect(closed?.t).toBe("quest.close");
