@@ -571,7 +571,9 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     const data: MapData = toMapData(edited);
     let stopped = false;
     let preview: { stop(): void } | null = null;
-    void startMapPreview(data)
+    // Events ride alongside the terrain: the preview draws the authored NPCs and monsters at rest
+    // so an author can judge scale and composition without launching a party.
+    void startMapPreview(data, edited.events)
       .then((started) => {
         if (stopped) {
           started.stop();

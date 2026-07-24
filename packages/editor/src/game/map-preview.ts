@@ -24,10 +24,16 @@ import {
   starterEquipmentFor,
 } from "@lindocara/engine/character.js";
 import { facingFromInput } from "@lindocara/engine/directional-combat.js";
-import { resolveTerrain } from "@lindocara/engine/game.js";
+import { MONSTER_SPECIES_KIND, MONSTER_STATS, resolveTerrain } from "@lindocara/engine/game.js";
 import { type MapData, mapSpawnPoint, terrainFromMap } from "@lindocara/engine/map-data.js";
+import { eventCellCentre, type MapEvent, monsterEvents } from "@lindocara/engine/map-events.js";
 import { MAX_ACCUMULATED_SECONDS } from "@lindocara/engine/prediction.js";
-import type { PlayerSnapshot, QuestState } from "@lindocara/engine/protocol.js";
+import type {
+  MonsterSnapshot,
+  PlayerSnapshot,
+  QuestState,
+  WorldEventSnapshot,
+} from "@lindocara/engine/protocol.js";
 import { PLAYER_SPEED, step, TICK_DT, type Vec2 } from "@lindocara/engine/simulation.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { trackInput } from "@lindocara/renderer/input.js";
@@ -68,7 +74,10 @@ let previewGeneration = 0;
  * a time. The editor's dispose pauses the shared ticker; `acquireStageApp` below hands back a running
  * one so this frame loop actually fires.
  */
-export async function startMapPreview(data: MapData): Promise<{ stop(): void }> {
+export async function startMapPreview(
+  data: MapData,
+  events: readonly MapEvent[] = [],
+): Promise<{ stop(): void }> {
   const generation = ++previewGeneration;
   const canvas = document.querySelector<HTMLCanvasElement>("#stage");
   if (!canvas) throw new Error("index.html is missing #stage");
@@ -95,6 +104,54 @@ export async function startMapPreview(data: MapData): Promise<{ stop(): void }> 
     layers: data.layers.map(encodeTileLayer),
   });
   renderer.setSelfId(SELF_ID);
+
+  /**
+   * The map's authored monsters and active NPCs, standing where the author put them.
+   *
+   * STATIC on purpose. Monster AI, aggro and combat are the server's, and a second copy of them here
+   * would be exactly the fork this codebase refuses everywhere else (`step()` has one copy for the
+   * same reason). What the preview owes an author is composition: how big a troll actually is beside
+   * the hero, whether an NPC is buried in a hedge, whether a patrol ring overlaps a doorway. Drawing
+   * them at rest answers all three; pretending to simulate them would answer none of them honestly.
+   */
+  const previewMonsters: MonsterSnapshot[] = monsterEvents(events).flatMap((event) => {
+    const species = event.species;
+    if (species === null) return [];
+    const kind = MONSTER_SPECIES_KIND[species];
+    const stats = MONSTER_STATS[kind];
+    const at = eventCellCentre(event);
+    return [
+      {
+        id: `preview-monster-${event.id}`,
+        kind,
+        species,
+        x: at.x,
+        y: at.y,
+        hp: stats.maxHp,
+        maxHp: stats.maxHp,
+        dead: false,
+        facing: { x: 0, y: 1 },
+        action: null,
+      },
+    ];
+  });
+
+  // Page 1 is what the preview shows: the editor has no party state to select an active page against,
+  // and page 1 is the page an author is looking at while composing.
+  const previewEvents: WorldEventSnapshot[] = events.flatMap((event: MapEvent) => {
+    if (event.kind !== "normal") return [];
+    const page = event.pages[0];
+    if (!page?.graphicAssetId) return [];
+    return [
+      {
+        id: event.id,
+        col: event.col,
+        row: event.row,
+        graphicAssetId: page.graphicAssetId,
+        onTop: page.optOnTop,
+      },
+    ];
+  });
 
   const self: PlayerSnapshot = {
     id: SELF_ID,
@@ -159,12 +216,12 @@ export async function startMapPreview(data: MapData): Promise<{ stop(): void }> 
     renderer.render(
       {
         players: [moved],
-        monsters: [],
+        monsters: previewMonsters,
         guards: [],
         loot: [],
         corpses: [],
         projectiles: [],
-        events: [],
+        events: previewEvents,
       },
       context,
     );

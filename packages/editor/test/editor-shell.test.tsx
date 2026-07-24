@@ -886,7 +886,8 @@ describe("AdventureEditorScreen shell", () => {
     expect(previewMock.startMapPreview).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: t("editor.test.quick.action") }));
     await waitFor(() =>
-      expect(previewMock.startMapPreview).toHaveBeenCalledWith(toMapData(edited)),
+      // Events ride alongside the terrain so the preview can draw the authored NPCs and monsters.
+      expect(previewMock.startMapPreview).toHaveBeenCalledWith(toMapData(edited), edited.events),
     );
     expect(screen.queryByRole("button", { name: t("editor.shell.test") })).not.toBeInTheDocument();
 
