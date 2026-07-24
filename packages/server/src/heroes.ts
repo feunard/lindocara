@@ -11,7 +11,7 @@ import type { CreateHeroInput } from "@lindocara/engine/hero.js";
 import { MAX_HEROES_PER_PARTY } from "@lindocara/engine/hero.js";
 import { CLASS_SKILLS, isSkillUnlocked } from "@lindocara/engine/skills.js";
 import { and, asc, eq } from "drizzle-orm";
-import { loadAdventure, resolveAdventureStart } from "./adventures.js";
+import { loadAdventureById, resolveAdventureStart } from "./adventures.js";
 import { type Db, hero, party, partyMember } from "./db/index.js";
 import { HEALTH_POTION_ID, ownedItemId } from "./items.js";
 
@@ -70,8 +70,9 @@ export async function createHero(
   if (existing.length >= MAX_HEROES_PER_PARTY)
     throw new Error("cap: too many heroes in this party");
 
-  // The adventure is owned by the party host; load it through them to derive where a hero spawns.
-  const adventure = await loadAdventure(db, partyRow.hostAccountId, partyRow.adventureId);
+  // The party may run anyone's adventure (the play flow is not owner-fenced): load it by id to
+  // derive where a hero spawns. The party row itself is the authorization — membership was checked.
+  const adventure = await loadAdventureById(db, partyRow.adventureId);
   if (!adventure) throw new Error("not_found: party adventure is unavailable");
   // D25: the first map + position are DERIVED — a spawn event, else the legacy graph start, else the
   // first map's walkable spawn. Only a mapless adventure leaves a hero nowhere to spawn.

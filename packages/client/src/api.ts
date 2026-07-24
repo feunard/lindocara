@@ -119,6 +119,8 @@ export interface AdventureSummary {
   mapCount: number;
   /** Whether a start is authored: a playable adventure vs a draft. Badges the picker card. */
   playable: boolean;
+  /** Author username — present only in the server-wide `scope=play` listing. */
+  author?: string;
 }
 
 /** The atomic create response (UX wave #2/#3): the adventure plus the default map it was born with,
@@ -141,6 +143,8 @@ export interface AdventurePayload {
 }
 
 export const fetchAdventures = () => api<AdventureSummary[]>("/api/adventures");
+/** Server-wide playable adventures (any author) — the "New adventure" carousel. */
+export const fetchPlayableAdventures = () => api<AdventureSummary[]>("/api/adventures?scope=play");
 export const fetchAdventure = (id: string) => api<AdventurePayload>(`/api/adventures/${id}`);
 export const createAdventureApi = (input: CreateAdventureInput) =>
   api<CreatedAdventure>("/api/adventures", { method: "POST", body: JSON.stringify(input) });

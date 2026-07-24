@@ -34,7 +34,9 @@ import {
   createAdventureWithDefaultMap,
   deleteAdventure,
   listAdventures,
+  listPlayableAdventures,
   loadAdventure,
+  loadAdventureById,
   resolveAdventureStart,
   updateAdventure,
 } from "./adventures.js";
@@ -421,7 +423,8 @@ async function handleJoinHero(request: Request, env: Env, url: URL): Promise<Res
   }
   const owned = await loadOwnedHero(db, session.id, partyId, heroId);
   if (!owned) return json({ error: "forbidden" }, { status: 403 });
-  const adventure = await loadAdventure(db, partyRow.hostAccountId, partyRow.adventureId);
+  // By id, not owner-fenced: the party may run anyone's adventure (membership was checked above).
+  const adventure = await loadAdventureById(db, partyRow.adventureId);
   if (!adventure) return closedWebSocket(WS_CLOSE.INVALID_LOCATION, "party adventure missing");
 
   let mapId = owned.mapId;
@@ -814,6 +817,11 @@ async function handleListAdventures(request: Request, env: Env, url: URL): Promi
   const db = createDb(env.DB);
   const expiredHeroIds = await cleanupExpiredAdventureTestSessions(db);
   await revokeTestHeroes(env, expiredHeroIds, "playtest expired");
+  // `scope=play` is the server-wide playable listing (the "New adventure" carousel); the default
+  // stays the owner-fenced editor listing.
+  if (url.searchParams.get("scope") === "play") {
+    return json(await listPlayableAdventures(db));
+  }
   return json(await listAdventures(db, auth.session.id));
 }
 

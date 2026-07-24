@@ -7,9 +7,9 @@
 import { useEffect, useState } from "react";
 import {
   type AdventureSummary,
-  fetchAdventures,
   fetchHeroes,
   fetchParties,
+  fetchPlayableAdventures,
   type PartyListing,
 } from "../api.js";
 import { t } from "../i18n.js";
@@ -80,7 +80,7 @@ export function NewGameScreen() {
   const [pickedId, setPickedId] = useState<string | null>(null);
 
   useEffect(() => {
-    void fetchAdventures()
+    void fetchPlayableAdventures()
       .then(setAdventures)
       .catch(() => setAdventures([]));
   }, []);
@@ -90,7 +90,9 @@ export function NewGameScreen() {
   const cards: CarouselCard[] = (adventures ?? []).map((a) => ({
     id: a.id,
     title: a.title,
-    subtitle: t("new.maps", { count: a.mapCount }),
+    subtitle: a.author
+      ? `${t("new.maps", { count: a.mapCount })} · ${t("new.by", { author: a.author })}`
+      : t("new.maps", { count: a.mapCount }),
     accent: accentFor(a.id),
   }));
 

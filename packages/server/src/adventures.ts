@@ -23,7 +23,7 @@ import { mapSpawnPoint } from "@lindocara/engine/map-data.js";
 import { eventCellCentre } from "@lindocara/engine/map-events.js";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { decodeStoredAdventureRegistry, prepareAdventureRegistry } from "./adventure-registry.js";
-import { adventure, type Db, map, mapEvent, party } from "./db/index.js";
+import { account, adventure, type Db, map, mapEvent, party } from "./db/index.js";
 import { DEFAULT_FIRST_MAP_NAME, loadMap, prepareDefaultMap, type StoredMap } from "./maps.js";
 
 export interface StoredAdventure {
@@ -196,6 +196,69 @@ export async function listAdventures(
       playable: mapCount > 0,
     };
   });
+}
+
+/**
+ * The play-flow listing: every PLAYABLE adventure on the server, any author (the "New adventure"
+ * carousel). Drafts stay invisible, and nothing here may ever feed an edit surface — editing keeps
+ * the owner-fenced `listAdventures` above.
+ */
+export async function listPlayableAdventures(db: Db): Promise<
+  {
+    id: string;
+    title: string;
+    maxPlayers: number;
+    mapCount: number;
+    playable: true;
+    author: string;
+  }[]
+> {
+  const rows = await db
+    .select({
+      id: adventure.id,
+      title: adventure.title,
+      maxPlayers: adventure.maxPlayers,
+      author: account.username,
+    })
+    .from(adventure)
+    .innerJoin(account, eq(adventure.accountId, account.id))
+    .orderBy(asc(adventure.createdAt));
+  const counts = await db
+    .select({ adventureId: map.adventureId, count: sql<number>`count(*)` })
+    .from(map)
+    .groupBy(map.adventureId);
+  const countByAdventure = new Map(counts.map((row) => [row.adventureId, Number(row.count)]));
+  return rows.flatMap((row) => {
+    const mapCount = countByAdventure.get(row.id) ?? 0;
+    if (mapCount === 0) return [];
+    return [
+      {
+        id: row.id,
+        title: row.title,
+        maxPlayers: row.maxPlayers,
+        mapCount,
+        playable: true as const,
+        author: row.author,
+      },
+    ];
+  });
+}
+
+/** The play-flow load: no owner fence. Party creation starts anyone's playable adventure; every
+ *  EDIT boundary keeps going through the owner-fenced `loadAdventure` below. */
+export async function loadAdventureById(db: Db, id: string): Promise<StoredAdventure | null> {
+  const rows = await db.select().from(adventure).where(eq(adventure.id, id)).limit(1);
+  const row = rows[0];
+  if (!row) return null;
+  const members = await db
+    .select({ id: map.id })
+    .from(map)
+    .where(eq(map.adventureId, id))
+    .orderBy(asc(map.createdAt));
+  return toStored(
+    row,
+    members.map((m) => m.id),
+  );
 }
 
 export async function loadAdventure(

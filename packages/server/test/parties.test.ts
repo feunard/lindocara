@@ -117,14 +117,14 @@ describe("createParty", () => {
     expect(listing[0]).toMatchObject({ id: party.id, adventureTitle: "Donjon", colors: ["red"] });
   });
 
-  it("refuses creating from an adventure the caller does not own", async () => {
+  it("creates from an adventure the caller does not own — the play flow is not owner-fenced", async () => {
     const db = createDb(env.DB);
     await seedAccount("owner");
     await seedAccount("rival");
     const adventureId = await seedAdventure("owner");
-    await expect(
-      createParty(db, "rival", { adventureId, name: null, color: "blue" }),
-    ).rejects.toThrow(/^adventure:/);
+    const created = await createParty(db, "rival", { adventureId, name: null, color: "blue" });
+    expect(created.adventureId).toBe(adventureId);
+    expect(created.hostAccountId).toBe("rival");
   });
 
   it("refuses a draft adventure with a not_playable code, not a misleading hero error", async () => {

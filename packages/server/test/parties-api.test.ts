@@ -171,6 +171,43 @@ describe("party lifecycle over the wire", () => {
     expect(deleteRes.status).toBe(204);
   });
 
+  it("lets another account discover and start a playable adventure", async () => {
+    const host = await register();
+    const adventureId = await seedAdventure(host);
+    const guest = await register();
+
+    // The play-scope listing is server-wide: the guest sees the host's playable adventure…
+    const playable = await authed("/api/adventures?scope=play", guest, {});
+    expect(playable.status).toBe(200);
+    const playList = (await playable.json()) as {
+      id: string;
+      playable: boolean;
+      author: string;
+    }[];
+    const found = playList.find((entry) => entry.id === adventureId);
+    expect(found?.playable).toBe(true);
+    expect(found?.author).toMatch(/^partyapi\d+$/);
+
+    // …while the editor listing stays owner-fenced.
+    const own = await authed("/api/adventures", guest, {});
+    expect(((await own.json()) as { id: string }[]).some((a) => a.id === adventureId)).toBe(false);
+
+    // And a party can be created on it by the non-owner…
+    const created = await authed("/api/parties", guest, {
+      method: "POST",
+      body: JSON.stringify({ adventureId, color: "red" }),
+    });
+    expect(created.status).toBe(201);
+    const partyId = ((await created.json()) as { id: string }).id;
+
+    // …including hero creation, whose spawn derives from the (foreign) adventure's start.
+    const heroCreated = await authed(`/api/parties/${partyId}/heroes`, guest, {
+      method: "POST",
+      body: JSON.stringify({ name: "Visiteuse", class: "ranger" }),
+    });
+    expect(heroCreated.status).toBe(201);
+  });
+
   it("answers machine codes for a bad body and a foreign adventure", async () => {
     const host = await register();
     const invalid = await authed("/api/parties", host, {

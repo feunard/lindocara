@@ -13,7 +13,7 @@ import {
   type PartyColor,
 } from "@lindocara/engine/party.js";
 import { and, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
-import { loadAdventure } from "./adventures.js";
+import { loadAdventureById } from "./adventures.js";
 import { adventure, adventureTestSession, type Db, hero, party, partyMember } from "./db/index.js";
 
 export interface PartyListing {
@@ -121,7 +121,9 @@ export async function createParty(
   accountId: string,
   input: CreatePartyInput,
 ): Promise<StoredParty> {
-  const adv = await loadAdventure(db, accountId, input.adventureId);
+  // Deliberately NOT owner-fenced: any account may start a party on any playable adventure (the
+  // play flow). Editing an adventure stays behind the owner-fenced `loadAdventure`.
+  const adv = await loadAdventureById(db, input.adventureId);
   if (!adv) throw new Error("adventure: no such adventure");
   // D25: the first map + spawn are DERIVED (`resolveAdventureStart`) — a spawn event, else the legacy
   // graph start, else the first map's walkable spawn — so no `graph.start` is required to play. Only a
