@@ -55,7 +55,15 @@ export interface NpcDefinition extends Vec2 {
 }
 
 /** The stat tiers. Renamed onto the Tiny Swords Enemy Pack; the numbers below are unchanged. */
-export type MonsterKind = "goblin" | "gnoll" | "skull" | "minotaur" | "troll";
+export type MonsterKind =
+  | "goblin"
+  | "gnoll"
+  | "skull"
+  | "minotaur"
+  | "troll"
+  | "shaman"
+  | "boar"
+  | "pig_rider";
 
 export type MonsterSpecies =
   | "spear_goblin"
@@ -66,7 +74,12 @@ export type MonsterSpecies =
   | "skull_warden"
   | "minotaur_brute"
   | "mire_troll"
-  | "gate_troll";
+  | "gate_troll"
+  // The rest of the pack's own Goblin Raiders warband: a caster, its livestock and the elite that
+  // rides it. The art shipped in the Enemy Pack from the start; only the wiring was missing.
+  | "hex_shaman"
+  | "war_pig"
+  | "pig_rider";
 
 /** One authored field (species) decides the stats row (kind). Markers store only the species. */
 export const MONSTER_SPECIES_KIND: Record<MonsterSpecies, MonsterKind> = {
@@ -79,6 +92,9 @@ export const MONSTER_SPECIES_KIND: Record<MonsterSpecies, MonsterKind> = {
   minotaur_brute: "minotaur",
   mire_troll: "troll",
   gate_troll: "troll",
+  hex_shaman: "shaman",
+  war_pig: "boar",
+  pig_rider: "pig_rider",
 };
 
 export function isMonsterSpecies(value: unknown): value is MonsterSpecies {
@@ -725,6 +741,12 @@ export const MONSTER_STATS: Record<MonsterKind, MonsterStats> = {
   minotaur: { maxHp: 110, damage: 14, speed: 65, xp: 62 },
   skull: { maxHp: 78, damage: 11, speed: 82, xp: 48 },
   troll: { maxHp: 145, damage: 16, speed: 60, xp: 78 },
+  // A caster: frail, slow, and the hardest hitter per blow of anything goblin-sized.
+  shaman: { maxHp: 54, damage: 15, speed: 74, xp: 55 },
+  // Livestock that panics forward. Fast and weak — dangerous only in a drove.
+  boar: { maxHp: 40, damage: 6, speed: 128, xp: 22 },
+  // The warband's elite: a spear goblin with a mount under it.
+  pig_rider: { maxHp: 96, damage: 13, speed: 118, xp: 66 },
 };
 
 /**
@@ -749,6 +771,10 @@ export const MONSTER_BODY_RADIUS: Record<MonsterKind, number> = {
   skull: 14,
   minotaur: 30,
   troll: 33,
+  // Measured the same way: visible idle width / 4.94, the hero's own bulk-to-hitbox ratio.
+  shaman: 19,
+  boar: 12,
+  pig_rider: 17,
 };
 
 /** The widest body any monster presents. Broad-phase radius queries must be widened by this or a

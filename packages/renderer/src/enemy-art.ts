@@ -112,6 +112,27 @@ const TROLL = {
   attack: { source: `${ROOT}/troll/attack.png`, frame: 384, frames: 6 },
 } as const satisfies EnemyArt;
 
+/** The Goblin Raiders warband, completing the pack's own goblin roster. */
+const HEX_SHAMAN = {
+  idle: { source: `${ROOT}/hex-shaman/idle.png`, frame: 192, frames: 8 },
+  run: { source: `${ROOT}/hex-shaman/run.png`, frame: 192, frames: 4 },
+  attack: { source: `${ROOT}/hex-shaman/attack.png`, frame: 192, frames: 10 },
+} as const satisfies EnemyArt;
+
+/** The pack ships the pig with no attack sheet — it is livestock, not a soldier. Its charge IS its
+ *  run, so the run doubles as the strike rather than inventing an animation the artist never drew. */
+const WAR_PIG = {
+  idle: { source: `${ROOT}/pig/idle.png`, frame: 192, frames: 10 },
+  run: { source: `${ROOT}/pig/run.png`, frame: 192, frames: 4 },
+  attack: { source: `${ROOT}/pig/attack.png`, frame: 192, frames: 4 },
+} as const satisfies EnemyArt;
+
+const PIG_RIDER = {
+  idle: { source: `${ROOT}/pig-rider/idle.png`, frame: 256, frames: 8 },
+  run: { source: `${ROOT}/pig-rider/run.png`, frame: 256, frames: 4 },
+  attack: { source: `${ROOT}/pig-rider/attack.png`, frame: 256, frames: 7 },
+} as const satisfies EnemyArt;
+
 export const TINY_SWORDS_ENEMIES: Record<MonsterSpecies, EnemyArt> = {
   spear_goblin: GOBLIN,
   torch_goblin: TORCH,
@@ -122,6 +143,9 @@ export const TINY_SWORDS_ENEMIES: Record<MonsterSpecies, EnemyArt> = {
   minotaur_brute: MINOTAUR,
   mire_troll: TROLL,
   gate_troll: TROLL,
+  hex_shaman: HEX_SHAMAN,
+  war_pig: WAR_PIG,
+  pig_rider: PIG_RIDER,
 };
 
 // The measured idle-strip extents, per sheet: (frame, bodyTop, bodyBottom). Re-measure with any art
@@ -132,6 +156,9 @@ const GNOLL_METRICS = enemyMetrics(192, 60, 135);
 const SKULL_METRICS = enemyMetrics(192, 57, 130);
 const MINOTAUR_METRICS = enemyMetrics(320, 85, 214);
 const TROLL_METRICS = enemyMetrics(384, 86, 297);
+const HEX_SHAMAN_METRICS = enemyMetrics(192, 53, 137);
+const WAR_PIG_METRICS = enemyMetrics(192, 83, 134);
+const PIG_RIDER_METRICS = enemyMetrics(256, 21, 166);
 
 export const ENEMY_RENDER_METRICS: Record<MonsterSpecies, EnemyRenderMetrics> = {
   spear_goblin: SPEAR_GOBLIN_METRICS,
@@ -143,4 +170,7 @@ export const ENEMY_RENDER_METRICS: Record<MonsterSpecies, EnemyRenderMetrics> = 
   minotaur_brute: MINOTAUR_METRICS,
   mire_troll: TROLL_METRICS,
   gate_troll: TROLL_METRICS,
+  hex_shaman: HEX_SHAMAN_METRICS,
+  war_pig: WAR_PIG_METRICS,
+  pig_rider: PIG_RIDER_METRICS,
 };

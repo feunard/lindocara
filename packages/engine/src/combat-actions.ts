@@ -152,6 +152,21 @@ const STANDARD_MONSTER_ACTION: MonsterActionDefinition = {
 export const MONSTER_ACTIONS: Readonly<Record<MonsterSpecies, MonsterActionDefinition>> = {
   spear_goblin: { ...STANDARD_MONSTER_ACTION, anticipationMs: 420, hitboxRadius: 14 },
   torch_goblin: { ...STANDARD_MONSTER_ACTION, anticipationMs: 460, hitboxRadius: 16 },
+  // A hex is thrown, so it reaches further than a spear and takes longer to shape. Still a melee
+  // capsule: monsters have no projectile shape, so the reach is the honest approximation.
+  hex_shaman: { ...STANDARD_MONSTER_ACTION, anticipationMs: 620, recoveryMs: 640, range: 74 },
+  // A charge: the shortest wind-up in the bestiary — but still 400ms, because every monster strike
+  // must be telegraphed long enough to be answered (pinned in `combat-actions.test.ts`). Its speed
+  // reads through the tiny reach and the long recovery while it wheels around, not through a
+  // wind-up a player could not see coming.
+  war_pig: {
+    ...STANDARD_MONSTER_ACTION,
+    anticipationMs: 400,
+    recoveryMs: 620,
+    range: 34,
+    hitboxRadius: 14,
+  },
+  pig_rider: { ...STANDARD_MONSTER_ACTION, anticipationMs: 400, range: 52, hitboxRadius: 20 },
   gnoll_marauder: { ...STANDARD_MONSTER_ACTION, anticipationMs: 480, range: 46 },
   skull_guard: { ...STANDARD_MONSTER_ACTION, anticipationMs: 440 },
   skull_crusader: { ...STANDARD_MONSTER_ACTION, anticipationMs: 500, range: 48 },

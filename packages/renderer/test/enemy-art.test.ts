@@ -33,6 +33,9 @@ const IDLE_BODY: Record<string, { top: number; bottom: number }> = {
   minotaur_brute: { top: 85, bottom: 214 },
   mire_troll: { top: 86, bottom: 297 },
   gate_troll: { top: 86, bottom: 297 },
+  hex_shaman: { top: 53, bottom: 137 },
+  war_pig: { top: 83, bottom: 134 },
+  pig_rider: { top: 21, bottom: 166 },
 };
 
 describe("enemy render metrics", () => {

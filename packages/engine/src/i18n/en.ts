@@ -590,6 +590,9 @@ export const en = {
   "monster.skull_warden": "Choir Warden",
   "monster.mire_troll": "Mire Troll",
   "monster.gate_troll": "Gate Troll",
+  "monster.hex_shaman": "Hex Shaman",
+  "monster.war_pig": "War Pig",
+  "monster.pig_rider": "Pig Rider",
   // Zones
   "zone.heartroot_crossing": "Heartroot Crossing",
   "zone.old_road": "The Old Road",

@@ -597,6 +597,9 @@ export const fr: Record<keyof typeof en, string> = {
   "monster.skull_warden": "Gardien du Chœur",
   "monster.mire_troll": "Troll du Marais",
   "monster.gate_troll": "Troll de la Porte",
+  "monster.hex_shaman": "Chamane des Maléfices",
+  "monster.war_pig": "Sanglier de Meute",
+  "monster.pig_rider": "Chevaucheur de Sanglier",
   // Zones
   "zone.heartroot_crossing": "La Croisée du Cœur-Racine",
   "zone.old_road": "La Vieille Route",

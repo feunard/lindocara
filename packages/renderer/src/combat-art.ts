@@ -289,6 +289,11 @@ const MONSTER_ACTIVE_FRAME: Readonly<Record<MonsterSpecies, number>> = {
   minotaur_brute: 7,
   mire_troll: 2,
   gate_troll: 2,
+  // The frame the strike lands on, inside each attack sheet: the shaman releases late in its 10, the
+  // pig connects mid-charge in its 4 (its run sheet doubles as the charge), the rider mid-thrust in 7.
+  hex_shaman: 6,
+  war_pig: 2,
+  pig_rider: 3,
 };
 
 /** Exact species attack strip plus its measured contact frame and closest neutral contact effect. */
