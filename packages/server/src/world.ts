@@ -3020,8 +3020,12 @@ export class World extends DurableObject<Env> {
   }
 
   #buyConsumable(ws: WebSocket, player: Player, item: ConsumableId): void {
-    const merchant = merchantForRuntimeRoom();
-    if (!merchant || pointDistance(player, merchant) > INTERACTION_RANGE) {
+    // The counter the hero was served at, not a room-global merchant: a map may carry several
+    // traders, and a client that keeps the overlay open after walking away buys nothing. The
+    // compiled-zone merchant remains a rollback seam and still answers for its own rooms.
+    const counter = player.shopAnchor ?? merchantForRuntimeRoom();
+    if (!counter || pointDistance(player, counter) > INTERACTION_RANGE) {
+      player.shopAnchor = null;
       this.#send(ws, { t: "event", code: "item.invalid", params: { item }, tone: "bad" });
       return;
     }
@@ -3409,6 +3413,8 @@ export class World extends DurableObject<Env> {
           this.#dispatchTeleport(dispatch, effect, now);
         } else if (effect.kind === "endAdventure") {
           this.#dispatchEndAdventure(dispatch);
+        } else if (effect.kind === "openShop") {
+          this.#dispatchOpenShop(dispatch);
         } else if (effect.kind === "changeGold") {
           this.#dispatchGold(dispatch, effect);
         } else if (effect.kind === "changeItems") {
@@ -3908,6 +3914,27 @@ export class World extends DurableObject<Env> {
    * lifetime. The completion is fire-and-forget via `waitUntil`: the run continues locally regardless,
    * and `completeParty` is idempotent (only the first completion broadcasts).
    */
+  /**
+   * Open the shop for the hero who triggered an `openShop` event, and remember WHERE they were
+   * served. The event's cell becomes their counter: `#buyConsumable` measures against it, so walking
+   * away ends the trade exactly like walking away from a dialogue ends the conversation.
+   *
+   * A merchant is therefore just an authored NPC. There is no room-global merchant and no placement
+   * marker — `merchantForRuntimeRoom` returned null for every room, which is why the finished shop,
+   * protocol and overlay had never been reachable from an authored adventure.
+   */
+  #dispatchOpenShop(dispatch: DispatchEffect): void {
+    const socket = this.#socketByPlayerId.get(dispatch.heroId);
+    const player = socket ? this.#players.get(socket) : undefined;
+    if (!socket || !player?.authorized || player.life !== "alive") return;
+    const event = (this.#zone().events ?? []).find(
+      (candidate) => candidate.id === dispatch.eventId,
+    );
+    if (!event) return;
+    player.shopAnchor = eventCellCentre(event);
+    this.#send(socket, { t: "merchant.open" });
+  }
+
   #dispatchEndAdventure(dispatch: DispatchEffect): void {
     if (this.#adventureEndDispatched) return;
     const socket = this.#socketByPlayerId.get(dispatch.heroId);

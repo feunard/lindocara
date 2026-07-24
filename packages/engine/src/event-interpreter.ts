@@ -217,6 +217,8 @@ export type EventEffect =
       readonly row: number;
     }
   | { readonly kind: "endAdventure" }
+  /** Open the consumables shop for the triggering hero, anchored at this event's cell. */
+  | { readonly kind: "openShop" }
   | { readonly kind: "changeGold"; readonly amount: number }
   | { readonly kind: "changeItems"; readonly itemId: string; readonly count: number }
   | {
@@ -440,6 +442,13 @@ function executeCommand(
       return {
         context: running(context, advanceTop(frames)),
         effects: [{ kind: "endAdventure" }],
+      };
+    case "openShop":
+      // Like `endAdventure`, this consumes itself and lets the program continue, so an author can
+      // follow the counter with a parting `say`.
+      return {
+        context: running(context, advanceTop(frames)),
+        effects: [{ kind: "openShop" }],
       };
     case "changeGold":
       return {

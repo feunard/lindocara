@@ -78,7 +78,7 @@ const COMMAND_CATEGORIES: readonly {
   { key: "progression", kinds: ["setSwitch", "setVariable", "setSelfSwitch"] },
   { key: "control", kinds: ["if", "loop", "breakLoop", "exitRun", "endAdventure"] },
   { key: "character", kinds: ["teleport", "wait"] },
-  { key: "party", kinds: ["changeGold", "changeItems"] },
+  { key: "party", kinds: ["changeGold", "changeItems", "openShop"] },
   { key: "other", kinds: ["comment"] },
 ];
 
@@ -135,6 +135,8 @@ function defaultCommand(
       return { t: "exitRun" };
     case "endAdventure":
       return { t: "endAdventure" };
+    case "openShop":
+      return { t: "openShop" };
     case "wait":
       return { t: "wait", frames: WAIT_FRAMES_MIN };
     case "teleport": {
@@ -336,6 +338,8 @@ function commandLine(
       return t("editor.event.cmd.exitRun");
     case "endAdventure":
       return t("editor.event.cmd.endAdventure");
+    case "openShop":
+      return t("editor.event.cmd.openShop");
     case "wait":
       return t("editor.event.cmd.wait", { frames: command.frames });
     case "teleport": {

@@ -202,6 +202,14 @@ export interface PlayerRuntime extends PlayerProfile {
   forgottenUntil: number;
   invisibleUntil: number;
   resurrectionAt: number;
+  /**
+   * The counter of the shop this hero currently has open, in world pixels — the cell of the `openShop`
+   * event that served them. Room-local and never persisted: a shop is a conversation, not a state.
+   *
+   * The buy path measures against THIS rather than a room-global merchant, which is what lets a map
+   * carry several traders and what stops a hero buying from across the map after walking away.
+   */
+  shopAnchor: Vec2 | null;
 }
 
 export interface MonsterRuntime extends Vec2 {
@@ -399,11 +407,14 @@ export function newPlayer(
     guardUntil: 0,
     resurrectUntil: Math.max(persistedCooldowns.resurrectUntil, presenceCooldowns.resurrectUntil),
   };
+  // A fresh session never arrives mid-purchase: a shop is opened by talking to its keeper.
+  const shopAnchor = null;
   const healCooldownMs = CLASS_STATS[profile.class].heal?.cooldownMs ?? 0;
   const guardReduction =
     CLASS_SKILLS[profile.class].find((skill) => skill.effect === "guard")?.reduction ?? 0;
   return {
     ...profile,
+    shopAnchor,
     appearance: { ...profile.appearance },
     equipment: { ...profile.equipment },
     corpse: profile.corpse === null ? null : { ...profile.corpse },

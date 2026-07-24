@@ -331,9 +331,12 @@ describe("EventCommandEditor", () => {
 
     await user.click(screen.getByRole("button", { name: t("editor.event.cmd.insert") }));
     const menu = screen.getByRole("menu", { name: t("editor.event.cmd.insert") });
-    // The core event language plus the authored quest/fact commands and the endAdventure beat;
-    // deferred common-event/audio and screen commands remain absent.
-    expect(within(menu).getAllByRole("menuitem")).toHaveLength(20);
+    // The core event language plus the authored quest/fact commands, the endAdventure beat and the
+    // `openShop` counter; deferred common-event/audio and screen commands remain absent.
+    expect(within(menu).getAllByRole("menuitem")).toHaveLength(21);
+    expect(
+      within(menu).getByRole("menuitem", { name: t("editor.event.cmd.new.openShop") }),
+    ).toBeEnabled();
     expect(within(menu).queryByText(/common event/i)).toBeNull();
     expect(within(menu).queryByText(/BGM/i)).toBeNull();
   });

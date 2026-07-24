@@ -1,6 +1,7 @@
 import { env, SELF } from "cloudflare:test";
 import type { AdventureGraph } from "@lindocara/engine/adventure.js";
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
+import { CONSUMABLES } from "@lindocara/engine/consumables.js";
 import { ATTACK_COOLDOWN_MS, MONSTER_STATS, maxHpForLevel } from "@lindocara/engine/game.js";
 import type { MapElement } from "@lindocara/engine/map-data.js";
 import { defaultEventPage, functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js";
@@ -1654,6 +1655,66 @@ describe("authored teleport and ending events", { timeout: 20_000 }, () => {
     expect(persisted?.map_id).toBe(mapBId);
     expect(persisted?.x).toBeCloseTo(centre(destCell.col, destCell.row).x, 1);
     expect(persisted?.y).toBeCloseTo(centre(destCell.col, destCell.row).y, 1);
+  });
+
+  it("sells to a hero at an authored shop counter, and refuses once they walk away", async () => {
+    const mapA = testMapInput("Market", {
+      cols: 20,
+      rows: 15,
+      spawn: { col: 2, row: 2 },
+      exit: { col: 18, row: 13 },
+    });
+    const party = await testParty("authored-shop", { maps: [mapA] });
+    const [mapAId] = party.mapIds;
+    if (!mapAId) throw new Error("expected one seeded map");
+
+    // A trader: an ordinary NPC event whose program greets you and opens the shop. No merchant KIND
+    // and no placement marker — the finished shop was simply unreachable from an authored adventure
+    // until `openShop` existed (`merchantForRuntimeRoom` returned null for every room).
+    // Just the counter: a `say` before it would park the run on the dialogue panel until the hero
+    // advanced it, which is correct but is the dialogue's proof, not the shop's.
+    const trader = scriptedEvent({ col: 3, row: 2 }, 3, "action", [{ t: "openShop" }]);
+    await putMap(party.host, mapAId, { ...mapA, events: [...mapA.events, trader] });
+
+    const hero = await testHero("Buyer", { party, account: party.host, position: centre(2, 2) });
+    await env.DB.prepare("UPDATE hero SET gold = ? WHERE id = ?").bind(50, hero.heroId).run();
+    const client = await Client.joinHero(hero);
+    try {
+      await until("shop welcome", () => client.welcome);
+      client.action("interact");
+      await until("shop opened", () =>
+        client.received.find((message) => message.t === "merchant.open"),
+      );
+
+      const potionsBefore = client.latestState?.inventory.consumables?.health_potion ?? 0;
+      client.sendRaw(JSON.stringify({ t: "merchant.buy", item: "health_potion" }));
+      await until("purchase confirmed", () =>
+        client.received.find(
+          (message) => message.t === "event" && message.code === "merchant.purchased",
+        ),
+      );
+      // The authoritative session state, not D1: a purchase marks the hero dirty and the fenced save
+      // follows on its own five-second cadence.
+      expect(client.latestState?.inventory.gold).toBe(50 - CONSUMABLES.health_potion.price);
+      expect(client.latestState?.inventory.consumables?.health_potion).toBe(potionsBefore + 1);
+
+      // Walk away: the counter is the EVENT's cell, so the open overlay buys nothing from a distance.
+      client.press("down");
+      await until("moved off the counter", () => {
+        const self = client.self();
+        return self && self.y > centre(2, 6).y ? self : undefined;
+      });
+      client.release();
+      const before = client.received.length;
+      client.sendRaw(JSON.stringify({ t: "merchant.buy", item: "health_potion" }));
+      await until("purchase refused", () =>
+        client.received
+          .slice(before)
+          .find((message) => message.t === "event" && message.code === "item.invalid"),
+      );
+    } finally {
+      client.close();
+    }
   });
 
   it("completes the party when a hero triggers an authored endAdventure event", async () => {

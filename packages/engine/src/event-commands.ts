@@ -106,6 +106,17 @@ export type EventCommand =
   | { readonly t: "wait"; readonly frames: number }
   | { readonly t: "teleport"; readonly mapId: string; readonly col: number; readonly row: number }
   | { readonly t: "endAdventure" }
+  /**
+   * Open the consumables shop for the hero who triggered this event.
+   *
+   * A merchant is an ordinary authored event — give an NPC a graphic, an `action` trigger, a line of
+   * `say` and this command, and he trades. There is no merchant event KIND and no merchant placement
+   * marker: the shop, its protocol and its animated overlay already existed, and the only thing
+   * missing was an authored way to reach them (`merchantForRuntimeRoom` returned null for every
+   * room). Field-free like `endAdventure`; the event's own cell is the counter the buy path measures
+   * against, so a hero cannot keep shopping after walking away.
+   */
+  | { readonly t: "openShop" }
   | { readonly t: "changeGold"; readonly amount: number }
   | { readonly t: "changeItems"; readonly itemId: string; readonly count: number }
   /** Emit a server-authored area-arrival fact for structured reach objectives. */
@@ -260,6 +271,9 @@ function parseCommand(raw: unknown, depth: number, counter: Counter): EventComma
       // The optional end-game beat: marks the party's save complete when it runs. Field-free, like
       // `exitRun`/`breakLoop` — an author drops it wherever the ending should fire.
       return { t: "endAdventure" };
+    case "openShop":
+      // Field-free too: the shop's stock is `CONSUMABLES`, and the counter is the event's own cell.
+      return { t: "openShop" };
     case "changeGold": {
       if (!Number.isSafeInteger(record.amount)) return null;
       return { t: "changeGold", amount: record.amount as number };

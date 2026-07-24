@@ -67,6 +67,7 @@ export interface DispatchEffect {
     | { kind: "mutateState" }
     | { kind: "teleport" }
     | { kind: "endAdventure" }
+    | { kind: "openShop" }
     | { kind: "changeGold" }
     | { kind: "changeItems" }
     | { kind: "questFact" }
