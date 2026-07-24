@@ -18,6 +18,7 @@ The repo root holds no deliverable; a second site would be a sibling `apps/<name
 
 The Worker's config, secrets and D1 migrations live with the server (`packages/server/wrangler.jsonc`,
 `.dev.vars`, `migrations/`) — this app *references* them, exactly as it references the client source.
+Its `predev` prepares the ignored server `.dev.vars` and migrates the legacy root file when present.
 
 ## Graph
 

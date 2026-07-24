@@ -16,7 +16,8 @@ XP, deaths, loot or quest completion. This package owns everything that must be 
   single writer of switches/variables). `hero-presence.ts`/`hero-profile.ts` — leases + fenced saves.
 - `accounts.ts`/`session.ts`/`password.ts` — auth. `maps.ts`/`adventures.ts`/`parties.ts`/`heroes.ts`
   — the primary authored/save flow. `db/` — the D1 schema (Drizzle). `wrangler.jsonc` + `migrations/`
-  — this Worker's deploy config and D1 schema history; `.dev.vars` holds `SESSION_SECRET` locally.
+  — this Worker's deploy config and D1 schema history; `.dev.vars` holds `SESSION_SECRET` locally
+  and `apps/main` prepares or migrates it before development starts.
 
 ## Graph
 

@@ -42,13 +42,14 @@ migration report explicitly documents a temporary exception.
 
 ```bash
 npm install
-cp .dev.vars.example .dev.vars   # then put a real secret in it
 npm run db:migrate               # apply the local D1 schema
 npm run dev
 ```
 
 `npm run dev` runs the client, the Worker, and the Durable Object together in workerd — the
-same runtime that serves production.
+same runtime that serves production. Before Vite starts, it creates
+`packages/server/.dev.vars` with a random local session secret when necessary. An existing legacy
+root `.dev.vars` is migrated automatically.
 
 ```bash
 npm run check:runtime # lint + typecheck + runtime server/player UI tests + build

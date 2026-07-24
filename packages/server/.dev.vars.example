@@ -5,7 +5,7 @@
 #
 # In production this is set once with:
 #   npx wrangler secret put SESSION_SECRET
-SESSION_SECRET="dev-secret-not-for-production"
+SESSION_SECRET="replace-with-at-least-32-random-bytes"
 NAVIGATION_DEBUG="false"
 # Local test commands such as /up10 and /nodead. Never set this in production.
 CHEATS_ENABLED="true"

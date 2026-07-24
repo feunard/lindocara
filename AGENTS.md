@@ -712,7 +712,8 @@ an `EventCode` and two dictionary entries instead (the i18n test enforces parity
 
 `SESSION_SECRET` signs the session cookie.
 
-- locally: copy `.dev.vars.example` to `.dev.vars`
+- locally: `npm run dev` prepares `packages/server/.dev.vars` automatically; copy
+  `packages/server/.dev.vars.example` there only when you want to manage it manually
 - production: `npx wrangler secret put SESSION_SECRET`
 - CI: `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as repository secrets
 

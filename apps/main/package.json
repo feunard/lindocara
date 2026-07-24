@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "node ../../scripts/prepare-local-env.mjs",
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
