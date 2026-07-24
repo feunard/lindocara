@@ -727,6 +727,39 @@ export const MONSTER_STATS: Record<MonsterKind, MonsterStats> = {
   troll: { maxHp: 145, damage: 16, speed: 60, xp: 78 },
 };
 
+/**
+ * How wide a monster is **as a target**, in pixels of radius.
+ *
+ * This is a combat number, not a movement one. Every monster still MOVES as a `PLAYER_SIZE` body:
+ * `isWalkable`, the terrain clamp and the navigation grid are all baked for 32px, and a troll with a
+ * 66px collision body would jam in every gap the pathfinder happily routes it through. Only hit
+ * DETECTION reads this — where a monster is the thing being swung at.
+ *
+ * Uniform 16 was the bug: once the renderer stopped shrinking the art (see `enemy-art.ts`), a troll
+ * drawn 163px wide still answered blows on a 32px circle, so a sword swung squarely into its belly
+ * missed. These radii keep each kind's visible-bulk-to-hitbox ratio equal to the hero's own — the
+ * hero's 79px-wide sprite answers on a radius of 16, so a radius is (visible width / 4.94).
+ *
+ * A monster's OFFENSE is already per-species and untouched: `MONSTER_ACTIONS[species]` carries its
+ * own `range` and `hitboxRadius`, so a troll's reach was never uniform in the first place.
+ */
+export const MONSTER_BODY_RADIUS: Record<MonsterKind, number> = {
+  goblin: 16,
+  gnoll: 19,
+  skull: 14,
+  minotaur: 30,
+  troll: 33,
+};
+
+/** The widest body any monster presents. Broad-phase radius queries must be widened by this or a
+ *  troll's edge falls outside the search circle its centre was never inside. */
+export const MAX_MONSTER_BODY_RADIUS = Math.max(...Object.values(MONSTER_BODY_RADIUS));
+
+/** The target radius for one species, via its stats kind. */
+export function monsterBodyRadius(species: MonsterSpecies): number {
+  return MONSTER_BODY_RADIUS[MONSTER_SPECIES_KIND[species]];
+}
+
 export const PLAYER_MAX_HP_BASE = 100;
 export const PLAYER_HP_PER_LEVEL = 12;
 

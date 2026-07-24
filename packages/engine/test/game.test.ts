@@ -29,11 +29,15 @@ import {
   isMonsterSpecies,
   isValidClass,
   isWalkable,
+  MAX_MONSTER_BODY_RADIUS,
   MONSTER_AGGRO_RANGE,
+  MONSTER_BODY_RADIUS,
   MONSTER_SPAWNS,
   MONSTER_SPECIES_KIND,
   MONSTER_STATS,
+  type MonsterSpecies,
   maxHpForLevel,
+  monsterBodyRadius,
   nearestCemetery,
   OBSTACLES,
   PLAYER_CLASSES,
@@ -701,5 +705,43 @@ describe("monster species table", () => {
     expect(isMonsterSpecies("dragon")).toBe(false);
     expect(isMonsterSpecies(7)).toBe(false);
     expect(isMonsterSpecies(null)).toBe(false);
+  });
+});
+
+describe("monster body radius", () => {
+  it("gives every species a target radius via its kind", () => {
+    for (const species of Object.keys(MONSTER_SPECIES_KIND) as MonsterSpecies[]) {
+      const radius = monsterBodyRadius(species);
+      expect(Number.isFinite(radius)).toBe(true);
+      expect(radius).toBeGreaterThan(0);
+      expect(radius).toBe(MONSTER_BODY_RADIUS[MONSTER_SPECIES_KIND[species]]);
+    }
+  });
+
+  it("scales the hitbox with the drawn bulk, so a troll is not goblin-sized to a sword", () => {
+    // The observable this exists for: once the renderer stopped shrinking the art, a troll drawn
+    // 163px wide still answered blows on a 32px circle, so a swing into its belly missed.
+    expect(monsterBodyRadius("mire_troll")).toBeGreaterThan(monsterBodyRadius("spear_goblin"));
+    expect(monsterBodyRadius("minotaur_brute")).toBeGreaterThan(
+      monsterBodyRadius("gnoll_marauder"),
+    );
+    expect(monsterBodyRadius("gnoll_marauder")).toBeGreaterThan(monsterBodyRadius("skull_guard"));
+    // Species sharing a kind share a body, exactly as they share a stat block.
+    expect(monsterBodyRadius("mire_troll")).toBe(monsterBodyRadius("gate_troll"));
+    expect(monsterBodyRadius("skull_guard")).toBe(monsterBodyRadius("skull_warden"));
+  });
+
+  it("stays a bounded combat number, never a collision size", () => {
+    // Movement still uses PLAYER_SIZE everywhere — `isWalkable`, the terrain clamp and the
+    // navigation grid are all baked for 32px, and a troll with a 66px COLLISION body would jam in
+    // every gap the pathfinder happily routes it through. That is why this is a hit radius.
+    // What it must stay is bounded: never below the hero's own 16 (a monster is at least as
+    // hittable as a player) and never past a tile, which keeps hit detection local to a cell or two
+    // and the broad-phase widening cheap.
+    expect(MAX_MONSTER_BODY_RADIUS).toBe(Math.max(...Object.values(MONSTER_BODY_RADIUS)));
+    for (const radius of Object.values(MONSTER_BODY_RADIUS)) {
+      expect(radius).toBeLessThanOrEqual(TILE_SIZE);
+    }
+    expect(Math.max(...Object.values(MONSTER_BODY_RADIUS))).toBeGreaterThanOrEqual(PLAYER_SIZE / 2);
   });
 });

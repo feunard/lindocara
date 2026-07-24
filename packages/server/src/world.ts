@@ -68,10 +68,12 @@ import {
   INTERACTION_RANGE,
   isWalkable,
   LOOT_EXPIRY_MS,
+  MAX_MONSTER_BODY_RADIUS,
   MONSTER_AGGRO_RANGE,
   MONSTER_RESPAWN_MS,
   type MonsterSpecies,
   maxHpForLevel,
+  monsterBodyRadius,
   nearestCemetery,
   pointDistance,
   QUEST_RUN_LIMIT_MS,
@@ -1760,7 +1762,10 @@ export class World extends DurableObject<Env> {
       definition.shape === "charge"
         ? nearestChargeTarget(
             player,
-            this.#monsterGrid.queryRadius(player, skill.range + PLAYER_SIZE),
+            this.#monsterGrid.queryRadius(
+              player,
+              skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS,
+            ),
             skill.range,
             now,
             (monster) => hasLineOfSight(player, monster, this.#zone().terrain.tiles),
@@ -1846,13 +1851,16 @@ export class World extends DurableObject<Env> {
         skill.range,
         definition.halfAngleRadians ?? Math.PI / 3,
       );
-      for (const monster of this.#monsterGrid.queryRadius(center, skill.range + PLAYER_SIZE)) {
+      for (const monster of this.#monsterGrid.queryRadius(
+        center,
+        skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS,
+      )) {
         if (
           monster.deadUntil > now ||
           !circleIntersectsArc(
             {
               center: { x: monster.x + PLAYER_SIZE / 2, y: monster.y + PLAYER_SIZE / 2 },
-              radius: PLAYER_SIZE / 2,
+              radius: monsterBodyRadius(monster.species),
             },
             arc,
           ) ||
@@ -1899,10 +1907,15 @@ export class World extends DurableObject<Env> {
     }
     if (definition.shape === "area_taunt") {
       const radius = skill.radius ?? skill.range;
-      for (const monster of this.#monsterGrid.queryRadius(center, radius + PLAYER_SIZE)) {
+      for (const monster of this.#monsterGrid.queryRadius(
+        center,
+        radius + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS,
+      )) {
         if (
           monster.deadUntil <= now &&
-          withinRange(player, monster, radius) &&
+          // Reach the monster's BODY, not its centre: a troll standing with its bulk inside the ring
+          // and its centre just outside is visibly in the area, so it must answer for being there.
+          withinRange(player, monster, radius + monsterBodyRadius(monster.species)) &&
           hasLineOfSight(player, monster, this.#zone().terrain.tiles)
         )
           this.#tauntMonster(player, monster, now);
@@ -1911,10 +1924,13 @@ export class World extends DurableObject<Env> {
     }
     if (definition.shape === "area_damage" || definition.shape === "nova") {
       const radius = skill.radius ?? skill.range;
-      for (const monster of this.#monsterGrid.queryRadius(center, radius + PLAYER_SIZE)) {
+      for (const monster of this.#monsterGrid.queryRadius(
+        center,
+        radius + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS,
+      )) {
         if (
           monster.deadUntil <= now &&
-          withinRange(player, monster, radius) &&
+          withinRange(player, monster, radius + monsterBodyRadius(monster.species)) &&
           hasLineOfSight(player, monster, this.#zone().terrain.tiles)
         )
           this.#damageMonster(socket, player, monster, skill, now, false);
@@ -1947,7 +1963,7 @@ export class World extends DurableObject<Env> {
     );
     const midpoint = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
     const monsterImpacts = this.#monsterGrid
-      .queryRadius(midpoint, distance / 2 + PLAYER_SIZE)
+      .queryRadius(midpoint, distance / 2 + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS)
       .filter((monster) => monster.deadUntil <= now)
       .map((monster) => ({
         monster,
@@ -1957,7 +1973,7 @@ export class World extends DurableObject<Env> {
           PLAYER_SIZE / 2,
           {
             center: { x: monster.x + PLAYER_SIZE / 2, y: monster.y + PLAYER_SIZE / 2 },
-            radius: PLAYER_SIZE / 2,
+            radius: monsterBodyRadius(monster.species),
           },
           monster.id,
         ),
