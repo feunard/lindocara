@@ -765,6 +765,9 @@ interface EventView {
   container: Container;
   data: WorldEventSnapshot;
   drawnGraphic: string | null | undefined;
+  /** Set when the event's art is a multi-frame sheet, so an authored NPC breathes like the scenery
+   *  around it instead of standing frozen on frame 0. Absent for a still graphic. */
+  animation?: { sprite: Sprite; frames: readonly Texture[] } | undefined;
 }
 
 /**
@@ -1293,12 +1296,19 @@ export class Renderer {
    *  loaded on demand; until it arrives the cell is empty and the next reconcile redraws it. */
   #drawEventGraphic(view: EventView, event: WorldEventSnapshot): void {
     for (const child of view.container.removeChildren()) child.destroy({ children: true });
+    view.animation = undefined;
     const graphicId = event.graphicAssetId;
     if (graphicId === null || !isEditorAssetId(graphicId)) return;
     const art = this.#eventAssetArt.get(graphicId);
     if (art) {
       const frame = art.frames[0];
-      if (frame) view.container.addChild(createEventGraphicSprite(event.col, event.row, frame));
+      if (frame) {
+        // The definition carries the role (unit sheet vs marker) and the anchor/foot offset that
+        // stands a unit on its cell — the same two numbers an element placement uses.
+        const sprite = createEventGraphicSprite(event.col, event.row, frame, art.definition);
+        view.container.addChild(sprite);
+        if (art.frames.length > 1) view.animation = { sprite, frames: art.frames };
+      }
       return;
     }
     void loadEditorAssetArt(graphicId)
@@ -3587,6 +3597,11 @@ export class Renderer {
     if (this.#merchantAnimation) {
       const frame = catalogElementFrameAt(now, this.#merchantAnimation.frames);
       if (frame) this.#merchantAnimation.sprite.texture = frame;
+    }
+    for (const view of this.#events.values()) {
+      if (!view.animation) continue;
+      const frame = catalogElementFrameAt(now, view.animation.frames);
+      if (frame) view.animation.sprite.texture = frame;
     }
     this.#healthBarMode = context.healthBars;
     this.#showGrid = context.grid;

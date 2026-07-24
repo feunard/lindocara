@@ -326,10 +326,17 @@ export function paintPlacementAssetPreview(
 
   let frame: Texture | undefined;
   let patrolRadius: number | undefined;
+  // Carried alongside `frame` so a catalogue graphic previews at the SAME scale the game draws it:
+  // a unit sheet stands at native size, anything else stays a one-cell marker.
+  let definition: EditorAssetArt["definition"] | undefined;
   if (tool.kind === "spawn") {
     frame = textures.spawn;
   } else if (tool.kind === "event") {
-    if (tool.graphic) frame = textures.editorAssets.get(tool.graphic)?.frames[0];
+    if (tool.graphic) {
+      const art = textures.editorAssets.get(tool.graphic);
+      frame = art?.frames[0];
+      definition = art?.definition;
+    }
     if (!frame) {
       if (tool.eventKind === "monster" && tool.species) {
         frame = textures.monsters?.get(tool.species);
@@ -350,7 +357,7 @@ export function paintPlacementAssetPreview(
       .stroke({ width: 2, color: EVENT_KIND_PLACEHOLDER_COLOR.monster, alpha: alpha * 0.6 });
     container.addChild(ring);
   }
-  const sprite = createEventGraphicSprite(col, row, frame);
+  const sprite = createEventGraphicSprite(col, row, frame, definition);
   sprite.alpha = alpha;
   container.addChild(sprite);
   return true;
@@ -479,7 +486,14 @@ export function paintEventCell(
     // page graphic identically — a fixed one-cell marker anchored bottom-centre and fit into ~1.6
     // tiles, deliberately NOT `createCatalogElementView`'s per-asset footprint. Same catalogue art,
     // one event placement contract for both trees.
-    container.addChild(createEventGraphicSprite(event.col, event.row, frame));
+    container.addChild(
+      createEventGraphicSprite(
+        event.col,
+        event.row,
+        frame,
+        graphicId === null ? undefined : art?.definition,
+      ),
+    );
   } else {
     // The blank placeholder, coloured by kind so entry/exit/monster events (which never carry a
     // graphic) read apart from each other and from a scripted `normal` event.
