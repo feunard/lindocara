@@ -1,5 +1,10 @@
 import type { TileLayer } from "@lindocara/engine/tile-layer-codec.js";
-import { autotileId, EMPTY_TILE, VARIANTS_PER_AUTOTILE } from "@lindocara/engine/tileset.js";
+import {
+  autotileId,
+  EMPTY_TILE,
+  fixedId,
+  VARIANTS_PER_AUTOTILE,
+} from "@lindocara/engine/tileset.js";
 import {
   CLIFF_WALL_SLOT,
   GRASS_SLOTS,
@@ -71,6 +76,14 @@ describe("tileDrawAt", () => {
     // Flat grass declares no tint and must draw untinted, not black.
     const flat = tileDrawAt(TINY_SWORDS_TILESET, layerOf(autotileId(GRASS_SLOTS[0], 0)), 0, 0);
     expect(flat?.tint).toBe(0xffffff);
+  });
+
+  it("carries each directional ramp id's tileset-owned rotation", () => {
+    for (const turns of [0, 1, 2, 3] as const) {
+      const draw = tileDrawAt(TINY_SWORDS_TILESET, layerOf(fixedId(turns * 4)), 0, 0);
+      expect(draw?.cell).toEqual({ col: 0, row: 4 });
+      expect(draw?.rotationQuarterTurns).toBe(turns);
+    }
   });
 
   it("draws nothing for an empty cell, an out-of-bounds cell or an undeclared slot", () => {

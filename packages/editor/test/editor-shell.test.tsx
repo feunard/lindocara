@@ -1077,7 +1077,29 @@ describe("AdventureEditorScreen shell", () => {
     expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "block", block: "grass" });
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.shell.tool.stairs") }));
-    expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "stairs" });
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({
+      kind: "stairs",
+      direction: "north",
+      lowLevel: 0,
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: t("editor.stairs.direction.east") }));
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({
+      kind: "stairs",
+      direction: "east",
+      lowLevel: 0,
+    });
+
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: t("editor.stairs.transitionLevels", { low: 1, high: 2 }),
+      }),
+    );
+    expect(stageMock.setTool).toHaveBeenLastCalledWith({
+      kind: "stairs",
+      direction: "east",
+      lowLevel: 1,
+    });
   });
 
   it("gates the fill+water dead combination: the water swatch is disabled while fill is active", async () => {
@@ -1128,9 +1150,10 @@ describe("AdventureEditorScreen shell", () => {
     // below) — real keystrokes here would leak "r"/"e"/"3" to the global shortcut handler and switch
     // modes/tools out from under this search, which is not what this test is about.
     fireEvent.change(search, { target: { value: "tree3" } });
-    // D4 relabels the collision badge from "Solid" to "Collision" to stay truthful about sub-cell
-    // collision (a tree blocks only its trunk, not the whole cell).
-    await userEvent.click(screen.getByRole("button", { name: /tree3grasscollision/i }));
+    // The author-facing name deliberately excludes the dotted catalogue id. The terrain and
+    // collision badges still make the matching result unambiguous without exposing implementation
+    // vocabulary (a tree blocks only its trunk, not the whole cell).
+    await userEvent.click(screen.getByRole("button", { name: /tree3groundcollision/i }));
     await waitFor(() =>
       expect(stageMock.setTool).toHaveBeenCalledWith({
         kind: "element",

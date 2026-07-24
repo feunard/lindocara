@@ -360,6 +360,8 @@ export type QuestDialoguePhase = "offer" | "active" | "ready" | "completed" | "u
 
 export interface QuestDialogueEntry {
   questId: string;
+  /** Friendly authored name of the event/NPC/object currently speaking. */
+  speakerName: string;
   title: string;
   text: string;
   phase: QuestDialoguePhase;
@@ -571,6 +573,7 @@ export type ServerMessage =
       t: "quest.result";
       conversationId: string;
       questId: string;
+      speakerName: string;
       title: string;
       text: string;
       outcome: "accepted" | "refused" | "completed" | "failed";
@@ -1497,6 +1500,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
         (entry) =>
           isRecord(entry) &&
           isWireId(entry.questId) &&
+          isBoundedString(entry.speakerName, QUEST_TITLE_MAX) &&
           isBoundedString(entry.title, QUEST_TITLE_MAX) &&
           isBoundedString(entry.text, QUEST_DIALOGUE_TEXT_MAX, true) &&
           (entry.phase === "offer" ||
@@ -1522,6 +1526,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       value.t === "quest.result" &&
       isWireId(value.conversationId) &&
       isWireId(value.questId) &&
+      isBoundedString(value.speakerName, QUEST_TITLE_MAX) &&
       isBoundedString(value.title, QUEST_TITLE_MAX) &&
       isBoundedString(value.text, QUEST_DIALOGUE_TEXT_MAX, true) &&
       (value.outcome === "accepted" ||

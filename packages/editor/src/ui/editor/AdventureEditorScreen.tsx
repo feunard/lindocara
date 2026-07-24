@@ -30,6 +30,7 @@ import {
   monsterEvents,
 } from "@lindocara/engine/map-events.js";
 import type { QuestDiagnostic } from "@lindocara/engine/quests.js";
+import type { StairsDirection, StairsLowLevel } from "@lindocara/engine/tile-brush.js";
 import { type EditorAssetId, editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
 import { Button } from "@lindocara/ui/components/button.js";
 import { Input } from "@lindocara/ui/components/input.js";
@@ -70,6 +71,7 @@ import { AdventureSettingsDialog } from "./AdventureSettingsDialog.js";
 import { AdventureTestDialog, type AdventureTestOptions } from "./AdventureTestDialog.js";
 import { loadAdventureSession } from "./adventure-session.js";
 import { assetDisplayName, EditorAssetPreview } from "./CatalogueAssetPicker.js";
+import { EditorHelpDialog, type EditorHelpSection } from "./EditorHelpDialog.js";
 import { EditorMenuBar } from "./EditorMenuBar.js";
 import { EditorPalette } from "./EditorPalette.js";
 import { EditorStatusBar } from "./EditorStatusBar.js";
@@ -91,6 +93,10 @@ import { RegistryDialog } from "./RegistryDialog.js";
 /** The default terrain a fresh stroke paints with until the Task 9 terrain palette lands: flat grass,
  *  matching the stage's own default tool so what the toolbar shows and what the stage paints agree. */
 const DEFAULT_CONTENT: RectFillContent = { kind: "block", block: "grass" };
+const DEFAULT_STAIRS: Readonly<{
+  direction: StairsDirection;
+  lowLevel: StairsLowLevel;
+}> = { direction: "north", lowLevel: 0 };
 
 type StageStatus = "loading" | "empty" | "ready" | "error";
 /** The active tool key. `stairs`, the hero-spawn tool, scenery and `event` have no *paint*-toolbar
@@ -163,7 +169,11 @@ function memberInfoFromEditor(mapId: string, revision: number, edited: EditorMap
 
 /** The single EditorTool a toolbar/palette selection resolves to. Terrain content composes into
  *  pencil (single cell), rect and fill exactly as the pre-merge editor's paint path did. */
-function paintToolFor(key: EditorPaintTool | "stairs", content: RectFillContent): EditorTool {
+function paintToolFor(
+  key: EditorPaintTool | "stairs",
+  content: RectFillContent,
+  stairs = DEFAULT_STAIRS,
+): EditorTool {
   switch (key) {
     case "select":
       return { kind: "select" };
@@ -178,7 +188,7 @@ function paintToolFor(key: EditorPaintTool | "stairs", content: RectFillContent)
     case "eraser":
       return { kind: "eraser" };
     case "stairs":
-      return { kind: "stairs" };
+      return { kind: "stairs", direction: stairs.direction, lowLevel: stairs.lowLevel };
   }
 }
 
@@ -334,6 +344,8 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   const [map, setMap] = useState<MapPayload | null>(null);
   const [toolKey, setToolKey] = useState<ToolKey | null>("pencil");
   const [content, setContent] = useState<RectFillContent>(DEFAULT_CONTENT);
+  const [stairsDirection, setStairsDirection] = useState<StairsDirection>(DEFAULT_STAIRS.direction);
+  const [stairsLowLevel, setStairsLowLevel] = useState<StairsLowLevel>(DEFAULT_STAIRS.lowLevel);
   const [selectedAsset, setSelectedAsset] = useState<EditorAssetId | null>(null);
   const [mode, setActiveMode] = useState<EditorMode>("field");
   const [showGrid, setShowGrid] = useState(true);
@@ -373,6 +385,8 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [questWorkspaceOpen, setQuestWorkspaceOpen] = useState(false);
   const [databaseOpen, setDatabaseOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [helpSection, setHelpSection] = useState<EditorHelpSection>("start");
   const [testOpen, setTestOpen] = useState(false);
   const [testBusy, setTestBusy] = useState(false);
   const [testError, setTestError] = useState<string | null>(null);
@@ -397,6 +411,11 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   > | null>(null);
   // Bumped after every save/create so the map panel refetches names and dimensions.
   const [mapsRefreshNonce, setMapsRefreshNonce] = useState(0);
+
+  function openHelp(section: EditorHelpSection = "start"): void {
+    setHelpSection(section);
+    setHelpOpen(true);
+  }
 
   const fail = useCallback(
     (caught: unknown): void => {
@@ -623,7 +642,21 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         ? { kind: "block", block: "grass" }
         : content;
     if (next !== content) setContent(next);
-    pushTool(paintToolFor(key, next));
+    pushTool(paintToolFor(key, next, { direction: stairsDirection, lowLevel: stairsLowLevel }));
+  }
+
+  function chooseStairsDirection(direction: StairsDirection): void {
+    setStairsDirection(direction);
+    setToolKey("stairs");
+    setSelectedAsset(null);
+    pushTool(paintToolFor("stairs", content, { direction, lowLevel: stairsLowLevel }));
+  }
+
+  function chooseStairsLowLevel(lowLevel: StairsLowLevel): void {
+    setStairsLowLevel(lowLevel);
+    setToolKey("stairs");
+    setSelectedAsset(null);
+    pushTool(paintToolFor("stairs", content, { direction: stairsDirection, lowLevel }));
   }
 
   function selectSpawn(): void {
@@ -1080,6 +1113,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       settingsOpen ||
       questWorkspaceOpen ||
       databaseOpen ||
+      helpOpen ||
       testOpen ||
       loadOpen ||
       openEventId !== null ||
@@ -1176,6 +1210,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
       settingsOpen ||
       questWorkspaceOpen ||
       databaseOpen ||
+      helpOpen ||
       testOpen ||
       loadOpen ||
       firstSaveOpen
@@ -1254,6 +1289,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenQuests={() => setQuestWorkspaceOpen(true)}
           onOpenDatabase={() => setDatabaseOpen(true)}
+          onOpenHelp={() => openHelp()}
           onUndo={undo}
           onRedo={redo}
           onSelectMode={selectMode}
@@ -1280,6 +1316,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
           onToggleCollisions={toggleCollisions}
           onCycleZoom={cycleZoom}
           onTest={test}
+          onOpenHelp={() => openHelp()}
         />
 
         <ResizablePanelGroup orientation="horizontal" className="editor-body min-h-0 flex-1">
@@ -1296,9 +1333,13 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
                 terrainActive: toolKey === "pencil" || toolKey === "rect" || toolKey === "fill",
                 fillActive: toolKey === "fill",
                 stairsActive: toolKey === "stairs",
+                stairsDirection,
+                stairsLowLevel,
                 spawnActive: toolKey === "spawn",
                 onPickContent: pickContent,
                 onSelectStairs: () => selectTool("stairs"),
+                onStairsDirectionChange: chooseStairsDirection,
+                onStairsLowLevelChange: chooseStairsLowLevel,
                 onSelectSpawn: selectSpawn,
               }}
               element={{
@@ -1468,12 +1509,14 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
           open={databaseOpen}
           onOpenChange={setDatabaseOpen}
           onSessionExpired={() => setScreen("auth")}
+          onOpenHelp={() => openHelp("state")}
         />
 
         <QuestWorkspaceDialog
           open={questWorkspaceOpen}
           onOpenChange={setQuestWorkspaceOpen}
           onSessionExpired={() => setScreen("auth")}
+          onOpenHelp={() => openHelp("quests")}
           currentMap={currentQuestMap}
           {...(stageStatus === "ready" ? { onSaveDraft: doSaveMap } : {})}
         />
@@ -1491,6 +1534,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
             event={eventDraft}
             registry={registry}
             maps={teleportMaps}
+            onOpenHelp={() => openHelp("story")}
             onCommit={(draft) => {
               handleRef.current?.commitEventDraft(draft);
               setOpenEventId(null);
@@ -1546,6 +1590,13 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
               />
             );
           })()}
+
+        <EditorHelpDialog
+          open={helpOpen}
+          section={helpSection}
+          onOpenChange={setHelpOpen}
+          onSectionChange={setHelpSection}
+        />
 
         <EditorStatusBar
           mapName={map?.name ?? "—"}
@@ -1620,7 +1671,8 @@ function SelectionInspector({
       {selectedEvent && (
         <>
           <p className="text-[11px] text-zinc-500">
-            {t("editor.inspector.id")}: <code>{eventDisplayId(selectedEvent.ordinal)}</code>
+            {t("editor.inspector.id")}:{" "}
+            <span className="tabular-nums">{eventDisplayId(selectedEvent.ordinal)}</span>
             {selectedEvent.name ? ` · ${selectedEvent.name}` : ""}
           </p>
           <Button variant="outline" size="sm" onClick={onOpenEditor}>
@@ -1634,12 +1686,11 @@ function SelectionInspector({
           <div className="flex items-center gap-2">
             {selectedElementAsset && <EditorAssetPreview asset={selectedElementAsset} size={48} />}
             <p className="min-w-0 text-[11px] text-zinc-500">
-              {/* The friendly name, not the raw dotted catalogue id (C2) — that id is dev clutter for
-               * an author and is kept only as a `title` tooltip below, never as visible body text. */}
-              <span className="block truncate" title={selectedElement.assetId}>
+              {/* The friendly name, never the raw dotted catalogue id (C2), which is dev clutter. */}
+              <span className="block truncate">
                 {selectedElementAsset
                   ? assetDisplayName(selectedElementAsset)
-                  : selectedElement.assetId}
+                  : t("editor.palette.unknown")}
               </span>
               {selectedElementAsset?.editor.collider
                 ? t("editor.palette.collision")

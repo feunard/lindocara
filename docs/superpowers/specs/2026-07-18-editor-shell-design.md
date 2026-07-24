@@ -64,18 +64,15 @@ return new layers, re-resolve every affected neighbour. Fill operates on contigu
 regions, bounded by the map. Both are tested against `resolveWholeLayer` as the oracle, with
 mutation proofs — the property-test discipline that caught real bugs in tranche 1.
 
-**The ramp stamp makes elevation climbable.** The tileset's four ramp fixed tiles (a 2×2 stamp)
-finally get a tool. `paintStairs(layers, col, row)` writes the four fixed ids onto layer 1,
-replacing cliff-wall tiles where present. Because ramp tiles are `passable: true` and the bake
-takes "any impassable tile on any layer" as solid, a ramp cell is walkable by construction — no
-engine change, same as tranche 1's elevation.
+**The ramp stamp makes every elevation edge climbable.** The four source ramp pieces are two banks
+around a two-cell path, so `paintStairs` authors a 4×2 gateway rather than a compact 2×2 block.
+The author chooses its high side (north/east/south/west) and transition (0↔1 or 1↔2); the brush
+rotates the banks and elevation halves together. The middle cells clear the impassable face on
+layer 1, making the route naturally bidirectional without changing movement or prediction.
 
-One interaction needs an explicit rule: `syncWall` currently writes a wall wherever the drop
-demands one and the cell does not already hold a wall. A fixed tile reads as "no wall", so painting
-elevation beside a ramp would stomp the ramp with a wall. The rule: **wall upkeep never overwrites
-a fixed tile.** `syncWall` writes only into cells that are empty or hold the wall slot. An author
-who wants the wall back erases the ramp first. This is a change to `shared/tile-brush.ts` with its
-own test.
+Wall upkeep owns ambient cliff tiles on all four sides but never overwrites the ramp banks or any
+other author-placed fixed fixture. Repainting nearby elevation can rotate or remove only its own
+ambient wall faces; erasing the gateway lets ordinary cliff upkeep close the crossing again.
 
 **Keyboard.** ⌘S save, ⌘Z/⇧⌘Z undo/redo, 1/2/3 active layer, P pencil, R rect, F fill, E eraser,
 S select, G grid toggle. Shortcuts live on the shell component, not on `document`, and are
@@ -114,6 +111,6 @@ toolbar did. Cursor-cell reporting for the status bar is the one addition to the
 
 ## Non-goals
 
-Events and the EV layer (t3), switches/variables (t4), commands (t5), Base de données…, real
-Tester, audio (t6). Four-face cliffs stay as inherited debt unless the ramp work makes the fix
-incidental — decide in review, not by default.
+Events and the EV layer (t3), states/counters (t4), event actions (t5), the named-state editor,
+real testing and audio (t6) were deferred from this original shell tranche. Four-face cliffs and
+directional ramps were subsequently completed with the stair work described above.

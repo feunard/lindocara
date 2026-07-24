@@ -1,9 +1,12 @@
 import { t, useLocale } from "@lindocara/client/i18n.js";
+import type { StairsDirection, StairsLowLevel } from "@lindocara/engine/tile-brush.js";
 import { TINY_SWORDS_TERRAIN } from "@lindocara/renderer/tiny-swords-art.js";
 import type { ReactNode } from "react";
 import type { RectFillContent } from "../../game/editor-state.js";
 
 const ELEVATION_LEVELS: (0 | 1 | 2)[] = [0, 1, 2];
+const STAIRS_DIRECTION_OPTIONS: readonly StairsDirection[] = ["north", "east", "south", "west"];
+const STAIRS_LOW_LEVEL_OPTIONS: readonly StairsLowLevel[] = [0, 1];
 
 /** Sprite-path previews for the editor's non-tile swatches. Exported so `EventPalette` draws its
  *  event-kind previews from the same source of truth (the "assets" repair — these exact paths). */
@@ -26,10 +29,16 @@ interface TerrainPaletteProps {
   fillActive: boolean;
   /** True while the stairs stamp is the active tool. */
   stairsActive: boolean;
+  /** The side reached by climbing; walking the opposite way descends. */
+  stairsDirection: StairsDirection;
+  /** 0 connects ground to +1; 1 connects +1 to +2. */
+  stairsLowLevel: StairsLowLevel;
   /** True while the hero-spawn tool is the active tool, so its palette button reads as pressed. */
   spawnActive: boolean;
   onPickContent(content: RectFillContent): void;
   onSelectStairs(): void;
+  onStairsDirectionChange(direction: StairsDirection): void;
+  onStairsLowLevelChange(level: StairsLowLevel): void;
   onSelectSpawn(): void;
 }
 
@@ -49,9 +58,13 @@ export function TerrainPalette({
   terrainActive,
   fillActive,
   stairsActive,
+  stairsDirection,
+  stairsLowLevel,
   spawnActive,
   onPickContent,
   onSelectStairs,
+  onStairsDirectionChange,
+  onStairsLowLevelChange,
   onSelectSpawn,
 }: TerrainPaletteProps) {
   useLocale();
@@ -120,12 +133,76 @@ export function TerrainPalette({
           </div>
         </div>
 
-        <SwatchButton
-          label={t("editor.shell.tool.stairs")}
-          active={stairsActive}
-          preview={<TerrainTilePreview kind="stairs" level={0} />}
-          onClick={onSelectStairs}
-        />
+        <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-2">
+          <SwatchButton
+            label={t("editor.shell.tool.stairs")}
+            active={stairsActive}
+            preview={
+              <TerrainTilePreview
+                kind="stairs"
+                level={stairsLowLevel}
+                direction={stairsDirection}
+              />
+            }
+            onClick={onSelectStairs}
+          />
+
+          <fieldset className="flex flex-col gap-1">
+            <legend className="text-[11px] font-medium text-zinc-600">
+              {t("editor.stairs.highSide")}
+            </legend>
+            <div className="grid grid-cols-2 gap-1">
+              {STAIRS_DIRECTION_OPTIONS.map((direction) => (
+                <button
+                  key={direction}
+                  type="button"
+                  aria-pressed={stairsActive && stairsDirection === direction}
+                  className={`rounded border px-2 py-1 text-[10.5px] ${
+                    stairsActive && stairsDirection === direction
+                      ? "border-zinc-900 bg-zinc-900 text-white"
+                      : "border-zinc-200 text-zinc-600 hover:border-zinc-400"
+                  }`}
+                  onClick={() => onStairsDirectionChange(direction)}
+                >
+                  {t(`editor.stairs.direction.${direction}`)}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset className="flex flex-col gap-1">
+            <legend className="text-[11px] font-medium text-zinc-600">
+              {t("editor.stairs.transition")}
+            </legend>
+            <div className="grid grid-cols-2 gap-1">
+              {STAIRS_LOW_LEVEL_OPTIONS.map((lowLevel) => (
+                <button
+                  key={lowLevel}
+                  type="button"
+                  aria-pressed={stairsActive && stairsLowLevel === lowLevel}
+                  className={`rounded border px-2 py-1 text-[10.5px] ${
+                    stairsActive && stairsLowLevel === lowLevel
+                      ? "border-zinc-900 bg-zinc-900 text-white"
+                      : "border-zinc-200 text-zinc-600 hover:border-zinc-400"
+                  }`}
+                  onClick={() => onStairsLowLevelChange(lowLevel)}
+                >
+                  {t("editor.stairs.transitionLevels", {
+                    low: lowLevel,
+                    high: lowLevel + 1,
+                  })}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+
+          <p className="text-[10.5px] leading-snug text-zinc-500">
+            {t("editor.stairs.hint", {
+              up: t(`editor.stairs.direction.${stairsDirection}`),
+              down: t(`editor.stairs.direction.${oppositeDirection(stairsDirection)}`),
+            })}
+          </p>
+        </div>
         <SwatchButton
           label={t("editor.tool.spawn")}
           active={spawnActive}
@@ -175,9 +252,11 @@ export function SwatchButton({
 function TerrainTilePreview({
   kind,
   level,
+  direction = "north",
 }: {
   kind: "grass" | "water" | "stairs";
   level: 0 | 1 | 2;
+  direction?: StairsDirection;
 }) {
   const isWater = kind === "water";
   const atlasCol = kind === "stairs" ? 0 : level === 0 ? 0 : 5;
@@ -195,11 +274,25 @@ function TerrainTilePreview({
           backgroundRepeat: "no-repeat",
           filter: level === 1 ? "brightness(.86)" : level === 2 ? "brightness(.72)" : undefined,
           imageRendering: "pixelated",
-          transform: "translate(-50%, -50%) scale(.5)",
+          transform: `translate(-50%, -50%) scale(.5) rotate(${directionRotation(direction)}deg)`,
         }}
       />
     </span>
   );
+}
+
+function oppositeDirection(direction: StairsDirection): StairsDirection {
+  if (direction === "north") return "south";
+  if (direction === "east") return "west";
+  if (direction === "south") return "north";
+  return "east";
+}
+
+function directionRotation(direction: StairsDirection): number {
+  if (direction === "east") return 90;
+  if (direction === "south") return 180;
+  if (direction === "west") return 270;
+  return 0;
 }
 
 export function SpriteSheetPreview({ source, frame }: { source: string; frame?: number }) {

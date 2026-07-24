@@ -100,6 +100,7 @@ describe("QuestWorkspaceDialog", () => {
         open
         onOpenChange={() => {}}
         onSessionExpired={() => {}}
+        onOpenHelp={() => {}}
         currentMap={CURRENT_MAP}
         onSaveDraft={onSaveDraft}
       />,
@@ -161,6 +162,7 @@ describe("QuestWorkspaceDialog", () => {
         open
         onOpenChange={() => {}}
         onSessionExpired={() => {}}
+        onOpenHelp={() => {}}
         currentMap={CURRENT_MAP}
       />,
     );

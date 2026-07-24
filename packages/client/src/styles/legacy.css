@@ -1764,6 +1764,19 @@ kbd {
   justify-content: space-between;
   gap: 1rem;
 }
+.quest-dialogue__identity {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.quest-dialogue__quest-title {
+  overflow: hidden;
+  color: #d6cdb9;
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .quest-dialogue__phase {
   margin: 0;
   color: #d6cdb9;

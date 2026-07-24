@@ -196,7 +196,7 @@ export function ObjectBindingDialog({
                 >
                   {quests.map((quest) => (
                     <option key={quest.id} value={quest.id}>
-                      {quest.title || quest.id}
+                      {quest.title || t("editor.quest.untitled")}
                     </option>
                   ))}
                 </select>

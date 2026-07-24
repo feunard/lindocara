@@ -51,6 +51,8 @@ export interface TileDraw {
   cell: { col: number; row: number };
   priority: TilePriority;
   tint: number;
+  /** Clockwise quarter-turns around the cell centre. Autotiles are always unrotated. */
+  rotationQuarterTurns: 0 | 1 | 2 | 3;
 }
 
 /**
@@ -86,5 +88,11 @@ export function tileDrawAt(
     entry = fixed;
     cell = { col: fixed.col, row: fixed.row };
   }
-  return { cell, priority: entry.priority, tint: entry.tint ?? 0xffffff };
+  return {
+    cell,
+    priority: entry.priority,
+    tint: entry.tint ?? 0xffffff,
+    rotationQuarterTurns:
+      ref.kind === "fixed" ? ((entry as FixedTile).rotationQuarterTurns ?? 0) : 0,
+  };
 }

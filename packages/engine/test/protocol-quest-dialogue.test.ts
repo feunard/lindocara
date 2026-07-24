@@ -59,6 +59,7 @@ describe("quest dialogue protocol", () => {
       entries: [
         {
           questId: "0001",
+          speakerName: "Warden Mira",
           title: "Mira's request",
           text: "Will you help?",
           phase: "offer",
@@ -69,6 +70,14 @@ describe("quest dialogue protocol", () => {
       ],
     };
     expect(parseServerMessage(JSON.stringify(open))).toEqual(open);
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          ...open,
+          entries: [{ ...open.entries[0], speakerName: undefined }],
+        }),
+      ),
+    ).toBeNull();
     expect(
       parseServerMessage(
         JSON.stringify({ ...open, entries: [{ ...open.entries[0], phase: "admin" }] }),
@@ -85,6 +94,7 @@ describe("quest dialogue protocol", () => {
           t: "quest.result",
           conversationId: "conversation-1",
           questId: "0001",
+          speakerName: "Warden Mira",
           title: "Mira's request",
           text: "Thank you.",
           outcome: "completed",

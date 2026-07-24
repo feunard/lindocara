@@ -940,6 +940,12 @@ export class World extends DurableObject<Env> {
   }
 
   #questDialogueEntries(player: Player, target: QuestEventReference): QuestDialogueEntry[] {
+    const speakingEvent = this.#location?.definition.events?.find(
+      (event) => event.id === target.eventId,
+    );
+    const speakerName =
+      speakingEvent?.name.trim() ||
+      (speakingEvent ? `EV${String(speakingEvent.ordinal).padStart(3, "0")}` : "EV000");
     const definitions = this.#questDefinitionsForPlayer(player);
     const index = buildQuestInteractionIndex(definitions);
     const completed = new Set([
@@ -1011,6 +1017,7 @@ export class World extends DurableObject<Env> {
         return [
           {
             questId: definition.id,
+            speakerName,
             title: definition.title || `Quête ${definition.id}`,
             text,
             phase,
@@ -1120,6 +1127,7 @@ export class World extends DurableObject<Env> {
         t: "quest.result",
         conversationId: conversation.id,
         questId: definition.id,
+        speakerName: entry.speakerName,
         title: definition.title || `Quête ${definition.id}`,
         text: definition.dialogues.refused,
         outcome: "refused",
@@ -1146,6 +1154,7 @@ export class World extends DurableObject<Env> {
         t: "quest.result",
         conversationId: conversation.id,
         questId: definition.id,
+        speakerName: entry.speakerName,
         title: definition.title || `Quête ${definition.id}`,
         text: result.ok ? definition.dialogues.accepted : "",
         outcome: result.ok ? "accepted" : "failed",
@@ -1179,6 +1188,7 @@ export class World extends DurableObject<Env> {
       t: "quest.result",
       conversationId: conversation.id,
       questId: definition.id,
+      speakerName: entry.speakerName,
       title: definition.title || `Quête ${definition.id}`,
       text: result.ok ? definition.dialogues.turnIn : "",
       outcome: result.ok ? "completed" : "failed",

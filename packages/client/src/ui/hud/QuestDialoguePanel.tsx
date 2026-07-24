@@ -20,8 +20,13 @@ export function QuestDialoguePanel() {
     >
       {dialogue.kind === "result" ? (
         <>
-          <strong className="event-dialogue__name">{dialogue.title}</strong>
-          <p className="quest-dialogue__phase">{t(`quest.dialogue.${dialogue.outcome}`)}</p>
+          <div className="quest-dialogue__heading">
+            <div className="quest-dialogue__identity">
+              <strong className="event-dialogue__name">{dialogue.speakerName}</strong>
+              <span className="quest-dialogue__quest-title">{dialogue.title}</span>
+            </div>
+            <p className="quest-dialogue__phase">{t(`quest.dialogue.${dialogue.outcome}`)}</p>
+          </div>
           <p className="event-dialogue__text">
             {dialogue.text ||
               (dialogue.outcome === "failed" ? t("quest.dialogue.failed.hint") : "")}
@@ -35,7 +40,10 @@ export function QuestDialoguePanel() {
             return (
               <section className="quest-dialogue__entry" key={entry.questId}>
                 <div className="quest-dialogue__heading">
-                  <strong className="event-dialogue__name">{entry.title}</strong>
+                  <div className="quest-dialogue__identity">
+                    <strong className="event-dialogue__name">{entry.speakerName}</strong>
+                    <span className="quest-dialogue__quest-title">{entry.title}</span>
+                  </div>
                   <span className={`quest-dialogue__phase quest-dialogue__phase--${entry.phase}`}>
                     {t(`quest.dialogue.phase.${entry.phase}`)}
                   </span>

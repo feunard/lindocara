@@ -26,6 +26,7 @@ import {
   DialogTitle,
 } from "@lindocara/ui/components/dialog.js";
 import { Input } from "@lindocara/ui/components/input.js";
+import { CircleHelp } from "lucide-react";
 import { useEffect, useState } from "react";
 
 function isSessionError(code: string): boolean {
@@ -45,20 +46,27 @@ interface RegistryDialogProps {
   open: boolean;
   onOpenChange(open: boolean): void;
   onSessionExpired(): void;
+  onOpenHelp(): void;
 }
 
 /**
- * The adventure "database": two dense lists of switches and variables that ride the adventure row.
- * Reached from the menu's Jeu → « Base de données… », it edits the same `adventureEditorSession`
- * draft the settings dialog uses — so its `registry` is carried by that draft — and persists through
- * the adventure PUT (`updateAdventureApi`, whose body now includes the registry). With no session it
- * first lists the account's adventures to load one; ids are minted `0001`-monotonic and never reused.
+ * The adventure's named memory: dense yes/no-state and numeric-counter lists stored with the
+ * adventure. Reached from Jeu → « États et compteurs… », it edits the same
+ * `adventureEditorSession` draft the settings dialog uses — so its `registry` is carried by that
+ * draft — and persists through the adventure PUT (`updateAdventureApi`, whose body includes the
+ * registry). With no session it first lists the account's adventures to load one; ids are minted
+ * `0001`-monotonic and never reused.
  *
  * A registry id is identity: an event page references it by string, so deleting an entry is allowed
  * (`activePageIndex` reads any orphaned id as off/0 — the fail-closed default) but the confirm says
  * so. Stock shadcn / native controls, no Tiny Swords chrome — this is a creator surface.
  */
-export function RegistryDialog({ open, onOpenChange, onSessionExpired }: RegistryDialogProps) {
+export function RegistryDialog({
+  open,
+  onOpenChange,
+  onSessionExpired,
+  onOpenHelp,
+}: RegistryDialogProps) {
   useLocale();
   const session = useUiStore((state) => state.adventureEditorSession);
   const setSession = useUiStore((state) => state.setAdventureEditorSession);
@@ -175,7 +183,18 @@ export function RegistryDialog({ open, onOpenChange, onSessionExpired }: Registr
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{t("editor.registry.title")}</DialogTitle>
+          <div className="flex items-start justify-between gap-3 pr-8">
+            <div>
+              <DialogTitle>{t("editor.registry.title")}</DialogTitle>
+              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                {t("editor.registry.intro")}
+              </p>
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={onOpenHelp}>
+              <CircleHelp />
+              {t("editor.registry.help")}
+            </Button>
+          </div>
         </DialogHeader>
 
         {error && (
@@ -189,6 +208,8 @@ export function RegistryDialog({ open, onOpenChange, onSessionExpired }: Registr
             <RegistryList
               kind="switches"
               heading={t("editor.registry.switches")}
+              description={t("editor.registry.switches.description")}
+              placeholder={t("editor.registry.switches.placeholder")}
               entries={registry.switches}
               atCap={registry.switches.length >= MAX_REGISTRY_SWITCHES}
               onAdd={() => addEntry("switches")}
@@ -198,6 +219,8 @@ export function RegistryDialog({ open, onOpenChange, onSessionExpired }: Registr
             <RegistryList
               kind="variables"
               heading={t("editor.registry.variables")}
+              description={t("editor.registry.variables.description")}
+              placeholder={t("editor.registry.variables.placeholder")}
               entries={registry.variables}
               atCap={registry.variables.length >= MAX_REGISTRY_VARIABLES}
               onAdd={() => addEntry("variables")}
@@ -254,8 +277,7 @@ export function RegistryDialog({ open, onOpenChange, onSessionExpired }: Registr
             <DialogHeader>
               <DialogTitle>
                 {t("editor.registry.delete.confirm.title", {
-                  id: confirmingDelete?.entry.id ?? "",
-                  name: confirmingDelete?.entry.name ?? "",
+                  name: confirmingDelete?.entry.name.trim() || t("editor.registry.unnamed"),
                 })}
               </DialogTitle>
             </DialogHeader>
@@ -286,6 +308,8 @@ export function RegistryDialog({ open, onOpenChange, onSessionExpired }: Registr
 function RegistryList({
   kind,
   heading,
+  description,
+  placeholder,
   entries,
   atCap,
   onAdd,
@@ -294,6 +318,8 @@ function RegistryList({
 }: {
   kind: RegistryKind;
   heading: string;
+  description: string;
+  placeholder: string;
   entries: readonly RegistryEntry[];
   atCap: boolean;
   onAdd(): void;
@@ -303,8 +329,11 @@ function RegistryList({
   useLocale();
   return (
     <section className="flex flex-col gap-2" aria-label={heading}>
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold">{heading}</h3>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold">{heading}</h3>
+          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{description}</p>
+        </div>
         <Button
           size="sm"
           variant="secondary"
@@ -319,31 +348,34 @@ function RegistryList({
         <p className="text-sm text-muted-foreground">{t("editor.registry.empty")}</p>
       ) : (
         <div className="flex flex-col gap-1">
-          {entries.map((entry) => (
-            <div
-              key={`${kind}:${entry.id}`}
-              className="flex items-center gap-2 rounded-md border border-zinc-200 px-2 py-1"
-            >
-              <code className="flex-none text-xs tabular-nums text-zinc-500">{entry.id}</code>
-              <span className="flex-none text-xs text-zinc-400">·</span>
-              <Input
-                aria-label={`${t("editor.registry.name.aria")} ${entry.id}`}
-                className="h-7 flex-1 text-xs"
-                maxLength={REGISTRY_ENTRY_NAME_MAX}
-                value={entry.name}
-                onChange={(event) => onRename(entry.id, event.currentTarget.value)}
-              />
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 text-destructive"
-                aria-label={`${t("editor.registry.delete")} ${entry.id}`}
-                onClick={() => onDelete(entry)}
+          {entries.map((entry, index) => {
+            const readableName =
+              entry.name.trim() || `${t("editor.registry.unnamed")} ${index + 1}`;
+            return (
+              <div
+                key={`${kind}:${entry.id}`}
+                className="flex items-center gap-2 rounded-md border border-zinc-200 px-2 py-1"
               >
-                {t("editor.registry.delete")}
-              </Button>
-            </div>
-          ))}
+                <Input
+                  aria-label={`${t("editor.registry.name.aria")} ${index + 1}`}
+                  className="h-7 flex-1 text-xs"
+                  maxLength={REGISTRY_ENTRY_NAME_MAX}
+                  placeholder={placeholder}
+                  value={entry.name}
+                  onChange={(event) => onRename(entry.id, event.currentTarget.value)}
+                />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-destructive"
+                  aria-label={`${t("editor.registry.delete")} ${readableName}`}
+                  onClick={() => onDelete(entry)}
+                >
+                  {t("editor.registry.delete")}
+                </Button>
+              </div>
+            );
+          })}
         </div>
       )}
     </section>

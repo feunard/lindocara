@@ -463,13 +463,14 @@ async function startGameIdentity(
       store.setEventDialogue(null);
       store.setQuestDialogue({ kind: "open", conversationId, entries });
     },
-    onQuestResult: (conversationId, questId, title, text, outcome) => {
+    onQuestResult: (conversationId, questId, speakerName, title, text, outcome) => {
       const store = useUiStore.getState();
       if (store.questDialogue?.conversationId !== conversationId) return;
       store.setQuestDialogue({
         kind: "result",
         conversationId,
         questId,
+        speakerName,
         title,
         text,
         outcome,

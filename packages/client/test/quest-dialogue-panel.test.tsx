@@ -26,6 +26,7 @@ describe("QuestDialoguePanel", () => {
         entries: [
           {
             questId: "0001",
+            speakerName: "Warden Mira",
             title: "Mira's request",
             text: "Will you help?",
             phase: "offer",
@@ -37,6 +38,7 @@ describe("QuestDialoguePanel", () => {
       },
     });
     render(<QuestDialoguePanel />);
+    expect(screen.getByText("Warden Mira")).toBeInTheDocument();
     expect(screen.getByText("Mira's request")).toBeInTheDocument();
     expect(screen.queryByText("0001")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Accept" }));
@@ -51,6 +53,7 @@ describe("QuestDialoguePanel", () => {
         entries: [
           {
             questId: "0002",
+            speakerName: "Village Captain",
             title: "Road secured",
             text: "Choose your reward.",
             phase: "ready",

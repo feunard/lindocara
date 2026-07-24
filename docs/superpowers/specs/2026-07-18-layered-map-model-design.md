@@ -39,15 +39,18 @@ The wireframe's three elevation levels need cliff faces to block movement. XP wo
 4-direction passage for this. That does not transfer: this engine moves in continuous pixels at
 20 Hz against a box, not square by square, so "blocked from the north" has no clean meaning.
 
-The grid-based collision makes a simpler answer available. A cliff face gets **its own cells**, and
-those cells are simply impassable. The elevation brush writes two things: the raised top into the
-painted cell, and the wall tile into the cell below it, on the next layer up. The wall is then an
-ordinary tile whose tileset entry says `passable: false`.
+The grid-based collision makes a simpler answer available. A cliff face gets **its own cell**, and
+that cell is simply impassable. The elevation brush writes the raised top and maintains a face in
+every lower orthogonal neighbour on the next layer up. The atlas's joined wall run handles a high
+neighbour to the north; rotated fixed faces handle east, south and west. At a concave corner one
+visual face wins deterministically, but every choice has the same impassable collision.
 
 Consequence: **no change to `isWalkableBox`, `resolveTerrain`, `step()`, or prediction.** The
 passability grid is baked at map load exactly as `bakeCollision` bakes one today.
 
-Ramps (the wireframe's stairs stamp) are the only passable cells that join two levels.
+Directional ramps are the only passable cells that join two levels. A 4×2 gateway rotates toward
+the selected high side and supports both 0↔1 and 1↔2, so every north/east/south/west crossing is
+walkable in both directions without special movement rules.
 
 ## Art
 

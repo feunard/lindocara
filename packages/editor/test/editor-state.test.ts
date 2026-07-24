@@ -470,7 +470,7 @@ describe("applyTool: fill", () => {
 describe("applyTool: stairs", () => {
   it("stamps the ramp onto layer 1 as one undo entry", () => {
     const base = blankMap("m", 20, 15);
-    const tool: EditorTool = { kind: "stairs" };
+    const tool: EditorTool = { kind: "stairs", direction: "north", lowLevel: 0 };
     const next = place(base, tool, 5, 5) as EditorMap;
     expect(next).not.toBeNull();
     const expectedWalls = paintStairs(base.layers, TINY_SWORDS_TILESET, 5, 5)[1];
@@ -482,7 +482,7 @@ describe("applyTool: stairs", () => {
 
   it("refuses an out-of-bounds stamp, creating no history entry", () => {
     const base = blankMap("m", 20, 15);
-    const tool: EditorTool = { kind: "stairs" };
+    const tool: EditorTool = { kind: "stairs", direction: "north", lowLevel: 0 };
     // The map is 20 cols wide; the gateway's right bank (col + 3) would land at col 22.
     expect(place(base, tool, 19, 5)).toBeNull();
 

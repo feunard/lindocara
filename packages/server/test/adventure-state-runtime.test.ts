@@ -460,6 +460,7 @@ describe("adventure state runtime", { timeout: 20_000 }, () => {
       ),
     );
     if (offer?.t !== "quest.open") throw new Error("missing quest offer");
+    expect(offer.entries[0]?.speakerName).toBe("Warden Mira");
     client.sendRaw(
       JSON.stringify({
         t: "quest.action",
@@ -468,11 +469,13 @@ describe("adventure state runtime", { timeout: 20_000 }, () => {
         action: "accept",
       }),
     );
-    await until("quest accepted", () =>
+    const accepted = await until("quest accepted", () =>
       client.received.find(
         (message) => message.t === "quest.result" && message.outcome === "accepted",
       ),
     );
+    if (accepted?.t !== "quest.result") throw new Error("missing quest acceptance");
+    expect(accepted.speakerName).toBe("Warden Mira");
     const coordinator = env.GAME_SESSION.getByName(party.partyId);
     await until("quest ready marker", () =>
       client.received.find(

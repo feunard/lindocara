@@ -65,6 +65,7 @@ export type QuestDialogue =
       kind: "result";
       conversationId: string;
       questId: string;
+      speakerName: string;
       title: string;
       text: string;
       outcome: "accepted" | "refused" | "completed" | "failed";

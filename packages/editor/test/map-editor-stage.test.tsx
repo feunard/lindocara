@@ -12,6 +12,7 @@ import {
   paintLandCell,
   shouldShowEventOverlay,
   shouldShowHoverPreview,
+  stampFootprintCells,
 } from "@lindocara/editor/game/map-editor-stage.js";
 import type { MapElement } from "@lindocara/engine/map-data.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
@@ -46,7 +47,14 @@ describe("paintLandCell", () => {
     autotiles: [],
     fixed: [
       { atlas: "sheet", col: 0, row: 0, passable: true, priority: "below" },
-      { atlas: "sheet", col: 1, row: 0, passable: false, priority: "above" },
+      {
+        atlas: "sheet",
+        col: 1,
+        row: 0,
+        passable: false,
+        priority: "above",
+        rotationQuarterTurns: 1,
+      },
     ],
   };
   // One texture per sheet cell the fixture's two fixed tiles reference: [row][col].
@@ -72,6 +80,7 @@ describe("paintLandCell", () => {
     expect(drew).toBe(true);
     expect(land.children).toHaveLength(0);
     expect(above.children).toHaveLength(1);
+    expect((above.children[0] as Sprite).rotation).toBe(Math.PI / 2);
   });
 
   it("splits a layer stack across both containers by each layer's own priority", () => {
@@ -433,5 +442,18 @@ describe("paintHoverCell", () => {
     expect(decision.illegal).toBe(true);
     // Fill first, outline on top: two children, the red fill drawn beneath the border.
     expect(container.children).toHaveLength(2);
+  });
+});
+
+describe("directional staircase hover footprint", () => {
+  it("rotates from 4x2 to 2x4 with the staircase direction", () => {
+    const north = stampFootprintCells({ kind: "stairs", direction: "north", lowLevel: 0 }, 3, 4);
+    const east = stampFootprintCells({ kind: "stairs", direction: "east", lowLevel: 1 }, 3, 4);
+    expect(north).toHaveLength(8);
+    expect(new Set(north.map((cell) => cell.col))).toEqual(new Set([3, 4, 5, 6]));
+    expect(new Set(north.map((cell) => cell.row))).toEqual(new Set([4, 5]));
+    expect(east).toHaveLength(8);
+    expect(new Set(east.map((cell) => cell.col))).toEqual(new Set([3, 4]));
+    expect(new Set(east.map((cell) => cell.row))).toEqual(new Set([4, 5, 6, 7]));
   });
 });

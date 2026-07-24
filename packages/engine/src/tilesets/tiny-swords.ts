@@ -38,6 +38,27 @@ const RAISED_2_TINT = 0xb8b8b8;
 export const GRASS_SLOTS: readonly [number, number, number] = [0, 1, 2];
 export const CLIFF_WALL_SLOT = 3;
 
+const RAMP_BANKS = [
+  { atlas: ATLAS, col: 0, row: 4, passable: true, priority: "below" },
+  { atlas: ATLAS, col: 0, row: 5, passable: true, priority: "below" },
+  { atlas: ATLAS, col: 3, row: 4, passable: true, priority: "below" },
+  { atlas: ATLAS, col: 3, row: 5, passable: true, priority: "below" },
+] as const;
+
+const RAMP_ROTATIONS = [0, 1, 2, 3] as const;
+export const RAMP_FIXED_TILE_COUNT = RAMP_BANKS.length * RAMP_ROTATIONS.length;
+
+/** A middle cliff-face cell repeated along an edge. The source faces south (high ground north);
+ * rotations make the other three orientations without inventing a second transform channel. */
+const CLIFF_FACE = {
+  atlas: ATLAS,
+  col: 6,
+  row: 4,
+  passable: false,
+  priority: "below",
+} as const;
+export const CLIFF_FACE_FIXED_BASE = RAMP_FIXED_TILE_COUNT;
+
 // Adding a second tileset, or growing `autotiles`/`fixed` here past what pushes an id's digit
 // width past 4, moves `MAX_MAP_JSON_BYTES` (server/index.ts) — its comment derives the cap from
 // this tileset's largest id.
@@ -65,12 +86,17 @@ export const TINY_SWORDS_TILESET: Tileset = {
     // no directional passage: a cliff face is simply a cell you cannot walk into.
     { atlas: ATLAS, origin: { col: 5, row: 4 }, kind: "run4", passable: false, priority: "below" },
   ],
+  // Ramps are the only passable fixtures that visually join two elevation levels. The source sheet
+  // contains one north-facing set of four bank cells; four groups of ids reuse those cells with a
+  // tileset-owned rotation so the map id alone remains complete appearance + collision truth.
   fixed: [
-    // Ramps: the only passable cells that join two elevation levels.
-    { atlas: ATLAS, col: 0, row: 4, passable: true, priority: "below" },
-    { atlas: ATLAS, col: 0, row: 5, passable: true, priority: "below" },
-    { atlas: ATLAS, col: 3, row: 4, passable: true, priority: "below" },
-    { atlas: ATLAS, col: 3, row: 5, passable: true, priority: "below" },
+    ...RAMP_ROTATIONS.flatMap((rotationQuarterTurns) =>
+      RAMP_BANKS.map((bank) => ({ ...bank, rotationQuarterTurns })),
+    ),
+    ...RAMP_ROTATIONS.map((rotationQuarterTurns) => ({
+      ...CLIFF_FACE,
+      rotationQuarterTurns,
+    })),
   ],
 };
 

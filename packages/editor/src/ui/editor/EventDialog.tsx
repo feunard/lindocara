@@ -21,12 +21,12 @@ import {
   DialogTitle,
 } from "@lindocara/ui/components/dialog.js";
 import { Input } from "@lindocara/ui/components/input.js";
+import { CircleHelp } from "lucide-react";
 import type * as React from "react";
 import { useState } from "react";
 import {
   addEventDraftPage,
   deleteEventDraftPage,
-  normalizeConditionId,
   normalizeConditionMin,
   normalizeEventDraftConditions,
   setEventDraftMonster,
@@ -67,18 +67,14 @@ function FieldSelect(props: React.ComponentProps<"select">) {
   );
 }
 
-/** The default id a freshly enabled condition takes: the first registry entry of its kind when the
- *  registry has any, else the `"0001"` wire-legal placeholder the free-text fallback expects. */
-function defaultConditionId(entries: readonly RegistryEntry[]): string {
-  return entries[0]?.id ?? "0001";
+/** A newly enabled condition always starts with the first authored value of its kind. */
+function defaultConditionId(entries: readonly RegistryEntry[]): string | null {
+  return entries[0]?.id ?? null;
 }
 
 /**
- * A condition's id field: a native `FieldSelect` over the registry (`0001 · name`) once the registry
- * has entries, else the normalized free-text `Input` — the same blur-normalization tranche 3 built,
- * kept for the empty-registry path. The select carries an extra option for the current value when it
- * names nothing in the registry (an id orphaned by a since-deleted entry), so opening a page never
- * silently rewrites its stored id.
+ * A condition's named-value picker. A deleted reference is shown as missing and can be replaced or
+ * disabled; an author never has to type or understand its internal id.
  */
 function ConditionIdField({
   entries,
@@ -93,13 +89,9 @@ function ConditionIdField({
 }) {
   if (entries.length === 0) {
     return (
-      <Input
-        aria-label={ariaLabel}
-        className="h-7 w-20 text-xs tabular-nums"
-        value={value}
-        onChange={(e) => onCommit(e.currentTarget.value)}
-        onBlur={() => onCommit(normalizeConditionId(value))}
-      />
+      <FieldSelect aria-label={ariaLabel} className="h-7 w-44 text-xs" disabled value={value}>
+        <option value={value}>{t("editor.event.cond.missing")}</option>
+      </FieldSelect>
     );
   }
   const known = entries.some((entry) => entry.id === value);
@@ -110,10 +102,10 @@ function ConditionIdField({
       value={value}
       onChange={(e) => onCommit(e.currentTarget.value)}
     >
-      {!known && <option value={value}>{value}</option>}
+      {!known && <option value={value}>{t("editor.event.cond.missing")}</option>}
       {entries.map((entry) => (
         <option key={entry.id} value={entry.id}>
-          {entry.name ? `${entry.id} · ${entry.name}` : entry.id}
+          {entry.name || t("editor.registry.unnamed")}
         </option>
       ))}
     </FieldSelect>
@@ -125,11 +117,13 @@ function ConditionIdField({
  *  test-driveable and keyboard-efficient. */
 function CheckRow({
   checked,
+  disabled = false,
   onToggle,
   label,
   children,
 }: {
   checked: boolean;
+  disabled?: boolean;
   onToggle(next: boolean): void;
   label: string;
   children?: React.ReactNode;
@@ -140,6 +134,7 @@ function CheckRow({
         <input
           type="checkbox"
           checked={checked}
+          disabled={disabled}
           onChange={(event) => onToggle(event.currentTarget.checked)}
         />
         {label}
@@ -216,6 +211,8 @@ interface EventDialogProps {
   onDelete(): void;
   /** Close without writing anything back. */
   onCancel(): void;
+  /** Open the task guide on the story and event section without discarding this draft. */
+  onOpenHelp(): void;
 }
 
 /**
@@ -236,6 +233,7 @@ export function EventDialog({
   onCommit,
   onDelete,
   onCancel,
+  onOpenHelp,
 }: EventDialogProps) {
   useLocale();
   const [draft, setDraft] = useState<MapEvent>(event);
@@ -269,9 +267,8 @@ export function EventDialog({
 
   const save = (): void => {
     if (unsupportedTriggerPages.length > 0) return;
-    // Re-normalize every page's condition ids/threshold here too — the per-field blur handlers
-    // below cover the mouse path, but Save can fire via keyboard shortcut while a field is still
-    // focused, and a blur that never happened must not let a stray free-text id reach the parser.
+    // Re-normalize condition ids/thresholds here so old imported pages remain parser-safe even
+    // though current authors can only pick named values.
     const normalized = normalizeEventDraftConditions(draft);
     // The wireframe's `normEv`: an empty name persists as the `EV{ordinal}` string, never blank.
     const trimmed = validateEventName(normalized.name) ?? "";
@@ -311,9 +308,19 @@ export function EventDialog({
               onChange={(e) => setDraft(setEventDraftName(draft, e.currentTarget.value))}
             />
           </div>
+          <Button type="button" variant="outline" size="icon-sm" onClick={onOpenHelp}>
+            <CircleHelp />
+            <span className="sr-only">{t("editor.event.help")}</span>
+          </Button>
         </DialogHeader>
 
-        {/* Monster events carry species, patrol radius and one focused on-defeat program — a dense
+        {draft.kind === "normal" && (
+          <p className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs leading-relaxed text-blue-950">
+            {t("editor.event.guide.summary")}
+          </p>
+        )}
+
+        {/* Monster events carry species, patrol radius and one focused on-defeat action list — a dense
             kind-specific block that replaces the normal event's page/condition machinery. */}
         {draft.kind === "monster" && (
           <div className="grid gap-4 sm:grid-cols-2">
@@ -331,6 +338,7 @@ export function EventDialog({
                 variables={registry.variables}
                 quests={registry.quests ?? []}
                 maps={maps}
+                defaultSpeakerName={draft.name}
                 onChange={(commands) => update({ commands })}
               />
             </div>
@@ -350,7 +358,7 @@ export function EventDialog({
         )}
 
         {/* The full paged editor belongs to normal events. Entry/exit remain pure anchors; monsters
-            expose only their focused on-defeat program below. */}
+            expose only their focused on-defeat action list below. */}
         {draft.kind === "normal" && (
           <>
             {/* Page tabs: 1..n, add (≤ MAX_PAGES_PER_EVENT), delete (disabled at one page). */}
@@ -408,9 +416,11 @@ export function EventDialog({
                   </h3>
                   <CheckRow
                     checked={page.condSwitchId !== null}
-                    onToggle={(on) =>
-                      update({ condSwitchId: on ? defaultConditionId(registry.switches) : null })
-                    }
+                    disabled={page.condSwitchId === null && registry.switches.length === 0}
+                    onToggle={(on) => {
+                      const id = defaultConditionId(registry.switches);
+                      update({ condSwitchId: on ? id : null });
+                    }}
                     label={t("editor.event.cond.switch")}
                   >
                     {page.condSwitchId !== null && (
@@ -427,23 +437,25 @@ export function EventDialog({
                       </>
                     )}
                   </CheckRow>
-                  {page.condSwitchId !== null && registry.switches.length === 0 && (
+                  {registry.switches.length === 0 && (
                     <p className="pl-6 text-[11px] text-zinc-400">
-                      {t("editor.event.cond.empty.hint")}
+                      {t("editor.event.cond.switch.empty.hint")}
                     </p>
                   )}
                   <CheckRow
                     checked={page.condVariableId !== null}
-                    onToggle={(on) =>
+                    disabled={page.condVariableId === null && registry.variables.length === 0}
+                    onToggle={(on) => {
+                      const id = defaultConditionId(registry.variables);
                       update(
-                        on
+                        on && id
                           ? {
-                              condVariableId: defaultConditionId(registry.variables),
+                              condVariableId: id,
                               condVariableMin: 0,
                             }
                           : { condVariableId: null, condVariableMin: null },
-                      )
-                    }
+                      );
+                    }}
                     label={t("editor.event.cond.variable")}
                   >
                     {page.condVariableId !== null && (
@@ -473,9 +485,9 @@ export function EventDialog({
                       </>
                     )}
                   </CheckRow>
-                  {page.condVariableId !== null && registry.variables.length === 0 && (
+                  {registry.variables.length === 0 && (
                     <p className="pl-6 text-[11px] text-zinc-400">
-                      {t("editor.event.cond.empty.hint")}
+                      {t("editor.event.cond.variable.empty.hint")}
                     </p>
                   )}
                   <CheckRow
@@ -549,13 +561,14 @@ export function EventDialog({
                 </section>
               </div>
 
-              {/* Right column: the page's command program. */}
+              {/* Right column: the page's guided action list. */}
               <EventCommandEditor
                 commands={page.commands}
                 switches={registry.switches}
                 variables={registry.variables}
                 quests={registry.quests ?? []}
                 maps={maps}
+                defaultSpeakerName={draft.name}
                 onChange={(commands) => update({ commands })}
               />
             </div>

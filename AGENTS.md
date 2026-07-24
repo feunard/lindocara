@@ -399,10 +399,11 @@ collision from any of the latter three. An agent that reads `layers` to decide w
 reintroduces exactly the silent desync this design exists to prevent, and reading `elements` for a
 collider is the same mistake with a second bake: collision only ever comes from `tiles`/`colliders`
 via `isWalkable`/`resolveTerrain()`/`isWalkableBox`. Elevation needs no engine change — a cliff face
-is its own cells, impassable, one layer above the ground — but the wall is only ever cast on the
-drop's south face: a plateau adjacent horizontally to lower ground has no cliff and is walkable.
-Appearance and collision still agree, so this is a design narrowness, not a bug, but it is not a
-gameplay barrier either. See
+is its own cell, impassable, one layer above the ground. The brush maintains that face on the lower
+cell of every north/east/south/west boundary, so a plateau is a real barrier on all four sides.
+Directional stair gateways are the only authored crossing: the editor chooses the high side
+(north/east/south/west) and the transition (0↔1 or 1↔2), then rotates the bank art and clears a
+bidirectional path through the matching cliff. See
 [`docs/superpowers/specs/2026-07-18-layered-map-model-design.md`](./docs/superpowers/specs/2026-07-18-layered-map-model-design.md)
 for the full model.
 

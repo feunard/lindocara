@@ -749,11 +749,14 @@ function placeTile(
   y: number,
   width = TILE_SIZE,
   height = TILE_SIZE,
+  rotationQuarterTurns: 0 | 1 | 2 | 3 = 0,
 ): void {
   tile.texture = texture;
-  tile.position.set(x, y);
+  tile.anchor.set(0.5);
+  tile.position.set(x + width / 2, y + height / 2);
   tile.width = width;
   tile.height = height;
+  tile.rotation = rotationQuarterTurns * (Math.PI / 2);
 }
 
 /** One drawn authored event: its container, the last snapshot it drew, and the graphic id currently
@@ -2440,6 +2443,7 @@ export class Renderer {
         y,
         Math.min(TILE_SIZE, this.#zoneWidth - x),
         Math.min(TILE_SIZE, this.#zoneHeight - y),
+        draw.rotationQuarterTurns,
       );
       sprite.alpha = 1;
       // The tileset's own tint, not the zone's regional one: elevation shading is baked into the

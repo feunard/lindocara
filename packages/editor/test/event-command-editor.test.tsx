@@ -17,12 +17,14 @@ function Harness({
   switches = [],
   variables = [],
   maps = [],
+  defaultSpeakerName,
   latest,
 }: {
   initial?: readonly EventCommand[];
   switches?: readonly RegistryEntry[];
   variables?: readonly RegistryEntry[];
   maps?: readonly TeleportMap[];
+  defaultSpeakerName?: string;
   latest: { current: readonly EventCommand[] };
 }) {
   const [commands, setCommands] = useState<readonly EventCommand[]>(initial);
@@ -33,6 +35,7 @@ function Harness({
       switches={switches}
       variables={variables}
       maps={maps}
+      defaultSpeakerName={defaultSpeakerName}
       onChange={(next) => {
         latest.current = next;
         setCommands(next);
@@ -74,12 +77,26 @@ describe("EventCommandEditor", () => {
       { t: "say", text: "", name: null },
       {
         t: "if",
-        cond: { type: "switch", switchId: "0001" },
+        cond: { type: "selfSwitch", selfSwitch: "A" },
         then: [{ t: "say", text: "", name: null }],
         else: [],
       },
       { t: "loop", body: [{ t: "breakLoop" }] },
     ]);
+  });
+
+  it("prefills a new dialogue line with the speaking event's name", async () => {
+    const user = userEvent.setup();
+    const latest = { current: [] as readonly EventCommand[] };
+    render(<Harness defaultSpeakerName="Warden Mira" latest={latest} />);
+
+    await insertVia(user, "say")();
+
+    expect(latest.current).toEqual([{ t: "say", text: "", name: "Warden Mira" }]);
+    expect(screen.getByRole("textbox", { name: t("editor.event.cmd.field.name") })).toHaveValue(
+      "Warden Mira",
+    );
+    expect(screen.getByText(t("editor.event.cmd.field.name.hint"))).toBeVisible();
   });
 
   it("inserts AFTER the selected command, not at the end (mutation proof a)", async () => {
@@ -132,11 +149,13 @@ describe("EventCommandEditor", () => {
         else: [],
       },
     ];
-    render(<Harness initial={initial} latest={latest} />);
+    render(<Harness initial={initial} switches={[{ id: "0001", name: "Door" }]} latest={latest} />);
 
     await user.click(
       screen.getByRole("button", {
-        name: t("editor.event.cmd.if", { cond: t("editor.event.cmd.cond.switch", { id: "0001" }) }),
+        name: t("editor.event.cmd.if", {
+          cond: t("editor.event.cmd.cond.switch", { id: "Door" }),
+        }),
       }),
     );
     await user.click(screen.getByRole("button", { name: t("editor.event.cmd.delete") }));
@@ -196,20 +215,24 @@ describe("EventCommandEditor", () => {
     expect(latest.current[0]).toEqual({ t: "setSwitch", switchId: "0002", value: true });
   });
 
-  it("falls back to a free-text switch id when the registry is empty", async () => {
+  it("disables global state commands until named adventure data exists", async () => {
     const user = userEvent.setup();
     const latest = { current: [] as readonly EventCommand[] };
     render(<Harness latest={latest} />);
 
-    await insertVia(user, "setSwitch")();
-    // No combobox for the id — a normalized text input instead, defaulting to the 0001 placeholder.
+    await user.click(screen.getByRole("button", { name: t("editor.event.cmd.insert") }));
+
     expect(
-      screen.queryByRole("combobox", { name: t("editor.event.cmd.field.switchId") }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("menuitem", { name: t("editor.event.cmd.new.setSwitch") }),
+    ).toBeDisabled();
     expect(
-      screen.getByRole("textbox", { name: t("editor.event.cmd.field.switchId") }),
-    ).toBeDefined();
-    expect(latest.current[0]).toEqual({ t: "setSwitch", switchId: "0001", value: true });
+      screen.getByRole("menuitem", { name: t("editor.event.cmd.new.setVariable") }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("menuitem", { name: t("editor.event.cmd.new.setSelfSwitch") }),
+    ).toBeEnabled();
+    expect(screen.queryByRole("textbox", { name: /state|counter/i })).not.toBeInTheDocument();
+    expect(latest.current).toEqual([]);
   });
 
   it("authors readable area and activity facts instead of raw quest counters", async () => {

@@ -127,6 +127,7 @@ export interface ConnectionHandlers {
   onQuestResult(
     conversationId: string,
     questId: string,
+    speakerName: string,
     title: string,
     text: string,
     outcome: "accepted" | "refused" | "completed" | "failed",
@@ -475,6 +476,7 @@ export class WorldClient {
       handlers.onQuestResult(
         message.conversationId,
         message.questId,
+        message.speakerName,
         message.title,
         message.text,
         message.outcome,

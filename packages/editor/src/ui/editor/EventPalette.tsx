@@ -8,8 +8,8 @@ import { Input } from "@lindocara/ui/components/input.js";
 import { Label } from "@lindocara/ui/components/label.js";
 import { EDITOR_MARKER_PREVIEWS, SpriteSheetPreview, SwatchButton } from "./TerrainPalette.js";
 
-/** The popular presets shown as one-click placements. `raw` is the blank scripted event; the rest
- *  pre-fill a scripted event's page 1 with one canonical command the author then tunes in the dialog. */
+/** The popular one-click placements. `raw` is a blank custom event; the rest pre-fill page 1 with
+ * one canonical action the author then tunes in the dialog. */
 const PRESET_LABEL: Record<EventPreset, MessageKey> = {
   raw: "editor.event.preset.raw",
   teleporter: "editor.event.preset.teleporter",
@@ -20,7 +20,7 @@ const PRESET_LABEL: Record<EventPreset, MessageKey> = {
 
 /** The kind-tagged placements shown alongside the command PRESETS. Entry/exit are GONE from authoring
  *  (the adventure graph is no longer authored — a teleporter preset replaces an exit, and a hero
- *  spawns on a placed `spawn` event); `normal` is absent because the presets ARE how a scripted event
+ *  spawns on a placed `spawn` event); `normal` is absent because presets are how a custom event
  *  is placed. What remains are the two placements that still map to live runtime behaviour: `spawn`
  *  (D25's adventure-start anchor — the map it sits on becomes the first map) and `monster` (spawns a
  *  patrolling monster with the chosen species/radius). Both stay kind-tagged because the runtime
@@ -71,7 +71,7 @@ interface EventPaletteProps {
 
 /**
  * Event mode's palette (D13/D14). No inline graphic catalogue any more — the sidebar is compact: a set
- * of one-click PLACEMENTS (a raw scripted event plus popular presets, then the entry/exit/monster
+ * of one-click placements (a blank custom event plus popular presets, then the entry/exit/monster
  * kinds), the monster kind's own fields, and a LIST of the map's events whose rows highlight their
  * marker on hover and select it on click. Stock shadcn + inline sprite previews only — no Tiny Swords
  * component ever reaches the creator tree. The event graphic is now chosen inside the event dialog.
@@ -206,7 +206,7 @@ export function EventPalette({
                       : "text-zinc-600 hover:bg-zinc-200/70"
                   }`}
                 >
-                  <code className="text-[11px] tabular-nums">{eventDisplayId(event.ordinal)}</code>
+                  <span className="text-[11px] tabular-nums">{eventDisplayId(event.ordinal)}</span>
                   <span className="min-w-0 flex-1 truncate">
                     {event.name || t(EVENT_KIND_LABEL[event.kind])}
                   </span>

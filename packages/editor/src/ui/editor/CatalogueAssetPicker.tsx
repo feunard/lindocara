@@ -1,8 +1,10 @@
 import { t, useLocale } from "@lindocara/client/i18n.js";
+import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import {
   EDITOR_ASSETS,
   type EditorAssetDefinition,
   type EditorAssetId,
+  type EditorTerrain,
   EVENT_GRAPHIC_ASSETS,
   PLACEABLE_EDITOR_ASSETS,
 } from "@lindocara/engine/tiny-swords-catalog.js";
@@ -248,6 +250,9 @@ function AssetChoice({
 }) {
   const collides = asset.editor.collider !== undefined;
   const displayName = assetDisplayName(asset);
+  const terrainNames = asset.editor.allowedTerrain.map((terrain: EditorTerrain) =>
+    t(`editor.palette.terrain.${terrain}` as MessageKey),
+  );
   // The raw dotted catalogue id (C2) is dev clutter for an author, not author-facing UI — kept only
   // as a data attribute (useful for debugging/tests), never as visible or sr-only text.
   return (
@@ -255,7 +260,7 @@ function AssetChoice({
       type="button"
       aria-pressed={selected}
       data-asset-id={asset.id}
-      title={`${displayName} · ${asset.role} · ${asset.editor.allowedTerrain.join(", ")}`}
+      title={displayName}
       onClick={() => onSelect(asset.id as EditorAssetId)}
       className={`flex min-w-0 flex-col items-center gap-0.5 rounded-md border p-1 text-center ${
         selected ? "border-zinc-900 bg-white" : "border-zinc-200 bg-white hover:border-zinc-400"
@@ -266,7 +271,7 @@ function AssetChoice({
         {displayName}
       </strong>
       <small className="w-full truncate text-[9.5px] text-zinc-400">
-        {asset.editor.allowedTerrain.join(" · ")}
+        {terrainNames.join(" · ")}
       </small>
       {collides && (
         <span className="text-[9px] font-medium text-amber-600">

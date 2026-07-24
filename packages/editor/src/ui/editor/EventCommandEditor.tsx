@@ -10,11 +10,11 @@ import {
   WAIT_FRAMES_MAX,
   WAIT_FRAMES_MIN,
 } from "@lindocara/engine/event-commands.js";
+import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import { SELF_SWITCHES, type SelfSwitch } from "@lindocara/engine/map-events.js";
 import { Button } from "@lindocara/ui/components/button.js";
 import type * as React from "react";
 import { useMemo, useState } from "react";
-import { normalizeConditionId } from "../../game/editor-state.js";
 import {
   type CommandRow,
   commandAt,
@@ -43,20 +43,20 @@ export interface TeleportMap {
 }
 
 interface EventCommandEditorProps {
-  /** The page's authored program. */
+  /** The page's authored action list. */
   commands: readonly EventCommand[];
-  /** The adventure's switch/variable registry — Selects for the set/if id fields, free text when
-   *  empty. */
+  /** Named adventure state. Commands requiring a missing kind are disabled; authors never type ids. */
   switches: readonly RegistryEntry[];
   variables: readonly RegistryEntry[];
   quests?: readonly AuthoredQuestDefinition[];
   /** The adventure's maps, for a `teleport` destination Select. */
   maps: readonly TeleportMap[];
+  /** New dialogue lines start with this visible event/person name; clearing it means narration. */
+  defaultSpeakerName?: string | undefined;
   onChange(commands: readonly EventCommand[]): void;
 }
 
-/** The picker's vocabulary, grouped exactly as the wireframe's categories (minus the deferred
- *  commands). Each entry names the opcode a fresh command carries. */
+/** The action picker's vocabulary, grouped by author task. */
 type CategoryKey =
   | "messages"
   | "quests"
@@ -82,8 +82,8 @@ const COMMAND_CATEGORIES: readonly {
   { key: "other", kinds: ["comment"] },
 ];
 
-function firstId(entries: readonly RegistryEntry[]): string {
-  return entries[0]?.id ?? "0001";
+function firstId(entries: readonly RegistryEntry[]): string | null {
+  return entries[0]?.id ?? null;
 }
 
 /** A fresh command with sensible, parser-valid defaults. `teleport` needs a real map uuid, so it is
@@ -95,26 +95,38 @@ function defaultCommand(
     variables: readonly RegistryEntry[];
     quests: readonly AuthoredQuestDefinition[];
     maps: readonly TeleportMap[];
+    defaultSpeakerName?: string | undefined;
   },
 ): EventCommand | null {
   switch (kind) {
     case "say":
-      return { t: "say", text: "", name: null };
+      return {
+        t: "say",
+        text: "",
+        name: ctx.defaultSpeakerName?.trim() || null,
+      };
     case "choices":
       return { t: "choices", prompt: "", options: [{ label: "", body: [] }] };
-    case "setSwitch":
-      return { t: "setSwitch", switchId: firstId(ctx.switches), value: true };
-    case "setVariable":
-      return { t: "setVariable", variableId: firstId(ctx.variables), op: "set", value: 0 };
+    case "setSwitch": {
+      const switchId = firstId(ctx.switches);
+      return switchId ? { t: "setSwitch", switchId, value: true } : null;
+    }
+    case "setVariable": {
+      const variableId = firstId(ctx.variables);
+      return variableId ? { t: "setVariable", variableId, op: "set", value: 0 } : null;
+    }
     case "setSelfSwitch":
       return { t: "setSelfSwitch", selfSwitch: "A", value: true };
-    case "if":
-      return {
-        t: "if",
-        cond: { type: "switch", switchId: firstId(ctx.switches) },
-        then: [],
-        else: [],
-      };
+    case "if": {
+      const switchId = firstId(ctx.switches);
+      const variableId = firstId(ctx.variables);
+      const cond: EventCondition = switchId
+        ? { type: "switch", switchId }
+        : variableId
+          ? { type: "variable", variableId, min: 0 }
+          : { type: "selfSwitch", selfSwitch: "A" };
+      return { t: "if", cond, then: [], else: [] };
+    }
     case "loop":
       return { t: "loop", body: [] };
     case "breakLoop":
@@ -200,8 +212,7 @@ function NumberField({
   );
 }
 
-/** A registry id field: a Select over the registry, or a normalized free-text input when the registry
- *  is empty (mirroring `EventDialog`'s `ConditionIdField`, the established precedent). */
+/** Named registry picker. A legacy orphan is visible as missing but never becomes a free-text id. */
 function RegistryIdField({
   entries,
   value,
@@ -215,13 +226,9 @@ function RegistryIdField({
 }) {
   if (entries.length === 0) {
     return (
-      <input
-        aria-label={ariaLabel}
-        className="h-7 w-24 rounded-lg border border-input bg-transparent px-2 text-xs tabular-nums outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-        value={value}
-        onChange={(e) => onCommit(e.currentTarget.value)}
-        onBlur={() => onCommit(normalizeConditionId(value))}
-      />
+      <FieldSelect aria-label={ariaLabel} className="w-44" disabled value={value}>
+        <option value={value}>{t("editor.event.cond.missing")}</option>
+      </FieldSelect>
     );
   }
   const known = entries.some((entry) => entry.id === value);
@@ -232,10 +239,10 @@ function RegistryIdField({
       value={value}
       onChange={(e) => onCommit(e.currentTarget.value)}
     >
-      {!known && <option value={value}>{value}</option>}
+      {!known && <option value={value}>{t("editor.event.cond.missing")}</option>}
       {entries.map((entry) => (
         <option key={entry.id} value={entry.id}>
-          {entry.name ? `${entry.id} · ${entry.name}` : entry.id}
+          {entry.name || t("editor.registry.unnamed")}
         </option>
       ))}
     </FieldSelect>
@@ -246,20 +253,54 @@ function onOff(value: boolean): string {
   return value ? t("editor.event.cmd.on") : t("editor.event.cmd.off");
 }
 
-function conditionText(cond: EventCondition): string {
+function namedEntry(entries: readonly RegistryEntry[], id: string): string {
+  const entry = entries.find((candidate) => candidate.id === id);
+  return entry?.name || (entry ? t("editor.registry.unnamed") : t("editor.event.cond.missing"));
+}
+
+function questName(quests: readonly AuthoredQuestDefinition[], id: string): string {
+  const quest = quests.find((candidate) => candidate.id === id);
+  return quest?.title || (quest ? t("editor.quest.untitled") : t("editor.quest.missing"));
+}
+
+function objectiveName(
+  quests: readonly AuthoredQuestDefinition[],
+  questId: string,
+  objectiveId: string,
+): string {
+  const objective = quests
+    .find((candidate) => candidate.id === questId)
+    ?.objectives.find((candidate) => candidate.id === objectiveId);
+  if (!objective) return t("editor.quest.objective.missing");
+  return objective.label || t(`editor.quest.objective.type.${objective.type}` as MessageKey);
+}
+
+function conditionText(
+  cond: EventCondition,
+  switches: readonly RegistryEntry[],
+  variables: readonly RegistryEntry[],
+): string {
   switch (cond.type) {
     case "switch":
-      return t("editor.event.cmd.cond.switch", { id: cond.switchId });
+      return t("editor.event.cmd.cond.switch", { id: namedEntry(switches, cond.switchId) });
     case "variable":
-      return t("editor.event.cmd.cond.variable", { id: cond.variableId, min: cond.min });
+      return t("editor.event.cmd.cond.variable", {
+        id: namedEntry(variables, cond.variableId),
+        min: cond.min,
+      });
     case "selfSwitch":
       return t("editor.event.cmd.cond.selfSwitch", { sw: cond.selfSwitch });
   }
 }
 
-/** One command as its monospace list line. Ids and raw text, not registry names — the same terse
- *  grammar the wireframe shows. */
-function commandLine(command: EventCommand, maps: readonly TeleportMap[]): string {
+/** One command as a readable list line. Internal ids are always resolved to authored names. */
+function commandLine(
+  command: EventCommand,
+  maps: readonly TeleportMap[],
+  switches: readonly RegistryEntry[],
+  variables: readonly RegistryEntry[],
+  quests: readonly AuthoredQuestDefinition[],
+): string {
   switch (command.t) {
     case "say":
       return command.name
@@ -268,10 +309,13 @@ function commandLine(command: EventCommand, maps: readonly TeleportMap[]): strin
     case "choices":
       return t("editor.event.cmd.choices", { prompt: command.prompt });
     case "setSwitch":
-      return t("editor.event.cmd.setSwitch", { id: command.switchId, value: onOff(command.value) });
+      return t("editor.event.cmd.setSwitch", {
+        id: namedEntry(switches, command.switchId),
+        value: onOff(command.value),
+      });
     case "setVariable":
       return t("editor.event.cmd.setVariable", {
-        id: command.variableId,
+        id: namedEntry(variables, command.variableId),
         op: t(command.op === "set" ? "editor.event.cmd.op.set" : "editor.event.cmd.op.add"),
         value: command.value,
       });
@@ -281,7 +325,9 @@ function commandLine(command: EventCommand, maps: readonly TeleportMap[]): strin
         value: onOff(command.value),
       });
     case "if":
-      return t("editor.event.cmd.if", { cond: conditionText(command.cond) });
+      return t("editor.event.cmd.if", {
+        cond: conditionText(command.cond, switches, variables),
+      });
     case "loop":
       return t("editor.event.cmd.loop");
     case "breakLoop":
@@ -295,7 +341,7 @@ function commandLine(command: EventCommand, maps: readonly TeleportMap[]): strin
     case "teleport": {
       const map = maps.find((m) => m.mapId === command.mapId);
       return t("editor.event.cmd.teleport", {
-        map: map?.name ?? command.mapId,
+        map: map?.name ?? t("editor.event.cmd.mapMissing"),
         col: command.col,
         row: command.row,
       });
@@ -304,23 +350,25 @@ function commandLine(command: EventCommand, maps: readonly TeleportMap[]): strin
       return t("editor.event.cmd.changeGold", { amount: signed(command.amount) });
     case "changeItems":
       return t("editor.event.cmd.changeItems", {
-        item: command.itemId,
+        item: t(`consumable.${command.itemId}.name` as MessageKey),
         count: signed(command.count),
       });
     case "enterArea":
-      return t("editor.event.cmd.enterArea", { id: command.areaId });
+      return t("editor.event.cmd.enterArea", { id: command.areaId.replaceAll("_", " ") });
     case "completeActivity":
-      return t("editor.event.cmd.completeActivity", { id: command.activityId });
+      return t("editor.event.cmd.completeActivity", {
+        id: command.activityId.replaceAll("_", " "),
+      });
     case "startQuest":
-      return t("editor.event.cmd.startQuest", { id: command.questId });
+      return t("editor.event.cmd.startQuest", { id: questName(quests, command.questId) });
     case "advanceQuest":
       return t("editor.event.cmd.advanceQuest", {
-        quest: command.questId,
-        objective: command.objectiveId,
+        quest: questName(quests, command.questId),
+        objective: objectiveName(quests, command.questId, command.objectiveId),
         amount: signed(command.amount),
       });
     case "completeQuest":
-      return t("editor.event.cmd.completeQuest", { id: command.questId });
+      return t("editor.event.cmd.completeQuest", { id: questName(quests, command.questId) });
     case "comment":
       return t("editor.event.cmd.comment", { text: command.text });
   }
@@ -365,12 +413,9 @@ function slotText(label: SlotLabel): string {
 }
 
 /**
- * The event's command column, come alive (spec Decision 7). The indented monospace list of the page's
- * program, an Insert palette grouped by the wireframe's categories, per-command parameter editors, and
- * reorder/delete — all stock shadcn / native controls, the creator tree. It edits the page's
- * `commands` array through `onChange`; the draft, its history and its save are the dialog's concern.
- * Depth and count guards refuse an insert the parser would reject, with a localized hint, so the
- * editor can never author an unsaveable program.
+ * The event's guided action column: an indented readable list, a task-grouped picker, settings,
+ * reorder and delete controls. It edits the wire `commands` array, but no command syntax or internal
+ * id is shown to the author. Depth and count guards refuse an insert the parser would reject.
  */
 export function EventCommandEditor({
   commands,
@@ -378,6 +423,7 @@ export function EventCommandEditor({
   variables,
   quests = [],
   maps,
+  defaultSpeakerName,
   onChange,
 }: EventCommandEditorProps) {
   useLocale();
@@ -387,7 +433,7 @@ export function EventCommandEditor({
 
   const rows = useMemo(() => flattenCommands(commands), [commands]);
   const selected = selection ? commandAt(commands, selection) : null;
-  const ctx = { switches, variables, quests, maps };
+  const ctx = { switches, variables, quests, maps, defaultSpeakerName };
 
   const insert = (kind: EventCommand["t"]): void => {
     const command = defaultCommand(kind, ctx);
@@ -497,6 +543,8 @@ export function EventCommandEditor({
                   {category.kinds.map((kind) => {
                     const disabled =
                       (kind === "teleport" && maps.length === 0) ||
+                      (kind === "setSwitch" && switches.length === 0) ||
+                      (kind === "setVariable" && variables.length === 0) ||
                       ((kind === "startQuest" || kind === "completeQuest") &&
                         quests.length === 0) ||
                       (kind === "advanceQuest" &&
@@ -504,7 +552,9 @@ export function EventCommandEditor({
                     const disabledTitle =
                       kind === "teleport"
                         ? t("editor.event.cmd.teleport.noMaps")
-                        : t("editor.event.cmd.quest.noQuests");
+                        : kind === "setSwitch" || kind === "setVariable"
+                          ? t("editor.event.cmd.state.noEntries")
+                          : t("editor.event.cmd.quest.noQuests");
                     return (
                       <button
                         key={kind}
@@ -526,12 +576,15 @@ export function EventCommandEditor({
         </div>
       </div>
 
-      <div className="min-h-32 flex-1 overflow-auto rounded-lg border border-zinc-200 bg-zinc-50 p-1.5 font-mono text-[11.5px]">
+      <div className="min-h-32 flex-1 overflow-auto rounded-lg border border-zinc-200 bg-zinc-50 p-1.5 text-[11.5px]">
         {rows.map((row) => (
           <CommandRowView
             key={row.key}
             row={row}
             maps={maps}
+            switches={switches}
+            variables={variables}
+            quests={quests}
             selected={row.selection !== null && selectionsEqual(row.selection, selection)}
             onSelect={() => {
               if (row.selection) {
@@ -572,11 +625,17 @@ export function EventCommandEditor({
 function CommandRowView({
   row,
   maps,
+  switches,
+  variables,
+  quests,
   selected,
   onSelect,
 }: {
   row: CommandRow;
   maps: readonly TeleportMap[];
+  switches: readonly RegistryEntry[];
+  variables: readonly RegistryEntry[];
+  quests: readonly AuthoredQuestDefinition[];
   selected: boolean;
   onSelect(): void;
 }) {
@@ -600,7 +659,7 @@ function CommandRowView({
           selected ? "bg-indigo-100 text-indigo-800" : "text-zinc-400 hover:bg-zinc-200/60"
         }`}
       >
-        ◆ {slotText(row.slotLabel)}
+        + {slotText(row.slotLabel)}
       </button>
     );
   }
@@ -610,13 +669,13 @@ function CommandRowView({
         type="button"
         style={indent}
         aria-pressed={selected}
-        aria-label={commandLine(row.command, maps)}
+        aria-label={commandLine(row.command, maps, switches, variables, quests)}
         onClick={onSelect}
         className={`block w-full rounded px-1 py-0.5 text-left whitespace-pre-wrap ${
           selected ? "bg-indigo-100 text-indigo-800" : "text-zinc-700 hover:bg-zinc-200/60"
         }`}
       >
-        ◇ {commandLine(row.command, maps)}
+        • {commandLine(row.command, maps, switches, variables, quests)}
       </button>
     );
   }
@@ -956,7 +1015,7 @@ function QuestSelect({
       >
         {quests.map((quest) => (
           <option key={quest.id} value={quest.id}>
-            {quest.title || quest.id}
+            {quest.title || t("editor.quest.untitled")}
           </option>
         ))}
       </FieldSelect>
@@ -998,7 +1057,7 @@ function QuestProgressParams({
         >
           {objectives.map((objective) => (
             <option key={objective.id} value={objective.id}>
-              {objective.label || objective.id}
+              {objective.label || t(`editor.quest.objective.type.${objective.type}` as MessageKey)}
             </option>
           ))}
         </FieldSelect>
@@ -1033,6 +1092,7 @@ function SayParams({
           aria-label={t("editor.event.cmd.field.name")}
           className="h-7 w-44 rounded-lg border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           maxLength={COMMAND_TEXT_MAX}
+          placeholder={t("editor.event.cmd.field.name.placeholder")}
           value={command.name ?? ""}
           onChange={(e) => {
             const name = e.currentTarget.value;
@@ -1040,6 +1100,9 @@ function SayParams({
           }}
         />
       </Field>
+      <p className="text-[10.5px] leading-relaxed text-muted-foreground">
+        {t("editor.event.cmd.field.name.hint")}
+      </p>
       <Field label={t("editor.event.cmd.field.text")}>
         <textarea
           aria-label={t("editor.event.cmd.field.text")}
@@ -1141,10 +1204,13 @@ function ConditionParams({
 }) {
   const changeType = (type: EventCondition["type"]): void => {
     if (type === cond.type) return;
-    if (type === "switch") onChange({ type: "switch", switchId: firstId(switches) });
-    else if (type === "variable")
-      onChange({ type: "variable", variableId: firstId(variables), min: 0 });
-    else onChange({ type: "selfSwitch", selfSwitch: "A" });
+    if (type === "switch") {
+      const switchId = firstId(switches);
+      if (switchId) onChange({ type: "switch", switchId });
+    } else if (type === "variable") {
+      const variableId = firstId(variables);
+      if (variableId) onChange({ type: "variable", variableId, min: 0 });
+    } else onChange({ type: "selfSwitch", selfSwitch: "A" });
   };
   return (
     <div className="flex flex-wrap items-end gap-2">
@@ -1155,8 +1221,12 @@ function ConditionParams({
           value={cond.type}
           onChange={(e) => changeType(e.currentTarget.value as EventCondition["type"])}
         >
-          <option value="switch">{t("editor.event.cmd.field.switchId")}</option>
-          <option value="variable">{t("editor.event.cmd.field.variableId")}</option>
+          <option value="switch" disabled={switches.length === 0}>
+            {t("editor.event.cmd.field.switchId")}
+          </option>
+          <option value="variable" disabled={variables.length === 0}>
+            {t("editor.event.cmd.field.variableId")}
+          </option>
           <option value="selfSwitch">{t("editor.event.cmd.field.selfSwitch")}</option>
         </FieldSelect>
       </Field>

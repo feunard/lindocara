@@ -28,7 +28,7 @@ import {
   DialogTitle,
 } from "@lindocara/ui/components/dialog.js";
 import { Input } from "@lindocara/ui/components/input.js";
-import { Copy, LoaderCircle, Plus, Search, Trash2 } from "lucide-react";
+import { CircleHelp, Copy, LoaderCircle, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { QuestDefinitionEditor } from "./QuestDefinitionEditor.js";
 import {
@@ -41,6 +41,7 @@ interface QuestWorkspaceDialogProps {
   open: boolean;
   onOpenChange(open: boolean): void;
   onSessionExpired(): void;
+  onOpenHelp(): void;
   /** Current in-memory map, including unsaved event edits. It replaces that map's stored payload in
    * the reference catalogue so a just-created NPC can immediately become a giver. */
   currentMap: QuestMapCatalog | null;
@@ -68,6 +69,7 @@ export function QuestWorkspaceDialog({
   open,
   onOpenChange,
   onSessionExpired,
+  onOpenHelp,
   currentMap,
   onSaveDraft,
 }: QuestWorkspaceDialogProps) {
@@ -254,6 +256,10 @@ export function QuestWorkspaceDialog({
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={onOpenHelp}>
+                <CircleHelp />
+                {t("editor.quest.help")}
+              </Button>
               {errorCount === 0 ? (
                 <Badge variant="secondary">{t("editor.quest.validation.valid")}</Badge>
               ) : (

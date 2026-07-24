@@ -32,6 +32,7 @@ interface EditorMenuBarProps {
   onOpenSettings(): void;
   onOpenQuests(): void;
   onOpenDatabase(): void;
+  onOpenHelp(): void;
   onUndo(): void;
   onRedo(): void;
   onSelectMode(mode: EditorMode): void;
@@ -46,8 +47,9 @@ interface EditorMenuBarProps {
 /**
  * The wireframe's 32px menu row: a static « Editor » brand chip (UX wave #16 — no longer the
  * adventure name, and still not itself clickable), a dedicated Quit icon button beside it (C8), and
- * the six menus. File → « Charger une aventure » opens the load dialog; Jeu → « Base de données… »
- * opens the registry editor. No account menu: the store carries no username/email to fill it, and
+ * the six menus. File → « Charger une aventure » opens the load dialog; Jeu → « États et
+ * compteurs… » opens the registry editor. No account menu: the store carries no username/email to
+ * fill it, and
  * inventing that plumbing is out of scope.
  */
 export function EditorMenuBar({
@@ -63,6 +65,7 @@ export function EditorMenuBar({
   onOpenSettings,
   onOpenQuests,
   onOpenDatabase,
+  onOpenHelp,
   onUndo,
   onRedo,
   onSelectMode,
@@ -206,6 +209,13 @@ export function EditorMenuBar({
             <MenubarSeparator />
             <MenubarItem onClick={onOpenQuests}>{t("editor.shell.quests")}</MenubarItem>
             <MenubarItem onClick={onOpenDatabase}>{t("editor.shell.database")}</MenubarItem>
+          </MenubarContent>
+        </MenubarMenu>
+
+        <MenubarMenu>
+          <MenubarTrigger>{t("editor.shell.menu.help")}</MenubarTrigger>
+          <MenubarContent>
+            <MenubarItem onClick={onOpenHelp}>{t("editor.help.open")}</MenubarItem>
           </MenubarContent>
         </MenubarMenu>
       </Menubar>

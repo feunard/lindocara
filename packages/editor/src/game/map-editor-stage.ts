@@ -24,7 +24,7 @@ import {
   sameElementSlot,
 } from "@lindocara/engine/map-data.js";
 import type { EventKind, MapEvent } from "@lindocara/engine/map-events.js";
-import { STAIRS_FOOTPRINT_COLS, STAIRS_FOOTPRINT_ROWS } from "@lindocara/engine/tile-brush.js";
+import { stairsFootprint } from "@lindocara/engine/tile-brush.js";
 import type { TileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { isSolidKind, TILE_SIZE, type TileMap } from "@lindocara/engine/tilemap.js";
 import type { Tileset } from "@lindocara/engine/tileset.js";
@@ -242,9 +242,10 @@ export function stampFootprintCells(
   row: number,
 ): { col: number; row: number }[] {
   if (tool.kind !== "stairs") return [{ col, row }];
+  const footprint = stairsFootprint(tool.direction);
   const cells: { col: number; row: number }[] = [];
-  for (let dRow = 0; dRow < STAIRS_FOOTPRINT_ROWS; dRow += 1) {
-    for (let dCol = 0; dCol < STAIRS_FOOTPRINT_COLS; dCol += 1) {
+  for (let dRow = 0; dRow < footprint.rows; dRow += 1) {
+    for (let dCol = 0; dCol < footprint.cols; dCol += 1) {
       cells.push({ col: col + dCol, row: row + dRow });
     }
   }
@@ -557,10 +558,12 @@ export function paintLandCell(
     const texture = sheet[draw.cell.row]?.[draw.cell.col];
     if (!texture) continue;
     const tile = new Sprite(texture);
-    tile.position.set(col * TILE_SIZE, row * TILE_SIZE);
+    tile.anchor.set(0.5);
+    tile.position.set(col * TILE_SIZE + TILE_SIZE / 2, row * TILE_SIZE + TILE_SIZE / 2);
     tile.width = TILE_SIZE;
     tile.height = TILE_SIZE;
     tile.tint = draw.tint;
+    tile.rotation = draw.rotationQuarterTurns * (Math.PI / 2);
     (draw.priority === "above" ? above : land).addChild(tile);
     drewAnything = true;
   }

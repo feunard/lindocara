@@ -1,11 +1,12 @@
 import { bakeCollision } from "@lindocara/engine/map-data.js";
-import { paintElevation, paintStairs } from "@lindocara/engine/tile-brush.js";
+import { paintElevation, paintStairs, type StairsDirection } from "@lindocara/engine/tile-brush.js";
 import { emptyLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { kindAt } from "@lindocara/engine/tilemap.js";
 import { decodeTileId } from "@lindocara/engine/tileset.js";
 import {
   CLIFF_WALL_SLOT,
   GRASS_SLOTS,
+  RAMP_FIXED_TILE_COUNT,
   TINY_SWORDS_TILESET,
   TINY_SWORDS_TILESET_ID,
 } from "@lindocara/engine/tilesets/tiny-swords.js";
@@ -13,7 +14,7 @@ import { describe, expect, it } from "vitest";
 
 const set = TINY_SWORDS_TILESET;
 const COLS = 8;
-const ROWS = 6;
+const ROWS = 8;
 const blank = (): TileLayer[] => [
   emptyLayer(COLS, ROWS),
   emptyLayer(COLS, ROWS),
@@ -50,6 +51,29 @@ function fieldWithPlateau(): TileLayer[] {
   return layers;
 }
 
+function fieldForDirection(direction: StairsDirection): TileLayer[] {
+  let layers = blank();
+  for (let row = 0; row < ROWS; row += 1) {
+    for (let col = 0; col < COLS; col += 1) {
+      layers = paintElevation(layers, set, 0, col, row);
+    }
+  }
+  for (let row = 0; row < ROWS; row += 1) {
+    for (let col = 0; col < COLS; col += 1) {
+      const high =
+        direction === "north"
+          ? row <= 2
+          : direction === "south"
+            ? row >= 3
+            : direction === "east"
+              ? col >= 4
+              : col <= 3;
+      if (high) layers = paintElevation(layers, set, 1, col, row);
+    }
+  }
+  return layers;
+}
+
 describe("the stairs gateway stamp", () => {
   it("stamps the two banks three columns apart and clears the wall over the path between them", () => {
     const layers = fieldWithPlateau();
@@ -80,11 +104,12 @@ describe("the stairs gateway stamp", () => {
     // ...and layer 0 under the path carries lower-level grass (slot 0, the level the ramp descends
     // to) across both rows — the notch is walkable ground, not a void.
     for (const col of [3, 4]) {
-      for (const row of [2, 3]) {
-        const ref = decodeTileId(idAt(ground, col, row));
-        expect(ref.kind).toBe("autotile");
-        if (ref.kind === "autotile") expect(ref.slot).toBe(GRASS_SLOTS[0]);
-      }
+      const high = decodeTileId(idAt(ground, col, 2));
+      expect(high.kind).toBe("autotile");
+      if (high.kind === "autotile") expect(high.slot).toBe(GRASS_SLOTS[1]);
+      const low = decodeTileId(idAt(ground, col, 3));
+      expect(low.kind).toBe("autotile");
+      if (low.kind === "autotile") expect(low.slot).toBe(GRASS_SLOTS[0]);
     }
 
     // The wall cells flanking the gateway, never touched by it, remain cliff wall.
@@ -103,6 +128,50 @@ describe("the stairs gateway stamp", () => {
     expect(result).toBe(layers);
     expect(layerAt(result, 1).ids.every((id) => id === 0)).toBe(true);
     expect(layerAt(result, 0).ids.every((id) => id === 0)).toBe(true);
+  });
+
+  it("rotates the complete footprint and bank ids towards every high side", () => {
+    const cases = [
+      { direction: "north" as const, cols: 4, rows: 2, firstIndex: 0 },
+      { direction: "east" as const, cols: 2, rows: 4, firstIndex: 4 },
+      { direction: "south" as const, cols: 4, rows: 2, firstIndex: 8 },
+      { direction: "west" as const, cols: 2, rows: 4, firstIndex: 12 },
+    ];
+    for (const testCase of cases) {
+      const stamped = paintStairs(blank(), set, 2, 1, testCase.direction, 0);
+      const walls = layerAt(stamped, 1);
+      const fixed = walls.ids
+        .map((id, index) => ({ ref: decodeTileId(id), index }))
+        .filter((entry) => entry.ref.kind === "fixed" && entry.ref.index < RAMP_FIXED_TILE_COUNT);
+      expect(fixed).toHaveLength(4);
+      expect(
+        fixed
+          .map((entry) => entry.ref)
+          .filter((ref) => ref.kind === "fixed")
+          .map((ref) => ref.index)
+          .sort((left, right) => left - right),
+      ).toEqual([
+        testCase.firstIndex,
+        testCase.firstIndex + 1,
+        testCase.firstIndex + 2,
+        testCase.firstIndex + 3,
+      ]);
+      const occupiedCols = new Set(fixed.map((entry) => entry.index % COLS));
+      const occupiedRows = new Set(fixed.map((entry) => Math.floor(entry.index / COLS)));
+      expect(Math.max(...occupiedCols) - Math.min(...occupiedCols) + 1).toBe(testCase.cols);
+      expect(Math.max(...occupiedRows) - Math.min(...occupiedRows) + 1).toBe(testCase.rows);
+    }
+  });
+
+  it("authors a level 1 to level 2 transition without flattening either side to ground", () => {
+    const stamped = paintStairs(blank(), set, 2, 2, "north", 1);
+    const ground = layerAt(stamped, 0);
+    for (const col of [2, 3, 4, 5]) {
+      const high = decodeTileId(idAt(ground, col, 2));
+      const low = decodeTileId(idAt(ground, col, 3));
+      expect(high.kind === "autotile" ? high.slot : -1).toBe(GRASS_SLOTS[2]);
+      expect(low.kind === "autotile" ? low.slot : -1).toBe(GRASS_SLOTS[1]);
+    }
   });
 
   it("leaves all four bank tiles intact when elevation is painted beside them", () => {
@@ -145,5 +214,83 @@ describe("the stairs gateway stamp", () => {
     // cliff — a bank of forest on either side of a walkable channel.
     expect(kindAt(baked, 1, 3)).toBe("forest");
     expect(kindAt(baked, 6, 3)).toBe("forest");
+  });
+
+  it("is the walkable opening through a cliff in all four orientations", () => {
+    const cases: readonly {
+      direction: StairsDirection;
+      anchor: { col: number; row: number };
+      path: readonly { col: number; row: number }[];
+      blocked: readonly { col: number; row: number }[];
+    }[] = [
+      {
+        direction: "north",
+        anchor: { col: 2, row: 2 },
+        path: [
+          { col: 3, row: 2 },
+          { col: 3, row: 3 },
+        ],
+        blocked: [
+          { col: 1, row: 3 },
+          { col: 6, row: 3 },
+        ],
+      },
+      {
+        direction: "south",
+        anchor: { col: 2, row: 2 },
+        path: [
+          { col: 3, row: 2 },
+          { col: 3, row: 3 },
+        ],
+        blocked: [
+          { col: 1, row: 2 },
+          { col: 6, row: 2 },
+        ],
+      },
+      {
+        direction: "east",
+        anchor: { col: 3, row: 2 },
+        path: [
+          { col: 3, row: 3 },
+          { col: 4, row: 3 },
+        ],
+        blocked: [
+          { col: 3, row: 1 },
+          { col: 3, row: 6 },
+        ],
+      },
+      {
+        direction: "west",
+        anchor: { col: 3, row: 2 },
+        path: [
+          { col: 3, row: 3 },
+          { col: 4, row: 3 },
+        ],
+        blocked: [
+          { col: 4, row: 1 },
+          { col: 4, row: 6 },
+        ],
+      },
+    ];
+
+    for (const testCase of cases) {
+      const stamped = paintStairs(
+        fieldForDirection(testCase.direction),
+        set,
+        testCase.anchor.col,
+        testCase.anchor.row,
+        testCase.direction,
+      );
+      const baked = bakeCollision({
+        tilesetId: TINY_SWORDS_TILESET_ID,
+        cols: COLS,
+        rows: ROWS,
+        layers: stamped,
+        elements: [],
+        spawn: { col: 0, row: 0 },
+      });
+      for (const cell of testCase.path) expect(kindAt(baked, cell.col, cell.row)).toBe("grass");
+      for (const cell of testCase.blocked) expect(kindAt(baked, cell.col, cell.row)).toBe("forest");
+    }
   });
 });

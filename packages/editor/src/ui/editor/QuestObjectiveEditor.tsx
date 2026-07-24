@@ -154,6 +154,12 @@ export function QuestObjectiveEditor({
         </div>
       </header>
 
+      {objective.type !== "manual" && (
+        <p className="rounded-md border border-blue-100 bg-blue-50 p-2 text-xs leading-relaxed text-blue-950">
+          {t(`editor.quest.objective.help.${objective.type}` as MessageKey)}
+        </p>
+      )}
+
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {objective.type === "kill" && (
           <>

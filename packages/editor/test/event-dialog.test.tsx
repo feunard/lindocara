@@ -35,10 +35,16 @@ function renderDialog(event: MapEvent, registry: AdventureRegistry = EMPTY_REGIS
       onCommit={onCommit}
       onDelete={onDelete}
       onCancel={onCancel}
+      onOpenHelp={() => {}}
     />,
   );
   return { onCommit, onDelete, onCancel };
 }
+
+const RUNTIME_REGISTRY = {
+  switches: [{ id: "0042", name: "Gate open" }],
+  variables: [{ id: "0007", name: "Guard visits" }],
+} satisfies AdventureRegistry;
 
 describe("EventDialog", () => {
   beforeEach(() => {
@@ -47,16 +53,16 @@ describe("EventDialog", () => {
 
   it("round-trips runtime-backed controls across two pages with explicit nulls", async () => {
     const user = userEvent.setup();
-    const { onCommit } = renderDialog(seedEvent());
+    const { onCommit } = renderDialog(seedEvent(), RUNTIME_REGISTRY);
 
     // Header: name.
     await user.type(screen.getByRole("textbox", { name: t("editor.event.name") }), "Guard");
 
-    // Page 1: switch condition on with id 0042; Player-touch trigger; front draw layer.
+    // Page 1: named state condition; Player-touch trigger; front draw layer.
     await user.click(screen.getByRole("checkbox", { name: t("editor.event.cond.switch") }));
-    const switchId = screen.getByRole("textbox", { name: t("editor.event.cond.switch") });
-    await user.clear(switchId);
-    await user.type(switchId, "0042");
+    expect(screen.getByRole("combobox", { name: t("editor.event.cond.switch") })).toHaveValue(
+      "0042",
+    );
     await user.selectOptions(
       screen.getByRole("combobox", { name: t("editor.event.trigger") }),
       "player-touch",
@@ -66,9 +72,9 @@ describe("EventDialog", () => {
     // Add page 2 (auto-selected) and author a different set of fields there.
     await user.click(screen.getByRole("button", { name: t("editor.event.page.add") }));
     await user.click(screen.getByRole("checkbox", { name: t("editor.event.cond.variable") }));
-    const varId = screen.getByRole("textbox", { name: t("editor.event.cond.variable") });
-    await user.clear(varId);
-    await user.type(varId, "0007");
+    expect(screen.getByRole("combobox", { name: t("editor.event.cond.variable") })).toHaveValue(
+      "0007",
+    );
     const varMin = screen.getByRole("spinbutton", { name: t("editor.event.cond.variable.min") });
     await user.clear(varMin);
     await user.type(varMin, "5");
@@ -185,22 +191,27 @@ describe("EventDialog", () => {
 
   it("disables delete-page at a single page and removes the selected page otherwise", async () => {
     const user = userEvent.setup();
-    const { onCommit } = renderDialog(seedEvent());
+    const registry = {
+      switches: [
+        { id: "0001", name: "First phase" },
+        { id: "0002", name: "Second phase" },
+      ],
+      variables: [],
+    } satisfies AdventureRegistry;
+    const { onCommit } = renderDialog(seedEvent(), registry);
 
     expect(screen.getByRole("button", { name: t("editor.event.page.delete") })).toBeDisabled();
 
-    // Two pages, each tagged by a distinct switch id, then delete page 1 (the mutation-proof: a
-    // delete that removed the wrong index would leave 0001 instead of 0002).
+    // Two pages, each tagged by a distinct named state, then delete page 1 (the mutation-proof: a
+    // delete that removed the wrong index would leave the first phase instead of the second).
     await user.click(screen.getByRole("checkbox", { name: t("editor.event.cond.switch") }));
-    const id1 = screen.getByRole("textbox", { name: t("editor.event.cond.switch") });
-    await user.clear(id1);
-    await user.type(id1, "0001");
 
     await user.click(screen.getByRole("button", { name: t("editor.event.page.add") }));
     await user.click(screen.getByRole("checkbox", { name: t("editor.event.cond.switch") }));
-    const id2 = screen.getByRole("textbox", { name: t("editor.event.cond.switch") });
-    await user.clear(id2);
-    await user.type(id2, "0002");
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: t("editor.event.cond.switch") }),
+      "0002",
+    );
 
     // Select page 1 and delete it.
     await user.click(screen.getByRole("tab", { name: t("editor.event.page.aria", { n: 1 }) }));
@@ -212,31 +223,32 @@ describe("EventDialog", () => {
     expect(committed.pages[0]?.condSwitchId).toBe("0002");
   });
 
-  it("normalizes a partial switch id to four digits on blur", () => {
+  it("keeps global state conditions unavailable until they have an authored name", () => {
     renderDialog(seedEvent());
 
-    fireEvent.click(screen.getByRole("checkbox", { name: t("editor.event.cond.switch") }));
-    const switchId = screen.getByRole("textbox", { name: t("editor.event.cond.switch") });
-    fireEvent.change(switchId, { target: { value: "5" } });
-    fireEvent.blur(switchId);
-
-    expect(switchId).toHaveValue("0005");
+    expect(screen.getByRole("checkbox", { name: t("editor.event.cond.switch") })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: t("editor.event.cond.variable") })).toBeDisabled();
+    expect(screen.queryByRole("textbox", { name: /state|counter/i })).not.toBeInTheDocument();
+    expect(screen.getByText(t("editor.event.cond.switch.empty.hint"))).toBeVisible();
+    expect(screen.getByText(t("editor.event.cond.variable.empty.hint"))).toBeVisible();
   });
 
-  it("commits a cleared switch id as 0001", () => {
-    const { onCommit } = renderDialog(seedEvent());
+  it("lets an author remove a legacy reference whose named value was deleted", () => {
+    const page = { ...defaultEventPage(), condSwitchId: "0099" };
+    const { onCommit } = renderDialog(seedEvent({ pages: [page] }));
 
+    expect(screen.getByRole("combobox", { name: t("editor.event.cond.switch") })).toHaveValue(
+      "0099",
+    );
     fireEvent.click(screen.getByRole("checkbox", { name: t("editor.event.cond.switch") }));
-    const switchId = screen.getByRole("textbox", { name: t("editor.event.cond.switch") });
-    fireEvent.change(switchId, { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: t("editor.event.save") }));
 
     const committed = onCommit.mock.calls[0]?.[0] as MapEvent;
-    expect(committed.pages[0]?.condSwitchId).toBe("0001");
+    expect(committed.pages[0]?.condSwitchId).toBeNull();
   });
 
   it("clamps a negative variable-min threshold to zero on blur", () => {
-    renderDialog(seedEvent());
+    renderDialog(seedEvent(), RUNTIME_REGISTRY);
 
     fireEvent.click(screen.getByRole("checkbox", { name: t("editor.event.cond.variable") }));
     const varMin = screen.getByRole("spinbutton", { name: t("editor.event.cond.variable.min") });
@@ -244,24 +256,6 @@ describe("EventDialog", () => {
     fireEvent.blur(varMin);
 
     expect(varMin).toHaveValue(0);
-  });
-
-  it("normalizes an unblurred id when Save is clicked directly (no blur ever fires)", () => {
-    const { onCommit } = renderDialog(seedEvent());
-
-    fireEvent.click(screen.getByRole("checkbox", { name: t("editor.event.cond.switch") }));
-    const switchId = screen.getByRole("textbox", { name: t("editor.event.cond.switch") });
-    switchId.focus();
-    fireEvent.change(switchId, { target: { value: "5" } });
-    // Precondition: the field is still focused, so no blur handler has run yet — `fireEvent.click`
-    // (unlike `userEvent.click`) does not simulate the browser's focus-follows-click behaviour, so
-    // clicking Save below cannot blur it either. Only save()'s own commit-path normalization can be
-    // responsible for the assertion that follows.
-    expect(document.activeElement).toBe(switchId);
-    fireEvent.click(screen.getByRole("button", { name: t("editor.event.save") }));
-
-    const committed = onCommit.mock.calls[0]?.[0] as MapEvent;
-    expect(committed.pages[0]?.condSwitchId).toBe("0005");
   });
 
   it("deletes the event through the confirm path", async () => {
@@ -354,23 +348,25 @@ describe("EventDialog condition pickers over the registry", () => {
     expect(
       screen.queryByRole("textbox", { name: t("editor.event.cond.switch") }),
     ).not.toBeInTheDocument();
-    // Options render as "0001 · name".
-    expect(within(select).getByRole("option", { name: "0001 · Porte ouverte" })).toBeDefined();
-    expect(within(select).getByRole("option", { name: "0002 · Pont abaissé" })).toBeDefined();
+    // Only authored names are visible; storage identifiers stay an implementation detail.
+    expect(within(select).getByRole("option", { name: "Porte ouverte" })).toBeDefined();
+    expect(within(select).getByRole("option", { name: "Pont abaissé" })).toBeDefined();
+    expect(select).not.toHaveTextContent("0001");
+    expect(select).not.toHaveTextContent("0002");
     // No empty-registry hint.
-    expect(screen.queryByText(t("editor.event.cond.empty.hint"))).not.toBeInTheDocument();
+    expect(screen.queryByText(t("editor.event.cond.switch.empty.hint"))).not.toBeInTheDocument();
+    expect(screen.queryByText(t("editor.event.cond.variable.empty.hint"))).not.toBeInTheDocument();
   });
 
-  it("falls back to a normalized text input with a hint when the registry is empty", async () => {
-    const user = userEvent.setup();
+  it("disables unnamed global conditions with guidance when the registry is empty", () => {
     renderDialog(seedEvent(), { switches: [], variables: [] });
 
-    await user.click(screen.getByRole("checkbox", { name: t("editor.event.cond.switch") }));
-    expect(screen.getByRole("textbox", { name: t("editor.event.cond.switch") })).toBeDefined();
+    expect(screen.getByRole("checkbox", { name: t("editor.event.cond.switch") })).toBeDisabled();
     expect(
       screen.queryByRole("combobox", { name: t("editor.event.cond.switch") }),
     ).not.toBeInTheDocument();
-    expect(screen.getByText(t("editor.event.cond.empty.hint"))).toBeVisible();
+    expect(screen.getByText(t("editor.event.cond.switch.empty.hint"))).toBeVisible();
+    expect(screen.getByText(t("editor.event.cond.variable.empty.hint"))).toBeVisible();
   });
 
   it("writes the picked entry's ID, not its name, into the committed page", async () => {

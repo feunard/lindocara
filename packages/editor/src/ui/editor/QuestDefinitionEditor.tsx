@@ -339,7 +339,7 @@ export function QuestDefinitionEditor({
       </TabsContent>
 
       <TabsContent value="dialogues" className="overflow-y-auto p-5">
-        <QuestDialoguesEditor quest={quest} onChange={onChange} />
+        <QuestDialoguesEditor quest={quest} maps={maps} onChange={onChange} />
       </TabsContent>
 
       <TabsContent value="rewards" className="overflow-y-auto p-5">

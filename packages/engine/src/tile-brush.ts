@@ -13,7 +13,12 @@
 import { edge16Mask, run4Mask, type SameNeighbour } from "./autotile.js";
 import type { TileLayer } from "./tile-layer-codec.js";
 import { autotileId, decodeTileId, EMPTY_TILE, fixedId, type Tileset } from "./tileset.js";
-import { CLIFF_WALL_SLOT, elevationOfSlot, GRASS_SLOTS } from "./tilesets/tiny-swords.js";
+import {
+  CLIFF_FACE_FIXED_BASE,
+  CLIFF_WALL_SLOT,
+  elevationOfSlot,
+  GRASS_SLOTS,
+} from "./tilesets/tiny-swords.js";
 
 function indexOf(layer: TileLayer, col: number, row: number): number {
   return row * layer.cols + col;
@@ -304,14 +309,14 @@ function elevationAt(ground: TileLayer, col: number, row: number): number {
 }
 
 /**
- * Paint one cell of ground at `level`, and maintain the cliff face beneath it.
+ * Paint one cell of ground at `level`, and maintain the cliff faces around it.
  *
  * The wall is an ordinary tile whose tileset entry says `passable: false`, which is the entire
  * reason three-level elevation costs nothing in the movement code: a cliff face is a cell you
  * cannot walk into, not a direction you cannot cross.
  *
- * One wall row per drop regardless of the level difference, matching the wireframe. The sheet's
- * second wall row stays available for a later proportional cliff.
+ * One wall cell per drop regardless of the level difference. A face is written into the lower cell
+ * on every side, so a plateau is a real barrier whether its edge faces north, east, south or west.
  */
 export function paintElevation(
   layers: readonly TileLayer[],
@@ -345,19 +350,49 @@ export function syncElevationWalls(
   const ground = layers[0];
   const walls = layers[1];
   if (!ground || !walls) return [...layers];
-  // Every cell whose wall may have changed: the one below what was just written, and the written
-  // cell itself (its own face may now be buried by higher ground above it).
+  // Every cell whose face may have changed: the written cell and its four neighbours. A face lives
+  // in the lower cell, so changing one elevation can create/remove a barrier on any side.
   let painted = walls;
   for (const target of [
-    { col, row: row + 1 },
     { col, row },
+    { col, row: row - 1 },
+    { col: col + 1, row },
+    { col, row: row + 1 },
+    { col: col - 1, row },
   ]) {
     painted = syncWall(ground, painted, tileset, target.col, target.row);
   }
   return [ground, painted, ...layers.slice(2)];
 }
 
-/** A cell carries a wall exactly when the ground directly above it stands higher than it does. */
+type CliffDirection = "north" | "east" | "south" | "west";
+
+const CLIFF_ROTATION: Readonly<Record<CliffDirection, 0 | 1 | 2 | 3>> = {
+  north: 0,
+  east: 1,
+  south: 2,
+  west: 3,
+};
+
+function ambientCliffFixed(index: number): boolean {
+  return index >= CLIFF_FACE_FIXED_BASE && index < CLIFF_FACE_FIXED_BASE + 4;
+}
+
+/** The first higher neighbour around a lower cell. North keeps the atlas's joined horizontal run;
+ * the other sides use the same face art rotated as a fixed tile. The priority only affects the
+ * picture at a concave corner: every choice is equally impassable. */
+function wantedCliffDirection(ground: TileLayer, col: number, row: number): CliffDirection | null {
+  const here = elevationAt(ground, col, row);
+  const neighbours: readonly [CliffDirection, number][] = [
+    ["north", elevationAt(ground, col, row - 1)],
+    ["east", elevationAt(ground, col + 1, row)],
+    ["south", elevationAt(ground, col, row + 1)],
+    ["west", elevationAt(ground, col - 1, row)],
+  ];
+  return neighbours.find(([, elevation]) => elevation > 0 && elevation > here)?.[0] ?? null;
+}
+
+/** A lower cell carries one impassable face when any orthogonal neighbour stands higher. */
 function syncWall(
   ground: TileLayer,
   walls: TileLayer,
@@ -366,19 +401,29 @@ function syncWall(
   row: number,
 ): TileLayer {
   if (col < 0 || row < 0 || col >= walls.cols || row >= walls.rows) return walls;
-  // A fixed tile (a ramp) is a hand placement, not ambient wall upkeep's to touch — neither
-  // painting a wall over it nor erasing it counts as agreement with what the elevation demands.
-  // An author who wants the wall back erases the ramp first.
-  if (decodeTileId(walls.ids[indexOf(walls, col, row)] ?? EMPTY_TILE).kind === "fixed")
-    return walls;
-  const above = elevationAt(ground, col, row - 1);
-  const here = elevationAt(ground, col, row);
-  const wanted = above > 0 && above > here;
-  const has = slotAt(walls, col, row) === CLIFF_WALL_SLOT;
-  if (wanted === has) return walls;
-  return wanted
-    ? paintAutotile(walls, tileset, CLIFF_WALL_SLOT, col, row)
-    : eraseTile(walls, tileset, col, row);
+  const current = decodeTileId(walls.ids[indexOf(walls, col, row)] ?? EMPTY_TILE);
+  // Ramp banks and any future hand-authored fixed fixture are explicit authoring intent. Ambient
+  // cliff fixed tiles are the sole exception: this function owns and may rotate/remove them.
+  if (current.kind === "fixed" && !ambientCliffFixed(current.index)) return walls;
+
+  const wanted = wantedCliffDirection(ground, col, row);
+  if (wanted === null) {
+    const ambient =
+      (current.kind === "autotile" && current.slot === CLIFF_WALL_SLOT) ||
+      (current.kind === "fixed" && ambientCliffFixed(current.index));
+    return ambient ? eraseTile(walls, tileset, col, row) : walls;
+  }
+
+  if (wanted === "north") {
+    if (current.kind === "autotile" && current.slot === CLIFF_WALL_SLOT) return walls;
+    return paintAutotile(walls, tileset, CLIFF_WALL_SLOT, col, row);
+  }
+
+  const wantedIndex = CLIFF_FACE_FIXED_BASE + CLIFF_ROTATION[wanted];
+  if (current.kind === "fixed" && current.index === wantedIndex) return walls;
+  const ids = [...walls.ids];
+  ids[indexOf(walls, col, row)] = fixedId(wantedIndex);
+  return withNeighboursResolved({ ...walls, ids }, tileset, col, row);
 }
 
 /** The stairs gateway's footprint: 4 columns wide, 2 rows tall, anchored at its top-left `(col,row)`.
@@ -386,80 +431,118 @@ function syncWall(
 export const STAIRS_FOOTPRINT_COLS = 4;
 export const STAIRS_FOOTPRINT_ROWS = 2;
 
+export const STAIRS_DIRECTIONS = ["north", "east", "south", "west"] as const;
+export type StairsDirection = (typeof STAIRS_DIRECTIONS)[number];
+export type StairsLowLevel = 0 | 1;
+
+type QuarterTurns = 0 | 1 | 2 | 3;
+
+const STAIRS_ROTATION: Readonly<Record<StairsDirection, QuarterTurns>> = {
+  north: 0,
+  east: 1,
+  south: 2,
+  west: 3,
+};
+
+/** Dimensions of the complete gateway for a direction. Shared with the editor's hover footprint. */
+export function stairsFootprint(direction: StairsDirection): { cols: number; rows: number } {
+  return direction === "east" || direction === "west"
+    ? { cols: STAIRS_FOOTPRINT_ROWS, rows: STAIRS_FOOTPRINT_COLS }
+    : { cols: STAIRS_FOOTPRINT_COLS, rows: STAIRS_FOOTPRINT_ROWS };
+}
+
+/** Rotate one source-ramp cell clockwise inside its 4x2 bounding box. */
+function rotatedStairsCell(
+  sourceCol: number,
+  sourceRow: number,
+  turns: QuarterTurns,
+): { col: number; row: number } {
+  if (turns === 1) return { col: STAIRS_FOOTPRINT_ROWS - 1 - sourceRow, row: sourceCol };
+  if (turns === 2)
+    return {
+      col: STAIRS_FOOTPRINT_COLS - 1 - sourceCol,
+      row: STAIRS_FOOTPRINT_ROWS - 1 - sourceRow,
+    };
+  if (turns === 3) return { col: sourceRow, row: STAIRS_FOOTPRINT_COLS - 1 - sourceCol };
+  return { col: sourceCol, row: sourceRow };
+}
+
 /**
- * A ramp GATEWAY: a 4-cell-wide, 2-row opening through a cliff, anchored at top-left `(col,row)`.
+ * Directional, bidirectional staircase gateway.
  *
- * The tileset's four "ramp" fixed tiles are NOT a compact 2x2 block — they are two 1x2 slope BANKS
- * separated by a 2-cell gap in the atlas (a left bank at atlas col 0, a right bank at atlas col 3).
- * They are the two sides of a gateway whose middle two cells are the walkable path. So the stamp is:
+ * The source art is a four-cell-wide, two-row gateway: two bank cells flank a two-cell passable
+ * path. `direction` names the high side: north means climb north / descend south, and so on.
+ * `lowLevel` chooses the 0-to-1 or 1-to-2 transition. Ground levels, banks and the layer-1 opening
+ * rotate together, preserving one frozen tile-id description of the result.
  *
- *   [left bank] [path] [path] [right bank]      columns `col` · `col+1` · `col+2` · `col+3`
- *
- * - The LEFT bank (`fixedId(0)` top, `fixedId(1)` bottom) lands at `col`; the RIGHT bank
- *   (`fixedId(2)` top, `fixedId(3)` bottom) at `col+3`, three columns apart, exactly their atlas
- *   spacing — so they visually flank the opening instead of mashing together (the old 2x2 bug).
- * - The two MIDDLE columns are the walkable path. On **layer 1** (where a cliff wall lives) they are
- *   CLEARED, so the ramp punches a passable hole through the wall — `bakeCollision`
- *   (`shared/map-data.ts`) reads "any impassable tile on any layer" as solid, so clearing the wall
- *   layer there is what actually joins the two elevation levels. On **layer 0** they become lower
- *   grass (the level the ramp descends to), so the opening is a walkable notch rather than a void.
- *
- * Refused — the exact same `layers` reference back — if any of the 4x2 cells is out of bounds, or
- * `layers` has no layer 0/1 at all. Otherwise, like `fillRect`'s rectangle (and unlike `syncWall`'s
- * ambient wall upkeep, which since Task 2 refuses to touch a fixed tile) this is explicit authoring
- * intent: a cliff wall under the stamp is overwritten exactly like an autotile would be.
- *
- * After the write, a mask only ever reads a cell's own 4-neighbourhood, and only these eight cells
- * changed slot — so only their orthogonal neighbours can have a stale variant, the same one-hop
- * border idea `floodFill` re-resolves around its region. A neighbour that is itself a stamp cell is
- * skipped naturally: `resolvedId` returns null for a fixed or an emptied cell. Layer 0's path fill
- * goes through `paintRectAutotile`, which re-resolves its own region and border.
+ * The stamp is refused when any footprint cell is off-map. Otherwise it is explicit authoring
+ * intent: it paints the high and low ground halves, replaces ambient cliff faces with rotated ramp
+ * banks, clears the path through collision, then re-resolves the one-cell autotile border.
  */
 export function paintStairs(
   layers: readonly TileLayer[],
   tileset: Tileset,
   col: number,
   row: number,
+  direction: StairsDirection = "north",
+  lowLevel: StairsLowLevel = 0,
 ): TileLayer[] {
   const ground = layers[0];
   const walls = layers[1];
-  if (!ground || !walls) return layers as TileLayer[];
+  if (!ground || !walls || (lowLevel !== 0 && lowLevel !== 1)) return layers as TileLayer[];
 
-  const bankCells: readonly { col: number; row: number; index: number }[] = [
-    { col, row, index: 0 },
-    { col, row: row + 1, index: 1 },
-    { col: col + 3, row, index: 2 },
-    { col: col + 3, row: row + 1, index: 3 },
+  const turns = STAIRS_ROTATION[direction];
+  if (turns === undefined) return layers as TileLayer[];
+
+  const at = (sourceCol: number, sourceRow: number): { col: number; row: number } => {
+    const rotated = rotatedStairsCell(sourceCol, sourceRow, turns);
+    return { col: col + rotated.col, row: row + rotated.row };
+  };
+
+  const bankCells: readonly { col: number; row: number; baseIndex: number }[] = [
+    { ...at(0, 0), baseIndex: 0 },
+    { ...at(0, 1), baseIndex: 1 },
+    { ...at(3, 0), baseIndex: 2 },
+    { ...at(3, 1), baseIndex: 3 },
   ];
-  const pathCols: readonly [number, number] = [col + 1, col + 2];
-  const pathCells: readonly { col: number; row: number }[] = pathCols.flatMap((pathCol) => [
-    { col: pathCol, row },
-    { col: pathCol, row: row + 1 },
-  ]);
+  const pathCells: readonly { col: number; row: number }[] = [
+    at(1, 0),
+    at(1, 1),
+    at(2, 0),
+    at(2, 1),
+  ];
   const allCells: readonly { col: number; row: number }[] = [...bankCells, ...pathCells];
-  if (allCells.some((cell) => !inBounds(walls, cell.col, cell.row))) return layers as TileLayer[];
+  if (
+    allCells.some(
+      (cell) => !inBounds(ground, cell.col, cell.row) || !inBounds(walls, cell.col, cell.row),
+    )
+  ) {
+    return layers as TileLayer[];
+  }
 
-  // Layer 0: the two path columns become lower-level grass — the ground the ramp descends to — so
-  // the gateway is a walkable notch, not a hole. `paintRectAutotile` re-resolves region + border.
-  const paintedGround = paintRectAutotile(
-    ground,
-    tileset,
-    GRASS_SLOTS[0],
-    pathCols[0],
-    row,
-    pathCols[1],
-    row + 1,
-  );
+  // Layer 0: the first source row is the high side and the second is the low side. Rotate those
+  // coordinates with the banks so one choice describes both "climb towards X" and the opposite
+  // descent. `paintElevation` also restores the surrounding cliff faces.
+  let prepared: TileLayer[] = [...layers];
+  for (let sourceRow = 0; sourceRow < STAIRS_FOOTPRINT_ROWS; sourceRow += 1) {
+    const level = sourceRow === 0 ? lowLevel + 1 : lowLevel;
+    for (let sourceCol = 0; sourceCol < STAIRS_FOOTPRINT_COLS; sourceCol += 1) {
+      const target = at(sourceCol, sourceRow);
+      prepared = paintElevation(prepared, tileset, level, target.col, target.row);
+    }
+  }
 
   // Layer 1: banks are the four fixed ramp tiles; the path clears the cliff wall so it is not solid.
-  const ids = [...walls.ids];
+  const preparedWalls = prepared[1];
+  if (!preparedWalls) return layers as TileLayer[];
+  const ids = [...preparedWalls.ids];
   for (const cell of bankCells) {
-    ids[indexOf(walls, cell.col, cell.row)] = fixedId(cell.index);
+    ids[indexOf(preparedWalls, cell.col, cell.row)] = fixedId(turns * 4 + cell.baseIndex);
   }
   for (const cell of pathCells) {
-    ids[indexOf(walls, cell.col, cell.row)] = EMPTY_TILE;
+    ids[indexOf(preparedWalls, cell.col, cell.row)] = EMPTY_TILE;
   }
-  const draft: TileLayer = { ...walls, ids };
+  const draft: TileLayer = { ...preparedWalls, ids };
 
   const resolveVisited = new Set<number>();
   for (const cell of allCells) {
@@ -478,10 +561,6 @@ export function paintStairs(
       if (resolved !== null) ids[idx] = resolved;
     }
   }
-  const newWalls: TileLayer = { ...walls, ids };
-  return layers.map((layer, index) => {
-    if (index === 0) return paintedGround;
-    if (index === 1) return newWalls;
-    return layer;
-  });
+  const newWalls: TileLayer = { ...preparedWalls, ids };
+  return prepared.map((layer, index) => (index === 1 ? newWalls : layer));
 }

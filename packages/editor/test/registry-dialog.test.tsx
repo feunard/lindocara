@@ -80,27 +80,39 @@ describe("RegistryDialog", () => {
     seedSession(completeDraft({ switches: [], variables: [] }), "adv-1");
     const mock = backend();
     vi.stubGlobal("fetch", mock);
-    render(<RegistryDialog open onOpenChange={noop} onSessionExpired={noop} />);
+    render(<RegistryDialog open onOpenChange={noop} onSessionExpired={noop} onOpenHelp={noop} />);
 
     const switches = screen.getByRole("region", { name: t("editor.registry.switches") });
     // Add mints 0001, then 0002 — monotone.
-    await user.click(within(switches).getByRole("button", { name: /Add Switches/ }));
-    await user.click(within(switches).getByRole("button", { name: /Add Switches/ }));
-    expect(within(switches).getByLabelText(`${t("editor.registry.name.aria")} 0001`)).toBeDefined();
-    expect(within(switches).getByLabelText(`${t("editor.registry.name.aria")} 0002`)).toBeDefined();
+    await user.click(
+      within(switches).getByRole("button", {
+        name: `${t("editor.registry.add")} ${t("editor.registry.switches")}`,
+      }),
+    );
+    await user.click(
+      within(switches).getByRole("button", {
+        name: `${t("editor.registry.add")} ${t("editor.registry.switches")}`,
+      }),
+    );
+    expect(within(switches).getByLabelText(`${t("editor.registry.name.aria")} 1`)).toBeDefined();
+    expect(within(switches).getByLabelText(`${t("editor.registry.name.aria")} 2`)).toBeDefined();
 
     // Rename 0001 in place.
     await user.type(
-      within(switches).getByLabelText(`${t("editor.registry.name.aria")} 0001`),
+      within(switches).getByLabelText(`${t("editor.registry.name.aria")} 1`),
       "Porte",
     );
 
-    // Delete 0002 behind the confirm.
+    // Delete the second, still unnamed value behind the confirm. Internal ids stay invisible.
     await user.click(
-      within(switches).getByRole("button", { name: `${t("editor.registry.delete")} 0002` }),
+      within(switches).getByRole("button", {
+        name: `${t("editor.registry.delete")} ${t("editor.registry.unnamed")} 2`,
+      }),
     );
     expect(
-      screen.getByText(t("editor.registry.delete.confirm.title", { id: "0002", name: "" })),
+      screen.getByText(
+        t("editor.registry.delete.confirm.title", { name: t("editor.registry.unnamed") }),
+      ),
     ).toBeVisible();
     // The fail-closed wording is present in the confirm body.
     expect(screen.getByText(t("editor.registry.delete.confirm.body"))).toBeVisible();
@@ -112,7 +124,11 @@ describe("RegistryDialog", () => {
 
     // Add a variable too.
     const variables = screen.getByRole("region", { name: t("editor.registry.variables") });
-    await user.click(within(variables).getByRole("button", { name: /Add Variables/ }));
+    await user.click(
+      within(variables).getByRole("button", {
+        name: `${t("editor.registry.add")} ${t("editor.registry.variables")}`,
+      }),
+    );
 
     await user.click(screen.getByRole("button", { name: t("editor.registry.save") }));
 
@@ -145,7 +161,7 @@ describe("RegistryDialog", () => {
       return Promise.resolve(new Response(null, { status: 404 }));
     });
     vi.stubGlobal("fetch", mock);
-    render(<RegistryDialog open onOpenChange={noop} onSessionExpired={noop} />);
+    render(<RegistryDialog open onOpenChange={noop} onSessionExpired={noop} onOpenHelp={noop} />);
 
     expect(await screen.findByText("Ruines")).toBeVisible();
     expect(screen.getByText(t("editor.registry.pick"))).toBeVisible();
@@ -161,10 +177,14 @@ describe("RegistryDialog", () => {
     const mock = backend();
     vi.stubGlobal("fetch", mock);
     const user = userEvent.setup();
-    render(<RegistryDialog open onOpenChange={noop} onSessionExpired={noop} />);
+    render(<RegistryDialog open onOpenChange={noop} onSessionExpired={noop} onOpenHelp={noop} />);
 
     const switches = screen.getByRole("region", { name: t("editor.registry.switches") });
-    await user.click(within(switches).getByRole("button", { name: /Add Switches/ }));
+    await user.click(
+      within(switches).getByRole("button", {
+        name: `${t("editor.registry.add")} ${t("editor.registry.switches")}`,
+      }),
+    );
     await user.click(screen.getByRole("button", { name: t("editor.registry.save") }));
 
     await waitFor(() => {

@@ -53,6 +53,14 @@ export interface FixedTile {
   passable: boolean;
   priority: TilePriority;
   tint?: number;
+  /**
+   * Clockwise quarter-turns applied around the centre of the cell.
+   *
+   * The source atlas only ships one north-facing ramp bank. Keeping the rotation on the tileset
+   * entry means the frozen tile id still fully describes what is drawn and what it collides with:
+   * a map never needs a second per-cell transform channel that could drift from collision.
+   */
+  rotationQuarterTurns?: 0 | 1 | 2 | 3;
 }
 
 export interface Tileset {

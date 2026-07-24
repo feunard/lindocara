@@ -4,6 +4,7 @@ import { Button } from "@lindocara/ui/components/button.js";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@lindocara/ui/components/tooltip.js";
 import {
   Blocks,
+  CircleHelp,
   Eraser,
   FilePlus,
   Grid3x3,
@@ -62,6 +63,7 @@ interface EditorToolbarProps {
   onToggleCollisions(): void;
   onCycleZoom(): void;
   onTest(): void;
+  onOpenHelp(): void;
 }
 
 /** D16: every icon-only toolbar button gets a hover tooltip carrying the same string as its
@@ -110,6 +112,7 @@ export function EditorToolbar({
   onToggleCollisions,
   onCycleZoom,
   onTest,
+  onOpenHelp,
 }: EditorToolbarProps) {
   useLocale();
   return (
@@ -178,6 +181,15 @@ export function EditorToolbar({
       </ToolbarIconButton>
 
       <div className="flex-1" />
+
+      <ToolbarIconButton
+        label={t("editor.help.open")}
+        variant="ghost"
+        size="icon"
+        onClick={onOpenHelp}
+      >
+        <CircleHelp />
+      </ToolbarIconButton>
 
       <Button size="sm" onClick={onTest}>
         <Play />

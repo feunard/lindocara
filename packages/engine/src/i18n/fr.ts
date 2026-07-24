@@ -781,7 +781,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.tool.pan": "Déplacer la carte",
   "editor.tool.event": "Événement",
   "editor.inspector.title": "Inspecteur de sélection",
-  "editor.inspector.id": "Identifiant stable",
+  "editor.inspector.id": "Repère de l’événement",
   "editor.inspector.label": "Libellé affiché",
   "editor.inspector.element": "Décor",
   "editor.inspector.entry": "Entrée",
@@ -800,7 +800,10 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.palette.search": "Rechercher des éléments plaçables",
   "editor.palette.recent": "Utilisés récemment",
   "editor.palette.collision": "Bloquant",
-  "editor.palette.noResults": "Aucun asset ne correspond à cette recherche.",
+  "editor.palette.noResults": "Aucun décor ne correspond à cette recherche.",
+  "editor.palette.unknown": "Décor devenu indisponible",
+  "editor.palette.terrain.grass": "Sol",
+  "editor.palette.terrain.water": "Eau",
   "editor.palette.showMore": "Afficher plus ({shown}/{total})",
   "editor.palette.category.all": "Toutes les catégories",
   "editor.palette.category.bridges": "Ponts",
@@ -866,6 +869,15 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.shell.fill.water_disabled":
     "Le remplissage ne peut pas peindre l'eau — choisissez un autre outil pour l'eau.",
   "editor.shell.tool.stairs": "Escalier",
+  "editor.stairs.highSide": "Côté haut (sens de la montée)",
+  "editor.stairs.direction.north": "Haut",
+  "editor.stairs.direction.east": "Droite",
+  "editor.stairs.direction.south": "Bas",
+  "editor.stairs.direction.west": "Gauche",
+  "editor.stairs.transition": "Niveaux reliés",
+  "editor.stairs.transitionLevels": "Niveau {low} ↔ {high}",
+  "editor.stairs.hint":
+    "Les héros montent vers {up} et redescendent vers {down}. Le tampon adapte le relief et l’apparence sur toute son empreinte.",
   "editor.shell.stage.loading": "Chargement de la carte…",
   "editor.shell.saving": "Enregistrement…",
   "editor.shell.stage.error": "La carte n'a pas pu être chargée.",
@@ -902,6 +914,228 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.shell.menu.tools": "Outils",
   "editor.shell.menu.view": "Affichage",
   "editor.shell.menu.game": "Jeu",
+  "editor.shell.menu.help": "Aide",
+  "editor.help.open": "Guide de création",
+  "editor.help.title": "Guide de création de l’aventure",
+  "editor.help.subtitle":
+    "Des parcours complets, sans script ni code, pour construire et vérifier chaque partie de votre aventure.",
+  "editor.help.close": "Fermer le guide",
+  "editor.help.noCode": "Sans code",
+  "editor.help.tab.start": "Bien démarrer",
+  "editor.help.tab.maps": "Cartes et relief",
+  "editor.help.tab.story": "Histoire et dialogues",
+  "editor.help.tab.quests": "Quêtes et objectifs",
+  "editor.help.tab.state": "États et compteurs",
+  "editor.help.tab.test": "Tester et publier",
+  "editor.help.start.mentalModel.title": "Les cinq briques à connaître",
+  "editor.help.start.mentalModel.body":
+    "L’aventure est l’œuvre complète et la sauvegarde commune. Une carte est un lieu. Un décor est ce que l’on voit. Un événement donne un comportement à un emplacement, un personnage ou un objet. Une quête est une promesse suivie dans le journal, composée d’objectifs.",
+  "editor.help.start.workflow": "Créer une aventure jouable de bout en bout",
+  "editor.help.start.step1.title": "Nommer l’aventure",
+  "editor.help.start.step1.body":
+    "Ouvrez Réglages de l’aventure, saisissez son titre et choisissez de 1 à 4 joueurs. Ces informations apparaissent avant de lancer une partie.",
+  "editor.help.start.step2.title": "Créer les lieux",
+  "editor.help.start.step2.body":
+    "Ajoutez et renommez les cartes dans le panneau de droite. Une carte peut représenter un village, une maison, un donjon ou toute autre scène.",
+  "editor.help.start.step3.title": "Dessiner et rendre le relief praticable",
+  "editor.help.start.step3.body":
+    "En mode Terrain, peignez le sol, l’eau et les niveaux de hauteur. Ajoutez des escaliers à chaque frontière qui doit être franchissable, puis affichez les collisions.",
+  "editor.help.start.step4.title": "Placer les personnages et objets",
+  "editor.help.start.step4.body":
+    "En mode Décors, placez PNJ, bâtiments, coffres visuels et accessoires. Double-cliquez ensuite un décor pour lui donner un rôle interactif guidé.",
+  "editor.help.start.step5.title": "Définir le début et les scènes",
+  "editor.help.start.step5.body":
+    "En mode Événements, placez un unique Départ global, puis dialogues, panneaux, coffres, monstres et scènes. Chaque préréglage crée une base modifiable.",
+  "editor.help.start.step6.title": "Relier les cartes et prévoir une fin",
+  "editor.help.start.step6.body":
+    "Placez des téléporteurs vers les autres cartes et au moins un Objectif de l’aventure pour conclure le parcours. Le héros suit ces liens en jeu.",
+  "editor.help.start.step7.title": "Créer les quêtes",
+  "editor.help.start.step7.body":
+    "Dans Jeu → Quêtes, choisissez qui propose et termine la quête, ajoutez les objectifs, reliez-les aux monstres, événements, objets, zones ou cartes, puis écrivez les dialogues et récompenses.",
+  "editor.help.start.step8.title": "Enregistrer et tester",
+  "editor.help.start.step8.body":
+    "Enregistrez, corrigez les erreurs de validation, puis lancez le test complet. Parcourez le début, les changements de carte, les quêtes, les dialogues et la fin.",
+  "editor.help.start.where.title": "Où se trouve chaque outil ?",
+  "editor.help.start.where.body":
+    "Le panneau gauche contient la palette du mode actif. Le centre est la carte. Le panneau droit contient les cartes et leur contenu. Le menu Jeu ouvre les quêtes, les états et compteurs, ainsi que le test complet. Ce guide reste disponible depuis le bouton ? et le menu Aide.",
+  "editor.help.maps.title": "Construire une carte lisible et praticable",
+  "editor.help.maps.intro":
+    "Travaillez dans un seul mode à la fois. Le mode change ce que la palette, la sélection et la gomme peuvent modifier ; il évite d’effacer accidentellement un autre type de contenu.",
+  "editor.help.maps.mode.terrain": "Terrain",
+  "editor.help.maps.mode.terrain.body":
+    "Dessine les trois couches du sol : herbe, eau, chemins, relief et escaliers. Le point de test de la carte sert uniquement au démarrage local de secours.",
+  "editor.help.maps.mode.elements": "Décors",
+  "editor.help.maps.mode.elements.body":
+    "Place les éléments visibles sur une grille fine : arbres, bâtiments, personnages et accessoires. Leur tronc ou leur base peut bloquer le passage.",
+  "editor.help.maps.mode.events": "Événements",
+  "editor.help.maps.mode.events.body":
+    "Place ce qui agit : début, dialogue, coffre, téléporteur, monstre, objectif de quête ou fin. Un événement peut avoir plusieurs pages selon l’état du monde.",
+  "editor.help.maps.tools.title": "À quoi servent les outils ?",
+  "editor.help.maps.tool.pencil": "Crayon (P)",
+  "editor.help.maps.tool.pencil.body":
+    "Peint une cellule ou place un objet à chaque clic. Faites glisser pour tracer un chemin ou une surface libre.",
+  "editor.help.maps.tool.rect": "Rectangle (R)",
+  "editor.help.maps.tool.rect.body":
+    "Peint toute une zone rectangulaire entre le point de départ et le point d’arrivée.",
+  "editor.help.maps.tool.fill": "Remplissage (F)",
+  "editor.help.maps.tool.fill.body":
+    "Remplace d’un seul coup toute la zone continue qui possède le même terrain.",
+  "editor.help.maps.tool.eraser": "Gomme (E)",
+  "editor.help.maps.tool.eraser.body":
+    "Efface uniquement le mode actif : terrain, décor ou événement. Elle ne touche pas aux deux autres.",
+  "editor.help.maps.tool.select": "Sélection (S)",
+  "editor.help.maps.tool.select.body":
+    "Sélectionne un décor ou un événement pour le déplacer, le configurer, le rendre interactif ou le supprimer.",
+  "editor.help.maps.relief.title": "Créer une montée ou une descente",
+  "editor.help.maps.relief.step1":
+    "Peignez la zone basse au niveau 0 ou 1, puis la zone haute au niveau immédiatement supérieur.",
+  "editor.help.maps.relief.step2":
+    "Choisissez Escalier, puis la transition 0 ↔ 1 ou 1 ↔ 2 correspondant aux deux zones.",
+  "editor.help.maps.relief.step3":
+    "Choisissez le côté haut : haut, droite, bas ou gauche. La flèche indique le sens de la montée.",
+  "editor.help.maps.relief.step4":
+    "Cliquez à cheval sur la frontière. L’escalier tourne, ouvre le passage et raccorde automatiquement les deux hauteurs.",
+  "editor.help.maps.relief.rule":
+    "On monte vers le côté haut sélectionné ; on descend en parcourant le même escalier dans le sens opposé.",
+  "editor.help.maps.multimap.title": "Créer plusieurs cartes",
+  "editor.help.maps.multimap.body":
+    "Ajoutez chaque lieu dans le panneau Cartes. Placez un événement Téléporteur sur la sortie du premier lieu, choisissez la carte et la cellule d’arrivée, puis créez si nécessaire le trajet de retour. Un seul événement Départ définit le début global.",
+  "editor.help.maps.collision.title": "Comprendre les collisions",
+  "editor.help.maps.collision.body":
+    "Activez Collisions dans la barre d’outils : les zones rouges ou encadrées bloquent le héros. Utilisez l’aperçu rapide pour marcher immédiatement. Le point de repli/test d’une carte ne remplace pas le Départ global de l’aventure.",
+  "editor.help.story.title": "Mettre en scène l’histoire sans écrire de script",
+  "editor.help.story.intro":
+    "Un événement associe une position à des pages, des conditions et une liste d’actions choisies dans l’interface. Les préréglages préparent les cas les plus fréquents ; vous pouvez ensuite modifier le texte et les paramètres.",
+  "editor.help.story.preset.dialogue": "Panneau / Dialogue",
+  "editor.help.story.preset.dialogue.body":
+    "Affiche un texte lorsque le joueur utilise la touche d’action. Indiquez le nom réel du personnage qui parle ; laissez le nom vide pour un panneau ou une narration.",
+  "editor.help.story.preset.chest": "Coffre",
+  "editor.help.story.preset.chest.body":
+    "Donne une récompense une seule fois grâce à un état local propre à ce coffre. Modifiez l’or, les objets, les messages et l’apparence.",
+  "editor.help.story.preset.teleporter": "Téléporteur",
+  "editor.help.story.preset.teleporter.body":
+    "Envoie le héros vers une carte et une cellule choisies. Utilisez-le pour les portes, sorties, passages secrets et changements de chapitre.",
+  "editor.help.story.preset.end": "Objectif de l’aventure",
+  "editor.help.story.preset.end.body":
+    "Conclut la partie lorsqu’il est activé. Placez-le après le dernier dialogue ou combat, et testez qu’il reste atteignable.",
+  "editor.help.story.preset.monster": "Monstre",
+  "editor.help.story.preset.monster.body":
+    "Place un ennemi précis sur la carte. Il peut ensuite être choisi directement dans un objectif « Vaincre une cible précise ».",
+  "editor.help.story.preset.start": "Départ de l’aventure",
+  "editor.help.story.preset.start.body":
+    "Définit la carte et la cellule où commence une nouvelle partie. Gardez un seul Départ global dans toute l’aventure.",
+  "editor.help.story.eventEditor.title": "Lire l’éditeur d’événement",
+  "editor.help.story.eventEditor.page":
+    "Page : une variante du même événement. Parmi les pages valides, la plus à droite est utilisée.",
+  "editor.help.story.eventEditor.condition":
+    "Conditions d’apparition : les faits nécessaires pour activer cette page, par exemple un état oui/non, un compteur ou l’état local du coffre.",
+  "editor.help.story.eventEditor.trigger":
+    "Déclencheur : Touche action attend une interaction ; Contact avec le héros démarre lorsque le héros entre sur la case.",
+  "editor.help.story.eventEditor.content":
+    "Contenu : choisissez Ajouter une action, puis texte, choix, récompense, téléportation, modification d’état ou fin. Aucun code n’est demandé.",
+  "editor.help.story.dialogue.title": "Qui prononce le texte ?",
+  "editor.help.story.dialogue.body":
+    "Pour Afficher un texte, le Nom du locuteur doit être le personnage qui parle à cet instant. Un choix appartient au joueur. Laissez le nom vide uniquement pour un narrateur, un panneau ou une information sans voix.",
+  "editor.help.story.interactive.title": "Rendre un décor interactif",
+  "editor.help.story.interactive.body":
+    "Sélectionnez ou double-cliquez un décor, puis choisissez Rendre interactif. L’assistant peut en faire un donneur de quête, une cible d’objectif, une zone, une activité ou un point de remise sans saisir d’identifiant.",
+  "editor.help.quests.title": "Créer une quête complète",
+  "editor.help.quests.intro":
+    "Une quête relie des personnages ou objets de la carte à une progression suivie dans le journal. Les sélecteurs affichent leurs noms et leurs cartes : vous n’avez jamais à copier un identifiant.",
+  "editor.help.quests.workflow": "Le parcours recommandé",
+  "editor.help.quests.step1.title": "Écrire le journal",
+  "editor.help.quests.step1.body":
+    "Créez la quête, puis renseignez un titre court, une description destinée au joueur et un résumé de journal qui rappelle clairement l’action attendue.",
+  "editor.help.quests.step2.title": "Choisir les interlocuteurs",
+  "editor.help.quests.step2.body":
+    "Choisissez le personnage ou objet qui propose la quête, puis celui qui reçoit la remise finale. Ils peuvent être identiques ou placés sur des cartes différentes.",
+  "editor.help.quests.step3.title": "Ajouter les objectifs",
+  "editor.help.quests.step3.body":
+    "Ajoutez les actions dans l’ordre souhaité : tuer, vaincre une cible, collecter, livrer, interagir, atteindre, utiliser un objet ou terminer une activité.",
+  "editor.help.quests.step4.title": "Relier le monde",
+  "editor.help.quests.step4.body":
+    "Utilisez les sélecteurs de cible ou Rendre interactif sur la carte. Le monstre, l’événement, l’objet, la zone ou la cellule devient la source exacte de progression.",
+  "editor.help.quests.step5.title": "Attribuer chaque parole",
+  "editor.help.quests.step5.body":
+    "Écrivez les propositions, rappels et refus dans le groupe du donneur ; écrivez le retour, la remise et la conclusion dans le groupe du destinataire final.",
+  "editor.help.quests.step6.title": "Récompenser et valider",
+  "editor.help.quests.step6.body":
+    "Ajoutez expérience, or, objets ou changement d’état. L’onglet Validation signale les cibles manquantes, objectifs incomplets et liens devenus invalides.",
+  "editor.help.quests.objectives.title": "Choisir le bon type d’objectif",
+  "editor.help.quests.objective.kill":
+    "Compte les monstres d’une espèce choisie, éventuellement seulement sur certaines cartes. À utiliser pour « vaincre 5 slimes ».",
+  "editor.help.quests.objective.defeatTarget":
+    "Suit un monstre placé précis. Choisissez directement son événement dans la liste, par exemple le chef de meute.",
+  "editor.help.quests.objective.collect":
+    "Demande de posséder ou d’avoir acquis une quantité d’objet. Choisissez l’objet et le mode de comptage.",
+  "editor.help.quests.objective.deliver":
+    "Demande une quantité d’objet et la retire lors de la remise si l’option Consommer est activée.",
+  "editor.help.quests.objective.interact":
+    "Progresse lorsqu’un événement ou décor interactif précis est activé : parler, examiner, actionner ou ramasser.",
+  "editor.help.quests.objective.reach":
+    "Peut valider l’entrée sur une carte entière, ou une zone/cellule précise reliée à un événement objectif.",
+  "editor.help.quests.objective.useItem":
+    "Progresse quand l’objet choisi est utilisé dans le contexte demandé, éventuellement près d’une cible reliée.",
+  "editor.help.quests.objective.activity":
+    "Progresse lorsqu’un événement lié signale qu’une activité guidée est terminée : énigme, entraînement ou mini-défi.",
+  "editor.help.quests.links.title": "Relier monstre, événement, case ou carte",
+  "editor.help.quests.links.body":
+    "Monstre : placez un événement Monstre, puis choisissez son espèce ou sa cible précise. Événement/objet : choisissez-le dans Cible ou utilisez Rendre interactif. Case/zone : placez un événement objectif à cet endroit et reliez-le. Carte : pour une entrée n’importe où, choisissez simplement la carte dans Atteindre.",
+  "editor.help.quests.texts.title": "Placer les textes au bon endroit",
+  "editor.help.quests.texts.body":
+    "Titre, description et journal sont la voix de l’interface. Proposition, accepté, refusé, rappel et indisponible sont prononcés par le donneur. Objectifs prêts, remise et terminé sont prononcés par le destinataire final. Dans un événement, le champ Nom du locuteur reste prioritaire.",
+  "editor.help.state.title": "Mémoriser les choix et la progression",
+  "editor.help.state.intro":
+    "Ces données permettent au monde de se souvenir d’une porte ouverte, d’un chapitre terminé ou d’un score. Créez-les dans Jeu → États et compteurs, puis sélectionnez-les par leur nom dans les événements et quêtes.",
+  "editor.help.state.boolean.title": "État oui/non (ancien « interrupteur »)",
+  "editor.help.state.boolean.body":
+    "Mémorise une réponse simple pour toute l’aventure : porte ouverte ou fermée, chef vaincu ou non, chapitre commencé ou non. Les événements peuvent le changer et afficher une autre page lorsqu’il vaut Oui.",
+  "editor.help.state.counter.title": "Compteur numérique (ancienne « variable »)",
+  "editor.help.state.counter.body":
+    "Mémorise un nombre partagé : leviers activés, score, étapes accomplies. Une page peut s’activer lorsque le compteur atteint un seuil.",
+  "editor.help.state.local.title": "État local A–D",
+  "editor.help.state.local.body":
+    "Appartient à un seul événement. Il convient à « ce coffre a été ouvert » ou « cette porte a changé », sans créer de donnée globale. A, B, C et D sont quatre mémoires indépendantes.",
+  "editor.help.state.example.title": "Exemple : une porte qui reste ouverte",
+  "editor.help.state.example.step1":
+    "Créez l’état oui/non « Porte du sanctuaire ouverte » dans Jeu → États et compteurs.",
+  "editor.help.state.example.step2":
+    "Sur la page 1 de la porte fermée, ajoutez un choix ou une interaction, puis Définir l’état sur Oui.",
+  "editor.help.state.example.step3":
+    "Ajoutez une page 2 avec la condition « Porte du sanctuaire ouverte est Oui » et choisissez l’apparence ouverte.",
+  "editor.help.state.example.step4":
+    "Testez : après l’action, la page 2 devient active et le choix reste mémorisé sans aucun script.",
+  "editor.help.state.pages.title": "Pourquoi plusieurs pages ?",
+  "editor.help.state.pages.body":
+    "Les pages décrivent les versions successives d’un même objet ou personnage. Le jeu teste leurs conditions de la dernière vers la première et affiche la première page valide. Placez donc l’état le plus avancé à droite.",
+  "editor.help.test.title": "Vérifier l’aventure avant de la partager",
+  "editor.help.test.intro":
+    "Testez tôt, puis refaites un parcours complet après chaque changement de structure. Le test complet est isolé : il ne modifie aucune sauvegarde de joueur.",
+  "editor.help.test.quick.title": "Aperçu rapide",
+  "editor.help.test.quick.body":
+    "Lance la carte ouverte sans serveur pour vérifier immédiatement le déplacement et les collisions. Les événements, monstres et quêtes n’y fonctionnent pas.",
+  "editor.help.test.full.title": "Test complet",
+  "editor.help.test.full.body":
+    "Lance le vrai serveur avec les cartes enregistrées, événements, combats, dialogues, états, inventaire et quêtes. Utilisez-le pour valider le parcours réel.",
+  "editor.help.test.validation.title": "Validation",
+  "editor.help.test.validation.body":
+    "Bloque le test complet lorsqu’une référence manque ou qu’une règle est impossible. Ouvrez Quêtes → Validation et corrigez chaque erreur ; les avertissements indiquent un risque à vérifier.",
+  "editor.help.test.checklist.title": "Parcours de recette conseillé",
+  "editor.help.test.checklist.start":
+    "Une nouvelle partie commence au bon événement Départ, dans un emplacement praticable.",
+  "editor.help.test.checklist.maps":
+    "Chaque téléporteur arrive sur la bonne carte et un retour existe lorsque l’histoire le demande.",
+  "editor.help.test.checklist.quests":
+    "Chaque quête peut être acceptée, chaque objectif progresse depuis sa vraie source, et la remise fonctionne.",
+  "editor.help.test.checklist.dialogue":
+    "Le bon nom de locuteur accompagne chaque réplique et les choix mènent aux bonnes conséquences.",
+  "editor.help.test.checklist.end":
+    "L’objectif final est atteignable et termine réellement l’aventure.",
+  "editor.help.test.checklist.multiplayer":
+    "Pour une aventure coopérative, testez aussi les objectifs et transitions avec 2 à 4 joueurs.",
+  "editor.help.shortcuts.title": "Raccourcis essentiels",
+  "editor.help.shortcuts.body":
+    "1 / 2 / 3 : Terrain / Décors / Événements. P : crayon. R : rectangle. F : remplissage. E : gomme. S : sélection. G : grille. Ctrl ou Cmd + S : enregistrer. Ctrl ou Cmd + Z / Y : annuler / rétablir. Entrée : ouvrir l’événement sélectionné.",
   "editor.shell.mode.field": "Terrain",
   "editor.shell.mode.element": "Décors",
   "editor.shell.mode.event": "Événements",
@@ -951,23 +1185,27 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.test.exiting": "Fermeture…",
   "editor.test.error.invalid": "Le test complet est bloqué par des références ou règles invalides.",
   "editor.test.error.expired": "Cette session de test a déjà été supprimée ou a expiré.",
-  "editor.shell.database": "Base de données…",
+  "editor.shell.database": "États et compteurs…",
   "editor.shell.quests": "Quêtes…",
   "editor.shell.events.graphic.heading": "Graphique de l’événement",
   "editor.shell.events.graphic.none": "Aucun graphique",
   "editor.event.dialog.title": "Éditeur d’événement",
-  "editor.event.dialog.caption": "ID {id} · cellule ({col}, {row})",
+  "editor.event.dialog.caption": "Repère {id} · case ({col}, {row})",
+  "editor.event.help": "Comprendre les événements",
+  "editor.event.guide.summary":
+    "Une page est une version de cet événement. Sa condition décide quand elle existe, son déclencheur décide quand elle démarre, et son contenu décrit ce qu’elle fait. Si plusieurs pages sont valides, la plus à droite est utilisée.",
   "editor.event.name": "Nom",
   "editor.event.pages.aria": "Pages de l’événement",
   "editor.event.page.aria": "Page {n}",
   "editor.event.page.add": "Nouvelle page",
   "editor.event.page.delete": "Supprimer la page",
   "editor.event.conditions": "Conditions d’apparition",
-  "editor.event.cond.switch": "Interrupteur",
-  "editor.event.cond.switch.on": "est activé",
-  "editor.event.cond.variable": "Variable",
-  "editor.event.cond.variable.min": "Seuil de la variable",
-  "editor.event.cond.selfSwitch": "Interrupteur local",
+  "editor.event.cond.switch": "État oui/non",
+  "editor.event.cond.switch.on": "vaut Oui",
+  "editor.event.cond.variable": "Compteur numérique",
+  "editor.event.cond.variable.min": "Valeur minimale du compteur",
+  "editor.event.cond.selfSwitch": "État local de cet événement",
+  "editor.event.cond.missing": "Donnée supprimée — choisissez-en une autre",
   "editor.event.appearance": "Apparence",
   "editor.event.movement": "Déplacement autonome",
   "editor.event.move.type": "Type",
@@ -996,7 +1234,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.opt.onTop": "Afficher devant les personnages",
   "editor.event.trigger": "Déclencheur",
   "editor.event.runtime.hint":
-    "Ces deux déclencheurs sont exécutés par le serveur. Les commandes et conditions de la page utilisent le même runtime que le jeu.",
+    "Ces deux déclencheurs fonctionnent directement dans le jeu. Les actions et conditions configurées ici seront donc jouables telles quelles.",
   "editor.event.legacy": "hérité, non exécuté",
   "editor.event.runtime.legacy":
     "Les pages {pages} utilisent un ancien déclencheur que le jeu n’exécute pas. Convertissez-les avant d’enregistrer.",
@@ -1006,78 +1244,82 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.trigger.event-touch": "Contact avec un événement",
   "editor.event.trigger.auto": "Automatique",
   "editor.event.trigger.parallel": "Processus parallèle",
-  "editor.event.commands": "Contenu de l’événement",
-  "editor.event.cmd.insert": "Insérer",
-  "editor.event.cmd.delete": "Supprimer la commande",
+  "editor.event.commands": "Actions de cette page",
+  "editor.event.cmd.insert": "Ajouter une action",
+  "editor.event.cmd.delete": "Supprimer l’action",
   "editor.event.cmd.moveUp": "Monter",
   "editor.event.cmd.moveDown": "Descendre",
-  "editor.event.cmd.param": "Paramètre — {label}",
-  "editor.event.cmd.noParam": "Cette commande n’a pas de paramètre.",
+  "editor.event.cmd.param": "Réglages — {label}",
+  "editor.event.cmd.noParam": "Cette action n’a aucun réglage.",
   "editor.event.cmd.selectHint":
-    "Sélectionnez une commande pour en modifier le paramètre, ou cliquez sur Insérer.",
-  "editor.event.cmd.limit.count": "Cette page a atteint sa limite de {max} commandes.",
+    "Sélectionnez une action pour la régler, ou cliquez sur Ajouter une action.",
+  "editor.event.cmd.limit.count": "Cette page a atteint sa limite de {max} actions.",
   "editor.event.cmd.limit.depth":
-    "Les commandes ne peuvent pas s’imbriquer au-delà de {max} niveaux ici.",
+    "Les groupes d’actions ne peuvent pas dépasser {max} niveaux ici.",
   "editor.event.cmd.teleport.noMaps": "Ajoutez une carte à l’aventure pour vous y téléporter.",
-  "editor.event.cmd.quest.noQuests":
-    "Créez d’abord une quête et un objectif dans la base de données.",
-  "editor.event.cmd.on": "ON",
-  "editor.event.cmd.off": "OFF",
+  "editor.event.cmd.quest.noQuests": "Créez d’abord une quête et un objectif dans Jeu → Quêtes.",
+  "editor.event.cmd.state.noEntries": "Créez d’abord cette donnée dans Jeu → États et compteurs.",
+  "editor.event.cmd.mapMissing": "carte supprimée",
+  "editor.event.cmd.on": "Oui",
+  "editor.event.cmd.off": "Non",
   "editor.event.cmd.op.set": "Définir",
   "editor.event.cmd.op.add": "Ajouter",
   "editor.event.cmd.cat.messages": "Messages",
   "editor.event.cmd.cat.progression": "Progression",
-  "editor.event.cmd.cat.control": "Contrôle du flux",
+  "editor.event.cmd.cat.control": "Règles et enchaînement",
   "editor.event.cmd.cat.character": "Personnage",
   "editor.event.cmd.cat.party": "Équipe",
   "editor.event.cmd.cat.other": "Autres",
   "editor.event.cmd.new.say": "Afficher un texte",
   "editor.event.cmd.new.choices": "Afficher des choix",
-  "editor.event.cmd.new.setSwitch": "Gérer les interrupteurs",
-  "editor.event.cmd.new.setVariable": "Gérer les variables",
-  "editor.event.cmd.new.setSelfSwitch": "Interrupteur local",
-  "editor.event.cmd.new.if": "Condition",
-  "editor.event.cmd.new.loop": "Boucle",
-  "editor.event.cmd.new.breakLoop": "Interrompre la boucle",
-  "editor.event.cmd.new.exitRun": "Sortir de l’événement",
+  "editor.event.cmd.new.setSwitch": "Modifier un état oui/non",
+  "editor.event.cmd.new.setVariable": "Modifier un compteur",
+  "editor.event.cmd.new.setSelfSwitch": "Modifier l’état local",
+  "editor.event.cmd.new.if": "Faire selon une condition",
+  "editor.event.cmd.new.loop": "Répéter des actions",
+  "editor.event.cmd.new.breakLoop": "Arrêter la répétition",
+  "editor.event.cmd.new.exitRun": "Arrêter cet événement",
   "editor.event.cmd.new.wait": "Attendre",
   "editor.event.cmd.new.teleport": "Téléporter le héros",
   "editor.event.cmd.new.endAdventure": "Terminer l’aventure",
   "editor.event.cmd.new.changeGold": "Modifier l’or",
   "editor.event.cmd.new.changeItems": "Modifier les objets",
-  "editor.event.cmd.new.comment": "Commentaire",
+  "editor.event.cmd.new.comment": "Ajouter une note interne",
   "editor.event.cmd.say": "Texte : {text}",
   "editor.event.cmd.say.named": "{name} : {text}",
   "editor.event.cmd.choices": "Choix : {prompt}",
-  "editor.event.cmd.setSwitch": "Interrupteur {id} = {value}",
-  "editor.event.cmd.setVariable": "Variable {id} {op} {value}",
-  "editor.event.cmd.setSelfSwitch": "Interrupteur local {sw} = {value}",
+  "editor.event.cmd.setSwitch": "État {id} = {value}",
+  "editor.event.cmd.setVariable": "Compteur {id} {op} {value}",
+  "editor.event.cmd.setSelfSwitch": "État local {sw} = {value}",
   "editor.event.cmd.if": "Si {cond}",
-  "editor.event.cmd.loop": "Boucle",
-  "editor.event.cmd.breakLoop": "Interrompre la boucle",
-  "editor.event.cmd.exitRun": "Sortir de l’événement",
-  "editor.event.cmd.wait": "Attendre {frames} frames",
+  "editor.event.cmd.loop": "Répéter les actions suivantes",
+  "editor.event.cmd.breakLoop": "Arrêter la répétition",
+  "editor.event.cmd.exitRun": "Arrêter cet événement",
+  "editor.event.cmd.wait": "Attendre {frames} cycles",
   "editor.event.cmd.teleport": "Téléporter : {map} ({col}, {row})",
   "editor.event.cmd.endAdventure": "Terminer l’aventure",
   "editor.event.cmd.changeGold": "Or {amount}",
   "editor.event.cmd.changeItems": "Objet {item} {count}",
-  "editor.event.cmd.comment": "// {text}",
-  "editor.event.cmd.cond.switch": "interrupteur {id} est ON",
-  "editor.event.cmd.cond.variable": "variable {id} ≥ {min}",
-  "editor.event.cmd.cond.selfSwitch": "interrupteur local {sw} est ON",
-  "editor.event.cmd.div.then": "alors",
-  "editor.event.cmd.div.else": "sinon",
-  "editor.event.cmd.div.endIf": "fin",
-  "editor.event.cmd.div.endLoop": "fin de boucle",
-  "editor.event.cmd.div.endChoices": "fin",
-  "editor.event.cmd.div.option": "quand : {label}",
-  "editor.event.cmd.slot.root": "Fin du programme",
-  "editor.event.cmd.slot.then": "Insérer dans la branche alors",
-  "editor.event.cmd.slot.else": "Insérer dans la branche sinon",
-  "editor.event.cmd.slot.loop": "Insérer dans le corps de la boucle",
-  "editor.event.cmd.slot.option": "Insérer dans le choix : {label}",
+  "editor.event.cmd.comment": "Note interne : {text}",
+  "editor.event.cmd.cond.switch": "état {id} vaut Oui",
+  "editor.event.cmd.cond.variable": "compteur {id} ≥ {min}",
+  "editor.event.cmd.cond.selfSwitch": "état local {sw} vaut Oui",
+  "editor.event.cmd.div.then": "Si la condition est vraie",
+  "editor.event.cmd.div.else": "Sinon",
+  "editor.event.cmd.div.endIf": "Fin de la condition",
+  "editor.event.cmd.div.endLoop": "Fin de la répétition",
+  "editor.event.cmd.div.endChoices": "Fin des choix",
+  "editor.event.cmd.div.option": "Pour le choix : {label}",
+  "editor.event.cmd.slot.root": "Ajouter à la fin",
+  "editor.event.cmd.slot.then": "Ajouter si la condition est vraie",
+  "editor.event.cmd.slot.else": "Ajouter dans le cas contraire",
+  "editor.event.cmd.slot.loop": "Ajouter dans les actions répétées",
+  "editor.event.cmd.slot.option": "Ajouter pour le choix : {label}",
   "editor.event.cmd.field.text": "Texte",
   "editor.event.cmd.field.name": "Nom du locuteur",
+  "editor.event.cmd.field.name.placeholder": "Vide = narrateur ou panneau",
+  "editor.event.cmd.field.name.hint":
+    "Une nouvelle ligne reprend automatiquement le nom de l’événement. Effacez-le seulement si le texte vient du narrateur, d’un panneau ou d’une information sans voix.",
   "editor.event.cmd.field.prompt": "Invite",
   "editor.event.cmd.field.option": "Option {n}",
   "editor.event.cmd.field.addOption": "Ajouter une option",
@@ -1085,11 +1327,11 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.cmd.field.value": "Valeur",
   "editor.event.cmd.field.op": "Opération",
   "editor.event.cmd.field.condType": "Condition",
-  "editor.event.cmd.field.switchId": "Interrupteur",
-  "editor.event.cmd.field.variableId": "Variable",
+  "editor.event.cmd.field.switchId": "État oui/non",
+  "editor.event.cmd.field.variableId": "Compteur numérique",
   "editor.event.cmd.field.min": "Seuil",
-  "editor.event.cmd.field.selfSwitch": "Interrupteur local",
-  "editor.event.cmd.field.frames": "Frames",
+  "editor.event.cmd.field.selfSwitch": "État local",
+  "editor.event.cmd.field.frames": "Durée (cycles, 20 = 1 seconde)",
   "editor.event.cmd.field.map": "Carte",
   "editor.event.cmd.field.col": "Colonne",
   "editor.event.cmd.field.row": "Ligne",
@@ -1102,10 +1344,12 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.delete.confirm.title": "Supprimer cet événement ?",
   "editor.event.cancel": "Annuler",
   "editor.event.save": "Valider",
-  "editor.event.cond.empty.hint":
-    "Aucune entrée — ajoutez des interrupteurs et variables dans Jeu → Base de données.",
+  "editor.event.cond.switch.empty.hint":
+    "Aucun état oui/non n’est encore créé — ajoutez-en dans Jeu → États et compteurs.",
+  "editor.event.cond.variable.empty.hint":
+    "Aucun compteur numérique n’est encore créé — ajoutez-en dans Jeu → États et compteurs.",
   "editor.event.kind.heading": "Type d’événement",
-  "editor.event.kind.normal": "Scénarisé",
+  "editor.event.kind.normal": "Événement personnalisé",
   "editor.event.kind.entry": "Entrée",
   "editor.event.kind.exit": "Sortie",
   "editor.event.kind.monster": "Monstre",
@@ -1123,22 +1367,32 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.preset.endgame": "Objectif de l’aventure (fin)",
   "editor.event.list.heading": "Événements",
   "editor.event.list.empty": "Aucun événement sur cette carte.",
-  "editor.registry.title": "Base de données",
-  "editor.registry.switches": "Interrupteurs",
-  "editor.registry.variables": "Variables",
+  "editor.registry.title": "États et compteurs de l’aventure",
+  "editor.registry.intro":
+    "Donnez un nom compréhensible aux faits et nombres que l’aventure doit mémoriser. Vous les retrouverez ensuite dans les événements et les quêtes.",
+  "editor.registry.help": "Comprendre",
+  "editor.registry.switches": "États oui/non",
+  "editor.registry.switches.description":
+    "Pour une information à deux réponses : porte ouverte, boss vaincu, chapitre commencé.",
+  "editor.registry.switches.placeholder": "Ex. Porte du sanctuaire ouverte",
+  "editor.registry.variables": "Compteurs numériques",
+  "editor.registry.variables.description":
+    "Pour une quantité : leviers activés, score, indices trouvés ou étapes accomplies.",
+  "editor.registry.variables.placeholder": "Ex. Leviers activés",
+  "editor.registry.unnamed": "Donnée sans nom",
   "editor.registry.add": "Ajouter",
   "editor.registry.empty": "Aucune entrée.",
   "editor.registry.name.aria": "Nom de l’entrée",
   "editor.registry.delete": "Supprimer",
   "editor.registry.save": "Enregistrer",
-  "editor.registry.pick": "Choisissez une aventure pour éditer sa base de données",
+  "editor.registry.pick": "Choisissez une aventure pour modifier ses états et compteurs",
   "editor.registry.incomplete":
-    "Complétez le graphe de cartes de l’aventure avant d’enregistrer sa base de données.",
+    "Complétez les liens entre les cartes avant d’enregistrer les états et compteurs.",
   "editor.registry.new.hint":
-    "Enregistrez d’abord cette aventure avant d’éditer sa base de données.",
-  "editor.registry.delete.confirm.title": "Supprimer {id} · {name} ?",
+    "Enregistrez d’abord cette aventure avant de créer ses états et compteurs.",
+  "editor.registry.delete.confirm.title": "Supprimer « {name} » ?",
   "editor.registry.delete.confirm.body":
-    "Les pages d’événement qui en dépendent seront lues comme désactivées (interrupteur) ou 0 (variable). Aucune mauvaise entrée n’est jamais désignée — la condition cesse simplement de s’appliquer.",
+    "Les pages d’événement qui en dépendent liront Non pour un état oui/non ou 0 pour un compteur. Aucune autre donnée ne sera utilisée par erreur : la condition cessera simplement d’être vraie.",
   "editor.shell.status.saved": "Enregistré",
   "editor.shell.status.cursor": "Curseur {cursor}",
 
@@ -1306,6 +1560,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.quest.workspace.title": "Espace Quêtes",
   "editor.quest.workspace.subtitle":
     "Créez, validez et reliez un parcours complet sans écrire de script d’événement.",
+  "editor.quest.help": "Guide des quêtes",
   "editor.quest.workspace.emptySelection": "Sélectionnez une quête à gauche ou créez la première.",
   "editor.quest.search": "Rechercher une quête",
   "editor.quest.searchEmpty": "Aucune quête ne correspond à cette recherche.",
@@ -1322,6 +1577,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.quest.loadingReferences": "Chargement des cartes, PNJ et objets interactifs…",
   "editor.quest.untitled": "Quête sans titre",
   "editor.quest.none": "Aucun",
+  "editor.quest.missing": "Quête supprimée",
   "editor.quest.optional": "Facultatif",
   "editor.quest.noObjectives": "Aucun objectif",
   "editor.quest.objectiveCount": "{count} objectif(s)",
@@ -1352,6 +1608,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.quest.objectiveMode.simultaneous": "Progression simultanée",
   "editor.quest.objectiveMode.sequential": "Étapes successives",
   "editor.quest.objective.empty": "Ajoutez le premier objectif structuré de cette quête.",
+  "editor.quest.objective.missing": "Objectif supprimé",
   "editor.quest.objective.type": "Type d’objectif",
   "editor.quest.objective.type.kill": "Tuer des monstres",
   "editor.quest.objective.type.defeat-target": "Vaincre une cible précise",
@@ -1363,6 +1620,22 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.quest.objective.type.activity": "Terminer une activité",
   "editor.quest.objective.type.manual": "Ancien compteur manuel",
   "editor.quest.objective.type.manualLegacy": "Ancien compteur manuel",
+  "editor.quest.objective.help.kill":
+    "Choisissez l’espèce, les cartes autorisées et qui reçoit le crédit. La progression vient automatiquement des monstres réellement vaincus.",
+  "editor.quest.objective.help.defeat-target":
+    "Choisissez un événement Monstre précis déjà placé sur une carte. Ce lien suit ce boss, pas tous les monstres de son espèce.",
+  "editor.quest.objective.help.collect":
+    "Choisissez l’objet et si le journal regarde l’inventaire actuel ou chaque acquisition. Les gains de butin mettent l’objectif à jour automatiquement.",
+  "editor.quest.objective.help.deliver":
+    "Choisissez l’objet à rapporter. Activez le retrait pour que la quantité demandée soit consommée lors de la remise finale.",
+  "editor.quest.objective.help.interact":
+    "Choisissez un PNJ ou objet interactif précis. Vous pouvez aussi le placer sur la carte puis utiliser Rendre interactif pour créer ce lien.",
+  "editor.quest.objective.help.reach":
+    "Une carte se valide dès que le héros y entre. Pour une zone précise, nommez-la puis liez un événement de cette zone avec Rendre interactif.",
+  "editor.quest.objective.help.use-item":
+    "Choisissez l’objet et le contexte : partout, sur une carte, ou près d’un événement précis.",
+  "editor.quest.objective.help.activity":
+    "Nommez l’activité, puis reliez un événement qui annonce sa réussite. Utilisez Rendre interactif sur le décor qui porte cette activité.",
   "editor.quest.objective.customLabel": "Texte personnalisé pour le joueur",
   "editor.quest.objective.automaticLabel": "Généré automatiquement à partir de la règle",
   "editor.quest.objective.moveUp": "Remonter l’objectif",
@@ -1406,20 +1679,20 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.quest.prerequisite.conditions": "Conditions guidées",
   "editor.quest.prerequisite.conditionsHint":
     "Utilisez les données nommées de l’aventure ou des quêtes terminées, sans script.",
-  "editor.quest.prerequisite.addSwitch": "Ajouter un interrupteur",
-  "editor.quest.prerequisite.addVariable": "Ajouter une variable",
+  "editor.quest.prerequisite.addSwitch": "Ajouter un état oui/non",
+  "editor.quest.prerequisite.addVariable": "Ajouter un compteur",
   "editor.quest.prerequisite.addQuest": "Ajouter une quête terminée",
   "editor.quest.prerequisite.empty": "Aucune condition supplémentaire.",
-  "editor.quest.prerequisite.switch": "Interrupteur",
-  "editor.quest.prerequisite.variable": "Variable",
+  "editor.quest.prerequisite.switch": "État oui/non",
+  "editor.quest.prerequisite.variable": "Compteur numérique",
   "editor.quest.prerequisite.expected": "État requis",
   "editor.quest.prerequisite.minimum": "Valeur minimale",
   "editor.quest.prerequisite.completedQuest": "Quête terminée",
-  "editor.quest.prerequisite.on": "Activé",
-  "editor.quest.prerequisite.off": "Désactivé",
+  "editor.quest.prerequisite.on": "Oui",
+  "editor.quest.prerequisite.off": "Non",
   "editor.quest.prerequisite.delete": "Supprimer la condition",
-  "editor.quest.prerequisite.unnamedSwitch": "Interrupteur sans nom {number}",
-  "editor.quest.prerequisite.unnamedVariable": "Variable sans nom {number}",
+  "editor.quest.prerequisite.unnamedSwitch": "État sans nom {number}",
+  "editor.quest.prerequisite.unnamedVariable": "Compteur sans nom {number}",
   "editor.quest.dialogue.offer": "Présentation",
   "editor.quest.dialogue.offer.placeholder": "Expliquez la situation avant le choix du joueur…",
   "editor.quest.dialogue.accepted": "Après acceptation",
@@ -1436,6 +1709,16 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.quest.dialogue.completed.placeholder": "Dialogue lors des interactions suivantes…",
   "editor.quest.dialogue.unavailable": "Indisponible (facultatif)",
   "editor.quest.dialogue.unavailable.placeholder": "Expliquez pourquoi la quête est indisponible…",
+  "editor.quest.dialogue.intro":
+    "Les champs sont rangés selon la personne qui les prononce en jeu. Le nom affiché vient du personnage ou de l’objet choisi dans l’onglet Général.",
+  "editor.quest.dialogue.giverGroup": "Paroles du donneur · {speaker}",
+  "editor.quest.dialogue.giverGroupHint":
+    "Ce groupe contient la proposition, la réponse au choix du joueur, les rappels et le message d’indisponibilité.",
+  "editor.quest.dialogue.turnInGroup": "Paroles du destinataire final · {speaker}",
+  "editor.quest.dialogue.turnInGroupHint":
+    "Ce groupe contient le retour après les objectifs, la remise des récompenses et les interactions après achèvement.",
+  "editor.quest.dialogue.speakerMissing": "interlocuteur à choisir dans Général",
+  "editor.quest.dialogue.automaticSpeaker": "progression automatique, sans interlocuteur",
   "editor.quest.reward.guaranteed": "Récompenses garanties",
   "editor.quest.reward.guaranteedHint": "Chaque achèvement accorde ces récompenses une seule fois.",
   "editor.quest.reward.experience": "Expérience",
@@ -1453,16 +1736,16 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.quest.reward.deleteChoice": "Supprimer le choix de récompense",
   "editor.quest.reward.chainAndState": "Chaîne de quêtes et état de l’aventure",
   "editor.quest.reward.nextQuest": "Débloquer ou commencer la quête suivante",
-  "editor.quest.reward.addSwitch": "Modifier un interrupteur",
-  "editor.quest.reward.addVariable": "Modifier une variable",
+  "editor.quest.reward.addSwitch": "Modifier un état oui/non",
+  "editor.quest.reward.addVariable": "Modifier un compteur",
   "editor.quest.reward.operation": "Opération",
   "editor.quest.reward.operation.add": "Ajouter",
   "editor.quest.reward.operation.set": "Définir",
   "editor.quest.reward.value": "Valeur",
   "editor.quest.reward.deleteState": "Supprimer la modification d’état",
-  "editor.quest.reward.advanced": "Commandes personnalisées avancées",
+  "editor.quest.reward.advanced": "Effets avancés facultatifs",
   "editor.quest.reward.advancedHint":
-    "Ces effets facultatifs ne s’exécutent qu’après la réussite de la transaction autoritaire.",
+    "Ces effets configurés dans l’interface ne s’exécutent qu’après l’attribution sûre des récompenses.",
   "editor.quest.validation.valid": "Prête",
   "editor.quest.validation.validShort": "Valide",
   "editor.quest.validation.error": "Erreur bloquante",
@@ -1487,10 +1770,10 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.quest.validation.prerequisiteCycle": "La chaîne de prérequis contient une boucle.",
   "editor.quest.validation.nextSelf": "Une quête ne peut pas se lancer elle-même ensuite.",
   "editor.quest.validation.nextMissing": "La quête suivante configurée n’existe plus.",
-  "editor.quest.validation.switchMissing": "Un interrupteur de prérequis n’existe plus.",
-  "editor.quest.validation.variableMissing": "Une variable de prérequis n’existe plus.",
-  "editor.quest.validation.rewardSwitchMissing": "Un interrupteur de récompense n’existe plus.",
-  "editor.quest.validation.rewardVariableMissing": "Une variable de récompense n’existe plus.",
+  "editor.quest.validation.switchMissing": "Un état oui/non de prérequis n’existe plus.",
+  "editor.quest.validation.variableMissing": "Un compteur de prérequis n’existe plus.",
+  "editor.quest.validation.rewardSwitchMissing": "Un état oui/non de récompense n’existe plus.",
+  "editor.quest.validation.rewardVariableMissing": "Un compteur de récompense n’existe plus.",
   "editor.quest.validation.rewardItemMissing": "Un objet de récompense est inconnu.",
   "editor.quest.validation.rewardChoicesRequireTurnIn":
     "Un choix de récompense nécessite une restitution afin que le joueur puisse choisir.",

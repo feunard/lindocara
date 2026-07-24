@@ -11,6 +11,7 @@ import {
   type MapEventPage,
 } from "@lindocara/engine/map-events.js";
 import { fixedId } from "@lindocara/engine/tileset.js";
+import { TINY_SWORDS_TILESET } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { loadAdventure } from "@lindocara/server/adventures.js";
 import { account, createDb, type Db } from "@lindocara/server/db/index.js";
 import {
@@ -259,7 +260,10 @@ describe("maps", () => {
       // One past the last declared fixed tile: in-shape for the id space (a safe integer), but
       // unresolvable against tiny-swords, which is exactly the case `tileIdInTileset` exists to
       // refuse rather than let `bakeCollision` silently treat it as solid terrain.
-      const badGround = { ...ground, ids: [fixedId(4), ...ground.ids.slice(1)] };
+      const badGround = {
+        ...ground,
+        ids: [fixedId(TINY_SWORDS_TILESET.fixed.length), ...ground.ids.slice(1)],
+      };
       await expect(
         createMap(db, { ...validInput, layers: [badGround, elevation, objects] }),
       ).rejects.toThrow(/^layers:/);

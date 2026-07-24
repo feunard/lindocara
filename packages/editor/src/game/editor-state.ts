@@ -37,6 +37,9 @@ import {
   paintRectAutotile,
   paintStairs,
   resolveWholeLayer,
+  type StairsDirection,
+  type StairsLowLevel,
+  stairsFootprint,
   syncElevationWalls,
 } from "@lindocara/engine/tile-brush.js";
 import { emptyLayer, encodeTileLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
@@ -115,7 +118,7 @@ export type EditorTool =
   | { kind: "pan" }
   | { kind: "rect"; content: RectFillContent }
   | { kind: "fill"; content: RectFillContent }
-  | { kind: "stairs" }
+  | { kind: "stairs"; direction: StairsDirection; lowLevel: StairsLowLevel }
   /**
    * UX wave #12: the one placement tool for every event kind — markers are dead, their meaning is a
    * typed event now. `eventKind` selects what is placed:
@@ -845,16 +848,20 @@ function erasedEvent(map: EditorMap, col: number, row: number): EditorMap {
   return { ...map, events: map.events.filter((_event, i) => i !== index) };
 }
 
-/** The cells one elevation-aware stroke can change: the cell itself and the wall row beneath it. */
+/** The cells one elevation-aware stroke can change: the ground cell plus one face on every side. */
 function terrainStrokeCells(col: number, row: number): readonly { col: number; row: number }[] {
   return [
     { col, row },
+    { col, row: row - 1 },
+    { col: col + 1, row },
     { col, row: row + 1 },
+    { col: col - 1, row },
   ];
 }
 
 /** The same idea as `terrainStrokeCells`, widened to a rectangle: every cell the region can change,
- *  plus the wall row one below its bottom edge. */
+ * plus its one-cell face border. The four diagonal extras keep the bookkeeping rectangular and are
+ * harmless: `commitTerrain` still tests actual terrain before dropping any decoration. */
 function terrainRectCells(
   c0: number,
   r0: number,
@@ -862,16 +869,14 @@ function terrainRectCells(
   r1: number,
 ): readonly { col: number; row: number }[] {
   const cells: { col: number; row: number }[] = [];
-  for (let row = r0; row <= r1 + 1; row += 1) {
-    for (let col = c0; col <= c1; col += 1) cells.push({ col, row });
+  for (let row = r0 - 1; row <= r1 + 1; row += 1) {
+    for (let col = c0 - 1; col <= c1 + 1; col += 1) cells.push({ col, row });
   }
   return cells;
 }
 
-/** `syncElevationWalls` for one cell, widened to a rectangle: every column in range, at every row
- *  the region touched. `syncElevationWalls(_, _, col, row)` already checks both `row` and `row + 1`
- *  per call, so looping `row` from `r0` to `r1` alone covers wall rows `r0` through `r1 + 1` — the
- *  same span `terrainRectCells` accounts for. */
+/** `syncElevationWalls` for one cell, widened to a rectangle. Each call already checks the cell and
+ * its four neighbours, so visiting the changed ground region covers every directional face. */
 function syncElevationWallsForRect(
   layers: readonly TileLayer[],
   c0: number,
@@ -1071,9 +1076,21 @@ export function applyTool(
      *  `paintStairs` itself refuses (same-reference) an out-of-bounds stamp; that refusal is passed
      *  straight through. */
     case "stairs": {
-      const layers = paintStairs(map.layers, TINY_SWORDS_TILESET, col, row);
+      const layers = paintStairs(
+        map.layers,
+        TINY_SWORDS_TILESET,
+        col,
+        row,
+        tool.direction,
+        tool.lowLevel,
+      );
       if (layers === map.layers) return null;
-      return { ...map, layers };
+      const footprint = stairsFootprint(tool.direction);
+      return commitTerrain(
+        map,
+        layers,
+        terrainRectCells(col, row, col + footprint.cols - 1, row + footprint.rows - 1),
+      );
     }
     case "element": {
       // Element placement is quarter-cell: the stage resolves the pointer to a cell plus a 0..3
