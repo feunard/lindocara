@@ -5,6 +5,20 @@
  *
  * Every enemy has its own frame size. They are single-row horizontal strips, so `frame` is the
  * sheet's height and `frames` is its width divided by that. Measure; do not guess.
+ *
+ * **An enemy is drawn at its sheet's native frame size**, exactly like a player (192, see
+ * `UNIT_OFFSET_X` in `renderer.ts`) and a guard. The differing frame sizes ARE the pack's scale
+ * system: 192 for a gnoll or a skull, 256 for a spear goblin, 320 for a minotaur, 384 for a troll.
+ * Draw each at its own frame and the whole bestiary is in proportion with itself and with the heroes.
+ *
+ * This used to be a per-species hand-tuned `spriteSize` — 98 for a spear goblin off a 256 sheet, so
+ * 38% scale, while the hero beside it was at 100%. That is the same bug the player sprite had when
+ * it was pinned to 96, and the same one the guard had at 102: shrinking one class of sprite is what
+ * breaks a pack that was already in proportion. A goblin looked knee-high; a troll was not a giant.
+ *
+ * Note this is APPEARANCE only. Every monster's collision and attack reach come from `PLAYER_SIZE`
+ * server-side regardless of species, so drawing a troll at its true size does not give it a bigger
+ * body — see `MONSTER_ATTACK_RANGE` in `engine/game.ts`.
  */
 import type { MonsterSpecies } from "@lindocara/engine/game.js";
 import { TINY_SWORDS_ROOT } from "./tiny-swords-art.js";
@@ -24,16 +38,39 @@ export interface EnemyArt {
   readonly attack: EnemySheet;
 }
 
+/** Where a monster's feet meet the ground, in actor space — the monster twin of the player's y=31.
+ *  One number for every species: the pack draws each enemy standing on its own frame's baseline, so
+ *  the ground line is a property of the world, not of the enemy. */
+const MONSTER_GROUND_Y = 29;
+
 export interface EnemyRenderMetrics {
-  /** Size of the full square frame. The source sheets contain substantial transparent padding. */
+  /** The size the square frame is drawn at. Always the sheet's OWN `frame`, i.e. native scale — see
+   *  the module header. The transparent padding is not waste to be squeezed out; it is how the pack
+   *  keeps a goblin and a troll in proportion inside sheets of different sizes. */
   readonly spriteSize: number;
-  /** Frame-bottom anchor adjusted so the visible feet meet the shared ground line. */
+  /** Frame-bottom anchor adjusted so the visible feet meet `MONSTER_GROUND_Y`. */
   readonly spriteY: number;
-  readonly shadowWidth: number;
-  readonly shadowHeight: number;
   readonly labelY: number;
   readonly hpY: number;
   readonly alertY: number;
+}
+
+/**
+ * Derive a species' metrics from two measurements of its IDLE frames — the top and bottom of the
+ * visible pixels, unioned over the strip — instead of hand-tuning six numbers per enemy.
+ *
+ * `bodyBottom` sets the standing position: the padding under the feet (`frame - bodyBottom`) is
+ * pushed below the ground line so the enemy stands on it rather than hanging off it. `bodyTop` sets
+ * the chrome: the label sits just under the sprite's top, the HP bar 8px below it, the alert `!`
+ * 14px above it — the same three offsets the old hand-tuned table already encoded, now stated once.
+ *
+ * Idle drives it because idle is the resting pose. A run or attack frame may reach lower (a lunge, a
+ * crouch); letting those move the ground line would make an enemy sink as it swung.
+ */
+function enemyMetrics(frame: number, bodyTop: number, bodyBottom: number): EnemyRenderMetrics {
+  const spriteY = MONSTER_GROUND_Y + (frame - bodyBottom);
+  const headY = spriteY - (frame - bodyTop);
+  return { spriteSize: frame, spriteY, labelY: headY + 3, hpY: headY + 11, alertY: headY - 14 };
 }
 
 /** Several species share a sheet, exactly as `goblin_scout` and `goblin_raider` shared one before:
@@ -87,65 +124,14 @@ export const TINY_SWORDS_ENEMIES: Record<MonsterSpecies, EnemyArt> = {
   gate_troll: TROLL,
 };
 
-const SPEAR_GOBLIN_METRICS: EnemyRenderMetrics = {
-  spriteSize: 98,
-  spriteY: 59,
-  shadowWidth: 16,
-  shadowHeight: 6,
-  labelY: -17,
-  hpY: -9,
-  alertY: -34,
-};
-
-const TORCH_GOBLIN_METRICS: EnemyRenderMetrics = {
-  spriteSize: 119,
-  spriteY: 65,
-  shadowWidth: 17,
-  shadowHeight: 6,
-  labelY: -11,
-  hpY: -3,
-  alertY: -28,
-};
-
-const GNOLL_METRICS: EnemyRenderMetrics = {
-  spriteSize: 128,
-  spriteY: 67,
-  shadowWidth: 22,
-  shadowHeight: 7,
-  labelY: -18,
-  hpY: -10,
-  alertY: -35,
-};
-
-const SKULL_METRICS: EnemyRenderMetrics = {
-  spriteSize: 124,
-  spriteY: 69,
-  shadowWidth: 17,
-  shadowHeight: 6,
-  labelY: -15,
-  hpY: -7,
-  alertY: -32,
-};
-
-const MINOTAUR_METRICS: EnemyRenderMetrics = {
-  spriteSize: 186,
-  spriteY: 90,
-  shadowWidth: 30,
-  shadowHeight: 10,
-  labelY: -44,
-  hpY: -36,
-  alertY: -61,
-};
-
-const TROLL_METRICS: EnemyRenderMetrics = {
-  spriteSize: 168,
-  spriteY: 67,
-  shadowWidth: 29,
-  shadowHeight: 11,
-  labelY: -61,
-  hpY: -53,
-  alertY: -78,
-};
+// The measured idle-strip extents, per sheet: (frame, bodyTop, bodyBottom). Re-measure with any art
+// update — every other number falls out of these three.
+const SPEAR_GOBLIN_METRICS = enemyMetrics(256, 48, 176);
+const TORCH_GOBLIN_METRICS = enemyMetrics(192, 65, 133);
+const GNOLL_METRICS = enemyMetrics(192, 60, 135);
+const SKULL_METRICS = enemyMetrics(192, 57, 130);
+const MINOTAUR_METRICS = enemyMetrics(320, 85, 214);
+const TROLL_METRICS = enemyMetrics(384, 86, 297);
 
 export const ENEMY_RENDER_METRICS: Record<MonsterSpecies, EnemyRenderMetrics> = {
   spear_goblin: SPEAR_GOBLIN_METRICS,
