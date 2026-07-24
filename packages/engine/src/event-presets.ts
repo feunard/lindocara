@@ -34,14 +34,20 @@ const CHEST_DEFAULT_GOLD = 10;
 export function presetPageContent(
   preset: EventPreset,
   selfMapId: string,
+  selfSpawn: { col: number; row: number } = { col: 0, row: 0 },
 ): { trigger: EventTrigger; commands: EventCommand[] } {
   switch (preset) {
     case "raw":
       return { trigger: "action", commands: [] };
     case "teleporter":
+      // The destination defaults to the map's OWN spawn cell, not (0, 0). The runtime refuses a
+      // teleport onto unwalkable ground (and only warns once, into the server log), so a corner cell
+      // is a placeholder that can silently do nothing on any map with a decorated border — which is
+      // most of them. A map's spawn is the one cell the editor guarantees stays walkable, so this
+      // placeholder always *visibly* fires, and the author retargets it in the dialog.
       return {
         trigger: "player-touch",
-        commands: [{ t: "teleport", mapId: selfMapId, col: 0, row: 0 }],
+        commands: [{ t: "teleport", mapId: selfMapId, col: selfSpawn.col, row: selfSpawn.row }],
       };
     case "sign":
       return { trigger: "action", commands: [{ t: "say", text: "", name: null }] };
@@ -67,14 +73,25 @@ export function presetEvent(params: {
   ordinal: number;
   preset: EventPreset;
   selfMapId: string;
+  /** The map's own spawn cell — the `teleporter` preset's walkable destination placeholder. */
+  selfSpawn?: { col: number; row: number };
+  /** The placed event's name, so the sidebar list and the inspector can tell a teleporter from a
+   *  chest. Authored DATA in the author's own language (the editor passes its localized preset
+   *  label), never a message key: an event name is stored in D1 and renamed freely, exactly like the
+   *  authored prose in a `say`. Absent means the historical unnamed event. */
+  name?: string;
 }): MapEvent {
-  const { trigger, commands } = presetPageContent(params.preset, params.selfMapId);
+  const { trigger, commands } = presetPageContent(
+    params.preset,
+    params.selfMapId,
+    params.selfSpawn,
+  );
   const page: MapEventPage = { ...defaultEventPage(), trigger, commands };
   return {
     id: params.id,
     col: params.col,
     row: params.row,
-    name: "",
+    name: params.name ?? "",
     ordinal: params.ordinal,
     kind: "normal",
     species: null,

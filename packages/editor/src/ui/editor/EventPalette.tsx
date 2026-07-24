@@ -9,8 +9,10 @@ import { Label } from "@lindocara/ui/components/label.js";
 import { EDITOR_MARKER_PREVIEWS, SpriteSheetPreview, SwatchButton } from "./TerrainPalette.js";
 
 /** The popular one-click placements. `raw` is a blank custom event; the rest pre-fill page 1 with
- * one canonical action the author then tunes in the dialog. */
-const PRESET_LABEL: Record<EventPreset, MessageKey> = {
+ * one canonical action the author then tunes in the dialog. Exported because a placement also STORES
+ * its label as the fresh event's name (see `eventToolFor`), so the sidebar list can tell a teleporter
+ * from a chest instead of showing five identical "Custom event" rows. */
+export const PRESET_LABEL: Record<EventPreset, MessageKey> = {
   raw: "editor.event.preset.raw",
   teleporter: "editor.event.preset.teleporter",
   sign: "editor.event.preset.sign",

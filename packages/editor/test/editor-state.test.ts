@@ -900,7 +900,9 @@ describe("applyTool: event placement", () => {
   it("pre-fills a preset event's page 1 with its command program and trigger (D13)", () => {
     const base = blankMap("m", 20, 15);
     const mapId = crypto.randomUUID();
-    // Teleporter: a player-touch trigger + a same-map teleport command the author retargets.
+    // Teleporter: a player-touch trigger + a same-map teleport command the author retargets. Its
+    // destination placeholder is the map's OWN spawn, not the (0, 0) corner: the runtime silently
+    // refuses a teleport onto unwalkable ground, and a spawn is the one cell kept clear.
     const tp = place(
       base,
       { kind: "event", eventKind: "normal", preset: "teleporter", selfMapId: mapId },
@@ -909,7 +911,9 @@ describe("applyTool: event placement", () => {
     ) as EditorMap;
     expect(tp.events[0]?.kind).toBe("normal");
     expect(tp.events[0]?.pages[0]?.trigger).toBe("player-touch");
-    expect(tp.events[0]?.pages[0]?.commands).toEqual([{ t: "teleport", mapId, col: 0, row: 0 }]);
+    expect(tp.events[0]?.pages[0]?.commands).toEqual([
+      { t: "teleport", mapId, col: base.spawn.col, row: base.spawn.row },
+    ]);
 
     // Sign: an interact-triggered say. Chest: a changeGold. Raw (default): the blank program.
     const sign = place(

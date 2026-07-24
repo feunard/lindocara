@@ -77,6 +77,7 @@ import { EditorPalette } from "./EditorPalette.js";
 import { EditorStatusBar } from "./EditorStatusBar.js";
 import { type EditorPaintTool, EditorToolbar, toolLabelText } from "./EditorToolbar.js";
 import { EventDialog } from "./EventDialog.js";
+import { PRESET_LABEL } from "./EventPalette.js";
 import {
   clearLastEditedAdventure,
   readLastEditedAdventure,
@@ -122,10 +123,15 @@ function eventToolFor(
   selfMapId: string | null,
 ): EditorTool {
   if (eventKind === "monster") return { kind: "event", eventKind, species, patrolRadius };
-  if (eventKind === "normal")
+  if (eventKind === "normal") {
+    // A preset placement names itself, in the author's language, so the event list distinguishes the
+    // five presets. `raw` stays unnamed: it IS the generic custom event, and the list's own kind
+    // fallback already says so — naming it would only freeze that label against a later rename.
+    const named = preset === "raw" ? {} : { presetName: t(PRESET_LABEL[preset]) };
     return selfMapId === null
-      ? { kind: "event", eventKind, preset }
-      : { kind: "event", eventKind, preset, selfMapId };
+      ? { kind: "event", eventKind, preset, ...named }
+      : { kind: "event", eventKind, preset, selfMapId, ...named };
+  }
   return { kind: "event", eventKind };
 }
 

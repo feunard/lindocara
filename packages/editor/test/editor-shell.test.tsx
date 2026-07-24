@@ -488,17 +488,22 @@ describe("AdventureEditorScreen shell", () => {
       within(palette).getByRole("button", { name: t("editor.event.preset.teleporter") }),
     );
     // The preset reaches the event tool the stage places with; applyTool then pre-fills page 1 from it
-    // (proven directly in editor-state.test.ts / event-presets.test.ts).
+    // (proven directly in editor-state.test.ts / event-presets.test.ts). It also carries the preset's
+    // LOCALIZED label, which applyTool stores as the fresh event's name so the sidebar list can tell
+    // five preset placements apart instead of showing five identical "Custom event" rows.
     expect(stageMock.setTool).toHaveBeenLastCalledWith({
       kind: "event",
       eventKind: "normal",
       preset: "teleporter",
       selfMapId: "m1",
+      presetName: t("editor.event.preset.teleporter"),
     });
 
     await userEvent.click(
       within(palette).getByRole("button", { name: t("editor.event.preset.raw") }),
     );
+    // `raw` stays unnamed: it IS the generic custom event, and the list's kind fallback already says
+    // so. Naming it would freeze that label into stored data against a later rename.
     expect(stageMock.setTool).toHaveBeenLastCalledWith({
       kind: "event",
       eventKind: "normal",

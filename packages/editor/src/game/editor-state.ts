@@ -143,6 +143,9 @@ export type EditorTool =
       /** The current map's uuid, used only by the `teleporter` preset for its same-map destination
        *  default (`teleport.mapId` is a real uuid the author retargets in the event dialog). */
       selfMapId?: string;
+      /** The localized preset label, stored as the placed event's name. Resolved in the React layer
+       *  because `t()` lives there; this module stays locale-free and just carries it through. */
+      presetName?: string;
       species?: MonsterSpecies;
       patrolRadius?: number;
     };
@@ -1093,6 +1096,10 @@ export function applyTool(
           ordinal,
           preset: tool.preset ?? "raw",
           selfMapId: tool.selfMapId ?? "",
+          // The map's own spawn is the walkable placeholder a fresh `teleporter` aims at, and the
+          // preset label names the event so five presets do not all list as "Custom event".
+          selfSpawn: map.spawn,
+          ...(tool.presetName === undefined ? {} : { name: tool.presetName }),
         });
         return { ...map, events: [...map.events, event] };
       }
