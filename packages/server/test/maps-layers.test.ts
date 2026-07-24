@@ -77,7 +77,7 @@ describe("maps stored as layers", () => {
     const accountId = await owner("layers-rev");
     const adventureId = await seedAdventure(db, accountId);
     const created = await authorMap(db, accountId, adventureId, input("Riverwood"));
-    const updated = await updateMap(db, accountId, created.id, input("Riverwood II"));
+    const updated = await updateMap(db, created.id, input("Riverwood II"));
     expect(updated.revision).toBe(created.revision + 1);
   });
 

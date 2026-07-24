@@ -91,7 +91,7 @@ async function seedParty(db: Db): Promise<string> {
   const adv = await createAdventure(db, "owner", { title: "Donjon", maxPlayers: 4 });
   const mapA = await authorMap(db, "owner", adv.id, mapInput("A"));
   const mapB = await authorMap(db, "owner", adv.id, mapInput("B", eventsB()));
-  await updateAdventure(db, "owner", adv.id, adventureGraph(mapA.id, mapB.id));
+  await updateAdventure(db, adv.id, adventureGraph(mapA.id, mapB.id));
   const party = await createParty(db, "owner", { adventureId: adv.id, name: null, color: "blue" });
   return party.id;
 }

@@ -199,9 +199,43 @@ export async function listAdventures(
 }
 
 /**
+ * The collaborative editor's picker: EVERY adventure on the server, drafts included, with its
+ * author. Editing is open to all authenticated accounts; only deletion stays the author's.
+ */
+export async function listAllAdventures(db: Db): Promise<
+  {
+    id: string;
+    title: string;
+    maxPlayers: number;
+    mapCount: number;
+    playable: boolean;
+    author: string;
+  }[]
+> {
+  const rows = await db
+    .select({
+      id: adventure.id,
+      title: adventure.title,
+      maxPlayers: adventure.maxPlayers,
+      author: account.username,
+    })
+    .from(adventure)
+    .innerJoin(account, eq(adventure.accountId, account.id))
+    .orderBy(asc(adventure.createdAt));
+  const counts = await db
+    .select({ adventureId: map.adventureId, count: sql<number>`count(*)` })
+    .from(map)
+    .groupBy(map.adventureId);
+  const countByAdventure = new Map(counts.map((row) => [row.adventureId, Number(row.count)]));
+  return rows.map((row) => {
+    const mapCount = countByAdventure.get(row.id) ?? 0;
+    return { ...row, mapCount, playable: mapCount > 0 };
+  });
+}
+
+/**
  * The play-flow listing: every PLAYABLE adventure on the server, any author (the "New adventure"
- * carousel). Drafts stay invisible, and nothing here may ever feed an edit surface — editing keeps
- * the owner-fenced `listAdventures` above.
+ * carousel). Drafts stay invisible.
  */
 export async function listPlayableAdventures(db: Db): Promise<
   {
@@ -336,11 +370,12 @@ export async function resolveAdventureStart(
 
 export async function updateAdventure(
   db: Db,
-  accountId: string,
   id: string,
   input: AdventureInput,
 ): Promise<StoredAdventure> {
-  const row = await ownedRow(db, accountId, id);
+  // Collaborative editing: any authenticated account may edit any adventure (delete stays fenced).
+  const rows = await db.select().from(adventure).where(eq(adventure.id, id)).limit(1);
+  const row = rows[0];
   if (!row) throw new Error("not_found: no such adventure");
   const title = input.title.trim();
   if (title.length === 0 || title.length > 48) throw new Error("title: 1-48 characters");
@@ -389,7 +424,7 @@ export async function updateAdventure(
       updatedAt: new Date(),
     })
     .where(eq(adventure.id, id));
-  const stored = await loadAdventure(db, accountId, id);
+  const stored = await loadAdventureById(db, id);
   if (!stored) throw new Error("not_found: adventure vanished mid-update");
   return stored;
 }

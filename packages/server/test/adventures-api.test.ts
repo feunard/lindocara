@@ -282,7 +282,7 @@ describe("adventure lifecycle over the wire", () => {
     expect(await foreign.json()).toEqual({ error: "adventure_graph" });
   });
 
-  it("hides other accounts' adventures and refuses referencing their maps", async () => {
+  it("lets any account read and edit a foreign adventure; deleting stays the author's", async () => {
     const advId = await createDraft();
     const mapA = await authorMap(advId, mapBody("A"));
     const mapB = await authorMap(advId, mapBody("B", eventsB()));
@@ -292,8 +292,16 @@ describe("adventure lifecycle over the wire", () => {
     });
 
     const rival = await register();
+    // The editor's own listing stays owner-scoped; the collaborative listing shows everything.
     expect(await (await authed("/api/adventures", {}, rival)).json()).toEqual([]);
-    expect((await authed(`/api/adventures/${advId}`, {}, rival)).status).toBe(404);
+    const all = (await (await authed("/api/adventures?scope=all", {}, rival)).json()) as {
+      id: string;
+      author: string;
+    }[];
+    const listed = all.find((entry) => entry.id === advId);
+    expect(listed?.author).toMatch(/^advapi\d+$/);
+    // Reading and editing a foreign adventure is open (collaborative editing)…
+    expect((await authed(`/api/adventures/${advId}`, {}, rival)).status).toBe(200);
     expect(
       (
         await authed(
@@ -301,7 +309,7 @@ describe("adventure lifecycle over the wire", () => {
           {
             method: "PUT",
             body: JSON.stringify({
-              title: "Steal",
+              title: "Donjon retouché",
               maxPlayers: 4,
               graph: corridorGraph(mapA, mapB),
             }),
@@ -309,7 +317,8 @@ describe("adventure lifecycle over the wire", () => {
           rival,
         )
       ).status,
-    ).toBe(404);
+    ).toBe(200);
+    // …while destroying it remains the author's alone.
     expect((await authed(`/api/adventures/${advId}`, { method: "DELETE" }, rival)).status).toBe(
       404,
     );

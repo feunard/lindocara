@@ -4,7 +4,7 @@ import {
   authErrorText,
   errorCode,
   fetchAdventure,
-  fetchAdventures,
+  fetchAllAdventures,
   updateAdventureApi,
 } from "@lindocara/client/api.js";
 import { t, useLocale } from "@lindocara/client/i18n.js";
@@ -90,7 +90,7 @@ export function RegistryDialog({ open, onOpenChange, onSessionExpired }: Registr
     setError(null);
     void (async () => {
       try {
-        setAdventures(await fetchAdventures());
+        setAdventures(await fetchAllAdventures());
       } catch (caught) {
         fail(caught);
       }

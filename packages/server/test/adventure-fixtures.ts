@@ -81,10 +81,10 @@ export async function seedAdventure(
  */
 export async function authorMap(
   db: Db,
-  accountId: string,
+  _accountId: string,
   adventureId: string,
   input: MapInput,
 ): Promise<StoredMap> {
-  const created = await createMap(db, accountId, adventureId, input.name);
-  return updateMap(db, accountId, created.id, input);
+  const created = await createMap(db, adventureId, input.name);
+  return updateMap(db, created.id, input);
 }

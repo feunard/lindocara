@@ -84,7 +84,7 @@ async function seedAdventure(accountId: string, maxPlayers = 4): Promise<string>
   const created = await createAdventure(db, accountId, { title: "Donjon", maxPlayers });
   const mapA = await authorMap(db, accountId, created.id, mapInput("A"));
   const mapB = await authorMap(db, accountId, created.id, mapInput("B", eventsB()));
-  await updateAdventure(db, accountId, created.id, adventureGraph(mapA.id, mapB.id, maxPlayers));
+  await updateAdventure(db, created.id, adventureGraph(mapA.id, mapB.id, maxPlayers));
   return created.id;
 }
 

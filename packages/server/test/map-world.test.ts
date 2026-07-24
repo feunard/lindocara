@@ -104,7 +104,7 @@ describe("D1 maps end-to-end", () => {
     await env.DB.prepare("UPDATE character SET zone_id = ? WHERE id = ?")
       .bind(gone.id, session.characterId)
       .run();
-    await deleteMap(db, session.accountId, gone.id);
+    await deleteMap(db, gone.id);
 
     const client = await Client.joinCharacter(session);
     try {

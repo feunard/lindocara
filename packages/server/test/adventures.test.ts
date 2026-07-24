@@ -98,7 +98,7 @@ async function buildAdventure(db: Db, owner: string) {
   const advId = await seedAdventure(db, owner, "Donjon");
   const mapA = await authorMap(db, owner, advId, mapInput("A", eventsA()));
   const mapB = await authorMap(db, owner, advId, mapInput("B", eventsB()));
-  const adv = await updateAdventure(db, owner, advId, {
+  const adv = await updateAdventure(db, advId, {
     title: "Donjon",
     maxPlayers: 2,
     graph: corridorGraph(mapA.id, mapB.id),
@@ -153,7 +153,7 @@ describe("adventure CRUD", () => {
     const mapB = await authorMap(db, "owner", advId, mapInput("B", eventsB()));
 
     // B's exit is left unbound (no ending reachable): partial wiring is a valid save now, not refused.
-    const partial = await updateAdventure(db, "owner", advId, {
+    const partial = await updateAdventure(db, advId, {
       title: "Donjon",
       maxPlayers: 2,
       graph: {
@@ -165,7 +165,7 @@ describe("adventure CRUD", () => {
 
     // A graph that names a map the adventure does not own is a foreign reference — refused.
     await expect(
-      updateAdventure(db, "owner", advId, {
+      updateAdventure(db, advId, {
         title: "Donjon",
         maxPlayers: 2,
         graph: { start: { mapId: "ghostmap", entryId: ENTRY_A }, links: [] },
@@ -179,20 +179,21 @@ describe("adventure CRUD", () => {
     await seedAccount("rival");
     const { advId, mapA, mapB } = await buildAdventure(db, "owner");
 
-    const renamed = await updateAdventure(db, "owner", advId, {
+    const renamed = await updateAdventure(db, advId, {
       title: "Renamed",
       maxPlayers: 2,
       graph: corridorGraph(mapA.id, mapB.id),
     });
     expect(renamed.title).toBe("Renamed");
 
-    await expect(
-      updateAdventure(db, "rival", advId, {
-        title: "Steal",
-        maxPlayers: 2,
-        graph: corridorGraph(mapA.id, mapB.id),
-      }),
-    ).rejects.toThrow(/^not_found:/);
+    // Collaborative editing: a rival's edit is accepted…
+    const retouched = await updateAdventure(db, advId, {
+      title: "Retouche rivale",
+      maxPlayers: 2,
+      graph: corridorGraph(mapA.id, mapB.id),
+    });
+    expect(retouched.title).toBe("Retouche rivale");
+    // …while destroying it stays the author's alone.
     await expect(deleteAdventure(db, "rival", advId)).rejects.toThrow(/^not_found:/);
 
     await deleteAdventure(db, "owner", advId);
@@ -218,7 +219,7 @@ describe("adventure CRUD", () => {
 
     // Nulling the start is refused while the party exists.
     await expect(
-      updateAdventure(db, "owner", advId, {
+      updateAdventure(db, advId, {
         title: "Donjon",
         maxPlayers: 2,
         graph: { start: null, links: [] },
@@ -226,7 +227,7 @@ describe("adventure CRUD", () => {
     ).rejects.toThrow(/^in_use:/);
 
     // Editing that leaves the start where it is (a rename) is still allowed mid-play.
-    const renamed = await updateAdventure(db, "owner", advId, {
+    const renamed = await updateAdventure(db, advId, {
       title: "Renamed mid-play",
       maxPlayers: 2,
       graph: corridorGraph(mapA.id, mapB.id),
@@ -341,7 +342,7 @@ describe("adventure registry", () => {
       switches: [{ id: "0001", name: "Porte" }],
       variables: [{ id: "0001", name: "Or" }],
     };
-    await updateAdventure(db, "owner", advId, {
+    await updateAdventure(db, advId, {
       title: "Donjon",
       maxPlayers: 2,
       graph: corridorGraph(mapA.id, mapB.id),
@@ -349,7 +350,7 @@ describe("adventure registry", () => {
     });
     expect((await loadAdventure(db, "owner", advId))?.registry).toEqual(registry);
 
-    await updateAdventure(db, "owner", advId, {
+    await updateAdventure(db, advId, {
       title: "Renommé",
       maxPlayers: 2,
       graph: corridorGraph(mapA.id, mapB.id),
@@ -371,14 +372,14 @@ describe("map deletion guard", () => {
     const spare = await authorMap(db, "owner", advId, {
       ...mapInput("Spare", [ev("cccccccc-0000-4000-8000-000000000001", "entry", 5, 5)]),
     });
-    await updateAdventure(db, "owner", advId, {
+    await updateAdventure(db, advId, {
       title: "Donjon",
       maxPlayers: 2,
       graph: corridorGraph(mapA.id, mapB.id),
     });
 
-    await expect(deleteOwnedMap(db, "owner", mapA.id)).rejects.toThrow(/^referenced:/);
-    await deleteOwnedMap(db, "owner", spare.id); // unwired maps still delete
+    await expect(deleteOwnedMap(db, mapA.id)).rejects.toThrow(/^referenced:/);
+    await deleteOwnedMap(db, spare.id); // unwired maps still delete
   });
 });
 
@@ -394,31 +395,21 @@ describe("map edits after the graph teardown", () => {
     const mapA = await authorMap(db, "owner", advId, mapInput("A", eventsA()));
     const mapB = await authorMap(db, "owner", advId, mapInput("B", eventsB()));
     const graph = corridorGraph(mapA.id, mapB.id);
-    await updateAdventure(db, "owner", advId, { title: "Donjon", maxPlayers: 2, graph });
+    await updateAdventure(db, advId, { title: "Donjon", maxPlayers: 2, graph });
 
     // Removing A's previously-bound exit event is now ACCEPTED (the guard is gone for plain edits).
-    const trimmed = await updateMap(
-      db,
-      "owner",
-      mapA.id,
-      mapInput("A", [ev(ENTRY_A, "entry", 5, 5)]),
-    );
+    const trimmed = await updateMap(db, mapA.id, mapInput("A", [ev(ENTRY_A, "entry", 5, 5)]));
     expect(exitEvents(trimmed.events)).toHaveLength(0);
 
     // Removing B's entry (A's exit destination) is likewise accepted.
-    await updateMap(db, "owner", mapB.id, mapInput("B", [ev(EXIT_B, "exit", 7, 7)]));
+    await updateMap(db, mapB.id, mapInput("B", [ev(EXIT_B, "exit", 7, 7)]));
 
     // The stored graph is untouched by those map edits — the runtime still reads it for compat routing.
     const reloaded = await loadAdventure(db, "owner", advId);
     expect(reloaded?.graph).toEqual(graph);
 
     // Growing the event set still works, and the revision moves monotonically.
-    const grown = await updateMap(
-      db,
-      "owner",
-      mapA.id,
-      mapInput("A", eventsA([ev(SIDE_A, "entry", 3, 3)])),
-    );
+    const grown = await updateMap(db, mapA.id, mapInput("A", eventsA([ev(SIDE_A, "entry", 3, 3)])));
     expect(entryEvents(grown.events)).toHaveLength(2);
 
     // once the adventure is gone, the map is gone too (cascade).

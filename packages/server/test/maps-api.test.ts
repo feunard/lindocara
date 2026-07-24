@@ -186,12 +186,18 @@ describe("create under an adventure", () => {
     expect(created.events).toEqual([]);
   });
 
-  it("refuses creating a map under an adventure the caller does not own (404)", async () => {
+  it("creates a map under a foreign adventure — collaborative editing is open", async () => {
     const adventureId = await newAdventure();
     const rival = await register();
-    const res = await newMap(adventureId, "Sneaky", rival);
-    expect(res.status).toBe(404);
-    expect(await res.json()).toEqual({ error: "map_not_found" });
+    const res = await newMap(adventureId, "Contribution", rival);
+    expect(res.status).toBe(201);
+    // The new map belongs to the ADVENTURE's author, not its creator: the author's own adventure
+    // listing keeps counting it (map.account_id inherits from the adventure).
+    const mine = (await (await authed("/api/adventures")).json()) as {
+      id: string;
+      mapCount: number;
+    }[];
+    expect(mine.find((entry) => entry.id === adventureId)?.mapCount).toBe(1);
   });
 
   it("400s a create body with no adventure or no name", async () => {
@@ -333,7 +339,7 @@ describe("list, get, update, delete", () => {
     expect(fetched.events[0]?.pages[0]?.commands).toEqual(commands);
   });
 
-  it("keeps maps private and hides foreign mutations as not found", async () => {
+  it("opens foreign maps to reading and editing — collaborative editing", async () => {
     const adventureId = await newAdventure();
     const id = await newMapId(adventureId, "Private");
     const rival = await register();
@@ -342,12 +348,19 @@ describe("list, get, update, delete", () => {
     expect(await (await authed(`/api/maps?adventure=${rivalAdventure}`, {}, rival)).json()).toEqual(
       [],
     );
-    expect((await authed(`/api/maps/${id}`, {}, rival)).status).toBe(404);
-    expect((await putMap(id, mapBody({ name: "Stolen" }), rival)).status).toBe(404);
-    expect((await authed(`/api/maps/${id}`, { method: "DELETE" }, rival)).status).toBe(404);
+    // A rival reads the author's library and the map itself…
+    const library = (await (
+      await authed(`/api/maps?adventure=${adventureId}`, {}, rival)
+    ).json()) as {
+      id: string;
+    }[];
+    expect(library.some((entry) => entry.id === id)).toBe(true);
+    expect((await authed(`/api/maps/${id}`, {}, rival)).status).toBe(200);
+    // …edits it (the revision advances for everyone)…
+    expect((await putMap(id, mapBody({ name: "Retouche" }), rival)).status).toBe(200);
     expect(await (await authed(`/api/maps/${id}`)).json()).toMatchObject({
-      name: "Private",
-      revision: 1,
+      name: "Retouche",
+      revision: 2,
     });
   });
 

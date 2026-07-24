@@ -34,8 +34,8 @@ import {
   createAdventureWithDefaultMap,
   deleteAdventure,
   listAdventures,
+  listAllAdventures,
   listPlayableAdventures,
-  loadAdventure,
   loadAdventureById,
   resolveAdventureStart,
   updateAdventure,
@@ -57,7 +57,6 @@ import {
   deleteMap,
   listMapsForAdventure,
   loadMap,
-  loadOwnedMap,
   type MapInput,
   resolveMapFor,
   type StoredMap,
@@ -634,7 +633,7 @@ async function handleListMaps(request: Request, env: Env, url: URL): Promise<Res
   if (!adventureId || !isUuid(adventureId)) {
     return json({ error: "map_invalid" }, { status: 400 });
   }
-  return json(await listMapsForAdventure(createDb(env.DB), auth.session.id, adventureId));
+  return json(await listMapsForAdventure(createDb(env.DB), adventureId));
 }
 
 /** The `{ adventureId, name }` body of a new-map request — the only two fields a client sends now,
@@ -655,12 +654,9 @@ async function handleCreateMap(request: Request, env: Env, url: URL): Promise<Re
   const input = parseCreateMapBody(parsed.value);
   if (!input) return json({ error: "map_invalid" }, { status: 400 });
   try {
-    return json(
-      mapResponseBody(
-        await createMap(createDb(env.DB), auth.session.id, input.adventureId, input.name),
-      ),
-      { status: 201 },
-    );
+    return json(mapResponseBody(await createMap(createDb(env.DB), input.adventureId, input.name)), {
+      status: 201,
+    });
   } catch (error) {
     return mapErrorResponse(error);
   }
@@ -670,7 +666,7 @@ async function handleGetMap(request: Request, env: Env, url: URL, id: string): P
   const auth = await requireSession(request, env, url);
   if (auth instanceof Response) return auth;
   // The built-in floor is never a D1 row, so loadMap returns null for it — no special case needed.
-  const stored = await loadOwnedMap(createDb(env.DB), auth.session.id, id);
+  const stored = await loadMap(createDb(env.DB), id);
   if (!stored) return json({ error: "map_not_found" }, { status: 404 });
   return json(mapResponseBody(stored));
 }
@@ -705,7 +701,6 @@ async function handleUpdateMap(
       mapResponseBody(
         await updateMap(
           createDb(env.DB),
-          auth.session.id,
           id,
           input,
           proposedAdventure ?? undefined,
@@ -727,7 +722,7 @@ async function handleDeleteMap(
   const auth = await requireSession(request, env, url);
   if (auth instanceof Response) return auth;
   try {
-    await deleteMap(createDb(env.DB), auth.session.id, id);
+    await deleteMap(createDb(env.DB), id);
     return new Response(null, { status: 204 });
   } catch (error) {
     return mapErrorResponse(error);
@@ -743,7 +738,7 @@ async function handleSetFirstMap(
   const auth = await requireSession(request, env, url);
   if (auth instanceof Response) return auth;
   try {
-    await setFirstMap(createDb(env.DB), auth.session.id, id);
+    await setFirstMap(createDb(env.DB), id);
     return new Response(null, { status: 204 });
   } catch (error) {
     return mapErrorResponse(error);
@@ -821,6 +816,10 @@ async function handleListAdventures(request: Request, env: Env, url: URL): Promi
   // stays the owner-fenced editor listing.
   if (url.searchParams.get("scope") === "play") {
     return json(await listPlayableAdventures(db));
+  }
+  // `scope=all` is the collaborative editor's picker: EVERY adventure, drafts included, with author.
+  if (url.searchParams.get("scope") === "all") {
+    return json(await listAllAdventures(db));
   }
   return json(await listAdventures(db, auth.session.id));
 }
@@ -907,7 +906,8 @@ async function handleGetAdventure(
 ): Promise<Response> {
   const auth = await requireSession(request, env, url);
   if (auth instanceof Response) return auth;
-  const stored = await loadAdventure(createDb(env.DB), auth.session.id, id);
+  // Collaborative editing: the editor opens anyone's adventure.
+  const stored = await loadAdventureById(createDb(env.DB), id);
   if (!stored) return json({ error: "adventure_not_found" }, { status: 404 });
   return json(stored);
 }
@@ -925,7 +925,7 @@ async function handleUpdateAdventure(
   const input = parseAdventureInput(parsed.value);
   if (!input) return json({ error: "adventure_invalid" }, { status: 400 });
   try {
-    return json(await updateAdventure(createDb(env.DB), auth.session.id, id, input));
+    return json(await updateAdventure(createDb(env.DB), id, input));
   } catch (error) {
     return adventureErrorResponse(error);
   }

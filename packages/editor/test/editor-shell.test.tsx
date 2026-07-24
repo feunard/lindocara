@@ -1446,7 +1446,7 @@ describe("AdventureEditorScreen shell", () => {
         const method = init?.method ?? "GET";
         if (url.startsWith("/api/maps?adventure=") && method === "GET")
           return Promise.resolve(jsonResponse(oneMap));
-        if (url === "/api/adventures" && method === "GET")
+        if ((url === "/api/adventures" || url === "/api/adventures?scope=all") && method === "GET")
           return Promise.resolve(
             jsonResponse([
               { id: "adv-1", title: "First", maxPlayers: 4, mapCount: 1, playable: true },

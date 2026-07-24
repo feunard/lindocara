@@ -46,12 +46,12 @@ const OWNER = "maps-owner";
 let adventureId = "";
 
 const createMap = (db: Db, input: MapInput) => authorMap(db, OWNER, adventureId, input);
-const deleteMap = (db: Db, id: string) => deleteOwnedMap(db, OWNER, id);
+const deleteMap = (db: Db, id: string) => deleteOwnedMap(db, id);
 const firstMap = (db: Db) => firstOwnedMap(db, OWNER);
-const listMaps = (db: Db) => listOwnedMaps(db, OWNER, adventureId);
+const listMaps = (db: Db) => listOwnedMaps(db, adventureId);
 const resolveMapFor = (db: Db, zoneId: string) => resolveOwnedMapFor(db, OWNER, zoneId);
-const setFirstMap = (db: Db, id: string) => setOwnedFirstMap(db, OWNER, id);
-const updateMap = (db: Db, id: string, input: MapInput) => updateOwnedMap(db, OWNER, id, input);
+const setFirstMap = (db: Db, id: string) => setOwnedFirstMap(db, id);
+const updateMap = (db: Db, id: string, input: MapInput) => updateOwnedMap(db, id, input);
 function validBlocks(): string[] {
   const blocks = [".".repeat(MAP_COLS), `.##${".".repeat(MAP_COLS - 3)}`];
   while (blocks.length < MAP_ROWS) blocks.push(".".repeat(MAP_COLS));
@@ -547,8 +547,8 @@ describe("maps", () => {
       // row and its wholesale-replaced children must be one compare-and-swap, not two independent
       // writes that can produce Writer A's terrain with Writer B's elements.
       const outcomes = await Promise.allSettled([
-        updateOwnedMap(createDb(env.DB), OWNER, created.id, writerA, undefined, revision),
-        updateOwnedMap(createDb(env.DB), OWNER, created.id, writerB, undefined, revision),
+        updateOwnedMap(createDb(env.DB), created.id, writerA, undefined, revision),
+        updateOwnedMap(createDb(env.DB), created.id, writerB, undefined, revision),
       ]);
 
       const fulfilled = outcomes.filter(
@@ -681,7 +681,6 @@ describe("maps", () => {
 
       const updated = await updateOwnedMap(
         db,
-        OWNER,
         created.id,
         nextMap,
         nextAdventure,

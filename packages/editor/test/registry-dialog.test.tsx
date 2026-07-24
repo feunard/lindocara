@@ -134,7 +134,7 @@ describe("RegistryDialog", () => {
 
   it("lists the account's adventures when no session is loaded", async () => {
     const mock = vi.fn((url: string) => {
-      if (url === "/api/adventures") {
+      if (url === "/api/adventures" || url === "/api/adventures?scope=all") {
         return Promise.resolve(
           new Response(JSON.stringify([{ id: "adv-9", title: "Ruines", maxPlayers: 2 }]), {
             status: 200,

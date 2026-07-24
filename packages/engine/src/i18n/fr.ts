@@ -882,6 +882,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.picker.empty": "Aucune aventure pour l'instant. Créez la première ci-dessous.",
   "editor.picker.open": "Ouvrir",
   "editor.picker.maps": "{count} cartes",
+  "editor.picker.author": "par {author}",
   "editor.picker.playable": "Jouable",
   "editor.picker.draft": "Brouillon",
   "editor.picker.create.heading": "Nouvelle aventure",

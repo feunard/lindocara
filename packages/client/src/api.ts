@@ -145,6 +145,8 @@ export interface AdventurePayload {
 export const fetchAdventures = () => api<AdventureSummary[]>("/api/adventures");
 /** Server-wide playable adventures (any author) — the "New adventure" carousel. */
 export const fetchPlayableAdventures = () => api<AdventureSummary[]>("/api/adventures?scope=play");
+/** Every adventure on the server, drafts included — the collaborative editor's picker. */
+export const fetchAllAdventures = () => api<AdventureSummary[]>("/api/adventures?scope=all");
 export const fetchAdventure = (id: string) => api<AdventurePayload>(`/api/adventures/${id}`);
 export const createAdventureApi = (input: CreateAdventureInput) =>
   api<CreatedAdventure>("/api/adventures", { method: "POST", body: JSON.stringify(input) });

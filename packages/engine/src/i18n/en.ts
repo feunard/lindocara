@@ -867,6 +867,7 @@ export const en = {
   "editor.picker.empty": "No adventures yet. Create your first one below.",
   "editor.picker.open": "Open",
   "editor.picker.maps": "{count} maps",
+  "editor.picker.author": "by {author}",
   "editor.picker.playable": "Playable",
   "editor.picker.draft": "Draft",
   "editor.picker.create.heading": "New adventure",

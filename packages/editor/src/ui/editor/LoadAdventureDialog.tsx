@@ -2,7 +2,7 @@ import {
   type AdventureSummary,
   authErrorText,
   errorCode,
-  fetchAdventures,
+  fetchAllAdventures,
 } from "@lindocara/client/api.js";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import { Button } from "@lindocara/ui/components/button.js";
@@ -53,7 +53,7 @@ export function LoadAdventureDialog({
     setAdventures(null);
     void (async () => {
       try {
-        setAdventures(await fetchAdventures());
+        setAdventures(await fetchAllAdventures());
       } catch (caught) {
         const code = errorCode(caught);
         if (isSessionError(code)) onSessionExpired();
@@ -92,6 +92,11 @@ export function LoadAdventureDialog({
                   <span className="truncate text-sm font-medium">{adventure.title}</span>
                   <span className="flex items-center gap-2 text-xs text-zinc-500">
                     <span>{t("editor.picker.maps", { count: adventure.mapCount })}</span>
+                    {adventure.author && (
+                      <span className="truncate">
+                        {t("editor.picker.author", { author: adventure.author })}
+                      </span>
+                    )}
                     <span
                       className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
                         adventure.playable

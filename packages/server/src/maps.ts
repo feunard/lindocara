@@ -552,14 +552,12 @@ export async function loadOwnedMap(
 }
 
 /**
- * The maps of one adventure the caller owns (UX wave #5: a map belongs to exactly one adventure, so
- * the library is listed per-adventure, not per-account). The `accountId` gate is redundant with the
- * `adventureId` scope — a map's account always equals its adventure's — but keeps a foreign caller
- * from listing another owner's adventure's maps by id.
+ * The maps of one adventure (UX wave #5: a map belongs to exactly one adventure, so the library is
+ * listed per-adventure, not per-account). Collaborative editing: any authenticated account may
+ * list any adventure's library.
  */
 export async function listMapsForAdventure(
   db: Db,
-  accountId: string,
   adventureId: string,
 ): Promise<
   { id: string; name: string; revision: number; cols: number; rows: number; isFirst: boolean }[]
@@ -567,7 +565,7 @@ export async function listMapsForAdventure(
   const rows = await db
     .select()
     .from(map)
-    .where(and(eq(map.accountId, accountId), eq(map.adventureId, adventureId)))
+    .where(eq(map.adventureId, adventureId))
     .orderBy(asc(map.createdAt));
   return rows.map((row) => ({
     id: row.id,
@@ -712,32 +710,29 @@ export function insertEventStatements(db: Db, mapId: string, events: readonly Ma
   return [...parents, ...pages];
 }
 
-/** The adventure `adventureId` that `accountId` owns, or null. Map operations that require an
- *  adventure resolve ownership through it (the map's owner is the adventure's owner). */
-async function ownedAdventure(db: Db, accountId: string, adventureId: string) {
+/** The adventure row (id + author account), or null. Editing is collaborative — any authenticated
+ *  account may create a map here — but the row's `accountId` stays the ON-PAPER owner every
+ *  per-account invariant (`map.account_id`, `is_first`, counts) keys on. */
+async function adventureRow(db: Db, adventureId: string) {
   const [row] = await db
     .select({ id: adventure.id, accountId: adventure.accountId })
     .from(adventure)
     .where(eq(adventure.id, adventureId))
     .limit(1);
-  if (!row || row.accountId !== accountId) return null;
-  return row;
+  return row ?? null;
 }
 
 /**
- * Create a map inside an adventure (UX wave #5 + #7). Ownership is checked through the adventure —
- * a map created under an adventure the caller does not own is refused with `not_found`. The map is
+ * Create a map inside an adventure (UX wave #5 + #7). Editing is open to every authenticated
+ * account (collaborative editing); the created map's `account_id` INHERITS the adventure author's,
+ * never the caller's, so `map.account_id == adventure.account_id` stays an invariant. The map is
  * ALWAYS the 5x5 template (`defaultMapInput`); any client-supplied terrain/size is ignored, so the
  * new-map dialog only sends a name.
  */
-export async function createMap(
-  db: Db,
-  accountId: string,
-  adventureId: string,
-  name: string,
-): Promise<StoredMap> {
-  const owner = await ownedAdventure(db, accountId, adventureId);
+export async function createMap(db: Db, adventureId: string, name: string): Promise<StoredMap> {
+  const owner = await adventureRow(db, adventureId);
   if (!owner) throw new Error("not_found: no such adventure");
+  const accountId = owner.accountId;
   const [mapCount] = await db
     .select({ value: sql<number>`count(*)` })
     .from(map)
@@ -781,14 +776,15 @@ export async function createMap(
 
 export async function updateMap(
   db: Db,
-  accountId: string,
   id: string,
   input: MapInput,
   proposedAdventure?: AdventureInput,
   expectedRevision?: number,
 ): Promise<StoredMap> {
   const data = validateMapInput(input);
-  const existing = await loadOwnedMap(db, accountId, id);
+  // Collaborative editing: any authenticated account may save any map; the revision CAS below is
+  // what protects two concurrent editors, exactly as it always protected two of the author's tabs.
+  const existing = await loadMap(db, id);
   if (!existing) throw new Error("not_found: no such map");
   if (expectedRevision !== undefined && existing.revision !== expectedRevision) {
     throw new Error("conflict: map was changed by another editor");
@@ -805,7 +801,7 @@ export async function updateMap(
     const owner = await db
       .select({ registry: adventure.registry })
       .from(adventure)
-      .where(and(eq(adventure.id, existing.adventureId), eq(adventure.accountId, accountId)))
+      .where(eq(adventure.id, existing.adventureId))
       .get();
     if (!owner) throw new Error("not_found: owning adventure vanished");
     proposedRegistry = prepareAdventureRegistry(
@@ -901,7 +897,7 @@ export async function updateMap(
       writeToken,
       updatedAt: new Date(),
     })
-    .where(and(eq(map.id, id), eq(map.accountId, accountId), eq(map.revision, compareRevision)))
+    .where(and(eq(map.id, id), eq(map.revision, compareRevision)))
     .returning({ revision: map.revision });
   // `db.batch()` is one SQLite transaction. If the CAS above lost, this SELECT sees the winning
   // row's different token and attempts to insert that row again, intentionally tripping the map
@@ -912,7 +908,7 @@ export async function updateMap(
     db
       .select()
       .from(map)
-      .where(and(eq(map.id, id), eq(map.accountId, accountId), ne(map.writeToken, writeToken))),
+      .where(and(eq(map.id, id), ne(map.writeToken, writeToken))),
   );
   // Replace wholesale (diffing would only be a slower way to reach the same rows), but as ONE
   // transaction: the new layers, elements and events land together, so a room admitted mid-update
@@ -942,7 +938,6 @@ export async function updateMap(
           .where(
             and(
               eq(adventure.id, existing.adventureId),
-              eq(adventure.accountId, accountId),
               // A concurrently deleted map cannot leave the adventure shell partially updated.
               sql`EXISTS (
                 SELECT 1 FROM ${map}
@@ -968,7 +963,7 @@ export async function updateMap(
   } catch (error) {
     // The deliberate duplicate-key assertion is an implementation detail. Expose the same stable
     // conflict code as the cheap preflight check so API clients get one actionable outcome.
-    const latest = await loadOwnedMap(db, accountId, id);
+    const latest = await loadMap(db, id);
     if (latest && latest.revision !== compareRevision) {
       throw new Error("conflict: map was changed by another editor");
     }
@@ -977,35 +972,41 @@ export async function updateMap(
   const updatedRows = batchResults[0] as { revision: number }[];
   const updated = updatedRows[0];
   if (!updated) {
-    const latest = await loadOwnedMap(db, accountId, id);
+    const latest = await loadMap(db, id);
     if (latest && latest.revision !== compareRevision) {
       throw new Error("conflict: map was changed by another editor");
     }
     throw new Error("not_found: map ownership changed mid-update");
   }
-  return { id, accountId, adventureId: existing.adventureId, revision: updated.revision, ...data };
+  return {
+    id,
+    accountId: existing.accountId,
+    adventureId: existing.adventureId,
+    revision: updated.revision,
+    ...data,
+  };
 }
 
 /**
  * Hand the front-door flag to a chosen map. Exactly one map carries it, before and after — the
  * clear and the set are one `db.batch`, so a crash between them cannot leave zero maps flagged.
  */
-export async function setFirstMap(db: Db, accountId: string, id: string): Promise<void> {
-  const [row] = await db
-    .select()
-    .from(map)
-    .where(and(eq(map.id, id), eq(map.accountId, accountId)))
-    .limit(1);
-  if (!row) throw new Error("not_found: no such map");
+export async function setFirstMap(db: Db, id: string): Promise<void> {
+  // Collaborative editing: any authenticated account may hand the flag over. The batch stays
+  // scoped to the ROW's on-paper owner account so the one-first-map invariant keys unchanged.
+  // A quarantined legacy row (null account) stays untouchable, exactly as it was when fenced.
+  const [row] = await db.select().from(map).where(eq(map.id, id)).limit(1);
+  if (!row || row.accountId === null) throw new Error("not_found: no such map");
+  const rowAccountId = row.accountId;
   await db.batch([
     db
       .update(map)
       .set({ isFirst: 0 })
-      .where(and(eq(map.accountId, accountId), eq(map.isFirst, 1))),
+      .where(and(eq(map.accountId, rowAccountId), eq(map.isFirst, 1))),
     db
       .update(map)
       .set({ isFirst: 1 })
-      .where(and(eq(map.accountId, accountId), eq(map.id, id))),
+      .where(and(eq(map.accountId, rowAccountId), eq(map.id, id))),
   ]);
 }
 
@@ -1038,12 +1039,10 @@ function graphReferencesMap(graphJson: string, mapId: string): boolean {
  * committed delete, and `count(*) > 1` refuses it. The heir handover rides in the same transaction,
  * so there is never an instant with the flagged map gone and nothing carrying the flag.
  */
-export async function deleteMap(db: Db, accountId: string, id: string): Promise<void> {
-  const [row] = await db
-    .select()
-    .from(map)
-    .where(and(eq(map.id, id), eq(map.accountId, accountId)))
-    .limit(1);
+export async function deleteMap(db: Db, id: string): Promise<void> {
+  // Collaborative editing: any authenticated account may remove a map; the last-map and
+  // graph-reference guards below keep an adventure from being hollowed out.
+  const [row] = await db.select().from(map).where(eq(map.id, id)).limit(1);
   if (!row) throw new Error("not_found: no such map");
 
   // The owning adventure's graph may name this map (its start, a link's source or destination).
@@ -1067,7 +1066,7 @@ export async function deleteMap(db: Db, accountId: string, id: string): Promise<
       .prepare(
         `DELETE FROM map WHERE id = ? AND account_id = ? AND (SELECT count(*) FROM map WHERE adventure_id = ?) > 1`,
       )
-      .bind(id, accountId, row.adventureId),
+      .bind(id, row.accountId, row.adventureId),
     // The old first row is gone before its successor is flagged, so the partial UNIQUE index never
     // observes two first maps. A non-first delete leaves the existing flag alone via NOT EXISTS.
     db.$client
@@ -1080,7 +1079,7 @@ export async function deleteMap(db: Db, accountId: string, id: string): Promise<
                SELECT 1 FROM map WHERE account_id = ? AND is_first = 1
              )`,
       )
-      .bind(accountId, accountId),
+      .bind(row.accountId, row.accountId),
   ]);
   // The guarded DELETE refused it: this was the adventure's last map, and nothing changed.
   if ((results[1]?.meta.changes ?? 0) === 0) {

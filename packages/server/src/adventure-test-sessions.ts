@@ -20,7 +20,7 @@ import {
   validateAuthoredQuests,
 } from "@lindocara/engine/quests.js";
 import { and, eq, lt } from "drizzle-orm";
-import { loadAdventure, resolveAdventureStart } from "./adventures.js";
+import { loadAdventureById, resolveAdventureStart } from "./adventures.js";
 import {
   adventureTestSession,
   type Db,
@@ -197,8 +197,9 @@ export async function createAdventureTestSession(
   input: CreateAdventureTestSessionInput,
   now = new Date(),
 ): Promise<CreateAdventureTestSessionResult> {
-  const adventure = await loadAdventure(db, accountId, adventureId);
-  if (!adventure) throw new Error("adventure: no such owned adventure");
+  // Collaborative editing: the editor playtests anyone's adventure.
+  const adventure = await loadAdventureById(db, adventureId);
+  if (!adventure) throw new Error("adventure: no such adventure");
   if (adventure.mapIds.length === 0) throw new Error("not_playable: adventure has no map");
 
   const maps = (await Promise.all(adventure.mapIds.map((mapId) => loadMap(db, mapId)))).filter(
