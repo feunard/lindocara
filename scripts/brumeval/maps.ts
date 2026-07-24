@@ -249,12 +249,14 @@ export function buildAbbaye(): { content: MapContent; refs: Pick<BrumevalRefs, "
   const entrySouth = fEvent({ col: 12, row: 18, name: "Entrée sud", kind: "entry" });
   const exitSouth = fEvent({ col: 14, row: 18, name: "Vers Ronceclair", kind: "exit" });
 
+  // Spaced ≥4 tiles apart with a short leash, so a level-1 hero pulls one goblin at a time —
+  // the first playthrough died twice to double pulls when they patrolled 96 px apart.
   const monsters = [
-    monster(19, 5, "spear_goblin", "Gobelin pillard"),
-    monster(22, 7, "spear_goblin", "Gobelin pillard"),
-    monster(20, 10, "spear_goblin", "Gobelin pillard"),
-    monster(23, 12, "spear_goblin", "Gobelin pillard"),
-    monster(18, 13, "spear_goblin", "Gobelin pillard"),
+    monster(18, 4, "spear_goblin", "Gobelin pillard", 64),
+    monster(23, 6, "spear_goblin", "Gobelin pillard", 64),
+    monster(25, 10, "spear_goblin", "Gobelin pillard", 64),
+    monster(20, 12, "spear_goblin", "Gobelin pillard", 64),
+    monster(17, 14, "spear_goblin", "Gobelin pillard", 64),
   ];
 
   return {

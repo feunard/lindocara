@@ -284,7 +284,8 @@ export function buildQuests(mapId: MapIdByKey, refs: BrumevalRefs): AuthoredQues
         dialogues: dialogues({
           ready: "Le sol a tremblé, puis plus rien... Il est tombé, n'est-ce pas ?",
           turnIn: "Alors la meute n'a plus de seigneur. Brumeval est libre — grâce à toi.",
-          completed: "La vallée est libre.",
+          // Pas de réplique `completed` : elle capturerait l'interaction pour toujours et
+          // masquerait la page 2 de Lise (le choix « Rentrer au village » → endAdventure).
           unavailable: "Reviens quand la meute n'aura plus de chef.",
         }),
       },
