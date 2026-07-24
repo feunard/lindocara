@@ -62,7 +62,9 @@ export function parseAdventureBundle(value: unknown): AdventureBundle | null {
     return null;
   if (!Number.isSafeInteger(maxPlayers) || (maxPlayers as number) < 1 || (maxPlayers as number) > 4)
     return null;
-  const registry = parseAdventureRegistry(value.adventure.registry ?? { switches: [], variables: [] });
+  const registry = parseAdventureRegistry(
+    value.adventure.registry ?? { switches: [], variables: [] },
+  );
   if (!registry) return null;
   if (!Array.isArray(value.maps) || value.maps.length === 0 || value.maps.length > MAX_BUNDLE_MAPS)
     return null;
@@ -215,10 +217,7 @@ function rewriteQuest(
   };
 }
 
-function rewriteDestination(
-  dest: ExitDestination,
-  mapping: BundleIdMapping,
-): ExitDestination {
+function rewriteDestination(dest: ExitDestination, mapping: BundleIdMapping): ExitDestination {
   if (dest === "end") return dest;
   return { mapId: mapId(mapping, dest.mapId), entryId: eventId(mapping, dest.entryId) };
 }
@@ -240,9 +239,7 @@ export function rewriteBundleIds(
         ...bundle.adventure.registry,
         ...(bundle.adventure.registry.quests
           ? {
-              quests: bundle.adventure.registry.quests.map((quest) =>
-                rewriteQuest(quest, mapping),
-              ),
+              quests: bundle.adventure.registry.quests.map((quest) => rewriteQuest(quest, mapping)),
             }
           : {}),
       },

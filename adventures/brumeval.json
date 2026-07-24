@@ -1,0 +1,2284 @@
+{
+  "format": "lindocara-adventure",
+  "version": 1,
+  "adventure": {
+    "title": "Brumeval",
+    "maxPlayers": 4,
+    "registry": {
+      "switches": [
+        {
+          "id": "0001",
+          "name": "Malgrin vaincu"
+        }
+      ],
+      "variables": [],
+      "quests": [
+        {
+          "schemaVersion": 2,
+          "version": 4,
+          "id": "0001",
+          "title": "L'appel de Brumeval",
+          "description": "Vous voilà à l'abbaye de Brumeval. Frère Anselme accueille les voyageurs sur le parvis — présentez-vous.",
+          "journalSummary": "Parler à Frère Anselme, sur le parvis de l'abbaye.",
+          "recommendedLevel": null,
+          "scope": "personal",
+          "repeatable": false,
+          "abandonable": false,
+          "acceptance": "automatic",
+          "completion": "automatic",
+          "giver": null,
+          "turnInTarget": null,
+          "prerequisites": {
+            "minLevel": null,
+            "previousQuestId": null,
+            "mode": "all",
+            "conditions": []
+          },
+          "objectiveMode": "simultaneous",
+          "objectives": [
+            {
+              "id": "0001",
+              "label": "",
+              "target": 1,
+              "optional": false,
+              "hidden": false,
+              "stage": 0,
+              "type": "interact",
+              "interaction": "talk",
+              "targetRef": {
+                "mapId": "b64e2053-23fa-451f-9782-1507d007f331",
+                "eventId": "f71270af-aabf-40aa-b74f-c3aab368b5ab"
+              }
+            }
+          ],
+          "rewards": {
+            "experience": 40,
+            "gold": 0,
+            "items": [],
+            "choices": [],
+            "nextQuestId": null,
+            "stateChanges": [],
+            "customCommands": []
+          },
+          "dialogues": {
+            "offer": "",
+            "accepted": "",
+            "refused": "",
+            "reminder": "",
+            "ready": "",
+            "turnIn": "",
+            "completed": "Que la brume te soit légère, voyageur.",
+            "unavailable": ""
+          }
+        },
+        {
+          "schemaVersion": 2,
+          "version": 4,
+          "id": "0002",
+          "title": "Des gobelins dans les vignes",
+          "description": "Des gobelins pillards saccagent les vignes de l'abbaye. Frère Anselme cherche un bras armé pour les chasser.",
+          "journalSummary": "Chasser 5 gobelins pillards des vignes de l'abbaye.",
+          "recommendedLevel": null,
+          "scope": "personal",
+          "repeatable": false,
+          "abandonable": false,
+          "acceptance": "manual",
+          "completion": "turn-in",
+          "giver": {
+            "mapId": "b64e2053-23fa-451f-9782-1507d007f331",
+            "eventId": "f71270af-aabf-40aa-b74f-c3aab368b5ab"
+          },
+          "turnInTarget": {
+            "mapId": "b64e2053-23fa-451f-9782-1507d007f331",
+            "eventId": "f71270af-aabf-40aa-b74f-c3aab368b5ab"
+          },
+          "prerequisites": {
+            "minLevel": null,
+            "previousQuestId": "0001",
+            "mode": "all",
+            "conditions": []
+          },
+          "objectiveMode": "simultaneous",
+          "objectives": [
+            {
+              "id": "0001",
+              "label": "",
+              "target": 5,
+              "optional": false,
+              "hidden": false,
+              "stage": 0,
+              "type": "kill",
+              "species": "spear_goblin",
+              "mapScope": {
+                "kind": "maps",
+                "mapIds": ["b64e2053-23fa-451f-9782-1507d007f331"]
+              },
+              "credit": "nearby-party"
+            }
+          ],
+          "rewards": {
+            "experience": 120,
+            "gold": 40,
+            "items": [
+              {
+                "itemId": "health_potion",
+                "quantity": 2
+              }
+            ],
+            "choices": [],
+            "nextQuestId": null,
+            "stateChanges": [],
+            "customCommands": []
+          },
+          "dialogues": {
+            "offer": "Les vignes nourrissent l'abbaye, et ces gobelins les mettent en pièces. Chasse-les, je t'en prie.",
+            "accepted": "Le Ciel guide ta lame. Ils rôdent entre les rangs de vigne, à l'est.",
+            "refused": "Je comprends. Les vignes attendront... tant qu'il en restera.",
+            "reminder": "Les gobelins rôdent toujours dans les vignes, à l'est du parvis.",
+            "ready": "Les vignes sont calmes — c'est ton œuvre ?",
+            "turnIn": "Cinq pillards en moins ! Tiens, des fioles de notre cave. Tu les as méritées.",
+            "completed": "Les vignes te doivent leur paix.",
+            "unavailable": "Présente-toi d'abord, voyageur."
+          }
+        },
+        {
+          "schemaVersion": 2,
+          "version": 4,
+          "id": "0003",
+          "title": "Rapport au maréchal",
+          "description": "Frère Anselme veut que le maréchal Aldric, qui garde la porte sud, apprenne ce que vous avez vu dans les vignes.",
+          "journalSummary": "Faire son rapport au maréchal Aldric, à la porte sud.",
+          "recommendedLevel": null,
+          "scope": "personal",
+          "repeatable": false,
+          "abandonable": false,
+          "acceptance": "manual",
+          "completion": "turn-in",
+          "giver": {
+            "mapId": "b64e2053-23fa-451f-9782-1507d007f331",
+            "eventId": "f71270af-aabf-40aa-b74f-c3aab368b5ab"
+          },
+          "turnInTarget": {
+            "mapId": "b64e2053-23fa-451f-9782-1507d007f331",
+            "eventId": "e5f4bb85-ad1d-4fe5-9220-efecf56947dc"
+          },
+          "prerequisites": {
+            "minLevel": null,
+            "previousQuestId": "0002",
+            "mode": "all",
+            "conditions": []
+          },
+          "objectiveMode": "simultaneous",
+          "objectives": [
+            {
+              "id": "0001",
+              "label": "",
+              "target": 1,
+              "optional": false,
+              "hidden": false,
+              "stage": 0,
+              "type": "interact",
+              "interaction": "talk",
+              "targetRef": {
+                "mapId": "b64e2053-23fa-451f-9782-1507d007f331",
+                "eventId": "e5f4bb85-ad1d-4fe5-9220-efecf56947dc"
+              }
+            }
+          ],
+          "rewards": {
+            "experience": 60,
+            "gold": 0,
+            "items": [],
+            "choices": [],
+            "nextQuestId": null,
+            "stateChanges": [],
+            "customCommands": []
+          },
+          "dialogues": {
+            "offer": "Ces pillards n'étaient qu'une avant-garde, j'en ai peur. Va prévenir le maréchal Aldric, à la porte sud.",
+            "accepted": "Dis-lui tout : le nombre, les lances, la direction d'où ils venaient.",
+            "refused": "Aldric doit pourtant savoir...",
+            "reminder": "Aldric garde la porte sud. Il attend ton rapport.",
+            "ready": "Un rapport ? Parle, voyageur.",
+            "turnIn": "Des lances gobelines dans les vignes... C'est Ronceclair qui déborde. Merci du rapport.",
+            "completed": "Ton rapport a été précieux.",
+            "unavailable": "Occupe-toi d'abord des vignes."
+          }
+        },
+        {
+          "schemaVersion": 2,
+          "version": 4,
+          "id": "0004",
+          "title": "La route de Ronceclair",
+          "description": "Le maréchal veut rouvrir la route du sud : réduire le camp gobelin de Ronceclair et récupérer les fioles de soin volées à l'abbaye.",
+          "journalSummary": "Abattre 4 gobelins incendiaires et récupérer 3 fioles volées dans la forêt de Ronceclair.",
+          "recommendedLevel": null,
+          "scope": "personal",
+          "repeatable": false,
+          "abandonable": false,
+          "acceptance": "manual",
+          "completion": "automatic",
+          "giver": {
+            "mapId": "b64e2053-23fa-451f-9782-1507d007f331",
+            "eventId": "e5f4bb85-ad1d-4fe5-9220-efecf56947dc"
+          },
+          "turnInTarget": null,
+          "prerequisites": {
+            "minLevel": null,
+            "previousQuestId": "0003",
+            "mode": "all",
+            "conditions": []
+          },
+          "objectiveMode": "simultaneous",
+          "objectives": [
+            {
+              "id": "0001",
+              "label": "",
+              "target": 4,
+              "optional": false,
+              "hidden": false,
+              "stage": 0,
+              "type": "kill",
+              "species": "torch_goblin",
+              "mapScope": {
+                "kind": "maps",
+                "mapIds": ["a46d603c-e942-41c1-942f-0762bb37d447"]
+              },
+              "credit": "nearby-party"
+            },
+            {
+              "id": "0002",
+              "label": "",
+              "target": 3,
+              "optional": false,
+              "hidden": false,
+              "stage": 0,
+              "type": "collect",
+              "itemId": "health_potion",
+              "counting": "acquired"
+            }
+          ],
+          "rewards": {
+            "experience": 200,
+            "gold": 60,
+            "items": [],
+            "choices": [],
+            "nextQuestId": "0005",
+            "stateChanges": [],
+            "customCommands": []
+          },
+          "dialogues": {
+            "offer": "La route du sud traverse Ronceclair. Un camp gobelin la tient : des incendiaires, et nos fioles volées dans leurs caches. Rends-nous les deux.",
+            "accepted": "Prends la porte sud. Et méfie-toi des torches — elles brûlent plus que les lances.",
+            "refused": "La route restera coupée, alors.",
+            "reminder": "Le camp gobelin tient toujours la route, au cœur de Ronceclair.",
+            "ready": "",
+            "turnIn": "",
+            "completed": "La route respire enfin.",
+            "unavailable": "Fais d'abord ton rapport."
+          }
+        },
+        {
+          "schemaVersion": 2,
+          "version": 1,
+          "id": "0005",
+          "title": "Repérage du camp gnoll",
+          "description": "Des gnolls maraudeurs tiennent l'est de Ronceclair. Avant tout assaut, il faut approcher leur camp et jauger leurs forces.",
+          "journalSummary": "Atteindre la lisière du camp gnoll et abattre 3 gnolls maraudeurs à l'est de Ronceclair.",
+          "recommendedLevel": null,
+          "scope": "personal",
+          "repeatable": false,
+          "abandonable": false,
+          "acceptance": "automatic",
+          "completion": "automatic",
+          "giver": null,
+          "turnInTarget": null,
+          "prerequisites": {
+            "minLevel": null,
+            "previousQuestId": "0004",
+            "mode": "all",
+            "conditions": []
+          },
+          "objectiveMode": "simultaneous",
+          "objectives": [
+            {
+              "id": "0001",
+              "label": "",
+              "target": 1,
+              "optional": false,
+              "hidden": false,
+              "stage": 0,
+              "type": "reach",
+              "destination": {
+                "kind": "area",
+                "mapId": "a46d603c-e942-41c1-942f-0762bb37d447",
+                "areaId": "camp_gnoll"
+              }
+            },
+            {
+              "id": "0002",
+              "label": "",
+              "target": 3,
+              "optional": false,
+              "hidden": false,
+              "stage": 0,
+              "type": "kill",
+              "species": "gnoll_marauder",
+              "mapScope": {
+                "kind": "maps",
+                "mapIds": ["a46d603c-e942-41c1-942f-0762bb37d447"]
+              },
+              "credit": "nearby-party"
+            }
+          ],
+          "rewards": {
+            "experience": 240,
+            "gold": 80,
+            "items": [],
+            "choices": [],
+            "nextQuestId": "0006",
+            "stateChanges": [],
+            "customCommands": []
+          },
+          "dialogues": {
+            "offer": "",
+            "accepted": "",
+            "refused": "",
+            "reminder": "",
+            "ready": "",
+            "turnIn": "",
+            "completed": "",
+            "unavailable": ""
+          }
+        },
+        {
+          "schemaVersion": 2,
+          "version": 4,
+          "id": "0006",
+          "title": "Le seigneur de la meute",
+          "description": "Les gnolls répondaient à Malgrin, un minotaure retranché dans son antre à l'est. Tant qu'il vit, la vallée tremble. L'éclaireuse Lise guette près de l'entrée.",
+          "journalSummary": "Vaincre Malgrin dans son antre, puis retrouver l'éclaireuse Lise.",
+          "recommendedLevel": null,
+          "scope": "party",
+          "repeatable": false,
+          "abandonable": false,
+          "acceptance": "automatic",
+          "completion": "turn-in",
+          "giver": null,
+          "turnInTarget": {
+            "mapId": "6b93ea5e-a53d-491e-a4e0-45982926b06c",
+            "eventId": "f10441d4-4fb5-4bce-a8c4-992eb4e5c765"
+          },
+          "prerequisites": {
+            "minLevel": null,
+            "previousQuestId": "0005",
+            "mode": "all",
+            "conditions": []
+          },
+          "objectiveMode": "simultaneous",
+          "objectives": [
+            {
+              "id": "0001",
+              "label": "",
+              "target": 1,
+              "optional": false,
+              "hidden": false,
+              "stage": 0,
+              "type": "defeat-target",
+              "targetRef": {
+                "mapId": "6b93ea5e-a53d-491e-a4e0-45982926b06c",
+                "eventId": "eec8e577-18d2-4646-99e9-dc59e7a3afdc"
+              },
+              "credit": "nearby-party"
+            }
+          ],
+          "rewards": {
+            "experience": 500,
+            "gold": 150,
+            "items": [
+              {
+                "itemId": "health_potion",
+                "quantity": 3
+              }
+            ],
+            "choices": [],
+            "nextQuestId": null,
+            "stateChanges": [
+              {
+                "type": "switch",
+                "switchId": "0001",
+                "value": true
+              }
+            ],
+            "customCommands": []
+          },
+          "dialogues": {
+            "offer": "",
+            "accepted": "",
+            "refused": "",
+            "reminder": "",
+            "ready": "Le sol a tremblé, puis plus rien... Il est tombé, n'est-ce pas ?",
+            "turnIn": "Alors la meute n'a plus de seigneur. Brumeval est libre — grâce à toi.",
+            "completed": "",
+            "unavailable": "Reviens quand la meute n'aura plus de chef."
+          }
+        }
+      ]
+    }
+  },
+  "maps": [
+    {
+      "id": "b64e2053-23fa-451f-9782-1507d007f331",
+      "name": "L'abbaye de Brumeval",
+      "tilesetId": "tiny-swords",
+      "cols": 28,
+      "rows": 20,
+      "layers": [
+        "0*29,7,15*24,13,0*2,8,16*24,14,0*2,8,16*24,14,0*2,8,16*24,14,0*2,8,16*24,14,0*2,8,16*24,14,0*2,8,16*24,14,0*2,8,16*24,14,0*2,8,16*24,14,0*2,8,16*24,14,0*2,8,16*24,14,0*2,8,16*24,14,0*2,8,16*24,14,0*2,8,16*24,14,0*2,8,16*24,14,0*2,8,16*24,14,0*2,8,16*24,14,0*2,4,12*24,10,0*29",
+        "0*560",
+        "0*560"
+      ],
+      "elements": [
+        {
+          "col": 4,
+          "row": 5,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-blue-buildings.monastery"
+        },
+        {
+          "col": 9,
+          "row": 4,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-blue-buildings.house1"
+        },
+        {
+          "col": 3,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-blue-buildings.house2"
+        },
+        {
+          "col": 17,
+          "row": 5,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 19,
+          "row": 5,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 21,
+          "row": 5,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 23,
+          "row": 5,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 25,
+          "row": 5,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 17,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 19,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 21,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 23,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 25,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 17,
+          "row": 11,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 19,
+          "row": 11,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 21,
+          "row": 11,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 23,
+          "row": 11,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 25,
+          "row": 11,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 13,
+          "row": 3,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 16,
+          "row": 3,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 2,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 25,
+          "row": 15,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 7,
+          "row": 13,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock1"
+        },
+        {
+          "col": 21,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock3"
+        }
+      ],
+      "spawn": {
+        "col": 11,
+        "row": 10
+      },
+      "events": [
+        {
+          "id": "f71270af-aabf-40aa-b74f-c3aab368b5ab",
+          "col": 8,
+          "row": 9,
+          "name": "Frère Anselme",
+          "ordinal": 1,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "Bienvenue à Brumeval, voyageur. L'abbaye offre le gîte — mais la vallée n'est plus sûre.",
+                  "name": "Frère Anselme"
+                }
+              ],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "character.units-blue-units-monk.idle",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            },
+            {
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "Malgrin est tombé ? Les cloches sonneront ce soir. Merci, héros.",
+                  "name": "Frère Anselme"
+                }
+              ],
+              "condSwitchId": "0001",
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "character.units-blue-units-monk.idle",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "e5f4bb85-ad1d-4fe5-9220-efecf56947dc",
+          "col": 13,
+          "row": 16,
+          "name": "Maréchal Aldric",
+          "ordinal": 2,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "Halte. La route du sud est coupée : gobelins, gnolls — et pire encore, dit-on.",
+                  "name": "Maréchal Aldric"
+                }
+              ],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "character.units-red-units-monk.idle",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            },
+            {
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "La route est libre. Tu as l'étoffe d'un capitaine, voyageur.",
+                  "name": "Maréchal Aldric"
+                }
+              ],
+              "condSwitchId": "0001",
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "character.units-red-units-monk.idle",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "8007fea1-e77d-475d-a0cc-58cfa9749abd",
+          "col": 11,
+          "row": 9,
+          "name": "Départ",
+          "ordinal": 3,
+          "kind": "spawn",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "78f75a14-0d0d-4da4-a220-0e3c1839fb94",
+          "col": 12,
+          "row": 18,
+          "name": "Entrée sud",
+          "ordinal": 4,
+          "kind": "entry",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "411536ca-0811-40c3-a064-a77b0345b116",
+          "col": 14,
+          "row": 18,
+          "name": "Vers Ronceclair",
+          "ordinal": 5,
+          "kind": "exit",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "3f4ddc23-0b4b-432a-9744-0ca978006c02",
+          "col": 18,
+          "row": 4,
+          "name": "Gobelin pillard",
+          "ordinal": 6,
+          "kind": "monster",
+          "species": "spear_goblin",
+          "patrolRadius": 64,
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "395a47a8-fade-4644-af2e-d8afcf2a2722",
+          "col": 23,
+          "row": 6,
+          "name": "Gobelin pillard",
+          "ordinal": 7,
+          "kind": "monster",
+          "species": "spear_goblin",
+          "patrolRadius": 64,
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "d04828d4-f105-4e23-8262-4d9a79b792e3",
+          "col": 25,
+          "row": 10,
+          "name": "Gobelin pillard",
+          "ordinal": 8,
+          "kind": "monster",
+          "species": "spear_goblin",
+          "patrolRadius": 64,
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "92ab855a-f684-4068-975f-210e16d9ac29",
+          "col": 20,
+          "row": 12,
+          "name": "Gobelin pillard",
+          "ordinal": 9,
+          "kind": "monster",
+          "species": "spear_goblin",
+          "patrolRadius": 64,
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "ee647291-444b-404b-925b-7933bebc9525",
+          "col": 17,
+          "row": 14,
+          "name": "Gobelin pillard",
+          "ordinal": 10,
+          "kind": "monster",
+          "species": "spear_goblin",
+          "patrolRadius": 64,
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "a46d603c-e942-41c1-942f-0762bb37d447",
+      "name": "La forêt de Ronceclair",
+      "tilesetId": "tiny-swords",
+      "cols": 40,
+      "rows": 25,
+      "layers": [
+        "0*41,7,15*36,13,0*2,8,16*36,14,0*2,8,16*36,14,0*2,8,16*36,14,0*2,8,16*36,14,0*2,8,16*36,14,0*2,8,16*36,14,0*2,8,16*36,14,0*2,8,16*36,14,0*2,8,16*36,14,0*2,8,16*36,14,0*2,8,16*36,14,0*2,8,16*36,14,0*2,8,16*36,14,0*2,8,16*36,14,0*2,8,16*36,14,0*2,8,16*36,14,0*2,8,16*36,14,0*2,8,16*36,14,0*2,8,16*36,14,0*2,8,16*36,14,0*2,8,16*36,14,0*2,4,12*36,10,0*41",
+        "0*1000",
+        "0*1000"
+      ],
+      "elements": [
+        {
+          "col": 4,
+          "row": 3,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 8,
+          "row": 3,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 12,
+          "row": 3,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 16,
+          "row": 3,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 20,
+          "row": 3,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 24,
+          "row": 3,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 28,
+          "row": 3,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 33,
+          "row": 3,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 3,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 7,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 11,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 15,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 21,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 26,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 31,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 36,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 6,
+          "row": 7,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 15,
+          "row": 6,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 23,
+          "row": 9,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 18,
+          "row": 13,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 11,
+          "row": 17,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 22,
+          "row": 18,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 27,
+          "row": 5,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 34,
+          "row": 20,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 29,
+          "row": 9,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 29,
+          "row": 15,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 27,
+          "row": 11,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 27,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 10,
+          "row": 12,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock2"
+        },
+        {
+          "col": 33,
+          "row": 13,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock4"
+        },
+        {
+          "col": 14,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe3"
+        },
+        {
+          "col": 31,
+          "row": 16,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe1"
+        }
+      ],
+      "spawn": {
+        "col": 20,
+        "row": 4
+      },
+      "events": [
+        {
+          "id": "96536839-7ab7-4120-b233-b60f3852ad38",
+          "col": 11,
+          "row": 13,
+          "name": "Cache de ravitaillement",
+          "ordinal": 11,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "Une cache de ravitaillement. Vous récupérez une fiole de soin volée.",
+                  "name": ""
+                },
+                {
+                  "t": "changeItems",
+                  "itemId": "health_potion",
+                  "count": 1
+                },
+                {
+                  "t": "setSelfSwitch",
+                  "selfSwitch": "A",
+                  "value": true
+                }
+              ],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "decoration.deco.09",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            },
+            {
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "La cache est vide.",
+                  "name": ""
+                }
+              ],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": "A",
+              "graphicAssetId": "decoration.deco.09",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "59257e07-7efa-4b87-927d-5e92c50c2e6a",
+          "col": 24,
+          "row": 6,
+          "name": "Cache de ravitaillement",
+          "ordinal": 12,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "Une cache de ravitaillement. Vous récupérez une fiole de soin volée.",
+                  "name": ""
+                },
+                {
+                  "t": "changeItems",
+                  "itemId": "health_potion",
+                  "count": 1
+                },
+                {
+                  "t": "setSelfSwitch",
+                  "selfSwitch": "A",
+                  "value": true
+                }
+              ],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "decoration.deco.09",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            },
+            {
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "La cache est vide.",
+                  "name": ""
+                }
+              ],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": "A",
+              "graphicAssetId": "decoration.deco.09",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "d1e9f6db-5495-48c0-9324-42500a40cd14",
+          "col": 30,
+          "row": 19,
+          "name": "Cache de ravitaillement",
+          "ordinal": 13,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "Une cache de ravitaillement. Vous récupérez une fiole de soin volée.",
+                  "name": ""
+                },
+                {
+                  "t": "changeItems",
+                  "itemId": "health_potion",
+                  "count": 1
+                },
+                {
+                  "t": "setSelfSwitch",
+                  "selfSwitch": "A",
+                  "value": true
+                }
+              ],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "decoration.deco.09",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            },
+            {
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "La cache est vide.",
+                  "name": ""
+                }
+              ],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": "A",
+              "graphicAssetId": "decoration.deco.09",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "75186a15-3531-4f68-aa20-2cfefb8427cc",
+          "col": 29,
+          "row": 12,
+          "name": "Lisière du camp gnoll",
+          "ordinal": 14,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "commands": [
+                {
+                  "t": "enterArea",
+                  "areaId": "camp_gnoll"
+                }
+              ],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "player-touch"
+            }
+          ]
+        },
+        {
+          "id": "477c3898-8a0c-47cf-86b2-56a26187b68f",
+          "col": 20,
+          "row": 2,
+          "name": "Entrée nord",
+          "ordinal": 15,
+          "kind": "entry",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "8a1ff12e-dc3e-4a6e-a6a0-521e818f8a41",
+          "col": 18,
+          "row": 2,
+          "name": "Vers l'abbaye",
+          "ordinal": 16,
+          "kind": "exit",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "c68b55b3-3a44-4862-8e8f-56076652e41c",
+          "col": 38,
+          "row": 14,
+          "name": "Entrée est",
+          "ordinal": 17,
+          "kind": "entry",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "0fcf6439-4f22-4dc0-aab4-9caabc603b54",
+          "col": 38,
+          "row": 12,
+          "name": "Vers l'antre",
+          "ordinal": 18,
+          "kind": "exit",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "d86cf10f-b748-49cd-bc93-4dbf396674ac",
+          "col": 8,
+          "row": 10,
+          "name": "Gobelin incendiaire",
+          "ordinal": 19,
+          "kind": "monster",
+          "species": "torch_goblin",
+          "patrolRadius": 128,
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "58ee61b6-b896-4d9e-b1f2-4e186ccdb3a1",
+          "col": 12,
+          "row": 11,
+          "name": "Gobelin incendiaire",
+          "ordinal": 20,
+          "kind": "monster",
+          "species": "torch_goblin",
+          "patrolRadius": 128,
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "e61afb31-48e0-4723-8609-44fecb14d9fd",
+          "col": 9,
+          "row": 14,
+          "name": "Gobelin incendiaire",
+          "ordinal": 21,
+          "kind": "monster",
+          "species": "torch_goblin",
+          "patrolRadius": 128,
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "6fb85b40-0678-4461-9507-33d464281b44",
+          "col": 13,
+          "row": 15,
+          "name": "Gobelin incendiaire",
+          "ordinal": 22,
+          "kind": "monster",
+          "species": "torch_goblin",
+          "patrolRadius": 128,
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "31e4ab55-d65f-4ac9-9ed1-9d2e56d7dc83",
+          "col": 16,
+          "row": 8,
+          "name": "Gobelin pillard",
+          "ordinal": 23,
+          "kind": "monster",
+          "species": "spear_goblin",
+          "patrolRadius": 96,
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "e2883f28-1288-4e5b-b8e1-145fe32eafd6",
+          "col": 17,
+          "row": 16,
+          "name": "Gobelin pillard",
+          "ordinal": 24,
+          "kind": "monster",
+          "species": "spear_goblin",
+          "patrolRadius": 96,
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "78a200e6-5a39-4e8d-bef6-0f7114a775c6",
+          "col": 6,
+          "row": 18,
+          "name": "Gobelin pillard",
+          "ordinal": 25,
+          "kind": "monster",
+          "species": "spear_goblin",
+          "patrolRadius": 96,
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "f329cea4-b875-4705-9694-53d0be1f1883",
+          "col": 31,
+          "row": 10,
+          "name": "Gnoll maraudeur",
+          "ordinal": 26,
+          "kind": "monster",
+          "species": "gnoll_marauder",
+          "patrolRadius": 128,
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "4cc6a427-94f5-42d6-ae50-50a04d57b19d",
+          "col": 34,
+          "row": 12,
+          "name": "Gnoll maraudeur",
+          "ordinal": 27,
+          "kind": "monster",
+          "species": "gnoll_marauder",
+          "patrolRadius": 128,
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "abb6b96c-81b2-45b7-a3c7-7171854dca1c",
+          "col": 32,
+          "row": 15,
+          "name": "Gnoll maraudeur",
+          "ordinal": 28,
+          "kind": "monster",
+          "species": "gnoll_marauder",
+          "patrolRadius": 128,
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "6b93ea5e-a53d-491e-a4e0-45982926b06c",
+      "name": "L'antre de Malgrin",
+      "tilesetId": "tiny-swords",
+      "cols": 24,
+      "rows": 16,
+      "layers": [
+        "0*25,19,27*20,25,0*2,7,15*20,13,0*2,8,16*20,14,0*2,8,16*20,14,0*2,8,16*20,14,0*2,8,16*20,14,0*2,8,16*20,14,0*2,8,16*20,14,0*2,8,16*20,14,0*2,8,16*20,14,0*2,8,16*20,14,0*2,8,16*20,14,0*2,8,16*20,14,0*2,4,12*20,10,0*25",
+        "0*49,51,52*20,50,0*313",
+        "0*384"
+      ],
+      "elements": [
+        {
+          "col": 10,
+          "row": 4,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 12,
+          "row": 4,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 14,
+          "row": 4,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 16,
+          "row": 4,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 18,
+          "row": 4,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 10,
+          "row": 12,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 12,
+          "row": 12,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 14,
+          "row": 12,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 16,
+          "row": 12,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 18,
+          "row": 12,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 20,
+          "row": 6,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 20,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 9,
+          "row": 6,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock1"
+        },
+        {
+          "col": 9,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock2"
+        },
+        {
+          "col": 13,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock3"
+        }
+      ],
+      "spawn": {
+        "col": 3,
+        "row": 8
+      },
+      "events": [
+        {
+          "id": "f10441d4-4fb5-4bce-a8c4-992eb4e5c765",
+          "col": 4,
+          "row": 6,
+          "name": "Éclaireuse Lise",
+          "ordinal": 29,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "Baisse-toi ! Malgrin est là, au fond de l'arène. J'ai vu ses cornes briser un chêne.",
+                  "name": "Éclaireuse Lise"
+                }
+              ],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "character.units-purple-units-monk.idle",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            },
+            {
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "Tu l'as vaincu... La vallée de Brumeval est libre. Rentrons.",
+                  "name": "Éclaireuse Lise"
+                },
+                {
+                  "t": "choices",
+                  "prompt": "Rentrer au village ?",
+                  "options": [
+                    {
+                      "label": "Oui, rentrons",
+                      "body": [
+                        {
+                          "t": "endAdventure"
+                        }
+                      ]
+                    },
+                    {
+                      "label": "Pas encore",
+                      "body": [
+                        {
+                          "t": "say",
+                          "text": "Je t'attends. Prends ton temps.",
+                          "name": "Éclaireuse Lise"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "condSwitchId": "0001",
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "character.units-purple-units-monk.idle",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "eec8e577-18d2-4646-99e9-dc59e7a3afdc",
+          "col": 15,
+          "row": 8,
+          "name": "Malgrin",
+          "ordinal": 30,
+          "kind": "monster",
+          "species": "minotaur_brute",
+          "patrolRadius": 160,
+          "pages": [
+            {
+              "commands": [
+                {
+                  "t": "setSwitch",
+                  "switchId": "0001",
+                  "value": true
+                }
+              ],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "80b14f58-214a-41d8-b96f-19aa9f60529c",
+          "col": 2,
+          "row": 7,
+          "name": "Entrée ouest",
+          "ordinal": 31,
+          "kind": "entry",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "9729f508-7614-49f5-8bd1-ffd52e8fc5e2",
+          "col": 2,
+          "row": 9,
+          "name": "Vers Ronceclair",
+          "ordinal": 32,
+          "kind": "exit",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "04c00520-f375-4f23-810a-1a36a9f33ea7",
+          "col": 21,
+          "row": 8,
+          "name": "La vallée libérée",
+          "ordinal": 33,
+          "kind": "exit",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "95759067-4db9-4651-8999-9897ad0fcd0b",
+          "col": 12,
+          "row": 6,
+          "name": "Garde d'os",
+          "ordinal": 34,
+          "kind": "monster",
+          "species": "skull_guard",
+          "patrolRadius": 96,
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "ea2d6111-3fff-4468-806e-dff69d09b4c3",
+          "col": 12,
+          "row": 11,
+          "name": "Garde d'os",
+          "ordinal": 35,
+          "kind": "monster",
+          "species": "skull_guard",
+          "patrolRadius": 96,
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "graph": {
+    "start": null,
+    "links": [
+      {
+        "mapId": "b64e2053-23fa-451f-9782-1507d007f331",
+        "exitId": "411536ca-0811-40c3-a064-a77b0345b116",
+        "dest": {
+          "mapId": "a46d603c-e942-41c1-942f-0762bb37d447",
+          "entryId": "477c3898-8a0c-47cf-86b2-56a26187b68f"
+        }
+      },
+      {
+        "mapId": "a46d603c-e942-41c1-942f-0762bb37d447",
+        "exitId": "8a1ff12e-dc3e-4a6e-a6a0-521e818f8a41",
+        "dest": {
+          "mapId": "b64e2053-23fa-451f-9782-1507d007f331",
+          "entryId": "78f75a14-0d0d-4da4-a220-0e3c1839fb94"
+        }
+      },
+      {
+        "mapId": "a46d603c-e942-41c1-942f-0762bb37d447",
+        "exitId": "0fcf6439-4f22-4dc0-aab4-9caabc603b54",
+        "dest": {
+          "mapId": "6b93ea5e-a53d-491e-a4e0-45982926b06c",
+          "entryId": "80b14f58-214a-41d8-b96f-19aa9f60529c"
+        }
+      },
+      {
+        "mapId": "6b93ea5e-a53d-491e-a4e0-45982926b06c",
+        "exitId": "9729f508-7614-49f5-8bd1-ffd52e8fc5e2",
+        "dest": {
+          "mapId": "a46d603c-e942-41c1-942f-0762bb37d447",
+          "entryId": "c68b55b3-3a44-4862-8e8f-56076652e41c"
+        }
+      },
+      {
+        "mapId": "6b93ea5e-a53d-491e-a4e0-45982926b06c",
+        "exitId": "04c00520-f375-4f23-810a-1a36a9f33ea7",
+        "dest": "end"
+      }
+    ]
+  }
+}

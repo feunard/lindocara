@@ -7,9 +7,9 @@ import {
   parseAdventureBundle,
   rewriteBundleIds,
 } from "../src/adventure-bundle.js";
-import { emptyLayer, encodeTileLayer } from "../src/tile-layer-codec.js";
 import { defaultEventPage, functionalEvent, type MapEvent } from "../src/map-events.js";
 import { createAuthoredQuestDefinition, emptyQuestRewards } from "../src/quests.js";
+import { emptyLayer, encodeTileLayer } from "../src/tile-layer-codec.js";
 
 const MAP_A = "aaaaaaaa-0000-4000-8000-00000000000a";
 const MAP_B = "bbbbbbbb-0000-4000-8000-00000000000b";
@@ -164,19 +164,24 @@ describe("adventure bundle", () => {
     const bundle = JSON.parse(JSON.stringify(fixture())) as Record<string, unknown>;
     expect(parseAdventureBundle({ ...bundle, format: "other" })).toBeNull();
     const maps = bundle.maps as { id: string }[];
-    expect(parseAdventureBundle({ ...bundle, maps: [maps[0], { ...maps[1], id: maps[0]?.id }] })).toBeNull();
+    expect(
+      parseAdventureBundle({ ...bundle, maps: [maps[0], { ...maps[1], id: maps[0]?.id }] }),
+    ).toBeNull();
     expect(parseAdventureBundle({ ...bundle, maps: [{ ...maps[0], layers: ["bad"] }] })).toBeNull();
   });
 
   it("rewrites every internal reference through the id mapping", () => {
     const bundle = fixture();
-    const eventIds = mintEventIdMapping(bundle, (() => {
-      let n = 0;
-      return () => {
-        n += 1;
-        return `99999999-0000-4000-8000-00000000000${n}`;
-      };
-    })());
+    const eventIds = mintEventIdMapping(
+      bundle,
+      (() => {
+        let n = 0;
+        return () => {
+          n += 1;
+          return `99999999-0000-4000-8000-00000000000${n}`;
+        };
+      })(),
+    );
     const mapIds = new Map([
       [MAP_A, "aaaa0000-0000-4000-8000-000000000001"],
       [MAP_B, "bbbb0000-0000-4000-8000-000000000002"],
