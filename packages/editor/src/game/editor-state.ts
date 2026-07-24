@@ -1205,7 +1205,7 @@ export function applyTool(
 /**
  * UX wave #9: may `tool` legally place on cell (col,row) of `map` right now? The pure predicate the
  * editor stage paints its hover feedback from — a thicker preview outline whenever a placement tool is
- * active, plus an OPAQUE RED cell fill on top when the placement is illegal there.
+ * active, plus a translucent red wash when the placement is illegal there.
  *
  * It DELEGATES to `applyTool` rather than re-deriving the placement rules, so the hover preview can
  * never disagree with what a real click does: terrain fit (`canPlaceElement`), cell occupancy,

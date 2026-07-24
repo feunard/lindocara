@@ -10,6 +10,7 @@ import {
   paintEventCell,
   paintHoverCell,
   paintLandCell,
+  paintPlacementAssetPreview,
   shouldShowEventOverlay,
   shouldShowHoverPreview,
   stampFootprintCells,
@@ -420,6 +421,100 @@ describe("shouldShowHoverPreview", () => {
   });
 });
 
+describe("paintPlacementAssetPreview", () => {
+  const TREE = "resource.terrain-resources-wood-trees.tree3" as EditorAssetId;
+  const treeArt: EditorAssetArt = {
+    definition: {
+      anchor: { x: 0.5, y: 1 },
+      footOffset: 0,
+      editor: { renderLayer: "object" },
+    } as EditorAssetDefinition,
+    frames: [Texture.WHITE],
+  };
+
+  it("draws the real element sprite at its native quarter-cell anchor", () => {
+    const container = new Container();
+    const drew = paintPlacementAssetPreview(
+      { kind: "element", assetId: TREE },
+      2,
+      3,
+      1,
+      2,
+      false,
+      container,
+      { editorAssets: new Map([[TREE, treeArt]]) },
+    );
+    expect(drew).toBe(true);
+    expect(container.children).toHaveLength(1);
+    const ghost = container.children[0];
+    expect(ghost).toBeInstanceOf(Container);
+    expect((ghost as Container).children[0]).toBeInstanceOf(Sprite);
+    // Same `createCatalogElementView` anchor as a committed element.
+    expect((ghost as Container).position.x).toBe(2 * 64 + 32 + 16);
+    expect((ghost as Container).position.y).toBe(4 * 64 + 2 * 16);
+    expect((ghost as Container).alpha).toBeLessThan(1);
+  });
+
+  it("draws the selected monster and its patrol radius before placement", () => {
+    const container = new Container();
+    const drew = paintPlacementAssetPreview(
+      {
+        kind: "event",
+        eventKind: "monster",
+        species: "spear_goblin",
+        patrolRadius: 192,
+      },
+      4,
+      5,
+      0,
+      0,
+      false,
+      container,
+      {
+        editorAssets: new Map(),
+        monsters: new Map([["spear_goblin", Texture.WHITE]]),
+      },
+    );
+    expect(drew).toBe(true);
+    expect(container.children.some((child) => child instanceof Sprite)).toBe(true);
+    expect(container.children.some((child) => child instanceof Graphics)).toBe(true);
+  });
+
+  it("draws the hero sprite for a start-position tool", () => {
+    const container = new Container();
+    expect(
+      paintPlacementAssetPreview({ kind: "spawn" }, 1, 2, 0, 0, false, container, {
+        editorAssets: new Map(),
+        spawn: Texture.WHITE,
+      }),
+    ).toBe(true);
+    expect(container.children[0]).toBeInstanceOf(Sprite);
+  });
+
+  it("draws all four compact ramp banks, not an anonymous footprint alone", () => {
+    const container = new Container();
+    const sheet = Array.from({ length: 6 }, () => Array.from({ length: 9 }, () => Texture.WHITE));
+    expect(
+      paintPlacementAssetPreview(
+        { kind: "stairs", direction: "north", lowLevel: 0 },
+        3,
+        4,
+        0,
+        0,
+        false,
+        container,
+        { editorAssets: new Map(), tileset: sheet },
+      ),
+    ).toBe(true);
+    expect(container.children).toHaveLength(4);
+    for (const child of container.children) {
+      expect(child).toBeInstanceOf(Sprite);
+      expect((child as Sprite).width).toBe(32);
+      expect((child as Sprite).height).toBe(64);
+    }
+  });
+});
+
 describe("paintHoverCell", () => {
   const TREE = "resource.terrain-resources-wood-trees.tree3";
   const TREE_TOOL: EditorTool = { kind: "element", assetId: TREE };
@@ -435,7 +530,7 @@ describe("paintHoverCell", () => {
     expect(container.children).toHaveLength(1);
   });
 
-  it("draws an opaque red fill UNDER the outline on an illegal cell", () => {
+  it("draws a translucent red warning fill UNDER the outline on an illegal cell", () => {
     const map = waterAt(blankMap("m", 20, 15), 3, 4);
     const container = new Container();
     const decision = paintHoverCell(TREE_TOOL, map, 3, 4, "element", container);
@@ -446,14 +541,14 @@ describe("paintHoverCell", () => {
 });
 
 describe("directional staircase hover footprint", () => {
-  it("rotates from 4x2 to 2x4 with the staircase direction", () => {
+  it("stays compact at 2x2 while the staircase art and high side rotate", () => {
     const north = stampFootprintCells({ kind: "stairs", direction: "north", lowLevel: 0 }, 3, 4);
     const east = stampFootprintCells({ kind: "stairs", direction: "east", lowLevel: 1 }, 3, 4);
-    expect(north).toHaveLength(8);
-    expect(new Set(north.map((cell) => cell.col))).toEqual(new Set([3, 4, 5, 6]));
+    expect(north).toHaveLength(4);
+    expect(new Set(north.map((cell) => cell.col))).toEqual(new Set([3, 4]));
     expect(new Set(north.map((cell) => cell.row))).toEqual(new Set([4, 5]));
-    expect(east).toHaveLength(8);
+    expect(east).toHaveLength(4);
     expect(new Set(east.map((cell) => cell.col))).toEqual(new Set([3, 4]));
-    expect(new Set(east.map((cell) => cell.row))).toEqual(new Set([4, 5, 6, 7]));
+    expect(new Set(east.map((cell) => cell.row))).toEqual(new Set([4, 5]));
   });
 });

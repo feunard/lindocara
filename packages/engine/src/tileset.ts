@@ -54,6 +54,18 @@ export interface FixedTile {
   priority: TilePriority;
   tint?: number;
   /**
+   * Optional draw-only transform inside the destination cell.
+   *
+   * Collision still belongs to the complete cell through `passable`; these values only let a
+   * source-cell illustration use less than 64x64 pixels. The compact stairs use this to pull their
+   * two grassy banks toward the outside edges while leaving a visible, walkable passage between
+   * them. Offsets are destination-space pixels, after any rotation has been chosen.
+   */
+  drawScaleX?: number;
+  drawScaleY?: number;
+  drawOffsetX?: number;
+  drawOffsetY?: number;
+  /**
    * Clockwise quarter-turns applied around the centre of the cell.
    *
    * The source atlas only ships one north-facing ramp bank. Keeping the rotation on the tileset

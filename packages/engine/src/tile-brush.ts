@@ -426,9 +426,9 @@ function syncWall(
   return withNeighboursResolved({ ...walls, ids }, tileset, col, row);
 }
 
-/** The stairs gateway's footprint: 4 columns wide, 2 rows tall, anchored at its top-left `(col,row)`.
+/** The compact stairs footprint: two columns by two rows, anchored at its top-left `(col,row)`.
  *  Exported so the editor's hover preview draws exactly the cells the stamp will touch. */
-export const STAIRS_FOOTPRINT_COLS = 4;
+export const STAIRS_FOOTPRINT_COLS = 2;
 export const STAIRS_FOOTPRINT_ROWS = 2;
 
 export const STAIRS_DIRECTIONS = ["north", "east", "south", "west"] as const;
@@ -444,14 +444,14 @@ const STAIRS_ROTATION: Readonly<Record<StairsDirection, QuarterTurns>> = {
   west: 3,
 };
 
-/** Dimensions of the complete gateway for a direction. Shared with the editor's hover footprint. */
+/** Dimensions of the compact stairs for a direction. Shared with the editor's hover footprint. */
 export function stairsFootprint(direction: StairsDirection): { cols: number; rows: number } {
   return direction === "east" || direction === "west"
     ? { cols: STAIRS_FOOTPRINT_ROWS, rows: STAIRS_FOOTPRINT_COLS }
     : { cols: STAIRS_FOOTPRINT_COLS, rows: STAIRS_FOOTPRINT_ROWS };
 }
 
-/** Rotate one source-ramp cell clockwise inside its 4x2 bounding box. */
+/** Rotate one source-ramp cell clockwise inside its 2x2 bounding box. */
 function rotatedStairsCell(
   sourceCol: number,
   sourceRow: number,
@@ -467,17 +467,44 @@ function rotatedStairsCell(
   return { col: sourceCol, row: sourceRow };
 }
 
+export interface StairsBankPlacement {
+  col: number;
+  row: number;
+  fixedIndex: number;
+}
+
+/** The four fixed bank tiles inside the compact footprint, already rotated for the chosen high side.
+ * Shared with the editor so its under-cursor ghost is the exact stamp that a click will commit. */
+export function stairsBankPlacements(direction: StairsDirection): StairsBankPlacement[] {
+  const turns = STAIRS_ROTATION[direction];
+  const source = [
+    { col: 0, row: 0, baseIndex: 0 },
+    { col: 0, row: 1, baseIndex: 1 },
+    { col: 1, row: 0, baseIndex: 2 },
+    { col: 1, row: 1, baseIndex: 3 },
+  ] as const;
+  return source.map((cell) => {
+    const rotated = rotatedStairsCell(cell.col, cell.row, turns);
+    return {
+      col: rotated.col,
+      row: rotated.row,
+      fixedIndex: turns * 4 + cell.baseIndex,
+    };
+  });
+}
+
 /**
- * Directional, bidirectional staircase gateway.
+ * Directional, bidirectional compact staircase.
  *
- * The source art is a four-cell-wide, two-row gateway: two bank cells flank a two-cell passable
- * path. `direction` names the high side: north means climb north / descend south, and so on.
- * `lowLevel` chooses the 0-to-1 or 1-to-2 transition. Ground levels, banks and the layer-1 opening
- * rotate together, preserving one frozen tile-id description of the result.
+ * `direction` names the high side: north means climb north / descend south, and so on. `lowLevel`
+ * chooses the 0-to-1 or 1-to-2 transition. The four source bank cells are drawn compressed against
+ * the outer edges of this 2x2 footprint, leaving a visible 64px passage through the centre. All
+ * four fixed cells are passable, so that visible opening is also the baked collision opening.
+ * Ground levels and banks rotate together, preserving one frozen tile-id description of the result.
  *
  * The stamp is refused when any footprint cell is off-map. Otherwise it is explicit authoring
- * intent: it paints the high and low ground halves, replaces ambient cliff faces with rotated ramp
- * banks, clears the path through collision, then re-resolves the one-cell autotile border.
+ * intent: it paints the high and low ground halves, replaces the ambient cliff face with rotated,
+ * passable ramp banks, then re-resolves the one-cell autotile border.
  */
 export function paintStairs(
   layers: readonly TileLayer[],
@@ -499,19 +526,12 @@ export function paintStairs(
     return { col: col + rotated.col, row: row + rotated.row };
   };
 
-  const bankCells: readonly { col: number; row: number; baseIndex: number }[] = [
-    { ...at(0, 0), baseIndex: 0 },
-    { ...at(0, 1), baseIndex: 1 },
-    { ...at(3, 0), baseIndex: 2 },
-    { ...at(3, 1), baseIndex: 3 },
-  ];
-  const pathCells: readonly { col: number; row: number }[] = [
-    at(1, 0),
-    at(1, 1),
-    at(2, 0),
-    at(2, 1),
-  ];
-  const allCells: readonly { col: number; row: number }[] = [...bankCells, ...pathCells];
+  const bankCells = stairsBankPlacements(direction).map((cell) => ({
+    col: col + cell.col,
+    row: row + cell.row,
+    fixedIndex: cell.fixedIndex,
+  }));
+  const allCells: readonly { col: number; row: number }[] = bankCells;
   if (
     allCells.some(
       (cell) => !inBounds(ground, cell.col, cell.row) || !inBounds(walls, cell.col, cell.row),
@@ -532,15 +552,13 @@ export function paintStairs(
     }
   }
 
-  // Layer 1: banks are the four fixed ramp tiles; the path clears the cliff wall so it is not solid.
+  // Layer 1: the four fixed ramp tiles replace the cliff wall. Each is passable, while its compressed
+  // art stays on the outside edge of the 2x2 footprint and leaves the visible centre open.
   const preparedWalls = prepared[1];
   if (!preparedWalls) return layers as TileLayer[];
   const ids = [...preparedWalls.ids];
   for (const cell of bankCells) {
-    ids[indexOf(preparedWalls, cell.col, cell.row)] = fixedId(turns * 4 + cell.baseIndex);
-  }
-  for (const cell of pathCells) {
-    ids[indexOf(preparedWalls, cell.col, cell.row)] = EMPTY_TILE;
+    ids[indexOf(preparedWalls, cell.col, cell.row)] = fixedId(cell.fixedIndex);
   }
   const draft: TileLayer = { ...preparedWalls, ids };
 

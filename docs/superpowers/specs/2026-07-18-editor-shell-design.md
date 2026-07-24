@@ -64,11 +64,13 @@ return new layers, re-resolve every affected neighbour. Fill operates on contigu
 regions, bounded by the map. Both are tested against `resolveWholeLayer` as the oracle, with
 mutation proofs — the property-test discipline that caught real bugs in tranche 1.
 
-**The ramp stamp makes every elevation edge climbable.** The four source ramp pieces are two banks
-around a two-cell path, so `paintStairs` authors a 4×2 gateway rather than a compact 2×2 block.
-The author chooses its high side (north/east/south/west) and transition (0↔1 or 1↔2); the brush
-rotates the banks and elevation halves together. The middle cells clear the impassable face on
-layer 1, making the route naturally bidirectional without changing movement or prediction.
+**The ramp stamp makes every elevation edge climbable.** The source sheet spaces its four ramp
+pieces around a two-cell path, which made the old 4×2 gateway read as a building-sized object. The
+fixed-tile draw transform now compresses each bank against the outside of a compact 2×2 stamp and
+leaves a visible 64 px passage through its centre. The author chooses its high side
+(north/east/south/west) and transition (0↔1 or 1↔2); the brush rotates the banks, offsets and
+elevation halves together. All four ramp cells replace the impassable face with passable collision,
+making the route naturally bidirectional without changing movement or prediction.
 
 Wall upkeep owns ambient cliff tiles on all four sides but never overwrites the ramp banks or any
 other author-placed fixed fixture. Repainting nearby elevation can rotate or remove only its own

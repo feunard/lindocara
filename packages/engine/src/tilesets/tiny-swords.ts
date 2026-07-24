@@ -39,14 +39,27 @@ export const GRASS_SLOTS: readonly [number, number, number] = [0, 1, 2];
 export const CLIFF_WALL_SLOT = 3;
 
 const RAMP_BANKS = [
-  { atlas: ATLAS, col: 0, row: 4, passable: true, priority: "below" },
-  { atlas: ATLAS, col: 0, row: 5, passable: true, priority: "below" },
-  { atlas: ATLAS, col: 3, row: 4, passable: true, priority: "below" },
-  { atlas: ATLAS, col: 3, row: 5, passable: true, priority: "below" },
+  { atlas: ATLAS, col: 0, row: 4, side: "left" },
+  { atlas: ATLAS, col: 0, row: 5, side: "left" },
+  { atlas: ATLAS, col: 3, row: 4, side: "right" },
+  { atlas: ATLAS, col: 3, row: 5, side: "right" },
 ] as const;
 
 const RAMP_ROTATIONS = [0, 1, 2, 3] as const;
 export const RAMP_FIXED_TILE_COUNT = RAMP_BANKS.length * RAMP_ROTATIONS.length;
+const RAMP_BANK_OFFSET_PX = 16;
+
+/** Rotate a source-space offset into the destination cell alongside its ramp bank. */
+function rotatedOffset(
+  x: number,
+  y: number,
+  turns: (typeof RAMP_ROTATIONS)[number],
+): { x: number; y: number } {
+  if (turns === 1) return { x: -y, y: x };
+  if (turns === 2) return { x: -x, y: -y };
+  if (turns === 3) return { x: y, y: -x };
+  return { x, y };
+}
 
 /** A middle cliff-face cell repeated along an edge. The source faces south (high ground north);
  * rotations make the other three orientations without inventing a second transform channel. */
@@ -87,11 +100,31 @@ export const TINY_SWORDS_TILESET: Tileset = {
     { atlas: ATLAS, origin: { col: 5, row: 4 }, kind: "run4", passable: false, priority: "below" },
   ],
   // Ramps are the only passable fixtures that visually join two elevation levels. The source sheet
-  // contains one north-facing set of four bank cells; four groups of ids reuse those cells with a
-  // tileset-owned rotation so the map id alone remains complete appearance + collision truth.
+  // leaves two whole atlas cells between its banks, producing a 256px-wide gateway at native scale.
+  // In the editor that read as a building-sized object, so each bank is compressed to half a cell
+  // and pulled to the outside of a compact 2x2 stamp. The centre stays a 64px visible passage. Four
+  // groups of ids rotate both the art and its destination-space offset, so the frozen id still owns
+  // complete appearance + collision truth.
   fixed: [
     ...RAMP_ROTATIONS.flatMap((rotationQuarterTurns) =>
-      RAMP_BANKS.map((bank) => ({ ...bank, rotationQuarterTurns })),
+      RAMP_BANKS.map((bank) => {
+        const offset = rotatedOffset(
+          bank.side === "left" ? -RAMP_BANK_OFFSET_PX : RAMP_BANK_OFFSET_PX,
+          0,
+          rotationQuarterTurns,
+        );
+        return {
+          atlas: bank.atlas,
+          col: bank.col,
+          row: bank.row,
+          passable: true,
+          priority: "below" as const,
+          rotationQuarterTurns,
+          drawScaleX: 0.5,
+          drawOffsetX: offset.x,
+          drawOffsetY: offset.y,
+        };
+      }),
     ),
     ...RAMP_ROTATIONS.map((rotationQuarterTurns) => ({
       ...CLIFF_FACE,

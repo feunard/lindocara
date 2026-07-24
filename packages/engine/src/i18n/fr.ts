@@ -877,7 +877,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.stairs.transition": "Niveaux reliés",
   "editor.stairs.transitionLevels": "Niveau {low} ↔ {high}",
   "editor.stairs.hint":
-    "Les héros montent vers {up} et redescendent vers {down}. Le tampon adapte le relief et l’apparence sur toute son empreinte.",
+    "Le tampon compact occupe 2 × 2 cases. Les héros montent vers {up} et redescendent vers {down}. Placez-le à cheval sur la frontière des deux hauteurs.",
   "editor.shell.stage.loading": "Chargement de la carte…",
   "editor.shell.saving": "Enregistrement…",
   "editor.shell.stage.error": "La carte n'a pas pu être chargée.",
@@ -994,7 +994,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.help.maps.relief.step3":
     "Choisissez le côté haut : haut, droite, bas ou gauche. La flèche indique le sens de la montée.",
   "editor.help.maps.relief.step4":
-    "Cliquez à cheval sur la frontière. L’escalier tourne, ouvre le passage et raccorde automatiquement les deux hauteurs.",
+    "Cliquez à cheval sur la frontière : l’aperçu 2 × 2 montre la place exacte. L’escalier tourne, remplace la paroi bloquante et ouvre un passage central.",
   "editor.help.maps.relief.rule":
     "On monte vers le côté haut sélectionné ; on descend en parcourant le même escalier dans le sens opposé.",
   "editor.help.maps.multimap.title": "Créer plusieurs cartes",

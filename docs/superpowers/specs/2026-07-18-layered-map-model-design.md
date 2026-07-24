@@ -48,9 +48,11 @@ visual face wins deterministically, but every choice has the same impassable col
 Consequence: **no change to `isWalkableBox`, `resolveTerrain`, `step()`, or prediction.** The
 passability grid is baked at map load exactly as `bakeCollision` bakes one today.
 
-Directional ramps are the only passable cells that join two levels. A 4×2 gateway rotates toward
-the selected high side and supports both 0↔1 and 1↔2, so every north/east/south/west crossing is
-walkable in both directions without special movement rules.
+Directional ramps are the only passable cells that join two levels. The original sheet spaces its
+banks across four cells; the editor compresses them against the outside edges of a compact 2×2
+stamp, preserving a visible 64 px passage through the centre. The stamp rotates toward the selected
+high side and supports both 0↔1 and 1↔2, so every north/east/south/west crossing is walkable in both
+directions without special movement rules.
 
 ## Art
 

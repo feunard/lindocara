@@ -74,36 +74,29 @@ function fieldForDirection(direction: StairsDirection): TileLayer[] {
   return layers;
 }
 
-describe("the stairs gateway stamp", () => {
-  it("stamps the two banks three columns apart and clears the wall over the path between them", () => {
+describe("the compact stairs stamp", () => {
+  it("replaces a two-cell cliff opening with four compact, passable ramp banks", () => {
     const layers = fieldWithPlateau();
     // Before the stamp, row 3 carries one continuous cliff-wall run across cols 1..6.
+    expect(decodeTileId(idAt(layerAt(layers, 1), 2, 3)).kind).toBe("autotile");
     expect(decodeTileId(idAt(layerAt(layers, 1), 3, 3)).kind).toBe("autotile");
-    expect(decodeTileId(idAt(layerAt(layers, 1), 4, 3)).kind).toBe("autotile");
 
-    // Anchor at (2,2): the gateway spans cols 2..5, rows 2..3. Left bank at col 2, right bank at col
-    // 5 (three columns apart, exactly the ramp tiles' atlas spacing), path in cols 3-4.
+    // Anchor at (2,2): the stairs span only cols 2..3, rows 2..3. The source atlas leaves a huge
+    // two-cell gap between its banks; the tileset draw transform compresses those banks against the
+    // outside edges of this compact footprint instead.
     const stamped = paintStairs(layers, set, 2, 2);
     const walls = layerAt(stamped, 1);
     const ground = layerAt(stamped, 0);
 
-    // Left bank (fixed 0/1) at col 2, right bank (fixed 2/3) at col 5.
+    // Left bank (fixed 0/1) at col 2, right bank (fixed 2/3) immediately beside it at col 3.
     expect(decodeTileId(idAt(walls, 2, 2))).toEqual({ kind: "fixed", index: 0 });
     expect(decodeTileId(idAt(walls, 2, 3))).toEqual({ kind: "fixed", index: 1 });
-    expect(decodeTileId(idAt(walls, 5, 2))).toEqual({ kind: "fixed", index: 2 });
-    expect(decodeTileId(idAt(walls, 5, 3))).toEqual({ kind: "fixed", index: 3 });
+    expect(decodeTileId(idAt(walls, 3, 2))).toEqual({ kind: "fixed", index: 2 });
+    expect(decodeTileId(idAt(walls, 3, 3))).toEqual({ kind: "fixed", index: 3 });
 
-    // The two middle columns are the walkable path: the cliff wall is cleared on layer 1 across both
-    // rows, so nothing solid stands in the opening.
-    for (const col of [3, 4]) {
-      for (const row of [2, 3]) {
-        expect(decodeTileId(idAt(walls, col, row)).kind).toBe("empty");
-      }
-    }
-
-    // ...and layer 0 under the path carries lower-level grass (slot 0, the level the ramp descends
-    // to) across both rows — the notch is walkable ground, not a void.
-    for (const col of [3, 4]) {
+    // Layer 0 under both visual banks carries the two levels; every fixed bank is passable, so the
+    // visible 64px centre opening is walkable ground rather than a void or a hidden cliff collider.
+    for (const col of [2, 3]) {
       const high = decodeTileId(idAt(ground, col, 2));
       expect(high.kind).toBe("autotile");
       if (high.kind === "autotile") expect(high.slot).toBe(GRASS_SLOTS[1]);
@@ -113,18 +106,17 @@ describe("the stairs gateway stamp", () => {
     }
 
     // The wall cells flanking the gateway, never touched by it, remain cliff wall.
-    for (const col of [1, 6]) {
+    for (const col of [1, 4]) {
       const ref = decodeTileId(idAt(walls, col, 3));
       expect(ref.kind).toBe("autotile");
       if (ref.kind === "autotile") expect(ref.slot).toBe(CLIFF_WALL_SLOT);
     }
   });
 
-  it("refuses a stamp whose 4-wide footprint would fall off the right edge, same reference back", () => {
+  it("refuses a stamp whose compact footprint would fall off the right edge, same reference back", () => {
     const layers = blank();
-    // Max legal anchor col on an 8-wide map is COLS - 4 = 4; col 5 pushes the right bank (col + 3 =
-    // 8) off the edge.
-    const result = paintStairs(layers, set, 5, 2);
+    // Max legal anchor col on an 8-wide map is COLS - 2 = 6; col 7 pushes its second column off-map.
+    const result = paintStairs(layers, set, 7, 2);
     expect(result).toBe(layers);
     expect(layerAt(result, 1).ids.every((id) => id === 0)).toBe(true);
     expect(layerAt(result, 0).ids.every((id) => id === 0)).toBe(true);
@@ -132,10 +124,10 @@ describe("the stairs gateway stamp", () => {
 
   it("rotates the complete footprint and bank ids towards every high side", () => {
     const cases = [
-      { direction: "north" as const, cols: 4, rows: 2, firstIndex: 0 },
-      { direction: "east" as const, cols: 2, rows: 4, firstIndex: 4 },
-      { direction: "south" as const, cols: 4, rows: 2, firstIndex: 8 },
-      { direction: "west" as const, cols: 2, rows: 4, firstIndex: 12 },
+      { direction: "north" as const, firstIndex: 0 },
+      { direction: "east" as const, firstIndex: 4 },
+      { direction: "south" as const, firstIndex: 8 },
+      { direction: "west" as const, firstIndex: 12 },
     ];
     for (const testCase of cases) {
       const stamped = paintStairs(blank(), set, 2, 1, testCase.direction, 0);
@@ -158,15 +150,15 @@ describe("the stairs gateway stamp", () => {
       ]);
       const occupiedCols = new Set(fixed.map((entry) => entry.index % COLS));
       const occupiedRows = new Set(fixed.map((entry) => Math.floor(entry.index / COLS)));
-      expect(Math.max(...occupiedCols) - Math.min(...occupiedCols) + 1).toBe(testCase.cols);
-      expect(Math.max(...occupiedRows) - Math.min(...occupiedRows) + 1).toBe(testCase.rows);
+      expect(Math.max(...occupiedCols) - Math.min(...occupiedCols) + 1).toBe(2);
+      expect(Math.max(...occupiedRows) - Math.min(...occupiedRows) + 1).toBe(2);
     }
   });
 
   it("authors a level 1 to level 2 transition without flattening either side to ground", () => {
     const stamped = paintStairs(blank(), set, 2, 2, "north", 1);
     const ground = layerAt(stamped, 0);
-    for (const col of [2, 3, 4, 5]) {
+    for (const col of [2, 3]) {
       const high = decodeTileId(idAt(ground, col, 2));
       const low = decodeTileId(idAt(ground, col, 3));
       expect(high.kind === "autotile" ? high.slot : -1).toBe(GRASS_SLOTS[2]);
@@ -185,8 +177,8 @@ describe("the stairs gateway stamp", () => {
 
     expect(decodeTileId(idAt(walls, 2, 2))).toEqual({ kind: "fixed", index: 0 });
     expect(decodeTileId(idAt(walls, 2, 3))).toEqual({ kind: "fixed", index: 1 });
-    expect(decodeTileId(idAt(walls, 5, 2))).toEqual({ kind: "fixed", index: 2 });
-    expect(decodeTileId(idAt(walls, 5, 3))).toEqual({ kind: "fixed", index: 3 });
+    expect(decodeTileId(idAt(walls, 3, 2))).toEqual({ kind: "fixed", index: 2 });
+    expect(decodeTileId(idAt(walls, 3, 3))).toEqual({ kind: "fixed", index: 3 });
   });
 
   it("bakes a walkable gateway that connects the plateau to the lower ground", () => {
@@ -200,20 +192,16 @@ describe("the stairs gateway stamp", () => {
       spawn: { col: 0, row: 0 },
     });
 
-    // The gateway is walkable end to end down path column 3: the plateau notch (row 2), the cleared
-    // wall row (row 3) and the lower ground below it (row 4) are all grass — a player can descend.
+    // The compact stairs are walkable end to end down both footprint columns: plateau, replaced
+    // cliff row and lower ground below it all stay grass collision.
     expect(kindAt(baked, 3, 2)).toBe("grass");
     expect(kindAt(baked, 3, 3)).toBe("grass");
     expect(kindAt(baked, 3, 4)).toBe("grass");
-    // The second path column too.
-    expect(kindAt(baked, 4, 3)).toBe("grass");
-    // The banks are walkable ramp (the fixed ramp tiles are passable).
     expect(kindAt(baked, 2, 3)).toBe("grass");
-    expect(kindAt(baked, 5, 3)).toBe("grass");
     // The wall cells flanking the opening stay solid, so the gateway is the ONLY way through the
     // cliff — a bank of forest on either side of a walkable channel.
     expect(kindAt(baked, 1, 3)).toBe("forest");
-    expect(kindAt(baked, 6, 3)).toBe("forest");
+    expect(kindAt(baked, 4, 3)).toBe("forest");
   });
 
   it("is the walkable opening through a cliff in all four orientations", () => {
@@ -232,7 +220,7 @@ describe("the stairs gateway stamp", () => {
         ],
         blocked: [
           { col: 1, row: 3 },
-          { col: 6, row: 3 },
+          { col: 4, row: 3 },
         ],
       },
       {
@@ -244,7 +232,7 @@ describe("the stairs gateway stamp", () => {
         ],
         blocked: [
           { col: 1, row: 2 },
-          { col: 6, row: 2 },
+          { col: 4, row: 2 },
         ],
       },
       {
@@ -256,7 +244,7 @@ describe("the stairs gateway stamp", () => {
         ],
         blocked: [
           { col: 3, row: 1 },
-          { col: 3, row: 6 },
+          { col: 3, row: 4 },
         ],
       },
       {
@@ -268,7 +256,7 @@ describe("the stairs gateway stamp", () => {
         ],
         blocked: [
           { col: 4, row: 1 },
-          { col: 4, row: 6 },
+          { col: 4, row: 4 },
         ],
       },
     ];

@@ -862,7 +862,7 @@ export const en = {
   "editor.stairs.transition": "Connected levels",
   "editor.stairs.transitionLevels": "Level {low} ↔ {high}",
   "editor.stairs.hint":
-    "Heroes climb towards {up} and descend towards {down}. The stamp adapts both terrain and art across its full footprint.",
+    "The compact stamp uses 2 × 2 cells. Heroes climb towards {up} and descend towards {down}. Place it across the boundary between both elevations.",
   "editor.shell.stage.loading": "Loading the map…",
   "editor.shell.saving": "Saving…",
   "editor.shell.stage.error": "The map could not be loaded.",
@@ -979,7 +979,7 @@ export const en = {
   "editor.help.maps.relief.step3":
     "Choose the high side: top, right, bottom or left. The arrow shows the uphill direction.",
   "editor.help.maps.relief.step4":
-    "Click across the boundary. The stairs rotate, open the passage and automatically connect both elevations.",
+    "Click across the boundary: the 2 × 2 preview shows the exact footprint. The stairs rotate, replace the blocking cliff face and open a central passage.",
   "editor.help.maps.relief.rule":
     "Walk toward the selected high side to climb; traverse the same stairs in the opposite direction to descend.",
   "editor.help.maps.multimap.title": "Create multiple maps",

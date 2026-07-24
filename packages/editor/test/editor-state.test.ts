@@ -483,7 +483,7 @@ describe("applyTool: stairs", () => {
   it("refuses an out-of-bounds stamp, creating no history entry", () => {
     const base = blankMap("m", 20, 15);
     const tool: EditorTool = { kind: "stairs", direction: "north", lowLevel: 0 };
-    // The map is 20 cols wide; the gateway's right bank (col + 3) would land at col 22.
+    // The map is 20 cols wide; the compact stairs' second column would land at col 20.
     expect(place(base, tool, 19, 5)).toBeNull();
 
     const history = commitEditorHistory(createEditorHistory(base), base);
