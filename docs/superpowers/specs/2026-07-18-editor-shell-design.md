@@ -64,17 +64,15 @@ return new layers, re-resolve every affected neighbour. Fill operates on contigu
 regions, bounded by the map. Both are tested against `resolveWholeLayer` as the oracle, with
 mutation proofs — the property-test discipline that caught real bugs in tranche 1.
 
-**The ramp stamp makes every elevation edge climbable.** The source sheet spaces its four ramp
-pieces around a two-cell path, which made the old 4×2 gateway read as a building-sized object. The
-fixed-tile draw transform now compresses each bank against the outside of a compact 2×2 stamp and
-leaves a visible 64 px passage through its centre. The author chooses its high side
-(north/east/south/west) and transition (0↔1 or 1↔2); the brush rotates the banks, offsets and
-elevation halves together. All four ramp cells replace the impassable face with passable collision,
-making the route naturally bidirectional without changing movement or prediction.
+**The ramp stamp makes every straight elevation edge climbable.** The author chooses its high side
+(north/east/south/west) and transition (0↔1 or 1↔2), then clicks the lower cell of an elevation
+boundary that was already painted. The brush replaces that cell's impassable face with one full-cell
+simple ramp asset and rotates it toward the high side. The route is naturally bidirectional without
+changing movement or prediction; the brush refuses flat ground, mismatched levels and corners.
 
-Wall upkeep owns ambient cliff tiles on all four sides but never overwrites the ramp banks or any
-other author-placed fixed fixture. Repainting nearby elevation can rotate or remove only its own
-ambient wall faces; erasing the gateway lets ordinary cliff upkeep close the crossing again.
+Wall upkeep owns ambient cliff tiles on all four sides and preserves a ramp only while its terrain
+still matches the ramp's direction and levels. Repainting either side — especially painting water
+over its lower cell — removes the ramp and lets ordinary cliff upkeep close the crossing again.
 
 **Keyboard.** ⌘S save, ⌘Z/⇧⌘Z undo/redo, 1/2/3 active layer, P pencil, R rect, F fill, E eraser,
 S select, G grid toggle. Shortcuts live on the shell component, not on `document`, and are

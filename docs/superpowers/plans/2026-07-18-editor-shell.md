@@ -94,11 +94,12 @@ Fills the contiguous 4-neighbour region sharing the start cell's *slot* (empty c
 **Interfaces produced:**
 ```ts
 paintStairs(layers: readonly TileLayer[], tileset: Tileset,
-  col: number, row: number): TileLayer[]
+  col: number, row: number, direction: StairsDirection,
+  lowLevel: 0 | 1): TileLayer[]
 ```
-Writes the tileset's four ramp fixed tiles (`fixedId(0..3)`, the 2×2 stamp: 0=top-left, 1=bottom-left, 2=top-right, 3=bottom-right per the sheet crop) onto **layer 1** at `(col,row)..(col+1,row+1)`, replacing whatever is there including cliff walls. Rejects (returns layers unchanged) if any of the four cells is out of bounds. After placement, re-resolve wall runs adjacent to the replaced cells so a run4 wall row closes correctly beside the stamp.
+Writes one rotated simple-ramp fixed tile onto **layer 1** at `(col,row)`, the lower cell of an already-painted elevation boundary. Rejects flat ground, a mismatched 0↔1/1↔2 transition and cliff corners. It does not repaint layer 0. After placement, adjacent wall runs re-resolve; later water/elevation edits remove the ramp automatically if the boundary no longer matches.
 
-**Tests (exact scenarios):** (1) stamp on a wall row: the two wall cells under the stamp become `fixedId(1)`/`fixedId(3)`, the wall cells either side re-resolve their run ends (left neighbour becomes mask-1 "right end"). (2) stamp at `col = cols-1` is refused, layers unchanged, same reference. (3) with Task 2 in place: painting elevation beside the stamp leaves all four stamp cells intact. (4) bake: a cell under the stamp is walkable (`bakeCollision` yields non-solid) even when the ground beneath is a wall-casting drop — this is the "ramps join levels" acceptance test, phrased on the bake because the engine has no other observable. Mutation proof: make the stamp write to layer 0 — tests 1 and 4 fail.
+**Tests (exact scenarios):** (1) one wall cell becomes one direction/level-specific fixed id while its flanking walls stay blocked. (2) flat ground, a mismatched transition and a corner are refused, layers unchanged, same reference. (3) painting water on the ramp removes it and restores normal cliff upkeep. (4) bake: the ramp and high cell are walkable while the two flanks stay solid in all four orientations.
 
 ---
 

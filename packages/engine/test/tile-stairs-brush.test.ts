@@ -1,12 +1,18 @@
 import { bakeCollision } from "@lindocara/engine/map-data.js";
-import { paintElevation, paintStairs, type StairsDirection } from "@lindocara/engine/tile-brush.js";
+import {
+  eraseTile,
+  paintElevation,
+  paintStairs,
+  type StairsDirection,
+  stairsFixedIndex,
+  syncElevationWalls,
+} from "@lindocara/engine/tile-brush.js";
 import { emptyLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { kindAt } from "@lindocara/engine/tilemap.js";
 import { decodeTileId } from "@lindocara/engine/tileset.js";
 import {
   CLIFF_WALL_SLOT,
   GRASS_SLOTS,
-  RAMP_FIXED_TILE_COUNT,
   TINY_SWORDS_TILESET,
   TINY_SWORDS_TILESET_ID,
 } from "@lindocara/engine/tilesets/tiny-swords.js";
@@ -31,31 +37,26 @@ function idAt(layer: { cols: number; ids: readonly number[] }, col: number, row:
   return layer.ids[row * layer.cols + col] ?? 0;
 }
 
-/**
- * A flat level-0 grass field with a level-1 plateau across rows 0..2 (cols 1..6), which casts one
- * cliff-wall row at row 3 — the row directly below the raised ground. The lower ground sits at rows
- * 3..5, so a gateway stamped over the wall row joins the plateau (up) to the lower ground (down).
- */
-function fieldWithPlateau(): TileLayer[] {
-  let layers = blank();
-  for (let row = 0; row < ROWS; row += 1) {
-    for (let col = 0; col < COLS; col += 1) {
-      layers = paintElevation(layers, set, 0, col, row);
-    }
-  }
-  for (const row of [0, 1, 2]) {
-    for (const col of [1, 2, 3, 4, 5, 6]) {
-      layers = paintElevation(layers, set, 1, col, row);
-    }
-  }
-  return layers;
+function anchorFor(direction: StairsDirection): { col: number; row: number } {
+  return direction === "east" || direction === "west" ? { col: 3, row: 4 } : { col: 4, row: 3 };
 }
 
-function fieldForDirection(direction: StairsDirection): TileLayer[] {
+function highCellFor(
+  direction: StairsDirection,
+  anchor = anchorFor(direction),
+): { col: number; row: number } {
+  if (direction === "north") return { col: anchor.col, row: anchor.row - 1 };
+  if (direction === "east") return { col: anchor.col + 1, row: anchor.row };
+  if (direction === "south") return { col: anchor.col, row: anchor.row + 1 };
+  return { col: anchor.col - 1, row: anchor.row };
+}
+
+/** A straight low/high boundary with the clicked anchor on its low side. */
+function fieldForDirection(direction: StairsDirection, lowLevel: 0 | 1 = 0): TileLayer[] {
   let layers = blank();
   for (let row = 0; row < ROWS; row += 1) {
     for (let col = 0; col < COLS; col += 1) {
-      layers = paintElevation(layers, set, 0, col, row);
+      layers = paintElevation(layers, set, lowLevel, col, row);
     }
   }
   for (let row = 0; row < ROWS; row += 1) {
@@ -64,210 +65,145 @@ function fieldForDirection(direction: StairsDirection): TileLayer[] {
         direction === "north"
           ? row <= 2
           : direction === "south"
-            ? row >= 3
+            ? row >= 4
             : direction === "east"
               ? col >= 4
-              : col <= 3;
-      if (high) layers = paintElevation(layers, set, 1, col, row);
+              : col <= 2;
+      if (high) layers = paintElevation(layers, set, lowLevel + 1, col, row);
     }
   }
   return layers;
 }
 
-describe("the compact stairs stamp", () => {
-  it("replaces a two-cell cliff opening with four compact, passable ramp banks", () => {
-    const layers = fieldWithPlateau();
-    // Before the stamp, row 3 carries one continuous cliff-wall run across cols 1..6.
-    expect(decodeTileId(idAt(layerAt(layers, 1), 2, 3)).kind).toBe("autotile");
-    expect(decodeTileId(idAt(layerAt(layers, 1), 3, 3)).kind).toBe("autotile");
+describe("the simple stairs stamp", () => {
+  it("replaces exactly one blocking cliff cell without repainting either elevation", () => {
+    const layers = fieldForDirection("north");
+    const anchor = anchorFor("north");
+    const groundBefore = layerAt(layers, 0);
+    const wallBefore = decodeTileId(idAt(layerAt(layers, 1), anchor.col, anchor.row));
+    expect(wallBefore.kind).toBe("autotile");
+    if (wallBefore.kind === "autotile") expect(wallBefore.slot).toBe(CLIFF_WALL_SLOT);
 
-    // Anchor at (2,2): the stairs span only cols 2..3, rows 2..3. The source atlas leaves a huge
-    // two-cell gap between its banks; the tileset draw transform compresses those banks against the
-    // outside edges of this compact footprint instead.
-    const stamped = paintStairs(layers, set, 2, 2);
-    const walls = layerAt(stamped, 1);
-    const ground = layerAt(stamped, 0);
+    const stamped = paintStairs(layers, set, anchor.col, anchor.row, "north", 0);
+    expect(layerAt(stamped, 0)).toBe(groundBefore);
+    expect(decodeTileId(idAt(layerAt(stamped, 1), anchor.col, anchor.row))).toEqual({
+      kind: "fixed",
+      index: stairsFixedIndex("north", 0),
+    });
 
-    // Left bank (fixed 0/1) at col 2, right bank (fixed 2/3) immediately beside it at col 3.
-    expect(decodeTileId(idAt(walls, 2, 2))).toEqual({ kind: "fixed", index: 0 });
-    expect(decodeTileId(idAt(walls, 2, 3))).toEqual({ kind: "fixed", index: 1 });
-    expect(decodeTileId(idAt(walls, 3, 2))).toEqual({ kind: "fixed", index: 2 });
-    expect(decodeTileId(idAt(walls, 3, 3))).toEqual({ kind: "fixed", index: 3 });
-
-    // Layer 0 under both visual banks carries the two levels; every fixed bank is passable, so the
-    // visible 64px centre opening is walkable ground rather than a void or a hidden cliff collider.
-    for (const col of [2, 3]) {
-      const high = decodeTileId(idAt(ground, col, 2));
-      expect(high.kind).toBe("autotile");
-      if (high.kind === "autotile") expect(high.slot).toBe(GRASS_SLOTS[1]);
-      const low = decodeTileId(idAt(ground, col, 3));
-      expect(low.kind).toBe("autotile");
-      if (low.kind === "autotile") expect(low.slot).toBe(GRASS_SLOTS[0]);
-    }
-
-    // The wall cells flanking the gateway, never touched by it, remain cliff wall.
-    for (const col of [1, 4]) {
-      const ref = decodeTileId(idAt(walls, col, 3));
+    for (const col of [anchor.col - 1, anchor.col + 1]) {
+      const ref = decodeTileId(idAt(layerAt(stamped, 1), col, anchor.row));
       expect(ref.kind).toBe("autotile");
       if (ref.kind === "autotile") expect(ref.slot).toBe(CLIFF_WALL_SLOT);
     }
   });
 
-  it("refuses a stamp whose compact footprint would fall off the right edge, same reference back", () => {
-    const layers = blank();
-    // Max legal anchor col on an 8-wide map is COLS - 2 = 6; col 7 pushes its second column off-map.
-    const result = paintStairs(layers, set, 7, 2);
-    expect(result).toBe(layers);
-    expect(layerAt(result, 1).ids.every((id) => id === 0)).toBe(true);
-    expect(layerAt(result, 0).ids.every((id) => id === 0)).toBe(true);
+  it("refuses flat ground, a mismatched level and a cliff corner, same reference back", () => {
+    let flat = blank();
+    for (let row = 0; row < ROWS; row += 1) {
+      for (let col = 0; col < COLS; col += 1) {
+        flat = paintElevation(flat, set, 0, col, row);
+      }
+    }
+    expect(paintStairs(flat, set, 4, 3, "north", 0)).toBe(flat);
+
+    const boundary = fieldForDirection("north");
+    expect(paintStairs(boundary, set, 4, 3, "north", 1)).toBe(boundary);
+
+    // North and east are both high: one passable whole cell would open two cliff faces.
+    const corner = paintElevation(boundary, set, 1, 5, 3);
+    expect(paintStairs(corner, set, 4, 3, "north", 0)).toBe(corner);
   });
 
-  it("rotates the complete footprint and bank ids towards every high side", () => {
-    const cases = [
-      { direction: "north" as const, firstIndex: 0 },
-      { direction: "east" as const, firstIndex: 4 },
-      { direction: "south" as const, firstIndex: 8 },
-      { direction: "west" as const, firstIndex: 12 },
-    ];
-    for (const testCase of cases) {
-      const stamped = paintStairs(blank(), set, 2, 1, testCase.direction, 0);
-      const walls = layerAt(stamped, 1);
-      const fixed = walls.ids
-        .map((id, index) => ({ ref: decodeTileId(id), index }))
-        .filter((entry) => entry.ref.kind === "fixed" && entry.ref.index < RAMP_FIXED_TILE_COUNT);
-      expect(fixed).toHaveLength(4);
-      expect(
-        fixed
-          .map((entry) => entry.ref)
-          .filter((ref) => ref.kind === "fixed")
-          .map((ref) => ref.index)
-          .sort((left, right) => left - right),
-      ).toEqual([
-        testCase.firstIndex,
-        testCase.firstIndex + 1,
-        testCase.firstIndex + 2,
-        testCase.firstIndex + 3,
-      ]);
-      const occupiedCols = new Set(fixed.map((entry) => entry.index % COLS));
-      const occupiedRows = new Set(fixed.map((entry) => Math.floor(entry.index / COLS)));
-      expect(Math.max(...occupiedCols) - Math.min(...occupiedCols) + 1).toBe(2);
-      expect(Math.max(...occupiedRows) - Math.min(...occupiedRows) + 1).toBe(2);
+  it("writes one rotated simple-asset id for every uphill direction", () => {
+    for (const direction of ["north", "east", "south", "west"] as const) {
+      const layers = fieldForDirection(direction);
+      const anchor = anchorFor(direction);
+      const stamped = paintStairs(layers, set, anchor.col, anchor.row, direction, 0);
+      const ramps = layerAt(stamped, 1)
+        .ids.map((id) => decodeTileId(id))
+        .filter((ref) => ref.kind === "fixed" && ref.index === stairsFixedIndex(direction, 0));
+      expect(ramps).toHaveLength(1);
+      const entry = set.fixed[stairsFixedIndex(direction, 0)];
+      expect(entry).toMatchObject({
+        col: 0,
+        row: 4,
+        passable: true,
+        rotationQuarterTurns: ["north", "east", "south", "west"].indexOf(direction),
+      });
     }
   });
 
-  it("authors a level 1 to level 2 transition without flattening either side to ground", () => {
-    const stamped = paintStairs(blank(), set, 2, 2, "north", 1);
-    const ground = layerAt(stamped, 0);
-    for (const col of [2, 3]) {
-      const high = decodeTileId(idAt(ground, col, 2));
-      const low = decodeTileId(idAt(ground, col, 3));
-      expect(high.kind === "autotile" ? high.slot : -1).toBe(GRASS_SLOTS[2]);
-      expect(low.kind === "autotile" ? low.slot : -1).toBe(GRASS_SLOTS[1]);
-    }
-  });
-
-  it("leaves all four bank tiles intact when elevation is painted beside them", () => {
-    const stamped = paintStairs(blank(), set, 2, 2);
-
-    // Raising the ground directly above the left bank's top cell makes `syncElevationWalls` want to
-    // drop a wall onto (2,2) — the row below what was just raised — but (2,2) is a fixed ramp tile,
-    // and since Task 2 `syncWall` refuses to touch a fixed tile at all.
-    const afterElevation = paintElevation(stamped, set, 1, 2, 1);
-    const walls = layerAt(afterElevation, 1);
-
-    expect(decodeTileId(idAt(walls, 2, 2))).toEqual({ kind: "fixed", index: 0 });
-    expect(decodeTileId(idAt(walls, 2, 3))).toEqual({ kind: "fixed", index: 1 });
-    expect(decodeTileId(idAt(walls, 3, 2))).toEqual({ kind: "fixed", index: 2 });
-    expect(decodeTileId(idAt(walls, 3, 3))).toEqual({ kind: "fixed", index: 3 });
-  });
-
-  it("bakes a walkable gateway that connects the plateau to the lower ground", () => {
-    const stamped = paintStairs(fieldWithPlateau(), set, 2, 2);
-    const baked = bakeCollision({
-      tilesetId: TINY_SWORDS_TILESET_ID,
-      cols: COLS,
-      rows: ROWS,
-      layers: stamped,
-      elements: [],
-      spawn: { col: 0, row: 0 },
+  it("uses the darker simple asset for a 1↔2 boundary without modifying ground", () => {
+    const layers = fieldForDirection("north", 1);
+    const anchor = anchorFor("north");
+    const stamped = paintStairs(layers, set, anchor.col, anchor.row, "north", 1);
+    expect(layerAt(stamped, 0)).toBe(layerAt(layers, 0));
+    expect(decodeTileId(idAt(layerAt(stamped, 1), anchor.col, anchor.row))).toEqual({
+      kind: "fixed",
+      index: stairsFixedIndex("north", 1),
     });
-
-    // The compact stairs are walkable end to end down both footprint columns: plateau, replaced
-    // cliff row and lower ground below it all stay grass collision.
-    expect(kindAt(baked, 3, 2)).toBe("grass");
-    expect(kindAt(baked, 3, 3)).toBe("grass");
-    expect(kindAt(baked, 3, 4)).toBe("grass");
-    expect(kindAt(baked, 2, 3)).toBe("grass");
-    // The wall cells flanking the opening stay solid, so the gateway is the ONLY way through the
-    // cliff — a bank of forest on either side of a walkable channel.
-    expect(kindAt(baked, 1, 3)).toBe("forest");
-    expect(kindAt(baked, 4, 3)).toBe("forest");
+    expect(set.fixed[stairsFixedIndex("north", 1)]?.tint).toBe(set.autotiles[GRASS_SLOTS[1]]?.tint);
   });
 
-  it("is the walkable opening through a cliff in all four orientations", () => {
-    const cases: readonly {
-      direction: StairsDirection;
-      anchor: { col: number; row: number };
-      path: readonly { col: number; row: number }[];
-      blocked: readonly { col: number; row: number }[];
-    }[] = [
-      {
-        direction: "north",
-        anchor: { col: 2, row: 2 },
-        path: [
-          { col: 3, row: 2 },
-          { col: 3, row: 3 },
-        ],
-        blocked: [
-          { col: 1, row: 3 },
-          { col: 4, row: 3 },
-        ],
-      },
-      {
-        direction: "south",
-        anchor: { col: 2, row: 2 },
-        path: [
-          { col: 3, row: 2 },
-          { col: 3, row: 3 },
-        ],
-        blocked: [
-          { col: 1, row: 2 },
-          { col: 4, row: 2 },
-        ],
-      },
-      {
-        direction: "east",
-        anchor: { col: 3, row: 2 },
-        path: [
-          { col: 3, row: 3 },
-          { col: 4, row: 3 },
-        ],
-        blocked: [
-          { col: 3, row: 1 },
-          { col: 3, row: 4 },
-        ],
-      },
-      {
-        direction: "west",
-        anchor: { col: 3, row: 2 },
-        path: [
-          { col: 3, row: 3 },
-          { col: 4, row: 3 },
-        ],
-        blocked: [
-          { col: 4, row: 1 },
-          { col: 4, row: 4 },
-        ],
-      },
-    ];
+  it("removes the ramp when water replaces its cell and restores normal cliff upkeep", () => {
+    const anchor = anchorFor("north");
+    const stamped = paintStairs(
+      fieldForDirection("north"),
+      set,
+      anchor.col,
+      anchor.row,
+      "north",
+      0,
+    );
+    const ground = eraseTile(layerAt(stamped, 0), set, anchor.col, anchor.row);
+    const drowned = syncElevationWalls([ground, ...stamped.slice(1)], set, anchor.col, anchor.row);
+    const ref = decodeTileId(idAt(layerAt(drowned, 1), anchor.col, anchor.row));
+    expect(ref.kind).toBe("autotile");
+    if (ref.kind === "autotile") expect(ref.slot).toBe(CLIFF_WALL_SLOT);
+    expect(
+      kindAt(
+        bakeCollision({
+          tilesetId: TINY_SWORDS_TILESET_ID,
+          cols: COLS,
+          rows: ROWS,
+          layers: drowned,
+          elements: [],
+          spawn: { col: 0, row: 7 },
+        }),
+        anchor.col,
+        anchor.row,
+      ),
+    ).toBe("forest");
+  });
 
-    for (const testCase of cases) {
+  it("removes an orphaned ramp when either elevation no longer matches", () => {
+    const anchor = anchorFor("north");
+    const high = highCellFor("north", anchor);
+    const stamped = paintStairs(
+      fieldForDirection("north"),
+      set,
+      anchor.col,
+      anchor.row,
+      "north",
+      0,
+    );
+    const flattened = paintElevation(stamped, set, 0, high.col, high.row);
+    expect(decodeTileId(idAt(layerAt(flattened, 1), anchor.col, anchor.row))).toEqual({
+      kind: "empty",
+    });
+  });
+
+  it("bakes one bidirectional opening through the cliff in all four orientations", () => {
+    for (const direction of ["north", "east", "south", "west"] as const) {
+      const anchor = anchorFor(direction);
+      const high = highCellFor(direction, anchor);
       const stamped = paintStairs(
-        fieldForDirection(testCase.direction),
+        fieldForDirection(direction),
         set,
-        testCase.anchor.col,
-        testCase.anchor.row,
-        testCase.direction,
+        anchor.col,
+        anchor.row,
+        direction,
       );
       const baked = bakeCollision({
         tilesetId: TINY_SWORDS_TILESET_ID,
@@ -275,10 +211,21 @@ describe("the compact stairs stamp", () => {
         rows: ROWS,
         layers: stamped,
         elements: [],
-        spawn: { col: 0, row: 0 },
+        spawn: { col: 0, row: 7 },
       });
-      for (const cell of testCase.path) expect(kindAt(baked, cell.col, cell.row)).toBe("grass");
-      for (const cell of testCase.blocked) expect(kindAt(baked, cell.col, cell.row)).toBe("forest");
+      expect(kindAt(baked, anchor.col, anchor.row)).toBe("grass");
+      expect(kindAt(baked, high.col, high.row)).toBe("grass");
+
+      const flankA =
+        direction === "north" || direction === "south"
+          ? { col: anchor.col - 1, row: anchor.row }
+          : { col: anchor.col, row: anchor.row - 1 };
+      const flankB =
+        direction === "north" || direction === "south"
+          ? { col: anchor.col + 1, row: anchor.row }
+          : { col: anchor.col, row: anchor.row + 1 };
+      expect(kindAt(baked, flankA.col, flankA.row)).toBe("forest");
+      expect(kindAt(baked, flankB.col, flankB.row)).toBe("forest");
     }
   });
 });

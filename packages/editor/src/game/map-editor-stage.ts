@@ -24,7 +24,7 @@ import {
   sameElementSlot,
 } from "@lindocara/engine/map-data.js";
 import type { EventKind, MapEvent } from "@lindocara/engine/map-events.js";
-import { stairsBankPlacements, stairsFootprint } from "@lindocara/engine/tile-brush.js";
+import { stairsFixedIndex, stairsFootprint } from "@lindocara/engine/tile-brush.js";
 import type { TileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { isSolidKind, TILE_SIZE, type TileMap } from "@lindocara/engine/tilemap.js";
 import { fixedId, type Tileset } from "@lindocara/engine/tileset.js";
@@ -48,7 +48,7 @@ import {
 import { TINY_SWORDS_ENEMIES } from "@lindocara/renderer/enemy-art.js";
 import { acquireStageApp } from "@lindocara/renderer/stage-application.js";
 import { foamFrameAt } from "@lindocara/renderer/terrain-visuals.js";
-import { tileDrawAt, tileSpriteLayout } from "@lindocara/renderer/tile-draw.js";
+import { tileDrawAt } from "@lindocara/renderer/tile-draw.js";
 import {
   sliceStrip,
   sliceTilesetSheet,
@@ -236,9 +236,8 @@ const HOVER_GHOST_ALPHA = 0.68;
 const HOVER_ILLEGAL_GHOST_ALPHA = 0.48;
 const HOVER_ILLEGAL_FILL_ALPHA = 0.28;
 
-/** The cells a tool's stamp will touch, anchored at `(col,row)`. Every tool proposes a single cell
- *  except the compact 2×2 stairs — so its hover preview outlines the whole footprint, not just the
- *  anchor. Pure and Pixi-free, exported so the footprint pins in a test. */
+/** The cells a tool's stamp will touch, anchored at `(col,row)`. A simple ramp, like every other
+ *  placement tool, proposes one cell. Pure and Pixi-free so the footprint stays pinned by a test. */
 export function stampFootprintCells(
   tool: EditorTool,
   col: number,
@@ -269,7 +268,7 @@ export interface PlacementPreviewTextures {
  * Draw the thing the next click will place, at its real anchor and scale.
  *
  * Elements reuse `createCatalogElementView`, events reuse `createEventGraphicSprite`, and stairs
- * reuse their four frozen fixed ids through `tileDrawAt`. This is deliberately the same rendering
+ * reuse their one frozen fixed id through `tileDrawAt`. This is deliberately the same rendering
  * path as committed content: a building, decoration, monster, spawn point or ramp can no longer be
  * represented by an anonymous square while it follows the pointer.
  */
@@ -299,28 +298,25 @@ export function paintPlacementAssetPreview(
   }
 
   if (tool.kind === "stairs" && textures.tileset) {
-    let drew = false;
-    for (const bank of stairsBankPlacements(tool.direction)) {
-      const layer: TileLayer = { cols: 1, rows: 1, ids: [fixedId(bank.fixedIndex)] };
-      const draw = tileDrawAt(TINY_SWORDS_TILESET, layer, 0, 0);
-      if (!draw) continue;
-      const texture = textures.tileset[draw.cell.row]?.[draw.cell.col];
-      if (!texture) continue;
-      const targetCol = col + bank.col;
-      const targetRow = row + bank.row;
-      const layout = tileSpriteLayout(draw, targetCol * TILE_SIZE, targetRow * TILE_SIZE);
-      const sprite = new Sprite(texture);
-      sprite.anchor.set(0.5);
-      sprite.position.set(layout.x, layout.y);
-      sprite.width = layout.width;
-      sprite.height = layout.height;
-      sprite.rotation = layout.rotation;
-      sprite.tint = draw.tint;
-      sprite.alpha = alpha;
-      container.addChild(sprite);
-      drew = true;
-    }
-    return drew;
+    const layer: TileLayer = {
+      cols: 1,
+      rows: 1,
+      ids: [fixedId(stairsFixedIndex(tool.direction, tool.lowLevel))],
+    };
+    const draw = tileDrawAt(TINY_SWORDS_TILESET, layer, 0, 0);
+    if (!draw) return false;
+    const texture = textures.tileset[draw.cell.row]?.[draw.cell.col];
+    if (!texture) return false;
+    const sprite = new Sprite(texture);
+    sprite.anchor.set(0.5);
+    sprite.position.set(col * TILE_SIZE + TILE_SIZE / 2, row * TILE_SIZE + TILE_SIZE / 2);
+    sprite.width = TILE_SIZE;
+    sprite.height = TILE_SIZE;
+    sprite.rotation = draw.rotationQuarterTurns * (Math.PI / 2);
+    sprite.tint = draw.tint;
+    sprite.alpha = alpha;
+    container.addChild(sprite);
+    return true;
   }
 
   let frame: Texture | undefined;
@@ -357,7 +353,7 @@ export function paintPlacementAssetPreview(
 
 /**
  * Draws the UX wave #9 hover feedback into `container`: a thick preview outline over every cell the
- * active tool's stamp will touch (one cell for most tools, the compact 2×2 stairs), plus a
+ * active tool's stamp will touch (one cell for every current placement tool), plus a
  * translucent red cell fill UNDER those outlines when `placementLegalAt` says the tool cannot place
  * here. The fill stays translucent so the real asset ghost beneath it remains identifiable.
  * Returns whether it drew the illegal fill, which is the render decision the stage test pins.
@@ -664,13 +660,12 @@ export function paintLandCell(
     const texture = sheet[draw.cell.row]?.[draw.cell.col];
     if (!texture) continue;
     const tile = new Sprite(texture);
-    const layout = tileSpriteLayout(draw, col * TILE_SIZE, row * TILE_SIZE);
     tile.anchor.set(0.5);
-    tile.position.set(layout.x, layout.y);
-    tile.width = layout.width;
-    tile.height = layout.height;
+    tile.position.set(col * TILE_SIZE + TILE_SIZE / 2, row * TILE_SIZE + TILE_SIZE / 2);
+    tile.width = TILE_SIZE;
+    tile.height = TILE_SIZE;
     tile.tint = draw.tint;
-    tile.rotation = layout.rotation;
+    tile.rotation = draw.rotationQuarterTurns * (Math.PI / 2);
     (draw.priority === "above" ? above : land).addChild(tile);
     drewAnything = true;
   }

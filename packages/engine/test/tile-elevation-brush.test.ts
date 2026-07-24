@@ -99,7 +99,7 @@ describe("the elevation brush", () => {
     expect(slotOf(layerAt(layers, 1), 2, 3)).toBe(-1);
   });
 
-  it("never overwrites a fixed tile (a ramp) with wall upkeep", () => {
+  it("replaces a ramp whose ground no longer matches with normal cliff upkeep", () => {
     const start = blank();
     const ground = layerAt(start, 0);
     const walls = layerAt(start, 1);
@@ -110,6 +110,7 @@ describe("the elevation brush", () => {
 
     const result = paintElevation(layers, set, 1, 2, 2);
 
-    expect(layerAt(result, 1).ids[3 * walls.cols + 2]).toBe(fixedId(0));
+    expect(layerAt(result, 1).ids[3 * walls.cols + 2]).not.toBe(fixedId(0));
+    expect(slotOf(layerAt(result, 1), 2, 3)).toBe(CLIFF_WALL_SLOT);
   });
 });

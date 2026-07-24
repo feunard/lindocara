@@ -11,7 +11,7 @@ import {
   TINY_SWORDS_TILESET,
 } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { autotileSheetCell } from "@lindocara/renderer/renderer.js";
-import { tileDrawAt, tileSpriteLayout } from "@lindocara/renderer/tile-draw.js";
+import { tileDrawAt } from "@lindocara/renderer/tile-draw.js";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -83,37 +83,16 @@ describe("tileDrawAt", () => {
       const draw = tileDrawAt(TINY_SWORDS_TILESET, layerOf(fixedId(turns * 4)), 0, 0);
       expect(draw?.cell).toEqual({ col: 0, row: 4 });
       expect(draw?.rotationQuarterTurns).toBe(turns);
-      expect(draw?.drawScaleX).toBe(0.5);
     }
   });
 
-  it("lays compact ramp banks against the outside edges and rotates their offsets", () => {
-    const northLeft = tileDrawAt(TINY_SWORDS_TILESET, layerOf(fixedId(0)), 0, 0);
-    const northRight = tileDrawAt(TINY_SWORDS_TILESET, layerOf(fixedId(2)), 0, 0);
-    const eastTop = tileDrawAt(TINY_SWORDS_TILESET, layerOf(fixedId(4)), 0, 0);
-    if (!northLeft || !northRight || !eastTop) throw new Error("missing ramp fixture");
-
-    expect(tileSpriteLayout(northLeft, 0, 0)).toMatchObject({
-      x: 16,
-      y: 32,
-      width: 32,
-      height: 64,
-      rotation: 0,
-    });
-    expect(tileSpriteLayout(northRight, 64, 0)).toMatchObject({
-      x: 112,
-      y: 32,
-      width: 32,
-      height: 64,
-      rotation: 0,
-    });
-    expect(tileSpriteLayout(eastTop, 0, 0)).toMatchObject({
-      x: 32,
-      y: 16,
-      width: 32,
-      height: 64,
-      rotation: Math.PI / 2,
-    });
+  it("uses the same simple source cell at both supported transition elevations", () => {
+    const low = tileDrawAt(TINY_SWORDS_TILESET, layerOf(fixedId(0)), 0, 0);
+    const raised = tileDrawAt(TINY_SWORDS_TILESET, layerOf(fixedId(1)), 0, 0);
+    expect(low?.cell).toEqual({ col: 0, row: 4 });
+    expect(raised?.cell).toEqual(low?.cell);
+    expect(low?.tint).toBe(0xffffff);
+    expect(raised?.tint).toBe(TINY_SWORDS_TILESET.autotiles[GRASS_SLOTS[1]]?.tint);
   });
 
   it("draws nothing for an empty cell, an out-of-bounds cell or an undeclared slot", () => {

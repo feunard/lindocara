@@ -18,6 +18,7 @@ import {
   CLIFF_WALL_SLOT,
   elevationOfSlot,
   GRASS_SLOTS,
+  RAMP_FIXED_TILE_COUNT,
 } from "./tilesets/tiny-swords.js";
 
 function indexOf(layer: TileLayer, col: number, row: number): number {
@@ -378,6 +379,71 @@ function ambientCliffFixed(index: number): boolean {
   return index >= CLIFF_FACE_FIXED_BASE && index < CLIFF_FACE_FIXED_BASE + 4;
 }
 
+export const STAIRS_DIRECTIONS = ["north", "east", "south", "west"] as const;
+export type StairsDirection = (typeof STAIRS_DIRECTIONS)[number];
+export type StairsLowLevel = 0 | 1;
+
+type QuarterTurns = 0 | 1 | 2 | 3;
+
+const STAIRS_ROTATION: Readonly<Record<StairsDirection, QuarterTurns>> = {
+  north: 0,
+  east: 1,
+  south: 2,
+  west: 3,
+};
+
+const STAIRS_HIGH_OFFSET: Readonly<Record<StairsDirection, { col: number; row: number }>> = {
+  north: { col: 0, row: -1 },
+  east: { col: 1, row: 0 },
+  south: { col: 0, row: 1 },
+  west: { col: -1, row: 0 },
+};
+
+/** One simple ramp id. Four ids remain reserved per direction to keep the fixed-id band stable. */
+export function stairsFixedIndex(direction: StairsDirection, lowLevel: StairsLowLevel): number {
+  return STAIRS_ROTATION[direction] * 4 + lowLevel;
+}
+
+interface StairsDescriptor {
+  direction: StairsDirection;
+  lowLevel: StairsLowLevel;
+}
+
+/** Decode both current simple-ramp ids and the duplicate compatibility ids in the ramp band. */
+function stairsDescriptor(index: number): StairsDescriptor | null {
+  if (!Number.isInteger(index) || index < 0 || index >= RAMP_FIXED_TILE_COUNT) return null;
+  const direction = STAIRS_DIRECTIONS[Math.floor(index / 4)];
+  if (!direction) return null;
+  return { direction, lowLevel: (index % 2) as StairsLowLevel };
+}
+
+/**
+ * A ramp occupies the lower cell of one straight elevation boundary. Requiring exactly one higher
+ * orthogonal neighbour matters because collision is whole-cell: at a corner, making the lower cell
+ * passable would silently open both cliff faces.
+ */
+function stairsFits(
+  ground: TileLayer,
+  col: number,
+  row: number,
+  direction: StairsDirection,
+  lowLevel: StairsLowLevel,
+): boolean {
+  if (!inBounds(ground, col, row) || elevationAt(ground, col, row) !== lowLevel) return false;
+  const highOffset = STAIRS_HIGH_OFFSET[direction];
+  const neighbours: readonly { col: number; row: number }[] = [
+    { col: 0, row: -1 },
+    { col: 1, row: 0 },
+    { col: 0, row: 1 },
+    { col: -1, row: 0 },
+  ];
+  return neighbours.every((offset) => {
+    const elevation = elevationAt(ground, col + offset.col, row + offset.row);
+    const isHighSide = offset.col === highOffset.col && offset.row === highOffset.row;
+    return isHighSide ? elevation === lowLevel + 1 : elevation <= lowLevel;
+  });
+}
+
 /** The first higher neighbour around a lower cell. North keeps the atlas's joined horizontal run;
  * the other sides use the same face art rotated as a fixed tile. The priority only affects the
  * picture at a concave corner: every choice is equally impassable. */
@@ -401,10 +467,21 @@ function syncWall(
   row: number,
 ): TileLayer {
   if (col < 0 || row < 0 || col >= walls.cols || row >= walls.rows) return walls;
-  const current = decodeTileId(walls.ids[indexOf(walls, col, row)] ?? EMPTY_TILE);
-  // Ramp banks and any future hand-authored fixed fixture are explicit authoring intent. Ambient
-  // cliff fixed tiles are the sole exception: this function owns and may rotate/remove them.
-  if (current.kind === "fixed" && !ambientCliffFixed(current.index)) return walls;
+  let current = decodeTileId(walls.ids[indexOf(walls, col, row)] ?? EMPTY_TILE);
+  if (current.kind === "fixed") {
+    const ramp = stairsDescriptor(current.index);
+    if (ramp && stairsFits(ground, col, row, ramp.direction, ramp.lowLevel)) return walls;
+    if (ramp) {
+      // Water, repainting either level, or turning a straight edge into a corner invalidates the
+      // ramp. Remove it before normal cliff upkeep so no visual fragment or stale passable cell can
+      // survive the terrain edit.
+      walls = eraseTile(walls, tileset, col, row);
+      current = decodeTileId(walls.ids[indexOf(walls, col, row)] ?? EMPTY_TILE);
+    } else if (!ambientCliffFixed(current.index)) {
+      // Other hand-authored fixed fixtures remain explicit authoring intent.
+      return walls;
+    }
+  }
 
   const wanted = wantedCliffDirection(ground, col, row);
   if (wanted === null) {
@@ -426,85 +503,19 @@ function syncWall(
   return withNeighboursResolved({ ...walls, ids }, tileset, col, row);
 }
 
-/** The compact stairs footprint: two columns by two rows, anchored at its top-left `(col,row)`.
- *  Exported so the editor's hover preview draws exactly the cells the stamp will touch. */
-export const STAIRS_FOOTPRINT_COLS = 2;
-export const STAIRS_FOOTPRINT_ROWS = 2;
-
-export const STAIRS_DIRECTIONS = ["north", "east", "south", "west"] as const;
-export type StairsDirection = (typeof STAIRS_DIRECTIONS)[number];
-export type StairsLowLevel = 0 | 1;
-
-type QuarterTurns = 0 | 1 | 2 | 3;
-
-const STAIRS_ROTATION: Readonly<Record<StairsDirection, QuarterTurns>> = {
-  north: 0,
-  east: 1,
-  south: 2,
-  west: 3,
-};
-
-/** Dimensions of the compact stairs for a direction. Shared with the editor's hover footprint. */
-export function stairsFootprint(direction: StairsDirection): { cols: number; rows: number } {
-  return direction === "east" || direction === "west"
-    ? { cols: STAIRS_FOOTPRINT_ROWS, rows: STAIRS_FOOTPRINT_COLS }
-    : { cols: STAIRS_FOOTPRINT_COLS, rows: STAIRS_FOOTPRINT_ROWS };
-}
-
-/** Rotate one source-ramp cell clockwise inside its 2x2 bounding box. */
-function rotatedStairsCell(
-  sourceCol: number,
-  sourceRow: number,
-  turns: QuarterTurns,
-): { col: number; row: number } {
-  if (turns === 1) return { col: STAIRS_FOOTPRINT_ROWS - 1 - sourceRow, row: sourceCol };
-  if (turns === 2)
-    return {
-      col: STAIRS_FOOTPRINT_COLS - 1 - sourceCol,
-      row: STAIRS_FOOTPRINT_ROWS - 1 - sourceRow,
-    };
-  if (turns === 3) return { col: sourceRow, row: STAIRS_FOOTPRINT_COLS - 1 - sourceCol };
-  return { col: sourceCol, row: sourceRow };
-}
-
-export interface StairsBankPlacement {
-  col: number;
-  row: number;
-  fixedIndex: number;
-}
-
-/** The four fixed bank tiles inside the compact footprint, already rotated for the chosen high side.
- * Shared with the editor so its under-cursor ghost is the exact stamp that a click will commit. */
-export function stairsBankPlacements(direction: StairsDirection): StairsBankPlacement[] {
-  const turns = STAIRS_ROTATION[direction];
-  const source = [
-    { col: 0, row: 0, baseIndex: 0 },
-    { col: 0, row: 1, baseIndex: 1 },
-    { col: 1, row: 0, baseIndex: 2 },
-    { col: 1, row: 1, baseIndex: 3 },
-  ] as const;
-  return source.map((cell) => {
-    const rotated = rotatedStairsCell(cell.col, cell.row, turns);
-    return {
-      col: rotated.col,
-      row: rotated.row,
-      fixedIndex: turns * 4 + cell.baseIndex,
-    };
-  });
+/** The hover and committed stamp are both exactly one map cell. */
+export function stairsFootprint(_direction: StairsDirection): { cols: 1; rows: 1 } {
+  return { cols: 1, rows: 1 };
 }
 
 /**
- * Directional, bidirectional compact staircase.
+ * Directional, bidirectional one-cell staircase.
  *
  * `direction` names the high side: north means climb north / descend south, and so on. `lowLevel`
- * chooses the 0-to-1 or 1-to-2 transition. The four source bank cells are drawn compressed against
- * the outer edges of this 2x2 footprint, leaving a visible 64px passage through the centre. All
- * four fixed cells are passable, so that visible opening is also the baked collision opening.
- * Ground levels and banks rotate together, preserving one frozen tile-id description of the result.
- *
- * The stamp is refused when any footprint cell is off-map. Otherwise it is explicit authoring
- * intent: it paints the high and low ground halves, replaces the ambient cliff face with rotated,
- * passable ramp banks, then re-resolves the one-cell autotile border.
+ * chooses the 0-to-1 or 1-to-2 transition. The author first paints both elevations, then clicks the
+ * lower cliff-face cell. The stamp refuses flat ground, corners and mismatched levels; it never
+ * invents a plateau. On a valid boundary it replaces that one blocking face with the atlas's
+ * one simple, passable ramp asset, rotated toward the selected high side.
  */
 export function paintStairs(
   layers: readonly TileLayer[],
@@ -517,68 +528,15 @@ export function paintStairs(
   const ground = layers[0];
   const walls = layers[1];
   if (!ground || !walls || (lowLevel !== 0 && lowLevel !== 1)) return layers as TileLayer[];
-
-  const turns = STAIRS_ROTATION[direction];
-  if (turns === undefined) return layers as TileLayer[];
-
-  const at = (sourceCol: number, sourceRow: number): { col: number; row: number } => {
-    const rotated = rotatedStairsCell(sourceCol, sourceRow, turns);
-    return { col: col + rotated.col, row: row + rotated.row };
-  };
-
-  const bankCells = stairsBankPlacements(direction).map((cell) => ({
-    col: col + cell.col,
-    row: row + cell.row,
-    fixedIndex: cell.fixedIndex,
-  }));
-  const allCells: readonly { col: number; row: number }[] = bankCells;
-  if (
-    allCells.some(
-      (cell) => !inBounds(ground, cell.col, cell.row) || !inBounds(walls, cell.col, cell.row),
-    )
-  ) {
+  if (STAIRS_ROTATION[direction] === undefined || !inBounds(walls, col, row)) {
     return layers as TileLayer[];
   }
+  if (!stairsFits(ground, col, row, direction, lowLevel)) return layers as TileLayer[];
 
-  // Layer 0: the first source row is the high side and the second is the low side. Rotate those
-  // coordinates with the banks so one choice describes both "climb towards X" and the opposite
-  // descent. `paintElevation` also restores the surrounding cliff faces.
-  let prepared: TileLayer[] = [...layers];
-  for (let sourceRow = 0; sourceRow < STAIRS_FOOTPRINT_ROWS; sourceRow += 1) {
-    const level = sourceRow === 0 ? lowLevel + 1 : lowLevel;
-    for (let sourceCol = 0; sourceCol < STAIRS_FOOTPRINT_COLS; sourceCol += 1) {
-      const target = at(sourceCol, sourceRow);
-      prepared = paintElevation(prepared, tileset, level, target.col, target.row);
-    }
-  }
-
-  // Layer 1: the four fixed ramp tiles replace the cliff wall. Each is passable, while its compressed
-  // art stays on the outside edge of the 2x2 footprint and leaves the visible centre open.
-  const preparedWalls = prepared[1];
-  if (!preparedWalls) return layers as TileLayer[];
-  const ids = [...preparedWalls.ids];
-  for (const cell of bankCells) {
-    ids[indexOf(preparedWalls, cell.col, cell.row)] = fixedId(cell.fixedIndex);
-  }
-  const draft: TileLayer = { ...preparedWalls, ids };
-
-  const resolveVisited = new Set<number>();
-  for (const cell of allCells) {
-    const neighbours: readonly { col: number; row: number }[] = [
-      { col: cell.col, row: cell.row - 1 },
-      { col: cell.col + 1, row: cell.row },
-      { col: cell.col, row: cell.row + 1 },
-      { col: cell.col - 1, row: cell.row },
-    ];
-    for (const target of neighbours) {
-      if (!inBounds(draft, target.col, target.row)) continue;
-      const idx = indexOf(draft, target.col, target.row);
-      if (resolveVisited.has(idx)) continue;
-      resolveVisited.add(idx);
-      const resolved = resolvedId(draft, tileset, target.col, target.row);
-      if (resolved !== null) ids[idx] = resolved;
-    }
-  }
-  const newWalls: TileLayer = { ...preparedWalls, ids };
-  return prepared.map((layer, index) => (index === 1 ? newWalls : layer));
+  const wanted = fixedId(stairsFixedIndex(direction, lowLevel));
+  if (walls.ids[indexOf(walls, col, row)] === wanted) return [...layers];
+  const ids = [...walls.ids];
+  ids[indexOf(walls, col, row)] = wanted;
+  const newWalls = withNeighboursResolved({ ...walls, ids }, tileset, col, row);
+  return layers.map((layer, index) => (index === 1 ? newWalls : layer));
 }

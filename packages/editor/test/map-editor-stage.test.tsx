@@ -491,7 +491,7 @@ describe("paintPlacementAssetPreview", () => {
     expect(container.children[0]).toBeInstanceOf(Sprite);
   });
 
-  it("draws all four compact ramp banks, not an anonymous footprint alone", () => {
+  it("draws the one oriented ramp asset, not an anonymous footprint", () => {
     const container = new Container();
     const sheet = Array.from({ length: 6 }, () => Array.from({ length: 9 }, () => Texture.WHITE));
     expect(
@@ -506,12 +506,10 @@ describe("paintPlacementAssetPreview", () => {
         { editorAssets: new Map(), tileset: sheet },
       ),
     ).toBe(true);
-    expect(container.children).toHaveLength(4);
-    for (const child of container.children) {
-      expect(child).toBeInstanceOf(Sprite);
-      expect((child as Sprite).width).toBe(32);
-      expect((child as Sprite).height).toBe(64);
-    }
+    expect(container.children).toHaveLength(1);
+    expect(container.children[0]).toBeInstanceOf(Sprite);
+    expect((container.children[0] as Sprite).width).toBe(64);
+    expect((container.children[0] as Sprite).height).toBe(64);
   });
 });
 
@@ -541,14 +539,10 @@ describe("paintHoverCell", () => {
 });
 
 describe("directional staircase hover footprint", () => {
-  it("stays compact at 2x2 while the staircase art and high side rotate", () => {
+  it("uses exactly the one low cell for every orientation", () => {
     const north = stampFootprintCells({ kind: "stairs", direction: "north", lowLevel: 0 }, 3, 4);
     const east = stampFootprintCells({ kind: "stairs", direction: "east", lowLevel: 1 }, 3, 4);
-    expect(north).toHaveLength(4);
-    expect(new Set(north.map((cell) => cell.col))).toEqual(new Set([3, 4]));
-    expect(new Set(north.map((cell) => cell.row))).toEqual(new Set([4, 5]));
-    expect(east).toHaveLength(4);
-    expect(new Set(east.map((cell) => cell.col))).toEqual(new Set([3, 4]));
-    expect(new Set(east.map((cell) => cell.row))).toEqual(new Set([4, 5]));
+    expect(north).toEqual([{ col: 3, row: 4 }]);
+    expect(east).toEqual([{ col: 3, row: 4 }]);
   });
 });

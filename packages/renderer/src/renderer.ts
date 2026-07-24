@@ -108,7 +108,7 @@ import {
   waterSurfaceRect,
   writeWaterScrollOffsets,
 } from "./terrain-visuals.js";
-import { tileDrawAt, tileSpriteLayout } from "./tile-draw.js";
+import { tileDrawAt } from "./tile-draw.js";
 import {
   allUnitSheets,
   type DecorSheet,
@@ -2436,19 +2436,15 @@ export class Renderer {
       const texture = this.art.terrain.tileset[draw.cell.row]?.[draw.cell.col];
       if (!texture) continue;
       const sprite = this.#acquireTile(draw.priority);
-      const layout = tileSpriteLayout(
-        draw,
+      placeTile(
+        sprite,
+        texture,
         x,
         y,
         Math.min(TILE_SIZE, this.#zoneWidth - x),
         Math.min(TILE_SIZE, this.#zoneHeight - y),
+        draw.rotationQuarterTurns,
       );
-      sprite.texture = texture;
-      sprite.anchor.set(0.5);
-      sprite.position.set(layout.x, layout.y);
-      sprite.width = layout.width;
-      sprite.height = layout.height;
-      sprite.rotation = layout.rotation;
       sprite.alpha = 1;
       // The tileset's own tint, not the zone's regional one: elevation shading is baked into the
       // entry, and an authored map has no regional palette to bend toward in the first place.

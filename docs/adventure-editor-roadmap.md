@@ -91,9 +91,11 @@ consumer (`AuthScreen`) of the old one, nothing to decide.
   palette's "recent assets" section is also gone; the terrain palette has no equivalent. Neither is
   scheduled to come back; note it here rather than let it surface as a silent regression later.
 
-Ramps are paintable now — the stairs tool stamps the tileset's four ramp fixed tiles onto layer 1,
-so tranche 1's "declared but unpaintable" caveat is dead. Fill still has no fill-to-empty primitive;
-the palette disables it while water is the active content instead of shipping a dead brush.
+Ramps are paintable now — the stairs tool replaces one lower cliff-face cell with the tileset's
+simple passable ramp, rotated toward the chosen high side for a 0↔1 or 1↔2 boundary. It refuses flat
+ground, mismatched levels and corners, and water removes the ramp before restoring normal cliff
+upkeep. Fill still has no fill-to-empty primitive; the palette disables it while water is the active
+content instead of shipping a dead brush.
 
 ## Tranche 3 — Events: data and placement
 

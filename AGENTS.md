@@ -436,9 +436,12 @@ mode-scoped too. Element mode places at quarter-cell positions: an element carri
 of decoration slots — up to 16 stacked decorations per cell — with an offset inspector, and each
 catalogue asset authors its own sub-cell collider (`elementWorldCollider`), no longer a whole-cell
 footprint. Every tool has a keyboard shortcut, gated off while a dialog is open or the stage isn't
-ready. The stairs tool stamps the tileset's four ramp fixed tiles onto layer 1, so ramps are
-paintable — tranche 1's "declared but unpaintable" caveat is dead. Fill has no fill-to-empty
-primitive; the UI disables it rather than let it silently no-op.
+ready. The stairs tool replaces one lower cliff-face cell with the tileset's simple passable ramp,
+rotated toward the chosen high side for a 0↔1 or 1↔2 boundary. It never paints elevation itself:
+the author paints both levels first, and flat ground, mismatched levels and cliff corners are
+refused. Water or any later terrain edit that invalidates the boundary removes the ramp and restores
+normal cliff upkeep. Fill has no fill-to-empty primitive; the UI disables it rather than let it
+silently no-op.
 
 The pointer-events contract is load-bearing and easy to get backwards. `#stage` stays a `position:
 fixed`, full-viewport sibling of `#root` (see the canvas gotcha below), so by default it paints and

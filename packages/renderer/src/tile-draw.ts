@@ -9,7 +9,6 @@
  */
 import { autotileOffset, autotileVariantCount } from "@lindocara/engine/autotile.js";
 import type { TileLayer } from "@lindocara/engine/tile-layer-codec.js";
-import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   type Autotile,
   decodeTileId,
@@ -54,37 +53,6 @@ export interface TileDraw {
   tint: number;
   /** Clockwise quarter-turns around the cell centre. Autotiles are always unrotated. */
   rotationQuarterTurns: 0 | 1 | 2 | 3;
-  /** Draw-only transform inside the destination cell. Collision still applies to the full cell. */
-  drawScaleX: number;
-  drawScaleY: number;
-  drawOffsetX: number;
-  drawOffsetY: number;
-}
-
-/** Final sprite geometry shared by the editor and the game renderer. Keeping this arithmetic here
- * means a compact/offset fixed tile cannot appear in one place and shift in the other. */
-export interface TileSpriteLayout {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  rotation: number;
-}
-
-export function tileSpriteLayout(
-  draw: TileDraw,
-  originX: number,
-  originY: number,
-  cellWidth = TILE_SIZE,
-  cellHeight = TILE_SIZE,
-): TileSpriteLayout {
-  return {
-    x: originX + cellWidth / 2 + draw.drawOffsetX,
-    y: originY + cellHeight / 2 + draw.drawOffsetY,
-    width: cellWidth * draw.drawScaleX,
-    height: cellHeight * draw.drawScaleY,
-    rotation: draw.rotationQuarterTurns * (Math.PI / 2),
-  };
 }
 
 /**
@@ -126,9 +94,5 @@ export function tileDrawAt(
     tint: entry.tint ?? 0xffffff,
     rotationQuarterTurns:
       ref.kind === "fixed" ? ((entry as FixedTile).rotationQuarterTurns ?? 0) : 0,
-    drawScaleX: ref.kind === "fixed" ? ((entry as FixedTile).drawScaleX ?? 1) : 1,
-    drawScaleY: ref.kind === "fixed" ? ((entry as FixedTile).drawScaleY ?? 1) : 1,
-    drawOffsetX: ref.kind === "fixed" ? ((entry as FixedTile).drawOffsetX ?? 0) : 0,
-    drawOffsetY: ref.kind === "fixed" ? ((entry as FixedTile).drawOffsetY ?? 0) : 0,
   };
 }

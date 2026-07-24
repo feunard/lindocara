@@ -38,28 +38,15 @@ const RAISED_2_TINT = 0xb8b8b8;
 export const GRASS_SLOTS: readonly [number, number, number] = [0, 1, 2];
 export const CLIFF_WALL_SLOT = 3;
 
-const RAMP_BANKS = [
-  { atlas: ATLAS, col: 0, row: 4, side: "left" },
-  { atlas: ATLAS, col: 0, row: 5, side: "left" },
-  { atlas: ATLAS, col: 3, row: 4, side: "right" },
-  { atlas: ATLAS, col: 3, row: 5, side: "right" },
-] as const;
-
 const RAMP_ROTATIONS = [0, 1, 2, 3] as const;
-export const RAMP_FIXED_TILE_COUNT = RAMP_BANKS.length * RAMP_ROTATIONS.length;
-const RAMP_BANK_OFFSET_PX = 16;
-
-/** Rotate a source-space offset into the destination cell alongside its ramp bank. */
-function rotatedOffset(
-  x: number,
-  y: number,
-  turns: (typeof RAMP_ROTATIONS)[number],
-): { x: number; y: number } {
-  if (turns === 1) return { x: -y, y: x };
-  if (turns === 2) return { x: -x, y: -y };
-  if (turns === 3) return { x: y, y: -x };
-  return { x, y };
-}
+/**
+ * Four frozen ids per direction keep the historical fixed-id band stable. The first two are the
+ * authored 0↔1 and 1↔2 transitions; the next two deliberately duplicate them so maps saved by the
+ * short-lived four-bank implementation still resolve to a harmless simple ramp instead of an
+ * undeclared tile. New stamps only write offsets 0 and 1.
+ */
+const RAMP_LEVELS = [0, 1, 0, 1] as const;
+export const RAMP_FIXED_TILE_COUNT = RAMP_LEVELS.length * RAMP_ROTATIONS.length;
 
 /** A middle cliff-face cell repeated along an edge. The source faces south (high ground north);
  * rotations make the other three orientations without inventing a second transform channel. */
@@ -99,32 +86,20 @@ export const TINY_SWORDS_TILESET: Tileset = {
     // no directional passage: a cliff face is simply a cell you cannot walk into.
     { atlas: ATLAS, origin: { col: 5, row: 4 }, kind: "run4", passable: false, priority: "below" },
   ],
-  // Ramps are the only passable fixtures that visually join two elevation levels. The source sheet
-  // leaves two whole atlas cells between its banks, producing a 256px-wide gateway at native scale.
-  // In the editor that read as a building-sized object, so each bank is compressed to half a cell
-  // and pulled to the outside of a compact 2x2 stamp. The centre stays a 64px visible passage. Four
-  // groups of ids rotate both the art and its destination-space offset, so the frozen id still owns
-  // complete appearance + collision truth.
+  // A ramp is one ordinary 64px atlas cell, on the lower cell of an already-authored elevation
+  // boundary. The atlas ships one north-facing illustration; four fixed-id groups rotate that same
+  // simple asset. Its tint follows the lower level, so a 1↔2 ramp belongs visually to level 1.
   fixed: [
     ...RAMP_ROTATIONS.flatMap((rotationQuarterTurns) =>
-      RAMP_BANKS.map((bank) => {
-        const offset = rotatedOffset(
-          bank.side === "left" ? -RAMP_BANK_OFFSET_PX : RAMP_BANK_OFFSET_PX,
-          0,
-          rotationQuarterTurns,
-        );
-        return {
-          atlas: bank.atlas,
-          col: bank.col,
-          row: bank.row,
-          passable: true,
-          priority: "below" as const,
-          rotationQuarterTurns,
-          drawScaleX: 0.5,
-          drawOffsetX: offset.x,
-          drawOffsetY: offset.y,
-        };
-      }),
+      RAMP_LEVELS.map((lowLevel) => ({
+        atlas: ATLAS,
+        col: 0,
+        row: 4,
+        passable: true,
+        priority: "below" as const,
+        ...(lowLevel === 1 ? { tint: RAISED_1_TINT } : {}),
+        rotationQuarterTurns,
+      })),
     ),
     ...RAMP_ROTATIONS.map((rotationQuarterTurns) => ({
       ...CLIFF_FACE,

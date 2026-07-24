@@ -27,9 +27,15 @@ import {
 import { isUuid } from "@lindocara/engine/identifiers.js";
 import { EMPTY_MARKERS, MAX_MAP_ELEMENTS, type MapElement } from "@lindocara/engine/map-data.js";
 import { entryEvents, exitEvents, type MapEvent } from "@lindocara/engine/map-events.js";
-import { eraseRect, paintRectAutotile, paintStairs, slotAt } from "@lindocara/engine/tile-brush.js";
+import {
+  eraseRect,
+  paintRectAutotile,
+  paintStairs,
+  slotAt,
+  stairsFixedIndex,
+} from "@lindocara/engine/tile-brush.js";
 import type { TileLayer } from "@lindocara/engine/tile-layer-codec.js";
-import { EMPTY_TILE } from "@lindocara/engine/tileset.js";
+import { decodeTileId, EMPTY_TILE } from "@lindocara/engine/tileset.js";
 import {
   CLIFF_WALL_SLOT,
   GRASS_SLOTS,
@@ -468,26 +474,62 @@ describe("applyTool: fill", () => {
 });
 
 describe("applyTool: stairs", () => {
-  it("stamps the ramp onto layer 1 as one undo entry", () => {
-    const base = blankMap("m", 20, 15);
+  function northBoundary(): EditorMap {
+    return place(blankMap("m", 20, 15), { kind: "elevation", level: 1 }, 5, 4) as EditorMap;
+  }
+
+  it("stamps one ramp on the low cell of an existing boundary as one undo entry", () => {
+    const base = northBoundary();
     const tool: EditorTool = { kind: "stairs", direction: "north", lowLevel: 0 };
     const next = place(base, tool, 5, 5) as EditorMap;
     expect(next).not.toBeNull();
     const expectedWalls = paintStairs(base.layers, TINY_SWORDS_TILESET, 5, 5)[1];
     expect(next.layers[1]).toEqual(expectedWalls);
+    expect(decodeTileId(next.layers[1]?.ids[5 * 20 + 5] ?? EMPTY_TILE)).toEqual({
+      kind: "fixed",
+      index: stairsFixedIndex("north", 0),
+    });
 
     const history = commitEditorHistory(createEditorHistory(base), next);
     expect(history.past).toHaveLength(1);
   });
 
-  it("refuses an out-of-bounds stamp, creating no history entry", () => {
+  it("refuses flat ground instead of manufacturing its own elevation", () => {
     const base = blankMap("m", 20, 15);
     const tool: EditorTool = { kind: "stairs", direction: "north", lowLevel: 0 };
-    // The map is 20 cols wide; the compact stairs' second column would land at col 20.
-    expect(place(base, tool, 19, 5)).toBeNull();
+    expect(place(base, tool, 5, 5)).toBeNull();
 
     const history = commitEditorHistory(createEditorHistory(base), base);
     expect(history.past).toHaveLength(0);
+  });
+
+  it("water painted on the ramp cell removes the ramp", () => {
+    const ramp = place(
+      northBoundary(),
+      { kind: "stairs", direction: "north", lowLevel: 0 },
+      5,
+      5,
+    ) as EditorMap;
+    const drowned = place(ramp, { kind: "block", block: "water" }, 5, 5) as EditorMap;
+    expect(groundSlot(drowned, 5, 5)).toBe(-1);
+    const wall = decodeTileId(drowned.layers[1]?.ids[5 * 20 + 5] ?? EMPTY_TILE);
+    expect(wall).not.toEqual({ kind: "fixed", index: stairsFixedIndex("north", 0) });
+    expect(wall.kind).toBe("autotile");
+  });
+
+  it("a water rectangle removes every ramp cell it covers", () => {
+    const ramp = place(
+      northBoundary(),
+      { kind: "stairs", direction: "north", lowLevel: 0 },
+      5,
+      5,
+    ) as EditorMap;
+    const water: EditorTool = { kind: "rect", content: { kind: "block", block: "water" } };
+    let drowned = place(ramp, water, 4, 5, true) as EditorMap;
+    drowned = place(drowned, water, 6, 6, false) as EditorMap;
+    expect(groundSlot(drowned, 5, 5)).toBe(-1);
+    const wall = decodeTileId(drowned.layers[1]?.ids[5 * 20 + 5] ?? EMPTY_TILE);
+    expect(wall).not.toEqual({ kind: "fixed", index: stairsFixedIndex("north", 0) });
   });
 });
 

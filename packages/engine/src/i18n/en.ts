@@ -862,7 +862,7 @@ export const en = {
   "editor.stairs.transition": "Connected levels",
   "editor.stairs.transitionLevels": "Level {low} ↔ {high}",
   "editor.stairs.hint":
-    "The compact stamp uses 2 × 2 cells. Heroes climb towards {up} and descend towards {down}. Place it across the boundary between both elevations.",
+    "The stairs use 1 cell. Paint both elevations first, then click the low cell at the foot of the cliff. Heroes climb towards {up} and descend towards {down}.",
   "editor.shell.stage.loading": "Loading the map…",
   "editor.shell.saving": "Saving…",
   "editor.shell.stage.error": "The map could not be loaded.",
@@ -979,9 +979,9 @@ export const en = {
   "editor.help.maps.relief.step3":
     "Choose the high side: top, right, bottom or left. The arrow shows the uphill direction.",
   "editor.help.maps.relief.step4":
-    "Click across the boundary: the 2 × 2 preview shows the exact footprint. The stairs rotate, replace the blocking cliff face and open a central passage.",
+    "Click the low cell directly at the foot of the cliff. The preview shows the single occupied cell; the stairs rotate and replace that blocking cliff face.",
   "editor.help.maps.relief.rule":
-    "Walk toward the selected high side to climb; traverse the same stairs in the opposite direction to descend.",
+    "Walk toward the selected high side to climb; traverse the same stairs in the opposite direction to descend. Painting water over its cell removes it automatically.",
   "editor.help.maps.multimap.title": "Create multiple maps",
   "editor.help.maps.multimap.body":
     "Add each place in the Maps panel. Put a Teleporter event at the first place’s exit, choose the destination map and cell, then create a return path if needed. A single Start event defines the global opening.",

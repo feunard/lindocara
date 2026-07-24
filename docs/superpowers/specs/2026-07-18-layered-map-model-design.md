@@ -48,11 +48,13 @@ visual face wins deterministically, but every choice has the same impassable col
 Consequence: **no change to `isWalkableBox`, `resolveTerrain`, `step()`, or prediction.** The
 passability grid is baked at map load exactly as `bakeCollision` bakes one today.
 
-Directional ramps are the only passable cells that join two levels. The original sheet spaces its
-banks across four cells; the editor compresses them against the outside edges of a compact 2×2
-stamp, preserving a visible 64 px passage through the centre. The stamp rotates toward the selected
-high side and supports both 0↔1 and 1↔2, so every north/east/south/west crossing is walkable in both
-directions without special movement rules.
+Directional ramps are the only passable cells that join two levels. A ramp is the sheet's simple
+64 px asset on one lower cliff-face cell, rotated toward the selected high side. The author paints
+the two elevations first; the brush refuses flat ground, a mismatched transition or a cliff corner
+instead of manufacturing terrain. It supports both 0↔1 and 1↔2, so every
+north/east/south/west crossing is walkable in both directions without special movement rules.
+Changing either elevation — including painting water over the ramp — removes an invalid ramp and
+lets ordinary cliff upkeep restore the blocking face.
 
 ## Art
 
