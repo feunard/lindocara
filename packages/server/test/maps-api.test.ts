@@ -18,6 +18,7 @@ import {
   MAX_EVENTS_PER_MAP,
   MAX_PAGES_PER_EVENT,
 } from "@lindocara/engine/map-events.js";
+import { MAP_MAX_COLS, MAP_MAX_ROWS } from "@lindocara/engine/map-limits.js";
 import { encodeTileLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { fixedId } from "@lindocara/engine/tileset.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
@@ -123,7 +124,7 @@ async function newAdventure(asCookie = cookie): Promise<string> {
   return adv.id;
 }
 
-/** Create the 5x5 template map inside `adventureId` (the only thing POST /api/maps does now). */
+/** Create the default-size blank template map inside `adventureId`. */
 async function newMap(adventureId: string, name = "Map", asCookie = cookie): Promise<Response> {
   return authed(
     "/api/maps",
@@ -184,6 +185,41 @@ describe("create under an adventure", () => {
       spawn: { col: 10, row: 7 },
     });
     expect(created.events).toEqual([]);
+  });
+
+  it("creates a blank map at the requested dimensions, up to the shared maximum", async () => {
+    const adventureId = await newAdventure();
+    const response = await authed("/api/maps", {
+      method: "POST",
+      body: JSON.stringify({
+        adventureId,
+        name: "Continent",
+        cols: MAP_MAX_COLS,
+        rows: MAP_MAX_ROWS,
+      }),
+    });
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({
+      name: "Continent",
+      cols: MAP_MAX_COLS,
+      rows: MAP_MAX_ROWS,
+      spawn: { col: MAP_MAX_COLS / 2, row: MAP_MAX_ROWS / 2 },
+    });
+  });
+
+  it("rejects out-of-range create dimensions before building the blank layer arrays", async () => {
+    const adventureId = await newAdventure();
+    const response = await authed("/api/maps", {
+      method: "POST",
+      body: JSON.stringify({
+        adventureId,
+        name: "Too vast",
+        cols: Number.MAX_SAFE_INTEGER,
+        rows: MAP_MAX_ROWS,
+      }),
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "map_size" });
   });
 
   it("creates a map under a foreign adventure — collaborative editing is open", async () => {
@@ -551,9 +587,9 @@ describe("the last map", () => {
 });
 
 describe("size caps over the wire (on the authoring PUT)", () => {
-  it("accepts a maximal 100x100 map", async () => {
+  it("accepts a maximal 256x256 map", async () => {
     const id = await newMapId(await newAdventure());
-    const blocks = Array.from({ length: 100 }, () => ".".repeat(100));
+    const blocks = Array.from({ length: MAP_MAX_ROWS }, () => ".".repeat(MAP_MAX_COLS));
     const response = await putMap(
       id,
       mapBody({ name: "Maximal", ...layeredWireTerrain(blocks), spawn: { col: 0, row: 0 } }),
@@ -566,7 +602,7 @@ describe("size caps over the wire (on the authoring PUT)", () => {
   // id, and the full entry/exit/monster-spawn marker complement at their id/label caps with the
   // longest `MonsterSpecies` name. The old version of this test defaulted to `elements: []` and no
   // markers (and, as of tranche 3, no events — which now dominate the worst case), so it only ever
-  // posted ~150,050 bytes — nowhere near the enumerated worst case (now 385,234 bytes) or the
+  // posted ~150,050 bytes — nowhere near the old 100x100 structural worst case (385,234 bytes) or the
   // 409,600-byte cap — and would have passed under any cap above ~150,060. It gave no protection
   // against the failure mode it exists to prevent: someone shortening the element/marker
   // arithmetic (a longer asset id, a longer species name, a raised `MAX_MAP_ELEMENTS`) and

@@ -1047,9 +1047,8 @@ describe("AdventureEditorScreen shell", () => {
     vi.stubGlobal("fetch", mock);
     await mountReady();
 
-    // The new-map dialog now takes only a name: a map belongs to one adventure and the server builds
-    // a fixed 5x5 template, so the client no longer sends terrain or size — just adventure + name. The
-    // field is prefilled with the default MapN (UX wave #16); clear it to type a custom name.
+    // A map belongs to one adventure and the server builds its empty template from the requested
+    // dimensions. The name is prefilled with the default MapN; clear it to type a custom name.
     await userEvent.click(
       screen.getAllByRole("button", { name: t("editor.new") })[0] as HTMLElement,
     );
@@ -1063,7 +1062,12 @@ describe("AdventureEditorScreen shell", () => {
         "/api/maps",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ adventureId: "adv-1", name: "Third map" }),
+          body: JSON.stringify({
+            adventureId: "adv-1",
+            name: "Third map",
+            cols: 40,
+            rows: 30,
+          }),
         }),
       ),
     );

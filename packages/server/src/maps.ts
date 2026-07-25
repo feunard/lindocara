@@ -42,6 +42,12 @@ import {
   type MapEvent,
   parseMapEvents,
 } from "@lindocara/engine/map-events.js";
+import {
+  MAP_MAX_COLS,
+  MAP_MAX_ROWS,
+  MAP_MIN_COLS,
+  MAP_MIN_ROWS,
+} from "@lindocara/engine/map-limits.js";
 import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
 import {
   emptyLayer,
@@ -128,10 +134,7 @@ export interface MapInput {
 /** A map small enough to fit on screen is also small enough to be a maze of one-tile corridors;
  *  a map large enough to blow up storage and network payloads is not a design choice worth
  *  allowing. Both ends are enforced on write, not in the editor. */
-export const MAP_MIN_COLS = 20;
-export const MAP_MAX_COLS = 100;
-export const MAP_MIN_ROWS = 15;
-export const MAP_MAX_ROWS = 100;
+export { MAP_MAX_COLS, MAP_MAX_ROWS, MAP_MIN_COLS, MAP_MIN_ROWS };
 export const MAP_NAME_MAX = 48;
 
 /** UX wave #16: the name the atomic adventure-create gives its born map. A fresh adventure owns zero
@@ -141,18 +144,28 @@ export const MAP_NAME_MAX = 48;
 export const DEFAULT_FIRST_MAP_NAME = "Map1";
 
 /**
- * The one shape a new map is ever created in: a `MAP_MIN_COLS x MAP_MIN_ROWS` field of flat grass,
- * walkable everywhere, spawn dead centre — no elements and, deliberately, no events.
+ * The one template a new map is ever created from: a bounded field of flat grass, walkable
+ * everywhere, spawn dead centre — no elements and, deliberately, no events.
  *
  * It is GENUINELY BLANK: a clean slate an author paints onto (water, elevation, props, events), never
  * a template whose inherited terrain and phantom entry/exit events have to be deleted first. A map
  * needs no auto entry event to be valid — spawn/entry become explicit author choices — so a fresh map
- * starts with zero events. Sizing is a later resize tool's job; map create ignores any client-supplied
- * dimensions and always builds this.
+ * starts with zero events. The create boundary accepts only dimensions, never client-authored
+ * terrain, so every new map still begins from this trusted blank template.
  */
-export function defaultMapInput(name: string): MapInput {
-  const cols = MAP_MIN_COLS;
-  const rows = MAP_MIN_ROWS;
+export function defaultMapInput(name: string, cols = MAP_MIN_COLS, rows = MAP_MIN_ROWS): MapInput {
+  // Reject hostile dimensions before `Array.from` can attempt a huge allocation. The complete map
+  // validator repeats this at the persistence boundary because it also accepts authored updates.
+  if (
+    !Number.isSafeInteger(cols) ||
+    !Number.isSafeInteger(rows) ||
+    cols < MAP_MIN_COLS ||
+    cols > MAP_MAX_COLS ||
+    rows < MAP_MIN_ROWS ||
+    rows > MAP_MAX_ROWS
+  ) {
+    throw new Error("size: map dimensions are out of bounds");
+  }
   // Every cell is grass ("."): the same autotile-resolving brush the editor paints with settles the
   // (uniform) edges, so the field is indistinguishable from one drawn by hand.
   const { layers } = layersFromBlocks(Array.from({ length: rows }, () => ".".repeat(cols)));
@@ -718,10 +731,16 @@ async function adventureRow(db: Db, adventureId: string) {
  * Create a map inside an adventure (UX wave #5 + #7). Editing is open to every authenticated
  * account (collaborative editing); the created map's `account_id` INHERITS the adventure author's,
  * never the caller's, so `map.account_id == adventure.account_id` stays an invariant. The map is
- * ALWAYS the 5x5 template (`defaultMapInput`); any client-supplied terrain/size is ignored, so the
- * new-map dialog only sends a name.
+ * ALWAYS a trusted blank template (`defaultMapInput`) at the requested dimensions; client-supplied
+ * terrain is ignored, so creation cannot smuggle authored collision around the normal save gate.
  */
-export async function createMap(db: Db, adventureId: string, name: string): Promise<StoredMap> {
+export async function createMap(
+  db: Db,
+  adventureId: string,
+  name: string,
+  cols = MAP_MIN_COLS,
+  rows = MAP_MIN_ROWS,
+): Promise<StoredMap> {
   const owner = await adventureRow(db, adventureId);
   if (!owner) throw new Error("not_found: no such adventure");
   const accountId = owner.accountId;
@@ -732,7 +751,7 @@ export async function createMap(db: Db, adventureId: string, name: string): Prom
   if ((mapCount?.value ?? 0) >= MAX_ADVENTURE_MAPS) {
     throw new Error(`limit: at most ${MAX_ADVENTURE_MAPS} maps per adventure`);
   }
-  const input = defaultMapInput(name);
+  const input = defaultMapInput(name, cols, rows);
   const data = validateMapInput(input);
   const id = crypto.randomUUID();
   const insertMap = db.insert(map).values({
@@ -1021,6 +1040,22 @@ function graphReferencesMap(graphJson: string, mapId: string): boolean {
   return false;
 }
 
+function graphWithoutMap(graphJson: string, mapId: string): string {
+  let graph: AdventureGraph | null = null;
+  try {
+    graph = parseAdventureGraph(JSON.parse(graphJson));
+  } catch {
+    return graphJson;
+  }
+  if (!graph) return graphJson;
+  return JSON.stringify({
+    start: graph.start?.mapId === mapId ? null : graph.start,
+    links: graph.links.filter(
+      (link) => link.mapId !== mapId && (link.dest === "end" || link.dest.mapId !== mapId),
+    ),
+  } satisfies AdventureGraph);
+}
+
 /**
  * Deleting the last map OF AN ADVENTURE is refused, and deleting the account's front door moves the
  * flag rather than removing it. Between them, every adventure keeps somewhere to run and the
@@ -1031,11 +1066,18 @@ function graphReferencesMap(graphJson: string, mapId: string): boolean {
  * committed delete, and `count(*) > 1` refuses it. The heir handover rides in the same transaction,
  * so there is never an instant with the flagged map gone and nothing carrying the flag.
  */
-export async function deleteMap(db: Db, id: string): Promise<void> {
+export async function deleteMap(
+  db: Db,
+  id: string,
+  options: { force?: boolean; accountId?: string } = {},
+): Promise<string[]> {
   // Collaborative editing: any authenticated account may remove a map; the last-map and
   // graph-reference guards below keep an adventure from being hollowed out.
   const [row] = await db.select().from(map).where(eq(map.id, id)).limit(1);
   if (!row) throw new Error("not_found: no such map");
+  const force = options.force === true;
+  // Collaborative edits remain open, but terminating other players' saves is author-only.
+  if (force && row.accountId !== options.accountId) throw new Error("not_found: no such map");
 
   // The owning adventure's graph may name this map (its start, a link's source or destination).
   // Deleting it would corrupt the saved graph, so it is refused while the graph references it —
@@ -1045,8 +1087,85 @@ export async function deleteMap(db: Db, id: string): Promise<void> {
     .from(adventure)
     .where(eq(adventure.id, row.adventureId))
     .limit(1);
-  if (owner && graphReferencesMap(owner.graph, id)) {
+  if (!force) {
+    const used = await db
+      .select({ id: party.id })
+      .from(party)
+      .where(eq(party.adventureId, row.adventureId))
+      .limit(1);
+    if (used.length > 0) throw new Error("referenced: a party still uses this adventure");
+  }
+  if (!force && owner && graphReferencesMap(owner.graph, id)) {
     throw new Error("referenced: an adventure still uses this map");
+  }
+  if (force) {
+    const [mapCount] = await db
+      .select({ value: sql<number>`count(*)` })
+      .from(map)
+      .where(eq(map.adventureId, row.adventureId));
+    if ((mapCount?.value ?? 0) <= 1) {
+      throw new Error("last_map: the world needs somewhere to be");
+    }
+    const graph = owner ? graphWithoutMap(owner.graph, id) : null;
+    const results = await db.$client.batch([
+      db.$client
+        .prepare(
+          `DELETE FROM hero
+             WHERE party_id IN (SELECT id FROM party WHERE adventure_id = ?)
+               AND EXISTS (SELECT 1 FROM map WHERE id = ?)
+             RETURNING id`,
+        )
+        .bind(row.adventureId, id),
+      db.$client
+        .prepare(
+          `DELETE FROM party
+             WHERE adventure_id = ?
+               AND EXISTS (SELECT 1 FROM map WHERE id = ?)`,
+        )
+        .bind(row.adventureId, id),
+      ...(graph === null
+        ? []
+        : [
+            db.$client
+              .prepare(
+                `UPDATE adventure
+                    SET graph = ?, updated_at = ?
+                  WHERE id = ?
+                    AND EXISTS (SELECT 1 FROM map WHERE id = ?)`,
+              )
+              .bind(graph, Date.now(), row.adventureId, id),
+          ]),
+      db.$client
+        .prepare(
+          `DELETE FROM map_element
+             WHERE map_id = ?
+               AND (SELECT count(*) FROM map WHERE adventure_id = ?) > 1`,
+        )
+        .bind(id, row.adventureId),
+      db.$client
+        .prepare(
+          `DELETE FROM map
+             WHERE id = ?
+               AND account_id = ?
+               AND (SELECT count(*) FROM map WHERE adventure_id = ?) > 1`,
+        )
+        .bind(id, row.accountId, row.adventureId),
+      // If the guarded delete left the map behind (it was the last map), deliberately duplicate its
+      // primary key. D1 batch rollback then restores the parties, heroes and graph above atomically.
+      db.$client.prepare("INSERT INTO map SELECT * FROM map WHERE id = ?").bind(id),
+      db.$client
+        .prepare(
+          `UPDATE map SET is_first = 1
+             WHERE id = (
+               SELECT id FROM map WHERE account_id = ? ORDER BY created_at ASC, id ASC LIMIT 1
+             )
+               AND NOT EXISTS (
+                 SELECT 1 FROM map WHERE account_id = ? AND is_first = 1
+               )`,
+        )
+        .bind(row.accountId, row.accountId),
+    ]);
+    return ((results[0]?.results ?? []) as { id: string }[]).map((heroRow) => heroRow.id);
   }
   const results = await db.$client.batch([
     db.$client
@@ -1077,6 +1196,7 @@ export async function deleteMap(db: Db, id: string): Promise<void> {
   if ((results[1]?.meta.changes ?? 0) === 0) {
     throw new Error("last_map: the world needs somewhere to be");
   }
+  return [];
 }
 
 /**

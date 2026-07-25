@@ -1,3 +1,4 @@
+import { MAP_MAX_COLS, MAP_MAX_ROWS } from "@lindocara/engine/map-limits.js";
 import {
   decodeTileLayer,
   emptyLayer,
@@ -19,6 +20,11 @@ describe("tile layer codec", () => {
   it("round-trips", () => {
     const layer = { cols: 3, rows: 3, ids: [0, 1, 1, 1, 1025, 0, 0, 0, 42] };
     expect(decodeTileLayer(encodeTileLayer(layer), 3, 3)).toEqual(layer);
+  });
+
+  it("accepts the shared maximum authored-map dimensions", () => {
+    const maximal = emptyLayer(MAP_MAX_COLS, MAP_MAX_ROWS);
+    expect(parseTileLayer(encodeTileLayer(maximal), MAP_MAX_COLS, MAP_MAX_ROWS)).toEqual(maximal);
   });
 
   it("throws on a payload whose cell count disagrees with the map size", () => {

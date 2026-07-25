@@ -75,7 +75,7 @@ function backend() {
       adventures.push(stored);
       return Promise.resolve(jsonResponse(stored, 201));
     }
-    const one = url.match(/^\/api\/adventures\/([A-Za-z0-9-]+)$/);
+    const one = url.split("?")[0]?.match(/^\/api\/adventures\/([A-Za-z0-9-]+)$/);
     if (one?.[1] && method === "PUT") {
       const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
       return Promise.resolve(jsonResponse({ ...body, id: one[1], accountId: "acct", version: 2 }));
@@ -191,6 +191,32 @@ describe("AdventureSettingsDialog", () => {
     );
     // The deleted adventure's editing session is torn down, so the dialog falls back to the picker.
     await waitFor(() => expect(useUiStore.getState().adventureEditorSession).toBeNull());
+  });
+
+  it("can explicitly force deletion of the active party saves", async () => {
+    const complete: AdventureDraft = {
+      title: "Donjon",
+      maxPlayers: 4,
+      members: [member("m1", "Verdant", "door", "east")],
+      registry: EMPTY_REGISTRY,
+    };
+    seedSession(complete, "adv-1");
+    const mock = backend();
+    vi.stubGlobal("fetch", mock);
+    render(
+      <AdventureSettingsDialog open onOpenChange={noop} onSaved={noop} onSessionExpired={noop} />,
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: t("editor.delete") }));
+    await userEvent.click(screen.getByRole("checkbox", { name: t("editor.delete.force") }));
+    await userEvent.click(screen.getByRole("button", { name: t("editor.delete.confirm") }));
+
+    await waitFor(() =>
+      expect(mock).toHaveBeenCalledWith(
+        "/api/adventures/adv-1?force=true",
+        expect.objectContaining({ method: "DELETE" }),
+      ),
+    );
   });
 
   it("shows no graph bindings or validation section — the graph is not authored here", async () => {

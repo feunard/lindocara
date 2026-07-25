@@ -66,7 +66,7 @@ function mapsBackend(maps: MapSummary[] = twoMaps) {
       list.push({ id: "new", name: "New map", revision: 1, cols: 40, rows: 30, isFirst: false });
       return Promise.resolve(jsonResponse(created, 201));
     }
-    const idMatch = url.match(/^\/api\/maps\/([^/]+)$/);
+    const idMatch = url.split("?")[0]?.match(/^\/api\/maps\/([^/]+)$/);
     if (idMatch?.[1]) {
       const summary = list.find((m) => m.id === idMatch[1]);
       if (method === "GET") {
@@ -162,6 +162,24 @@ describe("MapListPanel", () => {
     );
   });
 
+  it("sends an explicit force flag when deleting active party saves too", async () => {
+    const mock = mapsBackend();
+    vi.stubGlobal("fetch", mock);
+    render(<Harness />);
+    await screen.findByRole("button", { name: "Frostfen" });
+
+    await userEvent.click(screen.getByRole("button", { name: `${t("editor.delete")} Frostfen` }));
+    await userEvent.click(screen.getByRole("checkbox", { name: t("editor.delete.force") }));
+    await userEvent.click(screen.getByRole("button", { name: t("editor.delete.confirm") }));
+
+    await waitFor(() =>
+      expect(mock).toHaveBeenCalledWith(
+        "/api/maps/m2?force=true",
+        expect.objectContaining({ method: "DELETE" }),
+      ),
+    );
+  });
+
   it("guards unsaved stage edits when renaming the open map: cancel makes no refetch or remount", async () => {
     const mock = mapsBackend();
     vi.stubGlobal("fetch", mock);
@@ -204,7 +222,43 @@ describe("MapListPanel", () => {
         "/api/maps",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ adventureId: "adv-1", name: "Map1" }),
+          body: JSON.stringify({
+            adventureId: "adv-1",
+            name: "Map1",
+            cols: 40,
+            rows: 30,
+          }),
+        }),
+      ),
+    );
+  });
+
+  it("lets the author choose a larger map size at creation", async () => {
+    const mock = mapsBackend();
+    vi.stubGlobal("fetch", mock);
+    render(<Harness />);
+    await screen.findByRole("button", { name: "Frostfen" });
+
+    await userEvent.click(screen.getByRole("button", { name: t("editor.new") }));
+    const cols = await screen.findByLabelText(t("editor.cols"));
+    const rows = screen.getByLabelText(t("editor.rows"));
+    await userEvent.clear(cols);
+    await userEvent.type(cols, "256");
+    await userEvent.clear(rows);
+    await userEvent.type(rows, "192");
+    await userEvent.click(screen.getByRole("button", { name: t("editor.shell.maps.create") }));
+
+    await waitFor(() =>
+      expect(mock).toHaveBeenCalledWith(
+        "/api/maps",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            adventureId: "adv-1",
+            name: "Map1",
+            cols: 256,
+            rows: 192,
+          }),
         }),
       ),
     );

@@ -93,8 +93,11 @@ export type MapSaveInput = Omit<MapPayload, "id" | "revision">;
 export const fetchMaps = (adventureId: string) =>
   api<MapSummary[]>(`/api/maps?adventure=${adventureId}`);
 export const fetchMap = (id: string) => api<MapPayload>(`/api/maps/${id}`);
-export const createMapApi = (adventureId: string, name: string) =>
-  api<MapPayload>("/api/maps", { method: "POST", body: JSON.stringify({ adventureId, name }) });
+export const createMapApi = (adventureId: string, name: string, cols: number, rows: number) =>
+  api<MapPayload>("/api/maps", {
+    method: "POST",
+    body: JSON.stringify({ adventureId, name, cols, rows }),
+  });
 export const updateMapApi = (
   id: string,
   input: MapSaveInput,
@@ -109,7 +112,8 @@ export const updateMapApi = (
       ...(expectedRevision !== undefined ? { expectedRevision } : {}),
     }),
   });
-export const deleteMapApi = (id: string) => api<void>(`/api/maps/${id}`, { method: "DELETE" });
+export const deleteMapApi = (id: string, force = false) =>
+  api<void>(`/api/maps/${id}${force ? "?force=true" : ""}`, { method: "DELETE" });
 
 export interface AdventureSummary {
   id: string;
@@ -152,8 +156,8 @@ export const createAdventureApi = (input: CreateAdventureInput) =>
   api<CreatedAdventure>("/api/adventures", { method: "POST", body: JSON.stringify(input) });
 export const updateAdventureApi = (id: string, input: AdventureInput) =>
   api<AdventurePayload>(`/api/adventures/${id}`, { method: "PUT", body: JSON.stringify(input) });
-export const deleteAdventureApi = (id: string) =>
-  api<void>(`/api/adventures/${id}`, { method: "DELETE" });
+export const deleteAdventureApi = (id: string, force = false) =>
+  api<void>(`/api/adventures/${id}${force ? "?force=true" : ""}`, { method: "DELETE" });
 
 export interface AdventureTestSession {
   id: string;

@@ -112,16 +112,16 @@ const MAX_API_JSON_BYTES = 4_096;
  *
  * Worst-case layer: a run-length multiplier only ever shrinks the string, so the longest legal
  * encoding is one bare, uncompressed run per cell (alternating between two 4-digit ids so no two
- * neighbours share a run). At the 100x100 map-size cap (`MAP_MAX_COLS * MAP_MAX_ROWS` =
- * 10,000 cells): 10,000 * 4 + (10,000 - 1) separating commas = 49,999 characters per layer. Three
+ * neighbours share a run). At the 256x256 map-size cap (`MAP_MAX_COLS * MAP_MAX_ROWS` =
+ * 65,536 cells): 65,536 * 4 + (65,536 - 1) separating commas = 327,679 characters per layer. Three
  * of those, JSON-quoted inside the `layers` array (2 quote chars per string, 2 commas, 2
- * brackets): 3 * (49,999 + 2) + 2 + 2 = 150,007 bytes.
+ * brackets): 3 * (327,679 + 2) + 2 + 2 = 983,047 bytes.
  *
  * The rest of a maximal legal body adds to that: 400 elements (`MAX_MAP_ELEMENTS`) at up to
  * 105 bytes each (the longest catalogue asset id is 72 characters) = 42,001 bytes; markers at
  * their per-field caps (8 entries + 8 exits + 32 monster spawns, each with a 32-character id and a
  * 48-character label) = 4,057 bytes; name (`MAP_NAME_MAX`, 48 characters), tilesetId, cols/rows,
- * spawn and the JSON envelope add the remaining 168 bytes. That much alone measures 196,233 bytes.
+ * spawn and the JSON envelope add the remaining 168 bytes. That much alone measures 1,029,273 bytes.
  *
  * Tranche 3 adds authored events (`shared/map-events.ts`) to the same PUT body, and they dominate.
  * Worst case per event page, every field present at its widest: `condSwitchId`/`condVariableId` as
@@ -133,7 +133,7 @@ const MAX_API_JSON_BYTES = 4_096;
  * = 2,952 bytes. `MAX_EVENTS_PER_MAP` = 64 of them: 64*2,952 + 63 commas + 2 brackets + the
  * `"events":` key = 189,001 bytes.
  *
- * Tranche 3's structural worst case: 196,233 + 189,001 = 385,234 bytes.
+ * Tranche 3's structural worst case: 1,029,273 + 189,001 = 1,218,274 bytes.
  *
  * Tranche 5 adds a `commands` program to every page (`shared/event-commands.ts`), and here the
  * honest arithmetic breaks the "cap sits above the per-field worst case" property the tranches
@@ -145,17 +145,17 @@ const MAX_API_JSON_BYTES = 4_096;
  * and it counts as one node. A page packed with 200 of them is 200*1,131 + 199 commas + 2 brackets
  * = 226,401 bytes of commands; with the `"commands":` key that is ~226,412 bytes ON TOP of the 352
  * the page already justified. Across `MAX_EVENTS_PER_MAP` (64) x `MAX_PAGES_PER_EVENT` (8) = 512
- * pages: 512 * 226,412 = 115,922,944 bytes. Total per-field worst case: 385,234 + 115,922,944 =
- * ~116.3 MB, ~110.9 MiB.
+ * pages: 512 * 226,412 = 115,922,944 bytes. Total per-field worst case:
+ * 1,218,274 + 115,922,944 = ~117.1 MB, ~111.7 MiB.
  *
  * That exceeds a Cloudflare Worker's 128 MiB memory budget, so — unlike every prior tranche — the
  * byte cap CANNOT be raised above the per-field worst case: `readJson` buffers the body, and a
  * ~111 MiB request would pressure the isolate before parsing. The protective bound on command
  * volume is therefore the PARSER's recursive `MAX_COMMANDS_PER_PAGE` and `MAX_COMMAND_DEPTH` caps
  * (which stop a single page from running the interpreter away), not this byte cap. This cap is
- * raised to 4 MiB — 10x the pre-commands 400 KiB — which holds the 385,234-byte structural worst
- * case plus ~3.8 MiB of commands: room for ~34,000 max-width `choices` nodes, or every one of a
- * 64-event map's ~512 pages carrying ~65 max-width commands, far past any realistic authored scene
+ * raised to 4 MiB, which holds the 1,218,274-byte structural worst
+ * case plus ~2.9 MiB of commands: room for ~2,600 max-width `choices` nodes, or every one of a
+ * 64-event map's ~512 pages carrying five max-width commands, far past any realistic authored scene
  * (an ambitiously scripted map runs to hundreds of KB, not megabytes). A pathological map that
  * packs every page to the 200-node ceiling with max-width choices is rejected by SIZE here rather
  * than accepted into memory — a deliberate, documented departure from the old "never 413 legal
@@ -636,14 +636,18 @@ async function handleListMaps(request: Request, env: Env, url: URL): Promise<Res
   return json(await listMapsForAdventure(createDb(env.DB), adventureId));
 }
 
-/** The `{ adventureId, name }` body of a new-map request — the only two fields a client sends now,
- *  since the terrain is always the server-built template. */
-function parseCreateMapBody(body: unknown): { adventureId: string; name: string } | null {
+/** The `{ adventureId, name, cols, rows }` body of a new-map request. Terrain is always the
+ *  server-built template; omitted dimensions retain backward-compatible minimum defaults. */
+function parseCreateMapBody(
+  body: unknown,
+): { adventureId: string; name: string; cols?: number; rows?: number } | null {
   if (typeof body !== "object" || body === null) return null;
-  const { adventureId, name } = body as Record<string, unknown>;
+  const { adventureId, name, cols, rows } = body as Record<string, unknown>;
   if (typeof adventureId !== "string" || !isUuid(adventureId)) return null;
   if (typeof name !== "string") return null;
-  return { adventureId, name };
+  if (cols === undefined && rows === undefined) return { adventureId, name };
+  if (!Number.isSafeInteger(cols) || !Number.isSafeInteger(rows)) return null;
+  return { adventureId, name, cols: cols as number, rows: rows as number };
 }
 
 async function handleCreateMap(request: Request, env: Env, url: URL): Promise<Response> {
@@ -654,9 +658,12 @@ async function handleCreateMap(request: Request, env: Env, url: URL): Promise<Re
   const input = parseCreateMapBody(parsed.value);
   if (!input) return json({ error: "map_invalid" }, { status: 400 });
   try {
-    return json(mapResponseBody(await createMap(createDb(env.DB), input.adventureId, input.name)), {
-      status: 201,
-    });
+    return json(
+      mapResponseBody(
+        await createMap(createDb(env.DB), input.adventureId, input.name, input.cols, input.rows),
+      ),
+      { status: 201 },
+    );
   } catch (error) {
     return mapErrorResponse(error);
   }
@@ -722,7 +729,12 @@ async function handleDeleteMap(
   const auth = await requireSession(request, env, url);
   if (auth instanceof Response) return auth;
   try {
-    await deleteMap(createDb(env.DB), id);
+    const force = url.searchParams.get("force") === "true";
+    const deletedHeroIds = await deleteMap(createDb(env.DB), id, {
+      force,
+      accountId: auth.session.id,
+    });
+    await revokeHeroes(env, deletedHeroIds, "map deleted");
     return new Response(null, { status: 204 });
   } catch (error) {
     return mapErrorResponse(error);
@@ -794,11 +806,7 @@ function adventureTestErrorResponse(error: unknown): Response {
   throw error;
 }
 
-async function revokeTestHeroes(
-  env: Env,
-  heroIds: readonly string[],
-  reason: string,
-): Promise<void> {
+async function revokeHeroes(env: Env, heroIds: readonly string[], reason: string): Promise<void> {
   await Promise.all(
     heroIds.map((heroId) =>
       env.HERO_PRESENCE.getByName(heroId).revoke(WS_CLOSE.CHARACTER_DELETED, reason),
@@ -811,7 +819,7 @@ async function handleListAdventures(request: Request, env: Env, url: URL): Promi
   if (auth instanceof Response) return auth;
   const db = createDb(env.DB);
   const expiredHeroIds = await cleanupExpiredAdventureTestSessions(db);
-  await revokeTestHeroes(env, expiredHeroIds, "playtest expired");
+  await revokeHeroes(env, expiredHeroIds, "playtest expired");
   // `scope=play` is the server-wide playable listing (the "New adventure" carousel); the default
   // stays the owner-fenced editor listing.
   if (url.searchParams.get("scope") === "play") {
@@ -849,7 +857,7 @@ async function handleCreateAdventureTestSession(
         { status: 422 },
       );
     }
-    await revokeTestHeroes(env, result.replacedHeroIds, "playtest reset");
+    await revokeHeroes(env, result.replacedHeroIds, "playtest reset");
     return json(result.session, { status: 201 });
   } catch (error) {
     return adventureTestErrorResponse(error);
@@ -870,7 +878,7 @@ async function handleDeleteAdventureTestSession(
       auth.session.id,
       sessionId,
     );
-    await revokeTestHeroes(env, deletedHeroIds, "playtest closed");
+    await revokeHeroes(env, deletedHeroIds, "playtest closed");
     return new Response(null, { status: 204 });
   } catch (error) {
     return adventureTestErrorResponse(error);
@@ -940,7 +948,9 @@ async function handleDeleteAdventure(
   const auth = await requireSession(request, env, url);
   if (auth instanceof Response) return auth;
   try {
-    await deleteAdventure(createDb(env.DB), auth.session.id, id);
+    const force = url.searchParams.get("force") === "true";
+    const deletedHeroIds = await deleteAdventure(createDb(env.DB), auth.session.id, id, force);
+    await revokeHeroes(env, deletedHeroIds, "adventure deleted");
     return new Response(null, { status: 204 });
   } catch (error) {
     return adventureErrorResponse(error);

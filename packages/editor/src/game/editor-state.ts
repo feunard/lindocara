@@ -203,7 +203,7 @@ export interface EditorHistory {
  * The identity a history snapshot and the dirty flag compare on.
  *
  * Layers are run-length encoded rather than stringified cell by cell: `isEditorHistoryDirty` runs on
- * every stroke, and a 100x100 map is 30 000 ids. Runs collapse a mostly-uniform map to a few dozen
+ * every stroke, and a 256x256 map is 196,608 ids. Runs collapse a mostly-uniform map to a few dozen
  * characters, and they are exactly what gets saved, so two maps compare equal here precisely when
  * they would be stored identically.
  *

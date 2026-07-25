@@ -9,6 +9,7 @@ import { functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js"
 import { MAX_HOSTED_PARTIES } from "@lindocara/engine/party.js";
 import { createAdventure, deleteAdventure, updateAdventure } from "@lindocara/server/adventures.js";
 import { account, createDb } from "@lindocara/server/db/index.js";
+import { createHero } from "@lindocara/server/heroes.js";
 import type { MapInput } from "@lindocara/server/maps.js";
 import {
   createParty,
@@ -214,6 +215,22 @@ describe("adventure delete guard", () => {
     await expect(deleteAdventure(db, "host", adventureId)).rejects.toThrow(/^referenced:/);
     await deleteParty(db, "host", party.id);
     await deleteAdventure(db, "host", adventureId); // free once no party references it
+  });
+
+  it("force-deletes the adventure, every party save, and their heroes", async () => {
+    const db = createDb(env.DB);
+    await seedAccount("host");
+    const adventureId = await seedAdventure("host");
+    const party = await createParty(db, "host", { adventureId, name: null, color: "blue" });
+    const hero = await createHero(db, "host", party.id, { name: "Mira", class: "priest" });
+
+    const deletedHeroIds = await deleteAdventure(db, "host", adventureId, true);
+
+    expect(deletedHeroIds).toEqual([hero.id]);
+    expect(await listPublicParties(db, "host")).toEqual([]);
+    expect(
+      await env.DB.prepare("SELECT id FROM adventure WHERE id = ?").bind(adventureId).first(),
+    ).toBeNull();
   });
 });
 

@@ -381,6 +381,32 @@ describe("map deletion guard", () => {
     await expect(deleteOwnedMap(db, mapA.id)).rejects.toThrow(/^referenced:/);
     await deleteOwnedMap(db, spare.id); // unwired maps still delete
   });
+
+  it("force-deletes a referenced map, its live parties, and every graph edge naming it", async () => {
+    const db = createDb(env.DB);
+    await seedAccount("owner");
+    const { advId, mapA, mapB, adv } = await buildAdventure(db, "owner");
+    await db.insert(party).values({
+      id: "party-on-map",
+      adventureId: advId,
+      adventureVersion: adv.version,
+      maxPlayers: adv.maxPlayers,
+      hostAccountId: "owner",
+      name: null,
+      status: "open",
+    });
+
+    await deleteOwnedMap(db, mapA.id, { force: true, accountId: "owner" });
+
+    expect(await loadOwnedMap(db, "owner", mapA.id)).toBeNull();
+    expect(
+      await env.DB.prepare("SELECT id FROM party WHERE id = ?").bind("party-on-map").first(),
+    ).toBeNull();
+    expect((await loadAdventure(db, "owner", advId))?.graph).toEqual({
+      start: null,
+      links: [{ mapId: mapB.id, exitId: EXIT_B, dest: "end" }],
+    });
+  });
 });
 
 describe("map edits after the graph teardown", () => {

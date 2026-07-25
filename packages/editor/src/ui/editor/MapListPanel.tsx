@@ -11,8 +11,15 @@ import {
 } from "@lindocara/client/api.js";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import { MAX_ADVENTURE_MAPS } from "@lindocara/engine/adventure.js";
+import {
+  MAP_MAX_COLS,
+  MAP_MAX_ROWS,
+  MAP_MIN_COLS,
+  MAP_MIN_ROWS,
+} from "@lindocara/engine/map-limits.js";
 import { nextMapName } from "@lindocara/engine/map-naming.js";
 import { Button } from "@lindocara/ui/components/button.js";
+import { Checkbox } from "@lindocara/ui/components/checkbox.js";
 import {
   Dialog,
   DialogContent,
@@ -98,7 +105,10 @@ export function MapListPanel({
   const [maps, setMaps] = useState<MapSummary[]>([]);
   const [renaming, setRenaming] = useState<MapSummary | null>(null);
   const [newName, setNewName] = useState("");
+  const [newCols, setNewCols] = useState(40);
+  const [newRows, setNewRows] = useState(30);
   const [renameValue, setRenameValue] = useState("");
+  const [forceDelete, setForceDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   const refreshGenerationRef = useRef(0);
 
@@ -134,7 +144,11 @@ export function MapListPanel({
   // from the loaded list, so the server stays dumb and simply stores the name it is handed.
   // biome-ignore lint/correctness/useExhaustiveDependencies: seed the default only on the open transition, not on every list churn
   useEffect(() => {
-    if (newMapOpen) setNewName(nextMapName(maps.map((map) => map.name)));
+    if (newMapOpen) {
+      setNewName(nextMapName(maps.map((map) => map.name)));
+      setNewCols(40);
+      setNewRows(30);
+    }
   }, [newMapOpen]);
 
   async function create(): Promise<void> {
@@ -142,7 +156,7 @@ export function MapListPanel({
     onError("");
     setBusy(true);
     try {
-      const created = await createMapApi(adventureId, newName.trim());
+      const created = await createMapApi(adventureId, newName.trim(), newCols, newRows);
       onNewMapOpenChange(false);
       setNewName("");
       await refresh();
@@ -158,12 +172,14 @@ export function MapListPanel({
     if (busy || locked) return;
     setBusy(true);
     try {
-      await deleteMapApi(id);
+      await deleteMapApi(id, forceDelete);
       onConfirmDeleteIdChange(null);
+      setForceDelete(false);
       await refresh();
       if (id === activeMapId) onActiveDeleted();
     } catch (caught) {
       onConfirmDeleteIdChange(null);
+      setForceDelete(false);
       fail(caught);
     } finally {
       setBusy(false);
@@ -203,6 +219,13 @@ export function MapListPanel({
   }
 
   const deleting = maps.find((map) => map.id === confirmDeleteId);
+  const validNewSize =
+    Number.isSafeInteger(newCols) &&
+    Number.isSafeInteger(newRows) &&
+    newCols >= MAP_MIN_COLS &&
+    newCols <= MAP_MAX_COLS &&
+    newRows >= MAP_MIN_ROWS &&
+    newRows <= MAP_MAX_ROWS;
 
   return (
     <aside
@@ -280,7 +303,10 @@ export function MapListPanel({
                       aria-label={`${t("editor.delete")} ${map.name}`}
                       disabled={busy || locked}
                       className="text-destructive opacity-0 group-hover:opacity-100"
-                      onClick={() => onConfirmDeleteIdChange(map.id)}
+                      onClick={() => {
+                        setForceDelete(false);
+                        onConfirmDeleteIdChange(map.id);
+                      }}
                     >
                       <Trash2 />
                     </Button>
@@ -321,6 +347,38 @@ export function MapListPanel({
                 onChange={(event) => setNewName(event.currentTarget.value)}
               />
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="new-map-cols">{t("editor.cols")}</Label>
+                <Input
+                  id="new-map-cols"
+                  type="number"
+                  min={MAP_MIN_COLS}
+                  max={MAP_MAX_COLS}
+                  value={newCols}
+                  onChange={(event) => setNewCols(Number(event.currentTarget.value))}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="new-map-rows">{t("editor.rows")}</Label>
+                <Input
+                  id="new-map-rows"
+                  type="number"
+                  min={MAP_MIN_ROWS}
+                  max={MAP_MAX_ROWS}
+                  value={newRows}
+                  onChange={(event) => setNewRows(Number(event.currentTarget.value))}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t("editor.shell.maps.size_hint", {
+                minCols: MAP_MIN_COLS,
+                minRows: MAP_MIN_ROWS,
+                maxCols: MAP_MAX_COLS,
+                maxRows: MAP_MAX_ROWS,
+              })}
+            </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => onNewMapOpenChange(false)}>
@@ -332,7 +390,8 @@ export function MapListPanel({
                 maps.length >= MAX_ADVENTURE_MAPS ||
                 busy ||
                 locked ||
-                !newName.trim()
+                !newName.trim() ||
+                !validNewSize
               }
               onClick={() => void create()}
             >
@@ -369,14 +428,37 @@ export function MapListPanel({
 
       <Dialog
         open={deleting !== undefined}
-        onOpenChange={(open) => !open && onConfirmDeleteIdChange(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            onConfirmDeleteIdChange(null);
+            setForceDelete(false);
+          }
+        }}
       >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t("editor.delete.title", { name: deleting?.name ?? "" })}</DialogTitle>
           </DialogHeader>
+          <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
+            <Checkbox
+              id="force-delete-map"
+              checked={forceDelete}
+              disabled={busy || locked}
+              onCheckedChange={(checked) => setForceDelete(checked === true)}
+            />
+            <div className="grid gap-1">
+              <Label htmlFor="force-delete-map">{t("editor.delete.force")}</Label>
+              <p className="text-xs text-muted-foreground">{t("editor.delete.force_warning")}</p>
+            </div>
+          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => onConfirmDeleteIdChange(null)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                onConfirmDeleteIdChange(null);
+                setForceDelete(false);
+              }}
+            >
               {t("editor.delete.cancel")}
             </Button>
             <Button

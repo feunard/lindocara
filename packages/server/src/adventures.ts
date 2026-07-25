@@ -450,7 +450,12 @@ export async function updateAdventureRegistry(
   return parsed;
 }
 
-export async function deleteAdventure(db: Db, accountId: string, id: string): Promise<void> {
+export async function deleteAdventure(
+  db: Db,
+  accountId: string,
+  id: string,
+  force = false,
+): Promise<string[]> {
   const row = await ownedRow(db, accountId, id);
   if (!row) throw new Error("not_found: no such adventure");
   const used = await db
@@ -458,7 +463,26 @@ export async function deleteAdventure(db: Db, accountId: string, id: string): Pr
     .from(party)
     .where(eq(party.adventureId, id))
     .limit(1);
-  if (used.length > 0) throw new Error("referenced: a party still uses this adventure");
+  if (used.length > 0 && !force) {
+    throw new Error("referenced: a party still uses this adventure");
+  }
+  if (force) {
+    const results = await db.$client.batch([
+      db.$client
+        .prepare(
+          `DELETE FROM hero
+             WHERE party_id IN (SELECT id FROM party WHERE adventure_id = ?)
+             RETURNING id`,
+        )
+        .bind(id),
+      db.$client.prepare("DELETE FROM party WHERE adventure_id = ?").bind(id),
+      db.$client
+        .prepare("DELETE FROM adventure WHERE id = ? AND account_id = ?")
+        .bind(id, accountId),
+    ]);
+    return ((results[0]?.results ?? []) as { id: string }[]).map((heroRow) => heroRow.id);
+  }
   // The adventure's maps (and their elements/events) cascade off `map.adventure_id`.
   await db.delete(adventure).where(eq(adventure.id, id));
+  return [];
 }

@@ -5,6 +5,7 @@
  * were chosen over base64 because a map is mostly long uniform stretches — and because a run string
  * stays readable in a D1 row and in a failing test's output, which base64 does not.
  */
+import { MAX_MAP_CELLS } from "./map-limits.js";
 import { EMPTY_TILE } from "./tileset.js";
 
 export interface TileLayer {
@@ -15,8 +16,6 @@ export interface TileLayer {
 }
 
 /** The largest cell count any layer may claim, matching the map size cap in `server/maps.ts`. */
-const MAX_CELLS = 100 * 100;
-
 export function emptyLayer(cols: number, rows: number): TileLayer {
   return { cols, rows, ids: new Array<number>(cols * rows).fill(EMPTY_TILE) };
 }
@@ -48,7 +47,7 @@ export function decodeTileLayer(text: string, cols: number, rows: number): TileL
 export function parseTileLayer(value: unknown, cols: number, rows: number): TileLayer | null {
   if (typeof value !== "string") return null;
   if (!Number.isSafeInteger(cols) || !Number.isSafeInteger(rows)) return null;
-  if (cols <= 0 || rows <= 0 || cols * rows > MAX_CELLS) return null;
+  if (cols <= 0 || rows <= 0 || cols * rows > MAX_MAP_CELLS) return null;
   const expected = cols * rows;
   /**
    * `split(",")` allocates an array sized to `value`'s own length before a single run is checked

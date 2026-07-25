@@ -10,6 +10,7 @@ import {
   type MapEvent,
   type MapEventPage,
 } from "@lindocara/engine/map-events.js";
+import { MAP_MAX_COLS, MAP_MAX_ROWS } from "@lindocara/engine/map-limits.js";
 import { fixedId } from "@lindocara/engine/tileset.js";
 import { TINY_SWORDS_TILESET } from "@lindocara/engine/tilesets/tiny-swords.js";
 import { loadAdventure } from "@lindocara/server/adventures.js";
@@ -217,7 +218,9 @@ describe("maps", () => {
       await expect(createMap(db, tiny)).rejects.toThrow(/^size:/);
       const huge = {
         ...validInput,
-        ...layeredTerrain(Array.from({ length: 101 }, () => ".".repeat(101))),
+        ...layeredTerrain(
+          Array.from({ length: MAP_MAX_ROWS + 1 }, () => ".".repeat(MAP_MAX_COLS + 1)),
+        ),
       };
       await expect(createMap(db, huge)).rejects.toThrow(/^size:/);
     });

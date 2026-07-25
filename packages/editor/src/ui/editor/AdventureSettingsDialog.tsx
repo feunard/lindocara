@@ -12,6 +12,7 @@ import {
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import { useUiStore } from "@lindocara/client/store.js";
 import { Button } from "@lindocara/ui/components/button.js";
+import { Checkbox } from "@lindocara/ui/components/checkbox.js";
 import {
   Dialog,
   DialogContent,
@@ -62,6 +63,7 @@ export function AdventureSettingsDialog({
 
   const [saving, setSaving] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [forceDelete, setForceDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<AdventureDraft | null>(null);
 
@@ -69,6 +71,7 @@ export function AdventureSettingsDialog({
     if (!open) return;
     setDraft(session?.draft ?? null);
     setError(null);
+    setForceDelete(false);
   }, [open, session?.draft]);
 
   function fail(caught: unknown): void {
@@ -84,7 +87,7 @@ export function AdventureSettingsDialog({
     setSaving(true);
     setError(null);
     try {
-      await deleteAdventureApi(session.adventureId);
+      await deleteAdventureApi(session.adventureId, forceDelete);
       setConfirmingDelete(false);
       onOpenChange(false);
       setSession(null);
@@ -151,19 +154,46 @@ export function AdventureSettingsDialog({
               if (next) setDraft(next);
             }}
             onSave={() => void save()}
-            onDelete={() => setConfirmingDelete(true)}
+            onDelete={() => {
+              setForceDelete(false);
+              setConfirmingDelete(true);
+            }}
           />
         )}
 
-        <Dialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
+        <Dialog
+          open={confirmingDelete}
+          onOpenChange={(next) => {
+            setConfirmingDelete(next);
+            if (!next) setForceDelete(false);
+          }}
+        >
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
                 {t("adventure.delete.title", { name: draft?.title ?? session?.draft.title ?? "" })}
               </DialogTitle>
             </DialogHeader>
+            <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
+              <Checkbox
+                id="force-delete-current-adventure"
+                checked={forceDelete}
+                disabled={saving}
+                onCheckedChange={(checked) => setForceDelete(checked === true)}
+              />
+              <div className="grid gap-1">
+                <Label htmlFor="force-delete-current-adventure">{t("editor.delete.force")}</Label>
+                <p className="text-xs text-muted-foreground">{t("editor.delete.force_warning")}</p>
+              </div>
+            </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setConfirmingDelete(false)}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setConfirmingDelete(false);
+                  setForceDelete(false);
+                }}
+              >
                 {t("adventure.delete.cancel")}
               </Button>
               <Button variant="destructive" disabled={saving} onClick={() => void remove()}>

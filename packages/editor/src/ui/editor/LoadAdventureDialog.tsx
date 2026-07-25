@@ -7,6 +7,7 @@ import {
 } from "@lindocara/client/api.js";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import { Button } from "@lindocara/ui/components/button.js";
+import { Checkbox } from "@lindocara/ui/components/checkbox.js";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@lindocara/ui/components/dialog.js";
+import { Label } from "@lindocara/ui/components/label.js";
 import { useEffect, useState } from "react";
 
 function isSessionError(code: string): boolean {
@@ -51,6 +53,7 @@ export function LoadAdventureDialog({
   const [adventures, setAdventures] = useState<AdventureSummary[] | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState<AdventureSummary | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [forceDelete, setForceDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reload the list each time the dialog opens
@@ -59,6 +62,7 @@ export function LoadAdventureDialog({
     setError(null);
     setAdventures(null);
     setConfirmingDelete(null);
+    setForceDelete(false);
     void (async () => {
       try {
         setAdventures(await fetchAllAdventures());
@@ -75,15 +79,17 @@ export function LoadAdventureDialog({
     setDeletingId(adventure.id);
     setError(null);
     try {
-      await deleteAdventureApi(adventure.id);
+      await deleteAdventureApi(adventure.id, forceDelete);
       setAdventures(
         (current) => current?.filter((candidate) => candidate.id !== adventure.id) ?? [],
       );
       setConfirmingDelete(null);
+      setForceDelete(false);
       onDeleted(adventure.id);
     } catch (caught) {
       const code = errorCode(caught);
       setConfirmingDelete(null);
+      setForceDelete(false);
       if (isSessionError(code)) onSessionExpired();
       else setError(code);
     } finally {
@@ -145,7 +151,10 @@ export function LoadAdventureDialog({
                     variant="destructive"
                     size="sm"
                     disabled={deletingId !== null}
-                    onClick={() => setConfirmingDelete(adventure)}
+                    onClick={() => {
+                      setForceDelete(false);
+                      setConfirmingDelete(adventure);
+                    }}
                   >
                     {t("editor.delete")}
                   </Button>
@@ -158,7 +167,10 @@ export function LoadAdventureDialog({
         <Dialog
           open={confirmingDelete !== null}
           onOpenChange={(next) => {
-            if (!next && deletingId === null) setConfirmingDelete(null);
+            if (!next && deletingId === null) {
+              setConfirmingDelete(null);
+              setForceDelete(false);
+            }
           }}
         >
           <DialogContent>
@@ -167,11 +179,26 @@ export function LoadAdventureDialog({
                 {t("adventure.delete.title", { name: confirmingDelete?.title ?? "" })}
               </DialogTitle>
             </DialogHeader>
+            <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
+              <Checkbox
+                id="force-delete-loaded-adventure"
+                checked={forceDelete}
+                disabled={deletingId !== null}
+                onCheckedChange={(checked) => setForceDelete(checked === true)}
+              />
+              <div className="grid gap-1">
+                <Label htmlFor="force-delete-loaded-adventure">{t("editor.delete.force")}</Label>
+                <p className="text-xs text-muted-foreground">{t("editor.delete.force_warning")}</p>
+              </div>
+            </div>
             <DialogFooter>
               <Button
                 variant="outline"
                 disabled={deletingId !== null}
-                onClick={() => setConfirmingDelete(null)}
+                onClick={() => {
+                  setConfirmingDelete(null);
+                  setForceDelete(false);
+                }}
               >
                 {t("adventure.delete.cancel")}
               </Button>

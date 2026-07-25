@@ -200,7 +200,7 @@ function sameRegion(
 
 /**
  * Every cell of the start cell's flood-fill region, found with an explicit stack — never recursion,
- * because a 100x100 map is 10,000 cells and workerd's stack is not the budget to spend on that.
+ * because a 256x256 map is 65,536 cells and workerd's stack is not the budget to spend on that.
  *
  * The cap below is not reachable by a correct visited-set: each cell is marked visited the moment it
  * is pushed, so no cell is ever pushed twice and the walk does at most `cells` pops. It exists so

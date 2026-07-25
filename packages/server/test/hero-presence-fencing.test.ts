@@ -377,6 +377,40 @@ describe("hero post-revocation commands", () => {
     ).toEqual({ count: 0 });
   }, 15_000);
 
+  it("force-deleting a map removes the party save and revokes its live hero", async () => {
+    const party = await seedParty("force-delete-map");
+    const hero = await testHero("MapGone", {
+      party,
+      account: party.host,
+      class: "ranger",
+      mapId: party.mapA,
+    });
+    const client = await Client.joinHero(hero);
+    await until("force-map hero welcome", () => client.welcome);
+
+    const guarded = await SELF.fetch(`https://lindocara.test/api/maps/${party.mapA}`, {
+      method: "DELETE",
+      headers: { Cookie: party.host.cookie },
+    });
+    expect(guarded.status).toBe(409);
+
+    const forced = await SELF.fetch(`https://lindocara.test/api/maps/${party.mapA}?force=true`, {
+      method: "DELETE",
+      headers: { Cookie: party.host.cookie },
+    });
+    expect(forced.status).toBe(204);
+
+    const closed = await until("force-map hero close", () => client.closeInfo ?? undefined);
+    expect(closed.code).toBe(WS_CLOSE.CHARACTER_DELETED);
+    expect(await env.HERO_PRESENCE.getByName(hero.heroId).current()).toBeNull();
+    expect(
+      await env.DB.prepare("SELECT id FROM party WHERE id = ?").bind(party.partyId).first(),
+    ).toBeNull();
+    expect(
+      await env.DB.prepare("SELECT id FROM map WHERE id = ?").bind(party.mapA).first(),
+    ).toBeNull();
+  }, 15_000);
+
   it("ignores every gameplay action after CHARACTER_REPLACED", async () => {
     const party = await seedParty("replaced");
     const hero = await testHero("Displaced", { party, class: "warrior", level: 5 });
