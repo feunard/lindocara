@@ -238,6 +238,7 @@ export const fr: Record<keyof typeof en, string> = {
   "hud.pack": "Sac du Voyageur",
   "hud.switch_character": "Retour aux sauvegardes",
   "hud.logout": "Se déconnecter",
+  "hud.return_to_title": "Retour écran titre",
   "hud.abilities": "Compétences",
   "hud.map.title": "Val Verdoyant",
   "hud.map.you": "Vous",

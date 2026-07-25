@@ -236,6 +236,7 @@ export const en = {
   "hud.pack": "Wayfarer's Pack",
   "hud.switch_character": "Return to saves",
   "hud.logout": "Log out",
+  "hud.return_to_title": "Back to title",
   "hud.abilities": "Abilities",
   "hud.map.title": "Verdant Reach",
   "hud.map.you": "You",

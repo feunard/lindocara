@@ -5,7 +5,6 @@ import {
 } from "@lindocara/renderer/display-settings.js";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
-import { logout } from "../api.js";
 import {
   getAudioSettings,
   setAudioSettings,
@@ -190,11 +189,11 @@ export function SettingsMenu({ inGame = false }: { inGame?: boolean }) {
                 </TinyButton>
                 <TinyButton
                   type="button"
-                  variant="destructive"
-                  className="danger"
-                  onClick={() => (game ? game.logout() : logout())}
+                  onClick={() =>
+                    game ? game.returnToTitle() : useUiStore.getState().resetToTitle()
+                  }
                 >
-                  {t("hud.logout")}
+                  {t("hud.return_to_title")}
                 </TinyButton>
               </div>
             </div>

@@ -12,7 +12,20 @@ export interface TileWindow {
   rows: number;
 }
 
-export const PLAYER_RENDER_SCALE = 0.7;
+/**
+ * The whole cast draws at the pack's own scale.
+ *
+ * This was 0.7 while guards, monsters and authored NPCs drew at 1.0 — so a hero stood a head shorter
+ * than the captain he was talking to, and 43% shorter than the goblin swinging at him. It is the same
+ * mistake `enemy-art.ts` documents for the bestiary and `renderer.ts` documents for the unit frame:
+ * Tiny Swords is already in proportion with itself, and shrinking ONE class of sprite is what breaks
+ * it. A hero's body is 79x89px on 64px tiles here — about 1.2 x 1.4 tiles, which is the proportion
+ * the pack's own promo art draws a knight at.
+ *
+ * The seam stays a function so a future per-player effect (a shrink hex, a mounted hero) has a home,
+ * but there is no longer a constant class of sprite drawn smaller than the world it stands in.
+ */
+export const PLAYER_RENDER_SCALE = 1;
 export const GAME_CAMERA_ZOOM = 0.8;
 
 /** Every living avatar and corpse uses one scale, regardless of which client is looking at it. */

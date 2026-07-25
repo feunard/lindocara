@@ -58,6 +58,7 @@ function game(abandonQuest: (questId: string) => void): GameHandle {
     abandonQuest,
     switchCharacter: vi.fn(),
     logout: vi.fn(),
+    returnToTitle: vi.fn(),
     attachMinimap: vi.fn(),
     attachWorldMap: vi.fn(),
   };

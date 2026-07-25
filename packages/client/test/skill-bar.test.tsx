@@ -17,6 +17,7 @@ function gameHandle(): GameHandle {
     sendChat: vi.fn(),
     switchCharacter: vi.fn(),
     logout: vi.fn(),
+    returnToTitle: vi.fn(),
     attachMinimap: vi.fn(),
     attachWorldMap: vi.fn(),
   };

@@ -11,7 +11,9 @@ import { describe, expect, it } from "vitest";
 
 describe("multizone camera geometry", () => {
   it("renders every hero 30% smaller and zooms every client out by 20%", () => {
-    expect(PLAYER_RENDER_SCALE).toBe(0.7);
+    // One scale for the whole cast: guards, monsters and authored NPCs all draw at the pack's own
+    // size, and a hero drawn at 0.7 stood visibly shorter than everyone he shared a map with.
+    expect(PLAYER_RENDER_SCALE).toBe(1);
     expect(GAME_CAMERA_ZOOM).toBe(0.8);
     expect(gameCameraScale(1220, 700)).toBe(0.8);
     expect(gameCameraScale(2440, 1400)).toBe(1.6);

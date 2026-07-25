@@ -89,9 +89,9 @@ describe("SettingsMenu", () => {
     ).toHaveTextContent("Cross");
   });
 
-  it("owns the switch-character and logout actions instead of the player frame", async () => {
+  it("owns the switch-character and back-to-title actions instead of the player frame", async () => {
     const switchCharacter = vi.fn();
-    const logout = vi.fn();
+    const returnToTitle = vi.fn();
     useUiStore.setState({
       settingsOpen: true,
       game: {
@@ -102,15 +102,18 @@ describe("SettingsMenu", () => {
         castSkill: vi.fn(),
         sendChat: vi.fn(),
         switchCharacter,
-        logout,
+        logout: vi.fn(),
+        returnToTitle,
         attachMinimap: vi.fn(),
         attachWorldMap: vi.fn(),
       },
     });
     render(<SettingsMenu inGame />);
     await userEvent.click(screen.getByRole("button", { name: "Return to saves" }));
-    await userEvent.click(screen.getByRole("button", { name: "Log out" }));
+    // Leaving a party is not signing out: the button returns to the title and keeps the session,
+    // so it must never reach `logout`, which revokes the cookie server-side and reloads.
+    await userEvent.click(screen.getByRole("button", { name: "Back to title" }));
     expect(switchCharacter).toHaveBeenCalledOnce();
-    expect(logout).toHaveBeenCalledOnce();
+    expect(returnToTitle).toHaveBeenCalledOnce();
   });
 });

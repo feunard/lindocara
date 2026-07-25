@@ -769,6 +769,17 @@ async function startGameIdentity(
     stopSession();
     void logout();
   };
+  /**
+   * Leave the running game and go back to the title screen, KEEPING the session.
+   *
+   * Deliberately not `logout()`: that revokes the cookie server-side and reloads, so the player has
+   * to sign in again. Stepping out of a party is not signing out — `stopSession` already closes the
+   * socket and ends the game cleanly, and the title screen is one store transition away.
+   */
+  const returnToTitle = () => {
+    stopSession();
+    useUiStore.getState().resetToTitle();
+  };
   const toggleSettings = () => {
     if (interiorOpen()) {
       closeInterior();
@@ -910,6 +921,7 @@ async function startGameIdentity(
     abandonQuest: (questId) => connection?.abandonQuest(questId),
     switchCharacter,
     logout: logoutAndReload,
+    returnToTitle,
     attachMinimap: (canvas) => {
       minimapCanvas = canvas;
       mapSurface?.attachMinimap(canvas);

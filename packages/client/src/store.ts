@@ -130,6 +130,8 @@ export interface GameHandle {
   abandonQuest?(questId: string): void;
   switchCharacter(): void;
   logout(): void;
+  /** Leave the game for the title screen without revoking the session. */
+  returnToTitle(): void;
   /** React owns the canvas; the game loop draws into it. The store stays free of world x/y. */
   attachMinimap(canvas: HTMLCanvasElement | null): void;
   attachWorldMap(canvas: HTMLCanvasElement | null): void;

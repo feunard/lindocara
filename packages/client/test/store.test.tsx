@@ -66,6 +66,7 @@ describe("ui store", () => {
         sendChat: () => {},
         switchCharacter: () => {},
         logout: () => {},
+        returnToTitle: () => {},
         attachMinimap: () => {},
         attachWorldMap: () => {},
       },
