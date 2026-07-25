@@ -15,7 +15,12 @@ import type { TileLayer } from "./tile-layer-codec.js";
 import { autotileId, decodeTileId, EMPTY_TILE, fixedId, type Tileset } from "./tileset.js";
 import {
   CLIFF_FACE_FIXED_BASE,
+  CLIFF_FACE_FIXED_LEVEL_STRIDE,
+  CLIFF_WALL_HIGH_2_SLOT,
   CLIFF_WALL_SLOT,
+  CLIFF_WALL_SLOTS,
+  CLIFF_WATER_HIGH_2_SLOT,
+  CLIFF_WATER_SLOT,
   elevationOfSlot,
   GRASS_SLOTS,
   RAMP_FIXED_TILE_COUNT,
@@ -368,41 +373,38 @@ export function syncElevationWalls(
 
 type CliffDirection = "north" | "east" | "south" | "west";
 
+const CLIFF_ROTATION: Readonly<Record<CliffDirection, 0 | 1 | 2 | 3>> = {
+  north: 0,
+  east: 1,
+  south: 2,
+  west: 3,
+};
+
 function ambientCliffFixed(index: number): boolean {
-  return index >= CLIFF_FACE_FIXED_BASE && index < CLIFF_FACE_FIXED_BASE + 4;
+  return (
+    index >= CLIFF_FACE_FIXED_BASE &&
+    index < CLIFF_FACE_FIXED_BASE + CLIFF_FACE_FIXED_LEVEL_STRIDE * 2
+  );
 }
 
-export const STAIRS_DIRECTIONS = ["north", "east", "south", "west"] as const;
+function ambientCliffAutotile(slot: number): boolean {
+  return (CLIFF_WALL_SLOTS as readonly number[]).includes(slot);
+}
+
+export const STAIRS_DIRECTIONS = ["east", "west"] as const;
 export type StairsDirection = (typeof STAIRS_DIRECTIONS)[number];
 export type StairsLowLevel = 0 | 1;
 
-type QuarterTurns = 0 | 1 | 2 | 3;
-
-const STAIRS_ROTATION: Readonly<Record<StairsDirection, QuarterTurns>> = {
-  // The official 64×128 source climbs toward its right-hand side.
-  north: 3,
-  east: 0,
-  south: 1,
-  west: 2,
-};
-
 export type StairsPart = "high" | "low";
 
-/**
- * Relative position of the asset's high half from the clicked low half. Rotating the native
- * vertical pair turns it into a horizontal pair for north/south.
- */
+/** Both native side ramps occupy a vertical pair beside their cliff. */
 const STAIRS_HIGH_PART_OFFSET: Readonly<Record<StairsDirection, { col: number; row: number }>> = {
-  north: { col: -1, row: 0 },
   east: { col: 0, row: -1 },
-  south: { col: 1, row: 0 },
-  west: { col: 0, row: 1 },
+  west: { col: 0, row: -1 },
 };
 
 const STAIRS_HIGH_SIDE_OFFSET: Readonly<Record<StairsDirection, { col: number; row: number }>> = {
-  north: { col: 0, row: -1 },
   east: { col: 1, row: 0 },
-  south: { col: 0, row: 1 },
   west: { col: -1, row: 0 },
 };
 
@@ -412,8 +414,6 @@ export function stairsFixedIndex(
   lowLevel: StairsLowLevel,
   part: StairsPart,
 ): number {
-  // Keep the historical direction group encoded in saved maps: north/east/south/west. The atlas
-  // rotation is deliberately NOT the id group now that we know the source art itself faces east.
   return STAIRS_DIRECTIONS.indexOf(direction) * 4 + (part === "low" ? 2 : 0) + lowLevel;
 }
 
@@ -443,14 +443,14 @@ export function stairsTilePlacements(
   ];
 }
 
-interface StairsDescriptor {
+export interface StairsDescriptor {
   direction: StairsDirection;
   lowLevel: StairsLowLevel;
   part: StairsPart;
 }
 
-/** Decode one of the official stair's two halves from the stable sixteen-id ramp band. */
-function stairsDescriptor(index: number): StairsDescriptor | null {
+/** Decode one stair half from the stable eight-id side-ramp band. */
+export function stairsDescriptor(index: number): StairsDescriptor | null {
   if (!Number.isInteger(index) || index < 0 || index >= RAMP_FIXED_TILE_COUNT) return null;
   const direction = STAIRS_DIRECTIONS[Math.floor(index / 4)];
   if (!direction) return null;
@@ -468,7 +468,10 @@ function stairsAnchorAt(
 ): { col: number; row: number } {
   if (descriptor.part === "low") return { col, row };
   const high = STAIRS_HIGH_PART_OFFSET[descriptor.direction];
-  return { col: col - high.col, row: row - high.row };
+  return {
+    col: col - high.col,
+    row: row - high.row,
+  };
 }
 
 function stairsPartsPresent(
@@ -487,10 +490,11 @@ function stairsPartsPresent(
 }
 
 /**
- * The clicked cell and the rotated companion both stay on the lower elevation. The high end touches
- * the immediately higher terrain one cell farther in the chosen direction, giving a three-cell
- * low-half → high-half → plateau route. No other higher neighbour may touch either passable stair
- * cell, because collision is whole-cell and that would open an unintended cliff face.
+ * Both ramp halves stay on the lower elevation and run alongside one straight cliff edge. Each half
+ * must touch the immediately higher terrain on the chosen side, matching Pixel Frog's native
+ * composition: the bank replaces two joined cliff faces. Other neighbours do not participate in
+ * validity: rejecting them made a visually straight edge fail near harmless corners and short
+ * plateaus even though both actual endpoints matched.
  */
 function stairsFits(
   ground: TileLayer,
@@ -511,35 +515,23 @@ function stairsFits(
     }
   }
 
-  const highPart = STAIRS_HIGH_PART_OFFSET[direction];
   const highSide = STAIRS_HIGH_SIDE_OFFSET[direction];
-  const highCell = {
-    col: col + highPart.col + highSide.col,
-    row: row + highPart.row + highSide.row,
-  };
-  if (elevationAt(ground, highCell.col, highCell.row) !== lowLevel + 1) return false;
-
-  const neighbours: readonly { col: number; row: number }[] = [
-    { col: 0, row: -1 },
-    { col: 1, row: 0 },
-    { col: 0, row: 1 },
-    { col: -1, row: 0 },
-  ];
-  return placements.every((placement) =>
-    neighbours.every((offset) => {
-      const neighbourCol = col + placement.col + offset.col;
-      const neighbourRow = row + placement.row + offset.row;
-      const elevation = elevationAt(ground, neighbourCol, neighbourRow);
-      const isHighCell = neighbourCol === highCell.col && neighbourRow === highCell.row;
-      return isHighCell ? elevation === lowLevel + 1 : elevation <= lowLevel;
-    }),
-  );
+  return placements.every((placement) => {
+    const targetCol = col + placement.col;
+    const targetRow = row + placement.row;
+    return elevationAt(ground, targetCol + highSide.col, targetRow + highSide.row) === lowLevel + 1;
+  });
 }
 
 /** The first higher neighbour around a lower cell. North keeps the atlas's joined horizontal run;
  * the other sides use the same face art rotated as a fixed tile. The priority only affects the
  * picture at a concave corner: every choice is equally impassable. */
-function wantedCliffDirection(ground: TileLayer, col: number, row: number): CliffDirection | null {
+interface WantedCliff {
+  direction: CliffDirection;
+  highLevel: 1 | 2;
+}
+
+function wantedCliffDirection(ground: TileLayer, col: number, row: number): WantedCliff | null {
   const here = elevationAt(ground, col, row);
   const neighbours: readonly [CliffDirection, number][] = [
     ["north", elevationAt(ground, col, row - 1)],
@@ -547,7 +539,16 @@ function wantedCliffDirection(ground: TileLayer, col: number, row: number): Clif
     ["south", elevationAt(ground, col, row + 1)],
     ["west", elevationAt(ground, col - 1, row)],
   ];
-  return neighbours.find(([, elevation]) => elevation > 0 && elevation > here)?.[0] ?? null;
+  const wanted = neighbours.find(([, elevation]) => elevation > 0 && elevation > here);
+  if (!wanted) return null;
+  return { direction: wanted[0], highLevel: wanted[1] >= 2 ? 2 : 1 };
+}
+
+function northCliffSlot(waterFacing: boolean, highLevel: 1 | 2): number {
+  if (highLevel === 2) {
+    return waterFacing ? CLIFF_WATER_HIGH_2_SLOT : CLIFF_WALL_HIGH_2_SLOT;
+  }
+  return waterFacing ? CLIFF_WATER_SLOT : CLIFF_WALL_SLOT;
 }
 
 /** A lower cell carries one impassable face when any orthogonal neighbour stands higher. */
@@ -571,7 +572,7 @@ function syncWall(
         return walls;
       }
 
-      // Water, repainting either level or changing the corner invalidates the complete two-cell
+      // Water or repainting either joined level invalidates the complete two-cell
       // stair. Clear both matching halves before normal cliff upkeep so no visual fragment or stale
       // passable cell survives the terrain edit.
       const ids = [...walls.ids];
@@ -601,45 +602,47 @@ function syncWall(
   const wanted = wantedCliffDirection(ground, col, row);
   if (wanted === null) {
     const ambient =
-      (current.kind === "autotile" && current.slot === CLIFF_WALL_SLOT) ||
+      (current.kind === "autotile" && ambientCliffAutotile(current.slot)) ||
       (current.kind === "fixed" && ambientCliffFixed(current.index));
     return ambient ? eraseTile(walls, tileset, col, row) : walls;
   }
 
-  // UPRIGHT on every side, never rotated.
-  //
-  // The pack ships exactly one wall band — four variants of a horizontal run (two caps, two
-  // middles) — and no side or corner face. Rotating it a quarter turn for an east/west/south
-  // boundary turns the rock's scalloped bottom lip sideways, which is what made three of every
-  // plateau's four edges read as broken. Tiny Swords' own art stacks this same upright band down a
-  // vertical edge, so drawing it unrotated is both what the artist did and the only honest use of
-  // the tiles that exist. `run4` then resolves horizontal continuity for free: a south drop gets its
-  // end caps, and a vertical edge gets the isolated variant, which reads as stacked rock.
-  if (current.kind === "autotile" && current.slot === CLIFF_WALL_SLOT) return walls;
-  return paintAutotile(walls, tileset, CLIFF_WALL_SLOT, col, row);
+  if (wanted.direction === "north") {
+    const wantedSlot = northCliffSlot(elevationAt(ground, col, row) < 0, wanted.highLevel);
+    if (current.kind === "autotile" && current.slot === wantedSlot) return walls;
+    return paintAutotile(walls, tileset, wantedSlot, col, row);
+  }
+
+  const wantedIndex =
+    CLIFF_FACE_FIXED_BASE +
+    (wanted.highLevel - 1) * CLIFF_FACE_FIXED_LEVEL_STRIDE +
+    CLIFF_ROTATION[wanted.direction];
+  if (current.kind === "fixed" && current.index === wantedIndex) return walls;
+  const ids = [...walls.ids];
+  ids[indexOf(walls, col, row)] = fixedId(wantedIndex);
+  return withNeighboursResolved({ ...walls, ids }, tileset, col, row);
 }
 
 /**
  * Directional, bidirectional official Tiny Swords staircase.
  *
- * `direction` names the high side: north means climb north / descend south, and so on. `lowLevel`
- * chooses the 0-to-1 or 1-to-2 transition. The author first paints both elevations, then clicks the
- * low entrance cell. The stamp refuses flat ground, corners and mismatched levels; it never invents
- * a plateau. On a valid boundary it writes both 64px halves of the atlas's native 64×128 asset,
- * rotating their art and relative positions toward the selected high side.
+ * `direction` names the high side; walking back down is always supported. `lowLevel` chooses the
+ * 0-to-1 or 1-to-2 transition. The author first paints both elevations, then clicks the low entrance
+ * cell. The stamp refuses flat ground and mismatched levels; it never invents a plateau.
+ * East/west use Pixel Frog's two native side sources.
  */
 export function paintStairs(
   layers: readonly TileLayer[],
   tileset: Tileset,
   col: number,
   row: number,
-  direction: StairsDirection = "north",
+  direction: StairsDirection = "east",
   lowLevel: StairsLowLevel = 0,
 ): TileLayer[] {
   const ground = layers[0];
   const walls = layers[1];
   if (!ground || !walls || (lowLevel !== 0 && lowLevel !== 1)) return layers as TileLayer[];
-  if (STAIRS_ROTATION[direction] === undefined || !inBounds(walls, col, row)) {
+  if (STAIRS_HIGH_SIDE_OFFSET[direction] === undefined || !inBounds(walls, col, row)) {
     return layers as TileLayer[];
   }
   if (!stairsFits(ground, col, row, direction, lowLevel)) return layers as TileLayer[];

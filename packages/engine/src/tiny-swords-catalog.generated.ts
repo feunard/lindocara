@@ -11425,6 +11425,1430 @@ export const GENERATED_EDITOR_ASSETS = [
     }
   },
   {
+    "id": "decoration.terrain-decorations-clouds.clouds-01",
+    "sourcePath": "Tiny Swords (Free Pack)/Terrain/Decorations/Clouds/Clouds_01.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "decoration",
+    "category": "Terrain/Decorations/Clouds",
+    "role": "world-decoration",
+    "tags": [
+      "terrain",
+      "decorations",
+      "clouds",
+      "01",
+      "decoration",
+      "free"
+    ],
+    "width": 576,
+    "height": 256,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 57,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -4,
+          "row": -3
+        },
+        {
+          "col": -3,
+          "row": -3
+        },
+        {
+          "col": -2,
+          "row": -3
+        },
+        {
+          "col": -1,
+          "row": -3
+        },
+        {
+          "col": 0,
+          "row": -3
+        },
+        {
+          "col": 1,
+          "row": -3
+        },
+        {
+          "col": 2,
+          "row": -3
+        },
+        {
+          "col": 3,
+          "row": -3
+        },
+        {
+          "col": 4,
+          "row": -3
+        },
+        {
+          "col": -4,
+          "row": -2
+        },
+        {
+          "col": -3,
+          "row": -2
+        },
+        {
+          "col": -2,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": 2,
+          "row": -2
+        },
+        {
+          "col": 3,
+          "row": -2
+        },
+        {
+          "col": 4,
+          "row": -2
+        },
+        {
+          "col": -4,
+          "row": -1
+        },
+        {
+          "col": -3,
+          "row": -1
+        },
+        {
+          "col": -2,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": 2,
+          "row": -1
+        },
+        {
+          "col": 3,
+          "row": -1
+        },
+        {
+          "col": 4,
+          "row": -1
+        },
+        {
+          "col": -4,
+          "row": 0
+        },
+        {
+          "col": -3,
+          "row": 0
+        },
+        {
+          "col": -2,
+          "row": 0
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        },
+        {
+          "col": 2,
+          "row": 0
+        },
+        {
+          "col": 3,
+          "row": 0
+        },
+        {
+          "col": 4,
+          "row": 0
+        }
+      ],
+      "renderLayer": "sky",
+      "category": "atmosphere",
+      "allowedTerrain": [
+        "grass",
+        "water"
+      ]
+    }
+  },
+  {
+    "id": "decoration.terrain-decorations-clouds.clouds-02",
+    "sourcePath": "Tiny Swords (Free Pack)/Terrain/Decorations/Clouds/Clouds_02.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "decoration",
+    "category": "Terrain/Decorations/Clouds",
+    "role": "world-decoration",
+    "tags": [
+      "terrain",
+      "decorations",
+      "clouds",
+      "02",
+      "decoration",
+      "free"
+    ],
+    "width": 576,
+    "height": 256,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 61,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -4,
+          "row": -3
+        },
+        {
+          "col": -3,
+          "row": -3
+        },
+        {
+          "col": -2,
+          "row": -3
+        },
+        {
+          "col": -1,
+          "row": -3
+        },
+        {
+          "col": 0,
+          "row": -3
+        },
+        {
+          "col": 1,
+          "row": -3
+        },
+        {
+          "col": 2,
+          "row": -3
+        },
+        {
+          "col": 3,
+          "row": -3
+        },
+        {
+          "col": 4,
+          "row": -3
+        },
+        {
+          "col": -4,
+          "row": -2
+        },
+        {
+          "col": -3,
+          "row": -2
+        },
+        {
+          "col": -2,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": 2,
+          "row": -2
+        },
+        {
+          "col": 3,
+          "row": -2
+        },
+        {
+          "col": 4,
+          "row": -2
+        },
+        {
+          "col": -4,
+          "row": -1
+        },
+        {
+          "col": -3,
+          "row": -1
+        },
+        {
+          "col": -2,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": 2,
+          "row": -1
+        },
+        {
+          "col": 3,
+          "row": -1
+        },
+        {
+          "col": 4,
+          "row": -1
+        },
+        {
+          "col": -4,
+          "row": 0
+        },
+        {
+          "col": -3,
+          "row": 0
+        },
+        {
+          "col": -2,
+          "row": 0
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        },
+        {
+          "col": 2,
+          "row": 0
+        },
+        {
+          "col": 3,
+          "row": 0
+        },
+        {
+          "col": 4,
+          "row": 0
+        }
+      ],
+      "renderLayer": "sky",
+      "category": "atmosphere",
+      "allowedTerrain": [
+        "grass",
+        "water"
+      ]
+    }
+  },
+  {
+    "id": "decoration.terrain-decorations-clouds.clouds-03",
+    "sourcePath": "Tiny Swords (Free Pack)/Terrain/Decorations/Clouds/Clouds_03.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "decoration",
+    "category": "Terrain/Decorations/Clouds",
+    "role": "world-decoration",
+    "tags": [
+      "terrain",
+      "decorations",
+      "clouds",
+      "03",
+      "decoration",
+      "free"
+    ],
+    "width": 576,
+    "height": 256,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 79,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -4,
+          "row": -3
+        },
+        {
+          "col": -3,
+          "row": -3
+        },
+        {
+          "col": -2,
+          "row": -3
+        },
+        {
+          "col": -1,
+          "row": -3
+        },
+        {
+          "col": 0,
+          "row": -3
+        },
+        {
+          "col": 1,
+          "row": -3
+        },
+        {
+          "col": 2,
+          "row": -3
+        },
+        {
+          "col": 3,
+          "row": -3
+        },
+        {
+          "col": 4,
+          "row": -3
+        },
+        {
+          "col": -4,
+          "row": -2
+        },
+        {
+          "col": -3,
+          "row": -2
+        },
+        {
+          "col": -2,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": 2,
+          "row": -2
+        },
+        {
+          "col": 3,
+          "row": -2
+        },
+        {
+          "col": 4,
+          "row": -2
+        },
+        {
+          "col": -4,
+          "row": -1
+        },
+        {
+          "col": -3,
+          "row": -1
+        },
+        {
+          "col": -2,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": 2,
+          "row": -1
+        },
+        {
+          "col": 3,
+          "row": -1
+        },
+        {
+          "col": 4,
+          "row": -1
+        },
+        {
+          "col": -4,
+          "row": 0
+        },
+        {
+          "col": -3,
+          "row": 0
+        },
+        {
+          "col": -2,
+          "row": 0
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        },
+        {
+          "col": 2,
+          "row": 0
+        },
+        {
+          "col": 3,
+          "row": 0
+        },
+        {
+          "col": 4,
+          "row": 0
+        }
+      ],
+      "renderLayer": "sky",
+      "category": "atmosphere",
+      "allowedTerrain": [
+        "grass",
+        "water"
+      ]
+    }
+  },
+  {
+    "id": "decoration.terrain-decorations-clouds.clouds-04",
+    "sourcePath": "Tiny Swords (Free Pack)/Terrain/Decorations/Clouds/Clouds_04.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "decoration",
+    "category": "Terrain/Decorations/Clouds",
+    "role": "world-decoration",
+    "tags": [
+      "terrain",
+      "decorations",
+      "clouds",
+      "04",
+      "decoration",
+      "free"
+    ],
+    "width": 576,
+    "height": 256,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 84,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -4,
+          "row": -3
+        },
+        {
+          "col": -3,
+          "row": -3
+        },
+        {
+          "col": -2,
+          "row": -3
+        },
+        {
+          "col": -1,
+          "row": -3
+        },
+        {
+          "col": 0,
+          "row": -3
+        },
+        {
+          "col": 1,
+          "row": -3
+        },
+        {
+          "col": 2,
+          "row": -3
+        },
+        {
+          "col": 3,
+          "row": -3
+        },
+        {
+          "col": 4,
+          "row": -3
+        },
+        {
+          "col": -4,
+          "row": -2
+        },
+        {
+          "col": -3,
+          "row": -2
+        },
+        {
+          "col": -2,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": 2,
+          "row": -2
+        },
+        {
+          "col": 3,
+          "row": -2
+        },
+        {
+          "col": 4,
+          "row": -2
+        },
+        {
+          "col": -4,
+          "row": -1
+        },
+        {
+          "col": -3,
+          "row": -1
+        },
+        {
+          "col": -2,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": 2,
+          "row": -1
+        },
+        {
+          "col": 3,
+          "row": -1
+        },
+        {
+          "col": 4,
+          "row": -1
+        },
+        {
+          "col": -4,
+          "row": 0
+        },
+        {
+          "col": -3,
+          "row": 0
+        },
+        {
+          "col": -2,
+          "row": 0
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        },
+        {
+          "col": 2,
+          "row": 0
+        },
+        {
+          "col": 3,
+          "row": 0
+        },
+        {
+          "col": 4,
+          "row": 0
+        }
+      ],
+      "renderLayer": "sky",
+      "category": "atmosphere",
+      "allowedTerrain": [
+        "grass",
+        "water"
+      ]
+    }
+  },
+  {
+    "id": "decoration.terrain-decorations-clouds.clouds-05",
+    "sourcePath": "Tiny Swords (Free Pack)/Terrain/Decorations/Clouds/Clouds_05.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "decoration",
+    "category": "Terrain/Decorations/Clouds",
+    "role": "world-decoration",
+    "tags": [
+      "terrain",
+      "decorations",
+      "clouds",
+      "05",
+      "decoration",
+      "free"
+    ],
+    "width": 576,
+    "height": 256,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 55,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -4,
+          "row": -3
+        },
+        {
+          "col": -3,
+          "row": -3
+        },
+        {
+          "col": -2,
+          "row": -3
+        },
+        {
+          "col": -1,
+          "row": -3
+        },
+        {
+          "col": 0,
+          "row": -3
+        },
+        {
+          "col": 1,
+          "row": -3
+        },
+        {
+          "col": 2,
+          "row": -3
+        },
+        {
+          "col": 3,
+          "row": -3
+        },
+        {
+          "col": 4,
+          "row": -3
+        },
+        {
+          "col": -4,
+          "row": -2
+        },
+        {
+          "col": -3,
+          "row": -2
+        },
+        {
+          "col": -2,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": 2,
+          "row": -2
+        },
+        {
+          "col": 3,
+          "row": -2
+        },
+        {
+          "col": 4,
+          "row": -2
+        },
+        {
+          "col": -4,
+          "row": -1
+        },
+        {
+          "col": -3,
+          "row": -1
+        },
+        {
+          "col": -2,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": 2,
+          "row": -1
+        },
+        {
+          "col": 3,
+          "row": -1
+        },
+        {
+          "col": 4,
+          "row": -1
+        },
+        {
+          "col": -4,
+          "row": 0
+        },
+        {
+          "col": -3,
+          "row": 0
+        },
+        {
+          "col": -2,
+          "row": 0
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        },
+        {
+          "col": 2,
+          "row": 0
+        },
+        {
+          "col": 3,
+          "row": 0
+        },
+        {
+          "col": 4,
+          "row": 0
+        }
+      ],
+      "renderLayer": "sky",
+      "category": "atmosphere",
+      "allowedTerrain": [
+        "grass",
+        "water"
+      ]
+    }
+  },
+  {
+    "id": "decoration.terrain-decorations-clouds.clouds-06",
+    "sourcePath": "Tiny Swords (Free Pack)/Terrain/Decorations/Clouds/Clouds_06.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "decoration",
+    "category": "Terrain/Decorations/Clouds",
+    "role": "world-decoration",
+    "tags": [
+      "terrain",
+      "decorations",
+      "clouds",
+      "06",
+      "decoration",
+      "free"
+    ],
+    "width": 576,
+    "height": 256,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 67,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -4,
+          "row": -3
+        },
+        {
+          "col": -3,
+          "row": -3
+        },
+        {
+          "col": -2,
+          "row": -3
+        },
+        {
+          "col": -1,
+          "row": -3
+        },
+        {
+          "col": 0,
+          "row": -3
+        },
+        {
+          "col": 1,
+          "row": -3
+        },
+        {
+          "col": 2,
+          "row": -3
+        },
+        {
+          "col": 3,
+          "row": -3
+        },
+        {
+          "col": 4,
+          "row": -3
+        },
+        {
+          "col": -4,
+          "row": -2
+        },
+        {
+          "col": -3,
+          "row": -2
+        },
+        {
+          "col": -2,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": 2,
+          "row": -2
+        },
+        {
+          "col": 3,
+          "row": -2
+        },
+        {
+          "col": 4,
+          "row": -2
+        },
+        {
+          "col": -4,
+          "row": -1
+        },
+        {
+          "col": -3,
+          "row": -1
+        },
+        {
+          "col": -2,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": 2,
+          "row": -1
+        },
+        {
+          "col": 3,
+          "row": -1
+        },
+        {
+          "col": 4,
+          "row": -1
+        },
+        {
+          "col": -4,
+          "row": 0
+        },
+        {
+          "col": -3,
+          "row": 0
+        },
+        {
+          "col": -2,
+          "row": 0
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        },
+        {
+          "col": 2,
+          "row": 0
+        },
+        {
+          "col": 3,
+          "row": 0
+        },
+        {
+          "col": 4,
+          "row": 0
+        }
+      ],
+      "renderLayer": "sky",
+      "category": "atmosphere",
+      "allowedTerrain": [
+        "grass",
+        "water"
+      ]
+    }
+  },
+  {
+    "id": "decoration.terrain-decorations-clouds.clouds-07",
+    "sourcePath": "Tiny Swords (Free Pack)/Terrain/Decorations/Clouds/Clouds_07.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "decoration",
+    "category": "Terrain/Decorations/Clouds",
+    "role": "world-decoration",
+    "tags": [
+      "terrain",
+      "decorations",
+      "clouds",
+      "07",
+      "decoration",
+      "free"
+    ],
+    "width": 576,
+    "height": 256,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 81,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -4,
+          "row": -3
+        },
+        {
+          "col": -3,
+          "row": -3
+        },
+        {
+          "col": -2,
+          "row": -3
+        },
+        {
+          "col": -1,
+          "row": -3
+        },
+        {
+          "col": 0,
+          "row": -3
+        },
+        {
+          "col": 1,
+          "row": -3
+        },
+        {
+          "col": 2,
+          "row": -3
+        },
+        {
+          "col": 3,
+          "row": -3
+        },
+        {
+          "col": 4,
+          "row": -3
+        },
+        {
+          "col": -4,
+          "row": -2
+        },
+        {
+          "col": -3,
+          "row": -2
+        },
+        {
+          "col": -2,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": 2,
+          "row": -2
+        },
+        {
+          "col": 3,
+          "row": -2
+        },
+        {
+          "col": 4,
+          "row": -2
+        },
+        {
+          "col": -4,
+          "row": -1
+        },
+        {
+          "col": -3,
+          "row": -1
+        },
+        {
+          "col": -2,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": 2,
+          "row": -1
+        },
+        {
+          "col": 3,
+          "row": -1
+        },
+        {
+          "col": 4,
+          "row": -1
+        },
+        {
+          "col": -4,
+          "row": 0
+        },
+        {
+          "col": -3,
+          "row": 0
+        },
+        {
+          "col": -2,
+          "row": 0
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        },
+        {
+          "col": 2,
+          "row": 0
+        },
+        {
+          "col": 3,
+          "row": 0
+        },
+        {
+          "col": 4,
+          "row": 0
+        }
+      ],
+      "renderLayer": "sky",
+      "category": "atmosphere",
+      "allowedTerrain": [
+        "grass",
+        "water"
+      ]
+    }
+  },
+  {
+    "id": "decoration.terrain-decorations-clouds.clouds-08",
+    "sourcePath": "Tiny Swords (Free Pack)/Terrain/Decorations/Clouds/Clouds_08.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "decoration",
+    "category": "Terrain/Decorations/Clouds",
+    "role": "world-decoration",
+    "tags": [
+      "terrain",
+      "decorations",
+      "clouds",
+      "08",
+      "decoration",
+      "free"
+    ],
+    "width": 576,
+    "height": 256,
+    "nature": "static",
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 92,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -4,
+          "row": -3
+        },
+        {
+          "col": -3,
+          "row": -3
+        },
+        {
+          "col": -2,
+          "row": -3
+        },
+        {
+          "col": -1,
+          "row": -3
+        },
+        {
+          "col": 0,
+          "row": -3
+        },
+        {
+          "col": 1,
+          "row": -3
+        },
+        {
+          "col": 2,
+          "row": -3
+        },
+        {
+          "col": 3,
+          "row": -3
+        },
+        {
+          "col": 4,
+          "row": -3
+        },
+        {
+          "col": -4,
+          "row": -2
+        },
+        {
+          "col": -3,
+          "row": -2
+        },
+        {
+          "col": -2,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": 2,
+          "row": -2
+        },
+        {
+          "col": 3,
+          "row": -2
+        },
+        {
+          "col": 4,
+          "row": -2
+        },
+        {
+          "col": -4,
+          "row": -1
+        },
+        {
+          "col": -3,
+          "row": -1
+        },
+        {
+          "col": -2,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": 2,
+          "row": -1
+        },
+        {
+          "col": 3,
+          "row": -1
+        },
+        {
+          "col": 4,
+          "row": -1
+        },
+        {
+          "col": -4,
+          "row": 0
+        },
+        {
+          "col": -3,
+          "row": 0
+        },
+        {
+          "col": -2,
+          "row": 0
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        },
+        {
+          "col": 2,
+          "row": 0
+        },
+        {
+          "col": 3,
+          "row": 0
+        },
+        {
+          "col": 4,
+          "row": 0
+        }
+      ],
+      "renderLayer": "sky",
+      "category": "atmosphere",
+      "allowedTerrain": [
+        "grass",
+        "water"
+      ]
+    }
+  },
+  {
     "id": "decoration.terrain-decorations-rocks-in-the-water.water-rocks-01",
     "sourcePath": "Tiny Swords (Free Pack)/Terrain/Decorations/Rocks in the Water/Water Rocks_01.png",
     "pack": "Tiny Swords (Free Pack)",
@@ -11465,9 +12889,8 @@ export const GENERATED_EDITOR_ASSETS = [
         }
       ],
       "renderLayer": "object",
-      "category": "rocks",
+      "category": "water-decor",
       "allowedTerrain": [
-        "grass",
         "water"
       ],
       "collider": {
@@ -11519,9 +12942,8 @@ export const GENERATED_EDITOR_ASSETS = [
         }
       ],
       "renderLayer": "object",
-      "category": "rocks",
+      "category": "water-decor",
       "allowedTerrain": [
-        "grass",
         "water"
       ],
       "collider": {
@@ -11573,9 +12995,8 @@ export const GENERATED_EDITOR_ASSETS = [
         }
       ],
       "renderLayer": "object",
-      "category": "rocks",
+      "category": "water-decor",
       "allowedTerrain": [
-        "grass",
         "water"
       ],
       "collider": {
@@ -11627,9 +13048,8 @@ export const GENERATED_EDITOR_ASSETS = [
         }
       ],
       "renderLayer": "object",
-      "category": "rocks",
+      "category": "water-decor",
       "allowedTerrain": [
-        "grass",
         "water"
       ],
       "collider": {
@@ -11854,7 +13274,83 @@ export const GENERATED_EDITOR_ASSETS = [
         }
       ],
       "renderLayer": "object",
-      "category": "small-decor",
+      "category": "water-decor",
+      "allowedTerrain": [
+        "water"
+      ]
+    }
+  },
+  {
+    "id": "effect.particle-fx.water-splash",
+    "sourcePath": "Tiny Swords (Free Pack)/Particle FX/Water Splash.png",
+    "pack": "Tiny Swords (Free Pack)",
+    "domain": "effect",
+    "category": "Particle FX",
+    "role": "visual-effect",
+    "tags": [
+      "particle",
+      "fx",
+      "water",
+      "splash",
+      "effect",
+      "free"
+    ],
+    "width": 192,
+    "height": 192,
+    "nature": "animated",
+    "frame": {
+      "width": 192,
+      "height": 192,
+      "count": 9,
+      "axis": "x",
+      "durationMs": 800
+    },
+    "anchor": {
+      "x": 0.5,
+      "y": 1
+    },
+    "footOffset": 52,
+    "editor": {
+      "visualFootprint": [
+        {
+          "col": -1,
+          "row": -2
+        },
+        {
+          "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
+          "row": -2
+        },
+        {
+          "col": -1,
+          "row": -1
+        },
+        {
+          "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
+          "row": -1
+        },
+        {
+          "col": -1,
+          "row": 0
+        },
+        {
+          "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
+          "row": 0
+        }
+      ],
+      "renderLayer": "object",
+      "category": "water-decor",
       "allowedTerrain": [
         "water"
       ]
@@ -15755,9 +17251,8 @@ export const GENERATED_EDITOR_ASSETS = [
         }
       ],
       "renderLayer": "object",
-      "category": "rocks",
+      "category": "water-decor",
       "allowedTerrain": [
-        "grass",
         "water"
       ],
       "collider": {
@@ -15826,9 +17321,8 @@ export const GENERATED_EDITOR_ASSETS = [
         }
       ],
       "renderLayer": "object",
-      "category": "rocks",
+      "category": "water-decor",
       "allowedTerrain": [
-        "grass",
         "water"
       ],
       "collider": {
@@ -15897,9 +17391,8 @@ export const GENERATED_EDITOR_ASSETS = [
         }
       ],
       "renderLayer": "object",
-      "category": "rocks",
+      "category": "water-decor",
       "allowedTerrain": [
-        "grass",
         "water"
       ],
       "collider": {
@@ -15968,9 +17461,8 @@ export const GENERATED_EDITOR_ASSETS = [
         }
       ],
       "renderLayer": "object",
-      "category": "rocks",
+      "category": "water-decor",
       "allowedTerrain": [
-        "grass",
         "water"
       ],
       "collider": {

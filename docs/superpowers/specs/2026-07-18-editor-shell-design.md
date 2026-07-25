@@ -64,12 +64,13 @@ return new layers, re-resolve every affected neighbour. Fill operates on contigu
 regions, bounded by the map. Both are tested against `resolveWholeLayer` as the oracle, with
 mutation proofs — the property-test discipline that caught real bugs in tranche 1.
 
-**The ramp stamp makes every straight elevation edge climbable.** The author chooses its high side
-(north/east/south/west) and transition (0↔1 or 1↔2), then clicks the low entrance of an elevation
-boundary that was already painted. The brush stamps both 64 px cells of the official 64×128 Tiny
-Swords stair composition and rotates the pair toward the high side. The route is naturally
-bidirectional without changing movement or prediction; the brush refuses flat ground, mismatched
-levels and corners.
+**The ramp stamp makes side-facing elevation edges climbable.** The author chooses right or left
+and the transition (0↔1 or 1↔2), then clicks the low half beside an elevation boundary that was
+already painted. Both variants use the native Tiny Swords side sources; top/bottom variants are not
+supported. The route is bidirectional; its baked `ramp` cells apply the same subtle slowdown in
+server movement, prediction and local preview, while the renderer lifts the hero through the
+crossing and raises the camera target on the higher level. The brush refuses flat or mismatched
+endpoints but does not reject an otherwise valid passage because another elevation face is nearby.
 
 Wall upkeep owns ambient cliff tiles on all four sides and preserves a ramp only while its terrain
 still matches the ramp's direction and levels. Repainting either endpoint, or painting water over

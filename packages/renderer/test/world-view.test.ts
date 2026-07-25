@@ -1,6 +1,7 @@
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   cameraAxisOffset,
+  elevatedCameraAxisOffset,
   GAME_CAMERA_ZOOM,
   gameCameraScale,
   PLAYER_RENDER_SCALE,
@@ -29,6 +30,12 @@ describe("multizone camera geometry", () => {
   it("clamps a large zone to both viewport edges", () => {
     expect(cameraAxisOffset(1280, 8000, 1, 0)).toBe(0);
     expect(cameraAxisOffset(1280, 8000, 1, 8000)).toBe(-6720);
+  });
+
+  it("keeps elevation visible when ordinary following is clamped at the north edge", () => {
+    expect(cameraAxisOffset(1080, 960, 1.25, 300)).toBe(0);
+    expect(elevatedCameraAxisOffset(1080, 960, 1.25, 300, 24)).toBe(30);
+    expect(elevatedCameraAxisOffset(1080, 960, 1.25, 300, 56)).toBe(70);
   });
 
   it("uses the active zone dimensions for small and future large tilemaps", () => {

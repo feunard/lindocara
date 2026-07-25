@@ -100,8 +100,11 @@ import type { SceneSample } from "./scene-sample.js";
 import { ServerClock } from "./server-clock.js";
 import { acquireStageApp } from "./stage-application.js";
 import {
+  elevationCameraRise,
   foamFrameAt,
+  foamPhaseAt,
   pulseTint,
+  rampHeroLift,
   terrainTintsAt,
   WATER_RENDER_OBJECTS,
   waterScrollOffsets,
@@ -141,6 +144,7 @@ import {
 } from "./world-layout.js";
 import {
   cameraAxisOffset,
+  elevatedCameraAxisOffset,
   gameCameraScale,
   playerRenderScale,
   tileWindowForBounds,
@@ -241,6 +245,7 @@ interface ArtTextures {
     land: readonly (readonly Texture[])[];
     water: Texture;
     foam: readonly Texture[];
+    shadow: Texture;
     tileset: readonly (readonly Texture[])[];
   };
   props: {
@@ -346,10 +351,14 @@ interface WaterSurfaceView {
   phase: number;
 }
 
-/** One foam blob, centred on a shoreline land tile. It carries no position of its own: the frame
- *  it shows is global (see `foamFrameAt`) and where it sits is decided by `#updateTerrain`. */
+/** One foam blob, centred on a shoreline land tile with the guide's per-sprite start frame. */
 interface FoamTileView {
   blob: Sprite;
+  phase: number;
+}
+
+interface ShadowTileView {
+  sprite: Sprite;
 }
 
 interface StaticView {
@@ -502,13 +511,19 @@ async function loadArt(): Promise<ArtTextures> {
       sliceHorizontalSheet(sheet, definition.frameWidth, definition.frames, definition.frameHeight),
     );
   }
-  const [terrainFlatSheet, terrainWaterSurface, terrainFoamSheet, terrainTilesetSheet] =
-    await Promise.all([
-      Assets.load<Texture>(TINY_SWORDS_TERRAIN.flat),
-      Assets.load<Texture>(TINY_SWORDS_TERRAIN.water),
-      Assets.load<Texture>(TINY_SWORDS_TERRAIN.foam),
-      Assets.load<Texture>(TINY_SWORDS_TERRAIN.tileset),
-    ]);
+  const [
+    terrainFlatSheet,
+    terrainWaterSurface,
+    terrainFoamSheet,
+    terrainTilesetSheet,
+    terrainShadow,
+  ] = await Promise.all([
+    Assets.load<Texture>(TINY_SWORDS_TERRAIN.flat),
+    Assets.load<Texture>(TINY_SWORDS_TERRAIN.water),
+    Assets.load<Texture>(TINY_SWORDS_TERRAIN.foam),
+    Assets.load<Texture>(TINY_SWORDS_TERRAIN.tileset),
+    Assets.load<Texture>(TINY_SWORDS_TERRAIN.shadow),
+  ]);
   terrainTilesetSheet.source.style.scaleMode = "nearest";
   // All three are pixel art from the same pack, so all three sample nearest. The water is one flat
   // colour and would look the same either way; it stays consistent so nothing here re-learns the
@@ -516,6 +531,7 @@ async function loadArt(): Promise<ArtTextures> {
   terrainFlatSheet.source.style.scaleMode = "nearest";
   terrainWaterSurface.source.style.scaleMode = "nearest";
   terrainFoamSheet.source.style.scaleMode = "nearest";
+  terrainShadow.source.style.scaleMode = "nearest";
   const terrainFoam = sliceStrip(terrainFoamSheet, TINY_SWORDS_FOAM_FRAME, TINY_SWORDS_FOAM_FRAMES);
   // Every prop below is loaded at its native size and never resampled: `nearest` keeps the pixels
   // square, and nothing scales them afterwards. See `createPropSprite`.
@@ -599,6 +615,7 @@ async function loadArt(): Promise<ArtTextures> {
       land: sliceAutotileSheet(terrainFlatSheet),
       water: terrainWaterSurface,
       foam: terrainFoam,
+      shadow: terrainShadow,
       tileset: sliceTilesetSheet(
         terrainTilesetSheet,
         TINY_SWORDS_SHEET_COLS,
@@ -800,8 +817,11 @@ export function mapElementRenderLayer(
   layer: EditorRenderLayer,
   decor: Container,
   actors: Container,
+  sky: Container = actors,
 ): Container {
-  return layer === "ground" ? decor : actors;
+  if (layer === "ground") return decor;
+  if (layer === "sky") return sky;
+  return actors;
 }
 
 function reconcile<T extends { id: string }>(
@@ -846,6 +866,9 @@ export class Renderer {
   /** Ground tiles a character walks in front of. Everything the compiled catalogue draws lands
    *  here too — priority is a tileset property, and a catalogue zone has no tileset. */
   #tilesBelow = new Container();
+  /** The guide's repeated terrain stack: ground 0, shadow 1, ground 1, shadow 2, ground 2. */
+  #terrainLevelLayers = [new Container(), new Container(), new Container()] as const;
+  #elevationShadowLayers = [new Container(), new Container()] as const;
   /** Tiles a character walks *behind*, drawn immediately after `#actors`. That placement is the
    *  whole point of per-tile priority: it is what lets a head pass under a treetop. */
   #tilesAbove = new Container();
@@ -857,6 +880,7 @@ export class Renderer {
   #structures = new Container();
   #ambient = new Container();
   #actors = new Container();
+  #skyDecor = new Container();
   #worldLabels = new Container();
   #questMarkerLayer = new Container();
   #overlay = new Graphics();
@@ -912,6 +936,8 @@ export class Renderer {
   readonly #waterScroll = waterScrollOffsets(0, 1);
   #foamTilePool: FoamTileView[] = [];
   #foamTiles: FoamTileView[] = [];
+  #shadowTilePools: [ShadowTileView[], ShadowTileView[]] = [[], []];
+  #shadowUsed: [number, number] = [0, 0];
   #showGrid = false;
   #terrainKey = "";
   /** Which zone's tilemap `#buildForestTrees`/`#buildDecor`/`#updateTerrain` currently read.
@@ -936,7 +962,11 @@ export class Renderer {
    *  the hash pass would grow a tree out of it), and `#buildMapElements` draws this list instead. */
   #mapElements: readonly MapElement[] | null = null;
   #mapAssetArt = new Map<EditorAssetId, EditorAssetArt>();
-  #mapElementAnimations: Array<{ sprite: Sprite; frames: readonly Texture[] }> = [];
+  #mapElementAnimations: Array<{
+    sprite: Sprite;
+    frames: readonly Texture[];
+    durationMs: number;
+  }> = [];
   /** Authored `object`/`canopy` props that live *inside* `#actors` so they Y-sort with heroes (a
    *  tree drawn below every actor is exactly the bug this list exists to kill). They cannot be torn
    *  down with a `removeChildren()` on `#actors` — that would take the live players with them — so a
@@ -962,6 +992,7 @@ export class Renderer {
   #selfId: string | null = null;
   #cameraX = zoneDefinition(DEFAULT_ZONE_ID).terrain.width / 2;
   #cameraY = zoneDefinition(DEFAULT_ZONE_ID).terrain.height / 2;
+  #cameraElevationRise = 0;
   #cameraReady = false;
   #lastCameraAt = 0;
   #healthBarMode: HealthBarMode = "both";
@@ -1166,6 +1197,7 @@ export class Renderer {
     this.#mapAssetArt = loaded;
     for (const child of this.#forestTreesLayer.removeChildren()) child.destroy({ children: true });
     for (const child of this.#decorLayer.removeChildren()) child.destroy({ children: true });
+    for (const child of this.#skyDecor.removeChildren()) child.destroy({ children: true });
     // Props that joined `#actors` cannot be swept by a `removeChildren()` there (it holds the live
     // players); destroy them by reference. `.destroy()` nulls each parent, so the `#staticViews`
     // prune below drops their entries for free.
@@ -1191,6 +1223,7 @@ export class Renderer {
     this.#teardownWorldFurniture();
     for (const child of this.#forestTreesLayer.removeChildren()) child.destroy({ children: true });
     for (const child of this.#decorLayer.removeChildren()) child.destroy({ children: true });
+    for (const child of this.#skyDecor.removeChildren()) child.destroy({ children: true });
     // Props that joined `#actors` (see `#buildMapElements`) are destroyed by reference: a bare
     // `removeChildren()` on `#actors` would take the live players with them.
     for (const view of this.#actorElementViews) view.container.destroy({ children: true });
@@ -1198,6 +1231,7 @@ export class Renderer {
     this.#mapElementAnimations = [];
     this.#cameraX = this.#zoneWidth / 2;
     this.#cameraY = this.#zoneHeight / 2;
+    this.#cameraElevationRise = 0;
     this.#cameraReady = false;
     this.#resizeWorldBackground();
     // Static views for the props above are now unparented; drop them rather than let
@@ -1371,6 +1405,13 @@ export class Renderer {
     this.#actors.sortableChildren = true;
     this.#waterSurface = this.#createWaterSurface();
     this.#resizeWorldBackground();
+    this.#tilesBelow.addChild(
+      this.#terrainLevelLayers[0],
+      this.#elevationShadowLayers[0],
+      this.#terrainLevelLayers[1],
+      this.#elevationShadowLayers[1],
+      this.#terrainLevelLayers[2],
+    );
     // Tiny Swords' own tilemap documentation stacks these as BG Color -> Water Foam -> Flat
     // Ground, and the order is the whole trick: the foam blob is *wider* than its land tile, so
     // the ground drawn over it clips it back to a rim hugging the coast. Put foam above the
@@ -1389,6 +1430,9 @@ export class Renderer {
       // `above` tile is a treetop, an awning, an upper cliff lip — something a character walks
       // *behind*. One place further down this list and a head would clip through every one of them.
       this.#tilesAbove,
+      // Native cloud sheets are authored sky decoration: above terrain and actors, below gameplay
+      // overlays so they cannot hide hitboxes, quest labels or interaction feedback.
+      this.#skyDecor,
       // Above the actors: a body box drawn under its own sprite would be exactly the thing you
       // cannot see when you need it.
       this.#hitboxOverlay,
@@ -1438,7 +1482,26 @@ export class Renderer {
   #createFoamTile(): FoamTileView {
     const blob = new Sprite({ texture: this.art.terrain.foam[0] ?? Texture.EMPTY, anchor: 0.5 });
     this.#foamTerrain.addChild(blob);
-    return { blob };
+    return { blob, phase: 0 };
+  }
+
+  #acquireShadow(renderLevel: 1 | 2): ShadowTileView {
+    const levelIndex = renderLevel === 1 ? 0 : 1;
+    const pool = this.#shadowTilePools[levelIndex];
+    const index = this.#shadowUsed[levelIndex];
+    this.#shadowUsed[levelIndex] = index + 1;
+    const existing = pool[index];
+    if (existing) {
+      existing.sprite.visible = true;
+      this.#elevationShadowLayers[levelIndex].addChild(existing.sprite);
+      return existing;
+    }
+    const view = {
+      sprite: new Sprite({ texture: this.art.terrain.shadow, anchor: 0.5 }),
+    };
+    pool.push(view);
+    this.#elevationShadowLayers[levelIndex].addChild(view.sprite);
+    return view;
   }
 
   /** Builds only the current zone's explicitly configured visual content. */
@@ -1573,12 +1636,23 @@ export class Renderer {
       if (!art) continue;
       const view = createCatalogElementView(element, art);
       if (!view) continue;
-      const parent = mapElementRenderLayer(view.layer, this.#decorLayer, this.#actors);
+      const parent = mapElementRenderLayer(
+        view.layer,
+        this.#decorLayer,
+        this.#actors,
+        this.#skyDecor,
+      );
       // Foot-line depth for the sortable actors layer, the same key the heroes sort on (a player's
       // zIndex is its own foot Y), so props and heroes interleave in one order. The decor layer has
       // no `sortableChildren`, so a zIndex there is inert — harmless to set unconditionally.
       view.container.zIndex = Math.round(view.y);
-      this.#registerStatic(view.container, view.x, view.y, TILE_SIZE * 2, parent);
+      this.#registerStatic(
+        view.container,
+        view.x,
+        view.y,
+        Math.max(TILE_SIZE * 2, view.sprite.width / 2, view.sprite.height / 2),
+        parent,
+      );
       if (parent === this.#actors) {
         const { sprite } = view;
         this.#actorElementViews.push({
@@ -1591,7 +1665,11 @@ export class Renderer {
         });
       }
       if (view.frames.length > 1) {
-        this.#mapElementAnimations.push({ sprite: view.sprite, frames: view.frames });
+        this.#mapElementAnimations.push({
+          sprite: view.sprite,
+          frames: view.frames,
+          durationMs: view.durationMs,
+        });
       }
     }
   }
@@ -2251,17 +2329,23 @@ export class Renderer {
 
   #followSelf(players: readonly PlayerSnapshot[], now: number): void {
     const self = players.find((player) => player.id === this.#selfId);
-    const target = self ? centerOf(self) : { x: this.#cameraX, y: this.#cameraY };
+    const selfCenter = self ? centerOf(self) : null;
+    const target = selfCenter ?? { x: this.#cameraX, y: this.#cameraY };
+    // A raised floor remains visibly higher after the ramp is behind the hero. This stays separate
+    // from target.y: normal map-bound clamping must not erase the rise near the north edge.
+    const targetElevationRise = self ? elevationCameraRise(this.#layers, self) : 0;
     const distance = Math.hypot(target.x - this.#cameraX, target.y - this.#cameraY);
     if (!this.#cameraReady || distance > 640) {
       this.#cameraX = target.x;
       this.#cameraY = target.y;
+      this.#cameraElevationRise = targetElevationRise;
       this.#cameraReady = true;
     } else {
       const dt = Math.min(0.05, Math.max(0, (now - this.#lastCameraAt) / 1000));
       const alpha = 1 - Math.exp(-dt * 8.5);
       this.#cameraX += (target.x - this.#cameraX) * alpha;
       this.#cameraY += (target.y - this.#cameraY) * alpha;
+      this.#cameraElevationRise += (targetElevationRise - this.#cameraElevationRise) * alpha;
     }
     this.#lastCameraAt = now;
     this.#applyCameraTransform();
@@ -2272,7 +2356,13 @@ export class Renderer {
     this.#world.scale.set(scale);
     this.#world.position.set(
       cameraAxisOffset(this.#app.screen.width, this.#zoneWidth, scale, this.#cameraX),
-      cameraAxisOffset(this.#app.screen.height, this.#zoneHeight, scale, this.#cameraY),
+      elevatedCameraAxisOffset(
+        this.#app.screen.height,
+        this.#zoneHeight,
+        scale,
+        this.#cameraY,
+        this.#cameraElevationRise,
+      ),
     );
   }
 
@@ -2334,6 +2424,7 @@ export class Renderer {
 
     this.#belowUsed = 0;
     this.#aboveUsed = 0;
+    this.#shadowUsed = [0, 0];
     const waterRect = waterSurfaceRect(
       startX,
       startY,
@@ -2394,6 +2485,13 @@ export class Renderer {
         this.#visuals.worldRegions,
       );
       if (layered) {
+        const ground = this.#layers[0];
+        const tileset = this.#tileset;
+        const groundDraw = ground && tileset ? tileDrawAt(tileset, ground, col, tileRow) : null;
+        if (groundDraw && (groundDraw.renderLevel === 1 || groundDraw.renderLevel === 2)) {
+          const shadow = this.#acquireShadow(groundDraw.renderLevel);
+          shadow.sprite.position.set(x + TILE_SIZE / 2, y + TILE_SIZE / 2 + TILE_SIZE);
+        }
         this.#paintLayeredCell(col, tileRow, x, y);
       } else if (tileVisual(kindAt(tiles, col, tileRow)) === "land") {
         const tile = this.#acquireTile("below");
@@ -2420,6 +2518,7 @@ export class Renderer {
         foam.blob.visible = true;
         foam.blob.position.set(x + TILE_SIZE / 2, y + TILE_SIZE / 2);
         foam.blob.tint = tints.water;
+        foam.phase = foamPhaseAt(col, tileRow, this.art.terrain.foam.length);
         this.#foamTiles.push(foam);
       }
     }
@@ -2445,7 +2544,7 @@ export class Renderer {
       if (!draw) continue;
       const texture = this.art.terrain.tileset[draw.cell.row]?.[draw.cell.col];
       if (!texture) continue;
-      const sprite = this.#acquireTile(draw.priority);
+      const sprite = this.#acquireTile(draw.priority, draw.renderLevel);
       placeTile(
         sprite,
         texture,
@@ -2463,18 +2562,21 @@ export class Renderer {
   }
 
   /** Hands out the next pooled sprite for a priority, growing that container's pool on demand. */
-  #acquireTile(priority: TilePriority): Sprite {
+  #acquireTile(priority: TilePriority, renderLevel: 0 | 1 | 2 = 0): Sprite {
     const above = priority === "above";
     const pool = above ? this.#aboveTiles : this.#belowTiles;
     const index = above ? this.#aboveUsed++ : this.#belowUsed++;
     const existing = pool[index];
     if (existing) {
       existing.visible = true;
+      const parent = above ? this.#tilesAbove : this.#terrainLevelLayers[renderLevel];
+      parent.addChild(existing);
       return existing;
     }
     const sprite = new Sprite(Texture.EMPTY);
     pool.push(sprite);
-    tileRenderLayer(priority, this.#tilesBelow, this.#tilesAbove).addChild(sprite);
+    const parent = above ? this.#tilesAbove : this.#terrainLevelLayers[renderLevel];
+    parent.addChild(sprite);
     return sprite;
   }
 
@@ -2488,6 +2590,14 @@ export class Renderer {
     for (let index = this.#aboveUsed; index < this.#aboveTiles.length; index += 1) {
       const sprite = this.#aboveTiles[index];
       if (sprite) sprite.visible = false;
+    }
+    for (const levelIndex of [0, 1] as const) {
+      const pool = this.#shadowTilePools[levelIndex];
+      const used = this.#shadowUsed[levelIndex] ?? 0;
+      for (let index = used; index < pool.length; index += 1) {
+        const view = pool[index];
+        if (view) view.sprite.visible = false;
+      }
     }
   }
 
@@ -3470,9 +3580,10 @@ export class Renderer {
     const view = this.#waterSurface;
     if (view?.primary.visible) {
       // The sea is one flat colour, so the shoreline foam carries most of the visible motion.
-      const foamFrame = this.art.terrain.foam[foamFrameAt(now, this.art.terrain.foam.length)];
-      if (foamFrame) {
-        for (const foam of this.#foamTiles) foam.blob.texture = foamFrame;
+      for (const foam of this.#foamTiles) {
+        const foamFrame =
+          this.art.terrain.foam[foamFrameAt(now, this.art.terrain.foam.length, foam.phase)];
+        if (foamFrame) foam.blob.texture = foamFrame;
       }
       const shimmer = Math.sin(now / 1_100 + view.phase);
       view.primary.tilePosition.set(scroll.primary.x - view.x, scroll.primary.y - view.y);
@@ -3591,7 +3702,7 @@ export class Renderer {
   render(sample: SceneSample, context: RenderContext): void {
     const now = context.now;
     for (const animation of this.#mapElementAnimations) {
-      const frame = catalogElementFrameAt(now, animation.frames);
+      const frame = catalogElementFrameAt(now, animation.frames, animation.durationMs);
       if (frame) animation.sprite.texture = frame;
     }
     if (this.#merchantAnimation) {
@@ -3667,6 +3778,9 @@ export class Renderer {
                 view.mobilityDurationMs,
                 now,
               );
+        const rampTravel =
+          movementDistance > 0.2 ? { x: dx, y: dy } : { x: player.facing.x, y: player.facing.y };
+        const rampLift = isSpirit(player.life) ? 0 : rampHeroLift(this.#tiles, player, rampTravel);
         const horizontalFacing = view.actionDirection?.x ?? player.facing.x;
         const actorScale = playerRenderScale(player.id, this.#selfId);
         if (view.actor && Math.abs(horizontalFacing) > 0.01)
@@ -3688,7 +3802,10 @@ export class Renderer {
         const visible =
           this.#isVisibleWorld(player.x, player.y, ENTITY_CULL_MARGIN) && player.life !== "corpse";
         view.container.visible = visible;
-        view.container.position.set(player.x + mobilityOffset.x, player.y + mobilityOffset.y);
+        view.container.position.set(
+          player.x + mobilityOffset.x,
+          player.y + mobilityOffset.y + rampLift,
+        );
         view.container.zIndex = Math.round(player.y + PLAYER_SIZE);
         if (visible) {
           const moving = (view.movingUntil ?? 0) > now;

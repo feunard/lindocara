@@ -28,6 +28,8 @@ export const FIXED_BASE = 1 + AUTOTILE_SLOTS * VARIANTS_PER_AUTOTILE;
 
 /** Drawn behind characters, or in front of them — an XP tile priority, reduced to two values. */
 export type TilePriority = "below" | "above";
+/** Visual elevation band used to interleave Tiny Swords shadows with terrain. */
+export type TileRenderLevel = 0 | 1 | 2;
 
 /**
  * `edge16` is the four-neighbour mask with sixteen variants — a full Wang set.
@@ -42,6 +44,8 @@ export interface Autotile {
   kind: AutotileKind;
   passable: boolean;
   priority: TilePriority;
+  /** Back-to-front terrain band. Defaults to the lowest ground level. */
+  renderLevel?: TileRenderLevel;
   /** Multiplicative colour, as PixiJS spends it. Carries elevation shading. */
   tint?: number;
 }
@@ -52,13 +56,17 @@ export interface FixedTile {
   row: number;
   passable: boolean;
   priority: TilePriority;
+  /** Back-to-front terrain band. Defaults to the lowest ground level. */
+  renderLevel?: TileRenderLevel;
   tint?: number;
+  /** A collision-only fixed tile: it remains semantic and blocking but draws no artwork. */
+  visible?: boolean;
   /**
-   * Clockwise quarter-turns applied around the centre of the cell.
+   * Clockwise quarter-turns applied around the centre of the complete draw texture.
    *
-   * The source atlas only ships one north-facing ramp. Keeping the rotation on the tileset
-   * entry means the frozen tile id still fully describes what is drawn and what it collides with:
-   * a map never needs a second per-cell transform channel that could drift from collision.
+   * Keeping the rotation on the tileset entry means the frozen tile id still fully describes what
+   * is drawn and what it collides with: a map never needs a second per-cell transform channel that
+   * could drift from collision.
    */
   rotationQuarterTurns?: 0 | 1 | 2 | 3;
 }

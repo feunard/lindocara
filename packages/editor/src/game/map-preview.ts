@@ -24,7 +24,12 @@ import {
   starterEquipmentFor,
 } from "@lindocara/engine/character.js";
 import { facingFromInput } from "@lindocara/engine/directional-combat.js";
-import { MONSTER_SPECIES_KIND, MONSTER_STATS, resolveTerrain } from "@lindocara/engine/game.js";
+import {
+  MONSTER_SPECIES_KIND,
+  MONSTER_STATS,
+  movementSpeedAt,
+  resolveTerrain,
+} from "@lindocara/engine/game.js";
 import { type MapData, mapSpawnPoint, terrainFromMap } from "@lindocara/engine/map-data.js";
 import { eventCellCentre, type MapEvent, monsterEvents } from "@lindocara/engine/map-events.js";
 import { MAX_ACCUMULATED_SECONDS } from "@lindocara/engine/prediction.js";
@@ -186,7 +191,7 @@ export async function startMapPreview(
       // truth the server and client prediction both run.
       position = resolveTerrain(
         position,
-        step(position, input, TICK_DT, PLAYER_SPEED, geometry),
+        step(position, input, TICK_DT, movementSpeedAt(position, PLAYER_SPEED, geometry), geometry),
         geometry,
       );
       // Same conversion `movement-system.ts` applies to a dequeued command every tick: the last
@@ -202,7 +207,13 @@ export async function startMapPreview(
     // the live client predicts its own square between ticks.
     const drawn = resolveTerrain(
       position,
-      step(position, input, accumulator, PLAYER_SPEED, geometry),
+      step(
+        position,
+        input,
+        accumulator,
+        movementSpeedAt(position, PLAYER_SPEED, geometry),
+        geometry,
+      ),
       geometry,
     );
     const moved: PlayerSnapshot = { ...self, x: drawn.x, y: drawn.y, facing };

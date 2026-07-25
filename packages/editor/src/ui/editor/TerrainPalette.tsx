@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import type { RectFillContent } from "../../game/editor-state.js";
 
 const ELEVATION_LEVELS: (0 | 1 | 2)[] = [0, 1, 2];
-const STAIRS_DIRECTION_OPTIONS: readonly StairsDirection[] = ["north", "east", "south", "west"];
+const STAIRS_DIRECTION_OPTIONS: readonly StairsDirection[] = ["east", "west"];
 const STAIRS_LOW_LEVEL_OPTIONS: readonly StairsLowLevel[] = [0, 1];
 
 /** Sprite-path previews for the editor's non-tile swatches. Exported so `EventPalette` draws its
@@ -252,7 +252,7 @@ export function SwatchButton({
 function TerrainTilePreview({
   kind,
   level,
-  direction = "north",
+  direction = "east",
 }: {
   kind: "grass" | "water" | "stairs";
   level: 0 | 1 | 2;
@@ -270,11 +270,11 @@ function TerrainTilePreview({
             width: 64,
             height: 128,
             backgroundImage: `url("${TINY_SWORDS_TERRAIN.tileset}")`,
-            backgroundPosition: "0 -256px",
+            backgroundPosition: `${direction === "west" ? -192 : 0}px -256px`,
             backgroundRepeat: "no-repeat",
             filter: level === 1 ? "brightness(.86)" : undefined,
             imageRendering: "pixelated",
-            transform: `translate(-50%, -50%) scale(.25) rotate(${directionRotation(direction)}deg)`,
+            transform: "translate(-50%, -50%) scale(.25)",
             transformOrigin: "center",
           }}
         />
@@ -298,7 +298,7 @@ function TerrainTilePreview({
           backgroundRepeat: "no-repeat",
           filter: level === 1 ? "brightness(.86)" : level === 2 ? "brightness(.72)" : undefined,
           imageRendering: "pixelated",
-          transform: `translate(-50%, -50%) scale(.5) rotate(${directionRotation(direction)}deg)`,
+          transform: "translate(-50%, -50%) scale(.5)",
         }}
       />
     </span>
@@ -306,17 +306,8 @@ function TerrainTilePreview({
 }
 
 function oppositeDirection(direction: StairsDirection): StairsDirection {
-  if (direction === "north") return "south";
   if (direction === "east") return "west";
-  if (direction === "south") return "north";
   return "east";
-}
-
-function directionRotation(direction: StairsDirection): number {
-  if (direction === "south") return 90;
-  if (direction === "west") return 180;
-  if (direction === "north") return 270;
-  return 0;
 }
 
 export function SpriteSheetPreview({ source, frame }: { source: string; frame?: number }) {

@@ -252,6 +252,7 @@ function emit(
     building: "B",
     water: "#",
     bridge: "=",
+    ramp: "R",
   };
   const rowsText = [];
   for (let row = 0; row < data.rows; row++) {

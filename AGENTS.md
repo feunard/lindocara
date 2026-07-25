@@ -401,9 +401,11 @@ collider is the same mistake with a second bake: collision only ever comes from 
 via `isWalkable`/`resolveTerrain()`/`isWalkableBox`. Elevation needs no engine change — a cliff face
 is its own cell, impassable, one layer above the ground. The brush maintains that face on the lower
 cell of every north/east/south/west boundary, so a plateau is a real barrier on all four sides.
-Directional stair gateways are the only authored crossing: the editor chooses the high side
-(north/east/south/west) and the transition (0↔1 or 1↔2), then rotates the bank art and clears a
-bidirectional path through the matching cliff. See
+Directional stair gateways are the only authored crossing: the editor chooses a side
+(right/left) and the transition (0↔1 or 1↔2). They use Pixel Frog's two native side ramps; there are
+no top/bottom variants. The brush clears both joined cliff faces and the path is bidirectional.
+Only the south/front cliff face draws rock; back and side boundaries remain solid
+collision-only cells, so a raised plateau is not ringed by rotated walls. See
 [`docs/superpowers/specs/2026-07-18-layered-map-model-design.md`](./docs/superpowers/specs/2026-07-18-layered-map-model-design.md)
 for the full model.
 
@@ -438,13 +440,19 @@ catalogue asset authors its own sub-cell collider (`elementWorldCollider`), no l
 footprint. Scenery placement is terrain-independent: every known catalogue asset may be placed on
 grass, cliffs or water; `allowedTerrain` remains catalogue guidance, not a save-time restriction.
 Every tool has a keyboard shortcut, gated off while a dialog is open or the stage isn't ready. The
-stairs tool stamps the official two-tile 64×128 Tiny Swords stair composition on layer 1, rotated so
-its high side faces north/east/south/west for a 0↔1 or 1↔2 boundary. The clicked cell is the low
-entrance and the preview shows both occupied cells. It never paints elevation itself: the author
-paints both levels first, and flat ground, mismatched levels and cliff corners are refused. Painting
-water over either stair tile, or any later terrain edit that invalidates either endpoint, removes
-the whole pair and restores normal cliff upkeep. Fill has no fill-to-empty primitive; the UI
-disables it rather than let it silently no-op.
+stairs tool stamps a two-tile Tiny Swords ramp on layer 1. Atlas column 0 climbs right and column 3
+climbs left; those are the only supported orientations. Both halves run beside
+one 0↔1 or 1↔2 boundary; the clicked cell is the low half and the preview shows both occupied cells.
+It never paints elevation itself: the author paints both levels first, and flat or mismatched ground
+is refused. Other adjacent elevation faces do not invalidate two matching endpoints. Painting water
+over either stair tile, or any later terrain edit that invalidates either endpoint, removes the whole
+pair and restores normal cliff upkeep. Baked ramp cells reduce hero movement to 86%; the renderer
+adds a smooth 7px hero lift and raises the camera target by 24px on level 1 and 56px on level 2,
+blending through the stair and reversing on descent. The elevation offset is applied after ordinary
+map-bound camera clamping, otherwise a stair near the north edge silently loses the whole effect.
+Server movement, prediction and local preview all read the same
+baked `ramp` kind. Fill has no fill-to-empty primitive; the UI disables it rather than let it
+silently no-op.
 
 The pointer-events contract is load-bearing and easy to get backwards. `#stage` stays a `position:
 fixed`, full-viewport sibling of `#root` (see the canvas gotcha below), so by default it paints and

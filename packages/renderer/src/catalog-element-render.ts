@@ -1,6 +1,9 @@
 import { ELEMENT_OFFSET_PX, type MapElement } from "@lindocara/engine/map-data.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
-import type { EditorAssetDefinition } from "@lindocara/engine/tiny-swords-catalog.js";
+import type {
+  EditorAssetDefinition,
+  EditorRenderLayer,
+} from "@lindocara/engine/tiny-swords-catalog.js";
 import { Container, Sprite, type Texture } from "pixi.js";
 import type { EditorAssetArt } from "./editor-asset-art.js";
 
@@ -10,7 +13,8 @@ export interface CatalogElementView {
   container: Container;
   sprite: Sprite;
   frames: readonly Texture[];
-  layer: "ground" | "object" | "canopy";
+  durationMs: number;
+  layer: EditorRenderLayer;
   x: number;
   y: number;
 }
@@ -40,6 +44,7 @@ export function createCatalogElementView(
     container,
     sprite,
     frames: art.frames,
+    durationMs: art.definition.frame?.durationMs ?? CATALOG_ELEMENT_CYCLE_MS,
     layer: art.definition.editor.renderLayer,
     x,
     y,
@@ -110,8 +115,10 @@ export function createEventGraphicSprite(
 export function catalogElementFrameAt(
   elapsedMs: number,
   frames: readonly Texture[],
+  durationMs = CATALOG_ELEMENT_CYCLE_MS,
 ): Texture | undefined {
   if (frames.length === 0) return undefined;
-  const index = Math.floor((Math.max(0, elapsedMs) / CATALOG_ELEMENT_CYCLE_MS) * frames.length);
+  const cycle = Math.max(1, durationMs);
+  const index = Math.floor((Math.max(0, elapsedMs) / cycle) * frames.length);
   return frames[index % frames.length];
 }

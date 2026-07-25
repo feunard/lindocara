@@ -458,12 +458,11 @@ export function placeableMask(land: Mask, plateau: Mask | null): Mask {
 /**
  * Cut a staircase into a plateau so the high ground is reachable.
  *
- * `paintStairs` accepts only a very specific geometry: the two stair cells must both sit on the LOW
- * level, the high ground must lie DIAGONALLY from the clicked cell, and no other higher neighbour may
- * touch either stair cell. For a rectangular plateau that leaves exactly the four outside diagonal
- * corners — which is why this tries all four rather than reasoning about which edge "faces" the
- * player. `paintStairs` returns its input unchanged when the shape does not fit, so a changed wall
- * layer IS the signal that one landed.
+ * `paintStairs` accepts only a very specific geometry, and the pack ships side sources for the east
+ * and west approaches only — so a stair sits beside the plateau's left or right edge. Rather than
+ * reason about which row "faces" the player, this walks both columns and takes the first that fits.
+ * `paintStairs` returns its input unchanged when the shape does not fit, so a changed wall layer IS
+ * the signal that one landed.
  *
  * Returns the layers untouched when no corner works (a plateau flush against the sea, say). A map
  * with an unreachable terrace is a cosmetic loss; inventing terrain to force a stair would be worse.
@@ -485,25 +484,26 @@ export function carveStairs(
   });
   if (!Number.isFinite(minCol)) return { layers, placed: null };
 
-  const corners: { col: number; row: number; direction: StairsDirection }[] = [
-    { col: maxCol + 1, row: maxRow + 1, direction: "north" },
-    { col: minCol - 1, row: maxRow + 1, direction: "east" },
-    { col: minCol - 1, row: minRow - 1, direction: "south" },
-    { col: maxCol + 1, row: minRow - 1, direction: "west" },
-  ];
+  // The stamp accepts a stair beside the plateau's LEFT or RIGHT edge (its two native side sources),
+  // so walk those two columns and take the first row that fits.
+  const candidates: { col: number; row: number; direction: StairsDirection }[] = [];
+  for (let row = minRow; row <= maxRow; row++) {
+    candidates.push({ col: minCol - 1, row, direction: "east" });
+    candidates.push({ col: maxCol + 1, row, direction: "west" });
+  }
   const before = JSON.stringify(layers[1]?.ids);
-  for (const corner of corners) {
-    if (!maskAt(land, corner.col, corner.row)) continue;
+  for (const candidate of candidates) {
+    if (!maskAt(land, candidate.col, candidate.row)) continue;
     const next = paintStairs(
       layers,
       TINY_SWORDS_TILESET,
-      corner.col,
-      corner.row,
-      corner.direction,
+      candidate.col,
+      candidate.row,
+      candidate.direction,
       0,
     );
     if (JSON.stringify(next[1]?.ids) !== before) {
-      return { layers: next, placed: { col: corner.col, row: corner.row } };
+      return { layers: next, placed: { col: candidate.col, row: candidate.row } };
     }
   }
   return { layers, placed: null };

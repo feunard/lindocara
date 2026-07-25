@@ -97,9 +97,9 @@ paintStairs(layers: readonly TileLayer[], tileset: Tileset,
   col: number, row: number, direction: StairsDirection,
   lowLevel: 0 | 1): TileLayer[]
 ```
-Writes the two rotated fixed tiles of the official 64×128 Tiny Swords stair onto **layer 1** from `(col,row)`, the low entrance of an already-painted elevation boundary. Rejects flat ground, a mismatched 0↔1/1↔2 transition and cliff corners. It does not repaint layer 0. After placement, adjacent wall runs re-resolve; later water/elevation edits remove the complete pair automatically if the boundary no longer matches.
+Writes the two fixed tiles of a native Tiny Swords side ramp onto **layer 1** from `(col,row)`, the low half beside an already-painted elevation boundary. Right/left are the only supported orientations. Rejects flat ground and mismatched 0↔1/1↔2 endpoints, but not an unrelated adjacent elevation face. It does not repaint layer 0. After placement, adjacent wall runs re-resolve; later water/elevation edits remove the complete pair automatically if the boundary no longer matches. The baked cells are `ramp`, applying the shared 86% movement pace, renderer lift, and elevation-aware camera rise.
 
-**Tests (exact scenarios):** (1) both stair cells receive direction/level/part-specific fixed ids while their flanking walls stay blocked. (2) flat ground, a mismatched transition and a corner are refused, layers unchanged, same reference. (3) painting water on either half removes the pair and restores normal cliff upkeep. (4) bake: both ramp cells and the high endpoint are walkable while the two flanks stay solid in all four orientations and both transitions.
+**Tests (exact scenarios):** (1) both stair cells receive direction/level/part-specific fixed ids while their flanking walls stay blocked. (2) flat ground and a mismatched transition are refused, while a matching boundary beside another elevation face remains accepted. (3) painting water on either half removes the pair and restores normal cliff upkeep. (4) bake: both ramp cells and the high endpoint are walkable while the other flank stays solid for right/left and both transitions.
 
 ---
 

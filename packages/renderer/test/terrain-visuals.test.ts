@@ -1,7 +1,18 @@
+import { stairsFixedIndex } from "@lindocara/engine/tile-brush.js";
+import { emptyLayer } from "@lindocara/engine/tile-layer-codec.js";
+import { autotileId, fixedId } from "@lindocara/engine/tileset.js";
+import { GRASS_SLOTS } from "@lindocara/engine/tilesets/tiny-swords.js";
 import {
+  authoredElevationAt,
+  ELEVATION_CAMERA_RISE_PX,
+  ELEVATION_LEVEL_2_CAMERA_RISE_PX,
+  elevationCameraRise,
   FOAM_CYCLE_MS,
   foamFrameAt,
+  foamPhaseAt,
   pulseTint,
+  RAMP_HERO_LIFT_PX,
+  rampHeroLift,
   terrainTintsAt,
   WATER_RENDER_OBJECTS,
   waterSurfaceRect,
@@ -42,6 +53,14 @@ describe("regional terrain palettes", () => {
     expect(foamFrameAt(FOAM_CYCLE_MS * 3.5, 8)).toBe(4);
   });
 
+  it("starts neighbouring foam sprites on different deterministic frames", () => {
+    const centre = foamPhaseAt(10, 12, 8);
+    expect(foamPhaseAt(11, 12, 8)).not.toBe(centre);
+    expect(foamPhaseAt(10, 13, 8)).not.toBe(centre);
+    expect(foamPhaseAt(10, 12, 8)).toBe(centre);
+    expect(foamFrameAt(0, 8, centre)).toBe(centre);
+  });
+
   it("stays inside the sheet however long the world has been running", () => {
     for (const elapsed of [0, 1, 999, 1_000_000, 86_400_000]) {
       const frame = foamFrameAt(elapsed, 8);
@@ -59,6 +78,59 @@ describe("regional terrain palettes", () => {
   it("only makes the ambient water pulse subtly", () => {
     const base = 0x5d899d;
     expect(brightness(pulseTint(base, 1.035)) - brightness(base)).toBeLessThan(20);
+  });
+
+  it("lifts a hero smoothly at the middle of a ramp and nowhere on ordinary grass", () => {
+    const ramp = { cols: 1, rows: 1, kinds: ["ramp"] as const };
+    const grass = { cols: 1, rows: 1, kinds: ["grass"] as const };
+    expect(rampHeroLift(ramp, { x: 16, y: 0 }, { x: 1, y: 0 })).toBeCloseTo(-RAMP_HERO_LIFT_PX);
+    expect(rampHeroLift(grass, { x: 16, y: 0 }, { x: 1, y: 0 })).toBe(0);
+  });
+
+  it("raises the camera continuously while climbing either side ramp", () => {
+    const ground = {
+      ...emptyLayer(1, 1),
+      ids: [autotileId(GRASS_SLOTS[0], 0)],
+    };
+    const eastRamp = {
+      ...emptyLayer(1, 1),
+      ids: [fixedId(stairsFixedIndex("east", 0, "low"))],
+    };
+    const westRamp = {
+      ...emptyLayer(1, 1),
+      ids: [fixedId(stairsFixedIndex("west", 0, "low"))],
+    };
+
+    expect(authoredElevationAt([ground, eastRamp], { x: 16, y: 16 })).toBeCloseTo(0.5);
+    expect(authoredElevationAt([ground, westRamp], { x: 16, y: 16 })).toBeCloseTo(0.5);
+    expect(elevationCameraRise([ground, eastRamp], { x: 16, y: 16 })).toBeCloseTo(
+      ELEVATION_CAMERA_RISE_PX / 2,
+    );
+  });
+
+  it("keeps the camera raised on completed elevation levels", () => {
+    const expectedRise = [0, ELEVATION_CAMERA_RISE_PX, ELEVATION_LEVEL_2_CAMERA_RISE_PX] as const;
+    for (const level of [0, 1, 2] as const) {
+      const ground = {
+        ...emptyLayer(1, 1),
+        ids: [autotileId(GRASS_SLOTS[level], 0)],
+      };
+      expect(elevationCameraRise([ground], { x: 16, y: 16 })).toBe(expectedRise[level]);
+    }
+  });
+
+  it("accentuates the second-storey camera rise through a 1-to-2 ramp", () => {
+    const ground = {
+      ...emptyLayer(1, 1),
+      ids: [autotileId(GRASS_SLOTS[1], 0)],
+    };
+    const ramp = {
+      ...emptyLayer(1, 1),
+      ids: [fixedId(stairsFixedIndex("east", 1, "low"))],
+    };
+    expect(elevationCameraRise([ground, ramp], { x: 16, y: 16 })).toBeCloseTo(
+      (ELEVATION_CAMERA_RISE_PX + ELEVATION_LEVEL_2_CAMERA_RISE_PX) / 2,
+    );
   });
 
   it("keeps water at two render objects even for a very large camera window", () => {

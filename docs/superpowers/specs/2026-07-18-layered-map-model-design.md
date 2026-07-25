@@ -45,16 +45,23 @@ every lower orthogonal neighbour on the next layer up. The atlas's joined wall r
 neighbour to the north; rotated fixed faces handle east, south and west. At a concave corner one
 visual face wins deterministically, but every choice has the same impassable collision.
 
-Consequence: **no change to `isWalkableBox`, `resolveTerrain`, `step()`, or prediction.** The
-passability grid is baked at map load exactly as `bakeCollision` bakes one today.
+The passability grid is baked at map load exactly as `bakeCollision` bakes one today. Ambient
+side/back cliff cells remain impassable but are collision-only; only the south/front face draws
+rock in Tiny Swords' top-down perspective.
 
-Directional ramps are the only passable cells that join two levels. A ramp uses the sheet's complete
-64×128 stair composition (atlas cells `(0,4)` and `(0,5)`), rotated toward the selected high side.
-The author paints the two elevations first and clicks the low entrance; the brush refuses flat
-ground, a mismatched transition or a cliff corner instead of manufacturing terrain. It supports
-both 0↔1 and 1↔2, so every north/east/south/west crossing is walkable in both directions without
-special movement rules. Changing either elevation — including painting water over either stair
-tile — removes the complete pair and lets ordinary cliff upkeep restore the blocking face.
+Directional ramps are the only passable cells that join two levels. The sheet provides two complete
+64×128 side compositions: atlas cells `(0,4)`/`(0,5)` climb right and `(3,4)`/`(3,5)` climb left.
+Those right/left variants are the entire supported set. The author paints the two elevations first
+and clicks the low half; the brush places both parts beside two joined cliff faces and refuses flat
+or mismatched endpoints instead of manufacturing terrain. Another elevation face beside the pair
+does not invalidate those endpoints. Both 0↔1 and 1↔2 are walkable in both directions. Their baked
+tile kind is `ramp`: shared server/prediction/preview movement uses 86% pace and the renderer adds a
+smooth 7px hero lift plus a camera rise of 24px on level 1 and 56px on level 2, blended through the
+crossing. The rise is applied after ordinary map-bound camera clamping so the effect remains visible
+beside the north edge.
+Changing either elevation — including
+painting water over either stair tile — removes the complete pair and lets ordinary cliff upkeep
+restore the blocking face.
 
 ## Art
 

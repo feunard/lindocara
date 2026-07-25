@@ -9,6 +9,7 @@ const KIND: Record<string, TileKind> = {
   B: "building",
   "#": "water",
   "=": "bridge",
+  R: "ramp",
 };
 
 const CHAR: Record<TileKind, string> = {
@@ -18,6 +19,7 @@ const CHAR: Record<TileKind, string> = {
   building: "B",
   water: "#",
   bridge: "=",
+  ramp: "R",
 };
 
 /** Every kind must round-trip, or a map re-read is quietly a different map. `TILE_KINDS` is the

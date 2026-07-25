@@ -34,6 +34,7 @@ describe("tile kinds", () => {
   it("makes only water solid — a bridge is the sanctioned way across it", () => {
     expect(isSolidKind("water")).toBe(true);
     expect(isSolidKind("bridge")).toBe(false);
+    expect(isSolidKind("ramp")).toBe(false);
     expect(isSolidKind("grass")).toBe(false);
     expect(isSolidKind("plateau")).toBe(false);
   });

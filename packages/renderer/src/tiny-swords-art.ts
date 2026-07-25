@@ -24,6 +24,10 @@ export const TINY_SWORDS_TERRAIN = {
   water: `${TINY_SWORDS_ROOT}/terrain/Water.png`,
   foam: `${TINY_SWORDS_ROOT}/terrain/Foam.png`,
   tileset: `${TINY_SWORDS_ROOT}/terrain/Tilemap_color1.png`,
+  shadow: new URL(
+    "../../catalog/assets/Tiny Swords (Free Pack)/Terrain/Tileset/Shadow.png",
+    import.meta.url,
+  ).href,
 };
 
 /** `Foam.png` is eight 192x192 frames; the blob itself is ~82px, centred. Drawn centred under a
@@ -31,6 +35,8 @@ export const TINY_SWORDS_TERRAIN = {
  *  landmass is what draws its shoreline. */
 export const TINY_SWORDS_FOAM_FRAME = 192;
 export const TINY_SWORDS_FOAM_FRAMES = 8;
+/** Native canvas of the official shadow sprite (the guide prose calls it 128px). */
+export const TINY_SWORDS_SHADOW_FRAME = 192;
 
 /**
  * `Tilemap_Flat.png`'s first 4x4 group sliced into one `Texture` per cell — the shared arithmetic
@@ -57,7 +63,7 @@ export function sliceAutotileSheet(sheet: Texture): Texture[][] {
  * A whole tileset sheet sliced into one `Texture` per cell, indexed `[row][col]`.
  *
  * `sliceAutotileSheet` reads only `Tilemap_Flat.png`'s first 4x4 group; a tileset's ids may land
- * anywhere in `Tilemap_color1.png`'s 9x6 grid, so this slices the lot. Sliced once per sheet, never
+ * anywhere in the extended Tiny Swords grid, so this slices the lot. Sliced once per sheet, never
  * per frame. The grid's dimensions are the tileset's own (`TINY_SWORDS_SHEET_COLS/ROWS` in
  * `shared/tilesets/tiny-swords.ts`) rather than a second copy here — they are the bound every
  * declared id must resolve inside, and shared arithmetic must be able to name them.

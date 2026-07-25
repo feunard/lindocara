@@ -53,6 +53,23 @@ export function cameraAxisOffset(
   return Math.min(0, Math.max(viewportSize - scaledWorldSize, desired));
 }
 
+/**
+ * Vertical camera placement with an authored elevation cue.
+ *
+ * The ordinary camera remains clamped to map bounds. Elevation is then applied as a small
+ * screen-space look-up offset so a staircase near the north edge still moves the view; folding the
+ * rise into `cameraCoordinate` before the clamp makes the clamp erase it completely.
+ */
+export function elevatedCameraAxisOffset(
+  viewportSize: number,
+  worldSize: number,
+  scale: number,
+  cameraCoordinate: number,
+  elevationRise: number,
+): number {
+  return cameraAxisOffset(viewportSize, worldSize, scale, cameraCoordinate) + elevationRise * scale;
+}
+
 export function tileWindowForBounds(
   bounds: WorldBounds,
   worldWidth: number,

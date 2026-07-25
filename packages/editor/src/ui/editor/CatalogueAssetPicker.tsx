@@ -34,9 +34,11 @@ const ASSET_PAGE_SIZE = 12;
  * future asset ships a category this list doesn't know about).
  */
 const CATEGORY_ORDER = [
+  "atmosphere",
   "trees",
   "vegetation",
   "small-decor",
+  "water-decor",
   "rocks",
   "farm-and-village",
   "resources",

@@ -491,12 +491,12 @@ describe("paintPlacementAssetPreview", () => {
     expect(container.children[0]).toBeInstanceOf(Sprite);
   });
 
-  it("draws both halves of the oriented official ramp asset", () => {
+  it("draws both native cells of a side-ramp preview", () => {
     const container = new Container();
     const sheet = Array.from({ length: 6 }, () => Array.from({ length: 9 }, () => Texture.WHITE));
     expect(
       paintPlacementAssetPreview(
-        { kind: "stairs", direction: "north", lowLevel: 0 },
+        { kind: "stairs", direction: "east", lowLevel: 0 },
         3,
         4,
         0,
@@ -511,7 +511,7 @@ describe("paintPlacementAssetPreview", () => {
       expect(child).toBeInstanceOf(Sprite);
       expect((child as Sprite).width).toBe(64);
       expect((child as Sprite).height).toBe(64);
-      expect((child as Sprite).rotation).toBe((3 * Math.PI) / 2);
+      expect((child as Sprite).rotation).toBe(0);
     }
   });
 });
@@ -556,27 +556,17 @@ describe("paintHoverCell", () => {
   });
 });
 
-describe("directional staircase hover footprint", () => {
-  it("uses the clicked low cell plus the correctly rotated companion", () => {
-    const north = stampFootprintCells({ kind: "stairs", direction: "north", lowLevel: 0 }, 3, 4);
+describe("directional ramp hover footprint", () => {
+  it("keeps both native side ramps on their vertical two-cell footprint", () => {
     const east = stampFootprintCells({ kind: "stairs", direction: "east", lowLevel: 1 }, 3, 4);
-    const south = stampFootprintCells({ kind: "stairs", direction: "south", lowLevel: 0 }, 3, 4);
     const west = stampFootprintCells({ kind: "stairs", direction: "west", lowLevel: 1 }, 3, 4);
-    expect(north).toEqual([
-      { col: 3, row: 4 },
-      { col: 2, row: 4 },
-    ]);
     expect(east).toEqual([
       { col: 3, row: 4 },
       { col: 3, row: 3 },
     ]);
-    expect(south).toEqual([
-      { col: 3, row: 4 },
-      { col: 4, row: 4 },
-    ]);
     expect(west).toEqual([
       { col: 3, row: 4 },
-      { col: 3, row: 5 },
+      { col: 3, row: 3 },
     ]);
   });
 });

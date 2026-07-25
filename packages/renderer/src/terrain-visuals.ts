@@ -1,3 +1,9 @@
+import { PLAYER_SIZE, type Vec2 } from "@lindocara/engine/simulation.js";
+import { stairsDescriptor } from "@lindocara/engine/tile-brush.js";
+import type { TileLayer } from "@lindocara/engine/tile-layer-codec.js";
+import { kindAtPoint, TILE_SIZE, type TileMap } from "@lindocara/engine/tilemap.js";
+import { decodeTileId, EMPTY_TILE } from "@lindocara/engine/tileset.js";
+import { elevationOfSlot } from "@lindocara/engine/tilesets/tiny-swords.js";
 import type { Biome, ZoneDefinition } from "./world-layout.js";
 
 export interface TerrainTints {
@@ -18,6 +24,71 @@ export interface WaterSurfaceRect {
 }
 
 export const WATER_RENDER_OBJECTS = 2;
+
+/** Maximum screen-space rise of a hero while their feet traverse a staircase cell. */
+export const RAMP_HERO_LIFT_PX = 7;
+
+/** How far the camera looks uphill for each complete authored elevation level. */
+export const ELEVATION_CAMERA_RISE_PX = 24;
+/** Level 2 gets extra separation so the second climb reads as a higher storey, not a repeated bob. */
+export const ELEVATION_LEVEL_2_CAMERA_RISE_PX = 56;
+
+/**
+ * A smooth rise-and-settle arc across one ramp cell.
+ *
+ * Movement remains in world space; this shifts only the rendered hero. The active travel axis
+ * chooses the local progress through either native side stair.
+ */
+export function rampHeroLift(tiles: TileMap, position: Vec2, travel: Vec2): number {
+  const centerX = position.x + PLAYER_SIZE / 2;
+  const centerY = position.y + PLAYER_SIZE / 2;
+  if (kindAtPoint(tiles, centerX, centerY) !== "ramp") return 0;
+  const coordinate = Math.abs(travel.x) >= Math.abs(travel.y) ? centerX : centerY;
+  const local = ((coordinate % TILE_SIZE) + TILE_SIZE) % TILE_SIZE;
+  return -Math.sin((local / TILE_SIZE) * Math.PI) * RAMP_HERO_LIFT_PX;
+}
+
+/**
+ * The fractional authored elevation under a hero's centre.
+ *
+ * Ordinary ground reads its autotile slot. A ramp reads its frozen direction/level id and blends
+ * across the cell towards the high side, so the camera begins rising while the hero is on the
+ * stairs instead of snapping only after their feet reach the plateau.
+ */
+export function authoredElevationAt(layers: readonly TileLayer[], position: Vec2): number {
+  const ground = layers[0];
+  if (!ground) return 0;
+  const centerX = position.x + PLAYER_SIZE / 2;
+  const centerY = position.y + PLAYER_SIZE / 2;
+  const col = Math.floor(centerX / TILE_SIZE);
+  const row = Math.floor(centerY / TILE_SIZE);
+  if (col < 0 || row < 0 || col >= ground.cols || row >= ground.rows) return 0;
+
+  const groundRef = decodeTileId(ground.ids[row * ground.cols + col] ?? EMPTY_TILE);
+  const baseLevel =
+    groundRef.kind === "autotile" ? Math.max(0, elevationOfSlot(groundRef.slot)) : 0;
+  const walls = layers[1];
+  if (!walls || col >= walls.cols || row >= walls.rows) return baseLevel;
+  const wallRef = decodeTileId(walls.ids[row * walls.cols + col] ?? EMPTY_TILE);
+  if (wallRef.kind !== "fixed") return baseLevel;
+  const stairs = stairsDescriptor(wallRef.index);
+  if (!stairs) return baseLevel;
+
+  const localX = ((centerX % TILE_SIZE) + TILE_SIZE) % TILE_SIZE;
+  const uphillProgress = stairs.direction === "east" ? localX / TILE_SIZE : 1 - localX / TILE_SIZE;
+  return stairs.lowLevel + uphillProgress;
+}
+
+/** Positive world-space distance by which the camera target should look uphill. */
+export function elevationCameraRise(layers: readonly TileLayer[], position: Vec2): number {
+  const elevation = authoredElevationAt(layers, position);
+  if (elevation <= 1) return elevation * ELEVATION_CAMERA_RISE_PX;
+  const secondClimbProgress = Math.min(1, elevation - 1);
+  return (
+    ELEVATION_CAMERA_RISE_PX +
+    secondClimbProgress * (ELEVATION_LEVEL_2_CAMERA_RISE_PX - ELEVATION_CAMERA_RISE_PX)
+  );
+}
 
 /** One viewport-sized surface, clipped to the current zone; land tiles mask it from above. */
 export function waterSurfaceRect(
@@ -137,15 +208,22 @@ export function writeWaterScrollOffsets(
   return output;
 }
 
+/** Deterministic start frame for one shoreline blob. Orthogonal neighbours use different phases. */
+export function foamPhaseAt(col: number, row: number, frames: number): number {
+  if (frames <= 0) return 0;
+  const phase = col * 3 + row * 5;
+  return ((phase % frames) + frames) % frames;
+}
+
 /**
- * Which foam frame the whole shoreline is on. Deliberately global rather than per-tile: Tiny
- * Swords' foam is one animation ringing a landmass, and giving each tile its own phase would break
- * the blobs apart into a shimmer of unrelated puddles instead of one moving coastline.
+ * Which frame one shoreline blob is on. Pixel Frog's guide explicitly starts each Water Foam
+ * sprite at a different frame; `phase` keeps that offset while the shared clock advances them.
  */
-export function foamFrameAt(elapsedMs: number, frames: number): number {
+export function foamFrameAt(elapsedMs: number, frames: number, phase = 0): number {
   if (frames <= 0) return 0;
   const elapsed = Math.max(0, elapsedMs);
-  return Math.floor((elapsed / FOAM_CYCLE_MS) * frames) % frames;
+  const normalizedPhase = ((phase % frames) + frames) % frames;
+  return (Math.floor((elapsed / FOAM_CYCLE_MS) * frames) + normalizedPhase) % frames;
 }
 
 export function pulseTint(color: number, factor: number): number {

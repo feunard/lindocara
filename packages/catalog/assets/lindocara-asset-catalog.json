@@ -4445,9 +4445,8 @@
           }
         ],
         "renderLayer": "object",
-        "category": "rocks",
+        "category": "water-decor",
         "allowedTerrain": [
-          "grass",
           "water"
         ],
         "collider": {
@@ -4519,9 +4518,8 @@
           }
         ],
         "renderLayer": "object",
-        "category": "rocks",
+        "category": "water-decor",
         "allowedTerrain": [
-          "grass",
           "water"
         ],
         "collider": {
@@ -4593,9 +4591,8 @@
           }
         ],
         "renderLayer": "object",
-        "category": "rocks",
+        "category": "water-decor",
         "allowedTerrain": [
-          "grass",
           "water"
         ],
         "collider": {
@@ -4667,9 +4664,8 @@
           }
         ],
         "renderLayer": "object",
-        "category": "rocks",
+        "category": "water-decor",
         "allowedTerrain": [
-          "grass",
           "water"
         ],
         "collider": {
@@ -27212,7 +27208,7 @@
           }
         ],
         "renderLayer": "object",
-        "category": "small-decor",
+        "category": "water-decor",
         "allowedTerrain": [
           "water"
         ]
@@ -27262,9 +27258,8 @@
           }
         ],
         "renderLayer": "object",
-        "category": "rocks",
+        "category": "water-decor",
         "allowedTerrain": [
-          "grass",
           "water"
         ],
         "collider": {
@@ -27319,9 +27314,8 @@
           }
         ],
         "renderLayer": "object",
-        "category": "rocks",
+        "category": "water-decor",
         "allowedTerrain": [
-          "grass",
           "water"
         ],
         "collider": {
@@ -27376,9 +27370,8 @@
           }
         ],
         "renderLayer": "object",
-        "category": "rocks",
+        "category": "water-decor",
         "allowedTerrain": [
-          "grass",
           "water"
         ],
         "collider": {
@@ -27433,9 +27426,8 @@
           }
         ],
         "renderLayer": "object",
-        "category": "rocks",
+        "category": "water-decor",
         "allowedTerrain": [
-          "grass",
           "water"
         ],
         "collider": {
@@ -27471,6 +27463,160 @@
       "classification": {
         "status": "catalogued",
         "role": "world-decoration"
+      },
+      "editor": {
+        "visualFootprint": [
+          {
+            "col": -4,
+            "row": -3
+          },
+          {
+            "col": -3,
+            "row": -3
+          },
+          {
+            "col": -2,
+            "row": -3
+          },
+          {
+            "col": -1,
+            "row": -3
+          },
+          {
+            "col": 0,
+            "row": -3
+          },
+          {
+            "col": 1,
+            "row": -3
+          },
+          {
+            "col": 2,
+            "row": -3
+          },
+          {
+            "col": 3,
+            "row": -3
+          },
+          {
+            "col": 4,
+            "row": -3
+          },
+          {
+            "col": -4,
+            "row": -2
+          },
+          {
+            "col": -3,
+            "row": -2
+          },
+          {
+            "col": -2,
+            "row": -2
+          },
+          {
+            "col": -1,
+            "row": -2
+          },
+          {
+            "col": 0,
+            "row": -2
+          },
+          {
+            "col": 1,
+            "row": -2
+          },
+          {
+            "col": 2,
+            "row": -2
+          },
+          {
+            "col": 3,
+            "row": -2
+          },
+          {
+            "col": 4,
+            "row": -2
+          },
+          {
+            "col": -4,
+            "row": -1
+          },
+          {
+            "col": -3,
+            "row": -1
+          },
+          {
+            "col": -2,
+            "row": -1
+          },
+          {
+            "col": -1,
+            "row": -1
+          },
+          {
+            "col": 0,
+            "row": -1
+          },
+          {
+            "col": 1,
+            "row": -1
+          },
+          {
+            "col": 2,
+            "row": -1
+          },
+          {
+            "col": 3,
+            "row": -1
+          },
+          {
+            "col": 4,
+            "row": -1
+          },
+          {
+            "col": -4,
+            "row": 0
+          },
+          {
+            "col": -3,
+            "row": 0
+          },
+          {
+            "col": -2,
+            "row": 0
+          },
+          {
+            "col": -1,
+            "row": 0
+          },
+          {
+            "col": 0,
+            "row": 0
+          },
+          {
+            "col": 1,
+            "row": 0
+          },
+          {
+            "col": 2,
+            "row": 0
+          },
+          {
+            "col": 3,
+            "row": 0
+          },
+          {
+            "col": 4,
+            "row": 0
+          }
+        ],
+        "renderLayer": "sky",
+        "category": "atmosphere",
+        "allowedTerrain": [
+          "grass",
+          "water"
+        ]
       }
     },
     {
@@ -27498,6 +27644,160 @@
       "classification": {
         "status": "catalogued",
         "role": "world-decoration"
+      },
+      "editor": {
+        "visualFootprint": [
+          {
+            "col": -4,
+            "row": -3
+          },
+          {
+            "col": -3,
+            "row": -3
+          },
+          {
+            "col": -2,
+            "row": -3
+          },
+          {
+            "col": -1,
+            "row": -3
+          },
+          {
+            "col": 0,
+            "row": -3
+          },
+          {
+            "col": 1,
+            "row": -3
+          },
+          {
+            "col": 2,
+            "row": -3
+          },
+          {
+            "col": 3,
+            "row": -3
+          },
+          {
+            "col": 4,
+            "row": -3
+          },
+          {
+            "col": -4,
+            "row": -2
+          },
+          {
+            "col": -3,
+            "row": -2
+          },
+          {
+            "col": -2,
+            "row": -2
+          },
+          {
+            "col": -1,
+            "row": -2
+          },
+          {
+            "col": 0,
+            "row": -2
+          },
+          {
+            "col": 1,
+            "row": -2
+          },
+          {
+            "col": 2,
+            "row": -2
+          },
+          {
+            "col": 3,
+            "row": -2
+          },
+          {
+            "col": 4,
+            "row": -2
+          },
+          {
+            "col": -4,
+            "row": -1
+          },
+          {
+            "col": -3,
+            "row": -1
+          },
+          {
+            "col": -2,
+            "row": -1
+          },
+          {
+            "col": -1,
+            "row": -1
+          },
+          {
+            "col": 0,
+            "row": -1
+          },
+          {
+            "col": 1,
+            "row": -1
+          },
+          {
+            "col": 2,
+            "row": -1
+          },
+          {
+            "col": 3,
+            "row": -1
+          },
+          {
+            "col": 4,
+            "row": -1
+          },
+          {
+            "col": -4,
+            "row": 0
+          },
+          {
+            "col": -3,
+            "row": 0
+          },
+          {
+            "col": -2,
+            "row": 0
+          },
+          {
+            "col": -1,
+            "row": 0
+          },
+          {
+            "col": 0,
+            "row": 0
+          },
+          {
+            "col": 1,
+            "row": 0
+          },
+          {
+            "col": 2,
+            "row": 0
+          },
+          {
+            "col": 3,
+            "row": 0
+          },
+          {
+            "col": 4,
+            "row": 0
+          }
+        ],
+        "renderLayer": "sky",
+        "category": "atmosphere",
+        "allowedTerrain": [
+          "grass",
+          "water"
+        ]
       }
     },
     {
@@ -27525,6 +27825,160 @@
       "classification": {
         "status": "catalogued",
         "role": "world-decoration"
+      },
+      "editor": {
+        "visualFootprint": [
+          {
+            "col": -4,
+            "row": -3
+          },
+          {
+            "col": -3,
+            "row": -3
+          },
+          {
+            "col": -2,
+            "row": -3
+          },
+          {
+            "col": -1,
+            "row": -3
+          },
+          {
+            "col": 0,
+            "row": -3
+          },
+          {
+            "col": 1,
+            "row": -3
+          },
+          {
+            "col": 2,
+            "row": -3
+          },
+          {
+            "col": 3,
+            "row": -3
+          },
+          {
+            "col": 4,
+            "row": -3
+          },
+          {
+            "col": -4,
+            "row": -2
+          },
+          {
+            "col": -3,
+            "row": -2
+          },
+          {
+            "col": -2,
+            "row": -2
+          },
+          {
+            "col": -1,
+            "row": -2
+          },
+          {
+            "col": 0,
+            "row": -2
+          },
+          {
+            "col": 1,
+            "row": -2
+          },
+          {
+            "col": 2,
+            "row": -2
+          },
+          {
+            "col": 3,
+            "row": -2
+          },
+          {
+            "col": 4,
+            "row": -2
+          },
+          {
+            "col": -4,
+            "row": -1
+          },
+          {
+            "col": -3,
+            "row": -1
+          },
+          {
+            "col": -2,
+            "row": -1
+          },
+          {
+            "col": -1,
+            "row": -1
+          },
+          {
+            "col": 0,
+            "row": -1
+          },
+          {
+            "col": 1,
+            "row": -1
+          },
+          {
+            "col": 2,
+            "row": -1
+          },
+          {
+            "col": 3,
+            "row": -1
+          },
+          {
+            "col": 4,
+            "row": -1
+          },
+          {
+            "col": -4,
+            "row": 0
+          },
+          {
+            "col": -3,
+            "row": 0
+          },
+          {
+            "col": -2,
+            "row": 0
+          },
+          {
+            "col": -1,
+            "row": 0
+          },
+          {
+            "col": 0,
+            "row": 0
+          },
+          {
+            "col": 1,
+            "row": 0
+          },
+          {
+            "col": 2,
+            "row": 0
+          },
+          {
+            "col": 3,
+            "row": 0
+          },
+          {
+            "col": 4,
+            "row": 0
+          }
+        ],
+        "renderLayer": "sky",
+        "category": "atmosphere",
+        "allowedTerrain": [
+          "grass",
+          "water"
+        ]
       }
     },
     {
@@ -27552,6 +28006,160 @@
       "classification": {
         "status": "catalogued",
         "role": "world-decoration"
+      },
+      "editor": {
+        "visualFootprint": [
+          {
+            "col": -4,
+            "row": -3
+          },
+          {
+            "col": -3,
+            "row": -3
+          },
+          {
+            "col": -2,
+            "row": -3
+          },
+          {
+            "col": -1,
+            "row": -3
+          },
+          {
+            "col": 0,
+            "row": -3
+          },
+          {
+            "col": 1,
+            "row": -3
+          },
+          {
+            "col": 2,
+            "row": -3
+          },
+          {
+            "col": 3,
+            "row": -3
+          },
+          {
+            "col": 4,
+            "row": -3
+          },
+          {
+            "col": -4,
+            "row": -2
+          },
+          {
+            "col": -3,
+            "row": -2
+          },
+          {
+            "col": -2,
+            "row": -2
+          },
+          {
+            "col": -1,
+            "row": -2
+          },
+          {
+            "col": 0,
+            "row": -2
+          },
+          {
+            "col": 1,
+            "row": -2
+          },
+          {
+            "col": 2,
+            "row": -2
+          },
+          {
+            "col": 3,
+            "row": -2
+          },
+          {
+            "col": 4,
+            "row": -2
+          },
+          {
+            "col": -4,
+            "row": -1
+          },
+          {
+            "col": -3,
+            "row": -1
+          },
+          {
+            "col": -2,
+            "row": -1
+          },
+          {
+            "col": -1,
+            "row": -1
+          },
+          {
+            "col": 0,
+            "row": -1
+          },
+          {
+            "col": 1,
+            "row": -1
+          },
+          {
+            "col": 2,
+            "row": -1
+          },
+          {
+            "col": 3,
+            "row": -1
+          },
+          {
+            "col": 4,
+            "row": -1
+          },
+          {
+            "col": -4,
+            "row": 0
+          },
+          {
+            "col": -3,
+            "row": 0
+          },
+          {
+            "col": -2,
+            "row": 0
+          },
+          {
+            "col": -1,
+            "row": 0
+          },
+          {
+            "col": 0,
+            "row": 0
+          },
+          {
+            "col": 1,
+            "row": 0
+          },
+          {
+            "col": 2,
+            "row": 0
+          },
+          {
+            "col": 3,
+            "row": 0
+          },
+          {
+            "col": 4,
+            "row": 0
+          }
+        ],
+        "renderLayer": "sky",
+        "category": "atmosphere",
+        "allowedTerrain": [
+          "grass",
+          "water"
+        ]
       }
     },
     {
@@ -27579,6 +28187,160 @@
       "classification": {
         "status": "catalogued",
         "role": "world-decoration"
+      },
+      "editor": {
+        "visualFootprint": [
+          {
+            "col": -4,
+            "row": -3
+          },
+          {
+            "col": -3,
+            "row": -3
+          },
+          {
+            "col": -2,
+            "row": -3
+          },
+          {
+            "col": -1,
+            "row": -3
+          },
+          {
+            "col": 0,
+            "row": -3
+          },
+          {
+            "col": 1,
+            "row": -3
+          },
+          {
+            "col": 2,
+            "row": -3
+          },
+          {
+            "col": 3,
+            "row": -3
+          },
+          {
+            "col": 4,
+            "row": -3
+          },
+          {
+            "col": -4,
+            "row": -2
+          },
+          {
+            "col": -3,
+            "row": -2
+          },
+          {
+            "col": -2,
+            "row": -2
+          },
+          {
+            "col": -1,
+            "row": -2
+          },
+          {
+            "col": 0,
+            "row": -2
+          },
+          {
+            "col": 1,
+            "row": -2
+          },
+          {
+            "col": 2,
+            "row": -2
+          },
+          {
+            "col": 3,
+            "row": -2
+          },
+          {
+            "col": 4,
+            "row": -2
+          },
+          {
+            "col": -4,
+            "row": -1
+          },
+          {
+            "col": -3,
+            "row": -1
+          },
+          {
+            "col": -2,
+            "row": -1
+          },
+          {
+            "col": -1,
+            "row": -1
+          },
+          {
+            "col": 0,
+            "row": -1
+          },
+          {
+            "col": 1,
+            "row": -1
+          },
+          {
+            "col": 2,
+            "row": -1
+          },
+          {
+            "col": 3,
+            "row": -1
+          },
+          {
+            "col": 4,
+            "row": -1
+          },
+          {
+            "col": -4,
+            "row": 0
+          },
+          {
+            "col": -3,
+            "row": 0
+          },
+          {
+            "col": -2,
+            "row": 0
+          },
+          {
+            "col": -1,
+            "row": 0
+          },
+          {
+            "col": 0,
+            "row": 0
+          },
+          {
+            "col": 1,
+            "row": 0
+          },
+          {
+            "col": 2,
+            "row": 0
+          },
+          {
+            "col": 3,
+            "row": 0
+          },
+          {
+            "col": 4,
+            "row": 0
+          }
+        ],
+        "renderLayer": "sky",
+        "category": "atmosphere",
+        "allowedTerrain": [
+          "grass",
+          "water"
+        ]
       }
     },
     {
@@ -27606,6 +28368,160 @@
       "classification": {
         "status": "catalogued",
         "role": "world-decoration"
+      },
+      "editor": {
+        "visualFootprint": [
+          {
+            "col": -4,
+            "row": -3
+          },
+          {
+            "col": -3,
+            "row": -3
+          },
+          {
+            "col": -2,
+            "row": -3
+          },
+          {
+            "col": -1,
+            "row": -3
+          },
+          {
+            "col": 0,
+            "row": -3
+          },
+          {
+            "col": 1,
+            "row": -3
+          },
+          {
+            "col": 2,
+            "row": -3
+          },
+          {
+            "col": 3,
+            "row": -3
+          },
+          {
+            "col": 4,
+            "row": -3
+          },
+          {
+            "col": -4,
+            "row": -2
+          },
+          {
+            "col": -3,
+            "row": -2
+          },
+          {
+            "col": -2,
+            "row": -2
+          },
+          {
+            "col": -1,
+            "row": -2
+          },
+          {
+            "col": 0,
+            "row": -2
+          },
+          {
+            "col": 1,
+            "row": -2
+          },
+          {
+            "col": 2,
+            "row": -2
+          },
+          {
+            "col": 3,
+            "row": -2
+          },
+          {
+            "col": 4,
+            "row": -2
+          },
+          {
+            "col": -4,
+            "row": -1
+          },
+          {
+            "col": -3,
+            "row": -1
+          },
+          {
+            "col": -2,
+            "row": -1
+          },
+          {
+            "col": -1,
+            "row": -1
+          },
+          {
+            "col": 0,
+            "row": -1
+          },
+          {
+            "col": 1,
+            "row": -1
+          },
+          {
+            "col": 2,
+            "row": -1
+          },
+          {
+            "col": 3,
+            "row": -1
+          },
+          {
+            "col": 4,
+            "row": -1
+          },
+          {
+            "col": -4,
+            "row": 0
+          },
+          {
+            "col": -3,
+            "row": 0
+          },
+          {
+            "col": -2,
+            "row": 0
+          },
+          {
+            "col": -1,
+            "row": 0
+          },
+          {
+            "col": 0,
+            "row": 0
+          },
+          {
+            "col": 1,
+            "row": 0
+          },
+          {
+            "col": 2,
+            "row": 0
+          },
+          {
+            "col": 3,
+            "row": 0
+          },
+          {
+            "col": 4,
+            "row": 0
+          }
+        ],
+        "renderLayer": "sky",
+        "category": "atmosphere",
+        "allowedTerrain": [
+          "grass",
+          "water"
+        ]
       }
     },
     {
@@ -27633,6 +28549,160 @@
       "classification": {
         "status": "catalogued",
         "role": "world-decoration"
+      },
+      "editor": {
+        "visualFootprint": [
+          {
+            "col": -4,
+            "row": -3
+          },
+          {
+            "col": -3,
+            "row": -3
+          },
+          {
+            "col": -2,
+            "row": -3
+          },
+          {
+            "col": -1,
+            "row": -3
+          },
+          {
+            "col": 0,
+            "row": -3
+          },
+          {
+            "col": 1,
+            "row": -3
+          },
+          {
+            "col": 2,
+            "row": -3
+          },
+          {
+            "col": 3,
+            "row": -3
+          },
+          {
+            "col": 4,
+            "row": -3
+          },
+          {
+            "col": -4,
+            "row": -2
+          },
+          {
+            "col": -3,
+            "row": -2
+          },
+          {
+            "col": -2,
+            "row": -2
+          },
+          {
+            "col": -1,
+            "row": -2
+          },
+          {
+            "col": 0,
+            "row": -2
+          },
+          {
+            "col": 1,
+            "row": -2
+          },
+          {
+            "col": 2,
+            "row": -2
+          },
+          {
+            "col": 3,
+            "row": -2
+          },
+          {
+            "col": 4,
+            "row": -2
+          },
+          {
+            "col": -4,
+            "row": -1
+          },
+          {
+            "col": -3,
+            "row": -1
+          },
+          {
+            "col": -2,
+            "row": -1
+          },
+          {
+            "col": -1,
+            "row": -1
+          },
+          {
+            "col": 0,
+            "row": -1
+          },
+          {
+            "col": 1,
+            "row": -1
+          },
+          {
+            "col": 2,
+            "row": -1
+          },
+          {
+            "col": 3,
+            "row": -1
+          },
+          {
+            "col": 4,
+            "row": -1
+          },
+          {
+            "col": -4,
+            "row": 0
+          },
+          {
+            "col": -3,
+            "row": 0
+          },
+          {
+            "col": -2,
+            "row": 0
+          },
+          {
+            "col": -1,
+            "row": 0
+          },
+          {
+            "col": 0,
+            "row": 0
+          },
+          {
+            "col": 1,
+            "row": 0
+          },
+          {
+            "col": 2,
+            "row": 0
+          },
+          {
+            "col": 3,
+            "row": 0
+          },
+          {
+            "col": 4,
+            "row": 0
+          }
+        ],
+        "renderLayer": "sky",
+        "category": "atmosphere",
+        "allowedTerrain": [
+          "grass",
+          "water"
+        ]
       }
     },
     {
@@ -27660,6 +28730,160 @@
       "classification": {
         "status": "catalogued",
         "role": "world-decoration"
+      },
+      "editor": {
+        "visualFootprint": [
+          {
+            "col": -4,
+            "row": -3
+          },
+          {
+            "col": -3,
+            "row": -3
+          },
+          {
+            "col": -2,
+            "row": -3
+          },
+          {
+            "col": -1,
+            "row": -3
+          },
+          {
+            "col": 0,
+            "row": -3
+          },
+          {
+            "col": 1,
+            "row": -3
+          },
+          {
+            "col": 2,
+            "row": -3
+          },
+          {
+            "col": 3,
+            "row": -3
+          },
+          {
+            "col": 4,
+            "row": -3
+          },
+          {
+            "col": -4,
+            "row": -2
+          },
+          {
+            "col": -3,
+            "row": -2
+          },
+          {
+            "col": -2,
+            "row": -2
+          },
+          {
+            "col": -1,
+            "row": -2
+          },
+          {
+            "col": 0,
+            "row": -2
+          },
+          {
+            "col": 1,
+            "row": -2
+          },
+          {
+            "col": 2,
+            "row": -2
+          },
+          {
+            "col": 3,
+            "row": -2
+          },
+          {
+            "col": 4,
+            "row": -2
+          },
+          {
+            "col": -4,
+            "row": -1
+          },
+          {
+            "col": -3,
+            "row": -1
+          },
+          {
+            "col": -2,
+            "row": -1
+          },
+          {
+            "col": -1,
+            "row": -1
+          },
+          {
+            "col": 0,
+            "row": -1
+          },
+          {
+            "col": 1,
+            "row": -1
+          },
+          {
+            "col": 2,
+            "row": -1
+          },
+          {
+            "col": 3,
+            "row": -1
+          },
+          {
+            "col": 4,
+            "row": -1
+          },
+          {
+            "col": -4,
+            "row": 0
+          },
+          {
+            "col": -3,
+            "row": 0
+          },
+          {
+            "col": -2,
+            "row": 0
+          },
+          {
+            "col": -1,
+            "row": 0
+          },
+          {
+            "col": 0,
+            "row": 0
+          },
+          {
+            "col": 1,
+            "row": 0
+          },
+          {
+            "col": 2,
+            "row": 0
+          },
+          {
+            "col": 3,
+            "row": 0
+          },
+          {
+            "col": 4,
+            "row": 0
+          }
+        ],
+        "renderLayer": "sky",
+        "category": "atmosphere",
+        "allowedTerrain": [
+          "grass",
+          "water"
+        ]
       }
     },
     {
@@ -28076,9 +29300,9 @@
       "height": 64,
       "nature": "animated",
       "frame": {
-        "width": 32,
+        "width": 64,
         "height": 64,
-        "count": 16,
+        "count": 8,
         "axis": "x",
         "durationMs": 800
       },
@@ -28110,9 +29334,9 @@
       "height": 64,
       "nature": "animated",
       "frame": {
-        "width": 32,
+        "width": 64,
         "height": 64,
-        "count": 20,
+        "count": 10,
         "axis": "x",
         "durationMs": 800
       },
@@ -28144,9 +29368,9 @@
       "height": 192,
       "nature": "animated",
       "frame": {
-        "width": 69,
+        "width": 192,
         "height": 192,
-        "count": 22,
+        "count": 8,
         "axis": "x",
         "durationMs": 800
       },
@@ -28178,9 +29402,9 @@
       "height": 192,
       "nature": "animated",
       "frame": {
-        "width": 61,
+        "width": 192,
         "height": 192,
-        "count": 31,
+        "count": 10,
         "axis": "x",
         "durationMs": 800
       },
@@ -28212,9 +29436,9 @@
       "height": 64,
       "nature": "animated",
       "frame": {
-        "width": 46,
+        "width": 64,
         "height": 64,
-        "count": 11,
+        "count": 8,
         "axis": "x",
         "durationMs": 800
       },
@@ -28246,9 +29470,9 @@
       "height": 64,
       "nature": "animated",
       "frame": {
-        "width": 45,
+        "width": 64,
         "height": 64,
-        "count": 14,
+        "count": 10,
         "axis": "x",
         "durationMs": 800
       },
@@ -28280,9 +29504,9 @@
       "height": 64,
       "nature": "animated",
       "frame": {
-        "width": 27,
+        "width": 64,
         "height": 64,
-        "count": 28,
+        "count": 12,
         "axis": "x",
         "durationMs": 800
       },
@@ -28314,9 +29538,9 @@
       "height": 192,
       "nature": "animated",
       "frame": {
-        "width": 69,
+        "width": 192,
         "height": 192,
-        "count": 25,
+        "count": 9,
         "axis": "x",
         "durationMs": 800
       },
@@ -28328,6 +29552,51 @@
       "classification": {
         "status": "catalogued",
         "role": "visual-effect"
+      },
+      "editor": {
+        "visualFootprint": [
+          {
+            "col": -1,
+            "row": -2
+          },
+          {
+            "col": 0,
+            "row": -2
+          },
+          {
+            "col": 1,
+            "row": -2
+          },
+          {
+            "col": -1,
+            "row": -1
+          },
+          {
+            "col": 0,
+            "row": -1
+          },
+          {
+            "col": 1,
+            "row": -1
+          },
+          {
+            "col": -1,
+            "row": 0
+          },
+          {
+            "col": 0,
+            "row": 0
+          },
+          {
+            "col": 1,
+            "row": 0
+          }
+        ],
+        "renderLayer": "object",
+        "category": "water-decor",
+        "allowedTerrain": [
+          "water"
+        ]
       }
     },
     {

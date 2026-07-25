@@ -90,7 +90,7 @@ describe("corpse ring clamp", () => {
 
 describe("minimap colour", () => {
   it("gives every tile kind its own colour", () => {
-    const kinds: TileKind[] = ["grass", "forest", "building", "water", "bridge", "plateau"];
+    const kinds: TileKind[] = ["grass", "forest", "building", "water", "bridge", "plateau", "ramp"];
     const colors = kinds.map((kind) => colorForKind(kind));
     expect(new Set(colors).size).toBeGreaterThan(1);
     for (const color of colors) {

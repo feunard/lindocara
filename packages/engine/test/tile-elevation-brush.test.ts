@@ -2,7 +2,11 @@ import { paintElevation } from "@lindocara/engine/tile-brush.js";
 import { emptyLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { decodeTileId, fixedId } from "@lindocara/engine/tileset.js";
 import {
+  CLIFF_FACE_FIXED_BASE,
+  CLIFF_WALL_HIGH_2_SLOT,
   CLIFF_WALL_SLOT,
+  CLIFF_WATER_HIGH_2_SLOT,
+  CLIFF_WATER_SLOT,
   GRASS_SLOTS,
   TINY_SWORDS_TILESET,
 } from "@lindocara/engine/tilesets/tiny-swords.js";
@@ -37,18 +41,18 @@ describe("the elevation brush", () => {
 
   it("drops a wall into the cell below a raised tile", () => {
     const layers = paintElevation(blank(), set, 1, 2, 2);
-    expect(slotOf(layerAt(layers, 1), 2, 3)).toBe(CLIFF_WALL_SLOT);
+    expect(slotOf(layerAt(layers, 1), 2, 3)).toBe(CLIFF_WATER_SLOT);
   });
 
   it("draws one wall row whatever the drop, so level 2 beside level 0 is still one wall", () => {
     const layers = paintElevation(blank(), set, 2, 2, 2);
-    expect(slotOf(layerAt(layers, 1), 2, 3)).toBe(CLIFF_WALL_SLOT);
+    expect(slotOf(layerAt(layers, 1), 2, 3)).toBe(CLIFF_WATER_HIGH_2_SLOT);
     expect(slotOf(layerAt(layers, 1), 2, 4)).toBe(-1);
   });
 
   it("removes a wall the ground beneath no longer justifies", () => {
     let layers = paintElevation(blank(), set, 1, 2, 2);
-    expect(slotOf(layerAt(layers, 1), 2, 3)).toBe(CLIFF_WALL_SLOT);
+    expect(slotOf(layerAt(layers, 1), 2, 3)).toBe(CLIFF_WATER_SLOT);
     layers = paintElevation(layers, set, 1, 2, 3);
     expect(slotOf(layerAt(layers, 1), 2, 3)).toBe(-1);
   });
@@ -59,11 +63,11 @@ describe("the elevation brush", () => {
     // Left end has an east neighbour (mask 2); right end has a west neighbour (mask 1).
     const left = decodeTileId(layerAt(layers, 1).ids[3 * 6 + 2] ?? 0);
     const right = decodeTileId(layerAt(layers, 1).ids[3 * 6 + 3] ?? 0);
-    expect(left).toEqual({ kind: "autotile", slot: CLIFF_WALL_SLOT, variant: 2 });
-    expect(right).toEqual({ kind: "autotile", slot: CLIFF_WALL_SLOT, variant: 1 });
+    expect(left).toEqual({ kind: "autotile", slot: CLIFF_WATER_SLOT, variant: 2 });
+    expect(right).toEqual({ kind: "autotile", slot: CLIFF_WATER_SLOT, variant: 1 });
   });
 
-  it("blocks every side of a raised zone with the pack's one upright cliff band", () => {
+  it("blocks every side of a raised zone with an oriented cliff face", () => {
     let layers = blank();
     for (let row = 0; row < 6; row += 1) {
       for (let col = 0; col < 6; col += 1) {
@@ -73,21 +77,23 @@ describe("the elevation brush", () => {
     layers = paintElevation(layers, set, 1, 2, 2);
     const walls = layerAt(layers, 1);
 
-    // The pack ships ONE wall band — four variants of a horizontal run — and no side or corner face.
-    // Every boundary therefore gets that band UPRIGHT. Rotating it a quarter turn (as this used to
-    // for east/south/west) points the rock's scalloped bottom lip sideways, which is what made three
-    // of every plateau's four edges read as broken art.
-    for (const [col, row] of [
-      [2, 1],
-      [3, 2],
-      [2, 3],
-      [1, 2],
-    ] as const) {
-      expect(slotOf(walls, col, row), `wall at ${col},${row}`).toBe(CLIFF_WALL_SLOT);
-    }
-    // Still a barrier on all four sides: the band's tileset entry is impassable.
-    const entry = set.autotiles[CLIFF_WALL_SLOT];
-    expect(entry?.passable).toBe(false);
+    // Low cell north of the plateau sees high ground to its south: 180° face.
+    expect(decodeTileId(walls.ids[1 * 6 + 2] ?? 0)).toEqual({
+      kind: "fixed",
+      index: CLIFF_FACE_FIXED_BASE + 2,
+    });
+    // East low cell sees high ground west: 270° face.
+    expect(decodeTileId(walls.ids[2 * 6 + 3] ?? 0)).toEqual({
+      kind: "fixed",
+      index: CLIFF_FACE_FIXED_BASE + 3,
+    });
+    // South keeps the joined run4 cliff band.
+    expect(slotOf(walls, 2, 3)).toBe(CLIFF_WALL_SLOT);
+    // West low cell sees high ground east: 90° face.
+    expect(decodeTileId(walls.ids[2 * 6 + 1] ?? 0)).toEqual({
+      kind: "fixed",
+      index: CLIFF_FACE_FIXED_BASE + 1,
+    });
   });
 
   it("paints level 0 as flat grass with no wall at all", () => {
@@ -108,6 +114,13 @@ describe("the elevation brush", () => {
     const result = paintElevation(layers, set, 1, 2, 2);
 
     expect(layerAt(result, 1).ids[3 * walls.cols + 2]).not.toBe(fixedId(0));
-    expect(slotOf(layerAt(result, 1), 2, 3)).toBe(CLIFF_WALL_SLOT);
+    expect(slotOf(layerAt(result, 1), 2, 3)).toBe(CLIFF_WATER_SLOT);
+  });
+
+  it("uses the level-2 land-facing cliff row over walkable lower terrain", () => {
+    let layers = blank();
+    layers = paintElevation(layers, set, 1, 2, 3);
+    layers = paintElevation(layers, set, 2, 2, 2);
+    expect(slotOf(layerAt(layers, 1), 2, 3)).toBe(CLIFF_WALL_HIGH_2_SLOT);
   });
 });
