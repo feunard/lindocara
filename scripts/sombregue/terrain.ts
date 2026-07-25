@@ -18,7 +18,9 @@ import type { MapElement } from "@lindocara/engine/map-data.js";
 import {
   paintAutotile,
   paintElevation,
+  paintStairs,
   resolveWholeLayer,
+  type StairsDirection,
   syncElevationWalls,
 } from "@lindocara/engine/tile-brush.js";
 import { emptyLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
@@ -451,4 +453,58 @@ export function placeableMask(land: Mask, plateau: Mask | null): Mask {
     }
   }
   return safe;
+}
+
+/**
+ * Cut a staircase into a plateau so the high ground is reachable.
+ *
+ * `paintStairs` accepts only a very specific geometry: the two stair cells must both sit on the LOW
+ * level, the high ground must lie DIAGONALLY from the clicked cell, and no other higher neighbour may
+ * touch either stair cell. For a rectangular plateau that leaves exactly the four outside diagonal
+ * corners — which is why this tries all four rather than reasoning about which edge "faces" the
+ * player. `paintStairs` returns its input unchanged when the shape does not fit, so a changed wall
+ * layer IS the signal that one landed.
+ *
+ * Returns the layers untouched when no corner works (a plateau flush against the sea, say). A map
+ * with an unreachable terrace is a cosmetic loss; inventing terrain to force a stair would be worse.
+ */
+export function carveStairs(
+  layers: TileLayer[],
+  plateau: Mask,
+  land: Mask,
+): { layers: TileLayer[]; placed: { col: number; row: number } | null } {
+  let minCol = Number.POSITIVE_INFINITY;
+  let maxCol = Number.NEGATIVE_INFINITY;
+  let minRow = Number.POSITIVE_INFINITY;
+  let maxRow = Number.NEGATIVE_INFINITY;
+  forEachCell(plateau, (col, row) => {
+    minCol = Math.min(minCol, col);
+    maxCol = Math.max(maxCol, col);
+    minRow = Math.min(minRow, row);
+    maxRow = Math.max(maxRow, row);
+  });
+  if (!Number.isFinite(minCol)) return { layers, placed: null };
+
+  const corners: { col: number; row: number; direction: StairsDirection }[] = [
+    { col: maxCol + 1, row: maxRow + 1, direction: "north" },
+    { col: minCol - 1, row: maxRow + 1, direction: "east" },
+    { col: minCol - 1, row: minRow - 1, direction: "south" },
+    { col: maxCol + 1, row: minRow - 1, direction: "west" },
+  ];
+  const before = JSON.stringify(layers[1]?.ids);
+  for (const corner of corners) {
+    if (!maskAt(land, corner.col, corner.row)) continue;
+    const next = paintStairs(
+      layers,
+      TINY_SWORDS_TILESET,
+      corner.col,
+      corner.row,
+      corner.direction,
+      0,
+    );
+    if (JSON.stringify(next[1]?.ids) !== before) {
+      return { layers: next, placed: { col: corner.col, row: corner.row } };
+    }
+  }
+  return { layers, placed: null };
 }

@@ -25,6 +25,7 @@ import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 import {
   BUSHES,
   blob,
+  carveStairs,
   causeway,
   countCells,
   element,
@@ -263,6 +264,9 @@ function island<K extends string>(params: {
       }
     }
     layers = raise(layers, plateau, 1);
+    // A terrace nobody can climb is scenery, not level design.
+    const stairs = carveStairs(layers, plateau, land);
+    layers = stairs.layers;
     plateauMask = plateau;
   }
 

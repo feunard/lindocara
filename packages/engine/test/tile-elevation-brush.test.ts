@@ -2,7 +2,6 @@ import { paintElevation } from "@lindocara/engine/tile-brush.js";
 import { emptyLayer, type TileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { decodeTileId, fixedId } from "@lindocara/engine/tileset.js";
 import {
-  CLIFF_FACE_FIXED_BASE,
   CLIFF_WALL_SLOT,
   GRASS_SLOTS,
   TINY_SWORDS_TILESET,
@@ -64,7 +63,7 @@ describe("the elevation brush", () => {
     expect(right).toEqual({ kind: "autotile", slot: CLIFF_WALL_SLOT, variant: 1 });
   });
 
-  it("blocks every side of a raised zone with an oriented cliff face", () => {
+  it("blocks every side of a raised zone with the pack's one upright cliff band", () => {
     let layers = blank();
     for (let row = 0; row < 6; row += 1) {
       for (let col = 0; col < 6; col += 1) {
@@ -74,23 +73,21 @@ describe("the elevation brush", () => {
     layers = paintElevation(layers, set, 1, 2, 2);
     const walls = layerAt(layers, 1);
 
-    // Low cell north of the plateau sees high ground to its south: 180° face.
-    expect(decodeTileId(walls.ids[1 * 6 + 2] ?? 0)).toEqual({
-      kind: "fixed",
-      index: CLIFF_FACE_FIXED_BASE + 2,
-    });
-    // East low cell sees high ground west: 270° face.
-    expect(decodeTileId(walls.ids[2 * 6 + 3] ?? 0)).toEqual({
-      kind: "fixed",
-      index: CLIFF_FACE_FIXED_BASE + 3,
-    });
-    // South keeps the joined run4 cliff band.
-    expect(slotOf(walls, 2, 3)).toBe(CLIFF_WALL_SLOT);
-    // West low cell sees high ground east: 90° face.
-    expect(decodeTileId(walls.ids[2 * 6 + 1] ?? 0)).toEqual({
-      kind: "fixed",
-      index: CLIFF_FACE_FIXED_BASE + 1,
-    });
+    // The pack ships ONE wall band — four variants of a horizontal run — and no side or corner face.
+    // Every boundary therefore gets that band UPRIGHT. Rotating it a quarter turn (as this used to
+    // for east/south/west) points the rock's scalloped bottom lip sideways, which is what made three
+    // of every plateau's four edges read as broken art.
+    for (const [col, row] of [
+      [2, 1],
+      [3, 2],
+      [2, 3],
+      [1, 2],
+    ] as const) {
+      expect(slotOf(walls, col, row), `wall at ${col},${row}`).toBe(CLIFF_WALL_SLOT);
+    }
+    // Still a barrier on all four sides: the band's tileset entry is impassable.
+    const entry = set.autotiles[CLIFF_WALL_SLOT];
+    expect(entry?.passable).toBe(false);
   });
 
   it("paints level 0 as flat grass with no wall at all", () => {

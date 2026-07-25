@@ -368,13 +368,6 @@ export function syncElevationWalls(
 
 type CliffDirection = "north" | "east" | "south" | "west";
 
-const CLIFF_ROTATION: Readonly<Record<CliffDirection, 0 | 1 | 2 | 3>> = {
-  north: 0,
-  east: 1,
-  south: 2,
-  west: 3,
-};
-
 function ambientCliffFixed(index: number): boolean {
   return index >= CLIFF_FACE_FIXED_BASE && index < CLIFF_FACE_FIXED_BASE + 4;
 }
@@ -613,16 +606,17 @@ function syncWall(
     return ambient ? eraseTile(walls, tileset, col, row) : walls;
   }
 
-  if (wanted === "north") {
-    if (current.kind === "autotile" && current.slot === CLIFF_WALL_SLOT) return walls;
-    return paintAutotile(walls, tileset, CLIFF_WALL_SLOT, col, row);
-  }
-
-  const wantedIndex = CLIFF_FACE_FIXED_BASE + CLIFF_ROTATION[wanted];
-  if (current.kind === "fixed" && current.index === wantedIndex) return walls;
-  const ids = [...walls.ids];
-  ids[indexOf(walls, col, row)] = fixedId(wantedIndex);
-  return withNeighboursResolved({ ...walls, ids }, tileset, col, row);
+  // UPRIGHT on every side, never rotated.
+  //
+  // The pack ships exactly one wall band — four variants of a horizontal run (two caps, two
+  // middles) — and no side or corner face. Rotating it a quarter turn for an east/west/south
+  // boundary turns the rock's scalloped bottom lip sideways, which is what made three of every
+  // plateau's four edges read as broken. Tiny Swords' own art stacks this same upright band down a
+  // vertical edge, so drawing it unrotated is both what the artist did and the only honest use of
+  // the tiles that exist. `run4` then resolves horizontal continuity for free: a south drop gets its
+  // end caps, and a vertical edge gets the isolated variant, which reads as stacked rock.
+  if (current.kind === "autotile" && current.slot === CLIFF_WALL_SLOT) return walls;
+  return paintAutotile(walls, tileset, CLIFF_WALL_SLOT, col, row);
 }
 
 /**
