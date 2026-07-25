@@ -8,7 +8,6 @@ export interface StartCombatActionOptions {
   skillId?: string;
   slot?: number;
   direction: Vec2;
-  origin?: Vec2;
   now: number;
   anticipationMs: number;
   recoveryMs: number;
@@ -31,7 +30,6 @@ export function startCombatAction(
     ...(options.skillId ? { skillId: options.skillId } : {}),
     ...(options.slot === undefined ? {} : { slot: options.slot }),
     direction: normalizeDirection(options.direction),
-    ...(options.origin === undefined ? {} : { origin: { ...options.origin } }),
     startedAt: options.now,
     impactAt,
     recoveryEndsAt:

@@ -117,8 +117,6 @@ export interface CombatActionRuntime {
   skillId?: string;
   slot?: number;
   direction: Vec2;
-  /** Player/world center at action start, used to lock origin for delayed projectiles. */
-  origin?: Vec2;
   startedAt: number;
   impactAt: number;
   recoveryEndsAt: number;

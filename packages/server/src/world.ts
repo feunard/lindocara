@@ -1799,7 +1799,6 @@ export class World extends DurableObject<Env> {
     if (skill.id === "mend" && now - player.lastHealAt < skill.cooldownMs) return false;
     if (slot !== 1 && (player.skillCooldowns[slot - 1] ?? 0) > now) return false;
     const definition = actionForClassSlot(player.class, slot);
-    const actionOrigin = { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 };
     const heldDirection =
       definition.shape === "teleport" ? heldMovementDirection(player.lastInput) : null;
     const chargeTarget =
@@ -1826,7 +1825,6 @@ export class World extends DurableObject<Env> {
       skillId: skill.id,
       slot,
       direction,
-      origin: actionOrigin,
       now,
       anticipationMs: definition.anticipationMs,
       recoveryMs: definition.recoveryMs,
@@ -2064,7 +2062,9 @@ export class World extends DurableObject<Env> {
       "extra_projectiles",
       skill.slot,
     );
-    const source = action.origin ?? {
+    // Direction is frozen at wind-up, but projectile origin is frozen only when the projectile
+    // actually appears. A moving ranger/priest therefore fires from their active-frame position.
+    const source = {
       x: player.x + PLAYER_SIZE / 2,
       y: player.y + PLAYER_SIZE / 2,
     };

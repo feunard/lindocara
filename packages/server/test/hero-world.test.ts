@@ -712,6 +712,58 @@ describe("party hero admission and authored runtime", { timeout: 20_000 }, () =>
     }
   });
 
+  it.each([
+    ["ranger", "quick_shot"],
+    ["priest", "radiant_bolt"],
+  ] as const)(
+    "spawns a moving %s projectile from the active-frame position",
+    async (playerClass, skillId) => {
+      const map = testMapInput(`Moving ${playerClass} shot`, {
+        cols: 20,
+        rows: 15,
+        spawn: { col: 5, row: 5 },
+        exit: { col: 18, row: 13 },
+      });
+      const party = await testParty(`moving-${playerClass}-shot`, { maps: [map] });
+      const hero = await testHero("Runner", {
+        party,
+        account: party.host,
+        class: playerClass,
+        position: centre(5, 5),
+      });
+      const client = await Client.joinHero(hero);
+      try {
+        await until(`${playerClass} moving-shot welcome`, () => client.welcome);
+        const startY = client.self()?.y;
+        if (startY === undefined) throw new Error("missing moving-shot hero");
+
+        client.action("attack");
+        await until(`${playerClass} attack accepted`, () =>
+          client.received.find(
+            (message) => message.t === "animation" && message.skillId === skillId,
+          ),
+        );
+        client.press("down");
+
+        const sample = await until(`${playerClass} moved projectile`, () => {
+          const self = client.self();
+          const projectile = client.latestSnapshot?.projectiles.find(
+            (candidate) => candidate.ownerId === hero.heroId,
+          );
+          return self && projectile && self.y > startY + 4 ? { self, projectile } : undefined;
+        });
+        client.release();
+
+        // Projectile y is a world-centre coordinate while startY is the player's top-left at click.
+        // It must include movement completed during anticipation, not remain at startY + half-size.
+        expect(sample.projectile.y).toBeGreaterThan(startY + PLAYER_SIZE / 2 + 4);
+      } finally {
+        client.close();
+      }
+    },
+    10_000,
+  );
+
   it("resolves Cleave only at its active frame and never hits behind the hero", {
     timeout: 10_000,
   }, async () => {
