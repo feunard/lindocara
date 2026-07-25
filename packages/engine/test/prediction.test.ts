@@ -1,6 +1,7 @@
 import { colliderIndexFrom, emptyColliderIndex } from "@lindocara/engine/collider.js";
 import { speedForLife } from "@lindocara/engine/death.js";
 import {
+  RAMP_SPEED_MULTIPLIER,
   resolveTerrain,
   type TerrainGeometry,
   VERDANT_REACH_TERRAIN,
@@ -159,6 +160,25 @@ describe("prediction against a non-default zone's geometry", () => {
     );
     expect(server).toEqual({ x: 173, y: 160 });
     expect(reconcile(arrivalSpawn, pending, TEST_ZONE_TERRAIN, "alive")).toEqual(server);
+  });
+});
+
+describe("prediction on a staircase", () => {
+  const terrain: TerrainGeometry = {
+    width: 3 * TILE_SIZE,
+    height: TILE_SIZE,
+    obstacles: [],
+    spawnPoints: [],
+    safeZone: null,
+    tiles: { cols: 3, rows: 1, kinds: ["grass", "ramp", "grass"] },
+    colliders: emptyColliderIndex(3, 1),
+  };
+
+  it("applies the same subtle ramp slowdown encoded in the baked terrain", () => {
+    const origin = { x: TILE_SIZE, y: 16 };
+    const moved = predictStep(origin, command(1, { right: true }), terrain);
+    expect(moved.x - origin.x).toBeCloseTo(PLAYER_SPEED * RAMP_SPEED_MULTIPLIER * TICK_DT);
+    expect(moved.y).toBe(origin.y);
   });
 });
 

@@ -22,28 +22,22 @@ import { describe, expect, it } from "vitest";
 const set = TINY_SWORDS_TILESET;
 const COLS = 8;
 const ROWS = 8;
-const DIRECTIONS = ["north", "east", "south", "west"] as const;
+const DIRECTIONS = ["east", "west"] as const;
 const anchor = { col: 4, row: 4 };
 
 const HIGH_SIDE: Readonly<Record<StairsDirection, { col: number; row: number }>> = {
-  north: { col: 0, row: -1 },
   east: { col: 1, row: 0 },
-  south: { col: 0, row: 1 },
   west: { col: -1, row: 0 },
 };
 
-const EXPECTED_ROTATION: Readonly<Record<StairsDirection, 0 | 1 | 2 | 3>> = {
-  north: 3,
-  east: 0,
-  south: 1,
-  west: 2,
+const EXPECTED_ART: Readonly<Record<StairsDirection, { col: 0 | 3; rotationQuarterTurns: 0 }>> = {
+  east: { col: 0, rotationQuarterTurns: 0 },
+  west: { col: 3, rotationQuarterTurns: 0 },
 };
 
 const CLIFF_FLANK: Readonly<Record<StairsDirection, { col: number; row: number }>> = {
-  north: { col: -1, row: 0 },
   east: { col: 0, row: -1 },
-  south: { col: 1, row: 0 },
-  west: { col: 0, row: 1 },
+  west: { col: 0, row: -1 },
 };
 
 const blank = (): TileLayer[] => [
@@ -79,10 +73,7 @@ function highCellFor(direction: StairsDirection): { col: number; row: number } {
   return { col: high.col + side.col, row: high.row + side.row };
 }
 
-/**
- * Low terrain everywhere, with a high quadrant touching only the official stair's high endpoint.
- * This is the same corner join Pixel Frog's guide illustrates and it rotates with the asset.
- */
+/** Low terrain beside a straight two-cell cliff edge, matching the native side-ramp composition. */
 function fieldForDirection(direction: StairsDirection, lowLevel: 0 | 1 = 0): TileLayer[] {
   let layers = blank();
   for (let row = 0; row < ROWS; row += 1) {
@@ -91,17 +82,9 @@ function fieldForDirection(direction: StairsDirection, lowLevel: 0 | 1 = 0): Til
     }
   }
 
-  const high = highCellFor(direction);
   for (let row = 0; row < ROWS; row += 1) {
     for (let col = 0; col < COLS; col += 1) {
-      const inside =
-        direction === "north"
-          ? col <= high.col && row <= high.row
-          : direction === "east"
-            ? col >= high.col && row <= high.row
-            : direction === "south"
-              ? col >= high.col && row >= high.row
-              : col <= high.col && row >= high.row;
+      const inside = direction === "east" ? col > anchor.col : col < anchor.col;
       if (inside) layers = paintElevation(layers, set, lowLevel + 1, col, row);
     }
   }
@@ -126,12 +109,12 @@ function bodyCentredOn(cell: { col: number; row: number }) {
 
 describe("the official two-cell stairs stamp", () => {
   it("writes both 64px atlas halves without repainting either elevation", () => {
-    const layers = fieldForDirection("north");
+    const layers = fieldForDirection("east");
     const groundBefore = layerAt(layers, 0);
-    const stamped = paintStairs(layers, set, anchor.col, anchor.row, "north", 0);
+    const stamped = paintStairs(layers, set, anchor.col, anchor.row, "east", 0);
 
     expect(layerAt(stamped, 0)).toBe(groundBefore);
-    for (const placement of stairsTilePlacements("north", 0)) {
+    for (const placement of stairsTilePlacements("east", 0)) {
       expect(
         decodeTileId(
           idAt(layerAt(stamped, 1), anchor.col + placement.col, anchor.row + placement.row),
@@ -140,30 +123,27 @@ describe("the official two-cell stairs stamp", () => {
     }
   });
 
-  it("refuses flat ground, a mismatched level, a second high face and an off-map pair", () => {
+  it("refuses flat ground, a mismatched level and an off-map pair", () => {
     let flat = blank();
     for (let row = 0; row < ROWS; row += 1) {
       for (let col = 0; col < COLS; col += 1) {
         flat = paintElevation(flat, set, 0, col, row);
       }
     }
-    expect(paintStairs(flat, set, anchor.col, anchor.row, "north", 0)).toBe(flat);
+    expect(paintStairs(flat, set, anchor.col, anchor.row, "east", 0)).toBe(flat);
 
-    const boundary = fieldForDirection("north");
-    expect(paintStairs(boundary, set, anchor.col, anchor.row, "north", 1)).toBe(boundary);
+    const boundary = fieldForDirection("east");
+    expect(paintStairs(boundary, set, anchor.col, anchor.row, "east", 1)).toBe(boundary);
 
-    // The anchor's eastern neighbour becomes a second high face: two passable whole cells must not
-    // open an unrelated side of the cliff.
-    const corner = paintElevation(boundary, set, 1, anchor.col + 1, anchor.row);
-    expect(paintStairs(corner, set, anchor.col, anchor.row, "north", 0)).toBe(corner);
+    // A neighbouring high face does not invalidate the two endpoints the selected direction joins.
+    const corner = paintElevation(boundary, set, 1, anchor.col - 1, anchor.row);
+    expect(paintStairs(corner, set, anchor.col, anchor.row, "east", 0)).not.toBe(corner);
 
-    expect(paintStairs(boundary, set, 0, anchor.row, "north", 0)).toBe(boundary);
+    expect(paintStairs(boundary, set, anchor.col, 0, "east", 0)).toBe(boundary);
   });
 
-  it("uses the correct source half and rotation for all four high sides", () => {
-    expect(DIRECTIONS.map((direction) => stairsFixedIndex(direction, 0, "high"))).toEqual([
-      0, 4, 8, 12,
-    ]);
+  it("uses the two native side-ramp sources", () => {
+    expect(DIRECTIONS.map((direction) => stairsFixedIndex(direction, 0, "high"))).toEqual([0, 4]);
     for (const direction of DIRECTIONS) {
       const stamped = paintStairs(
         fieldForDirection(direction),
@@ -181,10 +161,10 @@ describe("the official two-cell stairs stamp", () => {
           index: fixedIndex,
         });
         expect(set.fixed[fixedIndex]).toMatchObject({
-          col: 0,
+          col: EXPECTED_ART[direction].col,
           row: part === "high" ? 4 : 5,
           passable: true,
-          rotationQuarterTurns: EXPECTED_ROTATION[direction],
+          rotationQuarterTurns: EXPECTED_ART[direction].rotationQuarterTurns,
         });
       }
     }
@@ -261,7 +241,7 @@ describe("the official two-cell stairs stamp", () => {
     }
   });
 
-  it("bakes a bidirectional low → stair → stair → high route in every orientation and level", () => {
+  it("bakes a bidirectional low → stair → stair → high route in all directions and levels", () => {
     for (const direction of DIRECTIONS) {
       for (const lowLevel of [0, 1] as const) {
         const stamped = paintStairs(
@@ -276,9 +256,9 @@ describe("the official two-cell stairs stamp", () => {
         const low = partCell(direction, "low");
         const highPart = partCell(direction, "high");
         const high = highCellFor(direction);
-        for (const cell of [low, highPart, high]) {
-          expect(kindAt(collision, cell.col, cell.row)).toBe("grass");
-        }
+        expect(kindAt(collision, low.col, low.row)).toBe("ramp");
+        expect(kindAt(collision, highPart.col, highPart.row)).toBe("ramp");
+        expect(kindAt(collision, high.col, high.row)).toBe("grass");
         const route = [bodyCentredOn(low), bodyCentredOn(highPart), bodyCentredOn(high)];
         for (let index = 0; index < route.length - 1; index += 1) {
           const from = route[index];

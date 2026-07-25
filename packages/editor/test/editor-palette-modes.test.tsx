@@ -11,7 +11,7 @@ function fieldBody() {
     terrainActive: true,
     fillActive: false,
     stairsActive: false,
-    stairsDirection: "north" as const,
+    stairsDirection: "east" as const,
     stairsLowLevel: 0 as const,
     spawnActive: false,
     onPickContent: () => {},

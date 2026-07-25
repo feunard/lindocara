@@ -1085,14 +1085,14 @@ describe("AdventureEditorScreen shell", () => {
     await userEvent.click(screen.getByRole("button", { name: t("editor.shell.tool.stairs") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({
       kind: "stairs",
-      direction: "north",
+      direction: "east",
       lowLevel: 0,
     });
 
-    await userEvent.click(screen.getByRole("button", { name: t("editor.stairs.direction.east") }));
+    await userEvent.click(screen.getByRole("button", { name: t("editor.stairs.direction.west") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({
       kind: "stairs",
-      direction: "east",
+      direction: "west",
       lowLevel: 0,
     });
 
@@ -1103,7 +1103,7 @@ describe("AdventureEditorScreen shell", () => {
     );
     expect(stageMock.setTool).toHaveBeenLastCalledWith({
       kind: "stairs",
-      direction: "east",
+      direction: "west",
       lowLevel: 1,
     });
   });

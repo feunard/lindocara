@@ -97,7 +97,7 @@ const DEFAULT_CONTENT: RectFillContent = { kind: "block", block: "grass" };
 const DEFAULT_STAIRS: Readonly<{
   direction: StairsDirection;
   lowLevel: StairsLowLevel;
-}> = { direction: "north", lowLevel: 0 };
+}> = { direction: "east", lowLevel: 0 };
 
 type StageStatus = "loading" | "empty" | "ready" | "error";
 /** The active tool key. `stairs`, the hero-spawn tool, scenery and `event` have no *paint*-toolbar

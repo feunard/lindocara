@@ -12,10 +12,12 @@ import { describe, expect, it } from "vitest";
 describe("mapElementRenderLayer", () => {
   const decor = new Container();
   const actors = new Container();
+  const sky = new Container();
 
   it("keeps a ground decal below the actors and Y-sorts objects and canopies among them", () => {
     expect(mapElementRenderLayer("ground", decor, actors)).toBe(decor);
     expect(mapElementRenderLayer("object", decor, actors)).toBe(actors);
     expect(mapElementRenderLayer("canopy", decor, actors)).toBe(actors);
+    expect(mapElementRenderLayer("sky", decor, actors, sky)).toBe(sky);
   });
 });

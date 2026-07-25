@@ -18,7 +18,6 @@ import {
   ELEMENT_OFFSET_PX,
   ELEMENT_OFFSET_STEPS,
   elementWorldCollider,
-  MAP_LAYERS,
   type MapElement,
   quarterCellAt,
   sameElementSlot,
@@ -47,7 +46,7 @@ import {
 } from "@lindocara/renderer/editor-asset-art.js";
 import { TINY_SWORDS_ENEMIES } from "@lindocara/renderer/enemy-art.js";
 import { acquireStageApp } from "@lindocara/renderer/stage-application.js";
-import { foamFrameAt } from "@lindocara/renderer/terrain-visuals.js";
+import { foamFrameAt, foamPhaseAt } from "@lindocara/renderer/terrain-visuals.js";
 import { tileDrawAt } from "@lindocara/renderer/tile-draw.js";
 import {
   sliceStrip,
@@ -236,8 +235,8 @@ const HOVER_GHOST_ALPHA = 0.68;
 const HOVER_ILLEGAL_GHOST_ALPHA = 0.48;
 const HOVER_ILLEGAL_FILL_ALPHA = 0.28;
 
-/** The cells a tool's stamp will touch, anchored at its low entrance `(col,row)`. Tiny Swords'
- *  official stair is a two-cell 64×128 asset, rotated into a 128×64 pair for north/south. */
+/** The cells a tool's stamp will touch, anchored at its low entrance `(col,row)`. Both supported
+ *  side ramps use Tiny Swords' native vertical pair. */
 export function stampFootprintCells(
   tool: EditorTool,
   col: number,
@@ -694,11 +693,12 @@ export function paintLandCell(
 /** A stored `variant` folded into `[0, length)`, sign-safe — the same fold `renderer.ts` applies to
  *  a wire element, so the editor previews the sprite the world will draw. */
 interface StageTextures {
-  /** The whole `Tilemap_color1.png` grid, `[row][col]` — the same slice the world renderer
+  /** The whole extended Tiny Swords grid, `[row][col]` — the same slice the world renderer
    *  indexes a frozen tile id into, so both draw an authored map from one sheet layout. */
   tileset: Texture[][];
   water: Texture;
   foam: Texture[];
+  shadow: Texture;
   editorAssets: Map<EditorAssetId, EditorAssetArt>;
   spawn: Texture;
   eventSign: Texture;
@@ -716,19 +716,28 @@ async function loadStageTextures(assetIds: Iterable<EditorAssetId>): Promise<Sta
   const uniqueMonsterSources = [
     ...new Set([...monsterSheets.values()].map((sheet) => sheet.source)),
   ];
-  const [tilesetSheet, waterTexture, foamSheet, heroTexture, eventSign, ...monsterTextures] =
-    await Promise.all([
-      Assets.load<Texture>(TINY_SWORDS_TERRAIN.tileset),
-      Assets.load<Texture>(TINY_SWORDS_TERRAIN.water),
-      Assets.load<Texture>(TINY_SWORDS_TERRAIN.foam),
-      Assets.load<Texture>(heroSheet.source),
-      Assets.load<Texture>(`${TINY_SWORDS_ROOT}/deco/17.png`),
-      ...uniqueMonsterSources.map((source) => Assets.load<Texture>(source)),
-    ]);
+  const [
+    tilesetSheet,
+    waterTexture,
+    foamSheet,
+    shadowTexture,
+    heroTexture,
+    eventSign,
+    ...monsterTextures
+  ] = await Promise.all([
+    Assets.load<Texture>(TINY_SWORDS_TERRAIN.tileset),
+    Assets.load<Texture>(TINY_SWORDS_TERRAIN.water),
+    Assets.load<Texture>(TINY_SWORDS_TERRAIN.foam),
+    Assets.load<Texture>(TINY_SWORDS_TERRAIN.shadow),
+    Assets.load<Texture>(heroSheet.source),
+    Assets.load<Texture>(`${TINY_SWORDS_ROOT}/deco/17.png`),
+    ...uniqueMonsterSources.map((source) => Assets.load<Texture>(source)),
+  ]);
   // Pixel art, every one: nearest keeps the tiles square exactly as the world renderer does.
   tilesetSheet.source.style.scaleMode = "nearest";
   waterTexture.source.style.scaleMode = "nearest";
   foamSheet.source.style.scaleMode = "nearest";
+  shadowTexture.source.style.scaleMode = "nearest";
   heroTexture.source.style.scaleMode = "nearest";
   eventSign.source.style.scaleMode = "nearest";
   for (const texture of monsterTextures) texture.source.style.scaleMode = "nearest";
@@ -747,6 +756,7 @@ async function loadStageTextures(assetIds: Iterable<EditorAssetId>): Promise<Sta
     tileset: sliceTilesetSheet(tilesetSheet, TINY_SWORDS_SHEET_COLS, TINY_SWORDS_SHEET_ROWS),
     water: waterTexture,
     foam: sliceStrip(foamSheet, TINY_SWORDS_FOAM_FRAME, TINY_SWORDS_FOAM_FRAMES),
+    shadow: shadowTexture,
     editorAssets: await loadEditorAssetArts(assetIds),
     spawn: sliceStrip(heroTexture, TINY_SWORDS_UNIT_FRAME, heroSheet.frames)[0] ?? heroTexture,
     eventSign,
@@ -914,13 +924,28 @@ async function buildSession(
   // One below-priority land container per logical tile layer, stacked in layer order in the same
   // z-slot the single `landLayer` used to occupy — so the composite is visually identical, but each
   // logical layer's tiles are now separable, which is what "dim other layers" fades independently.
-  const tileLayers: Container[] = Array.from({ length: MAP_LAYERS }, () => new Container());
+  // Pixel Frog's documented terrain order: level 0, shadow 1, level 1, shadow 2, level 2.
+  const terrainLevelLayers = [new Container(), new Container(), new Container()] as const;
+  const elevationShadowLayers = [new Container(), new Container()] as const;
+  const tileLayers: Container[] = [
+    terrainLevelLayers[0],
+    elevationShadowLayers[0],
+    terrainLevelLayers[1],
+    elevationShadowLayers[1],
+    terrainLevelLayers[2],
+  ];
   const groundElementLayer = new Container();
   const objectElementLayer = new Container();
   const canopyElementLayer = new Container();
+  const skyElementLayer = new Container();
   // The three prop containers as one group, so `applyModeDim` can fade the whole Element plane at
   // once (Field/Event modes dim it together).
-  const elementContainers = [groundElementLayer, objectElementLayer, canopyElementLayer];
+  const elementContainers = [
+    groundElementLayer,
+    objectElementLayer,
+    canopyElementLayer,
+    skyElementLayer,
+  ];
   const aboveLandLayer = new Container();
   // D18: the collision-visualisation overlay, above terrain/props (it shades solid tiles and outlines
   // element colliders that sit among them) but below the grid lines, so the grid stays legible drawn
@@ -950,6 +975,7 @@ async function buildSession(
     objectElementLayer,
     canopyElementLayer,
     aboveLandLayer,
+    skyElementLayer,
     collisionLayer,
     gridLayer,
     markerLayer,
@@ -960,8 +986,8 @@ async function buildSession(
 
   // Rebuilt every redraw; the ticker retextures these in place so the coastline and the trees are
   // alive while you paint, not only after.
-  let foamSprites: Sprite[] = [];
-  let swaySprites: { sprite: Sprite; frames: Texture[] }[] = [];
+  let foamSprites: Array<{ sprite: Sprite; phase: number }> = [];
+  let swaySprites: { sprite: Sprite; frames: Texture[]; durationMs: number }[] = [];
 
   const mapCols = (): number => editorMapSize(map).cols;
   const mapRows = (): number => editorMapSize(map).rows;
@@ -1008,6 +1034,7 @@ async function buildSession(
       groundElementLayer,
       objectElementLayer,
       canopyElementLayer,
+      skyElementLayer,
       aboveLandLayer,
       collisionLayer,
       markerLayer,
@@ -1038,24 +1065,35 @@ async function buildSession(
         // differently from the game it is previewing. Each logical layer draws its below-priority
         // tiles into its own container (so dim can fade them one layer at a time) and its rare
         // above-priority tiles into the shared `aboveLandLayer`, keeping the renderer's z-split.
+        const ground = map.layers[0];
+        const groundDraw = ground ? tileDrawAt(TINY_SWORDS_TILESET, ground, col, row) : null;
+        if (groundDraw && (groundDraw.renderLevel === 1 || groundDraw.renderLevel === 2)) {
+          const shadow = new Sprite(textures.shadow);
+          shadow.anchor.set(0.5);
+          shadow.position.set(x + TILE_SIZE / 2, y + TILE_SIZE / 2 + TILE_SIZE);
+          elevationShadowLayers[groundDraw.renderLevel === 1 ? 0 : 1].addChild(shadow);
+        }
+
         let drewAnything = false;
         for (let layerIndex = 0; layerIndex < map.layers.length; layerIndex++) {
           const layer = map.layers[layerIndex];
-          const container = tileLayers[layerIndex];
-          if (!layer || !container) continue;
-          if (
-            paintLandCell(
-              TINY_SWORDS_TILESET,
-              [layer],
-              textures.tileset,
-              col,
-              row,
-              container,
-              aboveLandLayer,
-            )
-          ) {
-            drewAnything = true;
-          }
+          if (!layer) continue;
+          const draw = tileDrawAt(TINY_SWORDS_TILESET, layer, col, row);
+          if (!draw) continue;
+          const texture = textures.tileset[draw.cell.row]?.[draw.cell.col];
+          if (!texture) continue;
+          const tile = new Sprite(texture);
+          tile.anchor.set(0.5);
+          tile.position.set(x + TILE_SIZE / 2, y + TILE_SIZE / 2);
+          tile.width = TILE_SIZE;
+          tile.height = TILE_SIZE;
+          tile.tint = draw.tint;
+          tile.rotation = draw.rotationQuarterTurns * (Math.PI / 2);
+          (draw.priority === "above"
+            ? aboveLandLayer
+            : terrainLevelLayers[draw.renderLevel]
+          ).addChild(tile);
+          drewAnything = true;
         }
 
         // Foam reads the baked tilemap, not the layers: a cliff face meeting the sea is not ground,
@@ -1067,7 +1105,10 @@ async function buildSession(
           blob.anchor.set(0.5);
           blob.position.set(x + TILE_SIZE / 2, y + TILE_SIZE / 2);
           foamLayer.addChild(blob);
-          foamSprites.push(blob);
+          foamSprites.push({
+            sprite: blob,
+            phase: foamPhaseAt(col, row, textures.foam.length),
+          });
         }
       }
     }
@@ -1131,10 +1172,16 @@ async function buildSession(
           ? groundElementLayer
           : view.layer === "canopy"
             ? canopyElementLayer
-            : objectElementLayer;
+            : view.layer === "sky"
+              ? skyElementLayer
+              : objectElementLayer;
       layer.addChild(view.container);
       if (view.frames.length > 1)
-        swaySprites.push({ sprite: view.sprite, frames: [...view.frames] });
+        swaySprites.push({
+          sprite: view.sprite,
+          frames: [...view.frames],
+          durationMs: view.durationMs,
+        });
       if (selected?.kind === "element" && sameElementSlot(selected, element)) {
         paintElementSelectionOutline(selected, layer);
       }
@@ -1486,10 +1533,12 @@ async function buildSession(
 
   const animate = (): void => {
     const now = performance.now();
-    const foamFrame = textures.foam[foamFrameAt(now, textures.foam.length)];
-    if (foamFrame) for (const blob of foamSprites) blob.texture = foamFrame;
-    for (const { sprite, frames } of swaySprites) {
-      const frame = catalogElementFrameAt(now, frames);
+    for (const foam of foamSprites) {
+      const foamFrame = textures.foam[foamFrameAt(now, textures.foam.length, foam.phase)];
+      if (foamFrame) foam.sprite.texture = foamFrame;
+    }
+    for (const { sprite, frames, durationMs } of swaySprites) {
+      const frame = catalogElementFrameAt(now, frames, durationMs);
       if (frame) sprite.texture = frame;
     }
   };

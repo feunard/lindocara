@@ -208,7 +208,7 @@ const SQUARE_STRIP_ANIMATION_CATEGORIES = new Set<string>([
 
 function isSquareStripAnimation(raw: RawAsset): boolean {
   return (
-    SQUARE_STRIP_ANIMATION_CATEGORIES.has(raw.category) &&
+    (SQUARE_STRIP_ANIMATION_CATEGORIES.has(raw.category) || raw.category === "Particle FX") &&
     raw.w > raw.h &&
     raw.w % raw.h === 0 &&
     raw.est_frames > 1
@@ -230,7 +230,13 @@ function frameOf(raw: RawAsset, domain: AssetDomain): AssetFrameMetadata | undef
   if (isSquareStripAnimation(raw)) {
     // Square cells, count fixed by geometry (see `isSquareStripAnimation`): one frame per `h`-wide
     // column across a `w`-wide strip.
-    return { width: raw.h, height: raw.h, count: raw.w / raw.h, axis: "x", durationMs: 1_400 };
+    return {
+      width: raw.h,
+      height: raw.h,
+      count: raw.w / raw.h,
+      axis: "x",
+      durationMs: domain === "effect" ? 800 : 1_400,
+    };
   }
   const axis = raw.x_frames > 1 || raw.w >= raw.h ? "x" : "y";
   const count = Math.max(1, axis === "x" ? raw.x_frames : raw.y_frames, raw.est_frames);
@@ -333,6 +339,15 @@ function editorMetadata(
     };
   }
 
+  if (raw.category === "Terrain/Decorations/Clouds") {
+    return {
+      ...common,
+      category: "atmosphere",
+      allowedTerrain: ["grass", "water"],
+      renderLayer: "sky",
+    };
+  }
+
   if (/Terrain\/Resources\/Wood\/Trees\/(Tree[1-4]|Stump [1-4])\.png$/.test(normalized)) {
     return {
       ...common,
@@ -351,6 +366,18 @@ function editorMetadata(
     };
   }
 
+  if (
+    raw.category === "Terrain/Water/Rocks" ||
+    raw.category === "Terrain/Decorations/Rocks in the Water"
+  ) {
+    return {
+      ...common,
+      category: "water-decor",
+      allowedTerrain: ["water"],
+      collider: ROCK_COLLIDER,
+    };
+  }
+
   if (/Terrain\/(Decorations\/)?(Rocks|Water\/Rocks)/.test(raw.category)) {
     return {
       ...common,
@@ -362,19 +389,18 @@ function editorMetadata(
     };
   }
 
-  if (raw.category === "Terrain/Decorations/Rocks in the Water") {
-    return {
-      ...common,
-      category: "rocks",
-      allowedTerrain: ["grass", "water"],
-      collider: ROCK_COLLIDER,
-    };
-  }
-
   if (raw.category === "Terrain/Decorations/Rubber Duck") {
     return {
       ...common,
-      category: "small-decor",
+      category: "water-decor",
+      allowedTerrain: ["water"],
+    };
+  }
+
+  if (raw.category === "Particle FX" && raw.name === "Water Splash") {
+    return {
+      ...common,
+      category: "water-decor",
       allowedTerrain: ["water"],
     };
   }

@@ -2,7 +2,7 @@ import { colliderIndexFrom } from "@lindocara/engine/collider.js";
 import type { ConsumableId } from "@lindocara/engine/consumables.js";
 import { canMove, type LifeState, speedForLife } from "@lindocara/engine/death.js";
 import { facingFromInput } from "@lindocara/engine/directional-combat.js";
-import { resolveTerrain, type TerrainGeometry } from "@lindocara/engine/game.js";
+import { movementSpeedAt, resolveTerrain, type TerrainGeometry } from "@lindocara/engine/game.js";
 import {
   CORRECTION_SMOOTHING_MS,
   MAX_ACCUMULATED_SECONDS,
@@ -150,7 +150,11 @@ function predictPartial(
   geometry: TerrainGeometry,
   speed: number,
 ): Vec2 {
-  return resolveTerrain(position, step(position, input, dt, speed, geometry), geometry);
+  return resolveTerrain(
+    position,
+    step(position, input, dt, movementSpeedAt(position, speed, geometry), geometry),
+    geometry,
+  );
 }
 
 export class WorldClient {

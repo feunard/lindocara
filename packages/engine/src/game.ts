@@ -50,6 +50,24 @@ export interface TerrainGeometry extends WorldBounds {
   colliders: ColliderIndex;
 }
 
+/** A gentle change of cadence, enough to feel a slope without making traversal tedious. */
+export const RAMP_SPEED_MULTIPLIER = 0.86;
+
+/**
+ * Terrain-adjusted hero speed from the body's centre cell.
+ *
+ * Ramp cells are carried in the same server-baked tilemap collision already uses, so the server,
+ * prediction replay and the editor preview cannot disagree about when the slowdown begins.
+ */
+export function movementSpeedAt(position: Vec2, speed: number, geometry: TerrainGeometry): number {
+  const kind = kindAtPoint(
+    geometry.tiles,
+    position.x + PLAYER_SIZE / 2,
+    position.y + PLAYER_SIZE / 2,
+  );
+  return kind === "ramp" ? speed * RAMP_SPEED_MULTIPLIER : speed;
+}
+
 export interface NpcDefinition extends Vec2 {
   id: string;
 }

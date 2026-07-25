@@ -137,6 +137,9 @@ describe("Tiny Swords semantic catalogue", () => {
     for (const entry of editorDefinitions(catalog)) {
       const source = bySource.get(entry.sourcePath);
       if (!source || source.est_frames <= 1) continue;
+      // Cloud PNGs are complete 576x256 sky compositions; the alpha-run detector mistakes their
+      // separated cloud lobes for horizontal animation frames. They intentionally draw whole.
+      if (entry.editor.renderLayer === "sky") continue;
       const cropped = entry.frame !== undefined || entry.editor.sourceRect !== undefined;
       expect(cropped, entry.id).toBe(true);
     }
@@ -162,6 +165,23 @@ describe("Tiny Swords semantic catalogue", () => {
       expect(frame.count, id).toBe((source?.width ?? 0) / (source?.height ?? 1));
       expect(frame.count, id).toBeGreaterThan(1);
     }
+  });
+
+  it("exposes only official atmosphere and offshore effects with their native geometry", () => {
+    const byId = new Map(editorDefinitions(catalog).map((entry) => [entry.id, entry]));
+    for (let index = 1; index <= 8; index += 1) {
+      const id = `decoration.terrain-decorations-clouds.clouds-${String(index).padStart(2, "0")}`;
+      const cloud = byId.get(id);
+      expect(cloud?.editor.category, id).toBe("atmosphere");
+      expect(cloud?.editor.renderLayer, id).toBe("sky");
+      expect(cloud?.width, id).toBe(576);
+      expect(cloud?.height, id).toBe(256);
+    }
+
+    const splash = byId.get("effect.particle-fx.water-splash");
+    expect(splash?.editor.category).toBe("water-decor");
+    expect(splash?.editor.allowedTerrain).toEqual(["water"]);
+    expect(splash?.frame).toMatchObject({ width: 192, height: 192, count: 9, durationMs: 800 });
   });
 
   it("fails when a raw entry is added without a classification", () => {

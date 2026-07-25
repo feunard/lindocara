@@ -7,6 +7,7 @@ import {
   VARIANTS_PER_AUTOTILE,
 } from "@lindocara/engine/tileset.js";
 import {
+  CLIFF_FACE_FIXED_BASE,
   CLIFF_WALL_SLOT,
   GRASS_SLOTS,
   TINY_SWORDS_TILESET,
@@ -79,9 +80,12 @@ describe("tileDrawAt", () => {
     expect(flat?.tint).toBe(0xffffff);
   });
 
-  it("carries each directional stair half's tileset-owned source and rotation", () => {
-    const rotations = { north: 3, east: 0, south: 1, west: 2 } as const;
-    for (const direction of ["north", "east", "south", "west"] as const) {
+  it("carries Tiny Swords' two native side-ramp sources", () => {
+    const art = {
+      east: { col: 0, rotationQuarterTurns: 0 },
+      west: { col: 3, rotationQuarterTurns: 0 },
+    } as const;
+    for (const direction of ["east", "west"] as const) {
       for (const part of ["high", "low"] as const) {
         const draw = tileDrawAt(
           TINY_SWORDS_TILESET,
@@ -89,13 +93,16 @@ describe("tileDrawAt", () => {
           0,
           0,
         );
-        expect(draw?.cell).toEqual({ col: 0, row: part === "high" ? 4 : 5 });
-        expect(draw?.rotationQuarterTurns).toBe(rotations[direction]);
+        expect(draw?.cell).toEqual({
+          col: art[direction].col,
+          row: part === "high" ? 4 : 5,
+        });
+        expect(draw?.rotationQuarterTurns).toBe(art[direction].rotationQuarterTurns);
       }
     }
   });
 
-  it("uses the same two source cells at both supported transition elevations", () => {
+  it("uses the same two native side source cells at both supported transition elevations", () => {
     for (const part of ["high", "low"] as const) {
       const low = tileDrawAt(
         TINY_SWORDS_TILESET,
@@ -113,6 +120,15 @@ describe("tileDrawAt", () => {
       expect(raised?.cell).toEqual(low?.cell);
       expect(low?.tint).toBe(0xffffff);
       expect(raised?.tint).toBe(TINY_SWORDS_TILESET.autotiles[GRASS_SLOTS[1]]?.tint);
+    }
+  });
+
+  it("keeps side and back elevation blockers collision-only", () => {
+    for (const rotation of [1, 2, 3]) {
+      expect(
+        tileDrawAt(TINY_SWORDS_TILESET, layerOf(fixedId(CLIFF_FACE_FIXED_BASE + rotation)), 0, 0),
+      ).toBeNull();
+      expect(TINY_SWORDS_TILESET.fixed[CLIFF_FACE_FIXED_BASE + rotation]?.passable).toBe(false);
     }
   });
 

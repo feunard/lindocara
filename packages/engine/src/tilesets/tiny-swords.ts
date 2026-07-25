@@ -37,26 +37,35 @@ const RAISED_2_TINT = 0xb8b8b8;
 /** Autotile slots, in declaration order. The indices are the contract; the array below matches. */
 export const GRASS_SLOTS: readonly [number, number, number] = [0, 1, 2];
 export const CLIFF_WALL_SLOT = 3;
+export const CLIFF_WATER_SLOT = 4;
+export const CLIFF_WALL_HIGH_2_SLOT = 5;
+export const CLIFF_WATER_HIGH_2_SLOT = 6;
+export const CLIFF_WALL_SLOTS = [
+  CLIFF_WALL_SLOT,
+  CLIFF_WATER_SLOT,
+  CLIFF_WALL_HIGH_2_SLOT,
+  CLIFF_WATER_HIGH_2_SLOT,
+] as const;
 
 /**
- * Stable stored groups remain north/east/south/west. The newly verified source art faces east, so
- * those semantic groups use 270°/0°/90°/180° instead of changing the meaning of an existing id.
+ * Stable stored groups are east/west, backed by the two native side ramps from the sheet.
  */
-const RAMP_DIRECTIONS = [
-  { direction: "north", rotationQuarterTurns: 3 },
-  { direction: "east", rotationQuarterTurns: 0 },
-  { direction: "south", rotationQuarterTurns: 1 },
-  { direction: "west", rotationQuarterTurns: 2 },
+const RAMP_GROUPS = [
+  { sourceCol: 0, rotationQuarterTurns: 0 }, // climb right
+  { sourceCol: 3, rotationQuarterTurns: 0 }, // climb left
 ] as const;
 /**
- * The official stair is one 64×128 asset split across two atlas cells: its high half is row 4 and
- * its low half row 5. Each half has a 0↔1 and 1↔2 tinted entry, making four ids per rotation while
- * preserving the existing sixteen-id ramp band and the cliff ids that follow it.
+ * Each official side ramp is a 64×128 asset split across rows 4 and 5. Each half has a 0↔1 and
+ * 1↔2 tinted entry, making four ids per stored group.
  */
 const RAMP_PARTS = [{ row: 4 }, { row: 5 }] as const;
 const RAMP_LEVELS = [0, 1] as const;
-export const RAMP_FIXED_TILE_COUNT =
-  RAMP_PARTS.length * RAMP_LEVELS.length * RAMP_DIRECTIONS.length;
+export const RAMP_FIXED_TILE_COUNT = RAMP_PARTS.length * RAMP_LEVELS.length * RAMP_GROUPS.length;
+
+/** Stored fixed ids in this stable leading band are passable staircase cells. */
+export function isRampFixedIndex(index: number): boolean {
+  return Number.isSafeInteger(index) && index >= 0 && index < RAMP_FIXED_TILE_COUNT;
+}
 
 /** A middle cliff-face cell repeated along an edge. The source faces south (high ground north);
  * rotations make the other three orientations without inventing a second transform channel. */
@@ -68,6 +77,7 @@ const CLIFF_FACE = {
   priority: "below",
 } as const;
 export const CLIFF_FACE_FIXED_BASE = RAMP_FIXED_TILE_COUNT;
+export const CLIFF_FACE_FIXED_LEVEL_STRIDE = 4;
 
 // Adding a second tileset, or growing `autotiles`/`fixed` here past what pushes an id's digit
 // width past 4, moves `MAX_MAP_JSON_BYTES` (server/index.ts) — its comment derives the cap from
@@ -75,13 +85,21 @@ export const CLIFF_FACE_FIXED_BASE = RAMP_FIXED_TILE_COUNT;
 export const TINY_SWORDS_TILESET: Tileset = {
   id: TINY_SWORDS_TILESET_ID,
   autotiles: [
-    { atlas: ATLAS, origin: { col: 0, row: 0 }, kind: "edge16", passable: true, priority: "below" },
+    {
+      atlas: ATLAS,
+      origin: { col: 0, row: 0 },
+      kind: "edge16",
+      passable: true,
+      priority: "below",
+      renderLevel: 0,
+    },
     {
       atlas: ATLAS,
       origin: { col: 5, row: 0 },
       kind: "edge16",
       passable: true,
       priority: "below",
+      renderLevel: 1,
       tint: RAISED_1_TINT,
     },
     {
@@ -90,34 +108,79 @@ export const TINY_SWORDS_TILESET: Tileset = {
       kind: "edge16",
       passable: true,
       priority: "below",
+      renderLevel: 2,
       tint: RAISED_2_TINT,
     },
-    // The wall is drawn into the cell below its owner and is the reason three-level elevation needs
-    // no directional passage: a cliff face is simply a cell you cannot walk into.
-    { atlas: ATLAS, origin: { col: 5, row: 4 }, kind: "run4", passable: false, priority: "below" },
+    // The guide supplies two cliff rows per elevation: row 4 meets walkable terrain, row 5 meets
+    // water. Repeating them for level 2 also lets the renderer put each face above the shadow cast
+    // by that elevation, instead of flattening both cliff heights into one layer.
+    {
+      atlas: ATLAS,
+      origin: { col: 5, row: 4 },
+      kind: "run4",
+      passable: false,
+      priority: "below",
+      renderLevel: 1,
+    },
+    {
+      atlas: ATLAS,
+      origin: { col: 5, row: 5 },
+      kind: "run4",
+      passable: false,
+      priority: "below",
+      renderLevel: 1,
+    },
+    {
+      atlas: ATLAS,
+      origin: { col: 5, row: 4 },
+      kind: "run4",
+      passable: false,
+      priority: "below",
+      renderLevel: 2,
+      tint: RAISED_1_TINT,
+    },
+    {
+      atlas: ATLAS,
+      origin: { col: 5, row: 5 },
+      kind: "run4",
+      passable: false,
+      priority: "below",
+      renderLevel: 2,
+      tint: RAISED_1_TINT,
+    },
   ],
-  // Pixel Frog's native stair is the two-cell, east-facing asset at atlas (0,4) + (0,5). Rotating
-  // both cells and their destination positions produces the other three requested high sides
-  // without scaling or redrawing the art. Tint follows the lower level, so a 1↔2 stair belongs
-  // visually to level 1.
+  // Pixel Frog's two native stairs are atlas (0,4)+(0,5), climbing right, and
+  // (3,4)+(3,5), climbing left. West keeps its dedicated source instead of mirroring pixels.
+  // Tint follows the lower level, so a 1↔2 stair belongs visually to level 1.
   fixed: [
-    ...RAMP_DIRECTIONS.flatMap(({ rotationQuarterTurns }) =>
+    ...RAMP_GROUPS.flatMap((group) =>
       RAMP_PARTS.flatMap((part) =>
-        RAMP_LEVELS.map((lowLevel) => ({
-          atlas: ATLAS,
-          col: 0,
-          row: part.row,
-          passable: true,
-          priority: "below" as const,
-          ...(lowLevel === 1 ? { tint: RAISED_1_TINT } : {}),
-          rotationQuarterTurns,
-        })),
+        RAMP_LEVELS.map((lowLevel) => {
+          return {
+            atlas: ATLAS,
+            col: group.sourceCol,
+            row: part.row,
+            passable: true,
+            priority: "below" as const,
+            renderLevel: (lowLevel + 1) as 1 | 2,
+            ...(lowLevel === 1 ? { tint: RAISED_1_TINT } : {}),
+            rotationQuarterTurns: group.rotationQuarterTurns,
+          };
+        }),
       ),
     ),
-    ...([0, 1, 2, 3] as const).map((rotationQuarterTurns) => ({
-      ...CLIFF_FACE,
-      rotationQuarterTurns,
-    })),
+    ...([1, 2] as const).flatMap((renderLevel) =>
+      ([0, 1, 2, 3] as const).map((rotationQuarterTurns) => ({
+        ...CLIFF_FACE,
+        renderLevel,
+        ...(renderLevel === 2 ? { tint: RAISED_1_TINT } : {}),
+        rotationQuarterTurns,
+        // Tiny Swords' perspective exposes rock only on the south/front edge of raised ground.
+        // Side and north/back boundaries remain solid for movement but must not draw a rotated rock
+        // wall around the plateau. A staircase replacing one of these cells is visible as usual.
+        ...(rotationQuarterTurns === 0 ? {} : { visible: false }),
+      })),
+    ),
   ],
 };
 

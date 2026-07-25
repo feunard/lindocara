@@ -15,6 +15,7 @@ import {
   EMPTY_TILE,
   type FixedTile,
   type TilePriority,
+  type TileRenderLevel,
   type Tileset,
 } from "@lindocara/engine/tileset.js";
 
@@ -51,7 +52,8 @@ export interface TileDraw {
   cell: { col: number; row: number };
   priority: TilePriority;
   tint: number;
-  /** Clockwise quarter-turns around the cell centre. Autotiles are always unrotated. */
+  renderLevel: TileRenderLevel;
+  /** Clockwise quarter-turns around the cell centre. Autotiles are unrotated. */
   rotationQuarterTurns: 0 | 1 | 2 | 3;
 }
 
@@ -84,7 +86,7 @@ export function tileDrawAt(
     cell = resolved;
   } else {
     const fixed = tileset.fixed[ref.index];
-    if (!fixed) return null;
+    if (!fixed || fixed.visible === false) return null;
     entry = fixed;
     cell = { col: fixed.col, row: fixed.row };
   }
@@ -92,6 +94,7 @@ export function tileDrawAt(
     cell,
     priority: entry.priority,
     tint: entry.tint ?? 0xffffff,
+    renderLevel: entry.renderLevel ?? 0,
     rotationQuarterTurns:
       ref.kind === "fixed" ? ((entry as FixedTile).rotationQuarterTurns ?? 0) : 0,
   };

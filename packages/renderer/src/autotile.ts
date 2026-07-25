@@ -80,6 +80,7 @@ const TILE_VISUALS: Record<TileKind, TileVisual> = {
   forest: "land",
   building: "land",
   bridge: "land",
+  ramp: "land",
   water: "water",
 };
 

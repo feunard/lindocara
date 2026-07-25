@@ -28,7 +28,7 @@ export type AssetDomain = (typeof ASSET_DOMAINS)[number];
 export type AssetNature = "static" | "animated" | "sheet";
 export type AnimationAxis = "x" | "y";
 export type EditorTerrain = "grass" | "water";
-export type EditorRenderLayer = "ground" | "object" | "canopy";
+export type EditorRenderLayer = "ground" | "object" | "canopy" | "sky";
 
 export interface AssetFrameMetadata {
   width: number;
@@ -212,9 +212,12 @@ function effectiveAssetSize(asset: EditorAssetDefinition): { width: number; heig
 export const PLACEABLE_EDITOR_ASSETS: readonly EditorAssetDefinition[] = EDITOR_ASSETS.filter(
   (asset) => {
     if (asset.domain === "character" || asset.domain === "enemy") return false;
-    if (asset.role === "terrain-source") return false;
+    // Raw tilemaps/foam/shadow stay automatic terrain sources, but the pack's dedicated animated
+    // water rocks carry explicit placement metadata and are authored offshore decorations.
+    if (asset.role === "terrain-source" && asset.editor.category !== "water-decor") return false;
     const { width, height } = effectiveAssetSize(asset);
-    return width <= 384 && height <= 384 && asset.editor.visualFootprint.length <= 36;
+    const maxWidth = asset.editor.renderLayer === "sky" ? 576 : 384;
+    return width <= maxWidth && height <= 384 && asset.editor.visualFootprint.length <= 36;
   },
 );
 

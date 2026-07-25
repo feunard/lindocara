@@ -1,6 +1,6 @@
 import { canReclaim, speedForLife } from "@lindocara/engine/death.js";
 import { facingFromInput } from "@lindocara/engine/directional-combat.js";
-import { resolveTerrain } from "@lindocara/engine/game.js";
+import { movementSpeedAt, resolveTerrain } from "@lindocara/engine/game.js";
 import { regenerateResource } from "@lindocara/engine/resources.js";
 import { NO_INPUT, step, TICK_DT } from "@lindocara/engine/simulation.js";
 import type { ZoneDefinition } from "@lindocara/engine/zones.js";
@@ -60,7 +60,7 @@ export function advancePlayers(context: MovementSystemContext): void {
         player,
         player.lastInput,
         TICK_DT,
-        speedForLife(player.life),
+        movementSpeedAt(player, speedForLife(player.life), context.zone.terrain),
         context.zone.terrain,
       );
       const heldBlink =

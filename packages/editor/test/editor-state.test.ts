@@ -476,26 +476,27 @@ describe("applyTool: fill", () => {
 });
 
 describe("applyTool: stairs", () => {
-  function northBoundary(): EditorMap {
-    // Native north orientation: click low entrance (5,5), high half lands at (4,5), and the
-    // elevated endpoint is one cell north at (4,4).
-    return place(blankMap("m", 20, 15), { kind: "elevation", level: 1 }, 4, 4) as EditorMap;
+  function eastBoundary(): EditorMap {
+    // Click low entrance (5,5); the two native halves land at rows 4/5 and replace the two cliff
+    // faces immediately to their right.
+    const top = place(blankMap("m", 20, 15), { kind: "elevation", level: 1 }, 6, 4) as EditorMap;
+    return place(top, { kind: "elevation", level: 1 }, 6, 5) as EditorMap;
   }
 
   it("stamps both official ramp halves from the low entrance as one undo entry", () => {
-    const base = northBoundary();
-    const tool: EditorTool = { kind: "stairs", direction: "north", lowLevel: 0 };
+    const base = eastBoundary();
+    const tool: EditorTool = { kind: "stairs", direction: "east", lowLevel: 0 };
     const next = place(base, tool, 5, 5) as EditorMap;
     expect(next).not.toBeNull();
     const expectedWalls = paintStairs(base.layers, TINY_SWORDS_TILESET, 5, 5)[1];
     expect(next.layers[1]).toEqual(expectedWalls);
     expect(decodeTileId(next.layers[1]?.ids[5 * 20 + 5] ?? EMPTY_TILE)).toEqual({
       kind: "fixed",
-      index: stairsFixedIndex("north", 0, "low"),
+      index: stairsFixedIndex("east", 0, "low"),
     });
-    expect(decodeTileId(next.layers[1]?.ids[5 * 20 + 4] ?? EMPTY_TILE)).toEqual({
+    expect(decodeTileId(next.layers[1]?.ids[4 * 20 + 5] ?? EMPTY_TILE)).toEqual({
       kind: "fixed",
-      index: stairsFixedIndex("north", 0, "high"),
+      index: stairsFixedIndex("east", 0, "high"),
     });
 
     const history = commitEditorHistory(createEditorHistory(base), next);
@@ -504,7 +505,7 @@ describe("applyTool: stairs", () => {
 
   it("refuses flat ground instead of manufacturing its own elevation", () => {
     const base = blankMap("m", 20, 15);
-    const tool: EditorTool = { kind: "stairs", direction: "north", lowLevel: 0 };
+    const tool: EditorTool = { kind: "stairs", direction: "east", lowLevel: 0 };
     expect(place(base, tool, 5, 5)).toBeNull();
 
     const history = commitEditorHistory(createEditorHistory(base), base);
@@ -513,14 +514,14 @@ describe("applyTool: stairs", () => {
 
   it("water painted on the ramp cell removes the ramp", () => {
     const ramp = place(
-      northBoundary(),
-      { kind: "stairs", direction: "north", lowLevel: 0 },
+      eastBoundary(),
+      { kind: "stairs", direction: "east", lowLevel: 0 },
       5,
       5,
     ) as EditorMap;
     const drowned = place(ramp, { kind: "block", block: "water" }, 5, 5) as EditorMap;
     expect(groundSlot(drowned, 5, 5)).toBe(-1);
-    for (const placement of stairsTilePlacements("north", 0)) {
+    for (const placement of stairsTilePlacements("east", 0)) {
       const wall = decodeTileId(
         drowned.layers[1]?.ids[(5 + placement.row) * 20 + 5 + placement.col] ?? EMPTY_TILE,
       );
@@ -530,8 +531,8 @@ describe("applyTool: stairs", () => {
 
   it("a water rectangle removes every ramp cell it covers", () => {
     const ramp = place(
-      northBoundary(),
-      { kind: "stairs", direction: "north", lowLevel: 0 },
+      eastBoundary(),
+      { kind: "stairs", direction: "east", lowLevel: 0 },
       5,
       5,
     ) as EditorMap;
@@ -539,7 +540,7 @@ describe("applyTool: stairs", () => {
     let drowned = place(ramp, water, 4, 5, true) as EditorMap;
     drowned = place(drowned, water, 6, 6, false) as EditorMap;
     expect(groundSlot(drowned, 5, 5)).toBe(-1);
-    for (const placement of stairsTilePlacements("north", 0)) {
+    for (const placement of stairsTilePlacements("east", 0)) {
       const wall = decodeTileId(
         drowned.layers[1]?.ids[(5 + placement.row) * 20 + 5 + placement.col] ?? EMPTY_TILE,
       );

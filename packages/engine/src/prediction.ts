@@ -12,7 +12,7 @@
  */
 
 import { type LifeState, speedForLife } from "./death.js";
-import { resolveTerrain, type TerrainGeometry } from "./game.js";
+import { movementSpeedAt, resolveTerrain, type TerrainGeometry } from "./game.js";
 import type { Command } from "./protocol.js";
 import { PLAYER_SPEED, step, TICK_DT, type Vec2 } from "./simulation.js";
 
@@ -57,7 +57,7 @@ export function predictStep(
 ): Vec2 {
   return resolveTerrain(
     position,
-    step(position, command.input, TICK_DT, speed, geometry),
+    step(position, command.input, TICK_DT, movementSpeedAt(position, speed, geometry), geometry),
     geometry,
   );
 }

@@ -15,7 +15,7 @@ import { isMonsterSpecies, type MonsterSpecies } from "./game.js";
 import { parseTileLayer, type TileLayer } from "./tile-layer-codec.js";
 import { TILE_SIZE, type TileKind, type TileMap } from "./tilemap.js";
 import { decodeTileId, EMPTY_TILE, type Tileset, tileIdInTileset } from "./tileset.js";
-import { tilesetById } from "./tilesets/tiny-swords.js";
+import { isRampFixedIndex, tilesetById } from "./tilesets/tiny-swords.js";
 import { type EditorAssetId, editorAsset, isEditorAssetId } from "./tiny-swords-catalog.js";
 
 export const ELEMENT_KINDS = ["tree", "bush", "stone"] as const;
@@ -393,6 +393,13 @@ export function bakeCollision(map: MapData): TileMap {
     for (let index = 0; index < cells; index += 1) {
       const id = layer.ids[index] ?? EMPTY_TILE;
       if (id === EMPTY_TILE) continue;
+      const ref = decodeTileId(id);
+      if (ref.kind === "fixed" && isRampFixedIndex(ref.index)) {
+        // Keep staircase semantics in the server-baked grid so authoritative movement and client
+        // prediction apply the same climbing pace without independently re-reading visual layers.
+        kinds[index] = "ramp";
+        continue;
+      }
       // No tileset means no entry can answer for any id, so every drawn tile is solid — the same
       // fail-closed posture `tileBlocks` takes one level down. Skipping the sweep instead would
       // make an unknown-tileset map entirely walkable, which is the invisible-hole failure.

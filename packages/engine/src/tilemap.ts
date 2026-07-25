@@ -28,7 +28,15 @@ export const TILE_SIZE = 64;
  * `client/game/autotile.ts`) can enumerate them at runtime instead of a hand-kept parallel list
  * silently drifting out of sync with this one.
  */
-export const TILE_KINDS = ["grass", "plateau", "forest", "building", "water", "bridge"] as const;
+export const TILE_KINDS = [
+  "grass",
+  "plateau",
+  "forest",
+  "building",
+  "water",
+  "bridge",
+  "ramp",
+] as const;
 export type TileKind = (typeof TILE_KINDS)[number];
 
 /** Row-major, `cols * rows` entries. */

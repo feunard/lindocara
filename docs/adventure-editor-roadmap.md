@@ -91,12 +91,16 @@ consumer (`AuthScreen`) of the old one, nothing to decide.
   palette's "recent assets" section is also gone; the terrain palette has no equivalent. Neither is
   scheduled to come back; note it here rather than let it surface as a silent regression later.
 
-Ramps are paintable now — the stairs tool stamps the official two-tile 64×128 Tiny Swords stair,
-rotated toward the chosen high side for a 0↔1 or 1↔2 boundary. The clicked cell is the low entrance
-and the cursor preview shows the full two-cell footprint. It refuses flat ground, mismatched levels
-and corners; water over either half removes the complete stair before restoring normal cliff
-upkeep. Fill still has no fill-to-empty primitive; the palette disables it while water is the active
-content instead of shipping a dead brush.
+Ramps are paintable now — the stairs tool stamps one of the two native Tiny Swords side ramps
+(right/left) along a 0↔1 or 1↔2 boundary. Top/bottom variants are deliberately unsupported. The
+clicked cell is the low half and the cursor preview shows both occupied cells.
+It refuses flat or mismatched endpoints but remains placeable beside other elevation faces; water
+over either half removes the complete stair before restoring normal cliff upkeep. Ramp cells give
+heroes a shared server/prediction slowdown, a small visual lift, and a camera rise that persists on
+the raised level and reverses smoothly on descent. Raised
+ground draws rock only on its front edge; hidden side/back blockers keep the plateau and every stair
+side compatible. Fill still has no fill-to-empty primitive; the palette disables it while water
+is the active content instead of shipping a dead brush.
 
 ## Tranche 3 — Events: data and placement
 

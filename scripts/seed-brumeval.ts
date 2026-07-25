@@ -31,6 +31,7 @@ const MAX_PLAYERS = 4;
 
 interface Config {
   target: URL;
+  title: string;
   reset: boolean;
   dryRun: boolean;
   password: string;
@@ -62,6 +63,7 @@ function configuration(argv: string[]): Config {
   }
   return {
     target,
+    title: args.get("title")?.trim() || ADVENTURE_TITLE,
     reset: args.get("reset") === "true",
     dryRun: args.get("dry-run") === "true",
     password,
@@ -219,6 +221,11 @@ function failure(operation: string, result: ApiResult): Error {
 }
 
 async function ensureSession(config: Config): Promise<void> {
+  if (process.env.SEED_SESSION_COOKIE) {
+    sessionCookieValue = process.env.SEED_SESSION_COOKIE;
+    console.log(`reusing supplied editor session @ ${config.target.origin}`);
+    return;
+  }
   const credentials = JSON.stringify({ username: AUTHOR_USERNAME, password: config.password });
   let auth = await api(config, "/api/register", { method: "POST", body: credentials });
   if (auth.response.status === 409) {
@@ -255,7 +262,7 @@ interface StoredMapSummary {
 
 async function seed(config: Config, world: BuiltWorld): Promise<void> {
   // ① Adventure + three maps.
-  let adventureId = await findAdventureByTitle(config, ADVENTURE_TITLE);
+  let adventureId = await findAdventureByTitle(config, config.title);
   if (adventureId && config.reset) {
     const del = await api(config, `/api/adventures/${adventureId}`, { method: "DELETE" });
     if (!del.response.ok) throw failure("adventure delete", del);
@@ -266,7 +273,7 @@ async function seed(config: Config, world: BuiltWorld): Promise<void> {
   if (!adventureId) {
     const created = await api(config, "/api/adventures", {
       method: "POST",
-      body: JSON.stringify({ title: ADVENTURE_TITLE, maxPlayers: MAX_PLAYERS }),
+      body: JSON.stringify({ title: config.title, maxPlayers: MAX_PLAYERS }),
     });
     const body = created.body as { id?: string; defaultMap?: { id?: string } } | null;
     if (!created.response.ok || !body?.id) throw failure("adventure create", created);
@@ -348,7 +355,7 @@ async function seed(config: Config, world: BuiltWorld): Promise<void> {
       method: "PUT",
       body: JSON.stringify({
         ...mapDataBody(map, true),
-        adventure: { title: ADVENTURE_TITLE, maxPlayers: MAX_PLAYERS, graph },
+        adventure: { title: config.title, maxPlayers: MAX_PLAYERS, graph },
       }),
     });
     const body = put.body as { revision?: number } | null;
@@ -362,7 +369,7 @@ async function seed(config: Config, world: BuiltWorld): Promise<void> {
   const graph: AdventureGraph = { start: null, links: boundLinks };
   const putAdventure = await api(config, `/api/adventures/${adventureId}`, {
     method: "PUT",
-    body: JSON.stringify({ title: ADVENTURE_TITLE, maxPlayers: MAX_PLAYERS, graph, registry }),
+    body: JSON.stringify({ title: config.title, maxPlayers: MAX_PLAYERS, graph, registry }),
   });
   if (!putAdventure.response.ok) throw failure("adventure registry", putAdventure);
   console.log("saved adventure registry (switches + quests)");
