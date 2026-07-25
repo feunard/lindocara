@@ -29,6 +29,7 @@ import {
   isMonsterSpecies,
   isValidClass,
   isWalkable,
+  isWalkableForLumen,
   MAX_MONSTER_BODY_RADIUS,
   MONSTER_AGGRO_RANGE,
   MONSTER_BODY_RADIUS,
@@ -39,7 +40,9 @@ import {
   maxHpForLevel,
   monsterBodyRadius,
   nearestCemetery,
+  nearestShore,
   OBSTACLES,
+  type TerrainGeometry,
   PLAYER_CLASSES,
   pointDistance,
   QUEST_DEFINITIONS,
@@ -47,6 +50,7 @@ import {
   QUEST_SITES,
   type Rect,
   resolveTerrain,
+  resolveTerrainForLumen,
   SAFE_ZONE,
   SPAWN_POINTS,
   spawnPosition,
@@ -65,7 +69,7 @@ import {
 } from "@lindocara/engine/simulation.js";
 import { isSkillUnlocked, SKILL_UNLOCK_LEVEL } from "@lindocara/engine/skills.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
-import { tileMapFromRects } from "@lindocara/testing/tiles.js";
+import { noColliders, tileMapFromRects } from "@lindocara/testing/tiles.js";
 import { describe, expect, it } from "vitest";
 
 function expectValidRect(rect: Rect): void {
@@ -94,6 +98,33 @@ function distanceToRect(position: { x: number; y: number }, rect: Rect): number 
 }
 
 const REACHABILITY_STEP = 64;
+const lumenTerrain: TerrainGeometry = {
+  width: 320,
+  height: 64,
+  spawnPoints: [{ x: 0, y: 0 }],
+  safeZone: null,
+  obstacles: [],
+  tiles: {
+    cols: 5,
+    rows: 1,
+    kinds: ["grass", "water", "water", "grass", "grass"],
+  },
+  colliders: noColliders({ cols: 5, rows: 1, kinds: ["grass", "water", "water", "grass", "grass"] }),
+};
+
+const buildingLumenTerrain: TerrainGeometry = {
+  width: 256,
+  height: 64,
+  spawnPoints: [{ x: 0, y: 0 }],
+  safeZone: null,
+  obstacles: [],
+  tiles: {
+    cols: 4,
+    rows: 1,
+    kinds: ["grass", "building", "water", "grass"],
+  },
+  colliders: noColliders({ cols: 4, rows: 1, kinds: ["grass", "building", "water", "grass"] }),
+};
 
 function sampleKey(position: { x: number; y: number }): string {
   return `${position.x},${position.y}`;
@@ -462,6 +493,31 @@ describe("authoritative world geometry", () => {
     expect(resolved.y).toBeGreaterThan(from.y);
     expect(isWalkable(resolved)).toBe(true);
   });
+
+  it("lets Lumen Step treat water as walkable while normal movement does not", () => {
+    const from = { x: 0, y: 0 };
+    const to = { x: 64, y: 0 };
+    expect(isWalkable(from, PLAYER_SIZE, lumenTerrain)).toBe(true);
+    expect(isWalkable({ x: 64, y: 0 }, PLAYER_SIZE, lumenTerrain)).toBe(false);
+    expect(isWalkableForLumen({ x: 64, y: 0 }, PLAYER_SIZE, lumenTerrain)).toBe(true);
+    expect(resolveTerrain(from, to, lumenTerrain)).toEqual(from);
+    expect(resolveTerrainForLumen(from, to, lumenTerrain)).toEqual({ x: 64, y: 0 });
+  });
+
+  it("keeps Lumen Step blocked by non-water obstacles", () => {
+    const from = { x: 0, y: 0 };
+    const to = { x: 64, y: 0 };
+    expect(isWalkable(from, PLAYER_SIZE, buildingLumenTerrain)).toBe(true);
+    expect(isWalkableForLumen(from, PLAYER_SIZE, buildingLumenTerrain)).toBe(true);
+    expect(resolveTerrainForLumen(from, to, buildingLumenTerrain)).toEqual({ x: 0, y: 0 });
+  });
+
+  it("snaps rematerialization from water to the nearest shore", () => {
+    const shore = nearestShore({ x: 64, y: 0 }, PLAYER_SIZE, lumenTerrain);
+    expect(shore).not.toBeNull();
+    expect(shore?.x).toBe(0);
+    expect(shore?.y).toBe(0);
+  });
 });
 
 describe("authoritative combat and progression rules", () => {
@@ -562,7 +618,7 @@ describe("class rules", () => {
     expect(CLASS_STATS.priest.heal).toEqual({
       base: 35,
       perLevel: 3,
-      range: 195,
+      range: 390,
       cooldownMs: 1500,
     });
     expect(CLASS_STATS.warrior.heal).toBeUndefined();

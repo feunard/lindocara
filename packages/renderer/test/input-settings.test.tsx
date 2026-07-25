@@ -1,6 +1,7 @@
 import { trackActions, trackInput } from "@lindocara/renderer/input.js";
 import {
   gamepadBindingLabel,
+  gamepadControlPressed,
   getInputSettings,
   resetInputBindings,
   setGamepadBinding,
@@ -101,6 +102,20 @@ describe("input remapping", () => {
     fireEvent.keyDown(window, { code: "KeyK" });
     expect(interact).toHaveBeenCalledOnce();
     stop();
+  });
+
+  it("uses remapped gamepad bindings when querying active control state", () => {
+    setGamepadBinding("interact", { kind: "button", index: 2 });
+    const buttons = Array.from({ length: 16 }, () => ({ pressed: false, touched: false, value: 0.4 }));
+    const gamepad = {
+      buttons,
+      axes: [],
+      connected: true,
+      id: "Test controller",
+    } as unknown as Gamepad;
+    expect(gamepadControlPressed("interact", gamepad)).toBe(false);
+    buttons[2] = { pressed: true, touched: true, value: 0.8 };
+    expect(gamepadControlPressed("interact", gamepad)).toBe(true);
   });
 
   it("leaves Tab unbound and never turns it into a combat selection", () => {

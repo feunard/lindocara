@@ -15,6 +15,7 @@ import {
 } from "@lindocara/server/world/skill-system.js";
 import { SpatialGrid } from "@lindocara/server/world/spatial-grid.js";
 import { newPlayer, type PlayerRuntime } from "@lindocara/server/world/world-runtime.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { noColliders, tileMapFromRects } from "@lindocara/testing/tiles.js";
 import { describe, expect, it, vi } from "vitest";
 
@@ -30,6 +31,34 @@ const terrain: TerrainGeometry = {
   obstacles: OBSTACLES,
   tiles: WORLD_TILES,
   colliders: noColliders(WORLD_TILES),
+};
+
+const lumenTerrain: TerrainGeometry = {
+  width: 320,
+  height: 64,
+  spawnPoints: [{ x: 0, y: 0 }],
+  safeZone: null,
+  obstacles: [],
+  tiles: {
+    cols: 5,
+    rows: 1,
+    kinds: ["grass", "water", "water", "grass", "grass"],
+  },
+  colliders: noColliders({ cols: 5, rows: 1, kinds: ["grass", "water", "water", "grass", "grass"] }),
+};
+
+const buildingWallTerrain: TerrainGeometry = {
+  width: 256,
+  height: 64,
+  spawnPoints: [{ x: 0, y: 0 }],
+  safeZone: null,
+  obstacles: [],
+  tiles: {
+    cols: 4,
+    rows: 1,
+    kinds: ["grass", "water", "building", "grass"],
+  },
+  colliders: noColliders({ cols: 4, rows: 1, kinds: ["grass", "water", "building", "grass"] }),
 };
 
 function player(): PlayerRuntime {
@@ -255,5 +284,51 @@ describe("isolated directional combat systems", () => {
       amount: 16,
       parried: false,
     });
+  });
+});
+
+describe("lumen mobility terrain rules", () => {
+  it("moves through water when Lumen is allowed but not with regular terrain resolution", () => {
+    const actor = player();
+    actor.x = 0;
+    actor.y = 0;
+    const grid = new SpatialGrid<PlayerRuntime>(64);
+    grid.insert(actor);
+
+    movePlayerInDirection(actor, { x: 1, y: 0 }, 128, lumenTerrain, grid, true);
+    const lumenPosition = actor.x;
+    expect(lumenPosition).toBeGreaterThan(64);
+
+    actor.x = 0;
+    grid.update(actor, { x: lumenPosition, y: 0 });
+    movePlayerInDirection(actor, { x: 1, y: 0 }, 128, lumenTerrain, grid, false);
+    expect(actor.x).toBeGreaterThan(0);
+    expect(actor.x).toBeLessThan(64);
+  });
+
+  it("still blocks building obstacles during Lumen movement", () => {
+    const blockedWithLumen = player();
+    blockedWithLumen.x = 0;
+    blockedWithLumen.y = 0;
+    const lumenGrid = new SpatialGrid<PlayerRuntime>(64);
+    lumenGrid.insert(blockedWithLumen);
+    movePlayerInDirection(blockedWithLumen, { x: 1, y: 0 }, 128, buildingWallTerrain, lumenGrid, true);
+
+    const blockedNormally = player();
+    blockedNormally.x = 0;
+    blockedNormally.y = 0;
+    const normalGrid = new SpatialGrid<PlayerRuntime>(64);
+    normalGrid.insert(blockedNormally);
+    movePlayerInDirection(
+      blockedNormally,
+      { x: 1, y: 0 },
+      128,
+      buildingWallTerrain,
+      normalGrid,
+      false,
+    );
+    expect(blockedWithLumen.x).toBeGreaterThanOrEqual(TILE_SIZE * 1.5);
+    expect(blockedWithLumen.x).toBeGreaterThan(blockedNormally.x);
+    expect(blockedWithLumen.x).toBeLessThan(TILE_SIZE * 2);
   });
 });

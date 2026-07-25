@@ -1,6 +1,10 @@
 import { canReclaim, speedForLife } from "@lindocara/engine/death.js";
 import { facingFromInput } from "@lindocara/engine/directional-combat.js";
-import { movementSpeedAt, resolveTerrain } from "@lindocara/engine/game.js";
+import {
+  movementSpeedAt,
+  resolveTerrain,
+  resolveTerrainForLumen,
+} from "@lindocara/engine/game.js";
 import { regenerateResource } from "@lindocara/engine/resources.js";
 import { NO_INPUT, step, TICK_DT } from "@lindocara/engine/simulation.js";
 import type { ZoneDefinition } from "@lindocara/engine/zones.js";
@@ -81,7 +85,9 @@ export function advancePlayers(context: MovementSystemContext): void {
           y: player.y + (desired.y - player.y) * ratio,
         };
       }
-      const moved = resolveTerrain(player, desired, context.zone.terrain);
+      const moved = heldBlink
+        ? resolveTerrainForLumen(player, desired, context.zone.terrain)
+        : resolveTerrain(player, desired, context.zone.terrain);
       if (moved.x !== player.x || moved.y !== player.y) {
         const movementDistance = Math.hypot(moved.x - player.x, moved.y - player.y);
         player.x = moved.x;

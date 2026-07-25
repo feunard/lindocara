@@ -143,25 +143,30 @@ function validKeyboardBindings(value: unknown): KeyboardBinding[] | null {
   return bindings.length > 0 ? bindings.slice(0, 2) : null;
 }
 
+function isGamepadBinding(value: unknown): value is GamepadBinding {
+  if (typeof value !== "object" || value === null || !("kind" in value)) return false;
+  const candidate = value as { kind: string; index: unknown; direction?: unknown };
+  const index = candidate.index;
+  if (typeof index !== "number" || !Number.isInteger(index) || index < 0 || index > 31) {
+    return false;
+  }
+  if (candidate.kind === "button") return true;
+  return (
+    candidate.kind === "axis" &&
+    candidate.direction !== undefined &&
+    candidate.direction !== null &&
+    typeof candidate.direction === "number" &&
+    (candidate.direction === -1 || candidate.direction === 1)
+  );
+}
+
 function validGamepadBindings(value: unknown): GamepadBinding[] | null {
-  if (!Array.isArray(value)) return null;
-  const bindings = value.filter((binding): binding is GamepadBinding => {
-    if (typeof binding !== "object" || binding === null || !("kind" in binding)) return false;
-    if (
-      !("index" in binding) ||
-      !Number.isInteger(binding.index) ||
-      binding.index < 0 ||
-      binding.index > 31
-    )
-      return false;
-    if (binding.kind === "button") return true;
-    return (
-      binding.kind === "axis" &&
-      "direction" in binding &&
-      (binding.direction === -1 || binding.direction === 1)
-    );
-  });
-  return bindings.length > 0 ? bindings.slice(0, 2) : null;
+  let bindings: unknown[] = [];
+  if (Array.isArray(value)) bindings = value;
+  else if (isGamepadBinding(value)) bindings = [value];
+  else return null;
+  const filtered = bindings.filter(isGamepadBinding);
+  return filtered.length > 0 ? filtered.slice(0, 2) : null;
 }
 
 function loadSettings(): InputSettings {

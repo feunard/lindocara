@@ -1,6 +1,6 @@
 import { normalizeDirection } from "@lindocara/engine/directional-combat.js";
 import type { TerrainGeometry } from "@lindocara/engine/game.js";
-import { resolveTerrain } from "@lindocara/engine/game.js";
+import { resolveTerrain, resolveTerrainForLumen } from "@lindocara/engine/game.js";
 import type { Input, Vec2 } from "@lindocara/engine/simulation.js";
 import type { SpatialGrid } from "./spatial-grid.js";
 import type { PlayerRuntime } from "./world-runtime.js";
@@ -54,7 +54,9 @@ export function movePlayerInDirection(
   distance: number,
   terrain: TerrainGeometry,
   grid: SpatialGrid<PlayerRuntime>,
+  allowWater = false,
 ): boolean {
+  const resolve = allowWater ? resolveTerrainForLumen : resolveTerrain;
   const length = Math.hypot(direction.x, direction.y);
   if (length === 0 || distance <= 0) return false;
   const unit = { x: direction.x / length, y: direction.y / length };
@@ -62,7 +64,7 @@ export function movePlayerInDirection(
   let movedAny = false;
   while (remaining > 0) {
     const stepDistance = Math.min(12, remaining);
-    const moved = resolveTerrain(
+    const moved = resolve(
       player,
       { x: player.x + unit.x * stepDistance, y: player.y + unit.y * stepDistance },
       terrain,

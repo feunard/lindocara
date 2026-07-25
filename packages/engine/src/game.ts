@@ -11,7 +11,9 @@ import {
   addAxisCrossings,
   isSolidKind,
   isWalkableBox,
+  TILE_SIZE,
   kindAtPoint,
+  kindAt,
   type TileMap,
 } from "./tilemap.js";
 import { VERDANT_REACH_TILES } from "./zones/verdant-reach-tiles.js";
@@ -930,6 +932,79 @@ export function isWalkable(
   return !overlapsCollider(geometry.colliders, position, size);
 }
 
+function isWalkableBoxForLumen(map: TileMap, position: Vec2, size: number): boolean {
+  if (size <= 0) return false;
+  const left = Math.floor(position.x / TILE_SIZE);
+  const top = Math.floor(position.y / TILE_SIZE);
+  const right = Math.floor((position.x + size - 1) / TILE_SIZE);
+  const bottom = Math.floor((position.y + size - 1) / TILE_SIZE);
+  if (left < 0 || top < 0 || right >= map.cols || bottom >= map.rows) return false;
+  for (let row = top; row <= bottom; row++) {
+    for (let col = left; col <= right; col++) {
+      const kind = kindAt(map, col, row);
+      if (kind === "forest" || kind === "building") return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Pas de Lumen traversal: water is passable for this effect, obstacles are not.
+ *
+ * The ordinary movement walkability rejects water completely. This variant reuses the same collider
+ * checks but treats water like land so the teleport effect can glide across lakes.
+ */
+export function isWalkableForLumen(
+  position: Vec2,
+  size: number = PLAYER_SIZE,
+  geometry: TerrainGeometry = VERDANT_REACH_TERRAIN,
+): boolean {
+  if (!isWalkableBoxForLumen(geometry.tiles, position, size)) return false;
+  return !overlapsCollider(geometry.colliders, position, size);
+}
+
+/**
+ * Lumen movement resolves axis-sliding against the same obstacle set as normal movement, but with
+ * water passability enabled for the held traversal phase.
+ */
+export function resolveTerrainForLumen(
+  from: Vec2,
+  desired: Vec2,
+  geometry: TerrainGeometry = VERDANT_REACH_TERRAIN,
+): Vec2 {
+  const clamped = clampToWorld(desired, geometry);
+  let x = from.x;
+  let y = from.y;
+  if (isWalkableForLumen({ x: clamped.x, y: from.y }, PLAYER_SIZE, geometry)) x = clamped.x;
+  if (isWalkableForLumen({ x, y: clamped.y }, PLAYER_SIZE, geometry)) y = clamped.y;
+  return { x, y };
+}
+
+/**
+ * Find the nearest land tile the hero can occupy when a Lumen rematerialisation happens in water.
+ */
+export function nearestShore(
+  position: Vec2,
+  size: number = PLAYER_SIZE,
+  geometry: TerrainGeometry = VERDANT_REACH_TERRAIN,
+): Vec2 | null {
+  let nearest: Vec2 | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (let row = 0; row < geometry.tiles.rows; row++) {
+    for (let col = 0; col < geometry.tiles.cols; col++) {
+      const terrainKind = kindAt(geometry.tiles, col, row);
+      if (terrainKind === "water") continue;
+      const candidate = { x: col * TILE_SIZE, y: row * TILE_SIZE };
+      if (!isWalkable(candidate, size, geometry)) continue;
+      const distance = pointDistance(position, candidate);
+      if (distance >= bestDistance) continue;
+      nearest = candidate;
+      bestDistance = distance;
+    }
+  }
+  return nearest;
+}
+
 /** Axis-separated collision resolution preserves wall sliding and never trusts the client. */
 export function resolveTerrain(
   from: Vec2,
@@ -1005,7 +1080,7 @@ export const CLASS_STATS: Record<PlayerClass, ClassStats> = {
     attackBase: 14,
     attackPerLevel: 2,
     attackRange: 337.5,
-    heal: { base: 35, perLevel: 3, range: 195, cooldownMs: 1_500 },
+    heal: { base: 35, perLevel: 3, range: 390, cooldownMs: 1_500 },
   },
 };
 

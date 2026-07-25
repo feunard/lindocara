@@ -76,6 +76,8 @@ import {
   monsterBodyRadius,
   nearestCemetery,
   pointDistance,
+  isWalkableForLumen,
+  nearestShore,
   QUEST_RUN_LIMIT_MS,
   QUEST_SITE_RESPAWN_MS,
   type QuestChapter,
@@ -236,7 +238,6 @@ import {
 import { persistPlayer } from "./world/persistence-system.js";
 import {
   advanceProjectiles,
-  projectileOrigin,
   removeProjectilesByOwner,
   spawnProjectile,
 } from "./world/projectile-system.js";
@@ -1740,6 +1741,14 @@ export class World extends DurableObject<Env> {
     const action = player.action;
     if (!finishHeldCombatAction(player, now, slot)) return false;
     if (action?.skillId === "blink") {
+      if (!isWalkable(player, PLAYER_SIZE, this.#zone().terrain)) {
+        const shoreline = nearestShore(player, PLAYER_SIZE, this.#zone().terrain);
+        if (shoreline && isWalkableForLumen(player, PLAYER_SIZE, this.#zone().terrain)) {
+          player.x = shoreline.x;
+          player.y = shoreline.y;
+          player.dirty = true;
+        }
+      }
       const renewal = talentEffect(player.class, player.talents, "blink_heal", 3);
       if (renewal) {
         this.#healPlayer(
@@ -1790,6 +1799,7 @@ export class World extends DurableObject<Env> {
     if (skill.id === "mend" && now - player.lastHealAt < skill.cooldownMs) return false;
     if (slot !== 1 && (player.skillCooldowns[slot - 1] ?? 0) > now) return false;
     const definition = actionForClassSlot(player.class, slot);
+    const actionOrigin = { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 };
     const heldDirection =
       definition.shape === "teleport" ? heldMovementDirection(player.lastInput) : null;
     const chargeTarget =
@@ -1816,6 +1826,7 @@ export class World extends DurableObject<Env> {
       skillId: skill.id,
       slot,
       direction,
+      origin: actionOrigin,
       now,
       anticipationMs: definition.anticipationMs,
       recoveryMs: definition.recoveryMs,
@@ -2053,6 +2064,10 @@ export class World extends DurableObject<Env> {
       "extra_projectiles",
       skill.slot,
     );
+    const source = action.origin ?? {
+      x: player.x + PLAYER_SIZE / 2,
+      y: player.y + PLAYER_SIZE / 2,
+    };
     const count = Math.max(1, (projectileDefinition.count ?? 1) + (extraProjectiles?.value ?? 0));
     const spread = projectileDefinition.spreadRadians ?? 0;
     const activationHitEntityIds = count > 1 ? new Set<string>() : undefined;
@@ -2074,7 +2089,11 @@ export class World extends DurableObject<Env> {
         actionId: action.id,
         owner: player,
         roomKey: player.roomKey,
-        origin: projectileOrigin(player, direction, projectileDefinition.radius),
+        origin: {
+          ...source,
+          x: source.x + normalizeDirection(direction).x * (PLAYER_SIZE / 2 + projectileDefinition.radius + 2),
+          y: source.y + normalizeDirection(direction).y * (PLAYER_SIZE / 2 + projectileDefinition.radius + 2),
+        },
         direction,
         definition: projectileDefinition,
         range: skill.range,

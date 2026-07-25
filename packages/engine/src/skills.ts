@@ -147,7 +147,7 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       slot: 2,
       effect: "single_heal",
       cooldownMs: 1_500,
-      range: 195,
+      range: 390,
       power: 35,
       allyPower: 35,
       icon: "✚",

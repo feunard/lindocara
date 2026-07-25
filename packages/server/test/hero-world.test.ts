@@ -62,6 +62,35 @@ function prayerMapInput(): TestMapBody {
   };
 }
 
+function waterLumenMapInput(): TestMapBody {
+  const map = testMapInput("Lumen shores", {
+    cols: 20,
+    rows: 15,
+    spawn: { col: 1, row: 1 },
+    exit: { col: 18, row: 1 },
+  });
+    return {
+      ...map,
+      ...layeredWireTerrain([
+        "....................",
+        "....###########.....",
+        "....###########.....",
+        "....................",
+      "....................",
+      "....................",
+      "....................",
+      "....................",
+      "....................",
+      "....................",
+      "....................",
+      "....................",
+      "....................",
+      "....................",
+      "....................",
+    ]),
+  };
+}
+
 function novaMapInput(): TestMapBody {
   return testMapInput("Divine Nova", {
     cols: 20,
@@ -585,6 +614,50 @@ describe("party hero admission and authored runtime", { timeout: 20_000 }, () =>
       await until("Lumen recovery completes", () =>
         client.self()?.action === null ? true : undefined,
       );
+    } finally {
+      client.close();
+    }
+  });
+
+  it("snaps a Lumen rematerialization onto the nearest shore when cast ends on water", {
+    timeout: 10_000,
+  }, async () => {
+    const party = await testParty("lumen-shore-return", { maps: [waterLumenMapInput()] });
+    const hero = await testHero("Shorebound", {
+      party,
+      account: party.host,
+      class: "priest",
+      level: 5,
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      await until("water map welcome", () => client.welcome);
+
+      const start = client.self();
+      if (!start) throw new Error("missing hero before Lumen Step");
+      expect(start.x).toBeGreaterThan(0);
+
+      client.skill(3);
+      await until("water lumen animation", () =>
+        client.received.find((message) => message.t === "animation" && message.skillId === "blink"),
+      );
+      client.press("right");
+      await until("lumen enters lake", () => {
+        const current = client.self();
+        return current && current.x > start.x + TILE_SIZE ? current : undefined;
+      });
+      client.skillRelease(3);
+      client.release();
+
+      await until("lumen release becomes authoritative", () => {
+        const self = client.self();
+        return self?.action?.skillId === "blink" && self.action.channelEndsAt !== undefined ? self : undefined;
+      });
+      const final = await until("lumen recovery completes", () =>
+        client.self()?.action === null ? client.self() : undefined,
+      );
+      expect(final.x).toBeGreaterThan(TILE_SIZE * 2);
+      expect(final.x).toBeLessThan(TILE_SIZE * 4);
     } finally {
       client.close();
     }
