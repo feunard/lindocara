@@ -261,13 +261,30 @@ function footOffset(raw: RawAsset, domain: AssetDomain): number {
   return Math.max(0, raw.h - raw.alpha_bbox[3]);
 }
 
+/**
+ * The cells an asset's art visually occupies, in foot space.
+ *
+ * Derived from the sprite's real PIXEL span and rounded outward, not from a column count.
+ *
+ * The old form used `-floor(cols/2)` as the first column, which is only centred when the count is
+ * odd: a 320px castle (5 cols) claimed -160..160 under a sprite spanning -160..160, but a 128px
+ * house (2 cols) claimed -96..32 under a sprite spanning -64..64 — half a tile too far west.
+ * `buildingCollider` derives from the same footprint, so every even-width building blocked a strip
+ * of empty grass on its left while leaving its own right edge walk-through.
+ *
+ * A cell `c` spans `[c*64-32, (c+1)*64-32)` (see the TILE_PX comment), so an even-width sprite
+ * centred on the foot point never aligns with the grid; covering it needs the partial cells on both
+ * sides. Over-claiming by half a cell is the conservative direction: it can only reserve a little
+ * more room around a building, never leave part of one unclaimed.
+ */
 function visualCells(width: number, height: number): { col: number; row: number }[] {
-  const cols = Math.max(1, Math.ceil(width / 64));
   const rows = Math.max(1, Math.ceil(height / 64));
-  const firstCol = -Math.floor(cols / 2);
+  const halfWidth = width / 2;
+  const firstCol = Math.floor((-halfWidth + TILE_PX / 2) / TILE_PX);
+  const lastCol = Math.ceil((halfWidth + TILE_PX / 2) / TILE_PX) - 1;
   const result: { col: number; row: number }[] = [];
   for (let row = -(rows - 1); row <= 0; row++) {
-    for (let col = firstCol; col < firstCol + cols; col++) result.push({ col, row });
+    for (let col = firstCol; col <= lastCol; col++) result.push({ col, row });
   }
   return result;
 }
@@ -289,16 +306,10 @@ const ROCK_COLLIDER: Rect = { x: -20, y: -14, width: 40, height: 14 };
 // Buildings still block their whole visual footprint (unchanged behavior this tranche) — just
 // expressed in foot space instead of cells, so the collider survives the removal of
 // `collisionFootprint` without a gameplay change.
+/** The building's own pixel footprint, centred on the foot point the sprite is anchored to. */
 function buildingCollider(width: number, height: number): Rect {
-  const cols = Math.max(1, Math.ceil(width / TILE_PX));
   const rows = Math.min(2, Math.ceil(height / TILE_PX));
-  const firstCol = -Math.floor(cols / 2);
-  return {
-    x: firstCol * TILE_PX - TILE_PX / 2,
-    y: -(rows * TILE_PX),
-    width: cols * TILE_PX,
-    height: rows * TILE_PX,
-  };
+  return { x: -width / 2, y: -(rows * TILE_PX), width, height: rows * TILE_PX };
 }
 
 function editorMetadata(

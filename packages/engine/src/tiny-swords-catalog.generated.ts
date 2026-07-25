@@ -325,11 +325,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 1,
+          "row": -2
+        },
+        {
           "col": -1,
           "row": -1
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -338,6 +346,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -347,7 +359,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -387,11 +399,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 1,
+          "row": -2
+        },
+        {
           "col": -1,
           "row": -1
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -400,6 +420,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -409,7 +433,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -449,11 +473,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 1,
+          "row": -2
+        },
+        {
           "col": -1,
           "row": -1
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -462,6 +494,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -471,7 +507,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -609,11 +645,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -3
         },
         {
+          "col": 1,
+          "row": -3
+        },
+        {
           "col": -1,
           "row": -2
         },
         {
           "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
           "row": -2
         },
         {
@@ -622,6 +666,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -630,6 +678,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -639,7 +691,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -969,11 +1021,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 1,
+          "row": -2
+        },
+        {
           "col": -1,
           "row": -1
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -982,6 +1042,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -991,7 +1055,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -1031,11 +1095,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 1,
+          "row": -2
+        },
+        {
           "col": -1,
           "row": -1
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -1044,6 +1116,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -1053,7 +1129,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -1093,11 +1169,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 1,
+          "row": -2
+        },
+        {
           "col": -1,
           "row": -1
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -1106,6 +1190,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -1115,7 +1203,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -1253,11 +1341,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -3
         },
         {
+          "col": 1,
+          "row": -3
+        },
+        {
           "col": -1,
           "row": -2
         },
         {
           "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
           "row": -2
         },
         {
@@ -1266,6 +1362,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -1274,6 +1374,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -1283,7 +1387,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -1613,11 +1717,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 1,
+          "row": -2
+        },
+        {
           "col": -1,
           "row": -1
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -1626,6 +1738,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -1635,7 +1751,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -1675,11 +1791,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 1,
+          "row": -2
+        },
+        {
           "col": -1,
           "row": -1
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -1688,6 +1812,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -1697,7 +1825,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -1737,11 +1865,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 1,
+          "row": -2
+        },
+        {
           "col": -1,
           "row": -1
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -1750,6 +1886,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -1759,7 +1899,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -1897,11 +2037,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -3
         },
         {
+          "col": 1,
+          "row": -3
+        },
+        {
           "col": -1,
           "row": -2
         },
         {
           "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
           "row": -2
         },
         {
@@ -1910,6 +2058,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -1918,6 +2070,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -1927,7 +2083,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -2257,11 +2413,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 1,
+          "row": -2
+        },
+        {
           "col": -1,
           "row": -1
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -2270,6 +2434,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -2279,7 +2447,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -2319,11 +2487,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 1,
+          "row": -2
+        },
+        {
           "col": -1,
           "row": -1
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -2332,6 +2508,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -2341,7 +2521,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -2381,11 +2561,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 1,
+          "row": -2
+        },
+        {
           "col": -1,
           "row": -1
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -2394,6 +2582,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -2403,7 +2595,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -2541,11 +2733,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -3
         },
         {
+          "col": 1,
+          "row": -3
+        },
+        {
           "col": -1,
           "row": -2
         },
         {
           "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
           "row": -2
         },
         {
@@ -2554,6 +2754,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -2562,6 +2766,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -2571,7 +2779,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -2901,11 +3109,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 1,
+          "row": -2
+        },
+        {
           "col": -1,
           "row": -1
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -2914,6 +3130,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -2923,7 +3143,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -2963,11 +3183,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 1,
+          "row": -2
+        },
+        {
           "col": -1,
           "row": -1
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -2976,6 +3204,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -2985,7 +3217,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -3025,11 +3257,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 1,
+          "row": -2
+        },
+        {
           "col": -1,
           "row": -1
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -3038,6 +3278,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -3047,7 +3291,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -3185,11 +3429,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -3
         },
         {
+          "col": 1,
+          "row": -3
+        },
+        {
           "col": -1,
           "row": -2
         },
         {
           "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
           "row": -2
         },
         {
@@ -3198,6 +3450,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -3206,6 +3462,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -3215,7 +3475,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -3259,11 +3519,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 1,
+          "row": -2
+        },
+        {
           "col": -1,
           "row": -1
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -3272,6 +3540,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -3281,7 +3553,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -3326,11 +3598,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 1,
+          "row": -2
+        },
+        {
           "col": -1,
           "row": -1
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -3339,6 +3619,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -3348,7 +3632,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -3400,6 +3684,10 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 2,
+          "row": -2
+        },
+        {
           "col": -2,
           "row": -1
         },
@@ -3416,6 +3704,10 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 2,
+          "row": -1
+        },
+        {
           "col": -2,
           "row": 0
         },
@@ -3429,6 +3721,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 1,
+          "row": 0
+        },
+        {
+          "col": 2,
           "row": 0
         }
       ],
@@ -3438,7 +3734,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -160,
+        "x": -128,
         "y": -128,
         "width": 256,
         "height": 128
@@ -3490,6 +3786,10 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 2,
+          "row": -2
+        },
+        {
           "col": -2,
           "row": -1
         },
@@ -3506,6 +3806,10 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 2,
+          "row": -1
+        },
+        {
           "col": -2,
           "row": 0
         },
@@ -3519,6 +3823,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 1,
+          "row": 0
+        },
+        {
+          "col": 2,
           "row": 0
         }
       ],
@@ -3528,7 +3836,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -160,
+        "x": -128,
         "y": -128,
         "width": 256,
         "height": 128
@@ -4297,11 +4605,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 1,
+          "row": -2
+        },
+        {
           "col": -1,
           "row": -1
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -4310,6 +4626,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -4319,7 +4639,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -4362,11 +4682,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 1,
+          "row": -2
+        },
+        {
           "col": -1,
           "row": -1
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -4375,6 +4703,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -4384,7 +4716,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -4427,11 +4759,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 1,
+          "row": -2
+        },
+        {
           "col": -1,
           "row": -1
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -4440,6 +4780,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -4449,7 +4793,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -4492,11 +4836,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 1,
+          "row": -2
+        },
+        {
           "col": -1,
           "row": -1
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -4505,6 +4857,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -4514,7 +4870,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -4557,11 +4913,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 1,
+          "row": -2
+        },
+        {
           "col": -1,
           "row": -1
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -4570,6 +4934,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -4579,7 +4947,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -4622,11 +4990,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 1,
+          "row": -2
+        },
+        {
           "col": -1,
           "row": -1
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -4635,6 +5011,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -4644,7 +5024,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -4687,11 +5067,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -3
         },
         {
+          "col": 1,
+          "row": -3
+        },
+        {
           "col": -1,
           "row": -2
         },
         {
           "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
           "row": -2
         },
         {
@@ -4700,6 +5088,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -4708,6 +5100,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -4717,7 +5113,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -4760,11 +5156,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -3
         },
         {
+          "col": 1,
+          "row": -3
+        },
+        {
           "col": -1,
           "row": -2
         },
         {
           "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
           "row": -2
         },
         {
@@ -4773,6 +5177,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -4781,6 +5189,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -4790,7 +5202,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -4833,11 +5245,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -3
         },
         {
+          "col": 1,
+          "row": -3
+        },
+        {
           "col": -1,
           "row": -2
         },
         {
           "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
           "row": -2
         },
         {
@@ -4846,6 +5266,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -4854,6 +5278,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -4863,7 +5291,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -4906,11 +5334,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -3
         },
         {
+          "col": 1,
+          "row": -3
+        },
+        {
           "col": -1,
           "row": -2
         },
         {
           "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
           "row": -2
         },
         {
@@ -4919,6 +5355,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -4927,6 +5367,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -4936,7 +5380,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -4979,11 +5423,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -3
         },
         {
+          "col": 1,
+          "row": -3
+        },
+        {
           "col": -1,
           "row": -2
         },
         {
           "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
           "row": -2
         },
         {
@@ -4992,6 +5444,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -5000,6 +5456,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -5009,7 +5469,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -5052,11 +5512,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -3
         },
         {
+          "col": 1,
+          "row": -3
+        },
+        {
           "col": -1,
           "row": -2
         },
         {
           "col": 0,
+          "row": -2
+        },
+        {
+          "col": 1,
           "row": -2
         },
         {
@@ -5065,6 +5533,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": -1
+        },
+        {
+          "col": 1,
           "row": -1
         },
         {
@@ -5073,6 +5545,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -5082,7 +5558,7 @@ export const GENERATED_EDITOR_ASSETS = [
         "grass"
       ],
       "collider": {
-        "x": -96,
+        "x": -64,
         "y": -128,
         "width": 128,
         "height": 128
@@ -10733,11 +11209,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 1,
+          "row": -1
+        },
+        {
           "col": -1,
           "row": 0
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -10789,11 +11273,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 1,
+          "row": -1
+        },
+        {
           "col": -1,
           "row": 0
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -10845,11 +11337,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 1,
+          "row": -1
+        },
+        {
           "col": -1,
           "row": 0
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -10901,11 +11401,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 1,
+          "row": -1
+        },
+        {
           "col": -1,
           "row": 0
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -11401,6 +11909,10 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -3
         },
         {
+          "col": 2,
+          "row": -3
+        },
+        {
           "col": -2,
           "row": -2
         },
@@ -11417,6 +11929,10 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 2,
+          "row": -2
+        },
+        {
           "col": -2,
           "row": -1
         },
@@ -11433,6 +11949,10 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 2,
+          "row": -1
+        },
+        {
           "col": -2,
           "row": 0
         },
@@ -11446,6 +11966,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 1,
+          "row": 0
+        },
+        {
+          "col": 2,
           "row": 0
         }
       ],
@@ -12104,6 +12628,10 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -3
         },
         {
+          "col": 2,
+          "row": -3
+        },
+        {
           "col": -2,
           "row": -2
         },
@@ -12120,6 +12648,10 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 2,
+          "row": -2
+        },
+        {
           "col": -2,
           "row": -1
         },
@@ -12136,6 +12668,10 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 2,
+          "row": -1
+        },
+        {
           "col": -2,
           "row": 0
         },
@@ -12149,6 +12685,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 1,
+          "row": 0
+        },
+        {
+          "col": 2,
           "row": 0
         }
       ],
@@ -12286,6 +12826,10 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -3
         },
         {
+          "col": 2,
+          "row": -3
+        },
+        {
           "col": -2,
           "row": -2
         },
@@ -12302,6 +12846,10 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 2,
+          "row": -2
+        },
+        {
           "col": -2,
           "row": -1
         },
@@ -12318,6 +12866,10 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 2,
+          "row": -1
+        },
+        {
           "col": -2,
           "row": 0
         },
@@ -12331,6 +12883,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 1,
+          "row": 0
+        },
+        {
+          "col": 2,
           "row": 0
         }
       ],
@@ -12605,6 +13161,10 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -3
         },
         {
+          "col": 2,
+          "row": -3
+        },
+        {
           "col": -2,
           "row": -2
         },
@@ -12621,6 +13181,10 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 2,
+          "row": -2
+        },
+        {
           "col": -2,
           "row": -1
         },
@@ -12637,6 +13201,10 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 2,
+          "row": -1
+        },
+        {
           "col": -2,
           "row": 0
         },
@@ -12650,6 +13218,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 1,
+          "row": 0
+        },
+        {
+          "col": 2,
           "row": 0
         }
       ],
@@ -12772,11 +13344,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 1,
+          "row": -1
+        },
+        {
           "col": -1,
           "row": 0
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -13149,6 +13729,10 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -5
         },
         {
+          "col": 3,
+          "row": -5
+        },
+        {
           "col": -3,
           "row": -4
         },
@@ -13173,6 +13757,10 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -4
         },
         {
+          "col": 3,
+          "row": -4
+        },
+        {
           "col": -3,
           "row": -3
         },
@@ -13197,6 +13785,10 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -3
         },
         {
+          "col": 3,
+          "row": -3
+        },
+        {
           "col": -3,
           "row": -2
         },
@@ -13221,6 +13813,10 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -2
         },
         {
+          "col": 3,
+          "row": -2
+        },
+        {
           "col": -3,
           "row": -1
         },
@@ -13245,6 +13841,10 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 3,
+          "row": -1
+        },
+        {
           "col": -3,
           "row": 0
         },
@@ -13266,6 +13866,10 @@ export const GENERATED_EDITOR_ASSETS = [
         },
         {
           "col": 2,
+          "row": 0
+        },
+        {
+          "col": 3,
           "row": 0
         }
       ],
@@ -13309,11 +13913,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 1,
+          "row": -1
+        },
+        {
           "col": -1,
           "row": 0
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -13358,11 +13970,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 1,
+          "row": -1
+        },
+        {
           "col": -1,
           "row": 0
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -13406,11 +14026,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 1,
+          "row": -1
+        },
+        {
           "col": -1,
           "row": 0
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -13455,11 +14083,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 1,
+          "row": -1
+        },
+        {
           "col": -1,
           "row": 0
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -13503,11 +14139,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 1,
+          "row": -1
+        },
+        {
           "col": -1,
           "row": 0
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -13552,11 +14196,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 1,
+          "row": -1
+        },
+        {
           "col": -1,
           "row": 0
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -13600,11 +14252,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 1,
+          "row": -1
+        },
+        {
           "col": -1,
           "row": 0
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -13650,11 +14310,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 1,
+          "row": -1
+        },
+        {
           "col": -1,
           "row": 0
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -13706,11 +14374,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 1,
+          "row": -1
+        },
+        {
           "col": -1,
           "row": 0
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -13762,11 +14438,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 1,
+          "row": -1
+        },
+        {
           "col": -1,
           "row": 0
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -13818,11 +14502,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 1,
+          "row": -1
+        },
+        {
           "col": -1,
           "row": 0
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -13874,11 +14566,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 1,
+          "row": -1
+        },
+        {
           "col": -1,
           "row": 0
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -13930,11 +14630,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 1,
+          "row": -1
+        },
+        {
           "col": -1,
           "row": 0
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -15030,11 +15738,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 1,
+          "row": -1
+        },
+        {
           "col": -1,
           "row": 0
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -15093,11 +15809,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 1,
+          "row": -1
+        },
+        {
           "col": -1,
           "row": 0
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -15156,11 +15880,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 1,
+          "row": -1
+        },
+        {
           "col": -1,
           "row": 0
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
@@ -15219,11 +15951,19 @@ export const GENERATED_EDITOR_ASSETS = [
           "row": -1
         },
         {
+          "col": 1,
+          "row": -1
+        },
+        {
           "col": -1,
           "row": 0
         },
         {
           "col": 0,
+          "row": 0
+        },
+        {
+          "col": 1,
           "row": 0
         }
       ],
