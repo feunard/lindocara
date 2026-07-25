@@ -42,7 +42,6 @@ import {
   nearestCemetery,
   nearestShore,
   OBSTACLES,
-  type TerrainGeometry,
   PLAYER_CLASSES,
   pointDistance,
   QUEST_DEFINITIONS,
@@ -55,6 +54,7 @@ import {
   SPAWN_POINTS,
   spawnPosition,
   TERRAIN_BLOCKERS,
+  type TerrainGeometry,
   WORLD_BOUNDARY_DEPTH,
   WORLD_LANDMARKS,
   withinRange,
@@ -109,7 +109,11 @@ const lumenTerrain: TerrainGeometry = {
     rows: 1,
     kinds: ["grass", "water", "water", "grass", "grass"],
   },
-  colliders: noColliders({ cols: 5, rows: 1, kinds: ["grass", "water", "water", "grass", "grass"] }),
+  colliders: noColliders({
+    cols: 5,
+    rows: 1,
+    kinds: ["grass", "water", "water", "grass", "grass"],
+  }),
 };
 
 const buildingLumenTerrain: TerrainGeometry = {

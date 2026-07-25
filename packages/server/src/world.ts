@@ -67,6 +67,7 @@ import {
   hasLineOfSight,
   INTERACTION_RANGE,
   isWalkable,
+  isWalkableForLumen,
   LOOT_EXPIRY_MS,
   MAX_MONSTER_BODY_RADIUS,
   MONSTER_AGGRO_RANGE,
@@ -75,9 +76,8 @@ import {
   maxHpForLevel,
   monsterBodyRadius,
   nearestCemetery,
-  pointDistance,
-  isWalkableForLumen,
   nearestShore,
+  pointDistance,
   QUEST_RUN_LIMIT_MS,
   QUEST_SITE_RESPAWN_MS,
   type QuestChapter,
@@ -2091,8 +2091,12 @@ export class World extends DurableObject<Env> {
         roomKey: player.roomKey,
         origin: {
           ...source,
-          x: source.x + normalizeDirection(direction).x * (PLAYER_SIZE / 2 + projectileDefinition.radius + 2),
-          y: source.y + normalizeDirection(direction).y * (PLAYER_SIZE / 2 + projectileDefinition.radius + 2),
+          x:
+            source.x +
+            normalizeDirection(direction).x * (PLAYER_SIZE / 2 + projectileDefinition.radius + 2),
+          y:
+            source.y +
+            normalizeDirection(direction).y * (PLAYER_SIZE / 2 + projectileDefinition.radius + 2),
         },
         direction,
         definition: projectileDefinition,

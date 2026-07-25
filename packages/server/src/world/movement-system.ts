@@ -1,10 +1,6 @@
 import { canReclaim, speedForLife } from "@lindocara/engine/death.js";
 import { facingFromInput } from "@lindocara/engine/directional-combat.js";
-import {
-  movementSpeedAt,
-  resolveTerrain,
-  resolveTerrainForLumen,
-} from "@lindocara/engine/game.js";
+import { movementSpeedAt, resolveTerrain, resolveTerrainForLumen } from "@lindocara/engine/game.js";
 import { regenerateResource } from "@lindocara/engine/resources.js";
 import { NO_INPUT, step, TICK_DT } from "@lindocara/engine/simulation.js";
 import type { ZoneDefinition } from "@lindocara/engine/zones.js";

@@ -11,9 +11,9 @@ import {
   addAxisCrossings,
   isSolidKind,
   isWalkableBox,
-  TILE_SIZE,
-  kindAtPoint,
   kindAt,
+  kindAtPoint,
+  TILE_SIZE,
   type TileMap,
 } from "./tilemap.js";
 import { VERDANT_REACH_TILES } from "./zones/verdant-reach-tiles.js";

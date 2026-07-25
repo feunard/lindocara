@@ -106,7 +106,11 @@ describe("input remapping", () => {
 
   it("uses remapped gamepad bindings when querying active control state", () => {
     setGamepadBinding("interact", { kind: "button", index: 2 });
-    const buttons = Array.from({ length: 16 }, () => ({ pressed: false, touched: false, value: 0.4 }));
+    const buttons = Array.from({ length: 16 }, () => ({
+      pressed: false,
+      touched: false,
+      value: 0.4,
+    }));
     const gamepad = {
       buttons,
       axes: [],

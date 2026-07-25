@@ -1,6 +1,7 @@
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
 import { PLAYER_ACTIONS } from "@lindocara/engine/combat-actions.js";
 import type { TerrainGeometry } from "@lindocara/engine/game.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   advanceCombatActions,
   cancelCombatAction,
@@ -15,7 +16,6 @@ import {
 } from "@lindocara/server/world/skill-system.js";
 import { SpatialGrid } from "@lindocara/server/world/spatial-grid.js";
 import { newPlayer, type PlayerRuntime } from "@lindocara/server/world/world-runtime.js";
-import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { noColliders, tileMapFromRects } from "@lindocara/testing/tiles.js";
 import { describe, expect, it, vi } from "vitest";
 
@@ -44,7 +44,11 @@ const lumenTerrain: TerrainGeometry = {
     rows: 1,
     kinds: ["grass", "water", "water", "grass", "grass"],
   },
-  colliders: noColliders({ cols: 5, rows: 1, kinds: ["grass", "water", "water", "grass", "grass"] }),
+  colliders: noColliders({
+    cols: 5,
+    rows: 1,
+    kinds: ["grass", "water", "water", "grass", "grass"],
+  }),
 };
 
 const buildingWallTerrain: TerrainGeometry = {
@@ -312,7 +316,14 @@ describe("lumen mobility terrain rules", () => {
     blockedWithLumen.y = 0;
     const lumenGrid = new SpatialGrid<PlayerRuntime>(64);
     lumenGrid.insert(blockedWithLumen);
-    movePlayerInDirection(blockedWithLumen, { x: 1, y: 0 }, 128, buildingWallTerrain, lumenGrid, true);
+    movePlayerInDirection(
+      blockedWithLumen,
+      { x: 1, y: 0 },
+      128,
+      buildingWallTerrain,
+      lumenGrid,
+      true,
+    );
 
     const blockedNormally = player();
     blockedNormally.x = 0;

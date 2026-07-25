@@ -69,13 +69,13 @@ function waterLumenMapInput(): TestMapBody {
     spawn: { col: 1, row: 1 },
     exit: { col: 18, row: 1 },
   });
-    return {
-      ...map,
-      ...layeredWireTerrain([
-        "....................",
-        "....###########.....",
-        "....###########.....",
-        "....................",
+  return {
+    ...map,
+    ...layeredWireTerrain([
+      "....................",
+      "....###########.....",
+      "....###########.....",
+      "....................",
       "....................",
       "....................",
       "....................",
@@ -651,7 +651,9 @@ describe("party hero admission and authored runtime", { timeout: 20_000 }, () =>
 
       await until("lumen release becomes authoritative", () => {
         const self = client.self();
-        return self?.action?.skillId === "blink" && self.action.channelEndsAt !== undefined ? self : undefined;
+        return self?.action?.skillId === "blink" && self.action.channelEndsAt !== undefined
+          ? self
+          : undefined;
       });
       const final = await until("lumen recovery completes", () =>
         client.self()?.action === null ? client.self() : undefined,
