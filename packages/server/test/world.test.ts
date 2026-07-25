@@ -1550,8 +1550,8 @@ describe("World", () => {
       class: "priest",
       level: 3,
     });
-    // 260px away: past the 195px projectile travel plus both collision radii, inside snapshot view.
-    const wounded = await Client.join("far_wounded", { position: { x: 1044, y: 450 }, hp: 40 });
+    // 480px away: past the 390px projectile travel plus both collision radii, inside snapshot view.
+    const wounded = await Client.join("far_wounded", { position: { x: 1264, y: 450 }, hp: 40 });
     await until("both welcomes", () => priest.welcome && wounded.welcome);
     await formRuntimeParty(priest, wounded);
 

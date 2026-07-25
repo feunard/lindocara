@@ -71,7 +71,7 @@ describe("directional class kit contract", () => {
     const mend = CLASS_SKILLS.priest.find((skill) => skill.id === "mend");
     expect(mend).toMatchObject({
       cooldownMs: 1_500,
-      range: 195,
+      range: 390,
       power: 35,
       allyPower: 35,
     });
@@ -84,7 +84,7 @@ describe("directional class kit contract", () => {
   it("applies the requested ranged and mobility range increases", () => {
     expect(CLASS_SKILLS.ranger.map((skill) => skill.range)).toEqual([382.5, 405, 324, 0, 517.5]);
     expect(CLASS_SKILLS.ranger[2]?.radius).toBe(324);
-    expect(CLASS_SKILLS.priest.slice(0, 2).map((skill) => skill.range)).toEqual([337.5, 195]);
+    expect(CLASS_SKILLS.priest.slice(0, 2).map((skill) => skill.range)).toEqual([337.5, 390]);
     expect(CLASS_SKILLS.priest[2]).toMatchObject({ id: "blink", distance: 247.5 });
     expect(CLASS_SKILLS.warrior[1]).toMatchObject({
       id: "iron_guard",

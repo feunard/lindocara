@@ -52,7 +52,7 @@ carte. Les projectiles déjà créés restent gouvernés par leurs propres snaps
 | Rôdeur | Dash | 120 ms | 380 ms | Déplacement arrière de 189 |
 | Rôdeur | Heartseeker | 360 ms | 700 ms | Flèche droite rapide, portée 517,5 |
 | Prêtre | Radiant Bolt | 140 ms | 185 ms | Projectile magique, portée 337,5 ; total 325 ms |
-| Prêtre | Mend | 240 ms | 600 ms | Lumière de soin alliée, portée 195, sans auto-soin |
+| Prêtre | Mend | 240 ms | 600 ms | Lumière de soin alliée, portée 390, sans auto-soin |
 | Prêtre | Blink | 180 ms | 420 ms | Maintien directionnel variable, trajet cumulé collisionné de 247,5 |
 | Prêtre | Prayer | 320 ms | 640 ms | Soin allié en rayon 155 avec ligne de vue |
 | Prêtre | Divine Nova | 400 ms | 700 ms | Dégâts et soins en rayon 120 |
@@ -127,7 +127,7 @@ projectiles. Une room vide peut réinitialiser ses monstres, projectiles et loot
 ### Prêtre
 
 - Radiant Bolt est un projectile magique offensif droit, bloqué par le terrain.
-- Mend parcourt jusqu'à 195 px et soigne uniquement le premier allié blessé touché.
+- Mend parcourt jusqu'à 390 px et soigne uniquement le premier allié blessé touché.
 - Lumen Step disparaît progressivement puis suit l'intention de mouvement acceptée par le serveur
   tant que le bouton reste maintenu. La direction peut changer sans rematérialisation ; le trajet
   cumulé est borné à 247,5 px et reste collisionné. Une fois entièrement transformé en nuage, le
