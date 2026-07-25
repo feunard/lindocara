@@ -411,6 +411,46 @@ export function paintHoverCell(
 /** The 1px cell grid overlay (UX wave #8), one Graphics of lines for the whole map. Pure and
  *  Pixi-object-only so it needs no live renderer; `gridLayer.visible` toggles it without a rebuild. */
 const GRID_COLOR = 0x0e1a12;
+const GRID_COORDINATE_COLOR = 0xffffff;
+const GRID_COORDINATE_STROKE = 0x0e1a12;
+
+/**
+ * Number every whole cell along all four map edges. Labels are deliberately one-based because they
+ * are author-facing coordinates: the teleport form performs the matching one-based display ↔
+ * zero-based storage conversion. Painting both opposite edges keeps the axes readable while the
+ * author is working near any corner of a large map.
+ */
+export function paintGridCoordinates(container: Container, cols: number, rows: number): void {
+  const style = {
+    fontFamily: "Arial, sans-serif",
+    fontSize: 11,
+    fontWeight: "bold" as const,
+    fill: GRID_COORDINATE_COLOR,
+    stroke: { color: GRID_COORDINATE_STROKE, width: 3 },
+  };
+  const mapWidth = cols * TILE_SIZE;
+  const mapHeight = rows * TILE_SIZE;
+  for (let col = 0; col < cols; col++) {
+    const x = col * TILE_SIZE + TILE_SIZE / 2;
+    const top = new Text({ text: String(col + 1), style });
+    top.anchor.set(0.5, 0);
+    top.position.set(x, 3);
+    const bottom = new Text({ text: String(col + 1), style });
+    bottom.anchor.set(0.5, 1);
+    bottom.position.set(x, mapHeight - 3);
+    container.addChild(top, bottom);
+  }
+  for (let row = 0; row < rows; row++) {
+    const y = row * TILE_SIZE + TILE_SIZE / 2;
+    const left = new Text({ text: String(row + 1), style });
+    left.anchor.set(0, 0.5);
+    left.position.set(3, y);
+    const right = new Text({ text: String(row + 1), style });
+    right.anchor.set(1, 0.5);
+    right.position.set(mapWidth - 3, y);
+    container.addChild(left, right);
+  }
+}
 
 const EVENT_BOX_COLOR = 0x27272a;
 const EVENT_CHIP_BG_COLOR = 0x18181b;
@@ -1234,6 +1274,7 @@ async function buildSession(
     }
     grid.stroke({ width: 1, color: GRID_COLOR, alpha: 0.35 });
     gridLayer.addChild(grid);
+    paintGridCoordinates(gridLayer, cols, rows);
     gridLayer.visible = gridVisible;
   }
 

@@ -1133,12 +1133,12 @@ describe("AdventureEditorScreen shell", () => {
 
     act(() => cursorCb?.(3, 5));
     expect(
-      screen.getByText(t("editor.shell.status.cursor", { cursor: "(3, 5)" })),
+      screen.getByText(t("editor.shell.status.cursor", { col: 4, row: 6 })),
     ).toBeInTheDocument();
 
     act(() => cursorCb?.(null, null));
     expect(
-      screen.getByText(t("editor.shell.status.cursor", { cursor: "(—, —)" })),
+      screen.getByText(t("editor.shell.status.cursor", { col: "—", row: "—" })),
     ).toBeInTheDocument();
   });
 
@@ -1484,6 +1484,8 @@ describe("AdventureEditorScreen shell", () => {
           );
         if (url === "/api/adventures/adv-2" && method === "GET")
           return Promise.resolve(jsonResponse(adv2));
+        if (url === "/api/adventures/adv-2" && method === "DELETE")
+          return Promise.resolve(new Response(null, { status: 204 }));
         if (url === "/api/maps/m2b" && method === "GET")
           return Promise.resolve(jsonResponse(payloadFor(m2b)));
         const idMatch = url.match(/^\/api\/maps\/([^/]+)$/);
@@ -1560,6 +1562,33 @@ describe("AdventureEditorScreen shell", () => {
       // Cancelled: still on adv-1.
       expect(useUiStore.getState().adventureEditorSession?.adventureId).toBe("adv-1");
       confirm.mockRestore();
+    });
+
+    it("deletes an adventure directly from the Load dialog after confirmation", async () => {
+      const backend = loadableBackend();
+      vi.stubGlobal("fetch", backend);
+      await mountReady();
+
+      screen.getByRole("menuitem", { name: t("editor.shell.menu.file") }).focus();
+      await userEvent.keyboard("{Enter}");
+      await userEvent.click(await screen.findByRole("menuitem", { name: t("editor.shell.load") }));
+
+      const row = (await screen.findByText("Second")).closest("li");
+      if (!row) throw new Error("adventure row not found");
+      await userEvent.click(within(row).getByRole("button", { name: t("editor.delete") }));
+      expect(
+        await screen.findByText(t("adventure.delete.title", { name: "Second" })),
+      ).toBeVisible();
+      await userEvent.click(screen.getByRole("button", { name: t("editor.delete.confirm") }));
+
+      await waitFor(() =>
+        expect(backend).toHaveBeenCalledWith(
+          "/api/adventures/adv-2",
+          expect.objectContaining({ method: "DELETE" }),
+        ),
+      );
+      expect(screen.queryByText("Second")).toBeNull();
+      expect(useUiStore.getState().adventureEditorSession?.adventureId).toBe("adv-1");
     });
 
     it("Quit returns to the title screen, dirty-guarded (cancel stays in the editor)", async () => {

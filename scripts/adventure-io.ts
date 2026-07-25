@@ -186,8 +186,10 @@ async function importAdventure(
     console.log(`saved "${map.name}" content`);
   }
 
-  // ⑤ Exits + cumulative graph in the same transaction (the loadtest/seed seam).
-  const boundLinks: AdventureGraph["links"][number][] = [];
+  // ⑤ Save every exit before validating the graph. A three-map adventure cannot satisfy the graph
+  // validator with a one-map cumulative prefix: the missing tail maps are unreachable until their
+  // exits are present. Ordinary map saves deliberately preserve the stored graph, so all anchors can
+  // be replaced first and the complete graph can then be committed once below.
   for (const map of rewritten.maps) {
     const exits = map.events.filter((event) => event.kind === "exit");
     if (exits.length === 0) continue;
@@ -196,18 +198,13 @@ async function importAdventure(
         (candidate) => candidate.mapId === map.id && candidate.exitId === exit.id,
       );
       if (!link) throw new Error(`bundle graph has no link for exit ${exit.id} on "${map.name}"`);
-      boundLinks.push(link);
     }
-    const graph: AdventureGraph = { start: rewritten.graph.start, links: [...boundLinks] };
     const put = await client.request(`/api/maps/${map.id}`, {
       method: "PUT",
-      body: JSON.stringify({
-        ...mapSaveBody(map, map.events),
-        adventure: { title, maxPlayers: bundle.adventure.maxPlayers, graph },
-      }),
+      body: JSON.stringify(mapSaveBody(map, map.events)),
     });
     if (!put.response.ok) throw client.failure(`map exits ${map.name}`, put);
-    console.log(`saved "${map.name}" exits + graph`);
+    console.log(`saved "${map.name}" exits`);
   }
 
   // ⑥ Registry (switches/variables/quests) + final graph on the adventure row.
@@ -216,7 +213,7 @@ async function importAdventure(
     body: JSON.stringify({
       title,
       maxPlayers: bundle.adventure.maxPlayers,
-      graph: { start: rewritten.graph.start, links: boundLinks },
+      graph: rewritten.graph,
       registry: rewritten.adventure.registry,
     }),
   });

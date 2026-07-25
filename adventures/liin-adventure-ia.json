@@ -1,0 +1,2445 @@
+{
+  "format": "lindocara-adventure",
+  "version": 1,
+  "adventure": {
+    "title": "Liin Adventure IA",
+    "maxPlayers": 4,
+    "registry": {
+      "switches": [
+        {
+          "id": "0001",
+          "name": "Prologue vu"
+        },
+        {
+          "id": "0002",
+          "name": "Sceau d'Aubeval"
+        },
+        {
+          "id": "0003",
+          "name": "Rune de la forêt"
+        },
+        {
+          "id": "0004",
+          "name": "Énigme résolue"
+        },
+        {
+          "id": "0005",
+          "name": "Éclipse purifiée"
+        }
+      ],
+      "variables": [
+        {
+          "id": "0001",
+          "name": "Pièges déclenchés"
+        }
+      ],
+      "quests": [
+        {
+          "schemaVersion": 2,
+          "version": 3,
+          "id": "0001",
+          "title": "Le Sceau d'Aubeval",
+          "description": "La Capitaine Lyra vous charge d'abattre le Gardien d'Os au nord-est de la cité alliée.",
+          "journalSummary": "Vaincre le Gardien d'Os puis revenir auprès de Lyra.",
+          "recommendedLevel": 1,
+          "scope": "party",
+          "repeatable": false,
+          "abandonable": false,
+          "acceptance": "manual",
+          "completion": "turn-in",
+          "giver": {
+            "mapId": "d5549add-f7ce-4232-8c00-24e699adacb6",
+            "eventId": "99bef572-a001-4aa2-8214-88089fa0c4b1"
+          },
+          "turnInTarget": {
+            "mapId": "d5549add-f7ce-4232-8c00-24e699adacb6",
+            "eventId": "99bef572-a001-4aa2-8214-88089fa0c4b1"
+          },
+          "prerequisites": {
+            "minLevel": null,
+            "previousQuestId": null,
+            "mode": "all",
+            "conditions": []
+          },
+          "objectiveMode": "simultaneous",
+          "objectives": [
+            {
+              "id": "0001",
+              "label": "Vaincre le boss Gardien d'Os",
+              "target": 1,
+              "optional": false,
+              "hidden": false,
+              "stage": 0,
+              "type": "defeat-target",
+              "targetRef": {
+                "mapId": "d5549add-f7ce-4232-8c00-24e699adacb6",
+                "eventId": "6e60ca6c-5528-433d-a63b-010e12ba17d4"
+              },
+              "credit": "nearby-party"
+            }
+          ],
+          "rewards": {
+            "experience": 100,
+            "gold": 30,
+            "items": [],
+            "choices": [],
+            "nextQuestId": "0002",
+            "stateChanges": [
+              {
+                "type": "switch",
+                "switchId": "0002",
+                "value": true
+              }
+            ],
+            "customCommands": []
+          },
+          "dialogues": {
+            "offer": "Le Gardien d'Os bloque la porte nord-est. Abattez-le et rapportez-moi son sceau.",
+            "accepted": "Suivez la grande route vers le nord-est. Orin peut vous vendre des potions.",
+            "refused": "Aubeval attendra, mais la forêt continuera de dépérir.",
+            "reminder": "Le Gardien d'Os patrouille près de la porte nord-est.",
+            "ready": "Vous portez le sceau du Gardien. Donnez-le-moi.",
+            "turnIn": "Le sceau vous reconnaît. La porte vers les Bois des Murmures est ouverte.",
+            "completed": "Aubeval se souviendra de votre courage.",
+            "unavailable": ""
+          }
+        },
+        {
+          "schemaVersion": 2,
+          "version": 3,
+          "id": "0002",
+          "title": "Les Essences du Murmure",
+          "description": "Elyne demande deux essences de mana, puis la chute du Minotaure Sylvestre qui empoisonne les étangs.",
+          "journalSummary": "Récolter deux essences, franchir l'étang et vaincre le Minotaure.",
+          "recommendedLevel": 2,
+          "scope": "party",
+          "repeatable": false,
+          "abandonable": false,
+          "acceptance": "manual",
+          "completion": "turn-in",
+          "giver": {
+            "mapId": "ede32d6f-a416-4ec5-96cc-d4c045e5ae47",
+            "eventId": "420f23ee-4911-487a-89d9-05ba4e17f7b1"
+          },
+          "turnInTarget": {
+            "mapId": "ede32d6f-a416-4ec5-96cc-d4c045e5ae47",
+            "eventId": "420f23ee-4911-487a-89d9-05ba4e17f7b1"
+          },
+          "prerequisites": {
+            "minLevel": null,
+            "previousQuestId": "0001",
+            "mode": "all",
+            "conditions": []
+          },
+          "objectiveMode": "sequential",
+          "objectives": [
+            {
+              "id": "0001",
+              "label": "Récolter deux essences de mana",
+              "target": 2,
+              "optional": false,
+              "hidden": false,
+              "stage": 0,
+              "type": "collect",
+              "itemId": "mana_potion",
+              "counting": "acquired"
+            },
+            {
+              "id": "0002",
+              "label": "Vaincre le boss Minotaure Sylvestre",
+              "target": 1,
+              "optional": false,
+              "hidden": false,
+              "stage": 1,
+              "type": "defeat-target",
+              "targetRef": {
+                "mapId": "ede32d6f-a416-4ec5-96cc-d4c045e5ae47",
+                "eventId": "19542e32-5440-4b1b-9fb8-974e75ef98b0"
+              },
+              "credit": "nearby-party"
+            }
+          ],
+          "rewards": {
+            "experience": 180,
+            "gold": 45,
+            "items": [],
+            "choices": [],
+            "nextQuestId": "0003",
+            "stateChanges": [
+              {
+                "type": "switch",
+                "switchId": "0003",
+                "value": true
+              }
+            ],
+            "customCommands": []
+          },
+          "dialogues": {
+            "offer": "La forêt perd sa voix. Récoltez les deux essences lumineuses, puis terrassez le Minotaure au nord.",
+            "accepted": "Les souches brillantes bordent le chemin et l'étang possède un pont praticable.",
+            "refused": "Les murmures faiblissent encore.",
+            "reminder": "Deux essences d'abord, le Minotaure ensuite.",
+            "ready": "Les étangs respirent à nouveau. Revenez recevoir la rune des Trois Pierres.",
+            "turnIn": "Prenez cette rune. La stèle mystérieuse au nord-ouest répondra désormais.",
+            "completed": "La forêt vous appelle ami.",
+            "unavailable": "Aubeval doit d'abord vous confier son sceau."
+          }
+        },
+        {
+          "schemaVersion": 2,
+          "version": 3,
+          "id": "0003",
+          "title": "L'Éclipse Brisée",
+          "description": "Le Sage Maëlys vous envoie sur le plateau pour vaincre le Troll de l'Éclipse, le boss le plus puissant.",
+          "journalSummary": "Monter par l'escalier oriental, vaincre le Troll puis consacrer l'Autel.",
+          "recommendedLevel": 3,
+          "scope": "party",
+          "repeatable": false,
+          "abandonable": false,
+          "acceptance": "manual",
+          "completion": "turn-in",
+          "giver": {
+            "mapId": "5490f471-424b-477d-8f03-a6b04c61aeb0",
+            "eventId": "275e6f3c-42ae-42ec-8062-2c53c7f9cbc9"
+          },
+          "turnInTarget": {
+            "mapId": "5490f471-424b-477d-8f03-a6b04c61aeb0",
+            "eventId": "41222305-d7d6-462b-9b6a-1e8867952b81"
+          },
+          "prerequisites": {
+            "minLevel": null,
+            "previousQuestId": "0002",
+            "mode": "all",
+            "conditions": []
+          },
+          "objectiveMode": "simultaneous",
+          "objectives": [
+            {
+              "id": "0001",
+              "label": "Vaincre le boss Troll de l'Éclipse",
+              "target": 1,
+              "optional": false,
+              "hidden": false,
+              "stage": 0,
+              "type": "defeat-target",
+              "targetRef": {
+                "mapId": "5490f471-424b-477d-8f03-a6b04c61aeb0",
+                "eventId": "ffdf02a5-b0b8-495f-9505-f8cc1d943ee2"
+              },
+              "credit": "nearby-party"
+            }
+          ],
+          "rewards": {
+            "experience": 300,
+            "gold": 80,
+            "items": [],
+            "choices": [],
+            "nextQuestId": null,
+            "stateChanges": [
+              {
+                "type": "switch",
+                "switchId": "0005",
+                "value": true
+              }
+            ],
+            "customCommands": []
+          },
+          "dialogues": {
+            "offer": "Le Troll de l'Éclipse règne sur le plateau. Traversez les étangs, déjouez les runes et montez par l'escalier oriental.",
+            "accepted": "Le Troll est plus puissant que les boss précédents. Préparez vos potions.",
+            "refused": "L'Éclipse gagne du terrain.",
+            "reminder": "L'escalier oriental mène au plateau sans traverser aucun mur.",
+            "ready": "Le Troll est tombé. Consacrez maintenant l'Autel de l'Aurore.",
+            "turnIn": "L'Autel s'embrase. Le Cœur de l'Éclipse peut désormais être purifié.",
+            "completed": "La lumière a retrouvé son chemin.",
+            "unavailable": "La rune des Bois des Murmures vous manque encore."
+          }
+        }
+      ]
+    }
+  },
+  "maps": [
+    {
+      "id": "d5549add-f7ce-4232-8c00-24e699adacb6",
+      "name": "Aubeval - Cité des Sources",
+      "tilesetId": "tiny-swords",
+      "cols": 20,
+      "rows": 15,
+      "layers": [
+        "7,15*18,13,8,16*18,14,8,16*18,14,8,16*18,14,8,16*18,14,8,16*18,14,8,16*18,14,8,16*18,14,8,16*18,14,8,16*11,12*4,16*3,14,8,16*10,14,0*4,8,16*2,14,8,16*10,14,0*4,8,16*2,14,8,16*10,14,0*4,8,16*2,14,8,16*11,15*4,16*3,14,4,12*18,10",
+        "0*300",
+        "0*300"
+      ],
+      "elements": [
+        {
+          "col": 10,
+          "row": 5,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-blue-buildings.castle"
+        },
+        {
+          "col": 4,
+          "row": 7,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-blue-buildings.house1"
+        },
+        {
+          "col": 7,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-blue-buildings.house2"
+        },
+        {
+          "col": 2,
+          "row": 4,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 17,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree4"
+        },
+        {
+          "col": 11,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe1"
+        },
+        {
+          "col": 13,
+          "row": 11,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks-in-the-water.water-rocks-01"
+        },
+        {
+          "col": 15,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks-in-the-water.water-rocks-03"
+        }
+      ],
+      "spawn": {
+        "col": 2,
+        "row": 12
+      },
+      "events": [
+        {
+          "id": "1251a511-511b-4dd0-878f-ee4ec287b028",
+          "col": 2,
+          "row": 12,
+          "name": "Départ d'Aubeval",
+          "ordinal": 1,
+          "kind": "spawn",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "e098432f-2188-4062-b520-2ccb766890d4",
+          "col": 2,
+          "row": 11,
+          "name": "Porte sud",
+          "ordinal": 2,
+          "kind": "entry",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "f0dbfa6c-7b8d-4e35-b6f5-19ba44545dc7",
+          "col": 3,
+          "row": 12,
+          "name": "Prologue",
+          "ordinal": 3,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "auto",
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "DÉBUT — Aubeval protège la dernière Source d'Aurore. La Capitaine Lyra vous attend près de la porte : son sceau ouvrira la route vers la forêt.",
+                  "name": "Narrateur"
+                },
+                {
+                  "t": "setSelfSwitch",
+                  "selfSwitch": "A",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": "A",
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "99bef572-a001-4aa2-8214-88089fa0c4b1",
+          "col": 4,
+          "row": 12,
+          "name": "Capitaine Lyra",
+          "ordinal": 4,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "character.units-blue-units-warrior.warrior-idle",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "df235cab-c88a-4696-b9e5-0886fd8f213c",
+          "col": 7,
+          "row": 12,
+          "name": "Orin le Marchand",
+          "ordinal": 5,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "character.units-blue-units-pawn.pawn-idle-gold",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "Des potions pour la route ? Le bois murmure, mais l'or parle toujours clairement.",
+                  "name": "Orin"
+                },
+                {
+                  "t": "openShop"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "3698a128-c645-4ba2-81d4-4893acca23db",
+          "col": 10,
+          "row": 12,
+          "name": "Panneau de la cité",
+          "ordinal": 6,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "decoration.deco.17",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "Capitaine Lyra ←  |  Marchand au centre  |  Boss et porte de la forêt au nord-est →",
+                  "name": "Panneau"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "ac3debf0-28f4-4db7-83b7-ca0c299b6082",
+          "col": 14,
+          "row": 8,
+          "name": "Éclaireur gobelin",
+          "ordinal": 7,
+          "kind": "monster",
+          "species": "spear_goblin",
+          "patrolRadius": 64,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "a78434bf-0994-4fc2-adc0-e4072f170dba",
+          "col": 17,
+          "row": 9,
+          "name": "Pyromane gobelin",
+          "ordinal": 8,
+          "kind": "monster",
+          "species": "torch_goblin",
+          "patrolRadius": 64,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "a7577b34-904d-435c-8325-6e1844d0b300",
+          "col": 13,
+          "row": 7,
+          "name": "Piège des pillards",
+          "ordinal": 9,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "player-touch",
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "Un câble dissimulé déclenche une volée de pierres. Le piège vous coûte 3 pièces d'or.",
+                  "name": "Narrateur"
+                },
+                {
+                  "t": "changeGold",
+                  "amount": -3
+                },
+                {
+                  "t": "setSelfSwitch",
+                  "selfSwitch": "A",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": "A",
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "6e60ca6c-5528-433d-a63b-010e12ba17d4",
+          "col": 16,
+          "row": 4,
+          "name": "Boss — Gardien d'Os",
+          "ordinal": 10,
+          "kind": "monster",
+          "species": "skull_warden",
+          "patrolRadius": 64,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "4b4a65d9-b1ac-4ead-aea6-0f5727d22585",
+          "col": 18,
+          "row": 2,
+          "name": "Portail vers les Bois",
+          "ordinal": 11,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "decoration.deco.17",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "Le passage reste scellé. Battez le Gardien d'Os puis rapportez son sceau à Lyra.",
+                  "name": "Porte runique"
+                }
+              ]
+            },
+            {
+              "condSwitchId": "0002",
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "decoration.deco.17",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "player-touch",
+              "commands": [
+                {
+                  "t": "teleport",
+                  "mapId": "ede32d6f-a416-4ec5-96cc-d4c045e5ae47",
+                  "col": 2,
+                  "row": 12
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "4d7a6aea-45e5-400b-905e-2b96eed952c5",
+          "col": 18,
+          "row": 1,
+          "name": "Sortie vers les Bois",
+          "ordinal": 12,
+          "kind": "exit",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ede32d6f-a416-4ec5-96cc-d4c045e5ae47",
+      "name": "Bois des Murmures",
+      "tilesetId": "tiny-swords",
+      "cols": 20,
+      "rows": 15,
+      "layers": [
+        "7,15*18,13,8,16*18,14,8,16*18,14,8,16*18,14,8,16*18,14,8,16*18,14,8,16*7,12*3,16*8,14,8,16*6,14,0*3,8,16*7,14,8,16*6,14,0*3,8,16*7,14,8,16*6,14,0*3,8,16*2,12*4,16,14,8,16*7,15*3,16*2,14,0*4,8,14,8,16*12,14,0*4,8,14,8,16*12,14,0*4,8,14,8,16*13,15*4,16,14,4,12*18,10",
+        "0*300",
+        "0*300"
+      ],
+      "elements": [
+        {
+          "col": 9,
+          "row": 9,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "terrain.bridge.wood.vertical"
+        },
+        {
+          "col": 3,
+          "row": 5,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 6,
+          "row": 4,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 12,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 15,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree4"
+        },
+        {
+          "col": 17,
+          "row": 6,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 5,
+          "row": 11,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 12,
+          "row": 4,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-goblins-buildings-wood-house.goblin-house-destroyed"
+        },
+        {
+          "col": 8,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks-in-the-water.water-rocks-02"
+        },
+        {
+          "col": 16,
+          "row": 11,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks-in-the-water.water-rocks-04"
+        },
+        {
+          "col": 11,
+          "row": 6,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock3"
+        }
+      ],
+      "spawn": {
+        "col": 2,
+        "row": 12
+      },
+      "events": [
+        {
+          "id": "17b72777-0b25-4bf6-9eeb-a0bb422dba27",
+          "col": 2,
+          "row": 11,
+          "name": "Entrée d'Aubeval",
+          "ordinal": 2,
+          "kind": "entry",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "a532fa93-1cfc-4b9e-9b02-59c74153527e",
+          "col": 3,
+          "row": 13,
+          "name": "Acte II",
+          "ordinal": 3,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "auto",
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "MILIEU — Dans les Bois des Murmures, Elyne cherche deux essences de mana. Récoltez-les, franchissez l'étang, puis abattez le Minotaure.",
+                  "name": "Narrateur"
+                },
+                {
+                  "t": "setSelfSwitch",
+                  "selfSwitch": "A",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": "A",
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "420f23ee-4911-487a-89d9-05ba4e17f7b1",
+          "col": 4,
+          "row": 12,
+          "name": "Elyne la Sylve",
+          "ordinal": 4,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "character.units-yellow-units-monk.idle",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "0ea45f49-e236-4741-957c-ea80eb735711",
+          "col": 6,
+          "row": 8,
+          "name": "Essence de mousse",
+          "ordinal": 5,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "resource.terrain-resources-wood-wood-resource.wood-resource",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "Vous recueillez une essence de mana dans les racines lumineuses.",
+                  "name": "Récolte"
+                },
+                {
+                  "t": "changeItems",
+                  "itemId": "mana_potion",
+                  "count": 1
+                },
+                {
+                  "t": "setSelfSwitch",
+                  "selfSwitch": "A",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": "A",
+              "graphicAssetId": "resource.terrain-resources-wood-trees.stump-1",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "La souche a déjà livré son essence.",
+                  "name": "Récolte"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "df87a351-5c7e-46bf-9819-861be0958946",
+          "col": 13,
+          "row": 6,
+          "name": "Essence d'écorce",
+          "ordinal": 6,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "resource.terrain-resources-wood-wood-resource.wood-resource",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "Une seconde essence de mana pulse sous l'écorce ancienne.",
+                  "name": "Récolte"
+                },
+                {
+                  "t": "changeItems",
+                  "itemId": "mana_potion",
+                  "count": 1
+                },
+                {
+                  "t": "setSelfSwitch",
+                  "selfSwitch": "A",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": "A",
+              "graphicAssetId": "resource.terrain-resources-wood-trees.stump-1",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "Il ne reste qu'une lueur apaisée.",
+                  "name": "Récolte"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "be4e892c-9a6e-4a50-9f0a-a3d6cc8b4fdd",
+          "col": 6,
+          "row": 6,
+          "name": "Ronces piégées",
+          "ordinal": 7,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "player-touch",
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "Les ronces se referment autour de votre bourse : 2 pièces tombent dans la vase.",
+                  "name": "Narrateur"
+                },
+                {
+                  "t": "changeGold",
+                  "amount": -2
+                },
+                {
+                  "t": "setSelfSwitch",
+                  "selfSwitch": "A",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": "A",
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "8f77964d-1567-4cd2-b322-440b7964c1d9",
+          "col": 14,
+          "row": 8,
+          "name": "Totem instable",
+          "ordinal": 8,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "player-touch",
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "Un totem craque et attire les créatures proches. Le chemin nord reste praticable, mais dangereux.",
+                  "name": "Narrateur"
+                },
+                {
+                  "t": "setSelfSwitch",
+                  "selfSwitch": "A",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": "A",
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "4269f96d-fda2-4aa8-ae4f-9392893bbe4b",
+          "col": 10,
+          "row": 5,
+          "name": "Clairière brumeuse",
+          "ordinal": 9,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "player-touch",
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "Une zone mystérieuse s'ouvre dans la brume. Trois pierres y répètent : racine, reflet, flamme.",
+                  "name": "Narrateur"
+                },
+                {
+                  "t": "enterArea",
+                  "areaId": "clairiere_brumeuse"
+                },
+                {
+                  "t": "setSelfSwitch",
+                  "selfSwitch": "A",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": "A",
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "34f31848-dd46-4287-acbb-dc21428110e8",
+          "col": 10,
+          "row": 3,
+          "name": "Énigme des Trois Pierres",
+          "ordinal": 10,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "decoration.deco.17",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "Les runes dorment. Terminez d'abord la mission d'Elyne et du Minotaure.",
+                  "name": "Stèle"
+                }
+              ]
+            },
+            {
+              "condSwitchId": "0003",
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "decoration.deco.17",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "Je bois sans bouche, reflète sans yeux et la flamme me fuit. Qui suis-je ?",
+                  "name": "Stèle"
+                },
+                {
+                  "t": "choices",
+                  "prompt": "Choisissez le symbole qui ouvre le passage.",
+                  "options": [
+                    {
+                      "label": "L'eau",
+                      "body": [
+                        {
+                          "t": "say",
+                          "text": "La réponse résonne juste. Le portail du Sanctuaire s'éveille.",
+                          "name": "Stèle"
+                        },
+                        {
+                          "t": "setSwitch",
+                          "switchId": "0004",
+                          "value": true
+                        }
+                      ]
+                    },
+                    {
+                      "label": "La pierre",
+                      "body": [
+                        {
+                          "t": "say",
+                          "text": "Erreur. La stèle réclame 2 pièces d'or.",
+                          "name": "Stèle"
+                        },
+                        {
+                          "t": "changeGold",
+                          "amount": -2
+                        }
+                      ]
+                    },
+                    {
+                      "label": "Le vent",
+                      "body": [
+                        {
+                          "t": "say",
+                          "text": "Le vent se disperse. Relisez l'énigme.",
+                          "name": "Stèle"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "condSwitchId": "0004",
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "decoration.deco.17",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "L'énigme est résolue. Suivez le chemin nord-est vers le portail violet.",
+                  "name": "Stèle"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "e60b36a6-283f-4ecf-9061-9198b14b701b",
+          "col": 5,
+          "row": 4,
+          "name": "Gobelin des mousses",
+          "ordinal": 11,
+          "kind": "monster",
+          "species": "spear_goblin",
+          "patrolRadius": 64,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "e34d040b-ed89-4e21-b844-b380202becf8",
+          "col": 16,
+          "row": 7,
+          "name": "Chaman des brumes",
+          "ordinal": 12,
+          "kind": "monster",
+          "species": "hex_shaman",
+          "patrolRadius": 64,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "e38952a1-a71a-4fc7-aac4-daa49337accc",
+          "col": 12,
+          "row": 11,
+          "name": "Pillard monté",
+          "ordinal": 13,
+          "kind": "monster",
+          "species": "pig_rider",
+          "patrolRadius": 64,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "19542e32-5440-4b1b-9fb8-974e75ef98b0",
+          "col": 15,
+          "row": 3,
+          "name": "Boss — Minotaure Sylvestre",
+          "ordinal": 14,
+          "kind": "monster",
+          "species": "minotaur_brute",
+          "patrolRadius": 64,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "1822604c-da2d-4c30-a45a-331fa8b906a2",
+          "col": 1,
+          "row": 12,
+          "name": "Retour vers Aubeval",
+          "ordinal": 15,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "decoration.deco.17",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "player-touch",
+              "commands": [
+                {
+                  "t": "teleport",
+                  "mapId": "d5549add-f7ce-4232-8c00-24e699adacb6",
+                  "col": 17,
+                  "row": 3
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "d9567640-eeae-43b8-9855-84dde0865241",
+          "col": 18,
+          "row": 2,
+          "name": "Portail du Sanctuaire",
+          "ordinal": 16,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "decoration.deco.17",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "Les runes attendent la bonne réponse de la Stèle des Trois Pierres.",
+                  "name": "Portail"
+                }
+              ]
+            },
+            {
+              "condSwitchId": "0004",
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "decoration.deco.17",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "player-touch",
+              "commands": [
+                {
+                  "t": "if",
+                  "cond": {
+                    "type": "switch",
+                    "switchId": "0003"
+                  },
+                  "then": [
+                    {
+                      "t": "teleport",
+                      "mapId": "5490f471-424b-477d-8f03-a6b04c61aeb0",
+                      "col": 2,
+                      "row": 12
+                    }
+                  ],
+                  "else": [
+                    {
+                      "t": "say",
+                      "text": "L'énigme est résolue, mais le Minotaure tient encore la rune. Terminez la quête d'Elyne.",
+                      "name": "Portail"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "92f06da5-f916-48dc-a854-5368d2c39b21",
+          "col": 1,
+          "row": 11,
+          "name": "Sortie vers Aubeval",
+          "ordinal": 17,
+          "kind": "exit",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "01bc7e52-a402-46ad-b255-00c640630445",
+          "col": 18,
+          "row": 1,
+          "name": "Sortie vers le Sanctuaire",
+          "ordinal": 18,
+          "kind": "exit",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "5490f471-424b-477d-8f03-a6b04c61aeb0",
+      "name": "Sanctuaire de l'Éclipse",
+      "tilesetId": "tiny-swords",
+      "cols": 20,
+      "rows": 15,
+      "layers": [
+        "7,15*11,11*7,13,8,16*10,14,23,31*5,29,6,8,16*10,14,24,32*5,30,6,8,16*10,14,24,32*5,30,6,8,16*10,14,24,32*5,30,6,8,16*10,14,24,32*5,30,6,8,16*10,14,24,32*5,30,6,8,16*5,12*4,16,14,20,28*5,26,6,8,16*4,14,0*4,8,16,15*7,14,8,16*4,14,0*4,8,16*8,14,8,16*4,14,0*4,8,16*8,14,8,16*5,15*4,16*9,14,8,16*18,14,8,16*18,14,4,12*18,10",
+        "0*12,1035*7,0*12,1034,0*7,1036,0*11,1034,0*7,1036,0*11,1034,0*7,1036,0*11,1034,0*7,1036,0*11,1034,0*7,1036,0*11,1025,0*7,1036,0*11,1027,0*7,1036,0*12,51,52*5,50,0*121",
+        "0*300"
+      ],
+      "elements": [
+        {
+          "col": 7,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "terrain.bridge.wood.vertical"
+        },
+        {
+          "col": 5,
+          "row": 6,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-purple-buildings.monastery"
+        },
+        {
+          "col": 17,
+          "row": 12,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-black-buildings.tower"
+        },
+        {
+          "col": 3,
+          "row": 6,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 9,
+          "row": 5,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 10,
+          "row": 9,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock1"
+        },
+        {
+          "col": 13,
+          "row": 9,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock4"
+        },
+        {
+          "col": 8,
+          "row": 9,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "effect.particle-fx.water-splash"
+        }
+      ],
+      "spawn": {
+        "col": 2,
+        "row": 12
+      },
+      "events": [
+        {
+          "id": "891ee20c-a8f4-4ea0-b880-b46e49f9280f",
+          "col": 2,
+          "row": 11,
+          "name": "Entrée des Bois",
+          "ordinal": 2,
+          "kind": "entry",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "36f52fc9-903a-415f-949c-f0cfc8cf41fa",
+          "col": 3,
+          "row": 13,
+          "name": "Acte final",
+          "ordinal": 3,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "auto",
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "FIN — Le Sanctuaire de l'Éclipse domine les étangs noirs. Traversez les pièges, empruntez l'escalier oriental et vainquez le Troll de l'Éclipse.",
+                  "name": "Narrateur"
+                },
+                {
+                  "t": "setSelfSwitch",
+                  "selfSwitch": "A",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": "A",
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "275e6f3c-42ae-42ec-8062-2c53c7f9cbc9",
+          "col": 4,
+          "row": 12,
+          "name": "Sage Maëlys",
+          "ordinal": 4,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "character.units-purple-units-monk.idle",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "e6782b84-5a3b-4666-a11c-4cdf37036e6a",
+          "col": 6,
+          "row": 11,
+          "name": "Dalle affaissée",
+          "ordinal": 5,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "player-touch",
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "La dalle cède. Une offrande de 4 pièces stabilise le mécanisme antique.",
+                  "name": "Narrateur"
+                },
+                {
+                  "t": "changeGold",
+                  "amount": -4
+                },
+                {
+                  "t": "setSelfSwitch",
+                  "selfSwitch": "A",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": "A",
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "f53122da-d4d5-48a3-9c29-57b4b075c3da",
+          "col": 10,
+          "row": 7,
+          "name": "Rune de peur",
+          "ordinal": 6,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "player-touch",
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "Une rune de peur s'illumine. L'escalier à l'est reste le seul passage sûr vers le plateau.",
+                  "name": "Narrateur"
+                },
+                {
+                  "t": "setSelfSwitch",
+                  "selfSwitch": "A",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": "A",
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "782d8e54-c787-4a6f-b7c4-9ffdba13581d",
+          "col": 9,
+          "row": 7,
+          "name": "Brume de l'Éclipse",
+          "ordinal": 7,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "player-touch",
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "La brume révèle les contours du plateau. Le boss attend en hauteur, derrière l'escalier oriental.",
+                  "name": "Narrateur"
+                },
+                {
+                  "t": "enterArea",
+                  "areaId": "sanctuaire_interieur"
+                },
+                {
+                  "t": "setSelfSwitch",
+                  "selfSwitch": "A",
+                  "value": true
+                }
+              ]
+            },
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": "A",
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "07ac9d82-b7ee-4839-9c75-f6b24c24ae73",
+          "col": 10,
+          "row": 4,
+          "name": "Oracle corrompu",
+          "ordinal": 8,
+          "kind": "monster",
+          "species": "hex_shaman",
+          "patrolRadius": 64,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "db123446-0f1c-4824-885a-06c2774ed99f",
+          "col": 13,
+          "row": 6,
+          "name": "Garde du plateau",
+          "ordinal": 9,
+          "kind": "monster",
+          "species": "skull_crusader",
+          "patrolRadius": 64,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "9a3349da-9c1b-4342-bf42-743965fed279",
+          "col": 17,
+          "row": 6,
+          "name": "Sentinelle d'os",
+          "ordinal": 10,
+          "kind": "monster",
+          "species": "skull_guard",
+          "patrolRadius": 64,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "ffdf02a5-b0b8-495f-9505-f8cc1d943ee2",
+          "col": 15,
+          "row": 4,
+          "name": "Boss — Troll de l'Éclipse",
+          "ordinal": 11,
+          "kind": "monster",
+          "species": "gate_troll",
+          "patrolRadius": 64,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "41222305-d7d6-462b-9b6a-1e8867952b81",
+          "col": 14,
+          "row": 2,
+          "name": "Autel de l'Aurore",
+          "ordinal": 12,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "character.units-purple-units-monk.idle",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "60bc4e8a-7ea7-44db-8954-853649ee8bc1",
+          "col": 17,
+          "row": 2,
+          "name": "Cœur de l'Éclipse",
+          "ordinal": 13,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "decoration.deco.17",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "Le Troll protège encore le cœur. Accomplissez la dernière quête et consacrez l'Autel.",
+                  "name": "Cœur de l'Éclipse"
+                }
+              ]
+            },
+            {
+              "condSwitchId": "0005",
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "decoration.deco.17",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": [
+                {
+                  "t": "say",
+                  "text": "L'Éclipse se dissipe. Aubeval, la forêt et les étangs retrouvent leur lumière. Votre aventure est achevée.",
+                  "name": "Narrateur"
+                },
+                {
+                  "t": "endAdventure"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "fd2952e8-a6a8-4dd9-b1e9-cd5d1f63e2cf",
+          "col": 1,
+          "row": 12,
+          "name": "Retour vers les Bois",
+          "ordinal": 14,
+          "kind": "normal",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": "decoration.deco.17",
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "player-touch",
+              "commands": [
+                {
+                  "t": "teleport",
+                  "mapId": "ede32d6f-a416-4ec5-96cc-d4c045e5ae47",
+                  "col": 17,
+                  "row": 3
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "b1c93d9b-9b77-401c-a83c-d2cde9026050",
+          "col": 1,
+          "row": 11,
+          "name": "Sortie vers les Bois",
+          "ordinal": 15,
+          "kind": "exit",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        },
+        {
+          "id": "dd47d1aa-53c6-4c95-bc3b-01c66a413439",
+          "col": 18,
+          "row": 2,
+          "name": "Sortie finale",
+          "ordinal": 16,
+          "kind": "exit",
+          "species": null,
+          "patrolRadius": null,
+          "pages": [
+            {
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action",
+              "commands": []
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "graph": {
+    "start": {
+      "mapId": "d5549add-f7ce-4232-8c00-24e699adacb6",
+      "entryId": "e098432f-2188-4062-b520-2ccb766890d4"
+    },
+    "links": [
+      {
+        "mapId": "d5549add-f7ce-4232-8c00-24e699adacb6",
+        "exitId": "4d7a6aea-45e5-400b-905e-2b96eed952c5",
+        "dest": {
+          "mapId": "ede32d6f-a416-4ec5-96cc-d4c045e5ae47",
+          "entryId": "17b72777-0b25-4bf6-9eeb-a0bb422dba27"
+        }
+      },
+      {
+        "mapId": "ede32d6f-a416-4ec5-96cc-d4c045e5ae47",
+        "exitId": "92f06da5-f916-48dc-a854-5368d2c39b21",
+        "dest": {
+          "mapId": "d5549add-f7ce-4232-8c00-24e699adacb6",
+          "entryId": "e098432f-2188-4062-b520-2ccb766890d4"
+        }
+      },
+      {
+        "mapId": "ede32d6f-a416-4ec5-96cc-d4c045e5ae47",
+        "exitId": "01bc7e52-a402-46ad-b255-00c640630445",
+        "dest": {
+          "mapId": "5490f471-424b-477d-8f03-a6b04c61aeb0",
+          "entryId": "891ee20c-a8f4-4ea0-b880-b46e49f9280f"
+        }
+      },
+      {
+        "mapId": "5490f471-424b-477d-8f03-a6b04c61aeb0",
+        "exitId": "b1c93d9b-9b77-401c-a83c-d2cde9026050",
+        "dest": {
+          "mapId": "ede32d6f-a416-4ec5-96cc-d4c045e5ae47",
+          "entryId": "17b72777-0b25-4bf6-9eeb-a0bb422dba27"
+        }
+      },
+      {
+        "mapId": "5490f471-424b-477d-8f03-a6b04c61aeb0",
+        "exitId": "dd47d1aa-53c6-4c95-bc3b-01c66a413439",
+        "dest": "end"
+      }
+    ]
+  }
+}

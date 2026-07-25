@@ -73,6 +73,7 @@ import {
   combatArt,
   monsterCombatArt,
   projectileArt,
+  teleportEffectArt,
 } from "./combat-art.js";
 import {
   lumenStepOpacity,
@@ -3375,6 +3376,15 @@ export class Renderer {
   playInteraction(): void {
     const position = this.#effectPosition();
     this.#addPulse(position.x, position.y, COLORS.npc, 34, 220);
+  }
+
+  /** A server-confirmed authored teleport: Tiny Swords dust, a portal ring and a short violet burst. */
+  playTeleportEffect(x?: number, y?: number): void {
+    const position = this.#effectPosition(x, y);
+    this.#playCombatSheet(teleportEffectArt(), position.x, position.y);
+    this.#addPulse(position.x, position.y, 0xb48cff, 34, 520);
+    this.#addPulse(position.x, position.y, 0xe5d4ff, 20, 360);
+    this.#burst(position.x, position.y, 0xc9a7ff, 10);
   }
 
   #playCombatSheet(art: CombatSheetArt, x: number, y: number, actionId?: string): void {

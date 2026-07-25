@@ -195,17 +195,23 @@ function NumberField({
   onChange,
   onBlur,
   className,
+  min,
+  max,
 }: {
   ariaLabel: string;
   value: number;
   onChange(next: number): void;
   onBlur(): void;
   className?: string;
+  min?: number;
+  max?: number;
 }) {
   return (
     <input
       type="number"
       aria-label={ariaLabel}
+      min={min}
+      max={max}
       className={`h-7 rounded-lg border border-input bg-transparent px-2 text-xs tabular-nums outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 ${className ?? ""}`}
       value={value}
       onChange={(e) => onChange(Number(e.currentTarget.value))}
@@ -346,8 +352,8 @@ function commandLine(
       const map = maps.find((m) => m.mapId === command.mapId);
       return t("editor.event.cmd.teleport", {
         map: map?.name ?? t("editor.event.cmd.mapMissing"),
-        col: command.col,
-        row: command.row,
+        col: command.col + 1,
+        row: command.row + 1,
       });
     }
     case "changeGold":
@@ -1305,6 +1311,8 @@ function TeleportParams({
   const map = maps.find((m) => m.mapId === command.mapId);
   const maxCol = map ? map.cols - 1 : 0;
   const maxRow = map ? map.rows - 1 : 0;
+  const widthLabel = t("editor.event.cmd.field.col", { max: maxCol + 1 });
+  const heightLabel = t("editor.event.cmd.field.row", { max: maxRow + 1 });
   return (
     <div className="flex flex-wrap items-end gap-2">
       <Field label={t("editor.event.cmd.field.map")}>
@@ -1330,21 +1338,25 @@ function TeleportParams({
           ))}
         </FieldSelect>
       </Field>
-      <Field label={t("editor.event.cmd.field.col")}>
+      <Field label={widthLabel}>
         <NumberField
-          ariaLabel={t("editor.event.cmd.field.col")}
+          ariaLabel={widthLabel}
           className="w-20"
-          value={command.col}
-          onChange={(col) => onChange({ ...command, col })}
+          value={command.col + 1}
+          min={1}
+          max={maxCol + 1}
+          onChange={(col) => onChange({ ...command, col: col - 1 })}
           onBlur={() => onChange({ ...command, col: clampInt(command.col, 0, maxCol, 0) })}
         />
       </Field>
-      <Field label={t("editor.event.cmd.field.row")}>
+      <Field label={heightLabel}>
         <NumberField
-          ariaLabel={t("editor.event.cmd.field.row")}
+          ariaLabel={heightLabel}
           className="w-20"
-          value={command.row}
-          onChange={(row) => onChange({ ...command, row })}
+          value={command.row + 1}
+          min={1}
+          max={maxRow + 1}
+          onChange={(row) => onChange({ ...command, row: row - 1 })}
           onBlur={() => onChange({ ...command, row: clampInt(command.row, 0, maxRow, 0) })}
         />
       </Field>

@@ -129,6 +129,11 @@ function styled(art: CombatSheetArt, tint: number, scale = 1): CombatSheetArt {
   return { ...art, tint, scale };
 }
 
+/** Neutral authored-teleporter VFX, shared by every class and distinct from combat outcomes. */
+export function teleportEffectArt(): CombatSheetArt {
+  return styled(DUST, 0xb48cff, 1.5);
+}
+
 function actionDuration(playerClass: PlayerClass, skillId: string): number {
   const slot = CLASS_SKILLS[playerClass].find((skill) => skill.id === skillId)?.slot ?? 1;
   const action = actionForClassSlot(playerClass, slot);
@@ -319,5 +324,7 @@ export function allCombatSheets(): CombatSheetArt[] {
       }
     }
   }
+  const teleport = teleportEffectArt();
+  unique.set(teleport.source, teleport);
   return [...unique.values()];
 }

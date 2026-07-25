@@ -1236,8 +1236,6 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
         ? toolLabelText(toolKey)
         : t(`editor.tool.${toolKey}`);
 
-  const cursorText = cursor ? `(${cursor.col}, ${cursor.row})` : "(—, —)";
-
   // The live map the inspector reads its selected marker's fields off — the handle's current edits
   // while a stage is mounted, else whatever payload is loaded. Read in render so a new selection
   // reflects the latest positions.
@@ -1533,6 +1531,12 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
           open={loadOpen}
           onOpenChange={setLoadOpen}
           onPick={loadAdventure}
+          onDeleted={(id) => {
+            if (id !== adventureId) return;
+            clearLastEditedAdventure(accountId);
+            setLoadOpen(false);
+            setSession(null);
+          }}
           onSessionExpired={() => setScreen("auth")}
         />
 
@@ -1610,7 +1614,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
           mapName={map?.name ?? "—"}
           cols={map?.cols ?? 0}
           rows={map?.rows ?? 0}
-          cursor={cursorText}
+          cursor={cursor}
           saved={map !== null && !dirty && stageStatus === "ready"}
           mode={mode}
           toolLabel={toolLabel}

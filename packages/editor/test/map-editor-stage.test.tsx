@@ -8,6 +8,7 @@ import {
   paintCollisionOverlay,
   paintElementSelectionOutline,
   paintEventCell,
+  paintGridCoordinates,
   paintHoverCell,
   paintLandCell,
   paintPlacementAssetPreview,
@@ -28,6 +29,27 @@ import type {
 import type { EditorAssetArt } from "@lindocara/renderer/editor-asset-art.js";
 import { Container, Graphics, Sprite, Text, Texture } from "pixi.js";
 import { describe, expect, it } from "vitest";
+
+describe("paintGridCoordinates", () => {
+  it("numbers every cell from one along all four map edges", () => {
+    const container = new Container();
+    paintGridCoordinates(container, 4, 3);
+
+    const labels = container.children.filter((child): child is Text => child instanceof Text);
+    expect(labels).toHaveLength(14);
+    expect(labels.slice(0, 8).map((label) => label.text)).toEqual([
+      "1",
+      "1",
+      "2",
+      "2",
+      "3",
+      "3",
+      "4",
+      "4",
+    ]);
+    expect(labels.slice(8).map((label) => label.text)).toEqual(["1", "1", "2", "2", "3", "3"]);
+  });
+});
 
 /**
  * `paintLandCell` is `redraw()`'s per-cell tile routing, exported and kept Pixi-object-only (no

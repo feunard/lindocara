@@ -6,7 +6,7 @@ interface EditorStatusBarProps {
   mapName: string;
   cols: number;
   rows: number;
-  cursor: string;
+  cursor: { col: number; row: number } | null;
   saved: boolean;
   mode: EditorMode;
   toolLabel: string;
@@ -33,9 +33,14 @@ export function EditorStatusBar({
         <span className="font-medium text-zinc-600">{mapName}</span>
       </span>
       <Divider />
-      <span>{`${cols}×${rows}`}</span>
+      <span>{`${t("editor.cols")} ${cols} × ${t("editor.rows")} ${rows}`}</span>
       <Divider />
-      <span>{t("editor.shell.status.cursor", { cursor })}</span>
+      <span>
+        {t("editor.shell.status.cursor", {
+          col: cursor ? cursor.col + 1 : "—",
+          row: cursor ? cursor.row + 1 : "—",
+        })}
+      </span>
 
       <span className="flex-1" />
 

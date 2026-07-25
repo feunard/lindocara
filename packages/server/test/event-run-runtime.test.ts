@@ -11,7 +11,9 @@ import { env, evictDurableObject, runDurableObjectAlarm, SELF } from "cloudflare
 import type { EventCommand } from "@lindocara/engine/event-commands.js";
 import type { MapEvent, MapEventPage } from "@lindocara/engine/map-events.js";
 import type { ServerMessage } from "@lindocara/engine/protocol.js";
+import { PLAYER_SIZE } from "@lindocara/engine/simulation.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
+import { layeredWireTerrain } from "@lindocara/testing/map-fixtures.js";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import {
   Client,
@@ -201,6 +203,62 @@ describe("triggers, the run, and cross-room state", { timeout: 20_000 }, () => {
       hero.roomKey,
       "touch flipped 0001",
       (diag) => diag.adventureState.switches["0001"] === true,
+    );
+  });
+
+  it("fires a player-touch event when the hero body reaches a solid door cell", async () => {
+    const touchId = crypto.randomUUID();
+    const cols = 40;
+    const rows = 30;
+    const door = { col: 23, row: 15 };
+    const destination = { col: 10, row: 15 };
+    const blocks = Array.from({ length: rows }, (_, row) => {
+      const cells = ".".repeat(cols).split("");
+      if (row === door.row) cells[door.col] = "#";
+      return cells.join("");
+    });
+    const base = testMapInput("solid teleporter", {
+      cols,
+      rows,
+      spawn: { col: 20, row: 15 },
+      events: [
+        scriptEvent(touchId, door.col, door.row, "player-touch", [
+          {
+            t: "teleport",
+            mapId: "00000000-0000-4000-8000-000000000000",
+            ...destination,
+          },
+        ]),
+      ],
+    });
+    const party = await testParty("solid-touch", {
+      maps: [{ ...base, ...layeredWireTerrain(blocks) }],
+    });
+    const mapId = party.mapIds[0];
+    if (!mapId) throw new Error("expected a map");
+    await putMap(party, mapId, {
+      ...base,
+      ...layeredWireTerrain(blocks),
+      events: base.events.map((event) =>
+        event.id === touchId
+          ? {
+              ...event,
+              pages: event.pages.map((eventPage) => ({
+                ...eventPage,
+                commands: [{ t: "teleport", mapId, ...destination }],
+              })),
+            }
+          : event,
+      ),
+    });
+    const hero = await testHero("Door toucher", { party, account: party.host });
+    const client = await Client.joinHero(hero);
+    await until("welcomed", () => client.welcome);
+
+    client.press("right");
+    await until(
+      "solid door touch teleported the hero",
+      () => (client.self()?.x ?? Number.POSITIVE_INFINITY) < 15 * TILE_SIZE,
     );
   });
 
@@ -586,6 +644,82 @@ describe("teleport", { timeout: 20_000 }, () => {
     await scheduler.wait(500);
     const restingX = client.self()?.x ?? 0;
     expect(Math.abs(restingX - destColumnX)).toBeLessThan(TILE_SIZE);
+    expect(
+      client.received.find(
+        (message) =>
+          message.t === "event" &&
+          message.code === "zone.transition" &&
+          message.params?.teleport === 1,
+      ),
+    ).toMatchObject({
+      t: "event",
+      code: "zone.transition",
+      params: {
+        teleport: 1,
+        sameMap: 1,
+        toX: 6 * TILE_SIZE + TILE_SIZE / 2 + PLAYER_SIZE / 2,
+        toY: 5 * TILE_SIZE + TILE_SIZE / 2 + PLAYER_SIZE / 2,
+      },
+    });
+  });
+
+  it("refuses a blocked cross-map destination instead of moving the hero somewhere else", async () => {
+    const teleId = crypto.randomUUID();
+    const destination = { col: 5, row: 5 };
+    const bodyA = testMapInput("blocked destination A", {
+      events: [
+        scriptEvent(teleId, 5, 5, "action", [
+          {
+            t: "teleport",
+            mapId: "00000000-0000-4000-8000-000000000000",
+            ...destination,
+          },
+        ]),
+      ],
+    });
+    const blockedRows = Array.from({ length: 30 }, (_, row) => {
+      const cells = ".".repeat(40).split("");
+      if (row === destination.row) cells[destination.col] = "#";
+      return cells.join("");
+    });
+    const bodyB = {
+      ...testMapInput("blocked destination B"),
+      ...layeredWireTerrain(blockedRows),
+    };
+    const party = await testParty("blocked-destination", { maps: [bodyA, bodyB] });
+    const [mapA, mapB] = party.mapIds;
+    if (!mapA || !mapB) throw new Error("expected two maps");
+    await putMap(party, mapA, {
+      ...bodyA,
+      events: bodyA.events.map((event) =>
+        event.id === teleId
+          ? {
+              ...event,
+              pages: event.pages.map((eventPage) => ({
+                ...eventPage,
+                commands: [{ t: "teleport", mapId: mapB, ...destination }],
+              })),
+            }
+          : event,
+      ),
+    });
+
+    const hero = await testHero("Blocked destination", {
+      party,
+      account: party.host,
+      position: { x: 5 * TILE_SIZE + TILE_SIZE / 2, y: 5 * TILE_SIZE + TILE_SIZE / 2 },
+    });
+    const client = await Client.joinHero(hero);
+    await until("welcomed", () => client.welcome);
+    client.action("interact");
+
+    await until("blocked destination reported", () =>
+      client.received.some(
+        (message) => message.t === "event" && message.code === "zone.transition_failed",
+      ),
+    );
+    expect(client.closeInfo).toBeNull();
+    expect(client.welcome?.world.zoneId).toBe(mapA);
   });
 
   it("launches exactly ONE handoff for two back-to-back cross-map teleports", {
@@ -796,6 +930,11 @@ describe("teleport", { timeout: 20_000 }, () => {
       ([arg]) => typeof arg === "string" && arg.includes("event_teleport_refused"),
     );
     expect(refusals).toHaveLength(1);
+    expect(
+      client.received.filter(
+        (message) => message.t === "event" && message.code === "zone.transition_failed",
+      ),
+    ).toHaveLength(1);
   });
 });
 

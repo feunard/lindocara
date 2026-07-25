@@ -4,6 +4,7 @@ import {
   combatArt,
   monsterCombatArt,
   projectileArt,
+  teleportEffectArt,
 } from "@lindocara/renderer/combat-art.js";
 import { ServerClock } from "@lindocara/renderer/server-clock.js";
 import { skillIconArt } from "@lindocara/renderer/tiny-swords-art.js";
@@ -72,6 +73,15 @@ describe("Tiny Swords directional combat art", () => {
     expect(combatArt("warrior", "shield_bash", "azure").impact?.tint).toBe(0xffd66b);
     expect(combatArt("ranger", "dash", "azure").impact?.tint).toBe(0x6ad9ff);
     expect(combatArt("priest", "blink", "azure").impact?.tint).toBe(0xb48cff);
+  });
+
+  it("uses a dedicated neutral Tiny Swords dust sheet for authored teleports", () => {
+    expect(teleportEffectArt()).toMatchObject({
+      source: expect.stringContaining("Dust_02.png"),
+      frames: 10,
+      tint: 0xb48cff,
+      scale: 1.5,
+    });
   });
 
   it("gives every class ultimate a deliberately amplified visual treatment", () => {

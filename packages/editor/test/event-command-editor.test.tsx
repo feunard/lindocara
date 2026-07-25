@@ -306,11 +306,17 @@ describe("EventCommandEditor", () => {
     render(<Harness maps={maps} latest={latest} />);
 
     await insertVia(user, "teleport")();
-    const col = screen.getByRole("spinbutton", { name: t("editor.event.cmd.field.col") });
+    const col = screen.getByRole("spinbutton", {
+      name: t("editor.event.cmd.field.col", { max: 25 }),
+    });
+    expect(col).toHaveAttribute("min", "1");
+    expect(col).toHaveAttribute("max", "25");
+    expect(col).toHaveValue(1);
     await user.clear(col);
     await user.type(col, "99");
     await user.tab(); // blur → clamp to Town's max column (24)
     expect((latest.current[0] as { col: number }).col).toBe(24);
+    expect(col).toHaveValue(25);
 
     // Switch to the smaller Cave map: the column reclamps to 7.
     await user.selectOptions(
@@ -322,6 +328,11 @@ describe("EventCommandEditor", () => {
       mapId: maps[1]?.mapId,
       col: 7,
     });
+    expect(
+      screen.getByRole("spinbutton", {
+        name: t("editor.event.cmd.field.col", { max: 8 }),
+      }),
+    ).toHaveValue(8);
   });
 
   it("only offers the tranche-5 vocabulary in the insert palette", async () => {

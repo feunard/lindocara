@@ -13,7 +13,7 @@ import type {
   QuestState,
   SelfState,
 } from "@lindocara/engine/protocol.js";
-import { NO_INPUT, type Vec2 } from "@lindocara/engine/simulation.js";
+import { NO_INPUT, PLAYER_SIZE, type Vec2 } from "@lindocara/engine/simulation.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 import { decodeTileMap } from "@lindocara/engine/tilemap-codec.js";
 import {
@@ -316,6 +316,9 @@ async function startGameIdentity(
   let mapSurface: MapSurface | null = null;
   let activeZoneId: ZoneId = DEFAULT_ZONE_ID;
   let currentMerchant: MerchantDefinition | null = null;
+  // A cross-map authored teleport shows its departure before the transition close, then its arrival
+  // on the next authoritative welcome. Ordinary network reconnects never set this flag.
+  let pendingTeleportArrival = false;
   // Remembered so a reconnect can re-attach them to a fresh surface: React mounted its canvases
   // once, and it will not re-run its effect just because the socket dropped.
   let minimapCanvas: HTMLCanvasElement | null = null;
@@ -394,6 +397,16 @@ async function startGameIdentity(
       questState = state.quest;
       selfCorpse = state.corpse;
       applyAuthoritativeState(state);
+      if (pendingTeleportArrival) {
+        pendingTeleportArrival = false;
+        const arrival = client
+          .sample(performance.now())
+          .players.find((player) => player.id === selfId);
+        renderer.playTeleportEffect(
+          arrival ? arrival.x + PLAYER_SIZE / 2 : undefined,
+          arrival ? arrival.y + PLAYER_SIZE / 2 : undefined,
+        );
+      }
       useUiStore.getState().setZoneNameKey(world.zoneNameKey as MessageKey);
       useUiStore.getState().setWorldSize({ width: world.width, height: world.height });
       setStatus("status.connected_zone", { zone: t(world.zoneNameKey as MessageKey) });
@@ -504,6 +517,20 @@ async function startGameIdentity(
       // `skill.cast` remains visible through the event log and CombatAnimation owns its sound/art.
       // It intentionally has no switch branch: only SelfState may update cooldown deadlines.
       switch (code) {
+        case "zone.transition":
+          if (params?.teleport === 1) {
+            renderer.playTeleportEffect(x, y);
+            if (
+              params.sameMap === 1 &&
+              typeof params.toX === "number" &&
+              typeof params.toY === "number"
+            ) {
+              renderer.playTeleportEffect(params.toX, params.toY);
+            } else {
+              pendingTeleportArrival = true;
+            }
+          }
+          break;
         case "level_up":
         case "quest.fulfilled":
           sound.levelUp();

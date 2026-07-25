@@ -129,6 +129,7 @@ import {
   NETWORK_TICKS_PER_SNAPSHOT,
   NO_INPUT,
   PLAYER_SIZE,
+  PLAYER_SPEED,
   TICK_MS,
   type Vec2,
 } from "@lindocara/engine/simulation.js";
@@ -1267,29 +1268,62 @@ export class World extends DurableObject<Env> {
 
   /**
    * The Contact-with-hero trigger, evaluated on the movement edge (from `movement-system`'s
-   * `onPlayerMoved`), not by a per-tick scan: when a hero's box enters a NEW cell that carries a
-   * runnable `player-touch` event, its run starts. Standing still on the cell does not re-fire (no
-   * move, no callback); the one-run lock covers a re-entry while the run lives.
+   * `onPlayerMoved`), not by a per-tick scan: when the hero's BODY first touches a cell carrying a
+   * runnable `player-touch` event, its run starts. This must use the 32px body rather than the
+   * position's single cell: a door/shore teleporter commonly sits on solid terrain that the body can
+   * touch but can never occupy. Standing in contact does not re-fire because the previous body
+   * already touched the cell; the one-run lock covers a later re-entry while the run lives.
    */
   #detectPlayerTouch(player: Player, previous: { x: number; y: number }): void {
     if (player.identityKind !== "hero" || player.life !== "alive" || !player.authorized) return;
     const events = this.#location?.definition.events;
     if (!events || events.length === 0) return;
-    const col = Math.floor(player.x / TILE_SIZE);
-    const row = Math.floor(player.y / TILE_SIZE);
-    if (col === Math.floor(previous.x / TILE_SIZE) && row === Math.floor(previous.y / TILE_SIZE)) {
-      return;
+    const touchesCell = (
+      position: { x: number; y: number },
+      event: MapEvent,
+      tolerance: number,
+    ): boolean => {
+      // Collision rejects a whole 13px movement step rather than clamping the body flush to a wall.
+      // Expand the event by exactly that maximum living-player step so the last accepted position
+      // still counts as contact with a solid door; a larger arbitrary interaction radius would make
+      // player-touch events fire from visibly separate cells.
+      const left = event.col * TILE_SIZE - tolerance;
+      const top = event.row * TILE_SIZE - tolerance;
+      const right = (event.col + 1) * TILE_SIZE + tolerance;
+      const bottom = (event.row + 1) * TILE_SIZE + tolerance;
+      // Strict edges mean a body merely parked flush against a neighbouring cell has not entered it.
+      // The current-position tolerance below still catches a movement step rejected just before a
+      // solid cell; the previous position uses no tolerance so pressing toward that door creates the
+      // edge that starts the run.
+      return (
+        position.x < right &&
+        position.x + PLAYER_SIZE > left &&
+        position.y < bottom &&
+        position.y + PLAYER_SIZE > top
+      );
+    };
+    const movementTolerance = (PLAYER_SPEED * TICK_MS) / 1_000;
+    let selected: {
+      event: MapEvent;
+      runnable: { pageIndex: number; program: readonly EventCommand[] };
+    } | null = null;
+    for (const event of events) {
+      if (event.kind !== "normal") continue;
+      const runnable = this.#runnablePage(event, "player-touch");
+      if (
+        runnable !== null &&
+        !touchesCell(previous, event, 0) &&
+        touchesCell(player, event, movementTolerance)
+      ) {
+        selected = { event, runnable };
+        break;
+      }
     }
-    const event = events.find(
-      (candidate) => candidate.kind === "normal" && candidate.col === col && candidate.row === row,
-    );
-    if (event === undefined) return;
-    const runnable = this.#runnablePage(event, "player-touch");
-    if (runnable === null) return;
+    if (selected === null) return;
     startRun(this.#eventRuns, {
-      event,
-      pageIndex: runnable.pageIndex,
-      program: runnable.program,
+      event: selected.event,
+      pageIndex: selected.runnable.pageIndex,
+      program: selected.runnable.program,
       heroId: player.id,
       runId: crypto.randomUUID(),
     });
@@ -3684,11 +3718,16 @@ export class World extends DurableObject<Env> {
    * logs every tick forever; the observability law forbids per-event tick logging. The (event,
    * reason) Set is small and bounded (events per map times a few reasons) and resets on room empty.
    */
-  #logTeleportRefusedOnce(eventId: string, reason: string, extra: Record<string, unknown>): void {
+  #logTeleportRefusedOnce(
+    eventId: string,
+    reason: string,
+    extra: Record<string, unknown>,
+  ): boolean {
     const key = `${eventId}:${reason}`;
-    if (this.#teleportRefusalsLogged.has(key)) return;
+    if (this.#teleportRefusalsLogged.has(key)) return false;
     this.#teleportRefusalsLogged.add(key);
     console.warn(JSON.stringify({ event: "event_teleport_refused", reason, eventId, ...extra }));
+    return true;
   }
 
   /**
@@ -3871,7 +3910,28 @@ export class World extends DurableObject<Env> {
     const player = socket ? this.#players.get(socket) : undefined;
     if (!socket || !player?.authorized || player.transitioning) return;
     if (effect.mapId === this.#location?.zoneId) {
-      this.#teleportSameMap(player, effect.col, effect.row, dispatch.eventId);
+      const fromX = player.x + PLAYER_SIZE / 2;
+      const fromY = player.y + PLAYER_SIZE / 2;
+      const result = this.#teleportSameMap(player, effect.col, effect.row, dispatch.eventId);
+      if (result === "first-refusal") {
+        this.#send(socket, { t: "event", code: "zone.transition_failed", tone: "bad" });
+      } else if (result === "teleported") {
+        this.#send(socket, {
+          t: "event",
+          code: "zone.transition",
+          params: {
+            teleport: 1,
+            sameMap: 1,
+            fromX,
+            fromY,
+            toX: player.x + PLAYER_SIZE / 2,
+            toY: player.y + PLAYER_SIZE / 2,
+          },
+          tone: "good",
+          x: fromX,
+          y: fromY,
+        });
+      }
       return;
     }
     // Claim the transition SYNCHRONOUSLY, before the async handoff. The handoff sets `transitioning`
@@ -3977,7 +4037,12 @@ export class World extends DurableObject<Env> {
    * queue clear is the death-transition precedent: a stale queue replayed after the snap is the
    * post-teleport sprint bug.
    */
-  #teleportSameMap(player: Player, col: number, row: number, eventId: string): void {
+  #teleportSameMap(
+    player: Player,
+    col: number,
+    row: number,
+    eventId: string,
+  ): "teleported" | "first-refusal" | "repeat-refusal" {
     const terrain = this.#zone().terrain;
     const destination = eventCellCentre({ col, row });
     const inBounds =
@@ -3986,13 +4051,17 @@ export class World extends DurableObject<Env> {
       destination.x < terrain.width &&
       destination.y < terrain.height;
     if (!inBounds || !isWalkable(destination, PLAYER_SIZE, terrain)) {
-      this.#logTeleportRefusedOnce(eventId, inBounds ? "unwalkable" : "out_of_bounds", {
-        heroId: player.id,
-        mapId: this.#location?.zoneId ?? null,
-        col,
-        row,
-      });
-      return;
+      const first = this.#logTeleportRefusedOnce(
+        eventId,
+        inBounds ? "unwalkable" : "out_of_bounds",
+        {
+          heroId: player.id,
+          mapId: this.#location?.zoneId ?? null,
+          col,
+          row,
+        },
+      );
+      return first ? "first-refusal" : "repeat-refusal";
     }
     const previousPosition = { x: player.x, y: player.y };
     player.x = destination.x;
@@ -4003,6 +4072,7 @@ export class World extends DurableObject<Env> {
     player.lastInput = NO_INPUT;
     player.starvedTicks = 0;
     player.dirty = true;
+    return "teleported";
   }
 
   /**
@@ -4054,14 +4124,18 @@ export class World extends DurableObject<Env> {
         col < destination.definition.terrain.width / TILE_SIZE &&
         row < destination.definition.terrain.height / TILE_SIZE;
       if (!inBounds) {
-        this.#logTeleportRefusedOnce(eventId, "out_of_bounds", { mapId, col, row });
+        if (this.#logTeleportRefusedOnce(eventId, "out_of_bounds", { mapId, col, row })) {
+          this.#send(ws, { t: "event", code: "zone.transition_failed", tone: "bad" });
+        }
         return;
       }
-      const spawn = clampRestoredPosition(
-        eventCellCentre({ col, row }),
-        player.id,
-        destination.definition.terrain,
-      );
+      const spawn = eventCellCentre({ col, row });
+      if (!isWalkable(spawn, PLAYER_SIZE, destination.definition.terrain)) {
+        if (this.#logTeleportRefusedOnce(eventId, "unwalkable", { mapId, col, row })) {
+          this.#send(ws, { t: "event", code: "zone.transition_failed", tone: "bad" });
+        }
+        return;
+      }
       const destinationRoomKey = `${partyId}:${destinationMap.id}`;
 
       player.lastTransitionAt = now;
@@ -4094,7 +4168,14 @@ export class World extends DurableObject<Env> {
       player.disconnecting = true;
       this.#removePlayer(ws, player);
       this.#observability.transitions += 1;
-      this.#send(ws, { t: "event", code: "zone.transition", tone: "good" });
+      this.#send(ws, {
+        t: "event",
+        code: "zone.transition",
+        params: { teleport: 1 },
+        tone: "good",
+        x: player.x + PLAYER_SIZE / 2,
+        y: player.y + PLAYER_SIZE / 2,
+      });
       try {
         ws.close(WS_CLOSE.ZONE_TRANSITION, "event teleport");
       } catch {

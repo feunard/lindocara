@@ -1,6 +1,7 @@
 import {
   type AdventureSummary,
   authErrorText,
+  deleteAdventureApi,
   errorCode,
   fetchAllAdventures,
 } from "@lindocara/client/api.js";
@@ -9,6 +10,7 @@ import { Button } from "@lindocara/ui/components/button.js";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@lindocara/ui/components/dialog.js";
@@ -24,6 +26,8 @@ interface LoadAdventureDialogProps {
   /** Load this adventure into the editor. The screen owns the dirty guard and the session swap; a
    *  successful load closes the dialog. */
   onPick(id: string): void;
+  /** Keep the editor session coherent when the adventure currently open in the shell was deleted. */
+  onDeleted(id: string): void;
   onSessionExpired(): void;
 }
 
@@ -40,10 +44,13 @@ export function LoadAdventureDialog({
   open,
   onOpenChange,
   onPick,
+  onDeleted,
   onSessionExpired,
 }: LoadAdventureDialogProps) {
   useLocale();
   const [adventures, setAdventures] = useState<AdventureSummary[] | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState<AdventureSummary | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reload the list each time the dialog opens
@@ -51,6 +58,7 @@ export function LoadAdventureDialog({
     if (!open) return;
     setError(null);
     setAdventures(null);
+    setConfirmingDelete(null);
     void (async () => {
       try {
         setAdventures(await fetchAllAdventures());
@@ -61,6 +69,27 @@ export function LoadAdventureDialog({
       }
     })();
   }, [open]);
+
+  async function remove(adventure: AdventureSummary): Promise<void> {
+    if (deletingId !== null) return;
+    setDeletingId(adventure.id);
+    setError(null);
+    try {
+      await deleteAdventureApi(adventure.id);
+      setAdventures(
+        (current) => current?.filter((candidate) => candidate.id !== adventure.id) ?? [],
+      );
+      setConfirmingDelete(null);
+      onDeleted(adventure.id);
+    } catch (caught) {
+      const code = errorCode(caught);
+      setConfirmingDelete(null);
+      if (isSessionError(code)) onSessionExpired();
+      else setError(code);
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -108,13 +137,56 @@ export function LoadAdventureDialog({
                     </span>
                   </span>
                 </div>
-                <Button variant="secondary" size="sm" onClick={() => onPick(adventure.id)}>
-                  {t("editor.picker.open")}
-                </Button>
+                <div className="flex items-center gap-1.5">
+                  <Button variant="secondary" size="sm" onClick={() => onPick(adventure.id)}>
+                    {t("editor.picker.open")}
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={deletingId !== null}
+                    onClick={() => setConfirmingDelete(adventure)}
+                  >
+                    {t("editor.delete")}
+                  </Button>
+                </div>
               </li>
             ))}
           </ul>
         )}
+
+        <Dialog
+          open={confirmingDelete !== null}
+          onOpenChange={(next) => {
+            if (!next && deletingId === null) setConfirmingDelete(null);
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {t("adventure.delete.title", { name: confirmingDelete?.title ?? "" })}
+              </DialogTitle>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                disabled={deletingId !== null}
+                onClick={() => setConfirmingDelete(null)}
+              >
+                {t("adventure.delete.cancel")}
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={deletingId !== null}
+                onClick={() => {
+                  if (confirmingDelete) void remove(confirmingDelete);
+                }}
+              >
+                {t("editor.delete.confirm")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
   );
