@@ -11,7 +11,7 @@ import {
 import { parseAdventureRegistry } from "@lindocara/engine/adventure-state.js";
 import type { EventCommand } from "@lindocara/engine/event-commands.js";
 import type { MonsterSpecies, MonsterTuning } from "@lindocara/engine/game.js";
-import { type MapElement, parseMapData } from "@lindocara/engine/map-data.js";
+import { elementFitsMap, type MapElement, parseMapData } from "@lindocara/engine/map-data.js";
 import {
   defaultEventPage,
   functionalEvent,
@@ -235,18 +235,27 @@ function decorations(theme: "city" | "woods" | "marsh" | "citadel" | "sanctuary"
       ["building.factions-knights-buildings-castle.castle-destroyed", 14, 8],
     ],
   };
-  return [...scatter, ...structures[theme].map(([assetId, col, row]) => place(assetId, col, row))];
+  return [...structures[theme].map(([assetId, col, row]) => place(assetId, col, row)), ...scatter];
 }
 
 function safeDecorations(
   theme: "city" | "woods" | "marsh" | "citadel" | "sanctuary",
   events: readonly MapEvent[],
 ): MapElement[] {
-  return decorations(theme).filter((element) =>
-    events.every(
-      (event) => Math.abs(element.col - event.col) > 1 || Math.abs(element.row - event.row) > 1,
-    ),
-  );
+  const occupied = new Set<string>();
+  return decorations(theme).filter((element) => {
+    const slot = `${element.col}:${element.row}:${element.offsetX}:${element.offsetY}`;
+    if (occupied.has(slot)) return false;
+    if (
+      !events.every(
+        (event) => Math.abs(element.col - event.col) > 1 || Math.abs(element.row - event.row) > 1,
+      )
+    ) {
+      return false;
+    }
+    occupied.add(slot);
+    return true;
+  });
 }
 
 function page(
@@ -1978,6 +1987,17 @@ if (!parseAdventureRegistry(bundle.adventure.registry)) {
 const invalidEvents: string[] = [];
 for (const map of bundle.maps) {
   if (!parseMapData(map)) throw new Error(`generated map data is invalid: ${map.name}`);
+  const elementSlots = new Set<string>();
+  for (const element of map.elements) {
+    if (!elementFitsMap(element, map.cols, map.rows)) {
+      throw new Error(`generated element exceeds map bounds: ${map.name} / ${element.assetId}`);
+    }
+    const slot = `${element.col}:${element.row}:${element.offsetX}:${element.offsetY}`;
+    if (elementSlots.has(slot)) {
+      throw new Error(`generated element slot is duplicated: ${map.name} / ${slot}`);
+    }
+    elementSlots.add(slot);
+  }
   if (!parseMapEvents(map.events, map.cols, map.rows)) {
     throw new Error(`generated map event collection is invalid: ${map.name}`);
   }

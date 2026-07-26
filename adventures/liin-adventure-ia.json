@@ -900,6 +900,83 @@
       ],
       "elements": [
         {
+          "col": 22,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-blue-buildings.castle"
+        },
+        {
+          "col": 10,
+          "row": 16,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-blue-buildings.barracks"
+        },
+        {
+          "col": 31,
+          "row": 16,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-blue-buildings.archery"
+        },
+        {
+          "col": 7,
+          "row": 25,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-blue-buildings.monastery"
+        },
+        {
+          "col": 4,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-blue-buildings.tower"
+        },
+        {
+          "col": 34,
+          "row": 7,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-blue-buildings.tower"
+        },
+        {
+          "col": 13,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-blue-buildings.house1"
+        },
+        {
+          "col": 22,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-blue-buildings.house2"
+        },
+        {
+          "col": 31,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-blue-buildings.house3"
+        },
+        {
+          "col": 40,
+          "row": 31,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-red-buildings.house1"
+        },
+        {
+          "col": 43,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-knights-buildings-tower.tower-destroyed"
+        },
+        {
           "col": 4,
           "row": 7,
           "offsetX": 0,
@@ -1129,83 +1206,6 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "resource.terrain-resources-wood-trees.tree3"
-        },
-        {
-          "col": 22,
-          "row": 10,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-blue-buildings.castle"
-        },
-        {
-          "col": 10,
-          "row": 16,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-blue-buildings.barracks"
-        },
-        {
-          "col": 31,
-          "row": 16,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-blue-buildings.archery"
-        },
-        {
-          "col": 7,
-          "row": 25,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-blue-buildings.monastery"
-        },
-        {
-          "col": 4,
-          "row": 10,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-blue-buildings.tower"
-        },
-        {
-          "col": 34,
-          "row": 7,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-blue-buildings.tower"
-        },
-        {
-          "col": 13,
-          "row": 28,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-blue-buildings.house1"
-        },
-        {
-          "col": 22,
-          "row": 28,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-blue-buildings.house2"
-        },
-        {
-          "col": 31,
-          "row": 28,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-blue-buildings.house3"
-        },
-        {
-          "col": 40,
-          "row": 31,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-red-buildings.house1"
-        },
-        {
-          "col": 43,
-          "row": 22,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.factions-knights-buildings-tower.tower-destroyed"
         }
       ],
       "spawn": {
@@ -2431,6 +2431,55 @@
       ],
       "elements": [
         {
+          "col": 10,
+          "row": 34,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-yellow-buildings.house1"
+        },
+        {
+          "col": 16,
+          "row": 25,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-yellow-buildings.monastery"
+        },
+        {
+          "col": 43,
+          "row": 31,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-goblins-buildings-wood-house.goblin-house"
+        },
+        {
+          "col": 52,
+          "row": 34,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-goblins-buildings-wood-house.goblin-house"
+        },
+        {
+          "col": 46,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-goblins-buildings-wood-house.goblin-house-destroyed"
+        },
+        {
+          "col": 40,
+          "row": 25,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-goblins-buildings-wood-tower.wood-tower-inconstruction"
+        },
+        {
+          "col": 55,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-goblins-buildings-wood-tower.wood-tower-destroyed"
+        },
+        {
           "col": 4,
           "row": 7,
           "offsetX": 0,
@@ -2571,13 +2620,6 @@
           "assetId": "resource.terrain-resources-wood-trees.tree4"
         },
         {
-          "col": 40,
-          "row": 25,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.terrain-decorations-rocks.rock1"
-        },
-        {
           "col": 19,
           "row": 34,
           "offsetX": 0,
@@ -2639,55 +2681,6 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "resource.terrain-resources-wood-trees.tree3"
-        },
-        {
-          "col": 10,
-          "row": 34,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-yellow-buildings.house1"
-        },
-        {
-          "col": 16,
-          "row": 25,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-yellow-buildings.monastery"
-        },
-        {
-          "col": 43,
-          "row": 31,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.factions-goblins-buildings-wood-house.goblin-house"
-        },
-        {
-          "col": 52,
-          "row": 34,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.factions-goblins-buildings-wood-house.goblin-house"
-        },
-        {
-          "col": 46,
-          "row": 22,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.factions-goblins-buildings-wood-house.goblin-house-destroyed"
-        },
-        {
-          "col": 40,
-          "row": 25,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.factions-goblins-buildings-wood-tower.wood-tower-inconstruction"
-        },
-        {
-          "col": 55,
-          "row": 22,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.factions-goblins-buildings-wood-tower.wood-tower-destroyed"
         }
       ],
       "spawn": {
@@ -4160,6 +4153,55 @@
       ],
       "elements": [
         {
+          "col": 40,
+          "row": 34,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-yellow-buildings.house1"
+        },
+        {
+          "col": 49,
+          "row": 37,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-yellow-buildings.house2"
+        },
+        {
+          "col": 25,
+          "row": 37,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-knights-buildings-house.house-destroyed"
+        },
+        {
+          "col": 13,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-goblins-buildings-wood-house.goblin-house-destroyed"
+        },
+        {
+          "col": 22,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-goblins-buildings-wood-house.goblin-house"
+        },
+        {
+          "col": 10,
+          "row": 16,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-goblins-buildings-wood-tower.wood-tower-destroyed"
+        },
+        {
+          "col": 28,
+          "row": 13,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-black-buildings.tower"
+        },
+        {
           "col": 4,
           "row": 7,
           "offsetX": 0,
@@ -4242,13 +4284,6 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "resource.terrain-resources-wood-trees.tree4"
-        },
-        {
-          "col": 28,
-          "row": 13,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.terrain-decorations-rocks.rock1"
         },
         {
           "col": 37,
@@ -4389,55 +4424,6 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "resource.terrain-resources-wood-trees.tree3"
-        },
-        {
-          "col": 40,
-          "row": 34,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-yellow-buildings.house1"
-        },
-        {
-          "col": 49,
-          "row": 37,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-yellow-buildings.house2"
-        },
-        {
-          "col": 25,
-          "row": 37,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.factions-knights-buildings-house.house-destroyed"
-        },
-        {
-          "col": 13,
-          "row": 28,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.factions-goblins-buildings-wood-house.goblin-house-destroyed"
-        },
-        {
-          "col": 22,
-          "row": 22,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.factions-goblins-buildings-wood-house.goblin-house"
-        },
-        {
-          "col": 10,
-          "row": 16,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.factions-goblins-buildings-wood-tower.wood-tower-destroyed"
-        },
-        {
-          "col": 28,
-          "row": 13,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-black-buildings.tower"
         }
       ],
       "spawn": {
@@ -5709,6 +5695,83 @@
       ],
       "elements": [
         {
+          "col": 43,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-black-buildings.castle"
+        },
+        {
+          "col": 31,
+          "row": 19,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-black-buildings.barracks"
+        },
+        {
+          "col": 46,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-black-buildings.archery"
+        },
+        {
+          "col": 55,
+          "row": 16,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-black-buildings.tower"
+        },
+        {
+          "col": 19,
+          "row": 16,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-purple-buildings.monastery"
+        },
+        {
+          "col": 13,
+          "row": 25,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-purple-buildings.barracks"
+        },
+        {
+          "col": 25,
+          "row": 31,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-black-buildings.house1"
+        },
+        {
+          "col": 34,
+          "row": 34,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-black-buildings.house2"
+        },
+        {
+          "col": 43,
+          "row": 31,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-black-buildings.house3"
+        },
+        {
+          "col": 52,
+          "row": 37,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-knights-buildings-house.house-destroyed"
+        },
+        {
+          "col": 7,
+          "row": 13,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-knights-buildings-tower.tower-destroyed"
+        },
+        {
           "col": 4,
           "row": 7,
           "offsetX": 0,
@@ -5777,13 +5840,6 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "resource.terrain-resources-wood-trees.tree3"
-        },
-        {
-          "col": 19,
-          "row": 16,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "resource.terrain-resources-wood-trees.tree4"
         },
         {
           "col": 28,
@@ -5877,13 +5933,6 @@
           "assetId": "resource.terrain-resources-wood-trees.tree4"
         },
         {
-          "col": 52,
-          "row": 37,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.terrain-decorations-rocks.rock1"
-        },
-        {
           "col": 13,
           "row": 40,
           "offsetX": 0,
@@ -5924,83 +5973,6 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "resource.terrain-resources-wood-trees.tree3"
-        },
-        {
-          "col": 43,
-          "row": 10,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-black-buildings.castle"
-        },
-        {
-          "col": 31,
-          "row": 19,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-black-buildings.barracks"
-        },
-        {
-          "col": 46,
-          "row": 22,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-black-buildings.archery"
-        },
-        {
-          "col": 55,
-          "row": 16,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-black-buildings.tower"
-        },
-        {
-          "col": 19,
-          "row": 16,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-purple-buildings.monastery"
-        },
-        {
-          "col": 13,
-          "row": 25,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-purple-buildings.barracks"
-        },
-        {
-          "col": 25,
-          "row": 31,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-black-buildings.house1"
-        },
-        {
-          "col": 34,
-          "row": 34,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-black-buildings.house2"
-        },
-        {
-          "col": 43,
-          "row": 31,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-black-buildings.house3"
-        },
-        {
-          "col": 52,
-          "row": 37,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.factions-knights-buildings-house.house-destroyed"
-        },
-        {
-          "col": 7,
-          "row": 13,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.factions-knights-buildings-tower.tower-destroyed"
         }
       ],
       "spawn": {
@@ -7586,6 +7558,48 @@
       ],
       "elements": [
         {
+          "col": 22,
+          "row": 13,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-purple-buildings.monastery"
+        },
+        {
+          "col": 34,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-yellow-buildings.monastery"
+        },
+        {
+          "col": 10,
+          "row": 19,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-purple-buildings.tower"
+        },
+        {
+          "col": 25,
+          "row": 31,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-purple-buildings.house2"
+        },
+        {
+          "col": 34,
+          "row": 31,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-yellow-buildings.house1"
+        },
+        {
+          "col": 43,
+          "row": 25,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-knights-buildings-castle.castle-destroyed"
+        },
+        {
           "col": 4,
           "row": 7,
           "offsetX": 0,
@@ -7815,48 +7829,6 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "resource.terrain-resources-wood-trees.tree3"
-        },
-        {
-          "col": 22,
-          "row": 13,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-purple-buildings.monastery"
-        },
-        {
-          "col": 34,
-          "row": 10,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-yellow-buildings.monastery"
-        },
-        {
-          "col": 10,
-          "row": 19,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-purple-buildings.tower"
-        },
-        {
-          "col": 25,
-          "row": 31,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-purple-buildings.house2"
-        },
-        {
-          "col": 34,
-          "row": 31,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-yellow-buildings.house1"
-        },
-        {
-          "col": 43,
-          "row": 25,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.factions-knights-buildings-castle.castle-destroyed"
         }
       ],
       "spawn": {
