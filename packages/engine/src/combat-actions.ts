@@ -45,6 +45,17 @@ export interface MonsterActionDefinition {
   hitboxRadius: number;
 }
 
+export interface MonsterSpecialActionDefinition {
+  anticipationMs: number;
+  recoveryMs: number;
+  cooldownMs: number;
+  range: number;
+  damageMultiplier: number;
+  shape: "circle" | "cone";
+  halfAngleRadians?: number;
+  healRatio?: number;
+}
+
 export const MAX_PROJECTILES_PER_PLAYER = 12;
 export const MAX_PROJECTILES_PER_ROOM = 48;
 export const MAX_PROJECTILE_LIFETIME_MS = 2_500;
@@ -193,3 +204,37 @@ export const MONSTER_ACTIONS: Readonly<Record<MonsterSpecies, MonsterActionDefin
     hitboxRadius: 25,
   },
 };
+
+export const MONSTER_SPECIAL_ACTIONS = {
+  ground_slam: {
+    anticipationMs: 850,
+    recoveryMs: 900,
+    cooldownMs: 7_000,
+    range: 112,
+    damageMultiplier: 1.45,
+    shape: "circle",
+  },
+  shadow_cone: {
+    anticipationMs: 720,
+    recoveryMs: 780,
+    cooldownMs: 6_000,
+    range: 168,
+    damageMultiplier: 1.3,
+    shape: "cone",
+    halfAngleRadians: Math.PI / 3,
+  },
+  soul_drain: {
+    anticipationMs: 950,
+    recoveryMs: 1_000,
+    cooldownMs: 8_500,
+    range: 128,
+    damageMultiplier: 1.05,
+    shape: "circle",
+    healRatio: 0.65,
+  },
+} as const satisfies Readonly<
+  Record<
+    Exclude<import("./game.js").MonsterSpecialTechnique, "none">,
+    MonsterSpecialActionDefinition
+  >
+>;

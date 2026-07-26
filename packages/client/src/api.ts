@@ -281,6 +281,7 @@ export const ERROR_KEYS: Record<string, MessageKey> = {
   map_elements: "editor.error.elements",
   map_markers: "editor.error.markers",
   map_referenced: "editor.error.referenced",
+  map_in_use: "editor.error.in_use",
   request_too_large: "editor.error.too_large",
   adventure_invalid: "adventure.error.invalid",
   adventure_title: "adventure.error.title",

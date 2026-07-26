@@ -4,6 +4,7 @@
  * branches called out in the plan (duplicate-cell rejection, bounds rejection).
  */
 
+import { defaultMonsterTuning, MONSTER_TUNING_LIMITS } from "@lindocara/engine/game.js";
 import {
   EVENT_NAME_MAX,
   MAX_EVENTS_PER_MAP,
@@ -72,6 +73,14 @@ function event(overrides: Partial<MapEvent> = {}): MapEvent {
     kind: "normal",
     species: null,
     patrolRadius: null,
+    monsterRank: null,
+    monsterMaxHp: null,
+    monsterDamage: null,
+    monsterSpeed: null,
+    monsterXp: null,
+    monsterWeakness: null,
+    monsterWeaknessPercent: null,
+    monsterSpecialTechnique: null,
     pages: [page()],
     ...overrides,
   };
@@ -258,7 +267,71 @@ describe("parseMapEvents: commands thread through pages", () => {
         }),
       ],
     });
-    expect(parseMapEvents([monster], COLS, ROWS)).toEqual([monster]);
+    const defaults = defaultMonsterTuning("spear_goblin");
+    expect(parseMapEvents([monster], COLS, ROWS)?.[0]).toMatchObject({
+      monsterRank: defaults.rank,
+      monsterMaxHp: defaults.maxHp,
+      monsterDamage: defaults.damage,
+      monsterSpeed: defaults.speed,
+      monsterXp: defaults.xp,
+      monsterWeakness: defaults.weakness,
+      monsterWeaknessPercent: defaults.weaknessPercent,
+      monsterSpecialTechnique: defaults.specialTechnique,
+    });
+  });
+});
+
+describe("parseMapEvents: authored monster tuning", () => {
+  it("hydrates a legacy monster with species defaults", () => {
+    const legacy = event({
+      kind: "monster",
+      species: "spear_goblin",
+      patrolRadius: 64,
+    });
+    const parsed = parseMapEvents([legacy], COLS, ROWS)?.[0];
+    expect(parsed).toMatchObject({
+      monsterRank: "normal",
+      monsterMaxHp: defaultMonsterTuning("spear_goblin").maxHp,
+      monsterDamage: defaultMonsterTuning("spear_goblin").damage,
+      monsterWeakness: "none",
+      monsterWeaknessPercent: defaultMonsterTuning("spear_goblin").weaknessPercent,
+      monsterSpecialTechnique: "none",
+    });
+  });
+
+  it("round-trips a fully authored boss", () => {
+    const boss = event({
+      kind: "monster",
+      species: "skull_warden",
+      patrolRadius: 96,
+      monsterRank: "boss",
+      monsterMaxHp: 4_000,
+      monsterDamage: 85,
+      monsterSpeed: 72,
+      monsterXp: 2_500,
+      monsterWeakness: "priest",
+      monsterWeaknessPercent: 175,
+      monsterSpecialTechnique: "soul_drain",
+    });
+    expect(parseMapEvents([boss], COLS, ROWS)).toEqual([boss]);
+  });
+
+  it("rejects out-of-range tuning and tuning on a non-monster", () => {
+    expect(
+      parseMapEvents(
+        [
+          event({
+            kind: "monster",
+            species: "skull_warden",
+            patrolRadius: 96,
+            monsterMaxHp: MONSTER_TUNING_LIMITS.maxHp.max + 1,
+          }),
+        ],
+        COLS,
+        ROWS,
+      ),
+    ).toBeNull();
+    expect(parseMapEvents([event({ monsterDamage: 50 })], COLS, ROWS)).toBeNull();
   });
 });
 

@@ -1,5 +1,8 @@
 import { canReclaim, speedForLife } from "@lindocara/engine/death.js";
-import { facingFromInput } from "@lindocara/engine/directional-combat.js";
+import {
+  facingFromInput,
+  movementDirectionFromInput,
+} from "@lindocara/engine/directional-combat.js";
 import { movementSpeedAt, resolveTerrain, resolveTerrainForLumen } from "@lindocara/engine/game.js";
 import { regenerateResource } from "@lindocara/engine/resources.js";
 import { NO_INPUT, step, TICK_DT } from "@lindocara/engine/simulation.js";
@@ -98,14 +101,12 @@ export function advancePlayers(context: MovementSystemContext): void {
           action.channelEndsAt === undefined
         ) {
           action.mobilityDistance = Math.max(0, (action.mobilityDistance ?? 0) - movementDistance);
-          const directionLength = Math.hypot(
-            Number(player.lastInput.right) - Number(player.lastInput.left),
-            Number(player.lastInput.down) - Number(player.lastInput.up),
-          );
+          const movementDirection = movementDirectionFromInput(player.lastInput);
+          const directionLength = Math.hypot(movementDirection.x, movementDirection.y);
           if (directionLength > 0) {
             action.direction = {
-              x: (Number(player.lastInput.right) - Number(player.lastInput.left)) / directionLength,
-              y: (Number(player.lastInput.down) - Number(player.lastInput.up)) / directionLength,
+              x: movementDirection.x / directionLength,
+              y: movementDirection.y / directionLength,
             };
           }
         }

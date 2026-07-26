@@ -4,6 +4,7 @@ import {
   MAX_PROJECTILES_PER_PLAYER,
   MAX_PROJECTILES_PER_ROOM,
   MONSTER_ACTIONS,
+  MONSTER_SPECIAL_ACTIONS,
   PLAYER_ACTIONS,
 } from "@lindocara/engine/combat-actions.js";
 import { ATTACK_COOLDOWN_MS } from "@lindocara/engine/game.js";
@@ -105,6 +106,31 @@ describe("directional class kit contract", () => {
       expect(action.recoveryMs).toBeGreaterThan(0);
       expect(action.range).toBeGreaterThan(0);
       expect(action.hitboxRadius).toBeGreaterThan(0);
+    }
+  });
+
+  it("defines distinct telegraphed boss techniques", () => {
+    expect(Object.keys(MONSTER_SPECIAL_ACTIONS).sort()).toEqual([
+      "ground_slam",
+      "shadow_cone",
+      "soul_drain",
+    ]);
+    expect(MONSTER_SPECIAL_ACTIONS.ground_slam).toMatchObject({
+      shape: "circle",
+      damageMultiplier: 1.45,
+    });
+    expect(MONSTER_SPECIAL_ACTIONS.shadow_cone).toMatchObject({
+      shape: "cone",
+      damageMultiplier: 1.3,
+    });
+    expect(MONSTER_SPECIAL_ACTIONS.soul_drain).toMatchObject({
+      shape: "circle",
+      healRatio: 0.65,
+    });
+    for (const action of Object.values(MONSTER_SPECIAL_ACTIONS)) {
+      expect(action.anticipationMs).toBeGreaterThanOrEqual(700);
+      expect(action.cooldownMs).toBeGreaterThan(action.anticipationMs + action.recoveryMs);
+      expect(action.range).toBeGreaterThan(MONSTER_ACTIONS.spear_goblin.range);
     }
   });
 

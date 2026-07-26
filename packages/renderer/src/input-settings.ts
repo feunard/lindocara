@@ -24,6 +24,7 @@ export const CONTROL_IDS = [
 
 export type ControlId = (typeof CONTROL_IDS)[number];
 export type ControllerLayout = "xbox" | "playstation" | "switch" | "generic";
+export type InputMode = "keyboard" | "gamepad";
 
 export interface KeyboardBinding {
   code: string;
@@ -43,6 +44,7 @@ const STORAGE_KEY = "lindocara.input";
 const INPUT_BINDINGS_VERSION = 3;
 const GAMEPAD_AXIS_THRESHOLD = 0.55;
 const listeners = new Set<() => void>();
+const modeListeners = new Set<() => void>();
 
 export const DEFAULT_INPUT_SETTINGS: InputSettings = {
   controllerLayout: "xbox",
@@ -210,6 +212,7 @@ function loadSettings(): InputSettings {
 }
 
 let settings = loadSettings();
+let inputMode: InputMode = "keyboard";
 
 function commit(next: InputSettings): void {
   settings = next;
@@ -228,9 +231,24 @@ export function getInputSettings(): InputSettings {
   return settings;
 }
 
+export function getInputMode(): InputMode {
+  return inputMode;
+}
+
 export function subscribeInputSettings(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
+}
+
+export function subscribeInputMode(listener: () => void): () => void {
+  modeListeners.add(listener);
+  return () => modeListeners.delete(listener);
+}
+
+export function setInputMode(mode: InputMode): void {
+  if (inputMode === mode) return;
+  inputMode = mode;
+  for (const listener of modeListeners) listener();
 }
 
 export function setControllerLayout(controllerLayout: ControllerLayout): void {

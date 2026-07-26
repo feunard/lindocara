@@ -44,10 +44,14 @@ import {
 } from "./event-commands.js";
 import {
   type Cemetery,
+  isMonsterRank,
+  isMonsterSpecialTechnique,
   isMonsterSpecies,
   isValidClass,
   MONSTER_SPECIES_KIND,
   type MonsterKind,
+  type MonsterRank,
+  type MonsterSpecialTechnique,
   type MonsterSpecies,
   type NpcDefinition,
   type PlayerClass,
@@ -137,8 +141,11 @@ export interface CorpseSnapshot {
 
 export interface MonsterSnapshot {
   id: string;
+  name: string;
   kind: MonsterKind;
   species: MonsterSpecies;
+  rank: MonsterRank;
+  specialTechnique: MonsterSpecialTechnique;
   x: number;
   y: number;
   hp: number;
@@ -713,8 +720,12 @@ function isMonsterSnapshot(value: unknown): value is MonsterSnapshot {
   return (
     isRecord(value) &&
     isWireId(value.id) &&
+    typeof value.name === "string" &&
+    value.name.length <= 100 &&
     isMonsterSpecies(value.species) &&
     value.kind === MONSTER_SPECIES_KIND[value.species] &&
+    isMonsterRank(value.rank) &&
+    isMonsterSpecialTechnique(value.specialTechnique) &&
     isFiniteNumber(value.x) &&
     isFiniteNumber(value.y) &&
     isFiniteNumber(value.hp) &&
@@ -1184,7 +1195,24 @@ function parseInput(value: unknown): Input | null {
   ) {
     return null;
   }
-  return { up, down, left, right };
+  const axisX = value.axisX;
+  const axisY = value.axisY;
+  const parsedAxisX =
+    axisX === undefined
+      ? undefined
+      : typeof axisX === "number" && Number.isFinite(axisX)
+        ? Math.max(-1, Math.min(1, axisX))
+        : null;
+  const parsedAxisY =
+    axisY === undefined
+      ? undefined
+      : typeof axisY === "number" && Number.isFinite(axisY)
+        ? Math.max(-1, Math.min(1, axisY))
+        : null;
+  if (parsedAxisX === null || parsedAxisY === null) return null;
+  const base: Input = { up, down, left, right };
+  if (parsedAxisX === undefined && parsedAxisY === undefined) return base;
+  return { ...base, axisX: parsedAxisX ?? 0, axisY: parsedAxisY ?? 0 };
 }
 
 /** Returns `null` for anything that is not a well-formed client message. */

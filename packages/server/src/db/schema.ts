@@ -6,7 +6,12 @@
  * NOT unique: accounts claim usernames; characters do not claim names.
  */
 
-import type { MonsterSpecies } from "@lindocara/engine/game.js";
+import type {
+  MonsterRank,
+  MonsterSpecialTechnique,
+  MonsterSpecies,
+  MonsterWeakness,
+} from "@lindocara/engine/game.js";
 import {
   EVENT_KINDS,
   EVENT_TRIGGERS,
@@ -365,6 +370,15 @@ export const mapEvent = sqliteTable(
     species: text("species").$type<MonsterSpecies>(),
     /** Monster patrol radius (px), set iff `kind = 'monster'`. */
     patrolRadius: integer("patrol_radius"),
+    /** Per-spawn tuning. Null rows are legacy data and fall back to the species defaults. */
+    monsterRank: text("monster_rank").$type<MonsterRank>(),
+    monsterMaxHp: integer("monster_max_hp"),
+    monsterDamage: integer("monster_damage"),
+    monsterSpeed: integer("monster_speed"),
+    monsterXp: integer("monster_xp"),
+    monsterWeakness: text("monster_weakness").$type<MonsterWeakness>(),
+    monsterWeaknessPercent: integer("monster_weakness_percent"),
+    monsterSpecialTechnique: text("monster_special_technique").$type<MonsterSpecialTechnique>(),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
   },
   (table) => [

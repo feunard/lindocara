@@ -185,7 +185,7 @@ describe("AdventureSettingsDialog", () => {
 
     await waitFor(() =>
       expect(mock).toHaveBeenCalledWith(
-        "/api/adventures/adv-1",
+        "/api/adventures/adv-1?force=true",
         expect.objectContaining({ method: "DELETE" }),
       ),
     );

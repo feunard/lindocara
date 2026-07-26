@@ -20,6 +20,7 @@ import {
   validateAdventure,
 } from "@lindocara/engine/adventure.js";
 import { parseEventCommands } from "@lindocara/engine/event-commands.js";
+import { defaultMonsterTuning } from "@lindocara/engine/game.js";
 import {
   bakeCollision,
   EMPTY_MARKERS,
@@ -62,7 +63,16 @@ import { isEditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
 import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { decodeStoredAdventureRegistry, prepareAdventureRegistry } from "./adventure-registry.js";
-import { adventure, type Db, map, mapElement, mapEvent, mapEventPage, party } from "./db/index.js";
+import {
+  adventure,
+  type Db,
+  hero,
+  map,
+  mapElement,
+  mapEvent,
+  mapEventPage,
+  party,
+} from "./db/index.js";
 
 export const BUILTIN_MAP_ID = "builtin";
 
@@ -520,6 +530,7 @@ async function eventsOf(db: Db, mapId: string): Promise<MapEvent[]> {
     // monster event the parser would reject, the same "one bad row must not break the map" degrade.
     const isMonster = row.kind === "monster";
     if (isMonster && (row.species === null || row.patrolRadius === null)) return [];
+    const tuning = isMonster && row.species !== null ? defaultMonsterTuning(row.species) : null;
     return [
       {
         id: row.id,
@@ -530,6 +541,18 @@ async function eventsOf(db: Db, mapId: string): Promise<MapEvent[]> {
         kind: row.kind,
         species: isMonster ? row.species : null,
         patrolRadius: isMonster ? row.patrolRadius : null,
+        monsterRank: isMonster ? (row.monsterRank ?? tuning?.rank ?? null) : null,
+        monsterMaxHp: isMonster ? (row.monsterMaxHp ?? tuning?.maxHp ?? null) : null,
+        monsterDamage: isMonster ? (row.monsterDamage ?? tuning?.damage ?? null) : null,
+        monsterSpeed: isMonster ? (row.monsterSpeed ?? tuning?.speed ?? null) : null,
+        monsterXp: isMonster ? (row.monsterXp ?? tuning?.xp ?? null) : null,
+        monsterWeakness: isMonster ? (row.monsterWeakness ?? tuning?.weakness ?? null) : null,
+        monsterWeaknessPercent: isMonster
+          ? (row.monsterWeaknessPercent ?? tuning?.weaknessPercent ?? null)
+          : null,
+        monsterSpecialTechnique: isMonster
+          ? (row.monsterSpecialTechnique ?? tuning?.specialTechnique ?? null)
+          : null,
         pages,
       },
     ];
@@ -640,9 +663,9 @@ function insertElementStatements(db: Db, mapId: string, elements: readonly MapEl
 
 /**
  * Events and their pages ride the same batch as elements and hit the same D1 100-bound-parameter
- * cap. An event INSERT binds 9 parameters per row (id, map_id, col, row, name, ordinal, kind,
- * species, patrol_radius — created_at defaults), so an unchunked write of the 64-event maximum would
- * bind 576 and D1 would refuse the whole batch. A page INSERT binds 18 (id, event_id,
+ * cap. An event INSERT binds 17 parameters per row (the nine identity/placement columns plus the
+ * eight authored tuning columns; created_at defaults), so an unchunked write of the 64-event
+ * maximum would bind 1,088 and D1 would refuse the whole batch. A page INSERT binds 18 (id, event_id,
  * position, four condition columns, graphic_asset_id, three move columns, five opt columns,
  * trigger, and tranche 5's `commands` blob — the whole program is ONE bound parameter, a JSON
  * string, so a page's command volume never grows its parameter count), and the 64x8 = 512-page
@@ -650,7 +673,7 @@ function insertElementStatements(db: Db, mapId: string, elements: readonly MapEl
  * cap, matching the element rule above so a later column keeps headroom instead of regressing onto
  * the line.
  */
-const MAP_EVENT_PARAMS_PER_ROW = 9; // id, mapId, col, row, name, ordinal, kind, species, patrol_radius — mirrors `mapEvent` (created_at defaults)
+const MAP_EVENT_PARAMS_PER_ROW = 17; // 9 identity/placement + 8 monster-tuning columns; createdAt defaults
 const MAP_EVENT_CHUNK_ROWS = Math.floor((D1_MAX_BOUND_PARAMETERS * 0.6) / MAP_EVENT_PARAMS_PER_ROW);
 const MAP_EVENT_PAGE_PARAMS_PER_ROW = 18; // id, eventId, position, 4 cond, graphic, 3 move, 5 opt, trigger, commands — mirrors `mapEventPage`
 const MAP_EVENT_PAGE_CHUNK_ROWS = Math.floor(
@@ -668,6 +691,14 @@ function eventRows(mapId: string, events: readonly MapEvent[]) {
     kind: event.kind,
     species: event.species,
     patrolRadius: event.patrolRadius,
+    monsterRank: event.monsterRank ?? null,
+    monsterMaxHp: event.monsterMaxHp ?? null,
+    monsterDamage: event.monsterDamage ?? null,
+    monsterSpeed: event.monsterSpeed ?? null,
+    monsterXp: event.monsterXp ?? null,
+    monsterWeakness: event.monsterWeakness ?? null,
+    monsterWeaknessPercent: event.monsterWeaknessPercent ?? null,
+    monsterSpecialTechnique: event.monsterSpecialTechnique ?? null,
   }));
 }
 
@@ -1089,11 +1120,18 @@ export async function deleteMap(
     .limit(1);
   if (!force) {
     const used = await db
-      .select({ id: party.id })
-      .from(party)
-      .where(eq(party.adventureId, row.adventureId))
+      .select({ id: hero.id })
+      .from(hero)
+      .innerJoin(party, eq(hero.partyId, party.id))
+      .where(
+        and(
+          eq(party.adventureId, row.adventureId),
+          eq(party.status, "open"),
+          eq(hero.mapId, row.id),
+        ),
+      )
       .limit(1);
-    if (used.length > 0) throw new Error("referenced: a party still uses this adventure");
+    if (used.length > 0) throw new Error("in_use: a player is still in this map");
   }
   if (!force && owner && graphReferencesMap(owner.graph, id)) {
     throw new Error("referenced: an adventure still uses this map");

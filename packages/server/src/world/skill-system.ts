@@ -1,4 +1,7 @@
-import { normalizeDirection } from "@lindocara/engine/directional-combat.js";
+import {
+  movementDirectionFromInput,
+  normalizeDirection,
+} from "@lindocara/engine/directional-combat.js";
 import type { TerrainGeometry } from "@lindocara/engine/game.js";
 import { resolveTerrain, resolveTerrainForLumen } from "@lindocara/engine/game.js";
 import type { Input, Vec2 } from "@lindocara/engine/simulation.js";
@@ -12,10 +15,7 @@ export interface ChargeCandidate extends Vec2 {
 
 /** Current held movement, not historical facing. Null means a mobility cast stays in place. */
 export function heldMovementDirection(input: Input): Vec2 | null {
-  const direction = {
-    x: Number(input.right) - Number(input.left),
-    y: Number(input.down) - Number(input.up),
-  };
+  const direction = movementDirectionFromInput(input);
   if (direction.x === 0 && direction.y === 0) return null;
   return normalizeDirection(direction);
 }

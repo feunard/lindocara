@@ -16,7 +16,19 @@
  * only checks its shape, never its uniqueness.
  */
 import { type EventCommand, parseEventCommands } from "./event-commands.js";
-import { isMonsterSpecies, type MonsterSpecies } from "./game.js";
+import {
+  defaultMonsterTuning,
+  isMonsterRank,
+  isMonsterSpecialTechnique,
+  isMonsterSpecies,
+  isMonsterWeakness,
+  MONSTER_TUNING_LIMITS,
+  type MonsterRank,
+  type MonsterSpecialTechnique,
+  type MonsterSpecies,
+  type MonsterTuning,
+  type MonsterWeakness,
+} from "./game.js";
 import { isUuid } from "./identifiers.js";
 import { MAX_PATROL_RADIUS, MIN_PATROL_RADIUS } from "./map-data.js";
 import { TILE_SIZE } from "./tilemap.js";
@@ -142,6 +154,14 @@ export interface MapEvent {
   species: MonsterSpecies | null;
   /** Set (in `[MIN_PATROL_RADIUS, MAX_PATROL_RADIUS]`) iff `kind === "monster"`; else `null`. */
   patrolRadius: number | null;
+  monsterRank?: MonsterRank | null;
+  monsterMaxHp?: number | null;
+  monsterDamage?: number | null;
+  monsterSpeed?: number | null;
+  monsterXp?: number | null;
+  monsterWeakness?: MonsterWeakness | null;
+  monsterWeaknessPercent?: number | null;
+  monsterSpecialTechnique?: MonsterSpecialTechnique | null;
   pages: readonly MapEventPage[];
 }
 
@@ -207,8 +227,14 @@ export function functionalEvent(params: {
   name?: string | undefined;
   species?: MonsterSpecies | undefined;
   patrolRadius?: number | undefined;
+  monsterTuning?: Partial<MonsterTuning> | undefined;
 }): MapEvent {
   const isMonster = params.kind === "monster";
+  const species = params.species ?? "spear_goblin";
+  const tuning = {
+    ...defaultMonsterTuning(species),
+    ...params.monsterTuning,
+  };
   return {
     id: params.id,
     col: params.col,
@@ -216,8 +242,16 @@ export function functionalEvent(params: {
     name: params.name ?? "",
     ordinal: params.ordinal,
     kind: params.kind,
-    species: isMonster ? (params.species ?? null) : null,
+    species: isMonster ? species : null,
     patrolRadius: isMonster ? (params.patrolRadius ?? null) : null,
+    monsterRank: isMonster ? tuning.rank : null,
+    monsterMaxHp: isMonster ? tuning.maxHp : null,
+    monsterDamage: isMonster ? tuning.damage : null,
+    monsterSpeed: isMonster ? tuning.speed : null,
+    monsterXp: isMonster ? tuning.xp : null,
+    monsterWeakness: isMonster ? tuning.weakness : null,
+    monsterWeaknessPercent: isMonster ? tuning.weaknessPercent : null,
+    monsterSpecialTechnique: isMonster ? tuning.specialTechnique : null,
     pages: [defaultEventPage()],
   };
 }
@@ -228,6 +262,17 @@ export function validateEventName(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed.length <= EVENT_NAME_MAX ? trimmed : null;
+}
+
+function boundedMonsterInteger(
+  value: unknown,
+  fallback: number,
+  limits: { readonly min: number; readonly max: number },
+): number | null {
+  if (value === undefined || value === null) return fallback;
+  if (!Number.isSafeInteger(value)) return null;
+  const numeric = value as number;
+  return numeric >= limits.min && numeric <= limits.max ? numeric : null;
 }
 
 function parseEventPage(raw: unknown): MapEventPage | null {
@@ -362,6 +407,14 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
     // discriminated pair, checked here rather than deferred, so no unvalidated data slips past.
     let species: MonsterSpecies | null = null;
     let patrolRadius: number | null = null;
+    let monsterRank: MonsterRank | null = null;
+    let monsterMaxHp: number | null = null;
+    let monsterDamage: number | null = null;
+    let monsterSpeed: number | null = null;
+    let monsterXp: number | null = null;
+    let monsterWeakness: MonsterWeakness | null = null;
+    let monsterWeaknessPercent: number | null = null;
+    let monsterSpecialTechnique: MonsterSpecialTechnique | null = null;
     if (kind === "monster") {
       if (!isMonsterSpecies(record.species)) return null;
       species = record.species;
@@ -369,9 +422,59 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
       const radius = record.patrolRadius as number;
       if (radius < MIN_PATROL_RADIUS || radius > MAX_PATROL_RADIUS) return null;
       patrolRadius = radius;
+      const defaults = defaultMonsterTuning(species);
+      const rank = record.monsterRank ?? defaults.rank;
+      const weakness = record.monsterWeakness ?? defaults.weakness;
+      const specialTechnique = record.monsterSpecialTechnique ?? defaults.specialTechnique;
+      if (
+        !isMonsterRank(rank) ||
+        !isMonsterWeakness(weakness) ||
+        !isMonsterSpecialTechnique(specialTechnique)
+      )
+        return null;
+      monsterRank = rank;
+      monsterWeakness = weakness;
+      monsterSpecialTechnique = specialTechnique;
+      monsterMaxHp = boundedMonsterInteger(
+        record.monsterMaxHp,
+        defaults.maxHp,
+        MONSTER_TUNING_LIMITS.maxHp,
+      );
+      monsterDamage = boundedMonsterInteger(
+        record.monsterDamage,
+        defaults.damage,
+        MONSTER_TUNING_LIMITS.damage,
+      );
+      monsterSpeed = boundedMonsterInteger(
+        record.monsterSpeed,
+        defaults.speed,
+        MONSTER_TUNING_LIMITS.speed,
+      );
+      monsterXp = boundedMonsterInteger(record.monsterXp, defaults.xp, MONSTER_TUNING_LIMITS.xp);
+      monsterWeaknessPercent = boundedMonsterInteger(
+        record.monsterWeaknessPercent,
+        defaults.weaknessPercent,
+        MONSTER_TUNING_LIMITS.weaknessPercent,
+      );
+      if (
+        monsterMaxHp === null ||
+        monsterDamage === null ||
+        monsterSpeed === null ||
+        monsterXp === null ||
+        monsterWeaknessPercent === null
+      )
+        return null;
     } else if (
       (record.species !== undefined && record.species !== null) ||
-      (record.patrolRadius !== undefined && record.patrolRadius !== null)
+      (record.patrolRadius !== undefined && record.patrolRadius !== null) ||
+      (record.monsterRank !== undefined && record.monsterRank !== null) ||
+      (record.monsterMaxHp !== undefined && record.monsterMaxHp !== null) ||
+      (record.monsterDamage !== undefined && record.monsterDamage !== null) ||
+      (record.monsterSpeed !== undefined && record.monsterSpeed !== null) ||
+      (record.monsterXp !== undefined && record.monsterXp !== null) ||
+      (record.monsterWeakness !== undefined && record.monsterWeakness !== null) ||
+      (record.monsterWeaknessPercent !== undefined && record.monsterWeaknessPercent !== null) ||
+      (record.monsterSpecialTechnique !== undefined && record.monsterSpecialTechnique !== null)
     ) {
       return null;
     }
@@ -400,6 +503,14 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
       kind,
       species,
       patrolRadius,
+      monsterRank,
+      monsterMaxHp,
+      monsterDamage,
+      monsterSpeed,
+      monsterXp,
+      monsterWeakness,
+      monsterWeaknessPercent,
+      monsterSpecialTechnique,
       pages: parsedPages,
     });
   }

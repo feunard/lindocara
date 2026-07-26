@@ -11,7 +11,10 @@ import {
   firstConnectedGamepad,
   gamepadControlPressed,
   keyboardControlForCode,
+  setInputMode,
 } from "./input-settings.js";
+
+const GAMEPAD_AXIS_DEADZONE = 0.2;
 
 const MOVEMENT_CONTROLS: Partial<Record<ControlId, keyof Input>> = {
   moveUp: "up",
@@ -40,6 +43,27 @@ const ACTION_CONTROLS = [
   "settings",
 ] as const satisfies readonly ControlId[];
 
+function clampAxis(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  const scaled = Math.abs(value) < GAMEPAD_AXIS_DEADZONE ? 0 : value;
+  if (scaled <= -1) return -1;
+  if (scaled >= 1) return 1;
+  return scaled;
+}
+
+function mergedInput(movement: Input, virtual: Input): Input {
+  const axisX = Number.isFinite(virtual.axisX) ? virtual.axisX : movement.axisX;
+  const axisY = Number.isFinite(virtual.axisY) ? virtual.axisY : movement.axisY;
+  return {
+    up: movement.up || virtual.up,
+    down: movement.down || virtual.down,
+    left: movement.left || virtual.left,
+    right: movement.right || virtual.right,
+    ...(axisX === undefined ? {} : { axisX }),
+    ...(axisY === undefined ? {} : { axisY }),
+  };
+}
+
 export interface InputTracker {
   current(): Input;
   setVirtual(input: Input): void;
@@ -60,11 +84,13 @@ export function trackInput(): InputTracker {
   };
 
   const onKeyDown = (event: KeyboardEvent) => {
+    setInputMode("keyboard");
     if (event.target instanceof HTMLInputElement || event.repeat) return;
     if (set(event.code, true)) event.preventDefault();
   };
 
   const onKeyUp = (event: KeyboardEvent) => {
+    setInputMode("keyboard");
     if (event.target instanceof HTMLInputElement) return;
     if (set(event.code, false)) event.preventDefault();
   };
@@ -81,7 +107,17 @@ export function trackInput(): InputTracker {
   return {
     current: () => {
       const gamepad = firstConnectedGamepad();
-      return {
+      if (gamepad) {
+        const rawAxisX = gamepad.axes[0] ?? 0;
+        const rawAxisY = gamepad.axes[1] ?? 0;
+        const hasAxis =
+          Math.abs(rawAxisX) > GAMEPAD_AXIS_DEADZONE || Math.abs(rawAxisY) > GAMEPAD_AXIS_DEADZONE;
+        const hasAction = ACTION_CONTROLS.some((control) =>
+          gamepadControlPressed(control, gamepad),
+        );
+        if (hasAxis || hasAction) setInputMode("gamepad");
+      }
+      const movement: Input = {
         up:
           keyboard.up || virtual.up || (gamepad ? gamepadControlPressed("moveUp", gamepad) : false),
         down:
@@ -96,10 +132,35 @@ export function trackInput(): InputTracker {
           keyboard.right ||
           virtual.right ||
           (gamepad ? gamepadControlPressed("moveRight", gamepad) : false),
+        axisX: 0,
+        axisY: 0,
       };
+      if (gamepad) {
+        movement.axisX = clampAxis(gamepad.axes[0] ?? 0);
+        movement.axisY = clampAxis(gamepad.axes[1] ?? 0);
+      }
+      if (movement.axisX === 0 && movement.axisY === 0) {
+        return mergedInput(
+          {
+            ...movement,
+            axisX: 0,
+            axisY: 0,
+          },
+          {
+            ...virtual,
+            axisX: clampAxis(Number(virtual.right) - Number(virtual.left)),
+            axisY: clampAxis(Number(virtual.down) - Number(virtual.up)),
+          },
+        );
+      }
+      return mergedInput(movement, virtual);
     },
     setVirtual: (input) => {
-      virtual = { ...input };
+      virtual = {
+        ...input,
+        axisX: clampAxis(Number(input.right) - Number(input.left)),
+        axisY: clampAxis(Number(input.down) - Number(input.up)),
+      };
     },
     reset: () => {
       keyboard = { ...NO_INPUT };
@@ -174,6 +235,7 @@ export function trackActions(
 ): () => void {
   const pressedSkillCodes = new Map<string, SkillSlot>();
   const onKeyDown = (event: KeyboardEvent) => {
+    setInputMode("keyboard");
     if (event.defaultPrevented || event.repeat) return;
     if (isTextEntry(event.target)) {
       if (event.code === "Escape") {
@@ -199,6 +261,7 @@ export function trackActions(
     event.preventDefault();
   };
   const onKeyUp = (event: KeyboardEvent) => {
+    setInputMode("keyboard");
     const slot = pressedSkillCodes.get(event.code);
     if (slot === undefined) return;
     pressedSkillCodes.delete(event.code);
@@ -213,6 +276,9 @@ export function trackActions(
     const gamepad = firstConnectedGamepad();
     const pressed = new Set<ControlId>();
     if (gamepad) {
+      if (ACTION_CONTROLS.some((control) => gamepadControlPressed(control, gamepad))) {
+        setInputMode("gamepad");
+      }
       // Standard pads have no three spare face buttons. LT acts as a quick-item modifier:
       // LT alone uses slot 1, LT + D-pad down/right uses slots 2/3, and LT + Back opens the bag.
       // Individual mapped actions are suppressed for the chord so one press produces one intent.

@@ -53,7 +53,6 @@ export function LoadAdventureDialog({
   const [adventures, setAdventures] = useState<AdventureSummary[] | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState<AdventureSummary | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [forceDelete, setForceDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reload the list each time the dialog opens
@@ -62,7 +61,6 @@ export function LoadAdventureDialog({
     setError(null);
     setAdventures(null);
     setConfirmingDelete(null);
-    setForceDelete(false);
     void (async () => {
       try {
         setAdventures(await fetchAllAdventures());
@@ -79,17 +77,15 @@ export function LoadAdventureDialog({
     setDeletingId(adventure.id);
     setError(null);
     try {
-      await deleteAdventureApi(adventure.id, forceDelete);
+      await deleteAdventureApi(adventure.id, true);
       setAdventures(
         (current) => current?.filter((candidate) => candidate.id !== adventure.id) ?? [],
       );
       setConfirmingDelete(null);
-      setForceDelete(false);
       onDeleted(adventure.id);
     } catch (caught) {
       const code = errorCode(caught);
       setConfirmingDelete(null);
-      setForceDelete(false);
       if (isSessionError(code)) onSessionExpired();
       else setError(code);
     } finally {
@@ -152,7 +148,6 @@ export function LoadAdventureDialog({
                     size="sm"
                     disabled={deletingId !== null}
                     onClick={() => {
-                      setForceDelete(false);
                       setConfirmingDelete(adventure);
                     }}
                   >
@@ -169,7 +164,6 @@ export function LoadAdventureDialog({
           onOpenChange={(next) => {
             if (!next && deletingId === null) {
               setConfirmingDelete(null);
-              setForceDelete(false);
             }
           }}
         >
@@ -180,12 +174,7 @@ export function LoadAdventureDialog({
               </DialogTitle>
             </DialogHeader>
             <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
-              <Checkbox
-                id="force-delete-loaded-adventure"
-                checked={forceDelete}
-                disabled={deletingId !== null}
-                onCheckedChange={(checked) => setForceDelete(checked === true)}
-              />
+              <Checkbox id="force-delete-loaded-adventure" checked disabled />
               <div className="grid gap-1">
                 <Label htmlFor="force-delete-loaded-adventure">{t("editor.delete.force")}</Label>
                 <p className="text-xs text-muted-foreground">{t("editor.delete.force_warning")}</p>
@@ -197,7 +186,6 @@ export function LoadAdventureDialog({
                 disabled={deletingId !== null}
                 onClick={() => {
                   setConfirmingDelete(null);
-                  setForceDelete(false);
                 }}
               >
                 {t("adventure.delete.cancel")}

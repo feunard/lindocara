@@ -25,8 +25,8 @@ import {
 } from "@lindocara/engine/character.js";
 import { facingFromInput } from "@lindocara/engine/directional-combat.js";
 import {
+  defaultMonsterTuning,
   MONSTER_SPECIES_KIND,
-  MONSTER_STATS,
   movementSpeedAt,
   resolveTerrain,
 } from "@lindocara/engine/game.js";
@@ -123,13 +123,23 @@ export async function startMapPreview(
     const species = event.species;
     if (species === null) return [];
     const kind = MONSTER_SPECIES_KIND[species];
-    const stats = MONSTER_STATS[kind];
+    const stats = {
+      ...defaultMonsterTuning(species),
+      ...(event.monsterRank ? { rank: event.monsterRank } : {}),
+      ...(event.monsterMaxHp === null || event.monsterMaxHp === undefined
+        ? {}
+        : { maxHp: event.monsterMaxHp }),
+      ...(event.monsterSpecialTechnique ? { specialTechnique: event.monsterSpecialTechnique } : {}),
+    };
     const at = eventCellCentre(event);
     return [
       {
         id: `preview-monster-${event.id}`,
+        name: event.name,
         kind,
         species,
+        rank: stats.rank,
+        specialTechnique: stats.specialTechnique,
         x: at.x,
         y: at.y,
         hp: stats.maxHp,

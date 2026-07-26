@@ -20,6 +20,7 @@ import {
   actionForClassSlot,
   LUMEN_STEP_MAX_HOLD_MS,
   MONSTER_ACTIONS,
+  MONSTER_SPECIAL_ACTIONS,
 } from "@lindocara/engine/combat-actions.js";
 import {
   CONSUMABLE_COOLDOWN_MS,
@@ -48,6 +49,7 @@ import {
 import {
   circleIntersectsArc,
   circleIntersectsCapsule,
+  facingFromInput,
   firstSegmentImpact,
   frontalArc,
   normalizeDirection,
@@ -242,11 +244,7 @@ import {
   spawnProjectile,
 } from "./world/projectile-system.js";
 import { nextQuestChapter, questDefinition } from "./world/quest-system.js";
-import {
-  heldMovementDirection,
-  movePlayerInDirection,
-  nearestChargeTarget,
-} from "./world/skill-system.js";
+import { movePlayerInDirection, nearestChargeTarget } from "./world/skill-system.js";
 import {
   broadcastNetworkUpdates,
   selfState,
@@ -1564,6 +1562,7 @@ export class World extends DurableObject<Env> {
         player.queue = [];
         return;
       }
+      player.facing = facingFromInput(message.input, player.facing);
       if (player.queue.length >= MAX_QUEUED_COMMANDS) {
         this.#observability.saturatedCommandQueues += 1;
         return;
@@ -1799,8 +1798,6 @@ export class World extends DurableObject<Env> {
     if (skill.id === "mend" && now - player.lastHealAt < skill.cooldownMs) return false;
     if (slot !== 1 && (player.skillCooldowns[slot - 1] ?? 0) > now) return false;
     const definition = actionForClassSlot(player.class, slot);
-    const heldDirection =
-      definition.shape === "teleport" ? heldMovementDirection(player.lastInput) : null;
     const chargeTarget =
       definition.shape === "charge"
         ? nearestChargeTarget(
@@ -1819,7 +1816,7 @@ export class World extends DurableObject<Env> {
           { x: chargeTarget.x - player.x, y: chargeTarget.y - player.y },
           player.facing,
         )
-      : (heldDirection ?? player.facing);
+      : player.facing;
     const action = startCombatAction(player, {
       kind: slot === 1 ? "basic" : "skill",
       skillId: skill.id,
@@ -2143,7 +2140,8 @@ export class World extends DurableObject<Env> {
       1,
       Math.round(
         baseDamage *
-          (player.damageBoostUntil > now ? 1 + CONSUMABLES.damage_elixir.effectValue : 1),
+          (player.damageBoostUntil > now ? 1 + CONSUMABLES.damage_elixir.effectValue : 1) *
+          (target.weakness === player.class ? target.weaknessPercent / 100 : 1),
       ),
     );
     const actualDamage = Math.min(target.hp, damage);
@@ -4414,7 +4412,13 @@ export class World extends DurableObject<Env> {
 
   #startMonsterAttack(monster: Monster, target: Player | Guard, now: number): void {
     if (monster.deadUntil > now || monster.action) return;
-    const definition = MONSTER_ACTIONS[monster.species];
+    const specialTechnique =
+      monster.specialTechnique !== "none" && now >= monster.nextSpecialAt
+        ? monster.specialTechnique
+        : null;
+    const definition = specialTechnique
+      ? MONSTER_SPECIAL_ACTIONS[specialTechnique]
+      : MONSTER_ACTIONS[monster.species];
     const direction = normalizeDirection(
       { x: target.x - monster.x, y: target.y - monster.y },
       monster.facing,
@@ -4422,19 +4426,24 @@ export class World extends DurableObject<Env> {
     monster.facing = direction;
     const action = startCombatAction(monster, {
       kind: "monster_attack",
+      ...(specialTechnique ? { skillId: specialTechnique } : {}),
       direction,
       now,
       anticipationMs: definition.anticipationMs,
       recoveryMs: definition.recoveryMs,
     });
     if (!action) return;
+    if (specialTechnique) {
+      monster.nextSpecialAt = now + MONSTER_SPECIAL_ACTIONS[specialTechnique].cooldownMs;
+    }
     this.#sendSpatialEvent(
       {
         t: "animation",
         actionId: action.id,
         actorKind: "monster",
         actorId: monster.id,
-        action: "attack",
+        action: specialTechnique ? "skill" : "attack",
+        ...(specialTechnique ? { skillId: specialTechnique } : {}),
         direction: { ...action.direction },
         startedAt: action.startedAt,
         impactAt: action.impactAt,
@@ -4446,14 +4455,45 @@ export class World extends DurableObject<Env> {
 
   #resolveMonsterAction(monster: Monster, action: CombatActionRuntime, now: number): void {
     if (monster.deadUntil > now) return;
+    const specialTechnique =
+      action.skillId === "ground_slam" ||
+      action.skillId === "shadow_cone" ||
+      action.skillId === "soul_drain"
+        ? action.skillId
+        : null;
+    const specialDefinition = specialTechnique ? MONSTER_SPECIAL_ACTIONS[specialTechnique] : null;
     const definition = MONSTER_ACTIONS[monster.species];
     const origin = { x: monster.x + PLAYER_SIZE / 2, y: monster.y + PLAYER_SIZE / 2 };
-    const hitbox = strikeCapsule(
-      origin,
-      action.direction,
-      definition.range,
-      definition.hitboxRadius,
+    const hitbox = specialDefinition
+      ? null
+      : strikeCapsule(origin, action.direction, definition.range, definition.hitboxRadius);
+    const arc =
+      specialDefinition?.shape === "cone"
+        ? frontalArc(
+            origin,
+            action.direction,
+            specialDefinition.range,
+            specialDefinition.halfAngleRadians ?? Math.PI / 3,
+          )
+        : null;
+    const damage = Math.max(
+      1,
+      Math.round(monster.damage * (specialDefinition?.damageMultiplier ?? 1)),
     );
+    let drainedDamage = 0;
+    const hits = (target: Vec2, radius: number): boolean => {
+      if (!hasLineOfSight(monster, target, this.#zone().terrain.tiles)) return false;
+      const circle = {
+        center: { x: target.x + PLAYER_SIZE / 2, y: target.y + PLAYER_SIZE / 2 },
+        radius,
+      };
+      if (hitbox) return circleIntersectsCapsule(circle, hitbox);
+      if (arc) return circleIntersectsArc(circle, arc);
+      return (
+        specialDefinition !== null &&
+        pointDistance(origin, circle.center) <= specialDefinition.range + radius
+      );
+    };
     for (const [socket, player] of this.#players) {
       if (
         !player.authorized ||
@@ -4461,32 +4501,22 @@ export class World extends DurableObject<Env> {
         player.forgottenUntil > now ||
         player.invisibleUntil > now ||
         player.transitioning ||
-        !circleIntersectsCapsule(
-          {
-            center: { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 },
-            radius: PLAYER_SIZE / 2,
-          },
-          hitbox,
-        ) ||
-        !hasLineOfSight(monster, player, this.#zone().terrain.tiles)
+        !hits(player, PLAYER_SIZE / 2)
       )
         continue;
-      this.#damagePlayer(socket, player, monster.damage, monster.species, monster.id, now);
+      this.#damagePlayer(socket, player, damage, monster.species, monster.id, now);
+      drainedDamage += damage;
     }
     for (const guard of this.#guards) {
-      if (
-        !circleIntersectsCapsule(
-          {
-            center: { x: guard.x + PLAYER_SIZE / 2, y: guard.y + PLAYER_SIZE / 2 },
-            radius: PLAYER_SIZE / 2,
-          },
-          hitbox,
-        ) ||
-        !hasLineOfSight(monster, guard, this.#zone().terrain.tiles)
-      )
-        continue;
+      if (!hits(guard, PLAYER_SIZE / 2)) continue;
       // Guards remain service NPCs in V1, so combat may wound but never kill them.
-      guard.hp = Math.max(1, guard.hp - monster.damage);
+      guard.hp = Math.max(1, guard.hp - damage);
+      drainedDamage += damage;
+    }
+    const healRatio =
+      specialTechnique === "soul_drain" ? MONSTER_SPECIAL_ACTIONS.soul_drain.healRatio : 0;
+    if (healRatio > 0) {
+      monster.hp = Math.min(monster.maxHp, monster.hp + Math.round(drainedDamage * healRatio));
     }
   }
 

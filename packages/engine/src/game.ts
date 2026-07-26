@@ -127,12 +127,70 @@ export const CURATED_MONSTER_SPECIES: readonly MonsterSpecies[] = Object.keys(
   MONSTER_SPECIES_KIND,
 ) as MonsterSpecies[];
 
+export const MONSTER_RANKS = ["normal", "elite", "boss"] as const;
+export type MonsterRank = (typeof MONSTER_RANKS)[number];
+
+export const MONSTER_WEAKNESSES = ["none", "warrior", "ranger", "priest"] as const;
+export type MonsterWeakness = (typeof MONSTER_WEAKNESSES)[number];
+
+export const MONSTER_SPECIAL_TECHNIQUES = [
+  "none",
+  "ground_slam",
+  "shadow_cone",
+  "soul_drain",
+] as const;
+export type MonsterSpecialTechnique = (typeof MONSTER_SPECIAL_TECHNIQUES)[number];
+
+export interface MonsterTuning {
+  rank: MonsterRank;
+  maxHp: number;
+  damage: number;
+  speed: number;
+  xp: number;
+  weakness: MonsterWeakness;
+  /** Percentage applied when the attacking hero matches `weakness` (100 means no bonus). */
+  weaknessPercent: number;
+  specialTechnique: MonsterSpecialTechnique;
+}
+
+export const MONSTER_TUNING_LIMITS = {
+  maxHp: { min: 1, max: 100_000 },
+  damage: { min: 1, max: 1_000 },
+  speed: { min: 20, max: 300 },
+  xp: { min: 0, max: 100_000 },
+  weaknessPercent: { min: 100, max: 400 },
+} as const;
+
+export function isMonsterRank(value: unknown): value is MonsterRank {
+  return typeof value === "string" && MONSTER_RANKS.some((rank) => rank === value);
+}
+
+export function isMonsterWeakness(value: unknown): value is MonsterWeakness {
+  return typeof value === "string" && MONSTER_WEAKNESSES.some((weakness) => weakness === value);
+}
+
+export function isMonsterSpecialTechnique(value: unknown): value is MonsterSpecialTechnique {
+  return (
+    typeof value === "string" && MONSTER_SPECIAL_TECHNIQUES.some((technique) => technique === value)
+  );
+}
+
 export interface MonsterSpawn extends Vec2 {
   id: string;
+  /** Authored name; falls back to the localized species name when absent. */
+  name?: string;
   kind: MonsterKind;
   species: MonsterSpecies;
   zone: "route" | "clearing" | "forest" | "farm" | "ruins" | "swamp" | "gate";
   patrolRadius: number;
+  rank?: MonsterRank;
+  maxHp?: number;
+  damage?: number;
+  speed?: number;
+  xp?: number;
+  weakness?: MonsterWeakness;
+  weaknessPercent?: number;
+  specialTechnique?: MonsterSpecialTechnique;
   /** Border patrols may naturally cross the city boundary and be handled by guards. */
   mayEnterSafeZone?: boolean;
 }
@@ -768,6 +826,20 @@ export const MONSTER_STATS: Record<MonsterKind, MonsterStats> = {
   // The warband's elite: a spear goblin with a mount under it.
   pig_rider: { maxHp: 96, damage: 13, speed: 118, xp: 66 },
 };
+
+export function defaultMonsterTuning(species: MonsterSpecies): MonsterTuning {
+  const stats = MONSTER_STATS[MONSTER_SPECIES_KIND[species]];
+  return {
+    rank: "normal",
+    maxHp: stats.maxHp,
+    damage: stats.damage,
+    speed: stats.speed,
+    xp: stats.xp,
+    weakness: "none",
+    weaknessPercent: 150,
+    specialTechnique: "none",
+  };
+}
 
 /**
  * How wide a monster is **as a target**, in pixels of radius.

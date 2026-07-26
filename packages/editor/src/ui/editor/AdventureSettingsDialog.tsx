@@ -63,7 +63,6 @@ export function AdventureSettingsDialog({
 
   const [saving, setSaving] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [forceDelete, setForceDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<AdventureDraft | null>(null);
 
@@ -71,7 +70,6 @@ export function AdventureSettingsDialog({
     if (!open) return;
     setDraft(session?.draft ?? null);
     setError(null);
-    setForceDelete(false);
   }, [open, session?.draft]);
 
   function fail(caught: unknown): void {
@@ -87,7 +85,7 @@ export function AdventureSettingsDialog({
     setSaving(true);
     setError(null);
     try {
-      await deleteAdventureApi(session.adventureId, forceDelete);
+      await deleteAdventureApi(session.adventureId, true);
       setConfirmingDelete(false);
       onOpenChange(false);
       setSession(null);
@@ -155,7 +153,6 @@ export function AdventureSettingsDialog({
             }}
             onSave={() => void save()}
             onDelete={() => {
-              setForceDelete(false);
               setConfirmingDelete(true);
             }}
           />
@@ -165,7 +162,6 @@ export function AdventureSettingsDialog({
           open={confirmingDelete}
           onOpenChange={(next) => {
             setConfirmingDelete(next);
-            if (!next) setForceDelete(false);
           }}
         >
           <DialogContent>
@@ -175,12 +171,7 @@ export function AdventureSettingsDialog({
               </DialogTitle>
             </DialogHeader>
             <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
-              <Checkbox
-                id="force-delete-current-adventure"
-                checked={forceDelete}
-                disabled={saving}
-                onCheckedChange={(checked) => setForceDelete(checked === true)}
-              />
+              <Checkbox id="force-delete-current-adventure" checked disabled />
               <div className="grid gap-1">
                 <Label htmlFor="force-delete-current-adventure">{t("editor.delete.force")}</Label>
                 <p className="text-xs text-muted-foreground">{t("editor.delete.force_warning")}</p>
@@ -191,7 +182,6 @@ export function AdventureSettingsDialog({
                 variant="outline"
                 onClick={() => {
                   setConfirmingDelete(false);
-                  setForceDelete(false);
                 }}
               >
                 {t("adventure.delete.cancel")}

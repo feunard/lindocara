@@ -109,6 +109,45 @@ function chasingMonster(): MonsterRuntime {
   return monster;
 }
 
+describe("authored monster tuning", () => {
+  it("hydrates a named boss with authoritative stats and a special technique", () => {
+    const boss = createMonsters([
+      {
+        id: "authored-boss",
+        name: "Varos",
+        kind: "skull",
+        species: "skull_warden",
+        zone: "route",
+        x: 320,
+        y: 192,
+        patrolRadius: 96,
+        rank: "boss",
+        maxHp: 3_600,
+        damage: 52,
+        speed: 74,
+        xp: 3_000,
+        weakness: "priest",
+        weaknessPercent: 180,
+        specialTechnique: "soul_drain",
+      },
+    ])[0];
+
+    expect(boss).toMatchObject({
+      name: "Varos",
+      rank: "boss",
+      hp: 3_600,
+      maxHp: 3_600,
+      damage: 52,
+      speed: 74,
+      xp: 3_000,
+      weakness: "priest",
+      weaknessPercent: 180,
+      specialTechnique: "soul_drain",
+      nextSpecialAt: 0,
+    });
+  });
+});
+
 describe("monster navigation on the tile grid", () => {
   it("telegraphs a monster attack before the guard defeats it", () => {
     const combatTerrain: TerrainGeometry = {

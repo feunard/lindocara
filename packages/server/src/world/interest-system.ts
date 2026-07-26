@@ -143,8 +143,11 @@ function visibleMonsterSnapshots(
   const now = context.now();
   return selection.entities.map((monster) => ({
     id: monster.id,
+    name: monster.name,
     kind: monster.kind,
     species: monster.species,
+    rank: monster.rank,
+    specialTechnique: monster.specialTechnique,
     x: Math.round(monster.x * 100) / 100,
     y: Math.round(monster.y * 100) / 100,
     hp: monster.hp,

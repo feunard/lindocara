@@ -3943,7 +3943,7 @@ export class Renderer {
           }
           const label = view.container.getChildByLabel("label");
           if (label instanceof Text) {
-            const name = t(`monster.${monster.species}` as MessageKey);
+            const name = monster.name.trim() || t(`monster.${monster.species}` as MessageKey);
             label.text = aggro ? `!  ${name}` : name;
             label.alpha = monster.dead ? 0 : aggro || close ? 0.92 : 0;
           }

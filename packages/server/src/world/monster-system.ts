@@ -1,4 +1,4 @@
-import { MONSTER_ACTIONS } from "@lindocara/engine/combat-actions.js";
+import { MONSTER_ACTIONS, MONSTER_SPECIAL_ACTIONS } from "@lindocara/engine/combat-actions.js";
 import {
   addThreat,
   CONTRIBUTION_EXPIRES_MS,
@@ -45,6 +45,13 @@ export interface MonsterSystemContext {
   startAttack(monster: MonsterRuntime, target: PlayerRuntime | GuardRuntime, now: number): void;
 }
 
+function monsterAttackRange(monster: MonsterRuntime, now: number): number {
+  if (monster.specialTechnique !== "none" && now >= monster.nextSpecialAt) {
+    return MONSTER_SPECIAL_ACTIONS[monster.specialTechnique].range;
+  }
+  return MONSTER_ACTIONS[monster.species].range;
+}
+
 export function advanceMonsters(context: MonsterSystemContext, now: number): void {
   const players = Array.from(context.players.entries()).filter(
     ([, player]) =>
@@ -68,6 +75,7 @@ export function advanceMonsters(context: MonsterSystemContext, now: number): voi
       monster.contributions.clear();
       monster.rewardsGranted = false;
       monster.action = null;
+      monster.nextSpecialAt = now + 2_000;
       resetMonsterNavigation(monster);
       context.monsterGrid.update(monster, previousPosition);
     }
@@ -134,7 +142,7 @@ export function advanceMonsters(context: MonsterSystemContext, now: number): voi
         monster.vy = 0;
         continue;
       }
-      if (targetDistance <= MONSTER_ACTIONS[monster.species].range) {
+      if (targetDistance <= monsterAttackRange(monster, now)) {
         monster.navigation.state = "chase";
         monster.navigation.destination = { x: player.x, y: player.y };
         monster.vx = 0;
@@ -328,7 +336,7 @@ export function advanceGuards(context: MonsterSystemContext, now: number): void 
       continue;
     }
     if (
-      targetDistance <= MONSTER_ACTIONS[target.species].range &&
+      targetDistance <= monsterAttackRange(target, now) &&
       now - target.lastAttackAt >= MONSTER_ATTACK_COOLDOWN_MS
     ) {
       target.lastAttackAt = now;

@@ -559,6 +559,7 @@ function mapErrorResponse(error: unknown): Response {
   if (code === "last_map") return json({ error: "last_map" }, { status: 409 });
   if (code === "limit") return json({ error: "map_limit" }, { status: 409 });
   if (code === "conflict") return json({ error: "map_conflict" }, { status: 409 });
+  if (code === "in_use") return json({ error: "map_in_use" }, { status: 409 });
   if (code === "referenced") return json({ error: "map_referenced" }, { status: 409 });
   if (
     code === "placement" ||

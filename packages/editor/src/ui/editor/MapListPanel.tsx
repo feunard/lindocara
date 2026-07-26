@@ -108,7 +108,6 @@ export function MapListPanel({
   const [newCols, setNewCols] = useState(40);
   const [newRows, setNewRows] = useState(30);
   const [renameValue, setRenameValue] = useState("");
-  const [forceDelete, setForceDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   const refreshGenerationRef = useRef(0);
 
@@ -172,14 +171,12 @@ export function MapListPanel({
     if (busy || locked) return;
     setBusy(true);
     try {
-      await deleteMapApi(id, forceDelete);
+      await deleteMapApi(id, true);
       onConfirmDeleteIdChange(null);
-      setForceDelete(false);
       await refresh();
       if (id === activeMapId) onActiveDeleted();
     } catch (caught) {
       onConfirmDeleteIdChange(null);
-      setForceDelete(false);
       fail(caught);
     } finally {
       setBusy(false);
@@ -304,7 +301,6 @@ export function MapListPanel({
                       disabled={busy || locked}
                       className="text-destructive opacity-0 group-hover:opacity-100"
                       onClick={() => {
-                        setForceDelete(false);
                         onConfirmDeleteIdChange(map.id);
                       }}
                     >
@@ -431,7 +427,6 @@ export function MapListPanel({
         onOpenChange={(open) => {
           if (!open) {
             onConfirmDeleteIdChange(null);
-            setForceDelete(false);
           }
         }}
       >
@@ -440,12 +435,7 @@ export function MapListPanel({
             <DialogTitle>{t("editor.delete.title", { name: deleting?.name ?? "" })}</DialogTitle>
           </DialogHeader>
           <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
-            <Checkbox
-              id="force-delete-map"
-              checked={forceDelete}
-              disabled={busy || locked}
-              onCheckedChange={(checked) => setForceDelete(checked === true)}
-            />
+            <Checkbox id="force-delete-map" checked disabled />
             <div className="grid gap-1">
               <Label htmlFor="force-delete-map">{t("editor.delete.force")}</Label>
               <p className="text-xs text-muted-foreground">{t("editor.delete.force_warning")}</p>
@@ -456,7 +446,6 @@ export function MapListPanel({
               variant="outline"
               onClick={() => {
                 onConfirmDeleteIdChange(null);
-                setForceDelete(false);
               }}
             >
               {t("editor.delete.cancel")}

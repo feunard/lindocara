@@ -2,7 +2,11 @@
  * catalogue, so the browser and authoritative map API cannot disagree. */
 
 import { type EventPreset, presetEvent } from "@lindocara/engine/event-presets.js";
-import type { MonsterSpecies } from "@lindocara/engine/game.js";
+import {
+  defaultMonsterTuning,
+  type MonsterSpecies,
+  type MonsterTuning,
+} from "@lindocara/engine/game.js";
 import {
   bakeCollision,
   ELEMENT_OFFSET_STEPS,
@@ -503,9 +507,37 @@ export function setEventDraftMonster(
   draft: MapEvent,
   species: MonsterSpecies,
   patrolRadius: number,
+  tuningPatch: Partial<MonsterTuning> = {},
 ): MapEvent {
   if (draft.kind !== "monster") return draft;
-  return { ...draft, species, patrolRadius };
+  const defaults = defaultMonsterTuning(species);
+  const current =
+    draft.species === species
+      ? {
+          rank: draft.monsterRank ?? defaults.rank,
+          maxHp: draft.monsterMaxHp ?? defaults.maxHp,
+          damage: draft.monsterDamage ?? defaults.damage,
+          speed: draft.monsterSpeed ?? defaults.speed,
+          xp: draft.monsterXp ?? defaults.xp,
+          weakness: draft.monsterWeakness ?? defaults.weakness,
+          weaknessPercent: draft.monsterWeaknessPercent ?? defaults.weaknessPercent,
+          specialTechnique: draft.monsterSpecialTechnique ?? defaults.specialTechnique,
+        }
+      : defaults;
+  const tuning = { ...current, ...tuningPatch };
+  return {
+    ...draft,
+    species,
+    patrolRadius,
+    monsterRank: tuning.rank,
+    monsterMaxHp: tuning.maxHp,
+    monsterDamage: tuning.damage,
+    monsterSpeed: tuning.speed,
+    monsterXp: tuning.xp,
+    monsterWeakness: tuning.weakness,
+    monsterWeaknessPercent: tuning.weaknessPercent,
+    monsterSpecialTechnique: tuning.specialTechnique,
+  };
 }
 
 /** Draft mutator: merge a patch into one page. Everything on a page is per-page (XP semantics), so

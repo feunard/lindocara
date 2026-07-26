@@ -46,12 +46,7 @@ describe("mobile controls", () => {
   });
 
   it("converts the analogue stick into dead-zone, cardinal and diagonal intent", () => {
-    expect(resolveJoystick(4, 3, 50).input).toEqual({
-      up: false,
-      down: false,
-      left: false,
-      right: false,
-    });
+    expect(resolveJoystick(4, 3, 50).input).toEqual(NO_INPUT);
     expect(resolveJoystick(50, 0, 50).input).toMatchObject({ right: true, up: false, down: false });
     expect(resolveJoystick(-40, -40, 50).input).toMatchObject({ left: true, up: true });
     expect(Math.hypot(resolveJoystick(200, 0, 50).thumbX, 0)).toBeLessThanOrEqual(29);
@@ -73,12 +68,7 @@ describe("mobile controls", () => {
     expect(useUiStore.getState().mapOpen).toBe(true);
     expect(useUiStore.getState().chatFocusRequest).toBe(1);
     expect(useUiStore.getState().settingsOpen).toBe(true);
-    expect(game.setMovement).toHaveBeenCalledWith({
-      up: false,
-      down: false,
-      left: false,
-      right: false,
-    });
+    expect(game.setMovement).toHaveBeenCalledWith(NO_INPUT);
   });
 
   it("opens the talent tree from the touch utility cluster", () => {

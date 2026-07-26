@@ -10,9 +10,15 @@
  * Gamepad reading reuses the renderer's `firstConnectedGamepad()` (the same pad the game reads), so
  * there is exactly one notion of "the pad" across menus and gameplay.
  */
-import { firstConnectedGamepad } from "@lindocara/renderer/input-settings.js";
+import {
+  type ControlId,
+  firstConnectedGamepad,
+  gamepadControlPressed,
+  setInputMode,
+} from "@lindocara/renderer/input-settings.js";
 import {
   createContext,
+  type MouseEvent as ReactMouseEvent,
   type ReactNode,
   useCallback,
   useContext,
@@ -56,12 +62,16 @@ const REPEAT_NEXT = 5;
 
 export function MenuNav({
   orientation = "vertical",
+  confirmControl,
+  backControl,
   onBack,
   children,
   className,
   "aria-label": ariaLabel,
 }: {
   orientation?: Orientation;
+  confirmControl?: ControlId;
+  backControl?: ControlId;
   onBack?: () => void;
   children: ReactNode;
   className?: string;
@@ -135,18 +145,22 @@ export function MenuNav({
     const nextKey = orientation === "vertical" ? "ArrowDown" : "ArrowRight";
     const onKey = (event: KeyboardEvent) => {
       if (event.key === prev) {
+        setInputMode("keyboard");
         event.preventDefault();
         move(-1);
       } else if (event.key === nextKey) {
+        setInputMode("keyboard");
         event.preventDefault();
         move(1);
       } else if (event.key === "Enter" || event.key === " ") {
         if (focusedRef.current) {
+          setInputMode("keyboard");
           event.preventDefault();
           activate(focusedRef.current);
         }
       } else if (event.key === "Escape") {
         if (onBack) {
+          setInputMode("keyboard");
           event.preventDefault();
           triggerBack();
         }
@@ -161,8 +175,8 @@ export function MenuNav({
     let raf = 0;
     let heldDir: 1 | -1 | 0 = 0;
     let repeatIn = 0;
-    let prevA = false;
-    let prevB = false;
+    let prevConfirm = false;
+    let prevBack = false;
     const axis = orientation === "vertical" ? AXIS_Y : AXIS_X;
     const negBtn = orientation === "vertical" ? DPAD.up : DPAD.left;
     const posBtn = orientation === "vertical" ? DPAD.down : DPAD.right;
@@ -187,18 +201,27 @@ export function MenuNav({
         } else if (dir === 0) {
           heldDir = 0;
         }
-        const a = pad.buttons[BTN_A]?.pressed === true;
-        if (a && !prevA && focusedRef.current) activate(focusedRef.current);
-        prevA = a;
-        const b = pad.buttons[BTN_B]?.pressed === true;
-        if (b && !prevB) triggerBack();
-        prevB = b;
+        const confirmPressed =
+          confirmControl === undefined
+            ? pad.buttons[BTN_A]?.pressed === true
+            : gamepadControlPressed(confirmControl, pad);
+        const backPressed =
+          backControl === undefined
+            ? pad.buttons[BTN_B]?.pressed === true
+            : gamepadControlPressed(backControl, pad);
+        if (dir !== 0 || confirmPressed || backPressed) {
+          setInputMode("gamepad");
+        }
+        if (confirmPressed && !prevConfirm && focusedRef.current) activate(focusedRef.current);
+        prevConfirm = confirmPressed;
+        if (backPressed && !prevBack) triggerBack();
+        prevBack = backPressed;
       }
       raf = requestAnimationFrame(poll);
     };
     raf = requestAnimationFrame(poll);
     return () => cancelAnimationFrame(raf);
-  }, [orientation, move, activate, triggerBack]);
+  }, [orientation, move, activate, triggerBack, confirmControl, backControl]);
 
   const value = useMemo<MenuNavContextValue>(
     () => ({ focusedId, register, focus, activate }),
@@ -230,7 +253,10 @@ export function useMenuItem(options: {
   const activateRef = useRef(options.onActivate);
   activateRef.current = options.onActivate;
   const disabled = options.disabled === true;
-  const ref = useRef<HTMLButtonElement | null>(null);
+  const elementRef = useRef<HTMLElement | null>(null);
+  const ref = useCallback((element: HTMLElement | null) => {
+    elementRef.current = element;
+  }, []);
 
   // Depend on the *stable* register callback, never the whole context object: `ctx` is a fresh
   // object on every focus change (it carries focusedId), so keying this effect on `ctx` would
@@ -245,10 +271,10 @@ export function useMenuItem(options: {
 
   const focused = ctx.focusedId === id;
   useLayoutEffect(() => {
-    if (focused && ref.current) {
+    if (focused && elementRef.current) {
       // jsdom has no scrollIntoView; guard so the focus model stays testable.
-      ref.current.scrollIntoView?.({ block: "nearest", inline: "nearest" });
-      ref.current.focus({ preventScroll: true });
+      elementRef.current.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+      elementRef.current.focus({ preventScroll: true });
     }
   }, [focused]);
 
@@ -258,7 +284,12 @@ export function useMenuItem(options: {
     itemProps: {
       "data-focused": focused ? "" : undefined,
       onMouseEnter: () => !disabled && ctx.focus(id),
-      onClick: () => !disabled && ctx.activate(id),
+      onClick: (event: ReactMouseEvent<HTMLElement>) => {
+        const target = event.target;
+        if (target instanceof Element && target.closest("input, select, textarea, option, label"))
+          return;
+        if (!disabled) ctx.activate(id);
+      },
       tabIndex: focused ? 0 : -1,
     },
   };

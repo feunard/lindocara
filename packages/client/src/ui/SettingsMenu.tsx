@@ -3,7 +3,7 @@ import {
   setDisplaySettings,
   subscribeDisplaySettings,
 } from "@lindocara/renderer/display-settings.js";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { type ReactNode, useEffect, useState, useSyncExternalStore } from "react";
 import { TinyButton } from "@/ui/tiny-swords/TinyButton.js";
 import {
   getAudioSettings,
@@ -13,6 +13,7 @@ import {
 import { t, useLocale } from "../i18n.js";
 import { useUiStore } from "../store.js";
 import { ControlsSettings } from "./ControlsSettings.js";
+import { MenuNav, useMenuItem } from "./tiny-swords/menu-nav.js";
 import { TinyCheckbox } from "./tiny-swords/TinyCheckbox.js";
 import { TinyIconButton } from "./tiny-swords/TinyIconButton.js";
 import { TinyPanel } from "./tiny-swords/TinyPanel.js";
@@ -28,6 +29,25 @@ function useDisplaySettings() {
 }
 
 type SettingsTab = "audio" | "interface" | "controls";
+
+function SettingsMenuItem({
+  order,
+  onActivate,
+  disabled,
+  children,
+}: {
+  order: number;
+  onActivate: () => void;
+  disabled?: boolean;
+  children: ReactNode;
+}) {
+  const item = useMenuItem({ order, onActivate, disabled: disabled === true });
+  return (
+    <span ref={item.ref} {...item.itemProps} style={{ display: "contents" }}>
+      {children}
+    </span>
+  );
+}
 
 export function SettingsMenu({ inGame = false }: { inGame?: boolean }) {
   useLocale();
@@ -63,153 +83,199 @@ export function SettingsMenu({ inGame = false }: { inGame?: boolean }) {
         if (event.target === event.currentTarget) setSettingsOpen(false);
       }}
     >
-      <TinyPanel className="settings-panel">
-        <header className="settings-header">
-          <h2 id="settings-title">{t("settings.title")}</h2>
-          <TinyIconButton
-            type="button"
-            className="settings-close"
-            aria-label={t("settings.close")}
-            title={t("settings.close")}
-            onClick={() => setSettingsOpen(false)}
-          >
-            &times;
-          </TinyIconButton>
-        </header>
-
-        <div className="settings-tabs" role="tablist" aria-label={t("settings.categories")}>
-          {(["audio", "interface", "controls"] as const).map((candidate) => (
-            <TinyButton
-              key={candidate}
-              type="button"
-              size="sm"
-              role="tab"
-              aria-selected={tab === candidate}
-              onClick={() => setTab(candidate)}
-            >
-              {t(`settings.${candidate}`)}
-            </TinyButton>
-          ))}
-        </div>
-
-        <div className="settings-body">
-          {tab === "audio" && (
-            <div className="settings-pane" role="tabpanel">
-              <p className="settings-section-label">{t("settings.audio")}</p>
-              <TinyCheckbox
-                className="settings-toggle"
-                checked={audio.muted}
-                onChange={(event) => setAudioSettings({ muted: event.target.checked })}
+      <MenuNav
+        orientation="vertical"
+        confirmControl="interact"
+        onBack={() => setSettingsOpen(false)}
+      >
+        <TinyPanel className="settings-panel">
+          <header className="settings-header">
+            <h2 id="settings-title">{t("settings.title")}</h2>
+            <SettingsMenuItem order={0} onActivate={() => setSettingsOpen(false)}>
+              <TinyIconButton
+                type="button"
+                className="settings-close"
+                aria-label={t("settings.close")}
+                title={t("settings.close")}
               >
-                {t("settings.mute")}
-              </TinyCheckbox>
+                &times;
+              </TinyIconButton>
+            </SettingsMenuItem>
+          </header>
 
-              <label className="settings-row" htmlFor="settings-sfx">
-                <span className="settings-row-label">
-                  {t("settings.sfx")}
-                  <span className="settings-value">{percent(audio.sfxVolume)}%</span>
-                </span>
-                <TinyRange
-                  id="settings-sfx"
-                  min={0}
-                  max={100}
-                  value={percent(audio.sfxVolume)}
+          <div className="settings-tabs" role="tablist" aria-label={t("settings.categories")}>
+            {(["audio", "interface", "controls"] as const).map((candidate, index) => (
+              <SettingsMenuItem
+                key={candidate}
+                order={10 + index}
+                onActivate={() => setTab(candidate)}
+              >
+                <TinyButton type="button" size="sm" role="tab" aria-selected={tab === candidate}>
+                  {t(`settings.${candidate}`)}
+                </TinyButton>
+              </SettingsMenuItem>
+            ))}
+          </div>
+
+          <div className="settings-body">
+            {tab === "audio" && (
+              <div className="settings-pane" role="tabpanel">
+                <p className="settings-section-label">{t("settings.audio")}</p>
+                <SettingsMenuItem
+                  order={20}
+                  onActivate={() => setAudioSettings({ muted: !audio.muted })}
+                >
+                  <TinyCheckbox
+                    className="settings-toggle"
+                    checked={audio.muted}
+                    onChange={(event) => setAudioSettings({ muted: event.target.checked })}
+                  >
+                    {t("settings.mute")}
+                  </TinyCheckbox>
+                </SettingsMenuItem>
+
+                <SettingsMenuItem
+                  order={21}
                   disabled={audio.muted}
-                  onChange={(event) =>
-                    setAudioSettings({ sfxVolume: Number(event.target.value) / 100 })
-                  }
-                />
-              </label>
-
-              <label className="settings-row" htmlFor="settings-ambient">
-                <span className="settings-row-label">
-                  {t("settings.ambient")}
-                  <span className="settings-value">{percent(audio.ambientVolume)}%</span>
-                </span>
-                <TinyRange
-                  id="settings-ambient"
-                  min={0}
-                  max={100}
-                  value={percent(audio.ambientVolume)}
-                  disabled={audio.muted}
-                  onChange={(event) =>
-                    setAudioSettings({ ambientVolume: Number(event.target.value) / 100 })
-                  }
-                />
-              </label>
-            </div>
-          )}
-
-          {tab === "interface" && (
-            <div className="settings-pane" role="tabpanel">
-              <p className="settings-section-label">{t("settings.interface")}</p>
-              <label className="settings-row" htmlFor="settings-health-bars">
-                <span className="settings-row-label">{t("settings.health_bars")}</span>
-                <TinySelect
-                  id="settings-health-bars"
-                  value={display.healthBars}
-                  onChange={(event) =>
-                    setDisplaySettings({
-                      healthBars: event.target.value as typeof display.healthBars,
+                  onActivate={() =>
+                    setAudioSettings({
+                      sfxVolume: audio.sfxVolume >= 1 ? 0 : Math.min(1, audio.sfxVolume + 0.1),
                     })
                   }
                 >
-                  <option value="both">{t("settings.health_bars_both")}</option>
-                  <option value="allies">{t("settings.health_bars_allies")}</option>
-                  <option value="enemies">{t("settings.health_bars_enemies")}</option>
-                  <option value="none">{t("settings.health_bars_none")}</option>
-                </TinySelect>
-              </label>
+                  <label className="settings-row" htmlFor="settings-sfx">
+                    <span className="settings-row-label">
+                      {t("settings.sfx")}
+                      <span className="settings-value">{percent(audio.sfxVolume)}%</span>
+                    </span>
+                    <TinyRange
+                      id="settings-sfx"
+                      min={0}
+                      max={100}
+                      value={percent(audio.sfxVolume)}
+                      disabled={audio.muted}
+                      onChange={(event) =>
+                        setAudioSettings({ sfxVolume: Number(event.target.value) / 100 })
+                      }
+                    />
+                  </label>
+                </SettingsMenuItem>
 
-              <TinyCheckbox
-                className="settings-toggle"
-                checked={display.grid}
-                onChange={(event) => setDisplaySettings({ grid: event.target.checked })}
-              >
-                {t("settings.grid")}
-              </TinyCheckbox>
-            </div>
-          )}
-
-          {tab === "controls" && (
-            <div className="settings-pane" role="tabpanel">
-              <ControlsSettings />
-            </div>
-          )}
-
-          {inGame && (
-            <div className="settings-pane settings-session-pane">
-              <p className="settings-section-label">{t("settings.session")}</p>
-              <div className="settings-session-actions">
-                <TinyButton
-                  type="button"
-                  onClick={() => (game ? game.switchCharacter() : window.location.reload())}
-                >
-                  {t("hud.switch_character")}
-                </TinyButton>
-                <TinyButton
-                  type="button"
-                  onClick={() =>
-                    game ? game.returnToTitle() : useUiStore.getState().resetToTitle()
+                <SettingsMenuItem
+                  order={22}
+                  disabled={audio.muted}
+                  onActivate={() =>
+                    setAudioSettings({
+                      ambientVolume:
+                        audio.ambientVolume >= 1 ? 0 : Math.min(1, audio.ambientVolume + 0.1),
+                    })
                   }
                 >
-                  {t("hud.return_to_title")}
-                </TinyButton>
+                  <label className="settings-row" htmlFor="settings-ambient">
+                    <span className="settings-row-label">
+                      {t("settings.ambient")}
+                      <span className="settings-value">{percent(audio.ambientVolume)}%</span>
+                    </span>
+                    <TinyRange
+                      id="settings-ambient"
+                      min={0}
+                      max={100}
+                      value={percent(audio.ambientVolume)}
+                      disabled={audio.muted}
+                      onChange={(event) =>
+                        setAudioSettings({ ambientVolume: Number(event.target.value) / 100 })
+                      }
+                    />
+                  </label>
+                </SettingsMenuItem>
               </div>
-            </div>
-          )}
-        </div>
+            )}
 
-        <footer className="settings-footer">
-          <TinyButton
-            type="button"
-            className="settings-resume"
-            onClick={() => setSettingsOpen(false)}
-          >
-            {t(inGame ? "settings.resume" : "settings.done")}
-          </TinyButton>
-        </footer>
-      </TinyPanel>
+            {tab === "interface" && (
+              <div className="settings-pane" role="tabpanel">
+                <p className="settings-section-label">{t("settings.interface")}</p>
+                <SettingsMenuItem
+                  order={20}
+                  onActivate={() => {
+                    const values = ["both", "allies", "enemies", "none"] as const;
+                    const index = values.indexOf(display.healthBars);
+                    setDisplaySettings({
+                      healthBars: values[(index + 1) % values.length] ?? "both",
+                    });
+                  }}
+                >
+                  <label className="settings-row" htmlFor="settings-health-bars">
+                    <span className="settings-row-label">{t("settings.health_bars")}</span>
+                    <TinySelect
+                      id="settings-health-bars"
+                      value={display.healthBars}
+                      onChange={(event) =>
+                        setDisplaySettings({
+                          healthBars: event.target.value as typeof display.healthBars,
+                        })
+                      }
+                    >
+                      <option value="both">{t("settings.health_bars_both")}</option>
+                      <option value="allies">{t("settings.health_bars_allies")}</option>
+                      <option value="enemies">{t("settings.health_bars_enemies")}</option>
+                      <option value="none">{t("settings.health_bars_none")}</option>
+                    </TinySelect>
+                  </label>
+                </SettingsMenuItem>
+
+                <SettingsMenuItem
+                  order={21}
+                  onActivate={() => setDisplaySettings({ grid: !display.grid })}
+                >
+                  <TinyCheckbox
+                    className="settings-toggle"
+                    checked={display.grid}
+                    onChange={(event) => setDisplaySettings({ grid: event.target.checked })}
+                  >
+                    {t("settings.grid")}
+                  </TinyCheckbox>
+                </SettingsMenuItem>
+              </div>
+            )}
+
+            {tab === "controls" && (
+              <div className="settings-pane" role="tabpanel">
+                <ControlsSettings />
+              </div>
+            )}
+
+            {inGame && (
+              <div className="settings-pane settings-session-pane">
+                <p className="settings-section-label">{t("settings.session")}</p>
+                <div className="settings-session-actions">
+                  <SettingsMenuItem
+                    order={30}
+                    onActivate={() => (game ? game.switchCharacter() : window.location.reload())}
+                  >
+                    <TinyButton type="button">{t("hud.switch_character")}</TinyButton>
+                  </SettingsMenuItem>
+                  <SettingsMenuItem
+                    order={31}
+                    onActivate={() =>
+                      game ? game.returnToTitle() : useUiStore.getState().resetToTitle()
+                    }
+                  >
+                    <TinyButton type="button">{t("hud.return_to_title")}</TinyButton>
+                  </SettingsMenuItem>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <footer className="settings-footer">
+            <SettingsMenuItem order={40} onActivate={() => setSettingsOpen(false)}>
+              <TinyButton type="button" className="settings-resume">
+                {t(inGame ? "settings.resume" : "settings.done")}
+              </TinyButton>
+            </SettingsMenuItem>
+          </footer>
+        </TinyPanel>
+      </MenuNav>
     </section>
   );
 }

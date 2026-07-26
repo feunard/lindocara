@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { t, useLocale } from "../../i18n.js";
 import { questObjectiveProgressText } from "../../quest-presentation.js";
 import { useUiStore } from "../../store.js";
+import { controlBindingLabel, useInputModeSettings } from "../input-hints.js";
 import { Bar } from "./Bar.js";
 import { CooldownBar } from "./CooldownBar.js";
 import { DeathOverlay } from "./DeathOverlay.js";
@@ -33,6 +34,7 @@ function questText(quest: QuestState): string {
 }
 
 export function Hud() {
+  const { mode, settings: inputSettings } = useInputModeSettings();
   useLocale();
   const self = useUiStore((s) => s.self);
   const selfState = useUiStore((s) => s.selfState);
@@ -266,7 +268,7 @@ export function Hud() {
               icon="potion"
               label={t("item.potion")}
               value={String(potions)}
-              hotkey="Q"
+              hotkey={controlBindingLabel("potion", mode, inputSettings)}
             />
             <InventoryChip icon="gold" label={t("item.gold")} value={String(gold)} />
             <InventoryChip icon="crystal" label={t("item.crystal")} value={String(crystals)} />

@@ -16,12 +16,15 @@ import {
   ATTACK_COOLDOWN_MS,
   CLASS_STATS,
   clampRestoredPosition,
+  defaultMonsterTuning,
   GUARD_MAX_HP,
   type GuardDefinition,
-  MONSTER_STATS,
   type MonsterKind,
+  type MonsterRank,
   type MonsterSpawn,
+  type MonsterSpecialTechnique,
   type MonsterSpecies,
+  type MonsterWeakness,
   maxHpForLevel,
   spawnPosition,
   type TerrainGeometry,
@@ -214,8 +217,10 @@ export interface PlayerRuntime extends PlayerProfile {
 
 export interface MonsterRuntime extends Vec2 {
   id: string;
+  name: string;
   kind: MonsterKind;
   species: MonsterSpecies;
+  rank: MonsterRank;
   spawnX: number;
   spawnY: number;
   patrolRadius: number;
@@ -225,6 +230,10 @@ export interface MonsterRuntime extends Vec2 {
   damage: number;
   speed: number;
   xp: number;
+  weakness: MonsterWeakness;
+  weaknessPercent: number;
+  specialTechnique: MonsterSpecialTechnique;
+  nextSpecialAt: number;
   lastAttackAt: number;
   deadUntil: number;
   vx: number;
@@ -573,16 +582,33 @@ export function positionFromAttachment(attachment: Attachment | null): Vec2 {
 
 export function createMonsters(spawns: readonly MonsterSpawn[]): MonsterRuntime[] {
   return spawns.map((spawn) => {
-    const stats = MONSTER_STATS[spawn.kind];
+    const defaults = defaultMonsterTuning(spawn.species);
+    const tuning = {
+      ...defaults,
+      ...(spawn.rank ? { rank: spawn.rank } : {}),
+      ...(spawn.maxHp === undefined ? {} : { maxHp: spawn.maxHp }),
+      ...(spawn.damage === undefined ? {} : { damage: spawn.damage }),
+      ...(spawn.speed === undefined ? {} : { speed: spawn.speed }),
+      ...(spawn.xp === undefined ? {} : { xp: spawn.xp }),
+      ...(spawn.weakness ? { weakness: spawn.weakness } : {}),
+      ...(spawn.weaknessPercent === undefined ? {} : { weaknessPercent: spawn.weaknessPercent }),
+      ...(spawn.specialTechnique ? { specialTechnique: spawn.specialTechnique } : {}),
+    };
     return {
       ...spawn,
+      name: spawn.name ?? "",
+      rank: tuning.rank,
       spawnX: spawn.x,
       spawnY: spawn.y,
-      hp: stats.maxHp,
-      maxHp: stats.maxHp,
-      damage: stats.damage,
-      speed: stats.speed,
-      xp: stats.xp,
+      hp: tuning.maxHp,
+      maxHp: tuning.maxHp,
+      damage: tuning.damage,
+      speed: tuning.speed,
+      xp: tuning.xp,
+      weakness: tuning.weakness,
+      weaknessPercent: tuning.weaknessPercent,
+      specialTechnique: tuning.specialTechnique,
+      nextSpecialAt: 0,
       lastAttackAt: 0,
       deadUntil: 0,
       vx: 0,

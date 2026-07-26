@@ -4,6 +4,7 @@ import { isSolidKind, kindAt, TILE_SIZE, type TileMap } from "./tilemap.js";
 
 const DIRECTION_EPSILON = 1e-6;
 const IMPACT_EPSILON = 1e-9;
+const ANALOG_DIRECTION_EPSILON = 0.2;
 
 export const DEFAULT_FACING: Readonly<Vec2> = Object.freeze({ x: 1, y: 0 });
 
@@ -95,6 +96,24 @@ export function orientationFromMovement(movement: Vec2, current: Vec2 = DEFAULT_
   return normalizeDirection(movement, current);
 }
 
+/** Builds movement direction from digital booleans, with analogue fallback when available. */
+export function movementDirectionFromInput(input: Input): Vec2 {
+  const axisX = Number(input.axisX);
+  const axisY = Number(input.axisY);
+  const useAxisX = Number.isFinite(axisX) && Math.abs(axisX) > ANALOG_DIRECTION_EPSILON;
+  const useAxisY = Number.isFinite(axisY) && Math.abs(axisY) > ANALOG_DIRECTION_EPSILON;
+  if (useAxisX || useAxisY) {
+    return {
+      x: Number.isFinite(axisX) ? axisX : 0,
+      y: Number.isFinite(axisY) ? axisY : 0,
+    };
+  }
+  return {
+    x: Number(input.right) - Number(input.left),
+    y: Number(input.down) - Number(input.up),
+  };
+}
+
 /**
  * Turns one tick's movement `Input` into the vector `orientationFromMovement` expects. This is
  * the one conversion the server's `movement-system.ts` applies to a dequeued command every tick,
@@ -102,10 +121,7 @@ export function orientationFromMovement(movement: Vec2, current: Vec2 = DEFAULT_
  * a builder walking the preview turns exactly like a player would in the real room.
  */
 export function facingFromInput(input: Input, current: Vec2 = DEFAULT_FACING): Vec2 {
-  return orientationFromMovement(
-    { x: Number(input.right) - Number(input.left), y: Number(input.down) - Number(input.up) },
-    current,
-  );
+  return orientationFromMovement(movementDirectionFromInput(input), current);
 }
 
 export function frontalArc(

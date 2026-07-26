@@ -29,12 +29,29 @@ export function zoneFromMap(stored: StoredMap): ZoneDefinition {
       // unique, stable and all hex+dashes, so `mon-<uuid>` (40 chars) stays inside protocol.ts's
       // wire-id alphabet AND under its 64-char cap — the map-id-prefixed form overran it.
       id: `mon-${event.id}`,
+      name: event.name,
       kind: MONSTER_SPECIES_KIND[species],
       species,
       zone: "route" as const,
       x,
       y,
       patrolRadius: event.patrolRadius ?? 0,
+      ...(event.monsterRank ? { rank: event.monsterRank } : {}),
+      ...(event.monsterMaxHp === null || event.monsterMaxHp === undefined
+        ? {}
+        : { maxHp: event.monsterMaxHp }),
+      ...(event.monsterDamage === null || event.monsterDamage === undefined
+        ? {}
+        : { damage: event.monsterDamage }),
+      ...(event.monsterSpeed === null || event.monsterSpeed === undefined
+        ? {}
+        : { speed: event.monsterSpeed }),
+      ...(event.monsterXp === null || event.monsterXp === undefined ? {} : { xp: event.monsterXp }),
+      ...(event.monsterWeakness ? { weakness: event.monsterWeakness } : {}),
+      ...(event.monsterWeaknessPercent === null || event.monsterWeaknessPercent === undefined
+        ? {}
+        : { weaknessPercent: event.monsterWeaknessPercent }),
+      ...(event.monsterSpecialTechnique ? { specialTechnique: event.monsterSpecialTechnique } : {}),
     };
   });
   return {

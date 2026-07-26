@@ -3,11 +3,14 @@ import { consumableIconSource } from "@lindocara/renderer/tiny-swords-art.js";
 import { useEffect, useMemo, useState } from "react";
 import { t, useLocale } from "../../i18n.js";
 import { useUiStore } from "../../store.js";
+import { controlBindingLabel, useInputModeSettings } from "../input-hints.js";
 
 const QUICK_SLOT_KEYS = ["quick-item-1", "quick-item-2", "quick-item-3"] as const;
+const QUICK_SLOT_CONTROLS = ["item1", "item2", "item3"] as const;
 
 export function QuickItemBar() {
   useLocale();
+  const { mode, settings } = useInputModeSettings();
   const game = useUiStore((state) => state.game);
   const self = useUiStore((state) => state.self);
   const selfState = useUiStore((state) => state.selfState);
@@ -49,7 +52,9 @@ export function QuickItemBar() {
                 : t("inventory.empty")
             }
           >
-            <span className="quick-item-bar__key">{index + 1}</span>
+            <span className="quick-item-bar__key">
+              {controlBindingLabel(QUICK_SLOT_CONTROLS[index] ?? "item1", mode, settings)}
+            </span>
             {item ? <img src={consumableIconSource(item)} alt="" /> : <span>+</span>}
             {item && <b>×{counts[item]}</b>}
             {remaining > 0 && <em>{(remaining / 1_000).toFixed(remaining < 950 ? 1 : 0)}</em>}

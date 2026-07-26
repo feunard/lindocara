@@ -1,6 +1,15 @@
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import type { AdventureRegistry, RegistryEntry } from "@lindocara/engine/adventure-state.js";
-import { CURATED_MONSTER_SPECIES, type MonsterSpecies } from "@lindocara/engine/game.js";
+import {
+  CURATED_MONSTER_SPECIES,
+  defaultMonsterTuning,
+  MONSTER_RANKS,
+  MONSTER_SPECIAL_TECHNIQUES,
+  MONSTER_TUNING_LIMITS,
+  MONSTER_WEAKNESSES,
+  type MonsterSpecies,
+  type MonsterTuning,
+} from "@lindocara/engine/game.js";
 import { MAX_PATROL_RADIUS, MIN_PATROL_RADIUS } from "@lindocara/engine/map-data.js";
 import {
   EVENT_NAME_MAX,
@@ -154,16 +163,27 @@ function MonsterEventFields({
   onChange,
 }: {
   draft: MapEvent;
-  onChange(species: MonsterSpecies, patrolRadius: number): void;
+  onChange(species: MonsterSpecies, patrolRadius: number, tuning?: Partial<MonsterTuning>): void;
 }) {
   const species = draft.species ?? CURATED_MONSTER_SPECIES[0] ?? "spear_goblin";
   const patrolRadius = draft.patrolRadius ?? MIN_PATROL_RADIUS;
+  const defaults = defaultMonsterTuning(species);
+  const tuning: MonsterTuning = {
+    rank: draft.monsterRank ?? defaults.rank,
+    maxHp: draft.monsterMaxHp ?? defaults.maxHp,
+    damage: draft.monsterDamage ?? defaults.damage,
+    speed: draft.monsterSpeed ?? defaults.speed,
+    xp: draft.monsterXp ?? defaults.xp,
+    weakness: draft.monsterWeakness ?? defaults.weakness,
+    weaknessPercent: draft.monsterWeaknessPercent ?? defaults.weaknessPercent,
+    specialTechnique: draft.monsterSpecialTechnique ?? defaults.specialTechnique,
+  };
   const options = CURATED_MONSTER_SPECIES.includes(species)
     ? CURATED_MONSTER_SPECIES
     : [species, ...CURATED_MONSTER_SPECIES];
   return (
-    <section className="flex flex-col gap-2 border-y border-zinc-200 py-3">
-      <div className="grid grid-cols-2 gap-3">
+    <section className="flex flex-col gap-3 border-y border-zinc-200 py-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <span className="flex flex-col gap-1 text-[11px] text-zinc-500">
           {t("editor.markers.species")}
           <FieldSelect
@@ -180,6 +200,25 @@ function MonsterEventFields({
           </FieldSelect>
         </span>
         <span className="flex flex-col gap-1 text-[11px] text-zinc-500">
+          {t("editor.monster.rank")}
+          <FieldSelect
+            aria-label={t("editor.monster.rank")}
+            className="h-8 text-sm"
+            value={tuning.rank}
+            onChange={(event) =>
+              onChange(species, patrolRadius, {
+                rank: event.currentTarget.value as MonsterTuning["rank"],
+              })
+            }
+          >
+            {MONSTER_RANKS.map((rank) => (
+              <option key={rank} value={rank}>
+                {t(`editor.monster.rank.${rank}`)}
+              </option>
+            ))}
+          </FieldSelect>
+        </span>
+        <span className="flex flex-col gap-1 text-[11px] text-zinc-500">
           {t("editor.markers.radius")}
           <Input
             aria-label={t("editor.markers.radius")}
@@ -190,6 +229,85 @@ function MonsterEventFields({
             value={patrolRadius}
             onChange={(e) => onChange(species, Number(e.currentTarget.value))}
           />
+        </span>
+        {(
+          [
+            ["maxHp", "editor.monster.hp", MONSTER_TUNING_LIMITS.maxHp],
+            ["damage", "editor.monster.damage", MONSTER_TUNING_LIMITS.damage],
+            ["speed", "editor.monster.speed", MONSTER_TUNING_LIMITS.speed],
+            ["xp", "editor.monster.xp", MONSTER_TUNING_LIMITS.xp],
+          ] as const
+        ).map(([field, label, limits]) => (
+          <span key={field} className="flex flex-col gap-1 text-[11px] text-zinc-500">
+            {t(label)}
+            <Input
+              aria-label={t(label)}
+              type="number"
+              className="h-8 text-sm tabular-nums"
+              min={limits.min}
+              max={limits.max}
+              value={tuning[field]}
+              onChange={(event) =>
+                onChange(species, patrolRadius, {
+                  [field]: Number(event.currentTarget.value),
+                })
+              }
+            />
+          </span>
+        ))}
+        <span className="flex flex-col gap-1 text-[11px] text-zinc-500">
+          {t("editor.monster.weakness")}
+          <FieldSelect
+            aria-label={t("editor.monster.weakness")}
+            className="h-8 text-sm"
+            value={tuning.weakness}
+            onChange={(event) =>
+              onChange(species, patrolRadius, {
+                weakness: event.currentTarget.value as MonsterTuning["weakness"],
+              })
+            }
+          >
+            {MONSTER_WEAKNESSES.map((weakness) => (
+              <option key={weakness} value={weakness}>
+                {t(`editor.monster.weakness.${weakness}`)}
+              </option>
+            ))}
+          </FieldSelect>
+        </span>
+        <span className="flex flex-col gap-1 text-[11px] text-zinc-500">
+          {t("editor.monster.weaknessPercent")}
+          <Input
+            aria-label={t("editor.monster.weaknessPercent")}
+            type="number"
+            className="h-8 text-sm tabular-nums"
+            min={MONSTER_TUNING_LIMITS.weaknessPercent.min}
+            max={MONSTER_TUNING_LIMITS.weaknessPercent.max}
+            value={tuning.weaknessPercent}
+            onChange={(event) =>
+              onChange(species, patrolRadius, {
+                weaknessPercent: Number(event.currentTarget.value),
+              })
+            }
+          />
+        </span>
+        <span className="flex flex-col gap-1 text-[11px] text-zinc-500 lg:col-span-2">
+          {t("editor.monster.technique")}
+          <FieldSelect
+            aria-label={t("editor.monster.technique")}
+            className="h-8 text-sm"
+            value={tuning.specialTechnique}
+            onChange={(event) =>
+              onChange(species, patrolRadius, {
+                specialTechnique: event.currentTarget.value as MonsterTuning["specialTechnique"],
+              })
+            }
+          >
+            {MONSTER_SPECIAL_TECHNIQUES.map((technique) => (
+              <option key={technique} value={technique}>
+                {t(`editor.monster.technique.${technique}`)}
+              </option>
+            ))}
+          </FieldSelect>
         </span>
       </div>
     </section>
@@ -326,7 +444,9 @@ export function EventDialog({
           <div className="grid gap-4 sm:grid-cols-2">
             <MonsterEventFields
               draft={draft}
-              onChange={(species, radius) => setDraft(setEventDraftMonster(draft, species, radius))}
+              onChange={(species, radius, tuning) =>
+                setDraft(setEventDraftMonster(draft, species, radius, tuning))
+              }
             />
             <div className="rounded-lg border border-zinc-200 p-3">
               <p className="mb-2 text-xs text-muted-foreground">

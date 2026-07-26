@@ -3,15 +3,12 @@ import { skillResourceCost } from "@lindocara/engine/resources.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 import { CLASS_SKILLS, isSkillUnlocked, SKILL_UNLOCK_LEVEL } from "@lindocara/engine/skills.js";
 import { evolvedTalent } from "@lindocara/engine/talents.js";
-import {
-  getInputSettings,
-  keyboardBindingLabel,
-  subscribeInputSettings,
-} from "@lindocara/renderer/input-settings.js";
+import { keyboardBindingLabel } from "@lindocara/renderer/input-settings.js";
 import { skillIconArt } from "@lindocara/renderer/tiny-swords-art.js";
-import { type CSSProperties, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { t } from "../../i18n.js";
 import { useUiStore } from "../../store.js";
+import { controlBindingLabel, useInputModeSettings } from "../input-hints.js";
 
 export const SKILL_PAD_LAYOUT: Readonly<
   Record<SkillSlot, { row: 1 | 2; column: 1 | 2 | 3; numpad: 1 | 2 | 3 | 4 | 5 }>
@@ -29,11 +26,7 @@ export function SkillBar() {
   const selfState = useUiStore((state) => state.selfState);
   const attackCooldownUntil = useUiStore((state) => state.attackCooldownUntil);
   const cooldowns = useUiStore((state) => state.skillCooldowns);
-  const inputSettings = useSyncExternalStore(
-    subscribeInputSettings,
-    getInputSettings,
-    getInputSettings,
-  );
+  const { mode, settings: inputSettings } = useInputModeSettings();
   const [now, setNow] = useState(() => performance.now());
   const heldPointer = useRef<{ pointerId: number; slot: SkillSlot } | null>(null);
 
@@ -112,6 +105,8 @@ export function SkillBar() {
         const primaryLabels = keyBindings
           .filter((binding) => !binding.code.startsWith("Numpad"))
           .map(keyboardBindingLabel);
+        const displayedLabels =
+          mode === "gamepad" ? [controlBindingLabel(control, mode, inputSettings)] : primaryLabels;
         const iconStyle = {
           backgroundImage: `url("${icon.source}")`,
           backgroundSize: `${icon.frames * 100}% 100%`,
@@ -150,10 +145,12 @@ export function SkillBar() {
                 : `${name} — ${t("skill.unlock_at", { level: requiredLevel })}`
             }
           >
-            <span className="skill-slot__key">{primaryLabels.join(" / ")}</span>
-            <span className="skill-slot__pad" aria-hidden="true">
-              {numpadLabel}
-            </span>
+            <span className="skill-slot__key">{displayedLabels.join(" / ")}</span>
+            {mode === "keyboard" && (
+              <span className="skill-slot__pad" aria-hidden="true">
+                {numpadLabel}
+              </span>
+            )}
             <span
               className={`skill-slot__icon skill-slot__icon--${icon.variant}`}
               style={iconStyle}

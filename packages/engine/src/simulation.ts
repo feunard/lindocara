@@ -46,6 +46,9 @@ export interface Input {
   down: boolean;
   left: boolean;
   right: boolean;
+  /** Optional continuous stick axis values in [-1, 1]. */
+  axisX?: number;
+  axisY?: number;
 }
 
 export const NO_INPUT: Input = Object.freeze({
@@ -53,6 +56,8 @@ export const NO_INPUT: Input = Object.freeze({
   down: false,
   left: false,
   right: false,
+  axisX: 0,
+  axisY: 0,
 });
 
 function clamp(value: number, min: number, max: number): number {

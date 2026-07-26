@@ -1488,7 +1488,7 @@ describe("AdventureEditorScreen shell", () => {
           );
         if (url === "/api/adventures/adv-2" && method === "GET")
           return Promise.resolve(jsonResponse(adv2));
-        if (url === "/api/adventures/adv-2" && method === "DELETE")
+        if (url === "/api/adventures/adv-2?force=true" && method === "DELETE")
           return Promise.resolve(new Response(null, { status: 204 }));
         if (url === "/api/maps/m2b" && method === "GET")
           return Promise.resolve(jsonResponse(payloadFor(m2b)));
@@ -1587,7 +1587,7 @@ describe("AdventureEditorScreen shell", () => {
 
       await waitFor(() =>
         expect(backend).toHaveBeenCalledWith(
-          "/api/adventures/adv-2",
+          "/api/adventures/adv-2?force=true",
           expect.objectContaining({ method: "DELETE" }),
         ),
       );

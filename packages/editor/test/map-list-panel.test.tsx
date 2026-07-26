@@ -147,14 +147,14 @@ describe("MapListPanel", () => {
 
     await userEvent.click(screen.getByRole("button", { name: `${t("editor.delete")} Frostfen` }));
     expect(mock).not.toHaveBeenCalledWith(
-      "/api/maps/m2",
+      "/api/maps/m2?force=true",
       expect.objectContaining({ method: "DELETE" }),
     );
     expect(screen.getByText(t("editor.delete.title", { name: "Frostfen" }))).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: t("editor.delete.confirm") }));
     expect(mock).toHaveBeenCalledWith(
-      "/api/maps/m2",
+      "/api/maps/m2?force=true",
       expect.objectContaining({ method: "DELETE" }),
     );
     await waitFor(() =>
