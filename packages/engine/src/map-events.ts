@@ -20,6 +20,7 @@ import {
   defaultMonsterTuning,
   isMonsterRank,
   isMonsterSpecialTechnique,
+  isMonsterSpecialTechniqueForSpecies,
   isMonsterSpecies,
   isMonsterWeakness,
   MONSTER_TUNING_LIMITS,
@@ -429,7 +430,8 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
       if (
         !isMonsterRank(rank) ||
         !isMonsterWeakness(weakness) ||
-        !isMonsterSpecialTechnique(specialTechnique)
+        !isMonsterSpecialTechnique(specialTechnique) ||
+        !isMonsterSpecialTechniqueForSpecies(species, specialTechnique)
       )
         return null;
       monsterRank = rank;

@@ -311,9 +311,20 @@ describe("parseMapEvents: authored monster tuning", () => {
       monsterXp: 2_500,
       monsterWeakness: "priest",
       monsterWeaknessPercent: 175,
-      monsterSpecialTechnique: "soul_drain",
+      monsterSpecialTechnique: "grave_siphon",
     });
     expect(parseMapEvents([boss], COLS, ROWS)).toEqual([boss]);
+  });
+
+  it("rejects a technique authored for another monster asset", () => {
+    const boss = event({
+      kind: "monster",
+      species: "skull_warden",
+      patrolRadius: 96,
+      monsterRank: "boss",
+      monsterSpecialTechnique: "horn_charge",
+    });
+    expect(parseMapEvents([boss], COLS, ROWS)).toBeNull();
   });
 
   it("rejects out-of-range tuning and tuning on a non-monster", () => {

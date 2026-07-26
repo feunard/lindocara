@@ -216,7 +216,7 @@ describe("Liin Adventure IA portable bundle", () => {
     expect(bosses.every(Boolean)).toBe(true);
     expect(bosses.map((boss) => boss?.monsterMaxHp)).toEqual([900, 1300, 1800, 2400, 3600]);
     expect(new Set(bosses.map((boss) => boss?.monsterSpecialTechnique))).toEqual(
-      new Set(["ground_slam", "shadow_cone", "soul_drain"]),
+      new Set(["bone_cleave", "horn_charge", "troll_quake", "troll_sweep"]),
     );
 
     const allCommands = bundle.maps.flatMap((map) =>

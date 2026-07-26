@@ -133,13 +133,61 @@ export type MonsterRank = (typeof MONSTER_RANKS)[number];
 export const MONSTER_WEAKNESSES = ["none", "warrior", "ranger", "priest"] as const;
 export type MonsterWeakness = (typeof MONSTER_WEAKNESSES)[number];
 
+const LEGACY_MONSTER_SPECIAL_TECHNIQUES = ["ground_slam", "shadow_cone", "soul_drain"] as const;
+
 export const MONSTER_SPECIAL_TECHNIQUES = [
   "none",
-  "ground_slam",
-  "shadow_cone",
-  "soul_drain",
+  ...LEGACY_MONSTER_SPECIAL_TECHNIQUES,
+  "spear_fan",
+  "fire_burst",
+  "marauder_frenzy",
+  "bone_cleave",
+  "grave_siphon",
+  "horn_charge",
+  "labyrinth_stomp",
+  "troll_quake",
+  "troll_sweep",
+  "hex_burst",
+  "tusk_charge",
+  "mounted_trample",
 ] as const;
 export type MonsterSpecialTechnique = (typeof MONSTER_SPECIAL_TECHNIQUES)[number];
+
+export const MONSTER_SPECIES_SPECIAL_TECHNIQUES: Readonly<
+  Record<MonsterSpecies, readonly MonsterSpecialTechnique[]>
+> = {
+  spear_goblin: ["spear_fan"],
+  torch_goblin: ["fire_burst"],
+  gnoll_marauder: ["marauder_frenzy"],
+  skull_guard: ["bone_cleave", "grave_siphon"],
+  skull_crusader: ["bone_cleave", "grave_siphon"],
+  skull_warden: ["bone_cleave", "grave_siphon"],
+  minotaur_brute: ["horn_charge", "labyrinth_stomp"],
+  mire_troll: ["troll_quake", "troll_sweep"],
+  gate_troll: ["troll_quake", "troll_sweep"],
+  hex_shaman: ["hex_burst"],
+  war_pig: ["tusk_charge"],
+  pig_rider: ["mounted_trample"],
+};
+
+export function monsterSpecialTechniquesFor(
+  species: MonsterSpecies,
+): readonly MonsterSpecialTechnique[] {
+  return ["none", ...MONSTER_SPECIES_SPECIAL_TECHNIQUES[species]];
+}
+
+/** Legacy generic techniques remain valid on stored maps, while newly authored techniques are
+ * fenced to the Tiny Swords enemy sheet whose motion and VFX they were designed around. */
+export function isMonsterSpecialTechniqueForSpecies(
+  species: MonsterSpecies,
+  technique: MonsterSpecialTechnique,
+): boolean {
+  return (
+    technique === "none" ||
+    (LEGACY_MONSTER_SPECIAL_TECHNIQUES as readonly MonsterSpecialTechnique[]).includes(technique) ||
+    MONSTER_SPECIES_SPECIAL_TECHNIQUES[species].includes(technique)
+  );
+}
 
 export interface MonsterTuning {
   rank: MonsterRank;

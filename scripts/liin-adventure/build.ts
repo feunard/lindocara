@@ -338,7 +338,7 @@ function buildAubeval(refs: StoryRefs): AdventureBundleMap {
       xp: 700,
       weakness: "priest",
       weaknessPercent: 170,
-      specialTechnique: "ground_slam",
+      specialTechnique: "bone_cleave",
     },
     [{ t: "setSwitch", switchId: "0001", value: true }],
   );
@@ -524,7 +524,7 @@ function buildWoods(refs: StoryRefs): AdventureBundleMap {
       xp: 1_000,
       weakness: "ranger",
       weaknessPercent: 165,
-      specialTechnique: "shadow_cone",
+      specialTechnique: "horn_charge",
     },
     [{ t: "setSwitch", switchId: "0003", value: true }],
   );
@@ -625,7 +625,7 @@ function buildMarsh(refs: StoryRefs): AdventureBundleMap {
     maxHp: 520,
     damage: 32,
     xp: 360,
-    specialTechnique: "ground_slam",
+    specialTechnique: "troll_sweep",
   });
   e.monster(
     "boss",
@@ -640,7 +640,7 @@ function buildMarsh(refs: StoryRefs): AdventureBundleMap {
       xp: 1_450,
       weakness: "priest",
       weaknessPercent: 170,
-      specialTechnique: "soul_drain",
+      specialTechnique: "troll_quake",
     },
     [{ t: "setSwitch", switchId: "0005", value: true }],
   );
@@ -755,7 +755,7 @@ function buildCitadel(refs: StoryRefs): AdventureBundleMap {
     xp: 650,
     weakness: "priest",
     weaknessPercent: 165,
-    specialTechnique: "shadow_cone",
+    specialTechnique: "grave_siphon",
   });
   e.monster(
     "boss",
@@ -770,7 +770,7 @@ function buildCitadel(refs: StoryRefs): AdventureBundleMap {
       xp: 1_900,
       weakness: "warrior",
       weaknessPercent: 160,
-      specialTechnique: "ground_slam",
+      specialTechnique: "troll_sweep",
     },
     [{ t: "setSwitch", switchId: "0007", value: true }],
   );
@@ -827,7 +827,7 @@ function buildSanctuary(refs: StoryRefs): AdventureBundleMap {
       xp: 1_500,
       weakness: "ranger",
       weaknessPercent: 160,
-      specialTechnique: "shadow_cone",
+      specialTechnique: "labyrinth_stomp",
     },
     [{ t: "setSwitch", switchId: "0008", value: true }],
   );
@@ -844,7 +844,7 @@ function buildSanctuary(refs: StoryRefs): AdventureBundleMap {
       xp: 3_000,
       weakness: "priest",
       weaknessPercent: 175,
-      specialTechnique: "soul_drain",
+      specialTechnique: "troll_quake",
     },
     [{ t: "setSwitch", switchId: "0009", value: true }],
   );

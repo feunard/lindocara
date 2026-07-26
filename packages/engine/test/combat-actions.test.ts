@@ -110,11 +110,20 @@ describe("directional class kit contract", () => {
   });
 
   it("defines distinct telegraphed boss techniques", () => {
-    expect(Object.keys(MONSTER_SPECIAL_ACTIONS).sort()).toEqual([
-      "ground_slam",
-      "shadow_cone",
-      "soul_drain",
-    ]);
+    expect(Object.keys(MONSTER_SPECIAL_ACTIONS)).toHaveLength(15);
+    expect(Object.keys(MONSTER_SPECIAL_ACTIONS)).toEqual(
+      expect.arrayContaining([
+        "ground_slam",
+        "shadow_cone",
+        "soul_drain",
+        "bone_cleave",
+        "grave_siphon",
+        "horn_charge",
+        "labyrinth_stomp",
+        "troll_quake",
+        "troll_sweep",
+      ]),
+    );
     expect(MONSTER_SPECIAL_ACTIONS.ground_slam).toMatchObject({
       shape: "circle",
       damageMultiplier: 1.45,
@@ -127,8 +136,20 @@ describe("directional class kit contract", () => {
       shape: "circle",
       healRatio: 0.65,
     });
+    expect(MONSTER_SPECIAL_ACTIONS.horn_charge).toMatchObject({
+      shape: "cone",
+      damageMultiplier: 1.65,
+    });
+    expect(MONSTER_SPECIAL_ACTIONS.grave_siphon).toMatchObject({
+      shape: "circle",
+      healRatio: 0.5,
+    });
+    expect(MONSTER_SPECIAL_ACTIONS.troll_quake).toMatchObject({
+      shape: "circle",
+      damageMultiplier: 1.7,
+    });
     for (const action of Object.values(MONSTER_SPECIAL_ACTIONS)) {
-      expect(action.anticipationMs).toBeGreaterThanOrEqual(700);
+      expect(action.anticipationMs).toBeGreaterThanOrEqual(600);
       expect(action.cooldownMs).toBeGreaterThan(action.anticipationMs + action.recoveryMs);
       expect(action.range).toBeGreaterThan(MONSTER_ACTIONS.spear_goblin.range);
     }

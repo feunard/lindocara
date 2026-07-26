@@ -68,6 +68,7 @@ import {
   clampRestoredPosition,
   hasLineOfSight,
   INTERACTION_RANGE,
+  isMonsterSpecialTechnique,
   isWalkable,
   isWalkableForLumen,
   LOOT_EXPIRY_MS,
@@ -4456,9 +4457,7 @@ export class World extends DurableObject<Env> {
   #resolveMonsterAction(monster: Monster, action: CombatActionRuntime, now: number): void {
     if (monster.deadUntil > now) return;
     const specialTechnique =
-      action.skillId === "ground_slam" ||
-      action.skillId === "shadow_cone" ||
-      action.skillId === "soul_drain"
+      action.skillId && isMonsterSpecialTechnique(action.skillId) && action.skillId !== "none"
         ? action.skillId
         : null;
     const specialDefinition = specialTechnique ? MONSTER_SPECIAL_ACTIONS[specialTechnique] : null;
@@ -4514,7 +4513,7 @@ export class World extends DurableObject<Env> {
       drainedDamage += damage;
     }
     const healRatio =
-      specialTechnique === "soul_drain" ? MONSTER_SPECIAL_ACTIONS.soul_drain.healRatio : 0;
+      specialDefinition && "healRatio" in specialDefinition ? specialDefinition.healRatio : 0;
     if (healRatio > 0) {
       monster.hp = Math.min(monster.maxHp, monster.hp + Math.round(drainedDamage * healRatio));
     }

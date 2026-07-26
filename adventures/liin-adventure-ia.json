@@ -1537,7 +1537,7 @@
           "monsterXp": 700,
           "monsterWeakness": "priest",
           "monsterWeaknessPercent": 170,
-          "monsterSpecialTechnique": "ground_slam",
+          "monsterSpecialTechnique": "bone_cleave",
           "pages": [
             {
               "commands": [
@@ -2500,7 +2500,7 @@
           "monsterXp": 1000,
           "monsterWeakness": "ranger",
           "monsterWeaknessPercent": 165,
-          "monsterSpecialTechnique": "shadow_cone",
+          "monsterSpecialTechnique": "horn_charge",
           "pages": [
             {
               "commands": [
@@ -3182,7 +3182,7 @@
           "monsterXp": 360,
           "monsterWeakness": "none",
           "monsterWeaknessPercent": 150,
-          "monsterSpecialTechnique": "ground_slam",
+          "monsterSpecialTechnique": "troll_sweep",
           "pages": [
             {
               "commands": [],
@@ -3219,7 +3219,7 @@
           "monsterXp": 1450,
           "monsterWeakness": "priest",
           "monsterWeaknessPercent": 170,
-          "monsterSpecialTechnique": "soul_drain",
+          "monsterSpecialTechnique": "troll_quake",
           "pages": [
             {
               "commands": [
@@ -4264,7 +4264,7 @@
           "monsterXp": 650,
           "monsterWeakness": "priest",
           "monsterWeaknessPercent": 165,
-          "monsterSpecialTechnique": "shadow_cone",
+          "monsterSpecialTechnique": "grave_siphon",
           "pages": [
             {
               "commands": [],
@@ -4301,7 +4301,7 @@
           "monsterXp": 1900,
           "monsterWeakness": "warrior",
           "monsterWeaknessPercent": 160,
-          "monsterSpecialTechnique": "ground_slam",
+          "monsterSpecialTechnique": "troll_sweep",
           "pages": [
             {
               "commands": [
@@ -4855,7 +4855,7 @@
           "monsterXp": 1500,
           "monsterWeakness": "ranger",
           "monsterWeaknessPercent": 160,
-          "monsterSpecialTechnique": "shadow_cone",
+          "monsterSpecialTechnique": "labyrinth_stomp",
           "pages": [
             {
               "commands": [
@@ -4898,7 +4898,7 @@
           "monsterXp": 3000,
           "monsterWeakness": "priest",
           "monsterWeaknessPercent": 175,
-          "monsterSpecialTechnique": "soul_drain",
+          "monsterSpecialTechnique": "troll_quake",
           "pages": [
             {
               "commands": [

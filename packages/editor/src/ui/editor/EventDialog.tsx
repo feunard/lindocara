@@ -4,11 +4,11 @@ import {
   CURATED_MONSTER_SPECIES,
   defaultMonsterTuning,
   MONSTER_RANKS,
-  MONSTER_SPECIAL_TECHNIQUES,
   MONSTER_TUNING_LIMITS,
   MONSTER_WEAKNESSES,
   type MonsterSpecies,
   type MonsterTuning,
+  monsterSpecialTechniquesFor,
 } from "@lindocara/engine/game.js";
 import { MAX_PATROL_RADIUS, MIN_PATROL_RADIUS } from "@lindocara/engine/map-data.js";
 import {
@@ -181,6 +181,10 @@ function MonsterEventFields({
   const options = CURATED_MONSTER_SPECIES.includes(species)
     ? CURATED_MONSTER_SPECIES
     : [species, ...CURATED_MONSTER_SPECIES];
+  const speciesTechniques = monsterSpecialTechniquesFor(species);
+  const techniqueOptions = speciesTechniques.includes(tuning.specialTechnique)
+    ? speciesTechniques
+    : [tuning.specialTechnique, ...speciesTechniques];
   return (
     <section className="flex flex-col gap-3 border-y border-zinc-200 py-3">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
@@ -302,7 +306,7 @@ function MonsterEventFields({
               })
             }
           >
-            {MONSTER_SPECIAL_TECHNIQUES.map((technique) => (
+            {techniqueOptions.map((technique) => (
               <option key={technique} value={technique}>
                 {t(`editor.monster.technique.${technique}`)}
               </option>
