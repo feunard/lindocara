@@ -11,7 +11,12 @@ import {
 import { parseAdventureRegistry } from "@lindocara/engine/adventure-state.js";
 import type { EventCommand } from "@lindocara/engine/event-commands.js";
 import type { MonsterSpecies, MonsterTuning } from "@lindocara/engine/game.js";
-import { elementFitsMap, type MapElement, parseMapData } from "@lindocara/engine/map-data.js";
+import {
+  elementCoversCell,
+  elementFitsMap,
+  type MapElement,
+  parseMapData,
+} from "@lindocara/engine/map-data.js";
 import {
   defaultEventPage,
   functionalEvent,
@@ -241,14 +246,18 @@ function decorations(theme: "city" | "woods" | "marsh" | "citadel" | "sanctuary"
 function safeDecorations(
   theme: "city" | "woods" | "marsh" | "citadel" | "sanctuary",
   events: readonly MapEvent[],
+  spawn: { col: number; row: number },
 ): MapElement[] {
   const occupied = new Set<string>();
+  const protectedCells = [...events, spawn];
   return decorations(theme).filter((element) => {
     const slot = `${element.col}:${element.row}:${element.offsetX}:${element.offsetY}`;
     if (occupied.has(slot)) return false;
     if (
-      !events.every(
-        (event) => Math.abs(element.col - event.col) > 1 || Math.abs(element.row - event.row) > 1,
+      !protectedCells.every(
+        (cell) =>
+          !elementCoversCell(element, cell.col, cell.row) &&
+          (Math.abs(element.col - cell.col) > 1 || Math.abs(element.row - cell.row) > 1),
       )
     ) {
       return false;
@@ -559,7 +568,7 @@ function buildAubeval(refs: StoryRefs): AdventureBundleMap {
     cols: COLS,
     rows: ROWS,
     layers: scaledLayers(BASE_LAYERS.city),
-    elements: safeDecorations("city", e.events),
+    elements: safeDecorations("city", e.events, at(2, 12)),
     spawn: at(2, 12),
     events: e.events,
   };
@@ -813,7 +822,7 @@ function buildWoods(refs: StoryRefs): AdventureBundleMap {
     cols: COLS,
     rows: ROWS,
     layers: scaledLayers(BASE_LAYERS.woods),
-    elements: safeDecorations("woods", e.events),
+    elements: safeDecorations("woods", e.events, at(2, 12)),
     spawn: at(2, 12),
     events: e.events,
   };
@@ -1007,7 +1016,7 @@ function buildMarsh(refs: StoryRefs): AdventureBundleMap {
     cols: COLS,
     rows: ROWS,
     layers: scaledLayers(BASE_LAYERS.woods, true),
-    elements: safeDecorations("marsh", e.events),
+    elements: safeDecorations("marsh", e.events, at(17, 12)),
     spawn: at(17, 12),
     events: e.events,
   };
@@ -1194,7 +1203,7 @@ function buildCitadel(refs: StoryRefs): AdventureBundleMap {
     cols: COLS,
     rows: ROWS,
     layers: scaledLayers(BASE_LAYERS.city),
-    elements: safeDecorations("citadel", e.events),
+    elements: safeDecorations("citadel", e.events, at(2, 12)),
     spawn: at(2, 12),
     events: e.events,
   };
@@ -1385,7 +1394,7 @@ function buildSanctuary(refs: StoryRefs): AdventureBundleMap {
     cols: COLS,
     rows: ROWS,
     layers: scaledLayers(BASE_LAYERS.sanctuary),
-    elements: safeDecorations("sanctuary", e.events),
+    elements: safeDecorations("sanctuary", e.events, at(2, 12)),
     spawn: at(2, 12),
     events: e.events,
   };
@@ -1991,6 +2000,9 @@ for (const map of bundle.maps) {
   for (const element of map.elements) {
     if (!elementFitsMap(element, map.cols, map.rows)) {
       throw new Error(`generated element exceeds map bounds: ${map.name} / ${element.assetId}`);
+    }
+    if (elementCoversCell(element, map.spawn.col, map.spawn.row)) {
+      throw new Error(`generated element covers map spawn: ${map.name} / ${element.assetId}`);
     }
     const slot = `${element.col}:${element.row}:${element.offsetX}:${element.offsetY}`;
     if (elementSlots.has(slot)) {

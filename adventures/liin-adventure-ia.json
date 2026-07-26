@@ -921,13 +921,6 @@
           "assetId": "building.buildings-blue-buildings.archery"
         },
         {
-          "col": 7,
-          "row": 25,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-blue-buildings.monastery"
-        },
-        {
           "col": 4,
           "row": 10,
           "offsetX": 0,
@@ -1143,13 +1136,6 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "decoration.terrain-decorations-bushes.bushe1"
-        },
-        {
-          "col": 19,
-          "row": 34,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "resource.terrain-resources-wood-trees.tree1"
         },
         {
           "col": 37,
@@ -4202,13 +4188,6 @@
           "assetId": "building.buildings-black-buildings.tower"
         },
         {
-          "col": 4,
-          "row": 7,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "resource.terrain-resources-wood-trees.tree1"
-        },
-        {
           "col": 10,
           "row": 4,
           "offsetX": 0,
@@ -4328,13 +4307,6 @@
           "assetId": "resource.terrain-resources-wood-trees.tree3"
         },
         {
-          "col": 31,
-          "row": 22,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "resource.terrain-resources-wood-trees.tree4"
-        },
-        {
           "col": 40,
           "row": 25,
           "offsetX": 0,
@@ -4391,13 +4363,6 @@
           "assetId": "resource.terrain-resources-wood-trees.tree4"
         },
         {
-          "col": 52,
-          "row": 37,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.terrain-decorations-rocks.rock1"
-        },
-        {
           "col": 13,
           "row": 40,
           "offsetX": 0,
@@ -4410,13 +4375,6 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "decoration.terrain-decorations-rocks.rock4"
-        },
-        {
-          "col": 46,
-          "row": 40,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "resource.terrain-resources-wood-trees.tree2"
         },
         {
           "col": 55,
@@ -5709,13 +5667,6 @@
           "assetId": "building.buildings-black-buildings.barracks"
         },
         {
-          "col": 46,
-          "row": 22,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-black-buildings.archery"
-        },
-        {
           "col": 55,
           "row": 16,
           "offsetX": 0,
@@ -5924,13 +5875,6 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "resource.terrain-resources-wood-trees.tree3"
-        },
-        {
-          "col": 46,
-          "row": 31,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "resource.terrain-resources-wood-trees.tree4"
         },
         {
           "col": 13,
@@ -7593,13 +7537,6 @@
           "assetId": "building.buildings-yellow-buildings.house1"
         },
         {
-          "col": 43,
-          "row": 25,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.factions-knights-buildings-castle.castle-destroyed"
-        },
-        {
           "col": 4,
           "row": 7,
           "offsetX": 0,
@@ -7654,13 +7591,6 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "decoration.terrain-decorations-bushes.bushe1"
-        },
-        {
-          "col": 52,
-          "row": 10,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "resource.terrain-resources-wood-trees.tree1"
         },
         {
           "col": 4,
