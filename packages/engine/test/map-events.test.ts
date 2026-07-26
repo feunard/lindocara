@@ -346,6 +346,81 @@ describe("parseMapEvents: authored monster tuning", () => {
   });
 });
 
+describe("parseMapEvents: authored guards", () => {
+  const guardPage = (overrides: Partial<MapEventPage> = {}): MapEventPage =>
+    page({ moveSpeed: 4, moveFreq: 3, optMoveAnim: true, ...overrides });
+
+  it("accepts conditional pages and a bounded patrol leash", () => {
+    const guard = event({
+      kind: "guard",
+      name: "Renforts des Bois",
+      patrolRadius: 160,
+      pages: [
+        guardPage({ condSwitchId: "0041" }),
+        guardPage({ condSwitchId: "0042", condVariableId: "0007", condVariableMin: 3 }),
+      ],
+    });
+
+    expect(parseMapEvents([guard], COLS, ROWS)).toEqual([guard]);
+  });
+
+  it("rejects a missing leash, monster tuning, or an autonomous command program", () => {
+    expect(parseMapEvents([event({ kind: "guard" })], COLS, ROWS)).toBeNull();
+    expect(
+      parseMapEvents(
+        [event({ kind: "guard", patrolRadius: 96, species: "spear_goblin" })],
+        COLS,
+        ROWS,
+      ),
+    ).toBeNull();
+    expect(
+      parseMapEvents(
+        [
+          event({
+            kind: "guard",
+            patrolRadius: 96,
+            pages: [
+              guardPage({
+                commands: [{ t: "say", name: "Garde", text: "En position." }],
+              }),
+            ],
+          }),
+        ],
+        COLS,
+        ROWS,
+      ),
+    ).toBeNull();
+    const ignoredPageFields: Partial<MapEventPage>[] = [
+      { condSelfSwitch: "A" },
+      { graphicAssetId: GOOD_ASSET_ID },
+      { moveType: "random" },
+      { moveSpeed: 3 },
+      { moveFreq: 2 },
+      { optMoveAnim: false },
+      { optStopAnim: true },
+      { optDirFix: true },
+      { optThrough: true },
+      { optOnTop: true },
+      { trigger: "player-touch" },
+    ];
+    for (const ignoredPageField of ignoredPageFields) {
+      expect(
+        parseMapEvents(
+          [
+            event({
+              kind: "guard",
+              patrolRadius: 96,
+              pages: [guardPage(ignoredPageField)],
+            }),
+          ],
+          COLS,
+          ROWS,
+        ),
+      ).toBeNull();
+    }
+  });
+});
+
 describe("mutation proofs", () => {
   it("the duplicate-cell case actually depends on the duplicate-cell check", () => {
     // Sanity: two events on different cells with otherwise-identical shape parse fine, so the

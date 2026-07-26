@@ -182,6 +182,64 @@ describe("monster navigation on the tile grid", () => {
     expect(monster.hp).toBe(0);
   });
 
+  it("lets an authored-map guard engage inside its patrol when no safe zone exists", () => {
+    const authoredTerrain: TerrainGeometry = { ...terrain, safeZone: null };
+    const authoredZone: ZoneDefinition = { ...zone, terrain: authoredTerrain };
+    const monster = chasingMonster();
+    monster.x = 100;
+    monster.y = 100;
+    const guards = createGuards([{ id: "authored-guard", x: 110, y: 100, patrolRadius: 100 }]);
+    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
+    monsterGrid.insert(monster);
+    const context: MonsterSystemContext = {
+      players: new Map(),
+      monsters: [monster],
+      guards,
+      monsterGrid,
+      zone: authoredZone,
+      tick: 0,
+      navigation: createNavigationRuntime(authoredTerrain, authoredZone.navigation),
+      startAttack: vi.fn(),
+    };
+
+    advanceGuards(context, MONSTER_ATTACK_COOLDOWN_MS + 1);
+
+    expect(monster.hp).toBe(0);
+    expect(monster.deadUntil).toBeGreaterThan(MONSTER_ATTACK_COOLDOWN_MS + 1);
+  });
+
+  it("keeps an authored-map guard inside its patrol leash against a distant target", () => {
+    const authoredTerrain: TerrainGeometry = { ...terrain, safeZone: null };
+    const authoredZone: ZoneDefinition = { ...zone, terrain: authoredTerrain };
+    const monster = chasingMonster();
+    monster.x = 260;
+    monster.y = 100;
+    const guards = createGuards([{ id: "leashed-guard", x: 100, y: 100, patrolRadius: 32 }]);
+    const guard = guards[0];
+    if (!guard) throw new Error("missing guard");
+    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
+    monsterGrid.insert(monster);
+    const startAttack = vi.fn();
+    const context: MonsterSystemContext = {
+      players: new Map(),
+      monsters: [monster],
+      guards,
+      monsterGrid,
+      zone: authoredZone,
+      tick: 0,
+      navigation: createNavigationRuntime(authoredTerrain, authoredZone.navigation),
+      startAttack,
+    };
+
+    for (let tick = 0; tick < 80; tick += 1) {
+      advanceGuards(context, (tick + 1) * TICK_DT * 1_000);
+    }
+
+    expect(guard.x).toBeGreaterThan(100);
+    expect(pointDistance(guard, { x: guard.homeX, y: guard.homeY })).toBeLessThanOrEqual(32.001);
+    expect(startAttack).not.toHaveBeenCalled();
+  });
+
   it("paths around a coarsened tile wall instead of grinding into it", () => {
     // The straight line from the monster to its target passes through column 4 / row 4 — the
     // single tile the 8x8 rect above coarsens to solid — even though that continuous segment

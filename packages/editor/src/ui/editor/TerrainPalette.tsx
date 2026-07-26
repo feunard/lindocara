@@ -15,6 +15,7 @@ export const EDITOR_MARKER_PREVIEWS = {
   entry: "/assets/lindocara/tiny-swords/units/blue/warrior/Warrior_Idle.png",
   exit: "/assets/lindocara/tiny-swords/deco/17.png",
   monster: "/assets/lindocara/tiny-swords/enemies/spear-goblin/idle.png",
+  guard: "/assets/lindocara/tiny-swords/units/blue/warrior/Warrior_Idle.png",
   spawn: "/assets/lindocara/tiny-swords/units/blue/warrior/Warrior_Idle.png",
 } as const;
 

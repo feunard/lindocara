@@ -129,10 +129,11 @@ export type EditorTool =
    * - `entry`/`exit` — a spawn/arrival or departure anchor the adventure graph binds by the EVENT's
    *   uuid. Single default page, no graphic.
    * - `monster` — a monster spawn carrying `species` + `patrolRadius`.
+   * - `guard` — an allied server combatant carrying a patrol radius; its conditional pages select
+   *   whether the reinforcement exists.
    *
-   * Functional kinds (entry/exit/monster) are load-bearing: they must land on walkable ground, and an
-   * exit may not share the spawn cell — the same rules `server/maps.ts` enforces, so the editor never
-   * authors a map the server would reject.
+   * Functional kinds are load-bearing: they must land on walkable ground, and an exit may not share
+   * the spawn cell — the same rules `server/maps.ts` enforces.
    */
   | {
       kind: "event";
@@ -141,7 +142,7 @@ export type EditorTool =
       /**
        * The popular-event PRESET a fresh `normal` event is pre-filled from (D13): `raw` is the blank
        * scripted event, `teleporter`/`sign`/`chest` seed page 1 with one canonical command. Ignored
-       * for entry/exit/monster kinds. Defaults to `raw` when absent.
+       * for entry/exit/monster/guard kinds. Defaults to `raw` when absent.
        */
       preset?: EventPreset;
       /** The current map's uuid, used only by the `teleporter` preset for its same-map destination
@@ -538,6 +539,11 @@ export function setEventDraftMonster(
     monsterWeaknessPercent: tuning.weaknessPercent,
     monsterSpecialTechnique: tuning.specialTechnique,
   };
+}
+
+/** Draft mutator for an authored allied guard's authoritative movement leash. */
+export function setEventDraftGuardRadius(draft: MapEvent, patrolRadius: number): MapEvent {
+  return draft.kind === "guard" ? { ...draft, patrolRadius } : draft;
 }
 
 /** Draft mutator: merge a patch into one page. Everything on a page is per-page (XP semantics), so
@@ -1153,6 +1159,26 @@ export function applyTool(
           ordinal,
           kind: "monster",
           species,
+          patrolRadius,
+        });
+        return { ...map, events: [...map.events, event] };
+      }
+      if (tool.eventKind === "guard") {
+        const { patrolRadius } = tool;
+        if (
+          patrolRadius === undefined ||
+          !Number.isSafeInteger(patrolRadius) ||
+          patrolRadius < MIN_PATROL_RADIUS ||
+          patrolRadius > MAX_PATROL_RADIUS
+        ) {
+          return null;
+        }
+        const event = functionalEvent({
+          id: crypto.randomUUID(),
+          col,
+          row,
+          ordinal,
+          kind: "guard",
           patrolRadius,
         });
         return { ...map, events: [...map.events, event] };

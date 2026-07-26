@@ -38,6 +38,7 @@ import {
   deleteEventDraftPage,
   normalizeConditionMin,
   normalizeEventDraftConditions,
+  setEventDraftGuardRadius,
   setEventDraftMonster,
   setEventDraftName,
   updateEventDraftPage,
@@ -469,6 +470,28 @@ export function EventDialog({
           </div>
         )}
 
+        {draft.kind === "guard" && (
+          <section className="flex flex-col gap-3 border-y border-zinc-200 py-3">
+            <p className="text-xs text-muted-foreground">{t("editor.event.kind.guard.hint")}</p>
+            <label
+              htmlFor="guard-patrol-radius"
+              className="flex max-w-xs flex-col gap-1 text-[11px] text-zinc-500"
+            >
+              {t("editor.markers.radius")}
+              <Input
+                id="guard-patrol-radius"
+                type="number"
+                min={MIN_PATROL_RADIUS}
+                max={MAX_PATROL_RADIUS}
+                value={draft.patrolRadius ?? MIN_PATROL_RADIUS}
+                onChange={(event) =>
+                  setDraft(setEventDraftGuardRadius(draft, Number(event.currentTarget.value)))
+                }
+              />
+            </label>
+          </section>
+        )}
+
         {/* Entry/exit/spawn events are pure anchors: their only field is the label (the header Name
             input), so no body is shown — a hint states what the placement binds. */}
         {(draft.kind === "entry" || draft.kind === "exit" || draft.kind === "spawn") && (
@@ -481,9 +504,9 @@ export function EventDialog({
           </p>
         )}
 
-        {/* The full paged editor belongs to normal events. Entry/exit remain pure anchors; monsters
-            expose only their focused on-defeat action list below. */}
-        {draft.kind === "normal" && (
+        {/* Normal events expose complete pages. Guards reuse only the page tabs and party-state
+            conditions: their pages declare presence and may never run commands. */}
+        {(draft.kind === "normal" || draft.kind === "guard") && (
           <>
             {/* Page tabs: 1..n, add (≤ MAX_PAGES_PER_EVENT), delete (disabled at one page). */}
             <div
@@ -531,7 +554,7 @@ export function EventDialog({
               </Button>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className={draft.kind === "normal" ? "grid gap-4 sm:grid-cols-2" : "grid gap-4"}>
               {/* Left column: the authored page fields. */}
               <div className="flex flex-col gap-4">
                 <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
@@ -614,87 +637,95 @@ export function EventDialog({
                       {t("editor.event.cond.variable.empty.hint")}
                     </p>
                   )}
-                  <CheckRow
-                    checked={page.condSelfSwitch !== null}
-                    onToggle={(on) => update({ condSelfSwitch: on ? "A" : null })}
-                    label={t("editor.event.cond.selfSwitch")}
-                  >
-                    <FieldSelect
-                      aria-label={t("editor.event.cond.selfSwitch")}
-                      className="h-7 w-16 text-xs"
-                      disabled={page.condSelfSwitch === null}
-                      value={page.condSelfSwitch ?? "A"}
-                      onChange={(e) =>
-                        update({ condSelfSwitch: e.currentTarget.value as SelfSwitch })
-                      }
+                  {draft.kind === "normal" && (
+                    <CheckRow
+                      checked={page.condSelfSwitch !== null}
+                      onToggle={(on) => update({ condSelfSwitch: on ? "A" : null })}
+                      label={t("editor.event.cond.selfSwitch")}
                     >
-                      {SELF_SWITCHES.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </FieldSelect>
-                  </CheckRow>
+                      <FieldSelect
+                        aria-label={t("editor.event.cond.selfSwitch")}
+                        className="h-7 w-16 text-xs"
+                        disabled={page.condSelfSwitch === null}
+                        value={page.condSelfSwitch ?? "A"}
+                        onChange={(e) =>
+                          update({ condSelfSwitch: e.currentTarget.value as SelfSwitch })
+                        }
+                      >
+                        {SELF_SWITCHES.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </FieldSelect>
+                    </CheckRow>
+                  )}
                 </section>
 
-                <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
-                  <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
-                    {t("editor.event.appearance")}
-                  </h3>
-                  <CatalogueAssetPicker
-                    usage="event"
-                    value={page.graphicAssetId}
-                    onSelectAsset={(assetId) => update({ graphicAssetId: assetId })}
-                    onSelectNone={() => update({ graphicAssetId: null })}
-                    noneLabel={t("editor.shell.events.graphic.none")}
-                  />
-                  <label className="flex items-center gap-2 text-[12.5px] text-zinc-700">
-                    <input
-                      type="checkbox"
-                      checked={page.optOnTop}
-                      onChange={(event) => update({ optOnTop: event.currentTarget.checked })}
-                    />
-                    {t("editor.event.opt.onTop")}
-                  </label>
-                </section>
+                {draft.kind === "normal" && (
+                  <>
+                    <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
+                      <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
+                        {t("editor.event.appearance")}
+                      </h3>
+                      <CatalogueAssetPicker
+                        usage="event"
+                        value={page.graphicAssetId}
+                        onSelectAsset={(assetId) => update({ graphicAssetId: assetId })}
+                        onSelectNone={() => update({ graphicAssetId: null })}
+                        noneLabel={t("editor.shell.events.graphic.none")}
+                      />
+                      <label className="flex items-center gap-2 text-[12.5px] text-zinc-700">
+                        <input
+                          type="checkbox"
+                          checked={page.optOnTop}
+                          onChange={(event) => update({ optOnTop: event.currentTarget.checked })}
+                        />
+                        {t("editor.event.opt.onTop")}
+                      </label>
+                    </section>
 
-                <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
-                  <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
-                    {t("editor.event.trigger")}
-                  </h3>
-                  <p className="text-[11px] text-zinc-500">{t("editor.event.runtime.hint")}</p>
-                  <FieldSelect
-                    aria-label={t("editor.event.trigger")}
-                    className="h-7 text-xs"
-                    value={page.trigger}
-                    onChange={(event) =>
-                      update({ trigger: event.currentTarget.value as EventTrigger })
-                    }
-                  >
-                    {!runtimeTrigger(page.trigger) && (
-                      <option value={page.trigger} disabled>
-                        {t(`editor.event.trigger.${page.trigger}`)} — {t("editor.event.legacy")}
-                      </option>
-                    )}
-                    {RUNTIME_EVENT_TRIGGERS.map((option) => (
-                      <option key={option} value={option}>
-                        {t(`editor.event.trigger.${option}`)}
-                      </option>
-                    ))}
-                  </FieldSelect>
-                </section>
+                    <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3">
+                      <h3 className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
+                        {t("editor.event.trigger")}
+                      </h3>
+                      <p className="text-[11px] text-zinc-500">{t("editor.event.runtime.hint")}</p>
+                      <FieldSelect
+                        aria-label={t("editor.event.trigger")}
+                        className="h-7 text-xs"
+                        value={page.trigger}
+                        onChange={(event) =>
+                          update({ trigger: event.currentTarget.value as EventTrigger })
+                        }
+                      >
+                        {!runtimeTrigger(page.trigger) && (
+                          <option value={page.trigger} disabled>
+                            {t(`editor.event.trigger.${page.trigger}`)} — {t("editor.event.legacy")}
+                          </option>
+                        )}
+                        {RUNTIME_EVENT_TRIGGERS.map((option) => (
+                          <option key={option} value={option}>
+                            {t(`editor.event.trigger.${option}`)}
+                          </option>
+                        ))}
+                      </FieldSelect>
+                    </section>
+                  </>
+                )}
               </div>
 
               {/* Right column: the page's guided action list. */}
-              <EventCommandEditor
-                commands={page.commands}
-                switches={registry.switches}
-                variables={registry.variables}
-                quests={registry.quests ?? []}
-                maps={maps}
-                defaultSpeakerName={draft.name}
-                onChange={(commands) => update({ commands })}
-              />
+              {draft.kind === "normal" && (
+                <EventCommandEditor
+                  commands={page.commands}
+                  switches={registry.switches}
+                  variables={registry.variables}
+                  quests={registry.quests ?? []}
+                  maps={maps}
+                  defaultSpeakerName={draft.name}
+                  onChange={(commands) => update({ commands })}
+                />
+              )}
             </div>
           </>
         )}

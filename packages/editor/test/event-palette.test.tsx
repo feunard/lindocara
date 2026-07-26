@@ -72,6 +72,30 @@ describe("EventPalette (D13/D14)", () => {
     expect(onSelectPreset).toHaveBeenCalledWith("sign");
   });
 
+  it("offers allied guards with a radius but without monster species", () => {
+    setLocale("en");
+    const onSelectEventKind = vi.fn();
+    const onMarkerRadiusChange = vi.fn();
+    render(
+      <EventPalette
+        {...baseProps()}
+        eventKind="guard"
+        onSelectEventKind={onSelectEventKind}
+        onMarkerRadiusChange={onMarkerRadiusChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: t("editor.event.kind.guard") }));
+    expect(onSelectEventKind).toHaveBeenCalledWith("guard");
+    expect(
+      screen.queryByRole("combobox", { name: t("editor.markers.species") }),
+    ).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole("spinbutton", { name: t("editor.markers.radius") }), {
+      target: { value: "160" },
+    });
+    expect(onMarkerRadiusChange).toHaveBeenCalledWith(160);
+  });
+
   it("lists the map's events and highlights on hover, selects on click", () => {
     setLocale("en");
     const list = events();

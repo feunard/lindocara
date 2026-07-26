@@ -306,6 +306,34 @@ describe("EventDialog", () => {
     expect(committed.pages).toHaveLength(1);
   });
 
+  it("shows a guard block and round-trips its authoritative patrol radius", async () => {
+    const user = userEvent.setup({ delay: null });
+    const { onCommit } = renderDialog(
+      seedEvent({ kind: "guard", species: null, patrolRadius: 96 }),
+      RUNTIME_REGISTRY,
+    );
+
+    expect(screen.getByRole("tablist")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("combobox", { name: t("editor.markers.species") }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(t("editor.event.kind.guard.hint"))).toBeVisible();
+    await user.click(screen.getByRole("checkbox", { name: t("editor.event.cond.switch") }));
+
+    const radius = screen.getByRole("spinbutton", { name: t("editor.markers.radius") });
+    await user.clear(radius);
+    await user.type(radius, "160");
+    await user.click(screen.getByRole("button", { name: t("editor.event.save") }));
+
+    const committed = onCommit.mock.calls[0]?.[0] as MapEvent;
+    expect(committed.kind).toBe("guard");
+    expect(committed.species).toBeNull();
+    expect(committed.patrolRadius).toBe(160);
+    expect(committed.pages).toHaveLength(1);
+    expect(committed.pages[0]?.condSwitchId).toBe("0042");
+    expect(committed.pages[0]?.commands).toEqual([]);
+  });
+
   it("shows only a label field for an entry event and round-trips the label", async () => {
     const user = userEvent.setup();
     const { onCommit } = renderDialog(seedEvent({ kind: "entry", name: "" }));

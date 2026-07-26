@@ -123,6 +123,7 @@ function eventToolFor(
   selfMapId: string | null,
 ): EditorTool {
   if (eventKind === "monster") return { kind: "event", eventKind, species, patrolRadius };
+  if (eventKind === "guard") return { kind: "event", eventKind, patrolRadius };
   if (eventKind === "normal") {
     // A preset placement names itself, in the author's language, so the event list distinguishes the
     // five presets. `raw` stays unnamed: it IS the generic custom event, and the list's own kind
@@ -619,17 +620,19 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     containerRef.current?.focus();
   }, [previewing]);
 
-  // The monster event kind bundles its species/radius into the pushed tool, so changing either while
-  // that kind is active must re-push it — otherwise the stage keeps stamping spawns with whatever
-  // species/radius were selected when the kind was last picked.
+  // Monster and guard event kinds bundle their tuning into the pushed tool, so a palette edit while
+  // either is active must re-push it before the next placement.
   useEffect(() => {
-    if (toolKey !== "event" || eventKind !== "monster") return;
-    const tool: EditorTool = {
-      kind: "event",
-      eventKind: "monster",
-      species: markerSpecies,
-      patrolRadius: markerRadius,
-    };
+    if (toolKey !== "event" || (eventKind !== "monster" && eventKind !== "guard")) return;
+    const tool: EditorTool =
+      eventKind === "monster"
+        ? {
+            kind: "event",
+            eventKind: "monster",
+            species: markerSpecies,
+            patrolRadius: markerRadius,
+          }
+        : { kind: "event", eventKind: "guard", patrolRadius: markerRadius };
     pendingToolRef.current = tool;
     handleRef.current?.setTool(tool);
   }, [toolKey, eventKind, markerSpecies, markerRadius]);

@@ -748,7 +748,7 @@ describe("editor history", () => {
   });
 });
 
-describe("applyTool: functional event kinds (entry / exit / monster)", () => {
+describe("applyTool: functional event kinds (entry / exit / monster / guard)", () => {
   const base = blankMap("m", 20, 15);
 
   it("places an entry event as a functionalEvent-shaped MapEvent with a uuid", () => {
@@ -796,6 +796,7 @@ describe("applyTool: functional event kinds (entry / exit / monster)", () => {
         3,
       ),
     ).toBeNull();
+    expect(place(wet, { kind: "event", eventKind: "guard", patrolRadius: 96 }, 3, 3)).toBeNull();
     // A `normal` event floats above collision, so water is fine.
     expect(place(wet, { kind: "event", eventKind: "normal" }, 3, 3)).not.toBeNull();
   });
@@ -821,6 +822,23 @@ describe("applyTool: functional event kinds (entry / exit / monster)", () => {
       ),
     ).toBeNull();
     expect(place(base, { kind: "event", eventKind: "monster", patrolRadius: 96 }, 6, 6)).toBeNull();
+  });
+
+  it("places an allied guard with a validated radius and no monster tuning", () => {
+    const placed = place(
+      base,
+      { kind: "event", eventKind: "guard", patrolRadius: 128 },
+      9,
+      6,
+    ) as EditorMap;
+    const event = placed.events[0] as MapEvent;
+    expect(event.kind).toBe("guard");
+    expect(event.species).toBeNull();
+    expect(event.patrolRadius).toBe(128);
+    expect(event.monsterRank).toBeNull();
+    expect(event.pages).toEqual([defaultEventPage()]);
+    expect(place(base, { kind: "event", eventKind: "guard", patrolRadius: 8 }, 9, 6)).toBeNull();
+    expect(place(base, { kind: "event", eventKind: "guard" }, 9, 6)).toBeNull();
   });
 
   it("still refuses a second event on an occupied cell, whatever the kind", () => {

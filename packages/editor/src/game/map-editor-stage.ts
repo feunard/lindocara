@@ -475,6 +475,7 @@ const EVENT_KIND_PLACEHOLDER_COLOR: Record<EventKind, number> = {
   entry: 0x6fd44c,
   exit: 0x9a6cf0,
   monster: 0xd9484a,
+  guard: 0x3b82f6,
   spawn: 0x2563eb,
 };
 
@@ -543,13 +544,12 @@ export function paintEventCell(
     container.addChild(placeholder);
   }
 
-  // A monster event carries its patrol radius, so the overlay draws the same reach ring the old
-  // monster marker did — a faint circle centred on the cell — right on the EV plane.
-  if (event.kind === "monster" && event.patrolRadius !== null) {
+  // Monsters and allied guards carry authoritative patrol radii, shown on the EV plane.
+  if ((event.kind === "monster" || event.kind === "guard") && event.patrolRadius !== null) {
     const ring = new Graphics();
     ring
       .circle(x + TILE_SIZE / 2, y + TILE_SIZE / 2, event.patrolRadius)
-      .stroke({ width: 2, color: EVENT_KIND_PLACEHOLDER_COLOR.monster, alpha: 0.35 });
+      .stroke({ width: 2, color: EVENT_KIND_PLACEHOLDER_COLOR[event.kind], alpha: 0.35 });
     container.addChild(ring);
   }
 
@@ -1179,7 +1179,7 @@ async function buildSession(
       const semanticFrame =
         event.kind === "monster" && event.species
           ? textures.monsters.get(event.species)
-          : event.kind === "entry" || event.kind === "spawn"
+          : event.kind === "entry" || event.kind === "spawn" || event.kind === "guard"
             ? textures.spawn
             : event.kind === "exit"
               ? textures.eventSign

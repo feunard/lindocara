@@ -37,23 +37,24 @@ import { type EditorAssetId, isEditorAssetId } from "./tiny-swords-catalog.js";
 
 /**
  * UX wave #12: markers die, their meaning becomes a typed event. A `normal` event is the wireframe
- * event from tranche 3 (pages, conditions, appearance); the other three kinds are the old functional
+ * event from tranche 3 (pages, conditions, appearance); the other kinds are functional
  * markers reborn as addressable, uuid-identified events:
  *
  * - `entry`  — a spawn/arrival anchor the adventure graph binds by the EVENT's uuid.
  * - `exit`   — a departure anchor the graph binds by the EVENT's uuid.
- * - `monster` — a monster spawn: `species` + `patrolRadius` ride the event, nothing else.
+ * - `monster` — a monster spawn: `species` + `patrolRadius` ride the event.
+ * - `guard`   — an allied combatant. Its conditional pages decide whether the reinforcement exists
+ *   in the current party state; `patrolRadius` is its authoritative leash.
  * - `spawn`  — the adventure's START anchor (D25): the map that carries a spawn event IS the first
  *   map, and heroes spawn on that event's cell. Unlike `entry`, a spawn is not bound by the graph —
  *   `resolveAdventureStart` (server/adventures.ts) derives the first map from it directly, so a
  *   spawn-driven adventure needs no `graph.start` at all. Inert at runtime, like `entry`.
  *
- * Entry/exit/monster/spawn events are single-page and conditions-disabled (see `parseMapEvents`):
- * they are anchors, not scripted behaviour, so the pages/conditions machinery is hidden in the
- * editor and refused by the parser. `docs/superpowers/plans/2026-07-19-ux-wave.md` Task 5 is the
- * record of that choice.
+ * Entry/exit/monster/spawn events stay single-page anchors. Guards deliberately keep conditional
+ * pages: an ally earned in one region can appear on a later battlefield without a second combat
+ * system or an autonomous event runner. Guard pages carry no commands; they only select presence.
  */
-export const EVENT_KINDS = ["normal", "entry", "exit", "monster", "spawn"] as const;
+export const EVENT_KINDS = ["normal", "entry", "exit", "monster", "guard", "spawn"] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
 
 export function isEventKind(value: unknown): value is EventKind {
@@ -145,7 +146,7 @@ export interface MapEvent {
   id: string;
   col: number;
   row: number;
-  /** For entry/exit kinds this doubles as the marker label (optional, decorative). */
+  /** For entry/exit kinds this doubles as the marker label; for guards it names the reinforcement. */
   name: string;
   /** Creation order, per map. Display only (the wireframe's `EV{ordinal}`); never identity. */
   ordinal: number;
@@ -153,7 +154,7 @@ export interface MapEvent {
   kind: EventKind;
   /** Set (and validated) iff `kind === "monster"`; `null` for every other kind. */
   species: MonsterSpecies | null;
-  /** Set (in `[MIN_PATROL_RADIUS, MAX_PATROL_RADIUS]`) iff `kind === "monster"`; else `null`. */
+  /** Set (in `[MIN_PATROL_RADIUS, MAX_PATROL_RADIUS]`) for monsters and guards; else `null`. */
   patrolRadius: number | null;
   monsterRank?: MonsterRank | null;
   monsterMaxHp?: number | null;
@@ -181,6 +182,11 @@ export function exitEvents(events: readonly MapEvent[]): MapEvent[] {
 
 export function monsterEvents(events: readonly MapEvent[]): MapEvent[] {
   return events.filter((event) => event.kind === "monster");
+}
+
+/** Authored allied combatants. Their active page, unlike a monster's, controls runtime presence. */
+export function guardEvents(events: readonly MapEvent[]): MapEvent[] {
+  return events.filter((event) => event.kind === "guard");
 }
 
 /** The adventure-start anchors on a map (D25). A map with at least one is a candidate first map. */
@@ -215,9 +221,10 @@ export function defaultEventPage(): MapEventPage {
 }
 
 /**
- * A functional (entry/exit/monster) event: one default page, conditions off. Monster kind carries
- * `species`+`patrolRadius`; the others carry neither. The one place the server, the default map and
- * the migration build these, so they cannot drift from what `parseMapEvents` accepts.
+ * A functional event: one default page, conditions off. Monster kind carries
+ * `species`+`patrolRadius`; guard kind carries `patrolRadius`; the anchors carry neither. The one
+ * place the server, the default map and migrations build these, so they cannot drift from what
+ * `parseMapEvents` accepts.
  */
 export function functionalEvent(params: {
   id: string;
@@ -231,6 +238,7 @@ export function functionalEvent(params: {
   monsterTuning?: Partial<MonsterTuning> | undefined;
 }): MapEvent {
   const isMonster = params.kind === "monster";
+  const isGuard = params.kind === "guard";
   const species = params.species ?? "spear_goblin";
   const tuning = {
     ...defaultMonsterTuning(species),
@@ -244,7 +252,11 @@ export function functionalEvent(params: {
     ordinal: params.ordinal,
     kind: params.kind,
     species: isMonster ? species : null,
-    patrolRadius: isMonster ? (params.patrolRadius ?? null) : null,
+    patrolRadius: isMonster
+      ? (params.patrolRadius ?? null)
+      : isGuard
+        ? (params.patrolRadius ?? MIN_PATROL_RADIUS)
+        : null,
     monsterRank: isMonster ? tuning.rank : null,
     monsterMaxHp: isMonster ? tuning.maxHp : null,
     monsterDamage: isMonster ? tuning.damage : null,
@@ -404,8 +416,9 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
     const kind = record.kind === undefined ? "normal" : record.kind;
     if (!isEventKind(kind)) return null;
 
-    // Monster events carry `species` + `patrolRadius`; every other kind must carry neither. A
-    // discriminated pair, checked here rather than deferred, so no unvalidated data slips past.
+    // Monster events carry `species` + `patrolRadius`; guards carry only `patrolRadius`; every
+    // other kind carries neither. Checked here rather than deferred, so no unvalidated data slips
+    // past.
     let species: MonsterSpecies | null = null;
     let patrolRadius: number | null = null;
     let monsterRank: MonsterRank | null = null;
@@ -466,6 +479,24 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
         monsterWeaknessPercent === null
       )
         return null;
+    } else if (kind === "guard") {
+      if (!Number.isSafeInteger(record.patrolRadius)) return null;
+      const radius = record.patrolRadius as number;
+      if (radius < MIN_PATROL_RADIUS || radius > MAX_PATROL_RADIUS) return null;
+      patrolRadius = radius;
+      if (
+        (record.species !== undefined && record.species !== null) ||
+        (record.monsterRank !== undefined && record.monsterRank !== null) ||
+        (record.monsterMaxHp !== undefined && record.monsterMaxHp !== null) ||
+        (record.monsterDamage !== undefined && record.monsterDamage !== null) ||
+        (record.monsterSpeed !== undefined && record.monsterSpeed !== null) ||
+        (record.monsterXp !== undefined && record.monsterXp !== null) ||
+        (record.monsterWeakness !== undefined && record.monsterWeakness !== null) ||
+        (record.monsterWeaknessPercent !== undefined && record.monsterWeaknessPercent !== null) ||
+        (record.monsterSpecialTechnique !== undefined && record.monsterSpecialTechnique !== null)
+      ) {
+        return null;
+      }
     } else if (
       (record.species !== undefined && record.species !== null) ||
       (record.patrolRadius !== undefined && record.patrolRadius !== null) ||
@@ -483,13 +514,36 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
 
     const parsedPages = parseEventPages(pages);
     if (!parsedPages) return null;
-    // Functional events have exactly one conditions-disabled page. A monster may use that page's
-    // program as an on-defeat hook; entry/exit remain pure anchors.
-    if (kind !== "normal" && parsedPages.length !== 1) return null;
+    // Anchors and monster spawns have exactly one page. Guards keep multiple conditional pages so
+    // party-state decisions can select their presence without running an autonomous script.
+    if (kind !== "normal" && kind !== "guard" && parsedPages.length !== 1) return null;
     // Nothing over the wire may smuggle scripted behaviour onto an entry/exit/spawn anchor.
     if (
       (kind === "entry" || kind === "exit" || kind === "spawn") &&
       parsedPages.some((page) => page.commands.length > 0)
+    ) {
+      return null;
+    }
+    // A guard page is declarative presence only. Self-switches cannot be changed without a command,
+    // while appearance, movement and triggers are owned by the guard simulation rather than the
+    // map-event layer. Reject non-default ignored fields instead of persisting misleading authoring.
+    if (
+      kind === "guard" &&
+      parsedPages.some(
+        (page) =>
+          page.commands.length > 0 ||
+          page.condSelfSwitch !== null ||
+          page.graphicAssetId !== null ||
+          page.moveType !== "fixed" ||
+          page.moveSpeed !== 4 ||
+          page.moveFreq !== 3 ||
+          !page.optMoveAnim ||
+          page.optStopAnim ||
+          page.optDirFix ||
+          page.optThrough ||
+          page.optOnTop ||
+          page.trigger !== "action",
+      )
     ) {
       return null;
     }

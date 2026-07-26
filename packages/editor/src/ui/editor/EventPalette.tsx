@@ -23,19 +23,20 @@ export const PRESET_LABEL: Record<EventPreset, MessageKey> = {
 /** The kind-tagged placements shown alongside the command PRESETS. Entry/exit are GONE from authoring
  *  (the adventure graph is no longer authored — a teleporter preset replaces an exit, and a hero
  *  spawns on a placed `spawn` event); `normal` is absent because presets are how a custom event
- *  is placed. What remains are the two placements that still map to live runtime behaviour: `spawn`
- *  (D25's adventure-start anchor — the map it sits on becomes the first map) and `monster` (spawns a
- *  patrolling monster with the chosen species/radius). Both stay kind-tagged because the runtime
- *  detects them by kind; the palette presents them as one-click placements, not a "kind selector".
+ *  is placed. What remains are the placements that map to live runtime behaviour: `spawn` (D25's
+ *  adventure-start anchor), `monster` (a patrolling enemy) and `guard` (a conditional allied
+ *  combatant). They stay kind-tagged because the runtime detects them by kind; the palette presents
+ *  them as one-click placements, not a "kind selector".
  *  Existing entry/exit events on an old adventure's map still render and list — they just cannot be
  *  authored anew. */
-const FUNCTIONAL_KINDS = ["spawn", "monster"] as const;
+const FUNCTIONAL_KINDS = ["spawn", "monster", "guard"] as const;
 
 const EVENT_KIND_LABEL: Record<EventKind, MessageKey> = {
   normal: "editor.event.kind.normal",
   entry: "editor.event.kind.entry",
   exit: "editor.event.kind.exit",
   monster: "editor.event.kind.monster",
+  guard: "editor.event.kind.guard",
   spawn: "editor.event.kind.spawn",
 };
 
@@ -147,25 +148,29 @@ export function EventPalette({
           ))}
         </div>
 
-        {eventKind === "monster" && (
+        {(eventKind === "monster" || eventKind === "guard") && (
           <div className="mt-1 flex flex-col gap-1.5 rounded-md bg-zinc-100 p-2">
-            <Label htmlFor="marker-species" className="text-[11px] text-zinc-500">
-              {t("editor.markers.species")}
-            </Label>
-            <select
-              id="marker-species"
-              className="h-7 w-full rounded-md border border-input bg-white px-1.5 text-xs outline-none"
-              value={markerSpecies}
-              onChange={(event) =>
-                onMarkerSpeciesChange(event.currentTarget.value as MonsterSpecies)
-              }
-            >
-              {CURATED_MONSTER_SPECIES.map((option) => (
-                <option key={option} value={option}>
-                  {t(`monster.${option}`)}
-                </option>
-              ))}
-            </select>
+            {eventKind === "monster" && (
+              <>
+                <Label htmlFor="marker-species" className="text-[11px] text-zinc-500">
+                  {t("editor.markers.species")}
+                </Label>
+                <select
+                  id="marker-species"
+                  className="h-7 w-full rounded-md border border-input bg-white px-1.5 text-xs outline-none"
+                  value={markerSpecies}
+                  onChange={(event) =>
+                    onMarkerSpeciesChange(event.currentTarget.value as MonsterSpecies)
+                  }
+                >
+                  {CURATED_MONSTER_SPECIES.map((option) => (
+                    <option key={option} value={option}>
+                      {t(`monster.${option}`)}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
             <Label htmlFor="marker-radius" className="text-[11px] text-zinc-500">
               {t("editor.markers.radius")}
             </Label>

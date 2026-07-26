@@ -315,11 +315,14 @@ export function advanceGuards(context: MonsterSystemContext, now: number): void 
     let target: MonsterRuntime | undefined;
     let targetDistance = GUARD_DETECTION_RANGE;
     for (const monster of context.monsters) {
-      // A guard's whole job is "get this thing out of the city". Where there is no city — every
-      // authored map — nothing is ever inside one, so a guard finds no target and walks home.
-      // Authored maps carry no guards at all today, so this loop is empty there; the check states
-      // the rule anyway rather than leaning on that.
-      if (monster.deadUntil > now || !safeZoneShelters(monster, terrain)) continue;
+      // Catalogue guards defend their authored safe zone exactly as before. An edited map has no
+      // safe-zone rectangle; its guard events instead defend their bounded patrol ring, which is
+      // what lets an authored battlefield use this same authoritative combat system.
+      if (
+        monster.deadUntil > now ||
+        (terrain.safeZone !== null && !safeZoneShelters(monster, terrain))
+      )
+        continue;
       const distance = pointDistance(guard, monster);
       if (distance >= targetDistance) continue;
       target = monster;

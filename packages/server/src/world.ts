@@ -182,6 +182,10 @@ import { HEALTH_POTION_ID } from "./items.js";
 import { BUILTIN_MAP, BUILTIN_MAP_ID, loadMap } from "./maps.js";
 import { completeParty, loadPartyForRuntime } from "./parties.js";
 import { loadProfile, saveProfile } from "./profile.js";
+import {
+  activeAuthoredGuardDefinitions,
+  reconcileActiveGuards,
+} from "./world/authored-guard-system.js";
 import { executeCheatCommand } from "./world/cheat-command-system.js";
 import {
   advanceCombatActions,
@@ -1331,21 +1335,23 @@ export class World extends DurableObject<Env> {
 
   /**
    * Select each authored event's active page against the current adventure-state snapshot and
-   * project the holders down to their appearance. Called only on snapshot install and hero join —
-   * NEVER from the tick loop — so an event carries zero per-tick cost. `activePageIndex` is the
-   * exact pure rule `test/adventure-state.test.ts` pins; there is no second copy to drift.
+   * project the holders down to their appearance. Called on state install, room restore and hero
+   * join — NEVER from the tick loop — so an event carries zero per-tick cost. `activePageIndex` is
+   * the exact pure rule `test/adventure-state.test.ts` pins; there is no second copy to drift.
    */
   #evaluateActiveEvents(): void {
-    const events = this.#location?.definition.events;
-    if (!events || events.length === 0) {
-      this.#activeEvents = [];
-      return;
-    }
+    const definition = this.#location?.definition;
+    const events = definition?.events ?? [];
+    const guardDefinitions = [
+      ...(definition?.guards ?? []),
+      ...activeAuthoredGuardDefinitions(events, this.#adventureState),
+    ];
+    this.#guards = reconcileActiveGuards(this.#guards, guardDefinitions);
+
     const active: ActiveWorldEvent[] = [];
     for (const event of events) {
-      // Only `normal` events have an appearance. Entry/exit/monster events (UX wave #12) are
-      // anchors/spawns consumed elsewhere (heroes/index start, exit detection, `zoneFromMap`
-      // monsters); they never become a drawn world event.
+      // Only `normal` events have an appearance. Anchors and monster spawns are consumed elsewhere;
+      // guard events are projected above into the authoritative guard collection.
       if (event.kind !== "normal") continue;
       const index = activePageIndex(event, this.#adventureState);
       if (index === null) continue;
