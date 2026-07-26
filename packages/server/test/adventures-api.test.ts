@@ -282,7 +282,7 @@ describe("adventure lifecycle over the wire", () => {
     expect(await foreign.json()).toEqual({ error: "adventure_graph" });
   });
 
-  it("lets any account read and edit a foreign adventure; deleting stays the author's", async () => {
+  it("lets any account read, edit, and delete a collaborative adventure", async () => {
     const advId = await createDraft();
     const mapA = await authorMap(advId, mapBody("A"));
     const mapB = await authorMap(advId, mapBody("B", eventsB()));
@@ -300,7 +300,7 @@ describe("adventure lifecycle over the wire", () => {
     }[];
     const listed = all.find((entry) => entry.id === advId);
     expect(listed?.author).toMatch(/^advapi\d+$/);
-    // Reading and editing a foreign adventure is open (collaborative editing)…
+    // Reading, editing, and deleting a foreign adventure is open to collaborators.
     expect((await authed(`/api/adventures/${advId}`, {}, rival)).status).toBe(200);
     expect(
       (
@@ -318,10 +318,10 @@ describe("adventure lifecycle over the wire", () => {
         )
       ).status,
     ).toBe(200);
-    // …while destroying it remains the author's alone.
-    expect((await authed(`/api/adventures/${advId}`, { method: "DELETE" }, rival)).status).toBe(
-      404,
-    );
+    expect(
+      (await authed(`/api/adventures/${advId}?force=true`, { method: "DELETE" }, rival)).status,
+    ).toBe(204);
+    expect((await authed(`/api/adventures/${advId}`, {}, rival)).status).toBe(404);
 
     // The rival's own adventure cannot bind another account's maps: they are not its members.
     const rivalAdv = await createDraft(rival);

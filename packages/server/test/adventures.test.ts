@@ -173,7 +173,7 @@ describe("adventure CRUD", () => {
     ).rejects.toThrow(/^graph:/);
   });
 
-  it("updates in place and refuses foreign or missing adventures", async () => {
+  it("updates and deletes collaborative adventures", async () => {
     const db = createDb(env.DB);
     await seedAccount("owner");
     await seedAccount("rival");
@@ -186,17 +186,14 @@ describe("adventure CRUD", () => {
     });
     expect(renamed.title).toBe("Renamed");
 
-    // Collaborative editing: a rival's edit is accepted…
+    // Collaborative editing: a rival's edit and deletion are accepted.
     const retouched = await updateAdventure(db, advId, {
       title: "Retouche rivale",
       maxPlayers: 2,
       graph: corridorGraph(mapA.id, mapB.id),
     });
     expect(retouched.title).toBe("Retouche rivale");
-    // …while destroying it stays the author's alone.
-    await expect(deleteAdventure(db, "rival", advId)).rejects.toThrow(/^not_found:/);
-
-    await deleteAdventure(db, "owner", advId);
+    await deleteAdventure(db, "rival", advId);
     expect(await loadAdventure(db, "owner", advId)).toBeNull();
     // Deleting the adventure cascades to its maps.
     expect(await loadOwnedMap(db, "owner", mapA.id)).toBeNull();

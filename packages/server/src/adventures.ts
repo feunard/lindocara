@@ -452,11 +452,13 @@ export async function updateAdventureRegistry(
 
 export async function deleteAdventure(
   db: Db,
-  accountId: string,
+  _accountId: string,
   id: string,
   force = false,
 ): Promise<string[]> {
-  const row = await ownedRow(db, accountId, id);
+  // Listing, reading and editing are collaborative; deletion follows the same authenticated
+  // authoring contract. The account id remains in the signature for source compatibility.
+  const [row] = await db.select().from(adventure).where(eq(adventure.id, id)).limit(1);
   if (!row) throw new Error("not_found: no such adventure");
   const used = await db
     .select({ partyId: party.id })
@@ -476,9 +478,7 @@ export async function deleteAdventure(
         )
         .bind(id),
       db.$client.prepare("DELETE FROM party WHERE adventure_id = ?").bind(id),
-      db.$client
-        .prepare("DELETE FROM adventure WHERE id = ? AND account_id = ?")
-        .bind(id, accountId),
+      db.$client.prepare("DELETE FROM adventure WHERE id = ?").bind(id),
     ]);
     return ((results[0]?.results ?? []) as { id: string }[]).map((heroRow) => heroRow.id);
   }

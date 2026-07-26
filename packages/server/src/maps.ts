@@ -1107,8 +1107,8 @@ export async function deleteMap(
   const [row] = await db.select().from(map).where(eq(map.id, id)).limit(1);
   if (!row) throw new Error("not_found: no such map");
   const force = options.force === true;
-  // Collaborative edits remain open, but terminating other players' saves is author-only.
-  if (force && row.accountId !== options.accountId) throw new Error("not_found: no such map");
+  // Force is still authenticated at the HTTP boundary; collaborative authors may also clear the
+  // stale parties/heroes that otherwise make a shared map impossible to remove.
 
   // The owning adventure's graph may name this map (its start, a link's source or destination).
   // Deleting it would corrupt the saved graph, so it is refused while the graph references it —

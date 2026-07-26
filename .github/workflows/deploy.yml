@@ -74,3 +74,15 @@ jobs:
             echo "::warning::Transient Cloudflare deploy error on attempt $attempt/3; retrying."
             sleep "$((attempt * 10))"
           done
+
+      - name: Publish Liin Adventure IA
+        env:
+          SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
+        run: >-
+          npx tsx scripts/adventure-io.ts import
+          --file=adventures/liin-adventure-ia.json
+          --target=https://lindocara.alepha.dev
+          --username=liinreleasebot
+          --allow-remote=true
+          --allow-production=true
+          --replace-if-different=true

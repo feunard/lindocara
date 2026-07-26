@@ -97,7 +97,7 @@ export class ApiClient {
   }
 
   async findAdventureByTitle(title: string): Promise<string | null> {
-    const result = await this.request("/api/adventures", { method: "GET" });
+    const result = await this.request("/api/adventures?scope=all", { method: "GET" });
     if (!result.response.ok || !Array.isArray(result.body)) {
       throw this.failure("adventure list", result);
     }

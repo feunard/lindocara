@@ -10,6 +10,7 @@
  * exactly like the seed. Import is idempotent by title; it re-mints every event uuid (a map_event id
  * is a global primary key) and rewrites all internal references (graph, quests, teleports).
  */
+import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import type { AdventureGraph } from "@lindocara/engine/adventure.js";
 import {
@@ -25,6 +26,7 @@ import type { MapEvent } from "@lindocara/engine/map-events.js";
 import { ApiClient, argumentsOf, resolveCredentials, resolveTarget } from "./lib/adventure-api.js";
 
 const DEFAULT_USERNAME = "brumevalauthor";
+const BUNDLE_MARKER_PREFIX = "bundle:";
 
 interface StoredMapPayload {
   id: string;
@@ -120,12 +122,31 @@ async function importAdventure(
   client: ApiClient,
   bundle: AdventureBundle,
   reset: boolean,
+  replaceIfDifferent: boolean,
 ): Promise<void> {
   const title = bundle.adventure.title;
+  const marker = `${BUNDLE_MARKER_PREFIX}${createHash("sha256")
+    .update(JSON.stringify(bundle))
+    .digest("hex")
+    .slice(0, 25)}`;
   // ① Find-or-create the adventure (and delete first under --reset).
   let adventureId = await client.findAdventureByTitle(title);
+  if (adventureId && replaceIfDifferent && !reset) {
+    const current = await client.request(`/api/adventures/${adventureId}`, { method: "GET" });
+    if (!current.response.ok) throw client.failure("adventure release marker", current);
+    const currentBody = current.body as {
+      registry?: { variables?: Array<{ name?: string }> };
+    } | null;
+    if (currentBody?.registry?.variables?.some((variable) => variable.name === marker)) {
+      console.log(`adventure "${title}" already matches ${marker}; import skipped`);
+      return;
+    }
+    reset = true;
+  }
   if (adventureId && reset) {
-    const del = await client.request(`/api/adventures/${adventureId}`, { method: "DELETE" });
+    const del = await client.request(`/api/adventures/${adventureId}?force=true`, {
+      method: "DELETE",
+    });
     if (!del.response.ok) throw client.failure("adventure delete", del);
     console.log(`deleted existing adventure ${adventureId}`);
     adventureId = null;
@@ -208,13 +229,23 @@ async function importAdventure(
   }
 
   // ⑥ Registry (switches/variables/quests) + final graph on the adventure row.
+  const variables = rewritten.adventure.registry.variables.filter(
+    (variable) => !variable.name.startsWith(BUNDLE_MARKER_PREFIX),
+  );
+  const usedVariableIds = new Set(variables.map((variable) => variable.id));
+  let markerId = 9_999;
+  while (markerId > 0 && usedVariableIds.has(String(markerId).padStart(4, "0"))) markerId -= 1;
+  if (markerId === 0) throw new Error("no free variable id for the bundle release marker");
   const putAdventure = await client.request(`/api/adventures/${adventureId}`, {
     method: "PUT",
     body: JSON.stringify({
       title,
       maxPlayers: bundle.adventure.maxPlayers,
       graph: rewritten.graph,
-      registry: rewritten.adventure.registry,
+      registry: {
+        ...rewritten.adventure.registry,
+        variables: [...variables, { id: String(markerId).padStart(4, "0"), name: marker }],
+      },
     }),
   });
   if (!putAdventure.response.ok) throw client.failure("adventure registry", putAdventure);
@@ -276,7 +307,12 @@ async function main(): Promise<void> {
       ? { ...parsed, adventure: { ...parsed.adventure, title: override.trim() } }
       : parsed;
     await client.ensureSession();
-    await importAdventure(client, bundle, args.get("reset") === "true");
+    await importAdventure(
+      client,
+      bundle,
+      args.get("reset") === "true",
+      args.get("replace-if-different") === "true",
+    );
     return;
   }
   throw new Error("usage: adventure-io.ts <export|import> …");
