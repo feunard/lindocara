@@ -32,6 +32,7 @@
     "map:build": "tsx scripts/build-map.ts",
     "seed:brumeval": "tsx scripts/seed-brumeval.ts",
     "seed:sombregue": "tsx scripts/seed-sombregue.ts",
+    "adventure:build:liin": "tsx scripts/liin-adventure/build.ts && biome format --write adventures/liin-adventure-ia.json",
     "adventure:export": "tsx scripts/adventure-io.ts export",
     "adventure:import": "tsx scripts/adventure-io.ts import",
     "map:check": "npm run map:build && git diff --exit-code -- packages/engine/src/zones/verdant-reach-tiles.ts packages/engine/src/zones/mmo-test-zone-tiles.ts packages/engine/src/zones/sunken-isles-tiles.ts",

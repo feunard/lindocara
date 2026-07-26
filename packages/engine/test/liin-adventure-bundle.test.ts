@@ -2,12 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parseAdventureBundle } from "../src/adventure-bundle.js";
 import { colliderIndexFrom } from "../src/collider.js";
-import {
-  isWalkable,
-  MONSTER_SPECIES_KIND,
-  MONSTER_STATS,
-  type TerrainGeometry,
-} from "../src/game.js";
+import { isWalkable, type TerrainGeometry } from "../src/game.js";
 import { bakeCollision, elementColliders, parseMapData } from "../src/map-data.js";
 import type { MapEvent } from "../src/map-events.js";
 import { PLAYER_SIZE } from "../src/simulation.js";
@@ -98,9 +93,23 @@ describe("Liin Adventure IA portable bundle", () => {
     if (!bundle) return;
 
     expect(bundle.adventure.title).toBe("Liin Adventure IA");
-    expect(bundle.maps).toHaveLength(3);
-    expect(bundle.graph.links).toHaveLength(5);
-    expect(bundle.adventure.registry.quests).toHaveLength(3);
+    expect(bundle.maps).toHaveLength(5);
+    expect(bundle.graph.links).toHaveLength(9);
+    expect(bundle.adventure.registry.quests).toHaveLength(10);
+    expect(bundle.adventure.registry.quests?.slice(0, 5).map((quest) => quest.id)).toEqual([
+      "0001",
+      "0002",
+      "0003",
+      "0004",
+      "0005",
+    ]);
+    expect(bundle.adventure.registry.quests?.slice(5).map((quest) => quest.id)).toEqual([
+      "0006",
+      "0007",
+      "0008",
+      "0009",
+      "0010",
+    ]);
 
     const events = new Map(
       bundle.maps.flatMap((map) => map.events.map((event) => [event.id, { map, event }] as const)),
@@ -123,6 +132,9 @@ describe("Liin Adventure IA portable bundle", () => {
     }
 
     for (const map of bundle.maps) {
+      expect(map.cols, map.name).toBeGreaterThanOrEqual(60);
+      expect(map.rows, map.name).toBeGreaterThanOrEqual(45);
+      expect(map.cols * map.rows, map.name).toBeGreaterThanOrEqual(20 * 15 * 9);
       const parsed = parseMapData({
         ...map,
         markers: { entries: [], exits: [], monsterSpawns: [] },
@@ -136,11 +148,22 @@ describe("Liin Adventure IA portable bundle", () => {
       for (const event of map.events.filter((event) =>
         ["entry", "exit", "monster", "normal"].includes(event.kind),
       )) {
-        expect(reachable.has(`${event.col},${event.row}`), `${map.name}: ${event.name}`).toBe(true);
+        const nearest = [...reachable]
+          .map((cell) => {
+            const [col = 0, row = 0] = cell.split(",").map(Number);
+            return { cell, distance: Math.abs(col - event.col) + Math.abs(row - event.row) };
+          })
+          .sort((left, right) => left.distance - right.distance)[0];
+        expect(
+          reachable.has(`${event.col},${event.row}`),
+          `${map.name}: ${event.name}; nearest walkable cell ${nearest?.cell ?? "none"}`,
+        ).toBe(true);
       }
       expect(reachable.size).toBeGreaterThanOrEqual(Math.floor(map.cols * map.rows * 0.55));
       if (map.name.includes("Sanctuaire")) {
-        expect(bakeCollision(parsed).kinds.filter((kind) => kind === "ramp")).toHaveLength(2);
+        expect(
+          bakeCollision(parsed).kinds.filter((kind) => kind === "ramp").length,
+        ).toBeGreaterThan(1);
       }
     }
 
@@ -154,7 +177,7 @@ describe("Liin Adventure IA portable bundle", () => {
         ),
       ),
     );
-    expect(teleports).toHaveLength(4);
+    expect(teleports).toHaveLength(0);
     for (const teleport of teleports) {
       const destination = bundle.maps.find((map) => map.id === teleport.mapId);
       expect(destination).toBeDefined();
@@ -188,20 +211,60 @@ describe("Liin Adventure IA portable bundle", () => {
     }
 
     const bosses = bundle.maps.map((map) =>
-      map.events.find((event) => event.kind === "monster" && event.name.startsWith("Boss")),
+      map.events.find((event) => event.kind === "monster" && event.monsterRank === "boss"),
     );
     expect(bosses.every(Boolean)).toBe(true);
-    const health = bosses.map((boss) =>
-      boss?.species ? MONSTER_STATS[MONSTER_SPECIES_KIND[boss.species]].maxHp : 0,
+    expect(bosses.map((boss) => boss?.monsterMaxHp)).toEqual([900, 1300, 1800, 2400, 3600]);
+    expect(new Set(bosses.map((boss) => boss?.monsterSpecialTechnique))).toEqual(
+      new Set(["ground_slam", "shadow_cone", "soul_drain"]),
     );
-    expect(health).toEqual([78, 110, 145]);
+
+    const allCommands = bundle.maps.flatMap((map) =>
+      map.events.flatMap((event) => eventCommands(event)),
+    ) as Record<string, unknown>[];
+    expect(allCommands.filter((command) => command.t === "choices").length).toBeGreaterThanOrEqual(
+      4,
+    );
+    expect(
+      new Set(
+        allCommands
+          .filter((command) => command.t === "completeActivity")
+          .map((command) => command.activityId),
+      ),
+    ).toEqual(
+      new Set([
+        "pacte_des_racines",
+        "cloches_noyees",
+        "brasiers_du_serment",
+        "destin_de_la_source",
+      ]),
+    );
+    expect(
+      bundle.maps.flatMap((map) =>
+        map.events.flatMap((event) =>
+          event.pages.filter((page) => page.trigger === "auto" || page.trigger === "parallel"),
+        ),
+      ),
+    ).toHaveLength(0);
 
     for (const quest of bundle.adventure.registry.quests ?? []) {
+      expect(quest.description.length, quest.title).toBeGreaterThan(80);
+      expect(
+        Object.values(quest.dialogues).reduce((length, text) => length + text.length, 0),
+        quest.title,
+      ).toBeGreaterThan(250);
       const references = [quest.giver, quest.turnInTarget].filter(
         (reference): reference is NonNullable<typeof reference> => reference !== null,
       );
       for (const objective of quest.objectives) {
-        if (objective.type === "defeat-target") references.push(objective.targetRef);
+        if (objective.type === "defeat-target" || objective.type === "interact") {
+          references.push(objective.targetRef);
+        } else if (objective.type === "use-item" && objective.context?.kind === "event") {
+          references.push({
+            mapId: objective.context.mapId,
+            eventId: objective.context.eventId,
+          });
+        }
       }
       for (const reference of references) {
         expect(events.get(reference.eventId)?.map.id).toBe(reference.mapId);
