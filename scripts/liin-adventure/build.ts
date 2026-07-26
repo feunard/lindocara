@@ -66,6 +66,14 @@ const GRAPHICS = {
   monk: "character.units-yellow-units-monk.idle",
   merchant: "character.units-blue-units-pawn.pawn-idle-gold",
   scout: "character.units-red-units-pawn.pawn-idle",
+  artisan: "character.units-blue-units-pawn.pawn-idle-hammer",
+  archer: "character.units-blue-units-archer.archer-idle",
+  villager: "character.units-yellow-units-pawn.pawn-idle",
+  woodcutter: "character.units-yellow-units-pawn.pawn-idle-axe",
+  refugee: "character.units-red-units-pawn.pawn-idle-wood",
+  legionary: "character.units-black-units-lancer.lancer-idle",
+  ashMonk: "character.units-black-units-monk.idle",
+  pilgrim: "character.units-purple-units-pawn.pawn-idle",
   rune: "decoration.deco.17",
 } as const;
 
@@ -116,49 +124,129 @@ function decorations(theme: "city" | "woods" | "marsh" | "citadel" | "sanctuary"
     "decoration.terrain-decorations-rocks.rock3",
     "decoration.terrain-decorations-rocks.rock4",
   ] as const;
-  const positions = [
-    at(2, 3),
-    at(5, 4),
-    at(8, 2),
-    at(11, 5),
-    at(14, 3),
-    at(17, 7),
-    at(3, 8),
-    at(7, 10),
-    at(11, 11),
-    at(15, 9),
-    at(18, 12),
-    at(9, 13),
-  ];
-  const assets: readonly MapElement["assetId"][] =
-    theme === "city"
-      ? [
-          "building.buildings-blue-buildings.castle",
-          "building.buildings-blue-buildings.house1",
-          "building.buildings-blue-buildings.house2",
-          ...trees,
-          ...rocks,
-          "decoration.terrain-decorations-bushes.bushe1",
-        ]
-      : theme === "citadel" || theme === "sanctuary"
-        ? [
-            "building.buildings-black-buildings.tower",
-            "building.buildings-purple-buildings.monastery",
-            ...rocks,
-            ...trees,
-          ]
-        : [
-            ...trees,
-            ...rocks,
-            "building.factions-goblins-buildings-wood-house.goblin-house-destroyed",
-            "decoration.terrain-decorations-bushes.bushe1",
-          ];
-  return positions.map((position, index) => ({
-    ...position,
+  const place = (assetId: MapElement["assetId"], col: number, row: number): MapElement => ({
+    ...at(col, row),
     offsetX: 0,
     offsetY: 0,
-    assetId: assets[index % assets.length] ?? trees[0],
-  }));
+    assetId,
+  });
+  const scatterPositions = [
+    [1, 2],
+    [3, 1],
+    [5, 2],
+    [7, 1],
+    [9, 2],
+    [11, 1],
+    [13, 2],
+    [15, 1],
+    [17, 3],
+    [1, 5],
+    [3, 4],
+    [6, 5],
+    [9, 4],
+    [12, 5],
+    [15, 4],
+    [18, 6],
+    [1, 8],
+    [4, 7],
+    [7, 8],
+    [10, 7],
+    [13, 8],
+    [16, 7],
+    [18, 9],
+    [3, 10],
+    [6, 11],
+    [9, 10],
+    [12, 11],
+    [15, 10],
+    [17, 12],
+    [4, 13],
+    [7, 12],
+    [10, 13],
+    [13, 12],
+    [15, 13],
+    [18, 14],
+  ] as const;
+  const scatterAssets: readonly MapElement["assetId"][] = [
+    ...trees,
+    ...rocks,
+    "decoration.terrain-decorations-bushes.bushe1",
+  ];
+  const scatter = scatterPositions.map(([col, row], index) =>
+    place(scatterAssets[index % scatterAssets.length] ?? trees[0], col, row),
+  );
+  const structures: Record<typeof theme, readonly [MapElement["assetId"], number, number][]> = {
+    city: [
+      ["building.buildings-blue-buildings.castle", 7, 3],
+      ["building.buildings-blue-buildings.barracks", 3, 5],
+      ["building.buildings-blue-buildings.archery", 10, 5],
+      ["building.buildings-blue-buildings.monastery", 2, 8],
+      ["building.buildings-blue-buildings.tower", 1, 3],
+      ["building.buildings-blue-buildings.tower", 11, 2],
+      ["building.buildings-blue-buildings.house1", 4, 9],
+      ["building.buildings-blue-buildings.house2", 7, 9],
+      ["building.buildings-blue-buildings.house3", 10, 9],
+      ["building.buildings-red-buildings.house1", 13, 10],
+      ["building.factions-knights-buildings-house.house-destroyed", 16, 10],
+      ["building.factions-knights-buildings-tower.tower-destroyed", 14, 7],
+    ],
+    woods: [
+      ["building.buildings-yellow-buildings.house1", 3, 11],
+      ["building.buildings-yellow-buildings.house2", 6, 12],
+      ["building.buildings-yellow-buildings.monastery", 5, 8],
+      ["building.factions-goblins-buildings-wood-house.goblin-house", 14, 10],
+      ["building.factions-goblins-buildings-wood-house.goblin-house", 17, 11],
+      ["building.factions-goblins-buildings-wood-house.goblin-house-destroyed", 15, 7],
+      ["building.factions-goblins-buildings-wood-tower.wood-tower-inconstruction", 13, 8],
+      ["building.factions-goblins-buildings-wood-tower.wood-tower-destroyed", 18, 7],
+    ],
+    marsh: [
+      ["building.buildings-yellow-buildings.house1", 13, 11],
+      ["building.buildings-yellow-buildings.house2", 16, 12],
+      ["building.factions-knights-buildings-house.house-destroyed", 11, 10],
+      ["building.factions-knights-buildings-house.house-destroyed", 8, 12],
+      ["building.factions-goblins-buildings-wood-house.goblin-house-destroyed", 4, 9],
+      ["building.factions-goblins-buildings-wood-house.goblin-house", 7, 7],
+      ["building.factions-goblins-buildings-wood-tower.wood-tower-destroyed", 3, 5],
+      ["building.buildings-black-buildings.tower", 9, 4],
+    ],
+    citadel: [
+      ["building.buildings-black-buildings.castle", 14, 3],
+      ["building.buildings-black-buildings.barracks", 10, 6],
+      ["building.buildings-black-buildings.archery", 15, 7],
+      ["building.buildings-black-buildings.tower", 18, 5],
+      ["building.buildings-purple-buildings.monastery", 6, 5],
+      ["building.buildings-purple-buildings.barracks", 4, 8],
+      ["building.buildings-black-buildings.house1", 8, 10],
+      ["building.buildings-black-buildings.house2", 11, 11],
+      ["building.buildings-black-buildings.house3", 14, 10],
+      ["building.factions-knights-buildings-house.house-destroyed", 17, 12],
+      ["building.factions-knights-buildings-tower.tower-destroyed", 2, 4],
+    ],
+    sanctuary: [
+      ["building.buildings-purple-buildings.monastery", 7, 4],
+      ["building.buildings-yellow-buildings.monastery", 11, 3],
+      ["building.buildings-yellow-buildings.castle", 15, 3],
+      ["building.buildings-purple-buildings.tower", 3, 6],
+      ["building.buildings-black-buildings.tower", 17, 7],
+      ["building.buildings-purple-buildings.house1", 5, 9],
+      ["building.buildings-purple-buildings.house2", 8, 10],
+      ["building.buildings-yellow-buildings.house1", 11, 10],
+      ["building.factions-knights-buildings-castle.castle-destroyed", 14, 8],
+    ],
+  };
+  return [...scatter, ...structures[theme].map(([assetId, col, row]) => place(assetId, col, row))];
+}
+
+function safeDecorations(
+  theme: "city" | "woods" | "marsh" | "citadel" | "sanctuary",
+  events: readonly MapEvent[],
+): MapElement[] {
+  return decorations(theme).filter((element) =>
+    events.every(
+      (event) => Math.abs(element.col - event.col) > 1 || Math.abs(element.row - event.row) > 1,
+    ),
+  );
 }
 
 function page(
@@ -248,6 +336,51 @@ function createEventFactory(mapKey: string, refs: StoryRefs) {
   return { events, normal, anchor, monster };
 }
 
+interface AmbientNpc {
+  key: string;
+  name: string;
+  col: number;
+  row: number;
+  offsetX?: number;
+  offsetY?: number;
+  graphic: MapEventPage["graphicAssetId"];
+  text: string;
+}
+
+function addAmbientNpcs(
+  factory: ReturnType<typeof createEventFactory>,
+  entries: readonly AmbientNpc[],
+): void {
+  for (const entry of entries) {
+    factory.normal(
+      entry.key,
+      entry.name,
+      at(entry.col, entry.row, entry.offsetX ?? 1, entry.offsetY ?? 1),
+      entry.graphic,
+      [page([say(entry.name, entry.text)], { graphicAssetId: entry.graphic })],
+    );
+  }
+}
+
+function addMonsterZone(
+  factory: ReturnType<typeof createEventFactory>,
+  key: string,
+  name: string,
+  species: MonsterSpecies,
+  positions: readonly [number, number, number?, number?][],
+  tuning: Partial<MonsterTuning> = {},
+): void {
+  positions.forEach(([col, row, offsetX = 1, offsetY = 1], index) => {
+    factory.monster(
+      `${key}-${index + 1}`,
+      `${name} ${index + 1}`,
+      at(col, row, offsetX, offsetY),
+      species,
+      tuning,
+    );
+  });
+}
+
 function buildAubeval(refs: StoryRefs): AdventureBundleMap {
   const e = createEventFactory("aubeval", refs);
   e.anchor("spawn", "Cour des Voyageurs", at(2, 12), "spawn");
@@ -307,6 +440,73 @@ function buildAubeval(refs: StoryRefs): AdventureBundleMap {
       { graphicAssetId: GRAPHICS.scout },
     ),
   ]);
+  addAmbientNpcs(e, [
+    {
+      key: "rovan",
+      name: "Rovan, maître des forges",
+      col: 5,
+      row: 10,
+      graphic: GRAPHICS.artisan,
+      text: "J’ai reforgé trois fois les gonds de la porte orientale. Ce ne sont pas les coups qui les brisent, mais la chaleur venue des maisons incendiées. Le faubourg brûle encore derrière les palissades.",
+    },
+    {
+      key: "ysilde",
+      name: "Ysilde de la Marmite fêlée",
+      col: 8,
+      row: 11,
+      graphic: GRAPHICS.villager,
+      text: "Mon auberge sert de dortoir, d’infirmerie et de salle du Conseil depuis que le vrai Conseil a fermé ses fenêtres. Si vous revenez vivants, je trouverai encore une table.",
+    },
+    {
+      key: "doran",
+      name: "Doran, maçon des remparts",
+      col: 11,
+      row: 9,
+      graphic: GRAPHICS.refugee,
+      text: "Les pierres noires dans la brèche ne viennent pas d’ici. Les soldats de Varkesh les ont apportées du Sanctuaire, puis ont muré leurs propres familles dehors.",
+    },
+    {
+      key: "alwen",
+      name: "Sœur Alwen",
+      col: 2,
+      row: 7,
+      graphic: GRAPHICS.monk,
+      text: "La chapelle bleue accueille les blessés des deux camps. Lyra proteste en public et nous apporte des bandages la nuit. Les gens sont rarement aussi simples que leurs bannières.",
+    },
+    {
+      key: "lio",
+      name: "Lio, guetteur du beffroi",
+      col: 8,
+      row: 7,
+      graphic: GRAPHICS.archer,
+      text: "Trois lignes ennemies occupent l’est : les pillards dans les maisons rouges, les gnolls sur la digue, puis les morts autour de Varkesh. Ne les affrontez pas comme un seul groupe.",
+    },
+    {
+      key: "mina",
+      name: "Mina, enfant du faubourg",
+      col: 5,
+      row: 8,
+      graphic: GRAPHICS.villager,
+      text: "Notre maison avait une girouette en forme de poisson. Je la vois encore dans la fumée. Maman dit que ce n’est pas une raison de mourir. Elle a raison, mais regardez quand même.",
+    },
+  ]);
+  addMonsterZone(e, "faubourg", "Pillard du faubourg", "spear_goblin", [
+    [11, 10, 2, 1],
+    [16, 11, 0, 1],
+    [18, 8],
+  ]);
+  addMonsterZone(e, "incendiaires", "Incendiaire des maisons rouges", "torch_goblin", [
+    [13, 9],
+    [16, 9],
+  ]);
+  addMonsterZone(e, "digue", "Gnoll de la digue", "gnoll_marauder", [
+    [12, 6],
+    [17, 7],
+  ]);
+  addMonsterZone(e, "ossuaire", "Sentinelle de l’ossuaire", "skull_guard", [
+    [13, 3],
+    [18, 4],
+  ]);
   e.monster("raider-1", "Éclaireur du Conclave", at(14, 8), "spear_goblin");
   e.monster("raider-2", "Boutefeu du faubourg", at(17, 9), "torch_goblin");
   e.monster("raider-3", "Maraudeur de la digue", at(13, 7), "gnoll_marauder", {
@@ -350,7 +550,7 @@ function buildAubeval(refs: StoryRefs): AdventureBundleMap {
     cols: COLS,
     rows: ROWS,
     layers: scaledLayers(BASE_LAYERS.city),
-    elements: decorations("city"),
+    elements: safeDecorations("city", e.events),
     spawn: at(2, 12),
     events: e.events,
   };
@@ -365,6 +565,74 @@ function buildWoods(refs: StoryRefs): AdventureBundleMap {
   ]);
   e.normal("herbalist", "Pell, apprenti herboriste", at(6, 12), GRAPHICS.scout, [
     page([], { graphicAssetId: GRAPHICS.scout }),
+  ]);
+  addAmbientNpcs(e, [
+    {
+      key: "nolda",
+      name: "Nolda, doyenne de la lisière",
+      col: 3,
+      row: 10,
+      graphic: GRAPHICS.villager,
+      text: "Les trois maisons jaunes sont tout ce qui reste de Clairécorce. Nous ne reconstruisons pas plus haut : la forêt reprend les cheminées avant même que le mortier sèche.",
+    },
+    {
+      key: "bren",
+      name: "Bren, charbonnier repenti",
+      col: 7,
+      row: 11,
+      graphic: GRAPHICS.woodcutter,
+      text: "J’ai abattu les arbres que Morvane m’ordonnait de marquer. Quand ils ont commencé à murmurer les noms des disparus, j’ai posé ma hache. Elle me paraît plus lourde depuis.",
+    },
+    {
+      key: "sive",
+      name: "Sive, chasseuse des sentes",
+      col: 4,
+      row: 9,
+      graphic: GRAPHICS.archer,
+      text: "Le camp gobelin est au sud-est. Au nord, les gardiens de sève tournent autour des pierres. Entre les deux, les sangliers montés utilisent l’ancienne route comme piste de charge.",
+    },
+    {
+      key: "oriel",
+      name: "Oriel, réfugié de Clairécorce",
+      col: 2,
+      row: 12,
+      graphic: GRAPHICS.refugee,
+      text: "Ma fille entend les arbres, elle aussi. Elyne dit que ce n’est pas une maladie. Après Aubeval, j’ai du mal à croire une bonne nouvelle sans chercher ce qu’elle exige en échange.",
+    },
+    {
+      key: "fael",
+      name: "Fael, gardien du petit pont",
+      col: 9,
+      row: 10,
+      offsetY: 0,
+      graphic: GRAPHICS.captain,
+      text: "Morvane n’était pas un monstre quand il est arrivé. Il négociait, plaisantait, payait le bois. Puis les ordres de Varos ont cessé de lui laisser des choix qu’il acceptait de regarder en face.",
+    },
+    {
+      key: "tess",
+      name: "Tess, cueilleuse de lumen",
+      col: 8,
+      row: 12,
+      graphic: GRAPHICS.villager,
+      text: "Les herbes brillent davantage près des pierres du Pacte. Pell appelle cela une réaction magique. Moi, je crois qu’elles veulent simplement qu’on remarque où l’histoire fait mal.",
+    },
+  ]);
+  addMonsterZone(e, "camp-gobelin", "Bûcheron du camp gobelin", "spear_goblin", [
+    [13, 10, 2, 1],
+    [16, 13, 0, 0],
+    [18, 9],
+  ]);
+  addMonsterZone(e, "feux-creux", "Boutefeu du bois creux", "torch_goblin", [
+    [14, 8],
+    [17, 7],
+  ]);
+  addMonsterZone(e, "cercle-seve", "Gardien du cercle de sève", "skull_guard", [
+    [4, 5],
+    [7, 4],
+  ]);
+  addMonsterZone(e, "piste-charge", "Sanglier de l’ancienne route", "war_pig", [
+    [10, 10],
+    [12, 8],
   ]);
   for (const [index, position] of [at(6, 8), at(13, 6), at(16, 12, 1, 3)].entries()) {
     e.normal(`herb-${index + 1}`, `Herbe-lumen ${index + 1}`, position, "decoration.deco.17", [
@@ -536,7 +804,7 @@ function buildWoods(refs: StoryRefs): AdventureBundleMap {
     cols: COLS,
     rows: ROWS,
     layers: scaledLayers(BASE_LAYERS.woods),
-    elements: decorations("woods"),
+    elements: safeDecorations("woods", e.events),
     spawn: at(2, 12),
     events: e.events,
   };
@@ -551,6 +819,73 @@ function buildMarsh(refs: StoryRefs): AdventureBundleMap {
   ]);
   e.normal("wynn", "Éclaireuse Wynn", at(13, 12), GRAPHICS.scout, [
     page([], { graphicAssetId: GRAPHICS.scout }),
+  ]);
+  addAmbientNpcs(e, [
+    {
+      key: "odessa",
+      name: "Odessa, passeuse des roseaux",
+      col: 17,
+      row: 13,
+      graphic: GRAPHICS.villager,
+      text: "Les maisons sur pilotis formaient le hameau des Saules. L’eau a monté en une nuit, sans pluie. Nhal’gor ne contrôle pas le marais : il boit ce qui l’empêche de s’effondrer.",
+    },
+    {
+      key: "jarek",
+      name: "Jarek, pêcheur sans barque",
+      col: 14,
+      row: 10,
+      graphic: GRAPHICS.woodcutter,
+      text: "Les poissons ont fui avant les habitants. Quand les bêtes comprennent un désastre avant nous, nous appelons cela un présage pour éviter d’appeler cela un avertissement ignoré.",
+    },
+    {
+      key: "mila",
+      name: "Mila des Saules noyés",
+      col: 11,
+      row: 12,
+      graphic: GRAPHICS.refugee,
+      text: "Mon frère gardait la deuxième cloche. Il disait que sonner dans le bon ordre obligeait chacun à reconnaître sa part. C’est probablement pour cela que le Conseil les a fait taire.",
+    },
+    {
+      key: "frere-oswin",
+      name: "Frère Oswin",
+      col: 16,
+      row: 10,
+      graphic: GRAPHICS.ashMonk,
+      text: "Les Lecteurs de vase brûlent les tablettes et les trolls gardent les digues. Séparez-les : les chamans sont dangereux à distance, les trolls punissent ceux qui restent groupés.",
+    },
+    {
+      key: "salka",
+      name: "Salka, réparatrice de pontons",
+      col: 10,
+      row: 13,
+      graphic: GRAPHICS.artisan,
+      text: "Je reconstruis un passage chaque matin et le marais en avale deux chaque nuit. Ce n’est pas du courage. C’est une manière lente de refuser que la route appartienne à Nhal’gor.",
+    },
+    {
+      key: "enfant-cloche",
+      name: "Evan, fils du sonneur",
+      col: 12,
+      row: 10,
+      graphic: GRAPHICS.villager,
+      text: "Père disait que les cloches ne réveillaient pas les morts. Elles réveillaient les vivants qui préféraient dormir. Je crois qu’il parlait du Conseil.",
+    },
+  ]);
+  addMonsterZone(e, "vase-est", "Lecteur de vase oriental", "hex_shaman", [
+    [15, 8],
+    [17, 6],
+  ]);
+  addMonsterZone(e, "vase-ouest", "Lecteur de vase occidental", "hex_shaman", [
+    [7, 10],
+    [5, 7],
+  ]);
+  addMonsterZone(e, "digue-troll", "Troll de la digue noyée", "mire_troll", [
+    [10, 6, 1, 2],
+    [4, 5],
+  ]);
+  addMonsterZone(e, "charognards", "Charognard des pontons", "gnoll_marauder", [
+    [12, 9],
+    [8, 7],
+    [3, 9],
   ]);
   for (const [index, position] of [at(14, 8), at(9, 5), at(5, 8)].entries()) {
     const required = index;
@@ -663,7 +998,7 @@ function buildMarsh(refs: StoryRefs): AdventureBundleMap {
     cols: COLS,
     rows: ROWS,
     layers: scaledLayers(BASE_LAYERS.woods, true),
-    elements: decorations("marsh"),
+    elements: safeDecorations("marsh", e.events),
     spawn: at(17, 12),
     events: e.events,
   };
@@ -675,6 +1010,74 @@ function buildCitadel(refs: StoryRefs): AdventureBundleMap {
   e.anchor("exit-back", "Retour vers le Marais", at(1, 11), "exit");
   e.normal("serah", "Serah Varkesh, porte-étendard", at(4, 12), GRAPHICS.captain, [
     page([], { graphicAssetId: GRAPHICS.captain }),
+  ]);
+  addAmbientNpcs(e, [
+    {
+      key: "arven",
+      name: "Arven, conscrit libéré",
+      col: 3,
+      row: 10,
+      graphic: GRAPHICS.refugee,
+      text: "Kaelgor nous a enfermés pour avoir demandé pourquoi les convois contenaient des enfants. La réponse est derrière les portes noires. Je la crains, mais elle doit sortir d’ici.",
+    },
+    {
+      key: "maitre-helk",
+      name: "Maître Helk, armurier captif",
+      col: 6,
+      row: 11,
+      graphic: GRAPHICS.artisan,
+      text: "Les casernes noires abritent la garnison régulière. Le monastère violet est à Sael. La grande cour appartient aux trolls. Trois armées dans une forteresse, et aucune ne se fait confiance.",
+    },
+    {
+      key: "sira",
+      name: "Sira, porteuse de braise",
+      col: 8,
+      row: 12,
+      graphic: GRAPHICS.pilgrim,
+      text: "Chaque brasier représente un ancien devoir. Kaelgor les a retournés : protéger est devenu surveiller, obéir est devenu se taire, témoigner est devenu dénoncer.",
+    },
+    {
+      key: "tovan",
+      name: "Tovan, déserteur de la VIIe",
+      col: 5,
+      row: 9,
+      graphic: GRAPHICS.legionary,
+      text: "Les soldats près des maisons ne veulent plus se battre, mais Sael tient leurs familles. Abattez ses gardiens avant de traverser la cour, sinon toute la garnison vous tombera dessus.",
+    },
+    {
+      key: "merea",
+      name: "Merea, soigneuse des cellules",
+      col: 10,
+      row: 10,
+      graphic: GRAPHICS.monk,
+      text: "Les prisonniers ont partagé leurs rations avec leurs geôliers. C’est ce qui a brisé la discipline, pas les tortures. On peut bâtir une citadelle contre une armée, jamais contre une conversation.",
+    },
+    {
+      key: "cadran",
+      name: "Cadran, cartographe du siège",
+      col: 2,
+      row: 8,
+      graphic: GRAPHICS.scout,
+      text: "Suivez les cours intérieures d’ouest en est. Les sentinelles d’os gardent les cages, les lanciers tiennent les casernes, puis les trolls défendent le pont du Sanctuaire.",
+    },
+  ]);
+  addMonsterZone(e, "garnison", "Lancier de la garnison noire", "skull_guard", [
+    [7, 10],
+    [10, 9],
+    [13, 9, 1, 2],
+  ]);
+  addMonsterZone(e, "inquisition", "Croisé de l’Inquisition", "skull_crusader", [
+    [7, 6],
+    [11, 6],
+    [15, 6],
+  ]);
+  addMonsterZone(e, "cour-troll", "Briseur de la grande cour", "gate_troll", [
+    [14, 8],
+    [17, 8],
+  ]);
+  addMonsterZone(e, "patrouille-montee", "Patrouilleur des remparts", "pig_rider", [
+    [5, 5],
+    [10, 4],
   ]);
   for (const [index, position] of [at(6, 10), at(10, 8), at(14, 6)].entries()) {
     e.normal(`cage-${index + 1}`, `Cage de conscrits ${index + 1}`, position, GRAPHICS.rune, [
@@ -782,7 +1185,7 @@ function buildCitadel(refs: StoryRefs): AdventureBundleMap {
     cols: COLS,
     rows: ROWS,
     layers: scaledLayers(BASE_LAYERS.city),
-    elements: decorations("citadel"),
+    elements: safeDecorations("citadel", e.events),
     spawn: at(2, 12),
     events: e.events,
   };
@@ -797,6 +1200,75 @@ function buildSanctuary(refs: StoryRefs): AdventureBundleMap {
   ]);
   e.normal("last-warden", "Orren, dernier veilleur", at(6, 12), GRAPHICS.captain, [
     page([], { graphicAssetId: GRAPHICS.captain }),
+  ]);
+  addAmbientNpcs(e, [
+    {
+      key: "ilan",
+      name: "Ilan, pèlerin sans couronne",
+      col: 3,
+      row: 10,
+      graphic: GRAPHICS.pilgrim,
+      text: "Nous pensions trouver un temple. Nous avons trouvé une ville entière construite pour alimenter une salle du trône. Les maisons jaunes étaient celles des serviteurs qui ne repartaient jamais.",
+    },
+    {
+      key: "veuve-sorin",
+      name: "Sorin, veuve du premier veilleur",
+      col: 7,
+      row: 11,
+      graphic: GRAPHICS.villager,
+      text: "Orren parle de son serment comme d’une chaîne. Pourtant il pourrait partir. C’est ainsi que les serments gagnent : ils finissent par parler avec notre propre voix.",
+    },
+    {
+      key: "scribe-nael",
+      name: "Nael, scribe de l’Aube",
+      col: 9,
+      row: 11,
+      offsetY: 0,
+      graphic: GRAPHICS.monk,
+      text: "Les deux monastères se disputaient autrefois le sens de la Source. Varos les a réconciliés en exécutant leurs maîtres et en conservant leurs bibliothèques.",
+    },
+    {
+      key: "gardienne-ira",
+      name: "Ira, gardienne des jardins morts",
+      col: 12,
+      row: 11,
+      graphic: GRAPHICS.archer,
+      text: "Eryndor charge depuis le premier plateau. Plus haut, les gardiens d’os protègent les canaux qui nourrissent Varos. Détruisez sa procession avant d’entrer dans la couronne.",
+    },
+    {
+      key: "enfant-aube",
+      name: "Linn, enfant de l’Aube",
+      col: 5,
+      row: 9,
+      graphic: GRAPHICS.villager,
+      text: "Maëlys dit qu’après Varos personne ne possédera la Source. Je lui ai demandé qui la soignerait. Elle n’avait pas de réponse, alors nous en cherchons une.",
+    },
+    {
+      key: "frere-kaen",
+      name: "Frère Kaen, fossoyeur royal",
+      col: 14,
+      row: 10,
+      graphic: GRAPHICS.ashMonk,
+      text: "Les morts du Sanctuaire ne réclament pas vengeance. Ils répètent leurs ordres parce que personne ne leur a annoncé que le royaume qui les commandait n’existe plus.",
+    },
+  ]);
+  addMonsterZone(e, "procession", "Garde de la procession royale", "skull_guard", [
+    [8, 7, 1, 2],
+    [11, 8],
+    [14, 9, 1, 0],
+  ]);
+  addMonsterZone(e, "chapitre-noir", "Croisé du chapitre noir", "skull_crusader", [
+    [5, 6],
+    [9, 5],
+    [13, 6],
+  ]);
+  addMonsterZone(e, "jardins", "Maraudeur des jardins morts", "gnoll_marauder", [
+    [15, 9],
+    [17, 7],
+  ]);
+  addMonsterZone(e, "seuil", "Gardien du seuil solaire", "skull_warden", [
+    [10, 4, 2, 1],
+    [16, 5],
   ]);
   for (let index = 0; index < 6; index += 1) {
     e.monster(
@@ -904,7 +1376,7 @@ function buildSanctuary(refs: StoryRefs): AdventureBundleMap {
     cols: COLS,
     rows: ROWS,
     layers: scaledLayers(BASE_LAYERS.sanctuary),
-    elements: decorations("sanctuary"),
+    elements: safeDecorations("sanctuary", e.events),
     spawn: at(2, 12),
     events: e.events,
   };
@@ -1506,6 +1978,9 @@ if (!parseAdventureRegistry(bundle.adventure.registry)) {
 const invalidEvents: string[] = [];
 for (const map of bundle.maps) {
   if (!parseMapData(map)) throw new Error(`generated map data is invalid: ${map.name}`);
+  if (!parseMapEvents(map.events, map.cols, map.rows)) {
+    throw new Error(`generated map event collection is invalid: ${map.name}`);
+  }
   for (const event of map.events) {
     if (!parseMapEvents([event], map.cols, map.rows)) {
       invalidEvents.push(`${map.name} / ${event.name} (${event.name.length} chars)`);

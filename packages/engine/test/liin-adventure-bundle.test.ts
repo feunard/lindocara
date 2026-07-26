@@ -135,6 +135,15 @@ describe("Liin Adventure IA portable bundle", () => {
       expect(map.cols, map.name).toBeGreaterThanOrEqual(60);
       expect(map.rows, map.name).toBeGreaterThanOrEqual(45);
       expect(map.cols * map.rows, map.name).toBeGreaterThanOrEqual(20 * 15 * 9);
+      expect(map.elements.length, `${map.name}: environmental density`).toBeGreaterThanOrEqual(35);
+      expect(
+        map.events.filter((event) => event.kind === "normal").length,
+        `${map.name}: story and NPC density`,
+      ).toBeGreaterThanOrEqual(9);
+      expect(
+        map.events.filter((event) => event.kind === "monster").length,
+        `${map.name}: monster-zone density`,
+      ).toBeGreaterThanOrEqual(13);
       const parsed = parseMapData({
         ...map,
         markers: { entries: [], exits: [], monsterSpawns: [] },
