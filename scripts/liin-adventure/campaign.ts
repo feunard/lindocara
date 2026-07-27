@@ -3,7 +3,11 @@ import type { AdventureBundleMap } from "@lindocara/engine/adventure-bundle.js";
 import type { RegistryEntry } from "@lindocara/engine/adventure-state.js";
 import type { EventCommand, TransitionCategory } from "@lindocara/engine/event-commands.js";
 import type { MonsterSpecies, MonsterTuning } from "@lindocara/engine/game.js";
-import { elementFitsMap, type MapElement } from "@lindocara/engine/map-data.js";
+import {
+  elementFitsMap,
+  elementWorldCollider,
+  type MapElement,
+} from "@lindocara/engine/map-data.js";
 import {
   defaultEventPage,
   functionalEvent,
@@ -12,6 +16,7 @@ import {
 } from "@lindocara/engine/map-events.js";
 import { paintElevation, paintStairs, resolveWholeLayer } from "@lindocara/engine/tile-brush.js";
 import { emptyLayer, encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { autotileId, EMPTY_TILE } from "@lindocara/engine/tileset.js";
 import {
   TINY_SWORDS_TILESET,
@@ -504,19 +509,39 @@ export type MapTheme = "road" | "city" | "forest" | "marsh" | "military" | "sacr
 
 export function safeElements(
   _theme: MapTheme,
-  _events: readonly MapEvent[],
-  _spawn: { col: number; row: number },
+  events: readonly MapEvent[],
+  spawn: { col: number; row: number },
   authored: readonly MapElement[],
 ): MapElement[] {
   const occupied = new Set<string>();
+  const protectedCells = [spawn, ...events];
   return authored.filter((candidate) => {
     const slot = `${candidate.col}:${candidate.row}:${candidate.offsetX}:${candidate.offsetY}`;
-    if (occupied.has(slot) || !elementFitsMap(candidate, COLS, ROWS)) {
+    if (
+      occupied.has(slot) ||
+      !elementFitsMap(candidate, COLS, ROWS) ||
+      protectedCells.some((cell) => elementBlocksCell(candidate, cell))
+    ) {
       return false;
     }
     occupied.add(slot);
     return true;
   });
+}
+
+function elementBlocksCell(candidate: MapElement, cell: { col: number; row: number }): boolean {
+  const collider = elementWorldCollider(candidate);
+  if (!collider) return false;
+  const left = cell.col * TILE_SIZE + TILE_SIZE / 2;
+  const top = cell.row * TILE_SIZE + TILE_SIZE / 2;
+  const right = left + TILE_SIZE / 2;
+  const bottom = top + TILE_SIZE / 2;
+  return (
+    collider.x < right &&
+    collider.x + collider.width > left &&
+    collider.y < bottom &&
+    collider.y + collider.height > top
+  );
 }
 
 export function bundleMap(
@@ -534,6 +559,7 @@ export function bundleMap(
     ...mapCell(key, event.col, event.row),
   }));
   const occupiedSlots = new Set<string>();
+  const protectedCells = [projectedSpawn, ...projectedEvents];
   const projectedElements = elements
     .map((candidate) => ({
       ...candidate,
@@ -541,7 +567,11 @@ export function bundleMap(
     }))
     .filter((candidate) => {
       const slot = `${candidate.col}:${candidate.row}:${candidate.offsetX}:${candidate.offsetY}`;
-      if (occupiedSlots.has(slot) || !elementFitsMap(candidate, dimensions.cols, dimensions.rows)) {
+      if (
+        occupiedSlots.has(slot) ||
+        !elementFitsMap(candidate, dimensions.cols, dimensions.rows) ||
+        protectedCells.some((cell) => elementBlocksCell(candidate, cell))
+      ) {
         return false;
       }
       occupiedSlots.add(slot);

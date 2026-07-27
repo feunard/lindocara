@@ -2467,6 +2467,356 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "decoration.deco.16"
+        },
+        {
+          "col": 34,
+          "row": 4,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 40,
+          "row": 5,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 35,
+          "row": 7,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe1"
+        },
+        {
+          "col": 39,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe4"
+        },
+        {
+          "col": 42,
+          "row": 6,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock2"
+        },
+        {
+          "col": 35,
+          "row": 6,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-clouds.clouds-01"
+        },
+        {
+          "col": 9,
+          "row": 25,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.01"
+        },
+        {
+          "col": 13,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.02"
+        },
+        {
+          "col": 16,
+          "row": 25,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.09"
+        },
+        {
+          "col": 19,
+          "row": 27,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-meat-meat-resource.meat-resource"
+        },
+        {
+          "col": 14,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-tools.tool-01"
+        },
+        {
+          "col": 21,
+          "row": 24,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-wood-resource.wood-resource"
+        },
+        {
+          "col": 22,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.stump-4"
+        },
+        {
+          "col": 4,
+          "row": 13,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 9,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree4"
+        },
+        {
+          "col": 11,
+          "row": 16,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 39,
+          "row": 17,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 45,
+          "row": 19,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 42,
+          "row": 21,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe3"
+        },
+        {
+          "col": 30,
+          "row": 20,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock3"
+        },
+        {
+          "col": 20,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock1"
+        },
+        {
+          "col": 4,
+          "row": 5,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 9,
+          "row": 9,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree4"
+        },
+        {
+          "col": 4,
+          "row": 19,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 8,
+          "row": 21,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe1"
+        },
+        {
+          "col": 13,
+          "row": 19,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe3"
+        },
+        {
+          "col": 43,
+          "row": 6,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 47,
+          "row": 12,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 43,
+          "row": 25,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree4"
+        },
+        {
+          "col": 39,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 45,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe4"
+        },
+        {
+          "col": 16,
+          "row": 16,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock1"
+        },
+        {
+          "col": 21,
+          "row": 18,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock2"
+        },
+        {
+          "col": 33,
+          "row": 18,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock3"
+        },
+        {
+          "col": 38,
+          "row": 20,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock4"
+        },
+        {
+          "col": 3,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 10,
+          "row": 3,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 16,
+          "row": 6,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 21,
+          "row": 5,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree4"
+        },
+        {
+          "col": 3,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 10,
+          "row": 30,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 17,
+          "row": 31,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 31,
+          "row": 3,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree4"
+        },
+        {
+          "col": 38,
+          "row": 4,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 48,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 48,
+          "row": 16,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 47,
+          "row": 30,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree4"
+        },
+        {
+          "col": 17,
+          "row": 9,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 31,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe4"
+        },
+        {
+          "col": 38,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe1"
         }
       ],
       "spawn": {
@@ -3680,6 +4030,139 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 16,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.03"
+        },
+        {
+          "col": 21,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.05"
+        },
+        {
+          "col": 24,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.06"
+        },
+        {
+          "col": 28,
+          "row": 30,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.09"
+        },
+        {
+          "col": 32,
+          "row": 30,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.10"
+        },
+        {
+          "col": 34,
+          "row": 31,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-meat-meat-resource.meat-resource"
+        },
+        {
+          "col": 37,
+          "row": 31,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-wood-resource.wood-resource"
+        },
+        {
+          "col": 8,
+          "row": 7,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 14,
+          "row": 6,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 11,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe1"
+        },
+        {
+          "col": 17,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe3"
+        },
+        {
+          "col": 39,
+          "row": 7,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree4"
+        },
+        {
+          "col": 43,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe4"
+        },
+        {
+          "col": 16,
+          "row": 5,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-clouds.clouds-02"
+        },
+        {
+          "col": 44,
+          "row": 24,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-tools.tool-04"
+        },
+        {
+          "col": 42,
+          "row": 27,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.stump-2"
+        },
+        {
+          "col": 7,
+          "row": 33,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.11"
+        },
+        {
+          "col": 11,
+          "row": 34,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.12"
+        },
+        {
+          "col": 47,
+          "row": 31,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock4"
         }
       ],
       "spawn": {
@@ -6302,6 +6785,223 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "decoration.terrain-decorations-rocks.rock2"
+        },
+        {
+          "col": 6,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.01"
+        },
+        {
+          "col": 10,
+          "row": 25,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.02"
+        },
+        {
+          "col": 13,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.05"
+        },
+        {
+          "col": 16,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.09"
+        },
+        {
+          "col": 19,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-meat-meat-resource.meat-resource"
+        },
+        {
+          "col": 23,
+          "row": 27,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-wood-resource.wood-resource"
+        },
+        {
+          "col": 26,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-tools.tool-02"
+        },
+        {
+          "col": 6,
+          "row": 7,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 10,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.stump-1"
+        },
+        {
+          "col": 15,
+          "row": 7,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.stump-3"
+        },
+        {
+          "col": 19,
+          "row": 9,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 9,
+          "row": 13,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 16,
+          "row": 13,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock1"
+        },
+        {
+          "col": 33,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-goblins-buildings-wood-house.goblin-house-destroyed"
+        },
+        {
+          "col": 36,
+          "row": 6,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-clouds.clouds-03"
+        },
+        {
+          "col": 39,
+          "row": 16,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-goblins-buildings-wood-tower.wood-tower-destroyed"
+        },
+        {
+          "col": 34,
+          "row": 21,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.06"
+        },
+        {
+          "col": 37,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.07"
+        },
+        {
+          "col": 41,
+          "row": 24,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock3"
+        },
+        {
+          "col": 44,
+          "row": 27,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe4"
+        },
+        {
+          "col": 17,
+          "row": 15,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-knights-buildings-house.house-destroyed"
+        },
+        {
+          "col": 27,
+          "row": 9,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-knights-buildings-tower.tower-destroyed"
+        },
+        {
+          "col": 6,
+          "row": 18,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.stump-2"
+        },
+        {
+          "col": 22,
+          "row": 18,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.stump-4"
+        },
+        {
+          "col": 29,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock2"
+        },
+        {
+          "col": 24,
+          "row": 29,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.03"
+        },
+        {
+          "col": 29,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.04"
+        },
+        {
+          "col": 34,
+          "row": 29,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.08"
+        },
+        {
+          "col": 39,
+          "row": 29,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-wood-resource.wood-resource"
+        },
+        {
+          "col": 41,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe1"
+        },
+        {
+          "col": 45,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe3"
         }
       ],
       "spawn": {
@@ -7760,13 +8460,6 @@
           "assetId": "building.buildings-purple-buildings.house1"
         },
         {
-          "col": 37,
-          "row": 20,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "building.buildings-black-buildings.house1"
-        },
-        {
           "col": 40,
           "row": 9,
           "offsetX": 0,
@@ -7821,6 +8514,223 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "resource.terrain-resources-wood-trees.tree4"
+        },
+        {
+          "col": 11,
+          "row": 20,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.03"
+        },
+        {
+          "col": 14,
+          "row": 20,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.04"
+        },
+        {
+          "col": 18,
+          "row": 20,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.05"
+        },
+        {
+          "col": 22,
+          "row": 20,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.06"
+        },
+        {
+          "col": 26,
+          "row": 20,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.09"
+        },
+        {
+          "col": 30,
+          "row": 20,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.10"
+        },
+        {
+          "col": 14,
+          "row": 17,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-tools.tool-01"
+        },
+        {
+          "col": 28,
+          "row": 17,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-tools.tool-03"
+        },
+        {
+          "col": 5,
+          "row": 9,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 8,
+          "row": 11,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 40,
+          "row": 11,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree4"
+        },
+        {
+          "col": 6,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe1"
+        },
+        {
+          "col": 38,
+          "row": 15,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe3"
+        },
+        {
+          "col": 20,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock2"
+        },
+        {
+          "col": 22,
+          "row": 5,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-clouds.clouds-04"
+        },
+        {
+          "col": 34,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.stump-4"
+        },
+        {
+          "col": 36,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-wood-resource.wood-resource"
+        },
+        {
+          "col": 11,
+          "row": 5,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 17,
+          "row": 7,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 27,
+          "row": 6,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 34,
+          "row": 5,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree4"
+        },
+        {
+          "col": 14,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe1"
+        },
+        {
+          "col": 21,
+          "row": 9,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 31,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe3"
+        },
+        {
+          "col": 7,
+          "row": 27,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.01"
+        },
+        {
+          "col": 11,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.02"
+        },
+        {
+          "col": 18,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.07"
+        },
+        {
+          "col": 24,
+          "row": 27,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.08"
+        },
+        {
+          "col": 31,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-meat-meat-resource.meat-resource"
+        },
+        {
+          "col": 37,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.stump-3"
+        },
+        {
+          "col": 40,
+          "row": 21,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock4"
         }
       ],
       "spawn": {
@@ -8640,11 +9550,159 @@
           ]
         },
         {
+          "id": "9fdfd24c-cc2e-46e6-ab8c-8d5944c52e3d",
+          "col": 16,
+          "row": 15,
+          "name": "Lieur de piste 1",
+          "ordinal": 15,
+          "kind": "monster",
+          "species": "hex_shaman",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 150,
+          "monsterDamage": 18,
+          "monsterSpeed": 74,
+          "monsterXp": 120,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "hex_burst",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "80bba1e4-3e09-4cf3-aad2-e950dbebb4fa",
+          "col": 26,
+          "row": 15,
+          "name": "Lieur de piste 2",
+          "ordinal": 16,
+          "kind": "monster",
+          "species": "hex_shaman",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 150,
+          "monsterDamage": 18,
+          "monsterSpeed": 74,
+          "monsterXp": 120,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "hex_burst",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "de282b0e-0f03-4f8a-a37a-2231a1304551",
+          "col": 34,
+          "row": 21,
+          "name": "Bête de bât volée 1",
+          "ordinal": 17,
+          "kind": "monster",
+          "species": "war_pig",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 40,
+          "monsterDamage": 6,
+          "monsterSpeed": 128,
+          "monsterXp": 22,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "none",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "ee5da16a-f088-42fc-a0e3-1290186aa439",
+          "col": 37,
+          "row": 20,
+          "name": "Bête de bât volée 2",
+          "ordinal": 18,
+          "kind": "monster",
+          "species": "war_pig",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 40,
+          "monsterDamage": 6,
+          "monsterSpeed": 128,
+          "monsterXp": 22,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "none",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
           "id": "640995cd-b1bc-4332-a391-8af16c61b719",
           "col": 33,
           "row": 5,
           "name": "Malle du vieux guet",
-          "ordinal": 15,
+          "ordinal": 19,
           "kind": "normal",
           "species": null,
           "patrolRadius": null,
@@ -9382,6 +10440,118 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "terrain.bridge.wood.vertical"
+        },
+        {
+          "col": 7,
+          "row": 11,
+          "offsetX": 1,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe1"
+        },
+        {
+          "col": 11,
+          "row": 13,
+          "offsetX": 2,
+          "offsetY": 1,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 15,
+          "row": 16,
+          "offsetX": 0,
+          "offsetY": 2,
+          "assetId": "decoration.terrain-decorations-bushes.bushe3"
+        },
+        {
+          "col": 20,
+          "row": 10,
+          "offsetX": 3,
+          "offsetY": 1,
+          "assetId": "decoration.terrain-decorations-bushes.bushe4"
+        },
+        {
+          "col": 23,
+          "row": 24,
+          "offsetX": 1,
+          "offsetY": 2,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 28,
+          "row": 28,
+          "offsetX": 2,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe1"
+        },
+        {
+          "col": 33,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.stump-4"
+        },
+        {
+          "col": 37,
+          "row": 24,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.stump-1"
+        },
+        {
+          "col": 41,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.stump-2"
+        },
+        {
+          "col": 35,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-tools.tool-01"
+        },
+        {
+          "col": 40,
+          "row": 29,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-tools.tool-03"
+        },
+        {
+          "col": 44,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-wood-resource.wood-resource"
+        },
+        {
+          "col": 47,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.11"
+        },
+        {
+          "col": 50,
+          "row": 30,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.12"
+        },
+        {
+          "col": 15,
+          "row": 7,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-clouds.clouds-05"
+        },
+        {
+          "col": 43,
+          "row": 9,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-clouds.clouds-06"
         }
       ],
       "spawn": {
@@ -10318,11 +11488,159 @@
           ]
         },
         {
+          "id": "7fc29dbe-7aac-414f-ac4d-b0670f85cc98",
+          "col": 35,
+          "row": 28,
+          "name": "Marqueur de coupe 1",
+          "ordinal": 17,
+          "kind": "monster",
+          "species": "hex_shaman",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 180,
+          "monsterDamage": 21,
+          "monsterSpeed": 74,
+          "monsterXp": 140,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "hex_burst",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "2e70ac1f-f694-4779-ace4-557309ee2cd8",
+          "col": 44,
+          "row": 24,
+          "name": "Marqueur de coupe 2",
+          "ordinal": 18,
+          "kind": "monster",
+          "species": "hex_shaman",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 180,
+          "monsterDamage": 21,
+          "monsterSpeed": 74,
+          "monsterXp": 140,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "hex_burst",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "414dedd1-2ed5-4db6-a7c8-12c2fe2b4804",
+          "col": 36,
+          "row": 22,
+          "name": "Patrouilleur des routes 1",
+          "ordinal": 19,
+          "kind": "monster",
+          "species": "pig_rider",
+          "patrolRadius": 88,
+          "monsterRank": "elite",
+          "monsterMaxHp": 280,
+          "monsterDamage": 27,
+          "monsterSpeed": 118,
+          "monsterXp": 210,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "mounted_trample",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "3bf6207d-6580-4539-a32e-a0a7470cdd11",
+          "col": 45,
+          "row": 18,
+          "name": "Patrouilleur des routes 2",
+          "ordinal": 20,
+          "kind": "monster",
+          "species": "pig_rider",
+          "patrolRadius": 88,
+          "monsterRank": "elite",
+          "monsterMaxHp": 280,
+          "monsterDamage": 27,
+          "monsterSpeed": 118,
+          "monsterXp": 210,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "mounted_trample",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
           "id": "b065d414-a7b1-4ff1-ab52-21416829b076",
           "col": 43,
           "row": 7,
           "name": "Nid des arpenteurs",
-          "ordinal": 17,
+          "ordinal": 21,
           "kind": "normal",
           "species": null,
           "patrolRadius": null,
@@ -10504,6 +11822,237 @@
         {
           "col": 38,
           "row": 25,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock4"
+        },
+        {
+          "col": 4,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 7,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 6,
+          "row": 20,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 13,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree4"
+        },
+        {
+          "col": 18,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 30,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 37,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 42,
+          "row": 20,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree4"
+        },
+        {
+          "col": 10,
+          "row": 15,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe1"
+        },
+        {
+          "col": 17,
+          "row": 19,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 31,
+          "row": 19,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe3"
+        },
+        {
+          "col": 37,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe4"
+        },
+        {
+          "col": 16,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.07"
+        },
+        {
+          "col": 23,
+          "row": 21,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.08"
+        },
+        {
+          "col": 30,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.10"
+        },
+        {
+          "col": 19,
+          "row": 13,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock1"
+        },
+        {
+          "col": 23,
+          "row": 12,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock2"
+        },
+        {
+          "col": 27,
+          "row": 13,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock3"
+        },
+        {
+          "col": 24,
+          "row": 6,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-clouds.clouds-07"
+        },
+        {
+          "col": 4,
+          "row": 5,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree4"
+        },
+        {
+          "col": 9,
+          "row": 5,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 14,
+          "row": 6,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 5,
+          "row": 16,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 10,
+          "row": 19,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 14,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree4"
+        },
+        {
+          "col": 7,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe1"
+        },
+        {
+          "col": 12,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe3"
+        },
+        {
+          "col": 34,
+          "row": 6,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 40,
+          "row": 7,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 37,
+          "row": 15,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 34,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 39,
+          "row": 19,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe4"
+        },
+        {
+          "col": 23,
+          "row": 28,
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "decoration.terrain-decorations-rocks.rock4"
@@ -11823,11 +13372,159 @@
           ]
         },
         {
+          "id": "55cd0469-20d2-458f-ab1c-45e617cf6131",
+          "col": 15,
+          "row": 16,
+          "name": "Servant des chambres 1",
+          "ordinal": 14,
+          "kind": "monster",
+          "species": "skull_guard",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 210,
+          "monsterDamage": 23,
+          "monsterSpeed": 82,
+          "monsterXp": 155,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "bone_cleave",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "34da9f2d-2aad-4f32-a053-314a86b2e1c2",
+          "col": 31,
+          "row": 11,
+          "name": "Servant des chambres 2",
+          "ordinal": 15,
+          "kind": "monster",
+          "species": "skull_guard",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 210,
+          "monsterDamage": 23,
+          "monsterSpeed": 82,
+          "monsterXp": 155,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "bone_cleave",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "bf17db00-a507-4882-a502-201844a58326",
+          "col": 27,
+          "row": 26,
+          "name": "Servant des chambres 3",
+          "ordinal": 16,
+          "kind": "monster",
+          "species": "skull_guard",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 210,
+          "monsterDamage": 23,
+          "monsterSpeed": 82,
+          "monsterXp": 155,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "bone_cleave",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "6f00d179-6c5c-4d7a-a17e-acc2b87c6223",
+          "col": 23,
+          "row": 19,
+          "name": "Intendant du prix",
+          "ordinal": 17,
+          "kind": "monster",
+          "species": "skull_warden",
+          "patrolRadius": 88,
+          "monsterRank": "elite",
+          "monsterMaxHp": 390,
+          "monsterDamage": 31,
+          "monsterSpeed": 82,
+          "monsterXp": 280,
+          "monsterWeakness": "priest",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "grave_siphon",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
           "id": "b0d3a35c-37f8-4dfa-abb1-1323516bc456",
           "col": 42,
           "row": 5,
           "name": "Offrande sans nom",
-          "ordinal": 14,
+          "ordinal": 18,
           "kind": "normal",
           "species": null,
           "patrolRadius": null,
@@ -12061,6 +13758,230 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "decoration.deco.16"
+        },
+        {
+          "col": 9,
+          "row": 16,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-knights-buildings-house.house-destroyed"
+        },
+        {
+          "col": 47,
+          "row": 24,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-knights-buildings-house.house-destroyed"
+        },
+        {
+          "col": 28,
+          "row": 13,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-goblins-buildings-wood-house.goblin-house-destroyed"
+        },
+        {
+          "col": 13,
+          "row": 30,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.01"
+        },
+        {
+          "col": 24,
+          "row": 33,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.02"
+        },
+        {
+          "col": 41,
+          "row": 29,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.11"
+        },
+        {
+          "col": 15,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks-in-the-water.water-rocks-03"
+        },
+        {
+          "col": 47,
+          "row": 9,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks-in-the-water.water-rocks-04"
+        },
+        {
+          "col": 9,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks-in-the-water.water-rocks-01"
+        },
+        {
+          "col": 51,
+          "row": 20,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks-in-the-water.water-rocks-02"
+        },
+        {
+          "col": 33,
+          "row": 17,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rubber-duck.rubber-duck"
+        },
+        {
+          "col": 14,
+          "row": 24,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.18"
+        },
+        {
+          "col": 22,
+          "row": 18,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.18"
+        },
+        {
+          "col": 43,
+          "row": 16,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.18"
+        },
+        {
+          "col": 49,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.18"
+        },
+        {
+          "col": 7,
+          "row": 30,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 20,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 39,
+          "row": 30,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree4"
+        },
+        {
+          "col": 50,
+          "row": 32,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.stump-2"
+        },
+        {
+          "col": 31,
+          "row": 7,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-clouds.clouds-08"
+        },
+        {
+          "col": 6,
+          "row": 33,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.18"
+        },
+        {
+          "col": 18,
+          "row": 34,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.18"
+        },
+        {
+          "col": 31,
+          "row": 34,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.18"
+        },
+        {
+          "col": 45,
+          "row": 34,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.18"
+        },
+        {
+          "col": 12,
+          "row": 20,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks-in-the-water.water-rocks-03"
+        },
+        {
+          "col": 27,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks-in-the-water.water-rocks-04"
+        },
+        {
+          "col": 40,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks-in-the-water.water-rocks-01"
+        },
+        {
+          "col": 53,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks-in-the-water.water-rocks-02"
+        },
+        {
+          "col": 15,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-knights-buildings-house.house-destroyed"
+        },
+        {
+          "col": 33,
+          "row": 29,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-knights-buildings-house.house-destroyed"
+        },
+        {
+          "col": 45,
+          "row": 12,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-knights-buildings-tower.tower-destroyed"
+        },
+        {
+          "col": 55,
+          "row": 33,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
         }
       ],
       "spawn": {
@@ -13233,11 +15154,159 @@
           ]
         },
         {
+          "id": "a3679c4c-3099-494c-adf0-f01903c85eee",
+          "col": 24,
+          "row": 10,
+          "name": "Troll du péage noyé 1",
+          "ordinal": 19,
+          "kind": "monster",
+          "species": "mire_troll",
+          "patrolRadius": 88,
+          "monsterRank": "elite",
+          "monsterMaxHp": 410,
+          "monsterDamage": 31,
+          "monsterSpeed": 60,
+          "monsterXp": 270,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "troll_sweep",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "a0508a4f-8dca-4a45-a1e4-301c6f40fc79",
+          "col": 40,
+          "row": 10,
+          "name": "Troll du péage noyé 2",
+          "ordinal": 20,
+          "kind": "monster",
+          "species": "mire_troll",
+          "patrolRadius": 88,
+          "monsterRank": "elite",
+          "monsterMaxHp": 410,
+          "monsterDamage": 31,
+          "monsterSpeed": 60,
+          "monsterXp": 270,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "troll_sweep",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "725e7801-d2e2-499d-a7e8-3980a6531410",
+          "col": 19,
+          "row": 23,
+          "name": "Collecteur de souvenirs 1",
+          "ordinal": 21,
+          "kind": "monster",
+          "species": "hex_shaman",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 175,
+          "monsterDamage": 22,
+          "monsterSpeed": 74,
+          "monsterXp": 145,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "hex_burst",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "4c42a093-6d1a-4d41-a295-de422861e57a",
+          "col": 42,
+          "row": 25,
+          "name": "Collecteur de souvenirs 2",
+          "ordinal": 22,
+          "kind": "monster",
+          "species": "hex_shaman",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 175,
+          "monsterDamage": 22,
+          "monsterSpeed": 74,
+          "monsterXp": 145,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "hex_burst",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
           "id": "541fd26e-b034-4873-aac5-3d37e32c8569",
           "col": 55,
           "row": 5,
           "name": "Niche du sonneur",
-          "ordinal": 19,
+          "ordinal": 23,
           "kind": "normal",
           "species": null,
           "patrolRadius": null,
@@ -13422,6 +15491,216 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "decoration.deco.16"
+        },
+        {
+          "col": 10,
+          "row": 17,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-knights-buildings-house.house-destroyed"
+        },
+        {
+          "col": 36,
+          "row": 15,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-knights-buildings-house.house-destroyed"
+        },
+        {
+          "col": 9,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.03"
+        },
+        {
+          "col": 13,
+          "row": 25,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.04"
+        },
+        {
+          "col": 17,
+          "row": 24,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.05"
+        },
+        {
+          "col": 22,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.06"
+        },
+        {
+          "col": 29,
+          "row": 25,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.07"
+        },
+        {
+          "col": 35,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.08"
+        },
+        {
+          "col": 41,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.09"
+        },
+        {
+          "col": 7,
+          "row": 11,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock1"
+        },
+        {
+          "col": 15,
+          "row": 12,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock2"
+        },
+        {
+          "col": 24,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock3"
+        },
+        {
+          "col": 36,
+          "row": 12,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock4"
+        },
+        {
+          "col": 11,
+          "row": 18,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-1"
+        },
+        {
+          "col": 27,
+          "row": 18,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-3"
+        },
+        {
+          "col": 40,
+          "row": 19,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-5"
+        },
+        {
+          "col": 18,
+          "row": 30,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-tools.tool-01"
+        },
+        {
+          "col": 34,
+          "row": 30,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-tools.tool-04"
+        },
+        {
+          "col": 7,
+          "row": 16,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-knights-buildings-house.house-destroyed"
+        },
+        {
+          "col": 16,
+          "row": 21,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-black-buildings.house2"
+        },
+        {
+          "col": 36,
+          "row": 21,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-purple-buildings.house2"
+        },
+        {
+          "col": 44,
+          "row": 16,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-knights-buildings-house.house-destroyed"
+        },
+        {
+          "col": 10,
+          "row": 30,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.10"
+        },
+        {
+          "col": 15,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.11"
+        },
+        {
+          "col": 20,
+          "row": 30,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.12"
+        },
+        {
+          "col": 32,
+          "row": 30,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.03"
+        },
+        {
+          "col": 37,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.04"
+        },
+        {
+          "col": 42,
+          "row": 30,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.05"
+        },
+        {
+          "col": 22,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock2"
+        },
+        {
+          "col": 31,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock4"
         }
       ],
       "spawn": {
@@ -15268,6 +17547,125 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "decoration.deco.16"
+        },
+        {
+          "col": 7,
+          "row": 27,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.01"
+        },
+        {
+          "col": 11,
+          "row": 27,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.02"
+        },
+        {
+          "col": 14,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.03"
+        },
+        {
+          "col": 17,
+          "row": 25,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-tools.tool-03"
+        },
+        {
+          "col": 20,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-wood-resource.wood-resource"
+        },
+        {
+          "col": 12,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.15"
+        },
+        {
+          "col": 24,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.05"
+        },
+        {
+          "col": 28,
+          "row": 29,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.06"
+        },
+        {
+          "col": 32,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.09"
+        },
+        {
+          "col": 35,
+          "row": 27,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-meat-meat-resource.meat-resource"
+        },
+        {
+          "col": 27,
+          "row": 24,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-tools.tool-02"
+        },
+        {
+          "col": 41,
+          "row": 27,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.07"
+        },
+        {
+          "col": 44,
+          "row": 27,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.08"
+        },
+        {
+          "col": 48,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.10"
+        },
+        {
+          "col": 51,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-resource.gold-resource"
+        },
+        {
+          "col": 45,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.16"
+        },
+        {
+          "col": 55,
+          "row": 21,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-black-buildings.tower"
         }
       ],
       "spawn": {
@@ -16610,11 +19008,159 @@
           ]
         },
         {
+          "id": "05800bf5-0580-4c0f-a8cc-16a0e6a0a41f",
+          "col": 21,
+          "row": 15,
+          "name": "Officiant loyaliste 1",
+          "ordinal": 19,
+          "kind": "monster",
+          "species": "hex_shaman",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 190,
+          "monsterDamage": 22,
+          "monsterSpeed": 74,
+          "monsterXp": 150,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "hex_burst",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "ed74496c-5f29-4716-a3e0-d1ed6ac75135",
+          "col": 39,
+          "row": 15,
+          "name": "Officiant loyaliste 2",
+          "ordinal": 20,
+          "kind": "monster",
+          "species": "hex_shaman",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 190,
+          "monsterDamage": 22,
+          "monsterSpeed": 74,
+          "monsterXp": 150,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "hex_burst",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "1cc09400-a34e-4197-a977-4692af5badc8",
+          "col": 21,
+          "row": 25,
+          "name": "Cavalier des cours 1",
+          "ordinal": 21,
+          "kind": "monster",
+          "species": "pig_rider",
+          "patrolRadius": 88,
+          "monsterRank": "elite",
+          "monsterMaxHp": 310,
+          "monsterDamage": 29,
+          "monsterSpeed": 118,
+          "monsterXp": 230,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "mounted_trample",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "6332285e-eed6-4b22-ad0f-c20064db9dd3",
+          "col": 42,
+          "row": 25,
+          "name": "Cavalier des cours 2",
+          "ordinal": 22,
+          "kind": "monster",
+          "species": "pig_rider",
+          "patrolRadius": 88,
+          "monsterRank": "elite",
+          "monsterMaxHp": 310,
+          "monsterDamage": 29,
+          "monsterSpeed": 118,
+          "monsterXp": 230,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "mounted_trample",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
           "id": "5c758eb2-f3a9-4620-a324-7d7d52402bfb",
           "col": 52,
           "row": 6,
           "name": "Poste des signaux",
-          "ordinal": 19,
+          "ordinal": 23,
           "kind": "normal",
           "species": null,
           "patrolRadius": null,
@@ -16834,6 +19380,244 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "decoration.deco.16"
+        },
+        {
+          "col": 7,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.01"
+        },
+        {
+          "col": 10,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.02"
+        },
+        {
+          "col": 14,
+          "row": 21,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.05"
+        },
+        {
+          "col": 17,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.09"
+        },
+        {
+          "col": 21,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-tools.tool-01"
+        },
+        {
+          "col": 24,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-tools.tool-04"
+        },
+        {
+          "col": 28,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-wood-resource.wood-resource"
+        },
+        {
+          "col": 31,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-meat-meat-resource.meat-resource"
+        },
+        {
+          "col": 5,
+          "row": 9,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-black-buildings.tower"
+        },
+        {
+          "col": 16,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-black-buildings.tower"
+        },
+        {
+          "col": 35,
+          "row": 9,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-red-buildings.tower"
+        },
+        {
+          "col": 10,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.15"
+        },
+        {
+          "col": 39,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.15"
+        },
+        {
+          "col": 36,
+          "row": 19,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.06"
+        },
+        {
+          "col": 41,
+          "row": 20,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.07"
+        },
+        {
+          "col": 30,
+          "row": 17,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-2"
+        },
+        {
+          "col": 34,
+          "row": 18,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-4"
+        },
+        {
+          "col": 6,
+          "row": 29,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock1"
+        },
+        {
+          "col": 42,
+          "row": 29,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock3"
+        },
+        {
+          "col": 7,
+          "row": 18,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-black-buildings.house1"
+        },
+        {
+          "col": 15,
+          "row": 18,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-black-buildings.house2"
+        },
+        {
+          "col": 41,
+          "row": 18,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-blue-buildings.house2"
+        },
+        {
+          "col": 10,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.03"
+        },
+        {
+          "col": 16,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.04"
+        },
+        {
+          "col": 33,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.07"
+        },
+        {
+          "col": 38,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.08"
+        },
+        {
+          "col": 5,
+          "row": 6,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-black-buildings.tower"
+        },
+        {
+          "col": 16,
+          "row": 6,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-black-buildings.tower"
+        },
+        {
+          "col": 27,
+          "row": 7,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-black-buildings.tower"
+        },
+        {
+          "col": 41,
+          "row": 7,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-black-buildings.tower"
+        },
+        {
+          "col": 21,
+          "row": 13,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.15"
+        },
+        {
+          "col": 31,
+          "row": 13,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.15"
+        },
+        {
+          "col": 25,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-wood-resource.wood-resource"
+        },
+        {
+          "col": 29,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-resource.gold-resource"
         }
       ],
       "spawn": {
@@ -17861,11 +20645,159 @@
           ]
         },
         {
+          "id": "7ff056af-80a3-46c2-a39f-f9426f29652b",
+          "col": 20,
+          "row": 12,
+          "name": "Thaumaturge de l’intendance 1",
+          "ordinal": 16,
+          "kind": "monster",
+          "species": "hex_shaman",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 205,
+          "monsterDamage": 24,
+          "monsterSpeed": 74,
+          "monsterXp": 165,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "hex_burst",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "d0031086-1f3f-4654-af3f-4ffb7b5451c5",
+          "col": 34,
+          "row": 19,
+          "name": "Thaumaturge de l’intendance 2",
+          "ordinal": 17,
+          "kind": "monster",
+          "species": "hex_shaman",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 205,
+          "monsterDamage": 24,
+          "monsterSpeed": 74,
+          "monsterXp": 165,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "hex_burst",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "a260ee22-c06e-4585-a8b8-1c9f96f5e8d8",
+          "col": 15,
+          "row": 19,
+          "name": "Cavalier du chemin de ronde 1",
+          "ordinal": 18,
+          "kind": "monster",
+          "species": "pig_rider",
+          "patrolRadius": 88,
+          "monsterRank": "elite",
+          "monsterMaxHp": 330,
+          "monsterDamage": 30,
+          "monsterSpeed": 118,
+          "monsterXp": 245,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "mounted_trample",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "24e68933-d0b7-456b-a5e8-fe17bdb77df3",
+          "col": 36,
+          "row": 23,
+          "name": "Cavalier du chemin de ronde 2",
+          "ordinal": 19,
+          "kind": "monster",
+          "species": "pig_rider",
+          "patrolRadius": 88,
+          "monsterRank": "elite",
+          "monsterMaxHp": 330,
+          "monsterDamage": 30,
+          "monsterSpeed": 118,
+          "monsterXp": 245,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "mounted_trample",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
           "id": "55517421-2682-441d-a6f6-7dd1be51446d",
           "col": 44,
           "row": 5,
           "name": "Réserve du chemin de ronde",
-          "ordinal": 16,
+          "ordinal": 20,
           "kind": "normal",
           "species": null,
           "patrolRadius": null,
@@ -18085,6 +21017,223 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "decoration.deco.17"
+        },
+        {
+          "col": 5,
+          "row": 11,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 9,
+          "row": 13,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 14,
+          "row": 11,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 7,
+          "row": 16,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe1"
+        },
+        {
+          "col": 11,
+          "row": 17,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 15,
+          "row": 16,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe3"
+        },
+        {
+          "col": 18,
+          "row": 18,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-meat-meat-resource.meat-resource"
+        },
+        {
+          "col": 8,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.03"
+        },
+        {
+          "col": 12,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.04"
+        },
+        {
+          "col": 24,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-1"
+        },
+        {
+          "col": 27,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-2"
+        },
+        {
+          "col": 29,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-5"
+        },
+        {
+          "col": 26,
+          "row": 18,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-tools.tool-01"
+        },
+        {
+          "col": 30,
+          "row": 19,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-tools.tool-03"
+        },
+        {
+          "col": 33,
+          "row": 21,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.07"
+        },
+        {
+          "col": 37,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.08"
+        },
+        {
+          "col": 42,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree4"
+        },
+        {
+          "col": 40,
+          "row": 18,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe4"
+        },
+        {
+          "col": 24,
+          "row": 6,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-clouds.clouds-02"
+        },
+        {
+          "col": 41,
+          "row": 25,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.buildings-yellow-buildings.house1"
+        },
+        {
+          "col": 37,
+          "row": 15,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 42,
+          "row": 18,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 31,
+          "row": 21,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe1"
+        },
+        {
+          "col": 36,
+          "row": 21,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 41,
+          "row": 21,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe3"
+        },
+        {
+          "col": 7,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.01"
+        },
+        {
+          "col": 11,
+          "row": 27,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.02"
+        },
+        {
+          "col": 16,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.05"
+        },
+        {
+          "col": 21,
+          "row": 27,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.09"
+        },
+        {
+          "col": 26,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.10"
+        },
+        {
+          "col": 29,
+          "row": 25,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-tools.tool-04"
         }
       ],
       "spawn": {
@@ -19155,11 +22304,196 @@
           ]
         },
         {
+          "id": "5cf16e8e-3f3d-44aa-a2a4-af21ab4352e9",
+          "col": 14,
+          "row": 20,
+          "name": "Officiant armé 1",
+          "ordinal": 16,
+          "kind": "monster",
+          "species": "hex_shaman",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 210,
+          "monsterDamage": 24,
+          "monsterSpeed": 74,
+          "monsterXp": 170,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "hex_burst",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "5b4b5424-a037-4185-ab80-20c707852aa6",
+          "col": 31,
+          "row": 8,
+          "name": "Officiant armé 2",
+          "ordinal": 17,
+          "kind": "monster",
+          "species": "hex_shaman",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 210,
+          "monsterDamage": 24,
+          "monsterSpeed": 74,
+          "monsterXp": 170,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "hex_burst",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "7ae29257-ee79-4132-a69c-b7d7b240a1c7",
+          "col": 36,
+          "row": 21,
+          "name": "Officiant armé 3",
+          "ordinal": 18,
+          "kind": "monster",
+          "species": "hex_shaman",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 210,
+          "monsterDamage": 24,
+          "monsterSpeed": 74,
+          "monsterXp": 170,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "hex_burst",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "fb547b13-3294-4658-ad92-6fb601e6c5a9",
+          "col": 10,
+          "row": 21,
+          "name": "Poursuivant de la Couronne 1",
+          "ordinal": 19,
+          "kind": "monster",
+          "species": "pig_rider",
+          "patrolRadius": 88,
+          "monsterRank": "elite",
+          "monsterMaxHp": 340,
+          "monsterDamage": 31,
+          "monsterSpeed": 118,
+          "monsterXp": 250,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "mounted_trample",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "56edc9bc-fd5e-4a64-a536-d6b02ec537a7",
+          "col": 40,
+          "row": 21,
+          "name": "Poursuivant de la Couronne 2",
+          "ordinal": 20,
+          "kind": "monster",
+          "species": "pig_rider",
+          "patrolRadius": 88,
+          "monsterRank": "elite",
+          "monsterMaxHp": 340,
+          "monsterDamage": 31,
+          "monsterSpeed": 118,
+          "monsterXp": 250,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "mounted_trample",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
           "id": "8e075a32-c77b-439c-a00c-28c7d7e3e009",
           "col": 37,
           "row": 5,
           "name": "Jardin suspendu",
-          "ordinal": 16,
+          "ordinal": 21,
           "kind": "normal",
           "species": null,
           "patrolRadius": null,
@@ -19337,6 +22671,223 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "decoration.terrain-decorations-rocks.rock4"
+        },
+        {
+          "col": 6,
+          "row": 15,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.17"
+        },
+        {
+          "col": 11,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.17"
+        },
+        {
+          "col": 17,
+          "row": 15,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.17"
+        },
+        {
+          "col": 24,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.17"
+        },
+        {
+          "col": 30,
+          "row": 15,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.17"
+        },
+        {
+          "col": 9,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-knights-buildings-house.house-destroyed"
+        },
+        {
+          "col": 33,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-knights-buildings-house.house-destroyed"
+        },
+        {
+          "col": 14,
+          "row": 21,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.01"
+        },
+        {
+          "col": 18,
+          "row": 21,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.02"
+        },
+        {
+          "col": 26,
+          "row": 21,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.06"
+        },
+        {
+          "col": 30,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.09"
+        },
+        {
+          "col": 6,
+          "row": 6,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock1"
+        },
+        {
+          "col": 11,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock2"
+        },
+        {
+          "col": 17,
+          "row": 6,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock3"
+        },
+        {
+          "col": 26,
+          "row": 7,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock4"
+        },
+        {
+          "col": 32,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock2"
+        },
+        {
+          "col": 20,
+          "row": 11,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-3"
+        },
+        {
+          "col": 23,
+          "row": 11,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-6"
+        },
+        {
+          "col": 5,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-knights-buildings-house.house-destroyed"
+        },
+        {
+          "col": 14,
+          "row": 17,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-knights-buildings-house.house-destroyed"
+        },
+        {
+          "col": 31,
+          "row": 17,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-knights-buildings-house.house-destroyed"
+        },
+        {
+          "col": 39,
+          "row": 15,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-knights-buildings-tower.tower-destroyed"
+        },
+        {
+          "col": 9,
+          "row": 19,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.17"
+        },
+        {
+          "col": 19,
+          "row": 20,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.17"
+        },
+        {
+          "col": 27,
+          "row": 20,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.17"
+        },
+        {
+          "col": 37,
+          "row": 19,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.17"
+        },
+        {
+          "col": 15,
+          "row": 11,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock1"
+        },
+        {
+          "col": 19,
+          "row": 13,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock2"
+        },
+        {
+          "col": 26,
+          "row": 13,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock3"
+        },
+        {
+          "col": 31,
+          "row": 11,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock4"
+        },
+        {
+          "col": 22,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.12"
         }
       ],
       "spawn": {
@@ -20157,11 +23708,159 @@
           ]
         },
         {
+          "id": "03a28b0f-2f41-4caa-a12c-b6c6950a1c88",
+          "col": 13,
+          "row": 11,
+          "name": "Porte-cendre 1",
+          "ordinal": 13,
+          "kind": "monster",
+          "species": "skull_guard",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 230,
+          "monsterDamage": 25,
+          "monsterSpeed": 82,
+          "monsterXp": 175,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "bone_cleave",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "20861521-349a-4923-a7f7-053817622ec3",
+          "col": 31,
+          "row": 13,
+          "name": "Porte-cendre 2",
+          "ordinal": 14,
+          "kind": "monster",
+          "species": "skull_guard",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 230,
+          "monsterDamage": 25,
+          "monsterSpeed": 82,
+          "monsterXp": 175,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "bone_cleave",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "c37dbf6d-5edc-4542-af4b-a1ebb1b5b36a",
+          "col": 37,
+          "row": 20,
+          "name": "Porte-cendre 3",
+          "ordinal": 15,
+          "kind": "monster",
+          "species": "skull_guard",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 230,
+          "monsterDamage": 25,
+          "monsterSpeed": 82,
+          "monsterXp": 175,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "bone_cleave",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "7ab1aad2-4c86-47f3-ae20-1b7aa505f901",
+          "col": 24,
+          "row": 17,
+          "name": "Chambellan d’Eryndor",
+          "ordinal": 16,
+          "kind": "monster",
+          "species": "skull_warden",
+          "patrolRadius": 88,
+          "monsterRank": "elite",
+          "monsterMaxHp": 430,
+          "monsterDamage": 33,
+          "monsterSpeed": 82,
+          "monsterXp": 300,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "grave_siphon",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
           "id": "2680d8d1-3013-4ee7-a64e-93ed8cbd133e",
           "col": 31,
           "row": 5,
           "name": "Cénotaphe vide",
-          "ordinal": 13,
+          "ordinal": 17,
           "kind": "normal",
           "species": null,
           "patrolRadius": null,
@@ -20381,6 +24080,279 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "decoration.deco.15"
+        },
+        {
+          "col": 7,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.01"
+        },
+        {
+          "col": 11,
+          "row": 27,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.02"
+        },
+        {
+          "col": 14,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.03"
+        },
+        {
+          "col": 18,
+          "row": 27,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-meat-meat-resource.meat-resource"
+        },
+        {
+          "col": 22,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-wood-resource.wood-resource"
+        },
+        {
+          "col": 16,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-tools.tool-02"
+        },
+        {
+          "col": 24,
+          "row": 21,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-goblins-buildings-wood-house.goblin-house-destroyed"
+        },
+        {
+          "col": 29,
+          "row": 11,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-goblins-buildings-wood-tower.wood-tower-destroyed"
+        },
+        {
+          "col": 26,
+          "row": 25,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.06"
+        },
+        {
+          "col": 30,
+          "row": 24,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.07"
+        },
+        {
+          "col": 34,
+          "row": 25,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.08"
+        },
+        {
+          "col": 27,
+          "row": 29,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock2"
+        },
+        {
+          "col": 33,
+          "row": 29,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock3"
+        },
+        {
+          "col": 39,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.09"
+        },
+        {
+          "col": 43,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.10"
+        },
+        {
+          "col": 46,
+          "row": 25,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-tools.tool-04"
+        },
+        {
+          "col": 41,
+          "row": 9,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.stump-1"
+        },
+        {
+          "col": 45,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.stump-2"
+        },
+        {
+          "col": 50,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.stump-4"
+        },
+        {
+          "col": 53,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 30,
+          "row": 6,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-clouds.clouds-03"
+        },
+        {
+          "col": 7,
+          "row": 17,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-knights-buildings-house.house-destroyed"
+        },
+        {
+          "col": 14,
+          "row": 15,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-knights-buildings-tower.tower-destroyed"
+        },
+        {
+          "col": 8,
+          "row": 9,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.stump-1"
+        },
+        {
+          "col": 17,
+          "row": 9,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.stump-3"
+        },
+        {
+          "col": 10,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.04"
+        },
+        {
+          "col": 15,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.05"
+        },
+        {
+          "col": 42,
+          "row": 16,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-knights-buildings-house.house-destroyed"
+        },
+        {
+          "col": 51,
+          "row": 17,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-knights-buildings-tower.tower-destroyed"
+        },
+        {
+          "col": 43,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.stump-2"
+        },
+        {
+          "col": 52,
+          "row": 9,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.stump-4"
+        },
+        {
+          "col": 43,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.10"
+        },
+        {
+          "col": 49,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.11"
+        },
+        {
+          "col": 22,
+          "row": 11,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock1"
+        },
+        {
+          "col": 26,
+          "row": 16,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock2"
+        },
+        {
+          "col": 33,
+          "row": 16,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock3"
+        },
+        {
+          "col": 38,
+          "row": 11,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock4"
+        },
+        {
+          "col": 26,
+          "row": 32,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-wood-resource.wood-resource"
+        },
+        {
+          "col": 33,
+          "row": 32,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-meat-meat-resource.meat-resource"
         }
       ],
       "spawn": {
@@ -22135,11 +26107,233 @@
           ]
         },
         {
+          "id": "d62f9fa3-d9fe-4ba7-a08d-4dfe9ae8ee05",
+          "col": 17,
+          "row": 13,
+          "name": "Artilleur du front ouest 1",
+          "ordinal": 35,
+          "kind": "monster",
+          "species": "hex_shaman",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 220,
+          "monsterDamage": 26,
+          "monsterSpeed": 74,
+          "monsterXp": 185,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "hex_burst",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "9969614d-b174-4714-a34a-39ff9eeb9c54",
+          "col": 23,
+          "row": 13,
+          "name": "Artilleur du front ouest 2",
+          "ordinal": 36,
+          "kind": "monster",
+          "species": "hex_shaman",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 220,
+          "monsterDamage": 26,
+          "monsterSpeed": 74,
+          "monsterXp": 185,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "hex_burst",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "bfb71e05-9d46-4101-a49b-4fc71fca2014",
+          "col": 39,
+          "row": 19,
+          "name": "Cavalier du front est 1",
+          "ordinal": 37,
+          "kind": "monster",
+          "species": "pig_rider",
+          "patrolRadius": 88,
+          "monsterRank": "elite",
+          "monsterMaxHp": 350,
+          "monsterDamage": 32,
+          "monsterSpeed": 118,
+          "monsterXp": 265,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "mounted_trample",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "babedcf4-3235-4c44-a89b-1ca67247cf58",
+          "col": 44,
+          "row": 18,
+          "name": "Cavalier du front est 2",
+          "ordinal": 38,
+          "kind": "monster",
+          "species": "pig_rider",
+          "patrolRadius": 88,
+          "monsterRank": "elite",
+          "monsterMaxHp": 350,
+          "monsterDamage": 32,
+          "monsterSpeed": 118,
+          "monsterXp": 265,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "mounted_trample",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "1d0e0dcc-411b-4af6-ae91-5dc9d08248ff",
+          "col": 27,
+          "row": 23,
+          "name": "Bête de brèche 1",
+          "ordinal": 39,
+          "kind": "monster",
+          "species": "war_pig",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 260,
+          "monsterDamage": 27,
+          "monsterSpeed": 128,
+          "monsterXp": 195,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "tusk_charge",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "24cfc1eb-c338-4c9b-a2e4-76ae3d7b408e",
+          "col": 34,
+          "row": 20,
+          "name": "Bête de brèche 2",
+          "ordinal": 40,
+          "kind": "monster",
+          "species": "war_pig",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 260,
+          "monsterDamage": 27,
+          "monsterSpeed": 128,
+          "monsterXp": 195,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "tusk_charge",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
           "id": "8fc981fd-bae5-4095-a1e5-a1ed00228465",
           "col": 35,
           "row": 5,
           "name": "Table d'observation",
-          "ordinal": 35,
+          "ordinal": 41,
           "kind": "normal",
           "species": null,
           "patrolRadius": null,
@@ -22331,6 +26525,209 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "decoration.deco.16"
+        },
+        {
+          "col": 7,
+          "row": 24,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-tools.tool-04"
+        },
+        {
+          "col": 10,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-tools.tool-01"
+        },
+        {
+          "col": 14,
+          "row": 25,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.01"
+        },
+        {
+          "col": 17,
+          "row": 24,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.02"
+        },
+        {
+          "col": 21,
+          "row": 25,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-wood-resource.wood-resource"
+        },
+        {
+          "col": 25,
+          "row": 24,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.09"
+        },
+        {
+          "col": 7,
+          "row": 11,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-1"
+        },
+        {
+          "col": 11,
+          "row": 9,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-2"
+        },
+        {
+          "col": 16,
+          "row": 11,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-3"
+        },
+        {
+          "col": 23,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-4"
+        },
+        {
+          "col": 30,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-5"
+        },
+        {
+          "col": 38,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-6"
+        },
+        {
+          "col": 41,
+          "row": 13,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-resource.gold-resource"
+        },
+        {
+          "col": 9,
+          "row": 17,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock1"
+        },
+        {
+          "col": 16,
+          "row": 19,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock2"
+        },
+        {
+          "col": 37,
+          "row": 19,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock4"
+        },
+        {
+          "col": 34,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "building.factions-knights-buildings-house.house-destroyed"
+        },
+        {
+          "col": 6,
+          "row": 17,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-1"
+        },
+        {
+          "col": 10,
+          "row": 19,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-2"
+        },
+        {
+          "col": 15,
+          "row": 16,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-3"
+        },
+        {
+          "col": 20,
+          "row": 19,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-4"
+        },
+        {
+          "col": 32,
+          "row": 17,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-5"
+        },
+        {
+          "col": 42,
+          "row": 16,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-1"
+        },
+        {
+          "col": 7,
+          "row": 7,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock1"
+        },
+        {
+          "col": 15,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock2"
+        },
+        {
+          "col": 36,
+          "row": 7,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock4"
+        },
+        {
+          "col": 12,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.05"
+        },
+        {
+          "col": 27,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.06"
+        },
+        {
+          "col": 39,
+          "row": 27,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.08"
         }
       ],
       "spawn": {
@@ -23395,11 +27792,159 @@
           ]
         },
         {
+          "id": "2028b614-7fe9-42f4-a592-9f94b914bae2",
+          "col": 14,
+          "row": 17,
+          "name": "Collecteur des conduits 1",
+          "ordinal": 14,
+          "kind": "monster",
+          "species": "hex_shaman",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 215,
+          "monsterDamage": 25,
+          "monsterSpeed": 74,
+          "monsterXp": 180,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "hex_burst",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "216bdd1a-705f-48fc-a6dc-bce8a8bbfefd",
+          "col": 34,
+          "row": 19,
+          "name": "Collecteur des conduits 2",
+          "ordinal": 15,
+          "kind": "monster",
+          "species": "hex_shaman",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 215,
+          "monsterDamage": 25,
+          "monsterSpeed": 74,
+          "monsterXp": 180,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "hex_burst",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "a6ea7561-3633-41df-a046-c8e704136bdb",
+          "col": 39,
+          "row": 24,
+          "name": "Collecteur des conduits 3",
+          "ordinal": 16,
+          "kind": "monster",
+          "species": "hex_shaman",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 215,
+          "monsterDamage": 25,
+          "monsterSpeed": 74,
+          "monsterXp": 180,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "hex_burst",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "a3ea178f-28db-4bd8-aa90-f3895534c930",
+          "col": 26,
+          "row": 19,
+          "name": "Briseur du puits central",
+          "ordinal": 17,
+          "kind": "monster",
+          "species": "gate_troll",
+          "patrolRadius": 88,
+          "monsterRank": "elite",
+          "monsterMaxHp": 500,
+          "monsterDamage": 36,
+          "monsterSpeed": 60,
+          "monsterXp": 330,
+          "monsterWeakness": "ranger",
+          "monsterWeaknessPercent": 145,
+          "monsterSpecialTechnique": "troll_quake",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
           "id": "0c16560d-2ef4-4efb-a9e6-3a631e558f32",
           "col": 42,
           "row": 5,
           "name": "Conduit de maintenance",
-          "ordinal": 14,
+          "ordinal": 18,
           "kind": "normal",
           "species": null,
           "patrolRadius": null,
@@ -23577,6 +28122,216 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "decoration.deco.16"
+        },
+        {
+          "col": 7,
+          "row": 18,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.17"
+        },
+        {
+          "col": 13,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.17"
+        },
+        {
+          "col": 19,
+          "row": 12,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.17"
+        },
+        {
+          "col": 27,
+          "row": 12,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.17"
+        },
+        {
+          "col": 34,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.17"
+        },
+        {
+          "col": 41,
+          "row": 18,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.17"
+        },
+        {
+          "col": 11,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.05"
+        },
+        {
+          "col": 17,
+          "row": 21,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.06"
+        },
+        {
+          "col": 24,
+          "row": 20,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.07"
+        },
+        {
+          "col": 32,
+          "row": 21,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.08"
+        },
+        {
+          "col": 37,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.09"
+        },
+        {
+          "col": 16,
+          "row": 9,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-1"
+        },
+        {
+          "col": 20,
+          "row": 7,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-2"
+        },
+        {
+          "col": 24,
+          "row": 6,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-3"
+        },
+        {
+          "col": 28,
+          "row": 7,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-4"
+        },
+        {
+          "col": 32,
+          "row": 9,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-5"
+        },
+        {
+          "col": 9,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock2"
+        },
+        {
+          "col": 39,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock4"
+        },
+        {
+          "col": 6,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock1"
+        },
+        {
+          "col": 10,
+          "row": 18,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock2"
+        },
+        {
+          "col": 15,
+          "row": 20,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock3"
+        },
+        {
+          "col": 34,
+          "row": 20,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock4"
+        },
+        {
+          "col": 39,
+          "row": 18,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock2"
+        },
+        {
+          "col": 43,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock3"
+        },
+        {
+          "col": 10,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-6"
+        },
+        {
+          "col": 38,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-gold-gold-stones.gold-stone-5"
+        },
+        {
+          "col": 7,
+          "row": 25,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.01"
+        },
+        {
+          "col": 14,
+          "row": 25,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.02"
+        },
+        {
+          "col": 34,
+          "row": 25,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.10"
+        },
+        {
+          "col": 41,
+          "row": 25,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.11"
         }
       ],
       "spawn": {
@@ -24852,11 +29607,122 @@
           ]
         },
         {
+          "id": "864a09df-c95b-4e40-aedd-9e978e8337b8",
+          "col": 18,
+          "row": 16,
+          "name": "Témoin consumé 1",
+          "ordinal": 9,
+          "kind": "monster",
+          "species": "skull_guard",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 250,
+          "monsterDamage": 27,
+          "monsterSpeed": 82,
+          "monsterXp": 190,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "grave_siphon",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "7bc91d76-bc33-415f-abd1-9822dc37c49a",
+          "col": 27,
+          "row": 15,
+          "name": "Témoin consumé 2",
+          "ordinal": 10,
+          "kind": "monster",
+          "species": "skull_guard",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 250,
+          "monsterDamage": 27,
+          "monsterSpeed": 82,
+          "monsterXp": 190,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "grave_siphon",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
+          "id": "24e2085a-d5cd-4e2c-a43d-690167efc418",
+          "col": 33,
+          "row": 22,
+          "name": "Témoin consumé 3",
+          "ordinal": 11,
+          "kind": "monster",
+          "species": "skull_guard",
+          "patrolRadius": 88,
+          "monsterRank": "normal",
+          "monsterMaxHp": 250,
+          "monsterDamage": 27,
+          "monsterSpeed": 82,
+          "monsterXp": 190,
+          "monsterWeakness": "none",
+          "monsterWeaknessPercent": 150,
+          "monsterSpecialTechnique": "grave_siphon",
+          "pages": [
+            {
+              "commands": [],
+              "condSwitchId": null,
+              "condVariableId": null,
+              "condVariableMin": null,
+              "condSelfSwitch": null,
+              "graphicAssetId": null,
+              "moveType": "fixed",
+              "moveSpeed": 4,
+              "moveFreq": 3,
+              "optMoveAnim": true,
+              "optStopAnim": false,
+              "optDirFix": false,
+              "optThrough": false,
+              "optOnTop": false,
+              "trigger": "action"
+            }
+          ]
+        },
+        {
           "id": "617121f3-6e7d-40c5-aee4-78063bb4b66d",
           "col": 37,
           "row": 5,
           "name": "Anneau des témoins",
-          "ordinal": 9,
+          "ordinal": 12,
           "kind": "normal",
           "species": null,
           "patrolRadius": null,
@@ -25048,6 +29914,223 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "decoration.deco.16"
+        },
+        {
+          "col": 10,
+          "row": 24,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.03"
+        },
+        {
+          "col": 16,
+          "row": 24,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.05"
+        },
+        {
+          "col": 19,
+          "row": 24,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.06"
+        },
+        {
+          "col": 22,
+          "row": 24,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.09"
+        },
+        {
+          "col": 25,
+          "row": 24,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.10"
+        },
+        {
+          "col": 28,
+          "row": 24,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-tools.tool-02"
+        },
+        {
+          "col": 4,
+          "row": 13,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 8,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 12,
+          "row": 13,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 17,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree4"
+        },
+        {
+          "col": 27,
+          "row": 13,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 32,
+          "row": 12,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 37,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 6,
+          "row": 19,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe1"
+        },
+        {
+          "col": 11,
+          "row": 18,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 30,
+          "row": 19,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe3"
+        },
+        {
+          "col": 36,
+          "row": 19,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe4"
+        },
+        {
+          "col": 20,
+          "row": 15,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.17"
+        },
+        {
+          "col": 21,
+          "row": 6,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-clouds.clouds-04"
+        },
+        {
+          "col": 7,
+          "row": 21,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree4"
+        },
+        {
+          "col": 14,
+          "row": 19,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree1"
+        },
+        {
+          "col": 28,
+          "row": 20,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 35,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-wood-trees.tree3"
+        },
+        {
+          "col": 9,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe1"
+        },
+        {
+          "col": 17,
+          "row": 20,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe2"
+        },
+        {
+          "col": 25,
+          "row": 21,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe3"
+        },
+        {
+          "col": 32,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-bushes.bushe4"
+        },
+        {
+          "col": 5,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock1"
+        },
+        {
+          "col": 14,
+          "row": 27,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock2"
+        },
+        {
+          "col": 30,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock3"
+        },
+        {
+          "col": 38,
+          "row": 27,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.terrain-decorations-rocks.rock4"
         }
       ],
       "spawn": {

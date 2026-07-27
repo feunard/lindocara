@@ -95,6 +95,9 @@ const SCENERY = {
   rock4: "decoration.terrain-decorations-rocks.rock4",
   waterRock1: "decoration.terrain-decorations-rocks-in-the-water.water-rocks-01",
   waterRock2: "decoration.terrain-decorations-rocks-in-the-water.water-rocks-02",
+  waterRock3: "decoration.terrain-decorations-rocks-in-the-water.water-rocks-03",
+  waterRock4: "decoration.terrain-decorations-rocks-in-the-water.water-rocks-04",
+  duck: "decoration.terrain-decorations-rubber-duck.rubber-duck",
   tree1: "resource.terrain-resources-wood-trees.tree1",
   tree2: "resource.terrain-resources-wood-trees.tree2",
   tree3: "resource.terrain-resources-wood-trees.tree3",
@@ -102,6 +105,33 @@ const SCENERY = {
   stump1: "resource.terrain-resources-wood-trees.stump-1",
   stump2: "resource.terrain-resources-wood-trees.stump-2",
   stump3: "resource.terrain-resources-wood-trees.stump-3",
+  stump4: "resource.terrain-resources-wood-trees.stump-4",
+  goldStone1: "resource.terrain-resources-gold-gold-stones.gold-stone-1",
+  goldStone2: "resource.terrain-resources-gold-gold-stones.gold-stone-2",
+  goldStone3: "resource.terrain-resources-gold-gold-stones.gold-stone-3",
+  goldStone4: "resource.terrain-resources-gold-gold-stones.gold-stone-4",
+  goldStone5: "resource.terrain-resources-gold-gold-stones.gold-stone-5",
+  goldStone6: "resource.terrain-resources-gold-gold-stones.gold-stone-6",
+  deco1: "decoration.deco.01",
+  deco2: "decoration.deco.02",
+  deco3: "decoration.deco.03",
+  deco4: "decoration.deco.04",
+  deco5: "decoration.deco.05",
+  deco6: "decoration.deco.06",
+  deco7: "decoration.deco.07",
+  deco8: "decoration.deco.08",
+  deco9: "decoration.deco.09",
+  deco10: "decoration.deco.10",
+  deco11: "decoration.deco.11",
+  deco12: "decoration.deco.12",
+  cloud1: "decoration.terrain-decorations-clouds.clouds-01",
+  cloud2: "decoration.terrain-decorations-clouds.clouds-02",
+  cloud3: "decoration.terrain-decorations-clouds.clouds-03",
+  cloud4: "decoration.terrain-decorations-clouds.clouds-04",
+  cloud5: "decoration.terrain-decorations-clouds.clouds-05",
+  cloud6: "decoration.terrain-decorations-clouds.clouds-06",
+  cloud7: "decoration.terrain-decorations-clouds.clouds-07",
+  cloud8: "decoration.terrain-decorations-clouds.clouds-08",
 } as const;
 
 const REGIONAL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapElement[]>>> = {
@@ -427,6 +457,635 @@ const REGIONAL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapElement
   ],
 };
 
+/**
+ * Hand-authored secondary compositions. Each group supports a readable local function; this is
+ * intentionally data per region rather than a coordinate scatter shared by every map.
+ */
+const REGIONAL_DETAIL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapElement[]>>> = {
+  prologue: [
+    // Northern lookout grove and the high-path reward approach.
+    element(SCENERY.tree3, 39, 5),
+    element(SCENERY.tree1, 46, 6),
+    element(SCENERY.bush1, 41, 9),
+    element(SCENERY.bush4, 45, 10),
+    element(SCENERY.rock2, 49, 8),
+    element(SCENERY.cloud1, 41, 7),
+    // The attacked convoy reads as a worked scene rather than four isolated actors.
+    element(SCENERY.deco1, 10, 31),
+    element(SCENERY.deco2, 15, 33),
+    element(SCENERY.deco9, 19, 31),
+    element(SCENERY.meat, 22, 34),
+    element(SCENERY.tool1, 16, 28),
+    element(SCENERY.wood, 24, 30),
+    element(SCENERY.stump4, 26, 28),
+    // Roadside copses frame the danger pockets while leaving the road visible.
+    element(SCENERY.tree2, 5, 16),
+    element(SCENERY.tree4, 10, 18),
+    element(SCENERY.bush2, 13, 20),
+    element(SCENERY.tree1, 45, 21),
+    element(SCENERY.tree3, 52, 24),
+    element(SCENERY.bush3, 49, 27),
+    element(SCENERY.rock3, 35, 25),
+    element(SCENERY.rock1, 23, 13),
+  ],
+  aubeval: [
+    // Market stalls, public notices and the provisioning lane.
+    element(SCENERY.deco3, 17, 31),
+    element(SCENERY.deco4, 20, 31),
+    element(SCENERY.deco5, 23, 31),
+    element(SCENERY.deco6, 26, 31),
+    element(SCENERY.deco9, 30, 33),
+    element(SCENERY.deco10, 34, 33),
+    element(SCENERY.meat, 37, 34),
+    element(SCENERY.wood, 40, 34),
+    // Rich northern gardens contrast with the flooded lower quarter.
+    element(SCENERY.tree1, 9, 8),
+    element(SCENERY.tree2, 15, 7),
+    element(SCENERY.bush1, 12, 11),
+    element(SCENERY.bush3, 18, 11),
+    element(SCENERY.tree4, 42, 8),
+    element(SCENERY.bush4, 46, 11),
+    element(SCENERY.cloud2, 17, 6),
+    // Dike maintenance yard and low-quarter salvage.
+    element(SCENERY.tool4, 47, 26),
+    element(SCENERY.tool2, 51, 27),
+    element(SCENERY.stump2, 45, 30),
+    element(SCENERY.deco11, 8, 36),
+    element(SCENERY.deco12, 12, 37),
+    element(SCENERY.rock4, 50, 34),
+  ],
+  faubourg: [
+    // Refugee lane and requisition yard.
+    element(SCENERY.deco1, 7, 31),
+    element(SCENERY.deco2, 11, 30),
+    element(SCENERY.deco5, 15, 31),
+    element(SCENERY.deco9, 19, 33),
+    element(SCENERY.meat, 22, 33),
+    element(SCENERY.wood, 27, 32),
+    element(SCENERY.tool2, 30, 31),
+    // Burned orchard around the raider camp.
+    element(SCENERY.tree1, 7, 8),
+    element(SCENERY.stump1, 12, 10),
+    element(SCENERY.stump3, 17, 8),
+    element(SCENERY.tree3, 22, 11),
+    element(SCENERY.bush2, 10, 15),
+    element(SCENERY.rock1, 18, 15),
+    element(BUILDINGS.ruinedGoblinHouse, 38, 12),
+    element(SCENERY.cloud3, 42, 7),
+    // Fortified approach and wreckage funnel the eastern fight.
+    element(BUILDINGS.ruinedGoblinTower, 45, 19),
+    element(SCENERY.deco6, 39, 25),
+    element(SCENERY.deco7, 43, 26),
+    element(SCENERY.rock3, 48, 29),
+    element(SCENERY.bush4, 51, 32),
+  ],
+  relay: [
+    // Four-camp supply court.
+    element(SCENERY.deco3, 14, 26),
+    element(SCENERY.deco4, 19, 26),
+    element(SCENERY.deco5, 24, 27),
+    element(SCENERY.deco6, 29, 27),
+    element(SCENERY.deco9, 34, 26),
+    element(SCENERY.deco10, 39, 27),
+    element(SCENERY.tool1, 18, 22),
+    element(SCENERY.tool3, 37, 22),
+    // Road orchards and a sheltered travellers' edge.
+    element(SCENERY.tree1, 6, 12),
+    element(SCENERY.tree3, 11, 14),
+    element(SCENERY.tree2, 48, 10),
+    element(SCENERY.tree4, 53, 15),
+    element(SCENERY.bush1, 8, 18),
+    element(SCENERY.bush3, 50, 20),
+    element(SCENERY.rock2, 26, 10),
+    element(SCENERY.cloud4, 29, 6),
+    element(SCENERY.stump4, 44, 30),
+    element(SCENERY.wood, 47, 31),
+  ],
+  woods: [
+    // Ground vegetation thickens the nourishing grove without closing its paths.
+    element(SCENERY.bush1, 7, 11, 1, 0),
+    element(SCENERY.bush2, 11, 13, 2, 1),
+    element(SCENERY.bush3, 16, 16, 0, 2),
+    element(SCENERY.bush4, 21, 10, 3, 1),
+    element(SCENERY.bush2, 24, 25, 1, 2),
+    element(SCENERY.bush1, 29, 29, 2, 0),
+    // The logging frontier gains tools, marked stumps and stored timber.
+    element(SCENERY.stump4, 34, 24),
+    element(SCENERY.stump1, 38, 25),
+    element(SCENERY.stump2, 42, 27),
+    element(SCENERY.tool1, 36, 29),
+    element(SCENERY.tool3, 41, 30),
+    element(SCENERY.wood, 46, 29),
+    element(SCENERY.deco11, 49, 27),
+    element(SCENERY.deco12, 52, 31),
+    // Two high cloud banks make the canopy region distinct at a glance.
+    element(SCENERY.cloud5, 16, 7),
+    element(SCENERY.cloud6, 45, 9),
+  ],
+  roots: [
+    // Ringed sacred grove around the ritual halls.
+    element(SCENERY.tree1, 5, 13),
+    element(SCENERY.tree2, 9, 18),
+    element(SCENERY.tree3, 7, 25),
+    element(SCENERY.tree4, 16, 10),
+    element(SCENERY.tree2, 22, 12),
+    element(SCENERY.tree1, 38, 10),
+    element(SCENERY.tree3, 47, 13),
+    element(SCENERY.tree4, 53, 25),
+    element(SCENERY.bush1, 13, 19),
+    element(SCENERY.bush2, 21, 24),
+    element(SCENERY.bush3, 39, 24),
+    element(SCENERY.bush4, 47, 29),
+    // Offerings and stones mark the three ritual stages.
+    element(SCENERY.deco7, 20, 29),
+    element(SCENERY.deco8, 29, 26),
+    element(SCENERY.deco10, 38, 29),
+    element(SCENERY.rock1, 24, 16),
+    element(SCENERY.rock2, 29, 15),
+    element(SCENERY.rock3, 34, 16),
+    element(SCENERY.cloud7, 30, 7),
+  ],
+  marsh: [
+    // Drowned village remnants on separate islands.
+    element(BUILDINGS.ruinedHouse, 9, 16),
+    element(BUILDINGS.ruinedHouse, 47, 25),
+    element(BUILDINGS.ruinedGoblinHouse, 28, 13),
+    element(SCENERY.deco1, 13, 31),
+    element(SCENERY.deco2, 24, 34),
+    element(SCENERY.deco11, 41, 30),
+    // Water channels carry recognisable navigation marks.
+    element(SCENERY.waterRock3, 15, 8),
+    element(SCENERY.waterRock4, 47, 9),
+    element(SCENERY.waterRock1, 9, 22),
+    element(SCENERY.waterRock2, 51, 20),
+    element(SCENERY.duck, 33, 17),
+    element(SCENERY.reeds, 14, 25),
+    element(SCENERY.reeds, 22, 18),
+    element(SCENERY.reeds, 43, 16),
+    element(SCENERY.reeds, 49, 29),
+    // Wind-broken trees define the safer high islands.
+    element(SCENERY.tree1, 7, 31),
+    element(SCENERY.tree2, 20, 29),
+    element(SCENERY.tree4, 39, 31),
+    element(SCENERY.stump2, 50, 33),
+    element(SCENERY.cloud8, 31, 7),
+  ],
+  archives: [
+    // Broken reading halls, shelves and recovered stores.
+    element(BUILDINGS.ruinedHouse, 12, 19),
+    element(BUILDINGS.ruinedHouse, 42, 17),
+    element(SCENERY.deco3, 10, 29),
+    element(SCENERY.deco4, 15, 28),
+    element(SCENERY.deco5, 20, 27),
+    element(SCENERY.deco6, 26, 29),
+    element(SCENERY.deco7, 33, 28),
+    element(SCENERY.deco8, 40, 29),
+    element(SCENERY.deco9, 47, 29),
+    // Chronology chambers use stone and metal deposits as repeated wayfinding.
+    element(SCENERY.rock1, 8, 12),
+    element(SCENERY.rock2, 17, 14),
+    element(SCENERY.rock3, 28, 11),
+    element(SCENERY.rock4, 42, 13),
+    element(SCENERY.goldStone1, 13, 20),
+    element(SCENERY.goldStone3, 31, 20),
+    element(SCENERY.goldStone5, 46, 21),
+    element(SCENERY.tool1, 21, 34),
+    element(SCENERY.tool4, 39, 34),
+  ],
+  citadel: [
+    // Outer court drill ground and guard supply line.
+    element(SCENERY.deco1, 7, 29),
+    element(SCENERY.deco2, 11, 29),
+    element(SCENERY.deco3, 15, 30),
+    element(SCENERY.tool3, 18, 27),
+    element(SCENERY.wood, 21, 28),
+    element(SCENERY.banner, 12, 25),
+    // Conscript court infirmary and ration stores.
+    element(SCENERY.deco5, 25, 30),
+    element(SCENERY.deco6, 29, 31),
+    element(SCENERY.deco9, 33, 30),
+    element(SCENERY.meat, 36, 29),
+    element(SCENERY.tool2, 28, 26),
+    // Inner command court reserves and captured records.
+    element(SCENERY.deco7, 42, 29),
+    element(SCENERY.deco8, 46, 29),
+    element(SCENERY.deco10, 50, 30),
+    element(SCENERY.gold, 53, 28),
+    element(SCENERY.notice, 47, 25),
+    element(BUILDINGS.blackTower, 57, 22),
+  ],
+  fort: [
+    // Barracks yard with visible stores and maintenance.
+    element(SCENERY.deco1, 8, 27),
+    element(SCENERY.deco2, 12, 27),
+    element(SCENERY.deco5, 16, 25),
+    element(SCENERY.deco9, 20, 27),
+    element(SCENERY.tool1, 24, 26),
+    element(SCENERY.tool4, 28, 26),
+    element(SCENERY.wood, 32, 27),
+    element(SCENERY.meat, 36, 27),
+    // Two defended wall sectors and the archive approach.
+    element(BUILDINGS.blackTower, 6, 11),
+    element(BUILDINGS.blackTower, 18, 10),
+    element(BUILDINGS.redTower, 40, 11),
+    element(SCENERY.banner, 12, 17),
+    element(SCENERY.banner, 45, 17),
+    element(SCENERY.deco6, 42, 23),
+    element(SCENERY.deco7, 47, 24),
+    element(SCENERY.goldStone2, 35, 20),
+    element(SCENERY.goldStone4, 39, 21),
+    element(SCENERY.rock1, 7, 34),
+    element(SCENERY.rock3, 49, 34),
+  ],
+  sanctuary: [
+    // Food and medicine garden around the public dispensary.
+    element(SCENERY.tree1, 6, 14),
+    element(SCENERY.tree2, 11, 16),
+    element(SCENERY.tree3, 17, 14),
+    element(SCENERY.bush1, 8, 20),
+    element(SCENERY.bush2, 13, 21),
+    element(SCENERY.bush3, 18, 20),
+    element(SCENERY.meat, 22, 23),
+    element(SCENERY.deco3, 10, 28),
+    element(SCENERY.deco4, 15, 28),
+    // Lumen works and the monastery service court.
+    element(SCENERY.goldStone1, 29, 18),
+    element(SCENERY.goldStone2, 32, 18),
+    element(SCENERY.goldStone5, 35, 18),
+    element(SCENERY.tool1, 31, 23),
+    element(SCENERY.tool3, 36, 24),
+    element(SCENERY.deco7, 40, 27),
+    element(SCENERY.deco8, 45, 28),
+    element(SCENERY.tree4, 50, 17),
+    element(SCENERY.bush4, 48, 23),
+    element(SCENERY.cloud2, 29, 7),
+  ],
+  crypt: [
+    // Funeral avenue and collapsed side chapels.
+    element(SCENERY.memorial, 8, 20),
+    element(SCENERY.memorial, 15, 18),
+    element(SCENERY.memorial, 22, 20),
+    element(SCENERY.memorial, 31, 18),
+    element(SCENERY.memorial, 39, 20),
+    element(BUILDINGS.ruinedHouse, 12, 30),
+    element(BUILDINGS.ruinedHouse, 43, 30),
+    element(SCENERY.deco1, 18, 28),
+    element(SCENERY.deco2, 23, 28),
+    element(SCENERY.deco6, 34, 28),
+    element(SCENERY.deco9, 39, 29),
+    // Rock falls divide combat rooms without pretending to be walls.
+    element(SCENERY.rock1, 8, 8),
+    element(SCENERY.rock2, 14, 10),
+    element(SCENERY.rock3, 22, 8),
+    element(SCENERY.rock4, 34, 9),
+    element(SCENERY.rock2, 42, 11),
+    element(SCENERY.goldStone3, 26, 14),
+    element(SCENERY.goldStone6, 30, 14),
+  ],
+  war: [
+    // Western field hospital and broken supply lane.
+    element(SCENERY.deco1, 7, 28),
+    element(SCENERY.deco2, 11, 29),
+    element(SCENERY.deco3, 15, 28),
+    element(SCENERY.meat, 19, 29),
+    element(SCENERY.wood, 23, 28),
+    element(SCENERY.tool2, 17, 24),
+    // Central barricade is visibly fought over.
+    element(BUILDINGS.ruinedGoblinHouse, 25, 23),
+    element(BUILDINGS.ruinedGoblinTower, 30, 12),
+    element(SCENERY.deco6, 27, 27),
+    element(SCENERY.deco7, 31, 26),
+    element(SCENERY.deco8, 35, 27),
+    element(SCENERY.rock2, 28, 31),
+    element(SCENERY.rock3, 34, 31),
+    // Eastern siege reserve and scorched grove.
+    element(SCENERY.deco9, 40, 28),
+    element(SCENERY.deco10, 44, 28),
+    element(SCENERY.tool4, 48, 27),
+    element(SCENERY.stump1, 42, 10),
+    element(SCENERY.stump2, 47, 9),
+    element(SCENERY.stump4, 52, 11),
+    element(SCENERY.tree3, 55, 15),
+    element(SCENERY.cloud3, 31, 6),
+  ],
+  galleries: [
+    // Extraction workshops at the lower gallery.
+    element(SCENERY.tool4, 8, 29),
+    element(SCENERY.tool1, 12, 27),
+    element(SCENERY.deco1, 16, 30),
+    element(SCENERY.deco2, 20, 29),
+    element(SCENERY.wood, 24, 30),
+    element(SCENERY.deco9, 29, 29),
+    // Mineral seams guide the optional upper route.
+    element(SCENERY.goldStone1, 8, 13),
+    element(SCENERY.goldStone2, 13, 11),
+    element(SCENERY.goldStone3, 19, 13),
+    element(SCENERY.goldStone4, 27, 10),
+    element(SCENERY.goldStone5, 35, 12),
+    element(SCENERY.goldStone6, 44, 10),
+    element(SCENERY.gold, 48, 16),
+    // Cave-ins create readable rooms around the hostile line.
+    element(SCENERY.rock1, 10, 20),
+    element(SCENERY.rock2, 18, 22),
+    element(SCENERY.rock3, 31, 20),
+    element(SCENERY.rock4, 43, 22),
+    element(BUILDINGS.ruinedHouse, 39, 31),
+  ],
+  heart: [
+    // Six witness stations ring the decision floor.
+    element(SCENERY.memorial, 8, 22),
+    element(SCENERY.memorial, 16, 18),
+    element(SCENERY.memorial, 23, 15),
+    element(SCENERY.memorial, 33, 15),
+    element(SCENERY.memorial, 41, 18),
+    element(SCENERY.memorial, 49, 22),
+    element(SCENERY.deco5, 13, 29),
+    element(SCENERY.deco6, 20, 27),
+    element(SCENERY.deco7, 29, 25),
+    element(SCENERY.deco8, 38, 27),
+    element(SCENERY.deco9, 45, 29),
+    // Fractured source deposits identify the dangerous inner ring.
+    element(SCENERY.goldStone1, 19, 11),
+    element(SCENERY.goldStone2, 24, 9),
+    element(SCENERY.goldStone3, 29, 8),
+    element(SCENERY.goldStone4, 34, 9),
+    element(SCENERY.goldStone5, 39, 11),
+    element(SCENERY.rock2, 11, 12),
+    element(SCENERY.rock4, 47, 13),
+  ],
+  epilogue: [
+    // Rebuilt common market and readable regional stores.
+    element(SCENERY.deco3, 14, 28),
+    element(SCENERY.deco4, 18, 28),
+    element(SCENERY.deco5, 22, 28),
+    element(SCENERY.deco6, 26, 28),
+    element(SCENERY.deco9, 30, 28),
+    element(SCENERY.deco10, 34, 28),
+    element(SCENERY.tool2, 39, 28),
+    // Memorial orchard gives the short epilogue exploration texture.
+    element(SCENERY.tree1, 6, 15),
+    element(SCENERY.tree2, 11, 17),
+    element(SCENERY.tree3, 17, 15),
+    element(SCENERY.tree4, 23, 17),
+    element(SCENERY.tree1, 37, 16),
+    element(SCENERY.tree2, 44, 14),
+    element(SCENERY.tree3, 51, 17),
+    element(SCENERY.bush1, 8, 22),
+    element(SCENERY.bush2, 15, 21),
+    element(SCENERY.bush3, 41, 22),
+    element(SCENERY.bush4, 49, 23),
+    element(SCENERY.memorial, 28, 18),
+    element(SCENERY.cloud4, 29, 7),
+  ],
+};
+
+/** Additional compositions selected after reviewing the full-map renders, focused on visible voids. */
+const VISUAL_REVIEW_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapElement[]>>> = {
+  prologue: [
+    // Western roadside hedge.
+    element(SCENERY.tree1, 5, 6),
+    element(SCENERY.tree4, 10, 11),
+    element(SCENERY.tree2, 5, 24),
+    element(SCENERY.bush1, 9, 27),
+    element(SCENERY.bush3, 15, 24),
+    // Eastern ditch occupation.
+    element(SCENERY.tree3, 50, 8),
+    element(SCENERY.tree2, 54, 15),
+    element(SCENERY.tree4, 50, 31),
+    element(SCENERY.bush2, 45, 17),
+    element(SCENERY.bush4, 52, 35),
+    // Mid-road stones make the two combat pockets legible.
+    element(SCENERY.rock1, 18, 20),
+    element(SCENERY.rock2, 24, 22),
+    element(SCENERY.rock3, 38, 22),
+    element(SCENERY.rock4, 44, 25),
+    // Tree walls narrow the route into a travelled corridor rather than an open lawn.
+    element(SCENERY.tree3, 4, 13),
+    element(SCENERY.tree2, 12, 4),
+    element(SCENERY.tree1, 18, 8),
+    element(SCENERY.tree4, 24, 6),
+    element(SCENERY.tree2, 4, 33),
+    element(SCENERY.tree3, 12, 38),
+    element(SCENERY.tree1, 20, 39),
+    element(SCENERY.tree4, 36, 4),
+    element(SCENERY.tree1, 44, 5),
+    element(SCENERY.tree3, 55, 10),
+    element(SCENERY.tree2, 56, 20),
+    element(SCENERY.tree4, 54, 38),
+    element(SCENERY.bush2, 20, 11),
+    element(SCENERY.bush4, 36, 10),
+    element(SCENERY.bush1, 44, 29),
+  ],
+  faubourg: [
+    // Ruined northern ward.
+    element(BUILDINGS.ruinedHouse, 10, 16),
+    element(BUILDINGS.ruinedHouse, 20, 18),
+    element(BUILDINGS.ruinedTower, 31, 11),
+    element(SCENERY.stump2, 7, 21),
+    element(SCENERY.stump4, 25, 21),
+    element(SCENERY.rock2, 34, 17),
+    // Debris trail between the evacuation camp and the eastern rempart.
+    element(SCENERY.deco3, 28, 35),
+    element(SCENERY.deco4, 34, 33),
+    element(SCENERY.deco8, 39, 35),
+    element(SCENERY.wood, 45, 34),
+    element(SCENERY.bush1, 48, 17),
+    element(SCENERY.bush3, 52, 27),
+  ],
+  relay: [
+    // Northern windbreaks define the four incoming roads.
+    element(SCENERY.tree1, 15, 7),
+    element(SCENERY.tree2, 22, 9),
+    element(SCENERY.tree3, 36, 8),
+    element(SCENERY.tree4, 45, 7),
+    element(SCENERY.bush1, 18, 13),
+    element(SCENERY.bush2, 28, 12),
+    element(SCENERY.bush3, 40, 13),
+    // Southern campsite is dense enough to read as a halt.
+    element(SCENERY.deco1, 9, 36),
+    element(SCENERY.deco2, 14, 37),
+    element(SCENERY.deco7, 24, 35),
+    element(SCENERY.deco8, 32, 36),
+    element(SCENERY.meat, 40, 35),
+    element(SCENERY.stump3, 49, 34),
+    element(SCENERY.rock4, 53, 28),
+  ],
+  roots: [
+    // Dense western grove around the first chamber approach.
+    element(SCENERY.tree4, 5, 6),
+    element(SCENERY.tree2, 11, 6),
+    element(SCENERY.tree1, 17, 7),
+    element(SCENERY.tree3, 6, 20),
+    element(SCENERY.tree1, 12, 24),
+    element(SCENERY.tree4, 18, 29),
+    element(SCENERY.bush1, 9, 13),
+    element(SCENERY.bush3, 15, 17),
+    // Eastern witness garden.
+    element(SCENERY.tree2, 43, 7),
+    element(SCENERY.tree3, 50, 9),
+    element(SCENERY.tree1, 46, 19),
+    element(SCENERY.tree4, 51, 33),
+    element(SCENERY.bush2, 43, 29),
+    element(SCENERY.bush4, 49, 24),
+    element(SCENERY.rock4, 29, 35),
+  ],
+  marsh: [
+    // Reed beds and drowned fence line across the southern islands.
+    element(SCENERY.reeds, 6, 34),
+    element(SCENERY.reeds, 18, 35),
+    element(SCENERY.reeds, 31, 35),
+    element(SCENERY.reeds, 45, 35),
+    element(SCENERY.waterRock3, 12, 20),
+    element(SCENERY.waterRock4, 27, 24),
+    element(SCENERY.waterRock1, 40, 24),
+    element(SCENERY.waterRock2, 53, 23),
+    // Additional drowned homes define the old village axis.
+    element(BUILDINGS.ruinedHouse, 15, 29),
+    element(BUILDINGS.ruinedHouse, 33, 30),
+    element(BUILDINGS.ruinedTower, 45, 12),
+    element(SCENERY.tree2, 55, 34),
+  ],
+  archives: [
+    // Side reading cells fill the large blank wings without adding combat.
+    element(BUILDINGS.ruinedHouse, 8, 18),
+    element(BUILDINGS.blackHouse2, 18, 24),
+    element(BUILDINGS.purpleHouse2, 42, 24),
+    element(BUILDINGS.ruinedHouse, 51, 18),
+    element(SCENERY.deco10, 12, 34),
+    element(SCENERY.deco11, 17, 32),
+    element(SCENERY.deco12, 23, 34),
+    element(SCENERY.deco3, 37, 34),
+    element(SCENERY.deco4, 43, 32),
+    element(SCENERY.deco5, 49, 34),
+    element(SCENERY.rock2, 25, 16),
+    element(SCENERY.rock4, 36, 16),
+  ],
+  fort: [
+    // Central parade court and visible intendance.
+    element(BUILDINGS.blackHouse1, 8, 21),
+    element(BUILDINGS.blackHouse2, 17, 21),
+    element(BUILDINGS.redHouse2, 39, 21),
+    element(BUILDINGS.blueHouse2, 48, 21),
+    element(SCENERY.deco3, 12, 31),
+    element(SCENERY.deco4, 18, 31),
+    element(SCENERY.deco7, 38, 31),
+    element(SCENERY.deco8, 44, 31),
+    // Fortification line around the elevated command sector.
+    element(BUILDINGS.blackTower, 6, 7),
+    element(BUILDINGS.blackTower, 18, 7),
+    element(BUILDINGS.blackTower, 31, 8),
+    element(BUILDINGS.blackTower, 48, 8),
+    element(SCENERY.banner, 24, 16),
+    element(SCENERY.banner, 36, 16),
+    element(SCENERY.wood, 29, 33),
+    element(SCENERY.gold, 34, 33),
+  ],
+  sanctuary: [
+    // Eastern herb gardens and service residences.
+    element(BUILDINGS.yellowHouse3, 39, 32),
+    element(BUILDINGS.yellowHouse1, 49, 31),
+    element(SCENERY.tree1, 38, 17),
+    element(SCENERY.tree2, 44, 19),
+    element(SCENERY.tree3, 51, 23),
+    element(SCENERY.bush1, 37, 26),
+    element(SCENERY.bush2, 43, 27),
+    element(SCENERY.bush3, 49, 27),
+    // Public courtyard furniture.
+    element(SCENERY.deco1, 8, 35),
+    element(SCENERY.deco2, 13, 34),
+    element(SCENERY.deco5, 19, 35),
+    element(SCENERY.deco9, 25, 34),
+    element(SCENERY.deco10, 31, 35),
+    element(SCENERY.tool4, 35, 32),
+  ],
+  crypt: [
+    // Outer ossuary cells.
+    element(BUILDINGS.ruinedHouse, 7, 18),
+    element(BUILDINGS.ruinedHouse, 18, 23),
+    element(BUILDINGS.ruinedHouse, 40, 23),
+    element(BUILDINGS.ruinedTower, 51, 20),
+    element(SCENERY.memorial, 12, 25),
+    element(SCENERY.memorial, 25, 26),
+    element(SCENERY.memorial, 36, 26),
+    element(SCENERY.memorial, 48, 25),
+    // Rubble lines around the central crypt.
+    element(SCENERY.rock1, 20, 15),
+    element(SCENERY.rock2, 25, 17),
+    element(SCENERY.rock3, 34, 17),
+    element(SCENERY.rock4, 40, 15),
+    element(SCENERY.deco12, 29, 31),
+  ],
+  war: [
+    // Western and eastern trench debris.
+    element(BUILDINGS.ruinedHouse, 7, 18),
+    element(BUILDINGS.ruinedTower, 15, 16),
+    element(SCENERY.stump1, 8, 10),
+    element(SCENERY.stump3, 18, 10),
+    element(SCENERY.deco4, 10, 24),
+    element(SCENERY.deco5, 16, 24),
+    element(BUILDINGS.ruinedHouse, 43, 17),
+    element(BUILDINGS.ruinedTower, 53, 18),
+    element(SCENERY.stump2, 44, 9),
+    element(SCENERY.stump4, 54, 10),
+    element(SCENERY.deco10, 45, 24),
+    element(SCENERY.deco11, 51, 24),
+    // Contested centre and recovery path.
+    element(SCENERY.rock1, 23, 12),
+    element(SCENERY.rock2, 27, 17),
+    element(SCENERY.rock3, 34, 17),
+    element(SCENERY.rock4, 39, 12),
+    element(SCENERY.wood, 27, 34),
+    element(SCENERY.meat, 34, 34),
+  ],
+  galleries: [
+    // Dense mineral galleries around the central race line.
+    element(SCENERY.goldStone1, 7, 20),
+    element(SCENERY.goldStone2, 12, 23),
+    element(SCENERY.goldStone3, 17, 19),
+    element(SCENERY.goldStone4, 23, 22),
+    element(SCENERY.goldStone5, 37, 20),
+    element(SCENERY.goldStone6, 43, 23),
+    element(SCENERY.goldStone1, 49, 19),
+    element(SCENERY.rock1, 8, 8),
+    element(SCENERY.rock2, 17, 9),
+    element(SCENERY.rock3, 29, 12),
+    element(SCENERY.rock4, 42, 8),
+    element(SCENERY.deco5, 14, 33),
+    element(SCENERY.deco6, 31, 33),
+    element(SCENERY.deco8, 45, 32),
+  ],
+  heart: [
+    // Broken outer ring.
+    element(SCENERY.rock1, 7, 18),
+    element(SCENERY.rock2, 12, 22),
+    element(SCENERY.rock3, 18, 25),
+    element(SCENERY.rock4, 41, 25),
+    element(SCENERY.rock2, 47, 22),
+    element(SCENERY.rock3, 52, 18),
+    element(SCENERY.goldStone6, 12, 12),
+    element(SCENERY.goldStone5, 46, 12),
+    element(SCENERY.deco1, 9, 31),
+    element(SCENERY.deco2, 17, 32),
+    element(SCENERY.deco10, 41, 32),
+    element(SCENERY.deco11, 49, 31),
+  ],
+  epilogue: [
+    // Orchard paths close the remaining central void.
+    element(SCENERY.tree4, 9, 25),
+    element(SCENERY.tree1, 19, 23),
+    element(SCENERY.tree2, 39, 24),
+    element(SCENERY.tree3, 48, 27),
+    element(SCENERY.bush1, 13, 26),
+    element(SCENERY.bush2, 24, 24),
+    element(SCENERY.bush3, 34, 25),
+    element(SCENERY.bush4, 44, 26),
+    element(SCENERY.rock1, 7, 31),
+    element(SCENERY.rock2, 19, 32),
+    element(SCENERY.rock3, 41, 31),
+    element(SCENERY.rock4, 52, 32),
+  ],
+};
+
 function npc(
   factory: Factory,
   key: string,
@@ -577,6 +1236,8 @@ function mapElements(
   return safeElements(theme, factory.events, spawn, [
     ...authored,
     ...(REGIONAL_COMPOSITIONS[key] ?? []),
+    ...(REGIONAL_DETAIL_COMPOSITIONS[key] ?? []),
+    ...(VISUAL_REVIEW_COMPOSITIONS[key] ?? []),
   ]);
 }
 
@@ -1716,6 +2377,13 @@ function buildRelay(refs: StoryRefs): AdventureBundleMap {
     cell(37, 20),
     cell(47, 30),
   ]);
+  monsterPack(e, "ambush-support", "Lieur de piste", "hex_shaman", [cell(21, 20), cell(34, 20)], {
+    maxHp: 150,
+    damage: 18,
+    xp: 120,
+    specialTechnique: "hex_burst",
+  });
+  monsterPack(e, "ambush-beasts", "Bête de bât volée", "war_pig", [cell(44, 28), cell(49, 27)]);
   explorationCache(
     e,
     "relay-height-cache",
@@ -1884,6 +2552,22 @@ function buildWoods(refs: StoryRefs): AdventureBundleMap {
     cell(42, 26),
     cell(49, 21),
   ]);
+  monsterPack(
+    e,
+    "cutters-support",
+    "Marqueur de coupe",
+    "hex_shaman",
+    [cell(36, 29), cell(46, 25)],
+    { maxHp: 180, damage: 21, xp: 140, specialTechnique: "hex_burst" },
+  );
+  monsterPack(
+    e,
+    "cutters-riders",
+    "Patrouilleur des routes",
+    "pig_rider",
+    [cell(37, 23), cell(47, 18)],
+    { rank: "elite", maxHp: 280, damage: 27, xp: 210, specialTechnique: "mounted_trample" },
+  );
   explorationCache(
     e,
     "canopy-cache",
@@ -2220,6 +2904,23 @@ function buildRoots(refs: StoryRefs): AdventureBundleMap {
     cell(38, 14),
     cell(35, 33),
   ]);
+  monsterPack(
+    e,
+    "root-line",
+    "Servant des chambres",
+    "skull_guard",
+    [cell(19, 20), cell(39, 14), cell(34, 33)],
+    { maxHp: 210, damage: 23, xp: 155, specialTechnique: "bone_cleave" },
+  );
+  e.monster("root-line-warden", "Intendant du prix", cell(29, 24), "skull_warden", {
+    rank: "elite",
+    maxHp: 390,
+    damage: 31,
+    xp: 280,
+    weakness: "priest",
+    weaknessPercent: 150,
+    specialTechnique: "grave_siphon",
+  });
   explorationCache(
     e,
     "root-height-cache",
@@ -2440,6 +3141,21 @@ function buildMarsh(refs: StoryRefs): AdventureBundleMap {
     cell(50, 31),
   ]);
   monsterPack(e, "mire", "Maraudeur des pontons", "gnoll_marauder", [cell(20, 10), cell(36, 10)]);
+  monsterPack(e, "mire-tolls", "Troll du péage noyé", "mire_troll", [cell(24, 10), cell(40, 10)], {
+    rank: "elite",
+    maxHp: 410,
+    damage: 31,
+    xp: 270,
+    specialTechnique: "troll_sweep",
+  });
+  monsterPack(
+    e,
+    "glass-support",
+    "Collecteur de souvenirs",
+    "hex_shaman",
+    [cell(19, 24), cell(42, 26)],
+    { maxHp: 175, damage: 22, xp: 145, specialTechnique: "hex_burst" },
+  );
   explorationCache(
     e,
     "sunken-belfry-cache",
@@ -3107,6 +3823,21 @@ function buildCitadel(refs: StoryRefs): AdventureBundleMap {
     cell(31, 24),
     cell(46, 24),
   ]);
+  monsterPack(
+    e,
+    "court-support",
+    "Officiant loyaliste",
+    "hex_shaman",
+    [cell(22, 16), cell(40, 16)],
+    { maxHp: 190, damage: 22, xp: 150, specialTechnique: "hex_burst" },
+  );
+  monsterPack(e, "court-riders", "Cavalier des cours", "pig_rider", [cell(22, 27), cell(43, 27)], {
+    rank: "elite",
+    maxHp: 310,
+    damage: 29,
+    xp: 230,
+    specialTechnique: "mounted_trample",
+  });
   explorationCache(
     e,
     "citadel-height-cache",
@@ -3330,6 +4061,22 @@ function buildFort(refs: StoryRefs): AdventureBundleMap {
     cell(26, 30),
     cell(47, 28),
   ]);
+  monsterPack(
+    e,
+    "inquisitor-support",
+    "Thaumaturge de l’intendance",
+    "hex_shaman",
+    [cell(23, 14), cell(39, 22)],
+    { maxHp: 205, damage: 24, xp: 165, specialTechnique: "hex_burst" },
+  );
+  monsterPack(
+    e,
+    "fort-riders",
+    "Cavalier du chemin de ronde",
+    "pig_rider",
+    [cell(17, 23), cell(42, 27)],
+    { rank: "elite", maxHp: 330, damage: 30, xp: 245, specialTechnique: "mounted_trample" },
+  );
   explorationCache(
     e,
     "fort-height-cache",
@@ -3572,6 +4319,22 @@ function buildSanctuary(refs: StoryRefs): AdventureBundleMap {
     cell(38, 10),
     cell(45, 33),
   ]);
+  monsterPack(
+    e,
+    "crown-support",
+    "Officiant armé",
+    "hex_shaman",
+    [cell(17, 25), cell(37, 10), cell(43, 27)],
+    { maxHp: 210, damage: 24, xp: 170, specialTechnique: "hex_burst" },
+  );
+  monsterPack(
+    e,
+    "sanctuary-riders",
+    "Poursuivant de la Couronne",
+    "pig_rider",
+    [cell(12, 26), cell(48, 26)],
+    { rank: "elite", maxHp: 340, damage: 31, xp: 250, specialTechnique: "mounted_trample" },
+  );
   explorationCache(
     e,
     "sanctuary-height-cache",
@@ -3762,6 +4525,21 @@ function buildCrypt(refs: StoryRefs): AdventureBundleMap {
     [cell(19, 15), cell(28, 29), cell(39, 17), cell(47, 27)],
     { rank: "elite", maxHp: 320, damage: 30, xp: 240 },
   );
+  monsterPack(
+    e,
+    "crypt-retinue",
+    "Porte-cendre",
+    "skull_guard",
+    [cell(17, 15), cell(40, 17), cell(48, 27)],
+    { maxHp: 230, damage: 25, xp: 175, specialTechnique: "bone_cleave" },
+  );
+  e.monster("crypt-warden", "Chambellan d’Eryndor", cell(31, 23), "skull_warden", {
+    rank: "elite",
+    maxHp: 430,
+    damage: 33,
+    xp: 300,
+    specialTechnique: "grave_siphon",
+  });
   explorationCache(
     e,
     "crypt-height-cache",
@@ -4031,6 +4809,28 @@ function buildWar(refs: StoryRefs): AdventureBundleMap {
     [cell(27, 21), cell(34, 21), cell(30, 14)],
     { rank: "elite", maxHp: 520, damage: 36, xp: 320 },
   );
+  monsterPack(
+    e,
+    "west-casters",
+    "Artilleur du front ouest",
+    "hex_shaman",
+    [cell(18, 14), cell(24, 14)],
+    { maxHp: 220, damage: 26, xp: 185, specialTechnique: "hex_burst" },
+  );
+  monsterPack(
+    e,
+    "east-riders",
+    "Cavalier du front est",
+    "pig_rider",
+    [cell(40, 20), cell(46, 19)],
+    { rank: "elite", maxHp: 350, damage: 32, xp: 265, specialTechnique: "mounted_trample" },
+  );
+  monsterPack(e, "center-beasts", "Bête de brèche", "war_pig", [cell(28, 25), cell(35, 21)], {
+    maxHp: 260,
+    damage: 27,
+    xp: 195,
+    specialTechnique: "tusk_charge",
+  });
   explorationCache(
     e,
     "war-height-cache",
@@ -4295,6 +5095,23 @@ function buildGalleries(refs: StoryRefs): AdventureBundleMap {
     [cell(14, 20), cell(26, 14), cell(35, 27), cell(48, 19)],
     { rank: "elite", maxHp: 360, damage: 33, xp: 270 },
   );
+  monsterPack(
+    e,
+    "gallery-collectors",
+    "Collecteur des conduits",
+    "hex_shaman",
+    [cell(16, 20), cell(39, 23), cell(45, 28)],
+    { maxHp: 215, damage: 25, xp: 180, specialTechnique: "hex_burst" },
+  );
+  e.monster("gallery-breaker", "Briseur du puits central", cell(30, 22), "gate_troll", {
+    rank: "elite",
+    maxHp: 500,
+    damage: 36,
+    xp: 330,
+    weakness: "ranger",
+    weaknessPercent: 145,
+    specialTechnique: "troll_quake",
+  });
   explorationCache(
     e,
     "gallery-height-cache",
@@ -4639,6 +5456,14 @@ function buildHeart(refs: StoryRefs): AdventureBundleMap {
     "skull_crusader",
     [cell(18, 18), cell(39, 24), cell(45, 33)],
     { rank: "elite", maxHp: 420, damage: 36, xp: 300 },
+  );
+  monsterPack(
+    e,
+    "core-retinue",
+    "Témoin consumé",
+    "skull_guard",
+    [cell(22, 20), cell(33, 19), cell(40, 28)],
+    { maxHp: 250, damage: 27, xp: 190, specialTechnique: "grave_siphon" },
   );
   explorationCache(
     e,

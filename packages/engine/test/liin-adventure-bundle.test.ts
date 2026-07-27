@@ -25,6 +25,7 @@ import {
 import { collectQuestCommandBindings, validateAuthoredQuests } from "../src/quests.js";
 import { PLAYER_SIZE } from "../src/simulation.js";
 import { TILE_SIZE } from "../src/tilemap.js";
+import { editorAsset } from "../src/tiny-swords-catalog.js";
 
 const BUNDLE_URL = new URL("../../../adventures/liin-adventure-ia.json", import.meta.url);
 const parsedBundle = parseAdventureBundle(JSON.parse(readFileSync(BUNDLE_URL, "utf8")));
@@ -951,6 +952,111 @@ describe("Liin — Les Dettes de l’Aube", () => {
     ).toBeLessThanOrEqual(8);
   });
 
+  it("distributes regional compositions across useful sectors and uses outdoor atmosphere", () => {
+    const outdoorMaps = new Set<string>([
+      MAP_NAMES[0],
+      MAP_NAMES[1],
+      MAP_NAMES[2],
+      MAP_NAMES[3],
+      MAP_NAMES[4],
+      MAP_NAMES[5],
+      MAP_NAMES[6],
+      MAP_NAMES[10],
+      MAP_NAMES[12],
+      MAP_NAMES[15],
+    ]);
+    const placementSignatures = new Set<string>();
+    for (const map of BUNDLE.maps) {
+      const quadrantCounts = [0, 0, 0, 0];
+      const categories = new Set<string>();
+      for (const element of map.elements) {
+        const quadrant =
+          (element.row >= map.rows / 2 ? 2 : 0) + (element.col >= map.cols / 2 ? 1 : 0);
+        quadrantCounts[quadrant] = (quadrantCounts[quadrant] ?? 0) + 1;
+        const category = editorAsset(element.assetId)?.editor.category;
+        if (category) categories.add(category);
+      }
+      expect(
+        Math.min(...quadrantCounts),
+        `${map.name}: all sectors composed`,
+      ).toBeGreaterThanOrEqual(4);
+      expect(categories.size, `${map.name}: functional asset categories`).toBeGreaterThanOrEqual(5);
+      if (outdoorMaps.has(map.name)) {
+        expect(
+          map.elements.some(
+            (element) => editorAsset(element.assetId)?.editor.renderLayer === "sky",
+          ),
+          `${map.name}: authored cloud bank`,
+        ).toBe(true);
+      }
+      placementSignatures.add(
+        map.elements
+          .map(
+            (element) =>
+              `${element.assetId}:${Math.round((element.col / map.cols) * 10)}:${Math.round(
+                (element.row / map.rows) * 10,
+              )}`,
+          )
+          .sort()
+          .join("|"),
+      );
+    }
+    expect(placementSignatures.size).toBe(BUNDLE.maps.length);
+  });
+
+  it("forms dangerous regions from complementary, geographically concentrated enemy roles", () => {
+    const dangerousMaps = [
+      MAP_NAMES[2],
+      MAP_NAMES[3],
+      MAP_NAMES[4],
+      MAP_NAMES[5],
+      MAP_NAMES[6],
+      MAP_NAMES[8],
+      MAP_NAMES[9],
+      MAP_NAMES[10],
+      MAP_NAMES[11],
+      MAP_NAMES[12],
+      MAP_NAMES[13],
+      MAP_NAMES[14],
+    ];
+    for (const name of dangerousMaps) {
+      const monsters = mapNamed(name).events.filter((event) => event.kind === "monster");
+      expect(monsters.length, `${name}: occupied danger zone`).toBeGreaterThanOrEqual(7);
+      expect(
+        new Set(monsters.map((monster) => monster.species)).size,
+        `${name}: complementary roles`,
+      ).toBeGreaterThanOrEqual(3);
+      expect(
+        monsters.some((left, index) =>
+          monsters
+            .slice(index + 1)
+            .some((right) => Math.abs(left.col - right.col) + Math.abs(left.row - right.row) <= 5),
+        ),
+        `${name}: visible formation`,
+      ).toBe(true);
+    }
+  });
+
+  it("gives every mobile Tiny Swords NPC official movement animation art", () => {
+    const mobilePages = BUNDLE.maps.flatMap((map) =>
+      map.events.flatMap((event) =>
+        event.kind === "normal"
+          ? event.pages.filter(
+              (eventPage) =>
+                eventPage.moveType !== "fixed" &&
+                eventPage.optMoveAnim &&
+                eventPage.graphicAssetId?.startsWith("character."),
+            )
+          : [],
+      ),
+    );
+    expect(mobilePages.length).toBeGreaterThan(40);
+    for (const eventPage of mobilePages) {
+      const asset = eventPage.graphicAssetId ? editorAsset(eventPage.graphicAssetId) : null;
+      expect(asset?.motions?.run, eventPage.graphicAssetId ?? "missing graphic").toBeDefined();
+    }
+  });
+
   it("uses playable elevation and exploration rewards throughout the regional route", () => {
     const elevatedMaps = BUNDLE.maps.filter((map) => {
       const data = parseMapData(map);
@@ -1073,7 +1179,7 @@ describe("Liin — Les Dettes de l’Aube", () => {
     const guards = battle.events.filter((event) => event.kind === "guard");
     const enemies = battle.events.filter((event) => event.kind === "monster");
     expect(guards).toHaveLength(15);
-    expect(enemies).toHaveLength(9);
+    expect(enemies).toHaveLength(15);
     expect(
       new Set(
         guards.flatMap((guard) =>
