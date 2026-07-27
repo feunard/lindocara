@@ -2,12 +2,21 @@ import {
   type AdventureSummary,
   authErrorText,
   createAdventureApi,
+  deleteAdventureApi,
   errorCode,
   fetchAllAdventures,
 } from "@lindocara/client/api.js";
 import { t, useLocale } from "@lindocara/client/i18n.js";
 import { useUiStore } from "@lindocara/client/store.js";
 import { Button } from "@lindocara/ui/components/button.js";
+import { Checkbox } from "@lindocara/ui/components/checkbox.js";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@lindocara/ui/components/dialog.js";
 import { Input } from "@lindocara/ui/components/input.js";
 import { Label } from "@lindocara/ui/components/label.js";
 import { useEffect, useState } from "react";
@@ -25,6 +34,8 @@ export function AdventurePickerScreen() {
   const [adventures, setAdventures] = useState<AdventureSummary[] | null>(null);
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState<AdventureSummary | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -82,6 +93,26 @@ export function AdventurePickerScreen() {
     }
   }
 
+  async function removeAdventure(adventure: AdventureSummary): Promise<void> {
+    if (deletingId !== null) return;
+    setDeletingId(adventure.id);
+    setError(null);
+    try {
+      await deleteAdventureApi(adventure.id, true);
+      setAdventures(
+        (current) => current?.filter((candidate) => candidate.id !== adventure.id) ?? [],
+      );
+      setConfirmingDelete(null);
+    } catch (caught) {
+      const code = errorCode(caught);
+      setConfirmingDelete(null);
+      if (isSessionError(code)) setScreen("auth");
+      else setError(code);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <main className="editor-root editor-chrome min-h-screen overflow-y-auto bg-zinc-50 px-6 py-10 text-zinc-950">
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
@@ -129,14 +160,24 @@ export function AdventurePickerScreen() {
                       </span>
                     </p>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={busy}
-                    onClick={() => void openAdventure(adventure.id)}
-                  >
-                    {t("editor.picker.open")}
-                  </Button>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={busy || deletingId !== null}
+                      onClick={() => void openAdventure(adventure.id)}
+                    >
+                      {t("editor.picker.open")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={busy || deletingId !== null}
+                      onClick={() => setConfirmingDelete(adventure)}
+                    >
+                      {t("editor.delete")}
+                    </Button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -161,12 +202,55 @@ export function AdventurePickerScreen() {
                 onChange={(event) => setTitle(event.currentTarget.value)}
               />
             </div>
-            <Button type="submit" disabled={busy || title.trim().length === 0}>
+            <Button
+              type="submit"
+              disabled={busy || deletingId !== null || title.trim().length === 0}
+            >
               {t("editor.picker.create.submit")}
             </Button>
           </form>
         </section>
       </div>
+
+      <Dialog
+        open={confirmingDelete !== null}
+        onOpenChange={(next) => {
+          if (!next && deletingId === null) setConfirmingDelete(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {t("adventure.delete.title", { name: confirmingDelete?.title ?? "" })}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
+            <Checkbox id="force-delete-picker-adventure" checked disabled />
+            <div className="grid gap-1">
+              <Label htmlFor="force-delete-picker-adventure">{t("editor.delete.force")}</Label>
+              <p className="text-xs text-muted-foreground">{t("editor.delete.force_warning")}</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={deletingId !== null}
+              onClick={() => setConfirmingDelete(null)}
+            >
+              {t("adventure.delete.cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deletingId !== null}
+              onClick={() => {
+                if (confirmingDelete) void removeAdventure(confirmingDelete);
+              }}
+            >
+              {t("editor.delete.confirm")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }
