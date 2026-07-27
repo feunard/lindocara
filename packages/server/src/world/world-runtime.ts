@@ -62,6 +62,10 @@ export interface ActiveWorldEvent {
   row: number;
   graphicAssetId: EditorAssetId | null;
   onTop: boolean;
+  moveSpeed: number;
+  moveFrequency: number;
+  moveAnimation: boolean;
+  directionFixed: boolean;
 }
 
 export const ATTACHMENT_EVERY_TICKS = TICK_HZ;

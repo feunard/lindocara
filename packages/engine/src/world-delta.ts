@@ -20,9 +20,9 @@ export interface WorldCache {
   corpses: Map<string, CorpseSnapshot>;
   projectiles: Map<string, ProjectileSnapshot>;
   /**
-   * The events baseline this recipient was last sent. Kept out of `WorldView` on purpose: events
-   * do not move and must never enter the interpolation buffer, so they are diffed here as a bespoke
-   * room-scoped collection rather than folded into the positional entity machinery above. Managed
+   * The events baseline this recipient was last sent. Kept out of `WorldView` on purpose: authored
+   * NPCs move on a much slower tile cadence than 20Hz actors, so their target cells are diffed here
+   * and visually tweened by the renderer instead of entering the positional machinery. Managed
    * only by `seedEventCache`/`buildEventDelta`/`applyEventDelta` — `replaceWorldCache`,
    * `buildWorldDelta` and `applyWorldDelta` never touch it.
    */
@@ -128,7 +128,7 @@ export function interpolateSnapshots<T extends { id: string; x: number; y: numbe
 /**
  * Reset the events baseline to a full set — used at welcome and resync, where the recipient is
  * handed the complete active-event list rather than a diff. Separate from `replaceWorldCache`
- * because events live outside `WorldView` (they never interpolate).
+ * because events live outside `WorldView` (their authoritative target cells never interpolate).
  */
 export function seedEventCache(cache: WorldCache, events: readonly WorldEventSnapshot[]): void {
   cache.events.clear();
@@ -137,10 +137,10 @@ export function seedEventCache(cache: WorldCache, events: readonly WorldEventSna
 
 /**
  * Diff the recipient's events baseline against the room's current active events, mutating the
- * baseline to the new set. Upserts an event whose active page is new or changed; removes an event
- * that went dormant. Events carry no position, so equality is a full-object compare rather than the
- * positional threshold `diffMap` uses. The removal branch is load-bearing: without it a dormant
- * event lingers on the client forever.
+ * baseline to the new set. Upserts an event whose active page or target cell is new or changed;
+ * removes an event that went dormant. Equality is a full-object compare rather than the positional
+ * threshold `diffMap` uses because a one-cell NPC step must never be suppressed. The removal branch
+ * is load-bearing: without it a dormant event lingers on the client forever.
  */
 export function buildEventDelta(
   cache: WorldCache,

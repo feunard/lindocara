@@ -291,8 +291,9 @@ export interface CombatAnimation {
  * read for walkability, movement, interaction or command execution. A client must never derive
  * collision from this list either — that would be a third, disagreeing bake. `graphicAssetId` is
  * the active page's catalogue graphic (`null` is the authored blank tile); `onTop` chooses whether
- * it draws above the actors (a treetop) or in the ground decor pass. One event owns exactly one
- * cell (`col`/`row`).
+ * it draws above the actors (a treetop) or in the ground decor pass. `col`/`row` remain the
+ * authoritative target cell; movement metadata only tells the renderer how to present the trip
+ * from its previous target.
  */
 export interface WorldEventSnapshot {
   id: string;
@@ -300,6 +301,10 @@ export interface WorldEventSnapshot {
   row: number;
   graphicAssetId: string | null;
   onTop: boolean;
+  moveSpeed: number;
+  moveFrequency: number;
+  moveAnimation: boolean;
+  directionFixed: boolean;
 }
 
 export interface WorldInfo {
@@ -1182,7 +1187,15 @@ function isWorldEventSnapshot(value: unknown): value is WorldEventSnapshot {
     Number.isSafeInteger(value.row) &&
     (value.row as number) >= 0 &&
     (value.graphicAssetId === null || isEditorAssetId(value.graphicAssetId)) &&
-    typeof value.onTop === "boolean"
+    typeof value.onTop === "boolean" &&
+    Number.isSafeInteger(value.moveSpeed) &&
+    (value.moveSpeed as number) >= 0 &&
+    (value.moveSpeed as number) <= 5 &&
+    Number.isSafeInteger(value.moveFrequency) &&
+    (value.moveFrequency as number) >= 0 &&
+    (value.moveFrequency as number) <= 4 &&
+    typeof value.moveAnimation === "boolean" &&
+    typeof value.directionFixed === "boolean"
   );
 }
 

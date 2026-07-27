@@ -11,7 +11,7 @@ import type {
 /**
  * One interpolated frame of the world, as the renderer consumes it. Composed entirely of engine
  * wire-snapshot types, so it lives in the renderer package (where both the running-game renderer
- * and the minimap read it) rather than in the client's net layer — the net layer imports it back
+ * and the minimap read it) rather than in the client's net layer. The net layer imports it back
  * from here, which keeps the package graph acyclic (client -> renderer, never the reverse).
  */
 export interface SceneSample {
@@ -20,9 +20,8 @@ export interface SceneSample {
   guards: GuardSnapshot[];
   loot: LootSnapshot[];
   projectiles: ProjectileSnapshot[];
-  /** Bodies do not move, so they are never interpolated — the newest word is the only word. */
+  /** Bodies do not move, so they are never interpolated. The newest word is the only word. */
   corpses: CorpseSnapshot[];
-  /** Authored events, appearance only. Static decor: never interpolated and never buffered, the
-   *  active set is drawn as-is. Room-scoped — the same set for everyone in the room. */
+  /** Target cells are not buffered; the renderer locally tweens moving NPCs between server steps. */
   events: readonly WorldEventSnapshot[];
 }

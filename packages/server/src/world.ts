@@ -1389,6 +1389,10 @@ export class World extends DurableObject<Env> {
         row: current?.row ?? event.row,
         graphicAssetId: page.graphicAssetId,
         onTop: page.optOnTop,
+        moveSpeed: page.moveSpeed,
+        moveFrequency: page.moveFreq,
+        moveAnimation: page.optMoveAnim,
+        directionFixed: page.optDirFix,
       });
       movement.push({
         id: event.id,

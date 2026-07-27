@@ -1457,6 +1457,10 @@ describe("adventure state runtime", { timeout: 20_000 }, () => {
         row: EVENT_ROW,
         graphicAssetId: PAGE1_GRAPHIC,
         onTop: false,
+        moveSpeed: 3,
+        moveFrequency: 2,
+        moveAnimation: false,
+        directionFixed: false,
       },
     ]);
   });
@@ -1613,6 +1617,10 @@ describe("adventure state runtime", { timeout: 20_000 }, () => {
         row: EVENT_ROW,
         graphicAssetId: PAGE1_GRAPHIC,
         onTop: false,
+        moveSpeed: 3,
+        moveFrequency: 2,
+        moveAnimation: false,
+        directionFixed: false,
       },
     ]);
   });

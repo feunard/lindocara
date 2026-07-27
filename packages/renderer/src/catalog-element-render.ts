@@ -92,13 +92,7 @@ export function createEventGraphicSprite(
 ): Sprite {
   const sprite = new Sprite(frame);
   if (definition && isUnitSheetRole(definition.role)) {
-    sprite.anchor.set(definition.anchor.x, definition.anchor.y);
-    // `footOffset` is `frameHeight - alphaBboxBottom`, so placing the anchor that far BELOW the
-    // cell's bottom edge lands the visible feet exactly on it. Same cancellation as an element.
-    sprite.position.set(
-      col * TILE_SIZE + TILE_SIZE / 2,
-      (row + 1) * TILE_SIZE + definition.footOffset,
-    );
+    positionEventGraphicSprite(sprite, col, row, definition);
     return sprite;
   }
   const fit = Math.min(
@@ -108,8 +102,29 @@ export function createEventGraphicSprite(
   sprite.width = frame.width * fit;
   sprite.height = frame.height * fit;
   sprite.anchor.set(0.5, 1);
-  sprite.position.set(col * TILE_SIZE + TILE_SIZE / 2, row * TILE_SIZE + TILE_SIZE);
+  positionEventGraphicSprite(sprite, col, row);
   return sprite;
+}
+
+/** Reposition an existing event sprite without recreating it, including fractional tween cells. */
+export function positionEventGraphicSprite(
+  sprite: Sprite,
+  col: number,
+  row: number,
+  definition?: Pick<EditorAssetDefinition, "role" | "anchor" | "footOffset">,
+): void {
+  if (definition && isUnitSheetRole(definition.role)) {
+    sprite.anchor.set(definition.anchor.x, definition.anchor.y);
+    // `footOffset` is `frameHeight - alphaBboxBottom`, so placing the anchor that far below the
+    // cell's bottom edge lands the visible feet exactly on it. Same cancellation as an element.
+    sprite.position.set(
+      col * TILE_SIZE + TILE_SIZE / 2,
+      (row + 1) * TILE_SIZE + definition.footOffset,
+    );
+    return;
+  }
+  sprite.anchor.set(0.5, 1);
+  sprite.position.set(col * TILE_SIZE + TILE_SIZE / 2, row * TILE_SIZE + TILE_SIZE);
 }
 
 export function catalogElementFrameAt(

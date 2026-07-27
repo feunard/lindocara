@@ -81,6 +81,17 @@ export interface EditorPlacementMetadata {
   sourceRect?: AssetSourceRect;
 }
 
+/**
+ * Alternate animation art for one editor appearance. It deliberately carries its own geometry:
+ * Tiny Swords idle and run sheets do not always have the same frame count or foot padding.
+ */
+export interface EditorAssetMotionDefinition {
+  sourcePath: string;
+  frame: AssetFrameMetadata;
+  anchor: AssetAnchor;
+  footOffset: number;
+}
+
 export interface EditorAssetDefinition {
   id: string;
   sourcePath: string;
@@ -95,6 +106,9 @@ export interface EditorAssetDefinition {
   frame?: AssetFrameMetadata;
   anchor: AssetAnchor;
   footOffset: number;
+  motions?: {
+    run?: EditorAssetMotionDefinition;
+  };
   editor: EditorPlacementMetadata;
 }
 

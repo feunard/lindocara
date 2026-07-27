@@ -6,6 +6,8 @@
  * It moves only between tile cells, validates every destination against baked terrain, and receives
  * every room collection explicitly.
  */
+
+import { npcMovementIntervalTicks } from "@lindocara/engine/event-movement.js";
 import { isWalkable, type TerrainGeometry } from "@lindocara/engine/game.js";
 import type { MoveType } from "@lindocara/engine/map-events.js";
 import { PLAYER_SIZE } from "@lindocara/engine/simulation.js";
@@ -54,11 +56,6 @@ function stableHash(value: string): number {
   return hash >>> 0;
 }
 
-function movementInterval(moveSpeed: number, moveFreq: number): number {
-  // 20Hz room tick: frequency controls intent cadence, speed makes a small bounded adjustment.
-  return Math.max(6, 34 - moveFreq * 6 - Math.max(0, moveSpeed - 3) * 2);
-}
-
 export function reconcileNpcMovement(
   current: ReadonlyMap<string, NpcMovementRuntime>,
   definitions: readonly NpcMovementDefinition[],
@@ -73,7 +70,8 @@ export function reconcileNpcMovement(
         ? { ...existing, ...definition }
         : {
             ...definition,
-            nextMoveTick: tick + movementInterval(definition.moveSpeed, definition.moveFreq),
+            nextMoveTick:
+              tick + npcMovementIntervalTicks(definition.moveSpeed, definition.moveFreq),
             routeStep: 0,
           },
     );
@@ -208,7 +206,8 @@ export function advanceNpcEvents(params: {
     ) {
       return event;
     }
-    runtime.nextMoveTick = params.tick + movementInterval(runtime.moveSpeed, runtime.moveFreq);
+    runtime.nextMoveTick =
+      params.tick + npcMovementIntervalTicks(runtime.moveSpeed, runtime.moveFreq);
     const candidate = candidateFor(event, runtime, params.players);
     runtime.routeStep = candidate.routeStep;
     if (

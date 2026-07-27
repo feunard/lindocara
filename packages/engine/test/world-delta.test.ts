@@ -153,6 +153,10 @@ describe("room-scoped event deltas", () => {
     row: 5,
     graphicAssetId: "building.buildings-black-buildings.archery",
     onTop: false,
+    moveSpeed: 3,
+    moveFrequency: 3,
+    moveAnimation: true,
+    directionFixed: false,
     ...overrides,
   });
 

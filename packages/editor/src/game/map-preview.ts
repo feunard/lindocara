@@ -164,6 +164,10 @@ export async function startMapPreview(
         row: event.row,
         graphicAssetId: page.graphicAssetId,
         onTop: page.optOnTop,
+        moveSpeed: page.moveSpeed,
+        moveFrequency: page.moveFreq,
+        moveAnimation: page.optMoveAnim,
+        directionFixed: page.optDirFix,
       },
     ];
   });

@@ -15,6 +15,7 @@ import {
   createEventGraphicSprite,
   EVENT_GRAPHIC_FIT_TILES,
   isUnitSheetRole,
+  positionEventGraphicSprite,
 } from "../src/catalog-element-render.js";
 
 type Placement = Pick<EditorAssetDefinition, "role" | "anchor" | "footOffset">;
@@ -60,6 +61,13 @@ describe("event graphic placement", () => {
     // `footOffset` = frameHeight - alphaBboxBottom, so anchoring that far BELOW the cell's bottom
     // edge cancels the padding and lands the visible feet on it — the element placement's own trick.
     expect(sprite.position.y).toBe((4 + 1) * TILE_SIZE + MONK.footOffset);
+  });
+
+  it("repositions the same NPC sprite on fractional tween cells", () => {
+    const sprite = createEventGraphicSprite(3, 4, unitFrame(), MONK);
+    positionEventGraphicSprite(sprite, 3.5, 4.25, MONK);
+    expect(sprite.position.x).toBe(3.5 * TILE_SIZE + TILE_SIZE / 2);
+    expect(sprite.position.y).toBe((4.25 + 1) * TILE_SIZE + MONK.footOffset);
   });
 
   it("keeps every non-unit graphic a uniform one-cell marker", () => {

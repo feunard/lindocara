@@ -10,11 +10,13 @@ import { describe, expect, it } from "vitest";
  */
 describe("eventRenderLayer", () => {
   const decor = new Container();
+  const actors = new Container();
   const above = new Container();
 
-  it("routes an onTop page above the actors and everything else into the decor pass", () => {
-    expect(eventRenderLayer(true, decor, above)).toBe(above);
-    expect(eventRenderLayer(false, decor, above)).toBe(decor);
+  it("routes onTop pages above actors, NPCs with actors, and markers into decor", () => {
+    expect(eventRenderLayer(true, true, decor, actors, above)).toBe(above);
+    expect(eventRenderLayer(false, true, decor, actors, above)).toBe(actors);
+    expect(eventRenderLayer(false, false, decor, actors, above)).toBe(decor);
   });
 });
 

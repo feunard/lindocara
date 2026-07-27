@@ -167,6 +167,24 @@ describe("Tiny Swords semantic catalogue", () => {
     }
   });
 
+  it("links every editor character idle sheet to geometry-exact run art", () => {
+    const characters = editorDefinitions(catalog).filter(
+      (entry) => entry.domain === "character" && /idle/i.test(entry.sourcePath),
+    );
+    expect(characters.length).toBeGreaterThan(30);
+    for (const character of characters) {
+      const run = character.motions?.run;
+      expect(run, character.id).toBeDefined();
+      if (!run) continue;
+      const source = catalog.entries.find((entry) => entry.sourcePath === run.sourcePath);
+      expect(source, character.id).toBeDefined();
+      expect(run.frame.width, character.id).toBe(source?.height);
+      expect(run.frame.height, character.id).toBe(source?.height);
+      expect(run.frame.count, character.id).toBe((source?.width ?? 0) / (source?.height ?? 1));
+      expect(run.frame.durationMs, character.id).toBeGreaterThanOrEqual(400);
+    }
+  });
+
   it("exposes only official atmosphere and offshore effects with their native geometry", () => {
     const byId = new Map(editorDefinitions(catalog).map((entry) => [entry.id, entry]));
     for (let index = 1; index <= 8; index += 1) {

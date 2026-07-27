@@ -20,7 +20,17 @@ const terrain: TerrainGeometry = {
 };
 
 function event(id: string, col: number, row: number): ActiveWorldEvent {
-  return { id, col, row, graphicAssetId: null, onTop: false };
+  return {
+    id,
+    col,
+    row,
+    graphicAssetId: null,
+    onTop: false,
+    moveSpeed: 4,
+    moveFrequency: 4,
+    moveAnimation: true,
+    directionFixed: false,
+  };
 }
 
 describe("authoritative NPC movement", () => {

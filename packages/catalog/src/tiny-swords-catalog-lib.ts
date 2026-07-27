@@ -755,9 +755,46 @@ function bridgeDefinitions(catalog: TinySwordsCatalogFile): EditorAssetDefinitio
   ];
 }
 
+function runSourcePath(idleSourcePath: string): string | null {
+  if (idleSourcePath.endsWith("/Idle.png")) {
+    return `${idleSourcePath.slice(0, -"/Idle.png".length)}/Run.png`;
+  }
+  if (/_Idle(?= |\.png$)/.test(idleSourcePath)) {
+    return idleSourcePath.replace(/_Idle(?= |\.png$)/, "_Run");
+  }
+  return null;
+}
+
+function runMotion(
+  catalog: TinySwordsCatalogFile,
+  entry: TinySwordsCatalogEntry,
+): NonNullable<EditorAssetDefinition["motions"]>["run"] | undefined {
+  if (entry.domain !== "character" || !/idle/i.test(entry.sourcePath)) return undefined;
+  const sourcePath = runSourcePath(entry.sourcePath);
+  if (!sourcePath) return undefined;
+  const run = catalog.entries.find((candidate) => candidate.sourcePath === sourcePath);
+  if (run?.domain !== "character" || run.height <= 0 || run.width % run.height !== 0) {
+    return undefined;
+  }
+  const count = run.width / run.height;
+  return {
+    sourcePath: run.sourcePath,
+    frame: {
+      width: run.height,
+      height: run.height,
+      count,
+      axis: "x",
+      durationMs: Math.max(400, count * 90),
+    },
+    anchor: run.anchor,
+    footOffset: run.footOffset,
+  };
+}
+
 export function editorDefinitions(catalog: TinySwordsCatalogFile): EditorAssetDefinition[] {
   const definitions = catalog.entries.flatMap((entry): EditorAssetDefinition[] => {
     if (!entry.editor || entry.classification.status !== "catalogued") return [];
+    const run = runMotion(catalog, entry);
     return [
       {
         id: entry.id,
@@ -773,6 +810,7 @@ export function editorDefinitions(catalog: TinySwordsCatalogFile): EditorAssetDe
         ...(entry.frame ? { frame: entry.frame } : {}),
         anchor: entry.anchor,
         footOffset: entry.footOffset,
+        ...(run ? { motions: { run } } : {}),
         editor: entry.editor,
       },
     ];

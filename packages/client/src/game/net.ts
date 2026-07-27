@@ -171,7 +171,8 @@ export class WorldClient {
   #life: LifeState = "alive";
   #corpses: CorpseSnapshot[] = [];
   /** The room's active events, maintained from welcome/delta/resync with the same validation rigor
-   *  as every other collection. Kept off the interpolation buffer — events are static decor. */
+   * as every other collection. Kept off the interpolation buffer: the renderer presents each
+   * authoritative NPC step locally. */
   #events: readonly WorldEventSnapshot[] = [];
   #predicted: Vec2 | null = null;
   #pending: Command[] = [];

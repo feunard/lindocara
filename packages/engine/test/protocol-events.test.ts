@@ -7,7 +7,18 @@ import { describe, expect, it } from "vitest";
 const GRAPHIC = "building.buildings-black-buildings.archery";
 
 function event(overrides: Partial<Record<keyof WorldEventSnapshot, unknown>> = {}) {
-  return { id: "event-a", col: 1, row: 1, graphicAssetId: GRAPHIC, onTop: false, ...overrides };
+  return {
+    id: "event-a",
+    col: 1,
+    row: 1,
+    graphicAssetId: GRAPHIC,
+    onTop: false,
+    moveSpeed: 3,
+    moveFrequency: 3,
+    moveAnimation: true,
+    directionFixed: false,
+    ...overrides,
+  };
 }
 
 const layer = encodeTileLayer(emptyLayer(2, 2));
@@ -144,6 +155,16 @@ describe("events on the wire", () => {
     expect(
       parseServerMessage(JSON.stringify(delta({ upsert: [event({ onTop: 1 })], remove: [] }))),
     ).toBeNull();
+  });
+
+  it("validates the authored movement presentation fields", () => {
+    expect(parseServerMessage(JSON.stringify(welcome([event({ moveSpeed: -1 })])))).toBeNull();
+    expect(parseServerMessage(JSON.stringify(welcome([event({ moveSpeed: 6 })])))).toBeNull();
+    expect(parseServerMessage(JSON.stringify(welcome([event({ moveFrequency: 5 })])))).toBeNull();
+    expect(
+      parseServerMessage(JSON.stringify(welcome([event({ moveAnimation: "yes" })]))),
+    ).toBeNull();
+    expect(parseServerMessage(JSON.stringify(welcome([event({ directionFixed: 0 })])))).toBeNull();
   });
 
   it("drops a delta whose events collection is not an entity delta", () => {

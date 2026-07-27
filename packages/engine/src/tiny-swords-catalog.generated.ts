@@ -5595,6 +5595,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 56,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Archer/Archer_Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 4,
+          "axis": "x",
+          "durationMs": 400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 56
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -5671,6 +5688,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 122,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Lancer/Lancer_Run.png",
+        "frame": {
+          "width": 320,
+          "height": 320,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 117
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -5811,6 +5845,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 58,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Monk/Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 4,
+          "axis": "x",
+          "durationMs": 400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 58
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -5887,6 +5938,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -5964,6 +6032,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Run Axe.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -6041,6 +6126,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Run Gold.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -6118,6 +6220,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Run Hammer.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -6195,6 +6314,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Run Knife.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -6272,6 +6408,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Run Meat.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -6349,6 +6502,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Run Pickaxe.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -6426,6 +6596,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Pawn/Pawn_Run Wood.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -6502,6 +6689,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 55,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Black Units/Warrior/Warrior_Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 55
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -6578,6 +6782,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 56,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Archer/Archer_Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 4,
+          "axis": "x",
+          "durationMs": 400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 56
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -6654,6 +6875,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 122,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Lancer/Lancer_Run.png",
+        "frame": {
+          "width": 320,
+          "height": 320,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 117
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -6794,6 +7032,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 58,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Monk/Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 4,
+          "axis": "x",
+          "durationMs": 400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 58
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -6870,6 +7125,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -6947,6 +7219,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Run Axe.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -7024,6 +7313,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Run Gold.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -7101,6 +7407,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Run Hammer.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -7178,6 +7501,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Run Knife.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -7255,6 +7595,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Run Meat.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -7332,6 +7689,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Run Pickaxe.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -7409,6 +7783,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Pawn/Pawn_Run Wood.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -7485,6 +7876,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 55,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Blue Units/Warrior/Warrior_Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 55
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -7561,6 +7969,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 56,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Archer/Archer_Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 4,
+          "axis": "x",
+          "durationMs": 400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 56
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -7637,6 +8062,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 122,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Lancer/Lancer_Run.png",
+        "frame": {
+          "width": 320,
+          "height": 320,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 117
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -7777,6 +8219,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 58,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Monk/Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 4,
+          "axis": "x",
+          "durationMs": 400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 58
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -7853,6 +8312,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -7930,6 +8406,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Run Axe.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -8007,6 +8500,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Run Gold.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -8084,6 +8594,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Run Hammer.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -8161,6 +8688,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Run Knife.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -8238,6 +8782,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Run Meat.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -8315,6 +8876,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Run Pickaxe.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -8392,6 +8970,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Pawn/Pawn_Run Wood.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -8468,6 +9063,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 55,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Purple Units/Warrior/Warrior_Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 55
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -8544,6 +9156,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 56,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Archer/Archer_Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 4,
+          "axis": "x",
+          "durationMs": 400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 56
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -8620,6 +9249,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 122,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Lancer/Lancer_Run.png",
+        "frame": {
+          "width": 320,
+          "height": 320,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 117
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -8760,6 +9406,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 58,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Monk/Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 4,
+          "axis": "x",
+          "durationMs": 400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 58
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -8836,6 +9499,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -8913,6 +9593,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Run Axe.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -8990,6 +9687,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Run Gold.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -9067,6 +9781,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Run Hammer.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -9144,6 +9875,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Run Knife.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -9221,6 +9969,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Run Meat.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -9298,6 +10063,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Run Pickaxe.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -9375,6 +10157,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Pawn/Pawn_Run Wood.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -9451,6 +10250,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 55,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Red Units/Warrior/Warrior_Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 55
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -9527,6 +10343,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 56,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Archer/Archer_Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 4,
+          "axis": "x",
+          "durationMs": 400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 56
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -9603,6 +10436,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 122,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Lancer/Lancer_Run.png",
+        "frame": {
+          "width": 320,
+          "height": 320,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 117
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -9743,6 +10593,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 58,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Monk/Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 4,
+          "axis": "x",
+          "durationMs": 400
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 58
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -9819,6 +10686,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -9896,6 +10780,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Run Axe.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -9973,6 +10874,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Run Gold.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -10050,6 +10968,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Run Hammer.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -10127,6 +11062,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Run Knife.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -10204,6 +11156,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Run Meat.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -10281,6 +11250,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Run Pickaxe.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -10358,6 +11344,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 57,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Pawn/Pawn_Run Wood.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 57
+      }
+    },
     "editor": {
       "visualFootprint": [
         {
@@ -10434,6 +11437,23 @@ export const GENERATED_EDITOR_ASSETS = [
       "y": 1
     },
     "footOffset": 55,
+    "motions": {
+      "run": {
+        "sourcePath": "Tiny Swords (Free Pack)/Units/Yellow Units/Warrior/Warrior_Run.png",
+        "frame": {
+          "width": 192,
+          "height": 192,
+          "count": 6,
+          "axis": "x",
+          "durationMs": 540
+        },
+        "anchor": {
+          "x": 0.5,
+          "y": 1
+        },
+        "footOffset": 55
+      }
+    },
     "editor": {
       "visualFootprint": [
         {

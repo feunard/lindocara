@@ -2,6 +2,7 @@ import type { AuthoredQuestMarker } from "@lindocara/engine/adventure-state.js";
 import type { MainHandItem, OffHandItem, PrimaryColor } from "@lindocara/engine/character.js";
 import { MONSTER_ACTIONS, PLAYER_ACTIONS } from "@lindocara/engine/combat-actions.js";
 import { isSpirit } from "@lindocara/engine/death.js";
+import { npcMovementDurationMs, sampleNpcMovementTween } from "@lindocara/engine/event-movement.js";
 import {
   entityBox,
   hashSeed,
@@ -39,6 +40,7 @@ import {
 import {
   type EditorAssetId,
   type EditorRenderLayer,
+  editorAsset,
   isEditorAssetId,
 } from "@lindocara/engine/tiny-swords-catalog.js";
 import {
@@ -64,6 +66,8 @@ import {
   advanceCatalogAnimation,
   createCatalogElementView,
   createEventGraphicSprite,
+  isUnitSheetRole,
+  positionEventGraphicSprite,
 } from "./catalog-element-render.js";
 import { MAIN_HAND_ART, OFF_HAND_ART, PLAYER_ATLAS_FRAMES } from "./character-art.js";
 import {
@@ -783,19 +787,47 @@ interface EventView {
   container: Container;
   data: WorldEventSnapshot;
   drawnGraphic: string | null | undefined;
-  /** Set when the event's art is a multi-frame sheet, so an authored NPC breathes like the scenery
-   *  around it instead of standing frozen on frame 0. Absent for a still graphic. */
-  animation?: { sprite: Sprite; frames: readonly Texture[] } | undefined;
+  sprite?: Sprite | undefined;
+  animation?:
+    | {
+        idleFrames: readonly Texture[];
+        idleDurationMs: number;
+        runFrames?: readonly Texture[] | undefined;
+        runDurationMs?: number | undefined;
+        runPlacement?:
+          | {
+              role: string;
+              anchor: { x: number; y: number };
+              footOffset: number;
+            }
+          | undefined;
+        unit: boolean;
+      }
+    | undefined;
+  fromCol: number;
+  fromRow: number;
+  displayCol: number;
+  displayRow: number;
+  moveStartedAt: number;
+  moveDurationMs: number;
+  facingX: -1 | 1;
 }
 
 /**
  * Which container an event draws into — the ONE routing decision, extracted pure so it can be pinned
  * without a renderer: an `onTop` page (a treetop the hero passes behind) goes above the actors, in
- * `#tilesAbove`; everything else draws in the ground decor pass. Appearance only, mirrors the
- * `optOnTop` split the map editor already honours.
+ * `#tilesAbove`; a character joins the actor pass for Y-sorting; every other graphic draws in the
+ * ground decor pass. Appearance only.
  */
-export function eventRenderLayer(onTop: boolean, decor: Container, above: Container): Container {
-  return onTop ? above : decor;
+export function eventRenderLayer(
+  onTop: boolean,
+  unit: boolean,
+  decor: Container,
+  actors: Container,
+  above: Container,
+): Container {
+  if (onTop) return above;
+  return unit ? actors : decor;
 }
 
 /** The world renderer's single tileset-priority routing rule, exported so the editor/runtime parity
@@ -1256,7 +1288,7 @@ export class Renderer {
    * everything else in the ground decor pass — the one `eventRenderLayer` routing decision. Events
    * change only on a party state flip, so this is cheap: a same-set frame touches nothing.
    */
-  #reconcileEvents(events: readonly WorldEventSnapshot[]): void {
+  #reconcileEvents(events: readonly WorldEventSnapshot[], now: number): void {
     const present = new Set<string>();
     for (const event of events) {
       present.add(event.id);
@@ -1264,19 +1296,105 @@ export class Renderer {
       // A decor-pass container is destroyed when `#decorLayer` is cleared on a map/element reload;
       // recreate it (the sentinel forces a redraw) rather than draw into a dead container.
       if (!view || view.container.destroyed) {
-        view = { container: new Container(), data: event, drawnGraphic: undefined };
+        view = {
+          container: new Container(),
+          data: event,
+          drawnGraphic: undefined,
+          fromCol: event.col,
+          fromRow: event.row,
+          displayCol: event.col,
+          displayRow: event.row,
+          moveStartedAt: now,
+          moveDurationMs: 0,
+          facingX: 1,
+        };
         this.#events.set(event.id, view);
       }
-      const parent = eventRenderLayer(event.onTop, this.#decorLayer, this.#tilesAbove);
-      if (view.container.parent !== parent) parent.addChild(view.container);
       if (view.data.col !== event.col || view.data.row !== event.row) {
-        view.drawnGraphic = undefined;
+        const current = sampleNpcMovementTween(
+          { col: view.fromCol, row: view.fromRow },
+          { col: view.data.col, row: view.data.row },
+          view.moveStartedAt,
+          view.moveDurationMs,
+          now,
+        );
+        view.fromCol = current.col;
+        view.fromRow = current.row;
+        view.moveStartedAt = now;
+        view.moveDurationMs = npcMovementDurationMs(event.moveSpeed, event.moveFrequency);
+        const horizontal = event.col - current.col;
+        if (!event.directionFixed && Math.abs(horizontal) > 0.01) {
+          view.facingX = horizontal < 0 ? -1 : 1;
+        }
       }
+      view.data = event;
+      const definition =
+        event.graphicAssetId && isEditorAssetId(event.graphicAssetId)
+          ? editorAsset(event.graphicAssetId)
+          : null;
+      const unit = isUnitSheetRole(definition?.role);
+      const parent = eventRenderLayer(
+        event.onTop,
+        unit,
+        this.#decorLayer,
+        this.#actors,
+        this.#tilesAbove,
+      );
+      if (view.container.parent !== parent) parent.addChild(view.container);
       if (view.drawnGraphic !== event.graphicAssetId) {
         view.drawnGraphic = event.graphicAssetId;
         this.#drawEventGraphic(view, event);
       }
-      view.data = event;
+      const movement = sampleNpcMovementTween(
+        { col: view.fromCol, row: view.fromRow },
+        { col: event.col, row: event.row },
+        view.moveStartedAt,
+        view.moveDurationMs,
+        now,
+      );
+      view.displayCol = movement.col;
+      view.displayRow = movement.row;
+      const animation = view.animation;
+      const sprite = view.sprite;
+      if (sprite?.destroyed) {
+        view.sprite = undefined;
+        view.animation = undefined;
+        view.drawnGraphic = undefined;
+      } else if (sprite) {
+        const running =
+          movement.moving &&
+          event.moveAnimation &&
+          animation?.runFrames !== undefined &&
+          animation.runFrames.length > 0;
+        positionEventGraphicSprite(
+          sprite,
+          movement.col,
+          movement.row,
+          running ? animation.runPlacement : (definition ?? undefined),
+        );
+        if (animation) {
+          const frames = running ? animation.runFrames : animation.idleFrames;
+          const durationMs = running ? animation.runDurationMs : animation.idleDurationMs;
+          if (
+            frames &&
+            !advanceCatalogAnimation(
+              sprite,
+              running ? now - view.moveStartedAt : now,
+              frames,
+              durationMs,
+            )
+          ) {
+            view.sprite = undefined;
+            view.animation = undefined;
+            view.drawnGraphic = undefined;
+          }
+          if (animation.unit && !event.directionFixed && !sprite.destroyed) {
+            const scale = Math.abs(sprite.scale.x) || 1;
+            sprite.scale.x = scale * view.facingX;
+          }
+        }
+      }
+      view.container.zIndex = Math.round((movement.row + 1) * TILE_SIZE);
     }
     for (const [id, view] of this.#events) {
       if (present.has(id)) continue;
@@ -1295,8 +1413,9 @@ export class Renderer {
   #reconcileQuestMarkers(): void {
     const present = new Set<string>();
     for (const [eventId, kind] of this.#questMarkerKinds) {
-      const event = this.#events.get(eventId)?.data;
-      if (!event) continue;
+      const view = this.#events.get(eventId);
+      const event = view?.data;
+      if (!event || !view) continue;
       present.add(eventId);
       let label = this.#questMarkerViews.get(eventId);
       if (!label || label.destroyed || this.#drawnQuestMarkerKinds.get(eventId) !== kind) {
@@ -1318,7 +1437,10 @@ export class Renderer {
         this.#questMarkerViews.set(eventId, label);
         this.#drawnQuestMarkerKinds.set(eventId, kind);
       }
-      label.position.set(event.col * TILE_SIZE + TILE_SIZE / 2, event.row * TILE_SIZE - 4);
+      label.position.set(
+        view.displayCol * TILE_SIZE + TILE_SIZE / 2,
+        view.displayRow * TILE_SIZE - 4,
+      );
       label.alpha = kind === "active" ? 0.72 : 1;
     }
     for (const [eventId, label] of this.#questMarkerViews) {
@@ -1334,6 +1456,7 @@ export class Renderer {
    *  loaded on demand; until it arrives the cell is empty and the next reconcile redraws it. */
   #drawEventGraphic(view: EventView, event: WorldEventSnapshot): void {
     for (const child of view.container.removeChildren()) child.destroy({ children: true });
+    view.sprite = undefined;
     view.animation = undefined;
     const graphicId = event.graphicAssetId;
     if (graphicId === null || !isEditorAssetId(graphicId)) return;
@@ -1343,9 +1466,27 @@ export class Renderer {
       if (frame) {
         // The definition carries the role (unit sheet vs marker) and the anchor/foot offset that
         // stands a unit on its cell — the same two numbers an element placement uses.
-        const sprite = createEventGraphicSprite(event.col, event.row, frame, art.definition);
+        const sprite = createEventGraphicSprite(
+          view.displayCol,
+          view.displayRow,
+          frame,
+          art.definition,
+        );
         view.container.addChild(sprite);
-        if (art.frames.length > 1) view.animation = { sprite, frames: art.frames };
+        view.sprite = sprite;
+        const run = art.motions?.run;
+        view.animation = {
+          idleFrames: art.frames,
+          idleDurationMs: art.definition.frame?.durationMs ?? 1_400,
+          ...(run
+            ? {
+                runFrames: run.frames,
+                runDurationMs: run.definition.frame.durationMs,
+                runPlacement: { role: art.definition.role, ...run.definition },
+              }
+            : {}),
+          unit: isUnitSheetRole(art.definition.role),
+        };
       }
       return;
     }
@@ -3727,12 +3868,6 @@ export class Renderer {
     ) {
       this.#merchantAnimation = null;
     }
-    for (const view of this.#events.values()) {
-      if (!view.animation) continue;
-      if (!advanceCatalogAnimation(view.animation.sprite, now, view.animation.frames)) {
-        view.animation = undefined;
-      }
-    }
     this.#healthBarMode = context.healthBars;
     this.#showGrid = context.grid;
     this.#followSelf(sample.players, now);
@@ -4085,7 +4220,7 @@ export class Renderer {
       },
     );
 
-    this.#reconcileEvents(sample.events);
+    this.#reconcileEvents(sample.events, now);
     this.#layoutPlayerLabels(self);
     this.#updateWorldText(self);
     this.#drawOverlay(context);
