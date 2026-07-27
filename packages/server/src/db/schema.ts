@@ -8,6 +8,7 @@
 
 import type {
   MonsterRank,
+  MonsterRespawnMode,
   MonsterSpecialTechnique,
   MonsterSpecies,
   MonsterWeakness,
@@ -290,6 +291,11 @@ export const map = sqliteTable(
     spawnRow: integer("spawn_row").notNull(),
     /** JSON MapMarkers (entries/exits/monster spawns); NULL for maps saved before markers existed. */
     markers: text("markers"),
+    /**
+     * JSON `MapAudioConfig`. An empty string is the legacy/default sentinel: every channel inherits
+     * the owning adventure until an author chooses a map-specific override.
+     */
+    audio: text("audio").notNull().default(""),
     /** Monotone authored-content revision. Cache identity is `(mapId, revision)`. */
     revision: integer("revision").notNull().default(1),
     /**
@@ -379,6 +385,7 @@ export const mapEvent = sqliteTable(
     monsterWeakness: text("monster_weakness").$type<MonsterWeakness>(),
     monsterWeaknessPercent: integer("monster_weakness_percent"),
     monsterSpecialTechnique: text("monster_special_technique").$type<MonsterSpecialTechnique>(),
+    monsterRespawnMode: text("monster_respawn_mode").$type<MonsterRespawnMode>(),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
   },
   (table) => [
@@ -456,6 +463,11 @@ export const adventure = sqliteTable(
      * table of its own.
      */
     registry: text("registry").notNull().default(""),
+    /**
+     * JSON `AdventureAudioConfig`: exploration music, environmental ambience and combat music.
+     * The empty legacy sentinel decodes to `DEFAULT_ADVENTURE_AUDIO`.
+     */
+    audio: text("audio").notNull().default(""),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
   },
@@ -726,6 +738,7 @@ export const partyAdventureState = sqliteTable("party_adventure_state", {
   variables: text("variables").notNull(),
   selfSwitches: text("self_switches").notNull(),
   quests: text("quests").notNull().default("{}"),
+  defeatedMonsters: text("defeated_monsters").notNull().default("{}"),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().default(nowMs),
 });
 

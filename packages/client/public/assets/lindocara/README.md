@@ -41,6 +41,8 @@ Ambient music lives under `audio/`:
 
 - `gloamwood-ambience.mp3`: *Forest Ambience* by TinyWorlds (Ludum Dare 29), CC0.
 - Source: https://opengameart.org/content/forest-ambience
+- Adventure/map exploration, biome ambience and combat tracks are listed in
+  [`audio/CREDITS.md`](./audio/CREDITS.md). Every newly added configurable track is CC0.
 
 Class attack SFX live under `audio/sfx/` (CC0). Curated for a punchy fantasy-RPG feel:
 

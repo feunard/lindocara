@@ -90,6 +90,7 @@ function Harness(overrides: {
   dirty?: boolean;
   locked?: boolean;
   onOpenPayload?: (payload: MapPayload) => void;
+  onOpenMapAudio?: () => void;
   onSessionExpired?: () => void;
 }) {
   const [newMapOpen, setNewMapOpen] = useState(false);
@@ -108,6 +109,7 @@ function Harness(overrides: {
       onRequestOpen={() => {}}
       onOpenPayload={overrides.onOpenPayload ?? (() => {})}
       onActiveDeleted={() => {}}
+      onOpenMapAudio={overrides.onOpenMapAudio ?? (() => {})}
       onOpenSettings={() => {}}
       onError={() => {}}
       onSessionExpired={overrides.onSessionExpired ?? (() => {})}
@@ -118,6 +120,16 @@ function Harness(overrides: {
 describe("MapListPanel", () => {
   beforeEach(() => {
     setLocale("en");
+  });
+
+  it("opens map audio settings only when a map is active", async () => {
+    vi.stubGlobal("fetch", mapsBackend());
+    const onOpenMapAudio = vi.fn();
+    render(<Harness activeMapId="m1" onOpenMapAudio={onOpenMapAudio} />);
+    await screen.findByText("Verdant Reach");
+
+    await userEvent.click(screen.getByRole("button", { name: t("editor.audio.mapButton") }));
+    expect(onOpenMapAudio).toHaveBeenCalledOnce();
   });
 
   it("lists the author's maps with a dimensions badge", async () => {

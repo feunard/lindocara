@@ -12,6 +12,7 @@
  * is React, the canvas is Pixi, and the two only meet at `setTool`/`current`/`setName`/`dispose`.
  */
 
+import type { MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
 import type { MonsterSpecies } from "@lindocara/engine/game.js";
 import {
   bakeCollision,
@@ -112,6 +113,8 @@ export interface MapEditorStageHandle {
   setZoom(percent: number): void;
   current(): EditorMap;
   setName(name: string): void;
+  /** Replace map-level audio overrides as one undoable content edit. */
+  setAudio(audio: MapAudioConfig): void;
   undo(): void;
   redo(): void;
   /** Mark the exact map snapshot acknowledged by the server as saved. Passing the request snapshot
@@ -690,6 +693,18 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+/** Clamp one camera axis against the editor's real centre pane, not the full-window canvas. */
+export function clampCameraAxis(
+  current: number,
+  contentSize: number,
+  viewportStart: number,
+  viewportSize: number,
+): number {
+  return contentSize <= viewportSize
+    ? viewportStart + (viewportSize - contentSize) / 2
+    : clamp(current, viewportStart + viewportSize - contentSize, viewportStart);
+}
+
 /**
  * Draws one cell's worth of layers, routing each resolved tile into the container its own tileset
  * entry's `priority` selects — `land` for "below", `above` for "above". Mirrors `renderer.ts`'s
@@ -845,6 +860,7 @@ function inertHandle(map: EditorMap): MapEditorStageHandle {
     setZoom() {},
     current: () => map,
     setName() {},
+    setAudio() {},
     undo() {},
     redo() {},
     markSaved() {},
@@ -1032,22 +1048,49 @@ async function buildSession(
   const mapCols = (): number => editorMapSize(map).cols;
   const mapRows = (): number => editorMapSize(map).rows;
 
+  function viewportRect(): {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+    right: number;
+    bottom: number;
+  } {
+    const element = document.querySelector<HTMLElement>("[data-editor-stage-viewport]");
+    const rect = element?.getBoundingClientRect();
+    if (!rect || rect.width <= 0 || rect.height <= 0) {
+      return {
+        left: 0,
+        top: 0,
+        width: app.screen.width,
+        height: app.screen.height,
+        right: app.screen.width,
+        bottom: app.screen.height,
+      };
+    }
+    const left = clamp(rect.left, 0, app.screen.width);
+    const top = clamp(rect.top, 0, app.screen.height);
+    const right = clamp(rect.right, left, app.screen.width);
+    const bottom = clamp(rect.bottom, top, app.screen.height);
+    return { left, top, width: right - left, height: bottom - top, right, bottom };
+  }
+
   function clampCamera(): void {
     const scale = world.scale.x;
     const mapW = mapCols() * TILE_SIZE * scale;
     const mapH = mapRows() * TILE_SIZE * scale;
-    const viewW = app.screen.width;
-    const viewH = app.screen.height;
+    const viewport = viewportRect();
     // Smaller than the viewport on an axis: centre it. Larger: pin so neither edge pulls inside
     // the view, which is what keeps the map from drifting into the void.
-    world.x = mapW <= viewW ? (viewW - mapW) / 2 : clamp(world.x, viewW - mapW, 0);
-    world.y = mapH <= viewH ? (viewH - mapH) / 2 : clamp(world.y, viewH - mapH, 0);
+    world.x = clampCameraAxis(world.x, mapW, viewport.left, viewport.width);
+    world.y = clampCameraAxis(world.y, mapH, viewport.top, viewport.height);
   }
 
   function fitCamera(): void {
     const mapW = mapCols() * TILE_SIZE;
     const mapH = mapRows() * TILE_SIZE;
-    const fit = Math.min(app.screen.width / mapW, app.screen.height / mapH) * 0.92;
+    const viewport = viewportRect();
+    const fit = Math.min(viewport.width / mapW, viewport.height / mapH) * 0.92;
     world.scale.set(clamp(fit, MIN_ZOOM, MAX_ZOOM));
     clampCamera();
     onZoomChange?.(Math.round(world.scale.x * 100));
@@ -1055,8 +1098,9 @@ async function buildSession(
 
   function setCameraZoom(percent: number): void {
     const scale = clamp(percent / 100, MIN_ZOOM, MAX_ZOOM);
-    const centreX = app.screen.width / 2;
-    const centreY = app.screen.height / 2;
+    const viewport = viewportRect();
+    const centreX = viewport.left + viewport.width / 2;
+    const centreY = viewport.top + viewport.height / 2;
     const worldX = (centreX - world.x) / world.scale.x;
     const worldY = (centreY - world.y) / world.scale.y;
     world.scale.set(scale);
@@ -1065,6 +1109,13 @@ async function buildSession(
     clampCamera();
     onZoomChange?.(Math.round(scale * 100));
   }
+
+  const viewportElement = document.querySelector<HTMLElement>("[data-editor-stage-viewport]");
+  const viewportObserver =
+    viewportElement && typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver(() => clampCamera())
+      : null;
+  if (viewportElement && viewportObserver) viewportObserver.observe(viewportElement);
 
   function redraw(): void {
     for (const layer of [
@@ -1606,6 +1657,7 @@ async function buildSession(
     window.removeEventListener("pointerup", stopStroke);
     window.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("keyup", onKeyUp);
+    viewportObserver?.disconnect();
     delete canvas.dataset.cursor;
     // Only this map's display tree goes; the Application, its canvas and the Assets-cached textures
     // (shared with the world renderer) stay, so the next open reuses them instead of re-initializing.
@@ -1685,6 +1737,13 @@ async function buildSession(
     setName(name) {
       if (name === map.name) return;
       map = { ...map, name };
+      notify();
+    },
+    setAudio(audio) {
+      if (JSON.stringify(audio) === JSON.stringify(map.audio)) return;
+      const next = { ...map, audio };
+      history = commitEditorHistory({ ...history, present: map }, next);
+      map = next;
       notify();
     },
     undo() {

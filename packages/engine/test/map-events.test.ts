@@ -317,6 +317,32 @@ describe("parseMapEvents: authored monster tuning", () => {
       monsterWeaknessPercent: defaultMonsterTuning("spear_goblin").weaknessPercent,
       monsterSpecialTechnique: "none",
     });
+    expect(parsed?.monsterRespawnMode).toBeUndefined();
+  });
+
+  it("accepts permanent death only on monster events", () => {
+    const permanent = event({
+      kind: "monster",
+      species: "spear_goblin",
+      patrolRadius: 64,
+      monsterRespawnMode: "never",
+    });
+    expect(parseMapEvents([permanent], COLS, ROWS)?.[0]?.monsterRespawnMode).toBe("never");
+    expect(parseMapEvents([event({ monsterRespawnMode: "never" })], COLS, ROWS)).toBeNull();
+    expect(
+      parseMapEvents(
+        [
+          event({
+            kind: "monster",
+            species: "spear_goblin",
+            patrolRadius: 64,
+            monsterRespawnMode: "invalid" as "never",
+          }),
+        ],
+        COLS,
+        ROWS,
+      ),
+    ).toBeNull();
   });
 
   it("round-trips a fully authored boss", () => {

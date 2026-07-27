@@ -5,6 +5,7 @@ import type {
 } from "@lindocara/engine/adventure.js";
 import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
 import type { CreateAdventureTestSessionInput } from "@lindocara/engine/adventure-test.js";
+import type { AdventureAudioConfig, MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
 import type { CharacterAppearance, Equipment } from "@lindocara/engine/character.js";
 import type { PlayerClass } from "@lindocara/engine/game.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
@@ -82,6 +83,8 @@ export interface MapPayload {
   elements: MapElement[];
   spawn: { col: number; row: number };
   markers: MapMarkers;
+  /** Per-channel map overrides. Missing fields inherit the owning adventure. */
+  audio?: MapAudioConfig;
   /** Authored events, ordered by ordinal; pages ordered by position. Empty for maps saved before
    *  events existed. Nothing here executes this tranche. */
   events: readonly MapEvent[];
@@ -141,6 +144,7 @@ export interface AdventurePayload {
   version: number;
   mapIds: string[];
   graph: AdventureGraph;
+  audio?: AdventureAudioConfig;
   /** The switch/variable registry, editable through `RegistryDialog` and saved on the adventure
    *  PUT. Empty for adventures whose registry was never authored. */
   registry: AdventureRegistry;

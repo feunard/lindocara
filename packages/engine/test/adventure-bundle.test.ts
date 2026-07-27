@@ -102,6 +102,11 @@ function fixture(): AdventureBundle {
     adventure: {
       title: "Test",
       maxPlayers: 4,
+      audio: {
+        music: "town-theme",
+        ambience: null,
+        combatMusic: "battle-theme",
+      },
       registry: { switches: [], variables: [], quests: [quest] },
     },
     maps: [
@@ -114,6 +119,7 @@ function fixture(): AdventureBundle {
         layers: layers(),
         elements: [],
         spawn: { col: 1, row: 1 },
+        audio: { music: "cave-theme", combatMusic: null },
         events: [
           npcEvent(),
           functionalEvent({ id: EXIT_A, col: 5, row: 5, ordinal: 2, kind: "exit" }),
@@ -158,6 +164,12 @@ describe("adventure bundle", () => {
     expect(again).not.toBeNull();
     expect(again?.maps.map((m) => m.id)).toEqual([MAP_A, MAP_B]);
     expect(again?.adventure.registry.quests?.length).toBe(1);
+    expect(again?.adventure.audio).toEqual({
+      music: "town-theme",
+      ambience: null,
+      combatMusic: "battle-theme",
+    });
+    expect(again?.maps[0]?.audio).toEqual({ music: "cave-theme", combatMusic: null });
   });
 
   it("rejects a wrong format, a duplicate map id, and a malformed map", () => {
@@ -168,6 +180,18 @@ describe("adventure bundle", () => {
       parseAdventureBundle({ ...bundle, maps: [maps[0], { ...maps[1], id: maps[0]?.id }] }),
     ).toBeNull();
     expect(parseAdventureBundle({ ...bundle, maps: [{ ...maps[0], layers: ["bad"] }] })).toBeNull();
+    expect(
+      parseAdventureBundle({
+        ...bundle,
+        adventure: { ...(bundle.adventure as object), audio: { music: "unknown" } },
+      }),
+    ).toBeNull();
+    expect(
+      parseAdventureBundle({
+        ...bundle,
+        maps: [{ ...maps[0], audio: { ambience: "unknown" } }, maps[1]],
+      }),
+    ).toBeNull();
   });
 
   it("rewrites every internal reference through the id mapping", () => {

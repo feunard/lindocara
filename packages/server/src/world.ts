@@ -591,7 +591,11 @@ export class World extends DurableObject<Env> {
     const stored =
       zoneId === BUILTIN_MAP_ID ? BUILTIN_MAP : await loadMap(createDb(this.env.DB), zoneId);
     if (stored === null) return null;
-    const location = locationFromMap(stored, instanceId);
+    const owningAdventure =
+      stored.adventureId === null
+        ? null
+        : await loadAdventureById(createDb(this.env.DB), stored.adventureId);
+    const location = locationFromMap(stored, instanceId, owningAdventure?.audio);
     if (!partyId) return location;
     const partyRow = await createDb(this.env.DB)
       .select({ maxPlayers: party.maxPlayers })
@@ -810,6 +814,7 @@ export class World extends DurableObject<Env> {
         // The active page of each authored event, appearance only — evaluated just above at join.
         // A catalogue zone has none; a D1 map's are re-derived against the party's state snapshot.
         events: this.#activeEvents,
+        ...(location.definition.audio === undefined ? {} : { audio: location.definition.audio }),
         width: location.definition.terrain.width,
         height: location.definition.terrain.height,
         playerSize: PLAYER_SIZE,
@@ -2429,8 +2434,7 @@ export class World extends DurableObject<Env> {
 
   #defeatMonster(_ws: WebSocket, player: Player, monster: Monster, now: number): void {
     if (!beginRewardAttribution(monster)) return;
-    cancelCombatAction(monster);
-    monster.deadUntil = now + MONSTER_RESPAWN_MS;
+    this.#markMonsterDead(monster, now);
     const directlyEligible = [...monster.contributions.values()]
       .filter((contribution) => {
         const socket = this.#socketByPlayerId.get(contribution.playerId);
@@ -2536,6 +2540,35 @@ export class World extends DurableObject<Env> {
     }
     this.#triggerMonsterDefeatEvent(player, monster);
     clearMonsterCombat(monster);
+  }
+
+  #markMonsterDead(monster: Monster, now: number): void {
+    cancelCombatAction(monster);
+    monster.deadUntil =
+      monster.respawnMode === "never" ? Number.POSITIVE_INFINITY : now + MONSTER_RESPAWN_MS;
+    monster.vx = 0;
+    monster.vy = 0;
+    if (
+      monster.respawnMode !== "never" ||
+      this.#heroPartyId === null ||
+      !monster.id.startsWith("mon-")
+    )
+      return;
+    const eventId = monster.id.slice(4);
+    const partyId = this.#heroPartyId;
+    const mark = this.#gameSession(partyId).markPermanentMonsterDefeated(partyId, eventId);
+    this.ctx.waitUntil(
+      mark.catch((error: unknown) => {
+        console.error(
+          JSON.stringify({
+            event: "permanent_monster_defeat_save_failed",
+            partyId,
+            eventId,
+            error: error instanceof Error ? error.message : String(error),
+          }),
+        );
+      }),
+    );
   }
 
   /** A monster event's active program is its on-defeat hook. Runtime ids are `mon-${event.id}`, so
@@ -3467,6 +3500,8 @@ export class World extends DurableObject<Env> {
       navigation: this.#navigationRuntime(),
       startAttack: (monster: Monster, target: Player, attackedAt: number) =>
         this.#startMonsterAttack(monster, target, attackedAt),
+      defeatMonster: (monster: Monster, defeatedAt: number) =>
+        this.#markMonsterDead(monster, defeatedAt),
     };
     advanceMonsters(monsterContext, now);
     advanceCombatActions(this.#monsters, now, (monster, action) =>

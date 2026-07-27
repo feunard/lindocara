@@ -40,6 +40,7 @@ export function authoredMonsterDefinition(event: MapEvent): MonsterSpawn | null 
       ? {}
       : { weaknessPercent: event.monsterWeaknessPercent }),
     ...(event.monsterSpecialTechnique ? { specialTechnique: event.monsterSpecialTechnique } : {}),
+    respawnMode: event.monsterRespawnMode ?? "timed",
   };
 }
 
@@ -49,6 +50,11 @@ export function activeAuthoredMonsterDefinitions(
 ): MonsterSpawn[] {
   return monsterEvents(events).flatMap((event) => {
     if (activePageIndex(event, state) === null) return [];
+    if (
+      (event.monsterRespawnMode ?? "timed") === "never" &&
+      state.defeatedMonsters?.[event.id] === true
+    )
+      return [];
     const definition = authoredMonsterDefinition(event);
     return definition ? [definition] : [];
   });
@@ -72,6 +78,7 @@ export function reconcileActiveMonsters(
       spawnX: definition.x,
       spawnY: definition.y,
       patrolRadius: definition.patrolRadius,
+      respawnMode: definition.respawnMode ?? "timed",
     };
   });
 }

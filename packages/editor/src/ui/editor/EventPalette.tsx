@@ -4,6 +4,7 @@ import { CURATED_MONSTER_SPECIES, type MonsterSpecies } from "@lindocara/engine/
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import { MAX_PATROL_RADIUS, MIN_PATROL_RADIUS } from "@lindocara/engine/map-data.js";
 import type { EventKind, MapEvent } from "@lindocara/engine/map-events.js";
+import { TINY_SWORDS_ENEMIES } from "@lindocara/renderer/enemy-art.js";
 import { Input } from "@lindocara/ui/components/input.js";
 import { Label } from "@lindocara/ui/components/label.js";
 import { EDITOR_MARKER_PREVIEWS, SpriteSheetPreview, SwatchButton } from "./TerrainPalette.js";
@@ -23,13 +24,12 @@ export const PRESET_LABEL: Record<EventPreset, MessageKey> = {
 /** The kind-tagged placements shown alongside the command PRESETS. Entry/exit are GONE from authoring
  *  (the adventure graph is no longer authored — a teleporter preset replaces an exit, and a hero
  *  spawns on a placed `spawn` event); `normal` is absent because presets are how a custom event
- *  is placed. What remains are the placements that map to live runtime behaviour: `spawn` (D25's
- *  adventure-start anchor), `monster` (a patrolling enemy) and `guard` (a conditional allied
- *  combatant). They stay kind-tagged because the runtime detects them by kind; the palette presents
- *  them as one-click placements, not a "kind selector".
+ *  is placed. What remains here are the non-monster placements that map to live runtime behaviour:
+ *  `spawn` (D25's adventure-start anchor) and `guard` (a conditional allied combatant). Monsters
+ *  have their own visible catalogue below so every supported species is directly selectable.
  *  Existing entry/exit events on an old adventure's map still render and list — they just cannot be
  *  authored anew. */
-const FUNCTIONAL_KINDS = ["spawn", "monster", "guard"] as const;
+const FUNCTIONAL_KINDS = ["spawn", "guard"] as const;
 
 const EVENT_KIND_LABEL: Record<EventKind, MessageKey> = {
   normal: "editor.event.kind.normal",
@@ -73,11 +73,11 @@ interface EventPaletteProps {
 }
 
 /**
- * Event mode's palette (D13/D14). No inline graphic catalogue any more — the sidebar is compact: a set
- * of one-click placements (a blank custom event plus popular presets, then the entry/exit/monster
- * kinds), the monster kind's own fields, and a LIST of the map's events whose rows highlight their
- * marker on hover and select it on click. Stock shadcn + inline sprite previews only — no Tiny Swords
- * component ever reaches the creator tree. The event graphic is now chosen inside the event dialog.
+ * Event mode's palette (D13/D14): a set of one-click scripted presets and functional kinds, a visible
+ * catalogue of every runtime monster, the monster/guard radius, and a LIST of the map's events whose
+ * rows highlight their marker on hover and select it on click. Stock shadcn + inline sprite previews
+ * only — no Tiny Swords component ever reaches the creator tree. The event graphic is chosen inside
+ * the event dialog.
  */
 export function EventPalette({
   eventKind,
@@ -137,40 +137,35 @@ export function EventPalette({
               key={kind}
               label={t(EVENT_KIND_LABEL[kind])}
               active={eventKind === kind}
-              preview={
-                <SpriteSheetPreview
-                  source={EDITOR_MARKER_PREVIEWS[kind]}
-                  {...(kind === "monster" ? { frame: 256 } : { frame: 192 })}
-                />
-              }
+              preview={<SpriteSheetPreview source={EDITOR_MARKER_PREVIEWS[kind]} frame={192} />}
               onClick={() => onSelectEventKind(kind)}
             />
           ))}
         </div>
 
+        <div className="mt-1 flex h-6 items-center border-t border-zinc-200 text-[10.5px] font-semibold tracking-wide text-zinc-400 uppercase">
+          {t("editor.event.monsters.heading")}
+        </div>
+        <div data-testid="monster-catalogue" className="flex flex-col gap-1">
+          {CURATED_MONSTER_SPECIES.map((species) => {
+            const idle = TINY_SWORDS_ENEMIES[species].idle;
+            return (
+              <SwatchButton
+                key={species}
+                label={t(`monster.${species}`)}
+                active={eventKind === "monster" && markerSpecies === species}
+                preview={<SpriteSheetPreview source={idle.source} frame={idle.frame} />}
+                onClick={() => {
+                  onMarkerSpeciesChange(species);
+                  onSelectEventKind("monster");
+                }}
+              />
+            );
+          })}
+        </div>
+
         {(eventKind === "monster" || eventKind === "guard") && (
           <div className="mt-1 flex flex-col gap-1.5 rounded-md bg-zinc-100 p-2">
-            {eventKind === "monster" && (
-              <>
-                <Label htmlFor="marker-species" className="text-[11px] text-zinc-500">
-                  {t("editor.markers.species")}
-                </Label>
-                <select
-                  id="marker-species"
-                  className="h-7 w-full rounded-md border border-input bg-white px-1.5 text-xs outline-none"
-                  value={markerSpecies}
-                  onChange={(event) =>
-                    onMarkerSpeciesChange(event.currentTarget.value as MonsterSpecies)
-                  }
-                >
-                  {CURATED_MONSTER_SPECIES.map((option) => (
-                    <option key={option} value={option}>
-                      {t(`monster.${option}`)}
-                    </option>
-                  ))}
-                </select>
-              </>
-            )}
             <Label htmlFor="marker-radius" className="text-[11px] text-zinc-500">
               {t("editor.markers.radius")}
             </Label>

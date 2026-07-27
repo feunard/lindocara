@@ -64,6 +64,11 @@ describe("adventure draft", () => {
     expect(toAdventureInput(fullDraft())).toEqual({
       title: "Donjon",
       maxPlayers: 2,
+      audio: {
+        music: null,
+        ambience: "forest-ambience",
+        combatMusic: null,
+      },
       registry: { switches: [], variables: [] },
     });
     // An empty draft has no title, so it is not saveable and yields no input.

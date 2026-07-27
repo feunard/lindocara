@@ -19,6 +19,11 @@ import {
   parseAdventureGraph,
   validateAdventure,
 } from "@lindocara/engine/adventure.js";
+import {
+  EMPTY_MAP_AUDIO,
+  type MapAudioConfig,
+  parseMapAudioConfig,
+} from "@lindocara/engine/audio-catalog.js";
 import { parseEventCommands } from "@lindocara/engine/event-commands.js";
 import { defaultMonsterTuning } from "@lindocara/engine/game.js";
 import {
@@ -83,6 +88,8 @@ export interface StoredMap extends MapData {
   adventureId: string | null;
   name: string;
   revision: number;
+  /** Per-channel overrides; missing fields inherit the owning adventure. */
+  audio: MapAudioConfig;
   /** Authored events, ordered by ordinal; pages ordered by position. Empty for maps saved before
    *  events existed and for the built-in floor. Nothing here executes this tranche. */
   events: readonly MapEvent[];
@@ -124,6 +131,7 @@ export const BUILTIN_MAP: StoredMap = {
   spawn: { col: 2, row: 2 },
   markers: EMPTY_MARKERS,
   events: [],
+  audio: EMPTY_MAP_AUDIO,
 };
 
 export interface MapInput {
@@ -139,6 +147,8 @@ export interface MapInput {
   markers?: MapMarkers | undefined;
   // Absent from an old client is an empty event set, not a malformed body — see `parseMapBody`.
   events?: readonly MapEvent[] | undefined;
+  /** Optional for compatibility with older clients; omission preserves the stored value on update. */
+  audio?: MapAudioConfig | undefined;
 }
 
 /** A map small enough to fit on screen is also small enough to be a maze of one-tile corridors;
@@ -190,6 +200,7 @@ export function defaultMapInput(name: string, cols = MAP_MIN_COLS, rows = MAP_MI
     spawn,
     markers: EMPTY_MARKERS,
     events: [],
+    audio: EMPTY_MAP_AUDIO,
   };
 }
 
@@ -226,6 +237,7 @@ export function prepareDefaultMap(
     spawnCol: input.spawn.col,
     spawnRow: input.spawn.row,
     markers: markersJson(data.markers),
+    audio: JSON.stringify(data.audio),
     isFirst: sql`CASE WHEN (SELECT count(*) FROM ${map} WHERE ${map.accountId} = ${accountId}) = 0 THEN 1 ELSE 0 END`,
   });
   return {
@@ -301,7 +313,9 @@ function markersJson(markers: MapMarkers | undefined): string | null {
  * rejects unknown assets, out-of-map footprints, duplicate storage slots and scenery covering the
  * technical spawn, then verifies that gameplay-critical spawn/events remain usable.
  */
-export function validateMapInput(input: MapInput): MapData & { name: string; events: MapEvent[] } {
+export function validateMapInput(
+  input: MapInput,
+): MapData & { name: string; events: MapEvent[]; audio: MapAudioConfig } {
   const name = input.name.trim();
   if (name.length === 0 || name.length > MAP_NAME_MAX) {
     throw new Error("name: 1-48 characters");
@@ -395,7 +409,9 @@ export function validateMapInput(input: MapInput): MapData & { name: string; eve
     }
   }
   // Trimmed, not raw: the name that passed validation is the name that gets stored.
-  return { ...data, markers, name, events };
+  const audio = input.audio === undefined ? EMPTY_MAP_AUDIO : parseMapAudioConfig(input.audio);
+  if (!audio) throw new Error("audio: malformed map audio configuration");
+  return { ...data, markers, name, events, audio };
 }
 
 /** Corrupt or unknown JSON degrades the whole blob to empty, unlike `elementsOf`, which drops only
@@ -432,7 +448,17 @@ function toStoredMap(
     spawn: { col: row.spawnCol, row: row.spawnRow },
     markers: markersOfRow(row),
     events,
+    audio: decodeMapAudio(row.audio),
   };
+}
+
+function decodeMapAudio(text: string): MapAudioConfig {
+  if (text === "") return EMPTY_MAP_AUDIO;
+  try {
+    return parseMapAudioConfig(JSON.parse(text)) ?? EMPTY_MAP_AUDIO;
+  } catch {
+    return EMPTY_MAP_AUDIO;
+  }
 }
 
 async function elementsOf(db: Db, mapId: string): Promise<MapElement[]> {
@@ -553,6 +579,9 @@ async function eventsOf(db: Db, mapId: string): Promise<MapEvent[]> {
         monsterSpecialTechnique: isMonster
           ? (row.monsterSpecialTechnique ?? tuning?.specialTechnique ?? null)
           : null,
+        ...(isMonster && row.monsterRespawnMode !== null
+          ? { monsterRespawnMode: row.monsterRespawnMode }
+          : {}),
         pages,
       },
     ];
@@ -663,9 +692,9 @@ function insertElementStatements(db: Db, mapId: string, elements: readonly MapEl
 
 /**
  * Events and their pages ride the same batch as elements and hit the same D1 100-bound-parameter
- * cap. An event INSERT binds 17 parameters per row (the nine identity/placement columns plus the
- * eight authored tuning columns; created_at defaults), so an unchunked write of the 64-event
- * maximum would bind 1,088 and D1 would refuse the whole batch. A page INSERT binds 18 (id, event_id,
+ * cap. An event INSERT binds 18 parameters per row (identity/placement, authored tuning and respawn
+ * mode; created_at defaults), so an unchunked write of the 64-event maximum would bind 1,152 and D1
+ * would refuse the whole batch. A page INSERT binds 18 (id, event_id,
  * position, four condition columns, graphic_asset_id, three move columns, five opt columns,
  * trigger, and tranche 5's `commands` blob — the whole program is ONE bound parameter, a JSON
  * string, so a page's command volume never grows its parameter count), and the 64x8 = 512-page
@@ -673,7 +702,7 @@ function insertElementStatements(db: Db, mapId: string, elements: readonly MapEl
  * cap, matching the element rule above so a later column keeps headroom instead of regressing onto
  * the line.
  */
-const MAP_EVENT_PARAMS_PER_ROW = 17; // 9 identity/placement + 8 monster-tuning columns; createdAt defaults
+const MAP_EVENT_PARAMS_PER_ROW = 18; // identity/placement + tuning + respawn mode; createdAt defaults
 const MAP_EVENT_CHUNK_ROWS = Math.floor((D1_MAX_BOUND_PARAMETERS * 0.6) / MAP_EVENT_PARAMS_PER_ROW);
 const MAP_EVENT_PAGE_PARAMS_PER_ROW = 18; // id, eventId, position, 4 cond, graphic, 3 move, 5 opt, trigger, commands — mirrors `mapEventPage`
 const MAP_EVENT_PAGE_CHUNK_ROWS = Math.floor(
@@ -699,6 +728,7 @@ function eventRows(mapId: string, events: readonly MapEvent[]) {
     monsterWeakness: event.monsterWeakness ?? null,
     monsterWeaknessPercent: event.monsterWeaknessPercent ?? null,
     monsterSpecialTechnique: event.monsterSpecialTechnique ?? null,
+    monsterRespawnMode: event.monsterRespawnMode ?? null,
   }));
 }
 
@@ -797,6 +827,7 @@ export async function createMap(
     spawnCol: input.spawn.col,
     spawnRow: input.spawn.row,
     markers: markersJson(data.markers),
+    audio: JSON.stringify(data.audio),
     // The front door is decided by the database at insert time, never by a read-then-write: the very
     // first row to exist wins. Two concurrent creates on an empty table cannot both flag themselves,
     // because SQLite serializes the writes and the second's CASE sees the first's committed row.
@@ -935,6 +966,7 @@ export async function updateMap(
       spawnCol: input.spawn.col,
       spawnRow: input.spawn.row,
       markers: markersJson(data.markers),
+      ...(input.audio !== undefined ? { audio: JSON.stringify(data.audio) } : {}),
       revision: sql`${map.revision} + 1`,
       writeToken,
       updatedAt: new Date(),
@@ -971,6 +1003,9 @@ export async function updateMap(
             // for the graph now); a present value is the compat/seed write.
             ...(proposedAdventure.graph !== undefined
               ? { graph: JSON.stringify(proposedAdventure.graph) }
+              : {}),
+            ...(proposedAdventure.audio !== undefined
+              ? { audio: JSON.stringify(proposedAdventure.audio) }
               : {}),
             ...(proposedRegistry !== undefined
               ? { registry: JSON.stringify(proposedRegistry) }
@@ -1026,6 +1061,7 @@ export async function updateMap(
     adventureId: existing.adventureId,
     revision: updated.revision,
     ...data,
+    audio: input.audio === undefined ? existing.audio : data.audio,
   };
 }
 

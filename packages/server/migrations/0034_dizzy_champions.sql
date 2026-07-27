@@ -1,0 +1,1 @@
+ALTER TABLE `map_event` ADD `monster_respawn_mode` text;

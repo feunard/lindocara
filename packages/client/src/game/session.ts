@@ -367,6 +367,7 @@ async function startGameIdentity(
         });
       }
       renderer.setSelfId(selfId);
+      sound.configureScene(world.audio);
       // A known id resolves to the compiled catalogue (terrain, furniture and all); anything else
       // is a D1 map, so its baked terrain and authored props travel in the welcome and are drawn
       // from there. Same hybrid-routing rule the server used to pick this room.
@@ -572,6 +573,7 @@ async function startGameIdentity(
           sound.healReceived();
           break;
         case "combat.hit":
+          sound.combatPulse();
           if (typeof params?.skill === "string" && typeof x === "number" && typeof y === "number") {
             const actorId = typeof params.actorId === "string" ? params.actorId : client.selfId;
             const impactClass = actorId
@@ -585,6 +587,7 @@ async function startGameIdentity(
             if (client.selfId) renderer.playCombatImpact(client.selfId, params.skill, x, y);
           break;
         case "combat.hurt":
+          sound.combatPulse();
           sound.hit();
           if (typeof params?.species === "string" && isMonsterSpecies(params.species)) {
             renderer.playMonsterImpact(params.species, x, y);
@@ -960,6 +963,7 @@ async function startGameIdentity(
   });
 
   renderer.onFrame((now, dt) => {
+    sound.update(now);
     client.update(gameplayPaused() ? NO_INPUT : input.current(), dt);
     const sample = client.sample(now);
     const self = sample.players.find((player) => player.id === client.selfId);

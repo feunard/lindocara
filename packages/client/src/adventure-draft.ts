@@ -13,6 +13,10 @@ import {
   MAX_ADVENTURE_MAPS,
 } from "@lindocara/engine/adventure.js";
 import { type AdventureRegistry, EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
+import {
+  type AdventureAudioConfig,
+  DEFAULT_ADVENTURE_AUDIO,
+} from "@lindocara/engine/audio-catalog.js";
 
 export interface DraftMemberInfo {
   mapId: string;
@@ -32,6 +36,8 @@ export interface DraftMemberInfo {
 export interface AdventureDraft {
   title: string;
   maxPlayers: number;
+  /** Adventure-wide defaults inherited by maps unless a map explicitly overrides a channel. */
+  audio: AdventureAudioConfig;
   members: DraftMemberInfo[];
   /** The switch/variable registry, authored in `RegistryDialog` and persisted on the adventure PUT. */
   registry: AdventureRegistry;
@@ -41,6 +47,7 @@ export function emptyDraft(): AdventureDraft {
   return {
     title: "",
     maxPlayers: 4,
+    audio: { ...DEFAULT_ADVENTURE_AUDIO },
     members: [],
     registry: EMPTY_REGISTRY,
   };
@@ -107,6 +114,7 @@ export function toAdventureInput(draft: AdventureDraft): AdventureInput | null {
   return {
     title: draft.title.trim(),
     maxPlayers: draft.maxPlayers,
+    audio: draft.audio,
     registry: draft.registry,
   };
 }
@@ -116,6 +124,7 @@ export function draftFromAdventure(
     title: string;
     maxPlayers: number;
     mapIds: readonly string[];
+    audio?: AdventureAudioConfig;
     /** Optional so a caller round-tripping through `AdventureInput` (registry optional) still fits;
      *  a payload without one rebuilds an empty registry. */
     registry?: AdventureRegistry;
@@ -129,6 +138,7 @@ export function draftFromAdventure(
   return {
     title: payload.title,
     maxPlayers: payload.maxPlayers,
+    audio: payload.audio ?? { ...DEFAULT_ADVENTURE_AUDIO },
     members,
     registry: payload.registry ?? EMPTY_REGISTRY,
   };

@@ -4,8 +4,10 @@ import {
   CURATED_MONSTER_SPECIES,
   defaultMonsterTuning,
   MONSTER_RANKS,
+  MONSTER_RESPAWN_MODES,
   MONSTER_TUNING_LIMITS,
   MONSTER_WEAKNESSES,
+  type MonsterRespawnMode,
   type MonsterSpecies,
   type MonsterTuning,
   monsterSpecialTechniquesFor,
@@ -40,6 +42,7 @@ import {
   normalizeEventDraftConditions,
   setEventDraftGuardRadius,
   setEventDraftMonster,
+  setEventDraftMonsterRespawnMode,
   setEventDraftName,
   updateEventDraftPage,
 } from "../../game/editor-state.js";
@@ -164,7 +167,12 @@ function MonsterEventFields({
   onChange,
 }: {
   draft: MapEvent;
-  onChange(species: MonsterSpecies, patrolRadius: number, tuning?: Partial<MonsterTuning>): void;
+  onChange(
+    species: MonsterSpecies,
+    patrolRadius: number,
+    tuning?: Partial<MonsterTuning>,
+    respawnMode?: MonsterRespawnMode,
+  ): void;
 }) {
   const species = draft.species ?? CURATED_MONSTER_SPECIES[0] ?? "spear_goblin";
   const patrolRadius = draft.patrolRadius ?? MIN_PATROL_RADIUS;
@@ -234,6 +242,28 @@ function MonsterEventFields({
             value={patrolRadius}
             onChange={(e) => onChange(species, Number(e.currentTarget.value))}
           />
+        </span>
+        <span className="flex flex-col gap-1 text-[11px] text-zinc-500">
+          {t("editor.monster.respawnMode")}
+          <FieldSelect
+            aria-label={t("editor.monster.respawnMode")}
+            className="h-8 text-sm"
+            value={draft.monsterRespawnMode ?? "timed"}
+            onChange={(event) =>
+              onChange(
+                species,
+                patrolRadius,
+                undefined,
+                event.currentTarget.value as MonsterRespawnMode,
+              )
+            }
+          >
+            {MONSTER_RESPAWN_MODES.map((mode) => (
+              <option key={mode} value={mode}>
+                {t(`editor.monster.respawnMode.${mode}`)}
+              </option>
+            ))}
+          </FieldSelect>
         </span>
         {(
           [
@@ -449,9 +479,12 @@ export function EventDialog({
           <div className="grid gap-4 sm:grid-cols-2">
             <MonsterEventFields
               draft={draft}
-              onChange={(species, radius, tuning) =>
-                setDraft(setEventDraftMonster(draft, species, radius, tuning))
-              }
+              onChange={(species, radius, tuning, respawnMode) => {
+                const monster = setEventDraftMonster(draft, species, radius, tuning);
+                setDraft(
+                  respawnMode ? setEventDraftMonsterRespawnMode(monster, respawnMode) : monster,
+                );
+              }}
             />
             <div className="rounded-lg border border-zinc-200 p-3">
               <p className="mb-2 text-xs text-muted-foreground">

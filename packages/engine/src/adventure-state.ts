@@ -164,6 +164,8 @@ export interface PartyAdventureState {
   selfSwitches: Record<string, boolean>;
   /** Optional only for source compatibility with saves created before authored quests. */
   quests?: Record<string, AuthoredQuestProgress>;
+  /** Stable event ids of authored `never`-respawn monsters defeated by this party. */
+  defeatedMonsters?: Record<string, true>;
 }
 
 export interface AuthoredQuestProgress {
@@ -259,6 +261,7 @@ function isSelfSwitchKey(key: string): boolean {
  *  longer exists (when the caller supplies the live id set); this is the harder ceiling that
  *  applies regardless of whether a caller prunes. */
 export const MAX_SELF_SWITCH_ENTRIES = 512;
+export const MAX_DEFEATED_MONSTER_ENTRIES = 512;
 
 function parseSelfSwitches(value: unknown): Record<string, boolean> | null {
   if (!isPlainObject(value)) return null;
@@ -270,6 +273,19 @@ function parseSelfSwitches(value: unknown): Record<string, boolean> | null {
     selfSwitches[key] = flag;
   }
   return selfSwitches;
+}
+
+function parseDefeatedMonsters(value: unknown): Record<string, true> | null {
+  if (value === undefined) return {};
+  if (!isPlainObject(value)) return null;
+  const entries = Object.entries(value);
+  if (entries.length > MAX_DEFEATED_MONSTER_ENTRIES) return null;
+  const defeatedMonsters: Record<string, true> = {};
+  for (const [eventId, defeated] of entries) {
+    if (!isUuid(eventId) || defeated !== true) return null;
+    defeatedMonsters[eventId] = true;
+  }
+  return defeatedMonsters;
 }
 
 function parseQuestProgress(value: unknown): Record<string, AuthoredQuestProgress> | null {
@@ -364,11 +380,14 @@ export function parsePartyAdventureState(value: unknown): PartyAdventureState | 
   if (!selfSwitches) return null;
   const quests = parseQuestProgress(value.quests);
   if (!quests) return null;
+  const defeatedMonsters = parseDefeatedMonsters(value.defeatedMonsters);
+  if (!defeatedMonsters) return null;
   return {
     switches,
     variables,
     selfSwitches,
     ...(Object.keys(quests).length > 0 ? { quests } : {}),
+    ...(Object.keys(defeatedMonsters).length > 0 ? { defeatedMonsters } : {}),
   };
 }
 

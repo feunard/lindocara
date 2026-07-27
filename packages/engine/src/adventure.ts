@@ -10,6 +10,7 @@
  * cannot spawn and party admission refuses it until a real start is authored.
  */
 import { type AdventureRegistry, parseAdventureRegistry } from "./adventure-state.js";
+import { type AdventureAudioConfig, parseAdventureAudioConfig } from "./audio-catalog.js";
 import { isUuid } from "./identifiers.js";
 
 export const ADVENTURE_TITLE_MAX = 48;
@@ -48,6 +49,8 @@ export const EMPTY_GRAPH: AdventureGraph = { start: null, links: [] };
 export interface AdventureInput {
   title: string;
   maxPlayers: number;
+  /** Default music/ambience for member maps. Omitted by an older writer to preserve the stored value. */
+  audio?: AdventureAudioConfig;
   /** COMPAT-only. Absent on every real authoring PUT (the stored graph is then preserved); present
    *  only when a legacy/test writer seeds the graph for runtime routing. */
   graph?: AdventureGraph;
@@ -60,6 +63,7 @@ export interface AdventureInput {
 export interface CreateAdventureInput {
   title: string;
   maxPlayers: number;
+  audio?: AdventureAudioConfig;
   registry?: AdventureRegistry;
 }
 
@@ -124,13 +128,24 @@ function parseOptionalRegistry(value: unknown): { ok: true; registry?: Adventure
   return { ok: true, registry: parsed };
 }
 
+function parseOptionalAudio(value: unknown): { ok: true; audio?: AdventureAudioConfig } | null {
+  const record = value as Record<string, unknown>;
+  if (record.audio === undefined) return { ok: true };
+  const parsed = parseAdventureAudioConfig(record.audio);
+  if (!parsed) return null;
+  return { ok: true, audio: parsed };
+}
+
 export function parseCreateAdventureInput(value: unknown): CreateAdventureInput | null {
   const shell = parseShell(value);
   if (!shell) return null;
   const registry = parseOptionalRegistry(value);
   if (!registry) return null;
+  const audio = parseOptionalAudio(value);
+  if (!audio) return null;
   return {
     ...shell,
+    ...(audio.audio !== undefined ? { audio: audio.audio } : {}),
     ...(registry.registry !== undefined ? { registry: registry.registry } : {}),
   };
 }
@@ -150,9 +165,12 @@ export function parseAdventureInput(value: unknown): AdventureInput | null {
   }
   const registry = parseOptionalRegistry(value);
   if (!registry) return null;
+  const audio = parseOptionalAudio(value);
+  if (!audio) return null;
   return {
     ...shell,
     ...(graph !== undefined ? { graph } : {}),
+    ...(audio.audio !== undefined ? { audio: audio.audio } : {}),
     ...(registry.registry !== undefined ? { registry: registry.registry } : {}),
   };
 }

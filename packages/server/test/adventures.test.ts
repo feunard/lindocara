@@ -11,6 +11,7 @@ import {
   createManualQuestObjective,
   EMPTY_REGISTRY,
 } from "@lindocara/engine/adventure-state.js";
+import type { AdventureAudioConfig } from "@lindocara/engine/audio-catalog.js";
 import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
 import {
   entryEvents,
@@ -143,6 +144,28 @@ describe("adventure CRUD", () => {
     const created = await createAdventure(db, "owner", { title: "Fresh", maxPlayers: 3 });
     expect(created).toMatchObject({ title: "Fresh", maxPlayers: 3, mapIds: [] });
     expect(created.graph).toEqual({ start: null, links: [] });
+  });
+
+  it("round-trips adventure audio and preserves it when an older writer omits the field", async () => {
+    const db = createDb(env.DB);
+    await seedAccount("owner");
+    const audio: AdventureAudioConfig = {
+      music: "town-theme",
+      ambience: "swamp-ambience",
+      combatMusic: "battle-theme",
+    };
+    const created = await createAdventure(db, "owner", {
+      title: "Sonic",
+      maxPlayers: 4,
+      audio,
+    });
+    expect(created.audio).toEqual(audio);
+
+    const renamed = await updateAdventure(db, created.id, {
+      title: "Sonic II",
+      maxPlayers: 4,
+    });
+    expect(renamed.audio).toEqual(audio);
   });
 
   it("validates the graph against the owned maps' markers", async () => {

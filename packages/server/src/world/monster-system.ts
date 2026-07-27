@@ -43,6 +43,7 @@ export interface MonsterSystemContext {
   tick: number;
   navigation: NavigationRuntime;
   startAttack(monster: MonsterRuntime, target: PlayerRuntime | GuardRuntime, now: number): void;
+  defeatMonster?(monster: MonsterRuntime, now: number): void;
 }
 
 function monsterAttackRange(monster: MonsterRuntime, now: number): number {
@@ -350,10 +351,14 @@ export function advanceGuards(context: MonsterSystemContext, now: number): void 
     target.hp = Math.max(0, target.hp - GUARD_DAMAGE);
     if (target.hp > 0) continue;
 
-    target.deadUntil = now + MONSTER_RESPAWN_MS;
-    target.action = null;
-    target.vx = 0;
-    target.vy = 0;
+    if (context.defeatMonster) {
+      context.defeatMonster(target, now);
+    } else {
+      target.deadUntil = now + MONSTER_RESPAWN_MS;
+      target.action = null;
+      target.vx = 0;
+      target.vy = 0;
+    }
   }
 }
 

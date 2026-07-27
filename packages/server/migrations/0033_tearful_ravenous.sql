@@ -1,0 +1,1 @@
+ALTER TABLE `party_adventure_state` ADD `defeated_monsters` text DEFAULT '{}' NOT NULL;

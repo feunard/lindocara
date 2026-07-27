@@ -19,6 +19,11 @@ import {
   validateAdventure,
 } from "@lindocara/engine/adventure.js";
 import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
+import {
+  type AdventureAudioConfig,
+  DEFAULT_ADVENTURE_AUDIO,
+  parseAdventureAudioConfig,
+} from "@lindocara/engine/audio-catalog.js";
 import { mapSpawnPoint } from "@lindocara/engine/map-data.js";
 import { eventCellCentre } from "@lindocara/engine/map-events.js";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
@@ -35,6 +40,16 @@ export interface StoredAdventure {
   mapIds: string[];
   graph: AdventureGraph;
   registry: AdventureRegistry;
+  audio: AdventureAudioConfig;
+}
+
+function decodeAdventureAudio(text: string): AdventureAudioConfig {
+  if (text === "") return { ...DEFAULT_ADVENTURE_AUDIO };
+  try {
+    return parseAdventureAudioConfig(JSON.parse(text)) ?? { ...DEFAULT_ADVENTURE_AUDIO };
+  } catch {
+    return { ...DEFAULT_ADVENTURE_AUDIO };
+  }
 }
 
 /**
@@ -85,6 +100,7 @@ function toStored(row: typeof adventure.$inferSelect, mapIds: string[]): StoredA
     mapIds,
     graph,
     registry: decodeStoredAdventureRegistry(row.registry),
+    audio: decodeAdventureAudio(row.audio),
   };
 }
 
@@ -112,6 +128,7 @@ export async function createAdventure(
     title,
     maxPlayers: input.maxPlayers,
     graph: JSON.stringify(EMPTY_GRAPH),
+    ...(input.audio !== undefined ? { audio: JSON.stringify(input.audio) } : {}),
     ...(registry !== undefined ? { registry: JSON.stringify(registry) } : {}),
   });
   const stored = await loadAdventure(db, accountId, id);
@@ -153,6 +170,7 @@ export async function createAdventureWithDefaultMap(
       title,
       maxPlayers: input.maxPlayers,
       graph: JSON.stringify(EMPTY_GRAPH),
+      ...(input.audio !== undefined ? { audio: JSON.stringify(input.audio) } : {}),
       ...(registry !== undefined ? { registry: JSON.stringify(registry) } : {}),
     }),
     ...prepared.inserts,
@@ -420,6 +438,7 @@ export async function updateAdventure(
       // Absent graph preserves the stored one (authoring never touches it now); present graph is the
       // compat/seed write. Same rule for the registry column: omitting it never wipes the switches.
       ...(proposedGraph !== undefined ? { graph: JSON.stringify(proposedGraph) } : {}),
+      ...(input.audio !== undefined ? { audio: JSON.stringify(input.audio) } : {}),
       ...(proposedRegistry !== undefined ? { registry: JSON.stringify(proposedRegistry) } : {}),
       updatedAt: new Date(),
     })

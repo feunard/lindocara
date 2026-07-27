@@ -21,6 +21,7 @@ import {
   QUEST_REWARD_AMOUNT_MAX,
   QUEST_TITLE_MAX,
 } from "./adventure-state.js";
+import { type AdventureAudioConfig, parseAdventureAudioConfig } from "./audio-catalog.js";
 import {
   type CharacterAppearance,
   type Equipment,
@@ -354,6 +355,8 @@ export interface WorldInfo {
    * (spec Decision 3/4); the client only draws what it is told is active.
    */
   events: readonly WorldEventSnapshot[];
+  /** Fully resolved room audio: map overrides have already been applied by the server. */
+  audio?: AdventureAudioConfig;
   width: number;
   height: number;
   playerSize: number;
@@ -1142,6 +1145,7 @@ function isWorldInfo(value: unknown): value is WorldInfo {
     value.events.every(
       (event) => isWorldEventSnapshot(event) && event.col < tiles.cols && event.row < tiles.rows,
     ) &&
+    (value.audio === undefined || parseAdventureAudioConfig(value.audio) !== null) &&
     isFiniteNumber(value.width) &&
     value.width > 0 &&
     isFiniteNumber(value.height) &&

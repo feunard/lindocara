@@ -7,7 +7,6 @@ import {
 import {
   ApiError,
   authErrorText,
-  createAdventureApi,
   createAdventureTestSessionApi,
   deleteAdventureTestSessionApi,
   errorCode,
@@ -17,8 +16,9 @@ import {
   updateMapApi,
 } from "@lindocara/client/api.js";
 import { t, useLocale } from "@lindocara/client/i18n.js";
-import { type AdventureEditorSession, useUiStore } from "@lindocara/client/store.js";
+import { useUiStore } from "@lindocara/client/store.js";
 import { type AdventureRegistry, EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
+import { EMPTY_MAP_AUDIO } from "@lindocara/engine/audio-catalog.js";
 import type { EventPreset } from "@lindocara/engine/event-presets.js";
 import type { MonsterSpecies } from "@lindocara/engine/game.js";
 import { EMPTY_MARKERS, type MapData, sameElementSlot } from "@lindocara/engine/map-data.js";
@@ -67,6 +67,7 @@ import {
   openMapEditorStage,
 } from "../../game/map-editor-stage.js";
 import { startMapPreview } from "../../game/map-preview.js";
+import { AdventurePickerScreen } from "./AdventurePickerScreen.js";
 import { AdventureSettingsDialog } from "./AdventureSettingsDialog.js";
 import { AdventureTestDialog, type AdventureTestOptions } from "./AdventureTestDialog.js";
 import { loadAdventureSession } from "./adventure-session.js";
@@ -78,13 +79,9 @@ import { EditorStatusBar } from "./EditorStatusBar.js";
 import { type EditorPaintTool, EditorToolbar, toolLabelText } from "./EditorToolbar.js";
 import { EventDialog } from "./EventDialog.js";
 import { PRESET_LABEL } from "./EventPalette.js";
-import {
-  clearLastEditedAdventure,
-  readLastEditedAdventure,
-  writeLastEditedAdventure,
-} from "./editor-last-adventure.js";
 import { FirstSaveDialog } from "./FirstSaveDialog.js";
 import { LoadAdventureDialog } from "./LoadAdventureDialog.js";
+import { MapAudioDialog } from "./MapAudioDialog.js";
 import { MapListPanel } from "./MapListPanel.js";
 import { ObjectBindingDialog } from "./ObjectBindingDialog.js";
 import { QuestWorkspaceDialog } from "./QuestWorkspaceDialog.js";
@@ -144,6 +141,7 @@ function isSessionError(code: string): boolean {
 function toEditorMap(map: MapPayload): EditorMap {
   return {
     name: map.name,
+    audio: map.audio ?? EMPTY_MAP_AUDIO,
     layers: editorLayersFromPayload(map),
     elements: map.elements,
     spawn: map.spawn,
@@ -210,85 +208,16 @@ function paintToolFor(
  */
 export function AdventureEditorScreen() {
   const session = useUiStore((state) => state.adventureEditorSession);
-  // UX wave #15: opening the editor opens THE EDITOR, never a picker page. A session with a real id
-  // mounts the shell straight away; otherwise the bootstrap resolves one (last-edited, else
-  // instant-create) behind a loading shell — never a flash of a list.
   if (session?.adventureId) {
     return <AdventureEditorInner key={session.adventureId} adventureId={session.adventureId} />;
   }
-  return <EditorBootstrap />;
-}
-
-/** Resolve the adventure the editor opens on (UX wave #15): the last one this account edited, else a
- *  freshly instant-created draft (remark 14's flow). A remembered id that is gone or forbidden falls
- *  through to instant-create; a genuine session error is re-thrown so the caller redirects to auth. */
-async function bootstrapEditorSession(accountId: string | null): Promise<AdventureEditorSession> {
-  const lastId = readLastEditedAdventure(accountId);
-  if (lastId) {
-    try {
-      return await loadAdventureSession(lastId);
-    } catch (caught) {
-      if (isSessionError(errorCode(caught))) throw caught;
-      // Gone or forbidden: forget it and fall through to a fresh adventure.
-      clearLastEditedAdventure(accountId);
-    }
-  }
-  // No memory (or a stale id): create immediately with the localized default title + 4 players and
-  // land in the editor; the real name is asked at the first save (titleUntouched).
-  const created = await createAdventureApi({ title: t("adventure.default_title"), maxPlayers: 4 });
-  const loaded = await loadAdventureSession(created.id);
-  return { ...loaded, titleUntouched: true };
-}
-
-/** The editor's own loading shell while the bootstrap resolves the opening adventure. No picker, no
- *  bare stage — just the light editor scope and a status line, so re-entry never flashes a list. */
-function EditorBootstrap() {
-  useLocale();
-  const accountId = useUiStore((state) => state.accountId);
-  const setSession = useUiStore((state) => state.setAdventureEditorSession);
-  const setScreen = useUiStore((state) => state.setScreen);
-  const [error, setError] = useState<string | null>(null);
-  const started = useRef(false);
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: one bootstrap on mount
-  useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-    void (async () => {
-      try {
-        setSession(await bootstrapEditorSession(accountId));
-      } catch (caught) {
-        if (isSessionError(errorCode(caught))) setScreen("auth");
-        else setError(errorCode(caught));
-      }
-    })();
-  }, []);
-
-  return (
-    <div className="editor-root flex h-screen flex-col items-center justify-center gap-3 bg-zinc-50 text-zinc-950">
-      {error ? (
-        <>
-          <p role="alert" className="text-sm text-destructive">
-            {authErrorText(error)}
-          </p>
-          <Button variant="outline" size="sm" onClick={() => setScreen("title")}>
-            {t("editor.shell.quit")}
-          </Button>
-        </>
-      ) : (
-        <p role="status" className="text-sm text-zinc-500">
-          {t("editor.shell.stage.loading")}
-        </p>
-      )}
-    </div>
-  );
+  return <AdventurePickerScreen />;
 }
 
 function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   useLocale();
   const setScreen = useUiStore((state) => state.setScreen);
   const setSession = useUiStore((state) => state.setAdventureEditorSession);
-  const accountId = useUiStore((state) => state.accountId);
   // The switch/variable registry rides the loaded adventure session's draft. When no adventure is
   // loaded (the common map-first case) it is empty, which falls the event dialog's condition pickers
   // back to free text. Loading an adventure in the database dialog fills it.
@@ -390,6 +319,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
   const [newMapOpen, setNewMapOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [mapAudioOpen, setMapAudioOpen] = useState(false);
   const [questWorkspaceOpen, setQuestWorkspaceOpen] = useState(false);
   const [databaseOpen, setDatabaseOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -432,13 +362,6 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
     },
     [setScreen],
   );
-
-  // UX wave #15: remember this as the last-edited adventure so the next editor open lands straight in
-  // it. This is the single write point — the bootstrap, the load dialog and the instant-create all
-  // reach the editor through this keyed component, so one mount-time write covers every path.
-  useEffect(() => {
-    writeLastEditedAdventure(accountId, adventureId);
-  }, [accountId, adventureId]);
 
   // Load a different adventure (UX wave #15), from the File → « Charger une aventure » dialog. Guard
   // unsaved edits first, then swap the session — a new adventureId remounts this component (it is
@@ -1037,6 +960,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
           ...loaded.draft,
           title: current.draft.title,
           maxPlayers: current.draft.maxPlayers,
+          audio: current.draft.audio,
           registry: current.draft.registry,
         };
         setSession({
@@ -1379,6 +1303,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
             {/* The stage draws on the sibling #stage canvas behind #root; this pane is its viewport.
               The decoration palette now lives in the left TerrainPalette, not floating over here. */}
             <section
+              data-editor-stage-viewport=""
               className="relative h-full min-h-0 overflow-hidden"
               aria-label={t("editor.shell.stage.aria")}
             >
@@ -1469,6 +1394,7 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
               onRequestOpen={loadMap}
               onOpenPayload={openPayload}
               onActiveDeleted={activeMapDeleted}
+              onOpenMapAudio={() => setMapAudioOpen(true)}
               onOpenSettings={() => setSettingsOpen(true)}
               onError={(code) => setError(code === "" ? null : code)}
               onSessionExpired={() => setScreen("auth")}
@@ -1488,6 +1414,20 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
           }}
           onSessionExpired={() => setScreen("auth")}
         />
+
+        {currentMap && (
+          <MapAudioDialog
+            key={map?.id ?? "map-audio"}
+            open={mapAudioOpen}
+            mapName={currentMap.name}
+            initial={currentMap.audio}
+            onOpenChange={setMapAudioOpen}
+            onSave={(audio) => {
+              handleRef.current?.setAudio(audio);
+              setMapAudioOpen(false);
+            }}
+          />
+        )}
 
         <AdventureTestDialog
           open={testOpen}
@@ -1536,7 +1476,6 @@ function AdventureEditorInner({ adventureId }: { adventureId: string }) {
           onPick={loadAdventure}
           onDeleted={(id) => {
             if (id !== adventureId) return;
-            clearLastEditedAdventure(accountId);
             setLoadOpen(false);
             setSession(null);
           }}

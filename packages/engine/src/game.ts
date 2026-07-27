@@ -201,6 +201,13 @@ export interface MonsterTuning {
   specialTechnique: MonsterSpecialTechnique;
 }
 
+export const MONSTER_RESPAWN_MODES = ["timed", "never"] as const;
+export type MonsterRespawnMode = (typeof MONSTER_RESPAWN_MODES)[number];
+
+export function isMonsterRespawnMode(value: unknown): value is MonsterRespawnMode {
+  return typeof value === "string" && (MONSTER_RESPAWN_MODES as readonly string[]).includes(value);
+}
+
 export const MONSTER_TUNING_LIMITS = {
   maxHp: { min: 1, max: 100_000 },
   damage: { min: 1, max: 1_000 },
@@ -239,6 +246,9 @@ export interface MonsterSpawn extends Vec2 {
   weakness?: MonsterWeakness;
   weaknessPercent?: number;
   specialTechnique?: MonsterSpecialTechnique;
+  /** Authored encounters may stay defeated for this party's entire save. Catalogue spawns default
+   *  to the historical timed respawn. */
+  respawnMode?: MonsterRespawnMode;
   /** Border patrols may naturally cross the city boundary and be handled by guards. */
   mayEnterSafeZone?: boolean;
 }

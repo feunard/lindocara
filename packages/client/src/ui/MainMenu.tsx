@@ -117,7 +117,10 @@ export function MainMenu() {
       <button
         type="button"
         className="main-menu__editor"
-        onClick={() => setScreen("adventure-editor")}
+        onClick={() => {
+          useUiStore.getState().setAdventureEditorSession(null);
+          setScreen("adventure-editor");
+        }}
       >
         {t("menu.editor")}
       </button>

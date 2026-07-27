@@ -1,3 +1,4 @@
+import type { AdventureAudioConfig } from "./audio-catalog.js";
 import { emptyColliderIndex } from "./collider.js";
 import {
   CITY_GUARDS,
@@ -67,6 +68,8 @@ export interface ZoneDefinition {
    */
   readonly tilesetId?: string;
   readonly layers?: readonly string[];
+  /** Resolved room audio. Catalogue zones omit it and use the client's silent legacy fallback. */
+  readonly audio?: AdventureAudioConfig;
 }
 
 /** A server-owned exit. The browser can only ask to interact near it. */

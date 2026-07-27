@@ -5,6 +5,7 @@ import { useUiStore } from "@lindocara/client/store.js";
 import { MainMenu } from "@lindocara/client/ui/MainMenu.js";
 import { defaultEventPage, toMapData, toSaveInput } from "@lindocara/editor/game/editor-state.js";
 import { AdventureEditorScreen } from "@lindocara/editor/ui/editor/AdventureEditorScreen.js";
+import { DEFAULT_ADVENTURE_AUDIO, EMPTY_MAP_AUDIO } from "@lindocara/engine/audio-catalog.js";
 import { EMPTY_MARKERS } from "@lindocara/engine/map-data.js";
 import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
@@ -742,7 +743,7 @@ describe("AdventureEditorScreen shell", () => {
     await userEvent.click(screen.getByRole("button", { name: t("editor.event.kind.spawn") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({ kind: "event", eventKind: "spawn" });
 
-    await userEvent.click(screen.getByRole("button", { name: t("editor.event.kind.monster") }));
+    await userEvent.click(screen.getByRole("button", { name: t("monster.spear_goblin") }));
     expect(stageMock.setTool).toHaveBeenLastCalledWith({
       kind: "event",
       eventKind: "monster",
@@ -750,9 +751,7 @@ describe("AdventureEditorScreen shell", () => {
       patrolRadius: 96,
     });
 
-    // Only one species is curated now (UX wave #13), so the species select offers just it. Exercise
-    // the same re-push path through the patrol radius: changing it re-pushes the monster event tool
-    // with the new radius (and the curated species) onto the stage.
+    // Changing the patrol radius re-pushes the selected monster event tool onto the stage.
     fireEvent.change(screen.getByLabelText(t("editor.markers.radius")), {
       target: { value: "128" },
     });
@@ -769,6 +768,7 @@ describe("AdventureEditorScreen shell", () => {
   it("saves the stage's current map to the update endpoint", async () => {
     const edited = {
       name: "Verdant Reach",
+      audio: EMPTY_MAP_AUDIO,
       layers: OPEN_TILE_LAYERS,
       elements: [
         {
@@ -808,6 +808,7 @@ describe("AdventureEditorScreen shell", () => {
   it("deduplicates an in-flight save and anchors it to the captured snapshot", async () => {
     const savedSnapshot = {
       name: "Before request",
+      audio: EMPTY_MAP_AUDIO,
       layers: OPEN_TILE_LAYERS,
       elements: [],
       spawn: { col: 20, row: 15 },
@@ -863,6 +864,7 @@ describe("AdventureEditorScreen shell", () => {
   it("opens the test workspace, then its explicit quick preview returns on Esc with edits intact", async () => {
     const edited = {
       name: "Verdant Reach",
+      audio: EMPTY_MAP_AUDIO,
       layers: OPEN_TILE_LAYERS,
       elements: [
         {
@@ -1652,6 +1654,7 @@ describe("AdventureEditorScreen first-save name popup (UX wave #14)", () => {
         draft: {
           title: t("adventure.default_title"),
           maxPlayers: 4,
+          audio: DEFAULT_ADVENTURE_AUDIO,
           members: [
             {
               mapId: "m1",
@@ -1896,9 +1899,19 @@ describe("main menu → editor navigation", () => {
   });
 
   it("routes the discreet editor button to the merged adventure editor", async () => {
+    useUiStore.setState({
+      adventureEditorSession: {
+        adventureId: "previous",
+        draftId: "previous-draft",
+        draft: emptyDraft(),
+        invalidatedLinks: [],
+        savedDraft: null,
+      },
+    });
     render(<MainMenu />);
 
     await userEvent.click(await screen.findByRole("button", { name: "Editor" }));
     expect(useUiStore.getState().screen).toBe("adventure-editor");
+    expect(useUiStore.getState().adventureEditorSession).toBeNull();
   });
 });

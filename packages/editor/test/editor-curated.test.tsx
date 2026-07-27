@@ -1,10 +1,10 @@
-import { setLocale } from "@lindocara/client/i18n.js";
+import { setLocale, t } from "@lindocara/client/i18n.js";
 import { CatalogueAssetPicker } from "@lindocara/editor/ui/editor/CatalogueAssetPicker.js";
 import { EventPalette } from "@lindocara/editor/ui/editor/EventPalette.js";
 import { CURATED_MONSTER_SPECIES } from "@lindocara/engine/game.js";
 import { editorAsset } from "@lindocara/engine/tiny-swords-catalog.js";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 /** The decoration palette exposes every asset with editor placement metadata. Monster species stay
  * curated separately because they carry authoritative runtime behaviour, not just appearance. */
@@ -35,8 +35,10 @@ describe("editor asset catalogue", () => {
     expect(editorAsset("decoration.terrain-decorations-bushes.bushe2")).not.toBeNull();
   });
 
-  it("the monster event kind offers every supported runtime species", () => {
+  it("shows every supported runtime species as a directly placeable monster", () => {
     setLocale("en");
+    const onSelectEventKind = vi.fn();
+    const onMarkerSpeciesChange = vi.fn();
     render(
       <EventPalette
         eventKind="monster"
@@ -47,16 +49,24 @@ describe("editor asset catalogue", () => {
         events={[]}
         selectedEventId={null}
         onSelectPreset={() => {}}
-        onSelectEventKind={() => {}}
-        onMarkerSpeciesChange={() => {}}
+        onSelectEventKind={onSelectEventKind}
+        onMarkerSpeciesChange={onMarkerSpeciesChange}
         onMarkerRadiusChange={() => {}}
         onHoverEvent={() => {}}
         onSelectEvent={() => {}}
       />,
     );
-    const species = screen.getByLabelText("Species") as HTMLSelectElement;
-    expect(species.options).toHaveLength(CURATED_MONSTER_SPECIES.length);
-    expect(species.options.length).toBeGreaterThan(1);
-    expect(species.options[0]?.value).toBe("spear_goblin");
+    const catalogue = screen.getByTestId("monster-catalogue");
+    const monsterButtons = within(catalogue).getAllByRole("button");
+    expect(monsterButtons).toHaveLength(CURATED_MONSTER_SPECIES.length);
+    for (const species of CURATED_MONSTER_SPECIES) {
+      expect(
+        within(catalogue).getByRole("button", { name: t(`monster.${species}`) }),
+      ).toBeVisible();
+    }
+
+    fireEvent.click(within(catalogue).getByRole("button", { name: t("monster.pig_rider") }));
+    expect(onMarkerSpeciesChange).toHaveBeenCalledWith("pig_rider");
+    expect(onSelectEventKind).toHaveBeenCalledWith("monster");
   });
 });

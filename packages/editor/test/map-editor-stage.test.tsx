@@ -2,6 +2,7 @@ import type { EditorMap, EditorTool } from "@lindocara/editor/game/editor-state.
 import { applyTool, blankMap, defaultEventPage } from "@lindocara/editor/game/editor-state.js";
 import {
   applyModeDim,
+  clampCameraAxis,
   defaultDimForMode,
   eventChipLabel,
   eventOverlayToggled,
@@ -29,6 +30,17 @@ import type {
 import type { EditorAssetArt } from "@lindocara/renderer/editor-asset-art.js";
 import { Container, Graphics, Sprite, Text, Texture } from "pixi.js";
 import { describe, expect, it } from "vitest";
+
+describe("clampCameraAxis", () => {
+  it("keeps both edges of a large map reachable inside an offset centre pane", () => {
+    expect(clampCameraAxis(400, 1_200, 240, 700)).toBe(240);
+    expect(clampCameraAxis(-900, 1_200, 240, 700)).toBe(-260);
+  });
+
+  it("centres a small map inside the centre pane rather than the full canvas", () => {
+    expect(clampCameraAxis(0, 400, 240, 700)).toBe(390);
+  });
+});
 
 describe("paintGridCoordinates", () => {
   it("numbers every cell from one along all four map edges", () => {

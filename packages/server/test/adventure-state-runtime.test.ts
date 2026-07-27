@@ -190,6 +190,7 @@ describe("adventure state runtime", { timeout: 20_000 }, () => {
       kind: "monster",
       species: "torch_goblin",
       patrolRadius: 32,
+      monsterRespawnMode: "never",
       pages: [
         page({
           commands: [{ t: "advanceQuest", questId: "0001", objectiveId: "0001", amount: 1 }],
@@ -272,6 +273,7 @@ describe("adventure state runtime", { timeout: 20_000 }, () => {
     await coordinator.applyStateChanges(party.partyId, [{ type: "startQuest", questId: "9999" }]);
     const held = await coordinator.getAdventureState(party.partyId);
     expect(held.state.quests?.["9999"]).toBeUndefined();
+    expect(held.state.defeatedMonsters).toEqual({ [monsterEventId]: true });
 
     client.close();
     await drainHeroRooms();

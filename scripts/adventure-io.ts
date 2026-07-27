@@ -22,6 +22,7 @@ import {
   parseAdventureBundle,
   rewriteBundleIds,
 } from "@lindocara/engine/adventure-bundle.js";
+import type { AdventureAudioConfig, MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
 import type { MapEvent } from "@lindocara/engine/map-events.js";
 import { ApiClient, argumentsOf, resolveCredentials, resolveTarget } from "./lib/adventure-api.js";
 
@@ -38,6 +39,7 @@ interface StoredMapPayload {
   elements: unknown[];
   spawn: { col: number; row: number };
   events: MapEvent[];
+  audio?: MapAudioConfig;
   revision: number;
 }
 
@@ -55,6 +57,7 @@ function mapSaveBody(
     spawn: map.spawn,
     markers: { entries: [], exits: [], monsterSpawns: [] },
     events,
+    ...(map.audio === undefined ? {} : { audio: map.audio }),
   };
 }
 
@@ -72,6 +75,7 @@ async function exportAdventure(client: ApiClient, title: string, outFile: string
     mapIds: string[];
     graph: AdventureGraph;
     registry: unknown;
+    audio?: AdventureAudioConfig;
   } | null;
   if (!adventure.response.ok || !adventureBody) throw client.failure("adventure read", adventure);
 
@@ -90,6 +94,7 @@ async function exportAdventure(client: ApiClient, title: string, outFile: string
       elements: body.elements as AdventureBundleMap["elements"],
       spawn: body.spawn,
       events: body.events,
+      ...(body.audio === undefined ? {} : { audio: body.audio }),
     });
   }
 
@@ -100,6 +105,7 @@ async function exportAdventure(client: ApiClient, title: string, outFile: string
       title: adventureBody.title,
       maxPlayers: adventureBody.maxPlayers,
       registry: adventureBody.registry,
+      ...(adventureBody.audio === undefined ? {} : { audio: adventureBody.audio }),
     },
     maps,
     graph: adventureBody.graph,
@@ -155,7 +161,11 @@ async function importAdventure(
   if (!adventureId) {
     const created = await client.request("/api/adventures", {
       method: "POST",
-      body: JSON.stringify({ title, maxPlayers: bundle.adventure.maxPlayers }),
+      body: JSON.stringify({
+        title,
+        maxPlayers: bundle.adventure.maxPlayers,
+        ...(bundle.adventure.audio === undefined ? {} : { audio: bundle.adventure.audio }),
+      }),
     });
     const body = created.body as { id?: string; defaultMap?: { id?: string } } | null;
     if (!created.response.ok || !body?.id) throw client.failure("adventure create", created);
@@ -241,6 +251,7 @@ async function importAdventure(
     body: JSON.stringify({
       title,
       maxPlayers: bundle.adventure.maxPlayers,
+      ...(bundle.adventure.audio === undefined ? {} : { audio: bundle.adventure.audio }),
       graph: rewritten.graph,
       registry: {
         ...rewritten.adventure.registry,

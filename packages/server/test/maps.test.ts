@@ -3,8 +3,10 @@ import {
   createAuthoredQuestDefinition,
   createManualQuestObjective,
 } from "@lindocara/engine/adventure-state.js";
+import type { MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
 import { MAX_MAP_ELEMENTS, type MapElement } from "@lindocara/engine/map-data.js";
 import {
+  functionalEvent,
   MAX_EVENTS_PER_MAP,
   MAX_PAGES_PER_EVENT,
   type MapEvent,
@@ -110,6 +112,22 @@ describe("maps", () => {
     await env.DB.exec("DELETE FROM map");
     await env.DB.exec("DELETE FROM adventure");
     await env.DB.exec("DELETE FROM account");
+  });
+
+  it("round-trips map audio overrides and preserves them for an older writer", async () => {
+    const db = createDb(env.DB);
+    const audio: MapAudioConfig = {
+      music: "cave-theme",
+      ambience: null,
+      combatMusic: "battle-theme",
+    };
+    const created = await createMap(db, { ...validInput, audio });
+    expect(created.audio).toEqual(audio);
+    expect((await loadMap(db, created.id))?.audio).toEqual(audio);
+
+    const renamed = await updateMap(db, created.id, { ...validInput, name: "Renamed" });
+    expect(renamed.audio).toEqual(audio);
+    expect((await loadMap(db, created.id))?.audio).toEqual(audio);
   });
 
   describe("the floor", () => {
@@ -658,6 +676,28 @@ describe("maps", () => {
       expect(loaded.events[0]?.pages[2]).toEqual(rich);
       expect(loaded.events[0]).toMatchObject({ id: first.id, col: 3, row: 4, name: "EV1" });
       expect(loaded.events[1]).toMatchObject({ id: second.id, col: 7, row: 8, ordinal: 2 });
+    });
+
+    it("round-trips a permanent authored monster's respawn policy", async () => {
+      const db = createDb(env.DB);
+      const monster = functionalEvent({
+        id: crypto.randomUUID(),
+        col: 6,
+        row: 6,
+        name: "One life",
+        ordinal: 1,
+        kind: "monster",
+        species: "minotaur_brute",
+        patrolRadius: 96,
+        monsterRespawnMode: "never",
+        monsterTuning: {
+          rank: "elite",
+          specialTechnique: "labyrinth_stomp",
+        },
+      });
+      const created = await createMap(db, withEvents([monster]));
+      expect(created.events[0]?.monsterRespawnMode).toBe("never");
+      expect((await loadMap(db, created.id))?.events[0]?.monsterRespawnMode).toBe("never");
     });
 
     it("saves new map anchors and the graph that binds them in one request", async () => {

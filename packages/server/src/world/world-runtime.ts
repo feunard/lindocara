@@ -21,6 +21,7 @@ import {
   type GuardDefinition,
   type MonsterKind,
   type MonsterRank,
+  type MonsterRespawnMode,
   type MonsterSpawn,
   type MonsterSpecialTechnique,
   type MonsterSpecies,
@@ -237,6 +238,7 @@ export interface MonsterRuntime extends Vec2 {
   weakness: MonsterWeakness;
   weaknessPercent: number;
   specialTechnique: MonsterSpecialTechnique;
+  respawnMode: MonsterRespawnMode;
   nextSpecialAt: number;
   lastAttackAt: number;
   deadUntil: number;
@@ -612,6 +614,7 @@ export function createMonsters(spawns: readonly MonsterSpawn[]): MonsterRuntime[
       weakness: tuning.weakness,
       weaknessPercent: tuning.weaknessPercent,
       specialTechnique: tuning.specialTechnique,
+      respawnMode: spawn.respawnMode ?? "timed",
       nextSpecialAt: 0,
       lastAttackAt: 0,
       deadUntil: 0,

@@ -10,6 +10,12 @@
  */
 import { type AdventureGraph, type ExitDestination, parseAdventureGraph } from "./adventure.js";
 import { type AdventureRegistry, parseAdventureRegistry } from "./adventure-state.js";
+import {
+  type AdventureAudioConfig,
+  type MapAudioConfig,
+  parseAdventureAudioConfig,
+  parseMapAudioConfig,
+} from "./audio-catalog.js";
 import type { EventCommand } from "./event-commands.js";
 import type { MapElement } from "./map-data.js";
 import { parseMapData } from "./map-data.js";
@@ -37,12 +43,20 @@ export interface AdventureBundleMap {
   elements: readonly MapElement[];
   spawn: { col: number; row: number };
   events: readonly MapEvent[];
+  /** Optional for bundles created before authored audio. Missing means the import keeps defaults. */
+  audio?: MapAudioConfig;
 }
 
 export interface AdventureBundle {
   format: typeof ADVENTURE_BUNDLE_FORMAT;
   version: typeof ADVENTURE_BUNDLE_VERSION;
-  adventure: { title: string; maxPlayers: number; registry: AdventureRegistry };
+  adventure: {
+    title: string;
+    maxPlayers: number;
+    registry: AdventureRegistry;
+    /** Optional for backwards-compatible v1 bundles. */
+    audio?: AdventureAudioConfig;
+  };
   maps: readonly AdventureBundleMap[];
   graph: AdventureGraph;
 }
@@ -66,6 +80,12 @@ export function parseAdventureBundle(value: unknown): AdventureBundle | null {
     value.adventure.registry ?? { switches: [], variables: [] },
   );
   if (!registry) return null;
+  let audio: AdventureAudioConfig | undefined;
+  if (value.adventure.audio !== undefined) {
+    const parsedAudio = parseAdventureAudioConfig(value.adventure.audio);
+    if (!parsedAudio) return null;
+    audio = parsedAudio;
+  }
   if (!Array.isArray(value.maps) || value.maps.length === 0 || value.maps.length > MAX_BUNDLE_MAPS)
     return null;
   const maps: AdventureBundleMap[] = [];
@@ -79,6 +99,12 @@ export function parseAdventureBundle(value: unknown): AdventureBundle | null {
     if (!data) return null;
     const events = parseMapEvents(raw.events ?? [], data.cols, data.rows);
     if (!events) return null;
+    let mapAudio: MapAudioConfig | undefined;
+    if (raw.audio !== undefined) {
+      const parsedMapAudio = parseMapAudioConfig(raw.audio);
+      if (!parsedMapAudio) return null;
+      mapAudio = parsedMapAudio;
+    }
     seenIds.add(raw.id);
     maps.push({
       id: raw.id,
@@ -91,6 +117,7 @@ export function parseAdventureBundle(value: unknown): AdventureBundle | null {
       elements: data.elements,
       spawn: data.spawn,
       events,
+      ...(mapAudio === undefined ? {} : { audio: mapAudio }),
     });
   }
   const graph = parseAdventureGraph(value.graph ?? { start: null, links: [] });
@@ -98,7 +125,12 @@ export function parseAdventureBundle(value: unknown): AdventureBundle | null {
   return {
     format: ADVENTURE_BUNDLE_FORMAT,
     version: ADVENTURE_BUNDLE_VERSION,
-    adventure: { title: title.trim(), maxPlayers: maxPlayers as number, registry },
+    adventure: {
+      title: title.trim(),
+      maxPlayers: maxPlayers as number,
+      registry,
+      ...(audio === undefined ? {} : { audio }),
+    },
     maps,
     graph,
   };

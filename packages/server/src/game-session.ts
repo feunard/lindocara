@@ -10,6 +10,7 @@ import {
 import { CONSUMABLE_IDS, CONSUMABLE_MAX_STACK } from "@lindocara/engine/consumables.js";
 import { applyStateMutation, type StateMutation } from "@lindocara/engine/event-interpreter.js";
 import { applyExperience, maxHpForLevel } from "@lindocara/engine/game.js";
+import { isUuid } from "@lindocara/engine/identifiers.js";
 import type { ServerMessage } from "@lindocara/engine/protocol.js";
 import {
   authoredQuestRuntimeState,
@@ -309,6 +310,26 @@ export class GameSession extends DurableObject<Env> {
         for (const mutation of accepted) next = applyStateMutation(next, mutation);
         return normalizeAuthoredQuestProgress(current.registry, next);
       });
+    });
+  }
+
+  /**
+   * Persist one authored encounter whose editor mode is `never`. The event id is server-derived
+   * from the killed runtime monster; browsers cannot call this Durable Object method.
+   */
+  async markPermanentMonsterDefeated(partyId: string, eventId: string): Promise<void> {
+    if (!isUuid(eventId)) return;
+    await this.#enqueueStateWrite(async () => {
+      const current = await this.#ensureState(partyId);
+      if (current.state.defeatedMonsters?.[eventId] === true) return;
+      await this.#applyStateChange(
+        partyId,
+        (state) => ({
+          ...state,
+          defeatedMonsters: { ...(state.defeatedMonsters ?? {}), [eventId]: true },
+        }),
+        true,
+      );
     });
   }
 

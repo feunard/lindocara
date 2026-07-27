@@ -68,6 +68,7 @@ export async function loadPartyAdventureState(
       variables: JSON.parse(row.variables),
       selfSwitches: JSON.parse(row.selfSwitches),
       quests: JSON.parse(row.quests),
+      defeatedMonsters: JSON.parse(row.defeatedMonsters),
     };
   } catch {
     warnCorruptPartyState(partyId, "invalid_json");
@@ -98,7 +99,7 @@ function selfSwitchEventId(key: string): string {
  * coordinator can cheaply do) — Task 3's `GameSession` is that seam. Without it, save is a
  * pass-through upsert.
  */
-function pruneOrphanSelfSwitches(
+function pruneOrphanEventState(
   state: PartyAdventureState,
   liveEventIds: ReadonlySet<string>,
 ): PartyAdventureState {
@@ -106,7 +107,15 @@ function pruneOrphanSelfSwitches(
   for (const [key, flag] of Object.entries(state.selfSwitches)) {
     if (liveEventIds.has(selfSwitchEventId(key))) selfSwitches[key] = flag;
   }
-  return { ...state, selfSwitches };
+  const defeatedMonsters = Object.fromEntries(
+    Object.entries(state.defeatedMonsters ?? {}).filter(([eventId]) => liveEventIds.has(eventId)),
+  ) as Record<string, true>;
+  const { defeatedMonsters: _staleDefeatedMonsters, ...base } = state;
+  return {
+    ...base,
+    selfSwitches,
+    ...(Object.keys(defeatedMonsters).length > 0 ? { defeatedMonsters } : {}),
+  };
 }
 
 export async function savePartyAdventureState(
@@ -115,13 +124,14 @@ export async function savePartyAdventureState(
   state: PartyAdventureState,
   liveEventIds?: ReadonlySet<string>,
 ): Promise<void> {
-  const pruned = liveEventIds ? pruneOrphanSelfSwitches(state, liveEventIds) : state;
+  const pruned = liveEventIds ? pruneOrphanEventState(state, liveEventIds) : state;
   const values = {
     partyId,
     switches: JSON.stringify(pruned.switches),
     variables: JSON.stringify(pruned.variables),
     selfSwitches: JSON.stringify(pruned.selfSwitches),
     quests: JSON.stringify(pruned.quests ?? {}),
+    defeatedMonsters: JSON.stringify(pruned.defeatedMonsters ?? {}),
     updatedAt: new Date(),
   };
   await db
@@ -134,6 +144,7 @@ export async function savePartyAdventureState(
         variables: values.variables,
         selfSwitches: values.selfSwitches,
         quests: values.quests,
+        defeatedMonsters: values.defeatedMonsters,
         updatedAt: values.updatedAt,
       },
     });

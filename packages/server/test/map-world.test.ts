@@ -33,6 +33,7 @@ function islandBlocks(): string[] {
 
 const islandInput: MapInput = {
   name: "Island",
+  audio: { ambience: "swamp-ambience", combatMusic: "battle-theme" },
   ...layeredTerrain(islandBlocks()),
   elements: [
     {
@@ -84,6 +85,11 @@ describe("D1 maps end-to-end", () => {
       expect(welcome.world.zoneId).toBe(stored.id);
       expect(welcome.world.tiles).toEqual(encodeTileMap(bakeCollision(stored)));
       expect(welcome.world.elements).toEqual(stored.elements);
+      expect(welcome.world.audio).toEqual({
+        music: null,
+        ambience: "swamp-ambience",
+        combatMusic: "battle-theme",
+      });
     } finally {
       client.close();
     }

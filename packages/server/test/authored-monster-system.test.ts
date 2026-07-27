@@ -85,4 +85,16 @@ describe("authored monster projection", () => {
       spawnY: retainedDefinition.y,
     });
   });
+
+  it("removes a permanently defeated encounter from the party's active definitions", () => {
+    const permanent = { ...conditionalMonster(), monsterRespawnMode: "never" as const };
+    const active = state({ "0075": true });
+    expect(activeAuthoredMonsterDefinitions([permanent], active)).toHaveLength(1);
+    expect(
+      activeAuthoredMonsterDefinitions([permanent], {
+        ...active,
+        defeatedMonsters: { [MONSTER_EVENT_ID]: true },
+      }),
+    ).toEqual([]);
+  });
 });

@@ -23,6 +23,7 @@ import {
 import { Input } from "@lindocara/ui/components/input.js";
 import { Label } from "@lindocara/ui/components/label.js";
 import { useEffect, useState } from "react";
+import { AudioConfigFields } from "./AudioConfigFields.js";
 
 function isSessionError(code: string): boolean {
   return code === "session_expired" || code === "unauthorized";
@@ -238,6 +239,18 @@ function EditForm({
           }
         />
       </div>
+
+      <section className="grid gap-2 rounded-md border border-zinc-200 p-3">
+        <div>
+          <h3 className="text-sm font-medium">{t("editor.audio.heading")}</h3>
+          <p className="text-xs text-muted-foreground">{t("editor.audio.adventureHint")}</p>
+        </div>
+        <AudioConfigFields
+          variant="adventure"
+          value={draft.audio}
+          onChange={(audio) => onUpdate({ ...draft, audio })}
+        />
+      </section>
 
       <div className="flex items-center justify-end gap-2">
         <Button variant="destructive" disabled={saving} onClick={onDelete}>

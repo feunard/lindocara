@@ -8,6 +8,7 @@
 
 import { parseAdventureInput, parseCreateAdventureInput } from "@lindocara/engine/adventure.js";
 import { parseCreateAdventureTestSessionInput } from "@lindocara/engine/adventure-test.js";
+import { type MapAudioConfig, parseMapAudioConfig } from "@lindocara/engine/audio-catalog.js";
 import { normalizeAppearance } from "@lindocara/engine/character.js";
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
 import { isValidClass } from "@lindocara/engine/game.js";
@@ -568,7 +569,8 @@ function mapErrorResponse(error: unknown): Response {
     code === "name" ||
     code === "elements" ||
     code === "markers" ||
-    code === "events"
+    code === "events" ||
+    code === "audio"
   ) {
     return json({ error: `map_${code}` }, { status: 400 });
   }
@@ -601,6 +603,13 @@ function parseMapBody(body: unknown): MapInput | null {
   const rawEvents = (body as { events?: unknown }).events;
   const events = rawEvents === undefined ? [] : parseMapEvents(rawEvents, data.cols, data.rows);
   if (events === null) return null;
+  const rawAudio = (body as { audio?: unknown }).audio;
+  let audio: MapAudioConfig | undefined;
+  if (rawAudio !== undefined) {
+    const parsed = parseMapAudioConfig(rawAudio);
+    if (parsed === null) return null;
+    audio = parsed;
+  }
   return {
     name,
     tilesetId: data.tilesetId,
@@ -611,6 +620,7 @@ function parseMapBody(body: unknown): MapInput | null {
     spawn: data.spawn,
     markers: data.markers,
     events,
+    ...(audio ? { audio } : {}),
   };
 }
 

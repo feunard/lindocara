@@ -255,8 +255,28 @@ describe("parsePartyAdventureState: good payloads round-trip unchanged", () => {
       switches: { "0001": true, "0002": false },
       variables: { "0001": 5, "0002": -3 },
       selfSwitches: { [`${EVENT_A}:A`]: true, [`${EVENT_B}:A`]: false },
+      defeatedMonsters: { [EVENT_A]: true },
     };
     expect(parsePartyAdventureState(value)).toEqual(value);
+  });
+
+  it("rejects malformed permanent-monster defeat state", () => {
+    expect(
+      parsePartyAdventureState({
+        switches: {},
+        variables: {},
+        selfSwitches: {},
+        defeatedMonsters: { "not-an-event-id": true },
+      }),
+    ).toBeNull();
+    expect(
+      parsePartyAdventureState({
+        switches: {},
+        variables: {},
+        selfSwitches: {},
+        defeatedMonsters: { [EVENT_A]: false },
+      }),
+    ).toBeNull();
   });
 
   it("accepts safe-integer variable extremes, including negative", () => {

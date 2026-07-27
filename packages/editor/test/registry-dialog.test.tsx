@@ -4,6 +4,7 @@ import { useUiStore } from "@lindocara/client/store.js";
 import { RegistryDialog } from "@lindocara/editor/ui/editor/RegistryDialog.js";
 import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
 import { createAuthoredQuestDefinition } from "@lindocara/engine/adventure-state.js";
+import { DEFAULT_ADVENTURE_AUDIO } from "@lindocara/engine/audio-catalog.js";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -29,6 +30,7 @@ function completeDraft(registry: AdventureRegistry): AdventureDraft {
   return {
     title: "Donjon",
     maxPlayers: 4,
+    audio: DEFAULT_ADVENTURE_AUDIO,
     members: [member("m1", "Verdant", "door", "east")],
     registry,
   };

@@ -296,12 +296,17 @@ describe("EventDialog", () => {
     const radius = screen.getByRole("spinbutton", { name: t("editor.markers.radius") });
     await user.clear(radius);
     await user.type(radius, "128");
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: t("editor.monster.respawnMode") }),
+      "never",
+    );
     await user.click(screen.getByRole("button", { name: t("editor.event.save") }));
 
     const committed = onCommit.mock.calls[0]?.[0] as MapEvent;
     expect(committed.kind).toBe("monster");
     expect(committed.species).toBe("spear_goblin");
     expect(committed.patrolRadius).toBe(128);
+    expect(committed.monsterRespawnMode).toBe("never");
     // A functional event stays single-page — the wire parser refuses extra pages.
     expect(committed.pages).toHaveLength(1);
   });

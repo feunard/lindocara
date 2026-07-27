@@ -3,6 +3,7 @@ import { setLocale, t } from "@lindocara/client/i18n.js";
 import { useUiStore } from "@lindocara/client/store.js";
 import { AdventureSettingsDialog } from "@lindocara/editor/ui/editor/AdventureSettingsDialog.js";
 import { EMPTY_REGISTRY } from "@lindocara/engine/adventure-state.js";
+import { DEFAULT_ADVENTURE_AUDIO } from "@lindocara/engine/audio-catalog.js";
 import { layersFromBlocks } from "@lindocara/engine/map-migrate.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { TINY_SWORDS_TILESET_ID } from "@lindocara/engine/tilesets/tiny-swords.js";
@@ -127,6 +128,7 @@ describe("AdventureSettingsDialog", () => {
     const complete: AdventureDraft = {
       title: "Original",
       maxPlayers: 4,
+      audio: DEFAULT_ADVENTURE_AUDIO,
       members: [member("m1", "Verdant", "door", "east")],
       registry: EMPTY_REGISTRY,
     };
@@ -154,9 +156,11 @@ describe("AdventureSettingsDialog", () => {
       const body = JSON.parse(String((put?.[1] as RequestInit)?.body)) as {
         title: string;
         maxPlayers: number;
+        audio: unknown;
       };
       expect(body.title).toBe("Renamed");
       expect(body.maxPlayers).toBe(3);
+      expect(body.audio).toEqual(DEFAULT_ADVENTURE_AUDIO);
     });
   });
 
@@ -164,6 +168,7 @@ describe("AdventureSettingsDialog", () => {
     const complete: AdventureDraft = {
       title: "Donjon",
       maxPlayers: 4,
+      audio: DEFAULT_ADVENTURE_AUDIO,
       members: [member("m1", "Verdant", "door", "east")],
       registry: EMPTY_REGISTRY,
     };
@@ -197,6 +202,7 @@ describe("AdventureSettingsDialog", () => {
     const complete: AdventureDraft = {
       title: "Donjon",
       maxPlayers: 4,
+      audio: DEFAULT_ADVENTURE_AUDIO,
       members: [member("m1", "Verdant", "door", "east")],
       registry: EMPTY_REGISTRY,
     };
@@ -223,6 +229,7 @@ describe("AdventureSettingsDialog", () => {
     const draft: AdventureDraft = {
       title: "Draft",
       maxPlayers: 4,
+      audio: DEFAULT_ADVENTURE_AUDIO,
       members: [member("m1", "Verdant", "door", "gate")],
       registry: EMPTY_REGISTRY,
     };
@@ -235,7 +242,8 @@ describe("AdventureSettingsDialog", () => {
     // Only the shell fields remain — no Exits/bindings destination selects, no validation readout.
     expect(await screen.findByLabelText(t("adventure.name"))).toBeInTheDocument();
     expect(screen.getByLabelText(t("adventure.players"))).toBeInTheDocument();
-    expect(screen.queryByRole("combobox")).toBeNull();
+    // The only selects are the three soundscape channels; graph destination controls stay gone.
+    expect(screen.getAllByRole("combobox")).toHaveLength(3);
     expect(screen.queryByText(/validation/i)).toBeNull();
   });
 
@@ -243,6 +251,7 @@ describe("AdventureSettingsDialog", () => {
     const draft: AdventureDraft = {
       title: "Draft",
       maxPlayers: 4,
+      audio: DEFAULT_ADVENTURE_AUDIO,
       members: [member("m1", "Verdant", "door", "gate")],
       registry: EMPTY_REGISTRY,
     };

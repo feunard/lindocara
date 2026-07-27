@@ -6,6 +6,11 @@
  * `ZoneDefinition` shape rather than teaching `World` a second content model.
  */
 
+import {
+  type AdventureAudioConfig,
+  DEFAULT_ADVENTURE_AUDIO,
+  resolveMapAudio,
+} from "@lindocara/engine/audio-catalog.js";
 import { EMPTY_MARKERS, terrainFromMap } from "@lindocara/engine/map-data.js";
 import { DEFAULT_ZONE_NAVIGATION } from "@lindocara/engine/navigation.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
@@ -15,7 +20,10 @@ import type { StoredMap } from "../maps.js";
 /** Rooms are small while a human is drawing them. Nothing here is built for a crowd yet. */
 const MAP_MAX_PLAYERS = 16;
 
-export function zoneFromMap(stored: StoredMap): ZoneDefinition {
+export function zoneFromMap(
+  stored: StoredMap,
+  adventureAudio: AdventureAudioConfig = DEFAULT_ADVENTURE_AUDIO,
+): ZoneDefinition {
   return {
     id: stored.id,
     // The name is authored content rather than an i18n key. The client prints unknown keys verbatim,
@@ -40,14 +48,19 @@ export function zoneFromMap(stored: StoredMap): ZoneDefinition {
     layers: stored.layers.map(encodeTileLayer),
     // Appearance-only, exactly like `elements` and `layers` above: never a second collision source.
     events: stored.events,
+    audio: resolveMapAudio(adventureAudio, stored.audio),
   };
 }
 
-export function locationFromMap(stored: StoredMap, instanceId: string): ZoneLocation {
+export function locationFromMap(
+  stored: StoredMap,
+  instanceId: string,
+  adventureAudio: AdventureAudioConfig = DEFAULT_ADVENTURE_AUDIO,
+): ZoneLocation {
   return {
     zoneId: stored.id,
     instanceId,
     roomKey: `${stored.id}:${instanceId}`,
-    definition: zoneFromMap(stored),
+    definition: zoneFromMap(stored, adventureAudio),
   };
 }

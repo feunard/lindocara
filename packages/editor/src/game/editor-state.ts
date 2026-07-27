@@ -1,9 +1,11 @@
 /** Pure map-editor mutations. Placement, footprints and collision all come from the shared
  * catalogue, so the browser and authoritative map API cannot disagree. */
 
+import { EMPTY_MAP_AUDIO, type MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
 import { type EventPreset, presetEvent } from "@lindocara/engine/event-presets.js";
 import {
   defaultMonsterTuning,
+  type MonsterRespawnMode,
   type MonsterSpecies,
   type MonsterTuning,
 } from "@lindocara/engine/game.js";
@@ -63,6 +65,8 @@ import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
  */
 export interface EditorMap {
   name: string;
+  /** Per-channel map overrides. Missing values inherit the adventure defaults. */
+  audio: MapAudioConfig;
   /** Exactly `MAP_LAYERS`, all the same size. Index 0 is the ground, index 1 the cliff faces. */
   layers: TileLayer[];
   elements: MapElement[];
@@ -541,6 +545,14 @@ export function setEventDraftMonster(
   };
 }
 
+/** Draft mutator for the encounter's authoritative death lifecycle. */
+export function setEventDraftMonsterRespawnMode(
+  draft: MapEvent,
+  monsterRespawnMode: MonsterRespawnMode,
+): MapEvent {
+  return draft.kind === "monster" ? { ...draft, monsterRespawnMode } : draft;
+}
+
 /** Draft mutator for an authored allied guard's authoritative movement leash. */
 export function setEventDraftGuardRadius(draft: MapEvent, patrolRadius: number): MapEvent {
   return draft.kind === "guard" ? { ...draft, patrolRadius } : draft;
@@ -639,6 +651,7 @@ export function blankMap(name: string, cols: number, rows: number): EditorMap {
   const layers = [ground, ...Array.from({ length: MAP_LAYERS - 1 }, () => emptyLayer(cols, rows))];
   return {
     name,
+    audio: EMPTY_MAP_AUDIO,
     layers,
     elements: [],
     spawn: { col: Math.floor(cols / 2), row: Math.floor(rows / 2) },
@@ -709,10 +722,12 @@ export function toSaveInput(map: EditorMap): {
   spawn: { col: number; row: number };
   markers: MapMarkers;
   events: readonly MapEvent[];
+  audio: MapAudioConfig;
 } {
   const data = toMapData(map);
   return {
     name: map.name,
+    audio: map.audio,
     tilesetId: data.tilesetId,
     cols: data.cols,
     rows: data.rows,
