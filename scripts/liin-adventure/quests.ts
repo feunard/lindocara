@@ -121,7 +121,7 @@ function mainQuests(): AuthoredQuestDefinition[] {
       description:
         "Un convoi a été attaqué et plusieurs voyageurs ont disparu. Lyra demande trois faits avant de risquer l’entrée d’Aubeval.",
       summary:
-        "Interroger Iven près du chariot, examiner le registre, puis rejoindre l’Éclat d’Aube.",
+        "Interroger Iven près du chariot, examiner le registre fendu, puis toucher l’Éclat d’Aube sur la berge.",
       recommendedLevel: 1,
       nextQuestId: "0002",
       experience: 350,
@@ -129,7 +129,12 @@ function mainQuests(): AuthoredQuestDefinition[] {
       objectives: [
         activityObjective("0001", "Recueillir le témoignage d’Iven", 0, "disparus_signales"),
         activityObjective("0002", "Examiner le registre fendu", 0, "registre_brise"),
-        activityObjective("0003", "Faire face à l’Éclat d’Aube", 1, "source_reconnait"),
+        activityObjective(
+          "0003",
+          "Toucher l’Éclat d’Aube sur la berge, au nord du greffier",
+          1,
+          "source_reconnait",
+        ),
       ],
       dialogue: dialogues(
         "Lyra désigne Iven, le chariot et le poste du greffier.",
@@ -143,16 +148,31 @@ function mainQuests(): AuthoredQuestDefinition[] {
       description:
         "Lyra veut une copie des convois avant toute accusation publique. Varkesh détient l’autre moitié du dossier dans le faubourg.",
       summary:
-        "Copier le livre des convois, rejoindre Varkesh par la Porte des Traîtres, puis statuer sur son sort.",
+        "Copier le livre sur la terrasse, franchir la Porte des Traîtres à l’est du marché, puis confronter Varkesh.",
       recommendedLevel: 2,
       previousQuestId: "0001",
       nextQuestId: "0003",
       experience: 550,
       gold: 80,
       objectives: [
-        reachObjective("0001", "Entrer dans Aubeval", 0, MAP_IDS.aubeval),
-        activityObjective("0002", "Vérifier les registres des convois", 1, "preuve_convois"),
-        activityObjective("0003", "Obtenir les preuves de Varkesh", 2, "preuve_varkesh"),
+        activityObjective(
+          "0001",
+          "Copier le livre des convois sur la terrasse des archives",
+          0,
+          "preuve_convois",
+        ),
+        reachObjective(
+          "0002",
+          "Franchir la Porte des Traîtres, à l’est du marché",
+          1,
+          MAP_IDS.faubourg,
+        ),
+        activityObjective(
+          "0003",
+          "Obtenir le dossier de Varkesh dans le faubourg",
+          2,
+          "preuve_varkesh",
+        ),
         activityObjective("0004", "Décider du sort de Varkesh", 3, "sort_varkesh"),
       ],
       dialogue: dialogues(
@@ -167,16 +187,26 @@ function mainQuests(): AuthoredQuestDefinition[] {
       description:
         "Sève protège les arbres nourriciers ; Écorce veut rouvrir les anciennes routes. Le passage dépend du clan soutenu et du rite conservé sous les racines.",
       summary:
-        "Rencontrer les deux clans, choisir une route, accomplir le rite, puis confronter Morvane.",
+        "Prendre la Route de Clairécorce au nord-est du relais, rencontrer les deux clans, puis descendre au Sanctuaire des Racines.",
       recommendedLevel: 4,
       previousQuestId: "0002",
       nextQuestId: "0004",
       experience: 750,
       gold: 105,
       objectives: [
-        reachObjective("0001", "Gagner Clairécorce", 0, MAP_IDS.woods),
+        reachObjective(
+          "0001",
+          "Suivre la Route de Clairécorce, au nord-est du relais",
+          0,
+          MAP_IDS.woods,
+        ),
         activityObjective("0002", "Prendre parti dans la querelle des clans", 1, "choix_clan"),
-        activityObjective("0003", "Reconstituer le rite des racines", 2, "rite_racines"),
+        activityObjective(
+          "0003",
+          "Descendre l’Escalier des racines et reconstituer le rite",
+          2,
+          "rite_racines",
+        ),
         activityObjective("0004", "Décider du sort de Morvane", 3, "sort_morvane"),
       ],
       dialogue: dialogues(
@@ -191,16 +221,26 @@ function mainQuests(): AuthoredQuestDefinition[] {
       description:
         "Les îlots du Marais rejouent des souvenirs sans date. Talen demande de retrouver leur ordre avant de juger Nhalgor ou d’accuser les Archives.",
       summary:
-        "Atteindre le clocher englouti, dater trois souvenirs, décider du sort de Nhalgor, puis faire parler Talen.",
+        "Questionner Nhalgor au clocher englouti, suivre le reflet jusqu’aux Archives, puis dater les trois souvenirs.",
       recommendedLevel: 6,
       previousQuestId: "0003",
       nextQuestId: "0005",
       experience: 950,
       gold: 135,
       objectives: [
-        reachObjective("0001", "Atteindre les Saules", 0, MAP_IDS.marsh),
-        activityObjective("0002", "Comprendre ce que Nhalgor protège", 1, "intentions_nhalgor"),
-        activityObjective("0003", "Rétablir la chronologie des Archives", 2, "ordre_archives"),
+        activityObjective(
+          "0001",
+          "Questionner Nhalgor près du clocher englouti",
+          0,
+          "intentions_nhalgor",
+        ),
+        reachObjective(
+          "0002",
+          "Demander à Talen d’actionner le clocher englouti",
+          1,
+          MAP_IDS.archives,
+        ),
+        activityObjective("0003", "Dater les trois souvenirs des Archives", 2, "ordre_archives"),
         activityObjective("0004", "Décider du sort de Nhalgor", 3, "sort_nhalgor"),
         activityObjective("0005", "Obtenir l’aveu complet de Talen", 4, "verite_talen"),
       ],
@@ -216,15 +256,25 @@ function mainQuests(): AuthoredQuestDefinition[] {
       description:
         "La Citadelle tient encore trois cours séparées. Serah doit parler aux conscrits avant que le groupe ne confie les portes et les réserves à un commandement.",
       summary:
-        "Rejoindre Serah dans la cour des conscrits, libérer l’accès au commandement, puis choisir qui contrôle la Citadelle.",
+        "Rejoindre Serah dans la cour des conscrits, puis franchir la Porte des trois cours vers le commandement.",
       recommendedLevel: 8,
       previousQuestId: "0004",
       nextQuestId: "0006",
       experience: 1_150,
       gold: 165,
       objectives: [
-        reachObjective("0001", "Entrer dans les Trois Cours", 0, MAP_IDS.citadel),
-        activityObjective("0002", "Fixer la ligne de Serah", 1, "position_serah"),
+        activityObjective(
+          "0001",
+          "Rejoindre Serah dans la cour des conscrits",
+          0,
+          "position_serah",
+        ),
+        reachObjective(
+          "0002",
+          "Franchir la Porte des trois cours, derrière l’officier",
+          1,
+          MAP_IDS.fort,
+        ),
         activityObjective("0003", "Choisir le contrôle de la Citadelle", 2, "controle_citadelle"),
       ],
       dialogue: dialogues(
@@ -239,16 +289,21 @@ function mainQuests(): AuthoredQuestDefinition[] {
       description:
         "Le Sanctuaire conserve le registre des soins et de leur prix. Varos attend une réponse ; trois fragments d’Eryndor indiquent où se trouve le mécanisme originel.",
       summary:
-        "Lire le registre des prélèvements, répondre à Varos, puis retrouver les trois fragments d’Eryndor.",
+        "Lire le registre, répondre à Varos, puis demander à la gardienne d’ouvrir la Crypte d’Eryndor.",
       recommendedLevel: 10,
       previousQuestId: "0005",
       nextQuestId: "0007",
       experience: 1_400,
       gold: 200,
       objectives: [
-        reachObjective("0001", "Atteindre le Sanctuaire", 0, MAP_IDS.sanctuary),
-        activityObjective("0002", "Lire le registre des prélèvements", 1, "verite_couronne"),
-        activityObjective("0003", "Répondre à l’offre de Varos", 2, "offre_varos"),
+        activityObjective("0001", "Lire le registre des prélèvements", 0, "verite_couronne"),
+        activityObjective("0002", "Répondre à l’offre de Varos", 1, "offre_varos"),
+        reachObjective(
+          "0003",
+          "Demander à la gardienne d’ouvrir la Crypte du premier roi",
+          2,
+          MAP_IDS.crypt,
+        ),
         activityObjective("0004", "Réunir les trois fragments d’Eryndor", 3, "memoire_eryndor"),
         activityObjective("0005", "Localiser le mécanisme originel", 4, "preparer_guerre"),
       ],
@@ -264,16 +319,26 @@ function mainQuests(): AuthoredQuestDefinition[] {
       description:
         "La bataille ouvre une seule fenêtre vers le mécanisme. Les réserves ne peuvent tenir qu’un front pendant que le groupe descend dans les galeries.",
       summary:
-        "Choisir le front soutenu, ouvrir le conduit des serviteurs, activer trois ancres, puis entrer dans le Cœur.",
+        "Choisir le front soutenu, ouvrir le conduit derrière l’infirmerie, puis descendre dans les Galeries.",
       recommendedLevel: 12,
       previousQuestId: "0006",
       experience: 2_500,
       gold: 350,
       objectives: [
-        reachObjective("0001", "Entrer dans la bataille", 0, MAP_IDS.war),
-        activityObjective("0002", "Engager les réserves sur un secteur", 1, "tenir_front"),
-        activityObjective("0003", "Ouvrir le passage des serviteurs", 2, "passage_serviteurs"),
-        activityObjective("0004", "Activer les trois ancres", 3, "ouvrir_mecanisme"),
+        activityObjective("0001", "Engager les réserves sur un secteur", 0, "tenir_front"),
+        activityObjective(
+          "0002",
+          "Ouvrir le conduit des serviteurs derrière l’infirmerie",
+          1,
+          "passage_serviteurs",
+        ),
+        reachObjective(
+          "0003",
+          "Descendre par le conduit jusque dans les Galeries de la Source",
+          2,
+          MAP_IDS.galleries,
+        ),
+        activityObjective("0004", "Activer les trois ancres des Galeries", 3, "ouvrir_mecanisme"),
         activityObjective("0005", "Prononcer le choix de l’Aube", 4, "choisir_aube"),
       ],
       dialogue: dialogues(

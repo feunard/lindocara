@@ -590,6 +590,68 @@ describe("Liin — Les Dettes de l’Aube", () => {
     ).toBe(false);
   });
 
+  it("names each forward passage and embodies it with a lore-facing interaction", () => {
+    const forwardPassages = [
+      "Porte de la digue",
+      "Porte des Traîtres",
+      "Route du vieux relais",
+      "Route de Clairécorce",
+      "Escalier des racines",
+      "Tunnel des Saules",
+      "Clocher englouti",
+      "Canal militaire",
+      "Porte des trois cours",
+      "Route du Sanctuaire",
+      "Crypte du premier roi",
+      "Porte de la guerre",
+      "Conduit des serviteurs",
+      "Mécanisme originel",
+    ] as const;
+
+    for (const [mapIndex, passageName] of forwardPassages.entries()) {
+      const map = BUNDLE.maps[mapIndex];
+      const destination = BUNDLE.maps[mapIndex + 1];
+      const passage = map?.events.find((event) => event.name === passageName);
+      expect(passage, `${map?.name}: ${passageName}`).toBeDefined();
+      const travelPages =
+        passage?.pages.filter((eventPage) =>
+          flattenedCommands(eventPage.commands).some(
+            (command) => command.t === "teleport" && command.mapId === destination?.id,
+          ),
+        ) ?? [];
+      expect(travelPages.length, `${passageName}: forward travel page`).toBeGreaterThan(0);
+      for (const eventPage of travelPages) {
+        expect(eventPage.graphicAssetId, `${passageName}: visible interaction`).not.toBe(
+          "decoration.deco.17",
+        );
+        expect(
+          flattenedCommands(eventPage.commands).some(
+            (command) => command.t === "say" && command.text.length >= 30,
+          ),
+          `${passageName}: named destination before travel`,
+        ).toBe(true);
+      }
+    }
+
+    const expectedTravelObjectives = new Map([
+      ["0002", BUNDLE.maps[2]?.id],
+      ["0003", BUNDLE.maps[4]?.id],
+      ["0004", BUNDLE.maps[7]?.id],
+      ["0005", BUNDLE.maps[9]?.id],
+      ["0006", BUNDLE.maps[11]?.id],
+      ["0007", BUNDLE.maps[13]?.id],
+    ]);
+    for (const [questId, destinationMapId] of expectedTravelObjectives) {
+      const definition = BUNDLE.adventure.registry.quests?.find((quest) => quest.id === questId);
+      const objective = definition?.objectives.find((candidate) => candidate.type === "reach");
+      expect(objective?.destination, `${questId}: actionable route objective`).toEqual({
+        kind: "map",
+        mapId: destinationMapId,
+      });
+      expect(objective?.label.length ?? 0, `${questId}: local passage named`).toBeGreaterThan(30);
+    }
+  });
+
   it("keeps registry, command and quest references complete and acyclic", () => {
     const quests = BUNDLE.adventure.registry.quests ?? [];
     const switchIds = new Set(BUNDLE.adventure.registry.switches.map((entry) => entry.id));
@@ -950,6 +1012,8 @@ describe("Liin — Les Dettes de l’Aube", () => {
     expect(
       Math.max(...seep.map((event) => event.col)) - Math.min(...seep.map((event) => event.col)),
     ).toBeLessThanOrEqual(8);
+    const warden = aubeval.events.find((event) => event.name === "Gardien de la brèche");
+    expect(warden?.pages.map((eventPage) => eventPage.condSwitchId)).toEqual(["0063"]);
   });
 
   it("distributes regional compositions across useful sectors and uses outdoor atmosphere", () => {
@@ -1002,6 +1066,54 @@ describe("Liin — Les Dettes de l’Aube", () => {
       );
     }
     expect(placementSignatures.size).toBe(BUNDLE.maps.length);
+  });
+
+  it("uses numbered small decor by visible subject instead of as interchangeable filler", () => {
+    const countAssets = (map: AdventureBundleMap, assetIds: ReadonlySet<string>): number =>
+      map.elements.filter((element) => assetIds.has(element.assetId)).length;
+    const mushrooms = new Set(["decoration.deco.01", "decoration.deco.02", "decoration.deco.03"]);
+    const pumpkins = new Set(["decoration.deco.12", "decoration.deco.13"]);
+    const bones = new Set(["decoration.deco.14", "decoration.deco.15"]);
+
+    expect(countAssets(mapNamed(MAP_NAMES[1]), pumpkins)).toBeGreaterThanOrEqual(8);
+    expect(countAssets(mapNamed(MAP_NAMES[1]), mushrooms)).toBe(0);
+    expect(countAssets(mapNamed(MAP_NAMES[4]), mushrooms)).toBeGreaterThanOrEqual(5);
+    expect(countAssets(mapNamed(MAP_NAMES[6]), mushrooms)).toBeGreaterThanOrEqual(5);
+    expect(
+      countAssets(mapNamed(MAP_NAMES[6]), new Set(["decoration.deco.11"])),
+    ).toBeGreaterThanOrEqual(10);
+    expect(countAssets(mapNamed(MAP_NAMES[11]), bones)).toBeGreaterThanOrEqual(5);
+    expect(countAssets(mapNamed(MAP_NAMES[11]), pumpkins)).toBe(0);
+
+    const used = new Set<string>(
+      BUNDLE.maps.flatMap((map) => map.elements.map((element) => element.assetId)),
+    );
+    for (const suffix of [
+      "01",
+      "02",
+      "03",
+      "04",
+      "05",
+      "06",
+      "07",
+      "08",
+      "09",
+      "10",
+      "11",
+      "12",
+      "13",
+      "14",
+      "15",
+      "16",
+      "18",
+    ]) {
+      expect(used.has(`decoration.deco.${suffix}`), `small decor ${suffix}`).toBe(true);
+    }
+    expect(
+      BUNDLE.maps
+        .flatMap((map) => map.elements)
+        .filter((element) => element.assetId === "decoration.deco.17"),
+    ).toHaveLength(4);
   });
 
   it("forms dangerous regions from complementary, geographically concentrated enemy roles", () => {

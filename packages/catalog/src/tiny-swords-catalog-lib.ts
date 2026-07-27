@@ -183,12 +183,34 @@ function baseId(raw: RawAsset): string {
   return `${domain}.${category}.${name}`;
 }
 
+const DECO_SEMANTIC_TAGS: Readonly<Record<string, readonly string[]>> = {
+  "01": ["mushroom", "champignon", "fungus", "small"],
+  "02": ["mushroom", "champignon", "fungus", "medium"],
+  "03": ["mushroom", "champignon", "fungus", "large"],
+  "04": ["stone", "pierre", "pebble", "small"],
+  "05": ["stone", "pierre", "pebble", "medium"],
+  "06": ["stone", "pierre", "pebble", "large"],
+  "07": ["plant", "plante", "foliage", "small"],
+  "08": ["plant", "plante", "foliage", "medium"],
+  "09": ["plant", "plante", "foliage", "large"],
+  "10": ["plant", "plante", "shoot", "sprout"],
+  "11": ["plant", "plante", "reeds", "roseaux"],
+  "12": ["pumpkin", "citrouille", "harvest", "single"],
+  "13": ["pumpkin", "citrouille", "harvest", "patch"],
+  "14": ["bone", "os", "remains", "large"],
+  "15": ["bone", "os", "remains", "small"],
+  "16": ["grave", "tombe", "skull", "warning", "panneau"],
+  "17": ["signpost", "panneau", "direction", "road"],
+  "18": ["scarecrow", "epouvantail", "farm", "field"],
+};
+
 function tagsOf(raw: RawAsset, domain: AssetDomain): string[] {
   const words = `${raw.category} ${raw.name} ${domain} ${packTag(raw.pack)}`
     .split(/[^A-Za-z0-9]+/)
     .map((word) => word.toLowerCase())
     .filter((word) => word.length > 1);
-  return [...new Set(words)];
+  const semantic = raw.category === "Deco" ? (DECO_SEMANTIC_TAGS[raw.name] ?? []) : [];
+  return [...new Set([...words, ...semantic])];
 }
 
 /**

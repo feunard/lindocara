@@ -424,7 +424,7 @@
           "id": "0001",
           "title": "Les noms absents",
           "description": "Un convoi a été attaqué et plusieurs voyageurs ont disparu. Lyra demande trois faits avant de risquer l’entrée d’Aubeval.",
-          "journalSummary": "Interroger Iven près du chariot, examiner le registre, puis rejoindre l’Éclat d’Aube.",
+          "journalSummary": "Interroger Iven près du chariot, examiner le registre fendu, puis toucher l’Éclat d’Aube sur la berge.",
           "category": "main",
           "region": "Route des Bornes arrachées",
           "landmark": "Chariot renversé",
@@ -468,7 +468,7 @@
             },
             {
               "id": "0003",
-              "label": "Faire face à l’Éclat d’Aube",
+              "label": "Toucher l’Éclat d’Aube sur la berge, au nord du greffier",
               "target": 1,
               "optional": false,
               "hidden": false,
@@ -503,7 +503,7 @@
           "id": "0002",
           "title": "La porte des traîtres",
           "description": "Lyra veut une copie des convois avant toute accusation publique. Varkesh détient l’autre moitié du dossier dans le faubourg.",
-          "journalSummary": "Copier le livre des convois, rejoindre Varkesh par la Porte des Traîtres, puis statuer sur son sort.",
+          "journalSummary": "Copier le livre sur la terrasse, franchir la Porte des Traîtres à l’est du marché, puis confronter Varkesh.",
           "category": "main",
           "region": "Aubeval et Faubourg",
           "landmark": "Marché des Digues",
@@ -530,30 +530,30 @@
           "objectives": [
             {
               "id": "0001",
-              "label": "Entrer dans Aubeval",
+              "label": "Copier le livre des convois sur la terrasse des archives",
               "target": 1,
               "optional": false,
               "hidden": false,
               "stage": 0,
-              "type": "reach",
-              "destination": {
-                "kind": "map",
-                "mapId": "d5e178a9-8fac-451e-a115-f9c8fa4bc7e0"
-              }
-            },
-            {
-              "id": "0002",
-              "label": "Vérifier les registres des convois",
-              "target": 1,
-              "optional": false,
-              "hidden": false,
-              "stage": 1,
               "type": "activity",
               "activityId": "preuve_convois"
             },
             {
+              "id": "0002",
+              "label": "Franchir la Porte des Traîtres, à l’est du marché",
+              "target": 1,
+              "optional": false,
+              "hidden": false,
+              "stage": 1,
+              "type": "reach",
+              "destination": {
+                "kind": "map",
+                "mapId": "b34d372d-41cb-477a-aa47-59fc17fa2074"
+              }
+            },
+            {
               "id": "0003",
-              "label": "Obtenir les preuves de Varkesh",
+              "label": "Obtenir le dossier de Varkesh dans le faubourg",
               "target": 1,
               "optional": false,
               "hidden": false,
@@ -598,7 +598,7 @@
           "id": "0003",
           "title": "Le Pacte mutilé",
           "description": "Sève protège les arbres nourriciers ; Écorce veut rouvrir les anciennes routes. Le passage dépend du clan soutenu et du rite conservé sous les racines.",
-          "journalSummary": "Rencontrer les deux clans, choisir une route, accomplir le rite, puis confronter Morvane.",
+          "journalSummary": "Prendre la Route de Clairécorce au nord-est du relais, rencontrer les deux clans, puis descendre au Sanctuaire des Racines.",
           "category": "main",
           "region": "Clairécorce",
           "landmark": "Relais des Quatre Dettes",
@@ -625,7 +625,7 @@
           "objectives": [
             {
               "id": "0001",
-              "label": "Gagner Clairécorce",
+              "label": "Suivre la Route de Clairécorce, au nord-est du relais",
               "target": 1,
               "optional": false,
               "hidden": false,
@@ -648,7 +648,7 @@
             },
             {
               "id": "0003",
-              "label": "Reconstituer le rite des racines",
+              "label": "Descendre l’Escalier des racines et reconstituer le rite",
               "target": 1,
               "optional": false,
               "hidden": false,
@@ -693,7 +693,7 @@
           "id": "0004",
           "title": "Les morts qui se souviennent",
           "description": "Les îlots du Marais rejouent des souvenirs sans date. Talen demande de retrouver leur ordre avant de juger Nhalgor ou d’accuser les Archives.",
-          "journalSummary": "Atteindre le clocher englouti, dater trois souvenirs, décider du sort de Nhalgor, puis faire parler Talen.",
+          "journalSummary": "Questionner Nhalgor au clocher englouti, suivre le reflet jusqu’aux Archives, puis dater les trois souvenirs.",
           "category": "main",
           "region": "Marais de Verre",
           "landmark": "Levée des Saules",
@@ -720,30 +720,30 @@
           "objectives": [
             {
               "id": "0001",
-              "label": "Atteindre les Saules",
+              "label": "Questionner Nhalgor près du clocher englouti",
               "target": 1,
               "optional": false,
               "hidden": false,
               "stage": 0,
-              "type": "reach",
-              "destination": {
-                "kind": "map",
-                "mapId": "deedd202-5768-485e-ad1d-46925cd4ee3f"
-              }
-            },
-            {
-              "id": "0002",
-              "label": "Comprendre ce que Nhalgor protège",
-              "target": 1,
-              "optional": false,
-              "hidden": false,
-              "stage": 1,
               "type": "activity",
               "activityId": "intentions_nhalgor"
             },
             {
+              "id": "0002",
+              "label": "Demander à Talen d’actionner le clocher englouti",
+              "target": 1,
+              "optional": false,
+              "hidden": false,
+              "stage": 1,
+              "type": "reach",
+              "destination": {
+                "kind": "map",
+                "mapId": "4144c8b4-8484-48cd-aa10-501c0e511ad5"
+              }
+            },
+            {
               "id": "0003",
-              "label": "Rétablir la chronologie des Archives",
+              "label": "Dater les trois souvenirs des Archives",
               "target": 1,
               "optional": false,
               "hidden": false,
@@ -798,7 +798,7 @@
           "id": "0005",
           "title": "La guerre des serments",
           "description": "La Citadelle tient encore trois cours séparées. Serah doit parler aux conscrits avant que le groupe ne confie les portes et les réserves à un commandement.",
-          "journalSummary": "Rejoindre Serah dans la cour des conscrits, libérer l’accès au commandement, puis choisir qui contrôle la Citadelle.",
+          "journalSummary": "Rejoindre Serah dans la cour des conscrits, puis franchir la Porte des trois cours vers le commandement.",
           "category": "main",
           "region": "Citadelle",
           "landmark": "Infirmerie de la première cour",
@@ -825,26 +825,26 @@
           "objectives": [
             {
               "id": "0001",
-              "label": "Entrer dans les Trois Cours",
+              "label": "Rejoindre Serah dans la cour des conscrits",
               "target": 1,
               "optional": false,
               "hidden": false,
               "stage": 0,
-              "type": "reach",
-              "destination": {
-                "kind": "map",
-                "mapId": "0f12867e-7953-4d11-a608-affd95f5dbae"
-              }
+              "type": "activity",
+              "activityId": "position_serah"
             },
             {
               "id": "0002",
-              "label": "Fixer la ligne de Serah",
+              "label": "Franchir la Porte des trois cours, derrière l’officier",
               "target": 1,
               "optional": false,
               "hidden": false,
               "stage": 1,
-              "type": "activity",
-              "activityId": "position_serah"
+              "type": "reach",
+              "destination": {
+                "kind": "map",
+                "mapId": "229b24d4-0e52-4411-a5a1-94004398a3f3"
+              }
             },
             {
               "id": "0003",
@@ -883,7 +883,7 @@
           "id": "0006",
           "title": "Le prix de l’Aube",
           "description": "Le Sanctuaire conserve le registre des soins et de leur prix. Varos attend une réponse ; trois fragments d’Eryndor indiquent où se trouve le mécanisme originel.",
-          "journalSummary": "Lire le registre des prélèvements, répondre à Varos, puis retrouver les trois fragments d’Eryndor.",
+          "journalSummary": "Lire le registre, répondre à Varos, puis demander à la gardienne d’ouvrir la Crypte d’Eryndor.",
           "category": "main",
           "region": "Sanctuaire de l’Aube",
           "landmark": "Canal des hospices",
@@ -910,36 +910,36 @@
           "objectives": [
             {
               "id": "0001",
-              "label": "Atteindre le Sanctuaire",
+              "label": "Lire le registre des prélèvements",
               "target": 1,
               "optional": false,
               "hidden": false,
               "stage": 0,
-              "type": "reach",
-              "destination": {
-                "kind": "map",
-                "mapId": "32de5e95-f06c-41ab-a30f-90bb8ee117b8"
-              }
+              "type": "activity",
+              "activityId": "verite_couronne"
             },
             {
               "id": "0002",
-              "label": "Lire le registre des prélèvements",
+              "label": "Répondre à l’offre de Varos",
               "target": 1,
               "optional": false,
               "hidden": false,
               "stage": 1,
               "type": "activity",
-              "activityId": "verite_couronne"
+              "activityId": "offre_varos"
             },
             {
               "id": "0003",
-              "label": "Répondre à l’offre de Varos",
+              "label": "Demander à la gardienne d’ouvrir la Crypte du premier roi",
               "target": 1,
               "optional": false,
               "hidden": false,
               "stage": 2,
-              "type": "activity",
-              "activityId": "offre_varos"
+              "type": "reach",
+              "destination": {
+                "kind": "map",
+                "mapId": "7f6200fd-dc0c-45ba-a54d-dd83ef00e1df"
+              }
             },
             {
               "id": "0004",
@@ -988,7 +988,7 @@
           "id": "0007",
           "title": "La guerre de l’Aube",
           "description": "La bataille ouvre une seule fenêtre vers le mécanisme. Les réserves ne peuvent tenir qu’un front pendant que le groupe descend dans les galeries.",
-          "journalSummary": "Choisir le front soutenu, ouvrir le conduit des serviteurs, activer trois ancres, puis entrer dans le Cœur.",
+          "journalSummary": "Choisir le front soutenu, ouvrir le conduit derrière l’infirmerie, puis descendre dans les Galeries.",
           "category": "main",
           "region": "Guerre de l’Aube",
           "landmark": "Poste de commandement",
@@ -1015,40 +1015,40 @@
           "objectives": [
             {
               "id": "0001",
-              "label": "Entrer dans la bataille",
+              "label": "Engager les réserves sur un secteur",
               "target": 1,
               "optional": false,
               "hidden": false,
               "stage": 0,
-              "type": "reach",
-              "destination": {
-                "kind": "map",
-                "mapId": "4a0920b2-e2e5-4e21-ac7e-23bd0624aad4"
-              }
+              "type": "activity",
+              "activityId": "tenir_front"
             },
             {
               "id": "0002",
-              "label": "Engager les réserves sur un secteur",
+              "label": "Ouvrir le conduit des serviteurs derrière l’infirmerie",
               "target": 1,
               "optional": false,
               "hidden": false,
               "stage": 1,
               "type": "activity",
-              "activityId": "tenir_front"
+              "activityId": "passage_serviteurs"
             },
             {
               "id": "0003",
-              "label": "Ouvrir le passage des serviteurs",
+              "label": "Descendre par le conduit jusque dans les Galeries de la Source",
               "target": 1,
               "optional": false,
               "hidden": false,
               "stage": 2,
-              "type": "activity",
-              "activityId": "passage_serviteurs"
+              "type": "reach",
+              "destination": {
+                "kind": "map",
+                "mapId": "3e511147-376c-447f-a4fb-290ff8663501"
+              }
             },
             {
               "id": "0004",
-              "label": "Activer les trois ancres",
+              "label": "Activer les trois ancres des Galeries",
               "target": 1,
               "optional": false,
               "hidden": false,
@@ -2462,13 +2462,6 @@
           "assetId": "resource.terrain-resources-wood-trees.tree4"
         },
         {
-          "col": 27,
-          "row": 28,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.16"
-        },
-        {
           "col": 34,
           "row": 4,
           "offsetX": 0,
@@ -2817,6 +2810,76 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "decoration.terrain-decorations-bushes.bushe1"
+        },
+        {
+          "col": 6,
+          "row": 13,
+          "offsetX": 0,
+          "offsetY": 1,
+          "assetId": "decoration.deco.01"
+        },
+        {
+          "col": 6,
+          "row": 13,
+          "offsetX": 2,
+          "offsetY": 2,
+          "assetId": "decoration.deco.02"
+        },
+        {
+          "col": 7,
+          "row": 14,
+          "offsetX": 1,
+          "offsetY": 0,
+          "assetId": "decoration.deco.03"
+        },
+        {
+          "col": 9,
+          "row": 14,
+          "offsetX": 3,
+          "offsetY": 1,
+          "assetId": "decoration.deco.07"
+        },
+        {
+          "col": 10,
+          "row": 14,
+          "offsetX": 0,
+          "offsetY": 2,
+          "assetId": "decoration.deco.10"
+        },
+        {
+          "col": 25,
+          "row": 27,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.17"
+        },
+        {
+          "col": 27,
+          "row": 26,
+          "offsetX": 1,
+          "offsetY": 2,
+          "assetId": "decoration.deco.04"
+        },
+        {
+          "col": 28,
+          "row": 26,
+          "offsetX": 3,
+          "offsetY": 0,
+          "assetId": "decoration.deco.05"
+        },
+        {
+          "col": 35,
+          "row": 22,
+          "offsetX": 2,
+          "offsetY": 1,
+          "assetId": "decoration.deco.08"
+        },
+        {
+          "col": 36,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 2,
+          "assetId": "decoration.deco.09"
         }
       ],
       "spawn": {
@@ -3204,7 +3267,7 @@
               "condVariableId": "0009",
               "condVariableMin": 1,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "resource.terrain-resources-gold-gold-stones.gold-stone-6",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -3227,7 +3290,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": "A",
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "resource.terrain-resources-gold-gold-stones.gold-stone-6",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -3409,7 +3472,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-blue-units-lancer.lancer-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -3423,6 +3486,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "Le garde abaisse la chaîne. La Porte de la digue mène au quartier occidental d’Aubeval.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "d5e178a9-8fac-451e-a115-f9c8fa4bc7e0",
                   "col": 5,
@@ -3434,7 +3502,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-blue-units-lancer.lancer-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -3752,13 +3820,6 @@
           "assetId": "building.buildings-blue-buildings.house2"
         },
         {
-          "col": 10,
-          "row": 15,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.15"
-        },
-        {
           "col": 12,
           "row": 15,
           "offsetX": 0,
@@ -3798,42 +3859,35 @@
           "row": 31,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.17"
-        },
-        {
-          "col": 49,
-          "row": 14,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.15"
+          "assetId": "decoration.deco.16"
         },
         {
           "col": 19,
           "row": 17,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.13"
+          "assetId": "decoration.deco.12"
         },
         {
           "col": 22,
           "row": 17,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.14"
+          "assetId": "decoration.deco.13"
         },
         {
           "col": 26,
           "row": 17,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.13"
+          "assetId": "decoration.deco.12"
         },
         {
           "col": 30,
           "row": 18,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.14"
+          "assetId": "decoration.deco.13"
         },
         {
           "col": 20,
@@ -4008,7 +4062,7 @@
           "row": 25,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.18"
+          "assetId": "decoration.deco.11"
         },
         {
           "col": 48,
@@ -4036,35 +4090,42 @@
           "row": 28,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.03"
+          "assetId": "decoration.deco.13"
+        },
+        {
+          "col": 19,
+          "row": 28,
+          "offsetX": 2,
+          "offsetY": 0,
+          "assetId": "decoration.deco.12"
         },
         {
           "col": 21,
           "row": 28,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.05"
+          "offsetX": 1,
+          "offsetY": 1,
+          "assetId": "decoration.deco.07"
         },
         {
           "col": 24,
           "row": 28,
-          "offsetX": 0,
+          "offsetX": 3,
           "offsetY": 0,
-          "assetId": "decoration.deco.06"
+          "assetId": "decoration.deco.08"
         },
         {
           "col": 28,
           "row": 30,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.09"
+          "assetId": "resource.resources-resources.m-idle"
         },
         {
           "col": 32,
           "row": 30,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.10"
+          "assetId": "resource.resources-resources.w-idle"
         },
         {
           "col": 34,
@@ -4163,6 +4224,76 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "decoration.terrain-decorations-rocks.rock4"
+        },
+        {
+          "col": 20,
+          "row": 20,
+          "offsetX": 0,
+          "offsetY": 1,
+          "assetId": "decoration.deco.12"
+        },
+        {
+          "col": 20,
+          "row": 20,
+          "offsetX": 3,
+          "offsetY": 2,
+          "assetId": "decoration.deco.12"
+        },
+        {
+          "col": 21,
+          "row": 20,
+          "offsetX": 1,
+          "offsetY": 0,
+          "assetId": "decoration.deco.13"
+        },
+        {
+          "col": 23,
+          "row": 21,
+          "offsetX": 2,
+          "offsetY": 1,
+          "assetId": "decoration.deco.07"
+        },
+        {
+          "col": 24,
+          "row": 21,
+          "offsetX": 0,
+          "offsetY": 2,
+          "assetId": "decoration.deco.08"
+        },
+        {
+          "col": 7,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.18"
+        },
+        {
+          "col": 27,
+          "row": 18,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.17"
+        },
+        {
+          "col": 42,
+          "row": 25,
+          "offsetX": 1,
+          "offsetY": 1,
+          "assetId": "decoration.deco.04"
+        },
+        {
+          "col": 44,
+          "row": 25,
+          "offsetX": 3,
+          "offsetY": 0,
+          "assetId": "decoration.deco.06"
+        },
+        {
+          "col": 10,
+          "row": 31,
+          "offsetX": 2,
+          "offsetY": 2,
+          "assetId": "decoration.deco.11"
         }
       ],
       "spawn": {
@@ -6285,7 +6416,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-red-units-lancer.lancer-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -6298,6 +6429,11 @@
             },
             {
               "commands": [
+                {
+                  "t": "say",
+                  "text": "La sentinelle ouvre la Porte des Traîtres. Le faubourg commence derrière le rempart oriental.",
+                  "name": null
+                },
                 {
                   "t": "teleport",
                   "mapId": "b34d372d-41cb-477a-aa47-59fc17fa2074",
@@ -6310,7 +6446,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-red-units-lancer.lancer-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -6324,6 +6460,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "La sentinelle ouvre la Porte des Traîtres. Le faubourg commence derrière le rempart oriental.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "b34d372d-41cb-477a-aa47-59fc17fa2074",
                   "col": 4,
@@ -6335,7 +6476,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-red-units-lancer.lancer-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -6369,6 +6510,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "Le garde rouvre la Porte occidentale vers la Route des Bornes arrachées.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "cf821259-9a15-4c8c-a64a-1ddc8b7c0223",
                   "col": 44,
@@ -6380,7 +6526,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-blue-units-lancer.lancer-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -6423,7 +6569,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-blue-units-pawn.pawn-idle-hammer",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -6437,6 +6583,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "L’ouvrière soulève la grille. Le conduit rejoint directement le Relais des Quatre Dettes.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "772cb894-fa6b-4e9f-a172-d03137ef048e",
                   "col": 6,
@@ -6448,7 +6599,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-blue-units-pawn.pawn-idle-hammer",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -6629,7 +6780,7 @@
           "pages": [
             {
               "commands": [],
-              "condSwitchId": null,
+              "condSwitchId": "0063",
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
@@ -6773,13 +6924,6 @@
           "assetId": "terrain.bridge.wood.horizontal"
         },
         {
-          "col": 35,
-          "row": 25,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.16"
-        },
-        {
           "col": 41,
           "row": 20,
           "offsetX": 0,
@@ -6789,23 +6933,23 @@
         {
           "col": 6,
           "row": 26,
-          "offsetX": 0,
+          "offsetX": 1,
           "offsetY": 0,
-          "assetId": "decoration.deco.01"
+          "assetId": "decoration.deco.12"
         },
         {
           "col": 10,
           "row": 25,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.02"
+          "assetId": "decoration.deco.13"
         },
         {
           "col": 13,
           "row": 26,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.05"
+          "offsetX": 3,
+          "offsetY": 1,
+          "assetId": "decoration.deco.04"
         },
         {
           "col": 16,
@@ -7002,6 +7146,76 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "decoration.terrain-decorations-bushes.bushe3"
+        },
+        {
+          "col": 8,
+          "row": 12,
+          "offsetX": 1,
+          "offsetY": 0,
+          "assetId": "decoration.deco.01"
+        },
+        {
+          "col": 8,
+          "row": 12,
+          "offsetX": 3,
+          "offsetY": 2,
+          "assetId": "decoration.deco.02"
+        },
+        {
+          "col": 10,
+          "row": 13,
+          "offsetX": 0,
+          "offsetY": 1,
+          "assetId": "decoration.deco.03"
+        },
+        {
+          "col": 11,
+          "row": 13,
+          "offsetX": 2,
+          "offsetY": 0,
+          "assetId": "decoration.deco.10"
+        },
+        {
+          "col": 36,
+          "row": 16,
+          "offsetX": 1,
+          "offsetY": 1,
+          "assetId": "decoration.deco.14"
+        },
+        {
+          "col": 37,
+          "row": 16,
+          "offsetX": 3,
+          "offsetY": 0,
+          "assetId": "decoration.deco.15"
+        },
+        {
+          "col": 39,
+          "row": 18,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.16"
+        },
+        {
+          "col": 41,
+          "row": 19,
+          "offsetX": 0,
+          "offsetY": 2,
+          "assetId": "decoration.deco.04"
+        },
+        {
+          "col": 42,
+          "row": 20,
+          "offsetX": 2,
+          "offsetY": 1,
+          "assetId": "decoration.deco.06"
+        },
+        {
+          "col": 27,
+          "row": 25,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.17"
         }
       ],
       "spawn": {
@@ -7892,7 +8106,7 @@
           "id": "71c4e9fc-bb46-4189-afb5-d0e0e6cbcf39",
           "col": 3,
           "row": 19,
-          "name": "Porte d’Aubeval",
+          "name": "Sentinelle d’Aubeval",
           "ordinal": 9,
           "kind": "normal",
           "species": null,
@@ -7909,6 +8123,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "La sentinelle vous raccompagne par la Porte des Traîtres jusqu’au rempart oriental d’Aubeval.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "d5e178a9-8fac-451e-a115-f9c8fa4bc7e0",
                   "col": 49,
@@ -7920,7 +8139,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-red-units-lancer.lancer-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -7963,7 +8182,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-red-units-pawn.pawn-idle-wood",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -7976,6 +8195,11 @@
             },
             {
               "commands": [
+                {
+                  "t": "say",
+                  "text": "La guide du convoi prend la route du sud-est. Le vieux relais se trouve après les maisons brûlées.",
+                  "name": null
+                },
                 {
                   "t": "teleport",
                   "mapId": "772cb894-fa6b-4e9f-a172-d03137ef048e",
@@ -7988,7 +8212,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-red-units-pawn.pawn-idle-wood",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -8001,6 +8225,11 @@
             },
             {
               "commands": [
+                {
+                  "t": "say",
+                  "text": "La guide du convoi prend la route du sud-est. Le vieux relais se trouve après les maisons brûlées.",
+                  "name": null
+                },
                 {
                   "t": "teleport",
                   "mapId": "772cb894-fa6b-4e9f-a172-d03137ef048e",
@@ -8013,7 +8242,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-red-units-pawn.pawn-idle-wood",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -8027,6 +8256,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "La guide du convoi prend la route du sud-est. Le vieux relais se trouve après les maisons brûlées.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "772cb894-fa6b-4e9f-a172-d03137ef048e",
                   "col": 4,
@@ -8038,7 +8272,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-red-units-pawn.pawn-idle-wood",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -8495,13 +8729,6 @@
           "assetId": "resource.terrain-resources-tools.tool-02"
         },
         {
-          "col": 21,
-          "row": 23,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.16"
-        },
-        {
           "col": 5,
           "row": 6,
           "offsetX": 0,
@@ -8520,28 +8747,28 @@
           "row": 20,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.03"
+          "assetId": "decoration.deco.13"
         },
         {
           "col": 14,
           "row": 20,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.04"
+          "offsetX": 2,
+          "offsetY": 1,
+          "assetId": "decoration.deco.12"
         },
         {
           "col": 18,
           "row": 20,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.05"
+          "assetId": "resource.resources-resources.m-idle"
         },
         {
           "col": 22,
           "row": 20,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.06"
+          "assetId": "resource.resources-resources.w-idle"
         },
         {
           "col": 26,
@@ -8731,6 +8958,69 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "decoration.terrain-decorations-rocks.rock4"
+        },
+        {
+          "col": 6,
+          "row": 21,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.18"
+        },
+        {
+          "col": 8,
+          "row": 22,
+          "offsetX": 1,
+          "offsetY": 1,
+          "assetId": "decoration.deco.12"
+        },
+        {
+          "col": 8,
+          "row": 22,
+          "offsetX": 3,
+          "offsetY": 2,
+          "assetId": "decoration.deco.12"
+        },
+        {
+          "col": 9,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.13"
+        },
+        {
+          "col": 11,
+          "row": 22,
+          "offsetX": 2,
+          "offsetY": 0,
+          "assetId": "decoration.deco.07"
+        },
+        {
+          "col": 37,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 1,
+          "assetId": "decoration.deco.01"
+        },
+        {
+          "col": 37,
+          "row": 23,
+          "offsetX": 2,
+          "offsetY": 2,
+          "assetId": "decoration.deco.02"
+        },
+        {
+          "col": 38,
+          "row": 23,
+          "offsetX": 1,
+          "offsetY": 0,
+          "assetId": "decoration.deco.03"
+        },
+        {
+          "col": 40,
+          "row": 23,
+          "offsetX": 3,
+          "offsetY": 1,
+          "assetId": "decoration.deco.09"
         }
       ],
       "spawn": {
@@ -9241,6 +9531,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "La famille reprend la route d’ouest vers les maisons brûlées du faubourg.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "b34d372d-41cb-477a-aa47-59fc17fa2074",
                   "col": 46,
@@ -9252,7 +9547,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-red-units-pawn.pawn-idle-wood",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -9295,7 +9590,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-blue-units-pawn.pawn-idle-hammer",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -9309,6 +9604,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "Le vannier ouvre le conduit. L’aqueduc débouche près des installations de la digue d’Aubeval.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "d5e178a9-8fac-451e-a115-f9c8fa4bc7e0",
                   "col": 47,
@@ -9320,7 +9620,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-blue-units-pawn.pawn-idle-hammer",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -9363,7 +9663,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-yellow-units-pawn.pawn-idle-axe",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -9377,6 +9677,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "La pisteuse montre les entailles jaunes. Suivez cette ancienne route jusqu’à la lisière de Clairécorce.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "e460cca5-55b1-454c-aa6b-13a6a853b5db",
                   "col": 5,
@@ -9388,7 +9693,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-yellow-units-pawn.pawn-idle-axe",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -9974,13 +10279,6 @@
         },
         {
           "col": 26,
-          "row": 9,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.16"
-        },
-        {
-          "col": 26,
           "row": 30,
           "offsetX": 0,
           "offsetY": 0,
@@ -10537,7 +10835,7 @@
           "row": 30,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.12"
+          "assetId": "decoration.deco.18"
         },
         {
           "col": 15,
@@ -10552,6 +10850,76 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "decoration.terrain-decorations-clouds.clouds-06"
+        },
+        {
+          "col": 9,
+          "row": 19,
+          "offsetX": 0,
+          "offsetY": 1,
+          "assetId": "decoration.deco.01"
+        },
+        {
+          "col": 9,
+          "row": 19,
+          "offsetX": 2,
+          "offsetY": 2,
+          "assetId": "decoration.deco.02"
+        },
+        {
+          "col": 11,
+          "row": 20,
+          "offsetX": 1,
+          "offsetY": 0,
+          "assetId": "decoration.deco.03"
+        },
+        {
+          "col": 13,
+          "row": 19,
+          "offsetX": 3,
+          "offsetY": 1,
+          "assetId": "decoration.deco.07"
+        },
+        {
+          "col": 14,
+          "row": 20,
+          "offsetX": 0,
+          "offsetY": 2,
+          "assetId": "decoration.deco.08"
+        },
+        {
+          "col": 42,
+          "row": 28,
+          "offsetX": 1,
+          "offsetY": 2,
+          "assetId": "decoration.deco.01"
+        },
+        {
+          "col": 43,
+          "row": 28,
+          "offsetX": 3,
+          "offsetY": 0,
+          "assetId": "decoration.deco.02"
+        },
+        {
+          "col": 44,
+          "row": 29,
+          "offsetX": 0,
+          "offsetY": 1,
+          "assetId": "decoration.deco.09"
+        },
+        {
+          "col": 47,
+          "row": 27,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.resources-resources.w-idle"
+        },
+        {
+          "col": 26,
+          "row": 9,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.17"
         }
       ],
       "spawn": {
@@ -11063,7 +11431,7 @@
           "id": "02bcf74d-d90c-4f6f-a30a-78fbc2cbb3f1",
           "col": 4,
           "row": 35,
-          "name": "Lisière du relais",
+          "name": "Pisteuse de la lisière",
           "ordinal": 8,
           "kind": "normal",
           "species": null,
@@ -11080,6 +11448,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "La pisteuse reprend l’ancienne route occidentale vers le Relais des Quatre Dettes.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "772cb894-fa6b-4e9f-a172-d03137ef048e",
                   "col": 40,
@@ -11091,7 +11464,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-yellow-units-pawn.pawn-idle-axe",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -11134,7 +11507,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-yellow-units-monk.idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -11147,6 +11520,11 @@
             },
             {
               "commands": [
+                {
+                  "t": "say",
+                  "text": "Le gardien écarte les racines. L’escalier descend dans le Sanctuaire des Racines.",
+                  "name": null
+                },
                 {
                   "t": "teleport",
                   "mapId": "07a2ab24-0501-47bf-a8c2-642c5b9a1bd0",
@@ -11159,7 +11537,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-yellow-units-monk.idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -11173,6 +11551,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "Le gardien écarte les racines. L’escalier descend dans le Sanctuaire des Racines.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "07a2ab24-0501-47bf-a8c2-642c5b9a1bd0",
                   "col": 6,
@@ -11184,7 +11567,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-yellow-units-monk.idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -11227,7 +11610,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-yellow-units-pawn.pawn-idle-axe",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -11241,6 +11624,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "La pisteuse engage la chaussée restaurée. Elle rejoint les premiers pontons du Marais de Verre.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "deedd202-5768-485e-ad1d-46925cd4ee3f",
                   "col": 6,
@@ -11252,7 +11640,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-yellow-units-pawn.pawn-idle-axe",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -11803,13 +12191,6 @@
           "row": 22,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.17"
-        },
-        {
-          "col": 31,
-          "row": 24,
-          "offsetX": 0,
-          "offsetY": 0,
           "assetId": "decoration.deco.16"
         },
         {
@@ -12056,6 +12437,76 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "decoration.terrain-decorations-rocks.rock4"
+        },
+        {
+          "col": 10,
+          "row": 18,
+          "offsetX": 0,
+          "offsetY": 1,
+          "assetId": "decoration.deco.01"
+        },
+        {
+          "col": 10,
+          "row": 18,
+          "offsetX": 2,
+          "offsetY": 2,
+          "assetId": "decoration.deco.02"
+        },
+        {
+          "col": 11,
+          "row": 18,
+          "offsetX": 1,
+          "offsetY": 0,
+          "assetId": "decoration.deco.03"
+        },
+        {
+          "col": 14,
+          "row": 19,
+          "offsetX": 3,
+          "offsetY": 1,
+          "assetId": "decoration.deco.07"
+        },
+        {
+          "col": 34,
+          "row": 18,
+          "offsetX": 1,
+          "offsetY": 2,
+          "assetId": "decoration.deco.01"
+        },
+        {
+          "col": 35,
+          "row": 18,
+          "offsetX": 3,
+          "offsetY": 0,
+          "assetId": "decoration.deco.02"
+        },
+        {
+          "col": 37,
+          "row": 19,
+          "offsetX": 0,
+          "offsetY": 1,
+          "assetId": "decoration.deco.08"
+        },
+        {
+          "col": 38,
+          "row": 20,
+          "offsetX": 2,
+          "offsetY": 2,
+          "assetId": "decoration.deco.09"
+        },
+        {
+          "col": 22,
+          "row": 22,
+          "offsetX": 1,
+          "offsetY": 1,
+          "assetId": "decoration.deco.04"
+        },
+        {
+          "col": 24,
+          "row": 22,
+          "offsetX": 3,
+          "offsetY": 0,
+          "assetId": "decoration.deco.05"
         }
       ],
       "spawn": {
@@ -13093,6 +13544,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "Le gardien vous ramène par l’escalier jusqu’au plateau central de Clairécorce.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "e460cca5-55b1-454c-aa6b-13a6a853b5db",
                   "col": 46,
@@ -13104,7 +13560,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-yellow-units-monk.idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -13147,7 +13603,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-purple-units-monk.idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -13160,6 +13616,11 @@
             },
             {
               "commands": [
+                {
+                  "t": "say",
+                  "text": "Le passeur des racines ouvre le tunnel humide. Il ressort aux Saules du Marais de Verre.",
+                  "name": null
+                },
                 {
                   "t": "teleport",
                   "mapId": "deedd202-5768-485e-ad1d-46925cd4ee3f",
@@ -13172,7 +13633,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-purple-units-monk.idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -13185,6 +13646,11 @@
             },
             {
               "commands": [
+                {
+                  "t": "say",
+                  "text": "Le passeur des racines ouvre le tunnel humide. Il ressort aux Saules du Marais de Verre.",
+                  "name": null
+                },
                 {
                   "t": "teleport",
                   "mapId": "deedd202-5768-485e-ad1d-46925cd4ee3f",
@@ -13197,7 +13663,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-purple-units-monk.idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -13210,6 +13676,11 @@
             },
             {
               "commands": [
+                {
+                  "t": "say",
+                  "text": "Le passeur des racines ouvre le tunnel humide. Il ressort aux Saules du Marais de Verre.",
+                  "name": null
+                },
                 {
                   "t": "teleport",
                   "mapId": "deedd202-5768-485e-ad1d-46925cd4ee3f",
@@ -13222,7 +13693,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-purple-units-monk.idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -13236,6 +13707,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "Le passeur des racines ouvre le tunnel humide. Il ressort aux Saules du Marais de Verre.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "deedd202-5768-485e-ad1d-46925cd4ee3f",
                   "col": 6,
@@ -13247,7 +13723,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-purple-units-monk.idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -13743,21 +14219,14 @@
           "row": 23,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.18"
+          "assetId": "decoration.deco.11"
         },
         {
           "col": 36,
           "row": 22,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.18"
-        },
-        {
-          "col": 47,
-          "row": 33,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.16"
+          "assetId": "decoration.deco.11"
         },
         {
           "col": 9,
@@ -13841,28 +14310,28 @@
           "row": 24,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.18"
+          "assetId": "decoration.deco.11"
         },
         {
           "col": 22,
           "row": 18,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.18"
+          "assetId": "decoration.deco.11"
         },
         {
           "col": 43,
           "row": 16,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.18"
+          "assetId": "decoration.deco.11"
         },
         {
           "col": 49,
           "row": 28,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.18"
+          "assetId": "decoration.deco.11"
         },
         {
           "col": 7,
@@ -13904,28 +14373,28 @@
           "row": 33,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.18"
+          "assetId": "decoration.deco.11"
         },
         {
           "col": 18,
           "row": 34,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.18"
+          "assetId": "decoration.deco.11"
         },
         {
           "col": 31,
           "row": 34,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.18"
+          "assetId": "decoration.deco.11"
         },
         {
           "col": 45,
           "row": 34,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.18"
+          "assetId": "decoration.deco.11"
         },
         {
           "col": 12,
@@ -13982,6 +14451,69 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "resource.terrain-resources-wood-trees.tree2"
+        },
+        {
+          "col": 7,
+          "row": 31,
+          "offsetX": 0,
+          "offsetY": 1,
+          "assetId": "decoration.deco.01"
+        },
+        {
+          "col": 7,
+          "row": 31,
+          "offsetX": 2,
+          "offsetY": 2,
+          "assetId": "decoration.deco.02"
+        },
+        {
+          "col": 9,
+          "row": 32,
+          "offsetX": 1,
+          "offsetY": 0,
+          "assetId": "decoration.deco.03"
+        },
+        {
+          "col": 18,
+          "row": 28,
+          "offsetX": 3,
+          "offsetY": 1,
+          "assetId": "decoration.deco.11"
+        },
+        {
+          "col": 39,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 2,
+          "assetId": "decoration.deco.11"
+        },
+        {
+          "col": 5,
+          "row": 9,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "terrain.terrain-water-rocks.rocks-01"
+        },
+        {
+          "col": 22,
+          "row": 8,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "terrain.terrain-water-rocks.rocks-02"
+        },
+        {
+          "col": 53,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "terrain.terrain-water-rocks.rocks-04"
+        },
+        {
+          "col": 31,
+          "row": 32,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "effect.particle-fx.water-splash"
         }
       ],
       "spawn": {
@@ -14757,7 +15289,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-yellow-units-pawn.pawn-idle-axe",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -14771,6 +15303,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "La passeuse suit les pieux hors de l’eau. La chaussée remonte jusqu’à la lisière sud de Clairécorce.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "e460cca5-55b1-454c-aa6b-13a6a853b5db",
                   "col": 50,
@@ -14782,7 +15319,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-yellow-units-pawn.pawn-idle-axe",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -14825,7 +15362,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-purple-units-monk.idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -14839,6 +15376,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "Talen frappe la cloche noyée. Son reflet ouvre un souvenir matérialisé vers les Archives sous la Vase.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "4144c8b4-8484-48cd-aa10-501c0e511ad5",
                   "col": 6,
@@ -14850,7 +15392,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-purple-units-monk.idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -14893,7 +15435,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-black-units-lancer.lancer-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -14907,6 +15449,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "L’éclaireur dégage la poterne. Le tunnel rejoint la cour basse de la Citadelle.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "0f12867e-7953-4d11-a608-affd95f5dbae",
                   "col": 51,
@@ -14918,7 +15465,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-black-units-lancer.lancer-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -15486,13 +16033,6 @@
           "assetId": "decoration.terrain-decorations-rocks-in-the-water.water-rocks-02"
         },
         {
-          "col": 47,
-          "row": 13,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.16"
-        },
-        {
           "col": 10,
           "row": 17,
           "offsetX": 0,
@@ -15665,7 +16205,7 @@
           "row": 30,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.12"
+          "assetId": "decoration.deco.15"
         },
         {
           "col": 32,
@@ -15701,6 +16241,69 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "decoration.terrain-decorations-rocks.rock4"
+        },
+        {
+          "col": 10,
+          "row": 27,
+          "offsetX": 0,
+          "offsetY": 1,
+          "assetId": "decoration.deco.01"
+        },
+        {
+          "col": 10,
+          "row": 27,
+          "offsetX": 2,
+          "offsetY": 2,
+          "assetId": "decoration.deco.02"
+        },
+        {
+          "col": 11,
+          "row": 27,
+          "offsetX": 1,
+          "offsetY": 0,
+          "assetId": "decoration.deco.03"
+        },
+        {
+          "col": 13,
+          "row": 27,
+          "offsetX": 3,
+          "offsetY": 1,
+          "assetId": "decoration.deco.11"
+        },
+        {
+          "col": 35,
+          "row": 27,
+          "offsetX": 0,
+          "offsetY": 2,
+          "assetId": "decoration.deco.14"
+        },
+        {
+          "col": 36,
+          "row": 27,
+          "offsetX": 2,
+          "offsetY": 1,
+          "assetId": "decoration.deco.15"
+        },
+        {
+          "col": 39,
+          "row": 27,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.16"
+        },
+        {
+          "col": 24,
+          "row": 24,
+          "offsetX": 1,
+          "offsetY": 2,
+          "assetId": "decoration.deco.04"
+        },
+        {
+          "col": 26,
+          "row": 24,
+          "offsetX": 3,
+          "offsetY": 0,
+          "assetId": "decoration.deco.05"
         }
       ],
       "spawn": {
@@ -16844,6 +17447,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "Talen inverse le reflet de la cloche. L’escalier noyé rend le groupe au clocher du Marais.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "deedd202-5768-485e-ad1d-46925cd4ee3f",
                   "col": 51,
@@ -16855,7 +17463,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-purple-units-monk.idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -16898,7 +17506,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-blue-units-lancer.lancer-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -16912,6 +17520,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "Le batelier militaire suit les marques retrouvées. Le canal ressort dans la cour basse de la Citadelle.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "0f12867e-7953-4d11-a608-affd95f5dbae",
                   "col": 5,
@@ -16923,7 +17536,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-blue-units-lancer.lancer-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -17297,27 +17910,6 @@
           "assetId": "resource.terrain-resources-meat-meat-resource.meat-resource"
         },
         {
-          "col": 25,
-          "row": 17,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.15"
-        },
-        {
-          "col": 39,
-          "row": 17,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.15"
-        },
-        {
-          "col": 50,
-          "row": 21,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.16"
-        },
-        {
           "col": 15,
           "row": 7,
           "offsetX": 0,
@@ -17437,20 +18029,6 @@
           "assetId": "building.buildings-blue-buildings.house3"
         },
         {
-          "col": 8,
-          "row": 17,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.15"
-        },
-        {
-          "col": 14,
-          "row": 17,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.15"
-        },
-        {
           "col": 20,
           "row": 25,
           "offsetX": 0,
@@ -17484,20 +18062,6 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "resource.terrain-resources-wood-wood-resource.wood-resource"
-        },
-        {
-          "col": 26,
-          "row": 19,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.15"
-        },
-        {
-          "col": 33,
-          "row": 19,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.15"
         },
         {
           "col": 40,
@@ -17542,32 +18106,25 @@
           "assetId": "resource.terrain-resources-gold-gold-resource.gold-resource"
         },
         {
-          "col": 51,
-          "row": 29,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.16"
-        },
-        {
           "col": 7,
           "row": 27,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.01"
+          "offsetX": 1,
+          "offsetY": 1,
+          "assetId": "decoration.deco.04"
         },
         {
           "col": 11,
           "row": 27,
-          "offsetX": 0,
+          "offsetX": 2,
           "offsetY": 0,
-          "assetId": "decoration.deco.02"
+          "assetId": "decoration.deco.05"
         },
         {
           "col": 14,
           "row": 28,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.03"
+          "assetId": "decoration.deco.06"
         },
         {
           "col": 17,
@@ -17584,32 +18141,25 @@
           "assetId": "resource.terrain-resources-wood-wood-resource.wood-resource"
         },
         {
-          "col": 12,
-          "row": 23,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.15"
-        },
-        {
           "col": 24,
           "row": 28,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.05"
+          "offsetX": 2,
+          "offsetY": 1,
+          "assetId": "decoration.deco.12"
         },
         {
           "col": 28,
           "row": 29,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.06"
+          "assetId": "decoration.deco.13"
         },
         {
           "col": 32,
           "row": 28,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.09"
+          "assetId": "resource.resources-resources.m-idle"
         },
         {
           "col": 35,
@@ -17628,23 +18178,23 @@
         {
           "col": 41,
           "row": 27,
-          "offsetX": 0,
+          "offsetX": 1,
           "offsetY": 0,
-          "assetId": "decoration.deco.07"
+          "assetId": "decoration.deco.14"
         },
         {
           "col": 44,
           "row": 27,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.08"
+          "offsetX": 3,
+          "offsetY": 1,
+          "assetId": "decoration.deco.15"
         },
         {
           "col": 48,
           "row": 28,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.10"
+          "offsetX": 2,
+          "offsetY": 2,
+          "assetId": "decoration.deco.04"
         },
         {
           "col": 51,
@@ -17654,18 +18204,60 @@
           "assetId": "resource.terrain-resources-gold-gold-resource.gold-resource"
         },
         {
-          "col": 45,
-          "row": 23,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.16"
-        },
-        {
           "col": 55,
           "row": 21,
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "building.buildings-black-buildings.tower"
+        },
+        {
+          "col": 23,
+          "row": 29,
+          "offsetX": 0,
+          "offsetY": 1,
+          "assetId": "decoration.deco.12"
+        },
+        {
+          "col": 23,
+          "row": 29,
+          "offsetX": 3,
+          "offsetY": 2,
+          "assetId": "decoration.deco.12"
+        },
+        {
+          "col": 25,
+          "row": 29,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.13"
+        },
+        {
+          "col": 28,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.resources-resources.m-idle"
+        },
+        {
+          "col": 43,
+          "row": 25,
+          "offsetX": 1,
+          "offsetY": 1,
+          "assetId": "decoration.deco.14"
+        },
+        {
+          "col": 43,
+          "row": 25,
+          "offsetX": 3,
+          "offsetY": 0,
+          "assetId": "decoration.deco.15"
+        },
+        {
+          "col": 45,
+          "row": 26,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.16"
         }
       ],
       "spawn": {
@@ -18583,6 +19175,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "Le batelier reprend le canal occidental vers les salles émergées des Archives.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "4144c8b4-8484-48cd-aa10-501c0e511ad5",
                   "col": 45,
@@ -18594,7 +19191,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-blue-units-lancer.lancer-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -18637,7 +19234,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-blue-units-lancer.lancer-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -18650,6 +19247,11 @@
             },
             {
               "commands": [
+                {
+                  "t": "say",
+                  "text": "L’officier lève la herse. La Porte des trois cours mène à l’enceinte intérieure du Fort.",
+                  "name": null
+                },
                 {
                   "t": "teleport",
                   "mapId": "229b24d4-0e52-4411-a5a1-94004398a3f3",
@@ -18662,7 +19264,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-blue-units-lancer.lancer-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -18676,6 +19278,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "L’officier lève la herse. La Porte des trois cours mène à l’enceinte intérieure du Fort.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "229b24d4-0e52-4411-a5a1-94004398a3f3",
                   "col": 5,
@@ -18687,7 +19294,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-blue-units-lancer.lancer-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -18747,7 +19354,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-blue-units-pawn.pawn-idle-hammer",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -18772,7 +19379,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": "A",
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-blue-units-pawn.pawn-idle-hammer",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -19368,32 +19975,18 @@
           "assetId": "resource.terrain-resources-tools.tool-03"
         },
         {
-          "col": 23,
-          "row": 17,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.15"
-        },
-        {
-          "col": 42,
-          "row": 17,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.16"
-        },
-        {
           "col": 7,
           "row": 23,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.01"
+          "offsetX": 1,
+          "offsetY": 1,
+          "assetId": "decoration.deco.04"
         },
         {
           "col": 10,
           "row": 23,
-          "offsetX": 0,
+          "offsetX": 3,
           "offsetY": 0,
-          "assetId": "decoration.deco.02"
+          "assetId": "decoration.deco.05"
         },
         {
           "col": 14,
@@ -19407,7 +20000,7 @@
           "row": 23,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.09"
+          "assetId": "decoration.deco.13"
         },
         {
           "col": 21,
@@ -19457,20 +20050,6 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "building.buildings-red-buildings.tower"
-        },
-        {
-          "col": 10,
-          "row": 14,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.15"
-        },
-        {
-          "col": 39,
-          "row": 14,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.15"
         },
         {
           "col": 36,
@@ -19540,7 +20119,7 @@
           "row": 26,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.03"
+          "assetId": "decoration.deco.06"
         },
         {
           "col": 16,
@@ -19592,20 +20171,6 @@
           "assetId": "building.buildings-black-buildings.tower"
         },
         {
-          "col": 21,
-          "row": 13,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.15"
-        },
-        {
-          "col": 31,
-          "row": 13,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.15"
-        },
-        {
           "col": 25,
           "row": 28,
           "offsetX": 0,
@@ -19618,6 +20183,69 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "resource.terrain-resources-gold-gold-resource.gold-resource"
+        },
+        {
+          "col": 16,
+          "row": 24,
+          "offsetX": 0,
+          "offsetY": 1,
+          "assetId": "decoration.deco.12"
+        },
+        {
+          "col": 18,
+          "row": 24,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.13"
+        },
+        {
+          "col": 22,
+          "row": 24,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.resources-resources.w-idle"
+        },
+        {
+          "col": 26,
+          "row": 24,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.resources-resources.m-idle"
+        },
+        {
+          "col": 36,
+          "row": 21,
+          "offsetX": 1,
+          "offsetY": 2,
+          "assetId": "decoration.deco.14"
+        },
+        {
+          "col": 37,
+          "row": 21,
+          "offsetX": 3,
+          "offsetY": 0,
+          "assetId": "decoration.deco.15"
+        },
+        {
+          "col": 39,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.16"
+        },
+        {
+          "col": 29,
+          "row": 20,
+          "offsetX": 0,
+          "offsetY": 1,
+          "assetId": "decoration.deco.04"
+        },
+        {
+          "col": 31,
+          "row": 20,
+          "offsetX": 2,
+          "offsetY": 2,
+          "assetId": "decoration.deco.06"
         }
       ],
       "spawn": {
@@ -20255,6 +20883,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "Le garde rouvre la herse vers les trois cours extérieures de la Citadelle.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "0f12867e-7953-4d11-a608-affd95f5dbae",
                   "col": 50,
@@ -20266,7 +20899,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-blue-units-lancer.lancer-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -20309,7 +20942,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-black-units-lancer.lancer-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -20322,6 +20955,11 @@
             },
             {
               "commands": [
+                {
+                  "t": "say",
+                  "text": "L’intendante remet un laissez-passer. La route haute mène aux jardins du Sanctuaire de l’Aube.",
+                  "name": null
+                },
                 {
                   "t": "teleport",
                   "mapId": "32de5e95-f06c-41ab-a30f-90bb8ee117b8",
@@ -20334,7 +20972,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-black-units-lancer.lancer-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -20347,6 +20985,11 @@
             },
             {
               "commands": [
+                {
+                  "t": "say",
+                  "text": "L’intendante remet un laissez-passer. La route haute mène aux jardins du Sanctuaire de l’Aube.",
+                  "name": null
+                },
                 {
                   "t": "teleport",
                   "mapId": "32de5e95-f06c-41ab-a30f-90bb8ee117b8",
@@ -20359,7 +21002,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-black-units-lancer.lancer-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -20372,6 +21015,11 @@
             },
             {
               "commands": [
+                {
+                  "t": "say",
+                  "text": "L’intendante remet un laissez-passer. La route haute mène aux jardins du Sanctuaire de l’Aube.",
+                  "name": null
+                },
                 {
                   "t": "teleport",
                   "mapId": "32de5e95-f06c-41ab-a30f-90bb8ee117b8",
@@ -20384,7 +21032,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-black-units-lancer.lancer-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -20398,6 +21046,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "L’intendante remet un laissez-passer. La route haute mène aux jardins du Sanctuaire de l’Aube.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "32de5e95-f06c-41ab-a30f-90bb8ee117b8",
                   "col": 5,
@@ -20409,7 +21062,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-black-units-lancer.lancer-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -21005,18 +21658,11 @@
           "assetId": "resource.terrain-resources-tools.tool-02"
         },
         {
-          "col": 39,
-          "row": 20,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.16"
-        },
-        {
           "col": 32,
           "row": 24,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.17"
+          "assetId": "decoration.deco.16"
         },
         {
           "col": 5,
@@ -21234,6 +21880,69 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "resource.terrain-resources-tools.tool-04"
+        },
+        {
+          "col": 7,
+          "row": 21,
+          "offsetX": 0,
+          "offsetY": 1,
+          "assetId": "decoration.deco.01"
+        },
+        {
+          "col": 7,
+          "row": 21,
+          "offsetX": 2,
+          "offsetY": 2,
+          "assetId": "decoration.deco.02"
+        },
+        {
+          "col": 8,
+          "row": 21,
+          "offsetX": 1,
+          "offsetY": 0,
+          "assetId": "decoration.deco.03"
+        },
+        {
+          "col": 11,
+          "row": 21,
+          "offsetX": 3,
+          "offsetY": 1,
+          "assetId": "decoration.deco.07"
+        },
+        {
+          "col": 12,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 2,
+          "assetId": "decoration.deco.08"
+        },
+        {
+          "col": 14,
+          "row": 21,
+          "offsetX": 2,
+          "offsetY": 1,
+          "assetId": "decoration.deco.09"
+        },
+        {
+          "col": 36,
+          "row": 23,
+          "offsetX": 1,
+          "offsetY": 2,
+          "assetId": "decoration.deco.12"
+        },
+        {
+          "col": 37,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.13"
+        },
+        {
+          "col": 40,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.resources-resources.m-idle"
         }
       ],
       "spawn": {
@@ -21879,7 +22588,7 @@
           "id": "3443d8bf-2e14-4791-a581-7bd28200bd89",
           "col": 4,
           "row": 31,
-          "name": "Route de la Citadelle",
+          "name": "Porteuse du laissez-passer",
           "ordinal": 7,
           "kind": "normal",
           "species": null,
@@ -21896,6 +22605,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "La porteuse redescend la route haute jusqu’à l’entrée orientale du Fort des Serments.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "229b24d4-0e52-4411-a5a1-94004398a3f3",
                   "col": 45,
@@ -21907,7 +22621,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-black-units-lancer.lancer-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -21950,7 +22664,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-purple-units-monk.idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -21963,6 +22677,11 @@
             },
             {
               "commands": [
+                {
+                  "t": "say",
+                  "text": "La gardienne funéraire brise le cachet. L’escalier descend dans la Crypte d’Eryndor.",
+                  "name": null
+                },
                 {
                   "t": "teleport",
                   "mapId": "7f6200fd-dc0c-45ba-a54d-dd83ef00e1df",
@@ -21975,7 +22694,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-purple-units-monk.idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -21989,6 +22708,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "La gardienne funéraire brise le cachet. L’escalier descend dans la Crypte d’Eryndor.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "7f6200fd-dc0c-45ba-a54d-dd83ef00e1df",
                   "col": 5,
@@ -22000,7 +22724,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-purple-units-monk.idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -22043,7 +22767,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-yellow-units-pawn.pawn-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -22057,6 +22781,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "Linn ouvre la grille de service. L’escalier débouche derrière l’infirmerie du champ de bataille.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "4a0920b2-e2e5-4e21-ac7e-23bd0624aad4",
                   "col": 8,
@@ -22068,7 +22797,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-yellow-units-pawn.pawn-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -22642,21 +23371,21 @@
           "row": 11,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.17"
+          "assetId": "decoration.deco.16"
         },
         {
           "col": 19,
           "row": 9,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.17"
+          "assetId": "decoration.deco.16"
         },
         {
           "col": 30,
           "row": 14,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.17"
+          "assetId": "decoration.deco.16"
         },
         {
           "col": 14,
@@ -22677,35 +23406,35 @@
           "row": 15,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.17"
+          "assetId": "decoration.deco.16"
         },
         {
           "col": 11,
           "row": 14,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.17"
+          "assetId": "decoration.deco.16"
         },
         {
           "col": 17,
           "row": 15,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.17"
+          "assetId": "decoration.deco.16"
         },
         {
           "col": 24,
           "row": 14,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.17"
+          "assetId": "decoration.deco.16"
         },
         {
           "col": 30,
           "row": 15,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.17"
+          "assetId": "decoration.deco.16"
         },
         {
           "col": 9,
@@ -22831,28 +23560,28 @@
           "row": 19,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.17"
+          "assetId": "decoration.deco.16"
         },
         {
           "col": 19,
           "row": 20,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.17"
+          "assetId": "decoration.deco.16"
         },
         {
           "col": 27,
           "row": 20,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.17"
+          "assetId": "decoration.deco.16"
         },
         {
           "col": 37,
           "row": 19,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.17"
+          "assetId": "decoration.deco.16"
         },
         {
           "col": 15,
@@ -22887,7 +23616,77 @@
           "row": 23,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.12"
+          "assetId": "decoration.deco.14"
+        },
+        {
+          "col": 14,
+          "row": 20,
+          "offsetX": 0,
+          "offsetY": 1,
+          "assetId": "decoration.deco.14"
+        },
+        {
+          "col": 14,
+          "row": 20,
+          "offsetX": 3,
+          "offsetY": 2,
+          "assetId": "decoration.deco.15"
+        },
+        {
+          "col": 27,
+          "row": 20,
+          "offsetX": 1,
+          "offsetY": 0,
+          "assetId": "decoration.deco.14"
+        },
+        {
+          "col": 27,
+          "row": 20,
+          "offsetX": 2,
+          "offsetY": 2,
+          "assetId": "decoration.deco.15"
+        },
+        {
+          "col": 8,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 1,
+          "assetId": "decoration.deco.01"
+        },
+        {
+          "col": 8,
+          "row": 23,
+          "offsetX": 2,
+          "offsetY": 2,
+          "assetId": "decoration.deco.02"
+        },
+        {
+          "col": 9,
+          "row": 23,
+          "offsetX": 1,
+          "offsetY": 0,
+          "assetId": "decoration.deco.03"
+        },
+        {
+          "col": 31,
+          "row": 23,
+          "offsetX": 3,
+          "offsetY": 1,
+          "assetId": "decoration.deco.11"
+        },
+        {
+          "col": 11,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.terrain-resources-tools.tool-04"
+        },
+        {
+          "col": 21,
+          "row": 18,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.16"
         }
       ],
       "spawn": {
@@ -23467,6 +24266,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "La gardienne funéraire vous reconduit par l’escalier jusqu’au Sanctuaire de l’Aube.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "32de5e95-f06c-41ab-a30f-90bb8ee117b8",
                   "col": 42,
@@ -23478,7 +24282,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-purple-units-monk.idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -23521,7 +24325,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-red-units-lancer.lancer-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -23535,6 +24339,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "Le courrier ouvre la porte basse. Le vacarme de la Guerre de l’Aube vient de l’autre côté.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "4a0920b2-e2e5-4e21-ac7e-23bd0624aad4",
                   "col": 8,
@@ -23546,7 +24355,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-red-units-lancer.lancer-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -24068,39 +24877,25 @@
           "assetId": "decoration.terrain-decorations-rocks.rock4"
         },
         {
-          "col": 19,
-          "row": 18,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.15"
-        },
-        {
-          "col": 42,
-          "row": 18,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.15"
-        },
-        {
           "col": 7,
           "row": 26,
-          "offsetX": 0,
+          "offsetX": 1,
           "offsetY": 0,
-          "assetId": "decoration.deco.01"
+          "assetId": "decoration.deco.07"
         },
         {
           "col": 11,
           "row": 27,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.02"
+          "offsetX": 2,
+          "offsetY": 1,
+          "assetId": "decoration.deco.08"
         },
         {
           "col": 14,
           "row": 26,
-          "offsetX": 0,
+          "offsetX": 3,
           "offsetY": 0,
-          "assetId": "decoration.deco.03"
+          "assetId": "decoration.deco.12"
         },
         {
           "col": 18,
@@ -24140,23 +24935,23 @@
         {
           "col": 26,
           "row": 25,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.06"
+          "offsetX": 1,
+          "offsetY": 1,
+          "assetId": "decoration.deco.14"
         },
         {
           "col": 30,
           "row": 24,
-          "offsetX": 0,
+          "offsetX": 3,
           "offsetY": 0,
-          "assetId": "decoration.deco.07"
+          "assetId": "decoration.deco.15"
         },
         {
           "col": 34,
           "row": 25,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.08"
+          "assetId": "decoration.deco.16"
         },
         {
           "col": 27,
@@ -24353,6 +25148,69 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "resource.terrain-resources-meat-meat-resource.meat-resource"
+        },
+        {
+          "col": 24,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 1,
+          "assetId": "decoration.deco.14"
+        },
+        {
+          "col": 24,
+          "row": 23,
+          "offsetX": 3,
+          "offsetY": 2,
+          "assetId": "decoration.deco.15"
+        },
+        {
+          "col": 35,
+          "row": 23,
+          "offsetX": 1,
+          "offsetY": 0,
+          "assetId": "decoration.deco.14"
+        },
+        {
+          "col": 36,
+          "row": 23,
+          "offsetX": 2,
+          "offsetY": 2,
+          "assetId": "decoration.deco.15"
+        },
+        {
+          "col": 29,
+          "row": 25,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.16"
+        },
+        {
+          "col": 27,
+          "row": 27,
+          "offsetX": 1,
+          "offsetY": 1,
+          "assetId": "decoration.deco.04"
+        },
+        {
+          "col": 32,
+          "row": 27,
+          "offsetX": 3,
+          "offsetY": 0,
+          "assetId": "decoration.deco.06"
+        },
+        {
+          "col": 12,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.resources-resources.m-idle"
+        },
+        {
+          "col": 46,
+          "row": 28,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "resource.resources-resources.w-idle"
         }
       ],
       "spawn": {
@@ -25112,7 +25970,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-blue-units-pawn.pawn-idle-hammer",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -25126,6 +25984,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "La sapeuse tient la grille. Le conduit descend derrière l’infirmerie jusqu’aux Galeries de la Source.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "3e511147-376c-447f-a4fb-290ff8663501",
                   "col": 6,
@@ -25137,7 +26000,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-blue-units-pawn.pawn-idle-hammer",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -25180,7 +26043,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-yellow-units-pawn.pawn-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -25194,6 +26057,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "Linn remonte l’escalier de service jusqu’aux jardins du Sanctuaire.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "32de5e95-f06c-41ab-a30f-90bb8ee117b8",
                   "col": 42,
@@ -25205,7 +26073,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-yellow-units-pawn.pawn-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -26520,13 +27388,6 @@
           "assetId": "decoration.terrain-decorations-rocks.rock4"
         },
         {
-          "col": 40,
-          "row": 23,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.16"
-        },
-        {
           "col": 7,
           "row": 24,
           "offsetX": 0,
@@ -26728,6 +27589,69 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "decoration.deco.08"
+        },
+        {
+          "col": 8,
+          "row": 24,
+          "offsetX": 0,
+          "offsetY": 1,
+          "assetId": "decoration.deco.01"
+        },
+        {
+          "col": 8,
+          "row": 24,
+          "offsetX": 2,
+          "offsetY": 2,
+          "assetId": "decoration.deco.02"
+        },
+        {
+          "col": 10,
+          "row": 24,
+          "offsetX": 1,
+          "offsetY": 0,
+          "assetId": "decoration.deco.03"
+        },
+        {
+          "col": 35,
+          "row": 24,
+          "offsetX": 1,
+          "offsetY": 2,
+          "assetId": "decoration.deco.01"
+        },
+        {
+          "col": 35,
+          "row": 24,
+          "offsetX": 3,
+          "offsetY": 0,
+          "assetId": "decoration.deco.02"
+        },
+        {
+          "col": 22,
+          "row": 25,
+          "offsetX": 0,
+          "offsetY": 1,
+          "assetId": "decoration.deco.14"
+        },
+        {
+          "col": 22,
+          "row": 25,
+          "offsetX": 2,
+          "offsetY": 2,
+          "assetId": "decoration.deco.15"
+        },
+        {
+          "col": 26,
+          "row": 19,
+          "offsetX": 1,
+          "offsetY": 1,
+          "assetId": "decoration.deco.04"
+        },
+        {
+          "col": 28,
+          "row": 19,
+          "offsetX": 3,
+          "offsetY": 0,
+          "assetId": "decoration.deco.05"
         }
       ],
       "spawn": {
@@ -27560,7 +28484,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "resource.terrain-resources-gold-gold-stones.gold-stone-6",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -27574,6 +28498,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "Le cristal central répond aux trois ancres. Son passage matérialisé conduit au Cœur du Pacte.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "a3608b13-72d5-46e1-a000-87f88ae60f94",
                   "col": 6,
@@ -27585,7 +28514,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "resource.terrain-resources-gold-gold-stones.gold-stone-6",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -27619,6 +28548,11 @@
             {
               "commands": [
                 {
+                  "t": "say",
+                  "text": "Le veilleur remonte le conduit acoustique vers l’infirmerie du champ de bataille.",
+                  "name": null
+                },
+                {
                   "t": "teleport",
                   "mapId": "4a0920b2-e2e5-4e21-ac7e-23bd0624aad4",
                   "col": 29,
@@ -27630,7 +28564,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "character.units-red-units-lancer.lancer-idle",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -28086,21 +29020,21 @@
           "row": 22,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.17"
+          "assetId": "decoration.deco.16"
         },
         {
           "col": 20,
           "row": 19,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.17"
+          "assetId": "decoration.deco.16"
         },
         {
           "col": 32,
           "row": 24,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.17"
+          "assetId": "decoration.deco.16"
         },
         {
           "col": 7,
@@ -28117,53 +29051,46 @@
           "assetId": "decoration.terrain-decorations-rocks.rock4"
         },
         {
-          "col": 26,
-          "row": 22,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.16"
-        },
-        {
           "col": 7,
           "row": 18,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.17"
+          "assetId": "decoration.deco.16"
         },
         {
           "col": 13,
           "row": 14,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.17"
+          "assetId": "decoration.deco.16"
         },
         {
           "col": 19,
           "row": 12,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.17"
+          "assetId": "decoration.deco.16"
         },
         {
           "col": 27,
           "row": 12,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.17"
+          "assetId": "decoration.deco.16"
         },
         {
           "col": 34,
           "row": 14,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.17"
+          "assetId": "decoration.deco.16"
         },
         {
           "col": 41,
           "row": 18,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.17"
+          "assetId": "decoration.deco.16"
         },
         {
           "col": 11,
@@ -28332,6 +29259,90 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "decoration.deco.11"
+        },
+        {
+          "col": 5,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "terrain.terrain-water-rocks.rocks-02"
+        },
+        {
+          "col": 37,
+          "row": 10,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "terrain.terrain-water-rocks.rocks-04"
+        },
+        {
+          "col": 9,
+          "row": 22,
+          "offsetX": 0,
+          "offsetY": 1,
+          "assetId": "decoration.deco.14"
+        },
+        {
+          "col": 10,
+          "row": 22,
+          "offsetX": 3,
+          "offsetY": 2,
+          "assetId": "decoration.deco.15"
+        },
+        {
+          "col": 36,
+          "row": 22,
+          "offsetX": 1,
+          "offsetY": 0,
+          "assetId": "decoration.deco.14"
+        },
+        {
+          "col": 37,
+          "row": 22,
+          "offsetX": 2,
+          "offsetY": 2,
+          "assetId": "decoration.deco.15"
+        },
+        {
+          "col": 22,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.16"
+        },
+        {
+          "col": 18,
+          "row": 21,
+          "offsetX": 1,
+          "offsetY": 1,
+          "assetId": "decoration.deco.04"
+        },
+        {
+          "col": 24,
+          "row": 20,
+          "offsetX": 3,
+          "offsetY": 0,
+          "assetId": "decoration.deco.05"
+        },
+        {
+          "col": 30,
+          "row": 21,
+          "offsetX": 0,
+          "offsetY": 2,
+          "assetId": "decoration.deco.06"
+        },
+        {
+          "col": 7,
+          "row": 25,
+          "offsetX": 2,
+          "offsetY": 1,
+          "assetId": "decoration.deco.01"
+        },
+        {
+          "col": 40,
+          "row": 25,
+          "offsetX": 1,
+          "offsetY": 2,
+          "assetId": "decoration.deco.02"
         }
       ],
       "spawn": {
@@ -29482,7 +30493,7 @@
               "condVariableId": null,
               "condVariableMin": null,
               "condSelfSwitch": null,
-              "graphicAssetId": "decoration.deco.17",
+              "graphicAssetId": "resource.terrain-resources-gold-gold-stones.gold-stone-6",
               "moveType": "fixed",
               "moveSpeed": 4,
               "moveFreq": 3,
@@ -29909,45 +30920,45 @@
           "assetId": "resource.terrain-resources-gold-gold-resource.gold-resource"
         },
         {
-          "col": 26,
-          "row": 24,
-          "offsetX": 0,
-          "offsetY": 0,
-          "assetId": "decoration.deco.16"
-        },
-        {
           "col": 10,
           "row": 24,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.03"
+          "assetId": "decoration.deco.13"
+        },
+        {
+          "col": 13,
+          "row": 24,
+          "offsetX": 2,
+          "offsetY": 1,
+          "assetId": "decoration.deco.12"
         },
         {
           "col": 16,
           "row": 24,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.05"
+          "assetId": "resource.resources-resources.w-idle"
         },
         {
           "col": 19,
           "row": 24,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.06"
+          "assetId": "resource.resources-resources.m-idle"
         },
         {
           "col": 22,
           "row": 24,
-          "offsetX": 0,
+          "offsetX": 1,
           "offsetY": 0,
           "assetId": "decoration.deco.09"
         },
         {
           "col": 25,
           "row": 24,
-          "offsetX": 0,
-          "offsetY": 0,
+          "offsetX": 3,
+          "offsetY": 1,
           "assetId": "decoration.deco.10"
         },
         {
@@ -30039,7 +31050,7 @@
           "row": 15,
           "offsetX": 0,
           "offsetY": 0,
-          "assetId": "decoration.deco.17"
+          "assetId": "decoration.deco.16"
         },
         {
           "col": 21,
@@ -30131,6 +31142,69 @@
           "offsetX": 0,
           "offsetY": 0,
           "assetId": "decoration.terrain-decorations-rocks.rock4"
+        },
+        {
+          "col": 7,
+          "row": 20,
+          "offsetX": 0,
+          "offsetY": 1,
+          "assetId": "decoration.deco.01"
+        },
+        {
+          "col": 7,
+          "row": 20,
+          "offsetX": 2,
+          "offsetY": 2,
+          "assetId": "decoration.deco.02"
+        },
+        {
+          "col": 9,
+          "row": 21,
+          "offsetX": 1,
+          "offsetY": 0,
+          "assetId": "decoration.deco.03"
+        },
+        {
+          "col": 26,
+          "row": 23,
+          "offsetX": 1,
+          "offsetY": 1,
+          "assetId": "decoration.deco.12"
+        },
+        {
+          "col": 26,
+          "row": 23,
+          "offsetX": 3,
+          "offsetY": 2,
+          "assetId": "decoration.deco.12"
+        },
+        {
+          "col": 27,
+          "row": 23,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.13"
+        },
+        {
+          "col": 29,
+          "row": 24,
+          "offsetX": 0,
+          "offsetY": 0,
+          "assetId": "decoration.deco.18"
+        },
+        {
+          "col": 31,
+          "row": 24,
+          "offsetX": 0,
+          "offsetY": 1,
+          "assetId": "decoration.deco.07"
+        },
+        {
+          "col": 33,
+          "row": 24,
+          "offsetX": 2,
+          "offsetY": 2,
+          "assetId": "decoration.deco.09"
         }
       ],
       "spawn": {

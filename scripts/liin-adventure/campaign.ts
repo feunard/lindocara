@@ -87,6 +87,7 @@ export const GRAPHICS = {
   refugee: "character.units-red-units-pawn.pawn-idle-wood",
   woodcutter: "character.units-yellow-units-pawn.pawn-idle-axe",
   child: "character.units-yellow-units-pawn.pawn-idle",
+  source: "resource.terrain-resources-gold-gold-stones.gold-stone-6",
   rune: "decoration.deco.17",
 } as const satisfies Record<string, EditorAssetId>;
 

@@ -79,12 +79,29 @@ const SCENERY = {
   wood: "resource.terrain-resources-wood-wood-resource.wood-resource",
   gold: "resource.terrain-resources-gold-gold-resource.gold-resource",
   meat: "resource.terrain-resources-meat-meat-resource.meat-resource",
-  memorial: "decoration.deco.17",
-  marketRed: "decoration.deco.13",
-  marketBlue: "decoration.deco.14",
-  banner: "decoration.deco.15",
-  notice: "decoration.deco.16",
-  reeds: "decoration.deco.18",
+  resourceWood: "resource.resources-resources.w-idle",
+  resourceGold: "resource.resources-resources.g-idle",
+  resourceMeat: "resource.resources-resources.m-idle",
+  mushroomSmall: "decoration.deco.01",
+  mushroomMedium: "decoration.deco.02",
+  mushroomLarge: "decoration.deco.03",
+  stoneSmall: "decoration.deco.04",
+  stoneMedium: "decoration.deco.05",
+  stoneLarge: "decoration.deco.06",
+  plantSmall: "decoration.deco.07",
+  plantMedium: "decoration.deco.08",
+  plantLarge: "decoration.deco.09",
+  plantShoot: "decoration.deco.10",
+  reeds: "decoration.deco.11",
+  pumpkinSingle: "decoration.deco.12",
+  pumpkinPatch: "decoration.deco.13",
+  boneLarge: "decoration.deco.14",
+  boneSmall: "decoration.deco.15",
+  memorial: "decoration.deco.16",
+  notice: "decoration.deco.17",
+  scarecrow: "decoration.deco.18",
+  marketRed: "decoration.deco.12",
+  marketBlue: "decoration.deco.13",
   bush1: "decoration.terrain-decorations-bushes.bushe1",
   bush2: "decoration.terrain-decorations-bushes.bushe2",
   bush3: "decoration.terrain-decorations-bushes.bushe3",
@@ -97,6 +114,11 @@ const SCENERY = {
   waterRock2: "decoration.terrain-decorations-rocks-in-the-water.water-rocks-02",
   waterRock3: "decoration.terrain-decorations-rocks-in-the-water.water-rocks-03",
   waterRock4: "decoration.terrain-decorations-rocks-in-the-water.water-rocks-04",
+  waterOutcrop1: "terrain.terrain-water-rocks.rocks-01",
+  waterOutcrop2: "terrain.terrain-water-rocks.rocks-02",
+  waterOutcrop3: "terrain.terrain-water-rocks.rocks-03",
+  waterOutcrop4: "terrain.terrain-water-rocks.rocks-04",
+  waterSplash: "effect.particle-fx.water-splash",
   duck: "decoration.terrain-decorations-rubber-duck.rubber-duck",
   tree1: "resource.terrain-resources-wood-trees.tree1",
   tree2: "resource.terrain-resources-wood-trees.tree2",
@@ -112,18 +134,6 @@ const SCENERY = {
   goldStone4: "resource.terrain-resources-gold-gold-stones.gold-stone-4",
   goldStone5: "resource.terrain-resources-gold-gold-stones.gold-stone-5",
   goldStone6: "resource.terrain-resources-gold-gold-stones.gold-stone-6",
-  deco1: "decoration.deco.01",
-  deco2: "decoration.deco.02",
-  deco3: "decoration.deco.03",
-  deco4: "decoration.deco.04",
-  deco5: "decoration.deco.05",
-  deco6: "decoration.deco.06",
-  deco7: "decoration.deco.07",
-  deco8: "decoration.deco.08",
-  deco9: "decoration.deco.09",
-  deco10: "decoration.deco.10",
-  deco11: "decoration.deco.11",
-  deco12: "decoration.deco.12",
   cloud1: "decoration.terrain-decorations-clouds.clouds-01",
   cloud2: "decoration.terrain-decorations-clouds.clouds-02",
   cloud3: "decoration.terrain-decorations-clouds.clouds-03",
@@ -145,7 +155,6 @@ const REGIONAL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapElement
     element(SCENERY.rock4, 34, 36),
     element(SCENERY.bush2, 38, 34),
     element(SCENERY.tree4, 53, 25),
-    element(SCENERY.notice, 31, 35),
   ],
   faubourg: [
     element(BUILDINGS.redHouse1, 8, 34),
@@ -158,7 +167,6 @@ const REGIONAL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapElement
     element(SCENERY.tool1, 21, 31),
     element(SCENERY.tool3, 24, 30),
     element(SCENERY.bridgeHorizontal, 28, 18),
-    element(SCENERY.notice, 40, 30),
     element(SCENERY.rock2, 48, 24),
   ],
   relay: [
@@ -171,7 +179,6 @@ const REGIONAL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapElement
     element(SCENERY.meat, 25, 18),
     element(SCENERY.wood, 33, 20),
     element(SCENERY.tool2, 40, 20),
-    element(SCENERY.notice, 28, 30),
     element(SCENERY.tree2, 7, 8),
     element(SCENERY.tree4, 52, 35),
   ],
@@ -198,7 +205,6 @@ const REGIONAL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapElement
     element(SCENERY.wood, 40, 28),
     element(SCENERY.tool4, 43, 28),
     // The old road stays visible between both territories.
-    element(SCENERY.notice, 27, 9),
     element(SCENERY.rock1, 27, 31),
     element(SCENERY.rock3, 30, 34),
     // Dense perimeter groves leave the old road and both settlements as readable clearings.
@@ -281,7 +287,6 @@ const REGIONAL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapElement
     element(SCENERY.tree1, 25, 7),
     element(SCENERY.tree2, 52, 20),
     element(SCENERY.memorial, 28, 28),
-    element(SCENERY.notice, 39, 30),
     element(SCENERY.bridgeVertical, 29, 20),
     element(SCENERY.rock4, 48, 32),
   ],
@@ -300,7 +305,6 @@ const REGIONAL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapElement
     element(SCENERY.tree3, 53, 29),
     element(SCENERY.reeds, 10, 24),
     element(SCENERY.reeds, 36, 22),
-    element(SCENERY.notice, 47, 34),
   ],
   archives: [
     element(BUILDINGS.ruinedHouse, 8, 32),
@@ -312,7 +316,6 @@ const REGIONAL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapElement
     element(SCENERY.bridgeHorizontal, 46, 26),
     element(SCENERY.waterRock1, 22, 12),
     element(SCENERY.waterRock2, 38, 30),
-    element(SCENERY.notice, 54, 15),
   ],
   citadel: [
     element(BUILDINGS.blueTower, 5, 15),
@@ -326,9 +329,6 @@ const REGIONAL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapElement
     element(SCENERY.tool2, 35, 33),
     element(SCENERY.gold, 38, 30),
     element(SCENERY.meat, 45, 30),
-    element(SCENERY.banner, 26, 18),
-    element(SCENERY.banner, 40, 18),
-    element(SCENERY.notice, 52, 22),
     element(BUILDINGS.blueHouse3, 16, 8),
     element(BUILDINGS.blueHouse1, 7, 38),
     element(BUILDINGS.blueHouse2, 15, 40),
@@ -348,16 +348,12 @@ const REGIONAL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapElement
     element(BUILDINGS.blueArchery, 10, 22),
     element(BUILDINGS.blueHouse2, 6, 24),
     element(BUILDINGS.blueHouse3, 16, 24),
-    element(SCENERY.banner, 8, 18),
-    element(SCENERY.banner, 15, 18),
     // Red conscript court around the infirmary and stores.
     element(BUILDINGS.redTower, 21, 27),
     element(BUILDINGS.redHouse2, 23, 35),
     element(BUILDINGS.redHouse3, 32, 36),
     element(SCENERY.meat, 27, 32),
     element(SCENERY.wood, 34, 31),
-    element(SCENERY.banner, 27, 20),
-    element(SCENERY.banner, 34, 20),
     // Black inner court and raised command keep.
     element(BUILDINGS.blackTower, 41, 23),
     element(BUILDINGS.blackHouse3, 52, 35),
@@ -365,7 +361,6 @@ const REGIONAL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapElement
     element(BUILDINGS.constructionTower, 40, 12),
     element(BUILDINGS.constructionTower, 56, 12),
     element(SCENERY.gold, 46, 31),
-    element(SCENERY.notice, 53, 31),
   ],
   fort: [
     element(BUILDINGS.blackTower, 5, 32),
@@ -378,8 +373,6 @@ const REGIONAL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapElement
     element(SCENERY.wood, 24, 29),
     element(SCENERY.gold, 33, 29),
     element(SCENERY.tool3, 42, 29),
-    element(SCENERY.banner, 27, 20),
-    element(SCENERY.notice, 49, 20),
   ],
   sanctuary: [
     element(BUILDINGS.yellowHouse1, 8, 31),
@@ -392,7 +385,6 @@ const REGIONAL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapElement
     element(SCENERY.meat, 20, 17),
     element(SCENERY.gold, 25, 18),
     element(SCENERY.tool2, 31, 29),
-    element(SCENERY.notice, 47, 25),
     element(SCENERY.memorial, 38, 30),
   ],
   crypt: [
@@ -417,8 +409,6 @@ const REGIONAL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapElement
     element(SCENERY.tool4, 37, 26),
     element(SCENERY.rock1, 12, 11),
     element(SCENERY.rock4, 48, 11),
-    element(SCENERY.banner, 20, 19),
-    element(SCENERY.banner, 43, 19),
   ],
   galleries: [
     element(BUILDINGS.ruinedHouse, 8, 33),
@@ -430,7 +420,6 @@ const REGIONAL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapElement
     element(SCENERY.gold, 39, 26),
     element(SCENERY.rock2, 9, 11),
     element(SCENERY.rock4, 28, 9),
-    element(SCENERY.notice, 46, 27),
   ],
   heart: [
     element(BUILDINGS.ruinedCastle, 26, 31),
@@ -440,7 +429,6 @@ const REGIONAL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapElement
     element(SCENERY.memorial, 38, 30),
     element(SCENERY.rock1, 8, 10),
     element(SCENERY.rock4, 45, 30),
-    element(SCENERY.notice, 31, 28),
   ],
   epilogue: [
     element(BUILDINGS.yellowHouse2, 8, 32),
@@ -453,7 +441,6 @@ const REGIONAL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapElement
     element(SCENERY.meat, 18, 29),
     element(SCENERY.wood, 23, 30),
     element(SCENERY.gold, 28, 29),
-    element(SCENERY.notice, 36, 28),
   ],
 };
 
@@ -470,10 +457,10 @@ const REGIONAL_DETAIL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly Map
     element(SCENERY.bush4, 45, 10),
     element(SCENERY.rock2, 49, 8),
     element(SCENERY.cloud1, 41, 7),
-    // The attacked convoy reads as a worked scene rather than four isolated actors.
-    element(SCENERY.deco1, 10, 31),
-    element(SCENERY.deco2, 15, 33),
-    element(SCENERY.deco9, 19, 31),
+    // Trampled verge and dropped supplies make the attacked convoy a worked scene.
+    element(SCENERY.mushroomSmall, 10, 31),
+    element(SCENERY.mushroomMedium, 15, 33),
+    element(SCENERY.plantLarge, 19, 31),
     element(SCENERY.meat, 22, 34),
     element(SCENERY.tool1, 16, 28),
     element(SCENERY.wood, 24, 30),
@@ -489,13 +476,13 @@ const REGIONAL_DETAIL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly Map
     element(SCENERY.rock1, 23, 13),
   ],
   aubeval: [
-    // Market stalls, public notices and the provisioning lane.
-    element(SCENERY.deco3, 17, 31),
-    element(SCENERY.deco4, 20, 31),
-    element(SCENERY.deco5, 23, 31),
-    element(SCENERY.deco6, 26, 31),
-    element(SCENERY.deco9, 30, 33),
-    element(SCENERY.deco10, 34, 33),
+    // Market produce, public notices and the provisioning lane.
+    element(SCENERY.pumpkinPatch, 17, 31),
+    element(SCENERY.pumpkinSingle, 20, 31, 2, 0),
+    element(SCENERY.plantSmall, 23, 31, 1, 1),
+    element(SCENERY.plantMedium, 26, 31, 3, 0),
+    element(SCENERY.resourceMeat, 30, 33),
+    element(SCENERY.resourceWood, 34, 33),
     element(SCENERY.meat, 37, 34),
     element(SCENERY.wood, 40, 34),
     // Rich northern gardens contrast with the flooded lower quarter.
@@ -510,16 +497,16 @@ const REGIONAL_DETAIL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly Map
     element(SCENERY.tool4, 47, 26),
     element(SCENERY.tool2, 51, 27),
     element(SCENERY.stump2, 45, 30),
-    element(SCENERY.deco11, 8, 36),
-    element(SCENERY.deco12, 12, 37),
+    element(SCENERY.reeds, 8, 36),
+    element(SCENERY.pumpkinSingle, 12, 37),
     element(SCENERY.rock4, 50, 34),
   ],
   faubourg: [
     // Refugee lane and requisition yard.
-    element(SCENERY.deco1, 7, 31),
-    element(SCENERY.deco2, 11, 30),
-    element(SCENERY.deco5, 15, 31),
-    element(SCENERY.deco9, 19, 33),
+    element(SCENERY.pumpkinSingle, 7, 31, 1, 0),
+    element(SCENERY.pumpkinPatch, 11, 30),
+    element(SCENERY.stoneSmall, 15, 31, 3, 1),
+    element(SCENERY.plantLarge, 19, 33),
     element(SCENERY.meat, 22, 33),
     element(SCENERY.wood, 27, 32),
     element(SCENERY.tool2, 30, 31),
@@ -534,19 +521,19 @@ const REGIONAL_DETAIL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly Map
     element(SCENERY.cloud3, 42, 7),
     // Fortified approach and wreckage funnel the eastern fight.
     element(BUILDINGS.ruinedGoblinTower, 45, 19),
-    element(SCENERY.deco6, 39, 25),
-    element(SCENERY.deco7, 43, 26),
+    element(SCENERY.stoneLarge, 39, 25),
+    element(SCENERY.plantSmall, 43, 26),
     element(SCENERY.rock3, 48, 29),
     element(SCENERY.bush4, 51, 32),
   ],
   relay: [
     // Four-camp supply court.
-    element(SCENERY.deco3, 14, 26),
-    element(SCENERY.deco4, 19, 26),
-    element(SCENERY.deco5, 24, 27),
-    element(SCENERY.deco6, 29, 27),
-    element(SCENERY.deco9, 34, 26),
-    element(SCENERY.deco10, 39, 27),
+    element(SCENERY.pumpkinPatch, 14, 26),
+    element(SCENERY.pumpkinSingle, 19, 26, 2, 1),
+    element(SCENERY.resourceMeat, 24, 27),
+    element(SCENERY.resourceWood, 29, 27),
+    element(SCENERY.plantLarge, 34, 26),
+    element(SCENERY.plantShoot, 39, 27),
     element(SCENERY.tool1, 18, 22),
     element(SCENERY.tool3, 37, 22),
     // Road orchards and a sheltered travellers' edge.
@@ -576,8 +563,8 @@ const REGIONAL_DETAIL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly Map
     element(SCENERY.tool1, 36, 29),
     element(SCENERY.tool3, 41, 30),
     element(SCENERY.wood, 46, 29),
-    element(SCENERY.deco11, 49, 27),
-    element(SCENERY.deco12, 52, 31),
+    element(SCENERY.reeds, 49, 27),
+    element(SCENERY.scarecrow, 52, 31),
     // Two high cloud banks make the canopy region distinct at a glance.
     element(SCENERY.cloud5, 16, 7),
     element(SCENERY.cloud6, 45, 9),
@@ -597,9 +584,9 @@ const REGIONAL_DETAIL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly Map
     element(SCENERY.bush3, 39, 24),
     element(SCENERY.bush4, 47, 29),
     // Offerings and stones mark the three ritual stages.
-    element(SCENERY.deco7, 20, 29),
-    element(SCENERY.deco8, 29, 26),
-    element(SCENERY.deco10, 38, 29),
+    element(SCENERY.plantSmall, 20, 29),
+    element(SCENERY.plantMedium, 29, 26),
+    element(SCENERY.plantShoot, 38, 29),
     element(SCENERY.rock1, 24, 16),
     element(SCENERY.rock2, 29, 15),
     element(SCENERY.rock3, 34, 16),
@@ -610,9 +597,9 @@ const REGIONAL_DETAIL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly Map
     element(BUILDINGS.ruinedHouse, 9, 16),
     element(BUILDINGS.ruinedHouse, 47, 25),
     element(BUILDINGS.ruinedGoblinHouse, 28, 13),
-    element(SCENERY.deco1, 13, 31),
-    element(SCENERY.deco2, 24, 34),
-    element(SCENERY.deco11, 41, 30),
+    element(SCENERY.mushroomSmall, 13, 31),
+    element(SCENERY.mushroomMedium, 24, 34),
+    element(SCENERY.reeds, 41, 30),
     // Water channels carry recognisable navigation marks.
     element(SCENERY.waterRock3, 15, 8),
     element(SCENERY.waterRock4, 47, 9),
@@ -634,13 +621,13 @@ const REGIONAL_DETAIL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly Map
     // Broken reading halls, shelves and recovered stores.
     element(BUILDINGS.ruinedHouse, 12, 19),
     element(BUILDINGS.ruinedHouse, 42, 17),
-    element(SCENERY.deco3, 10, 29),
-    element(SCENERY.deco4, 15, 28),
-    element(SCENERY.deco5, 20, 27),
-    element(SCENERY.deco6, 26, 29),
-    element(SCENERY.deco7, 33, 28),
-    element(SCENERY.deco8, 40, 29),
-    element(SCENERY.deco9, 47, 29),
+    element(SCENERY.mushroomLarge, 10, 29),
+    element(SCENERY.stoneSmall, 15, 28),
+    element(SCENERY.stoneMedium, 20, 27),
+    element(SCENERY.stoneLarge, 26, 29),
+    element(SCENERY.plantSmall, 33, 28),
+    element(SCENERY.plantMedium, 40, 29),
+    element(SCENERY.plantLarge, 47, 29),
     // Chronology chambers use stone and metal deposits as repeated wayfinding.
     element(SCENERY.rock1, 8, 12),
     element(SCENERY.rock2, 17, 14),
@@ -654,32 +641,30 @@ const REGIONAL_DETAIL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly Map
   ],
   citadel: [
     // Outer court drill ground and guard supply line.
-    element(SCENERY.deco1, 7, 29),
-    element(SCENERY.deco2, 11, 29),
-    element(SCENERY.deco3, 15, 30),
+    element(SCENERY.stoneSmall, 7, 29, 1, 1),
+    element(SCENERY.stoneMedium, 11, 29, 2, 0),
+    element(SCENERY.stoneLarge, 15, 30),
     element(SCENERY.tool3, 18, 27),
     element(SCENERY.wood, 21, 28),
-    element(SCENERY.banner, 12, 25),
     // Conscript court infirmary and ration stores.
-    element(SCENERY.deco5, 25, 30),
-    element(SCENERY.deco6, 29, 31),
-    element(SCENERY.deco9, 33, 30),
+    element(SCENERY.pumpkinSingle, 25, 30, 2, 1),
+    element(SCENERY.pumpkinPatch, 29, 31),
+    element(SCENERY.resourceMeat, 33, 30),
     element(SCENERY.meat, 36, 29),
     element(SCENERY.tool2, 28, 26),
     // Inner command court reserves and captured records.
-    element(SCENERY.deco7, 42, 29),
-    element(SCENERY.deco8, 46, 29),
-    element(SCENERY.deco10, 50, 30),
+    element(SCENERY.boneLarge, 42, 29, 1, 0),
+    element(SCENERY.boneSmall, 46, 29, 3, 1),
+    element(SCENERY.stoneSmall, 50, 30, 2, 2),
     element(SCENERY.gold, 53, 28),
-    element(SCENERY.notice, 47, 25),
     element(BUILDINGS.blackTower, 57, 22),
   ],
   fort: [
     // Barracks yard with visible stores and maintenance.
-    element(SCENERY.deco1, 8, 27),
-    element(SCENERY.deco2, 12, 27),
-    element(SCENERY.deco5, 16, 25),
-    element(SCENERY.deco9, 20, 27),
+    element(SCENERY.stoneSmall, 8, 27, 1, 1),
+    element(SCENERY.stoneMedium, 12, 27, 3, 0),
+    element(SCENERY.stoneMedium, 16, 25),
+    element(SCENERY.pumpkinPatch, 20, 27),
     element(SCENERY.tool1, 24, 26),
     element(SCENERY.tool4, 28, 26),
     element(SCENERY.wood, 32, 27),
@@ -688,10 +673,8 @@ const REGIONAL_DETAIL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly Map
     element(BUILDINGS.blackTower, 6, 11),
     element(BUILDINGS.blackTower, 18, 10),
     element(BUILDINGS.redTower, 40, 11),
-    element(SCENERY.banner, 12, 17),
-    element(SCENERY.banner, 45, 17),
-    element(SCENERY.deco6, 42, 23),
-    element(SCENERY.deco7, 47, 24),
+    element(SCENERY.stoneLarge, 42, 23),
+    element(SCENERY.plantSmall, 47, 24),
     element(SCENERY.goldStone2, 35, 20),
     element(SCENERY.goldStone4, 39, 21),
     element(SCENERY.rock1, 7, 34),
@@ -706,16 +689,16 @@ const REGIONAL_DETAIL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly Map
     element(SCENERY.bush2, 13, 21),
     element(SCENERY.bush3, 18, 20),
     element(SCENERY.meat, 22, 23),
-    element(SCENERY.deco3, 10, 28),
-    element(SCENERY.deco4, 15, 28),
+    element(SCENERY.mushroomLarge, 10, 28),
+    element(SCENERY.stoneSmall, 15, 28),
     // Lumen works and the monastery service court.
     element(SCENERY.goldStone1, 29, 18),
     element(SCENERY.goldStone2, 32, 18),
     element(SCENERY.goldStone5, 35, 18),
     element(SCENERY.tool1, 31, 23),
     element(SCENERY.tool3, 36, 24),
-    element(SCENERY.deco7, 40, 27),
-    element(SCENERY.deco8, 45, 28),
+    element(SCENERY.plantSmall, 40, 27),
+    element(SCENERY.plantMedium, 45, 28),
     element(SCENERY.tree4, 50, 17),
     element(SCENERY.bush4, 48, 23),
     element(SCENERY.cloud2, 29, 7),
@@ -729,10 +712,10 @@ const REGIONAL_DETAIL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly Map
     element(SCENERY.memorial, 39, 20),
     element(BUILDINGS.ruinedHouse, 12, 30),
     element(BUILDINGS.ruinedHouse, 43, 30),
-    element(SCENERY.deco1, 18, 28),
-    element(SCENERY.deco2, 23, 28),
-    element(SCENERY.deco6, 34, 28),
-    element(SCENERY.deco9, 39, 29),
+    element(SCENERY.mushroomSmall, 18, 28),
+    element(SCENERY.mushroomMedium, 23, 28),
+    element(SCENERY.stoneLarge, 34, 28),
+    element(SCENERY.plantLarge, 39, 29),
     // Rock falls divide combat rooms without pretending to be walls.
     element(SCENERY.rock1, 8, 8),
     element(SCENERY.rock2, 14, 10),
@@ -744,23 +727,23 @@ const REGIONAL_DETAIL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly Map
   ],
   war: [
     // Western field hospital and broken supply lane.
-    element(SCENERY.deco1, 7, 28),
-    element(SCENERY.deco2, 11, 29),
-    element(SCENERY.deco3, 15, 28),
+    element(SCENERY.plantSmall, 7, 28, 1, 0),
+    element(SCENERY.plantMedium, 11, 29, 2, 1),
+    element(SCENERY.pumpkinSingle, 15, 28, 3, 0),
     element(SCENERY.meat, 19, 29),
     element(SCENERY.wood, 23, 28),
     element(SCENERY.tool2, 17, 24),
     // Central barricade is visibly fought over.
     element(BUILDINGS.ruinedGoblinHouse, 25, 23),
     element(BUILDINGS.ruinedGoblinTower, 30, 12),
-    element(SCENERY.deco6, 27, 27),
-    element(SCENERY.deco7, 31, 26),
-    element(SCENERY.deco8, 35, 27),
+    element(SCENERY.boneLarge, 27, 27, 1, 1),
+    element(SCENERY.boneSmall, 31, 26, 3, 0),
+    element(SCENERY.memorial, 35, 27),
     element(SCENERY.rock2, 28, 31),
     element(SCENERY.rock3, 34, 31),
     // Eastern siege reserve and scorched grove.
-    element(SCENERY.deco9, 40, 28),
-    element(SCENERY.deco10, 44, 28),
+    element(SCENERY.plantLarge, 40, 28),
+    element(SCENERY.plantShoot, 44, 28),
     element(SCENERY.tool4, 48, 27),
     element(SCENERY.stump1, 42, 10),
     element(SCENERY.stump2, 47, 9),
@@ -772,10 +755,10 @@ const REGIONAL_DETAIL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly Map
     // Extraction workshops at the lower gallery.
     element(SCENERY.tool4, 8, 29),
     element(SCENERY.tool1, 12, 27),
-    element(SCENERY.deco1, 16, 30),
-    element(SCENERY.deco2, 20, 29),
+    element(SCENERY.mushroomSmall, 16, 30),
+    element(SCENERY.mushroomMedium, 20, 29),
     element(SCENERY.wood, 24, 30),
-    element(SCENERY.deco9, 29, 29),
+    element(SCENERY.plantLarge, 29, 29),
     // Mineral seams guide the optional upper route.
     element(SCENERY.goldStone1, 8, 13),
     element(SCENERY.goldStone2, 13, 11),
@@ -799,11 +782,11 @@ const REGIONAL_DETAIL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly Map
     element(SCENERY.memorial, 33, 15),
     element(SCENERY.memorial, 41, 18),
     element(SCENERY.memorial, 49, 22),
-    element(SCENERY.deco5, 13, 29),
-    element(SCENERY.deco6, 20, 27),
-    element(SCENERY.deco7, 29, 25),
-    element(SCENERY.deco8, 38, 27),
-    element(SCENERY.deco9, 45, 29),
+    element(SCENERY.stoneMedium, 13, 29),
+    element(SCENERY.stoneLarge, 20, 27),
+    element(SCENERY.plantSmall, 29, 25),
+    element(SCENERY.plantMedium, 38, 27),
+    element(SCENERY.plantLarge, 45, 29),
     // Fractured source deposits identify the dangerous inner ring.
     element(SCENERY.goldStone1, 19, 11),
     element(SCENERY.goldStone2, 24, 9),
@@ -815,12 +798,12 @@ const REGIONAL_DETAIL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly Map
   ],
   epilogue: [
     // Rebuilt common market and readable regional stores.
-    element(SCENERY.deco3, 14, 28),
-    element(SCENERY.deco4, 18, 28),
-    element(SCENERY.deco5, 22, 28),
-    element(SCENERY.deco6, 26, 28),
-    element(SCENERY.deco9, 30, 28),
-    element(SCENERY.deco10, 34, 28),
+    element(SCENERY.pumpkinPatch, 14, 28),
+    element(SCENERY.pumpkinSingle, 18, 28, 2, 1),
+    element(SCENERY.resourceWood, 22, 28),
+    element(SCENERY.resourceMeat, 26, 28),
+    element(SCENERY.plantLarge, 30, 28, 1, 0),
+    element(SCENERY.plantShoot, 34, 28, 3, 1),
     element(SCENERY.tool2, 39, 28),
     // Memorial orchard gives the short epilogue exploration texture.
     element(SCENERY.tree1, 6, 15),
@@ -885,9 +868,9 @@ const VISUAL_REVIEW_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapEl
     element(SCENERY.stump4, 25, 21),
     element(SCENERY.rock2, 34, 17),
     // Debris trail between the evacuation camp and the eastern rempart.
-    element(SCENERY.deco3, 28, 35),
-    element(SCENERY.deco4, 34, 33),
-    element(SCENERY.deco8, 39, 35),
+    element(SCENERY.mushroomLarge, 28, 35),
+    element(SCENERY.stoneSmall, 34, 33),
+    element(SCENERY.plantMedium, 39, 35),
     element(SCENERY.wood, 45, 34),
     element(SCENERY.bush1, 48, 17),
     element(SCENERY.bush3, 52, 27),
@@ -902,10 +885,10 @@ const VISUAL_REVIEW_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapEl
     element(SCENERY.bush2, 28, 12),
     element(SCENERY.bush3, 40, 13),
     // Southern campsite is dense enough to read as a halt.
-    element(SCENERY.deco1, 9, 36),
-    element(SCENERY.deco2, 14, 37),
-    element(SCENERY.deco7, 24, 35),
-    element(SCENERY.deco8, 32, 36),
+    element(SCENERY.mushroomSmall, 9, 36),
+    element(SCENERY.mushroomMedium, 14, 37),
+    element(SCENERY.plantSmall, 24, 35),
+    element(SCENERY.plantMedium, 32, 36),
     element(SCENERY.meat, 40, 35),
     element(SCENERY.stump3, 49, 34),
     element(SCENERY.rock4, 53, 28),
@@ -951,12 +934,12 @@ const VISUAL_REVIEW_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapEl
     element(BUILDINGS.blackHouse2, 18, 24),
     element(BUILDINGS.purpleHouse2, 42, 24),
     element(BUILDINGS.ruinedHouse, 51, 18),
-    element(SCENERY.deco10, 12, 34),
-    element(SCENERY.deco11, 17, 32),
-    element(SCENERY.deco12, 23, 34),
-    element(SCENERY.deco3, 37, 34),
-    element(SCENERY.deco4, 43, 32),
-    element(SCENERY.deco5, 49, 34),
+    element(SCENERY.plantShoot, 12, 34),
+    element(SCENERY.reeds, 17, 32),
+    element(SCENERY.boneSmall, 23, 34),
+    element(SCENERY.mushroomLarge, 37, 34),
+    element(SCENERY.stoneSmall, 43, 32),
+    element(SCENERY.stoneMedium, 49, 34),
     element(SCENERY.rock2, 25, 16),
     element(SCENERY.rock4, 36, 16),
   ],
@@ -966,17 +949,15 @@ const VISUAL_REVIEW_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapEl
     element(BUILDINGS.blackHouse2, 17, 21),
     element(BUILDINGS.redHouse2, 39, 21),
     element(BUILDINGS.blueHouse2, 48, 21),
-    element(SCENERY.deco3, 12, 31),
-    element(SCENERY.deco4, 18, 31),
-    element(SCENERY.deco7, 38, 31),
-    element(SCENERY.deco8, 44, 31),
+    element(SCENERY.stoneLarge, 12, 31),
+    element(SCENERY.stoneSmall, 18, 31),
+    element(SCENERY.plantSmall, 38, 31),
+    element(SCENERY.plantMedium, 44, 31),
     // Fortification line around the elevated command sector.
     element(BUILDINGS.blackTower, 6, 7),
     element(BUILDINGS.blackTower, 18, 7),
     element(BUILDINGS.blackTower, 31, 8),
     element(BUILDINGS.blackTower, 48, 8),
-    element(SCENERY.banner, 24, 16),
-    element(SCENERY.banner, 36, 16),
     element(SCENERY.wood, 29, 33),
     element(SCENERY.gold, 34, 33),
   ],
@@ -991,11 +972,11 @@ const VISUAL_REVIEW_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapEl
     element(SCENERY.bush2, 43, 27),
     element(SCENERY.bush3, 49, 27),
     // Public courtyard furniture.
-    element(SCENERY.deco1, 8, 35),
-    element(SCENERY.deco2, 13, 34),
-    element(SCENERY.deco5, 19, 35),
-    element(SCENERY.deco9, 25, 34),
-    element(SCENERY.deco10, 31, 35),
+    element(SCENERY.mushroomSmall, 8, 35),
+    element(SCENERY.mushroomMedium, 13, 34),
+    element(SCENERY.stoneMedium, 19, 35),
+    element(SCENERY.plantLarge, 25, 34),
+    element(SCENERY.plantShoot, 31, 35),
     element(SCENERY.tool4, 35, 32),
   ],
   crypt: [
@@ -1013,7 +994,7 @@ const VISUAL_REVIEW_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapEl
     element(SCENERY.rock2, 25, 17),
     element(SCENERY.rock3, 34, 17),
     element(SCENERY.rock4, 40, 15),
-    element(SCENERY.deco12, 29, 31),
+    element(SCENERY.boneLarge, 29, 31),
   ],
   war: [
     // Western and eastern trench debris.
@@ -1021,14 +1002,14 @@ const VISUAL_REVIEW_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapEl
     element(BUILDINGS.ruinedTower, 15, 16),
     element(SCENERY.stump1, 8, 10),
     element(SCENERY.stump3, 18, 10),
-    element(SCENERY.deco4, 10, 24),
-    element(SCENERY.deco5, 16, 24),
+    element(SCENERY.stoneSmall, 10, 24),
+    element(SCENERY.stoneMedium, 16, 24),
     element(BUILDINGS.ruinedHouse, 43, 17),
     element(BUILDINGS.ruinedTower, 53, 18),
     element(SCENERY.stump2, 44, 9),
     element(SCENERY.stump4, 54, 10),
-    element(SCENERY.deco10, 45, 24),
-    element(SCENERY.deco11, 51, 24),
+    element(SCENERY.plantShoot, 45, 24),
+    element(SCENERY.reeds, 51, 24),
     // Contested centre and recovery path.
     element(SCENERY.rock1, 23, 12),
     element(SCENERY.rock2, 27, 17),
@@ -1050,9 +1031,9 @@ const VISUAL_REVIEW_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapEl
     element(SCENERY.rock2, 17, 9),
     element(SCENERY.rock3, 29, 12),
     element(SCENERY.rock4, 42, 8),
-    element(SCENERY.deco5, 14, 33),
-    element(SCENERY.deco6, 31, 33),
-    element(SCENERY.deco8, 45, 32),
+    element(SCENERY.stoneMedium, 14, 33),
+    element(SCENERY.stoneLarge, 31, 33),
+    element(SCENERY.plantMedium, 45, 32),
   ],
   heart: [
     // Broken outer ring.
@@ -1064,10 +1045,10 @@ const VISUAL_REVIEW_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapEl
     element(SCENERY.rock3, 52, 18),
     element(SCENERY.goldStone6, 12, 12),
     element(SCENERY.goldStone5, 46, 12),
-    element(SCENERY.deco1, 9, 31),
-    element(SCENERY.deco2, 17, 32),
-    element(SCENERY.deco10, 41, 32),
-    element(SCENERY.deco11, 49, 31),
+    element(SCENERY.mushroomSmall, 9, 31),
+    element(SCENERY.mushroomMedium, 17, 32),
+    element(SCENERY.plantShoot, 41, 32),
+    element(SCENERY.reeds, 49, 31),
   ],
   epilogue: [
     // Orchard paths close the remaining central void.
@@ -1083,6 +1064,224 @@ const VISUAL_REVIEW_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapEl
     element(SCENERY.rock2, 19, 32),
     element(SCENERY.rock3, 41, 31),
     element(SCENERY.rock4, 52, 32),
+  ],
+};
+
+/**
+ * Small catalogue sprites are named only by number upstream. These compositions use their inspected
+ * subjects deliberately and exploit quarter-cell offsets to form local clusters instead of one
+ * generic full-cell scatter.
+ */
+const CATALOG_DETAIL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapElement[]>>> = {
+  prologue: [
+    // Damp western verge.
+    element(SCENERY.mushroomSmall, 7, 16, 0, 1),
+    element(SCENERY.mushroomMedium, 7, 16, 2, 2),
+    element(SCENERY.mushroomLarge, 8, 17, 1, 0),
+    element(SCENERY.plantSmall, 10, 18, 3, 1),
+    element(SCENERY.plantShoot, 11, 18, 0, 2),
+    // Junction and trampled ambush edge.
+    element(SCENERY.notice, 29, 34),
+    element(SCENERY.stoneSmall, 31, 33, 1, 2),
+    element(SCENERY.stoneMedium, 32, 33, 3, 0),
+    element(SCENERY.plantMedium, 41, 28, 2, 1),
+    element(SCENERY.plantLarge, 42, 28, 0, 2),
+  ],
+  aubeval: [
+    // Market garden and low-quarter produce.
+    element(SCENERY.pumpkinSingle, 21, 22, 0, 1),
+    element(SCENERY.pumpkinSingle, 21, 22, 3, 2),
+    element(SCENERY.pumpkinPatch, 23, 22, 1, 0),
+    element(SCENERY.plantSmall, 25, 23, 2, 1),
+    element(SCENERY.plantMedium, 26, 23, 0, 2),
+    element(SCENERY.scarecrow, 8, 31),
+    // Dike survey marks and public wayfinding.
+    element(SCENERY.notice, 29, 20),
+    element(SCENERY.stoneSmall, 45, 27, 1, 1),
+    element(SCENERY.stoneLarge, 47, 27, 3, 0),
+    element(SCENERY.reeds, 11, 34, 2, 2),
+  ],
+  faubourg: [
+    // Damp orchard regrowth.
+    element(SCENERY.mushroomSmall, 9, 14, 1, 0),
+    element(SCENERY.mushroomMedium, 9, 14, 3, 2),
+    element(SCENERY.mushroomLarge, 11, 15, 0, 1),
+    element(SCENERY.plantShoot, 13, 16, 2, 0),
+    // Remains and warning line around the occupied eastern approach.
+    element(SCENERY.boneLarge, 42, 19, 1, 1),
+    element(SCENERY.boneSmall, 43, 19, 3, 0),
+    element(SCENERY.memorial, 45, 21),
+    element(SCENERY.stoneSmall, 47, 23, 0, 2),
+    element(SCENERY.stoneLarge, 49, 24, 2, 1),
+    element(SCENERY.notice, 31, 30),
+  ],
+  relay: [
+    // Worked southern field beside the traveller camps.
+    element(SCENERY.scarecrow, 8, 28),
+    element(SCENERY.pumpkinSingle, 10, 29, 1, 1),
+    element(SCENERY.pumpkinSingle, 10, 29, 3, 2),
+    element(SCENERY.pumpkinPatch, 12, 29),
+    element(SCENERY.plantSmall, 14, 29, 2, 0),
+    // Sheltered fungal grove and central road sign.
+    element(SCENERY.mushroomSmall, 48, 30, 0, 1),
+    element(SCENERY.mushroomMedium, 48, 30, 2, 2),
+    element(SCENERY.mushroomLarge, 50, 31, 1, 0),
+    element(SCENERY.plantLarge, 52, 30, 3, 1),
+    element(SCENERY.notice, 29, 18),
+  ],
+  woods: [
+    // Sève feeding grove.
+    element(SCENERY.mushroomSmall, 9, 19, 0, 1),
+    element(SCENERY.mushroomMedium, 9, 19, 2, 2),
+    element(SCENERY.mushroomLarge, 11, 20, 1, 0),
+    element(SCENERY.plantSmall, 13, 19, 3, 1),
+    element(SCENERY.plantMedium, 15, 20, 0, 2),
+    // Écorce cutting boundary and the marked old road.
+    element(SCENERY.mushroomSmall, 43, 29, 1, 2),
+    element(SCENERY.mushroomMedium, 44, 29, 3, 0),
+    element(SCENERY.plantLarge, 46, 30, 0, 1),
+    element(SCENERY.resourceWood, 49, 28),
+    element(SCENERY.notice, 27, 9),
+  ],
+  roots: [
+    // Living offerings around both witness gardens.
+    element(SCENERY.mushroomSmall, 12, 22, 0, 1),
+    element(SCENERY.mushroomMedium, 12, 22, 2, 2),
+    element(SCENERY.mushroomLarge, 14, 23, 1, 0),
+    element(SCENERY.plantSmall, 17, 24, 3, 1),
+    element(SCENERY.mushroomSmall, 43, 23, 1, 2),
+    element(SCENERY.mushroomMedium, 44, 23, 3, 0),
+    element(SCENERY.plantMedium, 46, 24, 0, 1),
+    element(SCENERY.plantLarge, 48, 25, 2, 2),
+    element(SCENERY.stoneSmall, 28, 28, 1, 1),
+    element(SCENERY.stoneMedium, 30, 28, 3, 0),
+  ],
+  marsh: [
+    // Fungal islet and dense reed beds.
+    element(SCENERY.mushroomSmall, 7, 32, 0, 1),
+    element(SCENERY.mushroomMedium, 7, 32, 2, 2),
+    element(SCENERY.mushroomLarge, 9, 33, 1, 0),
+    element(SCENERY.reeds, 18, 29, 3, 1),
+    element(SCENERY.reeds, 39, 29, 0, 2),
+    // Large animated outcrops identify the four main channels.
+    element(SCENERY.waterOutcrop1, 5, 9),
+    element(SCENERY.waterOutcrop2, 22, 8),
+    element(SCENERY.waterOutcrop3, 38, 9),
+    element(SCENERY.waterOutcrop4, 53, 10),
+    element(SCENERY.waterSplash, 31, 33),
+  ],
+  archives: [
+    // Damp shelves have fungal growth; the collapsed wing holds human remains.
+    element(SCENERY.mushroomSmall, 11, 30, 0, 1),
+    element(SCENERY.mushroomMedium, 11, 30, 2, 2),
+    element(SCENERY.mushroomLarge, 13, 31, 1, 0),
+    element(SCENERY.reeds, 15, 31, 3, 1),
+    element(SCENERY.boneLarge, 41, 31, 0, 2),
+    element(SCENERY.boneSmall, 42, 31, 2, 1),
+    element(SCENERY.memorial, 45, 30),
+    element(SCENERY.stoneSmall, 28, 27, 1, 2),
+    element(SCENERY.stoneMedium, 30, 27, 3, 0),
+  ],
+  citadel: [
+    // Intendance court.
+    element(SCENERY.pumpkinSingle, 24, 31, 0, 1),
+    element(SCENERY.pumpkinSingle, 24, 31, 3, 2),
+    element(SCENERY.pumpkinPatch, 26, 31),
+    element(SCENERY.resourceMeat, 29, 30),
+    element(SCENERY.resourceWood, 33, 30),
+    // Cell yard and signed court boundaries.
+    element(SCENERY.boneLarge, 44, 27, 1, 1),
+    element(SCENERY.boneSmall, 45, 27, 3, 0),
+    element(SCENERY.memorial, 47, 28),
+  ],
+  fort: [
+    // Reserve yard and prison edge.
+    element(SCENERY.pumpkinSingle, 19, 28, 0, 1),
+    element(SCENERY.pumpkinPatch, 21, 28),
+    element(SCENERY.resourceWood, 25, 28),
+    element(SCENERY.resourceMeat, 30, 28),
+    element(SCENERY.boneLarge, 42, 25, 1, 2),
+    element(SCENERY.boneSmall, 43, 25, 3, 0),
+    element(SCENERY.memorial, 45, 26),
+    element(SCENERY.stoneSmall, 34, 24, 0, 1),
+    element(SCENERY.stoneLarge, 36, 24, 2, 2),
+  ],
+  sanctuary: [
+    // Dispensary herb and fungal gardens.
+    element(SCENERY.mushroomSmall, 8, 26, 0, 1),
+    element(SCENERY.mushroomMedium, 8, 26, 2, 2),
+    element(SCENERY.mushroomLarge, 10, 27, 1, 0),
+    element(SCENERY.plantSmall, 13, 27, 3, 1),
+    element(SCENERY.plantMedium, 15, 28, 0, 2),
+    element(SCENERY.plantLarge, 17, 27, 2, 1),
+    element(SCENERY.pumpkinSingle, 43, 29, 1, 2),
+    element(SCENERY.pumpkinPatch, 45, 29),
+    element(SCENERY.resourceMeat, 48, 29),
+  ],
+  crypt: [
+    // Ossuary clusters and damp crypt growth.
+    element(SCENERY.boneLarge, 18, 26, 0, 1),
+    element(SCENERY.boneSmall, 18, 26, 3, 2),
+    element(SCENERY.boneLarge, 35, 26, 1, 0),
+    element(SCENERY.boneSmall, 36, 26, 2, 2),
+    element(SCENERY.mushroomSmall, 10, 30, 0, 1),
+    element(SCENERY.mushroomMedium, 10, 30, 2, 2),
+    element(SCENERY.mushroomLarge, 12, 31, 1, 0),
+    element(SCENERY.reeds, 40, 30, 3, 1),
+    element(SCENERY.tool4, 14, 29),
+    element(SCENERY.memorial, 28, 24),
+  ],
+  war: [
+    // The contested centre shows losses rather than generic vegetation.
+    element(SCENERY.boneLarge, 25, 25, 0, 1),
+    element(SCENERY.boneSmall, 25, 25, 3, 2),
+    element(SCENERY.boneLarge, 36, 25, 1, 0),
+    element(SCENERY.boneSmall, 37, 25, 2, 2),
+    element(SCENERY.memorial, 30, 27),
+    element(SCENERY.stoneSmall, 28, 29, 1, 1),
+    element(SCENERY.stoneLarge, 33, 29, 3, 0),
+    element(SCENERY.resourceMeat, 12, 30),
+    element(SCENERY.resourceWood, 48, 30),
+  ],
+  galleries: [
+    // Fungal pockets and discarded remains reward side-gallery inspection.
+    element(SCENERY.mushroomSmall, 9, 28, 0, 1),
+    element(SCENERY.mushroomMedium, 9, 28, 2, 2),
+    element(SCENERY.mushroomLarge, 11, 29, 1, 0),
+    element(SCENERY.mushroomSmall, 40, 29, 1, 2),
+    element(SCENERY.mushroomMedium, 41, 29, 3, 0),
+    element(SCENERY.boneLarge, 25, 30, 0, 1),
+    element(SCENERY.boneSmall, 26, 30, 2, 2),
+    element(SCENERY.resourceGold, 47, 16),
+    element(SCENERY.stoneSmall, 30, 22, 1, 1),
+    element(SCENERY.stoneMedium, 32, 22, 3, 0),
+  ],
+  heart: [
+    // The witness ring is littered with old remains and mineral fragments.
+    element(SCENERY.waterOutcrop2, 6, 13),
+    element(SCENERY.waterOutcrop4, 44, 13),
+    element(SCENERY.boneLarge, 11, 28, 0, 1),
+    element(SCENERY.boneSmall, 12, 28, 3, 2),
+    element(SCENERY.boneLarge, 43, 28, 1, 0),
+    element(SCENERY.boneSmall, 44, 28, 2, 2),
+    element(SCENERY.memorial, 27, 29),
+    element(SCENERY.stoneSmall, 22, 26, 1, 1),
+    element(SCENERY.stoneMedium, 29, 25, 3, 0),
+    element(SCENERY.stoneLarge, 36, 26, 0, 2),
+    element(SCENERY.mushroomSmall, 8, 31, 2, 1),
+    element(SCENERY.mushroomMedium, 48, 31, 1, 2),
+  ],
+  epilogue: [
+    // Reclaimed orchard and common field.
+    element(SCENERY.mushroomSmall, 10, 24, 0, 1),
+    element(SCENERY.mushroomMedium, 10, 24, 2, 2),
+    element(SCENERY.mushroomLarge, 12, 25, 1, 0),
+    element(SCENERY.pumpkinSingle, 35, 27, 1, 1),
+    element(SCENERY.pumpkinSingle, 35, 27, 3, 2),
+    element(SCENERY.pumpkinPatch, 37, 27),
+    element(SCENERY.scarecrow, 40, 28),
+    element(SCENERY.plantSmall, 43, 28, 0, 1),
+    element(SCENERY.plantLarge, 45, 29, 2, 2),
   ],
 };
 
@@ -1195,19 +1394,25 @@ function portal(
   unlockSwitches: readonly string[],
   locked: string,
   category: TransitionCategory = "geographic",
+  graphicAssetId: MapEventPage["graphicAssetId"] = GRAPHICS.rune,
+  departure = "",
 ): void {
-  const unlocked = page([teleport(destination.map, destination.col, destination.row, category)], {
-    graphicAssetId: GRAPHICS.rune,
-  });
+  const unlocked = page(
+    [
+      ...(departure.length > 0 ? [say(null, departure)] : []),
+      teleport(destination.map, destination.col, destination.row, category),
+    ],
+    { graphicAssetId },
+  );
   factory.normal(
     key,
     name,
     cell(col, row),
-    GRAPHICS.rune,
+    graphicAssetId,
     unlockSwitches.length === 0
       ? [unlocked]
       : [
-          page([say(null, locked)], { graphicAssetId: GRAPHICS.rune }),
+          page([say(null, locked)], { graphicAssetId }),
           ...unlockSwitches.map((switchId) => ({ ...unlocked, condSwitchId: switchId })),
         ],
   );
@@ -1238,6 +1443,7 @@ function mapElements(
     ...(REGIONAL_COMPOSITIONS[key] ?? []),
     ...(REGIONAL_DETAIL_COMPOSITIONS[key] ?? []),
     ...(VISUAL_REVIEW_COMPOSITIONS[key] ?? []),
+    ...(CATALOG_DETAIL_COMPOSITIONS[key] ?? []),
   ]);
 }
 
@@ -1286,7 +1492,7 @@ function buildPrologue(refs: StoryRefs): AdventureBundleMap {
     ],
     "Le compte reste neuf. Les quatre noms effacés ne reviennent pas sous la lumière.",
   );
-  e.normal("source-scar", "Éclat d’Aube", cell(34, 21), GRAPHICS.rune, [
+  e.normal("source-scar", "Éclat d’Aube", cell(34, 21), GRAPHICS.source, [
     page(
       [
         say(
@@ -1334,7 +1540,7 @@ function buildPrologue(refs: StoryRefs): AdventureBundleMap {
         condSwitchId: "0001",
         condVariableId: "0009",
         condVariableMin: 1,
-        graphicAssetId: GRAPHICS.rune,
+        graphicAssetId: GRAPHICS.source,
       },
     ),
     page(
@@ -1344,7 +1550,7 @@ function buildPrologue(refs: StoryRefs): AdventureBundleMap {
           "L’éclat demeure immobile. Le prénom entendu ne correspond à aucun nom du registre.",
         ),
       ],
-      { condSelfSwitch: "A", graphicAssetId: GRAPHICS.rune },
+      { condSelfSwitch: "A", graphicAssetId: GRAPHICS.source },
     ),
   ]);
   npc(e, "crown-clerk", "Greffier Osric", 25, 33, GRAPHICS.monkYellow, [
@@ -1367,6 +1573,9 @@ function buildPrologue(refs: StoryRefs): AdventureBundleMap {
     { map: "aubeval", col: 5, row: 37 },
     ["0003"],
     "Le sceau réclame un nom enregistré. L’Éclat d’Aube, plus bas sur la route, a réagi à votre présence.",
+    "geographic",
+    GRAPHICS.soldierBlue,
+    "Le garde abaisse la chaîne. La Porte de la digue mène au quartier occidental d’Aubeval.",
   );
   monsterPack(e, "road-ghouls", "Affamé du fossé", "spear_goblin", [
     cell(17, 20),
@@ -1872,6 +2081,9 @@ function buildAubeval(refs: StoryRefs): AdventureBundleMap {
     { map: "faubourg", col: 5, row: 22 },
     ["0004", "0005"],
     "Lyra refuse une sortie sans preuve vérifiée. Les registres du quartier des archives peuvent encore être comparés.",
+    "geographic",
+    GRAPHICS.soldierRed,
+    "La sentinelle ouvre la Porte des Traîtres. Le faubourg commence derrière le rempart oriental.",
   );
   portal(
     e,
@@ -1882,6 +2094,9 @@ function buildAubeval(refs: StoryRefs): AdventureBundleMap {
     { map: "prologue", col: 51, row: 10 },
     [],
     "",
+    "geographic",
+    GRAPHICS.soldierBlue,
+    "Le garde rouvre la Porte occidentale vers la Route des Bornes arrachées.",
   );
   portal(
     e,
@@ -1893,6 +2108,8 @@ function buildAubeval(refs: StoryRefs): AdventureBundleMap {
     ["0058"],
     "La grille de l’aqueduc est verrouillée depuis l’autre côté.",
     "shortcut",
+    GRAPHICS.artisan,
+    "L’ouvrière soulève la grille. Le conduit rejoint directement le Relais des Quatre Dettes.",
   );
   monsterPack(e, "seep", "Noyé des vannes", "skull_guard", [
     cell(45, 27),
@@ -1900,16 +2117,25 @@ function buildAubeval(refs: StoryRefs): AdventureBundleMap {
     cell(50, 30),
     cell(54, 28),
   ]);
-  e.monster("seep-warden", "Gardien de la brèche", cell(50, 25), "skull_warden", {
-    rank: "elite",
-    maxHp: 260,
-    damage: 28,
-    speed: 82,
-    xp: 210,
-    weakness: "priest",
-    weaknessPercent: 150,
-    specialTechnique: "grave_siphon",
-  });
+  e.monster(
+    "seep-warden",
+    "Gardien de la brèche",
+    cell(50, 25),
+    "skull_warden",
+    {
+      rank: "elite",
+      maxHp: 260,
+      damage: 28,
+      speed: 82,
+      xp: 210,
+      weakness: "priest",
+      weaknessPercent: 150,
+      specialTechnique: "grave_siphon",
+    },
+    [],
+    undefined,
+    ["0063"],
+  );
   return bundleMap(
     "aubeval",
     "Aubeval — Les Digues hautes",
@@ -1949,7 +2175,6 @@ function buildAubeval(refs: StoryRefs): AdventureBundleMap {
       element(BUILDINGS.blueArchery, 7, 9),
       element(BUILDINGS.blueHouse1, 18, 5),
       element(BUILDINGS.blueHouse2, 23, 8),
-      element(SCENERY.banner, 11, 17),
       element(SCENERY.tool1, 13, 16),
       element(SCENERY.tool3, 16, 17),
       // Administrative terrace and archives, visibly above the flood plain.
@@ -1957,7 +2182,6 @@ function buildAubeval(refs: StoryRefs): AdventureBundleMap {
       element(BUILDINGS.blueMonastery, 47, 8),
       element(BUILDINGS.blueHouse1, 49, 16),
       element(SCENERY.memorial, 44, 34),
-      element(SCENERY.banner, 53, 15),
       // Market square: stalls, stores and visible reserves.
       element(SCENERY.marketRed, 20, 19),
       element(SCENERY.marketBlue, 24, 19),
@@ -2217,7 +2441,19 @@ function buildFaubourg(refs: StoryRefs): AdventureBundleMap {
     ],
     "Les portes sont ouvertes. Des proches viennent identifier les objets sans qu’on leur promette des survivants.",
   );
-  portal(e, "back-aubeval", "Porte d’Aubeval", 4, 22, { map: "aubeval", col: 53, row: 22 }, [], "");
+  portal(
+    e,
+    "back-aubeval",
+    "Sentinelle d’Aubeval",
+    4,
+    22,
+    { map: "aubeval", col: 53, row: 22 },
+    [],
+    "",
+    "geographic",
+    GRAPHICS.soldierRed,
+    "La sentinelle vous raccompagne par la Porte des Traîtres jusqu’au rempart oriental d’Aubeval.",
+  );
   portal(
     e,
     "to-relay",
@@ -2227,6 +2463,9 @@ function buildFaubourg(refs: StoryRefs): AdventureBundleMap {
     { map: "relay", col: 5, row: 35 },
     ["0006", "0007", "0008"],
     "Les factions refusent de dégager la route tant que le sort de Varkesh n’est pas décidé.",
+    "geographic",
+    GRAPHICS.refugee,
+    "La guide du convoi prend la route du sud-est. Le vieux relais se trouve après les maisons brûlées.",
   );
   monsterPack(e, "ash-raiders", "Pillard des cendres", "torch_goblin", [
     cell(20, 35),
@@ -2349,6 +2588,9 @@ function buildRelay(refs: StoryRefs): AdventureBundleMap {
     { map: "faubourg", col: 53, row: 35 },
     [],
     "",
+    "geographic",
+    GRAPHICS.refugee,
+    "La famille reprend la route d’ouest vers les maisons brûlées du faubourg.",
   );
   portal(
     e,
@@ -2360,6 +2602,8 @@ function buildRelay(refs: StoryRefs): AdventureBundleMap {
     ["0058"],
     "Les volets du relais commandent encore cette vanne.",
     "shortcut",
+    GRAPHICS.artisan,
+    "Le vannier ouvre le conduit. L’aqueduc débouche près des installations de la digue d’Aubeval.",
   );
   portal(
     e,
@@ -2370,6 +2614,9 @@ function buildRelay(refs: StoryRefs): AdventureBundleMap {
     { map: "woods", col: 5, row: 36 },
     ["0011"],
     "Les quatre volets du relais doivent être ouverts avant d’engager la route forestière.",
+    "geographic",
+    GRAPHICS.woodcutter,
+    "La pisteuse montre les entailles jaunes. Suivez cette ancienne route jusqu’à la lisière de Clairécorce.",
   );
   monsterPack(e, "ambush", "Éclaireur du relais", "gnoll_marauder", [
     cell(18, 18),
@@ -2519,7 +2766,19 @@ function buildWoods(refs: StoryRefs): AdventureBundleMap {
     ],
     "Les trois systèmes restent lisibles. Le Bois n’a jamais obéi à une seule loi.",
   );
-  portal(e, "back-relay", "Lisière du relais", 4, 36, { map: "relay", col: 53, row: 8 }, [], "");
+  portal(
+    e,
+    "back-relay",
+    "Pisteuse de la lisière",
+    4,
+    36,
+    { map: "relay", col: 53, row: 8 },
+    [],
+    "",
+    "geographic",
+    GRAPHICS.woodcutter,
+    "La pisteuse reprend l’ancienne route occidentale vers le Relais des Quatre Dettes.",
+  );
   portal(
     e,
     "to-roots",
@@ -2530,6 +2789,8 @@ function buildWoods(refs: StoryRefs): AdventureBundleMap {
     ["0012", "0013"],
     "Les gardiens demandent qu’un clan prenne la responsabilité du passage.",
     "interior",
+    GRAPHICS.monkYellow,
+    "Le gardien écarte les racines. L’escalier descend dans le Sanctuaire des Racines.",
   );
   portal(
     e,
@@ -2541,6 +2802,8 @@ function buildWoods(refs: StoryRefs): AdventureBundleMap {
     ["0059"],
     "Les racines ont repris l’ancienne chaussée. Elle peut être dégagée depuis le sanctuaire profond.",
     "shortcut",
+    GRAPHICS.woodcutter,
+    "La pisteuse engage la chaussée restaurée. Elle rejoint les premiers pontons du Marais de Verre.",
   );
   monsterPack(e, "boars", "Bête marquée", "minotaur_brute", [
     cell(19, 9),
@@ -2887,6 +3150,8 @@ function buildRoots(refs: StoryRefs): AdventureBundleMap {
     [],
     "",
     "interior",
+    GRAPHICS.monkYellow,
+    "Le gardien vous ramène par l’escalier jusqu’au plateau central de Clairécorce.",
   );
   portal(
     e,
@@ -2898,6 +3163,8 @@ function buildRoots(refs: StoryRefs): AdventureBundleMap {
     ["0014", "0015", "0016", "0017"],
     "Morvane retient encore la route noyée.",
     "interior",
+    GRAPHICS.monkPurple,
+    "Le passeur des racines ouvre le tunnel humide. Il ressort aux Saules du Marais de Verre.",
   );
   monsterPack(e, "root-dead", "Gardien des racines", "skull_crusader", [
     cell(20, 20),
@@ -3111,6 +3378,9 @@ function buildMarsh(refs: StoryRefs): AdventureBundleMap {
     { map: "woods", col: 52, row: 37 },
     ["0059"],
     "La chaussée est encore prise dans les racines du Sanctuaire.",
+    "geographic",
+    GRAPHICS.woodcutter,
+    "La passeuse suit les pieux hors de l’eau. La chaussée remonte jusqu’à la lisière sud de Clairécorce.",
   );
   portal(
     e,
@@ -3122,6 +3392,8 @@ function buildMarsh(refs: StoryRefs): AdventureBundleMap {
     ["0078"],
     "Le reflet demeure opaque. Il faut d’abord écouter ce que Nhalgor affirme protéger.",
     "magical",
+    GRAPHICS.talen,
+    "Talen frappe la cloche noyée. Son reflet ouvre un souvenir matérialisé vers les Archives sous la Vase.",
   );
   portal(
     e,
@@ -3133,6 +3405,8 @@ function buildMarsh(refs: StoryRefs): AdventureBundleMap {
     ["0060"],
     "La poterne militaire est verrouillée depuis la Citadelle.",
     "shortcut",
+    GRAPHICS.soldierBlack,
+    "L’éclaireur dégage la poterne. Le tunnel rejoint la cour basse de la Citadelle.",
   );
   monsterPack(e, "glass-dead", "Souvenir hostile", "skull_guard", [
     cell(18, 24),
@@ -3541,6 +3815,8 @@ function buildArchives(refs: StoryRefs): AdventureBundleMap {
     [],
     "",
     "magical",
+    GRAPHICS.talen,
+    "Talen inverse le reflet de la cloche. L’escalier noyé rend le groupe au clocher du Marais.",
   );
   portal(
     e,
@@ -3551,6 +3827,9 @@ function buildArchives(refs: StoryRefs): AdventureBundleMap {
     { map: "citadel", col: 5, row: 36 },
     ["0026"],
     "Le canal n’indique aucune destination tant que la vérité des Archives n’est pas établie.",
+    "geographic",
+    GRAPHICS.soldierBlue,
+    "Le batelier militaire suit les marques retrouvées. Le canal ressort dans la cour basse de la Citadelle.",
   );
   monsterPack(e, "fragments", "Mémoire sans corps", "skull_guard", [
     cell(19, 18),
@@ -3780,6 +4059,9 @@ function buildCitadel(refs: StoryRefs): AdventureBundleMap {
     { map: "archives", col: 52, row: 9 },
     [],
     "",
+    "geographic",
+    GRAPHICS.soldierBlue,
+    "Le batelier reprend le canal occidental vers les salles émergées des Archives.",
   );
   portal(
     e,
@@ -3791,8 +4073,10 @@ function buildCitadel(refs: StoryRefs): AdventureBundleMap {
     ["0031", "0032"],
     "Serah n’engagera pas ses soldats dans la cour intérieure avant d’avoir choisi une ligne de commandement.",
     "interior",
+    GRAPHICS.soldierBlue,
+    "L’officier lève la herse. La Porte des trois cours mène à l’enceinte intérieure du Fort.",
   );
-  e.normal("open-marsh-shortcut", "Poterne des digues", cell(53, 36), GRAPHICS.rune, [
+  e.normal("open-marsh-shortcut", "Poterne des digues", cell(53, 36), GRAPHICS.artisan, [
     page(
       [
         say(
@@ -3803,11 +4087,11 @@ function buildCitadel(refs: StoryRefs): AdventureBundleMap {
         { t: "setSelfSwitch", selfSwitch: "A", value: true },
         teleport("marsh", 55, 35, "shortcut"),
       ],
-      { graphicAssetId: GRAPHICS.rune },
+      { graphicAssetId: GRAPHICS.artisan },
     ),
     page([teleport("marsh", 55, 35, "shortcut")], {
       condSelfSwitch: "A",
-      graphicAssetId: GRAPHICS.rune,
+      graphicAssetId: GRAPHICS.artisan,
     }),
   ]);
   monsterPack(
@@ -4037,6 +4321,8 @@ function buildFort(refs: StoryRefs): AdventureBundleMap {
     [],
     "",
     "interior",
+    GRAPHICS.soldierBlue,
+    "Le garde rouvre la herse vers les trois cours extérieures de la Citadelle.",
   );
   portal(
     e,
@@ -4047,6 +4333,9 @@ function buildFort(refs: StoryRefs): AdventureBundleMap {
     { map: "sanctuary", col: 6, row: 36 },
     ["0027", "0028", "0029", "0030"],
     "La Citadelle n’ouvrira ses portes extérieures qu’après la désignation d’un commandement.",
+    "geographic",
+    GRAPHICS.soldierBlack,
+    "L’intendante remet un laissez-passer. La route haute mène aux jardins du Sanctuaire de l’Aube.",
   );
   monsterPack(
     e,
@@ -4283,7 +4572,19 @@ function buildSanctuary(refs: StoryRefs): AdventureBundleMap {
     "Je porte les seaux entre les jardins et les chambres. Les prêtres parlent de miracle ; nous, nous savons combien de marches il faut monter quand une pompe s’arrête.",
     "Sous la crypte, un couloir de service rejoint l’ancienne salle. Les couronnes passent par la grande porte. Les seaux passent par là.",
   ]);
-  portal(e, "back-fort", "Route de la Citadelle", 5, 39, { map: "fort", col: 52, row: 9 }, [], "");
+  portal(
+    e,
+    "back-fort",
+    "Porteuse du laissez-passer",
+    5,
+    39,
+    { map: "fort", col: 52, row: 9 },
+    [],
+    "",
+    "geographic",
+    GRAPHICS.soldierBlack,
+    "La porteuse redescend la route haute jusqu’à l’entrée orientale du Fort des Serments.",
+  );
   portal(
     e,
     "to-crypt",
@@ -4294,6 +4595,8 @@ function buildSanctuary(refs: StoryRefs): AdventureBundleMap {
     ["0036", "0037"],
     "Le sceau attend que le registre soit lu et que l’offre de Varos ait reçu une réponse.",
     "interior",
+    GRAPHICS.monkPurple,
+    "La gardienne funéraire brise le cachet. L’escalier descend dans la Crypte d’Eryndor.",
   );
   portal(
     e,
@@ -4305,6 +4608,8 @@ function buildSanctuary(refs: StoryRefs): AdventureBundleMap {
     ["0061"],
     "L’escalier est bloqué par une grille qui ne s’ouvre que depuis le champ de bataille.",
     "shortcut",
+    GRAPHICS.child,
+    "Linn ouvre la grille de service. L’escalier débouche derrière l’infirmerie du champ de bataille.",
   );
   monsterPack(
     e,
@@ -4506,6 +4811,8 @@ function buildCrypt(refs: StoryRefs): AdventureBundleMap {
     [],
     "",
     "interior",
+    GRAPHICS.monkPurple,
+    "La gardienne funéraire vous reconduit par l’escalier jusqu’au Sanctuaire de l’Aube.",
   );
   portal(
     e,
@@ -4516,6 +4823,9 @@ function buildCrypt(refs: StoryRefs): AdventureBundleMap {
     { map: "war", col: 8, row: 37 },
     ["0040"],
     "Eryndor doit réunir ses trois fragments avant que le mécanisme originel puisse être localisé.",
+    "geographic",
+    GRAPHICS.soldierRed,
+    "Le courrier ouvre la porte basse. Le vacarme de la Guerre de l’Aube vient de l’autre côté.",
   );
   monsterPack(
     e,
@@ -4728,7 +5038,7 @@ function buildWar(refs: StoryRefs): AdventureBundleMap {
     "Mes légions se retirent du quartier des serviteurs. Je ne sacrifierai pas des civils pour vous ralentir de trois minutes.",
     "Vos chefs déplaceront leurs réserves et laisseront un autre secteur céder. Ce n’est pas une accusation : c’est la forme réelle du commandement.",
   ]);
-  e.normal("culvert", "Conduit des serviteurs", cell(31, 36), GRAPHICS.rune, [
+  e.normal("culvert", "Conduit des serviteurs", cell(31, 36), GRAPHICS.artisan, [
     page(
       [
         ifVariable(
@@ -4752,12 +5062,21 @@ function buildWar(refs: StoryRefs): AdventureBundleMap {
           ],
         ),
       ],
-      { graphicAssetId: GRAPHICS.rune },
+      { graphicAssetId: GRAPHICS.artisan },
     ),
-    page([teleport("galleries", 7, 37, "interior")], {
-      condSwitchId: "0049",
-      graphicAssetId: GRAPHICS.rune,
-    }),
+    page(
+      [
+        say(
+          null,
+          "La sapeuse tient la grille. Le conduit descend derrière l’infirmerie jusqu’aux Galeries de la Source.",
+        ),
+        teleport("galleries", 7, 37, "interior"),
+      ],
+      {
+        condSwitchId: "0049",
+        graphicAssetId: GRAPHICS.artisan,
+      },
+    ),
   ]);
   portal(
     e,
@@ -4769,6 +5088,8 @@ function buildWar(refs: StoryRefs): AdventureBundleMap {
     ["0061"],
     "La grille intérieure n’est pas encore levée.",
     "shortcut",
+    GRAPHICS.child,
+    "Linn remonte l’escalier de service jusqu’aux jardins du Sanctuaire.",
   );
   e.guard("watcher", "Veilleur du conduit", cell(28, 32), 210);
   e.guard("aubeval-1", "Ligne d’Aubeval A", cell(17, 21), 230, "0041");
@@ -5046,7 +5367,7 @@ function buildGalleries(refs: StoryRefs): AdventureBundleMap {
     "Vous avez inscrit trois prix consentis. Demain, une ville refusera pendant qu’une autre se noiera. Qui tranchera entre elles ?",
     "Mon erreur n’est pas de voir ce conflit. C’est d’avoir décidé que personne d’autre ne devait jamais le voir.",
   ]);
-  e.normal("origin-lock", "Mécanisme originel", cell(52, 8), GRAPHICS.rune, [
+  e.normal("origin-lock", "Mécanisme originel", cell(52, 8), GRAPHICS.source, [
     page(
       [
         ifVariable(
@@ -5069,12 +5390,21 @@ function buildGalleries(refs: StoryRefs): AdventureBundleMap {
           ],
         ),
       ],
-      { graphicAssetId: GRAPHICS.rune },
+      { graphicAssetId: GRAPHICS.source },
     ),
-    page([teleport("heart", 7, 37, "magical")], {
-      condSwitchId: "0074",
-      graphicAssetId: GRAPHICS.rune,
-    }),
+    page(
+      [
+        say(
+          null,
+          "Le cristal central répond aux trois ancres. Son passage matérialisé conduit au Cœur du Pacte.",
+        ),
+        teleport("heart", 7, 37, "magical"),
+      ],
+      {
+        condSwitchId: "0074",
+        graphicAssetId: GRAPHICS.source,
+      },
+    ),
   ]);
   portal(
     e,
@@ -5086,6 +5416,8 @@ function buildGalleries(refs: StoryRefs): AdventureBundleMap {
     [],
     "",
     "interior",
+    GRAPHICS.soldierRed,
+    "Le veilleur remonte le conduit acoustique vers l’infirmerie du champ de bataille.",
   );
   monsterPack(
     e,
@@ -5365,7 +5697,7 @@ function buildHeart(refs: StoryRefs): AdventureBundleMap {
     "Restaurer demande des témoins, des peuples accordés, des alliés et deux dettes librement assumées. Sans cela, les voix seront relâchées sans lien.",
     "Détruire exige des relais pour les services ; sceller, des mémoires et des canaux stables ; réformer, un commandement légitime capable de se limiter.",
   ]);
-  e.normal("final-mechanism", "Cœur du Pacte", cell(32, 15), GRAPHICS.rune, [
+  e.normal("final-mechanism", "Cœur du Pacte", cell(32, 15), GRAPHICS.source, [
     page(
       [
         say(
@@ -5446,7 +5778,7 @@ function buildHeart(refs: StoryRefs): AdventureBundleMap {
           },
         ]),
       ],
-      { condSwitchId: "0074", graphicAssetId: GRAPHICS.rune },
+      { condSwitchId: "0074", graphicAssetId: GRAPHICS.source },
     ),
   ]);
   monsterPack(

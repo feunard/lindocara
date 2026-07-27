@@ -202,6 +202,20 @@ describe("Tiny Swords semantic catalogue", () => {
     expect(splash?.frame).toMatchObject({ width: 192, height: 192, count: 9, durationMs: 800 });
   });
 
+  it("makes numbered small decor searchable by its visible subject", () => {
+    const byId = new Map(catalog.entries.map((entry) => [entry.id, entry]));
+    expect(byId.get("decoration.deco.01")?.tags).toEqual(
+      expect.arrayContaining(["mushroom", "champignon"]),
+    );
+    expect(byId.get("decoration.deco.12")?.tags).toEqual(
+      expect.arrayContaining(["pumpkin", "citrouille"]),
+    );
+    expect(byId.get("decoration.deco.14")?.tags).toEqual(expect.arrayContaining(["bone", "os"]));
+    expect(byId.get("decoration.deco.18")?.tags).toEqual(
+      expect.arrayContaining(["scarecrow", "epouvantail"]),
+    );
+  });
+
   it("fails when a raw entry is added without a classification", () => {
     const first = raw.files[0];
     expect(first).toBeDefined();

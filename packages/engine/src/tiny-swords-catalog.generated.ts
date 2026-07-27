@@ -11512,7 +11512,11 @@ export const GENERATED_EDITOR_ASSETS = [
       "01",
       "decoration",
       "update",
-      "010"
+      "010",
+      "mushroom",
+      "champignon",
+      "fungus",
+      "small"
     ],
     "width": 64,
     "height": 64,
@@ -11548,7 +11552,11 @@ export const GENERATED_EDITOR_ASSETS = [
       "02",
       "decoration",
       "update",
-      "010"
+      "010",
+      "mushroom",
+      "champignon",
+      "fungus",
+      "medium"
     ],
     "width": 64,
     "height": 64,
@@ -11584,7 +11592,11 @@ export const GENERATED_EDITOR_ASSETS = [
       "03",
       "decoration",
       "update",
-      "010"
+      "010",
+      "mushroom",
+      "champignon",
+      "fungus",
+      "large"
     ],
     "width": 64,
     "height": 64,
@@ -11620,7 +11632,11 @@ export const GENERATED_EDITOR_ASSETS = [
       "04",
       "decoration",
       "update",
-      "010"
+      "010",
+      "stone",
+      "pierre",
+      "pebble",
+      "small"
     ],
     "width": 64,
     "height": 64,
@@ -11656,7 +11672,11 @@ export const GENERATED_EDITOR_ASSETS = [
       "05",
       "decoration",
       "update",
-      "010"
+      "010",
+      "stone",
+      "pierre",
+      "pebble",
+      "medium"
     ],
     "width": 64,
     "height": 64,
@@ -11692,7 +11712,11 @@ export const GENERATED_EDITOR_ASSETS = [
       "06",
       "decoration",
       "update",
-      "010"
+      "010",
+      "stone",
+      "pierre",
+      "pebble",
+      "large"
     ],
     "width": 64,
     "height": 64,
@@ -11728,7 +11752,11 @@ export const GENERATED_EDITOR_ASSETS = [
       "07",
       "decoration",
       "update",
-      "010"
+      "010",
+      "plant",
+      "plante",
+      "foliage",
+      "small"
     ],
     "width": 64,
     "height": 64,
@@ -11764,7 +11792,11 @@ export const GENERATED_EDITOR_ASSETS = [
       "08",
       "decoration",
       "update",
-      "010"
+      "010",
+      "plant",
+      "plante",
+      "foliage",
+      "medium"
     ],
     "width": 64,
     "height": 64,
@@ -11800,7 +11832,11 @@ export const GENERATED_EDITOR_ASSETS = [
       "09",
       "decoration",
       "update",
-      "010"
+      "010",
+      "plant",
+      "plante",
+      "foliage",
+      "large"
     ],
     "width": 64,
     "height": 64,
@@ -11836,7 +11872,11 @@ export const GENERATED_EDITOR_ASSETS = [
       "10",
       "decoration",
       "update",
-      "010"
+      "010",
+      "plant",
+      "plante",
+      "shoot",
+      "sprout"
     ],
     "width": 64,
     "height": 64,
@@ -11872,7 +11912,11 @@ export const GENERATED_EDITOR_ASSETS = [
       "11",
       "decoration",
       "update",
-      "010"
+      "010",
+      "plant",
+      "plante",
+      "reeds",
+      "roseaux"
     ],
     "width": 64,
     "height": 64,
@@ -11908,7 +11952,11 @@ export const GENERATED_EDITOR_ASSETS = [
       "12",
       "decoration",
       "update",
-      "010"
+      "010",
+      "pumpkin",
+      "citrouille",
+      "harvest",
+      "single"
     ],
     "width": 64,
     "height": 64,
@@ -11944,7 +11992,11 @@ export const GENERATED_EDITOR_ASSETS = [
       "13",
       "decoration",
       "update",
-      "010"
+      "010",
+      "pumpkin",
+      "citrouille",
+      "harvest",
+      "patch"
     ],
     "width": 64,
     "height": 64,
@@ -11980,7 +12032,11 @@ export const GENERATED_EDITOR_ASSETS = [
       "14",
       "decoration",
       "update",
-      "010"
+      "010",
+      "bone",
+      "os",
+      "remains",
+      "large"
     ],
     "width": 64,
     "height": 64,
@@ -12016,7 +12072,11 @@ export const GENERATED_EDITOR_ASSETS = [
       "15",
       "decoration",
       "update",
-      "010"
+      "010",
+      "bone",
+      "os",
+      "remains",
+      "small"
     ],
     "width": 64,
     "height": 64,
@@ -12052,7 +12112,12 @@ export const GENERATED_EDITOR_ASSETS = [
       "16",
       "decoration",
       "update",
-      "010"
+      "010",
+      "grave",
+      "tombe",
+      "skull",
+      "warning",
+      "panneau"
     ],
     "width": 64,
     "height": 128,
@@ -12092,7 +12157,11 @@ export const GENERATED_EDITOR_ASSETS = [
       "17",
       "decoration",
       "update",
-      "010"
+      "010",
+      "signpost",
+      "panneau",
+      "direction",
+      "road"
     ],
     "width": 64,
     "height": 128,
@@ -12132,7 +12201,11 @@ export const GENERATED_EDITOR_ASSETS = [
       "18",
       "decoration",
       "update",
-      "010"
+      "010",
+      "scarecrow",
+      "epouvantail",
+      "farm",
+      "field"
     ],
     "width": 192,
     "height": 192,
