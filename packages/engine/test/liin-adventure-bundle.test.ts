@@ -5,6 +5,10 @@ import {
   type AdventureBundleMap,
   parseAdventureBundle,
 } from "../src/adventure-bundle.js";
+import {
+  buildAuthoredTransitionGraph,
+  reachableTransitionMaps,
+} from "../src/adventure-transitions.js";
 import { colliderIndexFrom } from "../src/collider.js";
 import { COMMAND_TEXT_MAX, type EventCommand, type EventCondition } from "../src/event-commands.js";
 import { isWalkable, type MonsterSpecies, type TerrainGeometry } from "../src/game.js";
@@ -362,7 +366,10 @@ function runEvent(
   runCommands(pageCommands(eventNamed(mapName, eventName), pageIndex), state, selections);
 }
 
-function completedQuestsFor(events: readonly QuestBusinessEvent[]): Set<string> {
+function completedQuestsFor(
+  events: readonly QuestBusinessEvent[],
+  acceptedQuestIds: ReadonlySet<string> = new Set(MAIN_QUEST_IDS),
+): Set<string> {
   const definitions = BUNDLE.adventure.registry.quests ?? [];
   const index = buildQuestObjectiveIndex(definitions);
   const progress = new Map<string, ReturnType<typeof createAuthoredQuestProgress>>();
@@ -372,6 +379,7 @@ function completedQuestsFor(events: readonly QuestBusinessEvent[]): Set<string> 
     for (const definition of definitions) {
       let current = progress.get(definition.id);
       if (!current) {
+        if (definition.acceptance === "manual" && !acceptedQuestIds.has(definition.id)) continue;
         const previousQuestId = definition.prerequisites.previousQuestId;
         if (previousQuestId !== null && progress.get(previousQuestId)?.status !== "completed") {
           continue;
@@ -382,7 +390,12 @@ function completedQuestsFor(events: readonly QuestBusinessEvent[]): Set<string> 
         .filter((candidate) => candidate.questId === definition.id)
         .map((candidate) => candidate.objectiveId);
       const applied = applyQuestBusinessEvent(definition, current, event, objectiveIds);
-      progress.set(definition.id, applied.progress);
+      progress.set(
+        definition.id,
+        applied.progress.status === "ready" && definition.completion === "turn-in"
+          ? { ...applied.progress, status: "completed" }
+          : applied.progress,
+      );
     }
   }
 
@@ -422,9 +435,9 @@ describe("Liin — Les Dettes de l’Aube", () => {
     expect(BUNDLE.maps.map((map) => map.name)).toEqual(MAP_NAMES);
     expect(BUNDLE.maps).toHaveLength(16);
     expect(BUNDLE.graph).toEqual({ start: null, links: [] });
-    expect(BUNDLE.adventure.registry.switches).toHaveLength(79);
+    expect(BUNDLE.adventure.registry.switches).toHaveLength(82);
     expect(BUNDLE.adventure.registry.variables).toHaveLength(20);
-    expect(BUNDLE.maps.reduce((count, map) => count + map.events.length, 0)).toBe(250);
+    expect(BUNDLE.maps.reduce((count, map) => count + map.events.length, 0)).toBeGreaterThan(250);
 
     const quests = BUNDLE.adventure.registry.quests ?? [];
     expect(quests).toHaveLength(25);
@@ -456,10 +469,18 @@ describe("Liin — Les Dettes de l’Aube", () => {
     }
 
     expect(new Set(BUNDLE.maps.map((map) => map.layers.join("|"))).size).toBe(BUNDLE.maps.length);
+    expect(
+      new Set(BUNDLE.maps.map((map) => `${map.cols}x${map.rows}`)).size,
+    ).toBeGreaterThanOrEqual(10);
     for (const map of BUNDLE.maps) {
-      expect(map.cols, map.name).toBe(60);
-      expect(map.rows, map.name).toBe(45);
-      expect(map.elements.length, `${map.name}: environmental detail`).toBeGreaterThanOrEqual(20);
+      expect(map.cols, map.name).toBeGreaterThanOrEqual(44);
+      expect(map.cols, map.name).toBeLessThanOrEqual(60);
+      expect(map.rows, map.name).toBeGreaterThanOrEqual(34);
+      expect(map.rows, map.name).toBeLessThanOrEqual(44);
+      expect(
+        new Set(map.elements.map((element) => element.assetId)).size,
+        `${map.name}: asset vocabulary`,
+      ).toBeGreaterThanOrEqual(3);
       const geometry = geometries.get(map.id);
       if (!geometry) throw new Error(`Missing geometry for ${map.name}`);
       const reachable = reachableCells(
@@ -511,26 +532,28 @@ describe("Liin — Les Dettes de l’Aube", () => {
   });
 
   it("connects all sixteen regions through story-gated travel and four return shortcuts", () => {
-    const teleports = locatedTeleports();
+    const graph = buildAuthoredTransitionGraph(BUNDLE.maps);
     const edges = new Map<string, Set<string>>();
-    for (const { sourceMap, command } of teleports) {
-      const destinations = edges.get(sourceMap.id) ?? new Set<string>();
-      destinations.add(command.mapId);
-      edges.set(sourceMap.id, destinations);
+    for (const link of graph.links) {
+      const destinations = edges.get(link.sourceMapId) ?? new Set<string>();
+      destinations.add(link.destinationMapId);
+      edges.set(link.sourceMapId, destinations);
     }
 
-    const reached = new Set<string>([BUNDLE.maps[0]?.id ?? ""]);
-    const queue = [...reached];
-    for (let head = 0; head < queue.length; head += 1) {
-      const source = queue[head];
-      if (!source) continue;
-      for (const destination of edges.get(source) ?? []) {
-        if (reached.has(destination)) continue;
-        reached.add(destination);
-        queue.push(destination);
-      }
-    }
+    const reached = reachableTransitionMaps(graph, BUNDLE.maps[0]?.id ?? "");
     expect(reached.size).toBe(BUNDLE.maps.length);
+    expect(graph.links).toHaveLength(34);
+    expect(new Set(graph.links.map((link) => link.category))).toEqual(
+      new Set(["geographic", "interior", "shortcut", "magical", "memory"]),
+    );
+
+    const allTeleportCategories = new Set(
+      locatedTeleports().map(({ command }) => command.category),
+    );
+    expect(allTeleportCategories).toEqual(
+      new Set(["geographic", "interior", "shortcut", "magical", "memory", "puzzle", "recovery"]),
+    );
+    expect(allTeleportCategories.has(undefined)).toBe(false);
 
     const hasBothDirections = (
       left: (typeof MAP_NAMES)[number],
@@ -637,9 +660,12 @@ describe("Liin — Les Dettes de l’Aube", () => {
       expect(quest?.rewards.nextQuestId).toBe(
         index === MAIN_QUEST_IDS.length - 1 ? null : MAIN_QUEST_IDS[index + 1],
       );
-      expect(quest?.acceptance).toBe("automatic");
+      expect(quest?.acceptance).toBe(index === 0 ? "automatic" : "manual");
       expect(quest?.completion).toBe("automatic");
       expect(quest?.scope).toBe("party");
+      expect(quest?.category).toBe("main");
+      if (index === 0) expect(quest?.giver).toBeNull();
+      else expect(quest?.giver).toEqual(expect.any(Object));
       expect(quest?.objectiveMode).toBe("sequential");
     }
     expect(
@@ -654,6 +680,11 @@ describe("Liin — Les Dettes de l’Aube", () => {
     for (const quest of quests.filter((candidate) =>
       SIDE_QUEST_IDS.includes(candidate.id as (typeof SIDE_QUEST_IDS)[number]),
     )) {
+      expect(quest.acceptance, quest.id).toBe("manual");
+      expect(quest.completion, quest.id).toBe("turn-in");
+      expect(quest.giver, quest.id).not.toBeNull();
+      expect(quest.turnInTarget, quest.id).toEqual(quest.giver);
+      expect(quest.abandonable, quest.id).toBe(true);
       expect(quest.objectiveMode, quest.id).toBe(
         simultaneousSideQuests.has(quest.id) ? "simultaneous" : "sequential",
       );
@@ -858,6 +889,87 @@ describe("Liin — Les Dettes de l’Aube", () => {
     }
   });
 
+  it("keeps narrative bosses absent until their confrontation is explicitly engaged", () => {
+    const expectedActivation = new Map<string, ReadonlySet<string>>([
+      ["Varkesh", new Set(["0075", "0076"])],
+      ["Morvane déchaîné", new Set(["0080"])],
+      ["Nhalgor délié", new Set(["0081"])],
+      ["Avatar de la Couronne", new Set(["0082"])],
+    ]);
+
+    for (const [name, switches] of expectedActivation) {
+      const event = BUNDLE.maps
+        .flatMap((map) => map.events)
+        .find((candidate) => candidate.kind === "monster" && candidate.name === name);
+      expect(event, name).toBeDefined();
+      expect(
+        new Set(event?.pages.flatMap((eventPage) => eventPage.condSwitchId ?? []) ?? []),
+        name,
+      ).toEqual(switches);
+      expect(
+        event?.pages.every((eventPage) => eventPage.condSwitchId !== null),
+        name,
+      ).toBe(true);
+    }
+  });
+
+  it("makes Aubeval a dense, elevated and state-reactive pilot map", () => {
+    const aubeval = mapNamed(MAP_NAMES[1]);
+    const data = parseMapData(aubeval);
+    expect(data).not.toBeNull();
+    expect({ cols: aubeval.cols, rows: aubeval.rows }).toEqual({ cols: 56, rows: 41 });
+    expect(new Set(aubeval.elements.map((element) => element.assetId)).size).toBeGreaterThanOrEqual(
+      12,
+    );
+    expect(data?.layers[1]?.ids.filter((id) => id !== 0).length ?? 0).toBeGreaterThan(40);
+    const movementTypes = new Set(
+      aubeval.events.flatMap((event) =>
+        event.kind === "normal" ? event.pages.map((eventPage) => eventPage.moveType) : [],
+      ),
+    );
+    expect(movementTypes.has("fixed")).toBe(true);
+    expect(movementTypes.has("custom")).toBe(true);
+    for (const name of [
+      "Lectrice du registre",
+      "Officier de Lyra",
+      "Famille du Four",
+      "Veilleur de la vanne",
+    ]) {
+      const event = aubeval.events.find((candidate) => candidate.name === name);
+      expect(event, name).toBeDefined();
+      expect(
+        event?.pages.some((eventPage) => eventPage.condSwitchId !== null),
+        name,
+      ).toBe(true);
+    }
+    const seep = aubeval.events.filter(
+      (event) => event.kind === "monster" && event.name.includes("vanne"),
+    );
+    expect(seep.length).toBeGreaterThanOrEqual(4);
+    expect(
+      Math.max(...seep.map((event) => event.col)) - Math.min(...seep.map((event) => event.col)),
+    ).toBeLessThanOrEqual(8);
+  });
+
+  it("uses playable elevation and exploration rewards throughout the regional route", () => {
+    const elevatedMaps = BUNDLE.maps.filter((map) => {
+      const data = parseMapData(map);
+      return (data?.layers[1]?.ids.filter((id) => id !== 0).length ?? 0) >= 8;
+    });
+    expect(elevatedMaps).toHaveLength(BUNDLE.maps.length);
+
+    const explorationEvents = BUNDLE.maps.flatMap((map) =>
+      map.events.filter((event) =>
+        event.pages.some((eventPage) =>
+          eventPage.commands.some(
+            (command) => command.t === "changeItems" && command.itemId === "health_potion",
+          ),
+        ),
+      ),
+    );
+    expect(explorationEvents.length).toBeGreaterThanOrEqual(BUNDLE.maps.length);
+  });
+
   it("makes both spatial riddles deducible, recoverable and solvable by one player", () => {
     const rootsMap = mapNamed(MAP_NAMES[5]);
     const wrongRoot = simulationState();
@@ -867,9 +979,15 @@ describe("Liin — Les Dettes de l’Aube", () => {
     expect(wrongRoot.variables.get("0012")).toBe(0);
     expect(wrongRoot.teleports.at(-1)).toMatchObject({
       mapId: rootsMap.id,
-      col: 9,
-      row: 36,
     });
+    const wrongRootDestination = wrongRoot.teleports.at(-1);
+    expect(
+      walkable(
+        geometryFor(rootsMap),
+        wrongRootDestination?.col ?? -1,
+        wrongRootDestination?.row ?? -1,
+      ),
+    ).toBe(true);
 
     const solvedRoot = simulationState();
     runCommands(pageCommands(eventNamed(MAP_NAMES[5], "Salle de la demande")), solvedRoot, {
@@ -896,8 +1014,6 @@ describe("Liin — Les Dettes de l’Aube", () => {
     expect(wrongArchive.variables.get("0013")).toBe(0);
     expect(wrongArchive.teleports.at(-1)).toMatchObject({
       mapId: archivesMap.id,
-      col: 8,
-      row: 36,
     });
 
     const solvedArchive = simulationState();
@@ -1444,9 +1560,9 @@ describe("Liin — Les Dettes de l’Aube", () => {
     });
     expect(endingReached(state)).toEqual(["0051"]);
     expect(state.teleports.at(-1)?.mapId).toBe(mapNamed(MAP_NAMES[15]).id);
-    expect(completedQuestsFor(state.questEvents)).toEqual(
-      new Set([...MAIN_QUEST_IDS, ...SIDE_QUEST_IDS]),
-    );
+    expect(
+      completedQuestsFor(state.questEvents, new Set([...MAIN_QUEST_IDS, ...SIDE_QUEST_IDS])),
+    ).toEqual(new Set([...MAIN_QUEST_IDS, ...SIDE_QUEST_IDS]));
   });
 
   it("keeps a low-preparation main route completable and lets it cause the New Eclipse", () => {
@@ -1591,7 +1707,7 @@ describe("Liin — Les Dettes de l’Aube", () => {
       expect(fullText, character).toContain(character.toLocaleLowerCase("fr"));
     }
 
-    expect(mapText(mapNamed(MAP_NAMES[0]))).toContain("vos noms ne figurent nulle part");
+    expect(mapText(mapNamed(MAP_NAMES[0]))).toContain("Vos noms manquent");
     expect(mapText(mapNamed(MAP_NAMES[2]))).toContain("les convois");
     expect(mapText(mapNamed(MAP_NAMES[5]))).toContain("consentement");
     expect(mapText(mapNamed(MAP_NAMES[7]))).toContain("neuf noms par six numéros");

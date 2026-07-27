@@ -1,16 +1,16 @@
 import { createHash } from "node:crypto";
 import type { AdventureBundleMap } from "@lindocara/engine/adventure-bundle.js";
 import type { RegistryEntry } from "@lindocara/engine/adventure-state.js";
-import type { EventCommand } from "@lindocara/engine/event-commands.js";
+import type { EventCommand, TransitionCategory } from "@lindocara/engine/event-commands.js";
 import type { MonsterSpecies, MonsterTuning } from "@lindocara/engine/game.js";
-import { elementCoversCell, elementFitsMap, type MapElement } from "@lindocara/engine/map-data.js";
+import { elementFitsMap, type MapElement } from "@lindocara/engine/map-data.js";
 import {
   defaultEventPage,
   functionalEvent,
   type MapEvent,
   type MapEventPage,
 } from "@lindocara/engine/map-events.js";
-import { resolveWholeLayer } from "@lindocara/engine/tile-brush.js";
+import { paintElevation, paintStairs, resolveWholeLayer } from "@lindocara/engine/tile-brush.js";
 import { emptyLayer, encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import { autotileId, EMPTY_TILE } from "@lindocara/engine/tileset.js";
 import {
@@ -42,6 +42,25 @@ export const MAP_IDS = {
 } as const;
 
 export type MapKey = keyof typeof MAP_IDS;
+
+export const MAP_DIMENSIONS: Readonly<Record<MapKey, { cols: number; rows: number }>> = {
+  prologue: { cols: 52, rows: 36 },
+  aubeval: { cols: 56, rows: 41 },
+  faubourg: { cols: 52, rows: 38 },
+  relay: { cols: 46, rows: 34 },
+  woods: { cols: 58, rows: 44 },
+  roots: { cols: 48, rows: 36 },
+  marsh: { cols: 60, rows: 44 },
+  archives: { cols: 52, rows: 40 },
+  citadel: { cols: 58, rows: 42 },
+  fort: { cols: 52, rows: 38 },
+  sanctuary: { cols: 50, rows: 36 },
+  crypt: { cols: 46, rows: 34 },
+  war: { cols: 58, rows: 42 },
+  galleries: { cols: 52, rows: 38 },
+  heart: { cols: 50, rows: 36 },
+  epilogue: { cols: 44, rows: 38 },
+};
 
 export const GRAPHICS = {
   lyra: "character.units-blue-units-warrior.warrior-idle",
@@ -77,6 +96,21 @@ export function cell(col: number, row: number): { col: number; row: number } {
   return { col, row };
 }
 
+function scaleAxis(value: number, sourceSize: number, targetSize: number): number {
+  return Math.max(
+    0,
+    Math.min(targetSize - 1, Math.round((value * (targetSize - 1)) / (sourceSize - 1))),
+  );
+}
+
+export function mapCell(key: MapKey, col: number, row: number): { col: number; row: number } {
+  const dimensions = MAP_DIMENSIONS[key];
+  return {
+    col: scaleAxis(col, COLS, dimensions.cols),
+    row: scaleAxis(row, ROWS, dimensions.rows),
+  };
+}
+
 export function page(
   commands: readonly EventCommand[] = [],
   options: Partial<MapEventPage> = {},
@@ -104,8 +138,13 @@ export function activity(activityId: string): EventCommand {
   return { t: "completeActivity", activityId };
 }
 
-export function teleport(map: MapKey, col: number, row: number): EventCommand {
-  return { t: "teleport", mapId: MAP_IDS[map], col, row };
+export function teleport(
+  map: MapKey,
+  col: number,
+  row: number,
+  category: TransitionCategory = "geographic",
+): EventCommand {
+  return { t: "teleport", mapId: MAP_IDS[map], ...mapCell(map, col, row), category };
 }
 
 export function ifSwitch(
@@ -198,6 +237,7 @@ export function createEventFactory(mapKey: MapKey, refs: StoryRefs) {
     tuning: Partial<MonsterTuning> = {},
     commands: readonly EventCommand[] = [],
     patrolRadius?: number,
+    conditionSwitchIds: readonly string[] = [],
   ): MapEvent => {
     const event = functionalEvent({
       id: stableUuid(`${mapKey}:${key}`),
@@ -211,7 +251,14 @@ export function createEventFactory(mapKey: MapKey, refs: StoryRefs) {
     });
     return add(key, {
       ...event,
-      pages: [{ ...(event.pages[0] ?? defaultEventPage()), commands }],
+      pages:
+        conditionSwitchIds.length === 0
+          ? [{ ...(event.pages[0] ?? defaultEventPage()), commands }]
+          : conditionSwitchIds.map((condSwitchId) => ({
+              ...(event.pages[0] ?? defaultEventPage()),
+              condSwitchId,
+              commands,
+            })),
     });
   };
   const guard = (
@@ -252,29 +299,195 @@ export interface TerrainRect {
 export interface TerrainPlan {
   water?: readonly TerrainRect[];
   carve?: readonly TerrainRect[];
+  elevation?: readonly (TerrainRect & { level: 1 | 2 })[];
+  stairs?: readonly {
+    col: number;
+    row: number;
+    direction: "east" | "west";
+    lowLevel: 0 | 1;
+  }[];
 }
 
-function paintRect(ids: number[], rect: TerrainRect, id: number): void {
-  for (let row = Math.max(0, rect.row); row < Math.min(ROWS, rect.row + rect.height); row += 1) {
-    for (let col = Math.max(0, rect.col); col < Math.min(COLS, rect.col + rect.width); col += 1) {
-      ids[row * COLS + col] = id;
+const REGIONAL_RELIEF: Readonly<Partial<Record<MapKey, TerrainPlan>>> = {
+  prologue: {
+    elevation: [{ col: 34, row: 3, width: 22, height: 10, level: 1 }],
+    stairs: [{ col: 33, row: 10, direction: "east", lowLevel: 0 }],
+  },
+  faubourg: {
+    elevation: [
+      { col: 43, row: 3, width: 14, height: 12, level: 1 },
+      { col: 51, row: 4, width: 6, height: 6, level: 2 },
+    ],
+    stairs: [
+      { col: 42, row: 12, direction: "east", lowLevel: 0 },
+      { col: 50, row: 9, direction: "east", lowLevel: 1 },
+    ],
+  },
+  relay: {
+    elevation: [{ col: 38, row: 3, width: 19, height: 11, level: 1 }],
+    stairs: [{ col: 37, row: 11, direction: "east", lowLevel: 0 }],
+  },
+  woods: {
+    elevation: [
+      { col: 32, row: 4, width: 16, height: 12, level: 1 },
+      { col: 41, row: 5, width: 7, height: 7, level: 2 },
+    ],
+    stairs: [
+      { col: 31, row: 13, direction: "east", lowLevel: 0 },
+      { col: 40, row: 10, direction: "east", lowLevel: 1 },
+    ],
+  },
+  roots: {
+    elevation: [
+      { col: 34, row: 3, width: 22, height: 13, level: 1 },
+      { col: 44, row: 4, width: 10, height: 9, level: 2 },
+    ],
+    stairs: [
+      { col: 33, row: 13, direction: "east", lowLevel: 0 },
+      { col: 43, row: 9, direction: "east", lowLevel: 1 },
+    ],
+  },
+  marsh: {
+    elevation: [{ col: 45, row: 3, width: 12, height: 13, level: 1 }],
+    stairs: [{ col: 44, row: 13, direction: "east", lowLevel: 0 }],
+  },
+  archives: {
+    elevation: [
+      { col: 40, row: 3, width: 17, height: 13, level: 1 },
+      { col: 49, row: 4, width: 7, height: 7, level: 2 },
+    ],
+    stairs: [
+      { col: 39, row: 13, direction: "east", lowLevel: 0 },
+      { col: 48, row: 9, direction: "east", lowLevel: 1 },
+    ],
+  },
+  citadel: {
+    elevation: [
+      { col: 40, row: 3, width: 17, height: 14, level: 1 },
+      { col: 49, row: 4, width: 8, height: 7, level: 2 },
+    ],
+    stairs: [
+      { col: 39, row: 14, direction: "east", lowLevel: 0 },
+      { col: 48, row: 10, direction: "east", lowLevel: 1 },
+    ],
+  },
+  fort: {
+    elevation: [{ col: 39, row: 3, width: 17, height: 13, level: 1 }],
+    stairs: [{ col: 38, row: 13, direction: "east", lowLevel: 0 }],
+  },
+  sanctuary: {
+    elevation: [
+      { col: 32, row: 3, width: 16, height: 12, level: 1 },
+      { col: 41, row: 4, width: 7, height: 7, level: 2 },
+    ],
+    stairs: [
+      { col: 31, row: 12, direction: "east", lowLevel: 0 },
+      { col: 40, row: 9, direction: "east", lowLevel: 1 },
+    ],
+  },
+  crypt: {
+    elevation: [
+      { col: 31, row: 3, width: 16, height: 11, level: 1 },
+      { col: 38, row: 4, width: 8, height: 9, level: 2 },
+    ],
+    stairs: [
+      { col: 30, row: 11, direction: "east", lowLevel: 0 },
+      { col: 37, row: 8, direction: "east", lowLevel: 1 },
+    ],
+  },
+  war: {
+    elevation: [{ col: 27, row: 3, width: 12, height: 9, level: 1 }],
+    stairs: [{ col: 26, row: 9, direction: "east", lowLevel: 0 }],
+  },
+  galleries: {
+    elevation: [
+      { col: 36, row: 3, width: 18, height: 12, level: 1 },
+      { col: 46, row: 4, width: 8, height: 7, level: 2 },
+    ],
+    stairs: [
+      { col: 35, row: 12, direction: "east", lowLevel: 0 },
+      { col: 45, row: 9, direction: "east", lowLevel: 1 },
+    ],
+  },
+  heart: {
+    elevation: [
+      { col: 34, row: 3, width: 15, height: 12, level: 1 },
+      { col: 42, row: 4, width: 7, height: 6, level: 2 },
+    ],
+    stairs: [
+      { col: 33, row: 12, direction: "east", lowLevel: 0 },
+      { col: 41, row: 8, direction: "east", lowLevel: 1 },
+    ],
+  },
+  epilogue: {
+    elevation: [{ col: 22, row: 3, width: 16, height: 12, level: 1 }],
+    stairs: [{ col: 21, row: 12, direction: "east", lowLevel: 0 }],
+  },
+};
+
+function projectRect(key: MapKey, rect: TerrainRect): TerrainRect {
+  const start = mapCell(key, rect.col, rect.row);
+  const end = mapCell(key, rect.col + rect.width - 1, rect.row + rect.height - 1);
+  return {
+    col: start.col,
+    row: start.row,
+    width: Math.max(1, end.col - start.col + 1),
+    height: Math.max(1, end.row - start.row + 1),
+  };
+}
+
+function paintRect(ids: number[], cols: number, rows: number, rect: TerrainRect, id: number): void {
+  for (let row = Math.max(0, rect.row); row < Math.min(rows, rect.row + rect.height); row += 1) {
+    for (let col = Math.max(0, rect.col); col < Math.min(cols, rect.col + rect.width); col += 1) {
+      ids[row * cols + col] = id;
     }
   }
 }
 
-/** Unique, deterministic field geometry. Water is real collision; `carve` reopens causeways/doors. */
-export function terrainLayers(plan: TerrainPlan): [string, string, string] {
+/** Deterministic authored geometry. Water, cliffs and ramps all share runtime collision truth. */
+export function terrainLayers(key: MapKey, plan: TerrainPlan): [string, string, string] {
+  const { cols, rows } = MAP_DIMENSIONS[key];
+  const regional = REGIONAL_RELIEF[key] ?? {};
   const grass = autotileId(0, 0);
-  const ids = new Array<number>(COLS * ROWS).fill(grass);
-  paintRect(ids, { col: 0, row: 0, width: COLS, height: 2 }, EMPTY_TILE);
-  paintRect(ids, { col: 0, row: ROWS - 2, width: COLS, height: 2 }, EMPTY_TILE);
-  paintRect(ids, { col: 0, row: 0, width: 2, height: ROWS }, EMPTY_TILE);
-  paintRect(ids, { col: COLS - 2, row: 0, width: 2, height: ROWS }, EMPTY_TILE);
-  for (const rect of plan.water ?? []) paintRect(ids, rect, EMPTY_TILE);
-  for (const rect of plan.carve ?? []) paintRect(ids, rect, grass);
-  const ground = resolveWholeLayer({ cols: COLS, rows: ROWS, ids }, TINY_SWORDS_TILESET);
-  const empty = emptyLayer(COLS, ROWS);
-  return [encodeTileLayer(ground), encodeTileLayer(empty), encodeTileLayer(empty)];
+  const ids = new Array<number>(cols * rows).fill(grass);
+  paintRect(ids, cols, rows, { col: 0, row: 0, width: cols, height: 2 }, EMPTY_TILE);
+  paintRect(ids, cols, rows, { col: 0, row: rows - 2, width: cols, height: 2 }, EMPTY_TILE);
+  paintRect(ids, cols, rows, { col: 0, row: 0, width: 2, height: rows }, EMPTY_TILE);
+  paintRect(ids, cols, rows, { col: cols - 2, row: 0, width: 2, height: rows }, EMPTY_TILE);
+  for (const rect of plan.water ?? []) {
+    paintRect(ids, cols, rows, projectRect(key, rect), EMPTY_TILE);
+  }
+  for (const rect of plan.carve ?? []) {
+    paintRect(ids, cols, rows, projectRect(key, rect), grass);
+  }
+  let layers = [
+    resolveWholeLayer({ cols, rows, ids }, TINY_SWORDS_TILESET),
+    emptyLayer(cols, rows),
+    emptyLayer(cols, rows),
+  ];
+  for (const elevation of [...(plan.elevation ?? []), ...(regional.elevation ?? [])]) {
+    const projected = projectRect(key, elevation);
+    for (let row = projected.row; row < projected.row + projected.height; row += 1) {
+      for (let col = projected.col; col < projected.col + projected.width; col += 1) {
+        layers = paintElevation(layers, TINY_SWORDS_TILESET, elevation.level, col, row);
+      }
+    }
+  }
+  for (const stairs of [...(plan.stairs ?? []), ...(regional.stairs ?? [])]) {
+    const projected = mapCell(key, stairs.col, stairs.row);
+    for (const row of [projected.row - 1, projected.row]) {
+      layers = paintElevation(layers, TINY_SWORDS_TILESET, stairs.lowLevel, projected.col, row);
+    }
+    layers = paintStairs(
+      layers,
+      TINY_SWORDS_TILESET,
+      projected.col,
+      projected.row,
+      stairs.direction,
+      stairs.lowLevel,
+    );
+  }
+  return layers.map(encodeTileLayer) as [string, string, string];
 }
 
 export function element(
@@ -287,86 +500,18 @@ export function element(
   return { assetId, col, row, offsetX, offsetY };
 }
 
-const SCATTER: Record<
-  "road" | "city" | "forest" | "marsh" | "military" | "sacred",
-  readonly EditorAssetId[]
-> = {
-  road: [
-    "decoration.terrain-decorations-rocks.rock1",
-    "decoration.terrain-decorations-rocks.rock3",
-    "decoration.terrain-decorations-bushes.bushe1",
-  ],
-  city: ["decoration.deco.13", "decoration.deco.14", "decoration.terrain-decorations-rocks.rock4"],
-  forest: [
-    "resource.terrain-resources-wood-trees.tree1",
-    "resource.terrain-resources-wood-trees.tree2",
-    "resource.terrain-resources-wood-trees.tree4",
-    "decoration.terrain-decorations-bushes.bushe1",
-  ],
-  marsh: [
-    "resource.terrain-resources-wood-trees.tree3",
-    "decoration.terrain-decorations-rocks.rock3",
-    "decoration.deco.17",
-  ],
-  military: [
-    "decoration.deco.13",
-    "decoration.deco.14",
-    "decoration.terrain-decorations-rocks.rock1",
-  ],
-  sacred: [
-    "decoration.deco.17",
-    "resource.terrain-resources-wood-trees.tree4",
-    "decoration.terrain-decorations-rocks.rock4",
-  ],
-};
-
-const SCATTER_CELLS = [
-  [3, 3],
-  [8, 4],
-  [15, 3],
-  [23, 4],
-  [32, 3],
-  [41, 4],
-  [50, 3],
-  [56, 6],
-  [4, 13],
-  [55, 15],
-  [5, 23],
-  [54, 25],
-  [4, 34],
-  [12, 40],
-  [23, 41],
-  [36, 40],
-  [48, 41],
-  [56, 36],
-] as const;
+export type MapTheme = "road" | "city" | "forest" | "marsh" | "military" | "sacred";
 
 export function safeElements(
-  theme: keyof typeof SCATTER,
-  events: readonly MapEvent[],
-  spawn: { col: number; row: number },
+  _theme: MapTheme,
+  _events: readonly MapEvent[],
+  _spawn: { col: number; row: number },
   authored: readonly MapElement[],
 ): MapElement[] {
-  const protectedCells = [...events, spawn];
-  const candidates = [
-    ...authored,
-    ...SCATTER_CELLS.map(([col, row], index) =>
-      element(SCATTER[theme][index % SCATTER[theme].length] as EditorAssetId, col, row),
-    ),
-  ];
   const occupied = new Set<string>();
-  return candidates.filter((candidate) => {
+  return authored.filter((candidate) => {
     const slot = `${candidate.col}:${candidate.row}:${candidate.offsetX}:${candidate.offsetY}`;
-    if (
-      occupied.has(slot) ||
-      !elementFitsMap(candidate, COLS, ROWS) ||
-      protectedCells.some(
-        (protectedCell) =>
-          elementCoversCell(candidate, protectedCell.col, protectedCell.row) ||
-          (Math.abs(candidate.col - protectedCell.col) <= 1 &&
-            Math.abs(candidate.row - protectedCell.row) <= 1),
-      )
-    ) {
+    if (occupied.has(slot) || !elementFitsMap(candidate, COLS, ROWS)) {
       return false;
     }
     occupied.add(slot);
@@ -382,16 +527,36 @@ export function bundleMap(
   events: readonly MapEvent[],
   elements: readonly MapElement[],
 ): AdventureBundleMap {
+  const dimensions = MAP_DIMENSIONS[key];
+  const projectedSpawn = mapCell(key, spawn.col, spawn.row);
+  const projectedEvents = events.map((event) => ({
+    ...event,
+    ...mapCell(key, event.col, event.row),
+  }));
+  const occupiedSlots = new Set<string>();
+  const projectedElements = elements
+    .map((candidate) => ({
+      ...candidate,
+      ...mapCell(key, candidate.col, candidate.row),
+    }))
+    .filter((candidate) => {
+      const slot = `${candidate.col}:${candidate.row}:${candidate.offsetX}:${candidate.offsetY}`;
+      if (occupiedSlots.has(slot) || !elementFitsMap(candidate, dimensions.cols, dimensions.rows)) {
+        return false;
+      }
+      occupiedSlots.add(slot);
+      return true;
+    });
   return {
     id: MAP_IDS[key],
     name,
     tilesetId: TINY_SWORDS_TILESET_ID,
-    cols: COLS,
-    rows: ROWS,
+    cols: dimensions.cols,
+    rows: dimensions.rows,
     layers,
-    elements,
-    spawn,
-    events,
+    elements: projectedElements,
+    spawn: projectedSpawn,
+    events: projectedEvents,
   };
 }
 
@@ -475,6 +640,9 @@ const SWITCH_NAMES = [
   "Intention — négocier Varkesh",
   "Intentions de Nhalgor comprises",
   "Choix final prononcé",
+  "Combat Morvane engagé",
+  "Combat Nhalgor engagé",
+  "Combat avatar engagé",
 ] as const;
 
 const VARIABLE_NAMES = [

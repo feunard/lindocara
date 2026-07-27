@@ -6,6 +6,10 @@ import {
   parseAdventureBundle,
 } from "@lindocara/engine/adventure-bundle.js";
 import { parseAdventureRegistry } from "@lindocara/engine/adventure-state.js";
+import {
+  buildAuthoredTransitionGraph,
+  reachableTransitionMaps,
+} from "@lindocara/engine/adventure-transitions.js";
 import { validateAuthoredQuests } from "@lindocara/engine/quests.js";
 import {
   questContext,
@@ -51,6 +55,16 @@ if (!parsed) throw new Error("generated Liin bundle envelope is invalid");
 // vérifier qu'on a bien rouvert le marais.
 validateBundleMaps(parsed, { startMapId: MAP_IDS.prologue, minConnectedRatio: 0.84 });
 validateStateReferences(parsed);
+const transitionGraph = buildAuthoredTransitionGraph(parsed.maps);
+const reachableMaps = reachableTransitionMaps(transitionGraph, MAP_IDS.prologue);
+const unreachableMaps = parsed.maps
+  .filter((map) => !reachableMaps.has(map.id))
+  .map((map) => map.name);
+if (unreachableMaps.length > 0) {
+  throw new Error(
+    `generated Liin travel graph has unreachable maps: ${unreachableMaps.join(", ")}`,
+  );
+}
 const questDiagnostics = validateAuthoredQuests(quests, questContext(parsed));
 const questErrors = questDiagnostics.filter((diagnostic) => diagnostic.severity === "error");
 if (questErrors.length > 0) {
@@ -79,5 +93,5 @@ if (endingSwitches.size !== 6) throw new Error("all six campaign endings must be
 
 writeFileSync(OUTPUT, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
 console.log(
-  `built ${parsed.adventure.title}: ${parsed.maps.length} maps, ${quests.length} quests, ${parsed.maps.reduce((count, map) => count + map.events.length, 0)} events`,
+  `built ${parsed.adventure.title}: ${parsed.maps.length} maps, ${quests.length} quests, ${parsed.maps.reduce((count, map) => count + map.events.length, 0)} events, ${transitionGraph.links.length} travel links`,
 );

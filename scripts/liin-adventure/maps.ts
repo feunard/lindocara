@@ -1,5 +1,5 @@
 import type { AdventureBundleMap } from "@lindocara/engine/adventure-bundle.js";
-import type { EventCommand } from "@lindocara/engine/event-commands.js";
+import type { EventCommand, TransitionCategory } from "@lindocara/engine/event-commands.js";
 import type { MonsterSpecies, MonsterTuning } from "@lindocara/engine/game.js";
 import type { MapElement } from "@lindocara/engine/map-data.js";
 import type { MapEventPage } from "@lindocara/engine/map-events.js";
@@ -28,6 +28,7 @@ import {
 type Factory = ReturnType<typeof createEventFactory>;
 
 const BUILDINGS = {
+  blueArchery: "building.buildings-blue-buildings.archery",
   blueCastle: "building.buildings-blue-buildings.castle",
   blueBarracks: "building.buildings-blue-buildings.barracks",
   blueHouse1: "building.buildings-blue-buildings.house1",
@@ -37,17 +38,29 @@ const BUILDINGS = {
   blueTower: "building.buildings-blue-buildings.tower",
   yellowHouse1: "building.buildings-yellow-buildings.house1",
   yellowHouse2: "building.buildings-yellow-buildings.house2",
+  yellowHouse3: "building.buildings-yellow-buildings.house3",
+  yellowBarracks: "building.buildings-yellow-buildings.barracks",
   yellowMonastery: "building.buildings-yellow-buildings.monastery",
   yellowTower: "building.buildings-yellow-buildings.tower",
   blackCastle: "building.buildings-black-buildings.castle",
   blackBarracks: "building.buildings-black-buildings.barracks",
   blackHouse1: "building.buildings-black-buildings.house1",
   blackHouse2: "building.buildings-black-buildings.house2",
+  blackHouse3: "building.buildings-black-buildings.house3",
   blackTower: "building.buildings-black-buildings.tower",
+  redBarracks: "building.buildings-red-buildings.barracks",
+  redHouse1: "building.buildings-red-buildings.house1",
+  redHouse2: "building.buildings-red-buildings.house2",
+  redHouse3: "building.buildings-red-buildings.house3",
+  redTower: "building.buildings-red-buildings.tower",
+  purpleBarracks: "building.buildings-purple-buildings.barracks",
   purpleMonastery: "building.buildings-purple-buildings.monastery",
   purpleHouse1: "building.buildings-purple-buildings.house1",
   purpleHouse2: "building.buildings-purple-buildings.house2",
+  purpleHouse3: "building.buildings-purple-buildings.house3",
   purpleTower: "building.buildings-purple-buildings.tower",
+  constructionHouse: "building.factions-knights-buildings-house.house-construction",
+  constructionTower: "building.factions-knights-buildings-tower.tower-construction",
   ruinedHouse: "building.factions-knights-buildings-house.house-destroyed",
   ruinedTower: "building.factions-knights-buildings-tower.tower-destroyed",
   ruinedCastle: "building.factions-knights-buildings-castle.castle-destroyed",
@@ -55,6 +68,364 @@ const BUILDINGS = {
   ruinedGoblinHouse: "building.factions-goblins-buildings-wood-house.goblin-house-destroyed",
   ruinedGoblinTower: "building.factions-goblins-buildings-wood-tower.wood-tower-destroyed",
 } as const;
+
+const SCENERY = {
+  bridgeHorizontal: "terrain.bridge.wood.horizontal",
+  bridgeVertical: "terrain.bridge.wood.vertical",
+  tool1: "resource.terrain-resources-tools.tool-01",
+  tool2: "resource.terrain-resources-tools.tool-02",
+  tool3: "resource.terrain-resources-tools.tool-03",
+  tool4: "resource.terrain-resources-tools.tool-04",
+  wood: "resource.terrain-resources-wood-wood-resource.wood-resource",
+  gold: "resource.terrain-resources-gold-gold-resource.gold-resource",
+  meat: "resource.terrain-resources-meat-meat-resource.meat-resource",
+  memorial: "decoration.deco.17",
+  marketRed: "decoration.deco.13",
+  marketBlue: "decoration.deco.14",
+  banner: "decoration.deco.15",
+  notice: "decoration.deco.16",
+  reeds: "decoration.deco.18",
+  bush1: "decoration.terrain-decorations-bushes.bushe1",
+  bush2: "decoration.terrain-decorations-bushes.bushe2",
+  bush3: "decoration.terrain-decorations-bushes.bushe3",
+  bush4: "decoration.terrain-decorations-bushes.bushe4",
+  rock1: "decoration.terrain-decorations-rocks.rock1",
+  rock2: "decoration.terrain-decorations-rocks.rock2",
+  rock3: "decoration.terrain-decorations-rocks.rock3",
+  rock4: "decoration.terrain-decorations-rocks.rock4",
+  waterRock1: "decoration.terrain-decorations-rocks-in-the-water.water-rocks-01",
+  waterRock2: "decoration.terrain-decorations-rocks-in-the-water.water-rocks-02",
+  tree1: "resource.terrain-resources-wood-trees.tree1",
+  tree2: "resource.terrain-resources-wood-trees.tree2",
+  tree3: "resource.terrain-resources-wood-trees.tree3",
+  tree4: "resource.terrain-resources-wood-trees.tree4",
+  stump1: "resource.terrain-resources-wood-trees.stump-1",
+  stump2: "resource.terrain-resources-wood-trees.stump-2",
+  stump3: "resource.terrain-resources-wood-trees.stump-3",
+} as const;
+
+const REGIONAL_COMPOSITIONS: Readonly<Partial<Record<MapKey, readonly MapElement[]>>> = {
+  prologue: [
+    element(SCENERY.tree1, 6, 8),
+    element(SCENERY.tree2, 12, 7),
+    element(SCENERY.stump1, 15, 31),
+    element(SCENERY.wood, 18, 33),
+    element(SCENERY.tool2, 13, 30),
+    element(SCENERY.rock1, 21, 8),
+    element(SCENERY.rock4, 34, 36),
+    element(SCENERY.bush2, 38, 34),
+    element(SCENERY.tree4, 53, 25),
+    element(SCENERY.notice, 31, 35),
+  ],
+  faubourg: [
+    element(BUILDINGS.redHouse1, 8, 34),
+    element(BUILDINGS.redHouse2, 15, 36),
+    element(BUILDINGS.constructionHouse, 24, 34),
+    element(BUILDINGS.redBarracks, 34, 9),
+    element(BUILDINGS.redTower, 55, 18),
+    element(SCENERY.wood, 12, 28),
+    element(SCENERY.wood, 16, 29),
+    element(SCENERY.tool1, 21, 31),
+    element(SCENERY.tool3, 24, 30),
+    element(SCENERY.bridgeHorizontal, 28, 18),
+    element(SCENERY.notice, 40, 30),
+    element(SCENERY.rock2, 48, 24),
+  ],
+  relay: [
+    element(BUILDINGS.blueHouse1, 9, 31),
+    element(BUILDINGS.yellowHouse1, 18, 34),
+    element(BUILDINGS.purpleHouse1, 36, 31),
+    element(BUILDINGS.blackHouse1, 48, 26),
+    element(BUILDINGS.yellowTower, 53, 12),
+    element(SCENERY.gold, 17, 18),
+    element(SCENERY.meat, 25, 18),
+    element(SCENERY.wood, 33, 20),
+    element(SCENERY.tool2, 40, 20),
+    element(SCENERY.notice, 28, 30),
+    element(SCENERY.tree2, 7, 8),
+    element(SCENERY.tree4, 52, 35),
+  ],
+  woods: [
+    // Sève settlement and nourishing grove.
+    element(BUILDINGS.yellowHouse1, 8, 30),
+    element(BUILDINGS.yellowHouse2, 13, 27),
+    element(BUILDINGS.yellowTower, 18, 24),
+    element(SCENERY.tree1, 5, 8),
+    element(SCENERY.tree2, 10, 10),
+    element(SCENERY.tree3, 16, 8),
+    element(SCENERY.tree4, 21, 12),
+    element(SCENERY.bush1, 12, 20),
+    element(SCENERY.bush3, 18, 19),
+    // Écorce settlement and managed cutting ground.
+    element(BUILDINGS.purpleHouse1, 39, 35),
+    element(BUILDINGS.purpleHouse2, 47, 34),
+    element(BUILDINGS.purpleTower, 53, 29),
+    element(SCENERY.tree4, 35, 7),
+    element(SCENERY.tree3, 42, 6),
+    element(SCENERY.stump1, 31, 25),
+    element(SCENERY.stump2, 34, 27),
+    element(SCENERY.stump3, 37, 26),
+    element(SCENERY.wood, 40, 28),
+    element(SCENERY.tool4, 43, 28),
+    // The old road stays visible between both territories.
+    element(SCENERY.notice, 27, 9),
+    element(SCENERY.rock1, 27, 31),
+    element(SCENERY.rock3, 30, 34),
+    // Dense perimeter groves leave the old road and both settlements as readable clearings.
+    element(SCENERY.tree2, 4, 5),
+    element(SCENERY.tree1, 9, 4),
+    element(SCENERY.tree4, 14, 5),
+    element(SCENERY.tree3, 19, 4),
+    element(SCENERY.tree2, 24, 6),
+    element(SCENERY.tree1, 29, 4),
+    element(SCENERY.tree4, 52, 5),
+    element(SCENERY.tree3, 56, 8),
+    element(SCENERY.tree1, 4, 14),
+    element(SCENERY.tree2, 5, 20),
+    element(SCENERY.tree4, 7, 25),
+    element(SCENERY.tree3, 4, 31),
+    element(SCENERY.tree2, 9, 39),
+    element(SCENERY.tree4, 20, 18),
+    element(SCENERY.tree1, 23, 17),
+    element(SCENERY.tree3, 29, 10),
+    element(SCENERY.tree2, 30, 17),
+    element(SCENERY.tree4, 54, 14),
+    element(SCENERY.tree1, 55, 20),
+    element(SCENERY.tree3, 52, 26),
+    element(SCENERY.tree2, 56, 31),
+    element(SCENERY.tree4, 54, 39),
+    element(SCENERY.tree1, 14, 41),
+    element(SCENERY.tree3, 21, 40),
+    element(SCENERY.tree2, 27, 41),
+    element(SCENERY.tree4, 34, 40),
+    element(SCENERY.tree1, 42, 41),
+    element(SCENERY.tree3, 48, 40),
+    // Layered tree walls shape two clearings and leave the central old road readable.
+    element(SCENERY.tree1, 3, 3),
+    element(SCENERY.tree3, 7, 3),
+    element(SCENERY.tree2, 12, 2),
+    element(SCENERY.tree4, 17, 3),
+    element(SCENERY.tree1, 22, 2),
+    element(SCENERY.tree3, 27, 4),
+    element(SCENERY.tree2, 33, 2),
+    element(SCENERY.tree4, 38, 3),
+    element(SCENERY.tree1, 44, 2),
+    element(SCENERY.tree3, 49, 3),
+    element(SCENERY.tree2, 55, 2),
+    element(SCENERY.tree4, 58, 6),
+    element(SCENERY.tree3, 3, 10),
+    element(SCENERY.tree1, 3, 18),
+    element(SCENERY.tree4, 3, 26),
+    element(SCENERY.tree2, 3, 36),
+    element(SCENERY.tree1, 58, 13),
+    element(SCENERY.tree3, 58, 22),
+    element(SCENERY.tree4, 58, 29),
+    element(SCENERY.tree2, 58, 37),
+    element(SCENERY.tree4, 6, 13),
+    element(SCENERY.tree2, 10, 15),
+    element(SCENERY.tree1, 15, 14),
+    element(SCENERY.tree3, 19, 16),
+    element(SCENERY.tree4, 7, 20),
+    element(SCENERY.tree2, 12, 23),
+    element(SCENERY.tree1, 18, 22),
+    element(SCENERY.tree3, 22, 20),
+    element(SCENERY.tree2, 37, 11),
+    element(SCENERY.tree4, 42, 12),
+    element(SCENERY.tree1, 47, 14),
+    element(SCENERY.tree3, 52, 17),
+    element(SCENERY.tree2, 39, 20),
+    element(SCENERY.tree4, 45, 22),
+    element(SCENERY.tree1, 51, 24),
+    element(SCENERY.tree3, 23, 35),
+    element(SCENERY.tree1, 29, 38),
+    element(SCENERY.tree4, 35, 35),
+    element(SCENERY.tree2, 40, 37),
+    element(SCENERY.bridgeVertical, 9, 10),
+    element(SCENERY.bridgeVertical, 30, 27),
+  ],
+  roots: [
+    element(BUILDINGS.yellowMonastery, 11, 31),
+    element(BUILDINGS.purpleMonastery, 52, 20),
+    element(SCENERY.tree4, 6, 8),
+    element(SCENERY.tree3, 14, 8),
+    element(SCENERY.tree1, 25, 7),
+    element(SCENERY.tree2, 52, 20),
+    element(SCENERY.memorial, 28, 28),
+    element(SCENERY.notice, 39, 30),
+    element(SCENERY.bridgeVertical, 29, 20),
+    element(SCENERY.rock4, 48, 32),
+  ],
+  marsh: [
+    element(BUILDINGS.ruinedHouse, 22, 35),
+    element(BUILDINGS.ruinedHouse, 38, 34),
+    element(BUILDINGS.ruinedTower, 52, 14),
+    element(SCENERY.bridgeVertical, 28, 8),
+    element(SCENERY.bridgeVertical, 17, 21),
+    element(SCENERY.bridgeVertical, 44, 20),
+    element(SCENERY.bridgeVertical, 29, 32),
+    element(SCENERY.waterRock1, 7, 9),
+    element(SCENERY.waterRock2, 38, 9),
+    element(SCENERY.tree3, 6, 17),
+    element(SCENERY.tree4, 31, 28),
+    element(SCENERY.tree3, 53, 29),
+    element(SCENERY.reeds, 10, 24),
+    element(SCENERY.reeds, 36, 22),
+    element(SCENERY.notice, 47, 34),
+  ],
+  archives: [
+    element(BUILDINGS.ruinedHouse, 8, 32),
+    element(BUILDINGS.ruinedHouse, 19, 35),
+    element(BUILDINGS.blackHouse3, 31, 31),
+    element(BUILDINGS.purpleHouse3, 47, 33),
+    element(SCENERY.bridgeHorizontal, 21, 29),
+    element(SCENERY.bridgeHorizontal, 36, 19),
+    element(SCENERY.bridgeHorizontal, 46, 26),
+    element(SCENERY.waterRock1, 22, 12),
+    element(SCENERY.waterRock2, 38, 30),
+    element(SCENERY.notice, 54, 15),
+  ],
+  citadel: [
+    element(BUILDINGS.blueTower, 5, 15),
+    element(BUILDINGS.blueBarracks, 13, 13),
+    element(BUILDINGS.redBarracks, 24, 29),
+    element(BUILDINGS.redHouse1, 31, 34),
+    element(BUILDINGS.blackBarracks, 41, 28),
+    element(BUILDINGS.blackHouse1, 48, 31),
+    element(BUILDINGS.blackTower, 55, 13),
+    element(SCENERY.tool1, 17, 34),
+    element(SCENERY.tool2, 35, 33),
+    element(SCENERY.gold, 38, 30),
+    element(SCENERY.meat, 45, 30),
+    element(SCENERY.banner, 26, 18),
+    element(SCENERY.banner, 40, 18),
+    element(SCENERY.notice, 52, 22),
+    element(BUILDINGS.blueHouse3, 16, 8),
+    element(BUILDINGS.blueHouse1, 7, 38),
+    element(BUILDINGS.blueHouse2, 15, 40),
+    element(BUILDINGS.redHouse2, 24, 39),
+    element(BUILDINGS.redTower, 32, 40),
+    element(BUILDINGS.blackHouse2, 42, 40),
+    element(BUILDINGS.blackHouse3, 50, 39),
+    // Visible gateways over the defensive channels.
+    element(SCENERY.bridgeVertical, 11, 18),
+    element(SCENERY.bridgeVertical, 30, 18),
+    element(SCENERY.bridgeVertical, 49, 18),
+    element(SCENERY.bridgeHorizontal, 19, 12),
+    element(SCENERY.bridgeHorizontal, 38, 31),
+    // Blue outer court: gatehouse, archery yard and quarters.
+    element(BUILDINGS.blueTower, 5, 6),
+    element(BUILDINGS.blueTower, 16, 6),
+    element(BUILDINGS.blueArchery, 10, 22),
+    element(BUILDINGS.blueHouse2, 6, 24),
+    element(BUILDINGS.blueHouse3, 16, 24),
+    element(SCENERY.banner, 8, 18),
+    element(SCENERY.banner, 15, 18),
+    // Red conscript court around the infirmary and stores.
+    element(BUILDINGS.redTower, 21, 27),
+    element(BUILDINGS.redHouse2, 23, 35),
+    element(BUILDINGS.redHouse3, 32, 36),
+    element(SCENERY.meat, 27, 32),
+    element(SCENERY.wood, 34, 31),
+    element(SCENERY.banner, 27, 20),
+    element(SCENERY.banner, 34, 20),
+    // Black inner court and raised command keep.
+    element(BUILDINGS.blackTower, 41, 23),
+    element(BUILDINGS.blackHouse3, 52, 35),
+    element(BUILDINGS.blackCastle, 49, 9),
+    element(BUILDINGS.constructionTower, 40, 12),
+    element(BUILDINGS.constructionTower, 56, 12),
+    element(SCENERY.gold, 46, 31),
+    element(SCENERY.notice, 53, 31),
+  ],
+  fort: [
+    element(BUILDINGS.blackTower, 5, 32),
+    element(BUILDINGS.blackBarracks, 12, 30),
+    element(BUILDINGS.blackHouse3, 23, 35),
+    element(BUILDINGS.blueHouse1, 31, 34),
+    element(BUILDINGS.redHouse1, 40, 34),
+    element(BUILDINGS.blackTower, 54, 12),
+    element(SCENERY.meat, 16, 28),
+    element(SCENERY.wood, 24, 29),
+    element(SCENERY.gold, 33, 29),
+    element(SCENERY.tool3, 42, 29),
+    element(SCENERY.banner, 27, 20),
+    element(SCENERY.notice, 49, 20),
+  ],
+  sanctuary: [
+    element(BUILDINGS.yellowHouse1, 8, 31),
+    element(BUILDINGS.yellowHouse2, 17, 32),
+    element(BUILDINGS.yellowMonastery, 28, 31),
+    element(BUILDINGS.purpleMonastery, 44, 13),
+    element(SCENERY.tree1, 7, 9),
+    element(SCENERY.tree2, 12, 10),
+    element(SCENERY.tree3, 17, 9),
+    element(SCENERY.meat, 20, 17),
+    element(SCENERY.gold, 25, 18),
+    element(SCENERY.tool2, 31, 29),
+    element(SCENERY.notice, 47, 25),
+    element(SCENERY.memorial, 38, 30),
+  ],
+  crypt: [
+    element(BUILDINGS.ruinedTower, 8, 31),
+    element(BUILDINGS.blackHouse1, 27, 28),
+    element(BUILDINGS.blackTower, 52, 15),
+    element(SCENERY.memorial, 10, 14),
+    element(SCENERY.memorial, 25, 12),
+    element(SCENERY.memorial, 39, 18),
+    element(SCENERY.rock2, 18, 8),
+    element(SCENERY.rock4, 45, 31),
+  ],
+  war: [
+    element(BUILDINGS.ruinedTower, 8, 30),
+    element(BUILDINGS.ruinedHouse, 14, 34),
+    element(BUILDINGS.constructionTower, 24, 32),
+    element(BUILDINGS.ruinedCastle, 31, 18),
+    element(BUILDINGS.ruinedHouse, 40, 33),
+    element(BUILDINGS.ruinedTower, 51, 29),
+    element(SCENERY.wood, 17, 25),
+    element(SCENERY.tool1, 22, 27),
+    element(SCENERY.tool4, 37, 26),
+    element(SCENERY.rock1, 12, 11),
+    element(SCENERY.rock4, 48, 11),
+    element(SCENERY.banner, 20, 19),
+    element(SCENERY.banner, 43, 19),
+  ],
+  galleries: [
+    element(BUILDINGS.ruinedHouse, 8, 33),
+    element(BUILDINGS.blackHouse2, 24, 34),
+    element(BUILDINGS.blackTower, 48, 13),
+    element(SCENERY.tool1, 13, 29),
+    element(SCENERY.tool2, 24, 28),
+    element(SCENERY.tool3, 34, 30),
+    element(SCENERY.gold, 39, 26),
+    element(SCENERY.rock2, 9, 11),
+    element(SCENERY.rock4, 28, 9),
+    element(SCENERY.notice, 46, 27),
+  ],
+  heart: [
+    element(BUILDINGS.ruinedCastle, 26, 31),
+    element(BUILDINGS.blackTower, 51, 15),
+    element(SCENERY.memorial, 13, 28),
+    element(SCENERY.memorial, 24, 24),
+    element(SCENERY.memorial, 38, 30),
+    element(SCENERY.rock1, 8, 10),
+    element(SCENERY.rock4, 45, 30),
+    element(SCENERY.notice, 31, 28),
+  ],
+  epilogue: [
+    element(BUILDINGS.yellowHouse2, 8, 32),
+    element(BUILDINGS.blueHouse2, 30, 36),
+    element(BUILDINGS.purpleHouse1, 27, 33),
+    element(BUILDINGS.redHouse1, 38, 32),
+    element(SCENERY.tree1, 6, 9),
+    element(SCENERY.tree2, 14, 9),
+    element(SCENERY.tree3, 40, 10),
+    element(SCENERY.meat, 18, 29),
+    element(SCENERY.wood, 23, 30),
+    element(SCENERY.gold, 28, 29),
+    element(SCENERY.notice, 36, 28),
+  ],
+};
 
 function npc(
   factory: Factory,
@@ -65,12 +436,47 @@ function npc(
   graphic: MapEventPage["graphicAssetId"],
   lines: readonly string[],
 ): void {
+  const living = graphic?.startsWith("character.") ?? false;
   factory.normal(key, name, cell(col, row), graphic, [
     page(
       lines.map((line) => say(name, line)),
-      { graphicAssetId: graphic },
+      {
+        graphicAssetId: graphic,
+        moveType: living ? "custom" : "fixed",
+        moveSpeed: living ? 2 : 0,
+        moveFreq: living ? 2 : 0,
+        optMoveAnim: living,
+      },
     ),
   ]);
+}
+
+function ambientNpc(
+  factory: Factory,
+  key: string,
+  name: string,
+  col: number,
+  row: number,
+  graphic: MapEventPage["graphicAssetId"],
+  line: string,
+  moveType: MapEventPage["moveType"] = "custom",
+  conditionSwitchId: string | null = null,
+): void {
+  const active = page([say(name, line)], {
+    condSwitchId: conditionSwitchId,
+    graphicAssetId: graphic,
+    moveType,
+    moveSpeed: moveType === "fixed" ? 2 : 3,
+    moveFreq: moveType === "fixed" ? 1 : 3,
+    optMoveAnim: moveType !== "fixed",
+  });
+  factory.normal(
+    key,
+    name,
+    cell(col, row),
+    conditionSwitchId === null ? graphic : null,
+    conditionSwitchId === null ? [active] : [page([], { graphicAssetId: null }), active],
+  );
 }
 
 function once(
@@ -94,6 +500,32 @@ function once(
   ]);
 }
 
+function explorationCache(
+  factory: Factory,
+  key: string,
+  name: string,
+  col: number,
+  row: number,
+  discovery: string,
+  gold: number,
+): void {
+  once(
+    factory,
+    key,
+    name,
+    col,
+    row,
+    GRAPHICS.rune,
+    [
+      say(null, discovery),
+      { t: "changeGold", amount: gold },
+      { t: "changeItems", itemId: "health_potion", count: 1 },
+      addVar("0011", 1),
+    ],
+    `Le repère « ${name} » est désormais noté dans votre carnet.`,
+  );
+}
+
 function portal(
   factory: Factory,
   key: string,
@@ -103,8 +535,9 @@ function portal(
   destination: { map: MapKey; col: number; row: number },
   unlockSwitches: readonly string[],
   locked: string,
+  category: TransitionCategory = "geographic",
 ): void {
-  const unlocked = page([teleport(destination.map, destination.col, destination.row)], {
+  const unlocked = page([teleport(destination.map, destination.col, destination.row, category)], {
     graphicAssetId: GRAPHICS.rune,
   });
   factory.normal(
@@ -136,11 +569,15 @@ function monsterPack(
 
 function mapElements(
   theme: Parameters<typeof safeElements>[0],
+  key: MapKey,
   factory: Factory,
   spawn: { col: number; row: number },
   authored: readonly MapElement[],
 ): MapElement[] {
-  return safeElements(theme, factory.events, spawn, authored);
+  return safeElements(theme, factory.events, spawn, [
+    ...authored,
+    ...(REGIONAL_COMPOSITIONS[key] ?? []),
+  ]);
 }
 
 function buildPrologue(refs: StoryRefs): AdventureBundleMap {
@@ -148,8 +585,8 @@ function buildPrologue(refs: StoryRefs): AdventureBundleMap {
   const spawn = cell(5, 38);
   e.anchor("spawn", "Chemin des bornes", spawn, "spawn");
   npc(e, "lyra", "Lyra", 9, 35, GRAPHICS.lyra, [
-    "Une nappe noire a traversé la route ; les chevaux ont versé la charrette. Aidez les blessés, puis gagnez la borne. Aubeval ferme ses portes à la nuit.",
-    "Le greffier affirme que vos noms ne figurent nulle part. Je préfère vérifier un fait avant d’en faire une accusation.",
+    "Le convoi a été frappé au tournant. Iven respire encore ; aidez-le avant de fouiller les roues.",
+    "Ensuite, voyez le registre avec Osric. Vos noms manquent. Je veux savoir si c’est une erreur ou un acte.",
   ]);
   once(
     e,
@@ -254,8 +691,8 @@ function buildPrologue(refs: StoryRefs): AdventureBundleMap {
     "Je peux vous faire entrer comme témoins de Lyra. Sans elle, la porte vous classera comme biens sans propriétaire.",
   ]);
   npc(e, "varos-prism", "Sceau de Varos", 43, 15, GRAPHICS.varos, [
-    "Sans-Sceau, vous pouvez franchir ce que nos serments ferment. Cela ne vous rend pas libres ; cela signifie que le prix a déjà été payé.",
-    "Entrez dans Aubeval. Demandez à Lyra combien de digues resteraient debout si je cessais d’alimenter la Source ce soir.",
+    "La porte vous refuse. Mon sceau, lui, vous voit. Voilà le seul fait dont je sois certain.",
+    "Entrez. Regardez les vannes avant d’écouter ceux qui parlent en mon nom.",
   ]);
   npc(e, "mile-stone", "Borne arrachée", 29, 37, GRAPHICS.rune, [
     "Quatre emblèmes restent lisibles : vanne valéenne, feuille du Bois, saule du Marais et brasier cendrier. Aubeval a été retaillé par-dessus les trois autres.",
@@ -276,10 +713,19 @@ function buildPrologue(refs: StoryRefs): AdventureBundleMap {
     cell(39, 28),
     cell(47, 20),
   ]);
+  explorationCache(
+    e,
+    "ridge-cache",
+    "Sacoche du belvédère",
+    43,
+    5,
+    "Le sentier haut mène à une sacoche oubliée : une ration, un tonique et le croquis d'un chariot absent du registre.",
+    20,
+  );
   return bundleMap(
     "prologue",
     "Route des Bornes arrachées",
-    terrainLayers({
+    terrainLayers("prologue", {
       water: [
         { col: 28, row: 2, width: 4, height: 34 },
         { col: 10, row: 17, width: 12, height: 3 },
@@ -293,7 +739,7 @@ function buildPrologue(refs: StoryRefs): AdventureBundleMap {
     }),
     spawn,
     e.events,
-    mapElements("road", e, spawn, [
+    mapElements("road", "prologue", e, spawn, [
       element(BUILDINGS.ruinedHouse, 10, 28),
       element(BUILDINGS.ruinedTower, 45, 11),
       element(BUILDINGS.yellowHouse1, 48, 35),
@@ -305,8 +751,8 @@ function buildAubeval(refs: StoryRefs): AdventureBundleMap {
   const e = createEventFactory("aubeval", refs);
   const spawn = cell(5, 37);
   npc(e, "lyra", "Lyra", 9, 36, GRAPHICS.lyra, [
-    "Le Conseil appelle Varkesh traître. Il l’est devenu après avoir découvert les convois, mais cela n’absout ni ses exécutions ni les morts qu’il relève.",
-    "Trouvez des pièces que la ville puisse vérifier. Une vérité lancée sans preuve donnera seulement au Conseil le temps de choisir ses coupables.",
+    "Varkesh a découvert les convois. Puis il a pendu deux officiers et muré une rue. Aucun camp ne vous racontera sa moitié honteuse.",
+    "Commencez au livre des convois, sur la terrasse des archives. Revenez avec une copie que Neria pourra défendre devant la place.",
   ]);
   npc(e, "farmer", "Mara des digues", 16, 34, GRAPHICS.villager, [
     "La Source a sauvé nos semis deux printemps de suite. Cette année, mon fils a oublié le visage de sa mère après la bénédiction des champs.",
@@ -486,6 +932,276 @@ function buildAubeval(refs: StoryRefs): AdventureBundleMap {
     "Le mémorial donne quatre-vingt-deux noms. Mon registre en compte cent dix-neuf. Le Conseil dit que les autres n’étaient pas citoyens.",
     "Je recopie les métiers quand le nom manque. Ce n’est pas une identité ; c’est de quoi prouver que le Conseil a supprimé une personne.",
   ]);
+  ambientNpc(
+    e,
+    "west-gate-guard",
+    "Garde de la porte",
+    6,
+    37,
+    GRAPHICS.soldierBlue,
+    "Deux voyageurs entrent, trois noms sortent des registres. Je note maintenant les visages.",
+    "fixed",
+  );
+  ambientNpc(
+    e,
+    "barracks-patrol",
+    "Patrouille de Joss",
+    17,
+    15,
+    GRAPHICS.soldierBlue,
+    "Porte, armurerie, digue, puis retour. Joss ne veut plus d'une garde immobile.",
+  );
+  ambientNpc(
+    e,
+    "market-grain",
+    "Olia la grainière",
+    22,
+    21,
+    GRAPHICS.merchant,
+    "Le prix du seigle change à chaque sonnerie. Celui de l'eau n'est jamais affiché.",
+  );
+  ambientNpc(
+    e,
+    "market-fish",
+    "Ruel le pêcheur",
+    25,
+    21,
+    GRAPHICS.villager,
+    "Mes poissons nagent dans les rues avant d'arriver sur l'étal. Ça économise une charrette.",
+  );
+  ambientNpc(
+    e,
+    "market-carrier",
+    "Porteuse du marché",
+    31,
+    23,
+    GRAPHICS.refugee,
+    "Écartez-vous de la balance. Les sacs ont plus de droits que moi, mais moins de jambes.",
+  );
+  ambientNpc(
+    e,
+    "dike-tools",
+    "Ouvrier aux madriers",
+    17,
+    25,
+    GRAPHICS.artisan,
+    "Je prends un madrier, je cale la vanne, je reviens. Si je cours, courez aussi.",
+  );
+  ambientNpc(
+    e,
+    "dike-valve",
+    "Vannière Siloé",
+    23,
+    27,
+    GRAPHICS.artisan,
+    "Trois tours à gauche, un coup de maillet. La ville tient sur des gestes qu'elle ne regarde pas.",
+  );
+  ambientNpc(
+    e,
+    "dike-runner",
+    "Coursier des digues",
+    16,
+    28,
+    GRAPHICS.child,
+    "Harel dit que je suis trop petit pour la vanne. Pas pour porter ses messages.",
+  );
+  ambientNpc(
+    e,
+    "low-quarter-washer",
+    "Lavandière du bas",
+    35,
+    34,
+    GRAPHICS.villager,
+    "Dans le quartier haut, ils appellent ça une crue. Ici, c'est le mobilier.",
+  );
+  ambientNpc(
+    e,
+    "low-quarter-carpenter",
+    "Charpentier réquisitionné",
+    40,
+    32,
+    GRAPHICS.woodcutter,
+    "Je répare une maison le matin et je la marque à saisir l'après-midi. Même craie, deux couleurs.",
+    "fixed",
+  );
+  ambientNpc(
+    e,
+    "upper-steward",
+    "Intendant des terrasses",
+    35,
+    13,
+    GRAPHICS.monkPurple,
+    "Le Conseil reçoit sur les hauteurs. L'humidité y devient soudain une statistique.",
+    "fixed",
+  );
+  ambientNpc(
+    e,
+    "archive-runner",
+    "Clerc des archives",
+    49,
+    13,
+    GRAPHICS.monkYellow,
+    "Je porte les copies par l'escalier. Les originaux, eux, ne descendent jamais.",
+  );
+  ambientNpc(
+    e,
+    "published-reader",
+    "Lectrice du registre",
+    25,
+    18,
+    GRAPHICS.villager,
+    "Ma voisine est dans la colonne des charges, pas dans celle des habitants. Je veux savoir qui a décidé.",
+    "fixed",
+    "0004",
+  );
+  ambientNpc(
+    e,
+    "published-argument",
+    "Boulanger en colère",
+    30,
+    18,
+    GRAPHICS.artisan,
+    "Ils ont pris mon four pour les convois. Cette fois, la place entière l'a lu.",
+    "custom",
+    "0004",
+  );
+  ambientNpc(
+    e,
+    "confidential-arrest",
+    "Officier de Lyra",
+    34,
+    14,
+    GRAPHICS.soldierBlue,
+    "Les bureaux sont consignés. Le Conseil dira que Lyra protège la ville de ses propres archives.",
+    "fixed",
+    "0005",
+  );
+  ambientNpc(
+    e,
+    "confidential-clerk",
+    "Greffier retenu",
+    33,
+    13,
+    GRAPHICS.monkPurple,
+    "Je signerai ma déposition, mais pas la version que votre capitaine a déjà préparée.",
+    "fixed",
+    "0005",
+  );
+  ambientNpc(
+    e,
+    "faubourg-refugee-a",
+    "Famille du Four",
+    10,
+    31,
+    GRAPHICS.refugee,
+    "On nous a donné deux couvertures et l'ancien dépôt de sel. Nous sommes vivants. Nous sommes aussi furieux.",
+    "custom",
+    "0010",
+  );
+  ambientNpc(
+    e,
+    "faubourg-refugee-b",
+    "Réfugiée du faubourg",
+    16,
+    30,
+    GRAPHICS.refugee,
+    "Serah a ouvert la rue. Maintenant je cherche mon frère parmi ceux qui ont choisi l'autre sortie.",
+    "custom",
+    "0010",
+  );
+  ambientNpc(
+    e,
+    "faubourg-healer",
+    "Soigneuse du camp",
+    11,
+    35,
+    GRAPHICS.monkYellow,
+    "Les brûlures d'abord, les questions ensuite. Tenez cette bande si vous voulez aider.",
+    "custom",
+    "0010",
+  );
+  ambientNpc(
+    e,
+    "repaired-dike-watch",
+    "Veilleur de la vanne",
+    25,
+    25,
+    GRAPHICS.soldierBlue,
+    "La vanne tient. Harel exige quand même une relève toutes les deux heures.",
+    "custom",
+    "0063",
+  );
+  ambientNpc(
+    e,
+    "returning-resident",
+    "Habitante revenue",
+    47,
+    32,
+    GRAPHICS.villager,
+    "J'ai remis la table avant le lit. Une maison redevient la vôtre quand quelqu'un peut y inviter un voisin.",
+    "custom",
+    "0063",
+  );
+  once(
+    e,
+    "unclaimed-room",
+    "Chambre sans propriétaire",
+    18,
+    38,
+    GRAPHICS.rune,
+    [
+      say(
+        null,
+        "La serrure ne vous reconnaît pas. Pourtant votre main trouve seule le crochet caché sous le linteau.",
+      ),
+      say(
+        null,
+        "Une chanson vous revient, juste assez pour savoir qu'une autre voix devrait répondre au dernier vers.",
+      ),
+      addVar("0011", 1),
+    ],
+    "La porte reste anonyme. Le dernier vers de la chanson, lui, refuse de partir.",
+  );
+  once(
+    e,
+    "council-roof-cache",
+    "Belvédère du Conseil",
+    40,
+    6,
+    GRAPHICS.rune,
+    [
+      say(
+        null,
+        "Depuis le second palier, les canaux dessinent une couronne incomplète. Une lettre coincée sous la balustrade porte une écriture qui vous serre la gorge.",
+      ),
+      say(
+        null,
+        "Vous ne reconnaissez ni le nom effacé ni la main. Vous reconnaissez seulement la façon dont la plume hésite avant le dernier mot.",
+      ),
+      { t: "changeGold", amount: 45 },
+      addVar("0009", 1),
+      addVar("0011", 1),
+    ],
+    "Le belvédère montre toute la ville, mais aucune rue ne ressemble encore à un retour.",
+  );
+  once(
+    e,
+    "dike-maintenance-cache",
+    "Réserve de la digue",
+    53,
+    19,
+    GRAPHICS.rune,
+    [
+      say(
+        null,
+        "Derrière une grille de maintenance, des ouvriers ont caché des soins et la liste réelle des rondes de nuit.",
+      ),
+      { t: "changeItems", itemId: "health_potion", count: 2 },
+      { t: "changeGold", amount: 25 },
+      addVar("0010", 1),
+    ],
+    "La réserve est vide. La liste des rondes reste annotée dans votre carnet.",
+  );
   portal(
     e,
     "to-faubourg",
@@ -515,17 +1231,28 @@ function buildAubeval(refs: StoryRefs): AdventureBundleMap {
     { map: "relay", col: 8, row: 36 },
     ["0058"],
     "La grille de l’aqueduc est verrouillée depuis l’autre côté.",
+    "shortcut",
   );
   monsterPack(e, "seep", "Noyé des vannes", "skull_guard", [
-    cell(31, 28),
-    cell(38, 24),
-    cell(48, 27),
-    cell(50, 13),
+    cell(45, 27),
+    cell(48, 28),
+    cell(50, 30),
+    cell(54, 28),
   ]);
+  e.monster("seep-warden", "Gardien de la brèche", cell(50, 25), "skull_warden", {
+    rank: "elite",
+    maxHp: 260,
+    damage: 28,
+    speed: 82,
+    xp: 210,
+    weakness: "priest",
+    weaknessPercent: 150,
+    specialTechnique: "grave_siphon",
+  });
   return bundleMap(
     "aubeval",
     "Aubeval — Les Digues hautes",
-    terrainLayers({
+    terrainLayers("aubeval", {
       water: [
         { col: 12, row: 2, width: 3, height: 26 },
         { col: 12, row: 32, width: 3, height: 11 },
@@ -538,18 +1265,72 @@ function buildAubeval(refs: StoryRefs): AdventureBundleMap {
         { col: 27, row: 23, width: 3, height: 5 },
         { col: 43, row: 14, width: 3, height: 5 },
       ],
+      elevation: [
+        { col: 30, row: 3, width: 13, height: 13, level: 1 },
+        { col: 46, row: 3, width: 12, height: 17, level: 1 },
+        { col: 36, row: 4, width: 7, height: 9, level: 2 },
+      ],
+      stairs: [
+        { col: 29, row: 14, direction: "east", lowLevel: 0 },
+        { col: 45, row: 17, direction: "east", lowLevel: 0 },
+        { col: 35, row: 10, direction: "east", lowLevel: 1 },
+      ],
     }),
     spawn,
     e.events,
-    mapElements("city", e, spawn, [
+    mapElements("city", "aubeval", e, spawn, [
+      // Fortified western entrance and military quarter.
+      element(BUILDINGS.blueTower, 3, 34),
+      element(BUILDINGS.blueTower, 8, 34),
+      element(BUILDINGS.blueTower, 4, 24),
+      element(BUILDINGS.blueHouse1, 9, 27),
+      element(BUILDINGS.blueBarracks, 16, 8),
+      element(BUILDINGS.blueArchery, 7, 9),
+      element(BUILDINGS.blueHouse1, 18, 5),
+      element(BUILDINGS.blueHouse2, 23, 8),
+      element(SCENERY.banner, 11, 17),
+      element(SCENERY.tool1, 13, 16),
+      element(SCENERY.tool3, 16, 17),
+      // Administrative terrace and archives, visibly above the flood plain.
       element(BUILDINGS.blueCastle, 31, 7),
-      element(BUILDINGS.blueBarracks, 19, 10),
       element(BUILDINGS.blueMonastery, 47, 8),
+      element(BUILDINGS.blueHouse1, 49, 16),
+      element(SCENERY.memorial, 44, 34),
+      element(SCENERY.banner, 53, 15),
+      // Market square: stalls, stores and visible reserves.
+      element(SCENERY.marketRed, 20, 19),
+      element(SCENERY.marketBlue, 24, 19),
+      element(SCENERY.marketRed, 28, 19),
+      element(SCENERY.marketBlue, 32, 20),
+      element(SCENERY.meat, 21, 23),
+      element(SCENERY.gold, 29, 23),
+      element(BUILDINGS.yellowHouse3, 23, 16),
+      // Dike works and the low quarter.
+      element(SCENERY.bridgeHorizontal, 11, 12),
+      element(SCENERY.bridgeHorizontal, 11, 36),
+      element(SCENERY.bridgeHorizontal, 26, 24),
+      element(SCENERY.bridgeHorizontal, 42, 15),
+      element(SCENERY.tool1, 16, 24),
+      element(SCENERY.tool2, 19, 25),
+      element(SCENERY.tool3, 22, 25),
+      element(SCENERY.tool4, 24, 27),
+      element(SCENERY.wood, 17, 27),
+      element(SCENERY.wood, 20, 28),
       element(BUILDINGS.blueHouse1, 17, 33),
       element(BUILDINGS.blueHouse2, 24, 36),
-      element(BUILDINGS.blueHouse3, 37, 35),
+      element(BUILDINGS.yellowHouse3, 20, 31),
+      element(BUILDINGS.yellowHouse1, 32, 31),
+      element(BUILDINGS.yellowHouse2, 42, 32),
+      element(BUILDINGS.yellowHouse3, 34, 27),
+      element(BUILDINGS.ruinedHouse, 39, 28),
+      element(BUILDINGS.blueHouse1, 34, 39),
+      element(BUILDINGS.blueHouse2, 44, 39),
       element(BUILDINGS.ruinedHouse, 49, 31),
       element(BUILDINGS.blueTower, 53, 12),
+      element(SCENERY.reeds, 46, 28),
+      element(SCENERY.rock3, 51, 27),
+      element(SCENERY.bush1, 7, 29),
+      element(SCENERY.bush2, 10, 28),
     ]),
   );
 }
@@ -670,7 +1451,7 @@ function buildFaubourg(refs: StoryRefs): AdventureBundleMap {
               addVar("0002", 2),
               addVar("0005", 1),
               { t: "setSelfSwitch", selfSwitch: "A", value: true },
-              teleport("faubourg", 51, 9),
+              teleport("faubourg", 51, 9, "recovery"),
             ],
           },
           {
@@ -680,7 +1461,7 @@ function buildFaubourg(refs: StoryRefs): AdventureBundleMap {
               addVar("0004", 2),
               addVar("0002", 1),
               { t: "setSelfSwitch", selfSwitch: "A", value: true },
-              teleport("faubourg", 51, 9),
+              teleport("faubourg", 51, 9, "recovery"),
             ],
           },
           {
@@ -747,8 +1528,10 @@ function buildFaubourg(refs: StoryRefs): AdventureBundleMap {
       switchOn("0041"),
       addVar("0007", 1),
       activity("sort_varkesh"),
-      teleport("faubourg", 38, 24),
+      teleport("faubourg", 38, 24, "recovery"),
     ],
+    undefined,
+    ["0075", "0076"],
   );
   npc(e, "varos-seal", "Sceau de Varos", 29, 8, GRAPHICS.varos, [
     "Varkesh a raison sur les convois et tort sur presque tout ce qu’il en a conclu. La vérité ne choisit pas automatiquement un bon commandant.",
@@ -791,14 +1574,23 @@ function buildFaubourg(refs: StoryRefs): AdventureBundleMap {
     cell(44, 32),
   ]);
   monsterPack(e, "oath-dead", "Mort du rempart", "skull_guard", [
-    cell(42, 13),
-    cell(43, 17),
-    cell(53, 15),
+    cell(46, 12),
+    cell(49, 12),
+    cell(53, 12),
   ]);
+  explorationCache(
+    e,
+    "rempart-cache",
+    "Guérite condamnée",
+    55,
+    6,
+    "Au second rempart, une guérite dissimule les soldes de trois gardes déclarés déserteurs le même jour.",
+    35,
+  );
   return bundleMap(
     "faubourg",
     "Faubourg de la Porte",
-    terrainLayers({
+    terrainLayers("faubourg", {
       water: [
         { col: 45, row: 2, width: 3, height: 31 },
         { col: 48, row: 15, width: 10, height: 3 },
@@ -814,7 +1606,7 @@ function buildFaubourg(refs: StoryRefs): AdventureBundleMap {
     }),
     spawn,
     e.events,
-    mapElements("city", e, spawn, [
+    mapElements("city", "faubourg", e, spawn, [
       element(BUILDINGS.ruinedHouse, 15, 15),
       element(BUILDINGS.ruinedHouse, 24, 19),
       element(BUILDINGS.ruinedHouse, 31, 12),
@@ -906,6 +1698,7 @@ function buildRelay(refs: StoryRefs): AdventureBundleMap {
     { map: "aubeval", col: 50, row: 39 },
     ["0058"],
     "Les volets du relais commandent encore cette vanne.",
+    "shortcut",
   );
   portal(
     e,
@@ -923,10 +1716,19 @@ function buildRelay(refs: StoryRefs): AdventureBundleMap {
     cell(37, 20),
     cell(47, 30),
   ]);
+  explorationCache(
+    e,
+    "relay-height-cache",
+    "Malle du vieux guet",
+    43,
+    6,
+    "Le vieux guet domine les quatre routes. Sa malle contient des péages annulés et des provisions encore sèches.",
+    30,
+  );
   return bundleMap(
     "relay",
     "Relais des Quatre Dettes",
-    terrainLayers({
+    terrainLayers("relay", {
       water: [
         { col: 2, row: 20, width: 19, height: 3 },
         { col: 39, row: 20, width: 19, height: 3 },
@@ -942,7 +1744,7 @@ function buildRelay(refs: StoryRefs): AdventureBundleMap {
     }),
     spawn,
     e.events,
-    mapElements("road", e, spawn, [
+    mapElements("road", "relay", e, spawn, [
       element(BUILDINGS.yellowHouse1, 13, 30),
       element(BUILDINGS.yellowHouse2, 21, 31),
       element(BUILDINGS.yellowTower, 29, 18),
@@ -1059,6 +1861,7 @@ function buildWoods(refs: StoryRefs): AdventureBundleMap {
     { map: "roots", col: 8, row: 36 },
     ["0012", "0013"],
     "Les gardiens demandent qu’un clan prenne la responsabilité du passage.",
+    "interior",
   );
   portal(
     e,
@@ -1069,6 +1872,7 @@ function buildWoods(refs: StoryRefs): AdventureBundleMap {
     { map: "marsh", col: 6, row: 36 },
     ["0059"],
     "Les racines ont repris l’ancienne chaussée. Elle peut être dégagée depuis le sanctuaire profond.",
+    "shortcut",
   );
   monsterPack(e, "boars", "Bête marquée", "minotaur_brute", [
     cell(19, 9),
@@ -1080,10 +1884,19 @@ function buildWoods(refs: StoryRefs): AdventureBundleMap {
     cell(42, 26),
     cell(49, 21),
   ]);
+  explorationCache(
+    e,
+    "canopy-cache",
+    "Nid des arpenteurs",
+    45,
+    7,
+    "Une ancienne plate-forme d'arpenteurs relie les routes de Sève et d'Écorce sans porter la marque d'aucun clan.",
+    35,
+  );
   return bundleMap(
     "woods",
     "Bois des Murmures — Clairécorce",
-    terrainLayers({
+    terrainLayers("woods", {
       water: [
         { col: 11, row: 8, width: 8, height: 7 },
         { col: 24, row: 24, width: 11, height: 7 },
@@ -1099,7 +1912,7 @@ function buildWoods(refs: StoryRefs): AdventureBundleMap {
     }),
     spawn,
     e.events,
-    mapElements("forest", e, spawn, [
+    mapElements("forest", "woods", e, spawn, [
       element(BUILDINGS.yellowHouse1, 8, 32),
       element(BUILDINGS.yellowHouse2, 16, 35),
       element(BUILDINGS.yellowMonastery, 29, 9),
@@ -1111,7 +1924,12 @@ function buildWoods(refs: StoryRefs): AdventureBundleMap {
 }
 
 function wrongRootStep(text: string): readonly EventCommand[] {
-  return [say(null, text), setVar("0012", 0), addVar("0017", 1), teleport("roots", 9, 36)];
+  return [
+    say(null, text),
+    setVar("0012", 0),
+    addVar("0017", 1),
+    teleport("roots", 9, 36, "recovery"),
+  ];
 }
 
 function buildRoots(refs: StoryRefs): AdventureBundleMap {
@@ -1129,7 +1947,7 @@ function buildRoots(refs: StoryRefs): AdventureBundleMap {
           "L’eau efface seulement l’ordre des salles, jamais les indices gravés sur la table.",
         ),
         setVar("0012", 0),
-        teleport("roots", 9, 36),
+        teleport("roots", 9, 36, "recovery"),
       ],
       { graphicAssetId: GRAPHICS.rune },
     ),
@@ -1151,7 +1969,7 @@ function buildRoots(refs: StoryRefs): AdventureBundleMap {
                     null,
                     "La racine répète : « Une moisson saine pour le hameau de Clairécorce. »",
                   ),
-                  teleport("roots", 29, 23),
+                  teleport("roots", 29, 23, "puzzle"),
                 ],
               },
               {
@@ -1191,7 +2009,7 @@ function buildRoots(refs: StoryRefs): AdventureBundleMap {
                     body: [
                       setVar("0012", 2),
                       say(null, "La porte s’ouvre sans exiger de serment."),
-                      teleport("roots", 44, 13),
+                      teleport("roots", 44, 13, "puzzle"),
                     ],
                   },
                   {
@@ -1240,7 +2058,7 @@ function buildRoots(refs: StoryRefs): AdventureBundleMap {
                       addVar("0008", 1),
                       addVar("0011", 1),
                       activity("rite_racines"),
-                      teleport("roots", 48, 9),
+                      teleport("roots", 48, 9, "puzzle"),
                     ],
                   },
                   {
@@ -1313,10 +2131,11 @@ function buildRoots(refs: StoryRefs): AdventureBundleMap {
           {
             label: "Le tuer pour arrêter les prélèvements",
             body: [
+              switchOn("0080"),
               addVar("0003", 1),
               addVar("0017", 1),
               { t: "setSelfSwitch", selfSwitch: "A", value: true },
-              teleport("roots", 51, 34),
+              teleport("roots", 51, 34, "recovery"),
             ],
           },
           {
@@ -1365,8 +2184,10 @@ function buildRoots(refs: StoryRefs): AdventureBundleMap {
       addVar("0003", 2),
       addVar("0017", 2),
       activity("sort_morvane"),
-      teleport("roots", 47, 11),
+      teleport("roots", 47, 11, "recovery"),
     ],
+    undefined,
+    ["0080"],
   );
   npc(e, "varos-root", "Voix de Varos", 25, 10, GRAPHICS.varos, [
     "Le rite ancien fonctionne pour trente personnes qui se connaissent. J’administre des royaumes où une province ne sait pas si l’autre a déjà payé.",
@@ -1381,6 +2202,7 @@ function buildRoots(refs: StoryRefs): AdventureBundleMap {
     { map: "woods", col: 48, row: 18 },
     [],
     "",
+    "interior",
   );
   portal(
     e,
@@ -1391,16 +2213,26 @@ function buildRoots(refs: StoryRefs): AdventureBundleMap {
     { map: "marsh", col: 6, row: 36 },
     ["0014", "0015", "0016", "0017"],
     "Morvane retient encore la route noyée.",
+    "interior",
   );
   monsterPack(e, "root-dead", "Gardien des racines", "skull_crusader", [
     cell(20, 20),
-    cell(34, 16),
+    cell(38, 14),
     cell(35, 33),
   ]);
+  explorationCache(
+    e,
+    "root-height-cache",
+    "Offrande sans nom",
+    53,
+    6,
+    "Au dernier palier, l'offrande ne porte aucun nom : seulement une émotion de retour et une fiole intacte.",
+    25,
+  );
   return bundleMap(
     "roots",
     "Sanctuaire des Racines",
-    terrainLayers({
+    terrainLayers("roots", {
       water: [
         { col: 21, row: 2, width: 4, height: 34 },
         { col: 36, row: 9, width: 4, height: 34 },
@@ -1418,7 +2250,7 @@ function buildRoots(refs: StoryRefs): AdventureBundleMap {
     }),
     spawn,
     e.events,
-    mapElements("sacred", e, spawn, [
+    mapElements("sacred", "roots", e, spawn, [
       element(BUILDINGS.yellowMonastery, 8, 31),
       element(BUILDINGS.purpleMonastery, 28, 12),
       element(BUILDINGS.ruinedCastle, 44, 8),
@@ -1588,6 +2420,7 @@ function buildMarsh(refs: StoryRefs): AdventureBundleMap {
     { map: "archives", col: 7, row: 36 },
     ["0078"],
     "Le reflet demeure opaque. Il faut d’abord écouter ce que Nhalgor affirme protéger.",
+    "magical",
   );
   portal(
     e,
@@ -1598,6 +2431,7 @@ function buildMarsh(refs: StoryRefs): AdventureBundleMap {
     { map: "citadel", col: 53, row: 36 },
     ["0060"],
     "La poterne militaire est verrouillée depuis la Citadelle.",
+    "shortcut",
   );
   monsterPack(e, "glass-dead", "Souvenir hostile", "skull_guard", [
     cell(18, 24),
@@ -1606,10 +2440,19 @@ function buildMarsh(refs: StoryRefs): AdventureBundleMap {
     cell(50, 31),
   ]);
   monsterPack(e, "mire", "Maraudeur des pontons", "gnoll_marauder", [cell(20, 10), cell(36, 10)]);
+  explorationCache(
+    e,
+    "sunken-belfry-cache",
+    "Niche du sonneur",
+    55,
+    5,
+    "La niche haute du clocher conserve une corde sèche, des soins et la liste des îlots autrefois reliés par la digue.",
+    30,
+  );
   return bundleMap(
     "marsh",
     "Marais de Verre — Les Saules",
-    terrainLayers({
+    terrainLayers("marsh", {
       water: [
         { col: 2, row: 7, width: 56, height: 6 },
         { col: 8, row: 20, width: 18, height: 7 },
@@ -1618,6 +2461,7 @@ function buildMarsh(refs: StoryRefs): AdventureBundleMap {
       ],
       carve: [
         { col: 8, row: 9, width: 44, height: 2 },
+        { col: 28, row: 7, width: 3, height: 6 },
         { col: 16, row: 20, width: 4, height: 7 },
         { col: 43, row: 19, width: 4, height: 7 },
         { col: 28, row: 31, width: 3, height: 8 },
@@ -1625,7 +2469,7 @@ function buildMarsh(refs: StoryRefs): AdventureBundleMap {
     }),
     spawn,
     e.events,
-    mapElements("marsh", e, spawn, [
+    mapElements("marsh", "marsh", e, spawn, [
       element(BUILDINGS.yellowHouse1, 9, 34),
       element(BUILDINGS.yellowHouse2, 17, 35),
       element(BUILDINGS.ruinedHouse, 35, 32),
@@ -1636,7 +2480,12 @@ function buildMarsh(refs: StoryRefs): AdventureBundleMap {
 }
 
 function wrongArchiveStep(text: string): readonly EventCommand[] {
-  return [say(null, text), setVar("0013", 0), addVar("0017", 1), teleport("archives", 8, 36)];
+  return [
+    say(null, text),
+    setVar("0013", 0),
+    addVar("0017", 1),
+    teleport("archives", 8, 36, "recovery"),
+  ];
 }
 
 function buildArchives(refs: StoryRefs): AdventureBundleMap {
@@ -1654,7 +2503,7 @@ function buildArchives(refs: StoryRefs): AdventureBundleMap {
           "Les trois dates se séparent de nouveau. Les documents restent lisibles pour un nouvel essai.",
         ),
         setVar("0013", 0),
-        teleport("archives", 8, 36),
+        teleport("archives", 8, 36, "recovery"),
       ],
       { graphicAssetId: GRAPHICS.rune },
     ),
@@ -1676,7 +2525,7 @@ function buildArchives(refs: StoryRefs): AdventureBundleMap {
                     null,
                     "Des familles déposent volontairement les noms des bienfaits et des prix.",
                   ),
-                  teleport("archives", 29, 22),
+                  teleport("archives", 29, 22, "puzzle"),
                 ],
               },
               {
@@ -1719,7 +2568,7 @@ function buildArchives(refs: StoryRefs): AdventureBundleMap {
                         null,
                         "Talen remplace neuf noms par six numéros. Une autre main ordonne de détruire le chariot manquant.",
                       ),
-                      teleport("archives", 44, 13),
+                      teleport("archives", 44, 13, "puzzle"),
                     ],
                   },
                   {
@@ -1760,7 +2609,7 @@ function buildArchives(refs: StoryRefs): AdventureBundleMap {
                       addVar("0001", 2),
                       addVar("0009", 2),
                       activity("ordre_archives"),
-                      teleport("archives", 49, 9),
+                      teleport("archives", 49, 9, "puzzle"),
                     ],
                   },
                   {
@@ -1818,9 +2667,10 @@ function buildArchives(refs: StoryRefs): AdventureBundleMap {
           {
             label: "Le vaincre pour reprendre les preuves",
             body: [
+              switchOn("0081"),
               addVar("0002", 1),
               { t: "setSelfSwitch", selfSwitch: "A", value: true },
-              teleport("archives", 51, 34),
+              teleport("archives", 51, 34, "recovery"),
             ],
           },
           {
@@ -1870,8 +2720,10 @@ function buildArchives(refs: StoryRefs): AdventureBundleMap {
       addVar("0001", 1),
       addVar("0007", 1),
       activity("sort_nhalgor"),
-      teleport("archives", 47, 11),
+      teleport("archives", 47, 11, "recovery"),
     ],
+    undefined,
+    ["0081"],
   );
   e.normal("talen-confession", "Talen", cell(35, 34), GRAPHICS.talen, [
     page(
@@ -1963,7 +2815,17 @@ function buildArchives(refs: StoryRefs): AdventureBundleMap {
       { condSelfSwitch: "A", graphicAssetId: GRAPHICS.talen },
     ),
   ]);
-  portal(e, "back-marsh", "Escalier noyé", 7, 39, { map: "marsh", col: 51, row: 10 }, [], "");
+  portal(
+    e,
+    "back-marsh",
+    "Escalier noyé",
+    7,
+    39,
+    { map: "marsh", col: 51, row: 10 },
+    [],
+    "",
+    "magical",
+  );
   portal(
     e,
     "to-citadel",
@@ -1980,10 +2842,19 @@ function buildArchives(refs: StoryRefs): AdventureBundleMap {
     cell(35, 24),
     cell(50, 20),
   ]);
+  explorationCache(
+    e,
+    "archive-height-cache",
+    "Rayonnage hors crue",
+    54,
+    6,
+    "Le rayonnage le plus haut contient une copie que la vase n'a jamais touchée et la clé d'un coffre de voyage.",
+    40,
+  );
   return bundleMap(
     "archives",
     "Archives sous la Vase",
-    terrainLayers({
+    terrainLayers("archives", {
       water: [
         { col: 21, row: 2, width: 4, height: 34 },
         { col: 36, row: 9, width: 4, height: 34 },
@@ -2001,7 +2872,7 @@ function buildArchives(refs: StoryRefs): AdventureBundleMap {
     }),
     spawn,
     e.events,
-    mapElements("marsh", e, spawn, [
+    mapElements("marsh", "archives", e, spawn, [
       element(BUILDINGS.ruinedHouse, 9, 31),
       element(BUILDINGS.blackTower, 27, 10),
       element(BUILDINGS.purpleMonastery, 42, 10),
@@ -2203,6 +3074,7 @@ function buildCitadel(refs: StoryRefs): AdventureBundleMap {
     { map: "fort", col: 6, row: 36 },
     ["0031", "0032"],
     "Serah n’engagera pas ses soldats dans la cour intérieure avant d’avoir choisi une ligne de commandement.",
+    "interior",
   );
   e.normal("open-marsh-shortcut", "Poterne des digues", cell(53, 36), GRAPHICS.rune, [
     page(
@@ -2213,11 +3085,11 @@ function buildCitadel(refs: StoryRefs): AdventureBundleMap {
         ),
         switchOn("0060"),
         { t: "setSelfSwitch", selfSwitch: "A", value: true },
-        teleport("marsh", 55, 35),
+        teleport("marsh", 55, 35, "shortcut"),
       ],
       { graphicAssetId: GRAPHICS.rune },
     ),
-    page([teleport("marsh", 55, 35)], {
+    page([teleport("marsh", 55, 35, "shortcut")], {
       condSelfSwitch: "A",
       graphicAssetId: GRAPHICS.rune,
     }),
@@ -2227,7 +3099,7 @@ function buildCitadel(refs: StoryRefs): AdventureBundleMap {
     "loyalists",
     "Loyaliste des cours",
     "spear_goblin",
-    [cell(19, 14), cell(29, 12), cell(39, 16)],
+    [cell(19, 14), cell(29, 12), cell(43, 14)],
     { rank: "elite", maxHp: 220, damage: 24, xp: 160 },
   );
   monsterPack(e, "oath-dead", "Mort du vieux serment", "skull_crusader", [
@@ -2235,10 +3107,19 @@ function buildCitadel(refs: StoryRefs): AdventureBundleMap {
     cell(31, 24),
     cell(46, 24),
   ]);
+  explorationCache(
+    e,
+    "citadel-height-cache",
+    "Poste des signaux",
+    54,
+    6,
+    "Le poste supérieur conserve les codes des trois cours. Ils prouvent que plusieurs ordres contradictoires ont été envoyés.",
+    40,
+  );
   return bundleMap(
     "citadel",
     "Citadelle — Les Trois Cours",
-    terrainLayers({
+    terrainLayers("citadel", {
       water: [
         { col: 2, row: 18, width: 56, height: 3 },
         { col: 19, row: 2, width: 3, height: 16 },
@@ -2256,7 +3137,7 @@ function buildCitadel(refs: StoryRefs): AdventureBundleMap {
     }),
     spawn,
     e.events,
-    mapElements("military", e, spawn, [
+    mapElements("military", "citadel", e, spawn, [
       element(BUILDINGS.blackBarracks, 10, 10),
       element(BUILDINGS.blueBarracks, 25, 27),
       element(BUILDINGS.blackTower, 43, 8),
@@ -2415,7 +3296,17 @@ function buildFort(refs: StoryRefs): AdventureBundleMap {
   ]);
   e.guard("conscript-guard", "Garde des conscrits", cell(24, 25), 190, "0033");
   e.guard("citadel-guard", "Garde de la Citadelle", cell(34, 25), 190, "0044");
-  portal(e, "back-citadel", "Porte des cours", 5, 39, { map: "citadel", col: 52, row: 15 }, [], "");
+  portal(
+    e,
+    "back-citadel",
+    "Porte des cours",
+    5,
+    39,
+    { map: "citadel", col: 52, row: 15 },
+    [],
+    "",
+    "interior",
+  );
   portal(
     e,
     "to-sanctuary",
@@ -2439,10 +3330,19 @@ function buildFort(refs: StoryRefs): AdventureBundleMap {
     cell(26, 30),
     cell(47, 28),
   ]);
+  explorationCache(
+    e,
+    "fort-height-cache",
+    "Réserve du chemin de ronde",
+    51,
+    6,
+    "Une réserve du chemin de ronde a échappé à l'intendance. Les dates montrent qui préparait déjà un siège.",
+    40,
+  );
   return bundleMap(
     "fort",
     "Fort des Serments",
-    terrainLayers({
+    terrainLayers("fort", {
       water: [
         { col: 2, row: 15, width: 56, height: 3 },
         { col: 18, row: 18, width: 3, height: 25 },
@@ -2455,12 +3355,12 @@ function buildFort(refs: StoryRefs): AdventureBundleMap {
         { col: 47, row: 15, width: 5, height: 3 },
         { col: 18, row: 31, width: 3, height: 5 },
         { col: 38, row: 8, width: 3, height: 4 },
-        { col: 49, row: 29, width: 5, height: 3 },
+        { col: 44, row: 29, width: 10, height: 3 },
       ],
     }),
     spawn,
     e.events,
-    mapElements("military", e, spawn, [
+    mapElements("military", "fort", e, spawn, [
       element(BUILDINGS.blackCastle, 26, 8),
       element(BUILDINGS.blackBarracks, 8, 28),
       element(BUILDINGS.blackTower, 45, 8),
@@ -2646,6 +3546,7 @@ function buildSanctuary(refs: StoryRefs): AdventureBundleMap {
     { map: "crypt", col: 7, row: 36 },
     ["0036", "0037"],
     "Le sceau attend que le registre soit lu et que l’offre de Varos ait reçu une réponse.",
+    "interior",
   );
   portal(
     e,
@@ -2656,6 +3557,7 @@ function buildSanctuary(refs: StoryRefs): AdventureBundleMap {
     { map: "war", col: 8, row: 37 },
     ["0061"],
     "L’escalier est bloqué par une grille qui ne s’ouvre que depuis le champ de bataille.",
+    "shortcut",
   );
   monsterPack(
     e,
@@ -2670,10 +3572,19 @@ function buildSanctuary(refs: StoryRefs): AdventureBundleMap {
     cell(38, 10),
     cell(45, 33),
   ]);
+  explorationCache(
+    e,
+    "sanctuary-height-cache",
+    "Jardin suspendu",
+    45,
+    6,
+    "Le jardin suspendu nourrit les officiants, pas les pèlerins. Un registre de récolte confirme la différence.",
+    35,
+  );
   return bundleMap(
     "sanctuary",
     "Sanctuaire de l’Aube",
-    terrainLayers({
+    terrainLayers("sanctuary", {
       water: [
         { col: 14, row: 2, width: 3, height: 30 },
         { col: 29, row: 13, width: 3, height: 30 },
@@ -2691,7 +3602,7 @@ function buildSanctuary(refs: StoryRefs): AdventureBundleMap {
     }),
     spawn,
     e.events,
-    mapElements("sacred", e, spawn, [
+    mapElements("sacred", "sanctuary", e, spawn, [
       element(BUILDINGS.purpleMonastery, 8, 13),
       element(BUILDINGS.yellowMonastery, 20, 8),
       element(BUILDINGS.purpleHouse1, 18, 34),
@@ -2831,6 +3742,7 @@ function buildCrypt(refs: StoryRefs): AdventureBundleMap {
     { map: "sanctuary", col: 50, row: 10 },
     [],
     "",
+    "interior",
   );
   portal(
     e,
@@ -2850,10 +3762,19 @@ function buildCrypt(refs: StoryRefs): AdventureBundleMap {
     [cell(19, 15), cell(28, 29), cell(39, 17), cell(47, 27)],
     { rank: "elite", maxHp: 320, damage: 30, xp: 240 },
   );
+  explorationCache(
+    e,
+    "crypt-height-cache",
+    "Cénotaphe vide",
+    40,
+    6,
+    "Le cénotaphe ne contient aucun corps. Une lettre familière y remercie pourtant quelqu'un dont le nom a été gratté.",
+    30,
+  );
   return bundleMap(
     "crypt",
     "Crypte d’Eryndor",
-    terrainLayers({
+    terrainLayers("crypt", {
       water: [
         { col: 20, row: 2, width: 3, height: 34 },
         { col: 36, row: 9, width: 3, height: 34 },
@@ -2871,7 +3792,7 @@ function buildCrypt(refs: StoryRefs): AdventureBundleMap {
     }),
     spawn,
     e.events,
-    mapElements("sacred", e, spawn, [
+    mapElements("sacred", "crypt", e, spawn, [
       element(BUILDINGS.ruinedCastle, 45, 8),
       element(BUILDINGS.purpleMonastery, 25, 30),
       element(BUILDINGS.blackTower, 13, 28),
@@ -3043,7 +3964,7 @@ function buildWar(refs: StoryRefs): AdventureBundleMap {
             switchOn("0049"),
             switchOn("0061"),
             activity("passage_serviteurs"),
-            teleport("galleries", 7, 37),
+            teleport("galleries", 7, 37, "interior"),
           ],
           [
             say(
@@ -3055,7 +3976,10 @@ function buildWar(refs: StoryRefs): AdventureBundleMap {
       ],
       { graphicAssetId: GRAPHICS.rune },
     ),
-    page([teleport("galleries", 7, 37)], { condSwitchId: "0049", graphicAssetId: GRAPHICS.rune }),
+    page([teleport("galleries", 7, 37, "interior")], {
+      condSwitchId: "0049",
+      graphicAssetId: GRAPHICS.rune,
+    }),
   ]);
   portal(
     e,
@@ -3066,6 +3990,7 @@ function buildWar(refs: StoryRefs): AdventureBundleMap {
     { map: "sanctuary", col: 51, row: 37 },
     ["0061"],
     "La grille intérieure n’est pas encore levée.",
+    "shortcut",
   );
   e.guard("watcher", "Veilleur du conduit", cell(28, 32), 210);
   e.guard("aubeval-1", "Ligne d’Aubeval A", cell(17, 21), 230, "0041");
@@ -3106,10 +4031,19 @@ function buildWar(refs: StoryRefs): AdventureBundleMap {
     [cell(27, 21), cell(34, 21), cell(30, 14)],
     { rank: "elite", maxHp: 520, damage: 36, xp: 320 },
   );
+  explorationCache(
+    e,
+    "war-height-cache",
+    "Table d'observation",
+    36,
+    5,
+    "La table d'observation révèle un passage entre les fronts. L'emprunter permet aussi de récupérer des soins abandonnés.",
+    45,
+  );
   return bundleMap(
     "war",
     "Guerre de l’Aube",
-    terrainLayers({
+    terrainLayers("war", {
       water: [
         { col: 2, row: 10, width: 19, height: 3 },
         { col: 25, row: 10, width: 10, height: 3 },
@@ -3129,7 +4063,7 @@ function buildWar(refs: StoryRefs): AdventureBundleMap {
     }),
     spawn,
     e.events,
-    mapElements("military", e, spawn, [
+    mapElements("military", "war", e, spawn, [
       element(BUILDINGS.ruinedCastle, 27, 8),
       element(BUILDINGS.ruinedTower, 12, 15),
       element(BUILDINGS.ruinedTower, 49, 16),
@@ -3303,7 +4237,7 @@ function buildGalleries(refs: StoryRefs): AdventureBundleMap {
           "Le linteau montre un roi recevant seul les trois prix. Cette version du mécanisme ramène au début des galeries.",
         ),
         addVar("0017", 1),
-        teleport("galleries", 9, 36),
+        teleport("galleries", 9, 36, "recovery"),
       ],
       { graphicAssetId: GRAPHICS.rune },
     ),
@@ -3325,7 +4259,7 @@ function buildGalleries(refs: StoryRefs): AdventureBundleMap {
             ),
             switchOn("0074"),
             activity("ouvrir_mecanisme"),
-            teleport("heart", 7, 37),
+            teleport("heart", 7, 37, "magical"),
           ],
           [
             say(
@@ -3337,12 +4271,22 @@ function buildGalleries(refs: StoryRefs): AdventureBundleMap {
       ],
       { graphicAssetId: GRAPHICS.rune },
     ),
-    page([teleport("heart", 7, 37)], {
+    page([teleport("heart", 7, 37, "magical")], {
       condSwitchId: "0074",
       graphicAssetId: GRAPHICS.rune,
     }),
   ]);
-  portal(e, "back-war", "Conduit de bataille", 6, 40, { map: "war", col: 30, row: 35 }, [], "");
+  portal(
+    e,
+    "back-war",
+    "Conduit de bataille",
+    6,
+    40,
+    { map: "war", col: 30, row: 35 },
+    [],
+    "",
+    "interior",
+  );
   monsterPack(
     e,
     "eclipse-fragments",
@@ -3351,10 +4295,19 @@ function buildGalleries(refs: StoryRefs): AdventureBundleMap {
     [cell(14, 20), cell(26, 14), cell(35, 27), cell(48, 19)],
     { rank: "elite", maxHp: 360, damage: 33, xp: 270 },
   );
+  explorationCache(
+    e,
+    "gallery-height-cache",
+    "Conduit de maintenance",
+    49,
+    6,
+    "Le conduit supérieur contourne les salles de prélèvement. Des ouvriers y cachaient une part de leurs rations.",
+    40,
+  );
   return bundleMap(
     "galleries",
     "Galeries de la Source",
-    terrainLayers({
+    terrainLayers("galleries", {
       water: [
         { col: 20, row: 2, width: 3, height: 34 },
         { col: 36, row: 9, width: 3, height: 34 },
@@ -3372,7 +4325,7 @@ function buildGalleries(refs: StoryRefs): AdventureBundleMap {
     }),
     spawn,
     e.events,
-    mapElements("sacred", e, spawn, [
+    mapElements("sacred", "galleries", e, spawn, [
       element(BUILDINGS.ruinedCastle, 47, 8),
       element(BUILDINGS.purpleTower, 14, 29),
       element(BUILDINGS.blackTower, 29, 12),
@@ -3387,7 +4340,7 @@ function ending(switchId: string, text: string): readonly EventCommand[] {
     switchOn(switchId),
     switchOn("0079"),
     activity("choisir_aube"),
-    teleport("epilogue", 8, 35),
+    teleport("epilogue", 8, 35, "memory"),
   ];
 }
 
@@ -3526,12 +4479,13 @@ function buildHeart(refs: StoryRefs): AdventureBundleMap {
           {
             label: "Affronter l’avatar de la Couronne",
             body: [
+              switchOn("0082"),
               say(
                 "Varos",
                 "Alors combattez une projection, pas un homme. Même vaincue, elle ne prendra aucune décision à votre place.",
               ),
               { t: "setSelfSwitch", selfSwitch: "A", value: true },
-              teleport("heart", 51, 10),
+              teleport("heart", 51, 10, "recovery"),
             ],
           },
           {
@@ -3543,7 +4497,7 @@ function buildHeart(refs: StoryRefs): AdventureBundleMap {
                 "Bien. Les batailles donnent souvent au vainqueur l’illusion d’avoir aussi eu raison.",
               ),
               { t: "setSelfSwitch", selfSwitch: "A", value: true },
-              teleport("heart", 32, 17),
+              teleport("heart", 32, 17, "recovery"),
             ],
           },
         ]),
@@ -3583,8 +4537,10 @@ function buildHeart(refs: StoryRefs): AdventureBundleMap {
         "Varos",
         "Vous avez brisé l’anneau extérieur. Le choix demeure exactement aussi difficile.",
       ),
-      teleport("heart", 32, 17),
+      teleport("heart", 32, 17, "recovery"),
     ],
+    undefined,
+    ["0082"],
   );
   npc(e, "eryndor-last", "Eryndor", 28, 19, GRAPHICS.monkPurple, [
     "Je ne peux pas annuler mon serment : je suis devenu l’une de ses clauses. Vous pouvez lui donner un terme, le détruire ou le transmettre autrement.",
@@ -3684,10 +4640,19 @@ function buildHeart(refs: StoryRefs): AdventureBundleMap {
     [cell(18, 18), cell(39, 24), cell(45, 33)],
     { rank: "elite", maxHp: 420, damage: 36, xp: 300 },
   );
+  explorationCache(
+    e,
+    "heart-height-cache",
+    "Anneau des témoins",
+    45,
+    6,
+    "L'anneau supérieur porte des empreintes de mains sans noms. La vôtre tombe exactement dans l'une d'elles.",
+    50,
+  );
   return bundleMap(
     "heart",
     "Cœur du Pacte",
-    terrainLayers({
+    terrainLayers("heart", {
       water: [
         { col: 2, row: 12, width: 19, height: 4 },
         { col: 39, row: 12, width: 19, height: 4 },
@@ -3705,7 +4670,7 @@ function buildHeart(refs: StoryRefs): AdventureBundleMap {
     }),
     spawn,
     e.events,
-    mapElements("sacred", e, spawn, [
+    mapElements("sacred", "heart", e, spawn, [
       element(BUILDINGS.ruinedCastle, 27, 10),
       element(BUILDINGS.blackTower, 47, 9),
       element(BUILDINGS.purpleTower, 11, 28),
@@ -4102,10 +5067,19 @@ function buildEpilogue(refs: StoryRefs): AdventureBundleMap {
   npc(e, "last-stone", "Stèle des absents", 39, 30, GRAPHICS.rune, [
     "Aucun nom n’est gravé seul. Chaque ligne indique qui l’a transmis, ce que la personne avait donné et qui avait reçu le bienfait.",
   ]);
+  explorationCache(
+    e,
+    "epilogue-height-cache",
+    "Balise des voyageurs",
+    32,
+    6,
+    "La balise rassemble les itinéraires découverts. Des voyageurs y laissent désormais de quoi aider les suivants.",
+    25,
+  );
   return bundleMap(
     "epilogue",
     "Plaine des Liin",
-    terrainLayers({
+    terrainLayers("epilogue", {
       water: [
         { col: 2, row: 8, width: 18, height: 3 },
         { col: 40, row: 8, width: 18, height: 3 },
@@ -4119,7 +5093,7 @@ function buildEpilogue(refs: StoryRefs): AdventureBundleMap {
     }),
     spawn,
     e.events,
-    mapElements("road", e, spawn, [
+    mapElements("road", "epilogue", e, spawn, [
       element(BUILDINGS.yellowHouse1, 10, 32),
       element(BUILDINGS.blueHouse1, 46, 32),
       element(BUILDINGS.yellowMonastery, 28, 9),

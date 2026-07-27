@@ -119,8 +119,9 @@ function mainQuests(): AuthoredQuestDefinition[] {
   return [
     quest("0001", "Les noms absents", {
       description:
-        "Après l’accident de la route, les registres comptent les Sans-Sceau sans pouvoir les nommer. Des voyageurs ont disparu au relais et un éclat de la Source reconnaît pourtant le groupe. Rassembler ces faits donne à Lyra une raison immédiate de faire entrer les héros dans Aubeval.",
-      summary: "Établir les disparitions, le registre falsifié et la réaction de la Source.",
+        "Un convoi a été attaqué et plusieurs voyageurs ont disparu. Lyra demande trois faits avant de risquer l’entrée d’Aubeval.",
+      summary:
+        "Interroger Iven près du chariot, examiner le registre, puis rejoindre l’Éclat d’Aube.",
       recommendedLevel: 1,
       nextQuestId: "0002",
       experience: 350,
@@ -131,17 +132,18 @@ function mainQuests(): AuthoredQuestDefinition[] {
         activityObjective("0003", "Faire face à l’Éclat d’Aube", 1, "source_reconnait"),
       ],
       dialogue: dialogues(
-        "Lyra veut trois faits vérifiables avant de risquer l’entrée de la ville.",
-        "Commencez par les blessés et le greffier. La Source viendra ensuite, si elle doit venir.",
-        "Un disparu, un compte falsifié et une réaction magique : aucun élément ne suffit seul.",
-        "Les trois faits concordent. Aubeval ne peut plus traiter les Sans-Sceau comme de simples voyageurs.",
-        "La Porte s’ouvre, mais le registre garde ses cases vides.",
+        "Lyra désigne Iven, le chariot et le poste du greffier.",
+        "« Les blessés d’abord. Les papiers ne saignent pas. »",
+        "Iven parle de disparus ; le registre compte le groupe sans inscrire ses noms.",
+        "L’Éclat réagit pourtant à leur présence. Lyra obtient l’ouverture de la porte.",
+        "Aubeval s’ouvre. Les cases du registre restent vides.",
       ),
     }),
     quest("0002", "La porte des traîtres", {
       description:
-        "Aubeval accuse Varkesh des disparitions tandis que ses propres archives prouvent l’existence de convois royaux. Enquêter avant le jugement doit révéler les crimes du Conseil, les exécutions de Varkesh et la raison pour laquelle une partie de la ville continue malgré tout à le suivre.",
-      summary: "Établir les preuves puis décider du sort de Varkesh sans effacer aucun crime.",
+        "Lyra veut une copie des convois avant toute accusation publique. Varkesh détient l’autre moitié du dossier dans le faubourg.",
+      summary:
+        "Copier le livre des convois, rejoindre Varkesh par la Porte des Traîtres, puis statuer sur son sort.",
       recommendedLevel: 2,
       previousQuestId: "0001",
       nextQuestId: "0003",
@@ -154,17 +156,18 @@ function mainQuests(): AuthoredQuestDefinition[] {
         activityObjective("0004", "Décider du sort de Varkesh", 3, "sort_varkesh"),
       ],
       dialogue: dialogues(
-        "Lyra demande une enquête qui puisse survivre au changement de pouvoir.",
-        "Les archives, le faubourg et Varkesh détiennent chacun une partie du dossier.",
-        "Ne confondez pas la vérité des convois avec l’innocence du renégat.",
-        "Le sort de Varkesh est décidé et ses preuves demeurent consultables.",
-        "Aubeval entre en crise avec des faits qu’aucun camp ne contrôle seul.",
+        "Lyra montre la terrasse des archives et la Porte des Traîtres.",
+        "« Copiez d’abord. Si vous criez trop tôt, le Conseil fera disparaître l’encre. »",
+        "Le livre confirme les convois. Les exécutions de Varkesh restent, elles aussi, confirmées.",
+        "Le groupe a décidé du sort de Varkesh et conservé ses preuves.",
+        "La place d’Aubeval réagit à des faits qu’aucun camp ne contrôle seul.",
       ),
     }),
     quest("0003", "Le Pacte mutilé", {
       description:
-        "Les Bois conservent plusieurs versions du Pacte originel. Choisir un clan modifie les routes et les réserves, puis le rite des racines révèle les obligations de bienfait, de refus et de dette publique. Morvane porte les souvenirs d’anciens sacrifices commis par les peuples forestiers eux-mêmes.",
-      summary: "Comparer les traditions du Bois, accomplir le rite et statuer sur Morvane.",
+        "Sève protège les arbres nourriciers ; Écorce veut rouvrir les anciennes routes. Le passage dépend du clan soutenu et du rite conservé sous les racines.",
+      summary:
+        "Rencontrer les deux clans, choisir une route, accomplir le rite, puis confronter Morvane.",
       recommendedLevel: 4,
       previousQuestId: "0002",
       nextQuestId: "0004",
@@ -186,9 +189,9 @@ function mainQuests(): AuthoredQuestDefinition[] {
     }),
     quest("0004", "Les morts qui se souviennent", {
       description:
-        "Le Marais matérialise les souvenirs arrachés et mélange parfois plusieurs époques. Nhalgor en protège une partie contre la Couronne tout en privant des vivants de leur mémoire. L’ordre des Archives, son propre sort et l’aveu de Talen doivent produire une preuve utilisable plutôt qu’une révélation sans contexte.",
+        "Les îlots du Marais rejouent des souvenirs sans date. Talen demande de retrouver leur ordre avant de juger Nhalgor ou d’accuser les Archives.",
       summary:
-        "Ordonner les mémoires, décider de leur gardien et établir la responsabilité de Talen.",
+        "Atteindre le clocher englouti, dater trois souvenirs, décider du sort de Nhalgor, puis faire parler Talen.",
       recommendedLevel: 6,
       previousQuestId: "0003",
       nextQuestId: "0005",
@@ -211,8 +214,9 @@ function mainQuests(): AuthoredQuestDefinition[] {
     }),
     quest("0005", "La guerre des serments", {
       description:
-        "La Citadelle est divisée entre loyalistes, conscrits, partisans de Serah, inquisiteurs et morts liés aux anciens serments. Serah doit définir sa ligne après le sort de Varkesh, puis un commandement doit être choisi avec des conséquences directes sur les forces, les réserves et la future légitimité politique.",
-      summary: "Fixer la position de Serah et attribuer le contrôle de la Citadelle.",
+        "La Citadelle tient encore trois cours séparées. Serah doit parler aux conscrits avant que le groupe ne confie les portes et les réserves à un commandement.",
+      summary:
+        "Rejoindre Serah dans la cour des conscrits, libérer l’accès au commandement, puis choisir qui contrôle la Citadelle.",
       recommendedLevel: 8,
       previousQuestId: "0004",
       nextQuestId: "0006",
@@ -233,8 +237,9 @@ function mainQuests(): AuthoredQuestDefinition[] {
     }),
     quest("0006", "Le prix de l’Aube", {
       description:
-        "Le Sanctuaire révèle les prix précis de chaque miracle et la manière dont la Couronne a séparé bénéficiaires et victimes. L’offre temporaire de Varos doit être jugée sur ses effets réels, puis les fragments d’Eryndor expliquent pourquoi une mesure de crise est devenue un serment sans terme.",
-      summary: "Comprendre la Couronne, répondre à Varos et réunir la mémoire d’Eryndor.",
+        "Le Sanctuaire conserve le registre des soins et de leur prix. Varos attend une réponse ; trois fragments d’Eryndor indiquent où se trouve le mécanisme originel.",
+      summary:
+        "Lire le registre des prélèvements, répondre à Varos, puis retrouver les trois fragments d’Eryndor.",
       recommendedLevel: 10,
       previousQuestId: "0005",
       nextQuestId: "0007",
@@ -257,9 +262,9 @@ function mainQuests(): AuthoredQuestDefinition[] {
     }),
     quest("0007", "La guerre de l’Aube", {
       description:
-        "La bataille excède ce que les héros peuvent vaincre par la force. Ils doivent engager les réserves sur des secteurs incompatibles, ouvrir le conduit des serviteurs, traverser les galeries pendant que les alliés continuent de combattre, puis transformer ou rompre le mécanisme qui alimente la guerre.",
+        "La bataille ouvre une seule fenêtre vers le mécanisme. Les réserves ne peuvent tenir qu’un front pendant que le groupe descend dans les galeries.",
       summary:
-        "Tenir un secteur, franchir les galeries et décider du lien entre Source et peuples.",
+        "Choisir le front soutenu, ouvrir le conduit des serviteurs, activer trois ancres, puis entrer dans le Cœur.",
       recommendedLevel: 12,
       previousQuestId: "0006",
       experience: 2_500,
@@ -616,6 +621,251 @@ function sideQuests(refs: StoryRefs): AuthoredQuestDefinition[] {
   return data.map(sideQuest);
 }
 
+interface QuestPresentation {
+  category: "main" | "side" | "lore";
+  region: string;
+  landmark: string;
+  giverName: string;
+  giverKey: string | null;
+  knownConsequence: string;
+}
+
+const QUEST_PRESENTATION: Readonly<Record<string, QuestPresentation>> = {
+  "0001": {
+    category: "main",
+    region: "Route des Bornes arrachées",
+    landmark: "Chariot renversé",
+    giverName: "Lyra",
+    giverKey: null,
+    knownConsequence: "Lyra pourra faire ouvrir la porte d’Aubeval.",
+  },
+  "0002": {
+    category: "main",
+    region: "Aubeval et Faubourg",
+    landmark: "Marché des Digues",
+    giverName: "Lyra",
+    giverKey: "aubeval.lyra",
+    knownConsequence: "La preuve choisie modifiera la réaction de la ville.",
+  },
+  "0003": {
+    category: "main",
+    region: "Clairécorce",
+    landmark: "Relais des Quatre Dettes",
+    giverName: "Rime",
+    giverKey: "relay.keeper",
+    knownConsequence: "Le clan soutenu contrôlera une route et des réserves.",
+  },
+  "0004": {
+    category: "main",
+    region: "Marais de Verre",
+    landmark: "Levée des Saules",
+    giverName: "Talen",
+    giverKey: "marsh.talen",
+    knownConsequence: "Le sort des mémoires déterminera les preuves disponibles.",
+  },
+  "0005": {
+    category: "main",
+    region: "Citadelle",
+    landmark: "Infirmerie de la première cour",
+    giverName: "Sœur Ane",
+    giverKey: "citadel.field-surgeon",
+    knownConsequence: "Le commandement choisi contrôlera troupes et réserves.",
+  },
+  "0006": {
+    category: "main",
+    region: "Sanctuaire de l’Aube",
+    landmark: "Canal des hospices",
+    giverName: "Maëlys",
+    giverKey: "sanctuary.maelys",
+    knownConsequence: "Les soins et l’accès aux galeries dépendront de la décision.",
+  },
+  "0007": {
+    category: "main",
+    region: "Guerre de l’Aube",
+    landmark: "Poste de commandement",
+    giverName: "Lyra",
+    giverKey: "war.lyra",
+    knownConsequence: "Un seul front recevra toutes les réserves.",
+  },
+  "0010": {
+    category: "side",
+    region: "Faubourg de la Porte",
+    landmark: "Rue du Four",
+    giverName: "Serah",
+    giverKey: "faubourg.serah",
+    knownConsequence: "Les familles retrouveront une trace vérifiable des absents.",
+  },
+  "0011": {
+    category: "side",
+    region: "Aubeval",
+    landmark: "Vanne des Tisserands",
+    giverName: "Mara des digues",
+    giverKey: "aubeval.farmer",
+    knownConsequence: "Le quartier bas sera évacué ou paiera un nom à la Source.",
+  },
+  "0012": {
+    category: "side",
+    region: "Aubeval et Faubourg",
+    landmark: "Mémorial des métiers",
+    giverName: "Neria",
+    giverKey: "aubeval.memorial",
+    knownConsequence: "Les réquisitions seront reliées aux survivants déplacés.",
+  },
+  "0013": {
+    category: "side",
+    region: "Relais des Quatre Dettes",
+    landmark: "Cour des quatre tables",
+    giverName: "Rime",
+    giverKey: "relay.keeper",
+    knownConsequence: "Le relais rouvrira aux voyageurs.",
+  },
+  "0014": {
+    category: "side",
+    region: "Clairécorce",
+    landmark: "Vieille route d’Écorce",
+    giverName: "Doyenne Nolda",
+    giverKey: "woods.bark-elder",
+    knownConsequence: "Le crime de l’hiver sera reconnu par les deux clans.",
+  },
+  "0015": {
+    category: "side",
+    region: "Clairécorce",
+    landmark: "Frontière des arbres marqués",
+    giverName: "Haran d’Écorce",
+    giverKey: "woods.reed-guide",
+    knownConsequence: "Les marques rendront le choix de clan publiquement lisible.",
+  },
+  "0016": {
+    category: "side",
+    region: "Sanctuaire des Racines",
+    landmark: "Table du premier Pacte",
+    giverName: "Elyne",
+    giverKey: "roots.oath-tablet",
+    knownConsequence: "La décision sur Morvane changera l’équilibre du Bois.",
+  },
+  "0017": {
+    category: "side",
+    region: "Marais de Verre",
+    landmark: "Premier ponton des Saules",
+    giverName: "Talen",
+    giverKey: "marsh.talen",
+    knownConsequence: "Les voix seront rendues à des personnes plutôt qu’archivées.",
+  },
+  "0018": {
+    category: "side",
+    region: "Marais de Verre",
+    landmark: "Levée centrale",
+    giverName: "Maëlys",
+    giverKey: "marsh.maelys",
+    knownConsequence: "La circulation entre les deux rives changera.",
+  },
+  "0019": {
+    category: "side",
+    region: "Archives sous la Vase",
+    landmark: "Table des marées",
+    giverName: "Talen",
+    giverKey: "marsh.talen",
+    knownConsequence: "Talen sera jugé ou placé sous contrôle.",
+  },
+  "0020": {
+    category: "side",
+    region: "Citadelle",
+    landmark: "Infirmerie de la première cour",
+    giverName: "Sœur Ane",
+    giverKey: "citadel.field-surgeon",
+    knownConsequence: "Les villages recevront les lettres des conscrits.",
+  },
+  "0021": {
+    category: "side",
+    region: "Citadelle",
+    landmark: "Dépôt inquisitorial",
+    giverName: "Messagère de Lyra",
+    giverKey: "citadel.lyra-message",
+    knownConsequence: "Les soins saisis rejoindront immédiatement l’infirmerie.",
+  },
+  "0022": {
+    category: "side",
+    region: "Fort des Serments",
+    landmark: "Cour des anciens morts",
+    giverName: "Maëlys",
+    giverKey: "fort.maelys",
+    knownConsequence: "La garnison gagnera ou perdra ses gardes liés.",
+  },
+  "0023": {
+    category: "side",
+    region: "Sanctuaire de l’Aube",
+    landmark: "Jardins nourriciers",
+    giverName: "Maëlys",
+    giverKey: "sanctuary.maelys",
+    knownConsequence: "Les hospices verront leurs réserves et leurs coûts changer.",
+  },
+  "0024": {
+    category: "side",
+    region: "Sanctuaire de l’Aube",
+    landmark: "Bibliothèques jumelles",
+    giverName: "Linn",
+    giverKey: "sanctuary.servant",
+    knownConsequence: "Rendements et victimes seront consultables ensemble.",
+  },
+  "0025": {
+    category: "lore",
+    region: "Crypte d’Eryndor",
+    landmark: "Salle du neuvième chariot",
+    giverName: "Écho d’Eryndor",
+    giverKey: "crypt.varos-answer",
+    knownConsequence: "Les héros obtiendront une preuve de leur perte commune.",
+  },
+  "0026": {
+    category: "side",
+    region: "Guerre de l’Aube",
+    landmark: "Ligne de triage",
+    giverName: "Serah",
+    giverKey: "war.serah",
+    knownConsequence: "Le secteur choisi recevra les réserves disponibles.",
+  },
+  "0027": {
+    category: "side",
+    region: "Galeries de la Source",
+    landmark: "Conduit acoustique",
+    giverName: "Équipe de Linn",
+    giverKey: "galleries.battle-echo",
+    knownConsequence: "Le mécanisme originel deviendra accessible.",
+  },
+};
+
+function applyQuestPresentation(
+  definitions: readonly AuthoredQuestDefinition[],
+  refs: StoryRefs,
+): AuthoredQuestDefinition[] {
+  return definitions.map((definition) => {
+    const presentation = QUEST_PRESENTATION[definition.id];
+    if (!presentation) throw new Error(`missing quest presentation for ${definition.id}`);
+    const giver = presentation.giverKey === null ? null : (refs[presentation.giverKey] ?? null);
+    if (presentation.giverKey !== null && giver === null) {
+      throw new Error(`missing quest giver ${presentation.giverKey}`);
+    }
+    const giverRef = giver
+      ? {
+          mapId: MAP_IDS[presentation.giverKey?.split(".")[0] as keyof typeof MAP_IDS],
+          eventId: giver.id,
+        }
+      : null;
+    const main = presentation.category === "main";
+    return {
+      ...definition,
+      category: presentation.category,
+      region: presentation.region,
+      landmark: presentation.landmark,
+      giverName: presentation.giverName,
+      knownConsequence: presentation.knownConsequence,
+      acceptance: definition.id === "0001" ? "automatic" : "manual",
+      completion: main ? "automatic" : "turn-in",
+      giver: giverRef,
+      turnInTarget: main ? null : giverRef,
+    };
+  });
+}
+
 export function buildQuests(refs: StoryRefs): AuthoredQuestDefinition[] {
-  return [...mainQuests(), ...sideQuests(refs)];
+  return applyQuestPresentation([...mainQuests(), ...sideQuests(refs)], refs);
 }
