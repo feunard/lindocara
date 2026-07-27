@@ -816,13 +816,17 @@ export async function waitForRoomSockets(
 ): Promise<void> {
   const stub = env.WORLD.getByName(roomKey);
   const deadline = Date.now() + timeoutMs;
+  let lastCount = 0;
+  let lastDiagnostics: Awaited<ReturnType<typeof stub.roomDiagnostics>> | null = null;
   while (Date.now() < deadline) {
     const count = await runInDurableObject(
       stub,
       (_instance, state) => state.getWebSockets().length,
     );
+    lastCount = count;
     if (count <= maxSockets) {
       const diagnostics = await stub.roomDiagnostics();
+      lastDiagnostics = diagnostics;
       if (
         diagnostics.playerIds.length <= maxSockets &&
         (maxSockets > 0 || diagnostics.pendingSaves === 0)
@@ -831,7 +835,11 @@ export async function waitForRoomSockets(
     }
     await scheduler.wait(100);
   }
-  throw new Error(`timed out waiting for ${roomKey} to have at most ${maxSockets} socket(s)`);
+  throw new Error(
+    `timed out waiting for ${roomKey} to have at most ${maxSockets} socket(s); ` +
+      `sockets=${lastCount}, players=${lastDiagnostics?.playerIds.length ?? "unknown"}, ` +
+      `pendingSaves=${lastDiagnostics?.pendingSaves ?? "unknown"}`,
+  );
 }
 
 /**
