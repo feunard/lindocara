@@ -1269,6 +1269,9 @@ export class Renderer {
       }
       const parent = eventRenderLayer(event.onTop, this.#decorLayer, this.#tilesAbove);
       if (view.container.parent !== parent) parent.addChild(view.container);
+      if (view.data.col !== event.col || view.data.row !== event.row) {
+        view.drawnGraphic = undefined;
+      }
       if (view.drawnGraphic !== event.graphicAssetId) {
         view.drawnGraphic = event.graphicAssetId;
         this.#drawEventGraphic(view, event);

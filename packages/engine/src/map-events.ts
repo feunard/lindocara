@@ -50,9 +50,10 @@ import { type EditorAssetId, isEditorAssetId } from "./tiny-swords-catalog.js";
  *   `resolveAdventureStart` (server/adventures.ts) derives the first map from it directly, so a
  *   spawn-driven adventure needs no `graph.start` at all. Inert at runtime, like `entry`.
  *
- * Entry/exit/monster/spawn events stay single-page anchors. Guards deliberately keep conditional
- * pages: an ally earned in one region can appear on a later battlefield without a second combat
- * system or an autonomous event runner. Guard pages carry no commands; they only select presence.
+ * Entry/exit/spawn events stay single-page anchors. Monsters and guards deliberately keep
+ * conditional pages: a confrontation or an ally can appear when the shared party state calls for
+ * it without a second combat system or an autonomous event runner. A monster page runs its command
+ * program on defeat; a guard page carries no commands and only selects presence.
  */
 export const EVENT_KINDS = ["normal", "entry", "exit", "monster", "guard", "spawn"] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
@@ -136,7 +137,7 @@ export interface MapEventPage {
   optOnTop: boolean;
   trigger: EventTrigger;
   /** The authored command program. Normal events run it on their trigger; monster events run their
-   * single page on defeat. Entry/exit anchors must keep it empty. */
+   * active page on defeat. Entry/exit anchors must keep it empty. */
   commands: readonly EventCommand[];
 }
 
@@ -514,9 +515,10 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
 
     const parsedPages = parseEventPages(pages);
     if (!parsedPages) return null;
-    // Anchors and monster spawns have exactly one page. Guards keep multiple conditional pages so
+    // Anchors have exactly one page. Monsters and guards keep multiple conditional pages so
     // party-state decisions can select their presence without running an autonomous script.
-    if (kind !== "normal" && kind !== "guard" && parsedPages.length !== 1) return null;
+    if (kind !== "normal" && kind !== "monster" && kind !== "guard" && parsedPages.length !== 1)
+      return null;
     // Nothing over the wire may smuggle scripted behaviour onto an entry/exit/spawn anchor.
     if (
       (kind === "entry" || kind === "exit" || kind === "spawn") &&
@@ -547,7 +549,6 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
     ) {
       return null;
     }
-
     seenCells.add(cellKey);
     seenIds.add(id);
     events.push({

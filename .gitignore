@@ -20,6 +20,7 @@ dist/
 # The real game assets live under public/assets/ and are not matched here.
 .codex-dev.*.log
 /*.png
+artifacts/
 .superpowers/
 
 # Agent worktrees and local agent state. Worktree contents are checkouts of this

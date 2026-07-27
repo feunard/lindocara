@@ -36,11 +36,13 @@ import {
   parseAuthoredQuests,
   QUEST_OBJECTIVE_TARGET_MAX,
   QUEST_PROCESSED_EVENT_KEY_MAX,
+  type QuestCategory,
   type QuestCompletionMode,
   type QuestItemReward,
   type QuestObjectiveMode,
   type QuestProgressStatus,
   type QuestRewardChoice,
+  type QuestRuntimeState,
   type QuestScope,
   requiredQuestObjectivesComplete,
 } from "./quests.js";
@@ -181,13 +183,18 @@ export interface AuthoredQuestTracker {
   title: string;
   description: string;
   journalSummary: string;
+  category: QuestCategory;
+  region: string;
+  landmark: string;
+  giverName: string;
+  knownConsequence: string;
   recommendedLevel: number | null;
   scope: QuestScope;
   repeatable: boolean;
   abandonable: boolean;
   completion: QuestCompletionMode;
   objectiveMode: QuestObjectiveMode;
-  status: QuestProgressStatus;
+  status: QuestRuntimeState;
   objectives: readonly {
     id: string;
     label: string;
@@ -369,6 +376,7 @@ export function parsePartyAdventureState(value: unknown): PartyAdventureState | 
 export function authoredQuestTrackers(
   registry: AdventureRegistry,
   state: PartyAdventureState,
+  options: { availableQuestIds?: ReadonlySet<string> } = {},
 ): AuthoredQuestTracker[] {
   const progressByQuest = state.quests ?? {};
   const definitions = new Map((registry.quests ?? []).map((quest) => [quest.id, quest]));
@@ -380,11 +388,11 @@ export function authoredQuestTrackers(
   const trackers: AuthoredQuestTracker[] = [];
   for (const questId of orderedIds) {
     const progress = progressByQuest[questId];
-    if (!progress) continue;
-    const quest = progress.definitionSnapshot ?? definitions.get(questId);
+    if (!progress && !options.availableQuestIds?.has(questId)) continue;
+    const quest = progress?.definitionSnapshot ?? definitions.get(questId);
     if (!quest) continue;
     const objectives = quest.objectives.flatMap((objective) => {
-      const current = Math.min(objective.target, progress.objectives[objective.id] ?? 0);
+      const current = Math.min(objective.target, progress?.objectives[objective.id] ?? 0);
       // Keep authored surprises out of the wire payload until play has actually revealed them.
       if (objective.hidden && current === 0) return [];
       return [
@@ -397,18 +405,25 @@ export function authoredQuestTrackers(
         },
       ];
     });
-    const ready = requiredQuestObjectivesComplete(quest, progress.objectives);
+    const ready = progress ? requiredQuestObjectivesComplete(quest, progress.objectives) : false;
     const status =
-      progress.status === "active" || progress.status === "ready"
-        ? ready
-          ? "ready"
-          : "active"
-        : progress.status;
+      progress === undefined
+        ? "available"
+        : progress.status === "active" || progress.status === "ready"
+          ? ready
+            ? "ready"
+            : "active"
+          : progress.status;
     trackers.push({
       id: quest.id,
       title: quest.title || `Quête ${quest.id}`,
       description: quest.description,
       journalSummary: quest.journalSummary,
+      category: quest.category,
+      region: quest.region,
+      landmark: quest.landmark,
+      giverName: quest.giverName,
+      knownConsequence: quest.knownConsequence,
       recommendedLevel: quest.recommendedLevel,
       scope: quest.scope,
       repeatable: quest.repeatable,

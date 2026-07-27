@@ -84,14 +84,17 @@ export function Hud() {
   const { potions, gold, crystals } = selfState.inventory;
   const { quest } = selfState;
   const authoredQuests = selfState.authoredQuests ?? [];
-  const trackedAuthoredQuests = authoredQuests
+  const trackableAuthoredQuests = authoredQuests
     .filter(
       (authored) =>
         (authored.status === "active" || authored.status === "ready") &&
         (questTracking[authored.id] ?? true),
     )
-    .sort((left, right) => Number(right.status === "ready") - Number(left.status === "ready"))
-    .slice(0, 3);
+    .sort((left, right) => Number(right.status === "ready") - Number(left.status === "ready"));
+  const trackedAuthoredQuests = [
+    ...trackableAuthoredQuests.filter((quest) => quest.category === "main").slice(0, 1),
+    ...trackableAuthoredQuests.filter((quest) => quest.category === "side").slice(0, 2),
+  ];
   const questChapter = quest.chapter ?? "three_offerings";
   const showQuestBar = quest.status === "active" || quest.status === "ready";
   const remainingSeconds =

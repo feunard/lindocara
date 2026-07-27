@@ -13,7 +13,9 @@ describe("presetPageContent", () => {
   it("teleporter carries a player-touch trigger and a same-map teleport command", () => {
     const { trigger, commands } = presetPageContent("teleporter", MAP_ID);
     expect(trigger).toBe("player-touch");
-    expect(commands).toEqual([{ t: "teleport", mapId: MAP_ID, col: 0, row: 0 }]);
+    expect(commands).toEqual([
+      { t: "teleport", mapId: MAP_ID, col: 0, row: 0, category: "geographic" },
+    ]);
   });
 
   it("aims a fresh teleporter at the map's own spawn, not at the (0,0) corner", () => {
@@ -21,7 +23,9 @@ describe("presetPageContent", () => {
     // map with a decorated border that placeholder does nothing and only warns into the server log.
     // A map's spawn is the one cell the editor guarantees stays clear.
     const { commands } = presetPageContent("teleporter", MAP_ID, { col: 7, row: 4 });
-    expect(commands).toEqual([{ t: "teleport", mapId: MAP_ID, col: 7, row: 4 }]);
+    expect(commands).toEqual([
+      { t: "teleport", mapId: MAP_ID, col: 7, row: 4, category: "geographic" },
+    ]);
   });
 
   it("sign carries an interact-triggered say; chest a changeGold", () => {
@@ -46,7 +50,9 @@ describe("presetEvent", () => {
     expect(event.kind).toBe("normal");
     expect(isUuid(event.id)).toBe(true);
     expect(event.pages).toHaveLength(1);
-    expect(event.pages[0]?.commands).toEqual([{ t: "teleport", mapId: MAP_ID, col: 0, row: 0 }]);
+    expect(event.pages[0]?.commands).toEqual([
+      { t: "teleport", mapId: MAP_ID, col: 0, row: 0, category: "geographic" },
+    ]);
   });
 
   it("carries the placement's name so the event list can tell the presets apart", () => {

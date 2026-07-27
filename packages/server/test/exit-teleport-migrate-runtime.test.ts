@@ -243,7 +243,13 @@ describe("exit -> teleport migration: identical live-runtime behaviour", () => {
     expect(migrated?.row).toBe(2);
     expect(migrated?.pages[0]?.trigger).toBe("player-touch");
     expect(migrated?.pages[0]?.commands).toEqual([
-      { t: "teleport", mapId: seed.mapB, col: 7, row: 9 },
+      {
+        t: "teleport",
+        mapId: seed.mapB,
+        col: 7,
+        row: 9,
+        category: "geographic",
+      },
     ]);
     // And no exit survives anywhere, so `#detectAdventureExits` has nothing left to fire on.
     expect(stored?.events.some((event) => event.kind === "exit")).toBe(false);

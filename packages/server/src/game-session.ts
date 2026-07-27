@@ -648,7 +648,11 @@ export class GameSession extends DurableObject<Env> {
             (candidate) => candidate.id === definition.rewards.nextQuestId,
           )
         : undefined;
-      if (nextDefinition?.scope === "party" && !nextPartyState.quests?.[nextDefinition.id]) {
+      if (
+        nextDefinition?.acceptance === "automatic" &&
+        nextDefinition.scope === "party" &&
+        !nextPartyState.quests?.[nextDefinition.id]
+      ) {
         nextPartyState = {
           ...nextPartyState,
           quests: {
@@ -656,7 +660,11 @@ export class GameSession extends DurableObject<Env> {
             [nextDefinition.id]: createAuthoredQuestProgress(nextDefinition),
           },
         };
-      } else if (nextDefinition?.scope === "personal" && !nextPersonal[nextDefinition.id]) {
+      } else if (
+        nextDefinition?.acceptance === "automatic" &&
+        nextDefinition.scope === "personal" &&
+        !nextPersonal[nextDefinition.id]
+      ) {
         const nextProgress = createAuthoredQuestProgress(nextDefinition);
         nextPersonal[nextDefinition.id] = nextProgress;
         createdNextPersonal = { questId: nextDefinition.id, progress: nextProgress };

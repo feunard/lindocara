@@ -7,6 +7,8 @@ import {
   type EventCondition,
   ITEM_ID_MAX,
   MAX_CHOICE_OPTIONS,
+  TRANSITION_CATEGORIES,
+  type TransitionCategory,
   WAIT_FRAMES_MAX,
   WAIT_FRAMES_MIN,
 } from "@lindocara/engine/event-commands.js";
@@ -141,7 +143,9 @@ function defaultCommand(
       return { t: "wait", frames: WAIT_FRAMES_MIN };
     case "teleport": {
       const mapId = ctx.maps[0]?.mapId;
-      return mapId === undefined ? null : { t: "teleport", mapId, col: 0, row: 0 };
+      return mapId === undefined
+        ? null
+        : { t: "teleport", mapId, col: 0, row: 0, category: "geographic" };
     }
     case "changeGold":
       return { t: "changeGold", amount: 1 };
@@ -354,6 +358,7 @@ function commandLine(
         map: map?.name ?? t("editor.event.cmd.mapMissing"),
         col: command.col + 1,
         row: command.row + 1,
+        category: t(`editor.event.cmd.transition.${command.category ?? "geographic"}`),
       });
     }
     case "changeGold":
@@ -1315,6 +1320,25 @@ function TeleportParams({
   const heightLabel = t("editor.event.cmd.field.row", { max: maxRow + 1 });
   return (
     <div className="flex flex-wrap items-end gap-2">
+      <Field label={t("editor.event.cmd.field.transitionCategory")}>
+        <FieldSelect
+          aria-label={t("editor.event.cmd.field.transitionCategory")}
+          className="w-40"
+          value={command.category ?? "geographic"}
+          onChange={(event) =>
+            onChange({
+              ...command,
+              category: event.currentTarget.value as TransitionCategory,
+            })
+          }
+        >
+          {TRANSITION_CATEGORIES.map((category) => (
+            <option key={category} value={category}>
+              {t(`editor.event.cmd.transition.${category}`)}
+            </option>
+          ))}
+        </FieldSelect>
+      </Field>
       <Field label={t("editor.event.cmd.field.map")}>
         <FieldSelect
           aria-label={t("editor.event.cmd.field.map")}

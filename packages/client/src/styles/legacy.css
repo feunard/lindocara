@@ -1788,6 +1788,11 @@ kbd {
 .quest-dialogue__phase--ready {
   color: #ffe271;
 }
+.quest-dialogue__meta {
+  margin: -0.2rem 0 0;
+  color: #bdb39e;
+  font-size: 0.72rem;
+}
 .quest-dialogue__actions {
   gap: 0.45rem;
 }

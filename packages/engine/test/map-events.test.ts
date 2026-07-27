@@ -279,6 +279,26 @@ describe("parseMapEvents: commands thread through pages", () => {
       monsterSpecialTechnique: defaults.specialTechnique,
     });
   });
+
+  it("accepts conditional monster pages", () => {
+    const conditional = event({
+      kind: "monster",
+      species: "skull_warden",
+      patrolRadius: 120,
+      pages: [
+        page({
+          condSwitchId: "0075",
+          commands: [{ t: "setSwitch", switchId: "0006", value: true }],
+        }),
+        page({
+          condSwitchId: "0076",
+          commands: [{ t: "setSwitch", switchId: "0007", value: true }],
+        }),
+      ],
+    });
+
+    expect(parseMapEvents([conditional], COLS, ROWS)?.[0]?.pages).toHaveLength(2);
+  });
 });
 
 describe("parseMapEvents: authored monster tuning", () => {

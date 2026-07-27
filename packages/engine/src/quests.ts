@@ -28,6 +28,7 @@ export const QUEST_PROCESSED_EVENT_KEY_MAX = 128;
 export const QUEST_TITLE_MAX = 64;
 export const QUEST_DESCRIPTION_MAX = 2_000;
 export const QUEST_JOURNAL_SUMMARY_MAX = 240;
+export const QUEST_CONTEXT_TEXT_MAX = 80;
 export const QUEST_DIALOGUE_TEXT_MAX = 2_000;
 export const QUEST_OBJECTIVE_LABEL_MAX = 96;
 export const QUEST_OBJECTIVE_TARGET_MAX = 9_999;
@@ -36,6 +37,7 @@ export const QUEST_RECOMMENDED_LEVEL_MAX = 100;
 export const QUEST_STAGE_MAX = 15;
 
 export type QuestScope = "personal" | "party";
+export type QuestCategory = "main" | "side" | "lore";
 export type QuestAcceptanceMode = "manual" | "automatic";
 export type QuestCompletionMode = "automatic" | "turn-in";
 export type QuestObjectiveMode = "simultaneous" | "sequential";
@@ -197,6 +199,12 @@ export interface AuthoredQuestDefinition {
   readonly title: string;
   readonly description: string;
   readonly journalSummary: string;
+  readonly category: QuestCategory;
+  /** Player-facing location metadata. These are prose, never map identity or routing inputs. */
+  readonly region: string;
+  readonly landmark: string;
+  readonly giverName: string;
+  readonly knownConsequence: string;
   readonly recommendedLevel: number | null;
   readonly scope: QuestScope;
   readonly repeatable: boolean;
@@ -253,6 +261,11 @@ export function createAuthoredQuestDefinition(id: string, title = ""): AuthoredQ
     title,
     description: "",
     journalSummary: "",
+    category: "side",
+    region: "",
+    landmark: "",
+    giverName: "",
+    knownConsequence: "",
     recommendedLevel: null,
     scope: "party",
     repeatable: false,
@@ -615,6 +628,11 @@ export function parseAuthoredQuestDefinition(raw: unknown): AuthoredQuestDefinit
   const title = boundedText(raw.title, QUEST_TITLE_MAX);
   const description = boundedText(raw.description, QUEST_DESCRIPTION_MAX);
   const journalSummary = boundedText(raw.journalSummary, QUEST_JOURNAL_SUMMARY_MAX);
+  const category = raw.category === undefined ? "side" : raw.category;
+  const region = boundedText(raw.region ?? "", QUEST_CONTEXT_TEXT_MAX);
+  const landmark = boundedText(raw.landmark ?? "", QUEST_CONTEXT_TEXT_MAX);
+  const giverName = boundedText(raw.giverName ?? "", QUEST_CONTEXT_TEXT_MAX);
+  const knownConsequence = boundedText(raw.knownConsequence ?? "", QUEST_JOURNAL_SUMMARY_MAX);
   const recommendedLevel =
     raw.recommendedLevel === null
       ? null
@@ -629,6 +647,11 @@ export function parseAuthoredQuestDefinition(raw: unknown): AuthoredQuestDefinit
     title === null ||
     description === null ||
     journalSummary === null ||
+    (category !== "main" && category !== "side" && category !== "lore") ||
+    region === null ||
+    landmark === null ||
+    giverName === null ||
+    knownConsequence === null ||
     (recommendedLevel === null && raw.recommendedLevel !== null) ||
     (giver === null && raw.giver !== null) ||
     (turnInTarget === null && raw.turnInTarget !== null) ||
@@ -661,6 +684,11 @@ export function parseAuthoredQuestDefinition(raw: unknown): AuthoredQuestDefinit
     title,
     description,
     journalSummary,
+    category,
+    region,
+    landmark,
+    giverName,
+    knownConsequence,
     recommendedLevel,
     scope: raw.scope,
     repeatable: raw.repeatable,

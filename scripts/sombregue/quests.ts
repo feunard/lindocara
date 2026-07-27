@@ -29,6 +29,11 @@ function quest(
   return {
     schemaVersion: 2,
     version: 1,
+    category: "main",
+    region: "Sombregué",
+    landmark: "",
+    giverName: "",
+    knownConsequence: "",
     recommendedLevel: null,
     scope: "personal",
     repeatable: false,

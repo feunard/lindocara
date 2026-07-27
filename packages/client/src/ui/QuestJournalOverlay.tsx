@@ -11,13 +11,17 @@ import { useUiStore } from "../store.js";
 import { Bar } from "./hud/Bar.js";
 import { TinyButton } from "./tiny-swords/TinyButton.js";
 
-type JournalFilter = "active" | "ready" | "history";
+type JournalFilter = "main" | "side" | "available" | "completed" | "abandoned" | "lore";
 const EMPTY_QUESTS: readonly AuthoredQuestTracker[] = [];
 
 function belongsToFilter(quest: AuthoredQuestTracker, filter: JournalFilter): boolean {
-  if (filter === "active") return quest.status === "active";
-  if (filter === "ready") return quest.status === "ready";
-  return quest.status === "completed" || quest.status === "failed" || quest.status === "abandoned";
+  const inProgress = quest.status === "active" || quest.status === "ready";
+  if (filter === "main") return quest.category === "main" && inProgress;
+  if (filter === "side") return quest.category === "side" && inProgress;
+  if (filter === "available") return quest.status === "available";
+  if (filter === "completed") return quest.status === "completed" || quest.status === "failed";
+  if (filter === "abandoned") return quest.status === "abandoned";
+  return quest.category === "lore";
 }
 
 function rewardItemCopy(item: { itemId: string; quantity: number }): string {
@@ -75,7 +79,7 @@ export function QuestJournalOverlay() {
   const tracking = useUiStore((state) => state.questTracking);
   const setTracked = useUiStore((state) => state.setQuestTracked);
   const game = useUiStore((state) => state.game);
-  const [filter, setFilter] = useState<JournalFilter>("active");
+  const [filter, setFilter] = useState<JournalFilter>("main");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [confirmAbandon, setConfirmAbandon] = useState<string | null>(null);
 
@@ -124,18 +128,20 @@ export function QuestJournalOverlay() {
         </header>
 
         <nav className="quest-journal__filters" aria-label={t("quest.journal.filters")}>
-          {(["active", "ready", "history"] as const).map((value) => (
-            <button
-              type="button"
-              key={value}
-              className={`quest-journal__filter${filter === value ? " quest-journal__filter--active" : ""}`}
-              aria-pressed={filter === value}
-              onClick={() => chooseFilter(value)}
-            >
-              {t(`quest.journal.filter.${value}`)}
-              <span>{quests.filter((quest) => belongsToFilter(quest, value)).length}</span>
-            </button>
-          ))}
+          {(["main", "side", "available", "completed", "abandoned", "lore"] as const).map(
+            (value) => (
+              <button
+                type="button"
+                key={value}
+                className={`quest-journal__filter${filter === value ? " quest-journal__filter--active" : ""}`}
+                aria-pressed={filter === value}
+                onClick={() => chooseFilter(value)}
+              >
+                {t(`quest.journal.filter.${value}`)}
+                <span>{quests.filter((quest) => belongsToFilter(quest, value)).length}</span>
+              </button>
+            ),
+          )}
         </nav>
 
         <div className="quest-journal__body">
@@ -194,7 +200,13 @@ export function QuestJournalOverlay() {
                   <p className="quest-journal__description">{selected.description}</p>
                 )}
                 <div className="quest-journal__meta">
+                  <span>{t(`quest.journal.category.${selected.category}`)}</span>
                   <span>{questScopeLabel(selected.scope)}</span>
+                  {selected.region && <span>{selected.region}</span>}
+                  {selected.landmark && <span>{selected.landmark}</span>}
+                  {selected.giverName && (
+                    <span>{t("quest.journal.giver", { giver: selected.giverName })}</span>
+                  )}
                   {selected.recommendedLevel !== null && (
                     <span>{t("quest.journal.level", { level: selected.recommendedLevel })}</span>
                   )}
@@ -207,6 +219,13 @@ export function QuestJournalOverlay() {
                     )}
                   </span>
                 </div>
+                {selected.knownConsequence && (
+                  <p className="quest-journal__description">
+                    {t("quest.journal.knownConsequence", {
+                      consequence: selected.knownConsequence,
+                    })}
+                  </p>
+                )}
 
                 <section className="quest-journal__section">
                   <h4>{t("quest.journal.objectives")}</h4>

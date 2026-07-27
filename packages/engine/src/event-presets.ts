@@ -47,7 +47,15 @@ export function presetPageContent(
       // placeholder always *visibly* fires, and the author retargets it in the dialog.
       return {
         trigger: "player-touch",
-        commands: [{ t: "teleport", mapId: selfMapId, col: selfSpawn.col, row: selfSpawn.row }],
+        commands: [
+          {
+            t: "teleport",
+            mapId: selfMapId,
+            col: selfSpawn.col,
+            row: selfSpawn.row,
+            category: "geographic",
+          },
+        ],
       };
     case "sign":
       return { trigger: "action", commands: [{ t: "say", text: "", name: null }] };

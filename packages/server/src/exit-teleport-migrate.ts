@@ -167,7 +167,15 @@ export function planExitTeleportMigration(input: ExitMigrationInput): ExitMigrat
           });
           continue;
         }
-        commands = [{ t: "teleport", mapId: link.dest.mapId, col: cell.col, row: cell.row }];
+        commands = [
+          {
+            t: "teleport",
+            mapId: link.dest.mapId,
+            col: cell.col,
+            row: cell.row,
+            category: "geographic",
+          },
+        ];
       }
       converted.set(exit.id, scriptedFromExit(exit, commands));
       plan.converted += 1;

@@ -42,7 +42,7 @@ const ONE_OF_EACH: EventCommand[] = [
   { t: "breakLoop" },
   { t: "exitRun" },
   { t: "wait", frames: 1 },
-  { t: "teleport", mapId: UUID, col: 0, row: 12 },
+  { t: "teleport", mapId: UUID, col: 0, row: 12, category: "geographic" },
   { t: "changeGold", amount: -50 },
   { t: "changeItems", itemId: "health_potion", count: 3 },
   { t: "enterArea", areaId: "north_gate" },
@@ -60,6 +60,17 @@ describe("parseEventCommands: good payloads", () => {
 
   it("accepts the empty program", () => {
     expect(parseEventCommands([])).toEqual([]);
+  });
+
+  it("normalizes legacy teleports and rejects unknown transition categories", () => {
+    expect(parseEventCommands([{ t: "teleport", mapId: UUID, col: 1, row: 2 }])).toEqual([
+      { t: "teleport", mapId: UUID, col: 1, row: 2, category: "geographic" },
+    ]);
+    expect(
+      parseEventCommands([
+        { t: "teleport", mapId: UUID, col: 1, row: 2, category: "narrative-shortcut" },
+      ]),
+    ).toBeNull();
   });
 
   it("accepts all three condition forms", () => {

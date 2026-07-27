@@ -931,7 +931,13 @@ describe("applyTool: event placement", () => {
     expect(tp.events[0]?.kind).toBe("normal");
     expect(tp.events[0]?.pages[0]?.trigger).toBe("player-touch");
     expect(tp.events[0]?.pages[0]?.commands).toEqual([
-      { t: "teleport", mapId, col: base.spawn.col, row: base.spawn.row },
+      {
+        t: "teleport",
+        mapId,
+        col: base.spawn.col,
+        row: base.spawn.row,
+        category: "geographic",
+      },
     ]);
 
     // Sign: an interact-triggered say. Chest: a changeGold. Raw (default): the blank program.

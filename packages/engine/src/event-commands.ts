@@ -40,6 +40,26 @@ export const MAX_COMMAND_DEPTH = 8;
  *  drain that consumes it lands in a later task. */
 export const EVENT_COMMANDS_PER_TICK = 16;
 
+/**
+ * Authored travel semantics. The runtime still validates every destination and owns the handoff;
+ * this category exists so editors, validators and adventure-map views can separate world geography
+ * from interior doors, shortcuts and non-geographic puzzle/reset jumps.
+ */
+export const TRANSITION_CATEGORIES = [
+  "geographic",
+  "interior",
+  "shortcut",
+  "magical",
+  "memory",
+  "puzzle",
+  "recovery",
+] as const;
+export type TransitionCategory = (typeof TRANSITION_CATEGORIES)[number];
+
+export function isTransitionCategory(value: unknown): value is TransitionCategory {
+  return typeof value === "string" && (TRANSITION_CATEGORIES as readonly string[]).includes(value);
+}
+
 /** How far the triggerer may drift from a running dialogue before the server closes it and ends the
  *  run (WoW closes the panel on walk-away). Exported here as the single source; the distance-close
  *  that consumes it lands in a later task. */
@@ -104,7 +124,14 @@ export type EventCommand =
   | { readonly t: "breakLoop" }
   | { readonly t: "exitRun" }
   | { readonly t: "wait"; readonly frames: number }
-  | { readonly t: "teleport"; readonly mapId: string; readonly col: number; readonly row: number }
+  | {
+      readonly t: "teleport";
+      readonly mapId: string;
+      readonly col: number;
+      readonly row: number;
+      /** Absent only on legacy in-memory fixtures; the parser normalizes it to `geographic`. */
+      readonly category?: TransitionCategory;
+    }
   | { readonly t: "endAdventure" }
   /**
    * Open the consumables shop for the hero who triggered this event.
@@ -265,7 +292,12 @@ function parseCommand(raw: unknown, depth: number, counter: Counter): EventComma
       const col = record.col as number;
       const row = record.row as number;
       if (col < 0 || row < 0) return null;
-      return { t: "teleport", mapId: record.mapId, col, row };
+      // Old authored maps predate transition categories. Treat them as ordinary geographic travel
+      // at the parsing boundary so imports remain compatible while every newly saved command is
+      // explicit.
+      const category = record.category ?? "geographic";
+      if (!isTransitionCategory(category)) return null;
+      return { t: "teleport", mapId: record.mapId, col, row, category };
     }
     case "endAdventure":
       // The optional end-game beat: marks the party's save complete when it runs. Field-free, like

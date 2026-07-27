@@ -112,7 +112,12 @@ export function questTrackerNotifications(
       });
     }
     if (prior.status === quest.status) continue;
-    if (quest.status === "ready") {
+    if (prior.status === "available" && quest.status === "active") {
+      notifications.push({
+        text: t("quest.notification.accepted", { title: quest.title }),
+        tone: "good",
+      });
+    } else if (quest.status === "ready") {
       notifications.push({
         text: t("quest.notification.ready", { title: quest.title }),
         tone: "good",

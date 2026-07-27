@@ -186,6 +186,10 @@ import {
   activeAuthoredGuardDefinitions,
   reconcileActiveGuards,
 } from "./world/authored-guard-system.js";
+import {
+  activeAuthoredMonsterDefinitions,
+  reconcileActiveMonsters,
+} from "./world/authored-monster-system.js";
 import { executeCheatCommand } from "./world/cheat-command-system.js";
 import {
   advanceCombatActions,
@@ -219,6 +223,11 @@ import { locationFromMap } from "./world/map-zone.js";
 import { advanceGuards, advanceMonsters } from "./world/monster-system.js";
 import { advancePlayers } from "./world/movement-system.js";
 import { createNavigationRuntime, type NavigationRuntime } from "./world/navigation-system.js";
+import {
+  advanceNpcEvents,
+  type NpcMovementRuntime,
+  reconcileNpcMovement,
+} from "./world/npc-movement-system.js";
 import {
   createRoomObservability,
   OBSERVABILITY_INTERVAL_TICKS,
@@ -351,6 +360,7 @@ export class World extends DurableObject<Env> {
    * join — never per tick. Appearance-only and nothing reads it yet; Task 4 puts it on the wire.
    */
   #activeEvents: readonly ActiveWorldEvent[] = [];
+  #npcMovement = new Map<string, NpcMovementRuntime>();
   /** The room's live event runs: the one-run-per-event lock, the budgeted drain and the buffered
    *  dialogue seam (`world/event-run-system.ts`). Cleared when the room empties. */
   #eventRuns: EventRunRuntime = createEventRunRuntime();
@@ -1027,6 +1037,10 @@ export class World extends DurableObject<Env> {
             speakerName,
             title: definition.title || `Quête ${definition.id}`,
             text,
+            category: definition.category,
+            region: definition.region,
+            landmark: definition.landmark,
+            giverName: definition.giverName || speakerName,
             phase,
             canAccept:
               phase === "offer" && candidate.role === "giver" && definition.acceptance === "manual",
@@ -1051,7 +1065,7 @@ export class World extends DurableObject<Env> {
       if (pageIndex === null) continue;
       const page = event.pages[pageIndex];
       if (page?.trigger !== "action") continue;
-      const distance = pointDistance(player, eventCellCentre(event));
+      const distance = pointDistance(player, this.#activeEventCentre(event));
       if (distance > INTERACTION_RANGE) continue;
       const entries = this.#questDialogueEntries(player, { mapId, eventId: event.id });
       if (entries.length === 0) continue;
@@ -1114,7 +1128,7 @@ export class World extends DurableObject<Env> {
       !event ||
       !page ||
       page.trigger !== "action" ||
-      pointDistance(player, eventCellCentre(event)) > DIALOGUE_CLOSE_RADIUS
+      pointDistance(player, this.#activeEventCentre(event)) > DIALOGUE_CLOSE_RADIUS
     ) {
       this.#questConversations.delete(player.id);
       this.#send(ws, { t: "quest.close", conversationId: conversation.id });
@@ -1243,7 +1257,7 @@ export class World extends DurableObject<Env> {
     for (const event of events) {
       const runnable = this.#runnablePage(event, "action");
       if (runnable === null) continue;
-      const distance = pointDistance(player, eventCellCentre(event));
+      const distance = pointDistance(player, this.#activeEventCentre(event));
       if (distance > INTERACTION_RANGE) continue;
       if (best === null || distance < best.distance) best = { event, ...runnable, distance };
     }
@@ -1291,10 +1305,11 @@ export class World extends DurableObject<Env> {
       // Expand the event by exactly that maximum living-player step so the last accepted position
       // still counts as contact with a solid door; a larger arbitrary interaction radius would make
       // player-touch events fire from visibly separate cells.
-      const left = event.col * TILE_SIZE - tolerance;
-      const top = event.row * TILE_SIZE - tolerance;
-      const right = (event.col + 1) * TILE_SIZE + tolerance;
-      const bottom = (event.row + 1) * TILE_SIZE + tolerance;
+      const cell = this.#activeEventCell(event);
+      const left = cell.col * TILE_SIZE - tolerance;
+      const top = cell.row * TILE_SIZE - tolerance;
+      const right = (cell.col + 1) * TILE_SIZE + tolerance;
+      const bottom = (cell.row + 1) * TILE_SIZE + tolerance;
       // Strict edges mean a body merely parked flush against a neighbouring cell has not entered it.
       // The current-position tolerance below still catches a movement step rejected just before a
       // solid cell; the previous position uses no tolerance so pressing toward that door creates the
@@ -1342,13 +1357,23 @@ export class World extends DurableObject<Env> {
   #evaluateActiveEvents(): void {
     const definition = this.#location?.definition;
     const events = definition?.events ?? [];
+    const monsterDefinitions = [
+      ...(definition?.monsters ?? []),
+      ...activeAuthoredMonsterDefinitions(events, this.#adventureState),
+    ];
+    this.#monsters = reconcileActiveMonsters(this.#monsters, monsterDefinitions);
+    this.#monsterGrid.clear();
+    for (const monster of this.#monsters) this.#monsterGrid.insert(monster);
+
     const guardDefinitions = [
       ...(definition?.guards ?? []),
       ...activeAuthoredGuardDefinitions(events, this.#adventureState),
     ];
     this.#guards = reconcileActiveGuards(this.#guards, guardDefinitions);
 
+    const currentEvents = new Map(this.#activeEvents.map((event) => [event.id, event]));
     const active: ActiveWorldEvent[] = [];
+    const movement = [];
     for (const event of events) {
       // Only `normal` events have an appearance. Anchors and monster spawns are consumed elsewhere;
       // guard events are projected above into the authoritative guard collection.
@@ -1357,15 +1382,37 @@ export class World extends DurableObject<Env> {
       if (index === null) continue;
       const page = event.pages[index];
       if (page === undefined) continue;
+      const current = currentEvents.get(event.id);
       active.push({
         id: event.id,
-        col: event.col,
-        row: event.row,
+        col: current?.col ?? event.col,
+        row: current?.row ?? event.row,
         graphicAssetId: page.graphicAssetId,
         onTop: page.optOnTop,
       });
+      movement.push({
+        id: event.id,
+        homeCol: event.col,
+        homeRow: event.row,
+        moveType: page.moveType,
+        moveSpeed: page.moveSpeed,
+        moveFreq: page.moveFreq,
+        through: page.optThrough,
+      });
     }
     this.#activeEvents = active;
+    this.#npcMovement = reconcileNpcMovement(this.#npcMovement, movement, this.#tick);
+  }
+
+  #activeEventCell(event: Pick<MapEvent, "id" | "col" | "row">): { col: number; row: number } {
+    return this.#activeEvents.find((candidate) => candidate.id === event.id) ?? event;
+  }
+
+  #activeEventCentre(event: Pick<MapEvent, "id" | "col" | "row">): {
+    x: number;
+    y: number;
+  } {
+    return eventCellCentre(this.#activeEventCell(event));
   }
 
   /**
@@ -2486,19 +2533,22 @@ export class World extends DurableObject<Env> {
     clearMonsterCombat(monster);
   }
 
-  /** A monster event's program is its on-defeat hook. Runtime ids are `mon-${event.id}`, so the
-   * stable event uuid is already the binding between the authored monster and its quest logic. */
+  /** A monster event's active program is its on-defeat hook. Runtime ids are `mon-${event.id}`, so
+   * the stable event uuid is already the binding between the authored monster and its quest logic. */
   #triggerMonsterDefeatEvent(player: Player, monster: Monster): void {
     if (player.identityKind !== "hero" || !monster.id.startsWith("mon-")) return;
     const eventId = monster.id.slice(4);
     const event = this.#location?.definition.events?.find(
       (candidate) => candidate.kind === "monster" && candidate.id === eventId,
     );
-    const program = event?.pages[0]?.commands;
-    if (!event || !program || program.length === 0) return;
+    if (!event) return;
+    const pageIndex = activePageIndex(event, this.#adventureState);
+    if (pageIndex === null) return;
+    const program = event.pages[pageIndex]?.commands;
+    if (!program || program.length === 0) return;
     startRun(this.#eventRuns, {
       event,
-      pageIndex: 0,
+      pageIndex,
       program,
       heroId: player.id,
       runId: crypto.randomUUID(),
@@ -3354,6 +3404,18 @@ export class World extends DurableObject<Env> {
       savePlayer: (player, socket) => this.#savePlayerInBackground(player, socket),
       onPlayerMoved: (_socket, player, previous) => this.#detectPlayerTouch(player, previous),
     });
+    const pausedNpcIds = new Set([
+      ...this.#eventRuns.contexts.keys(),
+      ...[...this.#questConversations.values()].map((conversation) => conversation.target.eventId),
+    ]);
+    this.#activeEvents = advanceNpcEvents({
+      events: this.#activeEvents,
+      movement: this.#npcMovement,
+      players: [...this.#players.values()],
+      terrain: this.#zone().terrain,
+      tick: this.#tick,
+      pausedEventIds: pausedNpcIds,
+    });
     for (const [socket, player] of this.#players) {
       const action = player.action;
       if (
@@ -3552,7 +3614,7 @@ export class World extends DurableObject<Env> {
       if (player === undefined) return true;
       const event = events.find((candidate) => candidate.id === context.eventId);
       if (event === undefined) return true;
-      return pointDistance(player, eventCellCentre(event)) > DIALOGUE_CLOSE_RADIUS;
+      return pointDistance(player, this.#activeEventCentre(event)) > DIALOGUE_CLOSE_RADIUS;
     });
   }
 
@@ -4016,7 +4078,7 @@ export class World extends DurableObject<Env> {
       (candidate) => candidate.id === dispatch.eventId,
     );
     if (!event) return;
-    player.shopAnchor = eventCellCentre(event);
+    player.shopAnchor = this.#activeEventCentre(event);
     this.#send(socket, { t: "merchant.open" });
   }
 
@@ -4795,12 +4857,39 @@ export class World extends DurableObject<Env> {
           value.definitionSnapshot !== null || scopeById.get(questId) !== "party",
       ),
     );
+    const completed = new Set([
+      ...completedQuestIds(this.#adventureState.quests),
+      ...completedQuestIds(player.authoredQuestProgress),
+    ]);
+    const availableQuestIds = (scope: "party" | "personal"): Set<string> =>
+      new Set(
+        definitions.flatMap((definition) => {
+          if (definition.scope !== scope || definition.acceptance !== "manual") return [];
+          const progress =
+            scope === "party" ? partyProgress[definition.id] : personalProgress[definition.id];
+          return authoredQuestRuntimeState(definition, progress, {
+            level: player.level,
+            completedQuestIds: completed,
+            adventureState: this.#adventureState,
+          }) === "available"
+            ? [definition.id]
+            : [];
+        }),
+      );
     return [
-      ...authoredQuestTrackers(partyRegistry, { ...this.#adventureState, quests: partyProgress }),
-      ...authoredQuestTrackers(personalRegistry, {
-        ...EMPTY_ADVENTURE_STATE,
-        quests: personalProgress,
-      }),
+      ...authoredQuestTrackers(
+        partyRegistry,
+        { ...this.#adventureState, quests: partyProgress },
+        { availableQuestIds: availableQuestIds("party") },
+      ),
+      ...authoredQuestTrackers(
+        personalRegistry,
+        {
+          ...EMPTY_ADVENTURE_STATE,
+          quests: personalProgress,
+        },
+        { availableQuestIds: availableQuestIds("personal") },
+      ),
     ];
   }
 
@@ -4951,6 +5040,8 @@ export class World extends DurableObject<Env> {
     this.#partyByPlayerId.clear();
     this.#partyInvites.clear();
     this.#heroPartyBroadcasts.clear();
+    this.#activeEvents = [];
+    this.#npcMovement.clear();
     this.#monsters = this.#location ? createMonsters(this.#location.definition.monsters) : [];
     this.#guards = this.#location ? createGuards(this.#location.definition.guards) : [];
     this.#monsterGrid.clear();
@@ -4961,6 +5052,7 @@ export class World extends DurableObject<Env> {
           this.#location.definition.navigation,
         )
       : null;
+    if (this.#location) this.#evaluateActiveEvents();
   }
 
   #sendLocalChat(sender: Player, text: string): void {

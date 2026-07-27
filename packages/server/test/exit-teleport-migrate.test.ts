@@ -64,7 +64,9 @@ describe("planExitTeleportMigration", () => {
     expect(migrated?.name).toBe("Vers le pont");
     // `player-touch` is the exit's own semantics — `#detectAdventureExits` fired on standing in it.
     expect(migrated?.pages[0]?.trigger).toBe("player-touch");
-    expect(migrated?.pages[0]?.commands).toEqual([{ t: "teleport", mapId: MAP_B, col: 7, row: 9 }]);
+    expect(migrated?.pages[0]?.commands).toEqual([
+      { t: "teleport", mapId: MAP_B, col: 7, row: 9, category: "geographic" },
+    ]);
   });
 
   it("falls back to the destination map's spawn when its entry event is gone", () => {
@@ -80,7 +82,7 @@ describe("planExitTeleportMigration", () => {
     // The same fallback `resolveAdventureStart` already applies, so a deleted anchor degrades to a
     // walkable cell rather than to a teleport the runtime would silently refuse.
     expect(plan.rewrittenEvents.get(MAP_A)?.[0]?.pages[0]?.commands).toEqual([
-      { t: "teleport", mapId: MAP_B, col: 3, row: 3 },
+      { t: "teleport", mapId: MAP_B, col: 3, row: 3, category: "geographic" },
     ]);
   });
 

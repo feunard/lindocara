@@ -306,6 +306,12 @@ describe("EventCommandEditor", () => {
     render(<Harness maps={maps} latest={latest} />);
 
     await insertVia(user, "teleport")();
+    expect(latest.current[0]).toMatchObject({ category: "geographic" });
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: t("editor.event.cmd.field.transitionCategory") }),
+      "shortcut",
+    );
+    expect(latest.current[0]).toMatchObject({ category: "shortcut" });
     const col = screen.getByRole("spinbutton", {
       name: t("editor.event.cmd.field.col", { max: 25 }),
     });

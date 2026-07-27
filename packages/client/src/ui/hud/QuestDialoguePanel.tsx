@@ -69,6 +69,16 @@ export function QuestDialoguePanel() {
                       {t(`quest.dialogue.phase.${entry.phase}`)}
                     </span>
                   </div>
+                  <p className="quest-dialogue__meta">
+                    {[
+                      t(`quest.journal.category.${entry.category}`),
+                      entry.giverName,
+                      entry.region,
+                      entry.landmark,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
                   {entry.text && <p className="event-dialogue__text">{entry.text}</p>}
                   {entry.canTurnIn && entry.rewardChoices.length > 0 && (
                     <fieldset className="event-dialogue__choices">

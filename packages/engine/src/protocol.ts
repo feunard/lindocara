@@ -13,6 +13,7 @@ import {
   MAX_QUEST_REWARD_CHOICES,
   MAX_QUEST_REWARD_ITEMS,
   parseAuthoredQuestObjective,
+  QUEST_CONTEXT_TEXT_MAX,
   QUEST_DESCRIPTION_MAX,
   QUEST_JOURNAL_SUMMARY_MAX,
   QUEST_OBJECTIVE_LABEL_MAX,
@@ -371,6 +372,10 @@ export interface QuestDialogueEntry {
   speakerName: string;
   title: string;
   text: string;
+  category: "main" | "side" | "lore";
+  region: string;
+  landmark: string;
+  giverName: string;
   phase: QuestDialoguePhase;
   canAccept: boolean;
   canTurnIn: boolean;
@@ -885,6 +890,11 @@ function isAuthoredQuestTracker(value: unknown): value is AuthoredQuestTracker {
     !isBoundedString(value.title, QUEST_TITLE_MAX) ||
     !isBoundedString(value.description, QUEST_DESCRIPTION_MAX, true) ||
     !isBoundedString(value.journalSummary, QUEST_JOURNAL_SUMMARY_MAX, true) ||
+    (value.category !== "main" && value.category !== "side" && value.category !== "lore") ||
+    !isBoundedString(value.region, QUEST_CONTEXT_TEXT_MAX, true) ||
+    !isBoundedString(value.landmark, QUEST_CONTEXT_TEXT_MAX, true) ||
+    !isBoundedString(value.giverName, QUEST_CONTEXT_TEXT_MAX, true) ||
+    !isBoundedString(value.knownConsequence, QUEST_JOURNAL_SUMMARY_MAX, true) ||
     !(
       value.recommendedLevel === null ||
       (Number.isSafeInteger(value.recommendedLevel) &&
@@ -896,7 +906,8 @@ function isAuthoredQuestTracker(value: unknown): value is AuthoredQuestTracker {
     typeof value.abandonable !== "boolean" ||
     (value.completion !== "automatic" && value.completion !== "turn-in") ||
     (value.objectiveMode !== "simultaneous" && value.objectiveMode !== "sequential") ||
-    (value.status !== "active" &&
+    (value.status !== "available" &&
+      value.status !== "active" &&
       value.status !== "ready" &&
       value.status !== "completed" &&
       value.status !== "failed" &&
@@ -1531,6 +1542,10 @@ export function parseServerMessage(raw: string): ServerMessage | null {
           isBoundedString(entry.speakerName, QUEST_TITLE_MAX) &&
           isBoundedString(entry.title, QUEST_TITLE_MAX) &&
           isBoundedString(entry.text, QUEST_DIALOGUE_TEXT_MAX, true) &&
+          (entry.category === "main" || entry.category === "side" || entry.category === "lore") &&
+          isBoundedString(entry.region, QUEST_CONTEXT_TEXT_MAX, true) &&
+          isBoundedString(entry.landmark, QUEST_CONTEXT_TEXT_MAX, true) &&
+          isBoundedString(entry.giverName, QUEST_CONTEXT_TEXT_MAX, true) &&
           (entry.phase === "offer" ||
             entry.phase === "active" ||
             entry.phase === "ready" ||
