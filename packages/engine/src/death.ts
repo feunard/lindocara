@@ -36,6 +36,9 @@ export const RESURRECT_HP_RATIO = 0.4;
 /** A priest cannot chain-revive a wipe. */
 export const RESURRECT_COOLDOWN_MS = 20_000;
 
+/** Monsters forget a revived hero long enough for them to leave the body and recover control. */
+export const REVIVE_AGGRO_GRACE_MS = 5_000;
+
 export function isSpirit(life: LifeState): life is "corpse" | "ghost" {
   return life !== "alive";
 }

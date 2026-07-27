@@ -44,6 +44,7 @@ import {
   canAct,
   canBeResurrected,
   RESURRECT_COOLDOWN_MS,
+  REVIVE_AGGRO_GRACE_MS,
   resurrectHp,
 } from "@lindocara/engine/death.js";
 import {
@@ -4694,9 +4695,11 @@ export class World extends DurableObject<Env> {
     player.dirty = true;
   }
 
-  /** A nearby monster may have an attack ready after waiting over the corpse. Restart that
-   * cooldown so the authoritative resurrection state is observable before combat resumes. */
+  /** A nearby monster may have waited over the corpse. Drop its threat and keep the revived hero
+   * outside monster targeting long enough to leave the body instead of entering a death loop. */
   #grantReviveGrace(player: Player, now: number): void {
+    player.forgottenUntil = Math.max(player.forgottenUntil, now + REVIVE_AGGRO_GRACE_MS);
+    this.#forgetPlayer(player);
     for (const monster of this.#monsters) {
       if (pointDistance(monster, player) <= MONSTER_AGGRO_RANGE) {
         monster.lastAttackAt = Math.max(monster.lastAttackAt, now);

@@ -5,7 +5,11 @@
 
 import { env, runInDurableObject, SELF } from "cloudflare:test";
 import { WS_CLOSE } from "@lindocara/engine/close-codes.js";
-import { CORPSE_RECLAIM_RANGE, RESURRECT_HP_RATIO } from "@lindocara/engine/death.js";
+import {
+  CORPSE_RECLAIM_RANGE,
+  RESURRECT_HP_RATIO,
+  REVIVE_AGGRO_GRACE_MS,
+} from "@lindocara/engine/death.js";
 import {
   CEMETERIES,
   isWalkable,
@@ -1927,6 +1931,16 @@ describe("death, ghosts, and the corpse run", () => {
     expect(arrived.hp).toBe(Math.round(maxHpForLevel(arrived.level) * RESURRECT_HP_RATIO));
     expect(player.corpse()).toBeUndefined();
     expect(player.received.some((m) => m.t === "event" && m.code === "death.reclaimed")).toBe(true);
+
+    const revivedState = await until("revive grace to reach the client", () => {
+      const state = player.latestState;
+      return state?.effects && state.serverNow !== undefined ? state : undefined;
+    });
+    expect(revivedState.effects?.forgottenUntil ?? 0).toBeGreaterThanOrEqual(
+      (revivedState.serverNow ?? 0) + REVIVE_AGGRO_GRACE_MS - 250,
+    );
+    await scheduler.wait(1_200);
+    expect(player.self()?.life).toBe("alive");
 
     player.close();
   });
