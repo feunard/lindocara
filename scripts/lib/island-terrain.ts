@@ -1,5 +1,6 @@
 /**
- * The island builder behind Sombregué's maps.
+ * The shared island builder. Sombregué's maps were its first consumer; any authored adventure that
+ * wants a coast instead of a rectangle composes the same primitives.
  *
  * Tiny Swords' own promo art is the target: irregular grass islands floating on a teal sea, plateaus
  * with cliff faces, trees crowding the shoreline, bushes and rocks scattered inland, and rocks

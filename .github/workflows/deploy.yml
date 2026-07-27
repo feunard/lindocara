@@ -86,3 +86,18 @@ jobs:
           --allow-remote=true
           --allow-production=true
           --replace-if-different=true
+
+      # `--replace-if-different` supprime et recrée l'aventure quand le bundle a changé : les
+      # parties en cours sur la version précédente sont perdues. C'est le prix assumé pour que la
+      # production reflète toujours le contenu commité, comme pour Liin ci-dessus.
+      - name: Publish La Baie des Cent Voiles
+        env:
+          SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
+        run: >-
+          npx tsx scripts/adventure-io.ts import
+          --file=adventures/baie-cent-voiles.json
+          --target=https://lindocara.alepha.dev
+          --username=baieauthor
+          --allow-remote=true
+          --allow-production=true
+          --replace-if-different=true

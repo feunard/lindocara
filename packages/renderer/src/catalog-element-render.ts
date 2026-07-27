@@ -122,3 +122,27 @@ export function catalogElementFrameAt(
   const index = Math.floor((Math.max(0, elapsedMs) / cycle) * frames.length);
   return frames[index % frames.length];
 }
+
+/**
+ * Advance one animated sprite, skipping a sprite that has already been destroyed.
+ *
+ * The guard is load-bearing, not defensive noise. Animated props and event graphics are advanced at
+ * the TOP of `Renderer.render`, before the reconcile passes that would rebuild them; when the decor
+ * layer is torn down (a map load, an element refresh) it destroys its children, so between that
+ * teardown and the next reconcile the animation lists still point at destroyed sprites. Assigning
+ * `texture` on a destroyed PixiJS Sprite reads its nulled `scale` and throws — inside the shared
+ * Ticker, which kills the ticker and freezes the whole game on ONE bad frame.
+ *
+ * Returns whether the sprite is still alive, so a caller can drop the stale entry it just found.
+ */
+export function advanceCatalogAnimation(
+  sprite: Sprite,
+  elapsedMs: number,
+  frames: readonly Texture[],
+  durationMs = CATALOG_ELEMENT_CYCLE_MS,
+): boolean {
+  if (sprite.destroyed) return false;
+  const frame = catalogElementFrameAt(elapsedMs, frames, durationMs);
+  if (frame) sprite.texture = frame;
+  return true;
+}

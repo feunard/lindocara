@@ -61,7 +61,7 @@ import {
 } from "pixi.js";
 import { landTile, needsFoam, tileVisual } from "./autotile.js";
 import {
-  catalogElementFrameAt,
+  advanceCatalogAnimation,
   createCatalogElementView,
   createEventGraphicSprite,
 } from "./catalog-element-render.js";
@@ -3711,18 +3711,24 @@ export class Renderer {
 
   render(sample: SceneSample, context: RenderContext): void {
     const now = context.now;
-    for (const animation of this.#mapElementAnimations) {
-      const frame = catalogElementFrameAt(now, animation.frames, animation.durationMs);
-      if (frame) animation.sprite.texture = frame;
-    }
-    if (this.#merchantAnimation) {
-      const frame = catalogElementFrameAt(now, this.#merchantAnimation.frames);
-      if (frame) this.#merchantAnimation.sprite.texture = frame;
+    // These three loops run BEFORE the reconcile passes below, so they can still hold sprites the
+    // last decor teardown destroyed. `advanceCatalogAnimation` skips those and reports it, and the
+    // stale entry is dropped here — writing a texture onto a destroyed sprite throws inside the
+    // shared Ticker, and a dead ticker is a frozen game, not a missing frame.
+    this.#mapElementAnimations = this.#mapElementAnimations.filter((animation) =>
+      advanceCatalogAnimation(animation.sprite, now, animation.frames, animation.durationMs),
+    );
+    if (
+      this.#merchantAnimation &&
+      !advanceCatalogAnimation(this.#merchantAnimation.sprite, now, this.#merchantAnimation.frames)
+    ) {
+      this.#merchantAnimation = null;
     }
     for (const view of this.#events.values()) {
       if (!view.animation) continue;
-      const frame = catalogElementFrameAt(now, view.animation.frames);
-      if (frame) view.animation.sprite.texture = frame;
+      if (!advanceCatalogAnimation(view.animation.sprite, now, view.animation.frames)) {
+        view.animation = undefined;
+      }
     }
     this.#healthBarMode = context.healthBars;
     this.#showGrid = context.grid;
