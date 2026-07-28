@@ -41,6 +41,7 @@ import type {
 } from "@lindocara/engine/protocol.js";
 import { PLAYER_SPEED, step, TICK_DT, type Vec2 } from "@lindocara/engine/simulation.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
+import { AMBIENCE_NONE, type AmbienceConfig } from "@lindocara/renderer/ambience.js";
 import { trackInput } from "@lindocara/renderer/input.js";
 import { type RenderContext, Renderer } from "@lindocara/renderer/renderer.js";
 import { acquireStageApp } from "@lindocara/renderer/stage-application.js";
@@ -79,9 +80,49 @@ let previewGeneration = 0;
  * a time. The editor's dispose pauses the shared ticker; `acquireStageApp` below hands back a running
  * one so this frame loop actually fires.
  */
+export interface MapPreviewOptions {
+  /**
+   * Draw the per-player overlays (self ring, name/level plate, health bar). Default `true`.
+   *
+   * The editor's Test walk keeps them: a builder is checking whether the map plays, and the ring is
+   * how you find yourself. A visual reference shot turns them off — they sit in the middle of the
+   * frame and are the first thing the eye lands on, which is the opposite of the point.
+   */
+  playerChrome?: boolean;
+  /**
+   * Ambience passes (tufts, clouds, moving water). Default: none.
+   *
+   * Off by default because the editor's Test walk is a *check*, not a showcase: drifting shadows
+   * over the map you are trying to read are noise. The visual reference route turns them on.
+   */
+  ambience?: AmbienceConfig;
+  /** Starting camera multiplier. 1 is the game's framing; below 1 pulls back. Default 1. */
+  zoom?: number;
+  /** Bind the wheel and `-`/`+`/`0` to pull the camera back, push it in and reset it. Default `false`. */
+  zoomControls?: boolean;
+}
+
+/** One notch of zoom, as a ratio — geometric, so pulling out and back in returns to where it was. */
+const ZOOM_STEP = 1.25;
+
+/**
+ * Wheel delta to zoom ratio.
+ *
+ * Exponential rather than a fixed notch per event, because a mouse wheel and a trackpad do not
+ * speak the same units: a wheel sends one event of ~100, a trackpad a stream of ~3. A fixed notch
+ * makes one of the two useless — either the wheel crawls or the trackpad flies across the range.
+ * Scaling the exponent by the delta makes both feel the same and composes exactly (two half
+ * scrolls equal one whole one).
+ */
+function wheelZoomRatio(deltaY: number): number {
+  // Clamped because a single "page" scroll event can carry a delta in the thousands.
+  return Math.exp(-Math.max(-240, Math.min(240, deltaY)) * 0.0016);
+}
+
 export async function startMapPreview(
   data: MapData,
   events: readonly MapEvent[] = [],
+  options: MapPreviewOptions = {},
 ): Promise<{ stop(): void }> {
   const generation = ++previewGeneration;
   const canvas = document.querySelector<HTMLCanvasElement>("#stage");
@@ -109,6 +150,44 @@ export async function startMapPreview(
     layers: data.layers.map(encodeTileLayer),
   });
   renderer.setSelfId(SELF_ID);
+  const playerChrome = options.playerChrome ?? true;
+  renderer.setPlayerChrome(playerChrome);
+  renderer.setAmbience(options.ambience ?? AMBIENCE_NONE);
+  const startingZoom = options.zoom ?? 1;
+  renderer.setCameraZoom(startingZoom);
+
+  /**
+   * `-`/`+` pull the camera back and push it in, `0` returns to the game's own framing.
+   *
+   * Its own listener rather than a `trackInput` control: those are MOVEMENT bindings the player
+   * remaps, and the camera is not movement. Removed by `stop()` below, or the editor would keep
+   * rezooming a renderer it has already torn down.
+   */
+  const onZoomKey = (event: KeyboardEvent): void => {
+    if (event.target instanceof HTMLInputElement || event.metaKey || event.ctrlKey) return;
+    const zoom = renderer.cameraZoom();
+    if (event.key === "-" || event.key === "_") renderer.setCameraZoom(zoom / ZOOM_STEP);
+    else if (event.key === "+" || event.key === "=") renderer.setCameraZoom(zoom * ZOOM_STEP);
+    else if (event.key === "0") renderer.setCameraZoom(startingZoom);
+    else return;
+    event.preventDefault();
+  };
+  /**
+   * The wheel zooms the camera.
+   *
+   * `passive: false` and `preventDefault` are both required: without them the page scrolls (or the
+   * browser rubber-bands) underneath the canvas while the camera zooms. Ctrl+wheel is left alone —
+   * that is the OS pinch-zoom gesture, and stealing it traps someone who wants to magnify the page.
+   */
+  const onWheel = (event: WheelEvent): void => {
+    if (event.ctrlKey) return;
+    renderer.setCameraZoom(renderer.cameraZoom() * wheelZoomRatio(event.deltaY));
+    event.preventDefault();
+  };
+  if (options.zoomControls) {
+    window.addEventListener("keydown", onZoomKey);
+    window.addEventListener("wheel", onWheel, { passive: false });
+  }
 
   /**
    * The map's authored monsters and active NPCs, standing where the author put them.
@@ -235,7 +314,7 @@ export async function startMapPreview(
       self: moved,
       quest: PREVIEW_QUEST,
       now,
-      healthBars: "both",
+      healthBars: playerChrome ? "both" : "none",
       grid: false,
     };
     renderer.render(
@@ -268,6 +347,10 @@ export async function startMapPreview(
     stop() {
       if (stopped) return;
       stopped = true;
+      if (options.zoomControls) {
+        window.removeEventListener("keydown", onZoomKey);
+        window.removeEventListener("wheel", onWheel);
+      }
       tracker.stop();
       app.ticker.maxFPS = 0;
       // Detaches only this preview's world and frame callbacks from the shared app (never destroys

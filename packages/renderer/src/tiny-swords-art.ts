@@ -19,16 +19,53 @@ export const TINY_SWORDS_UNIT_FRAME = 192;
  * uniform colour cannot scroll visibly, which is the trap the previous photographic ocean surface
  * fell into.
  */
+/**
+ * Which of the pack's five ground palettes the authored-map tileset draws from.
+ *
+ * `Tilemap_color1..5` are the SAME 9x6 sheet — same groups, same cliff band, same ramps, pixel for
+ * pixel — recoloured. Only the grass hue differs, so this is a free choice: no slot, id or brush
+ * anywhere depends on which one is loaded, and every saved map repaints itself the moment it
+ * changes. `color3` is the green Pixel Frog's own promo art uses; `color1` (which shipped first) is
+ * the palest, yellowest of the five and is what made authored maps read as flat khaki.
+ *
+ * The other four are shipped alongside it because they are the cheapest biome lever we have —
+ * `color5` is a cold teal, `color4` an olive marsh — and swapping the file is the whole change.
+ */
+export const TINY_SWORDS_GROUND_PALETTES = [
+  "color1",
+  "color2",
+  "color3",
+  "color4",
+  "color5",
+] as const;
+export type TinySwordsGroundPalette = (typeof TINY_SWORDS_GROUND_PALETTES)[number];
+
+export const TINY_SWORDS_GROUND_PALETTE: TinySwordsGroundPalette = "color3";
+
 export const TINY_SWORDS_TERRAIN = {
   flat: `${TINY_SWORDS_ROOT}/terrain/Tilemap_Flat.png`,
   water: `${TINY_SWORDS_ROOT}/terrain/Water.png`,
   foam: `${TINY_SWORDS_ROOT}/terrain/Foam.png`,
-  tileset: `${TINY_SWORDS_ROOT}/terrain/Tilemap_color1.png`,
+  tileset: `${TINY_SWORDS_ROOT}/terrain/Tilemap_${TINY_SWORDS_GROUND_PALETTE}.png`,
   shadow: new URL(
     "../../catalog/assets/Tiny Swords (Free Pack)/Terrain/Tileset/Shadow.png",
     import.meta.url,
   ).href,
 };
+
+/**
+ * Point the ground sheet at another of the five palettes. Comparison tooling only.
+ *
+ * `Renderer.create` loads the terrain textures once, so this has to run BEFORE a renderer is built
+ * and does nothing to one already running — which is exactly the contract the dev preview route
+ * wants (`?preview=1&palette=color5` reloads the page). An unknown name is ignored rather than
+ * throwing: this is reached from a URL, and a typo must not blank the screen.
+ */
+export function setGroundPalette(palette: string): boolean {
+  if (!(TINY_SWORDS_GROUND_PALETTES as readonly string[]).includes(palette)) return false;
+  TINY_SWORDS_TERRAIN.tileset = `${TINY_SWORDS_ROOT}/terrain/Tilemap_${palette}.png`;
+  return true;
+}
 
 /** `Foam.png` is eight 192x192 frames; the blob itself is ~82px, centred. Drawn centred under a
  *  64px land tile it bleeds ~9px into the water on every side, and the union of the blobs under a

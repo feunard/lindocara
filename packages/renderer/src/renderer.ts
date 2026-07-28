@@ -61,6 +61,17 @@ import {
   type Ticker,
   TilingSprite,
 } from "pixi.js";
+import {
+  AMBIENCE_NONE,
+  type AmbienceConfig,
+  CLOUD_SHADOW_ALPHA,
+  CLOUD_SHADOW_OFFSET,
+  cloudPlacementAt,
+  createWaveCanvas,
+  lightenTint,
+  tuftsAt,
+  windSway,
+} from "./ambience.js";
 import { landTile, needsFoam, tileVisual } from "./autotile.js";
 import {
   advanceCatalogAnimation,
@@ -172,6 +183,9 @@ const COLORS = {
   lootCrystal: 0x7dd8ff,
 } as const;
 
+/** The self ring carries a label so `setPlayerChrome` can find it again on an existing player. */
+const SELF_RING_LABEL = "self-ring";
+
 const CLASS_GLYPHS: Record<PlayerClass, string> = {
   warrior: "⚔",
   ranger: "➶",
@@ -201,6 +215,10 @@ const CANOPY_XRAY_EASE = 0.2;
  *  bounding box faded the whole treeline the moment a hero walked *past* it; only a hero actually
  *  standing under the trunk-centred core should read as "behind the tree". */
 const CANOPY_XRAY_CORE = 0.55;
+/** How far `setCameraZoom` may pull back or push in. Far enough out to hold a large map whole. */
+const MIN_CAMERA_ZOOM = 0.2;
+const MAX_CAMERA_ZOOM = 2;
+
 const WATER_TEXTURE_SCALE = 0.5;
 const WATER_SECONDARY_ALPHA = 0.27;
 const GRID_LINE_COLOR = 0xffffff;
@@ -1029,6 +1047,19 @@ export class Renderer {
   #cameraReady = false;
   #lastCameraAt = 0;
   #healthBarMode: HealthBarMode = "both";
+  /** Whether the per-player overlays — the self ring and the name/level plate — are drawn at all. */
+  #playerChrome = true;
+  #cameraZoom = 1;
+  #ambience: AmbienceConfig = AMBIENCE_NONE;
+  #tuftLayer = new Container();
+  #cloudShadows = new Container();
+  #cloudSprites = new Container();
+  #cloudShadowMask = new Graphics();
+  #cloudMask = new Graphics();
+  #cloudViews: Array<{ cloud: Sprite; shadow: Sprite }> = [];
+  #cloudsRequested = false;
+  #tuftViews: Array<{ sprite: Sprite; baseX: number; phase: number }> = [];
+  #waveTexture: Texture | null = null;
   #combatVisualAuthority = new CombatVisualAuthority();
 
   private constructor(
@@ -1057,6 +1088,188 @@ export class Renderer {
 
   setSelfId(id: string): void {
     this.#selfId = id;
+  }
+
+  /**
+   * Show or hide every per-player overlay: the self ring, the name/level plate and the health bar.
+   *
+   * Playing needs all three — the ring is how you find your own square in a four-player scrum, the
+   * plate is how you tell party members apart, the bar is how you know you are dying. LOOKING at a
+   * map needs none of them, and all three sit exactly where the eye goes.
+   *
+   * Deliberately separate from `RenderContext.healthBars`, which is a player's display SETTING and
+   * cannot hide your own bar anyway (`local` short-circuits it). This is a presentation switch owned
+   * by whoever is driving the renderer, and only the map preview turns it off.
+   *
+   * Safe to call at any time. The ring is built once per player, so existing views are updated in
+   * place rather than trusting that this ran before anyone spawned.
+   */
+  /**
+   * Turn the ambience passes on or off. See `ambience.ts` for what each one is.
+   *
+   * None of it is authored, none of it collides, and none of it reaches the server — so this is
+   * free to change at any moment, including mid-frame. Rebuilding the tuft scatter needs the baked
+   * tile grid, so it is deferred to the next zone build when no map is loaded yet.
+   */
+  setAmbience(config: AmbienceConfig): void {
+    const previous = this.#ambience;
+    this.#ambience = config;
+    if (config.tufts !== previous.tufts || (config.tufts && this.#tuftViews.length === 0)) {
+      this.#buildTufts();
+    }
+    if (config.clouds && !this.#cloudsRequested) void this.#loadClouds();
+    this.#cloudShadows.visible = config.clouds;
+    this.#cloudSprites.visible = config.clouds;
+    this.#applyWaterAmbience();
+  }
+
+  /**
+   * Swap the second water layer between the pack's flat fill and the generated crest pattern.
+   *
+   * Only the second layer, and that is the whole safety of it: the first layer still paints the
+   * exact colour it always did, so turning this on cannot change what the sea IS, only whether it
+   * moves. The generated canvas is kept once and reused — it is the same pattern for every map.
+   */
+  #applyWaterAmbience(): void {
+    const water = this.#waterSurface;
+    if (!water) return;
+    if (this.#ambience.water) {
+      if (!this.#waveTexture) this.#waveTexture = Texture.from(createWaveCanvas());
+      this.#waveTexture.source.style.scaleMode = "nearest";
+      this.#waveTexture.source.style.addressMode = "repeat";
+      water.secondary.texture = this.#waveTexture;
+    } else {
+      water.secondary.texture = this.art.terrain.water;
+    }
+  }
+
+  /**
+   * Scatter grass tufts over every open ground cell, from the baked tile grid.
+   *
+   * Reads `#tiles` — the baked collision truth — rather than `#layers`, which would be the usual
+   * appearance-only mistake in reverse: here it genuinely is a question about the GROUND ("is this
+   * cell open, walkable land?"), and `#tiles` is the one structure entitled to answer it. Nothing
+   * about the answer flows back: a tuft has no collider and never will.
+   */
+  #buildTufts(): void {
+    for (const child of this.#tuftLayer.removeChildren()) child.destroy();
+    this.#tuftViews = [];
+    if (!this.#ambience.tufts) return;
+    const tiles = this.#tiles;
+    if (!tiles) return;
+    const textures = this.#tuftTextures();
+    if (textures.length === 0) return;
+    for (let row = 0; row < tiles.rows; row += 1) {
+      for (let col = 0; col < tiles.cols; col += 1) {
+        if (tiles.kinds[row * tiles.cols + col] !== "grass") continue;
+        for (const tuft of tuftsAt(col, row, TILE_SIZE)) {
+          const texture = textures[tuft.variant] ?? textures[0];
+          if (!texture) continue;
+          const sprite = new Sprite({ texture, anchor: { x: 0.5, y: 1 } });
+          sprite.scale.set(tuft.scale);
+          const baseX = col * TILE_SIZE + tuft.dx;
+          sprite.position.set(baseX, row * TILE_SIZE + tuft.dy);
+          this.#tuftLayer.addChild(sprite);
+          this.#tuftViews.push({ sprite, baseX, phase: tuft.phase });
+        }
+      }
+    }
+  }
+
+  /**
+   * The two tuft cells of the ground sheet, cropped to their ink.
+   *
+   * `Tilemap_Flat.png` parks a clump of grass in column 4 and column 9, outside both autotile
+   * groups — art the tileset has no id for and nothing has ever drawn. Cropped to the pixels that
+   * are actually opaque, because the cells are 64x64 with everything in the bottom fifth, and an
+   * uncropped sprite would anchor its "feet" a third of a tile below the ground it stands on.
+   */
+  #tuftTextures(): readonly Texture[] {
+    // `land` is the sheet sliced into its first autotile group; any of its frames carries the whole
+    // sheet as its source, which is the only part this needs — the tuft columns are outside every
+    // group, so there is no sliced frame to reuse.
+    const source = this.art.terrain.land[0]?.[0]?.source;
+    if (!source) return [];
+    const cell = TILE_SIZE;
+    return [
+      new Texture({ source, frame: new Rectangle(4 * cell + 2, 43, 58, 21) }),
+      new Texture({ source, frame: new Rectangle(9 * cell + 2, 50, 59, 14) }),
+    ];
+  }
+
+  /** How many clouds cross the sky at once. Enough to be weather, few enough to stay sky. */
+  static readonly #CLOUD_COUNT = 7;
+
+  async #loadClouds(): Promise<void> {
+    this.#cloudsRequested = true;
+    const ids = [
+      "decoration.terrain-decorations-clouds.clouds-01",
+      "decoration.terrain-decorations-clouds.clouds-03",
+      "decoration.terrain-decorations-clouds.clouds-05",
+      "decoration.terrain-decorations-clouds.clouds-07",
+    ] as EditorAssetId[];
+    const arts = await loadEditorAssetArts(ids);
+    if (this.#destroyed) return;
+    const textures = ids
+      .map((id) => arts.get(id)?.frames[0])
+      .filter((texture): texture is Texture => texture !== undefined);
+    if (textures.length === 0) return;
+    for (const child of this.#cloudSprites.removeChildren()) child.destroy();
+    for (const child of this.#cloudShadows.removeChildren()) child.destroy();
+    this.#cloudViews = [];
+    for (let index = 0; index < Renderer.#CLOUD_COUNT; index += 1) {
+      const texture = textures[index % textures.length];
+      if (!texture) continue;
+      const cloud = new Sprite({ texture, anchor: 0.5 });
+      // The shadow is the same silhouette, flattened and blackened. Reusing the texture keeps the
+      // two in exact agreement about shape, which a hand-drawn blob never manages.
+      const shadow = new Sprite({
+        texture,
+        anchor: 0.5,
+        tint: 0x000000,
+        alpha: CLOUD_SHADOW_ALPHA,
+      });
+      shadow.scale.y = 0.55;
+      this.#cloudSprites.addChild(cloud);
+      this.#cloudShadows.addChild(shadow);
+      this.#cloudViews.push({ cloud, shadow });
+    }
+  }
+
+  /** Drift the clouds and sway the tufts. One shared clock, so the wind is one wind. */
+  #updateAmbience(now: number): void {
+    if (this.#ambience.tufts) {
+      for (const view of this.#tuftViews) {
+        view.sprite.x = view.baseX + windSway(now, view.phase) * 1.6;
+      }
+    }
+    if (!this.#ambience.clouds) return;
+    for (const [index, view] of this.#cloudViews.entries()) {
+      const placement = cloudPlacementAt(
+        now,
+        index,
+        this.#cloudViews.length,
+        this.#zoneWidth,
+        this.#zoneHeight,
+      );
+      view.cloud.position.set(placement.x, placement.y);
+      view.cloud.scale.set(placement.scale);
+      view.cloud.alpha = placement.alpha;
+      const width = view.cloud.width;
+      view.shadow.position.set(
+        placement.x + width * CLOUD_SHADOW_OFFSET.x,
+        placement.y + width * CLOUD_SHADOW_OFFSET.y,
+      );
+      view.shadow.scale.set(placement.scale, placement.scale * 0.55);
+    }
+  }
+
+  setPlayerChrome(visible: boolean): void {
+    this.#playerChrome = visible;
+    for (const view of this.#players.values()) {
+      const ring = view.actor?.getChildByLabel(SELF_RING_LABEL);
+      if (ring) ring.visible = visible;
+    }
   }
 
   /**
@@ -1273,6 +1486,8 @@ export class Renderer {
     this.#buildForestTrees();
     this.#buildDecor();
     this.#buildWorldFurniture();
+    // After the tile grid is final: the scatter is derived from it, cell by cell.
+    this.#buildTufts();
     // Bounds-derived, not tile-derived: a same-size window after a zone change can compute the
     // same key even though the tiles underneath it are entirely different. Force the repaint.
     this.#terrainKey = "";
@@ -1549,6 +1764,7 @@ export class Renderer {
   #buildWorld(): void {
     this.#actors.sortableChildren = true;
     this.#waterSurface = this.#createWaterSurface();
+    this.#applyWaterAmbience();
     this.#resizeWorldBackground();
     this.#tilesBelow.addChild(
       this.#terrainLevelLayers[0],
@@ -1566,6 +1782,9 @@ export class Renderer {
       this.#waterTerrain,
       this.#foamTerrain,
       this.#tilesBelow,
+      // Ambience, and it sits exactly here on purpose: tufts grow OUT of the ground, so they belong
+      // above the tiles and below everything a player has to read — grid, props, actors, overlays.
+      this.#tuftLayer,
       this.#gridOverlay,
       this.#groundDecor,
       this.#structures,
@@ -1575,9 +1794,16 @@ export class Renderer {
       // `above` tile is a treetop, an awning, an upper cliff lip — something a character walks
       // *behind*. One place further down this list and a head would clip through every one of them.
       this.#tilesAbove,
+      // The shadow goes on before the cloud that casts it, and above the actors: a cloud passing
+      // overhead darkens the heroes too, and a shadow that slid under them would read as a decal on
+      // the grass rather than as weather.
+      this.#cloudShadows,
+      this.#cloudShadowMask,
       // Native cloud sheets are authored sky decoration: above terrain and actors, below gameplay
       // overlays so they cannot hide hitboxes, quest labels or interaction feedback.
       this.#skyDecor,
+      this.#cloudSprites,
+      this.#cloudMask,
       // Above the actors: a body box drawn under its own sprite would be exactly the thing you
       // cannot see when you need it.
       this.#hitboxOverlay,
@@ -1588,6 +1814,8 @@ export class Renderer {
       this.#overlay,
       this.#effects,
     );
+    this.#cloudShadows.mask = this.#cloudShadowMask;
+    this.#cloudSprites.mask = this.#cloudMask;
     this.#app.stage.addChild(this.#world);
     this.#groundDecor.addChild(this.#forestTreesLayer, this.#decorLayer);
 
@@ -1604,6 +1832,13 @@ export class Renderer {
       .clear()
       .rect(0, 0, this.#zoneWidth, this.#zoneHeight)
       .fill({ color: COLORS.grass });
+    // Clouds are the only ambience that is not anchored to a cell, so they are the only one that can
+    // wander off the map — and pulled back far enough to see the whole world, a cloud shadow drifting
+    // across the black letterbox is unmistakably a bug. Two masks rather than one because a Pixi mask
+    // belongs to a single target, and the shadows and the clouds sit at different depths.
+    for (const mask of [this.#cloudShadowMask, this.#cloudMask]) {
+      mask.clear().rect(0, 0, this.#zoneWidth, this.#zoneHeight).fill({ color: 0xffffff });
+    }
   }
 
   #createWaterSurface(): WaterSurfaceView {
@@ -2469,7 +2704,36 @@ export class Renderer {
   }
 
   #cameraScale(): number {
-    return gameCameraScale(this.#app.screen.width, this.#app.screen.height);
+    return gameCameraScale(this.#app.screen.width, this.#app.screen.height) * this.#cameraZoom;
+  }
+
+  /**
+   * Multiply the camera scale. 1 is the game's own framing; below 1 pulls back.
+   *
+   * `gameCameraScale` deliberately clamps how close and how far the *game* camera may sit, because
+   * how much of the world a player can see is a balance decision, not a preference. This multiplies
+   * the result rather than widening that clamp, so the game framing is untouched and only a caller
+   * who explicitly asks — the map preview — ever leaves it.
+   *
+   * Pulling back past the point where the whole map fits the viewport is safe and useful:
+   * `cameraAxisOffset` already centres a world smaller than the screen, so the map simply sits in
+   * the middle with letterboxing, which is exactly the overview an author wants.
+   */
+  setCameraZoom(zoom: number): void {
+    const clamped = Math.max(MIN_CAMERA_ZOOM, Math.min(MAX_CAMERA_ZOOM, zoom));
+    if (clamped === this.#cameraZoom) return;
+    this.#cameraZoom = clamped;
+    this.#applyCameraTransform();
+    // The terrain paints only the visible window and caches it under a bounds-derived key. Zooming
+    // changes that window without changing the camera centre, so the key can collide with the one
+    // already painted and the new margin would stay blank until the hero moved.
+    this.#terrainKey = "";
+    this.#updateTerrain();
+    this.#updateStaticVisibility();
+  }
+
+  cameraZoom(): number {
+    return this.#cameraZoom;
   }
 
   #followSelf(players: readonly PlayerSnapshot[], now: number): void {
@@ -2594,6 +2858,10 @@ export class Renderer {
         layer.height = waterRect.height;
         layer.tint = tints.water;
       }
+      // The crest layer is white-on-transparent, so the shared water tint would paint the crests
+      // the exact colour of the sea they sit on and nothing would be visible. Lighten it instead —
+      // this is the only line that knows the second layer is doing a different job from the first.
+      if (this.#ambience.water) water.secondary.tint = lightenTint(tints.water, 0.42);
       water.x = waterRect.x;
       water.y = waterRect.y;
       water.baseTint = tints.water;
@@ -2891,6 +3159,8 @@ export class Renderer {
     unitSprite.height = TINY_SWORDS_UNIT_FRAME;
     unitSprite.position.set(UNIT_OFFSET_X, UNIT_OFFSET_Y);
     const selfRing = new Graphics();
+    selfRing.label = SELF_RING_LABEL;
+    selfRing.visible = this.#playerChrome;
     if (player.id === this.#selfId) {
       selfRing.ellipse(16, 31, 18, 7).stroke({ width: 2, color: COLORS.selfRing, alpha: 0.82 });
     }
@@ -3192,15 +3462,24 @@ export class Renderer {
         -42,
       );
       if (hp instanceof Graphics) {
-        hp.alpha = !onScreen
-          ? 0
-          : local
-            ? 0.92
-            : !isSpirit(player.life) && shouldShowHealthBar(this.#healthBarMode, "ally", distance)
-              ? 0.9
-              : 0;
+        // `healthBars` cannot hide your OWN bar — `local` short-circuits it to 0.92 below, which is
+        // right in play and wrong when the point is to look at the map. Chrome off covers it.
+        hp.alpha =
+          !this.#playerChrome || !onScreen
+            ? 0
+            : local
+              ? 0.92
+              : !isSpirit(player.life) && shouldShowHealthBar(this.#healthBarMode, "ally", distance)
+                ? 0.9
+                : 0;
       }
       if (!(label instanceof Text)) continue;
+      // Chrome off: the plate is not merely faded, it is never composed — the label-collision walk
+      // below is pure overlay bookkeeping and has nothing to do when nothing is drawn.
+      if (!this.#playerChrome) {
+        label.alpha = 0;
+        continue;
+      }
       const glyph = CLASS_GLYPHS[player.class];
       label.text = local
         ? `${glyph} ${player.nick}  ${t("hud.lv", { level: player.level })}`
@@ -3870,6 +4149,7 @@ export class Renderer {
     }
     this.#healthBarMode = context.healthBars;
     this.#showGrid = context.grid;
+    this.#updateAmbience(now);
     this.#followSelf(sample.players, now);
     this.#updateTerrain();
     this.#drawHitboxes(sample);

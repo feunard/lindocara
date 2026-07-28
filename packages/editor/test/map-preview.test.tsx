@@ -23,6 +23,10 @@ vi.mock("@lindocara/renderer/renderer.js", () => ({
     create: vi.fn(async () => ({
       configureMapTerrain: vi.fn(),
       setSelfId: vi.fn(),
+      setPlayerChrome: vi.fn(),
+      setAmbience: vi.fn(),
+      setCameraZoom: vi.fn(),
+      cameraZoom: vi.fn(() => 1),
       onFrame: (callback: (now: number, dt: number) => void) => {
         state.frame = callback;
       },
