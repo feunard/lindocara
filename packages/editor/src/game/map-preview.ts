@@ -71,15 +71,6 @@ function randomAppearance(): CharacterAppearance {
 // preview ever keeps a renderer on the shared `#stage` app.
 let previewGeneration = 0;
 
-/**
- * Opens a throwaway warrior walk on the map `data`, on the shared `#stage` canvas the editor just
- * released. Returns a `stop()` that detaches the preview renderer so the editor can reopen on the
- * same canvas.
- *
- * The caller (the editor) must have disposed its painting stage first: one Pixi world on `#stage` at
- * a time. The editor's dispose pauses the shared ticker; `acquireStageApp` below hands back a running
- * one so this frame loop actually fires.
- */
 export interface MapPreviewOptions {
   /**
    * Draw the per-player overlays (self ring, name/level plate, health bar). Default `true`.
@@ -119,6 +110,15 @@ function wheelZoomRatio(deltaY: number): number {
   return Math.exp(-Math.max(-240, Math.min(240, deltaY)) * 0.0016);
 }
 
+/**
+ * Opens a throwaway warrior walk on the map `data`, on the shared `#stage` canvas the editor just
+ * released. Returns a `stop()` that detaches the preview renderer so the editor can reopen on the
+ * same canvas.
+ *
+ * The caller (the editor) must have disposed its painting stage first: one Pixi world on `#stage` at
+ * a time. The editor's dispose pauses the shared ticker; `acquireStageApp` below hands back a running
+ * one so this frame loop actually fires.
+ */
 export async function startMapPreview(
   data: MapData,
   events: readonly MapEvent[] = [],
