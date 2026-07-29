@@ -107,6 +107,16 @@ Sortie : `alepha` importable partout, l'ancien stack tourne encore tel quel.
 
 ### Tranche 3 — Temps réel `$room` (la raison d'être)
 
+> **Amendement post-tranche 1 (2026-07-30).** Deux faits vérifiés réordonnent les tranches 2/3 :
+> (1) le co-hébergement du WS legacy dans le worker Alepha est impossible sur workerd (liste
+> fermée des paths d'upgrade), donc la tranche 1 a livré un run parallèle et cette tranche
+> devient la **bascule** ; (2) l'admission WS Alepha vérifie la session Alepha (JWT cookies via
+> `/_auth/token`), incompatible avec le cookie HMAC legacy — la bascule temps réel emporte donc
+> une **bascule client minimale** dans la même tranche : `AuthScreen`/`guest.ts` sur l'auth
+> Alepha, `api.ts` sur les routes Alepha, `net.ts` sur le channel Alepha. Le refactor React
+> idiomatique (router `$page`, atoms, `useAuth`) reste la tranche suivante ; zustand et les deux
+> arbres UI ne bougent pas ici. Cette tranche s'exécute donc AVANT l'ex-« tranche 2 — React ».
+
 - Un `$channel` typé remplace le wire de `protocol.ts` : `schema.in` = intents actuels,
   `schema.out` = welcome/delta/events/resync. Zod fait le parsing défensif structurel ; les caps
   applicatifs (frame 2 KiB, fenêtres de rate, budgets, cooldowns) restent chez nous.
