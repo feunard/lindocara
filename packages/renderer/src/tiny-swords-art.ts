@@ -329,8 +329,7 @@ const HEX_SHAMAN_PROJECTILE_ICON = new URL(
 ).href;
 
 /** The hooded, twin-dagger Thief requested for the Rogue, resolved directly from the generated
- * Tiny Swords catalogue's vendor source paths. Attack frames are deliberately narrower than the
- * idle/run frames in the pack; consumers must preserve the authored 128x192 geometry. */
+ * Tiny Swords catalogue's vendor source paths. Every strip is six authored 192x192 frames. */
 export const TINY_SWORDS_ROGUE_SHEETS = {
   idle: {
     source: new URL(
@@ -357,8 +356,8 @@ export const TINY_SWORDS_ROGUE_SHEETS = {
       "../../catalog/assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Thief/Thief_Attack.png",
       import.meta.url,
     ).href,
-    frames: 9,
-    frameWidth: 128,
+    frames: 6,
+    frameWidth: 192,
     frameHeight: 192,
     footOffset: 56,
   },
@@ -400,7 +399,7 @@ export function skillIconArt(playerClass: PlayerClass, slot: SkillSlot): SkillIc
       return {
         source: TINY_SWORDS_ROGUE_SHEETS.attack.source,
         frames: TINY_SWORDS_ROGUE_SHEETS.attack.frames,
-        frame: slot === 1 ? 4 : 7,
+        frame: slot === 1 ? 3 : 2,
         variant: slot === 1 ? "dual-slash" : "shadow-dance",
       };
     if (slot === 4)

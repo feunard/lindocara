@@ -247,8 +247,8 @@ const PORTAL_RING_COLOR = 0x9b7dff;
  */
 const UNIT_OFFSET_X = 16 - 102;
 const UNIT_OFFSET_Y = 31 - 136;
-/** Thief_Attack is the pack's intentional 128x192 exception. Catalogue foot offsets keep each
- * differently padded Thief strip on the same authoritative ground point. */
+/** Catalogue foot offsets keep each differently padded Thief strip on the same authoritative
+ * ground point. */
 const ROGUE_UNIT_OFFSET_X = 16 - TINY_SWORDS_ROGUE_SHEETS.idle.frameWidth / 2;
 const ROGUE_IDLE_OFFSET_Y =
   31 - (TINY_SWORDS_ROGUE_SHEETS.idle.frameHeight - TINY_SWORDS_ROGUE_SHEETS.idle.footOffset);

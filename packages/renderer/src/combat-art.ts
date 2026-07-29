@@ -157,7 +157,7 @@ function casterArt(playerClass: PlayerClass, skillId: string, color: PrimaryColo
       TINY_SWORDS_ROGUE_SHEETS.attack.frameHeight,
       TINY_SWORDS_ROGUE_SHEETS.attack.frames,
       duration,
-      4,
+      3,
     );
   return unitSheet(unitSource(color, "monk", "Heal.png"), 11, duration, 3);
 }
