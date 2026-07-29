@@ -14,6 +14,7 @@ import { type ZoneDefinition, zoneDefinition } from "@lindocara/engine/zones.js"
 import {
   advanceGuards,
   advanceMonsters,
+  forgetPlayerFromMonsters,
   type MonsterSystemContext,
 } from "@lindocara/server/world/monster-system.js";
 import { createNavigationRuntime } from "@lindocara/server/world/navigation-system.js";
@@ -149,6 +150,68 @@ describe("authored monster tuning", () => {
 });
 
 describe("monster navigation on the tile grid", () => {
+  it("abandons a hidden Rogue immediately without erasing earned contribution", () => {
+    const monster = chasingMonster();
+    const player = targetPlayer(260, 220);
+    player.class = "rogue";
+    monster.threat.set(player.id, { playerId: player.id, amount: 50, updatedAt: 1_000 });
+    monster.contributions.set(player.id, {
+      playerId: player.id,
+      damage: 12,
+      usefulHealing: 0,
+      relevantThreat: 0,
+      updatedAt: 1_000,
+    });
+    monster.navigation.state = "chase";
+    monster.navigation.targetId = player.id;
+    monster.navigation.destination = { x: player.x, y: player.y };
+    monster.navigation.requestedDestination = { x: player.x, y: player.y };
+    monster.navigation.path = [{ x: player.x, y: player.y }];
+    monster.vx = 20;
+
+    forgetPlayerFromMonsters([monster], player.id);
+
+    expect(monster.threat.has(player.id)).toBe(false);
+    expect(monster.contributions.get(player.id)?.damage).toBe(12);
+    expect(monster.navigation).toMatchObject({
+      state: "idle",
+      targetId: null,
+      destination: null,
+      requestedDestination: null,
+      path: [],
+      abandonReason: "target_hidden",
+    });
+    expect(monster.vx).toBe(0);
+  });
+
+  it("cannot acquire a stealthed Rogue but can target them after the window ends", () => {
+    const monster = chasingMonster();
+    const player = targetPlayer(260, 220);
+    player.class = "rogue";
+    player.rogueStealthUntil = 2_000;
+    const socket = { id: "rogue-socket" } as unknown as WebSocket;
+    const monsterGrid = new SpatialGrid<MonsterRuntime>(64);
+    monsterGrid.insert(monster);
+    const context: MonsterSystemContext = {
+      players: new Map([[socket, player]]),
+      monsters: [monster],
+      guards: [],
+      monsterGrid,
+      zone,
+      tick: 0,
+      navigation: createNavigationRuntime(terrain, zone.navigation),
+      startAttack: vi.fn(),
+    };
+
+    advanceMonsters(context, 1_000);
+    expect(monster.threat.has(player.id)).toBe(false);
+    expect(context.startAttack).not.toHaveBeenCalled();
+
+    player.rogueStealthUntil = 0;
+    advanceMonsters(context, 1_100);
+    expect(monster.threat.has(player.id)).toBe(true);
+  });
+
   it("telegraphs a monster attack before the guard defeats it", () => {
     const combatTerrain: TerrainGeometry = {
       ...terrain,

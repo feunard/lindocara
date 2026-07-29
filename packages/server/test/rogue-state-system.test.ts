@@ -3,8 +3,12 @@ import {
   activeRogueOpening,
   clearRogueTransientState,
   consumeRogueOpening,
+  enterRogueStealth,
+  exitRogueStealth,
   expireRogueOpening,
+  expireRogueStealth,
   grantRogueOpening,
+  isRogueStealthed,
 } from "@lindocara/server/world/rogue-state-system.js";
 import { selfState } from "@lindocara/server/world/snapshot-system.js";
 import { newPlayer, toProfile } from "@lindocara/server/world/world-runtime.js";
@@ -69,6 +73,40 @@ describe("hidden Rogue runtime contract", () => {
     expect(expireRogueOpening(player, 5_499)).toBe(false);
     expect(expireRogueOpening(player, 5_500)).toBe(true);
     expect(activeRogueOpening(player, 5_500)).toBeNull();
+  });
+
+  it("starts Vanish cooldown only on exit and grants Opening only to an offensive exit", () => {
+    const player = rogue();
+    expect(enterRogueStealth(player, 1_000)).toBe(true);
+    expect(player.rogueStealthUntil).toBe(9_000);
+    expect(player.skillCooldowns[2]).toBe(0);
+    expect(isRogueStealthed(player, 8_999)).toBe(true);
+
+    expect(exitRogueStealth(player, 2_000, { offensive: true })).toBe(true);
+    expect(player.rogueStealthUntil).toBe(0);
+    expect(player.skillCooldowns[2]).toBe(16_000);
+    expect(player.opening).toMatchObject({
+      source: "vanish",
+      expiresAt: 3_500,
+      bonusRatio: 0.4,
+    });
+    expect(exitRogueStealth(player, 2_100, { offensive: true })).toBe(false);
+    expect(player.skillCooldowns[2]).toBe(16_000);
+  });
+
+  it("expires Vanish at eight seconds without granting an offensive Opening", () => {
+    const player = rogue();
+    enterRogueStealth(player, 5_000);
+    expect(expireRogueStealth(player, 12_999)).toBe(false);
+    expect(expireRogueStealth(player, 13_000)).toBe(true);
+    expect(player.rogueStealthUntil).toBe(0);
+    expect(player.skillCooldowns[2]).toBe(27_000);
+    expect(player.opening).toBeNull();
+
+    const lateAttack = rogue();
+    enterRogueStealth(lateAttack, 5_000);
+    expect(exitRogueStealth(lateAttack, 13_000, { offensive: true })).toBe(true);
+    expect(lateAttack.opening).toBeNull();
   });
 
   it("starts neutral, exposes only local deadlines, and clears every transient window together", () => {

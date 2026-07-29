@@ -18,6 +18,7 @@ import type {
   WorldView,
 } from "@lindocara/engine/protocol.js";
 import { navigationDebug as navigationDebugSnapshot } from "./navigation-system.js";
+import { isRogueStealthed } from "./rogue-state-system.js";
 import { queryWithHysteresis, type SpatialGrid } from "./spatial-grid.js";
 import type {
   GroundLoot,
@@ -68,7 +69,7 @@ export function worldView(context: InterestSystemContext, viewer: PlayerRuntime)
   };
 }
 
-export function playerSnapshot(player: PlayerRuntime): PlayerSnapshot {
+export function playerSnapshot(player: PlayerRuntime, now = Date.now()): PlayerSnapshot {
   return {
     id: player.id,
     nick: player.nick,
@@ -84,7 +85,7 @@ export function playerSnapshot(player: PlayerRuntime): PlayerSnapshot {
     life: player.life,
     facing: { ...player.facing },
     guarding: player.guarding,
-    invisible: player.invisibleUntil > Date.now(),
+    invisible: player.invisibleUntil > now || isRogueStealthed(player, now),
     action: combatActionSnapshot(player.action),
   };
 }
@@ -105,7 +106,12 @@ function visiblePlayerSnapshots(
     viewer.interest.players.add(viewer.id);
     selection.entities.push(viewer);
   }
-  return selection.entities.filter((player) => player.authorized).map(playerSnapshot);
+  const now = context.now();
+  return selection.entities
+    .filter(
+      (player) => player.authorized && (player.id === viewer.id || !isRogueStealthed(player, now)),
+    )
+    .map((player) => playerSnapshot(player, now));
 }
 
 function corpseSnapshots(context: InterestSystemContext, viewer: PlayerRuntime): CorpseSnapshot[] {

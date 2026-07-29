@@ -223,7 +223,11 @@ import {
 import { worldView } from "./world/interest-system.js";
 import { collectLoot, processExpiredLoot } from "./world/loot-system.js";
 import { locationFromMap } from "./world/map-zone.js";
-import { advanceGuards, advanceMonsters } from "./world/monster-system.js";
+import {
+  advanceGuards,
+  advanceMonsters,
+  forgetPlayerFromMonsters,
+} from "./world/monster-system.js";
 import { advancePlayers } from "./world/movement-system.js";
 import { createNavigationRuntime, type NavigationRuntime } from "./world/navigation-system.js";
 import {
@@ -287,8 +291,12 @@ import {
   activeRogueOpening,
   clearRogueTransientState,
   consumeRogueOpening,
+  enterRogueStealth,
+  exitRogueStealth,
   expireRogueOpening,
+  expireRogueStealth,
   grantRogueOpening,
+  isRogueStealthed,
 } from "./world/rogue-state-system.js";
 import { movePlayerInDirection, nearestChargeTarget } from "./world/skill-system.js";
 import {
@@ -1574,6 +1582,7 @@ export class World extends DurableObject<Env> {
     player.disconnecting = true;
     player.lastInput = NO_INPUT;
     player.queue = [];
+    exitRogueStealth(player, Date.now());
     this.#removePlayer(ws, player);
 
     try {
@@ -1885,6 +1894,8 @@ export class World extends DurableObject<Env> {
     }
     const now = Date.now();
     if (!canAct(player.life)) return false;
+    if (expireRogueStealth(player, now)) this.#sendState(ws, player);
+    if (skill.id === "vanish" && isRogueStealthed(player, now)) return false;
     if (player.guarding) {
       if (skill.id !== "iron_guard") return false;
       cancelCombatAction(player);
@@ -1988,11 +1999,15 @@ export class World extends DurableObject<Env> {
     if (talentEffect(player.class, player.talents, "sacred_passage", slot))
       action.sacredPassageHealedIds = new Set();
 
+    if (skill.id !== "vanish") {
+      exitRogueStealth(player, now, { offensive: true });
+    }
     // Attacking breaks invisibility only once the action has actually been accepted.
     player.invisibleUntil = 0;
 
     if (slot === 1) player.lastAttackAt = now;
-    else if (skill.id !== "iron_guard") player.skillCooldowns[slot - 1] = now + skill.cooldownMs;
+    else if (skill.id !== "iron_guard" && skill.id !== "vanish")
+      player.skillCooldowns[slot - 1] = now + skill.cooldownMs;
     if (skill.id === "mend") player.lastHealAt = now;
     spendResource(player.resource, resourceCost);
     player.dirty = true;
@@ -2037,6 +2052,14 @@ export class World extends DurableObject<Env> {
     const skill = skillWithTalents(player.class, player.talents, slot as SkillSlot);
     const definition = actionForClassSlot(player.class, slot);
     const center = { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 };
+
+    if (definition.shape === "stealth") {
+      if (enterRogueStealth(player, now)) {
+        this.#forgetPlayer(player);
+        this.#sendState(socket, player);
+      }
+      return;
+    }
 
     if (definition.shape === "shadow_step") {
       const planned = action.rogueShadowStep;
@@ -3100,6 +3123,7 @@ export class World extends DurableObject<Env> {
     cancelCombatAction(player);
     removeProjectilesByOwner(this.#projectiles, player.id);
     player.lastTransitionAt = now;
+    exitRogueStealth(player, now);
 
     if (!(await this.#checkpointCooldowns(player))) {
       this.#rejectStaleSave(ws, player);
@@ -3172,6 +3196,7 @@ export class World extends DurableObject<Env> {
     player.queue = [];
     cancelCombatAction(player);
     removeProjectilesByOwner(this.#projectiles, player.id);
+    exitRogueStealth(player, now);
 
     if (link.dest === "end") {
       try {
@@ -3573,10 +3598,7 @@ export class World extends DurableObject<Env> {
   }
 
   #forgetPlayer(player: Player): void {
-    for (const monster of this.#monsters) {
-      monster.threat.delete(player.id);
-      if (monster.navigation.targetId === player.id) monster.navigation.targetId = null;
-    }
+    forgetPlayerFromMonsters(this.#monsters, player.id);
   }
 
   #consumePotion(player: Player, ws: WebSocket): Promise<number | null> {
@@ -3630,6 +3652,7 @@ export class World extends DurableObject<Env> {
     player.authorized = false;
     player.lastInput = NO_INPUT;
     player.queue = [];
+    exitRogueStealth(player, Date.now());
 
     try {
       const saved = await this.#savePlayer(player, ws, true);
@@ -3793,7 +3816,10 @@ export class World extends DurableObject<Env> {
     const writeD1 = this.#tick % D1_SAVE_EVERY_TICKS === 0;
 
     this.#advanceConsumableEffects(now);
-    for (const player of this.#players.values()) expireRogueOpening(player, now);
+    for (const [socket, player] of this.#players) {
+      expireRogueOpening(player, now);
+      if (expireRogueStealth(player, now)) this.#sendState(socket, player);
+    }
 
     advancePlayers({
       players: this.#players,
@@ -4657,6 +4683,7 @@ export class World extends DurableObject<Env> {
       player.queue = [];
       cancelCombatAction(player);
       removeProjectilesByOwner(this.#projectiles, player.id);
+      exitRogueStealth(player, now);
       claimedAuthorization = true;
       player.authorized = false;
       if (!(await this.#checkpointCooldowns(player))) {
@@ -5074,6 +5101,7 @@ export class World extends DurableObject<Env> {
     now: number,
   ): void {
     if (isPlayerInvulnerable(player, now)) return;
+    const stealthEnded = exitRogueStealth(player, now);
     const protectedDamage = damageAfterWarriorProtection(
       player,
       damage,
@@ -5111,6 +5139,7 @@ export class World extends DurableObject<Env> {
           Math.max(1, Math.round(damage * retaliationRatio)),
         );
       }
+      if (stealthEnded) this.#sendState(ws, player);
       return;
     }
     player.hp = result.hp;
@@ -5158,6 +5187,7 @@ export class World extends DurableObject<Env> {
     player.lastInput = NO_INPUT;
     player.queue = [];
     player.starvedTicks = 0;
+    exitRogueStealth(player, Date.now());
     // A life transition also ends any open quest conversation, the same rule the event dialogue
     // follows: a panel opened in one life state must not linger into another.
     const staleConversation = this.#questConversations.get(player.id);

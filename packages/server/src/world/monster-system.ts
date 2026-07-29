@@ -31,6 +31,7 @@ import {
   processNavigationBudget,
   requestMonsterPath,
 } from "./navigation-system.js";
+import { isRogueStealthed } from "./rogue-state-system.js";
 import type { SpatialGrid } from "./spatial-grid.js";
 import type { GuardRuntime, MonsterRuntime, PlayerRuntime } from "./world-runtime.js";
 
@@ -53,13 +54,39 @@ function monsterAttackRange(monster: MonsterRuntime, now: number): number {
   return MONSTER_ACTIONS[monster.species].range;
 }
 
+export function abandonMonsterTarget(
+  monster: MonsterRuntime,
+  playerId: string,
+  reason = "target_unavailable",
+): void {
+  monster.threat.delete(playerId);
+  if (monster.navigation.targetId !== playerId) return;
+  invalidateMonsterPath(monster, reason);
+  monster.navigation.state = "idle";
+  monster.navigation.targetId = null;
+  monster.navigation.destination = null;
+  monster.navigation.requestedDestination = null;
+  monster.navigation.directBlockedDestination = null;
+  monster.vx = 0;
+  monster.vy = 0;
+}
+
+/** Clears pursuit but deliberately preserves contribution credit earned before stealth. */
+export function forgetPlayerFromMonsters(
+  monsters: Iterable<MonsterRuntime>,
+  playerId: string,
+): void {
+  for (const monster of monsters) abandonMonsterTarget(monster, playerId, "target_hidden");
+}
+
 export function advanceMonsters(context: MonsterSystemContext, now: number): void {
   const players = Array.from(context.players.entries()).filter(
     ([, player]) =>
       player.authorized &&
       player.life === "alive" &&
       player.forgottenUntil <= now &&
-      player.invisibleUntil <= now,
+      player.invisibleUntil <= now &&
+      !isRogueStealthed(player, now),
   );
   for (let index = 0; index < context.monsters.length; index++) {
     const monster = context.monsters[index];
@@ -90,13 +117,12 @@ export function advanceMonsters(context: MonsterSystemContext, now: number): voi
         player.life !== "alive" ||
         player.forgottenUntil > now ||
         player.invisibleUntil > now ||
+        isRogueStealthed(player, now) ||
         safeZoneShelters(player, context.zone.terrain) ||
         now - entry.updatedAt > THREAT_EXPIRES_MS ||
         tooFar
       ) {
-        monster.threat.delete(playerId);
-        if (tooFar && monster.navigation.targetId === playerId)
-          monster.navigation.abandonReason = "target_too_far";
+        abandonMonsterTarget(monster, playerId, tooFar ? "target_too_far" : "target_unavailable");
       }
     }
     for (const [playerId, contribution] of monster.contributions) {

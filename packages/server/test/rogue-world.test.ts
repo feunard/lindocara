@@ -12,6 +12,7 @@ import {
   testMapInput,
   testParty,
   until,
+  waitForRoomSockets,
 } from "./world-harness.js";
 
 function rogueOpeningMapInput(): TestMapBody {
@@ -42,6 +43,16 @@ function rogueWallMapInput(): TestMapBody {
   };
 }
 
+function rogueStealthMapInput(monsterCol: number): TestMapBody {
+  return testMapInput("Rogue stealth", {
+    cols: 20,
+    rows: 15,
+    spawn: { col: 5, row: 5 },
+    exit: { col: 18, row: 13 },
+    monsterSpawns: [{ col: monsterCol, row: 5, species: "mire_troll", patrolRadius: 32 }],
+  });
+}
+
 /**
  * Commit 6 deliberately keeps Rogue out of the public create input. Runtime integration still
  * needs a real D1 hero and WebSocket, so create a normal fixture then switch only its stored class
@@ -55,6 +66,24 @@ async function hiddenRogueHero(
   await env.DB.prepare("UPDATE hero SET class = 'rogue' WHERE id = ?").bind(hero.heroId).run();
   await env.DB.prepare("DELETE FROM hero_skill WHERE hero_id = ?").bind(hero.heroId).run();
   return hero;
+}
+
+async function waitForMonsterThreat(
+  roomKey: string,
+  playerId: string,
+  present: boolean,
+): Promise<void> {
+  const room = env.WORLD.getByName(roomKey);
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    const diagnostics = await room.roomDiagnostics();
+    const found = diagnostics.monsters.some((monster) =>
+      monster.threat.some((entry) => entry.playerId === playerId),
+    );
+    if (found === present) return;
+    await scheduler.wait(20);
+  }
+  throw new Error(`timed out waiting for monster threat present=${present}`);
 }
 
 afterEach(async () => {
@@ -198,6 +227,159 @@ describe("Rogue authoritative opening and mobility", { timeout: 12_000 }, () => 
       expect(client.latestState?.rogue?.openingUntil).toBe(0);
     } finally {
       client.close();
+    }
+  });
+});
+
+describe("Rogue authoritative stealth", { timeout: 15_000 }, () => {
+  it("drops aggro, withholds the position from peers, and starts cooldown on offensive exit", async () => {
+    const party = await testParty("rogue-stealth-peer", { maps: [rogueStealthMapInput(7)] });
+    const hero = await hiddenRogueHero("Veil", {
+      party,
+      account: party.host,
+      level: 5,
+      position: centre(5, 5),
+    });
+    const observerHero = await testHero("Witness", {
+      party,
+      level: 5,
+      position: centre(1, 5),
+    });
+    const rogue = await Client.joinHero(hero);
+    const observer = await Client.joinHero(observerHero);
+    try {
+      await until("stealth Rogue welcome", () => rogue.welcome);
+      await until("stealth observer welcome", () => observer.welcome);
+      await until("observer initially sees Rogue", () =>
+        observer.latestSnapshot?.players.find((player) => player.id === hero.heroId),
+      );
+      await waitForMonsterThreat(hero.roomKey, hero.heroId, true);
+
+      rogue.skill(3);
+      const vanishAnimation = await until("Vanish animation", () =>
+        rogue.received.find((message) => message.t === "animation" && message.skillId === "vanish"),
+      );
+      if (vanishAnimation.t !== "animation") throw new Error("expected Vanish animation");
+      await until("local Rogue enters stealth", () => {
+        const state = rogue.latestState;
+        return (state?.rogue?.stealthUntil ?? 0) > (state?.serverNow ?? 0) ? state : undefined;
+      });
+      expect(rogue.latestState?.cooldowns?.skillCooldowns[2]).toBe(0);
+      await until("local Rogue is visually faded", () =>
+        rogue.self()?.invisible === true ? rogue.self() : undefined,
+      );
+      await until("peer no longer receives Rogue position", () =>
+        observer.latestSnapshot?.players.some((player) => player.id === hero.heroId)
+          ? undefined
+          : observer.latestSnapshot,
+      );
+      await waitForMonsterThreat(hero.roomKey, hero.heroId, false);
+
+      await scheduler.wait(Math.max(0, vanishAnimation.recoveryEndsAt - Date.now() + 20));
+      rogue.press("left");
+      await scheduler.wait(60);
+      rogue.release();
+      expect(rogue.latestState?.rogue?.stealthUntil).toBeGreaterThan(
+        rogue.latestState?.serverNow ?? 0,
+      );
+
+      rogue.action("attack");
+      const exited = await until("offensive Vanish exit", () => {
+        const state = rogue.latestState;
+        const cooldown = state?.cooldowns?.skillCooldowns[2] ?? 0;
+        const opening = state?.rogue?.openingUntil ?? 0;
+        return state?.rogue?.stealthUntil === 0 &&
+          cooldown > (state.serverNow ?? 0) &&
+          opening > (state.serverNow ?? 0)
+          ? state
+          : undefined;
+      });
+      expect(
+        (exited.cooldowns?.skillCooldowns[2] ?? 0) - (exited.serverNow ?? 0),
+      ).toBeGreaterThanOrEqual(13_500);
+      await until("peer sees Rogue reappear", () =>
+        observer.latestSnapshot?.players.find(
+          (player) => player.id === hero.heroId && player.invisible !== true,
+        ),
+      );
+    } finally {
+      rogue.close();
+      observer.close();
+    }
+  });
+
+  it("lets an already wound-up monster hit and break Vanish without granting Opening", async () => {
+    const party = await testParty("rogue-stealth-hit", { maps: [rogueStealthMapInput(6)] });
+    const hero = await hiddenRogueHero("Interrupted", {
+      party,
+      account: party.host,
+      level: 5,
+      position: centre(5, 5),
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      const welcome = await until("incoming hit Rogue welcome", () => client.welcome);
+      const initialHp = welcome.players.find((player) => player.id === hero.heroId)?.hp;
+      if (initialHp === undefined) throw new Error("expected incoming hit Rogue");
+      await until("monster begins its authoritative wind-up", () =>
+        client.received.find(
+          (message) => message.t === "animation" && message.actorKind === "monster",
+        ),
+      );
+
+      client.skill(3);
+      await until("Vanish enters before impact", () => {
+        const state = client.latestState;
+        return (state?.rogue?.stealthUntil ?? 0) > (state?.serverNow ?? 0) ? state : undefined;
+      });
+      await until("local stealth snapshot before impact", () =>
+        client.self()?.invisible === true ? client.self() : undefined,
+      );
+      await until("wound-up strike still damages Rogue", () =>
+        client.received.find((message) => message.t === "event" && message.code === "combat.hurt"),
+      );
+      const exited = await until("damage exits Vanish", () => {
+        const state = client.latestState;
+        return state?.rogue?.stealthUntil === 0 &&
+          (state.cooldowns?.skillCooldowns[2] ?? 0) > (state.serverNow ?? 0)
+          ? state
+          : undefined;
+      });
+      expect(client.self()?.hp).toBeLessThan(initialHp);
+      expect(exited.rogue?.openingUntil).toBe(0);
+    } finally {
+      client.close();
+    }
+  });
+
+  it("clears stealth on disconnect and restores only its bounded cooldown", async () => {
+    const party = await testParty("rogue-stealth-reconnect");
+    const hero = await hiddenRogueHero("Reconnect", {
+      party,
+      account: party.host,
+      level: 5,
+    });
+    const first = await Client.joinHero(hero);
+    await until("reconnect Rogue welcome", () => first.welcome);
+    first.skill(3);
+    await until("reconnect Rogue enters stealth", () => {
+      const state = first.latestState;
+      return (state?.rogue?.stealthUntil ?? 0) > (state?.serverNow ?? 0) ? state : undefined;
+    });
+    first.close();
+    await waitForRoomSockets(hero.roomKey, 0);
+
+    const second = await Client.joinHero(hero);
+    try {
+      const welcome = await until("reconnected Rogue welcome", () => second.welcome);
+      expect(welcome.self.rogue?.stealthUntil).toBe(0);
+      expect(welcome.self.rogue?.openingUntil).toBe(0);
+      expect(welcome.self.cooldowns?.skillCooldowns[2]).toBeGreaterThan(
+        welcome.self.serverNow ?? 0,
+      );
+      expect(second.self()?.invisible).toBe(false);
+    } finally {
+      second.close();
     }
   });
 });

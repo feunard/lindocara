@@ -9,7 +9,7 @@ export function grantRogueOpening(
   player: PlayerRuntime,
   source: NonNullable<PlayerRuntime["opening"]>["source"],
   now: number,
-  bonusRatio = ROGUE_BALANCE.opening.bonusRatio,
+  bonusRatio: number = ROGUE_BALANCE.opening.bonusRatio,
 ): void {
   player.opening = {
     source,
@@ -51,6 +51,62 @@ export function expireRogueOpening(player: PlayerRuntime, now: number): boolean 
   const hadOpening = player.opening !== null;
   activeRogueOpening(player, now);
   return hadOpening && player.opening === null;
+}
+
+export function isRogueStealthed(player: PlayerRuntime, now: number): boolean {
+  return player.class === "rogue" && player.rogueStealthUntil > now;
+}
+
+/**
+ * Enters real server stealth without starting its cooldown. Monster threat/navigation is owned by
+ * the World and is cleared by the caller immediately after this state transition.
+ */
+export function enterRogueStealth(player: PlayerRuntime, now: number): boolean {
+  if (player.class !== "rogue" || player.rogueStealthUntil > now) return false;
+  player.rogueStealthUntil = now + ROGUE_BALANCE.vanish.maximumDurationMs;
+  player.dirty = true;
+  return true;
+}
+
+export interface RogueStealthExitOptions {
+  offensive?: boolean;
+  openingBonusRatio?: number;
+}
+
+/**
+ * The Vanish cooldown is deliberately armed here, never on cast. Offensive exits grant one
+ * Opening before the accepted action reaches its active frame; damage, expiry and room boundaries
+ * do not.
+ */
+export function exitRogueStealth(
+  player: PlayerRuntime,
+  now: number,
+  options: RogueStealthExitOptions = {},
+): boolean {
+  if (player.rogueStealthUntil <= 0) return false;
+  const wasActive = player.rogueStealthUntil > now;
+  player.rogueStealthUntil = 0;
+  player.rogueSmokeProtectionUntil = 0;
+  player.skillCooldowns[2] = Math.max(
+    player.skillCooldowns[2] ?? 0,
+    now + ROGUE_BALANCE.vanish.cooldownMs,
+  );
+  if (options.offensive && wasActive) {
+    grantRogueOpening(
+      player,
+      "vanish",
+      now,
+      options.openingBonusRatio ?? ROGUE_BALANCE.opening.bonusRatio,
+    );
+  }
+  player.dirty = true;
+  return true;
+}
+
+export function expireRogueStealth(player: PlayerRuntime, now: number): boolean {
+  return player.rogueStealthUntil > 0 && player.rogueStealthUntil <= now
+    ? exitRogueStealth(player, now)
+    : false;
 }
 
 /**
