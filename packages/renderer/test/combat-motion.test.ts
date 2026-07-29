@@ -1,3 +1,4 @@
+import { ROGUE_BALANCE } from "@lindocara/engine/rogue.js";
 import {
   lumenStepOpacity,
   mobilityRenderOffset,
@@ -37,17 +38,22 @@ describe("combat mobility presentation", () => {
   });
 
   it("replays all five authoritative Shadow Dance teleports after a delayed receipt", () => {
+    const interval = ROGUE_BALANCE.shadowDance.strikeIntervalMs;
     const strikes = Array.from({ length: 5 }, (_, index) => ({
-      impactAt: 10_000 + index * 90,
+      impactAt: 10_000 + index * interval,
       landing: { x: 40 + index * 32, y: 80 + index * 16 },
     }));
 
-    const replay = scheduleShadowDanceReplay(strikes, 10_000, 10_450, 50_000);
+    const replay = scheduleShadowDanceReplay(strikes, 10_000, 10_000 + 5 * interval, 50_000);
 
     expect(replay.strikes.map((strike) => strike.localImpactAt)).toEqual([
-      50_000, 50_090, 50_180, 50_270, 50_360,
+      50_000,
+      50_000 + interval,
+      50_000 + 2 * interval,
+      50_000 + 3 * interval,
+      50_000 + 4 * interval,
     ]);
-    expect(replay.localEndsAt).toBe(50_450);
+    expect(replay.localEndsAt).toBe(50_000 + 5 * interval);
     expect(shadowDancePositionAfter({ x: 8, y: 12 }, replay.strikes, 0)).toEqual({
       x: 8,
       y: 12,

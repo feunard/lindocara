@@ -44,7 +44,7 @@ export const ROGUE_BALANCE = {
     selectionRange: 360,
     maximumHits: 5,
     powerPerHit: 32,
-    strikeIntervalMs: 90,
+    strikeIntervalMs: 180,
     darkHarvestCooldownReductionMs: 1_500,
     thousandCutsPowerRatio: 0.6,
   },

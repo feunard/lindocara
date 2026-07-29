@@ -1957,12 +1957,7 @@ export class World extends DurableObject<Env> {
         ? talentEffect(player.class, player.talents, "rogue_shadow_return", 2)
         : undefined;
     if (shadowReturn && player.rogueShadowReturn) {
-      const planning = planShadowReturn(
-        player,
-        player.rogueShadowReturn,
-        now,
-        this.#zone().terrain,
-      );
+      const planning = planShadowReturn(player.rogueShadowReturn, now, this.#zone().terrain);
       if (!planning.ok) {
         if (planning.reason === "expired") {
           player.rogueShadowReturn = null;

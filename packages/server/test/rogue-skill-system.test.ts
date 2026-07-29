@@ -138,20 +138,22 @@ describe("authoritative Shadow Step planning", () => {
     expect(isShadowStepLandingValid({ x: 128, y: 128 }, geometry)).toBe(false);
   });
 
-  it("validates Shadow Return against expiry and the same swept collision geometry", () => {
+  it("validates Shadow Return against expiry and its landing while crossing intervening obstacles", () => {
     const point = { x: 64, y: 128, expiresAt: 2_000 };
-    expect(planShadowReturn({ x: 220, y: 128 }, point, 1_999, terrain())).toEqual({
+    expect(planShadowReturn(point, 1_999, terrain())).toEqual({
       ok: true,
       destination: { x: 64, y: 128 },
     });
-    expect(planShadowReturn({ x: 220, y: 128 }, point, 2_000, terrain())).toEqual({
+    expect(planShadowReturn(point, 2_000, terrain())).toEqual({
       ok: false,
       reason: "expired",
     });
     expect(
+      planShadowReturn(point, 1_999, terrain([{ x: 145, y: 64, width: 12, height: 192 }])),
+    ).toEqual({ ok: true, destination: { x: 64, y: 128 } });
+    expect(
       planShadowReturn(
-        { x: 220, y: 128 },
-        point,
+        { x: 145, y: 128, expiresAt: 2_000 },
         1_999,
         terrain([{ x: 145, y: 64, width: 12, height: 192 }]),
       ),

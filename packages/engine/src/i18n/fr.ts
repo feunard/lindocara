@@ -707,7 +707,7 @@ export const fr: Record<keyof typeof en, string> = {
     "Pas de l'ombre donne une Ouverture bien plus forte ; si la cible frappée meurt sous 2 secondes, la recharge restante est réduite de moitié.",
   "talent.evolution.rogue.shadow_step.b.name": "Retour d'ombre",
   "talent.evolution.rogue.shadow_step.b.description":
-    "Réactivez sous 2 secondes pour revenir au point de départ par un trajet collisionné, sans générer une seconde Ouverture.",
+    "Réactivez sous 2 secondes pour vous téléporter à travers les obstacles vers votre point de départ toujours praticable, sans générer une seconde Ouverture.",
   "talent.ultimate.rogue.shadow_step.name": "Traversée du voile",
   "talent.ultimate.rogue.shadow_step.description":
     "Pas de l'ombre peut traverser murs, eau, colliders et changements d'élévation. La position d'arrivée choisie par le serveur doit rester libre et praticable.",

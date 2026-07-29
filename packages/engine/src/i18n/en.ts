@@ -700,7 +700,7 @@ export const en = {
     "Shadow Step grants a much stronger Opening; if its struck target dies within 2 seconds, halve the remaining cooldown.",
   "talent.evolution.rogue.shadow_step.b.name": "Shadow Return",
   "talent.evolution.rogue.shadow_step.b.description":
-    "Reactivate within 2 seconds to follow a collision-validated path back to your departure point, without a second Opening.",
+    "Reactivate within 2 seconds to teleport back through obstacles to your still-walkable departure point, without a second Opening.",
   "talent.ultimate.rogue.shadow_step.name": "Veil Crossing",
   "talent.ultimate.rogue.shadow_step.description":
     "Shadow Step may cross walls, water, colliders and elevation boundaries. Its server-selected landing must still be free and walkable.",

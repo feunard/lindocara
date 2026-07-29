@@ -1,4 +1,5 @@
 import { env } from "cloudflare:test";
+import { ROGUE_BALANCE } from "@lindocara/engine/rogue.js";
 import { layeredWireTerrain } from "@lindocara/testing/map-fixtures.js";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -730,7 +731,10 @@ describe("Rogue authoritative Shadow Dance", { timeout: 15_000 }, () => {
       expect(new Set(sequence.strikes.map((strike) => strike.targetId)).size).toBe(5);
       expect(sequence.strikes.map((strike) => strike.damage)).toEqual([50, 50, 50, 50, 50]);
       expect(sequence.strikes.map((strike) => strike.impactAt)).toEqual(
-        sequence.strikes.map((_strike, index) => sequence.startedAt + index * 90),
+        sequence.strikes.map(
+          (_strike, index) =>
+            sequence.startedAt + index * ROGUE_BALANCE.shadowDance.strikeIntervalMs,
+        ),
       );
       expect(sequence.finalPosition).toEqual(sequence.strikes.at(-1)?.landing);
       expect(

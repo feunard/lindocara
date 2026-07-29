@@ -165,16 +165,15 @@ export function planShadowStep<T extends ShadowStepCandidate>(
     : { ok: false, reason: "blocked" };
 }
 
-/** A second activation is still a swept body move; a remembered coordinate is never trusted alone. */
+/** The return crosses intervening terrain, but a remembered coordinate is never trusted as a landing. */
 export function planShadowReturn(
-  origin: Vec2,
   point: ShadowReturnPoint,
   now: number,
   terrain: TerrainGeometry,
 ): ShadowReturnPlanningResult {
   if (point.expiresAt <= now) return { ok: false, reason: "expired" };
   const destination = { x: point.x, y: point.y };
-  return isShadowStepPathClear(origin, destination, terrain)
+  return isShadowStepLandingValid(destination, terrain)
     ? { ok: true, destination }
     : { ok: false, reason: "blocked" };
 }
