@@ -328,6 +328,64 @@ describe("list, get, update, delete", () => {
     expect(editorSave.status).toBe(200);
   });
 
+  // Regression coverage for the chunked-write fix: `MapService.writeElements`/`writeEvents` used
+  // to hand `createMany` an unchunked array. Alepha's `Repository.createMany` batches by ROW COUNT
+  // only (`.vendor/alepha/src/orm/core/services/Repository.ts:866-908`), never by bound-parameter
+  // count, so a wide-enough row set (events carry ~19 columns each) blew past D1's ~100-bound-param
+  // cap in production while staying green here, because this suite's sqlite is in-memory and has no
+  // such limit. This test cannot exercise the D1 cap itself (that requires production D1, not
+  // `:memory:`), but it does prove the batched write path still round-trips every row intact — the
+  // thing a bad chunk boundary (an off-by-one slice, a wrong batch size) would break first.
+  test("round-trips 40+ elements and 15+ events (with pages) through GET -> PUT, across multiple write batches", async () => {
+    const { userId, token } = await registerAndLogin("mapbulk");
+    const adventureId = await newAdventure(userId);
+    const id = await newMapId(adventureId, token, "Bulk");
+
+    const ELEMENT_COUNT = 44;
+    const EVENT_COUNT = 17;
+
+    // Distinct cells, all with a one-cell margin from every edge (a bush's visual footprint spans
+    // the anchor's 8 neighbours) and clear of the spawn cell (0,0) and the water strip at row 1.
+    const elements = Array.from({ length: ELEMENT_COUNT }, (_, i) => ({
+      col: 3 + (i % 15),
+      row: 3 + Math.floor(i / 15),
+      kind: "bush",
+      variant: 0,
+    }));
+
+    // A different row band so no event cell collides with an element cell (elements/events are
+    // independent tables, but keeping them apart makes the fixture easy to reason about).
+    const events = Array.from({ length: EVENT_COUNT }, (_, i) => ({
+      id: crypto.randomUUID(),
+      col: 2 + (i % 16),
+      row: 9 + Math.floor(i / 16),
+      name: `Scripted ${i}`,
+      ordinal: i,
+      kind: "normal",
+      pages: [wirePage(), wirePage({ trigger: "player-touch" })],
+    }));
+
+    const authored = await putMap(id, token, mapBody({ name: "Bulk", elements, events }));
+    expect(authored.status).toBe(200);
+    expect(await authored.json()).toMatchObject({ revision: 2 });
+
+    const fetched = await authedFetch(`/api/maps/${id}`, token);
+    expect(fetched.status).toBe(200);
+    const payload = (await fetched.json()) as {
+      elements: unknown[];
+      events: { pages: unknown[] }[];
+    };
+    expect(payload.elements).toHaveLength(ELEMENT_COUNT);
+    expect(payload.events).toHaveLength(EVENT_COUNT);
+    for (const event of payload.events) expect(event.pages).toHaveLength(2);
+
+    // The editor reuses that GET payload as its next PUT body without turning it into a 400 — the
+    // same round-trip proof the monster-event test above establishes for a single event.
+    const editorSave = await putMap(id, token, payload);
+    expect(editorSave.status).toBe(200);
+    expect(await editorSave.json()).toMatchObject({ revision: 3 });
+  });
+
   test("increments revision only after a successful update", async () => {
     const { userId, token } = await registerAndLogin("maprevbump");
     const adventureId = await newAdventure(userId);

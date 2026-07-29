@@ -64,6 +64,29 @@ import {
   validateMapInput,
 } from "./mapAuthoring.ts";
 
+// D1 caps a single statement at ~100 bound parameters (SQLITE_LIMIT_VARIABLE_NUMBER, as seen through
+// Cloudflare's D1 binding). `Repository.createMany` (`.vendor/alepha/src/orm/core/services/
+// Repository.ts:866-908`) batches by ROW COUNT only via its `batchSize` option — it has no idea how
+// wide a row is, so each entity needs its own batch size derived from its column count, chosen to
+// keep `rows * columns` comfortably under the cap. `:memory:` sqlite in tests has no such limit, so
+// an unchunked write stays green there while breaking in production — legacy `maps.ts:663-710`
+// chunked explicitly for the same reason. Column counts below are every column `cast()` will encode
+// for an INSERT (schema fields, including ones filled by a default rather than passed explicitly).
+const D1_BOUND_PARAM_BUDGET = 90;
+/** id, mapId, col, row, offsetX, offsetY, kind, variant. */
+const MAP_ELEMENT_COLUMNS = 8;
+/** id, createdAt, mapId, col, row, name, ordinal, kind, species, patrolRadius, monsterRank,
+ *  monsterMaxHp, monsterDamage, monsterSpeed, monsterXp, monsterWeakness, monsterWeaknessPercent,
+ *  monsterSpecialTechnique, monsterRespawnMode. */
+const MAP_EVENT_COLUMNS = 19;
+/** id, eventId, position, condSwitchId, condVariableId, condVariableMin, condSelfSwitch,
+ *  graphicAssetId, moveType, moveSpeed, moveFreq, optMoveAnim, optStopAnim, optDirFix, optThrough,
+ *  optOnTop, trigger, commands. */
+const MAP_EVENT_PAGE_COLUMNS = 18;
+const MAP_ELEMENT_BATCH_SIZE = Math.floor(D1_BOUND_PARAM_BUDGET / MAP_ELEMENT_COLUMNS);
+const MAP_EVENT_BATCH_SIZE = Math.floor(D1_BOUND_PARAM_BUDGET / MAP_EVENT_COLUMNS);
+const MAP_EVENT_PAGE_BATCH_SIZE = Math.floor(D1_BOUND_PARAM_BUDGET / MAP_EVENT_PAGE_COLUMNS);
+
 export interface MapSummary {
   id: string;
   name: string;
@@ -373,6 +396,7 @@ export class MapService {
         kind: element.assetId,
         variant: 0,
       })),
+      { batchSize: MAP_ELEMENT_BATCH_SIZE },
     );
   }
 
@@ -399,6 +423,7 @@ export class MapService {
         monsterSpecialTechnique: event.monsterSpecialTechnique ?? undefined,
         monsterRespawnMode: event.monsterRespawnMode ?? undefined,
       })),
+      { batchSize: MAP_EVENT_BATCH_SIZE },
     );
     // A page's durable identity is `(eventId, position)`; `mapEventPages.position` is minted fresh
     // on every rewrite, 1-based (Task 6's entity bounds it `min(1).max(8)`, unlike the legacy
@@ -425,7 +450,9 @@ export class MapService {
         commands: JSON.stringify(page.commands),
       })),
     );
-    if (pageRows.length > 0) await this.mapEventPages.createMany(pageRows);
+    if (pageRows.length > 0) {
+      await this.mapEventPages.createMany(pageRows, { batchSize: MAP_EVENT_PAGE_BATCH_SIZE });
+    }
   }
 
   private async toPayload(row: MapRow): Promise<MapPayload> {
