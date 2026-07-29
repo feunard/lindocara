@@ -25,11 +25,18 @@
  * folds in the `already_member`/`color_taken` uniqueness fences the same way legacy's D1 batch did,
  * and reclassifies a zero-row outcome by re-reading state, exactly like legacy.
  *
- * **`adventure_test_session` exclusion not ported.** Legacy's public listing left-joins
- * `adventure_test_session` to hide playtest parties, and its hosted-party quota excludes them too.
- * Tranche 1 has no service that ever creates an `adventureTestSessions` row yet (the entity exists
- * from Task 7 but is unused), so no row can exist to hide — this is a documented simplification, not
- * a behavioral gap a caller can currently observe.
+ * **`adventure_test_session` exclusion, now ported (Task 11).** Legacy's public listing left-joins
+ * `adventure_test_session` to hide playtest parties (`isNull(adventureTestSession.id)`); this was a
+ * documented no-op simplification through Task 10 (nothing created that row yet), but `TestSessionService`
+ * (Task 11) now does. `listPartiesPage` below reads every live `adventureTestSessions.partyId` and
+ * excludes them via `notInArray` — a plain read-then-filter rather than a join (this ORM's `where`
+ * has no subquery/anti-join operator), applied BEFORE the `LIMIT` so a hidden party never shrinks a
+ * page below its requested size, matching the legacy join's own pre-`LIMIT` filtering. `notInArray`
+ * throws on an empty array (see `FilterOperators.ts`), so the clause is only added when at least one
+ * hidden party exists. The legacy hosted-party-quota exclusion is still NOT ported — `createParty`'s
+ * atomic INSERT counts ALL of a user's hosted parties, hidden test parties included — but a test
+ * session's party is never counted there anyway (this service never routes a test session through
+ * `createParty`), so that half of the gap remains unobservable, unlike the listing half this closes.
  */
 import {
   MAX_HOSTED_PARTIES,
@@ -40,6 +47,7 @@ import {
 import { $inject, z } from "alepha";
 import { $repository, sql } from "alepha/orm";
 import { adventures } from "../entities/adventures.ts";
+import { adventureTestSessions } from "../entities/adventureTestSessions.ts";
 import { heroes } from "../entities/heroes.ts";
 import { maps } from "../entities/maps.ts";
 import { type Party, parties } from "../entities/parties.ts";
@@ -98,6 +106,7 @@ export class PartyService {
   adventures = $repository(adventures);
   maps = $repository(maps);
   heroes = $repository(heroes);
+  adventureTestSessions = $repository(adventureTestSessions);
 
   /** Ported from `listPublicPartiesPage`. */
   async listPartiesPage(
@@ -109,19 +118,26 @@ export class PartyService {
       throw new Error("page: invalid party page size");
     }
     const cursor = parsePartyCursor(options.cursor);
+    // Hidden test-session parties, excluded pre-`LIMIT` — see this file's docblock.
+    const hiddenPartyIds = (await this.adventureTestSessions.findMany({})).map(
+      (row) => row.partyId,
+    );
+    const cursorFilter = cursor
+      ? {
+          or: [
+            { createdAt: { lt: cursor.createdAt } },
+            { and: [{ createdAt: { eq: cursor.createdAt } }, { id: { lt: cursor.id } }] },
+          ],
+        }
+      : undefined;
+    const hiddenFilter =
+      hiddenPartyIds.length > 0 ? { id: { notInArray: hiddenPartyIds } } : undefined;
+    const where =
+      cursorFilter && hiddenFilter
+        ? { and: [cursorFilter, hiddenFilter] }
+        : (cursorFilter ?? hiddenFilter);
     const rows = await this.parties.findMany({
-      ...(cursor
-        ? {
-            where: {
-              or: [
-                { createdAt: { lt: cursor.createdAt } },
-                {
-                  and: [{ createdAt: { eq: cursor.createdAt } }, { id: { lt: cursor.id } }],
-                },
-              ],
-            },
-          }
-        : {}),
+      ...(where ? { where } : {}),
       orderBy: [
         { column: "createdAt", direction: "desc" },
         { column: "id", direction: "desc" },

@@ -5,6 +5,7 @@ import { HeroController } from "./controllers/HeroController.js";
 import { MapController } from "./controllers/MapController.js";
 import { MeController } from "./controllers/MeController.js";
 import { PartyController } from "./controllers/PartyController.js";
+import { TestSessionController } from "./controllers/TestSessionController.js";
 import { SecurityProvider } from "./providers/SecurityProvider.js";
 
 // `LindocaraApi` is the module every later tranche 1 controller registers
@@ -25,5 +26,6 @@ export const LindocaraApi = $module({
     AdventureController,
     PartyController,
     HeroController,
+    TestSessionController,
   ],
 });
