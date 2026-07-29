@@ -552,10 +552,16 @@ async function eventsOf(db: Db, mapId: string): Promise<MapEvent[]> {
   return eventRowsForMap.flatMap((row): MapEvent[] => {
     const pages = pagesByEvent.get(row.id);
     if (!pages || pages.length === 0) return [];
-    // A monster row missing its species/radius is a corrupt half-row: drop it rather than surface a
-    // monster event the parser would reject, the same "one bad row must not break the map" degrade.
+    // A monster row missing its species/radius, or a guard row missing its radius, is a corrupt
+    // half-row: drop it rather than surface an event the wire parser would reject. Guards must keep
+    // their radius on GET because the editor reuses that payload for the next PUT.
     const isMonster = row.kind === "monster";
-    if (isMonster && (row.species === null || row.patrolRadius === null)) return [];
+    const isGuard = row.kind === "guard";
+    if (
+      (isMonster && (row.species === null || row.patrolRadius === null)) ||
+      (isGuard && row.patrolRadius === null)
+    )
+      return [];
     const tuning = isMonster && row.species !== null ? defaultMonsterTuning(row.species) : null;
     return [
       {
@@ -566,7 +572,7 @@ async function eventsOf(db: Db, mapId: string): Promise<MapEvent[]> {
         ordinal: row.ordinal,
         kind: row.kind,
         species: isMonster ? row.species : null,
-        patrolRadius: isMonster ? row.patrolRadius : null,
+        patrolRadius: isMonster || isGuard ? row.patrolRadius : null,
         monsterRank: isMonster ? (row.monsterRank ?? tuning?.rank ?? null) : null,
         monsterMaxHp: isMonster ? (row.monsterMaxHp ?? tuning?.maxHp ?? null) : null,
         monsterDamage: isMonster ? (row.monsterDamage ?? tuning?.damage ?? null) : null,

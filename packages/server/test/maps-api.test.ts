@@ -323,6 +323,32 @@ describe("list, get, update, delete", () => {
     expect(await afterDelete.json()).toEqual({ error: "map_not_found" });
   });
 
+  it("round-trips an authored guard without turning the next editor save into a 400", async () => {
+    const id = await newMapId(await newAdventure(), "Guarded");
+    const guard = {
+      id: crypto.randomUUID(),
+      col: 5,
+      row: 5,
+      name: "Sentinel",
+      ordinal: 1,
+      kind: "guard",
+      species: null,
+      patrolRadius: 160,
+      pages: [wirePage({ moveSpeed: 4, optMoveAnim: true })],
+    };
+
+    const authored = await putMap(id, mapBody({ name: "Guarded", events: [guard] }));
+    expect(authored.status).toBe(200);
+
+    const fetched = await authed(`/api/maps/${id}`);
+    expect(fetched.status).toBe(200);
+    const payload = (await fetched.json()) as { events: { patrolRadius: number | null }[] };
+    expect(payload.events[0]?.patrolRadius).toBe(160);
+
+    const editorSave = await putMap(id, payload);
+    expect(editorSave.status).toBe(200);
+  });
+
   it("round-trips a page's nested command program through D1", async () => {
     const adventureId = await newAdventure();
     await newMapId(adventureId, "Keepalive");
