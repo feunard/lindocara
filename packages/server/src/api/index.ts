@@ -1,5 +1,6 @@
 import { $module } from "alepha";
 import { HealthController } from "./controllers/HealthController.js";
+import { MapController } from "./controllers/MapController.js";
 import { MeController } from "./controllers/MeController.js";
 import { SecurityProvider } from "./providers/SecurityProvider.js";
 
@@ -13,5 +14,5 @@ import { SecurityProvider } from "./providers/SecurityProvider.js";
 // nothing else injects it, so leaving it out means `$realm()` never runs.
 export const LindocaraApi = $module({
   name: "lindocara.api",
-  services: [HealthController, SecurityProvider, MeController],
+  services: [HealthController, SecurityProvider, MeController, MapController],
 });
