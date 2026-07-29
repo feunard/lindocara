@@ -1,9 +1,6 @@
 name: Deploy
 
 on:
-  push:
-    branches: [main]
-  # Lets you redeploy the current main without pushing an empty commit.
   workflow_dispatch:
 
 concurrency:
