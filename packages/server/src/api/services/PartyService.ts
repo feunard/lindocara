@@ -9,14 +9,21 @@
  * "server-assigned color" on create too, so `createParty` always seats the host in the first
  * `PARTY_COLORS` slot, which is trivially free on a brand-new party (zero existing members).
  *
- * **No atomic D1-style race backstop.** Legacy's `createParty`/`joinParty` use a conditional
- * `INSERT ... WHERE (SELECT count(*) ...) < cap` D1 batch statement so two concurrent requests can
- * never both slip past the cap check — Alepha's `Repository` has no equivalent primitive, and every
- * existing Alepha-side port (`MapService.createMap`'s `isFirst` flag, `AdventureService`) instead
- * relies on `$transactional()` serializing the whole count-then-act sequence against SQLite's
- * single-writer transaction, exactly as `MapService.createMap`'s own docblock documents. This port
- * follows that same precedent rather than inventing a new pattern; the required test list for this
- * task does not exercise the concurrent-race scenarios legacy's own test suite covers.
+ * **The cap/full backstops are single-statement conditional INSERTs, not transactions.** A prior pass
+ * here claimed `$transactional()` serializes a `count()`-then-`create()` sequence against SQLite's
+ * single-writer transaction, mirroring `MapService.createMap`'s `isFirst`-flag reasoning. That claim
+ * does not hold for THIS app's actual production target: Alepha's D1 provider reports
+ * `supportsTransactions: false`, so `$transactional()` degrades to a no-op there (by design — see its
+ * own docs on graceful degradation) and never opens a `BEGIN` at all. Two concurrent `createParty`/
+ * `joinParty` calls against D1 could both read `count() < cap` as true before either write landed.
+ * `createParty` and `joinParty` below instead build their guarded row as ONE
+ * `INSERT ... SELECT ... WHERE (SELECT count(*) ...) < cap` statement via `Repository.query()` — a
+ * single SQL statement is atomic on SQLite/D1 with or without a surrounding transaction (this is the
+ * exact shape legacy's own D1 conditional-INSERT batch relied on, and D1 IS a SQLite dialect). The
+ * plain `count()` checks that remain are friendly fast-paths for the non-racing caller; the atomic
+ * INSERT is what actually enforces the cap under a race. `joinParty`'s `INSERT OR IGNORE` additionally
+ * folds in the `already_member`/`color_taken` uniqueness fences the same way legacy's D1 batch did,
+ * and reclassifies a zero-row outcome by re-reading state, exactly like legacy.
  *
  * **`adventure_test_session` exclusion not ported.** Legacy's public listing left-joins
  * `adventure_test_session` to hide playtest parties, and its hosted-party quota excludes them too.
@@ -30,8 +37,8 @@ import {
   PARTY_LIST_PAGE_SIZE,
   type PartyColor,
 } from "@lindocara/engine/party.js";
-import { $inject } from "alepha";
-import { $repository } from "alepha/orm";
+import { $inject, z } from "alepha";
+import { $repository, sql } from "alepha/orm";
 import { adventures } from "../entities/adventures.ts";
 import { heroes } from "../entities/heroes.ts";
 import { maps } from "../entities/maps.ts";
@@ -67,6 +74,9 @@ export interface PartyListingPage {
   items: PartyListing[];
   nextCursor: string | null;
 }
+
+/** Row-shape schema for `Repository.query()`'s `RETURNING id` — see this file's docblock. */
+const ID_ROW_SCHEMA = z.object({ id: z.uuid() });
 
 function toStored(row: Party): StoredParty {
   return {
@@ -166,27 +176,46 @@ export class PartyService {
     if (!adventure) throw new Error("adventure: no such adventure");
     const mapCount = await this.maps.count({ adventureId: { eq: adventure.id } });
     if (mapCount === 0) throw new Error("not_playable: adventure has no map");
+
+    // Friendly fast-path only — see this file's docblock. The atomic INSERT below is the real guard.
     const hostedCount = await this.parties.count({ hostUserId: { eq: userId } });
     if (hostedCount >= MAX_HOSTED_PARTIES) throw new Error("cap: too many hosted parties");
 
     const id = crypto.randomUUID();
-    const created = await this.parties.create({
-      id,
-      adventureId: adventure.id,
-      adventureVersion: adventure.version,
-      maxPlayers: adventure.maxPlayers,
-      hostUserId: userId,
-      ...(input.name !== null ? { name: input.name } : {}),
-      status: "open",
-    });
+    // Single-statement conditional INSERT: atomic on SQLite/D1 even with no surrounding transaction
+    // (see this file's docblock). Every other column (status/timestamps) is omitted so the table's
+    // own SQL-level defaults apply, exactly like the plain `.create()` this replaces.
+    const insertedParty = await this.parties.query(
+      // `${table.col}` inside an INSERT's column list prints a TABLE-QUALIFIED identifier
+      // (`"parties"."id"`), which SQLite's parser rejects there (valid in SELECT/WHERE, not in
+      // `INSERT INTO t (...)`) — confirmed empirically against this app's own SQLite provider.
+      // `sql.raw(table.col.name)` embeds just the bare physical column name instead.
+      (table) => sql`
+        INSERT INTO ${table}
+          (${sql.raw(table.id.name)}, ${sql.raw(table.adventureId.name)},
+           ${sql.raw(table.adventureVersion.name)}, ${sql.raw(table.maxPlayers.name)},
+           ${sql.raw(table.hostUserId.name)}, name)
+        SELECT ${id}, ${adventure.id}, ${adventure.version}, ${adventure.maxPlayers}, ${userId},
+               ${input.name}
+        WHERE (SELECT count(*) FROM ${table} WHERE ${table.hostUserId} = ${userId}) < ${MAX_HOSTED_PARTIES}
+        RETURNING ${table.id}
+      `,
+      ID_ROW_SCHEMA,
+    );
+    if (insertedParty.length === 0) throw new Error("cap: too many hosted parties");
+
     // A brand-new party has zero members, so the first PARTY_COLORS slot is always free — colour is
-    // server-assigned, never a client choice (see this file's docblock).
+    // server-assigned, never a client choice (see this file's docblock). Not racy (nobody else can
+    // reference this freshly minted party id yet), so a plain `.create()` is fine here.
     await this.partyMembers.create({
       id: crypto.randomUUID(),
       partyId: id,
       userId,
       color: PARTY_COLORS[0],
     });
+
+    const created = await this.parties.findById(id);
+    if (!created) throw new Error("not_found: party vanished mid-create");
     return toStored(created);
   }
 
@@ -201,7 +230,39 @@ export class PartyService {
     if (members.length >= row.maxPlayers) throw new Error("full: party is full");
     const color = PARTY_COLORS.find((candidate) => !members.some((m) => m.color === candidate));
     if (!color) throw new Error("full: party is full");
-    await this.partyMembers.create({ id: crypto.randomUUID(), partyId, userId, color });
+
+    // Single-statement conditional insert, folding in BOTH uniqueness fences (`already_member`,
+    // `color_taken`) via `OR IGNORE` and the cap via the `WHERE` subquery — see this file's docblock.
+    // Atomic on SQLite/D1 regardless of any surrounding transaction.
+    const memberId = crypto.randomUUID();
+    const inserted = await this.partyMembers.query(
+      // See `createParty`'s comment: `sql.raw(table.col.name)` for the bare column name, never
+      // `${table.col}`, inside an INSERT column list.
+      (table) => sql`
+        INSERT OR IGNORE INTO ${table}
+          (${sql.raw(table.id.name)}, ${sql.raw(table.partyId.name)}, ${sql.raw(table.userId.name)}, color)
+        SELECT ${memberId}, ${partyId}, ${userId}, ${color}
+        WHERE (SELECT count(*) FROM ${table} WHERE ${table.partyId} = ${partyId}) < ${row.maxPlayers}
+        RETURNING ${table.id}
+      `,
+      ID_ROW_SCHEMA,
+    );
+    if (inserted.length > 0) return;
+
+    // `OR IGNORE` turns both uniqueness fences AND a lost cap race into a silent zero-row result.
+    // Classify against the state that won the serialized single-statement write, exactly like
+    // legacy's own `joinParty` does after its D1 conditional insert. Priority matches legacy:
+    // already_member wins over full, full wins over color_taken (a colour clash is only ever a race
+    // artifact once colour is server-assigned).
+    const after = await this.partyMembers.findMany({ where: { partyId: { eq: partyId } } });
+    if (after.some((member) => member.userId === userId)) {
+      throw new Error("already_member: already in this party");
+    }
+    if (after.length >= row.maxPlayers) throw new Error("full: party is full");
+    if (after.some((member) => member.color === color)) {
+      throw new Error("color_taken: that colour is taken");
+    }
+    throw new Error("full: party admission lost its atomic guard");
   }
 
   /** Ported from `deleteParty`: host-only. `partyMembers`/`heroes` cascade off `parties.id` via FK,

@@ -1,17 +1,26 @@
 /**
  * Heroes as stored things on Alepha: create in a party the caller belongs to (capped per player),
- * spawn on the party's adventure's first map, and delete the caller's own hero. Ported from
- * `packages/server/src/heroes.ts`, function-by-function, onto `$repository` calls instead of raw
- * Drizzle/D1 statements.
+ * spawn on the party's adventure's resolved start (full legacy tiering — see below), and delete the
+ * caller's own hero. Ported from `packages/server/src/heroes.ts`, function-by-function, onto
+ * `$repository` calls instead of raw Drizzle/D1 statements.
  *
- * **Spawn simplification, versus legacy `resolveAdventureStart`.** Legacy resolves a hero's start
- * position through three tiers (a spawn event, else the legacy graph start's entry, else the first
- * member map's authored spawn point). The task brief calls for the simpler, fully server-decided
- * rule: "spawn map/position = adventure's first map" — this ports only that third tier (the
- * earliest-created member map, at its authored `spawnCol`/`spawnRow`). Reintroducing the other two
- * tiers is straightforward (their data — map events, the adventure graph — already exists on the
- * Alepha ORM) but is out of this task's stated scope; noted here so a later tranche does not have to
- * rediscover the gap.
+ * **Spawn resolution ports legacy `resolveAdventureStart` in full** (`adventures.ts:350-387`), not
+ * just its third tier — both `graph.start` and `spawn`-kind map events are reachable today through
+ * the shipped API (`AdventureController` accepts a graph, `MapController` persists spawn events), so
+ * a Task 10 first-pass that only read the fallback tier was silently wrong for any adventure that
+ * actually authored either. In legacy's own precedence (`adventures.ts`'s docblock, verified against
+ * its code, NOT the order a prior review comment paraphrased it in):
+ *
+ *  1. **Spawn event** — the earliest-created member map carrying a `kind: "spawn"` event; the hero
+ *     spawns on that event's cell (ties on one map broken by row then col, matching legacy).
+ *  2. **Graph start** — COMPAT: `adventure.graph.start` names a member map + entry-event id; the
+ *     hero spawns on that entry's cell, or the map's own default spawn if the entry event is gone.
+ *  3. **Map default** — the earliest-created member map, at its own authored `spawnCol`/`spawnRow`.
+ *
+ * `resolveHeroStart` below is the private port of `resolveAdventureStart`, re-expressed against
+ * `$repository` reads instead of raw Drizzle. Coordinate math reuses the same pure helpers legacy
+ * does (`eventCellCentre`, and the `spawnCol`/`spawnRow -> {x,y}` arithmetic `mapSpawnPoint` encodes
+ * — inlined as `mapDefaultSpawn` here since `mapSpawnPoint` takes a full `MapData`, not a bare row).
  *
  * **Item-definition catalogue seeding (the carried-over Task 7 gap).** Legacy's PRIMARY hero flow
  * (`heroes.ts::createHero`) never seeds `item_definition` itself — those rows exist because a one-time
@@ -32,22 +41,40 @@
  * real uuid per row instead, and reuses that same value for `heroEquipment.heroItemId`, honoring the
  * "must reference a `heroItems` row owned by the same hero" service-layer invariant
  * `heroEquipment.ts` documents.
+ *
+ * **The per-account hero cap is a single-statement conditional INSERT, not a transaction.** A prior
+ * pass here relied on `$transactional()` to make a `count()`-then-`create()` sequence race-safe. That
+ * is wrong on this app's actual production target: D1's Alepha provider reports
+ * `supportsTransactions: false`, so `$transactional()` degrades to a no-op (see its own docs) and two
+ * concurrent hero-creates could both pass the `count()` check before either insert lands, blowing
+ * past `MAX_HEROES_PER_PARTY`. `createHero` below instead builds the hero row's INSERT as one
+ * `INSERT INTO ... SELECT ... WHERE (SELECT count(*) ...) < cap` statement via `Repository.query()` —
+ * a SINGLE SQL statement is atomic on SQLite/D1 regardless of whether any transaction wraps it (this
+ * is the exact shape legacy's own D1 conditional-INSERT batch relied on, and D1 IS a SQLite dialect).
+ * The earlier `count()` check stays as a friendly fast-path (a normal, non-racing caller gets the
+ * cheap read-then-clear-error-message experience), but the atomic INSERT is what actually enforces
+ * the cap under a race.
  */
+import { type AdventureGraph, parseAdventureGraph } from "@lindocara/engine/adventure.js";
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
 import { CLASS_STATS, type PlayerClass } from "@lindocara/engine/game.js";
 import { type CreateHeroInput, MAX_HEROES_PER_PARTY } from "@lindocara/engine/hero.js";
+import { eventCellCentre } from "@lindocara/engine/map-events.js";
 import { CLASS_SKILLS, isSkillUnlocked } from "@lindocara/engine/skills.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
-import { $repository } from "alepha/orm";
+import { z } from "alepha";
+import { $repository, sql } from "alepha/orm";
 // Pure, D1-free catalogue reused as-is from the legacy source tree (same-package sibling, not
 // `@lindocara/engine` — mirrors `AdventureService`'s own `../../adventure-registry.js` import).
 import { HEALTH_POTION_ID, ITEM_DEFINITIONS } from "../../items.js";
+import { adventures } from "../entities/adventures.ts";
 import { heroEquipment } from "../entities/heroEquipment.ts";
 import { type Hero, heroes } from "../entities/heroes.ts";
 import { heroItems } from "../entities/heroItems.ts";
 import { heroQuests } from "../entities/heroQuests.ts";
 import { heroSkills } from "../entities/heroSkills.ts";
 import { itemDefinitions } from "../entities/itemDefinitions.ts";
+import { mapEvents } from "../entities/mapEvents.ts";
 import { maps } from "../entities/maps.ts";
 import { parties } from "../entities/parties.ts";
 import { partyMembers } from "../entities/partyMembers.ts";
@@ -67,6 +94,9 @@ export interface StoredHero {
   life: "alive" | "corpse" | "ghost";
 }
 
+/** Row-shape schema for `Repository.query()`'s `RETURNING id` — see this file's docblock. */
+const ID_ROW_SCHEMA = z.object({ id: z.uuid() });
+
 function toStored(row: Hero): StoredHero {
   return {
     id: row.id,
@@ -84,10 +114,22 @@ function toStored(row: Hero): StoredHero {
   };
 }
 
+/** The `spawnCol`/`spawnRow -> {x,y}` arithmetic `@lindocara/engine/map-data.js`'s `mapSpawnPoint`
+ *  encodes, applied to a bare map row instead of a full `MapData` (this service never materializes
+ *  one). Kept in lock-step with that function by construction — same formula, same `TILE_SIZE`. */
+function mapDefaultSpawn(row: { spawnCol: number; spawnRow: number }): { x: number; y: number } {
+  return {
+    x: row.spawnCol * TILE_SIZE + TILE_SIZE / 2,
+    y: row.spawnRow * TILE_SIZE + TILE_SIZE / 2,
+  };
+}
+
 export class HeroService {
+  adventures = $repository(adventures);
   parties = $repository(parties);
   partyMembers = $repository(partyMembers);
   maps = $repository(maps);
+  mapEvents = $repository(mapEvents);
   heroes = $repository(heroes);
   heroItems = $repository(heroItems);
   heroEquipment = $repository(heroEquipment);
@@ -114,6 +156,7 @@ export class HeroService {
     });
     if (!membership) throw new Error("not_member: not a member of this party");
 
+    // Friendly fast-path only — see this file's docblock. The atomic INSERT below is the real guard.
     const existingCount = await this.heroes.count({
       partyId: { eq: partyId },
       userId: { eq: userId },
@@ -130,28 +173,33 @@ export class HeroService {
       throw new Error("not_found: unsupported class");
     }
 
-    // The adventure's first (earliest-created) member map, at its authored spawn point — see this
-    // file's docblock for how this diverges from legacy's full `resolveAdventureStart` tiering.
-    const [firstMap] = await this.maps.findMany({
-      where: { adventureId: { eq: partyRow.adventureId } },
-      orderBy: "createdAt",
-      limit: 1,
-    });
-    if (!firstMap) throw new Error("not_found: party adventure has no map");
+    const start = await this.resolveHeroStart(partyRow.adventureId);
+    if (!start) throw new Error("not_found: party adventure has no map");
 
     const id = crypto.randomUUID();
-    const x = firstMap.spawnCol * TILE_SIZE + TILE_SIZE / 2;
-    const y = firstMap.spawnRow * TILE_SIZE + TILE_SIZE / 2;
-    await this.heroes.create({
-      id,
-      partyId,
-      userId,
-      name: input.name,
-      class: input.class,
-      mapId: firstMap.id,
-      x,
-      y,
-    });
+    // Single-statement conditional INSERT: atomic on SQLite/D1 even with no surrounding transaction
+    // (see this file's docblock — `$transactional()` short-circuits on D1). Every other hero column
+    // is omitted so the table's own SQL-level defaults apply, exactly like the plain `.create()` this
+    // replaces.
+    const inserted = await this.heroes.query(
+      // `${table.col}` inside an INSERT column list prints a TABLE-QUALIFIED identifier
+      // (`"heroes"."party_id"`), which SQLite's parser rejects there (valid in SELECT/WHERE, not in
+      // `INSERT INTO t (...)`) — confirmed empirically. `sql.raw(table.col.name)` embeds the bare
+      // physical column name for the multi-word columns; single-word columns (name/class/x/y) are
+      // spelled literally since camelCase and the physical snake_case name coincide for them.
+      (table) => sql`
+        INSERT INTO ${table}
+          (${sql.raw(table.id.name)}, ${sql.raw(table.partyId.name)}, ${sql.raw(table.userId.name)},
+           name, class, ${sql.raw(table.mapId.name)}, x, y)
+        SELECT ${id}, ${partyId}, ${userId}, ${input.name}, ${input.class},
+               ${start.mapId}, ${start.x}, ${start.y}
+        WHERE (SELECT count(*) FROM ${table}
+               WHERE ${table.partyId} = ${partyId} AND ${table.userId} = ${userId}) < ${MAX_HEROES_PER_PARTY}
+        RETURNING ${table.id}
+      `,
+      ID_ROW_SCHEMA,
+    );
+    if (inserted.length === 0) throw new Error("cap: too many heroes in this party");
 
     await this.ensureItemDefinitionsSeeded();
 
@@ -237,6 +285,60 @@ export class HeroService {
   }
 
   // ---------------------------------------------------------------------------------------------
+
+  /**
+   * The full port of `resolveAdventureStart` (`adventures.ts:350-387`) — see this file's docblock
+   * for the three tiers and their exact precedence. Returns `null` only when the adventure has no
+   * maps at all.
+   */
+  private async resolveHeroStart(
+    adventureId: string,
+  ): Promise<{ mapId: string; x: number; y: number } | null> {
+    const memberMaps = await this.maps.findMany({
+      where: { adventureId: { eq: adventureId } },
+      orderBy: "createdAt",
+    });
+    if (memberMaps.length === 0) return null;
+    const mapIds = memberMaps.map((row) => row.id);
+
+    // Tier 1: the earliest-created member map carrying a `spawn`-kind event.
+    const spawnRows = await this.mapEvents.findMany({
+      where: { mapId: { inArray: mapIds }, kind: { eq: "spawn" } },
+    });
+    if (spawnRows.length > 0) {
+      for (const mapId of mapIds) {
+        // Deterministic pick if an author placed more than one spawn on a single map.
+        const chosen = spawnRows
+          .filter((row) => row.mapId === mapId)
+          .sort((a, b) => a.row - b.row || a.col - b.col)[0];
+        if (chosen) return { mapId, ...eventCellCentre(chosen) };
+      }
+    }
+
+    // Tier 2: the legacy graph start (an entry event on a member map).
+    const adventureRow = await this.adventures.findById(adventureId);
+    const graph: AdventureGraph | null = adventureRow
+      ? parseAdventureGraph(JSON.parse(adventureRow.graph))
+      : null;
+    const start = graph?.start;
+    if (start && mapIds.includes(start.mapId)) {
+      const startMap = memberMaps.find((row) => row.id === start.mapId);
+      if (startMap) {
+        const entry = await this.mapEvents.findOne({
+          where: { id: { eq: start.entryId }, mapId: { eq: start.mapId }, kind: { eq: "entry" } },
+        });
+        return {
+          mapId: startMap.id,
+          ...(entry ? eventCellCentre(entry) : mapDefaultSpawn(startMap)),
+        };
+      }
+    }
+
+    // Tier 3: the first member map at its own authored spawn point.
+    const firstMap = memberMaps[0];
+    if (!firstMap) return null;
+    return { mapId: firstMap.id, ...mapDefaultSpawn(firstMap) };
+  }
 
   /** Ported from `character-persistence.ts::ensureNormalizedCharacter`'s `item_definition` seeding
    *  loop — see this file's docblock for why this runs on demand instead of via a migration. Cheap

@@ -216,12 +216,16 @@ describe("createParty", () => {
         status: "open",
       });
     }
+    // At the cap: the atomic conditional-INSERT guard (not just the friendly count() fast-path) must
+    // refuse a create attempted exactly at the boundary and leave the row count unchanged.
     const response = await authedFetch("/api/parties", token, {
       method: "POST",
       body: JSON.stringify({ adventureId }),
     });
     expect(response.status).toBe(409);
     expect(await response.json()).toMatchObject({ error: "party_cap" });
+    const hostedAfter = await probe.parties.findMany({ where: { hostUserId: { eq: userId } } });
+    expect(hostedAfter).toHaveLength(MAX_HOSTED_PARTIES);
   });
 });
 
@@ -248,13 +252,19 @@ describe("joinParty", () => {
       expect(response.status, `guest ${index}`).toBe(204);
     }
 
-    // The party is now full (host + 3 guests = maxPlayers 4); a 5th member is refused.
+    // The party is now full (host + 3 guests = maxPlayers 4); a 5th member is refused. This is
+    // exactly the at-the-cap boundary: the atomic conditional-INSERT guard (not just the earlier
+    // friendly length check) must refuse it and leave the member count unchanged.
     const fifth = await registerAndLogin("joinfifth");
     const overflow = await authedFetch(`/api/parties/${party.id}/join`, fifth.token, {
       method: "POST",
     });
     expect(overflow.status).toBe(409);
     expect(await overflow.json()).toMatchObject({ error: "party_full" });
+    const membersAfter = await probe.partyMembers.findMany({
+      where: { partyId: { eq: party.id } },
+    });
+    expect(membersAfter).toHaveLength(PARTY_COLORS.length);
 
     const listed = await authedFetch("/api/parties", hostToken);
     const page = (await listed.json()) as { items: { id: string; colors: string[] }[] };
@@ -273,6 +283,50 @@ describe("joinParty", () => {
     );
     expect(response.status).toBe(404);
     expect(await response.json()).toMatchObject({ error: "party_not_found" });
+  });
+});
+
+describe("rethrowAsPartyError DbConflictError mapping", () => {
+  // `joinParty`'s own atomic conditional insert reclassifies its zero-row race outcome by re-reading
+  // state, so it never throws a raw `DbConflictError` — but `createParty`'s initial host-membership
+  // insert still goes through a plain `Repository.create()`, which does. This drives a REAL
+  // `partyMembers(partyId, color)` unique-index hit through the actual SQLite provider (pre-inserting
+  // the colliding row, per the review's own instruction) and asserts `rethrowAsPartyError` maps it to
+  // `party_color_taken`, not a generic 409.
+  test("maps a partyMembers(partyId,color) unique collision to party_color_taken", async () => {
+    const { token: hostToken } = await registerAndLogin("conflicthost");
+    const adventureId = await newPlayableAdventure(hostToken);
+    const created = await authedFetch("/api/parties", hostToken, {
+      method: "POST",
+      body: JSON.stringify({ adventureId }),
+    });
+    const party = (await created.json()) as { id: string };
+    // The host already holds PARTY_COLORS[0]. Pre-insert a SECOND row for a DIFFERENT account that
+    // collides ONLY on (partyId, colour) — a different userId keeps it clear of the OTHER unique
+    // index, `(partyId, userId)`, so the raw driver message names just the colour index.
+    const { userId: rivalId } = await registerAndLogin("conflictrival");
+    let dbConflictError: unknown;
+    try {
+      await probe.partyMembers.create({
+        id: crypto.randomUUID(),
+        partyId: party.id,
+        userId: rivalId,
+        color: PARTY_COLORS[0],
+      });
+    } catch (error) {
+      dbConflictError = error;
+    }
+    expect(dbConflictError).toBeDefined();
+    expect((dbConflictError as Error).name).toBe("DbConflictError");
+
+    const { rethrowAsPartyError } = await import("../src/api/services/partyAuthoring.ts");
+    let httpError: unknown;
+    try {
+      rethrowAsPartyError(dbConflictError);
+    } catch (error) {
+      httpError = error;
+    }
+    expect(httpError).toMatchObject({ status: 409, error: "party_color_taken" });
   });
 });
 

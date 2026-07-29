@@ -10,8 +10,37 @@
  * The legacy `"prefix: message"` `Error` convention is preserved on purpose: `rethrowAsPartyError`
  * below is the direct port of `packages/server/src/index.ts`'s `partyErrorResponse`, so every
  * message a ported validator throws is still routed to the exact same machine code.
+ *
+ * `rethrowAsPartyError` also classifies a raw `DbConflictError` — `PartyService.joinParty`'s atomic
+ * conditional insert reclassifies its own zero-row race outcome by re-reading state (so a
+ * `DbConflictError` should not normally reach here from THAT path), but `createParty`'s initial
+ * host-membership insert still goes through a plain `Repository.create()`, which throws one directly
+ * on a unique-index hit. `partyMembers` has two unique indexes — `(partyId, userId)` and
+ * `(partyId, color)` — and `DbConflictError` itself carries no constraint name (see this file's own
+ * comment on `deepestErrorMessage`), so the classification reads the raw SQLite driver message.
  */
+import { DbConflictError } from "alepha/orm";
 import { HttpError } from "alepha/server";
+
+/**
+ * Walks an `Error`'s `.cause` chain to the bottom. `Repository.handleError` wraps the raw driver
+ * error twice (its own `DbConflictError`, whose `.cause` is drizzle's wrapper, whose OWN `.cause` is
+ * the raw `node:sqlite`/`better-sqlite3` error) — confirmed empirically against this app's own
+ * SQLite provider: the deepest message is the only one that actually names the failed index's
+ * columns, e.g. `"UNIQUE constraint failed: partyMembers.party_id, partyMembers.color"`.
+ */
+function deepestErrorMessage(error: unknown): string {
+  let current: Error | unknown = error;
+  let message = error instanceof Error ? error.message : "";
+  const seen = new Set<unknown>();
+  while (current instanceof Error && current.cause instanceof Error && !seen.has(current)) {
+    seen.add(current);
+    const next: Error = current.cause;
+    current = next;
+    message = next.message;
+  }
+  return message;
+}
 
 /**
  * A page cursor is `<createdAt>:<id>`. Unlike legacy's millisecond-epoch cursor, `createdAt` here is
@@ -54,6 +83,13 @@ export function encodePartyCursor(row: { createdAt: string; id: string }): strin
  * than a business error, since it was never meant to be reachable from a validated body.
  */
 export function rethrowAsPartyError(error: unknown): never {
+  if (error instanceof DbConflictError) {
+    const detail = deepestErrorMessage(error);
+    if (/\bcolor\b/i.test(detail)) {
+      throw new HttpError({ status: 409, error: "party_color_taken", message: detail });
+    }
+    throw new HttpError({ status: 409, error: "party_already_member", message: detail });
+  }
   const message = error instanceof Error ? error.message : "";
   const code = message.split(":")[0];
   if (code === "not_found") throw new HttpError({ status: 404, error: "party_not_found", message });
