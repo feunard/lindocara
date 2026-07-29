@@ -59,13 +59,17 @@ export function advancePlayers(context: MovementSystemContext): void {
       }
 
       const previousPosition = { x: player.x, y: player.y };
-      let desired = step(
-        player,
-        player.lastInput,
-        TICK_DT,
-        movementSpeedAt(player, speedForLife(player.life), context.zone.terrain),
-        context.zone.terrain,
-      );
+      const shadowDanceLocked =
+        player.class === "rogue" && player.rogueShadowDanceInvulnerableUntil > context.now;
+      let desired = shadowDanceLocked
+        ? { x: player.x, y: player.y }
+        : step(
+            player,
+            player.lastInput,
+            TICK_DT,
+            movementSpeedAt(player, speedForLife(player.life), context.zone.terrain),
+            context.zone.terrain,
+          );
       const heldBlink =
         player.action?.skillId === "blink" &&
         player.action.channelMaxEndsAt !== undefined &&

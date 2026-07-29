@@ -106,6 +106,7 @@ import {
   type ProjectileSnapshot,
   parseClientMessage,
   type QuestDialogueEntry,
+  type RogueShadowDanceSequence,
   type SelfState,
   type ServerMessage,
   type WorldView,
@@ -290,6 +291,7 @@ import {
   linePiercerPowerRatio,
   retreatShotDirections,
 } from "./world/ranger-variant-system.js";
+import { planShadowDance } from "./world/rogue-shadow-dance-system.js";
 import {
   hasRogueLineOfSight,
   isShadowStepPathClear,
@@ -302,6 +304,7 @@ import {
   enterRogueStealth,
   exitRogueStealth,
   expireRogueOpening,
+  expireRogueShadowDanceProtection,
   expireRogueStealth,
   grantRogueOpening,
   isRogueStealthed,
@@ -376,6 +379,7 @@ interface PendingQuestConversation {
 interface MonsterDamageContext {
   damageOverTime?: boolean;
   persistentOwnerCredit?: boolean;
+  suppressHitEvent?: boolean;
 }
 
 export class World extends DurableObject<Env> {
@@ -1976,6 +1980,29 @@ export class World extends DurableObject<Env> {
       });
       return false;
     }
+    const shadowDance =
+      definition.shape === "shadow_dance"
+        ? planShadowDance(
+            player,
+            this.#monsters,
+            skill.range,
+            ROGUE_BALANCE.shadowDance.maximumHits,
+            now,
+            this.#zone().terrain,
+            (monster) => monsterBodyRadius(monster.species),
+          )
+        : null;
+    if (shadowDance && !shadowDance.ok) {
+      this.#send(ws, {
+        t: "event",
+        code: shadowDance.reason === "blocked" ? "skill.blocked" : "skill.no_target",
+        params: { skill: skill.id },
+        tone: "info",
+        x: player.x,
+        y: player.y,
+      });
+      return false;
+    }
     const chargeTarget =
       definition.shape === "charge"
         ? nearestChargeTarget(
@@ -1989,6 +2016,8 @@ export class World extends DurableObject<Env> {
             (monster) => hasLineOfSight(player, monster, this.#zone().terrain.tiles),
           )
         : null;
+    const shadowDanceTarget =
+      shadowDance?.ok === true ? shadowDance.plan.strikes[0]?.targetPosition : undefined;
     const direction =
       shadowStep?.ok === true
         ? normalizeDirection(
@@ -1998,12 +2027,20 @@ export class World extends DurableObject<Env> {
             },
             player.facing,
           )
-        : chargeTarget
+        : shadowDanceTarget
           ? normalizeDirection(
-              { x: chargeTarget.x - player.x, y: chargeTarget.y - player.y },
+              {
+                x: shadowDanceTarget.x - player.x,
+                y: shadowDanceTarget.y - player.y,
+              },
               player.facing,
             )
-          : player.facing;
+          : chargeTarget
+            ? normalizeDirection(
+                { x: chargeTarget.x - player.x, y: chargeTarget.y - player.y },
+                player.facing,
+              )
+            : player.facing;
     const cyclone =
       definition.shape === "area_damage"
         ? talentEffect(player.class, player.talents, "cyclone", slot)
@@ -2130,6 +2167,11 @@ export class World extends DurableObject<Env> {
       this.#playerGrid.update(player, previousPosition);
       grantRogueOpening(player, "shadow_step", now);
       this.#sendState(socket, player);
+      return;
+    }
+
+    if (definition.shape === "shadow_dance") {
+      this.#resolveShadowDance(socket, player, action, skill, now);
       return;
     }
 
@@ -2543,24 +2585,26 @@ export class World extends DurableObject<Env> {
     }
     if (player.class === "warrior" && skill.id === "shield_bash")
       this.#tauntMonster(player, target, now);
-    this.#sendSpatialEvent(
-      {
-        t: "event",
-        code: "combat.hit",
-        params: {
-          species: target.species,
-          damage: actualDamage,
-          skill: skill.id,
-          actorId: player.id,
-          ...(basic ? { basic: 1 } : {}),
-          ...(context.damageOverTime ? { poisonTick: 1 } : {}),
+    if (!context.suppressHitEvent) {
+      this.#sendSpatialEvent(
+        {
+          t: "event",
+          code: "combat.hit",
+          params: {
+            species: target.species,
+            damage: actualDamage,
+            skill: skill.id,
+            actorId: player.id,
+            ...(basic ? { basic: 1 } : {}),
+            ...(context.damageOverTime ? { poisonTick: 1 } : {}),
+          },
+          tone: "info",
+          x: target.x,
+          y: target.y,
         },
-        tone: "info",
-        x: target.x,
-        y: target.y,
-      },
-      target,
-    );
+        target,
+      );
+    }
     if (result.killed)
       this.#defeatMonster(ws, player, target, now, context.persistentOwnerCredit === true);
     return { actualDamage, killed: result.killed };
@@ -2581,6 +2625,91 @@ export class World extends DurableObject<Env> {
       intervalMs: ROGUE_BALANCE.poisonedShiv.poisonIntervalMs,
       maxStacks: 1,
     });
+  }
+
+  #resolveShadowDance(
+    ws: WebSocket,
+    player: Player,
+    action: CombatActionRuntime,
+    skill: SkillDefinition,
+    now: number,
+  ): void {
+    const planning = planShadowDance(
+      player,
+      this.#monsters,
+      skill.range,
+      ROGUE_BALANCE.shadowDance.maximumHits,
+      now,
+      this.#zone().terrain,
+      (monster) => monsterBodyRadius(monster.species),
+    );
+    if (!planning.ok) {
+      this.#send(ws, {
+        t: "event",
+        code: planning.reason === "blocked" ? "skill.blocked" : "skill.no_target",
+        params: { skill: skill.id },
+        tone: "info",
+        x: player.x,
+        y: player.y,
+      });
+      return;
+    }
+
+    const origin = { x: player.x, y: player.y };
+    const strikes: RogueShadowDanceSequence["strikes"] = [];
+    for (const planned of planning.plan.strikes) {
+      const target = this.#monsters.find((monster) => monster.id === planned.targetId);
+      if (!target || target.deadUntil > now) continue;
+      player.x = planned.landing.x;
+      player.y = planned.landing.y;
+      const result = this.#damageMonster(ws, player, target, skill, now, false, undefined, {
+        suppressHitEvent: true,
+      });
+      if (!result) continue;
+      strikes.push({
+        targetId: target.id,
+        from: { ...planned.from },
+        targetPosition: { ...planned.targetPosition },
+        landing: { ...planned.landing },
+        impactAt: now + strikes.length * ROGUE_BALANCE.shadowDance.strikeIntervalMs,
+        damage: result.actualDamage,
+        killed: result.killed,
+      });
+    }
+    const last = strikes.at(-1);
+    if (!last) {
+      player.x = origin.x;
+      player.y = origin.y;
+      return;
+    }
+
+    player.x = last.landing.x;
+    player.y = last.landing.y;
+    player.facing = normalizeDirection(
+      {
+        x: last.targetPosition.x - player.x,
+        y: last.targetPosition.y - player.y,
+      },
+      action.direction,
+    );
+    this.#playerGrid.update(player, origin);
+    const endsAt = now + Math.max(1, strikes.length) * ROGUE_BALANCE.shadowDance.strikeIntervalMs;
+    player.rogueShadowDanceInvulnerableUntil = endsAt;
+    player.dirty = true;
+
+    const sequence: RogueShadowDanceSequence = {
+      t: "rogue.shadow_dance",
+      actionId: action.id,
+      actorId: player.id,
+      startedAt: now,
+      endsAt,
+      strikes,
+      finalPosition: { x: player.x, y: player.y },
+    };
+    this.#sendSpatialEventAcross(sequence, [
+      origin,
+      ...strikes.flatMap((strike) => [strike.targetPosition, strike.landing]),
+    ]);
   }
 
   #tauntMonster(player: Player, target: Monster, now: number): void {
@@ -3884,6 +4013,7 @@ export class World extends DurableObject<Env> {
     this.#advanceConsumableEffects(now);
     for (const [socket, player] of this.#players) {
       expireRogueOpening(player, now);
+      expireRogueShadowDanceProtection(player, now);
       if (expireRogueStealth(player, now)) this.#sendState(socket, player);
     }
     advanceDamageOverTime(this.#damageOverTime, now, {
@@ -5702,6 +5832,19 @@ export class World extends DurableObject<Env> {
       if (!recipient.authorized) continue;
       const socket = this.#socketByPlayerId.get(recipient.id);
       if (socket) this.#send(socket, message);
+    }
+  }
+
+  #sendSpatialEventAcross(message: ServerMessage, positions: readonly Vec2[]): void {
+    const sent = new Set<WebSocket>();
+    for (const position of positions) {
+      for (const recipient of this.#playerGrid.queryRadius(position, SPATIAL_EVENT_RADIUS)) {
+        if (!recipient.authorized) continue;
+        const socket = this.#socketByPlayerId.get(recipient.id);
+        if (!socket || sent.has(socket)) continue;
+        sent.add(socket);
+        this.#send(socket, message);
+      }
     }
   }
 

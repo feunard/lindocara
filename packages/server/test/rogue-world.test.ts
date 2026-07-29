@@ -78,6 +78,48 @@ function roguePoisonMapInput(monsterMaxHp: number): TestMapBody {
   };
 }
 
+function rogueDanceMapInput(monsterCount: number, wallCol?: number): TestMapBody {
+  const cols = 24;
+  const rows = 15;
+  const map = testMapInput("Rogue dance", {
+    cols,
+    rows,
+    spawn: { col: 5, row: 5 },
+    exit: { col: 22, row: 13 },
+    monsterSpawns: Array.from({ length: monsterCount }, (_, index) => ({
+      col: 7 + index * 2,
+      row: 5,
+      species: "mire_troll" as const,
+      patrolRadius: 32,
+    })),
+  });
+  const tuned = {
+    ...map,
+    events: map.events.map((event) =>
+      event.kind === "monster"
+        ? {
+            ...event,
+            monsterMaxHp: 500,
+            monsterDamage: 1,
+            monsterSpeed: 20,
+            monsterXp: 0,
+            monsterRespawnMode: "never" as const,
+          }
+        : event,
+    ),
+  };
+  if (wallCol === undefined) return tuned;
+  return {
+    ...tuned,
+    ...layeredWireTerrain(
+      Array.from(
+        { length: rows },
+        () => `${".".repeat(wallCol)}#${".".repeat(cols - wallCol - 1)}`,
+      ),
+    ),
+  };
+}
+
 /**
  * Commit 6 deliberately keeps Rogue out of the public create input. Runtime integration still
  * needs a real D1 hero and WebSocket, so create a normal fixture then switch only its stored class
@@ -549,6 +591,170 @@ describe("Rogue authoritative poison", { timeout: 15_000 }, () => {
     } finally {
       rogue.close();
       observer.close();
+    }
+  });
+});
+
+describe("Rogue authoritative Shadow Dance", { timeout: 15_000 }, () => {
+  it("fails without a server-selected target and spends no cooldown", async () => {
+    const party = await testParty("rogue-dance-empty", {
+      maps: [rogueDanceMapInput(0)],
+    });
+    const hero = await hiddenRogueHero("NoCut", {
+      party,
+      account: party.host,
+      level: 10,
+      position: centre(5, 5),
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      await until("empty Dance welcome", () => client.welcome);
+      client.skill(5);
+      await until("empty Dance refusal", () =>
+        client.received.find(
+          (message) =>
+            message.t === "event" &&
+            message.code === "skill.no_target" &&
+            message.params?.skill === "shadow_dance",
+        ),
+      );
+      expect(client.latestState?.cooldowns?.skillCooldowns[4]).toBe(0);
+      expect(
+        client.received.some(
+          (message) => message.t === "animation" && message.skillId === "shadow_dance",
+        ),
+      ).toBe(false);
+    } finally {
+      client.close();
+    }
+  });
+
+  it("publishes one complete five-target route and resolves each distinct target once", async () => {
+    const party = await testParty("rogue-dance-five", {
+      maps: [rogueDanceMapInput(5)],
+    });
+    const hero = await hiddenRogueHero("FiveCuts", {
+      party,
+      account: party.host,
+      level: 10,
+      position: centre(5, 5),
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      const welcome = await until("five-target Dance welcome", () => client.welcome);
+      expect(welcome.monsters).toHaveLength(5);
+      const eventOffset = client.received.length;
+      client.skill(5);
+      const sequence = await until("five-target Shadow Dance result", () =>
+        client.received.slice(eventOffset).find((message) => message.t === "rogue.shadow_dance"),
+      );
+      if (sequence.t !== "rogue.shadow_dance") throw new Error("expected Shadow Dance result");
+
+      expect(sequence.strikes).toHaveLength(5);
+      expect(new Set(sequence.strikes.map((strike) => strike.targetId)).size).toBe(5);
+      expect(sequence.strikes.map((strike) => strike.damage)).toEqual([50, 50, 50, 50, 50]);
+      expect(sequence.strikes.map((strike) => strike.impactAt)).toEqual(
+        sequence.strikes.map((_strike, index) => sequence.startedAt + index * 90),
+      );
+      expect(sequence.finalPosition).toEqual(sequence.strikes.at(-1)?.landing);
+      expect(
+        client.received
+          .slice(eventOffset)
+          .some(
+            (message) =>
+              message.t === "event" &&
+              message.code === "combat.hit" &&
+              message.params?.skill === "shadow_dance",
+          ),
+      ).toBe(false);
+
+      await until("Shadow Dance final authoritative position", () => {
+        const self = client.self();
+        return self &&
+          Math.abs(self.x - sequence.finalPosition.x) < 0.01 &&
+          Math.abs(self.y - sequence.finalPosition.y) < 0.01
+          ? self
+          : undefined;
+      });
+      client.press("left");
+      await scheduler.wait(180);
+      client.release();
+      expect(client.self()?.x).toBeCloseTo(sequence.finalPosition.x, 2);
+      expect(client.self()?.y).toBeCloseTo(sequence.finalPosition.y, 2);
+      for (const target of welcome.monsters) {
+        expect(
+          client.latestSnapshot?.monsters.find((monster) => monster.id === target.id)?.hp,
+        ).toBe(450);
+      }
+      expect(client.latestState?.cooldowns?.skillCooldowns[4]).toBeGreaterThan(
+        client.latestState?.serverNow ?? 0,
+      );
+    } finally {
+      client.close();
+    }
+  });
+
+  it("hits a lone target only once in the base version", async () => {
+    const party = await testParty("rogue-dance-single", {
+      maps: [rogueDanceMapInput(1)],
+    });
+    const hero = await hiddenRogueHero("OneCut", {
+      party,
+      account: party.host,
+      level: 10,
+      position: centre(5, 5),
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      const welcome = await until("single-target Dance welcome", () => client.welcome);
+      const target = welcome.monsters[0];
+      if (!target) throw new Error("expected lone Dance target");
+      client.skill(5);
+      const sequence = await until("single-target Shadow Dance result", () =>
+        client.received.find((message) => message.t === "rogue.shadow_dance"),
+      );
+      if (sequence.t !== "rogue.shadow_dance") throw new Error("expected Shadow Dance result");
+      expect(sequence.strikes).toEqual([
+        expect.objectContaining({ targetId: target.id, damage: 50, killed: false }),
+      ]);
+      await until("single Dance damage snapshot", () => {
+        const current = client.latestSnapshot?.monsters.find((monster) => monster.id === target.id);
+        return current?.hp === 450 ? current : undefined;
+      });
+    } finally {
+      client.close();
+    }
+  });
+
+  it("stops its route at an authored wall instead of crossing to the next target", async () => {
+    const party = await testParty("rogue-dance-wall", {
+      maps: [rogueDanceMapInput(2, 8)],
+    });
+    const hero = await hiddenRogueHero("WallCut", {
+      party,
+      account: party.host,
+      level: 10,
+      position: centre(5, 5),
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      const welcome = await until("walled Dance welcome", () => client.welcome);
+      expect(welcome.monsters).toHaveLength(2);
+      client.skill(5);
+      const sequence = await until("walled Shadow Dance result", () =>
+        client.received.find((message) => message.t === "rogue.shadow_dance"),
+      );
+      if (sequence.t !== "rogue.shadow_dance") throw new Error("expected Shadow Dance result");
+      expect(sequence.strikes).toHaveLength(1);
+      const hitId = sequence.strikes[0]?.targetId;
+      const untouched = welcome.monsters.find((monster) => monster.id !== hitId);
+      if (!untouched) throw new Error("expected target across wall");
+      await scheduler.wait(250);
+      expect(
+        client.latestSnapshot?.monsters.find((monster) => monster.id === untouched.id)?.hp,
+      ).toBe(500);
+    } finally {
+      client.close();
     }
   });
 });

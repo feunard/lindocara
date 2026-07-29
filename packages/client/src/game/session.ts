@@ -11,6 +11,7 @@ import type {
   EventParams,
   PlayerSnapshot,
   QuestState,
+  RogueShadowDanceSequence,
   SelfState,
 } from "@lindocara/engine/protocol.js";
 import { NO_INPUT, PLAYER_SIZE, type Vec2 } from "@lindocara/engine/simulation.js";
@@ -451,6 +452,10 @@ async function startGameIdentity(
       renderer.playCombatAnimation(animation);
       if (animation.actorKind === "monster") sound.monsterAttack();
       else if (animation.skillId) sound.skillCast(animation.skillId);
+    },
+    onShadowDance: (sequence: RogueShadowDanceSequence) => {
+      renderer.playShadowDance(sequence);
+      sound.combatPulse();
     },
     // The dialogue panel (spec Decision 4): the server pushes beats to THIS player, the store holds
     // the open panel, EventDialoguePanel renders it. Prose is authored data rendered verbatim; the

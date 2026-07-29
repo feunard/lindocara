@@ -109,6 +109,16 @@ export function expireRogueStealth(player: PlayerRuntime, now: number): boolean 
     : false;
 }
 
+export function expireRogueShadowDanceProtection(player: PlayerRuntime, now: number): boolean {
+  if (
+    player.rogueShadowDanceInvulnerableUntil <= 0 ||
+    player.rogueShadowDanceInvulnerableUntil > now
+  )
+    return false;
+  player.rogueShadowDanceInvulnerableUntil = 0;
+  return true;
+}
+
 /**
  * Rogue combat windows are deliberately session-local. This single reset boundary is reused by
  * death, disconnect and map transition so no caller can forget one of the related states.
@@ -118,5 +128,6 @@ export function clearRogueTransientState(player: PlayerRuntime): void {
   player.rogueStealthUntil = 0;
   player.rogueSmokeProtectionUntil = 0;
   player.roguePredatorShivUntil = 0;
+  player.rogueShadowDanceInvulnerableUntil = 0;
   player.rogueShadowReturn = null;
 }

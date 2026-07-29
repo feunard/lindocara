@@ -25,6 +25,7 @@ import type {
   PlayerSnapshot,
   ProjectileSnapshot,
   QuestState,
+  RogueShadowDanceSequence,
   WorldEventSnapshot,
 } from "@lindocara/engine/protocol.js";
 import { PLAYER_SIZE } from "@lindocara/engine/simulation.js";
@@ -356,6 +357,17 @@ interface Effect {
   scaleGrowth: number;
   baseScale: number;
   actionId?: string;
+}
+
+interface ShadowDanceVisualRuntime {
+  actionId: string;
+  actorId: string;
+  strikes: Array<
+    RogueShadowDanceSequence["strikes"][number] & {
+      localImpactAt: number;
+    }
+  >;
+  nextStrikeIndex: number;
 }
 
 interface AmbientView {
@@ -967,6 +979,7 @@ export class Renderer {
    *  authored-element preload already fetched. */
   #eventAssetArt = new Map<EditorAssetId, EditorAssetArt>();
   #activeEffects: Effect[] = [];
+  #shadowDanceSequences: ShadowDanceVisualRuntime[] = [];
   #ambientViews: AmbientView[] = [];
   #staticViews: StaticView[] = [];
   #worldTextViews: WorldTextView[] = [];
@@ -1737,6 +1750,7 @@ export class Renderer {
     this.#projectiles.clear();
     for (const effect of this.#activeEffects) effect.container.destroy({ children: true });
     this.#activeEffects = [];
+    this.#shadowDanceSequences = [];
     for (const view of this.#players.values()) this.#resetVisualAction(view);
     for (const view of this.#monsters.values()) this.#resetVisualAction(view);
     this.#combatVisualAuthority.clearSnapshots();
@@ -3651,6 +3665,24 @@ export class Renderer {
     if (view) this.#setVisualAction(view, action);
   }
 
+  /** Queues only the server-resolved route; frames consume its timestamps without choosing targets. */
+  playShadowDance(sequence: RogueShadowDanceSequence): void {
+    if (!this.#combatVisualAuthority.acceptsAction(sequence.actionId)) return;
+    const localNow = performance.now();
+    const localStartedAt = this.serverClock.toLocal(sequence.startedAt) ?? localNow;
+    this.#shadowDanceSequences.push({
+      actionId: sequence.actionId,
+      actorId: sequence.actorId,
+      strikes: sequence.strikes.map((strike) => ({
+        ...strike,
+        localImpactAt:
+          this.serverClock.toLocal(strike.impactAt) ??
+          localStartedAt + Math.max(0, strike.impactAt - sequence.startedAt),
+      })),
+      nextStrikeIndex: 0,
+    });
+  }
+
   #actionFrame(
     frames: readonly Texture[],
     activeFrame: number,
@@ -4006,6 +4038,46 @@ export class Renderer {
       if (progress < 1) continue;
       effect.container.destroy({ children: true });
       this.#activeEffects.splice(index, 1);
+    }
+  }
+
+  #updateShadowDanceSequences(now: number): void {
+    for (let index = this.#shadowDanceSequences.length - 1; index >= 0; index--) {
+      const sequence = this.#shadowDanceSequences[index];
+      if (!sequence) continue;
+      while (sequence.nextStrikeIndex < sequence.strikes.length) {
+        const strike = sequence.strikes[sequence.nextStrikeIndex];
+        if (!strike || strike.localImpactAt > now) break;
+        const from = {
+          x: strike.from.x + PLAYER_SIZE / 2,
+          y: strike.from.y + PLAYER_SIZE / 2,
+        };
+        const landing = {
+          x: strike.landing.x + PLAYER_SIZE / 2,
+          y: strike.landing.y + PLAYER_SIZE / 2,
+        };
+        const impact = {
+          x: strike.targetPosition.x + PLAYER_SIZE / 2,
+          y: strike.targetPosition.y + PLAYER_SIZE / 2,
+        };
+        this.#playMobilityTrail(
+          from,
+          landing,
+          { durationMs: 210, color: 0x8f55d9, width: 9 },
+          sequence.actionId,
+        );
+        this.#addPulse(impact.x, impact.y, 0xc58cff, 24, 260);
+        this.#burst(impact.x, impact.y, 0x8f55d9, 7);
+        this.showWorldEvent(
+          `-${strike.damage}`,
+          "info",
+          strike.targetPosition.x,
+          strike.targetPosition.y,
+        );
+        sequence.nextStrikeIndex += 1;
+      }
+      if (sequence.nextStrikeIndex < sequence.strikes.length) continue;
+      this.#shadowDanceSequences.splice(index, 1);
     }
   }
 
@@ -4507,6 +4579,7 @@ export class Renderer {
     this.#updateWorldText(self);
     this.#drawOverlay(context);
     this.#updateAmbient(now);
+    this.#updateShadowDanceSequences(now);
     this.#updateEffects(now);
   }
 

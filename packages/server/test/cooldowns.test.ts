@@ -42,7 +42,7 @@ describe("authoritative combat cooldown state", () => {
         {
           attackUntil: NOW - 1,
           healUntil: Number.POSITIVE_INFINITY,
-          skillCooldowns: [NOW + 326, -1, Number.NaN, NOW + 60_000, NOW + 10_001],
+          skillCooldowns: [NOW + 326, -1, Number.NaN, NOW + 60_000, NOW + 60_000],
           guardUntil: NOW + 3_501,
           resurrectUntil: NOW + 20_001,
         },

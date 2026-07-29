@@ -295,6 +295,32 @@ export interface CombatAnimation {
   recoveryEndsAt: number;
 }
 
+export interface RogueShadowDanceStrike {
+  targetId: string;
+  from: Vec2;
+  targetPosition: Vec2;
+  landing: Vec2;
+  impactAt: number;
+  damage: number;
+  killed: boolean;
+  /** Present only for the future single-target evolution; base chains always use distinct ids. */
+  repeated?: true;
+}
+
+/**
+ * One complete server-resolved chain. Positions, ordering, damage and kills are results, never
+ * client input; the browser receives only enough truth to replay the validated sequence.
+ */
+export interface RogueShadowDanceSequence {
+  t: "rogue.shadow_dance";
+  actionId: string;
+  actorId: string;
+  startedAt: number;
+  endsAt: number;
+  strikes: RogueShadowDanceStrike[];
+  finalPosition: Vec2;
+}
+
 /**
  * The active page of an authored map event, projected to its appearance for the wire — the third
  * member of the `elements`/`layers` family. **Appearance only:** collision is already baked into
@@ -587,6 +613,7 @@ export type ServerMessage =
   | { t: "party.state"; party: PartyState | null }
   | { t: "merchant.open" }
   | CombatAnimation
+  | RogueShadowDanceSequence
   | { t: "event"; code: EventCode; params?: EventParams; tone: EventTone; x?: number; y?: number }
   // The three dialogue beats pushed to the run's TRIGGERER only (spec Decision 4: dialogue is a
   // per-player panel). `text`/`name`/`prompt`/`options` are AUTHORED PROSE — see `isAuthoredText`:
@@ -654,6 +681,45 @@ function isBoundedString(value: unknown, maximum: number, allowEmpty = false): v
 
 function isPosition(value: unknown): value is Vec2 {
   return isRecord(value) && isFiniteNumber(value.x) && isFiniteNumber(value.y);
+}
+
+function isRogueShadowDanceSequence(value: unknown): value is RogueShadowDanceSequence {
+  if (
+    !isRecord(value) ||
+    value.t !== "rogue.shadow_dance" ||
+    !isWireId(value.actionId) ||
+    !isWireId(value.actorId) ||
+    !isFiniteNumber(value.startedAt) ||
+    !isFiniteNumber(value.endsAt) ||
+    value.endsAt < value.startedAt ||
+    !Array.isArray(value.strikes) ||
+    value.strikes.length < 1 ||
+    value.strikes.length > 5 ||
+    !isPosition(value.finalPosition)
+  )
+    return false;
+  let previousImpactAt = value.startedAt;
+  for (const strike of value.strikes) {
+    if (
+      !isRecord(strike) ||
+      !isWireId(strike.targetId) ||
+      !isPosition(strike.from) ||
+      !isPosition(strike.targetPosition) ||
+      !isPosition(strike.landing) ||
+      !isFiniteNumber(strike.impactAt) ||
+      strike.impactAt < previousImpactAt ||
+      strike.impactAt > value.endsAt ||
+      !isNonNegativeInteger(strike.damage) ||
+      typeof strike.killed !== "boolean" ||
+      (strike.repeated !== undefined && strike.repeated !== true)
+    )
+      return false;
+    previousImpactAt = strike.impactAt;
+  }
+  const last = value.strikes.at(-1);
+  return Boolean(
+    last && last.landing.x === value.finalPosition.x && last.landing.y === value.finalPosition.y,
+  );
 }
 
 function isRect(value: unknown): value is Rect {
@@ -1526,6 +1592,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
     ) {
       return value as unknown as ServerMessage;
     }
+    if (isRogueShadowDanceSequence(value)) return value;
     if (
       value.t === "event" &&
       typeof value.code === "string" &&

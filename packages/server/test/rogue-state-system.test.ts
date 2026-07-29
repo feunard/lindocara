@@ -1,4 +1,5 @@
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
+import { isPlayerInvulnerable } from "@lindocara/server/world/combat-system.js";
 import {
   activeRogueOpening,
   clearRogueTransientState,
@@ -6,6 +7,7 @@ import {
   enterRogueStealth,
   exitRogueStealth,
   expireRogueOpening,
+  expireRogueShadowDanceProtection,
   expireRogueStealth,
   grantRogueOpening,
   isRogueStealthed,
@@ -116,6 +118,7 @@ describe("hidden Rogue runtime contract", () => {
       rogueStealthUntil: 0,
       rogueSmokeProtectionUntil: 0,
       roguePredatorShivUntil: 0,
+      rogueShadowDanceInvulnerableUntil: 0,
       rogueShadowReturn: null,
     });
 
@@ -123,7 +126,14 @@ describe("hidden Rogue runtime contract", () => {
     player.rogueStealthUntil = 8_000;
     player.rogueSmokeProtectionUntil = 500;
     player.roguePredatorShivUntil = 2_000;
+    player.rogueShadowDanceInvulnerableUntil = 1_450;
     player.rogueShadowReturn = { x: 10, y: 12, expiresAt: 2_000 };
+    expect(isPlayerInvulnerable(player, 1_449)).toBe(true);
+    expect(isPlayerInvulnerable(player, 1_450)).toBe(false);
+    expect(expireRogueShadowDanceProtection(player, 1_449)).toBe(false);
+    expect(expireRogueShadowDanceProtection(player, 1_450)).toBe(true);
+    expect(player.rogueShadowDanceInvulnerableUntil).toBe(0);
+    player.rogueShadowDanceInvulnerableUntil = 1_450;
     expect(selfState(player).rogue).toEqual({
       openingUntil: 1_500,
       stealthUntil: 8_000,
@@ -132,6 +142,7 @@ describe("hidden Rogue runtime contract", () => {
     });
 
     clearRogueTransientState(player);
+    expect(player.rogueShadowDanceInvulnerableUntil).toBe(0);
     expect(selfState(player).rogue).toEqual({
       openingUntil: 0,
       stealthUntil: 0,
@@ -144,12 +155,14 @@ describe("hidden Rogue runtime contract", () => {
     const player = rogue();
     player.opening = { source: "vanish", expiresAt: 9_000, bonusRatio: 0.4 };
     player.rogueStealthUntil = 8_000;
+    player.rogueShadowDanceInvulnerableUntil = 8_450;
     player.rogueShadowReturn = { x: 10, y: 12, expiresAt: 2_000 };
 
     const persisted = toProfile(player);
     const serialized = JSON.stringify(persisted);
     expect(serialized).not.toContain("opening");
     expect(serialized).not.toContain("rogueStealth");
+    expect(serialized).not.toContain("rogueShadowDance");
     expect(serialized).not.toContain("rogueShadowReturn");
     expect(newPlayer(persisted, "reconnected", player.roomKey).opening).toBeNull();
   });

@@ -25,7 +25,12 @@ export function isPlayerInvulnerable(player: PlayerRuntime, now: number): boolea
       now >= player.action.impactAt &&
       now < player.action.recoveryEndsAt,
   );
-  return player.cheatInvulnerable || dashing || isLumenCloudInvulnerable(player, now);
+  return (
+    player.cheatInvulnerable ||
+    dashing ||
+    isLumenCloudInvulnerable(player, now) ||
+    (player.class === "rogue" && player.rogueShadowDanceInvulnerableUntil > now)
+  );
 }
 
 export function guardedDamage(player: PlayerRuntime, damage: number, now = Date.now()) {

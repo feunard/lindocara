@@ -101,6 +101,7 @@ function handlers(): ConnectionHandlers {
     onPartyState: vi.fn(),
     onMerchantOpen: vi.fn(),
     onAnimation: vi.fn(),
+    onShadowDance: vi.fn(),
     onEvent: vi.fn(),
     onEventSay: vi.fn(),
     onEventChoices: vi.fn(),
@@ -147,6 +148,42 @@ describe("WorldClient lifecycle", () => {
 
     const self = client.sample(1000).players.find((player) => player.id === "hero-1");
     expect(self?.facing.x).toBeLessThan(0); // faces left the frame the key is held, not after a round trip
+  });
+
+  it("forwards the complete authoritative Shadow Dance result without deriving targets", () => {
+    const callbacks = handlers();
+    const client = new WorldClient();
+    client.connect(callbacks, "hero-1", "party-1");
+    const socket = FakeWebSocket.instances[0];
+    socket?.message(WELCOME);
+    const sequence = {
+      t: "rogue.shadow_dance",
+      actionId: "dance-1",
+      actorId: "hero-1",
+      startedAt: 1_000,
+      endsAt: 1_090,
+      strikes: [
+        {
+          targetId: "monster-1",
+          from: { x: 32, y: 32 },
+          targetPosition: { x: 64, y: 32 },
+          landing: { x: 96, y: 32 },
+          impactAt: 1_000,
+          damage: 32,
+          killed: false,
+        },
+      ],
+      finalPosition: { x: 96, y: 32 },
+    };
+
+    socket?.message(sequence);
+    client.update({ up: false, down: false, left: true, right: false }, TICK_DT);
+
+    expect(callbacks.onShadowDance).toHaveBeenCalledOnce();
+    expect(callbacks.onShadowDance).toHaveBeenCalledWith(sequence);
+    expect(
+      client.sample(performance.now()).players.find((player) => player.id === "hero-1"),
+    ).toMatchObject({ x: 96, y: 32 });
   });
 
   it("reports an error followed by close only once", () => {

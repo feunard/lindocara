@@ -28,6 +28,7 @@ import {
   type ProjectileSnapshot,
   parseServerMessage,
   parseWorldColliders,
+  type RogueShadowDanceSequence,
   type SelfState,
   type ServerMessage,
   type WorldEventSnapshot,
@@ -115,6 +116,7 @@ export interface ConnectionHandlers {
   onPartyState(party: PartyState | null): void;
   onMerchantOpen(): void;
   onAnimation(animation: CombatAnimation): void;
+  onShadowDance(sequence: RogueShadowDanceSequence): void;
   /** A dialogue beat for THIS player's panel (spec Decision 4): a say page, a choices offer, or the
    *  close that ends the run. `text`/`name`/`prompt`/`options` are authored prose, not i18n codes. */
   onEventSay(runId: string, text: string, name?: string): void;
@@ -187,6 +189,8 @@ export class WorldClient {
   #input: Input = NO_INPUT;
   #error: Vec2 = { x: 0, y: 0 };
   #errorAt = 0;
+  /** Presentation lock matching the server-owned Shadow Dance sequence; inputs still carry seqs. */
+  #shadowDanceMovementBlockedUntil = 0;
 
   get selfId(): string | null {
     return this.#selfId;
@@ -291,7 +295,8 @@ export class WorldClient {
       const seq = ++this.#seq;
       const command = { seq, input };
       this.#pending.push(command);
-      this.#predicted = predictStep(this.#predicted, command, this.#geometry, speed);
+      if (performance.now() >= this.#shadowDanceMovementBlockedUntil)
+        this.#predicted = predictStep(this.#predicted, command, this.#geometry, speed);
       this.#send({ t: "input", seq, input });
     }
   }
@@ -365,6 +370,7 @@ export class WorldClient {
       this.#receivedDelta = false;
       this.#resyncPending = false;
       this.#predictionBlocked = false;
+      this.#shadowDanceMovementBlockedUntil = 0;
       this.#push(
         message.players,
         message.monsters,
@@ -459,6 +465,16 @@ export class WorldClient {
     }
     if (message.t === "animation") {
       handlers.onAnimation(message);
+      return;
+    }
+    if (message.t === "rogue.shadow_dance") {
+      if (message.actorId === this.#selfId) {
+        this.#predicted = { ...message.finalPosition };
+        this.#error = { x: 0, y: 0 };
+        this.#shadowDanceMovementBlockedUntil =
+          performance.now() + Math.max(0, message.endsAt - message.startedAt);
+      }
+      handlers.onShadowDance(message);
       return;
     }
     if (message.t === "event.say") {

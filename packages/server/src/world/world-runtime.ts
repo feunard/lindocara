@@ -236,6 +236,7 @@ export interface PlayerRuntime extends PlayerProfile {
   rogueStealthUntil: number;
   rogueSmokeProtectionUntil: number;
   roguePredatorShivUntil: number;
+  rogueShadowDanceInvulnerableUntil: number;
   rogueShadowReturn: RogueShadowReturnRuntime | null;
   /** Deliberately limited cleanse surface; currently only poison is compatible. */
   negativeEffects: Map<CleanseableNegativeEffect, NegativeEffectRuntime>;
@@ -517,6 +518,7 @@ export function newPlayer(
     rogueStealthUntil: 0,
     rogueSmokeProtectionUntil: 0,
     roguePredatorShivUntil: 0,
+    rogueShadowDanceInvulnerableUntil: 0,
     rogueShadowReturn: null,
     negativeEffects: new Map(),
     lastResurrectAt:

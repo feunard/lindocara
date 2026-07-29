@@ -651,3 +651,64 @@ describe("combat animation messages", () => {
     ).toBeNull();
   });
 });
+
+describe("Rogue Shadow Dance result messages", () => {
+  const sequence = {
+    t: "rogue.shadow_dance" as const,
+    actionId: "dance-1",
+    actorId: "rogue-1",
+    startedAt: 1_000,
+    endsAt: 1_180,
+    strikes: [
+      {
+        targetId: "monster-a",
+        from: { x: 32, y: 64 },
+        targetPosition: { x: 128, y: 64 },
+        landing: { x: 160, y: 64 },
+        impactAt: 1_000,
+        damage: 32,
+        killed: false,
+      },
+      {
+        targetId: "monster-b",
+        from: { x: 160, y: 64 },
+        targetPosition: { x: 240, y: 64 },
+        landing: { x: 272, y: 64 },
+        impactAt: 1_090,
+        damage: 20,
+        killed: true,
+      },
+    ],
+    finalPosition: { x: 272, y: 64 },
+  };
+
+  it("round-trips the complete server-authored order and validated positions", () => {
+    expect(parseServerMessage(encodeServerMessage(sequence))).toEqual(sequence);
+  });
+
+  it("rejects empty, oversized, out-of-order, or mismatched-final-position chains", () => {
+    expect(parseServerMessage(JSON.stringify({ ...sequence, strikes: [] }))).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          ...sequence,
+          strikes: Array.from({ length: 6 }, () => sequence.strikes[0]),
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          ...sequence,
+          strikes: [
+            sequence.strikes[0],
+            { ...sequence.strikes[1], impactAt: sequence.startedAt - 1 },
+          ],
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      parseServerMessage(JSON.stringify({ ...sequence, finalPosition: { x: 0, y: 0 } })),
+    ).toBeNull();
+  });
+});
