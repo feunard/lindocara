@@ -5,7 +5,8 @@
   "type": "module",
   "workspaces": [
     "packages/*",
-    "apps/*"
+    "apps/*",
+    ".vendor/alepha"
   ],
   "engines": {
     "node": ">=22"
@@ -72,6 +73,7 @@
     "@types/react-dom": "^19.2.3",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^6.0.3",
+    "alepha": "^0.24.0",
     "drizzle-kit": "^0.31.10",
     "jsdom": "^29.1.1",
     "shadcn": "^4.13.1",
@@ -87,6 +89,8 @@
   "overrides": {
     "@esbuild-kit/core-utils": {
       "esbuild": "^0.25.4"
-    }
+    },
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
   }
 }

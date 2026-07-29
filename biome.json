@@ -8,6 +8,7 @@
       "**",
       "!dist",
       "!.wrangler",
+      "!.vendor",
       "!packages/server/src/worker-configuration.d.ts",
       "!packages/server/migrations/meta",
       "!packages/catalog/assets/index.json",
