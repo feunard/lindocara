@@ -8,7 +8,7 @@ import {
   PLAYER_ACTIONS,
 } from "@lindocara/engine/combat-actions.js";
 import { ATTACK_COOLDOWN_MS, PLAYER_CLASSES } from "@lindocara/engine/game.js";
-import { ROGUE_BALANCE } from "@lindocara/engine/rogue.js";
+import { ROGUE_BALANCE, roguePoisonTickPower } from "@lindocara/engine/rogue.js";
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
 import { describe, expect, it } from "vitest";
 
@@ -72,8 +72,10 @@ describe("directional class kit contract", () => {
     expect(ROGUE_BALANCE.poisonedShiv).toMatchObject({
       poisonTicks: 5,
       poisonTickPower: 6,
+      poisonTickPowerPerLevel: 1,
       poisonIntervalMs: 1_000,
     });
+    expect([roguePoisonTickPower(1), roguePoisonTickPower(7)]).toEqual([6, 12]);
     expect(ROGUE_BALANCE.shadowDance.maximumHits).toBe(5);
   });
 

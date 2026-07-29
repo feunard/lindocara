@@ -131,7 +131,7 @@ import {
   skillResourceCost,
   spendResource,
 } from "@lindocara/engine/resources.js";
-import { ROGUE_BALANCE } from "@lindocara/engine/rogue.js";
+import { ROGUE_BALANCE, roguePoisonTickPower } from "@lindocara/engine/rogue.js";
 import {
   NETWORK_TICKS_PER_SNAPSHOT,
   NO_INPUT,
@@ -207,6 +207,14 @@ import {
   clearMonsterCombat,
   removePlayerCombatState,
 } from "./world/contribution-system.js";
+import {
+  advanceDamageOverTime,
+  applyDamageOverTime,
+  type DamageOverTimeRuntime,
+  damageOverTimeRemainingPower,
+  removeDamageOverTimeBySource,
+  removeDamageOverTimeByTarget,
+} from "./world/damage-over-time-system.js";
 import {
   abortRunForEvent,
   abortRunsForHero,
@@ -365,6 +373,11 @@ interface PendingQuestConversation {
   resolved: boolean;
 }
 
+interface MonsterDamageContext {
+  damageOverTime?: boolean;
+  persistentOwnerCredit?: boolean;
+}
+
 export class World extends DurableObject<Env> {
   #players = new Map<WebSocket, Player>();
   #socketByPlayerId = new Map<string, WebSocket>();
@@ -374,6 +387,7 @@ export class World extends DurableObject<Env> {
   #loot: GroundLoot[] = [];
   #projectiles: Projectile[] = [];
   #sanctuaries: SanctuaryRuntime[] = [];
+  #damageOverTime: DamageOverTimeRuntime[] = [];
   #siteRespawnAt = new Map<string, number>();
   #profileSaves = new Map<string, Promise<boolean>>();
   #itemMutations = new Map<string, Promise<number | null>>();
@@ -1514,6 +1528,15 @@ export class World extends DurableObject<Env> {
       threat: { playerId: string; amount: number }[];
     }[];
     projectiles: { id: string; ownerId: string; kind: ProjectileSnapshot["kind"] }[];
+    loot: { id: string; ownerId: string | undefined; kind: GroundLoot["kind"] }[];
+    damageOverTime: {
+      kind: DamageOverTimeRuntime["kind"];
+      sourceId: string;
+      targetKind: DamageOverTimeRuntime["targetKind"];
+      targetId: string;
+      stacks: number;
+      remainingPower: number;
+    }[];
     pendingSaves: number;
     tickActive: boolean;
     adventureState: PartyAdventureState;
@@ -1539,6 +1562,19 @@ export class World extends DurableObject<Env> {
         id: projectile.id,
         ownerId: projectile.ownerId,
         kind: projectile.kind,
+      })),
+      loot: this.#loot.map((loot) => ({
+        id: loot.id,
+        ownerId: loot.ownerId,
+        kind: loot.kind,
+      })),
+      damageOverTime: this.#damageOverTime.map((effect) => ({
+        kind: effect.kind,
+        sourceId: effect.sourceId,
+        targetKind: effect.targetKind,
+        targetId: effect.targetId,
+        stacks: effect.stacks.length,
+        remainingPower: damageOverTimeRemainingPower(effect),
       })),
       pendingSaves: this.#profileSaves.size,
       tickActive: this.#loop !== null,
@@ -2126,9 +2162,11 @@ export class World extends DurableObject<Env> {
             Math.hypot(right.x - player.x, right.y - player.y);
           return distance || left.id.localeCompare(right.id);
         });
-      const resolvedTargets = skill.id === "dual_slash" ? targets.slice(0, 1) : targets;
+      const resolvedTargets = player.class === "rogue" ? targets.slice(0, 1) : targets;
       for (const monster of resolvedTargets) {
-        this.#damageMonster(socket, player, monster, skill, now, slot === 1);
+        const result = this.#damageMonster(socket, player, monster, skill, now, slot === 1);
+        if (skill.id === "poisoned_shiv" && result && !result.killed)
+          this.#applyRoguePoison(player, monster, skill, now);
       }
       return;
     }
@@ -2473,8 +2511,9 @@ export class World extends DurableObject<Env> {
     now: number,
     basic: boolean,
     frozenPower?: number,
-  ): void {
-    if (target.deadUntil > now) return;
+    context: MonsterDamageContext = {},
+  ): { actualDamage: number; killed: boolean } | null {
+    if (target.deadUntil > now) return null;
     const opening =
       basic && player.class === "rogue" && skill.id === "dual_slash"
         ? activeRogueOpening(player, now)
@@ -2514,6 +2553,7 @@ export class World extends DurableObject<Env> {
           skill: skill.id,
           actorId: player.id,
           ...(basic ? { basic: 1 } : {}),
+          ...(context.damageOverTime ? { poisonTick: 1 } : {}),
         },
         tone: "info",
         x: target.x,
@@ -2521,7 +2561,26 @@ export class World extends DurableObject<Env> {
       },
       target,
     );
-    if (result.killed) this.#defeatMonster(ws, player, target, now);
+    if (result.killed)
+      this.#defeatMonster(ws, player, target, now, context.persistentOwnerCredit === true);
+    return { actualDamage, killed: result.killed };
+  }
+
+  #applyRoguePoison(player: Player, target: Monster, skill: SkillDefinition, now: number): void {
+    const baseSkill = CLASS_SKILLS.rogue[3];
+    const talentPowerRatio = baseSkill ? skill.power / Math.max(1, baseSkill.power) : 1;
+    applyDamageOverTime(this.#damageOverTime, {
+      kind: "poison",
+      sourceId: player.id,
+      sourceSkillId: skill.id,
+      targetKind: "monster",
+      targetId: target.id,
+      now,
+      tickCount: ROGUE_BALANCE.poisonedShiv.poisonTicks,
+      tickPower: Math.max(1, Math.round(roguePoisonTickPower(player.level) * talentPowerRatio)),
+      intervalMs: ROGUE_BALANCE.poisonedShiv.poisonIntervalMs,
+      maxStacks: 1,
+    });
   }
 
   #tauntMonster(player: Player, target: Monster, now: number): void {
@@ -2822,7 +2881,13 @@ export class World extends DurableObject<Env> {
     }
   }
 
-  #defeatMonster(_ws: WebSocket, player: Player, monster: Monster, now: number): void {
+  #defeatMonster(
+    _ws: WebSocket,
+    player: Player,
+    monster: Monster,
+    now: number,
+    persistentOwnerCredit = false,
+  ): void {
     if (!beginRewardAttribution(monster)) return;
     this.#markMonsterDead(monster, now);
     const directlyEligible = [...monster.contributions.values()]
@@ -2840,7 +2905,7 @@ export class World extends DurableObject<Env> {
     if (
       !directlyEligible.includes(player.id) &&
       player.authorized &&
-      pointDistance(player, monster) <= REWARD_DISTANCE
+      (persistentOwnerCredit || pointDistance(player, monster) <= REWARD_DISTANCE)
     )
       directlyEligible.push(player.id);
 
@@ -2934,6 +2999,7 @@ export class World extends DurableObject<Env> {
 
   #markMonsterDead(monster: Monster, now: number): void {
     cancelCombatAction(monster);
+    removeDamageOverTimeByTarget(this.#damageOverTime, "monster", monster.id);
     monster.deadUntil =
       monster.respawnMode === "never" ? Number.POSITIVE_INFINITY : now + MONSTER_RESPAWN_MS;
     monster.vx = 0;
@@ -3820,6 +3886,35 @@ export class World extends DurableObject<Env> {
       expireRogueOpening(player, now);
       if (expireRogueStealth(player, now)) this.#sendState(socket, player);
     }
+    advanceDamageOverTime(this.#damageOverTime, now, {
+      sourceIsActive: (sourceId) => {
+        const sourceSocket = this.#socketByPlayerId.get(sourceId);
+        const source = sourceSocket ? this.#players.get(sourceSocket) : undefined;
+        return Boolean(
+          source?.authorized &&
+            !source.transitioning &&
+            source.life === "alive" &&
+            source.roomKey === this.#location?.roomKey,
+        );
+      },
+      targetIsActive: (targetKind, targetId) =>
+        targetKind === "monster" &&
+        this.#monsters.some((monster) => monster.id === targetId && monster.deadUntil <= now),
+      resolveTick: (effect, _stack, tick) => {
+        const sourceSocket = this.#socketByPlayerId.get(effect.sourceId);
+        const source = sourceSocket ? this.#players.get(sourceSocket) : undefined;
+        const target = this.#monsters.find((monster) => monster.id === effect.targetId);
+        const baseSkill = source
+          ? CLASS_SKILLS[source.class].find((skill) => skill.id === effect.sourceSkillId)
+          : undefined;
+        if (!sourceSocket || !source || !target || !baseSkill) return;
+        const skill = skillWithTalents(source.class, source.talents, baseSkill.slot);
+        this.#damageMonster(sourceSocket, source, target, skill, now, false, tick.power, {
+          damageOverTime: true,
+          persistentOwnerCredit: true,
+        });
+      },
+    });
 
     advancePlayers({
       players: this.#players,
@@ -5209,6 +5304,7 @@ export class World extends DurableObject<Env> {
     player.warriorCyclone = null;
     clearRogueTransientState(player);
     player.negativeEffects.clear();
+    removeDamageOverTimeBySource(this.#damageOverTime, player.id);
     removeSanctuariesByOwner(this.#sanctuaries, player.id);
     removeProjectilesByOwner(this.#projectiles, player.id);
     player.dirty = true;
@@ -5535,6 +5631,7 @@ export class World extends DurableObject<Env> {
     cancelCombatAction(player);
     clearRogueTransientState(player);
     player.negativeEffects.clear();
+    removeDamageOverTimeBySource(this.#damageOverTime, player.id);
     removeSanctuariesByOwner(this.#sanctuaries, player.id);
     removeProjectilesByOwner(this.#projectiles, player.id);
     removePlayerFromParties(this.#partyContext(), player.id);
@@ -5564,6 +5661,7 @@ export class World extends DurableObject<Env> {
     this.#loot = [];
     this.#projectiles = [];
     this.#sanctuaries = [];
+    this.#damageOverTime = [];
     this.#lootGrid.clear();
     this.#siteRespawnAt.clear();
     this.#parties.clear();

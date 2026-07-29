@@ -53,6 +53,31 @@ function rogueStealthMapInput(monsterCol: number): TestMapBody {
   });
 }
 
+function roguePoisonMapInput(monsterMaxHp: number): TestMapBody {
+  const map = testMapInput("Rogue poison", {
+    cols: 20,
+    rows: 15,
+    spawn: { col: 5, row: 5 },
+    exit: { col: 18, row: 13 },
+    monsterSpawns: [{ col: 6, row: 5, species: "mire_troll", patrolRadius: 32 }],
+  });
+  return {
+    ...map,
+    events: map.events.map((event) =>
+      event.kind === "monster"
+        ? {
+            ...event,
+            monsterMaxHp,
+            monsterDamage: 1,
+            monsterSpeed: 20,
+            monsterXp: 28,
+            monsterRespawnMode: "never" as const,
+          }
+        : event,
+    ),
+  };
+}
+
 /**
  * Commit 6 deliberately keeps Rogue out of the public create input. Runtime integration still
  * needs a real D1 hero and WebSocket, so create a normal fixture then switch only its stored class
@@ -84,6 +109,43 @@ async function waitForMonsterThreat(
     await scheduler.wait(20);
   }
   throw new Error(`timed out waiting for monster threat present=${present}`);
+}
+
+async function waitForDamageOverTime(roomKey: string, count: number): Promise<void> {
+  const room = env.WORLD.getByName(roomKey);
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    const diagnostics = await room.roomDiagnostics();
+    if (diagnostics.damageOverTime.length === count) return;
+    await scheduler.wait(20);
+  }
+  throw new Error(`timed out waiting for ${count} damage-over-time effects`);
+}
+
+async function castPoisonedShiv(client: Client): Promise<number> {
+  client.skill(2);
+  const step = await until("poison setup Shadow Step", () =>
+    client.received.find(
+      (message) => message.t === "animation" && message.skillId === "shadow_step",
+    ),
+  );
+  if (step.t !== "animation") throw new Error("expected poison setup Shadow Step");
+  await scheduler.wait(Math.max(0, step.recoveryEndsAt - Date.now() + 20));
+
+  const eventOffset = client.received.length;
+  client.skill(4);
+  await until("Poisoned Shiv direct impact", () =>
+    client.received
+      .slice(eventOffset)
+      .find(
+        (message) =>
+          message.t === "event" &&
+          message.code === "combat.hit" &&
+          message.params?.skill === "poisoned_shiv" &&
+          message.params.poisonTick !== 1,
+      ),
+  );
+  return eventOffset;
 }
 
 afterEach(async () => {
@@ -380,6 +442,113 @@ describe("Rogue authoritative stealth", { timeout: 15_000 }, () => {
       expect(second.self()?.invisible).toBe(false);
     } finally {
       second.close();
+    }
+  });
+});
+
+describe("Rogue authoritative poison", { timeout: 15_000 }, () => {
+  it("ticks five times after the Rogue leaves and awards the distant poison kill", async () => {
+    const party = await testParty("rogue-poison-credit", {
+      maps: [roguePoisonMapInput(85)],
+    });
+    const hero = await hiddenRogueHero("Venom", {
+      party,
+      account: party.host,
+      level: 7,
+      position: centre(5, 5),
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      const welcome = await until("poison credit welcome", () => client.welcome);
+      const target = welcome.monsters[0];
+      if (!target) throw new Error("expected poison target");
+      const eventOffset = await castPoisonedShiv(client);
+
+      await waitForDamageOverTime(hero.roomKey, 1);
+      client.press("right");
+      await scheduler.wait(4_200);
+      client.release();
+
+      const tickDamage = await until(
+        "five poison ticks and distant kill credit",
+        () => {
+          const ticks = client.received
+            .slice(eventOffset)
+            .filter(
+              (message) =>
+                message.t === "event" &&
+                message.code === "combat.hit" &&
+                message.params?.skill === "poisoned_shiv" &&
+                message.params.poisonTick === 1,
+            );
+          const reward = client.received
+            .slice(eventOffset)
+            .find((message) => message.t === "event" && message.code === "monster.defeated");
+          return ticks.length === 5 && reward
+            ? ticks.map((message) => (message.t === "event" ? message.params?.damage : undefined))
+            : undefined;
+        },
+        6_500,
+      );
+      expect(tickDamage).toEqual([12, 12, 12, 12, 11]);
+      expect(client.latestState?.xp).toBeGreaterThan(0);
+      const diagnostics = await env.WORLD.getByName(hero.roomKey).roomDiagnostics();
+      expect(diagnostics.loot.some((loot) => loot.ownerId === hero.heroId)).toBe(true);
+      expect(diagnostics.damageOverTime).toEqual([]);
+    } finally {
+      client.close();
+    }
+  });
+
+  it("removes pending poison on disconnect and never restores it on reconnect", async () => {
+    const party = await testParty("rogue-poison-reconnect", {
+      maps: [roguePoisonMapInput(145)],
+    });
+    const hero = await hiddenRogueHero("CleanReconnect", {
+      party,
+      account: party.host,
+      level: 7,
+      position: centre(5, 5),
+    });
+    const observerHero = await testHero("PoisonWitness", {
+      party,
+      level: 7,
+      position: centre(2, 5),
+    });
+    const rogue = await Client.joinHero(hero);
+    const observer = await Client.joinHero(observerHero);
+    try {
+      const welcome = await until("poison reconnect welcome", () => rogue.welcome);
+      const target = welcome.monsters[0];
+      if (!target) throw new Error("expected reconnect poison target");
+      await until("poison observer welcome", () => observer.welcome);
+      await castPoisonedShiv(rogue);
+      const damagedHp = await until("observer sees direct Shiv damage", () => {
+        const hp = observer.latestSnapshot?.monsters.find(
+          (monster) => monster.id === target.id,
+        )?.hp;
+        return hp !== undefined && hp < target.hp ? hp : undefined;
+      });
+
+      rogue.close();
+      await waitForDamageOverTime(hero.roomKey, 0);
+      await scheduler.wait(1_300);
+      expect(
+        observer.latestSnapshot?.monsters.find((monster) => monster.id === target.id)?.hp,
+      ).toBe(damagedHp);
+
+      const reconnected = await Client.joinHero(hero);
+      try {
+        await until("poison Rogue reconnects", () => reconnected.welcome);
+        expect((await env.WORLD.getByName(hero.roomKey).roomDiagnostics()).damageOverTime).toEqual(
+          [],
+        );
+      } finally {
+        reconnected.close();
+      }
+    } finally {
+      rogue.close();
+      observer.close();
     }
   });
 });

@@ -32,6 +32,7 @@ export const ROGUE_BALANCE = {
     directPower: 14,
     poisonTicks: 5,
     poisonTickPower: 6,
+    poisonTickPowerPerLevel: 1,
     poisonIntervalMs: 1_000,
     concentratedVenomMaxStacks: 3,
     ruptureRemainingDamageRatio: 0.6,
@@ -46,3 +47,12 @@ export const ROGUE_BALANCE = {
     thousandCutsPowerRatio: 0.6,
   },
 } as const;
+
+/** The poison snapshots one bounded base power per stack when the authoritative hit lands. */
+export function roguePoisonTickPower(level: number): number {
+  const normalizedLevel = Math.max(1, Math.floor(Number.isFinite(level) ? level : 1));
+  return (
+    ROGUE_BALANCE.poisonedShiv.poisonTickPower +
+    (normalizedLevel - 1) * ROGUE_BALANCE.poisonedShiv.poisonTickPowerPerLevel
+  );
+}
