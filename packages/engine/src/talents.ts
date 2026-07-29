@@ -45,6 +45,10 @@ export interface TalentNode {
   requires: readonly string[];
   requiresAll: boolean;
   effects: readonly TalentEffect[];
+  /** Final evolutions sharing this stable key are mutually exclusive. */
+  exclusiveGroup?: string;
+  /** Stable presentation/gameplay discriminator inside an exclusive group. */
+  variantId?: string;
 }
 
 interface UpgradeSeed {
@@ -63,6 +67,7 @@ function branch(
   const firstId = `${playerClass}.${skillId}.${upgrades[0].key}`;
   const secondId = `${playerClass}.${skillId}.${upgrades[1].key}`;
   const thirdId = `${playerClass}.${skillId}.${upgrades[2].key}`;
+  const evolutionGroup = `${playerClass}.${skillId}.evolution`;
   return [
     {
       id: rootId,
@@ -123,6 +128,8 @@ function branch(
       requires: [firstId, secondId, thirdId],
       requiresAll: true,
       effects: upgrades[3].effects,
+      exclusiveGroup: evolutionGroup,
+      variantId: "a",
     },
   ];
 }
@@ -255,14 +262,21 @@ export type TalentUnlockResult =
   | { ok: true; selected: string[] }
   | {
       ok: false;
-      reason: "unknown" | "root" | "locked_skill" | "selected" | "prerequisite" | "points";
+      reason:
+        | "unknown"
+        | "root"
+        | "locked_skill"
+        | "selected"
+        | "exclusive"
+        | "prerequisite"
+        | "points";
     };
 
 export function talentNode(playerClass: PlayerClass, id: string): TalentNode | undefined {
   return CLASS_TALENTS[playerClass].find((node) => node.id === id);
 }
 
-export function evolvedTalent(
+export function activeEvolutionVariant(
   playerClass: PlayerClass,
   selected: readonly string[],
   slot: SkillSlot,
@@ -273,10 +287,28 @@ export function evolvedTalent(
   );
 }
 
+/** Compatibility name for callers that only need to know whether a final evolution is active. */
+export const evolvedTalent = activeEvolutionVariant;
+
 export function isTalentId(value: unknown): value is string {
   return (
     typeof value === "string" &&
     Object.values(CLASS_TALENTS).some((nodes) => nodes.some((node) => node.id === value))
+  );
+}
+
+export function conflictingExclusiveTalent(
+  playerClass: PlayerClass,
+  selected: ReadonlySet<string> | readonly string[],
+  candidate: Pick<TalentNode, "id" | "exclusiveGroup">,
+): TalentNode | undefined {
+  if (!candidate.exclusiveGroup) return undefined;
+  const selectedIds = selected instanceof Set ? selected : new Set(selected);
+  return CLASS_TALENTS[playerClass].find(
+    (node) =>
+      node.id !== candidate.id &&
+      node.exclusiveGroup === candidate.exclusiveGroup &&
+      selectedIds.has(node.id),
   );
 }
 
@@ -307,7 +339,8 @@ export function normalizeTalentSelection(
       !requested.has(node.id) ||
       selected.size >= Math.max(0, level) ||
       !isSkillUnlocked(level, node.slot) ||
-      !prerequisitesMet(node, selected, level)
+      !prerequisitesMet(node, selected, level) ||
+      conflictingExclusiveTalent(playerClass, selected, node) !== undefined
     )
       continue;
     selected.add(node.id);
@@ -340,6 +373,8 @@ export function unlockTalent(
   if (!isSkillUnlocked(level, node.slot)) return { ok: false, reason: "locked_skill" };
   const selected = new Set(normalizeTalentSelection(playerClass, level, selectedInput));
   if (selected.has(node.id)) return { ok: false, reason: "selected" };
+  if (conflictingExclusiveTalent(playerClass, selected, node))
+    return { ok: false, reason: "exclusive" };
   if (selected.size >= Math.max(0, level)) return { ok: false, reason: "points" };
   if (!prerequisitesMet(node, selected, level)) return { ok: false, reason: "prerequisite" };
   selected.add(node.id);

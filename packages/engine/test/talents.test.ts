@@ -1,6 +1,8 @@
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
 import {
+  activeEvolutionVariant,
   CLASS_TALENTS,
+  conflictingExclusiveTalent,
   normalizeTalentSelection,
   skillWithTalents,
   talentEffect,
@@ -22,6 +24,45 @@ describe("class talents", () => {
         );
       }
     }
+  });
+
+  it("marks every existing capstone as the compatible A variant of a stable exclusive group", () => {
+    for (const [playerClass, nodes] of Object.entries(CLASS_TALENTS)) {
+      for (const slot of [2, 3, 4, 5] as const) {
+        const capstone = nodes.find((node) => node.slot === slot && node.tier === 3);
+        expect(capstone).toMatchObject({
+          exclusiveGroup: expect.stringContaining(`${playerClass}.`),
+          variantId: "a",
+        });
+        expect(
+          activeEvolutionVariant(
+            playerClass as keyof typeof CLASS_TALENTS,
+            [capstone?.id ?? ""],
+            slot,
+          ),
+        ).toBe(capstone);
+      }
+    }
+  });
+
+  it("detects a conflicting future variant without changing legacy capstone selections", () => {
+    const legacyId = "ranger.piercing_arrow.ricochet";
+    const legacy = CLASS_TALENTS.ranger.find((node) => node.id === legacyId);
+    if (!legacy?.exclusiveGroup) throw new Error("legacy capstone group missing");
+    const legacySelection = [
+      ...CLASS_TALENTS.ranger
+        .filter((node) => node.slot === 2 && !node.root && node.tier < 3)
+        .map((node) => node.id),
+      legacyId,
+    ];
+
+    expect(normalizeTalentSelection("ranger", 10, legacySelection)).toEqual(legacySelection);
+    expect(
+      conflictingExclusiveTalent("ranger", [legacyId], {
+        id: "ranger.piercing_arrow.line_piercer",
+        exclusiveGroup: legacy.exclusiveGroup,
+      }),
+    ).toBe(legacy);
   });
 
   it("grants one spendable point per level while keeping learned roots free", () => {
