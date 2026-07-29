@@ -526,7 +526,11 @@ describe("Rogue authoritative stealth", { timeout: 15_000 }, () => {
           ? state
           : undefined;
       });
-      expect(client.self()?.hp).toBeLessThan(initialHp);
+      const damaged = await until("damage reaches the player snapshot", () => {
+        const self = client.self();
+        return self && self.hp < initialHp ? self : undefined;
+      });
+      expect(damaged.hp).toBeLessThan(initialHp);
       expect(exited.rogue?.openingUntil).toBe(0);
     } finally {
       client.close();
