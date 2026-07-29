@@ -85,7 +85,7 @@ const IMPACT_KEY: Record<PlayerClass, CombatSampleKey> = {
   warrior: "warrior.impact",
   ranger: "ranger.impact",
   priest: "priest.impact",
-  // Hidden-class fallback until the Rogue combat presentation lands.
+  // The bundled pack has no Rogue audio; reuse the short melee impact without adding an asset.
   rogue: "warrior.impact",
 };
 

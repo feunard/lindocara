@@ -13,20 +13,50 @@ import {
 import { describe, expect, it } from "vitest";
 
 describe("class talents", () => {
-  it("ships four rooted branches with three intermediates and one or two final evolutions", () => {
+  it("ships all sixteen branches with the exact reusable A/B evolution topology", () => {
+    let branchCount = 0;
     for (const [playerClass, nodes] of Object.entries(CLASS_TALENTS)) {
+      expect(nodes.every((node) => Number(node.slot) !== 1)).toBe(true);
       for (const slot of [2, 3, 4, 5] as const) {
+        branchCount += 1;
         const branch = nodes.filter((node) => node.slot === slot);
-        expect(branch.filter((node) => node.root)).toHaveLength(1);
-        expect(branch.filter((node) => node.tier === 1)).toHaveLength(2);
-        expect(branch.filter((node) => node.tier === 2)).toHaveLength(1);
-        expect(branch.filter((node) => node.tier === 3).length).toBeGreaterThanOrEqual(1);
-        expect(branch.filter((node) => node.tier === 3).length).toBeLessThanOrEqual(2);
-        expect(branch[0]?.id).toContain(
-          `${playerClass}.${CLASS_SKILLS[playerClass as keyof typeof CLASS_SKILLS][slot - 1]?.id}.root`,
+        const skill = CLASS_SKILLS[playerClass as keyof typeof CLASS_SKILLS][slot - 1];
+        const root = branch.find((node) => node.root);
+        const tierOne = branch.filter((node) => node.tier === 1);
+        const synergy = branch.filter((node) => node.tier === 2);
+        const finals = branch.filter((node) => node.tier === 3);
+        const group = `${playerClass}.${skill?.id}.evolution`;
+
+        expect(branch).toHaveLength(6);
+        expect(root).toMatchObject({
+          id: `${playerClass}.${skill?.id}.root`,
+          tier: 0,
+          column: 0,
+          requires: [],
+          requiresAll: true,
+          effects: [],
+        });
+        expect(tierOne).toHaveLength(2);
+        expect(tierOne.map((node) => node.column)).toEqual([-1, 1]);
+        expect(tierOne.every((node) => node.requiresAll)).toBe(true);
+        expect(tierOne.map((node) => node.requires)).toEqual([[root?.id], [root?.id]]);
+        expect(synergy).toHaveLength(1);
+        expect(synergy[0]).toMatchObject({
+          column: 0,
+          requires: tierOne.map((node) => node.id),
+          requiresAll: false,
+        });
+        expect(finals).toHaveLength(2);
+        expect(finals.map((node) => node.column)).toEqual([-1, 1]);
+        expect(finals.map((node) => node.variantId)).toEqual(["a", "b"]);
+        expect(finals.map((node) => node.exclusiveGroup)).toEqual([group, group]);
+        expect(finals.every((node) => node.requiresAll)).toBe(true);
+        expect(finals.map((node) => node.requires)).toEqual(
+          Array.from({ length: 2 }, () => [...tierOne.map((node) => node.id), synergy[0]?.id]),
         );
       }
     }
+    expect(branchCount).toBe(16);
   });
 
   it("marks every existing capstone as the compatible A variant of a stable exclusive group", () => {

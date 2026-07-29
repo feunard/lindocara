@@ -5,7 +5,7 @@ import { CONSUMABLES } from "@lindocara/engine/consumables.js";
 import { ATTACK_COOLDOWN_MS, MONSTER_STATS, maxHpForLevel } from "@lindocara/engine/game.js";
 import type { MapElement } from "@lindocara/engine/map-data.js";
 import { defaultEventPage, functionalEvent, type MapEvent } from "@lindocara/engine/map-events.js";
-import { PLAYER_SIZE } from "@lindocara/engine/simulation.js";
+import { NO_INPUT, PLAYER_SIZE } from "@lindocara/engine/simulation.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { layeredWireTerrain } from "@lindocara/testing/map-fixtures.js";
 import { afterEach, describe, expect, it } from "vitest";
@@ -233,7 +233,7 @@ describe("party hero admission and authored runtime", { timeout: 20_000 }, () =>
     }
   });
 
-  it("allocates, snapshots, persists and freely resets hero talents authoritatively", async () => {
+  it("persists a legacy evolution and authoritatively resets into its exclusive alternative", async () => {
     const party = await testParty("talent-persistence");
     const hero = await testHero("Talented", {
       party,
@@ -245,17 +245,38 @@ describe("party hero admission and authored runtime", { timeout: 20_000 }, () =>
     const welcome = await until("talent welcome", () => client.welcome);
     expect(welcome.self.talents).toEqual({ selected: [], pointsSpent: 0, pointsAvailable: 10 });
 
-    client.sendRaw(JSON.stringify({ t: "talent.unlock", nodeId: "ranger.piercing_arrow.force" }));
-    await until("talent allocation state", () =>
-      client.latestState?.talents?.selected.includes("ranger.piercing_arrow.force")
-        ? client.latestState
-        : undefined,
+    const prerequisites = [
+      "ranger.piercing_arrow.force",
+      "ranger.piercing_arrow.reach",
+      "ranger.piercing_arrow.readiness",
+    ];
+    const legacyEvolution = "ranger.piercing_arrow.ricochet";
+    const alternativeEvolution = "ranger.piercing_arrow.line_piercer";
+    const unlock = async (nodeId: string) => {
+      client.sendRaw(JSON.stringify({ t: "talent.unlock", nodeId }));
+      await until(`talent allocation ${nodeId}`, () =>
+        client.latestState?.talents?.selected.includes(nodeId) ? client.latestState : undefined,
+      );
+    };
+    for (const nodeId of [...prerequisites, legacyEvolution]) await unlock(nodeId);
+
+    client.sendRaw(JSON.stringify({ t: "talent.unlock", nodeId: alternativeEvolution }));
+    await until("exclusive talent rejection", () =>
+      client.received.find(
+        (message) =>
+          message.t === "event" &&
+          message.code === "talent.invalid" &&
+          message.params?.reason === "exclusive",
+      ),
     );
+    expect(client.latestState?.talents?.selected).toContain(legacyEvolution);
+    expect(client.latestState?.talents?.selected).not.toContain(alternativeEvolution);
+
     expect(await env.WORLD.getByName(hero.roomKey).persistCharacter(hero.heroId)).not.toBeNull();
     const allocated = await env.DB.prepare("SELECT talents FROM hero WHERE id = ?")
       .bind(hero.heroId)
       .first<{ talents: string }>();
-    expect(JSON.parse(allocated?.talents ?? "[]")).toEqual(["ranger.piercing_arrow.force"]);
+    expect(JSON.parse(allocated?.talents ?? "[]")).toEqual([...prerequisites, legacyEvolution]);
 
     client.sendRaw(JSON.stringify({ t: "talent.reset" }));
     await until("talent reset event", () =>
@@ -266,6 +287,10 @@ describe("party hero admission and authored runtime", { timeout: 20_000 }, () =>
       pointsSpent: 0,
       pointsAvailable: 10,
     });
+
+    for (const nodeId of [...prerequisites, alternativeEvolution]) await unlock(nodeId);
+    expect(client.latestState?.talents?.selected).toEqual([...prerequisites, alternativeEvolution]);
+    expect(client.latestState?.talents?.selected).not.toContain(legacyEvolution);
   });
 
   it("executes private authoritative test commands for a hero", { timeout: 15_000 }, async () => {
@@ -738,12 +763,16 @@ describe("party hero admission and authored runtime", { timeout: 20_000 }, () =>
         if (startY === undefined) throw new Error("missing moving-shot hero");
 
         client.action("attack");
+        client.press("down");
+        // Queue the first movement intent immediately after the action. Waiting for the animation
+        // before pressing can consume the 130 ms anticipation window when the full workerd suite
+        // runs under load, testing scheduler latency instead of the active-frame origin contract.
+        client.sendCommand({ ...NO_INPUT, down: true });
         await until(`${playerClass} attack accepted`, () =>
           client.received.find(
             (message) => message.t === "animation" && message.skillId === skillId,
           ),
         );
-        client.press("down");
 
         const sample = await until(`${playerClass} moved projectile`, () => {
           const self = client.self();
