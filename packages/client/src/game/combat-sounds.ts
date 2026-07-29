@@ -85,6 +85,8 @@ const IMPACT_KEY: Record<PlayerClass, CombatSampleKey> = {
   warrior: "warrior.impact",
   ranger: "ranger.impact",
   priest: "priest.impact",
+  // Hidden-class fallback until the Rogue combat presentation lands.
+  rogue: "warrior.impact",
 };
 
 export function castSampleForSkill(skillId: string): CombatSampleKey | undefined {

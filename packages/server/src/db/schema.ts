@@ -74,7 +74,7 @@ export const character = sqliteTable(
     })
       .notNull()
       .default("azure"),
-    class: text("class", { enum: ["warrior", "ranger", "priest"] })
+    class: text("class", { enum: ["warrior", "ranger", "priest", "rogue"] })
       .notNull()
       .default("warrior"),
     potions: integer("potions").notNull().default(2),
@@ -84,7 +84,7 @@ export const character = sqliteTable(
       .notNull()
       .default("rusty_sword"),
     mainHand: text("main_hand", {
-      enum: ["weathered_sword", "hunter_bow", "heartwood_staff"],
+      enum: ["weathered_sword", "hunter_bow", "heartwood_staff", "shadow_daggers"],
     })
       .notNull()
       .default("weathered_sword"),
@@ -144,7 +144,7 @@ export const itemDefinition = sqliteTable(
     stackable: integer("stackable", { mode: "boolean" }).notNull(),
     maxStack: integer("max_stack").notNull(),
     equipmentSlot: text("equipment_slot", { enum: EQUIPMENT_SLOTS }),
-    allowedClass: text("allowed_class", { enum: ["warrior", "ranger", "priest"] }),
+    allowedClass: text("allowed_class", { enum: ["warrior", "ranger", "priest", "rogue"] }),
   },
   (table) => [
     check("item_definition_max_stack_positive", sql`${table.maxStack} > 0`),
@@ -536,7 +536,7 @@ export const hero = sqliteTable(
       .notNull()
       .references(() => account.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
-    class: text("class", { enum: ["warrior", "ranger", "priest"] })
+    class: text("class", { enum: ["warrior", "ranger", "priest", "rogue"] })
       .notNull()
       .default("warrior"),
     /** The D1 map the hero is on; starts at the adventure's start map. */

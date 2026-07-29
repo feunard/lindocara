@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 describe("class talents", () => {
   it("ships four rooted branches with three intermediates and one or two final evolutions", () => {
     for (const [playerClass, nodes] of Object.entries(CLASS_TALENTS)) {
+      if (playerClass === "rogue") continue;
       for (const slot of [2, 3, 4, 5] as const) {
         const branch = nodes.filter((node) => node.slot === slot);
         expect(branch.filter((node) => node.root)).toHaveLength(1);
@@ -30,6 +31,7 @@ describe("class talents", () => {
 
   it("marks every existing capstone as the compatible A variant of a stable exclusive group", () => {
     for (const [playerClass, nodes] of Object.entries(CLASS_TALENTS)) {
+      if (playerClass === "rogue") continue;
       for (const slot of [2, 3, 4, 5] as const) {
         const capstone = nodes.find((node) => node.slot === slot && node.tier === 3);
         expect(capstone).toMatchObject({
@@ -45,6 +47,10 @@ describe("class talents", () => {
         ).toBe(capstone);
       }
     }
+  });
+
+  it("keeps the Rogue talent tree absent while the class contract is hidden", () => {
+    expect(CLASS_TALENTS.rogue).toEqual([]);
   });
 
   it("detects a conflicting future variant without changing legacy capstone selections", () => {

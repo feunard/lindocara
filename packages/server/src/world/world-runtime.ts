@@ -150,6 +150,20 @@ export interface WarriorCycloneRuntime {
   power: number;
 }
 
+export type RogueOpeningSource = "shadow_step" | "vanish";
+
+export interface RogueOpeningRuntime {
+  source: RogueOpeningSource;
+  expiresAt: number;
+  bonusRatio: number;
+  /** Optional target-specific execution bookkeeping added by the final Shadow Step evolution. */
+  executionTargetId?: string;
+}
+
+export interface RogueShadowReturnRuntime extends Vec2 {
+  expiresAt: number;
+}
+
 export type CleanseableNegativeEffect = "poison";
 
 export interface NegativeEffectRuntime {
@@ -212,6 +226,12 @@ export interface PlayerRuntime extends PlayerProfile {
   rallyPowerMultiplier: number;
   /** Server tick-driven Cyclone sequence. No autonomous timers are created per cast. */
   warriorCyclone: WarriorCycloneRuntime | null;
+  /** Server-only Rogue windows. They are reset on every runtime/session boundary. */
+  opening: RogueOpeningRuntime | null;
+  rogueStealthUntil: number;
+  rogueSmokeProtectionUntil: number;
+  roguePredatorShivUntil: number;
+  rogueShadowReturn: RogueShadowReturnRuntime | null;
   /** Deliberately limited cleanse surface; currently only poison is compatible. */
   negativeEffects: Map<CleanseableNegativeEffect, NegativeEffectRuntime>;
   lastResurrectAt: number;
@@ -488,6 +508,11 @@ export function newPlayer(
     rallyPowerUntil: 0,
     rallyPowerMultiplier: 0,
     warriorCyclone: null,
+    opening: null,
+    rogueStealthUntil: 0,
+    rogueSmokeProtectionUntil: 0,
+    roguePredatorShivUntil: 0,
+    rogueShadowReturn: null,
     negativeEffects: new Map(),
     lastResurrectAt:
       cooldowns.resurrectUntil === 0 ? 0 : cooldowns.resurrectUntil - RESURRECT_COOLDOWN_MS,

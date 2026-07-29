@@ -7,7 +7,8 @@ import {
   MONSTER_SPECIAL_ACTIONS,
   PLAYER_ACTIONS,
 } from "@lindocara/engine/combat-actions.js";
-import { ATTACK_COOLDOWN_MS } from "@lindocara/engine/game.js";
+import { ATTACK_COOLDOWN_MS, PLAYER_CLASSES } from "@lindocara/engine/game.js";
+import { ROGUE_BALANCE } from "@lindocara/engine/rogue.js";
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
 import { describe, expect, it } from "vitest";
 
@@ -23,10 +24,13 @@ describe("directional class kit contract", () => {
     expect(CLASS_SKILLS.priest.map((skill) => skill.cooldownMs)).toEqual([
       325, 1_500, 8_000, 6_000, 10_000,
     ]);
+    expect(CLASS_SKILLS.rogue.map((skill) => skill.cooldownMs)).toEqual([
+      325, 4_500, 14_000, 6_000, 11_000,
+    ]);
   });
 
   it("keeps every skill id aligned with one explicit directional execution", () => {
-    for (const playerClass of ["warrior", "ranger", "priest"] as const) {
+    for (const playerClass of PLAYER_CLASSES) {
       expect(PLAYER_ACTIONS[playerClass].map((action) => action.skillId)).toEqual(
         CLASS_SKILLS[playerClass].map((skill) => skill.id),
       );
@@ -37,17 +41,40 @@ describe("directional class kit contract", () => {
 
   it("aligns every slot-one action timeline with its 325 ms cooldown", () => {
     expect(
-      (["warrior", "ranger", "priest"] as const).map((playerClass) => {
+      PLAYER_CLASSES.map((playerClass) => {
         const action = PLAYER_ACTIONS[playerClass][0];
         if (!action) throw new Error(`missing slot one action for ${playerClass}`);
         return action.anticipationMs + action.recoveryMs;
       }),
-    ).toEqual([325, 325, 325]);
+    ).toEqual([325, 325, 325, 325]);
     expect(PLAYER_ACTIONS.priest[0]).toMatchObject({
       skillId: "radiant_bolt",
       anticipationMs: 140,
       recoveryMs: 185,
     });
+  });
+
+  it("declares the hidden Rogue kit without any client-authored target contract", () => {
+    expect(CLASS_SKILLS.rogue).toMatchObject([
+      { id: "dual_slash", slot: 1, range: 58, power: 0 },
+      { id: "shadow_step", slot: 2, effect: "shadow_step", range: 260 },
+      { id: "vanish", slot: 3, effect: "stealth", durationMs: 8_000 },
+      { id: "poisoned_shiv", slot: 4, range: 58, power: 14 },
+      { id: "shadow_dance", slot: 5, effect: "shadow_dance", range: 360, power: 32 },
+    ]);
+    expect(PLAYER_ACTIONS.rogue.map((action) => action.shape)).toEqual([
+      "arc",
+      "shadow_step",
+      "stealth",
+      "arc",
+      "shadow_dance",
+    ]);
+    expect(ROGUE_BALANCE.poisonedShiv).toMatchObject({
+      poisonTicks: 5,
+      poisonTickPower: 6,
+      poisonIntervalMs: 1_000,
+    });
+    expect(ROGUE_BALANCE.shadowDance.maximumHits).toBe(5);
   });
 
   it("defines straight ranger shots, a projectile fan, and an unguided Heartseeker", () => {

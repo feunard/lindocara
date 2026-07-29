@@ -331,6 +331,7 @@ const SKILL_ICON_INDEX: Readonly<Record<PlayerClass, readonly number[]>> = {
   warrior: [5, 6, 5, 11, 5],
   ranger: [7, 7, 7, 6, 7],
   priest: [7, 7, 6, 7, 3],
+  rogue: [5, 6, 8, 12, 5],
 };
 
 export function skillIconSource(playerClass: PlayerClass, slot: SkillSlot): string {
@@ -397,6 +398,8 @@ const UNIT_FOLDER: Readonly<Record<PlayerClass, string>> = {
   warrior: "warrior",
   ranger: "archer",
   priest: "monk",
+  // Hidden-contract fallback; the selectable rollout replaces this with the catalogued Thief.
+  rogue: "warrior",
 };
 
 const FILES = {
@@ -415,6 +418,11 @@ const FILES = {
     run: ["Run.png", 4],
     attack: ["Heal.png", 11],
   },
+  rogue: {
+    idle: ["Warrior_Idle.png", 8],
+    run: ["Warrior_Run.png", 6],
+    attack: ["Warrior_Attack1.png", 4],
+  },
 } as const;
 
 export type UnitMotion = "idle" | "run" | "attack";
@@ -427,6 +435,7 @@ export interface UnitSheet {
 export function classForEquipment(equipment: Equipment): PlayerClass {
   if (equipment.mainHand === "hunter_bow") return "ranger";
   if (equipment.mainHand === "heartwood_staff") return "priest";
+  if (equipment.mainHand === "shadow_daggers") return "rogue";
   return "warrior";
 }
 

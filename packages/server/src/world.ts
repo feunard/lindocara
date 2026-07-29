@@ -277,6 +277,7 @@ import {
   linePiercerPowerRatio,
   retreatShotDirections,
 } from "./world/ranger-variant-system.js";
+import { clearRogueTransientState } from "./world/rogue-state-system.js";
 import { movePlayerInDirection, nearestChargeTarget } from "./world/skill-system.js";
 import {
   broadcastNetworkUpdates,
@@ -5070,6 +5071,7 @@ export class World extends DurableObject<Env> {
     player.rallyPowerUntil = 0;
     player.rallyPowerMultiplier = 0;
     player.warriorCyclone = null;
+    clearRogueTransientState(player);
     player.negativeEffects.clear();
     removeSanctuariesByOwner(this.#sanctuaries, player.id);
     removeProjectilesByOwner(this.#projectiles, player.id);
@@ -5395,6 +5397,7 @@ export class World extends DurableObject<Env> {
     // A hero leaving (disconnect or map transition) aborts every run they triggered.
     abortRunsForHero(this.#eventRuns, player.id);
     cancelCombatAction(player);
+    clearRogueTransientState(player);
     player.negativeEffects.clear();
     removeSanctuariesByOwner(this.#sanctuaries, player.id);
     removeProjectilesByOwner(this.#projectiles, player.id);

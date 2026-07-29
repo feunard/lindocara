@@ -1,4 +1,5 @@
 import { ATTACK_COOLDOWN_MS, type PlayerClass } from "./game.js";
+import { ROGUE_BALANCE } from "./rogue.js";
 
 export const SKILL_SLOTS = [1, 2, 3, 4, 5] as const;
 export type SkillSlot = (typeof SKILL_SLOTS)[number];
@@ -14,7 +15,10 @@ export type SkillEffect =
   | "single_heal"
   | "area_heal"
   | "nova"
-  | "teleport";
+  | "teleport"
+  | "shadow_step"
+  | "stealth"
+  | "shadow_dance";
 
 export interface SkillDefinition {
   id: string;
@@ -181,6 +185,54 @@ export const CLASS_SKILLS: Readonly<Record<PlayerClass, readonly SkillDefinition
       radius: 120,
       power: 26,
       icon: "☼",
+    },
+  ],
+  rogue: [
+    {
+      id: "dual_slash",
+      slot: 1,
+      effect: "attack",
+      cooldownMs: ATTACK_COOLDOWN_MS,
+      range: ROGUE_BALANCE.attack.range,
+      power: 0,
+      icon: "‡",
+    },
+    {
+      id: "shadow_step",
+      slot: 2,
+      effect: "shadow_step",
+      cooldownMs: ROGUE_BALANCE.shadowStep.cooldownMs,
+      range: ROGUE_BALANCE.shadowStep.selectionRange,
+      power: 0,
+      icon: "◆",
+    },
+    {
+      id: "vanish",
+      slot: 3,
+      effect: "stealth",
+      cooldownMs: ROGUE_BALANCE.vanish.cooldownMs,
+      range: 0,
+      power: 0,
+      durationMs: ROGUE_BALANCE.vanish.maximumDurationMs,
+      icon: "◌",
+    },
+    {
+      id: "poisoned_shiv",
+      slot: 4,
+      effect: "single_damage",
+      cooldownMs: ROGUE_BALANCE.poisonedShiv.cooldownMs,
+      range: ROGUE_BALANCE.poisonedShiv.range,
+      power: ROGUE_BALANCE.poisonedShiv.directPower,
+      icon: "♠",
+    },
+    {
+      id: "shadow_dance",
+      slot: 5,
+      effect: "shadow_dance",
+      cooldownMs: ROGUE_BALANCE.shadowDance.cooldownMs,
+      range: ROGUE_BALANCE.shadowDance.selectionRange,
+      power: ROGUE_BALANCE.shadowDance.powerPerHit,
+      icon: "✦",
     },
   ],
 };

@@ -154,18 +154,24 @@ export const en = {
   "class.warrior": "Warrior",
   "class.ranger": "Ranger",
   "class.priest": "Priest",
+  "class.rogue": "Rogue",
   "class.warrior.blurb": "Hits hard, up close.",
   "class.ranger.blurb": "Hits light, from afar.",
   "class.priest.blurb": "Hits light, mends allies [F].",
+  "class.rogue.blurb": "Opens from shadow, bursts, then escapes.",
   "class.warrior.role": "Front-line guardian",
   "class.ranger.role": "Long-range scout",
   "class.priest.role": "Protective healer",
+  "class.rogue.role": "Mobile assassin",
   "class.warrior.difficulty": "Difficulty · Accessible",
   "class.ranger.difficulty": "Difficulty · Tactical",
   "class.priest.difficulty": "Difficulty · Support",
+  "class.rogue.difficulty": "Difficulty · Advanced",
   "class.warrior.description": "Stand close, absorb pressure, and keep danger away from allies.",
   "class.ranger.description": "Control distance and strike threats before they close in.",
   "class.priest.description": "Balance steady ranged attacks with timely aid for wounded allies.",
+  "class.rogue.description":
+    "Prepare a brief opening, deliver a decisive close-range burst, then reposition.",
   "class.warrior.skill.1": "Reliable melee strike",
   "class.warrior.skill.2": "Defensive guard",
   "class.warrior.skill.3": "Enemy disruption",
@@ -181,6 +187,11 @@ export const en = {
   "class.priest.skill.3": "Protective blessing",
   "class.priest.skill.4": "Group recovery",
   "class.priest.skill.5": "Emergency salvation",
+  "class.rogue.skill.1": "Twin-dagger basic attack",
+  "class.rogue.skill.2": "Enemy-bound repositioning",
+  "class.rogue.skill.3": "Authoritative stealth",
+  "class.rogue.skill.4": "Persistent poison",
+  "class.rogue.skill.5": "Rapid multi-target finisher",
   "skill.warrior.cleave.name": "Cleave",
   "skill.warrior.iron_guard.name": "Iron Guard",
   "skill.warrior.shield_bash.name": "Shield Bash",
@@ -217,6 +228,21 @@ export const en = {
   "skill.unlock_at": "Unlocks at level {level}",
   "skill.priest.prayer.name": "Circle of Prayer",
   "skill.priest.divine_nova.name": "Divine Nova",
+  "skill.rogue.dual_slash.name": "Dual Slash",
+  "skill.rogue.shadow_step.name": "Shadow Step",
+  "skill.rogue.vanish.name": "Vanish",
+  "skill.rogue.poisoned_shiv.name": "Poisoned Shiv",
+  "skill.rogue.shadow_dance.name": "Shadow Dance",
+  "skill.rogue.dual_slash.description":
+    "Strike with both daggers in one authoritative damage resolution.",
+  "skill.rogue.shadow_step.description":
+    "Blink beside the nearest visible enemy selected by the server and gain Opening.",
+  "skill.rogue.vanish.description":
+    "Disappear for up to eight seconds; attacking, casting, or taking damage ends the stealth.",
+  "skill.rogue.poisoned_shiv.description":
+    "Stab at close range and apply five server-timed poison ticks.",
+  "skill.rogue.shadow_dance.description":
+    "Chain through up to five server-selected enemies without crossing blocked terrain.",
 
   // HUD
   "death.fallen_title": "You have fallen",
@@ -252,6 +278,7 @@ export const en = {
   "item.weathered_sword": "Weathered sword",
   "item.hunter_bow": "Hunter's bow",
   "item.heartwood_staff": "Heartwood staff",
+  "item.shadow_daggers": "Shadow daggers",
   "item.oak_shield": "Oak shield",
   "item.none": "None",
 

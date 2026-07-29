@@ -458,6 +458,9 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
       },
     ]),
   ],
+  // The class contract lands before the selectable Rogue and its final choices. Keeping this
+  // explicit empty entry makes the hidden phase safe for old clients and normalized profiles.
+  rogue: [],
 };
 
 export interface TalentState {

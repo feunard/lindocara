@@ -1,4 +1,5 @@
 import { type ColliderIndex, emptyColliderIndex, overlapsCollider } from "./collider.js";
+import { ROGUE_BALANCE } from "./rogue.js";
 import {
   clampToWorld,
   PLAYER_SIZE,
@@ -1192,9 +1193,9 @@ export function maxHpForLevel(level: number): number {
 
 // Class system: character types with distinct balance profiles.
 
-export type PlayerClass = "warrior" | "ranger" | "priest";
+export type PlayerClass = "warrior" | "ranger" | "priest" | "rogue";
 
-export const PLAYER_CLASSES: readonly PlayerClass[] = ["warrior", "ranger", "priest"];
+export const PLAYER_CLASSES: readonly PlayerClass[] = ["warrior", "ranger", "priest", "rogue"];
 
 export interface ClassStats {
   attackBase: number;
@@ -1211,6 +1212,11 @@ export const CLASS_STATS: Record<PlayerClass, ClassStats> = {
     attackPerLevel: 2,
     attackRange: 337.5,
     heal: { base: 35, perLevel: 3, range: 390, cooldownMs: 1_500 },
+  },
+  rogue: {
+    attackBase: ROGUE_BALANCE.attack.base,
+    attackPerLevel: ROGUE_BALANCE.attack.perLevel,
+    attackRange: ROGUE_BALANCE.attack.range,
   },
 };
 

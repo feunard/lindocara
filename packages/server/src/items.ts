@@ -87,6 +87,14 @@ export const ITEM_DEFINITIONS: readonly ItemDefinitionRecord[] = [
     allowedClass: "priest",
   },
   {
+    id: "shadow_daggers",
+    type: "weapon",
+    stackable: false,
+    maxStack: 1,
+    equipmentSlot: "main_hand",
+    allowedClass: "rogue",
+  },
+  {
     id: "oak_shield",
     type: "shield",
     stackable: false,
@@ -107,7 +115,12 @@ export function equipmentDefinitionIds(equipment: Equipment): string[] {
 }
 
 export function isMainHandItem(value: string): value is MainHandItem {
-  return value === "weathered_sword" || value === "hunter_bow" || value === "heartwood_staff";
+  return (
+    value === "weathered_sword" ||
+    value === "hunter_bow" ||
+    value === "heartwood_staff" ||
+    value === "shadow_daggers"
+  );
 }
 
 export function isOffHandItem(value: string): value is OffHandItem {

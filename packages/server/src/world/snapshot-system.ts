@@ -60,6 +60,16 @@ export function selfState(
       invisibleUntil: player.invisibleUntil,
       resurrectionAt: player.resurrectionAt,
     },
+    ...(player.class === "rogue"
+      ? {
+          rogue: {
+            openingUntil: player.opening?.expiresAt ?? 0,
+            stealthUntil: player.rogueStealthUntil,
+            smokeProtectionUntil: player.rogueSmokeProtectionUntil,
+            shadowReturnUntil: player.rogueShadowReturn?.expiresAt ?? 0,
+          },
+        }
+      : {}),
     ...(player.resource ? { resource: { ...player.resource } } : {}),
   };
 }

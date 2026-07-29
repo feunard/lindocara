@@ -161,6 +161,33 @@ describe("createHero", () => {
     });
   });
 
+  it("creates and reloads the hidden Rogue contract with server-owned daggers and five skills", async () => {
+    const db = createDb(env.DB);
+    await seedAccount("rogue_host");
+    const { partyId } = await seedParty("rogue_host");
+
+    const created = await createHero(db, "rogue_host", partyId, {
+      name: "Shade",
+      class: "rogue",
+    });
+    const profile = await loadHeroProfile(db, created.id);
+    expect(profile).toMatchObject({
+      class: "rogue",
+      equipment: { mainHand: "shadow_daggers", offHand: null },
+    });
+    const skillIds = (await loadHeroSkills(db, created.id)).map((skill) => skill.skillId);
+    expect(skillIds).toHaveLength(5);
+    expect(skillIds).toEqual(
+      expect.arrayContaining([
+        "dual_slash",
+        "shadow_step",
+        "vanish",
+        "poisoned_shiv",
+        "shadow_dance",
+      ]),
+    );
+  });
+
   it("round-trips normalized progression and fences every stale child-table write", async () => {
     const db = createDb(env.DB);
     await seedAccount("host");

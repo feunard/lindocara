@@ -184,6 +184,14 @@ export interface LootSnapshot {
   y: number;
 }
 
+/** Local-only Rogue combat windows. Other recipients never need these authoritative deadlines. */
+export interface RogueSelfState {
+  openingUntil: number;
+  stealthUntil: number;
+  smokeProtectionUntil: number;
+  shadowReturnUntil: number;
+}
+
 export interface SelfState {
   xp: number;
   xpToNext: number;
@@ -211,6 +219,8 @@ export interface SelfState {
     invisibleUntil: number;
     resurrectionAt: number;
   };
+  /** Present only for the Rogue; all values are server deadlines and never persisted. */
+  rogue?: RogueSelfState;
 }
 
 export interface PartyMemberState {
@@ -1046,6 +1056,18 @@ function isSelfState(value: unknown): value is SelfState {
       !isFiniteNumber(effects.forgottenUntil) ||
       !isFiniteNumber(effects.invisibleUntil) ||
       !isFiniteNumber(effects.resurrectionAt)
+    ) {
+      return false;
+    }
+  }
+  if (value.rogue !== undefined) {
+    const rogue = value.rogue;
+    if (
+      !isRecord(rogue) ||
+      !isFiniteNumber(rogue.openingUntil) ||
+      !isFiniteNumber(rogue.stealthUntil) ||
+      !isFiniteNumber(rogue.smokeProtectionUntil) ||
+      !isFiniteNumber(rogue.shadowReturnUntil)
     ) {
       return false;
     }

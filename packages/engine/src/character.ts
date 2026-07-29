@@ -23,7 +23,12 @@ export const DEFAULT_APPEARANCE: CharacterAppearance = {
   primaryColor: "azure",
 };
 
-export const MAIN_HAND_ITEMS = ["weathered_sword", "hunter_bow", "heartwood_staff"] as const;
+export const MAIN_HAND_ITEMS = [
+  "weathered_sword",
+  "hunter_bow",
+  "heartwood_staff",
+  "shadow_daggers",
+] as const;
 export type MainHandItem = (typeof MAIN_HAND_ITEMS)[number];
 
 export const OFF_HAND_ITEMS = ["oak_shield"] as const;
@@ -39,6 +44,7 @@ export const STARTER_EQUIPMENT: Readonly<Record<PlayerClass, Equipment>> = {
   warrior: { mainHand: "weathered_sword", offHand: "oak_shield" },
   ranger: { mainHand: "hunter_bow", offHand: null },
   priest: { mainHand: "heartwood_staff", offHand: null },
+  rogue: { mainHand: "shadow_daggers", offHand: null },
 };
 
 export function starterEquipmentFor(playerClass: PlayerClass): Equipment {

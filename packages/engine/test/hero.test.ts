@@ -2,9 +2,10 @@ import { HERO_CLASSES, isHeroClass, parseCreateHeroInput } from "@lindocara/engi
 import { describe, expect, it } from "vitest";
 
 describe("hero classes", () => {
-  it("are exactly the three player classes", () => {
+  it("keeps the Rogue contract hidden until the complete kit is exposed", () => {
     expect([...HERO_CLASSES]).toEqual(["warrior", "ranger", "priest"]);
     expect(isHeroClass("priest")).toBe(true);
+    expect(isHeroClass("rogue")).toBe(false);
     expect(isHeroClass("necromancer")).toBe(false);
     expect(isHeroClass(3)).toBe(false);
     expect(isHeroClass(null)).toBe(false);
@@ -17,6 +18,10 @@ describe("parseCreateHeroInput", () => {
       name: "Mira",
       class: "ranger",
     });
+  });
+
+  it("rejects direct Rogue creation while its authoritative kit remains hidden", () => {
+    expect(parseCreateHeroInput({ name: "Shade", class: "rogue" })).toBeNull();
   });
 
   it("rejects malformed bodies", () => {

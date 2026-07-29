@@ -36,7 +36,12 @@ function suggestName(): string {
   return NAME_POOL[Math.floor(Math.random() * NAME_POOL.length)] as string;
 }
 
-const CLASS_EMBLEM: Record<PlayerClass, string> = { warrior: "⚔", ranger: "🏹", priest: "✚" };
+const CLASS_EMBLEM: Record<PlayerClass, string> = {
+  warrior: "⚔",
+  ranger: "🏹",
+  priest: "✚",
+  rogue: "‡",
+};
 
 function ClassCard({
   heroClass,

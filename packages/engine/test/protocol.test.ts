@@ -229,6 +229,42 @@ describe("server protocol", () => {
     merchant: null,
   };
 
+  it("accepts the hidden Rogue loadout and only finite server-authored combat windows", () => {
+    const rogue = {
+      ...player,
+      class: "rogue",
+      equipment: { mainHand: "shadow_daggers", offHand: null },
+    };
+    const rogueState = {
+      ...self,
+      rogue: {
+        openingUntil: 1_500,
+        stealthUntil: 8_000,
+        smokeProtectionUntil: 500,
+        shadowReturnUntil: 2_000,
+      },
+    };
+    expect(
+      parseServerMessage(
+        JSON.stringify({ ...welcomeBase, world, players: [rogue], self: rogueState }),
+      ),
+    ).toMatchObject({
+      t: "welcome",
+      players: [{ class: "rogue", equipment: { mainHand: "shadow_daggers" } }],
+      self: { rogue: { openingUntil: 1_500, stealthUntil: 8_000 } },
+    });
+    expect(
+      parseServerMessage(
+        JSON.stringify({
+          ...welcomeBase,
+          world,
+          players: [rogue],
+          self: { ...rogueState, rogue: { ...rogueState.rogue, openingUntil: "soon" } },
+        }),
+      ),
+    ).toBeNull();
+  });
+
   it("accepts any well-formed zone id, since terrain now travels in the welcome itself", () => {
     expect(parseServerMessage(JSON.stringify({ ...welcomeBase, world }))).toMatchObject({
       t: "welcome",

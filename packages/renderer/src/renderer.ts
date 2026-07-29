@@ -190,6 +190,7 @@ const CLASS_GLYPHS: Record<PlayerClass, string> = {
   warrior: "⚔",
   ranger: "➶",
   priest: "✚",
+  rogue: "‡",
 };
 
 const CITY_BUILDING_ART: Readonly<Record<string, number>> = {
@@ -686,6 +687,7 @@ async function loadArt(): Promise<ArtTextures> {
       weathered_sword: texture("weapon.sword"),
       hunter_bow: equipmentTexture(MAIN_HAND_ART.hunter_bow.source),
       heartwood_staff: equipmentTexture(MAIN_HAND_ART.heartwood_staff.source),
+      shadow_daggers: texture("weapon.sword"),
     },
     offHands: {
       oak_shield: equipmentTexture(OFF_HAND_ART.oak_shield.source),

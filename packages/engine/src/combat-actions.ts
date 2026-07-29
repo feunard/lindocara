@@ -13,7 +13,10 @@ export type DirectionalActionShape =
   | "heal_projectile"
   | "teleport"
   | "area_heal"
-  | "nova";
+  | "nova"
+  | "shadow_step"
+  | "stealth"
+  | "shadow_dance";
 
 export interface ProjectileActionDefinition {
   kind: ProjectileKind;
@@ -144,6 +147,42 @@ export const PLAYER_ACTIONS: Readonly<Record<PlayerClass, readonly PlayerActionD
     { skillId: "blink", shape: "teleport", anticipationMs: 180, recoveryMs: 420 },
     { skillId: "prayer", shape: "area_heal", anticipationMs: 320, recoveryMs: 640 },
     { skillId: "divine_nova", shape: "nova", anticipationMs: 400, recoveryMs: 700 },
+  ],
+  rogue: [
+    {
+      skillId: "dual_slash",
+      shape: "arc",
+      anticipationMs: 105,
+      recoveryMs: 220,
+      halfAngleRadians: (58 * Math.PI) / 180,
+      hitboxRadius: 14,
+    },
+    {
+      skillId: "shadow_step",
+      shape: "shadow_step",
+      anticipationMs: 110,
+      recoveryMs: 260,
+    },
+    {
+      skillId: "vanish",
+      shape: "stealth",
+      anticipationMs: 80,
+      recoveryMs: 120,
+    },
+    {
+      skillId: "poisoned_shiv",
+      shape: "arc",
+      anticipationMs: 125,
+      recoveryMs: 300,
+      halfAngleRadians: (48 * Math.PI) / 180,
+      hitboxRadius: 12,
+    },
+    {
+      skillId: "shadow_dance",
+      shape: "shadow_dance",
+      anticipationMs: 180,
+      recoveryMs: 420,
+    },
   ],
 };
 

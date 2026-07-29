@@ -151,20 +151,26 @@ export const fr: Record<keyof typeof en, string> = {
   "class.warrior": "Guerrier",
   "class.ranger": "Rôdeur",
   "class.priest": "Prêtre",
+  "class.rogue": "Rogue",
   "class.warrior.blurb": "Frappe fort, au corps à corps.",
   "class.ranger.blurb": "Frappe léger, de loin.",
   "class.priest.blurb": "Frappe léger, soigne les alliés [F].",
+  "class.rogue.blurb": "Surgit de l'ombre, frappe, puis s'échappe.",
   "class.warrior.role": "Gardien de première ligne",
   "class.ranger.role": "Éclaireur à distance",
   "class.priest.role": "Soigneur protecteur",
+  "class.rogue.role": "Assassin mobile",
   "class.warrior.difficulty": "Difficulté · Accessible",
   "class.ranger.difficulty": "Difficulté · Tactique",
   "class.priest.difficulty": "Difficulté · Soutien",
+  "class.rogue.difficulty": "Difficulté · Avancée",
   "class.warrior.description":
     "Restez au contact, absorbez la pression et éloignez le danger de vos alliés.",
   "class.ranger.description": "Contrôlez la distance et frappez les menaces avant leur arrivée.",
   "class.priest.description":
     "Alternez attaques à distance et secours opportuns aux alliés blessés.",
+  "class.rogue.description":
+    "Préparez une brève ouverture, frappez très fort au corps à corps, puis repositionnez-vous.",
   "class.warrior.skill.1": "Frappe de mêlée fiable",
   "class.warrior.skill.2": "Garde défensive",
   "class.warrior.skill.3": "Perturbation ennemie",
@@ -180,6 +186,11 @@ export const fr: Record<keyof typeof en, string> = {
   "class.priest.skill.3": "Bénédiction protectrice",
   "class.priest.skill.4": "Récupération du groupe",
   "class.priest.skill.5": "Salut d'urgence",
+  "class.rogue.skill.1": "Attaque de base aux deux dagues",
+  "class.rogue.skill.2": "Repositionnement lié à l'ennemi",
+  "class.rogue.skill.3": "Furtivité autoritaire",
+  "class.rogue.skill.4": "Poison persistant",
+  "class.rogue.skill.5": "Finisseur rapide multi-cibles",
   "skill.warrior.cleave.name": "Fendoir",
   "skill.warrior.iron_guard.name": "Garde de fer",
   "skill.warrior.shield_bash.name": "Charge",
@@ -219,6 +230,21 @@ export const fr: Record<keyof typeof en, string> = {
   "skill.unlock_at": "Débloqué au niveau {level}",
   "skill.priest.prayer.name": "Cercle de prière",
   "skill.priest.divine_nova.name": "Nova divine",
+  "skill.rogue.dual_slash.name": "Double entaille",
+  "skill.rogue.shadow_step.name": "Pas de l'ombre",
+  "skill.rogue.vanish.name": "Disparition",
+  "skill.rogue.poisoned_shiv.name": "Surin empoisonné",
+  "skill.rogue.shadow_dance.name": "Danse des ombres",
+  "skill.rogue.dual_slash.description":
+    "Frappe avec les deux dagues en une seule résolution de dégâts autoritaire.",
+  "skill.rogue.shadow_step.description":
+    "Téléporte près de l'ennemi visible le plus proche choisi par le serveur et accorde Ouverture.",
+  "skill.rogue.vanish.description":
+    "Disparaît jusqu'à huit secondes ; attaquer, lancer une technique ou subir des dégâts rompt la furtivité.",
+  "skill.rogue.poisoned_shiv.description":
+    "Frappe au corps à corps et applique cinq ticks de poison cadencés par le serveur.",
+  "skill.rogue.shadow_dance.description":
+    "Enchaîne jusqu'à cinq ennemis choisis par le serveur sans traverser de terrain bloqué.",
 
   // ATH
   "death.fallen_title": "Vous êtes tombé",
@@ -254,6 +280,7 @@ export const fr: Record<keyof typeof en, string> = {
   "item.weathered_sword": "Épée patinée",
   "item.hunter_bow": "Arc de chasse",
   "item.heartwood_staff": "Bâton du Cœur-Racine",
+  "item.shadow_daggers": "Dagues d'ombre",
   "item.oak_shield": "Bouclier de chêne",
   "item.none": "Aucun",
 

@@ -25,6 +25,8 @@ export const MAIN_HAND_ART: Readonly<
     width: 10,
     height: 18,
   },
+  // The Rogue unit sheet contains both daggers. Inventory chrome reuses a bundled atlas glyph.
+  shadow_daggers: { source: "atlas", frame: "weapon.sword", width: 9, height: 16 },
 };
 
 export const OFF_HAND_ART: Readonly<

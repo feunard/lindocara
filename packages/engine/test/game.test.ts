@@ -590,6 +590,10 @@ describe("class rules", () => {
       mainHand: "heartwood_staff",
       offHand: null,
     });
+    expect(starterEquipmentFor("rogue")).toEqual({
+      mainHand: "shadow_daggers",
+      offHand: null,
+    });
     for (const playerClass of PLAYER_CLASSES) {
       expect(isEquipmentForClass(STARTER_EQUIPMENT[playerClass], playerClass)).toBe(true);
     }
@@ -603,7 +607,7 @@ describe("class rules", () => {
   });
 
   it("keeps the balance table in the spec's shape", () => {
-    expect(PLAYER_CLASSES).toEqual(["warrior", "ranger", "priest"]);
+    expect(PLAYER_CLASSES).toEqual(["warrior", "ranger", "priest", "rogue"]);
     expect(CLASS_STATS.warrior).toMatchObject({
       attackBase: 27,
       attackPerLevel: 4,
@@ -619,6 +623,11 @@ describe("class rules", () => {
       attackPerLevel: 2,
       attackRange: 337.5,
     });
+    expect(CLASS_STATS.rogue).toEqual({
+      attackBase: 22,
+      attackPerLevel: 3,
+      attackRange: 58,
+    });
     expect(CLASS_STATS.priest.heal).toEqual({
       base: 35,
       perLevel: 3,
@@ -633,12 +642,15 @@ describe("class rules", () => {
     expect(attackDamageFor("warrior", 3)).toBe(35);
     expect(attackDamageFor("ranger", 1)).toBe(16);
     expect(attackDamageFor("priest", 5)).toBe(22);
+    expect(attackDamageFor("rogue", 1)).toBe(22);
+    expect(attackDamageFor("rogue", 5)).toBe(34);
     expect(healAmountFor(1)).toBe(35);
     expect(healAmountFor(4)).toBe(44);
   });
 
   it("validates class names", () => {
     expect(isValidClass("priest")).toBe(true);
+    expect(isValidClass("rogue")).toBe(true);
     expect(isValidClass("necromancer")).toBe(false);
     expect(isValidClass(3)).toBe(false);
   });
