@@ -469,6 +469,10 @@ export const en = {
   "talent.status.active": "Active",
   "talent.status.available": "Available",
   "talent.status.locked": "Locked",
+  "talent.status.exclusive": "Unavailable — {variant} is active",
+  "talent.choice": "Final evolution: choose A or B",
+  "talent.variant.a": "Evolution A",
+  "talent.variant.b": "Evolution B",
   "talent.close": "Close talents",
   "talent.points": "{available} of {total} points available",
   "talent.hint":

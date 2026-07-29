@@ -2,7 +2,7 @@ import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import { skillResourceCost } from "@lindocara/engine/resources.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 import { CLASS_SKILLS, isSkillUnlocked, SKILL_UNLOCK_LEVEL } from "@lindocara/engine/skills.js";
-import { evolvedTalent } from "@lindocara/engine/talents.js";
+import { activeEvolutionVariant } from "@lindocara/engine/talents.js";
 import { keyboardBindingLabel } from "@lindocara/renderer/input-settings.js";
 import { skillIconArt } from "@lindocara/renderer/tiny-swords-art.js";
 import { type CSSProperties, useEffect, useRef, useState } from "react";
@@ -77,12 +77,22 @@ export function SkillBar() {
         const cooldownUntil = skill.slot === 1 ? attackCooldownUntil : cooldowns[skill.slot];
         const remaining = Math.max(0, cooldownUntil - now);
         const cooling = remaining > 0;
-        const evolved = evolvedTalent(self.class, selfState?.talents?.selected ?? [], skill.slot);
-        const name = evolved
-          ? t(`talent.evolution.${self.class}.${skill.id}.name` as MessageKey)
+        const evolution = activeEvolutionVariant(
+          self.class,
+          selfState?.talents?.selected ?? [],
+          skill.slot,
+        );
+        const evolutionSuffix = evolution?.variantId ? `.${evolution.variantId}` : "";
+        const evolutionLabel = evolution?.variantId
+          ? t(`talent.variant.${evolution.variantId}` as MessageKey)
+          : null;
+        const name = evolution
+          ? t(`talent.evolution.${self.class}.${skill.id}${evolutionSuffix}.name` as MessageKey)
           : t(`skill.${self.class}.${skill.id}.name` as MessageKey);
-        const description = evolved
-          ? t(`talent.evolution.${self.class}.${skill.id}.description` as MessageKey)
+        const description = evolution
+          ? t(
+              `talent.evolution.${self.class}.${skill.id}${evolutionSuffix}.description` as MessageKey,
+            )
           : t(`skill.${self.class}.${skill.id}.description` as MessageKey);
         const requiredLevel = SKILL_UNLOCK_LEVEL[skill.slot];
         const unlocked = isSkillUnlocked(self.level, skill.slot);
@@ -116,9 +126,10 @@ export function SkillBar() {
           <button
             type="button"
             key={skill.id}
-            className={`skill-slot skill-slot--${skill.slot}${unavailable ? " cooling" : ""}${guardToggle && ironGuardActive ? " active" : ""}${evolved ? " evolved" : ""}`}
+            className={`skill-slot skill-slot--${skill.slot}${unavailable ? " cooling" : ""}${guardToggle && ironGuardActive ? " active" : ""}${evolution ? ` evolved evolved--${evolution.variantId ?? "active"}` : ""}`}
             style={{ gridRow: layout.row, gridColumn: layout.column }}
             data-numpad={layout.numpad}
+            data-evolution-variant={evolution?.variantId}
             disabled={!game || self.life !== "alive" || unavailable}
             onPointerDown={
               heldSkill
@@ -137,7 +148,7 @@ export function SkillBar() {
               }
             }}
             aria-pressed={guardToggle ? ironGuardActive : undefined}
-            aria-label={`${skill.slot}. ${name}`}
+            aria-label={`${skill.slot}. ${name}${evolutionLabel ? `. ${evolutionLabel}` : ""}`}
             aria-keyshortcuts={keyBindings.map((binding) => binding.code).join(" ")}
             title={
               unlocked
@@ -157,6 +168,11 @@ export function SkillBar() {
               aria-hidden="true"
             />
             <span className="skill-slot__name">{name}</span>
+            {evolution?.variantId && (
+              <span className="skill-slot__variant" aria-hidden="true">
+                {evolution.variantId.toUpperCase()}
+              </span>
+            )}
             {manaCost > 0 && <span className="skill-slot__cost">{manaCost}</span>}
             {!unlocked && <span className="skill-slot__lock">{requiredLevel}</span>}
             {cooling && (

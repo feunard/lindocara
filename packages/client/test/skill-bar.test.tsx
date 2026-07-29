@@ -148,4 +148,35 @@ describe("skill bar cooldowns", () => {
     fireEvent.pointerUp(lumen, { pointerId: 7 });
     expect(game.releaseSkill).toHaveBeenCalledWith(3);
   });
+
+  it("shows the exact active evolution name, description, and A/B marker", () => {
+    useUiStore.setState({
+      game: gameHandle(),
+      selfState: {
+        xp: 0,
+        xpToNext: 100,
+        life: "alive",
+        corpse: null,
+        inventory: { potions: 0, gold: 0, crystals: 0 },
+        quest: { status: "available", progress: 0, target: 3 },
+        talents: {
+          selected: ["ranger.piercing_arrow.line_piercer"],
+          pointsSpent: 1,
+          pointsAvailable: 9,
+        },
+      },
+    });
+    render(<SkillBar />);
+
+    const evolved = screen.getByRole("button", {
+      name: "2. Linebreaker. Evolution B",
+    });
+    expect(evolved).toHaveClass("evolved", "evolved--b");
+    expect(evolved).toHaveAttribute("data-evolution-variant", "b");
+    expect(evolved.querySelector(".skill-slot__variant")).toHaveTextContent("B");
+    expect(evolved.querySelector(".skill-slot__name")).toHaveTextContent("Linebreaker");
+    expect(evolved.querySelector('[role="tooltip"]')).toHaveTextContent(
+      "Each distinct enemy pierced adds 15% damage to the next, capped at 60%.",
+    );
+  });
 });

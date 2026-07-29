@@ -474,6 +474,10 @@ export const fr: Record<keyof typeof en, string> = {
   "talent.status.active": "Actif",
   "talent.status.available": "Disponible",
   "talent.status.locked": "Verrouillé",
+  "talent.status.exclusive": "Indisponible — {variant} est active",
+  "talent.choice": "Évolution finale : choisir A ou B",
+  "talent.variant.a": "Évolution A",
+  "talent.variant.b": "Évolution B",
   "talent.close": "Fermer les talents",
   "talent.points": "{available} points disponibles sur {total}",
   "talent.hint":

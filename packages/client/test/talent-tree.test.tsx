@@ -72,12 +72,50 @@ describe("TalentTree", () => {
 
   it("names every final node as an evolved technique", async () => {
     useUiStore.setState({ talentsOpen: true, game: gameHandle() });
-    render(<TalentTree />);
+    const view = render(<TalentTree />);
 
     await userEvent.click(screen.getByRole("button", { name: /Steel Tempest\./ }));
     expect(screen.getAllByText("Steel Tempest")).toHaveLength(2);
     expect(screen.getByRole("button", { name: /Cyclone\./ })).toBeInTheDocument();
+    expect(screen.getAllByText("Final evolution: choose A or B")).toHaveLength(4);
+    expect(view.container.querySelectorAll(".talent-node__variant")).toHaveLength(8);
     expect(screen.queryByText("V2 form")).not.toBeInTheDocument();
+  });
+
+  it("marks the selected final evolution and disables its exclusive alternative", async () => {
+    const game = gameHandle();
+    const selfState = useUiStore.getState().selfState;
+    if (!selfState) throw new Error("self state fixture missing");
+    useUiStore.setState({
+      talentsOpen: true,
+      game,
+      selfState: {
+        ...selfState,
+        talents: {
+          selected: [
+            "warrior.iron_guard.fortified",
+            "warrior.iron_guard.perfect",
+            "warrior.iron_guard.readiness",
+            "warrior.iron_guard.riposte",
+          ],
+          pointsSpent: 4,
+          pointsAvailable: 6,
+        },
+      },
+    });
+    render(<TalentTree />);
+
+    const selected = screen.getByRole("button", { name: /Perfect Riposte\. Evolution A\./ });
+    const alternative = screen.getByRole("button", {
+      name: /Bulwark\. Evolution B\..*Unavailable.*Perfect Riposte is active/,
+    });
+    expect(selected).toHaveClass("talent-node--active", "talent-node--variant-a");
+    expect(alternative).toHaveClass("talent-node--exclusive-disabled", "talent-node--variant-b");
+    expect(alternative).toHaveAttribute("aria-disabled", "true");
+
+    await userEvent.click(alternative);
+    expect(game.unlockTalent).not.toHaveBeenCalled();
+    expect(screen.getByText("Unavailable — Perfect Riposte is active")).toBeVisible();
   });
 
   it("exposes the ranger B evolution names without changing legacy A names", () => {

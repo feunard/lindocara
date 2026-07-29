@@ -2,6 +2,7 @@ import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import { isSkillUnlocked, skillFor } from "@lindocara/engine/skills.js";
 import {
   CLASS_TALENTS,
+  conflictingExclusiveTalent,
   type TalentEffect,
   type TalentLabel,
   unlockTalent,
@@ -91,7 +92,7 @@ export function TalentTree() {
   const copyFor = (node: (typeof classNodes)[number]) => {
     const skill = skillFor(self.class, node.slot);
     const skillName = t(`skill.${self.class}.${skill.id}.name` as MessageKey);
-    const evolutionSuffix = node.variantId === "b" ? ".b" : "";
+    const evolutionSuffix = node.variantId ? `.${node.variantId}` : "";
     return {
       skillName,
       name: node.root
@@ -112,6 +113,9 @@ export function TalentTree() {
     };
   };
   const inspectedCopy = inspectedNode ? copyFor(inspectedNode) : null;
+  const inspectedConflict = inspectedNode
+    ? conflictingExclusiveTalent(self.class, selected, inspectedNode)
+    : undefined;
 
   return (
     <section
@@ -156,10 +160,16 @@ export function TalentTree() {
             return (
               <article className="talent-branch" key={skill.id}>
                 <h3>{skillName}</h3>
+                <p className="talent-branch__choice">{t("talent.choice")}</p>
                 <div className="talent-grid">
                   {nodes.map((node) => {
                     const rootActive = node.root && isSkillUnlocked(self.level, slot);
                     const active = rootActive || selected.has(node.id);
+                    const exclusiveConflict = conflictingExclusiveTalent(
+                      self.class,
+                      selected,
+                      node,
+                    );
                     const result = unlockTalent(
                       self.class,
                       self.level,
@@ -168,23 +178,31 @@ export function TalentTree() {
                     );
                     const available = !node.root && !active && result.ok;
                     const { name, description } = copyFor(node);
+                    const variantLabel = node.variantId
+                      ? t(`talent.variant.${node.variantId}` as MessageKey)
+                      : null;
                     const status = active
                       ? t("talent.status.active")
-                      : available
-                        ? t("talent.status.available")
-                        : t("talent.status.locked");
+                      : exclusiveConflict
+                        ? t("talent.status.exclusive", {
+                            variant: copyFor(exclusiveConflict).name,
+                          })
+                        : available
+                          ? t("talent.status.available")
+                          : t("talent.status.locked");
                     return (
                       <button
                         type="button"
                         key={node.id}
-                        className={`talent-node${active ? " talent-node--active" : ""}${available ? " talent-node--available" : ""}`}
+                        className={`talent-node${active ? " talent-node--active" : ""}${available ? " talent-node--available" : ""}${node.variantId ? ` talent-node--variant talent-node--variant-${node.variantId}` : ""}${exclusiveConflict ? " talent-node--exclusive-disabled" : ""}`}
                         style={{ gridRow: node.tier + 1, gridColumn: node.column + 2 }}
                         aria-pressed={active}
+                        aria-disabled={exclusiveConflict ? true : undefined}
                         onClick={() => {
                           setInspectedNodeId(node.id);
                           if (available) game?.unlockTalent?.(node.id);
                         }}
-                        aria-label={`${name}. ${description} ${status}.`}
+                        aria-label={`${name}.${variantLabel ? ` ${variantLabel}.` : ""} ${description} ${status}.`}
                         title={`${name} — ${description}`}
                       >
                         <span className="talent-node__icon" style={iconStyle} aria-hidden="true" />
@@ -194,6 +212,11 @@ export function TalentTree() {
                           </span>
                         )}
                         <span className="talent-node__name">{name}</span>
+                        {node.variantId && (
+                          <span className="talent-node__variant" aria-hidden="true">
+                            {node.variantId.toUpperCase()}
+                          </span>
+                        )}
                         <span className="talent-node__cost" aria-hidden="true">
                           {node.root ? "0" : "1"}
                         </span>
@@ -216,9 +239,13 @@ export function TalentTree() {
             <strong>
               {inspectedNode.root || selected.has(inspectedNode.id)
                 ? t("talent.status.active")
-                : unlockTalent(self.class, self.level, talentState.selected, inspectedNode.id).ok
-                  ? t("talent.status.available")
-                  : t("talent.status.locked")}
+                : inspectedConflict
+                  ? t("talent.status.exclusive", {
+                      variant: copyFor(inspectedConflict).name,
+                    })
+                  : unlockTalent(self.class, self.level, talentState.selected, inspectedNode.id).ok
+                    ? t("talent.status.available")
+                    : t("talent.status.locked")}
             </strong>
           </aside>
         )}
