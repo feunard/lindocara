@@ -45,9 +45,9 @@ every lower orthogonal neighbour on the next layer up. The atlas's joined wall r
 neighbour to the north; rotated fixed faces handle east, south and west. At a concave corner one
 visual face wins deterministically, but every choice has the same impassable collision.
 
-The passability grid is baked at map load exactly as `bakeCollision` bakes one today. Ambient
-side/back cliff cells remain impassable but are collision-only; only the south/front face draws
-rock in Tiny Swords' top-down perspective.
+The passability grid is baked at map load exactly as `bakeCollision` bakes one today. Every ambient
+cliff cell remains impassable and draws its oriented rock face. A blocking cell must never be hidden:
+doing so leaves a strip that looks like ordinary empty ground but cannot be entered.
 
 Directional ramps are the only passable cells that join two levels. The sheet provides two complete
 64×128 side compositions: atlas cells `(0,4)`/`(0,5)` climb right and `(3,4)`/`(3,5)` climb left.

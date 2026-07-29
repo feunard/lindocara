@@ -98,9 +98,9 @@ It refuses flat or mismatched endpoints but remains placeable beside other eleva
 over either half removes the complete stair before restoring normal cliff upkeep. Ramp cells give
 heroes a shared server/prediction slowdown, a small visual lift, and a camera rise that persists on
 the raised level and reverses smoothly on descent. Raised
-ground draws rock only on its front edge; hidden side/back blockers keep the plateau and every stair
-side compatible. Fill still has no fill-to-empty primitive; the palette disables it while water
-is the active content instead of shipping a dead brush.
+ground draws an oriented rock face on every blocking edge, so no collision-only strip looks like
+empty walkable terrain around a plateau. Fill still has no fill-to-empty primitive; the palette
+disables it while water is the active content instead of shipping a dead brush.
 
 ## Tranche 3 — Events: data and placement
 

@@ -175,10 +175,8 @@ export const TINY_SWORDS_TILESET: Tileset = {
         renderLevel,
         ...(renderLevel === 2 ? { tint: RAISED_1_TINT } : {}),
         rotationQuarterTurns,
-        // Tiny Swords' perspective exposes rock only on the south/front edge of raised ground.
-        // Side and north/back boundaries remain solid for movement but must not draw a rotated rock
-        // wall around the plateau. A staircase replacing one of these cells is visible as usual.
-        ...(rotationQuarterTurns === 0 ? {} : { visible: false }),
+        // Every blocking elevation boundary must stay visible. Hiding the side/back rotations left
+        // a full authored cell of apparently empty ground that collision correctly refused.
       })),
     ),
   ],

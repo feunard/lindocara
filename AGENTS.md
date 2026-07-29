@@ -404,8 +404,8 @@ cell of every north/east/south/west boundary, so a plateau is a real barrier on 
 Directional stair gateways are the only authored crossing: the editor chooses a side
 (right/left) and the transition (0↔1 or 1↔2). They use Pixel Frog's two native side ramps; there are
 no top/bottom variants. The brush clears both joined cliff faces and the path is bidirectional.
-Only the south/front cliff face draws rock; back and side boundaries remain solid
-collision-only cells, so a raised plateau is not ringed by rotated walls. See
+Every blocking cliff face draws its oriented rock cell; no side may remain collision-only because
+that creates an apparently empty but inaccessible strip around raised ground. See
 [`docs/superpowers/specs/2026-07-18-layered-map-model-design.md`](./docs/superpowers/specs/2026-07-18-layered-map-model-design.md)
 for the full model.
 

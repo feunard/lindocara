@@ -8,6 +8,7 @@ import {
 } from "@lindocara/engine/tileset.js";
 import {
   CLIFF_FACE_FIXED_BASE,
+  CLIFF_FACE_FIXED_LEVEL_STRIDE,
   CLIFF_WALL_SLOT,
   GRASS_SLOTS,
   TINY_SWORDS_TILESET,
@@ -123,12 +124,16 @@ describe("tileDrawAt", () => {
     }
   });
 
-  it("keeps side and back elevation blockers collision-only", () => {
-    for (const rotation of [1, 2, 3]) {
-      expect(
-        tileDrawAt(TINY_SWORDS_TILESET, layerOf(fixedId(CLIFF_FACE_FIXED_BASE + rotation)), 0, 0),
-      ).toBeNull();
-      expect(TINY_SWORDS_TILESET.fixed[CLIFF_FACE_FIXED_BASE + rotation]?.passable).toBe(false);
+  it("draws every blocking elevation face at both raised levels", () => {
+    for (const levelOffset of [0, CLIFF_FACE_FIXED_LEVEL_STRIDE]) {
+      for (const rotation of [0, 1, 2, 3] as const) {
+        const index = CLIFF_FACE_FIXED_BASE + levelOffset + rotation;
+        expect(tileDrawAt(TINY_SWORDS_TILESET, layerOf(fixedId(index)), 0, 0)).toMatchObject({
+          rotationQuarterTurns: rotation,
+          renderLevel: levelOffset === 0 ? 1 : 2,
+        });
+        expect(TINY_SWORDS_TILESET.fixed[index]?.passable).toBe(false);
+      }
     }
   });
 
