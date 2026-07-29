@@ -13,9 +13,12 @@
   },
   "scripts": {
     "dev": "npm run dev -w @lindocara/main",
+    "dev:legacy": "npm run dev:legacy -w @lindocara/main",
     "build": "npm run build -w @lindocara/main",
+    "build:legacy": "npm run build:legacy -w @lindocara/main",
     "preview": "npm run preview -w @lindocara/main",
     "deploy": "npm run deploy -w @lindocara/main",
+    "deploy:legacy": "npm run deploy:legacy -w @lindocara/main",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:engine": "vitest run --project engine",
