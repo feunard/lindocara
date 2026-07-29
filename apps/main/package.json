@@ -4,14 +4,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "predev": "node ../../scripts/prepare-local-env.mjs",
-    "dev": "vite dev",
-    "build": "vite build",
-    "preview": "vite preview",
-    "deploy": "npm run build && wrangler deploy --config dist/lindocara/wrangler.json"
+    "dev": "alepha dev",
+    "build": "alepha build",
+    "deploy": "alepha platform up -e production",
+    "dev:legacy": "node ../../scripts/prepare-local-env.mjs && vite dev --config vite.legacy.config.ts",
+    "build:legacy": "vite build --config vite.legacy.config.ts",
+    "preview": "vite preview --config vite.legacy.config.ts",
+    "deploy:legacy": "npm run build:legacy && wrangler deploy --config dist/lindocara/wrangler.json"
   },
   "dependencies": {
     "@lindocara/client": "*",
-    "@lindocara/server": "*"
+    "@lindocara/server": "*",
+    "alepha": "*"
   }
 }

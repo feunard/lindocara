@@ -45,7 +45,7 @@
     "format": "biome format --write .",
     "typecheck": "npm run typecheck:engine && npm run typecheck:server && npm run typecheck:renderer && npm run typecheck:client && npm run typecheck:editor && npm run typecheck:ui && npm run typecheck:testing && npm run typecheck:catalog && tsc -p tsconfig.tooling.json",
     "typecheck:engine": "tsc -p packages/engine/tsconfig.json",
-    "typecheck:server": "tsc -p packages/server/tsconfig.json",
+    "typecheck:server": "tsc -p packages/server/tsconfig.json && tsc -p packages/server/tsconfig.api.json",
     "typecheck:renderer": "tsc -p packages/renderer/tsconfig.json",
     "typecheck:client": "tsc -p packages/client/tsconfig.json",
     "typecheck:editor": "tsc -p packages/editor/tsconfig.json",
