@@ -494,6 +494,21 @@ export const en = {
   "talent.node.perfect_retaliation.name": "Perfect riposte",
   "talent.node.perfect_retaliation.description":
     "A perfect parry reflects {value}% of the incoming damage at the attacker.",
+  "talent.node.ally_guard.name": "Bulwark",
+  "talent.node.ally_guard.description":
+    "While guarding, protect nearby allies from part of the damage they take.",
+  "talent.node.seismic_impact.name": "Seismic impact",
+  "talent.node.seismic_impact.description":
+    "Shorten {skill}, then damage and taunt enemies in an arrival shockwave.",
+  "talent.node.king_challenge.name": "King's challenge",
+  "talent.node.king_challenge.description":
+    "Briefly reduce incoming damage for each enemy challenged, up to a fixed limit.",
+  "talent.node.rallying_cry.name": "Rallying cry",
+  "talent.node.rallying_cry.description":
+    "Empower nearby allies without stacking the effect from several warriors.",
+  "talent.node.cyclone.name": "Cyclone",
+  "talent.node.cyclone.description":
+    "Turn {skill} into a short mobile sequence of four bounded strikes.",
   "talent.node.ricochet.name": "Ricochet",
   "talent.node.ricochet.description":
     "After hitting, {skill} jumps to another enemy for {value}% damage.",
@@ -510,7 +525,7 @@ export const en = {
     "{skill} bounces to another wounded ally for {value}% healing.",
   "talent.node.blink_heal.name": "Renewing light",
   "talent.node.blink_heal.description": "{skill} restores {value} health when you rematerialize.",
-  "talent.evolution.warrior.iron_guard.name": "Unbreakable Bastion",
+  "talent.evolution.warrior.iron_guard.name": "Perfect Riposte",
   "talent.evolution.warrior.iron_guard.description":
     "An absolute guard: perfect parries prevent all damage and reflect the attack.",
   "talent.evolution.warrior.shield_bash.name": "Colossus Charge",
@@ -522,6 +537,30 @@ export const en = {
   "talent.evolution.warrior.whirlwind.name": "Steel Tempest",
   "talent.evolution.warrior.whirlwind.description":
     "Whirlwind becomes a wider, devastating tempest with multiplied effects.",
+  "talent.evolution.warrior.iron_guard.a.name": "Perfect Riposte",
+  "talent.evolution.warrior.iron_guard.a.description":
+    "A frame-perfect parry prevents all damage and retaliates against the attacker.",
+  "talent.evolution.warrior.iron_guard.b.name": "Bulwark",
+  "talent.evolution.warrior.iron_guard.b.description":
+    "While Iron Guard is held, nearby allies take 25% less damage; no damage is reflected for them.",
+  "talent.evolution.warrior.shield_bash.a.name": "Colossus Charge",
+  "talent.evolution.warrior.shield_bash.a.description":
+    "Charge much farther and strike the first enemy with a massively reinforced impact.",
+  "talent.evolution.warrior.shield_bash.b.name": "Seismic Impact",
+  "talent.evolution.warrior.shield_bash.b.description":
+    "Charge a shorter distance, then damage and taunt nearby enemies in an arrival shockwave.",
+  "talent.evolution.warrior.battle_cry.a.name": "King's Challenge",
+  "talent.evolution.warrior.battle_cry.a.description":
+    "Taunt a much larger area and briefly gain bounded damage reduction for each enemy challenged.",
+  "talent.evolution.warrior.battle_cry.b.name": "Rallying Cry",
+  "talent.evolution.warrior.battle_cry.b.description":
+    "Forgo the taunt to grant nearby allies 15% more damage for 4.5 seconds without stacking.",
+  "talent.evolution.warrior.whirlwind.a.name": "Steel Tempest",
+  "talent.evolution.warrior.whirlwind.a.description":
+    "Deliver the existing wider, devastating instant Whirlwind at full evolved power.",
+  "talent.evolution.warrior.whirlwind.b.name": "Cyclone",
+  "talent.evolution.warrior.whirlwind.b.description":
+    "Channel four rapid bounded strikes while remaining able to reposition.",
   "talent.evolution.ranger.piercing_arrow.name": "Echo Arrow",
   "talent.evolution.ranger.piercing_arrow.description":
     "Piercing Arrow ricochets into a second enemy at 60% power.",

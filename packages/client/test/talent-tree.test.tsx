@@ -64,7 +64,7 @@ describe("TalentTree", () => {
       "aria-pressed",
       "true",
     );
-    expect(view.container.querySelectorAll(".talent-node__icon")).toHaveLength(20);
+    expect(view.container.querySelectorAll(".talent-node__icon")).toHaveLength(24);
     await userEvent.click(screen.getByRole("button", { name: /Fortified guard\./ }));
     expect(game.unlockTalent).toHaveBeenCalledWith("warrior.iron_guard.fortified");
     expect(screen.getByText("Reduce damage taken in Iron Guard by another 10%.")).toBeVisible();
@@ -76,6 +76,7 @@ describe("TalentTree", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /Steel Tempest\./ }));
     expect(screen.getAllByText("Steel Tempest")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: /Cyclone\./ })).toBeInTheDocument();
     expect(screen.queryByText("V2 form")).not.toBeInTheDocument();
   });
 

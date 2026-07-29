@@ -20,6 +20,11 @@ const NODE_GLYPHS: Readonly<Record<Exclude<TalentLabel, "root">, string>> = {
   guard_reduction: "◆",
   perfect_parry: "✦",
   perfect_retaliation: "↯",
+  ally_guard: "◈",
+  seismic_impact: "◉",
+  king_challenge: "♛",
+  rallying_cry: "✹",
+  cyclone: "◌",
   ricochet: "⌁",
   extra_projectiles: "⋰",
   dash_invulnerability: "◇",
@@ -76,17 +81,20 @@ export function TalentTree() {
   const copyFor = (node: (typeof classNodes)[number]) => {
     const skill = skillFor(self.class, node.slot);
     const skillName = t(`skill.${self.class}.${skill.id}.name` as MessageKey);
+    const evolutionSuffix = node.variantId === "b" ? ".b" : "";
     return {
       skillName,
       name: node.root
         ? skillName
         : node.tier === 3
-          ? t(`talent.evolution.${self.class}.${skill.id}.name` as MessageKey)
+          ? t(`talent.evolution.${self.class}.${skill.id}${evolutionSuffix}.name` as MessageKey)
           : t(`talent.node.${node.label}.name` as MessageKey),
       description: node.root
         ? t(`skill.${self.class}.${skill.id}.description` as MessageKey)
         : node.tier === 3
-          ? t(`talent.evolution.${self.class}.${skill.id}.description` as MessageKey)
+          ? t(
+              `talent.evolution.${self.class}.${skill.id}${evolutionSuffix}.description` as MessageKey,
+            )
           : t(`talent.node.${node.label}.description` as MessageKey, {
               skill: skillName,
               value: effectValue(node.effects),

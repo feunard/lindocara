@@ -500,6 +500,21 @@ export const fr: Record<keyof typeof en, string> = {
   "talent.node.perfect_retaliation.name": "Riposte parfaite",
   "talent.node.perfect_retaliation.description":
     "Une parade parfaite renvoie {value} % des dégâts reçus à l'attaquant.",
+  "talent.node.ally_guard.name": "Rempart",
+  "talent.node.ally_guard.description":
+    "Pendant la garde, protège les alliés proches d'une partie des dégâts qu'ils subissent.",
+  "talent.node.seismic_impact.name": "Impact sismique",
+  "talent.node.seismic_impact.description":
+    "Raccourcit {skill}, puis blesse et provoque les ennemis dans une onde de choc à l'arrivée.",
+  "talent.node.king_challenge.name": "Défi du roi",
+  "talent.node.king_challenge.description":
+    "Réduit brièvement les dégâts subis pour chaque ennemi défié, dans une limite fixe.",
+  "talent.node.rallying_cry.name": "Cri de ralliement",
+  "talent.node.rallying_cry.description":
+    "Renforce les alliés proches sans cumuler l'effet de plusieurs Guerriers.",
+  "talent.node.cyclone.name": "Cyclone",
+  "talent.node.cyclone.description":
+    "Transforme {skill} en une courte séquence mobile de quatre frappes bornées.",
   "talent.node.ricochet.name": "Ricochet",
   "talent.node.ricochet.description":
     "Après un impact, {skill} rebondit sur un autre ennemi pour {value} % des dégâts.",
@@ -517,7 +532,7 @@ export const fr: Record<keyof typeof en, string> = {
   "talent.node.blink_heal.name": "Lumière régénérante",
   "talent.node.blink_heal.description":
     "{skill} rend {value} points de vie lorsque vous réapparaissez.",
-  "talent.evolution.warrior.iron_guard.name": "Bastion inviolable",
+  "talent.evolution.warrior.iron_guard.name": "Riposte parfaite",
   "talent.evolution.warrior.iron_guard.description":
     "Une garde absolue : parade parfaite sans dégâts et riposte renvoyant l'attaque.",
   "talent.evolution.warrior.shield_bash.name": "Charge du colosse",
@@ -529,6 +544,30 @@ export const fr: Record<keyof typeof en, string> = {
   "talent.evolution.warrior.whirlwind.name": "Tempête d'acier",
   "talent.evolution.warrior.whirlwind.description":
     "Le tourbillon devient une tempête plus large et dévastatrice aux effets démultipliés.",
+  "talent.evolution.warrior.iron_guard.a.name": "Riposte parfaite",
+  "talent.evolution.warrior.iron_guard.a.description":
+    "Une parade au timing parfait annule tous les dégâts et riposte contre l'attaquant.",
+  "talent.evolution.warrior.iron_guard.b.name": "Rempart",
+  "talent.evolution.warrior.iron_guard.b.description":
+    "Pendant Garde de fer, les alliés proches subissent 25 % de dégâts en moins, sans renvoi pour eux.",
+  "talent.evolution.warrior.shield_bash.a.name": "Charge du colosse",
+  "talent.evolution.warrior.shield_bash.a.description":
+    "Charge beaucoup plus loin et frappe le premier ennemi avec un impact massivement renforcé.",
+  "talent.evolution.warrior.shield_bash.b.name": "Impact sismique",
+  "talent.evolution.warrior.shield_bash.b.description":
+    "Charge moins loin, puis blesse et provoque les ennemis proches dans une onde de choc à l'arrivée.",
+  "talent.evolution.warrior.battle_cry.a.name": "Défi du roi",
+  "talent.evolution.warrior.battle_cry.a.description":
+    "Provoque une zone bien plus vaste et réduit brièvement les dégâts selon le nombre d'ennemis défiés.",
+  "talent.evolution.warrior.battle_cry.b.name": "Cri de ralliement",
+  "talent.evolution.warrior.battle_cry.b.description":
+    "Renonce à la provocation pour donner 15 % de dégâts aux alliés proches pendant 4,5 s, sans cumul.",
+  "talent.evolution.warrior.whirlwind.a.name": "Tempête d'acier",
+  "talent.evolution.warrior.whirlwind.a.description":
+    "Conserve le Tourbillon instantané existant, plus large et dévastateur, à pleine puissance évoluée.",
+  "talent.evolution.warrior.whirlwind.b.name": "Cyclone",
+  "talent.evolution.warrior.whirlwind.b.description":
+    "Canalise quatre frappes rapides et bornées tout en permettant de se repositionner.",
   "talent.evolution.ranger.piercing_arrow.name": "Flèche des échos",
   "talent.evolution.ranger.piercing_arrow.description":
     "La flèche perforante ricoche vers un second ennemi avec 60 % de sa puissance.",

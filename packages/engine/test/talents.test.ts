@@ -12,13 +12,15 @@ import {
 import { describe, expect, it } from "vitest";
 
 describe("class talents", () => {
-  it("ships four five-node branches per class, rooted in ability slots 2 through 5", () => {
+  it("ships four rooted branches with three intermediates and one or two final evolutions", () => {
     for (const [playerClass, nodes] of Object.entries(CLASS_TALENTS)) {
-      expect(nodes).toHaveLength(20);
       for (const slot of [2, 3, 4, 5] as const) {
         const branch = nodes.filter((node) => node.slot === slot);
-        expect(branch).toHaveLength(5);
         expect(branch.filter((node) => node.root)).toHaveLength(1);
+        expect(branch.filter((node) => node.tier === 1)).toHaveLength(2);
+        expect(branch.filter((node) => node.tier === 2)).toHaveLength(1);
+        expect(branch.filter((node) => node.tier === 3).length).toBeGreaterThanOrEqual(1);
+        expect(branch.filter((node) => node.tier === 3).length).toBeLessThanOrEqual(2);
         expect(branch[0]?.id).toContain(
           `${playerClass}.${CLASS_SKILLS[playerClass as keyof typeof CLASS_SKILLS][slot - 1]?.id}.root`,
         );
@@ -63,6 +65,32 @@ describe("class talents", () => {
         exclusiveGroup: legacy.exclusiveGroup,
       }),
     ).toBe(legacy);
+  });
+
+  it("keeps warrior legacy capstones as A and rejects their mutually exclusive B choices", () => {
+    const expected = [
+      ["warrior.iron_guard.riposte", "warrior.iron_guard.rempart"],
+      ["warrior.shield_bash.mastery", "warrior.shield_bash.seismic_impact"],
+      ["warrior.battle_cry.mastery", "warrior.battle_cry.rallying_cry"],
+      ["warrior.whirlwind.mastery", "warrior.whirlwind.cyclone"],
+    ];
+    for (const [index, slot] of ([2, 3, 4, 5] as const).entries()) {
+      const finals = CLASS_TALENTS.warrior.filter((node) => node.slot === slot && node.tier === 3);
+      expect(finals.map((node) => node.id)).toEqual(expected[index]);
+      expect(finals.map((node) => node.variantId)).toEqual(["a", "b"]);
+      expect(new Set(finals.map((node) => node.exclusiveGroup)).size).toBe(1);
+    }
+
+    const prerequisites = CLASS_TALENTS.warrior
+      .filter((node) => node.slot === 2 && !node.root && node.tier < 3)
+      .map((node) => node.id);
+    const legacySelection = [...prerequisites, "warrior.iron_guard.riposte"];
+    expect(
+      normalizeTalentSelection("warrior", 10, [...legacySelection, "warrior.iron_guard.rempart"]),
+    ).toEqual(legacySelection);
+    expect(
+      unlockTalent("warrior", 10, legacySelection, "warrior.iron_guard.rempart"),
+    ).toMatchObject({ ok: false, reason: "exclusive" });
   });
 
   it("grants one spendable point per level while keeping learned roots free", () => {
@@ -115,6 +143,22 @@ describe("class talents", () => {
     expect(
       talentEffect("warrior", ["warrior.iron_guard.perfect"], "perfect_parry", 2),
     ).toMatchObject({ windowMs: 220 });
+  });
+
+  it("exposes distinct warrior utility variants without changing offensive capstone values", () => {
+    expect(talentEffect("warrior", ["warrior.iron_guard.rempart"], "ally_guard", 2)).toEqual({
+      kind: "ally_guard",
+      radius: 120,
+      reduction: 0.25,
+    });
+    const colossus = skillWithTalents("warrior", ["warrior.shield_bash.mastery"], 3);
+    const seismic = skillWithTalents("warrior", ["warrior.shield_bash.seismic_impact"], 3);
+    expect(colossus.power).toBe(Math.round((CLASS_SKILLS.warrior[2]?.power ?? 0) * 1.3));
+    expect(seismic.distance).toBeLessThan(CLASS_SKILLS.warrior[2]?.distance ?? 0);
+    expect(talentEffect("warrior", ["warrior.whirlwind.cyclone"], "cyclone", 5)).toMatchObject({
+      ticks: 4,
+      intervalMs: 250,
+    });
   });
 
   it("gives every class a materially stronger named evolution", () => {

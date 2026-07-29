@@ -139,6 +139,15 @@ export interface CombatActionRuntime {
   mobilityDistance?: number;
 }
 
+export interface WarriorCycloneRuntime {
+  actionId: string;
+  nextTickAt: number;
+  ticksRemaining: number;
+  intervalMs: number;
+  radius: number;
+  power: number;
+}
+
 export type ProjectileTargetFilter = "monsters" | "wounded_allies";
 
 export interface ProjectileRuntime extends Vec2 {
@@ -183,6 +192,14 @@ export interface PlayerRuntime extends PlayerProfile {
   guarding: boolean;
   guardReduction: number;
   guardActivatedAt: number;
+  /** Room-local King's Challenge mitigation. Never serialized or persisted. */
+  challengeReductionUntil: number;
+  challengeReduction: number;
+  /** Room-local Rallying Cry power buff. Multiple warriors refresh one bounded value. */
+  rallyPowerUntil: number;
+  rallyPowerMultiplier: number;
+  /** Server tick-driven Cyclone sequence. No autonomous timers are created per cast. */
+  warriorCyclone: WarriorCycloneRuntime | null;
   lastResurrectAt: number;
   messageTimes: number[];
   malformedCount: number;
@@ -452,6 +469,11 @@ export function newPlayer(
     guarding: false,
     guardReduction,
     guardActivatedAt: 0,
+    challengeReductionUntil: 0,
+    challengeReduction: 0,
+    rallyPowerUntil: 0,
+    rallyPowerMultiplier: 0,
+    warriorCyclone: null,
     lastResurrectAt:
       cooldowns.resurrectUntil === 0 ? 0 : cooldowns.resurrectUntil - RESURRECT_COOLDOWN_MS,
     messageTimes: [],

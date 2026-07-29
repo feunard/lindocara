@@ -9,6 +9,30 @@ export type TalentEffect =
   | { kind: "guard_reduction"; value: number }
   | { kind: "perfect_parry"; windowMs: number }
   | { kind: "perfect_retaliation"; ratio: number }
+  | { kind: "ally_guard"; radius: number; reduction: number }
+  | {
+      kind: "seismic_impact";
+      radius: number;
+      powerRatio: number;
+    }
+  | {
+      kind: "king_challenge";
+      durationMs: number;
+      reductionPerEnemy: number;
+      maxReduction: number;
+    }
+  | {
+      kind: "rallying_cry";
+      radius: number;
+      durationMs: number;
+      powerMultiplier: number;
+    }
+  | {
+      kind: "cyclone";
+      ticks: number;
+      intervalMs: number;
+      powerRatio: number;
+    }
   | { kind: "ricochet"; ratio: number; range: number }
   | { kind: "extra_projectiles"; value: number }
   | { kind: "dash_invulnerability" }
@@ -25,6 +49,11 @@ export type TalentLabel =
   | "guard_reduction"
   | "perfect_parry"
   | "perfect_retaliation"
+  | "ally_guard"
+  | "seismic_impact"
+  | "king_challenge"
+  | "rallying_cry"
+  | "cyclone"
   | "ricochet"
   | "extra_projectiles"
   | "dash_invulnerability"
@@ -60,7 +89,7 @@ interface UpgradeSeed {
 function branch(
   playerClass: PlayerClass,
   slot: Exclude<SkillSlot, 1>,
-  upgrades: readonly [UpgradeSeed, UpgradeSeed, UpgradeSeed, UpgradeSeed],
+  upgrades: readonly [UpgradeSeed, UpgradeSeed, UpgradeSeed, UpgradeSeed, UpgradeSeed?],
 ): TalentNode[] {
   const skillId = skillFor(playerClass, slot).id;
   const rootId = `${playerClass}.${skillId}.root`;
@@ -68,6 +97,9 @@ function branch(
   const secondId = `${playerClass}.${skillId}.${upgrades[1].key}`;
   const thirdId = `${playerClass}.${skillId}.${upgrades[2].key}`;
   const evolutionGroup = `${playerClass}.${skillId}.evolution`;
+  const evolutionA = upgrades[3];
+  const evolutionB = upgrades[4];
+  const evolutionRequirements = [firstId, secondId, thirdId];
   return [
     {
       id: rootId,
@@ -118,19 +150,37 @@ function branch(
       effects: upgrades[2].effects,
     },
     {
-      id: `${playerClass}.${skillId}.${upgrades[3].key}`,
+      id: `${playerClass}.${skillId}.${evolutionA.key}`,
       class: playerClass,
       slot,
       tier: 3,
-      column: 0,
+      column: evolutionB ? -1 : 0,
       label: "evolution",
       root: false,
-      requires: [firstId, secondId, thirdId],
+      requires: evolutionRequirements,
       requiresAll: true,
-      effects: upgrades[3].effects,
+      effects: evolutionA.effects,
       exclusiveGroup: evolutionGroup,
       variantId: "a",
     },
+    ...(evolutionB
+      ? [
+          {
+            id: `${playerClass}.${skillId}.${evolutionB.key}`,
+            class: playerClass,
+            slot,
+            tier: 3 as const,
+            column: 1 as const,
+            label: "evolution" as const,
+            root: false,
+            requires: evolutionRequirements,
+            requiresAll: true,
+            effects: evolutionB.effects,
+            exclusiveGroup: evolutionGroup,
+            variantId: "b",
+          },
+        ]
+      : []),
   ];
 }
 
@@ -158,24 +208,68 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
         label: "perfect_retaliation",
         effects: [{ kind: "perfect_retaliation", ratio: 1 }],
       },
+      {
+        key: "rempart",
+        label: "ally_guard",
+        effects: [{ kind: "ally_guard", radius: 120, reduction: 0.25 }],
+      },
     ]),
     ...branch("warrior", 3, [
       { key: "impact", label: "power", effects: [power()] },
       { key: "onslaught", label: "range", effects: [range(), distance()] },
       { key: "readiness", label: "cooldown", effects: [cooldown()] },
       { key: "mastery", label: "mastery", effects: [power(0.3), distance(0.2)] },
+      {
+        key: "seismic_impact",
+        label: "seismic_impact",
+        effects: [
+          range(-0.3),
+          distance(-0.3),
+          { kind: "seismic_impact", radius: 90, powerRatio: 0.55 },
+        ],
+      },
     ]),
     ...branch("warrior", 4, [
       { key: "reach", label: "range", effects: [range(0.2)] },
       { key: "readiness", label: "cooldown", effects: [cooldown()] },
       { key: "command", label: "mastery", effects: [range(0.15)] },
-      { key: "mastery", label: "mastery", effects: [range(0.35), cooldown(0.15)] },
+      {
+        key: "mastery",
+        label: "mastery",
+        effects: [
+          range(0.35),
+          cooldown(0.15),
+          {
+            kind: "king_challenge",
+            durationMs: 3_000,
+            reductionPerEnemy: 0.04,
+            maxReduction: 0.2,
+          },
+        ],
+      },
+      {
+        key: "rallying_cry",
+        label: "rallying_cry",
+        effects: [
+          {
+            kind: "rallying_cry",
+            radius: 90,
+            durationMs: 4_500,
+            powerMultiplier: 0.15,
+          },
+        ],
+      },
     ]),
     ...branch("warrior", 5, [
       { key: "force", label: "power", effects: [power()] },
       { key: "reach", label: "range", effects: [range()] },
       { key: "readiness", label: "cooldown", effects: [cooldown()] },
       { key: "mastery", label: "mastery", effects: [power(0.35), range(0.1)] },
+      {
+        key: "cyclone",
+        label: "cyclone",
+        effects: [{ kind: "cyclone", ticks: 4, intervalMs: 250, powerRatio: 0.32 }],
+      },
     ]),
   ],
   ranger: [

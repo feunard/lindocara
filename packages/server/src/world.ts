@@ -268,6 +268,16 @@ import {
 } from "./world/snapshot-system.js";
 import { SpatialGrid } from "./world/spatial-grid.js";
 import {
+  activeRallyPowerMultiplier,
+  advanceWarriorCyclones,
+  applyKingsChallenge,
+  applyRallyingCry,
+  applySeismicImpact,
+  cycloneRecoveryMs,
+  damageAfterWarriorProtection,
+  startWarriorCyclone,
+} from "./world/warrior-variant-system.js";
+import {
   type ActiveWorldEvent,
   ATTACHMENT_EVERY_TICKS,
   type Attachment,
@@ -1881,6 +1891,10 @@ export class World extends DurableObject<Env> {
           player.facing,
         )
       : player.facing;
+    const cyclone =
+      definition.shape === "area_damage"
+        ? talentEffect(player.class, player.talents, "cyclone", slot)
+        : undefined;
     const action = startCombatAction(player, {
       kind: slot === 1 ? "basic" : "skill",
       skillId: skill.id,
@@ -1888,7 +1902,9 @@ export class World extends DurableObject<Env> {
       direction,
       now,
       anticipationMs: definition.anticipationMs,
-      recoveryMs: definition.recoveryMs,
+      recoveryMs: cyclone
+        ? cycloneRecoveryMs(cyclone, definition.recoveryMs)
+        : definition.recoveryMs,
       ...(definition.shape === "teleport"
         ? {
             mobilityDistance: skill.distance ?? 0,
@@ -2010,7 +2026,20 @@ export class World extends DurableObject<Env> {
       return;
     }
     if (definition.shape === "area_taunt") {
+      const rally = talentEffect(player.class, player.talents, "rallying_cry", slot as SkillSlot);
+      if (rally) {
+        applyRallyingCry(
+          player,
+          this.#players.values(),
+          rally,
+          now,
+          (source, target) => this.#areCombatAllies(source, target),
+          (source, target) => hasLineOfSight(source, target, this.#zone().terrain.tiles),
+        );
+        return;
+      }
       const radius = skill.radius ?? skill.range;
+      let taunted = 0;
       for (const monster of this.#monsterGrid.queryRadius(
         center,
         radius + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS,
@@ -2021,12 +2050,26 @@ export class World extends DurableObject<Env> {
           // and its centre just outside is visibly in the area, so it must answer for being there.
           withinRange(player, monster, radius + monsterBodyRadius(monster.species)) &&
           hasLineOfSight(player, monster, this.#zone().terrain.tiles)
-        )
+        ) {
           this.#tauntMonster(player, monster, now);
+          taunted += 1;
+        }
       }
+      const challenge = talentEffect(
+        player.class,
+        player.talents,
+        "king_challenge",
+        slot as SkillSlot,
+      );
+      if (challenge) applyKingsChallenge(player, taunted, challenge, now);
       return;
     }
     if (definition.shape === "area_damage" || definition.shape === "nova") {
+      const cyclone = talentEffect(player.class, player.talents, "cyclone", slot as SkillSlot);
+      if (cyclone) {
+        startWarriorCyclone(player, action.id, skill, cyclone, now);
+        return;
+      }
       const radius = skill.radius ?? skill.range;
       for (const monster of this.#monsterGrid.queryRadius(
         center,
@@ -2092,9 +2135,13 @@ export class World extends DurableObject<Env> {
     ]);
     const travel = Math.max(0, distance * (first?.fraction ?? 1) - 1);
     this.#movePlayerInDirection(player, action.direction, travel);
+    let directTargetId: string | null = null;
     if (first?.kind === "entity") {
       const target = monsterImpacts.find(({ impact }) => impact.id === first.id)?.monster;
-      if (target) this.#damageMonster(ws, player, target, skill, now, false);
+      if (target) {
+        directTargetId = target.id;
+        this.#damageMonster(ws, player, target, skill, now, false);
+      }
     } else if (first?.kind === "terrain") {
       this.#send(ws, {
         t: "event",
@@ -2105,6 +2152,27 @@ export class World extends DurableObject<Env> {
         y: first.point.y,
       });
     }
+    const seismic = talentEffect(player.class, player.talents, "seismic_impact", skill.slot);
+    if (!seismic) return;
+    applySeismicImpact(
+      this.#monsterGrid.queryRadius(player, seismic.radius + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS),
+      directTargetId,
+      seismic,
+      (target, radius) =>
+        target.deadUntil <= now &&
+        withinRange(player, target, radius + monsterBodyRadius(target.species)) &&
+        hasLineOfSight(player, target, this.#zone().terrain.tiles),
+      (target, powerRatio) =>
+        this.#damageMonster(
+          ws,
+          player,
+          target,
+          skill,
+          now,
+          false,
+          Math.max(1, Math.round((skill.power + Math.max(0, player.level - 1) * 2) * powerRatio)),
+        ),
+    );
   }
 
   #spawnPlayerProjectiles(
@@ -2205,6 +2273,7 @@ export class World extends DurableObject<Env> {
       Math.round(
         baseDamage *
           (player.damageBoostUntil > now ? 1 + CONSUMABLES.damage_elixir.effectValue : 1) *
+          (1 + activeRallyPowerMultiplier(player, now)) *
           (target.weakness === player.class ? target.weaknessPercent / 100 : 1),
       ),
     );
@@ -2243,6 +2312,23 @@ export class World extends DurableObject<Env> {
       { relevantThreat: Math.max(0, amount - previous) },
       now,
     );
+  }
+
+  #resolveWarriorCycloneStrike(player: Player, radius: number, power: number, now: number): void {
+    const socket = this.#socketByPlayerId.get(player.id);
+    if (!socket) return;
+    const skill = skillWithTalents(player.class, player.talents, 5);
+    for (const monster of this.#monsterGrid
+      .queryRadius(player, radius + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS)
+      .sort((left, right) => left.id.localeCompare(right.id))) {
+      if (
+        monster.deadUntil > now ||
+        !withinRange(player, monster, radius + monsterBodyRadius(monster.species)) ||
+        !hasLineOfSight(player, monster, this.#zone().terrain.tiles)
+      )
+        continue;
+      this.#damageMonster(socket, player, monster, skill, now, false, power);
+    }
   }
 
   #areaHeal(ws: WebSocket, player: Player, skill: SkillDefinition, now: number): number {
@@ -3467,6 +3553,9 @@ export class World extends DurableObject<Env> {
     advanceCombatActions(this.#players.values(), now, (player, action) =>
       this.#resolvePlayerAction(player, action, now),
     );
+    advanceWarriorCyclones(this.#players.values(), now, (player, radius, power) =>
+      this.#resolveWarriorCycloneStrike(player, radius, power, now),
+    );
     advanceProjectiles(
       {
         projectiles: this.#projectiles,
@@ -4636,12 +4725,20 @@ export class World extends DurableObject<Env> {
     now: number,
   ): void {
     if (isPlayerInvulnerable(player, now)) return;
+    const protectedDamage = damageAfterWarriorProtection(
+      player,
+      damage,
+      this.#players.values(),
+      now,
+      (source, target) => this.#areCombatAllies(source, target),
+      (source, target) => hasLineOfSight(source, target, this.#zone().terrain.tiles),
+    );
     const {
       amount: appliedDamage,
       result,
       parried,
       retaliationRatio,
-    } = guardedDamage(player, damage, now);
+    } = guardedDamage(player, protectedDamage, now);
     if (parried) {
       this.#send(ws, {
         t: "event",
@@ -4726,6 +4823,11 @@ export class World extends DurableObject<Env> {
     cancelCombatAction(player);
     player.guarding = false;
     player.guardActivatedAt = 0;
+    player.challengeReductionUntil = 0;
+    player.challengeReduction = 0;
+    player.rallyPowerUntil = 0;
+    player.rallyPowerMultiplier = 0;
+    player.warriorCyclone = null;
     removeProjectilesByOwner(this.#projectiles, player.id);
     player.dirty = true;
   }
