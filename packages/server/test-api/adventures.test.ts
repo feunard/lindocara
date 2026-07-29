@@ -15,6 +15,9 @@ import { $repository } from "alepha/orm";
 import { ServerProvider } from "alepha/server";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { heroes } from "../src/api/entities/heroes.ts";
+import { mapEventPages } from "../src/api/entities/mapEventPages.ts";
+import { mapEvents } from "../src/api/entities/mapEvents.ts";
+import { maps } from "../src/api/entities/maps.ts";
 import { parties } from "../src/api/entities/parties.ts";
 import { createTestApp } from "./helpers.ts";
 
@@ -67,11 +70,54 @@ function corridorGraph(mapA: string, mapB: string): Record<string, unknown> {
   };
 }
 
-/** Direct repository access for seeding rows no controller route creates yet (parties/heroes) —
- *  the same test-local probe idiom `maps.test.ts` established. */
+/** A wire event page with every required field — mirrors `maps.test.ts`'s `wirePage`. */
+function wirePage(): Record<string, unknown> {
+  return {
+    condSwitchId: null,
+    condVariableId: null,
+    condVariableMin: null,
+    condSelfSwitch: null,
+    graphicAssetId: null,
+    moveType: "fixed",
+    moveSpeed: 3,
+    moveFreq: 3,
+    optMoveAnim: false,
+    optStopAnim: false,
+    optDirFix: false,
+    optThrough: false,
+    optOnTop: false,
+    trigger: "action",
+  };
+}
+
+/** `count` distinct `normal`-kind events on distinct cells, own uuids captured for later assertion.
+ *  `normal` events carry no walkable-ground requirement, so any distinct in-bounds cell works. */
+function manyEvents(count: number): { events: MapEvent[]; ids: string[] } {
+  const ids = Array.from({ length: count }, () => crypto.randomUUID());
+  const events = ids.map(
+    (id, index) =>
+      ({
+        id,
+        col: (index + 1) % COLS,
+        row: Math.floor((index + 1) / COLS) % ROWS,
+        name: `Scripted ${index}`,
+        ordinal: index,
+        kind: "normal",
+        pages: [wirePage()],
+      }) as unknown as MapEvent,
+  );
+  return { events, ids };
+}
+
+/** Direct repository access for seeding rows no controller route creates yet (parties/heroes), and
+ *  for post-delete cleanup assertions (maps/mapEvents/mapEventPages) — the same test-local probe
+ *  idiom `maps.test.ts` established. */
 class SeedProbe {
   parties = $repository(parties);
   heroes = $repository(heroes);
+  maps = $repository(maps);
+  mapEvents = $repository(mapEvents);
+  mapEventPages = $repository(mapEventPages);
 }
 
 let alepha: ReturnType<typeof createTestApp>;
@@ -424,6 +470,42 @@ describe("delete conflicts: adventure_referenced / adventure_in_use", () => {
     });
     expect(renamed.status).toBe(200);
     expect(await renamed.json()).toMatchObject({ title: "Renamed mid-play" });
+  });
+});
+
+describe("force delete: chunked event-page cleanup", () => {
+  // Regression coverage for the chunked-delete fix: `AdventureService.deleteAdventure` used to hand
+  // `mapEventPages.deleteMany` an unchunked `eventId: { inArray: [...] }` sized to a map's whole live
+  // event count. 50 events (under `MAX_EVENTS_PER_MAP` = 64, so a real editor could author this) with
+  // `MAP_EVENT_PAGE_DELETE_CHUNK` = 40 forces this delete across two chunks — this proves the chunked
+  // path still round-trips full cleanup, the same thing a bad chunk boundary would break first.
+  test("force-deletes an adventure whose map carries 50 events (spanning multiple delete chunks), leaving no orphan rows", async () => {
+    const { token } = await registerAndLogin("advchunk");
+    const advId = ((await (await createAdventure(token)).json()) as { id: string }).id;
+    const { events, ids: eventIds } = manyEvents(50);
+    const mapId = await authorMap(advId, mapBody("Bulk", events), token);
+
+    const authoredEventRows = await probe.mapEvents.findMany({
+      where: { mapId: { eq: mapId } },
+    });
+    expect(authoredEventRows).toHaveLength(50);
+
+    const forced = await authedFetch(`/api/adventures/${advId}?force=true`, token, {
+      method: "DELETE",
+    });
+    expect(forced.status).toBe(204);
+
+    const remainingMaps = await probe.maps.findMany({ where: { id: { eq: mapId } } });
+    expect(remainingMaps).toHaveLength(0);
+    const remainingEvents = await probe.mapEvents.findMany({ where: { mapId: { eq: mapId } } });
+    expect(remainingEvents).toHaveLength(0);
+    const remainingPages = await probe.mapEventPages.findMany({
+      where: { eventId: { inArray: eventIds } },
+    });
+    expect(remainingPages).toHaveLength(0);
+
+    const gone = await authedFetch(`/api/adventures/${advId}`, token);
+    expect(gone.status).toBe(404);
   });
 });
 

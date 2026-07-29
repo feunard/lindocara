@@ -45,6 +45,14 @@ import { decodeAdventureAudio } from "./adventureAuthoring.ts";
 import { type MapPayload, MapService } from "./MapService.ts";
 import { DEFAULT_FIRST_MAP_NAME } from "./mapAuthoring.ts";
 
+// `mapEventPages.deleteMany`'s `eventId: { inArray: [...] }` binds exactly one parameter per event
+// id (unlike an INSERT, there is no per-column multiplication — see `MapService`'s own docblock for
+// the fuller D1 ~100-bound-parameter-cap explanation). A single map's event count is bounded by
+// `MAX_EVENTS_PER_MAP` (64), comfortably under that cap on its own, but every other bulk op in this
+// codebase chunks rather than trusting a ceiling to never move — this stays consistent with that
+// discipline (and with `MapService`'s own chunked writes) rather than being the one exception.
+const MAP_EVENT_PAGE_DELETE_CHUNK = 40;
+
 export interface StoredAdventure {
   id: string;
   accountId: string;
@@ -214,10 +222,9 @@ export class AdventureService {
     const mapRows = await this.maps.findMany({ where: { adventureId: { eq: id } } });
     for (const mapRow of mapRows) {
       const eventRows = await this.mapEvents.findMany({ where: { mapId: { eq: mapRow.id } } });
-      if (eventRows.length > 0) {
-        await this.mapEventPages.deleteMany({
-          eventId: { inArray: eventRows.map((event) => event.id) },
-        });
+      const eventIds = eventRows.map((event) => event.id);
+      for (const chunk of chunkArray(eventIds, MAP_EVENT_PAGE_DELETE_CHUNK)) {
+        await this.mapEventPages.deleteMany({ eventId: { inArray: chunk } });
       }
       await this.mapEvents.deleteMany({ mapId: { eq: mapRow.id } });
       await this.mapElements.deleteMany({ mapId: { eq: mapRow.id } });
@@ -298,4 +305,15 @@ export class AdventureService {
     }
     return byMap;
   }
+}
+
+/** Splits `items` into consecutive slices of at most `size`, preserving order. An empty input
+ *  yields an empty array of chunks (the caller's `for...of` then simply does nothing), matching
+ *  `MapService`'s own chunked-write guards (`if (elements.length === 0) return;`). */
+function chunkArray<T>(items: readonly T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
 }
