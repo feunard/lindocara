@@ -61,10 +61,12 @@ simulation and epoch-fenced hero saves are explicitly deferred to a later "realt
 - `src/api/controllers/*.ts` — one `$action`-based controller per surface (`MapController`,
   `AdventureController`, `PartyController`, `HeroController`, `TestSessionController`,
   `MeController`, `HealthController`), each a thin HTTP shape around its service.
-- `src/api/providers/SecurityProvider.ts` — registers the app's `$realm()` (username+password
+- `src/api/providers/AppSecurityProvider.ts` — registers the app's `$realm()` (username+password
   credentials only, no email/OAuth) and MUST stay listed in `LindocaraApi`'s `services[]`
   (`src/api/index.ts`) — nothing else injects it, so omitting it silently falls back to the
-  framework's email-required default. `$action` auto-prefixes `/api` (`path: "/maps"` → `/api/maps`);
+  framework's email-required default. Named `AppSecurityProvider`, not `SecurityProvider`, to avoid
+  colliding with `alepha/security`'s own `SecurityProvider`, which this class transitively injects.
+  `$action` auto-prefixes `/api` (`path: "/maps"` → `/api/maps`);
   auth is Alepha's own `/api/users/register` (two-phase: `createRegistrationIntent`, then
   `createUserFromIntent` at `/api/users/register/complete`) plus `/_auth/token?provider=credentials`
   and `/_auth/userinfo`.

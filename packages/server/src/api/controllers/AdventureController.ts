@@ -13,6 +13,7 @@ import { $inject, z } from "alepha";
 import { $transactional } from "alepha/orm";
 import { $secure } from "alepha/security";
 import { $action, HttpError } from "alepha/server";
+import { enforceBodySizeCap, MAX_ADVENTURE_JSON_BYTES } from "../bodySizeCap.ts";
 import { AdventureService } from "../services/AdventureService.ts";
 import { rethrowAsAdventureError } from "../services/adventureAuthoring.ts";
 
@@ -53,7 +54,8 @@ export class AdventureController {
     path: "/adventures",
     use: [$secure({}), $transactional()],
     schema: { body: z.any(), response: z.any() },
-    handler: async ({ body, user, reply }) => {
+    handler: async ({ body, headers, user, reply }) => {
+      enforceBodySizeCap(headers, body, MAX_ADVENTURE_JSON_BYTES);
       const input = parseCreateAdventureInput(body);
       if (!input) {
         throw new HttpError({ status: 400, error: "adventure_invalid", message: "invalid body" });
@@ -93,7 +95,8 @@ export class AdventureController {
     path: "/adventures/:id",
     use: [$secure({}), $transactional()],
     schema: { params: z.object({ id: z.string() }), body: z.any(), response: z.any() },
-    handler: async ({ params, body }) => {
+    handler: async ({ params, body, headers }) => {
+      enforceBodySizeCap(headers, body, MAX_ADVENTURE_JSON_BYTES);
       const input: AdventureInput | null = parseAdventureInput(body);
       if (!input) {
         throw new HttpError({ status: 400, error: "adventure_invalid", message: "invalid body" });

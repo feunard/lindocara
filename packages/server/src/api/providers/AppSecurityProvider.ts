@@ -11,6 +11,12 @@ import { $realm } from "alepha/api/users";
  * entities and every HTTP route: `/api/users/register`, `/_auth/token`,
  * `/_auth/userinfo`, ...) and `alepha.security`/`alepha.orm` beneath it.
  *
+ * Named `AppSecurityProvider`, not `SecurityProvider`: the latter name
+ * collides with `alepha/security`'s own `SecurityProvider` (referenced
+ * above), which this class's `$realm()` call transitively injects — two
+ * distinct classes sharing one name across this app's DI graph is exactly
+ * the kind of "which one did I actually get" trap the rename avoids.
+ *
  * This class MUST be listed in `LindocaraApi`'s `services[]`
  * (`packages/server/src/api/index.ts`) — nothing else in the app injects
  * it, so leaving it out of that array means none of the above ever runs
@@ -28,7 +34,7 @@ import { $realm } from "alepha/api/users";
  *   once `features.notifications` stays at its default `false`, but they
  *   are set explicitly here for clarity.
  */
-export class SecurityProvider {
+export class AppSecurityProvider {
   realm = $realm({
     settings: {
       username: "required",

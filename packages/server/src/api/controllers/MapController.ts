@@ -25,6 +25,7 @@ import { $inject, z } from "alepha";
 import { $transactional } from "alepha/orm";
 import { $secure } from "alepha/security";
 import { $action, HttpError } from "alepha/server";
+import { enforceBodySizeCap, MAX_MAP_JSON_BYTES } from "../bodySizeCap.ts";
 import { MapService } from "../services/MapService.ts";
 import { parseCreateMapBody, parseMapBody, rethrowAsMapError } from "../services/mapAuthoring.ts";
 
@@ -66,7 +67,8 @@ export class MapController {
     path: "/maps",
     use: [$secure({}), $transactional()],
     schema: { body: z.any(), response: z.any() },
-    handler: async ({ body, reply }) => {
+    handler: async ({ body, headers, reply }) => {
+      enforceBodySizeCap(headers, body, MAX_MAP_JSON_BYTES);
       const input = parseCreateMapBody(body);
       if (!input) {
         throw new HttpError({ status: 400, error: "map_invalid", message: "invalid create body" });
@@ -106,7 +108,8 @@ export class MapController {
     path: "/maps/:id",
     use: [$secure({}), $transactional()],
     schema: { params: z.object({ id: z.string() }), body: z.any(), response: z.any() },
-    handler: async ({ params, body }) => {
+    handler: async ({ params, body, headers }) => {
+      enforceBodySizeCap(headers, body, MAX_MAP_JSON_BYTES);
       const input = parseMapBody(body);
       if (!input) {
         throw new HttpError({ status: 400, error: "map_invalid", message: "invalid map body" });

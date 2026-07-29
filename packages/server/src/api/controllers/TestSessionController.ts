@@ -29,6 +29,7 @@ import { $inject, z } from "alepha";
 import { $transactional } from "alepha/orm";
 import { $secure } from "alepha/security";
 import { $action, HttpError } from "alepha/server";
+import { enforceBodySizeCap, MAX_API_JSON_BYTES } from "../bodySizeCap.ts";
 import { TestSessionService } from "../services/TestSessionService.ts";
 import { rethrowAsTestSessionError } from "../services/testSessionAuthoring.ts";
 
@@ -43,7 +44,8 @@ export class TestSessionController {
     path: "/adventures/:id/test-sessions",
     use: [$secure({}), $transactional()],
     schema: { params: z.object({ id: z.string() }), body: z.any(), response: z.any() },
-    handler: async ({ params, body, user, reply }) => {
+    handler: async ({ params, body, headers, user, reply }) => {
+      enforceBodySizeCap(headers, body, MAX_API_JSON_BYTES);
       const input: CreateAdventureTestSessionInput | null =
         parseCreateAdventureTestSessionInput(body);
       if (!input) {

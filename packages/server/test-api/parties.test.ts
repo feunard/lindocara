@@ -227,6 +227,19 @@ describe("createParty", () => {
     const hostedAfter = await probe.parties.findMany({ where: { hostUserId: { eq: userId } } });
     expect(hostedAfter).toHaveLength(MAX_HOSTED_PARTIES);
   });
+
+  test("413s request_too_large on a create body over the 4 KiB small-route cap", async () => {
+    const { token } = await registerAndLogin("partytoolarge");
+    const adventureId = await newPlayableAdventure(token);
+    // Padding well past `MAX_API_JSON_BYTES` (4 KiB) — `enforceBodySizeCap` runs before
+    // `parseCreatePartyInput`, so this 413s regardless of the rest of the body's shape.
+    const response = await authedFetch("/api/parties", token, {
+      method: "POST",
+      body: JSON.stringify({ adventureId, name: "x".repeat(5_000) }),
+    });
+    expect(response.status).toBe(413);
+    expect(await response.json()).toMatchObject({ error: "request_too_large" });
+  });
 });
 
 describe("joinParty", () => {

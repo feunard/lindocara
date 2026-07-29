@@ -9,6 +9,7 @@ import { $inject, z } from "alepha";
 import { $transactional } from "alepha/orm";
 import { $secure } from "alepha/security";
 import { $action, HttpError } from "alepha/server";
+import { enforceBodySizeCap, MAX_API_JSON_BYTES } from "../bodySizeCap.ts";
 import { HeroService } from "../services/HeroService.ts";
 import { rethrowAsHeroError } from "../services/heroAuthoring.ts";
 
@@ -30,7 +31,8 @@ export class HeroController {
     path: "/parties/:id/heroes",
     use: [$secure({}), $transactional()],
     schema: { params: z.object({ id: z.string() }), body: z.any(), response: z.any() },
-    handler: async ({ params, body, user, reply }) => {
+    handler: async ({ params, body, headers, user, reply }) => {
+      enforceBodySizeCap(headers, body, MAX_API_JSON_BYTES);
       const input = parseCreateHeroInput(body);
       if (!input) {
         throw new HttpError({ status: 400, error: "hero_invalid", message: "invalid body" });

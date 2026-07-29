@@ -25,18 +25,23 @@
  * folds in the `already_member`/`color_taken` uniqueness fences the same way legacy's D1 batch did,
  * and reclassifies a zero-row outcome by re-reading state, exactly like legacy.
  *
- * **`adventure_test_session` exclusion, now ported (Task 11).** Legacy's public listing left-joins
- * `adventure_test_session` to hide playtest parties (`isNull(adventureTestSession.id)`); this was a
- * documented no-op simplification through Task 10 (nothing created that row yet), but `TestSessionService`
- * (Task 11) now does. `listPartiesPage` below reads every live `adventureTestSessions.partyId` and
- * excludes them via `notInArray` — a plain read-then-filter rather than a join (this ORM's `where`
- * has no subquery/anti-join operator), applied BEFORE the `LIMIT` so a hidden party never shrinks a
- * page below its requested size, matching the legacy join's own pre-`LIMIT` filtering. `notInArray`
- * throws on an empty array (see `FilterOperators.ts`), so the clause is only added when at least one
- * hidden party exists. The legacy hosted-party-quota exclusion is still NOT ported — `createParty`'s
- * atomic INSERT counts ALL of a user's hosted parties, hidden test parties included — but a test
- * session's party is never counted there anyway (this service never routes a test session through
- * `createParty`), so that half of the gap remains unobservable, unlike the listing half this closes.
+ * **`adventure_test_session` exclusion, now ported (Task 11), via a real join.** Legacy's public
+ * listing left-joins `adventure_test_session` to hide playtest parties
+ * (`isNull(adventureTestSession.id)`). An earlier version of `listPartiesPage` below approximated
+ * that with `notInArray(hiddenPartyIds)` built from a full read of every live
+ * `adventureTestSessions` row — one bound SQL parameter per hidden party, unbounded by any page
+ * size, so a busy editor day (many concurrent test sessions) could push a single listing query
+ * past D1's ~100 bound-parameter cap (`SQLITE_LIMIT_VARIABLE_NUMBER`) and fail every party listing
+ * outright. `listPartiesPage` now builds the legacy shape directly instead: a raw
+ * `LEFT JOIN adventure_test_session ON adventure_test_session.party_id = parties.id
+ * WHERE adventure_test_session.id IS NULL`, via `Repository.query()` (the same raw-SQL escape
+ * hatch `createParty`/`joinParty` already use), zero bound parameters for the hidden-party set no
+ * matter how many exist. Applied BEFORE the `LIMIT`, so a hidden party never shrinks a page below
+ * its requested size, matching the legacy join's own pre-`LIMIT` filtering. The legacy
+ * hosted-party-quota exclusion is still NOT ported — `createParty`'s atomic INSERT counts ALL of a
+ * user's hosted parties, hidden test parties included — but a test session's party is never counted
+ * there anyway (this service never routes a test session through `createParty`), so that half of
+ * the gap remains unobservable, unlike the listing half this closes.
  */
 import {
   MAX_HOSTED_PARTIES,
@@ -118,34 +123,54 @@ export class PartyService {
       throw new Error("page: invalid party page size");
     }
     const cursor = parsePartyCursor(options.cursor);
-    // Hidden test-session parties, excluded pre-`LIMIT` — see this file's docblock.
-    const hiddenPartyIds = (await this.adventureTestSessions.findMany({})).map(
-      (row) => row.partyId,
+    // Zero-bound-parameter hidden-party exclusion via a real LEFT JOIN — see this file's docblock
+    // for why this replaced a `notInArray(hiddenPartyIds)` read-then-filter.
+    //
+    // Selects ONLY `id` from the raw join, never `createdAt` — `SqliteModelBuilder.sqliteDateTime`
+    // (`.vendor/alepha/src/orm/core/services/SqliteModelBuilder.ts`) stores it as a raw epoch-ms
+    // INTEGER and converts to/from the app-level ISO string only inside Drizzle's typed query
+    // builder, which `Repository.query()`'s raw SQL bypasses entirely. Selecting it here would hand
+    // an undecoded number to `clean()`'s `z.datetime()` validation and throw. The cursor's own
+    // `${cursor.createdAt}` (ISO string) is converted to that SAME epoch-ms encoding via
+    // `new Date(...).getTime()` — the exact inverse of `sqliteDateTime`'s own `toDriver` — so the
+    // WHERE comparison runs raw-number-against-raw-number, matching what the column actually holds.
+    // The ordered id list is then re-hydrated through the normal, decode-safe `findMany` below.
+    const sessions = this.adventureTestSessions.table;
+    const cursorCreatedAtMs = cursor ? new Date(cursor.createdAt).getTime() : undefined;
+    const idRows = await this.parties.query(
+      (table) =>
+        cursor && cursorCreatedAtMs !== undefined
+          ? sql`
+              SELECT ${table.id} FROM ${table}
+              LEFT JOIN ${sessions} ON ${sessions.partyId} = ${table.id}
+              WHERE ${sessions.id} IS NULL
+                AND (${table.createdAt} < ${cursorCreatedAtMs}
+                     OR (${table.createdAt} = ${cursorCreatedAtMs} AND ${table.id} < ${cursor.id}))
+              ORDER BY ${table.createdAt} DESC, ${table.id} DESC
+              LIMIT ${limit + 1}
+            `
+          : sql`
+              SELECT ${table.id} FROM ${table}
+              LEFT JOIN ${sessions} ON ${sessions.partyId} = ${table.id}
+              WHERE ${sessions.id} IS NULL
+              ORDER BY ${table.createdAt} DESC, ${table.id} DESC
+              LIMIT ${limit + 1}
+            `,
+      ID_ROW_SCHEMA,
     );
-    const cursorFilter = cursor
-      ? {
-          or: [
-            { createdAt: { lt: cursor.createdAt } },
-            { and: [{ createdAt: { eq: cursor.createdAt } }, { id: { lt: cursor.id } }] },
-          ],
-        }
-      : undefined;
-    const hiddenFilter =
-      hiddenPartyIds.length > 0 ? { id: { notInArray: hiddenPartyIds } } : undefined;
-    const where =
-      cursorFilter && hiddenFilter
-        ? { and: [cursorFilter, hiddenFilter] }
-        : (cursorFilter ?? hiddenFilter);
-    const rows = await this.parties.findMany({
-      ...(where ? { where } : {}),
-      orderBy: [
-        { column: "createdAt", direction: "desc" },
-        { column: "id", direction: "desc" },
-      ],
-      limit: limit + 1,
+    const hasMore = idRows.length > limit;
+    const orderedIds = idRows.slice(0, limit).map((row) => row.id);
+    if (orderedIds.length === 0) return { items: [], nextCursor: null };
+    const partyById = new Map(
+      (await this.parties.findMany({ where: { id: { inArray: orderedIds } } })).map((row) => [
+        row.id,
+        row,
+      ]),
+    );
+    const pageRows = orderedIds.flatMap((id) => {
+      const row = partyById.get(id);
+      return row ? [row] : [];
     });
-    const hasMore = rows.length > limit;
-    const pageRows = rows.slice(0, limit);
     if (pageRows.length === 0) return { items: [], nextCursor: null };
 
     const adventureIds = [...new Set(pageRows.map((row) => row.adventureId))];

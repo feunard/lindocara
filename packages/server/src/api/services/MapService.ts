@@ -36,6 +36,7 @@ import {
 } from "@lindocara/engine/map-events.js";
 import { encodeTileLayer } from "@lindocara/engine/tile-layer-codec.js";
 import type { EditorAssetId } from "@lindocara/engine/tiny-swords-catalog.js";
+import { $inject } from "alepha";
 import { $repository, sql } from "alepha/orm";
 // Pure, D1-free helper: reused as-is rather than re-ported (see its own docblock).
 import {
@@ -49,6 +50,7 @@ import { type MapEventPage as MapEventPageRow, mapEventPages } from "../entities
 import { mapEvents } from "../entities/mapEvents.ts";
 import { type MapRow, maps } from "../entities/maps.ts";
 import { parties } from "../entities/parties.ts";
+import { HeroService } from "./HeroService.ts";
 import {
   decodeLayers,
   decodeMapAudio,
@@ -73,16 +75,17 @@ import {
 // chunked explicitly for the same reason. Column counts below are every column `cast()` will encode
 // for an INSERT (schema fields, including ones filled by a default rather than passed explicitly).
 const D1_BOUND_PARAM_BUDGET = 90;
-/** id, mapId, col, row, offsetX, offsetY, kind, variant. */
-const MAP_ELEMENT_COLUMNS = 8;
+/** id, mapId, col, row, offsetX, offsetY, kind, variant. Exported so `maps.test.ts` can assert
+ *  this stays in step with `mapElements`'s actual schema column count — see that test. */
+export const MAP_ELEMENT_COLUMNS = 8;
 /** id, createdAt, mapId, col, row, name, ordinal, kind, species, patrolRadius, monsterRank,
  *  monsterMaxHp, monsterDamage, monsterSpeed, monsterXp, monsterWeakness, monsterWeaknessPercent,
- *  monsterSpecialTechnique, monsterRespawnMode. */
-const MAP_EVENT_COLUMNS = 19;
+ *  monsterSpecialTechnique, monsterRespawnMode. Exported — see `MAP_ELEMENT_COLUMNS`'s comment. */
+export const MAP_EVENT_COLUMNS = 19;
 /** id, eventId, position, condSwitchId, condVariableId, condVariableMin, condSelfSwitch,
  *  graphicAssetId, moveType, moveSpeed, moveFreq, optMoveAnim, optStopAnim, optDirFix, optThrough,
- *  optOnTop, trigger, commands. */
-const MAP_EVENT_PAGE_COLUMNS = 18;
+ *  optOnTop, trigger, commands. Exported — see `MAP_ELEMENT_COLUMNS`'s comment. */
+export const MAP_EVENT_PAGE_COLUMNS = 18;
 const MAP_ELEMENT_BATCH_SIZE = Math.floor(D1_BOUND_PARAM_BUDGET / MAP_ELEMENT_COLUMNS);
 const MAP_EVENT_BATCH_SIZE = Math.floor(D1_BOUND_PARAM_BUDGET / MAP_EVENT_COLUMNS);
 const MAP_EVENT_PAGE_BATCH_SIZE = Math.floor(D1_BOUND_PARAM_BUDGET / MAP_EVENT_PAGE_COLUMNS);
@@ -117,6 +120,8 @@ export interface MapPayload {
 }
 
 export class MapService {
+  heroService = $inject(HeroService);
+
   maps = $repository(maps);
   adventures = $repository(adventures);
   mapElements = $repository(mapElements);
@@ -156,9 +161,17 @@ export class MapService {
     }
     const input = defaultMapInput(name, cols, rows);
     const data = validateMapInput(input);
-    // The front door is decided inside the same transaction the caller wraps this in
-    // ($transactional() on the controller action): the count-then-flag pattern below is safe only
-    // because sqlite's single-writer transaction serializes it against any concurrent create.
+    // NOT protected by `$transactional()` on this app's actual production target: Alepha's D1
+    // provider reports `supportsTransactions: false`, so `$transactional()` degrades to a no-op
+    // there and never opens a `BEGIN` (see `PartyService`'s own docblock for the same fact, verified
+    // against the same provider). Two concurrent `createMap` calls for the same account could both
+    // read `firstCountForAccount === 0` as true before either write lands, so this count-then-flag
+    // pair is NOT what keeps `isFirst` unique per account. The real guard is `map_account_first_
+    // unique` (Task 6's partial-unique index on `(userId) WHERE isFirst`): a losing concurrent
+    // writer's `create()` fails the unique constraint and the caller sees that error, rather than
+    // two rows silently ending up `isFirst: true`. This count is a friendly fast-path for the
+    // non-racing, overwhelmingly common case (an account's very first map), not a correctness
+    // mechanism.
     const firstCountForAccount = await this.maps.count({ userId: { eq: owner.userId } });
     const id = crypto.randomUUID();
     const row = await this.maps.create({
@@ -335,7 +348,13 @@ export class MapService {
       });
       for (const party of partiesForAdventure) {
         const heroesInParty = await this.heroes.findMany({ where: { partyId: { eq: party.id } } });
-        for (const hero of heroesInParty) await this.heroes.deleteById(hero.id);
+        for (const hero of heroesInParty) {
+          await this.heroes.deleteById(hero.id);
+          // Fires the same realtime-revocation seam `PartyService.deleteParty` and
+          // `TestSessionService` honor for every hero they remove — see `HeroService.onHeroDeleted`'s
+          // own docblock.
+          await this.heroService.onHeroDeleted(hero.id);
+        }
         await this.parties.deleteById(party.id);
       }
       if (owner) {
@@ -356,6 +375,16 @@ export class MapService {
    * runs before set, so nothing ever observes two `isFirst` rows for the same account (the
    * `map_account_first_unique` partial-unique index Task 6 ported would reject that). Ported from
    * `setFirstMap`.
+   *
+   * DEPLOY-TRANCHE ATOMICITY REVISIT: legacy's `setFirstMap` cleared-then-set inside a single D1
+   * `db.batch()`, an atomic multi-statement unit on that provider. This clear-then-set pair is two
+   * separate `Repository` calls with no such envelope, and `$transactional()` would not restore one
+   * either — it degrades to a no-op on Alepha's D1 provider (`supportsTransactions: false`, see
+   * `createMap`'s comment above and `PartyService`'s docblock). A crash or a concurrent
+   * `setFirstMap`/`createMap` between the clear and the set could leave an account with zero
+   * `isFirst` maps for a window (recoverable — `deleteMap`'s `reassignFirstIfNeeded` picks an oldest
+   * survivor — but not instantaneous). Revisit when this app actually deploys to D1: either restore
+   * a real atomic batch primitive or accept the transient-zero window as a documented trade-off.
    */
   async setFirstMap(id: string): Promise<void> {
     const row = await this.maps.findById(id);

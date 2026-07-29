@@ -12,6 +12,7 @@ import { $inject, z } from "alepha";
 import { $transactional } from "alepha/orm";
 import { $secure } from "alepha/security";
 import { $action, HttpError } from "alepha/server";
+import { enforceBodySizeCap, MAX_API_JSON_BYTES } from "../bodySizeCap.ts";
 import { PartyService } from "../services/PartyService.ts";
 import { rethrowAsPartyError } from "../services/partyAuthoring.ts";
 
@@ -46,7 +47,8 @@ export class PartyController {
     path: "/parties",
     use: [$secure({}), $transactional()],
     schema: { body: z.any(), response: z.any() },
-    handler: async ({ body, user, reply }) => {
+    handler: async ({ body, headers, user, reply }) => {
+      enforceBodySizeCap(headers, body, MAX_API_JSON_BYTES);
       const input = parseCreatePartyInput(body);
       if (!input) {
         throw new HttpError({ status: 400, error: "party_invalid", message: "invalid body" });

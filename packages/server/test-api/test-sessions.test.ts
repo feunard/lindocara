@@ -189,6 +189,47 @@ describe("createTestSession", () => {
     expect(listing.items.find((item) => item.id === created.party.id)).toBeUndefined();
   });
 
+  test("listing hides every party behind a live test session, even with 3+ present at once", async () => {
+    // Each account may hold at most one live test session (`adventure_test_session_account_unique`),
+    // so 3+ hidden parties at once means 3+ distinct authors. This is the shape `PartyService`'s
+    // docblock describes: a `notInArray(hiddenPartyIds)` read-then-filter binds one SQL parameter
+    // per hidden party, so this test is what would have exercised that unboundedness; the real
+    // `LEFT JOIN`-based `listPartiesPage` it replaced stays at zero bound parameters regardless of
+    // how many hidden parties exist.
+    const viewer = await registerAndLogin("tshide-viewer");
+    const hiddenPartyIds: string[] = [];
+    for (let i = 0; i < 4; i += 1) {
+      const author = await registerAndLogin(`tshide-author${i}`);
+      const adventure = await newAdventureWithTwoMaps(author.token);
+      const response = await authedFetch(
+        `/api/adventures/${adventure.id}/test-sessions`,
+        author.token,
+        { method: "POST", body: JSON.stringify({ startMapId: null, heroClass: "warrior" }) },
+      );
+      expect(response.status).toBe(201);
+      const created = (await response.json()) as { party: { id: string } };
+      hiddenPartyIds.push(created.party.id);
+    }
+
+    // A real, non-hidden party for contrast: the join must exclude ONLY the hidden ones.
+    const realAdventure = await newAdventureWithTwoMaps(viewer.token);
+    const realParty = await authedFetch("/api/parties", viewer.token, {
+      method: "POST",
+      body: JSON.stringify({ adventureId: realAdventure.id }),
+    });
+    expect(realParty.status).toBe(201);
+    const realPartyId = ((await realParty.json()) as { id: string }).id;
+
+    const listing = (await (await authedFetch("/api/parties", viewer.token)).json()) as {
+      items: { id: string }[];
+    };
+    const listedIds = listing.items.map((item) => item.id);
+    for (const hiddenId of hiddenPartyIds) {
+      expect(listedIds).not.toContain(hiddenId);
+    }
+    expect(listedIds).toContain(realPartyId);
+  });
+
   test("also creates one for a NON-author — collaborative editing, not author-only (pinned legacy behavior)", async () => {
     const owner = await registerAndLogin("tscolbown");
     const stranger = await registerAndLogin("tscolbstr");

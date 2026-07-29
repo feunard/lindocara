@@ -23,8 +23,17 @@ import { ServerProvider } from "alepha/server";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { adventures } from "../src/api/entities/adventures.ts";
 import { heroes } from "../src/api/entities/heroes.ts";
+import { mapElements } from "../src/api/entities/mapElements.ts";
+import { mapEventPages } from "../src/api/entities/mapEventPages.ts";
+import { mapEvents } from "../src/api/entities/mapEvents.ts";
 import { maps } from "../src/api/entities/maps.ts";
 import { parties } from "../src/api/entities/parties.ts";
+import { HeroService } from "../src/api/services/HeroService.ts";
+import {
+  MAP_ELEMENT_COLUMNS,
+  MAP_EVENT_COLUMNS,
+  MAP_EVENT_PAGE_COLUMNS,
+} from "../src/api/services/MapService.ts";
 import { createTestApp } from "./helpers.ts";
 
 // Meets the realm's default password policy — mirrors `auth.test.ts`.
@@ -669,7 +678,7 @@ describe("delete conflicts", () => {
       hostUserId: userId,
       status: "open",
     });
-    await probe.heroes.create({
+    const occupant = await probe.heroes.create({
       partyId: party.id,
       userId,
       name: "Occupant",
@@ -679,14 +688,25 @@ describe("delete conflicts", () => {
       y: 0,
     });
 
+    // The realtime tranche overrides this in production; here it just proves the same
+    // `HeroService.onHeroDeleted` seam `PartyService.deleteParty` honors also fires when
+    // `deleteMap`'s force path removes a hero, not only when a party is deleted directly.
+    const heroService = alepha.inject(HeroService);
+    const revoked: string[] = [];
+    heroService.onHeroDeleted = (heroId: string) => {
+      revoked.push(heroId);
+    };
+
     const blocked = await authedFetch(`/api/maps/${occupiedId}`, token, { method: "DELETE" });
     expect(blocked.status).toBe(409);
     expect(await blocked.json()).toMatchObject({ error: "map_in_use" });
+    expect(revoked).toEqual([]);
 
     const forced = await authedFetch(`/api/maps/${occupiedId}?force=true`, token, {
       method: "DELETE",
     });
     expect(forced.status).toBe(204);
+    expect(revoked).toEqual([occupant.id]);
   });
 
   test("map_referenced: adventure-graph revalidation blocks delete of a graph-referenced map until forced", async () => {
@@ -720,5 +740,25 @@ describe("delete conflicts", () => {
 
     const forced = await authedFetch(`/api/maps/${mapAId}?force=true`, token, { method: "DELETE" });
     expect(forced.status).toBe(204);
+  });
+});
+
+describe("D1 chunking column-count constants stay in step with their entities", () => {
+  // `MapService`'s `MAP_ELEMENT_BATCH_SIZE`/`MAP_EVENT_BATCH_SIZE`/`MAP_EVENT_PAGE_BATCH_SIZE` are
+  // sized from these hand-derived column counts to keep `rows * columns` under D1's ~100
+  // bound-parameter cap per statement (see `MapService.ts`'s own comment). Nothing re-derives them
+  // from the actual entity schema at runtime, so an author adding a column to `mapElements`/
+  // `mapEvents`/`mapEventPages` without also bumping the matching constant here would silently
+  // undercount the real per-row parameter cost — this test breaks loudly instead.
+  test("MAP_ELEMENT_COLUMNS matches mapElements' schema", () => {
+    expect(MAP_ELEMENT_COLUMNS).toBe(Object.keys(mapElements.schema.shape).length);
+  });
+
+  test("MAP_EVENT_COLUMNS matches mapEvents' schema", () => {
+    expect(MAP_EVENT_COLUMNS).toBe(Object.keys(mapEvents.schema.shape).length);
+  });
+
+  test("MAP_EVENT_PAGE_COLUMNS matches mapEventPages' schema", () => {
+    expect(MAP_EVENT_PAGE_COLUMNS).toBe(Object.keys(mapEventPages.schema.shape).length);
   });
 });

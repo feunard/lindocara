@@ -249,6 +249,19 @@ describe("create: atomic with a default map", () => {
     expect(tooManyPlayers.status).toBe(400);
     expect(await tooManyPlayers.json()).toMatchObject({ error: "adventure_players" });
   });
+
+  test("413s request_too_large on a create body over the 64 KiB adventure cap", async () => {
+    const { token } = await registerAndLogin("advtoolarge");
+    // Padding well past `MAX_ADVENTURE_JSON_BYTES` (64 KiB) — `enforceBodySizeCap` runs before
+    // `parseCreateAdventureInput`, so this 413s regardless of the rest of the body's shape.
+    const response = await createAdventure(token, {
+      title: "T",
+      maxPlayers: 4,
+      padding: "x".repeat(70_000),
+    } as never);
+    expect(response.status).toBe(413);
+    expect(await response.json()).toMatchObject({ error: "request_too_large" });
+  });
 });
 
 describe("lifecycle over the wire", () => {
