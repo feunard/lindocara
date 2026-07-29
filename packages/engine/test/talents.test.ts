@@ -93,6 +93,32 @@ describe("class talents", () => {
     ).toMatchObject({ ok: false, reason: "exclusive" });
   });
 
+  it("keeps ranger legacy capstones as A and normalizes every conflicting B choice", () => {
+    const expected = [
+      ["ranger.piercing_arrow.ricochet", "ranger.piercing_arrow.line_piercer"],
+      ["ranger.volley.mastery", "ranger.volley.focused"],
+      ["ranger.dash.mastery", "ranger.dash.retreat_shot"],
+      ["ranger.heartseeker.execute", "ranger.heartseeker.comet_arrow"],
+    ];
+    for (const [index, slot] of ([2, 3, 4, 5] as const).entries()) {
+      const finals = CLASS_TALENTS.ranger.filter((node) => node.slot === slot && node.tier === 3);
+      expect(finals.map((node) => node.id)).toEqual(expected[index]);
+      expect(finals.map((node) => node.variantId)).toEqual(["a", "b"]);
+      expect(new Set(finals.map((node) => node.exclusiveGroup)).size).toBe(1);
+    }
+
+    const prerequisites = CLASS_TALENTS.ranger
+      .filter((node) => node.slot === 2 && !node.root && node.tier < 3)
+      .map((node) => node.id);
+    const legacySelection = [...prerequisites, "ranger.piercing_arrow.ricochet"];
+    expect(
+      normalizeTalentSelection("ranger", 10, [
+        ...legacySelection,
+        "ranger.piercing_arrow.line_piercer",
+      ]),
+    ).toEqual(legacySelection);
+  });
+
   it("grants one spendable point per level while keeping learned roots free", () => {
     const initial = talentState("ranger", 10, []);
     expect(initial).toEqual({ selected: [], pointsSpent: 0, pointsAvailable: 10 });
@@ -175,9 +201,27 @@ describe("class talents", () => {
     expect(priest.radius).toBeGreaterThan(CLASS_SKILLS.priest[3]?.radius ?? 0);
   });
 
-  it("turns Volley into a seven-arrow deluge", () => {
+  it("adds four arrows to the five-arrow Volley", () => {
     expect(talentEffect("ranger", ["ranger.volley.mastery"], "extra_projectiles", 3)).toMatchObject(
       { value: 4 },
     );
+  });
+
+  it("centralizes the four ranger B variant contracts", () => {
+    expect(
+      talentEffect("ranger", ["ranger.piercing_arrow.line_piercer"], "line_piercer", 2),
+    ).toMatchObject({ bonusPerTarget: 0.15, maxBonus: 0.6 });
+    expect(talentEffect("ranger", ["ranger.volley.focused"], "focused_volley", 3)).toMatchObject({
+      spreadMultiplier: 0.28,
+      minimumPowerRatio: 0.35,
+    });
+    expect(talentEffect("ranger", ["ranger.dash.retreat_shot"], "retreat_shot", 4)).toMatchObject({
+      projectiles: 3,
+      powerRatio: 0.45,
+      range: 280,
+    });
+    expect(
+      talentEffect("ranger", ["ranger.heartseeker.comet_arrow"], "comet_arrow", 5),
+    ).toMatchObject({ directPowerRatio: 0.85, radius: 105, splashPowerRatio: 0.65 });
   });
 });

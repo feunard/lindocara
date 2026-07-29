@@ -172,6 +172,8 @@ export interface ProjectileRuntime extends Vec2 {
   basic: boolean;
   /** Volley projectiles from one cast share this set so one monster receives its power once. */
   activationHitEntityIds?: Set<string>;
+  /** Focused Volley arrows share per-target hit counts for bounded diminishing impacts. */
+  activationHitCounts?: Map<string, number>;
   /** Bounded server-only bounce budget for talented projectiles. */
   ricochetRemaining: number;
 }

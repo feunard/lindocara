@@ -34,9 +34,29 @@ export type TalentEffect =
       powerRatio: number;
     }
   | { kind: "ricochet"; ratio: number; range: number }
+  | { kind: "line_piercer"; bonusPerTarget: number; maxBonus: number }
   | { kind: "extra_projectiles"; value: number }
+  | {
+      kind: "focused_volley";
+      spreadMultiplier: number;
+      decayPerHit: number;
+      minimumPowerRatio: number;
+    }
   | { kind: "dash_invulnerability" }
+  | {
+      kind: "retreat_shot";
+      projectiles: number;
+      spreadRadians: number;
+      powerRatio: number;
+      range: number;
+    }
   | { kind: "execute"; threshold: number; multiplier: number }
+  | {
+      kind: "comet_arrow";
+      directPowerRatio: number;
+      radius: number;
+      splashPowerRatio: number;
+    }
   | { kind: "chain_heal"; ratio: number; range: number }
   | { kind: "blink_heal"; value: number };
 
@@ -55,9 +75,13 @@ export type TalentLabel =
   | "rallying_cry"
   | "cyclone"
   | "ricochet"
+  | "line_piercer"
   | "extra_projectiles"
+  | "focused_volley"
   | "dash_invulnerability"
+  | "retreat_shot"
   | "execute"
+  | "comet_arrow"
   | "chain_heal"
   | "blink_heal"
   | "evolution"
@@ -282,6 +306,11 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
         label: "ricochet",
         effects: [{ kind: "ricochet", ratio: 0.6, range: 160 }],
       },
+      {
+        key: "line_piercer",
+        label: "line_piercer",
+        effects: [{ kind: "line_piercer", bonusPerTarget: 0.15, maxBonus: 0.6 }],
+      },
     ]),
     ...branch("ranger", 3, [
       { key: "force", label: "power", effects: [power()] },
@@ -291,6 +320,18 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
         key: "mastery",
         label: "extra_projectiles",
         effects: [{ kind: "extra_projectiles", value: 4 }],
+      },
+      {
+        key: "focused",
+        label: "focused_volley",
+        effects: [
+          {
+            kind: "focused_volley",
+            spreadMultiplier: 0.28,
+            decayPerHit: 0.22,
+            minimumPowerRatio: 0.35,
+          },
+        ],
       },
     ]),
     ...branch("ranger", 4, [
@@ -302,6 +343,19 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
       },
       { key: "readiness", label: "cooldown", effects: [cooldown()] },
       { key: "mastery", label: "mastery", effects: [distance(0.3), cooldown(0.12)] },
+      {
+        key: "retreat_shot",
+        label: "retreat_shot",
+        effects: [
+          {
+            kind: "retreat_shot",
+            projectiles: 3,
+            spreadRadians: (22 * Math.PI) / 180,
+            powerRatio: 0.45,
+            range: 280,
+          },
+        ],
+      },
     ]),
     ...branch("ranger", 5, [
       { key: "force", label: "power", effects: [power()] },
@@ -311,6 +365,18 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
         key: "execute",
         label: "execute",
         effects: [{ kind: "execute", threshold: 0.35, multiplier: 0.35 }],
+      },
+      {
+        key: "comet_arrow",
+        label: "comet_arrow",
+        effects: [
+          {
+            kind: "comet_arrow",
+            directPowerRatio: 0.85,
+            radius: 105,
+            splashPowerRatio: 0.65,
+          },
+        ],
       },
     ]),
   ],

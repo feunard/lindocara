@@ -80,6 +80,23 @@ describe("TalentTree", () => {
     expect(screen.queryByText("V2 form")).not.toBeInTheDocument();
   });
 
+  it("exposes the ranger B evolution names without changing legacy A names", () => {
+    const self = useUiStore.getState().self;
+    if (!self) throw new Error("self fixture missing");
+    useUiStore.setState({
+      talentsOpen: true,
+      game: gameHandle(),
+      self: { ...self, class: "ranger" },
+    });
+    render(<TalentTree />);
+
+    expect(screen.getByRole("button", { name: /Ricochet\./ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Linebreaker\./ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Focused Volley\./ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Retreat Shot\./ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Comet Arrow\./ })).toBeInTheDocument();
+  });
+
   it("requires explicit confirmation before the free reset is sent", async () => {
     const game = gameHandle();
     const selfState = useUiStore.getState().selfState;

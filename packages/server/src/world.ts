@@ -149,6 +149,7 @@ import {
 import {
   evolvedTalent,
   skillWithTalents,
+  type TalentEffect,
   talentEffect,
   talentEffects,
   unlockTalent,
@@ -255,10 +256,17 @@ import {
 import { persistPlayer } from "./world/persistence-system.js";
 import {
   advanceProjectiles,
+  projectileOrigin,
   removeProjectilesByOwner,
   spawnProjectile,
 } from "./world/projectile-system.js";
 import { nextQuestChapter, questDefinition } from "./world/quest-system.js";
+import {
+  applyCometExplosion,
+  focusedVolleyPowerRatio,
+  linePiercerPowerRatio,
+  retreatShotDirections,
+} from "./world/ranger-variant-system.js";
 import { movePlayerInDirection, nearestChargeTarget } from "./world/skill-system.js";
 import {
   broadcastNetworkUpdates,
@@ -2010,6 +2018,13 @@ export class World extends DurableObject<Env> {
         { x: -action.direction.x, y: -action.direction.y },
         skill.distance ?? 0,
       );
+      const retreatShot = talentEffect(
+        player.class,
+        player.talents,
+        "retreat_shot",
+        slot as SkillSlot,
+      );
+      if (retreatShot) this.#spawnRetreatShot(player, action, skill, retreatShot, now);
       return;
     }
     if (definition.shape === "teleport") {
@@ -2191,6 +2206,7 @@ export class World extends DurableObject<Env> {
       "extra_projectiles",
       skill.slot,
     );
+    const focusedVolley = talentEffect(player.class, player.talents, "focused_volley", skill.slot);
     // Direction is frozen at wind-up, but projectile origin is frozen only when the projectile
     // actually appears. A moving ranger/priest therefore fires from their active-frame position.
     const source = {
@@ -2198,8 +2214,10 @@ export class World extends DurableObject<Env> {
       y: player.y + PLAYER_SIZE / 2,
     };
     const count = Math.max(1, (projectileDefinition.count ?? 1) + (extraProjectiles?.value ?? 0));
-    const spread = projectileDefinition.spreadRadians ?? 0;
-    const activationHitEntityIds = count > 1 ? new Set<string>() : undefined;
+    const spread =
+      (projectileDefinition.spreadRadians ?? 0) * (focusedVolley?.spreadMultiplier ?? 1);
+    const activationHitEntityIds = count > 1 && !focusedVolley ? new Set<string>() : undefined;
+    const activationHitCounts = focusedVolley ? new Map<string, number>() : undefined;
     for (let index = 0; index < count; index++) {
       const offset = count === 1 ? 0 : -spread / 2 + (spread * index) / (count - 1);
       const cosine = Math.cos(offset);
@@ -2239,6 +2257,38 @@ export class World extends DurableObject<Env> {
           ? 1
           : 0,
         ...(activationHitEntityIds ? { activationHitEntityIds } : {}),
+        ...(activationHitCounts ? { activationHitCounts } : {}),
+      });
+    }
+  }
+
+  #spawnRetreatShot(
+    player: Player,
+    action: CombatActionRuntime,
+    skill: SkillDefinition,
+    effect: Extract<TalentEffect, { kind: "retreat_shot" }>,
+    now: number,
+  ): void {
+    const arrow = actionForClassSlot("ranger", 1).projectile;
+    if (!arrow) return;
+    const power = Math.max(
+      1,
+      Math.round(attackDamageFor(player.class, player.level) * Math.max(0, effect.powerRatio)),
+    );
+    for (const direction of retreatShotDirections(action.direction, effect)) {
+      spawnProjectile(this.#projectiles, {
+        actionId: action.id,
+        owner: player,
+        roomKey: player.roomKey,
+        origin: projectileOrigin(player, direction, arrow.radius),
+        direction,
+        definition: { ...arrow, pierce: 0 },
+        range: effect.range,
+        power,
+        targetFilter: "monsters",
+        sourceSkillId: skill.id,
+        basic: false,
+        now,
       });
     }
   }
@@ -4506,11 +4556,59 @@ export class World extends DurableObject<Env> {
     if (!baseSkill) return;
     const skill = skillWithTalents(owner.player.class, owner.player.talents, baseSkill.slot);
     const execute = talentEffect(owner.player.class, owner.player.talents, "execute", skill.slot);
-    const power =
-      execute && monster.hp / Math.max(1, monster.maxHp) <= execute.threshold
-        ? Math.round(projectile.power * (1 + execute.multiplier))
-        : projectile.power;
+    const linePiercer = talentEffect(
+      owner.player.class,
+      owner.player.talents,
+      "line_piercer",
+      skill.slot,
+    );
+    const focusedVolley = talentEffect(
+      owner.player.class,
+      owner.player.talents,
+      "focused_volley",
+      skill.slot,
+    );
+    const cometArrow = talentEffect(
+      owner.player.class,
+      owner.player.talents,
+      "comet_arrow",
+      skill.slot,
+    );
+    let power = projectile.power;
+    if (linePiercer)
+      power = Math.round(power * linePiercerPowerRatio(projectile.hitEntityIds.size, linePiercer));
+    if (focusedVolley) {
+      const hitCount = projectile.activationHitCounts?.get(monster.id) ?? 1;
+      power = Math.round(power * focusedVolleyPowerRatio(hitCount, focusedVolley));
+    }
+    if (cometArrow) power = Math.round(power * Math.max(0, cometArrow.directPowerRatio));
+    if (execute && monster.hp / Math.max(1, monster.maxHp) <= execute.threshold)
+      power = Math.round(power * (1 + execute.multiplier));
     this.#damageMonster(owner.socket, owner.player, monster, skill, now, projectile.basic, power);
+    if (cometArrow) {
+      applyCometExplosion(
+        this.#monsterGrid.queryRadius(
+          monster,
+          cometArrow.radius + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS,
+        ),
+        monster.id,
+        cometArrow,
+        (candidate, radius) =>
+          candidate.deadUntil <= now &&
+          withinRange(monster, candidate, radius + monsterBodyRadius(candidate.species)) &&
+          hasLineOfSight(monster, candidate, this.#zone().terrain.tiles),
+        (candidate, powerRatio) =>
+          this.#damageMonster(
+            owner.socket,
+            owner.player,
+            candidate,
+            skill,
+            now,
+            false,
+            Math.max(1, Math.round(projectile.power * powerRatio)),
+          ),
+      );
+    }
     const ricochet = talentEffect(owner.player.class, owner.player.talents, "ricochet", skill.slot);
     if (!ricochet || projectile.ricochetRemaining <= 0) return;
     const target = this.#monsterGrid

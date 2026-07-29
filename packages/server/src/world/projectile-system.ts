@@ -42,6 +42,7 @@ export interface SpawnProjectileOptions {
   basic: boolean;
   now: number;
   activationHitEntityIds?: Set<string>;
+  activationHitCounts?: Map<string, number>;
   ricochetRemaining?: number;
 }
 
@@ -107,6 +108,7 @@ export function spawnProjectile(
     ...(options.activationHitEntityIds
       ? { activationHitEntityIds: options.activationHitEntityIds }
       : {}),
+    ...(options.activationHitCounts ? { activationHitCounts: options.activationHitCounts } : {}),
   };
   projectiles.push(projectile);
   return projectile;
@@ -231,6 +233,12 @@ export function advanceProjectiles(context: ProjectileSystemContext, now: number
       if (terrain && contact.impact.fraction >= terrain.fraction) break;
       projectile.hitEntityIds.add(contact.impact.id);
       projectile.activationHitEntityIds?.add(contact.impact.id);
+      if (projectile.activationHitCounts) {
+        projectile.activationHitCounts.set(
+          contact.impact.id,
+          (projectile.activationHitCounts.get(contact.impact.id) ?? 0) + 1,
+        );
+      }
       if (contact.monster) context.damageMonster(projectile, contact.monster, now);
       else if (contact.player && contact.socket)
         context.healPlayer(projectile, contact.socket, contact.player, now);

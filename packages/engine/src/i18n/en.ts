@@ -512,14 +512,26 @@ export const en = {
   "talent.node.ricochet.name": "Ricochet",
   "talent.node.ricochet.description":
     "After hitting, {skill} jumps to another enemy for {value}% damage.",
+  "talent.node.line_piercer.name": "Linebreaker",
+  "talent.node.line_piercer.description":
+    "Each distinct enemy pierced increases damage against the next, up to a fixed limit.",
   "talent.node.extra_projectiles.name": "Arrow storm",
   "talent.node.extra_projectiles.description": "{skill} fires {value} additional projectiles.",
+  "talent.node.focused_volley.name": "Focused volley",
+  "talent.node.focused_volley.description":
+    "Tightens {skill} so several diminishing arrows can strike one large target.",
   "talent.node.dash_invulnerability.name": "Evasive passage",
   "talent.node.dash_invulnerability.description":
     "You cannot take damage while {skill} is moving you.",
+  "talent.node.retreat_shot.name": "Retreat shot",
+  "talent.node.retreat_shot.description":
+    "Fire three moderate server-directed arrows forward while leaping backward.",
   "talent.node.execute.name": "Executioner",
   "talent.node.execute.description":
     "{skill} deals increased damage to enemies below {value}% health.",
+  "talent.node.comet_arrow.name": "Comet arrow",
+  "talent.node.comet_arrow.description":
+    "Trade a little direct damage for a large, collision-respecting impact explosion.",
   "talent.node.chain_heal.name": "Flowing grace",
   "talent.node.chain_heal.description":
     "{skill} bounces to another wounded ally for {value}% healing.",
@@ -561,7 +573,7 @@ export const en = {
   "talent.evolution.warrior.whirlwind.b.name": "Cyclone",
   "talent.evolution.warrior.whirlwind.b.description":
     "Channel four rapid bounded strikes while remaining able to reposition.",
-  "talent.evolution.ranger.piercing_arrow.name": "Echo Arrow",
+  "talent.evolution.ranger.piercing_arrow.name": "Ricochet",
   "talent.evolution.ranger.piercing_arrow.description":
     "Piercing Arrow ricochets into a second enemy at 60% power.",
   "talent.evolution.ranger.volley.name": "Arrow Deluge",
@@ -573,6 +585,30 @@ export const en = {
   "talent.evolution.ranger.heartseeker.name": "Heartstopper",
   "talent.evolution.ranger.heartseeker.description":
     "A fatal shot dealing 35% more damage to targets below 35% health.",
+  "talent.evolution.ranger.piercing_arrow.a.name": "Ricochet",
+  "talent.evolution.ranger.piercing_arrow.a.description":
+    "Preserves the existing bounce into a second visible enemy at 60% power.",
+  "talent.evolution.ranger.piercing_arrow.b.name": "Linebreaker",
+  "talent.evolution.ranger.piercing_arrow.b.description":
+    "Each distinct enemy pierced adds 15% damage to the next, capped at 60%.",
+  "talent.evolution.ranger.volley.a.name": "Arrow Deluge",
+  "talent.evolution.ranger.volley.a.description":
+    "Preserves the existing wide volley with four additional arrows and one hit per target.",
+  "talent.evolution.ranger.volley.b.name": "Focused Volley",
+  "talent.evolution.ranger.volley.b.description":
+    "Narrows the cone so a large target can take several progressively weaker impacts.",
+  "talent.evolution.ranger.dash.a.name": "Windstep",
+  "talent.evolution.ranger.dash.a.description":
+    "Travel farther and more often while remaining invulnerable throughout the dash.",
+  "talent.evolution.ranger.dash.b.name": "Retreat Shot",
+  "talent.evolution.ranger.dash.b.description":
+    "Leap backward without evolved invulnerability while firing three moderate arrows forward.",
+  "talent.evolution.ranger.heartseeker.a.name": "Heartstopper",
+  "talent.evolution.ranger.heartseeker.a.description":
+    "Preserves the existing 35% execution bonus against targets below 35% health.",
+  "talent.evolution.ranger.heartseeker.b.name": "Comet Arrow",
+  "talent.evolution.ranger.heartseeker.b.description":
+    "Deal 15% less direct damage, then explode for 65% power across a 105 px radius.",
   "talent.evolution.priest.mend.name": "Leaping Grace",
   "talent.evolution.priest.mend.description":
     "The heal bounces to a second wounded ally at half strength.",

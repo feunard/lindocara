@@ -518,14 +518,26 @@ export const fr: Record<keyof typeof en, string> = {
   "talent.node.ricochet.name": "Ricochet",
   "talent.node.ricochet.description":
     "Après un impact, {skill} rebondit sur un autre ennemi pour {value} % des dégâts.",
+  "talent.node.line_piercer.name": "Perce-ligne",
+  "talent.node.line_piercer.description":
+    "Chaque ennemi distinct traversé augmente les dégâts sur le suivant, dans une limite fixe.",
   "talent.node.extra_projectiles.name": "Pluie de flèches",
   "talent.node.extra_projectiles.description": "{skill} tire {value} projectiles supplémentaires.",
+  "talent.node.focused_volley.name": "Volée concentrée",
+  "talent.node.focused_volley.description":
+    "Resserre {skill} pour que plusieurs flèches décroissantes frappent une grande cible.",
   "talent.node.dash_invulnerability.name": "Passage insaisissable",
   "talent.node.dash_invulnerability.description":
     "Vous ne pouvez pas subir de dégâts pendant le déplacement de {skill}.",
+  "talent.node.retreat_shot.name": "Tir de repli",
+  "talent.node.retreat_shot.description":
+    "Tire trois flèches modérées dirigées par le serveur pendant le bond arrière.",
   "talent.node.execute.name": "Exécuteur",
   "talent.node.execute.description":
     "{skill} inflige davantage de dégâts aux ennemis sous {value} % de vie.",
+  "talent.node.comet_arrow.name": "Flèche comète",
+  "talent.node.comet_arrow.description":
+    "Échange un peu de dégâts directs contre une grande explosion d'impact respectant les collisions.",
   "talent.node.chain_heal.name": "Grâce fluide",
   "talent.node.chain_heal.description":
     "{skill} rebondit sur un autre allié blessé pour {value} % de soin.",
@@ -568,7 +580,7 @@ export const fr: Record<keyof typeof en, string> = {
   "talent.evolution.warrior.whirlwind.b.name": "Cyclone",
   "talent.evolution.warrior.whirlwind.b.description":
     "Canalise quatre frappes rapides et bornées tout en permettant de se repositionner.",
-  "talent.evolution.ranger.piercing_arrow.name": "Flèche des échos",
+  "talent.evolution.ranger.piercing_arrow.name": "Ricochet",
   "talent.evolution.ranger.piercing_arrow.description":
     "La flèche perforante ricoche vers un second ennemi avec 60 % de sa puissance.",
   "talent.evolution.ranger.volley.name": "Déluge de flèches",
@@ -580,6 +592,30 @@ export const fr: Record<keyof typeof en, string> = {
   "talent.evolution.ranger.heartseeker.name": "Arrêt du cœur",
   "talent.evolution.ranger.heartseeker.description":
     "Un trait fatal qui inflige 35 % de dégâts supplémentaires aux cibles sous 35 % de vie.",
+  "talent.evolution.ranger.piercing_arrow.a.name": "Ricochet",
+  "talent.evolution.ranger.piercing_arrow.a.description":
+    "Conserve le rebond existant vers un second ennemi visible avec 60 % de puissance.",
+  "talent.evolution.ranger.piercing_arrow.b.name": "Perce-ligne",
+  "talent.evolution.ranger.piercing_arrow.b.description":
+    "Chaque ennemi distinct traversé ajoute 15 % de dégâts au suivant, jusqu'à 60 %.",
+  "talent.evolution.ranger.volley.a.name": "Déluge de flèches",
+  "talent.evolution.ranger.volley.a.description":
+    "Conserve la large volée existante avec quatre flèches supplémentaires et un impact par cible.",
+  "talent.evolution.ranger.volley.b.name": "Volée concentrée",
+  "talent.evolution.ranger.volley.b.description":
+    "Resserre le cône pour qu'une grande cible subisse plusieurs impacts de puissance décroissante.",
+  "talent.evolution.ranger.dash.a.name": "Pas du vent",
+  "talent.evolution.ranger.dash.a.description":
+    "Parcourt une plus grande distance, plus souvent, en restant invulnérable pendant le dash.",
+  "talent.evolution.ranger.dash.b.name": "Tir de repli",
+  "talent.evolution.ranger.dash.b.description":
+    "Bondit en arrière sans l'invulnérabilité évoluée et tire trois flèches modérées vers l'avant.",
+  "talent.evolution.ranger.heartseeker.a.name": "Arrêt du cœur",
+  "talent.evolution.ranger.heartseeker.a.description":
+    "Conserve le bonus d'exécution existant de 35 % contre les cibles sous 35 % de vie.",
+  "talent.evolution.ranger.heartseeker.b.name": "Flèche comète",
+  "talent.evolution.ranger.heartseeker.b.description":
+    "Inflige 15 % de dégâts directs en moins, puis explose à 65 % de puissance dans un rayon de 105 px.",
   "talent.evolution.priest.mend.name": "Grâce bondissante",
   "talent.evolution.priest.mend.description":
     "Le soin rebondit vers un second allié blessé avec la moitié de sa puissance.",

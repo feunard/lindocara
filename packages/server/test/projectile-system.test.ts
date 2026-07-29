@@ -179,6 +179,36 @@ describe("authoritative projectile system", () => {
     expect(harness.damageMonster.mock.calls.map((call) => call[1].id)).toEqual(["first", "second"]);
   });
 
+  it("lets focused-volley arrows share a bounded per-target impact count", () => {
+    const owner = player("owner", 0);
+    const target = monster("large-target", 50);
+    const projectiles: ProjectileRuntime[] = [];
+    const activationHitCounts = new Map<string, number>();
+    for (let index = 0; index < 2; index++) {
+      const spawned = spawnProjectile(projectiles, {
+        actionId: "33333333-3333-4333-8333-333333333333",
+        owner,
+        roomKey: owner.roomKey,
+        origin: { x: 20, y: 16 },
+        direction: { x: 1, y: 0 },
+        definition: definition("volley_arrow"),
+        range: 300,
+        power: 17,
+        targetFilter: "monsters",
+        sourceSkillId: "volley",
+        basic: false,
+        now: 1_000,
+        activationHitCounts,
+      });
+      expect(spawned).not.toBeNull();
+    }
+    const harness = context({ owner, projectiles, monsters: [target] });
+    advanceProjectiles(harness.value, 1_050);
+
+    expect(harness.damageMonster).toHaveBeenCalledTimes(2);
+    expect(activationHitCounts.get(target.id)).toBe(2);
+  });
+
   it("heals the first wounded party ally while ignoring full-health and foreign heroes", () => {
     const owner = player("owner", 0);
     const full = player("full", 35, 100);
