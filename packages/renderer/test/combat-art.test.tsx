@@ -7,11 +7,7 @@ import {
   teleportEffectArt,
 } from "@lindocara/renderer/combat-art.js";
 import { ServerClock } from "@lindocara/renderer/server-clock.js";
-import {
-  allUnitSheets,
-  skillIconArt,
-  unitSheet,
-} from "@lindocara/renderer/tiny-swords-art.js";
+import { allUnitSheets, skillIconArt, unitSheet } from "@lindocara/renderer/tiny-swords-art.js";
 import { describe, expect, it } from "vitest";
 
 describe("Tiny Swords directional combat art", () => {
