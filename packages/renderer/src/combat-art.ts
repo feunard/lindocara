@@ -78,6 +78,43 @@ export function combatActionFrameIndex(
   return Math.min(lastFrame, contact + Math.floor(progress * (lastFrame - contact + 1)));
 }
 
+/** Replays one complete authored attack strip between each ordered authoritative contact. */
+export function multiImpactActionFrameIndex(
+  frameCount: number,
+  activeFrame: number,
+  timeline: ServerCombatTimeline,
+  impactTimes: readonly number[],
+  now: number,
+): number {
+  if (impactTimes.length < 2) return combatActionFrameIndex(frameCount, activeFrame, timeline, now);
+  const lastFrame = Math.max(0, Math.trunc(frameCount) - 1);
+  const contact = Math.max(0, Math.min(lastFrame, Math.trunc(activeFrame)));
+  const firstImpactAt = impactTimes[0];
+  if (firstImpactAt === undefined || lastFrame === 0 || now < firstImpactAt)
+    return combatActionFrameIndex(frameCount, activeFrame, timeline, now);
+
+  for (let index = impactTimes.length - 1; index >= 0; index -= 1) {
+    const impactAt = impactTimes[index];
+    if (impactAt === undefined || now < impactAt) continue;
+    const nextImpactAt = impactTimes[index + 1];
+    if (nextImpactAt === undefined) {
+      return combatActionFrameIndex(
+        frameCount,
+        activeFrame,
+        {
+          startedAt: impactAt,
+          impactAt,
+          recoveryEndsAt: timeline.recoveryEndsAt,
+        },
+        now,
+      );
+    }
+    const progress = Math.max(0, Math.min(0.999_999, (now - impactAt) / (nextImpactAt - impactAt)));
+    return (contact + Math.floor(progress * frameCount)) % frameCount;
+  }
+  return 0;
+}
+
 function unitSource(
   color: PrimaryColor,
   folder: "warrior" | "archer" | "monk",

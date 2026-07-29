@@ -384,6 +384,50 @@ describe("party hero admission and authored runtime", { timeout: 20_000 }, () =>
     }
   });
 
+  it("announces every authoritative Cyclone contact for client animation replay", {
+    timeout: 10_000,
+  }, async () => {
+    const party = await testParty("cyclone-animation");
+    const hero = await testHero("Spinner", {
+      party,
+      account: party.host,
+      class: "warrior",
+      level: 10,
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      await until("cyclone welcome", () => client.welcome);
+      for (const nodeId of [
+        "warrior.whirlwind.force",
+        "warrior.whirlwind.reach",
+        "warrior.whirlwind.readiness",
+        "warrior.whirlwind.cyclone",
+      ]) {
+        client.sendRaw(JSON.stringify({ t: "talent.unlock", nodeId }));
+        await until(`cyclone talent ${nodeId}`, () =>
+          client.latestState?.talents?.selected.includes(nodeId) ? client.latestState : undefined,
+        );
+      }
+
+      client.skill(5);
+      const animation = await until("cyclone multi-hit animation", () =>
+        client.received.find(
+          (message) => message.t === "animation" && message.skillId === "whirlwind",
+        ),
+      );
+      if (animation.t !== "animation") throw new Error("expected Cyclone animation");
+      expect(animation.impactTimes).toEqual([
+        animation.impactAt,
+        animation.impactAt + 250,
+        animation.impactAt + 500,
+        animation.impactAt + 750,
+      ]);
+      expect(animation.recoveryEndsAt).toBeGreaterThan(animation.impactTimes?.at(-1) ?? 0);
+    } finally {
+      await client.close();
+    }
+  });
+
   /**
    * `#resolveShieldBash` swept only `terrain.tiles`, so a decorative tree — collision lives
    * entirely in `terrain.colliders`, never in a tile change — was invisible to the charge even

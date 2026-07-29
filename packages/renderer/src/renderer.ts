@@ -88,6 +88,7 @@ import {
   combatActionFrameIndex,
   combatArt,
   monsterCombatArt,
+  multiImpactActionFrameIndex,
   projectileArt,
   teleportEffectArt,
 } from "./combat-art.js";
@@ -96,6 +97,8 @@ import {
   type MobilityVisual,
   mobilityRenderOffset,
   mobilityVisual,
+  scheduleShadowDanceReplay,
+  shadowDancePositionAfter,
 } from "./combat-motion.js";
 import { CombatVisualAuthority, clearVisualAction } from "./combat-visual-state.js";
 import { type HealthBarMode, shouldShowHealthBar } from "./display-settings.js";
@@ -346,10 +349,12 @@ interface EntityView<T extends { id: string }> {
   actionEvolved?: boolean;
   actionStartedAt?: number;
   actionImpactAt?: number;
+  actionImpactTimes?: number[];
   actionChannelEndsAt?: number;
   actionEndsAt?: number;
   actionDirection?: { x: number; y: number };
   effectPlayedActionId?: string;
+  effectPlayedImpactCount?: number;
   createdAt?: number;
   mobilityActionId?: string;
   mobilityOffsetX?: number;
@@ -374,12 +379,14 @@ interface Effect {
 interface ShadowDanceVisualRuntime {
   actionId: string;
   actorId: string;
+  origin: { x: number; y: number };
   strikes: Array<
     RogueShadowDanceSequence["strikes"][number] & {
       localImpactAt: number;
     }
   >;
   nextStrikeIndex: number;
+  localEndsAt: number;
 }
 
 interface AmbientView {
@@ -3620,6 +3627,7 @@ export class Renderer {
       direction: { x: number; y: number };
       startedAt: number;
       impactAt: number;
+      impactTimes?: readonly number[];
       recoveryEndsAt: number;
       channelEndsAt?: number;
     },
@@ -3639,6 +3647,19 @@ export class Renderer {
     view.actionStartedAt = localTimeline.startedAt;
     view.actionImpactAt = localTimeline.impactAt;
     view.actionEndsAt = localTimeline.recoveryEndsAt;
+    if (action.impactTimes !== undefined) {
+      if (replacingAction || view.actionImpactTimes === undefined) {
+        view.actionImpactTimes = action.impactTimes.map(
+          (impactAt) =>
+            this.serverClock.toLocal(impactAt) ??
+            localTimeline.impactAt + Math.max(0, impactAt - action.impactAt),
+        );
+        view.effectPlayedImpactCount = 0;
+      }
+    } else if (replacingAction) {
+      delete view.actionImpactTimes;
+      delete view.effectPlayedImpactCount;
+    }
     if (action.channelEndsAt === undefined) delete view.actionChannelEndsAt;
     else {
       view.actionChannelEndsAt =
@@ -3670,6 +3691,7 @@ export class Renderer {
       direction: animation.direction,
       startedAt: animation.startedAt,
       impactAt: animation.impactAt,
+      ...(animation.impactTimes === undefined ? {} : { impactTimes: animation.impactTimes }),
       recoveryEndsAt: animation.recoveryEndsAt,
     };
     if (animation.actorKind === "player") {
@@ -3681,21 +3703,23 @@ export class Renderer {
     if (view) this.#setVisualAction(view, action);
   }
 
-  /** Queues only the server-resolved route; frames consume its timestamps without choosing targets. */
+  /** Queues only the server-resolved route; receipt-relative timing keeps every jump visible. */
   playShadowDance(sequence: RogueShadowDanceSequence): void {
     if (!this.#combatVisualAuthority.acceptsAction(sequence.actionId)) return;
     const localNow = performance.now();
-    const localStartedAt = this.serverClock.toLocal(sequence.startedAt) ?? localNow;
+    const replay = scheduleShadowDanceReplay(
+      sequence.strikes,
+      sequence.startedAt,
+      sequence.endsAt,
+      localNow,
+    );
     this.#shadowDanceSequences.push({
       actionId: sequence.actionId,
       actorId: sequence.actorId,
-      strikes: sequence.strikes.map((strike) => ({
-        ...strike,
-        localImpactAt:
-          this.serverClock.toLocal(strike.impactAt) ??
-          localStartedAt + Math.max(0, strike.impactAt - sequence.startedAt),
-      })),
+      origin: { ...(sequence.strikes[0]?.from ?? sequence.finalPosition) },
+      strikes: replay.strikes,
       nextStrikeIndex: 0,
+      localEndsAt: replay.localEndsAt,
     });
   }
 
@@ -3775,25 +3799,47 @@ export class Renderer {
       player.class === "rogue" ? ROGUE_ATTACK_OFFSET_X : UNIT_OFFSET_X,
       player.class === "rogue" ? ROGUE_ATTACK_OFFSET_Y : UNIT_OFFSET_Y,
     );
+    const timeline = {
+      startedAt: view.actionStartedAt ?? now,
+      impactAt: view.actionImpactAt ?? now,
+      recoveryEndsAt: view.actionEndsAt ?? now + 1,
+    };
+    const repeatedImpacts =
+      view.actionImpactTimes && view.actionImpactTimes.length > 1
+        ? view.actionImpactTimes
+        : undefined;
     const frame =
       guarding && !actionActive
         ? frames[Math.floor(now / 120) % frames.length]
-        : this.#actionFrame(
-            frames,
-            art.caster.activeFrame,
-            view.actionStartedAt ?? now,
-            view.actionImpactAt ?? now,
-            view.actionEndsAt ?? now + 1,
-            now,
-          );
+        : repeatedImpacts
+          ? frames[
+              multiImpactActionFrameIndex(
+                frames.length,
+                art.caster.activeFrame,
+                timeline,
+                repeatedImpacts,
+                now,
+              )
+            ]
+          : this.#actionFrame(
+              frames,
+              art.caster.activeFrame,
+              timeline.startedAt,
+              timeline.impactAt,
+              timeline.recoveryEndsAt,
+              now,
+            );
     if (frame) view.unitSprite.texture = frame;
 
-    if (
-      actionActive &&
-      view.actionId &&
+    const repeatedImpactAt = repeatedImpacts?.[view.effectPlayedImpactCount ?? 0];
+    const repeatedImpactDue =
+      repeatedImpactAt !== undefined && repeatedImpactAt <= now && actionActive;
+    const singleImpactDue =
+      repeatedImpacts === undefined &&
       view.effectPlayedActionId !== view.actionId &&
-      (view.actionImpactAt ?? Number.POSITIVE_INFINITY) <= now
-    ) {
+      (view.actionImpactAt ?? Number.POSITIVE_INFINITY) <= now &&
+      actionActive;
+    if (view.actionId && (repeatedImpactDue || singleImpactDue)) {
       const mobilityImpact =
         skillId === "shield_bash" ||
         skillId === "dash" ||
@@ -3801,9 +3847,11 @@ export class Renderer {
         skillId === "shadow_step"
           ? art.impact
           : undefined;
-      const effect = art.zone ?? mobilityImpact;
-      if (effect) {
-        const position = centerOf(player);
+      const effect = skillId === "shadow_dance" ? undefined : (art.zone ?? mobilityImpact);
+      const position = centerOf(player);
+      if (repeatedImpactDue) {
+        this.#playRepeatedActionImpact(art, skillId, position.x, position.y, view.actionId);
+      } else if (effect) {
         this.#playCombatSheet(effect, position.x, position.y, view.actionId);
         if (art.accent) this.#playCombatSheet(art.accent, position.x, position.y, view.actionId);
         this.#playActionFlourish(skillId, position.x, position.y, view.actionId);
@@ -3821,7 +3869,8 @@ export class Renderer {
           this.#playRangeIndicator(position.x, position.y, radius, 0x8df0aa, view.actionId);
         }
       }
-      view.effectPlayedActionId = view.actionId;
+      if (repeatedImpactDue) view.effectPlayedImpactCount = (view.effectPlayedImpactCount ?? 0) + 1;
+      else view.effectPlayedActionId = view.actionId;
     }
     return true;
   }
@@ -3985,6 +4034,33 @@ export class Renderer {
     }
   }
 
+  /** One compact authored contact per server-announced hit avoids overlapping full-screen zones. */
+  #playRepeatedActionImpact(
+    art: ReturnType<typeof combatArt>,
+    skillId: string,
+    x: number,
+    y: number,
+    actionId: string,
+  ): void {
+    const effect = art.impact ?? art.accent ?? art.zone;
+    if (effect) {
+      this.#playCombatSheet(
+        {
+          ...effect,
+          durationMs: Math.min(220, effect.durationMs),
+          scale: (effect.scale ?? 1) * 0.62,
+        },
+        x,
+        y,
+        actionId,
+      );
+    }
+    if (skillId === "whirlwind") {
+      const radius = CLASS_SKILLS.warrior[4]?.radius ?? 0;
+      this.#addPulse(x, y, 0xffe08a, Math.max(20, radius * 0.58), 180);
+    }
+  }
+
   /** Talent flourishes only echo the skill's own Tiny Swords sheet; no substitute is generated. */
   #playTalentedFlourish(
     art: ReturnType<typeof combatArt>,
@@ -4110,9 +4186,8 @@ export class Renderer {
     for (let index = this.#shadowDanceSequences.length - 1; index >= 0; index--) {
       const sequence = this.#shadowDanceSequences[index];
       if (!sequence) continue;
-      while (sequence.nextStrikeIndex < sequence.strikes.length) {
-        const strike = sequence.strikes[sequence.nextStrikeIndex];
-        if (!strike || strike.localImpactAt > now) break;
+      const strike = sequence.strikes[sequence.nextStrikeIndex];
+      if (strike && strike.localImpactAt <= now) {
         const from = {
           x: strike.from.x + PLAYER_SIZE / 2,
           y: strike.from.y + PLAYER_SIZE / 2,
@@ -4128,11 +4203,10 @@ export class Renderer {
         this.#playMobilityTrail(
           from,
           landing,
-          { durationMs: 210, color: 0x8f55d9, width: 9 },
+          { durationMs: 72, color: 0x8f55d9, width: 6 },
           sequence.actionId,
         );
-        this.#addPulse(impact.x, impact.y, 0xc58cff, 24, 260);
-        this.#burst(impact.x, impact.y, 0x8f55d9, 7);
+        this.#addPulse(impact.x, impact.y, 0xc58cff, 18, 115);
         this.showWorldEvent(
           `-${strike.damage}`,
           "info",
@@ -4141,7 +4215,36 @@ export class Renderer {
         );
         sequence.nextStrikeIndex += 1;
       }
-      if (sequence.nextStrikeIndex < sequence.strikes.length) continue;
+
+      const view = this.#players.get(sequence.actorId);
+      if (view) {
+        const position = shadowDancePositionAfter(
+          sequence.origin,
+          sequence.strikes,
+          sequence.nextStrikeIndex,
+        );
+        view.container.position.set(position.x, position.y);
+        view.container.visible = this.#isVisibleWorld(position.x, position.y, ENTITY_CULL_MARGIN);
+        view.container.alpha = 1;
+        view.container.zIndex = Math.round(position.y + PLAYER_SIZE);
+        const completedStrike = sequence.strikes[sequence.nextStrikeIndex - 1];
+        if (completedStrike && view.actor) {
+          const horizontalFacing = completedStrike.targetPosition.x - completedStrike.landing.x;
+          if (Math.abs(horizontalFacing) > 0.01) {
+            const actorScale = playerRenderScale(sequence.actorId, this.#selfId);
+            view.actor.scale.x = (horizontalFacing < 0 ? -1 : 1) * actorScale;
+          }
+        }
+        const attackFrames = view.unitAnimations?.attack;
+        if (attackFrames && view.unitSprite && sequence.nextStrikeIndex > 0) {
+          const frameIndex = 2 + ((sequence.nextStrikeIndex - 1) % 2);
+          const frame = attackFrames[Math.min(frameIndex, attackFrames.length - 1)];
+          if (frame) view.unitSprite.texture = frame;
+        }
+      }
+
+      if (sequence.nextStrikeIndex < sequence.strikes.length || now < sequence.localEndsAt)
+        continue;
       this.#shadowDanceSequences.splice(index, 1);
     }
   }

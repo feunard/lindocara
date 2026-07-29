@@ -3,6 +3,7 @@ import {
   combatActionFrameIndex,
   combatArt,
   monsterCombatArt,
+  multiImpactActionFrameIndex,
   projectileArt,
   teleportEffectArt,
 } from "@lindocara/renderer/combat-art.js";
@@ -215,6 +216,17 @@ describe("Tiny Swords directional combat art", () => {
     expect(combatActionFrameIndex(8, 3, timeline, 299)).toBeLessThan(3);
     expect(combatActionFrameIndex(8, 3, timeline, 300)).toBe(3);
     expect(combatActionFrameIndex(8, 3, timeline, 699)).toBe(7);
+  });
+
+  it("replays the full caster strip at every authoritative multi-hit contact", () => {
+    const timeline = { startedAt: 100, impactAt: 300, recoveryEndsAt: 1_300 };
+    const impacts = [300, 550, 800, 1_050];
+    for (const impactAt of impacts) {
+      expect(multiImpactActionFrameIndex(4, 1, timeline, impacts, impactAt)).toBe(1);
+    }
+    expect(multiImpactActionFrameIndex(4, 1, timeline, impacts, 425)).not.toBe(1);
+    expect(multiImpactActionFrameIndex(4, 1, timeline, impacts, 675)).not.toBe(1);
+    expect(multiImpactActionFrameIndex(4, 1, timeline, impacts, 1_299)).toBe(3);
   });
 
   it("keeps authoritative impact and recovery timings under reduced motion", () => {

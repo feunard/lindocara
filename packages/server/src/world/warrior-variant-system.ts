@@ -10,6 +10,13 @@ type KingChallengeEffect = Extract<TalentEffect, { kind: "king_challenge" }>;
 type RallyingCryEffect = Extract<TalentEffect, { kind: "rallying_cry" }>;
 type CycloneEffect = Extract<TalentEffect, { kind: "cyclone" }>;
 
+function cycloneTiming(effect: CycloneEffect): { ticks: number; intervalMs: number } {
+  return {
+    ticks: Math.max(1, Math.min(8, Math.floor(effect.ticks))),
+    intervalMs: Math.max(50, Math.min(1_000, Math.floor(effect.intervalMs))),
+  };
+}
+
 function distance(left: PlayerRuntime, right: PlayerRuntime): number {
   return Math.hypot(left.x - right.x, left.y - right.y);
 }
@@ -121,9 +128,14 @@ export function applySeismicImpact<T extends { id: string }>(
 }
 
 export function cycloneRecoveryMs(effect: CycloneEffect, baseRecoveryMs: number): number {
-  const ticks = Math.max(1, Math.min(8, Math.floor(effect.ticks)));
-  const intervalMs = Math.max(50, Math.min(1_000, Math.floor(effect.intervalMs)));
+  const { ticks, intervalMs } = cycloneTiming(effect);
   return Math.max(baseRecoveryMs, ticks * intervalMs);
+}
+
+/** Ordered visual contacts mirror the exact bounded schedule consumed by the room tick. */
+export function cycloneImpactTimes(effect: CycloneEffect, firstImpactAt: number): number[] {
+  const { ticks, intervalMs } = cycloneTiming(effect);
+  return Array.from({ length: ticks }, (_, index) => firstImpactAt + index * intervalMs);
 }
 
 export function startWarriorCyclone(
@@ -133,8 +145,7 @@ export function startWarriorCyclone(
   effect: CycloneEffect,
   now: number,
 ): void {
-  const ticks = Math.max(1, Math.min(8, Math.floor(effect.ticks)));
-  const intervalMs = Math.max(50, Math.min(1_000, Math.floor(effect.intervalMs)));
+  const { ticks, intervalMs } = cycloneTiming(effect);
   const basePower = skill.power + Math.max(0, player.level - 1) * 2;
   player.warriorCyclone = {
     actionId,

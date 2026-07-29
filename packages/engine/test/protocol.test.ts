@@ -586,6 +586,39 @@ describe("combat animation messages", () => {
     expect(parseServerMessage(monster)).toMatchObject({ t: "animation", actorKind: "monster" });
   });
 
+  it("accepts only bounded ordered server-owned multi-hit contacts", () => {
+    const animation = {
+      t: "animation",
+      actionId: "action-cyclone-1",
+      actorKind: "player",
+      actorId: "player-1",
+      action: "skill",
+      skillId: "whirlwind",
+      talented: true,
+      evolved: true,
+      direction: { x: 1, y: 0 },
+      startedAt: 100,
+      impactAt: 300,
+      impactTimes: [300, 550, 800, 1_050],
+      recoveryEndsAt: 1_300,
+    };
+
+    expect(parseServerMessage(JSON.stringify(animation))).toMatchObject({
+      t: "animation",
+      impactTimes: [300, 550, 800, 1_050],
+    });
+    for (const impactTimes of [
+      [300],
+      [301, 550],
+      [300, 550, 550],
+      [300, 1_301],
+      [300, Number.NaN],
+      Array.from({ length: 9 }, (_, index) => 300 + index * 50),
+    ]) {
+      expect(parseServerMessage(JSON.stringify({ ...animation, impactTimes }))).toBeNull();
+    }
+  });
+
   it("rejects incomplete or non-finite animations", () => {
     expect(
       parseServerMessage(

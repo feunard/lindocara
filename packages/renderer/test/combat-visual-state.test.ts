@@ -12,9 +12,11 @@ describe("authoritative combat visual cancellation", () => {
       actionSkillId: "radiant_bolt",
       actionStartedAt: 100,
       actionImpactAt: 380,
+      actionImpactTimes: [380, 630],
       actionEndsAt: 750,
       actionDirection: { x: 1, y: 0 },
       effectPlayedActionId: "action-a",
+      effectPlayedImpactCount: 2,
     };
     expect(clearVisualAction(state)).toBe("action-a");
     expect(state).toEqual({});

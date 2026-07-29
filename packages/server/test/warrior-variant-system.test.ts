@@ -7,6 +7,7 @@ import {
   applyKingsChallenge,
   applyRallyingCry,
   applySeismicImpact,
+  cycloneImpactTimes,
   damageAfterWarriorProtection,
   startWarriorCyclone,
 } from "@lindocara/server/world/warrior-variant-system.js";
@@ -208,6 +209,20 @@ describe("authoritative warrior evolution systems", () => {
     expect(strike).toHaveBeenCalledTimes(4);
     expect(strike.mock.calls.every((call) => call[3] === "action-1")).toBe(true);
     expect(warrior.warriorCyclone).toBeNull();
+  });
+
+  it("announces the same bounded contact schedule that Cyclone executes", () => {
+    const effect = {
+      kind: "cyclone",
+      ticks: 4,
+      intervalMs: 250,
+      powerRatio: 0.32,
+    } as const;
+
+    expect(cycloneImpactTimes(effect, 1_000)).toEqual([1_000, 1_250, 1_500, 1_750]);
+    expect(cycloneImpactTimes({ ...effect, ticks: 99, intervalMs: 10 }, 2_000)).toEqual(
+      Array.from({ length: 8 }, (_, index) => 2_000 + index * 50),
+    );
   });
 
   it("never persists room-local warrior buffs or an in-flight Cyclone across reconnection", () => {

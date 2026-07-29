@@ -292,6 +292,11 @@ export interface CombatAnimation {
   direction: Vec2;
   startedAt: number;
   impactAt: number;
+  /**
+   * Ordered server-owned contacts for a genuinely sequential technique. Simultaneous projectiles
+   * remain separate projectile snapshots and do not use this field.
+   */
+  impactTimes?: number[];
   recoveryEndsAt: number;
 }
 
@@ -681,6 +686,27 @@ function isBoundedString(value: unknown, maximum: number, allowEmpty = false): v
 
 function isPosition(value: unknown): value is Vec2 {
   return isRecord(value) && isFiniteNumber(value.x) && isFiniteNumber(value.y);
+}
+
+function isCombatImpactTimes(
+  value: unknown,
+  firstImpactAt: number,
+  recoveryEndsAt: number,
+): value is number[] {
+  if (!Array.isArray(value) || value.length < 2 || value.length > 8) return false;
+  let previousImpactAt = firstImpactAt;
+  for (let index = 0; index < value.length; index += 1) {
+    const impactAt = value[index];
+    if (
+      !isFiniteNumber(impactAt) ||
+      impactAt < firstImpactAt ||
+      impactAt > recoveryEndsAt ||
+      (index === 0 ? impactAt !== firstImpactAt : impactAt <= previousImpactAt)
+    )
+      return false;
+    previousImpactAt = impactAt;
+  }
+  return true;
 }
 
 function isRogueShadowDanceSequence(value: unknown): value is RogueShadowDanceSequence {
@@ -1580,6 +1606,8 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       isFiniteNumber(value.recoveryEndsAt) &&
       value.startedAt <= value.impactAt &&
       value.impactAt <= value.recoveryEndsAt &&
+      (value.impactTimes === undefined ||
+        isCombatImpactTimes(value.impactTimes, value.impactAt, value.recoveryEndsAt)) &&
       (value.talented === undefined || value.talented === true) &&
       (value.evolved === undefined || value.evolved === true) &&
       ((value.actorKind === "monster" &&
