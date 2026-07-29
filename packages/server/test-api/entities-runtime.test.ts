@@ -9,6 +9,7 @@ import { heroes } from "../src/api/entities/heroes.ts";
 import { heroItems } from "../src/api/entities/heroItems.ts";
 import { heroQuests } from "../src/api/entities/heroQuests.ts";
 import { heroSkills } from "../src/api/entities/heroSkills.ts";
+import { itemDefinitions } from "../src/api/entities/itemDefinitions.ts";
 import { parties } from "../src/api/entities/parties.ts";
 import { partyAdventureStates } from "../src/api/entities/partyAdventureStates.ts";
 import { partyMembers } from "../src/api/entities/partyMembers.ts";
@@ -25,6 +26,7 @@ class RuntimeProbe {
   heroes = $repository(heroes);
   heroItems = $repository(heroItems);
   heroEquipment = $repository(heroEquipment);
+  itemDefinitions = $repository(itemDefinitions);
   heroSkills = $repository(heroSkills);
   heroQuests = $repository(heroQuests);
   authoredQuestRewardClaims = $repository(authoredQuestRewardClaims);
@@ -165,6 +167,16 @@ test("heroEquipment references an owned heroItems row", async ({ expect }) => {
     y: 0,
   });
 
+  // `heroItems.itemDefinitionId` is a real FK onto `itemDefinitions` (Task 10) — the referenced
+  // catalogue row must exist first, matching the on-demand seeding `HeroService` does in production.
+  await probe.itemDefinitions.create({
+    id: "iron_sword",
+    type: "weapon",
+    stackable: false,
+    maxStack: 1,
+    equipmentSlot: "main_hand",
+    allowedClass: "warrior",
+  });
   const item = await probe.heroItems.create({
     heroId: hero.id,
     itemDefinitionId: "iron_sword",

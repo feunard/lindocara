@@ -1,16 +1,16 @@
 import { type Static, z } from "alepha";
 import { $entity, db, sql } from "alepha/orm";
 import { heroes } from "./heroes.ts";
+import { itemDefinitions } from "./itemDefinitions.ts";
 
 /**
  * Runtime entity for `hero_item` (`packages/server/src/db/schema.ts:608`).
  *
- * `itemDefinitionId` stays a **plain unconstrained string**, not a `db.ref`: legacy references a
- * separate `item_definition` catalogue table (`db/schema.ts:139`) which is out of scope for this
- * tranche — Task 7's brief lists only `adventures`/`maps`/Alepha `users` as consumed entities, and
- * no `itemDefinitions` entity has been ported onto the Alepha ORM yet. This is a genuine, documented
- * gap versus legacy's `.references(() => itemDefinition.id, { onDelete: "restrict" })`; a later
- * tranche that ports the catalogue table should upgrade this to a real `db.ref`.
+ * `itemDefinitionId` is a real `db.ref` onto `itemDefinitions` (Task 10), matching legacy's
+ * `.references(() => itemDefinition.id, { onDelete: "restrict" })`. Task 7 originally left this a
+ * plain unconstrained string because the catalogue table did not exist yet on the Alepha ORM — see
+ * `itemDefinitions.ts`'s own docblock for how the rows are seeded (an idempotent upsert the first
+ * time a hero is created, not a migration).
  *
  * `hero_item_owner_id_unique` — unique `(heroId, id)` — is preserved verbatim from legacy even
  * though nothing in this file's own constraints requires it; it exists so `heroEquipment` can
@@ -23,7 +23,7 @@ export const heroItems = $entity({
     id: db.primaryKey(z.uuid()),
     createdAt: db.createdAt(),
     heroId: db.ref(z.uuid(), () => heroes.cols.id, { onDelete: "cascade" }),
-    itemDefinitionId: z.string(),
+    itemDefinitionId: db.ref(z.string(), () => itemDefinitions.cols.id, { onDelete: "restrict" }),
     quantity: z.integer(),
   }),
   indexes: [
