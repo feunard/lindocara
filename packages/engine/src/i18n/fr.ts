@@ -850,6 +850,7 @@ export const fr: Record<keyof typeof en, string> = {
   "event.resurrect.not_priest": "Seul un prêtre peut rappeler les morts.",
   "event.skill.cast": "{skill} activé.",
   "event.skill.blocked": "Le terrain bloque l'action.",
+  "event.skill.no_target": "Aucun ennemi visible n'est à portée.",
   "event.skill.locked": "{skill} se débloque au niveau {level}.",
   "event.resource.insufficient": "Mana insuffisant.",
   "event.talent.unlocked": "Talent activé.",

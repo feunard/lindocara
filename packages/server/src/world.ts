@@ -131,6 +131,7 @@ import {
   skillResourceCost,
   spendResource,
 } from "@lindocara/engine/resources.js";
+import { ROGUE_BALANCE } from "@lindocara/engine/rogue.js";
 import {
   NETWORK_TICKS_PER_SNAPSHOT,
   NO_INPUT,
@@ -277,7 +278,18 @@ import {
   linePiercerPowerRatio,
   retreatShotDirections,
 } from "./world/ranger-variant-system.js";
-import { clearRogueTransientState } from "./world/rogue-state-system.js";
+import {
+  hasRogueLineOfSight,
+  isShadowStepPathClear,
+  planShadowStep,
+} from "./world/rogue-skill-system.js";
+import {
+  activeRogueOpening,
+  clearRogueTransientState,
+  consumeRogueOpening,
+  expireRogueOpening,
+  grantRogueOpening,
+} from "./world/rogue-state-system.js";
 import { movePlayerInDirection, nearestChargeTarget } from "./world/skill-system.js";
 import {
   broadcastNetworkUpdates,
@@ -1892,6 +1904,31 @@ export class World extends DurableObject<Env> {
     if (skill.id === "mend" && now - player.lastHealAt < skill.cooldownMs) return false;
     if (slot !== 1 && (player.skillCooldowns[slot - 1] ?? 0) > now) return false;
     const definition = actionForClassSlot(player.class, slot);
+    const shadowStep =
+      definition.shape === "shadow_step"
+        ? planShadowStep(
+            player,
+            this.#monsterGrid.queryRadius(
+              player,
+              skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS,
+            ),
+            skill.range,
+            now,
+            this.#zone().terrain,
+            (monster) => monsterBodyRadius(monster.species),
+          )
+        : null;
+    if (shadowStep && !shadowStep.ok) {
+      this.#send(ws, {
+        t: "event",
+        code: shadowStep.reason === "blocked" ? "skill.blocked" : "skill.no_target",
+        params: { skill: skill.id },
+        tone: "info",
+        x: player.x,
+        y: player.y,
+      });
+      return false;
+    }
     const chargeTarget =
       definition.shape === "charge"
         ? nearestChargeTarget(
@@ -1905,12 +1942,21 @@ export class World extends DurableObject<Env> {
             (monster) => hasLineOfSight(player, monster, this.#zone().terrain.tiles),
           )
         : null;
-    const direction = chargeTarget
-      ? normalizeDirection(
-          { x: chargeTarget.x - player.x, y: chargeTarget.y - player.y },
-          player.facing,
-        )
-      : player.facing;
+    const direction =
+      shadowStep?.ok === true
+        ? normalizeDirection(
+            {
+              x: shadowStep.plan.targetPosition.x - player.x,
+              y: shadowStep.plan.targetPosition.y - player.y,
+            },
+            player.facing,
+          )
+        : chargeTarget
+          ? normalizeDirection(
+              { x: chargeTarget.x - player.x, y: chargeTarget.y - player.y },
+              player.facing,
+            )
+          : player.facing;
     const cyclone =
       definition.shape === "area_damage"
         ? talentEffect(player.class, player.talents, "cyclone", slot)
@@ -1933,6 +1979,12 @@ export class World extends DurableObject<Env> {
         : {}),
     });
     if (!action) return false;
+    if (shadowStep?.ok === true) {
+      action.rogueShadowStep = {
+        targetId: shadowStep.plan.targetId,
+        destination: { ...shadowStep.plan.destination },
+      };
+    }
     if (talentEffect(player.class, player.talents, "sacred_passage", slot))
       action.sacredPassageHealedIds = new Set();
 
@@ -1986,6 +2038,42 @@ export class World extends DurableObject<Env> {
     const definition = actionForClassSlot(player.class, slot);
     const center = { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 };
 
+    if (definition.shape === "shadow_step") {
+      const planned = action.rogueShadowStep;
+      const target = planned
+        ? this.#monsters.find((monster) => monster.id === planned.targetId)
+        : undefined;
+      if (
+        !planned ||
+        !target ||
+        target.deadUntil > now ||
+        !withinRange(player, target, ROGUE_BALANCE.shadowStep.selectionRange) ||
+        !hasRogueLineOfSight(player, target, this.#zone().terrain) ||
+        !isShadowStepPathClear(player, planned.destination, this.#zone().terrain)
+      ) {
+        this.#send(socket, {
+          t: "event",
+          code: target ? "skill.blocked" : "skill.no_target",
+          params: { skill: skill.id },
+          tone: "info",
+          x: player.x,
+          y: player.y,
+        });
+        return;
+      }
+      const previousPosition = { x: player.x, y: player.y };
+      player.x = planned.destination.x;
+      player.y = planned.destination.y;
+      player.facing = normalizeDirection(
+        { x: target.x - player.x, y: target.y - player.y },
+        action.direction,
+      );
+      this.#playerGrid.update(player, previousPosition);
+      grantRogueOpening(player, "shadow_step", now);
+      this.#sendState(socket, player);
+      return;
+    }
+
     if (definition.shape === "arc") {
       const arc = frontalArc(
         center,
@@ -1993,23 +2081,31 @@ export class World extends DurableObject<Env> {
         skill.range,
         definition.halfAngleRadians ?? Math.PI / 3,
       );
-      for (const monster of this.#monsterGrid.queryRadius(
-        center,
-        skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS,
-      )) {
-        if (
-          monster.deadUntil > now ||
-          !circleIntersectsArc(
-            {
-              center: { x: monster.x + PLAYER_SIZE / 2, y: monster.y + PLAYER_SIZE / 2 },
-              radius: monsterBodyRadius(monster.species),
-            },
-            arc,
-          ) ||
-          !hasLineOfSight(player, monster, this.#zone().terrain.tiles)
+      const targets = this.#monsterGrid
+        .queryRadius(center, skill.range + PLAYER_SIZE + MAX_MONSTER_BODY_RADIUS)
+        .filter(
+          (monster) =>
+            monster.deadUntil <= now &&
+            circleIntersectsArc(
+              {
+                center: { x: monster.x + PLAYER_SIZE / 2, y: monster.y + PLAYER_SIZE / 2 },
+                radius: monsterBodyRadius(monster.species),
+              },
+              arc,
+            ) &&
+            (player.class === "rogue"
+              ? hasRogueLineOfSight(player, monster, this.#zone().terrain)
+              : hasLineOfSight(player, monster, this.#zone().terrain.tiles)),
         )
-          continue;
-        this.#damageMonster(socket, player, monster, skill, now, true);
+        .sort((left, right) => {
+          const distance =
+            Math.hypot(left.x - player.x, left.y - player.y) -
+            Math.hypot(right.x - player.x, right.y - player.y);
+          return distance || left.id.localeCompare(right.id);
+        });
+      const resolvedTargets = skill.id === "dual_slash" ? targets.slice(0, 1) : targets;
+      for (const monster of resolvedTargets) {
+        this.#damageMonster(socket, player, monster, skill, now, slot === 1);
       }
       return;
     }
@@ -2356,6 +2452,10 @@ export class World extends DurableObject<Env> {
     frozenPower?: number,
   ): void {
     if (target.deadUntil > now) return;
+    const opening =
+      basic && player.class === "rogue" && skill.id === "dual_slash"
+        ? activeRogueOpening(player, now)
+        : null;
     const baseDamage =
       frozenPower ??
       (basic
@@ -2365,6 +2465,7 @@ export class World extends DurableObject<Env> {
       1,
       Math.round(
         baseDamage *
+          (opening ? 1 + opening.bonusRatio : 1) *
           (player.damageBoostUntil > now ? 1 + CONSUMABLES.damage_elixir.effectValue : 1) *
           (1 + activeRallyPowerMultiplier(player, now)) *
           (target.weakness === player.class ? target.weaknessPercent / 100 : 1),
@@ -2374,6 +2475,10 @@ export class World extends DurableObject<Env> {
     const result = applyDamage(target.hp, damage);
     target.hp = result.hp;
     this.#recordDamage(player, target, actualDamage, now);
+    if (opening) {
+      consumeRogueOpening(player, now);
+      this.#sendState(ws, player);
+    }
     if (player.class === "warrior" && skill.id === "shield_bash")
       this.#tauntMonster(player, target, now);
     this.#sendSpatialEvent(
@@ -3688,6 +3793,7 @@ export class World extends DurableObject<Env> {
     const writeD1 = this.#tick % D1_SAVE_EVERY_TICKS === 0;
 
     this.#advanceConsumableEffects(now);
+    for (const player of this.#players.values()) expireRogueOpening(player, now);
 
     advancePlayers({
       players: this.#players,

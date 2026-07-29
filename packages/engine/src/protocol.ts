@@ -485,6 +485,7 @@ export const EVENT_CODES = [
   "resurrect.not_priest",
   "skill.cast",
   "skill.blocked",
+  "skill.no_target",
   "skill.locked",
   "resource.insufficient",
   "talent.unlocked",

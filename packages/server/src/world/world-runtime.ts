@@ -139,6 +139,11 @@ export interface CombatActionRuntime {
   mobilityDistance?: number;
   /** Server-only per-cast set preventing Sacred Passage from healing one ally more than once. */
   sacredPassageHealedIds?: Set<string>;
+  /** Fully server-authored Shadow Step target and collision-validated landing. */
+  rogueShadowStep?: {
+    targetId: string;
+    destination: Vec2;
+  };
 }
 
 export interface WarriorCycloneRuntime {

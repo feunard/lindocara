@@ -840,6 +840,7 @@ export const en = {
   "event.resurrect.not_priest": "Only a priest can call the fallen back.",
   "event.skill.cast": "{skill} activated.",
   "event.skill.blocked": "The action is blocked by terrain.",
+  "event.skill.no_target": "No visible enemy is in range.",
   "event.skill.locked": "{skill} unlocks at level {level}.",
   "event.resource.insufficient": "Not enough mana.",
   "event.talent.unlocked": "Talent activated.",

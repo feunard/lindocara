@@ -1,5 +1,11 @@
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
-import { clearRogueTransientState } from "@lindocara/server/world/rogue-state-system.js";
+import {
+  activeRogueOpening,
+  clearRogueTransientState,
+  consumeRogueOpening,
+  expireRogueOpening,
+  grantRogueOpening,
+} from "@lindocara/server/world/rogue-state-system.js";
 import { selfState } from "@lindocara/server/world/snapshot-system.js";
 import { newPlayer, toProfile } from "@lindocara/server/world/world-runtime.js";
 import { describe, expect, it } from "vitest";
@@ -32,6 +38,39 @@ function rogue() {
 }
 
 describe("hidden Rogue runtime contract", () => {
+  it("refreshes one non-stacking Opening and consumes it only through the explicit hit boundary", () => {
+    const player = rogue();
+    grantRogueOpening(player, "shadow_step", 1_000);
+    const first = player.opening;
+    expect(first).toMatchObject({
+      source: "shadow_step",
+      expiresAt: 2_500,
+      bonusRatio: 0.4,
+    });
+
+    grantRogueOpening(player, "vanish", 1_200);
+    expect(player.opening).toMatchObject({
+      source: "vanish",
+      expiresAt: 2_700,
+      bonusRatio: 0.4,
+    });
+    expect(player.opening).not.toBe(first);
+    expect(activeRogueOpening(player, 2_699)).toBe(player.opening);
+
+    const consumed = consumeRogueOpening(player, 2_699);
+    expect(consumed?.source).toBe("vanish");
+    expect(player.opening).toBeNull();
+    expect(consumeRogueOpening(player, 2_699)).toBeNull();
+  });
+
+  it("expires Opening without turning a stale deadline into a hit bonus", () => {
+    const player = rogue();
+    grantRogueOpening(player, "shadow_step", 4_000);
+    expect(expireRogueOpening(player, 5_499)).toBe(false);
+    expect(expireRogueOpening(player, 5_500)).toBe(true);
+    expect(activeRogueOpening(player, 5_500)).toBeNull();
+  });
+
   it("starts neutral, exposes only local deadlines, and clears every transient window together", () => {
     const player = rogue();
     expect(player).toMatchObject({
