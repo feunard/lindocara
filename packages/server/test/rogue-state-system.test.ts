@@ -1,22 +1,31 @@
 import { starterEquipmentFor } from "@lindocara/engine/character.js";
+import { talentEffect } from "@lindocara/engine/talents.js";
 import { isPlayerInvulnerable } from "@lindocara/server/world/combat-system.js";
 import {
   activeRogueOpening,
+  applyRogueSmokeProtection,
+  armRogueExecution,
+  armRoguePredatorShiv,
   clearRogueTransientState,
   consumeRogueOpening,
+  consumeRoguePredatorShivMultiplier,
   enterRogueStealth,
   exitRogueStealth,
+  expireRogueExecution,
   expireRogueOpening,
   expireRogueShadowDanceProtection,
   expireRogueStealth,
   grantRogueOpening,
   isRogueStealthed,
+  reduceRogueShadowDanceCooldown,
+  resolveRogueExecutionKill,
+  rogueOpeningBonusRatio,
 } from "@lindocara/server/world/rogue-state-system.js";
 import { selfState } from "@lindocara/server/world/snapshot-system.js";
 import { newPlayer, toProfile } from "@lindocara/server/world/world-runtime.js";
 import { describe, expect, it } from "vitest";
 
-function rogue() {
+function rogue(talents: readonly string[] = []) {
   return newPlayer(
     {
       id: "rogue",
@@ -37,6 +46,7 @@ function rogue() {
       wardRunExpiresAt: null,
       life: "alive",
       corpse: null,
+      talents: [...talents],
     },
     "rogue-connection",
     "verdant-reach:main",
@@ -111,6 +121,61 @@ describe("hidden Rogue runtime contract", () => {
     expect(lateAttack.opening).toBeNull();
   });
 
+  it("arms Executor on the struck target and halves only the bounded remaining cooldown", () => {
+    const player = rogue([
+      "rogue.shadow_step.ambush",
+      "rogue.shadow_step.reach",
+      "rogue.shadow_step.readiness",
+      "rogue.shadow_step.executor",
+    ]);
+    const executor = talentEffect(player.class, player.talents, "rogue_executor", 2);
+    if (!executor) throw new Error("missing Executor effect");
+    expect(rogueOpeningBonusRatio(player, 2, executor.openingBonusRatio)).toBeCloseTo(0.798);
+
+    player.skillCooldowns[1] = 6_000;
+    armRogueExecution(player, "target", 1_000, executor);
+    expect(resolveRogueExecutionKill(player, "other", 2_000, executor)).toBe(false);
+    expect(resolveRogueExecutionKill(player, "target", 2_000, executor)).toBe(true);
+    expect(player.skillCooldowns[1]).toBe(4_000);
+    expect(player.rogueExecution).toBeNull();
+
+    player.skillCooldowns[1] = 2_050;
+    armRogueExecution(player, "target", 2_000, executor);
+    expect(resolveRogueExecutionKill(player, "target", 2_050, executor)).toBe(true);
+    expect(player.skillCooldowns[1]).toBe(2_050);
+    armRogueExecution(player, "late", 3_000, executor);
+    expect(expireRogueExecution(player, 5_001)).toBe(true);
+  });
+
+  it("applies Smoke Screen protection and consumes one Predator poison boost", () => {
+    const smoke = talentEffect("rogue", ["rogue.vanish.smoke_screen"], "rogue_smoke_screen", 3);
+    const predator = talentEffect("rogue", ["rogue.vanish.predator"], "rogue_predator", 3);
+    if (!smoke || !predator) throw new Error("missing Vanish evolution");
+
+    const protectedRogue = rogue(["rogue.vanish.smoke_screen"]);
+    applyRogueSmokeProtection(protectedRogue, 1_000, smoke);
+    expect(isPlayerInvulnerable(protectedRogue, 1_499)).toBe(true);
+    expect(isPlayerInvulnerable(protectedRogue, 1_500)).toBe(false);
+
+    const hunter = rogue(["rogue.vanish.predator"]);
+    armRoguePredatorShiv(hunter, 2_000, predator);
+    expect(consumeRoguePredatorShivMultiplier(hunter, 3_999, predator)).toBe(1.5);
+    expect(consumeRoguePredatorShivMultiplier(hunter, 3_999, predator)).toBe(1);
+  });
+
+  it("bounds Dark Harvest at the authoritative present even with excessive kills", () => {
+    const player = rogue([
+      "rogue.shadow_dance.force",
+      "rogue.shadow_dance.reach",
+      "rogue.shadow_dance.readiness",
+      "rogue.shadow_dance.dark_harvest",
+    ]);
+    const harvest = talentEffect(player.class, player.talents, "rogue_dark_harvest", 5);
+    if (!harvest) throw new Error("missing Dark Harvest effect");
+    player.skillCooldowns[4] = 12_000;
+    expect(reduceRogueShadowDanceCooldown(player, 5_000, 99, harvest)).toBe(5_000);
+  });
+
   it("starts neutral, exposes only local deadlines, and clears every transient window together", () => {
     const player = rogue();
     expect(player).toMatchObject({
@@ -120,6 +185,7 @@ describe("hidden Rogue runtime contract", () => {
       roguePredatorShivUntil: 0,
       rogueShadowDanceInvulnerableUntil: 0,
       rogueShadowReturn: null,
+      rogueExecution: null,
     });
 
     player.opening = { source: "shadow_step", expiresAt: 1_500, bonusRatio: 0.4 };
@@ -128,6 +194,7 @@ describe("hidden Rogue runtime contract", () => {
     player.roguePredatorShivUntil = 2_000;
     player.rogueShadowDanceInvulnerableUntil = 1_450;
     player.rogueShadowReturn = { x: 10, y: 12, expiresAt: 2_000 };
+    player.rogueExecution = { targetId: "monster", expiresAt: 2_000 };
     expect(isPlayerInvulnerable(player, 1_449)).toBe(true);
     expect(isPlayerInvulnerable(player, 1_450)).toBe(false);
     expect(expireRogueShadowDanceProtection(player, 1_449)).toBe(false);
@@ -157,6 +224,7 @@ describe("hidden Rogue runtime contract", () => {
     player.rogueStealthUntil = 8_000;
     player.rogueShadowDanceInvulnerableUntil = 8_450;
     player.rogueShadowReturn = { x: 10, y: 12, expiresAt: 2_000 };
+    player.rogueExecution = { targetId: "monster", expiresAt: 2_000 };
 
     const persisted = toProfile(player);
     const serialized = JSON.stringify(persisted);
@@ -164,6 +232,7 @@ describe("hidden Rogue runtime contract", () => {
     expect(serialized).not.toContain("rogueStealth");
     expect(serialized).not.toContain("rogueShadowDance");
     expect(serialized).not.toContain("rogueShadowReturn");
+    expect(serialized).not.toContain("rogueExecution");
     expect(newPlayer(persisted, "reconnected", player.roomKey).opening).toBeNull();
   });
 });

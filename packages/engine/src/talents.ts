@@ -1,4 +1,5 @@
 import type { PlayerClass } from "./game.js";
+import { ROGUE_BALANCE } from "./rogue.js";
 import { isSkillUnlocked, type SkillDefinition, type SkillSlot, skillFor } from "./skills.js";
 
 export type TalentEffect =
@@ -64,7 +65,25 @@ export type TalentEffect =
   | { kind: "sanctuary"; ticks: number; intervalMs: number }
   | { kind: "absolution"; cleanse: "poison" }
   | { kind: "nova_judgment"; damageMultiplier: number; healMultiplier: number }
-  | { kind: "nova_mercy"; damageMultiplier: number; healMultiplier: number };
+  | { kind: "nova_mercy"; damageMultiplier: number; healMultiplier: number }
+  | {
+      kind: "rogue_executor";
+      openingBonusRatio: number;
+      killWindowMs: number;
+      cooldownReductionRatio: number;
+    }
+  | { kind: "rogue_shadow_return"; windowMs: number }
+  | {
+      kind: "rogue_predator";
+      openingBonusRatio: number;
+      shivWindowMs: number;
+      poisonPowerMultiplier: number;
+    }
+  | { kind: "rogue_smoke_screen"; protectionMs: number }
+  | { kind: "rogue_concentrated_venom"; maxStacks: number }
+  | { kind: "rogue_rupture"; remainingDamageRatio: number }
+  | { kind: "rogue_dark_harvest"; cooldownReductionPerKillMs: number }
+  | { kind: "rogue_thousand_cuts"; repeatPowerRatio: number };
 
 export type TalentLabel =
   | "root"
@@ -458,9 +477,116 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
       },
     ]),
   ],
-  // The class contract lands before the selectable Rogue and its final choices. Keeping this
-  // explicit empty entry makes the hidden phase safe for old clients and normalized profiles.
-  rogue: [],
+  rogue: [
+    ...branch("rogue", 2, [
+      { key: "ambush", label: "power", effects: [power()] },
+      { key: "reach", label: "range", effects: [range()] },
+      { key: "readiness", label: "cooldown", effects: [cooldown()] },
+      {
+        key: "executor",
+        label: "mastery",
+        effects: [
+          {
+            kind: "rogue_executor",
+            openingBonusRatio: ROGUE_BALANCE.opening.executorBonusRatio,
+            killWindowMs: ROGUE_BALANCE.opening.executorKillWindowMs,
+            cooldownReductionRatio: ROGUE_BALANCE.opening.executorCooldownReductionRatio,
+          },
+        ],
+      },
+      {
+        key: "shadow_return",
+        label: "mastery",
+        effects: [
+          {
+            kind: "rogue_shadow_return",
+            windowMs: ROGUE_BALANCE.shadowStep.returnWindowMs,
+          },
+        ],
+      },
+    ]),
+    ...branch("rogue", 3, [
+      { key: "ambush", label: "power", effects: [power()] },
+      { key: "readiness", label: "cooldown", effects: [cooldown()] },
+      {
+        key: "mastery",
+        label: "mastery",
+        effects: [power(0.08), cooldown(0.08)],
+      },
+      {
+        key: "predator",
+        label: "mastery",
+        effects: [
+          {
+            kind: "rogue_predator",
+            openingBonusRatio: ROGUE_BALANCE.opening.predatorBonusRatio,
+            shivWindowMs: ROGUE_BALANCE.vanish.predatorShivWindowMs,
+            poisonPowerMultiplier: ROGUE_BALANCE.vanish.predatorPoisonPowerMultiplier,
+          },
+        ],
+      },
+      {
+        key: "smoke_screen",
+        label: "mastery",
+        effects: [
+          {
+            kind: "rogue_smoke_screen",
+            protectionMs: ROGUE_BALANCE.vanish.smokeProtectionMs,
+          },
+        ],
+      },
+    ]),
+    ...branch("rogue", 4, [
+      { key: "force", label: "power", effects: [power()] },
+      { key: "reach", label: "range", effects: [range()] },
+      { key: "readiness", label: "cooldown", effects: [cooldown()] },
+      {
+        key: "concentrated_venom",
+        label: "mastery",
+        effects: [
+          {
+            kind: "rogue_concentrated_venom",
+            maxStacks: ROGUE_BALANCE.poisonedShiv.concentratedVenomMaxStacks,
+          },
+        ],
+      },
+      {
+        key: "rupture",
+        label: "mastery",
+        effects: [
+          {
+            kind: "rogue_rupture",
+            remainingDamageRatio: ROGUE_BALANCE.poisonedShiv.ruptureRemainingDamageRatio,
+          },
+        ],
+      },
+    ]),
+    ...branch("rogue", 5, [
+      { key: "force", label: "power", effects: [power()] },
+      { key: "reach", label: "range", effects: [range()] },
+      { key: "readiness", label: "cooldown", effects: [cooldown()] },
+      {
+        key: "dark_harvest",
+        label: "mastery",
+        effects: [
+          {
+            kind: "rogue_dark_harvest",
+            cooldownReductionPerKillMs: ROGUE_BALANCE.shadowDance.darkHarvestCooldownReductionMs,
+          },
+        ],
+      },
+      {
+        key: "thousand_cuts",
+        label: "mastery",
+        effects: [
+          {
+            kind: "rogue_thousand_cuts",
+            repeatPowerRatio: ROGUE_BALANCE.shadowDance.thousandCutsPowerRatio,
+          },
+        ],
+      },
+    ]),
+  ],
 };
 
 export interface TalentState {

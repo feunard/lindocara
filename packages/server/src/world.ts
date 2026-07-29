@@ -211,6 +211,7 @@ import {
 import {
   advanceDamageOverTime,
   applyDamageOverTime,
+  consumeDamageOverTimePower,
   type DamageOverTimeRuntime,
   damageOverTimeRemainingPower,
   removeDamageOverTimeBySource,
@@ -295,19 +296,31 @@ import { planShadowDance } from "./world/rogue-shadow-dance-system.js";
 import {
   hasRogueLineOfSight,
   isShadowStepPathClear,
+  planShadowReturn,
   planShadowStep,
 } from "./world/rogue-skill-system.js";
 import {
   activeRogueOpening,
+  applyRogueSmokeProtection,
+  armRogueExecution,
+  armRoguePredatorShiv,
   clearRogueTransientState,
   consumeRogueOpening,
+  consumeRoguePredatorShivMultiplier,
   enterRogueStealth,
   exitRogueStealth,
+  expireRogueExecution,
   expireRogueOpening,
+  expireRoguePredatorShiv,
   expireRogueShadowDanceProtection,
+  expireRogueShadowReturn,
+  expireRogueSmokeProtection,
   expireRogueStealth,
   grantRogueOpening,
   isRogueStealthed,
+  reduceRogueShadowDanceCooldown,
+  resolveRogueExecutionKill,
+  rogueOpeningBonusRatio,
 } from "./world/rogue-state-system.js";
 import { movePlayerInDirection, nearestChargeTarget } from "./world/skill-system.js";
 import {
@@ -379,6 +392,7 @@ interface PendingQuestConversation {
 interface MonsterDamageContext {
   damageOverTime?: boolean;
   persistentOwnerCredit?: boolean;
+  poisonRupture?: boolean;
   suppressHitEvent?: boolean;
 }
 
@@ -1935,6 +1949,78 @@ export class World extends DurableObject<Env> {
     const now = Date.now();
     if (!canAct(player.life)) return false;
     if (expireRogueStealth(player, now)) this.#sendState(ws, player);
+    if (expireRogueShadowReturn(player, now)) this.#sendState(ws, player);
+    const shadowReturn =
+      skill.id === "shadow_step"
+        ? talentEffect(player.class, player.talents, "rogue_shadow_return", 2)
+        : undefined;
+    if (shadowReturn && player.rogueShadowReturn) {
+      const planning = planShadowReturn(
+        player,
+        player.rogueShadowReturn,
+        now,
+        this.#zone().terrain,
+      );
+      if (!planning.ok) {
+        if (planning.reason === "expired") {
+          player.rogueShadowReturn = null;
+          this.#sendState(ws, player);
+        } else {
+          this.#send(ws, {
+            t: "event",
+            code: "skill.blocked",
+            params: { skill: skill.id },
+            tone: "info",
+            x: player.x,
+            y: player.y,
+          });
+        }
+        return false;
+      }
+      const origin = { x: player.x, y: player.y };
+      const predator = talentEffect(player.class, player.talents, "rogue_predator", 3);
+      const stealthExited = exitRogueStealth(player, now, {
+        offensive: true,
+        openingBonusRatio: rogueOpeningBonusRatio(player, 3, predator?.openingBonusRatio),
+      });
+      if (stealthExited && predator) armRoguePredatorShiv(player, now, predator);
+      cancelCombatAction(player);
+      player.x = planning.destination.x;
+      player.y = planning.destination.y;
+      player.rogueShadowReturn = null;
+      player.dirty = true;
+      this.#playerGrid.update(player, origin);
+      this.#sendState(ws, player);
+      this.#send(ws, {
+        t: "event",
+        code: "skill.cast",
+        params: { skill: skill.id, slot },
+        tone: "good",
+        x: player.x,
+        y: player.y,
+      });
+      this.#sendSpatialEvent(
+        {
+          t: "animation",
+          actionId: crypto.randomUUID(),
+          actorKind: "player",
+          actorId: player.id,
+          action: "skill",
+          skillId: skill.id,
+          talented: true,
+          evolved: true,
+          direction: normalizeDirection(
+            { x: planning.destination.x - origin.x, y: planning.destination.y - origin.y },
+            player.facing,
+          ),
+          startedAt: now,
+          impactAt: now,
+          recoveryEndsAt: now + 180,
+        },
+        player,
+      );
+      return true;
+    }
     if (skill.id === "vanish" && isRogueStealthed(player, now)) return false;
     if (player.guarding) {
       if (skill.id !== "iron_guard") return false;
@@ -1990,6 +2076,11 @@ export class World extends DurableObject<Env> {
             now,
             this.#zone().terrain,
             (monster) => monsterBodyRadius(monster.species),
+            {
+              repeatPrimary: Boolean(
+                talentEffect(player.class, player.talents, "rogue_thousand_cuts", 5),
+              ),
+            },
           )
         : null;
     if (shadowDance && !shadowDance.ok) {
@@ -2073,7 +2164,12 @@ export class World extends DurableObject<Env> {
       action.sacredPassageHealedIds = new Set();
 
     if (skill.id !== "vanish") {
-      exitRogueStealth(player, now, { offensive: true });
+      const predator = talentEffect(player.class, player.talents, "rogue_predator", 3);
+      const stealthExited = exitRogueStealth(player, now, {
+        offensive: true,
+        openingBonusRatio: rogueOpeningBonusRatio(player, 3, predator?.openingBonusRatio),
+      });
+      if (stealthExited && predator) armRoguePredatorShiv(player, now, predator);
     }
     // Attacking breaks invisibility only once the action has actually been accepted.
     player.invisibleUntil = 0;
@@ -2128,6 +2224,8 @@ export class World extends DurableObject<Env> {
 
     if (definition.shape === "stealth") {
       if (enterRogueStealth(player, now)) {
+        const smokeScreen = talentEffect(player.class, player.talents, "rogue_smoke_screen", 3);
+        if (smokeScreen) applyRogueSmokeProtection(player, now, smokeScreen);
         this.#forgetPlayer(player);
         this.#sendState(socket, player);
       }
@@ -2143,7 +2241,7 @@ export class World extends DurableObject<Env> {
         !planned ||
         !target ||
         target.deadUntil > now ||
-        !withinRange(player, target, ROGUE_BALANCE.shadowStep.selectionRange) ||
+        !withinRange(player, target, skill.range) ||
         !hasRogueLineOfSight(player, target, this.#zone().terrain) ||
         !isShadowStepPathClear(player, planned.destination, this.#zone().terrain)
       ) {
@@ -2158,6 +2256,13 @@ export class World extends DurableObject<Env> {
         return;
       }
       const previousPosition = { x: player.x, y: player.y };
+      const shadowReturn = talentEffect(player.class, player.talents, "rogue_shadow_return", 2);
+      if (shadowReturn) {
+        player.rogueShadowReturn = {
+          ...previousPosition,
+          expiresAt: now + Math.max(0, shadowReturn.windowMs),
+        };
+      }
       player.x = planned.destination.x;
       player.y = planned.destination.y;
       player.facing = normalizeDirection(
@@ -2165,7 +2270,32 @@ export class World extends DurableObject<Env> {
         action.direction,
       );
       this.#playerGrid.update(player, previousPosition);
-      grantRogueOpening(player, "shadow_step", now);
+      const executor = talentEffect(player.class, player.talents, "rogue_executor", 2);
+      grantRogueOpening(
+        player,
+        "shadow_step",
+        now,
+        rogueOpeningBonusRatio(player, 2, executor?.openingBonusRatio),
+      );
+      const rupture = talentEffect(player.class, player.talents, "rogue_rupture", 4);
+      if (rupture) {
+        const consumedPower = consumeDamageOverTimePower(
+          this.#damageOverTime,
+          {
+            kind: "poison",
+            sourceId: player.id,
+            sourceSkillId: "poisoned_shiv",
+            targetKind: "monster",
+            targetId: target.id,
+          },
+          rupture.remainingDamageRatio,
+        );
+        if (consumedPower > 0) {
+          this.#damageMonster(socket, player, target, skill, now, false, consumedPower, {
+            poisonRupture: true,
+          });
+        }
+      }
       this.#sendState(socket, player);
       return;
     }
@@ -2580,6 +2710,10 @@ export class World extends DurableObject<Env> {
     target.hp = result.hp;
     this.#recordDamage(player, target, actualDamage, now);
     if (opening) {
+      if (opening.source === "shadow_step") {
+        const executor = talentEffect(player.class, player.talents, "rogue_executor", 2);
+        if (executor) armRogueExecution(player, target.id, now, executor);
+      }
       consumeRogueOpening(player, now);
       this.#sendState(ws, player);
     }
@@ -2597,6 +2731,7 @@ export class World extends DurableObject<Env> {
             actorId: player.id,
             ...(basic ? { basic: 1 } : {}),
             ...(context.damageOverTime ? { poisonTick: 1 } : {}),
+            ...(context.poisonRupture ? { poisonRupture: 1 } : {}),
           },
           tone: "info",
           x: target.x,
@@ -2613,6 +2748,14 @@ export class World extends DurableObject<Env> {
   #applyRoguePoison(player: Player, target: Monster, skill: SkillDefinition, now: number): void {
     const baseSkill = CLASS_SKILLS.rogue[3];
     const talentPowerRatio = baseSkill ? skill.power / Math.max(1, baseSkill.power) : 1;
+    const predator = talentEffect(player.class, player.talents, "rogue_predator", 3);
+    const predatorPowerMultiplier = consumeRoguePredatorShivMultiplier(player, now, predator);
+    const concentratedVenom = talentEffect(
+      player.class,
+      player.talents,
+      "rogue_concentrated_venom",
+      4,
+    );
     applyDamageOverTime(this.#damageOverTime, {
       kind: "poison",
       sourceId: player.id,
@@ -2621,9 +2764,12 @@ export class World extends DurableObject<Env> {
       targetId: target.id,
       now,
       tickCount: ROGUE_BALANCE.poisonedShiv.poisonTicks,
-      tickPower: Math.max(1, Math.round(roguePoisonTickPower(player.level) * talentPowerRatio)),
+      tickPower: Math.max(
+        1,
+        Math.round(roguePoisonTickPower(player.level) * talentPowerRatio * predatorPowerMultiplier),
+      ),
       intervalMs: ROGUE_BALANCE.poisonedShiv.poisonIntervalMs,
-      maxStacks: 1,
+      maxStacks: concentratedVenom?.maxStacks ?? 1,
     });
   }
 
@@ -2634,6 +2780,7 @@ export class World extends DurableObject<Env> {
     skill: SkillDefinition,
     now: number,
   ): void {
+    const thousandCuts = talentEffect(player.class, player.talents, "rogue_thousand_cuts", 5);
     const planning = planShadowDance(
       player,
       this.#monsters,
@@ -2642,6 +2789,7 @@ export class World extends DurableObject<Env> {
       now,
       this.#zone().terrain,
       (monster) => monsterBodyRadius(monster.species),
+      { repeatPrimary: Boolean(thousandCuts) },
     );
     if (!planning.ok) {
       this.#send(ws, {
@@ -2662,7 +2810,16 @@ export class World extends DurableObject<Env> {
       if (!target || target.deadUntil > now) continue;
       player.x = planned.landing.x;
       player.y = planned.landing.y;
-      const result = this.#damageMonster(ws, player, target, skill, now, false, undefined, {
+      const repeatedPower =
+        planned.repeated && thousandCuts
+          ? Math.max(
+              1,
+              Math.round(
+                (skill.power + Math.max(0, player.level - 1) * 2) * thousandCuts.repeatPowerRatio,
+              ),
+            )
+          : undefined;
+      const result = this.#damageMonster(ws, player, target, skill, now, false, repeatedPower, {
         suppressHitEvent: true,
       });
       if (!result) continue;
@@ -2674,6 +2831,7 @@ export class World extends DurableObject<Env> {
         impactAt: now + strikes.length * ROGUE_BALANCE.shadowDance.strikeIntervalMs,
         damage: result.actualDamage,
         killed: result.killed,
+        ...(planned.repeated ? { repeated: true as const } : {}),
       });
     }
     const last = strikes.at(-1);
@@ -2696,6 +2854,14 @@ export class World extends DurableObject<Env> {
     const endsAt = now + Math.max(1, strikes.length) * ROGUE_BALANCE.shadowDance.strikeIntervalMs;
     player.rogueShadowDanceInvulnerableUntil = endsAt;
     player.dirty = true;
+    const darkHarvest = talentEffect(player.class, player.talents, "rogue_dark_harvest", 5);
+    if (darkHarvest) {
+      const kills = strikes.filter((strike) => strike.killed).length;
+      if (kills > 0) {
+        reduceRogueShadowDanceCooldown(player, now, kills, darkHarvest);
+        this.#sendState(ws, player);
+      }
+    }
 
     const sequence: RogueShadowDanceSequence = {
       t: "rogue.shadow_dance",
@@ -3018,6 +3184,15 @@ export class World extends DurableObject<Env> {
     persistentOwnerCredit = false,
   ): void {
     if (!beginRewardAttribution(monster)) return;
+    for (const [socket, candidate] of this.#players) {
+      const executor = talentEffect(candidate.class, candidate.talents, "rogue_executor", 2);
+      if (
+        executor &&
+        candidate.authorized &&
+        resolveRogueExecutionKill(candidate, monster.id, now, executor)
+      )
+        this.#sendState(socket, candidate);
+    }
     this.#markMonsterDead(monster, now);
     const directlyEligible = [...monster.contributions.values()]
       .filter((contribution) => {
@@ -4013,8 +4188,13 @@ export class World extends DurableObject<Env> {
     this.#advanceConsumableEffects(now);
     for (const [socket, player] of this.#players) {
       expireRogueOpening(player, now);
+      expireRogueExecution(player, now);
+      expireRoguePredatorShiv(player, now);
       expireRogueShadowDanceProtection(player, now);
-      if (expireRogueStealth(player, now)) this.#sendState(socket, player);
+      const shadowReturnExpired = expireRogueShadowReturn(player, now);
+      const smokeProtectionExpired = expireRogueSmokeProtection(player, now);
+      const selfStateChanged = shadowReturnExpired || smokeProtectionExpired;
+      if (expireRogueStealth(player, now) || selfStateChanged) this.#sendState(socket, player);
     }
     advanceDamageOverTime(this.#damageOverTime, now, {
       sourceIsActive: (sourceId) => {

@@ -1,6 +1,7 @@
 import {
   advanceDamageOverTime,
   applyDamageOverTime,
+  consumeDamageOverTimePower,
   type DamageOverTimeRuntime,
   damageOverTimeRemainingPower,
   removeDamageOverTimeBySource,
@@ -86,6 +87,31 @@ describe("server-timed damage over time", () => {
     expect(first.stacks.map((stack) => stack.sequence)).toEqual([3, 1, 2]);
     expect(first.stacks.map((stack) => stack.appliedAt)).toEqual([1_300, 1_100, 1_200]);
     expect(damageOverTimeRemainingPower(first)).toBe(90);
+  });
+
+  it("consumes an exact bounded share without leaving the same power on future ticks", () => {
+    const effects: DamageOverTimeRuntime[] = [];
+    const effect = poison(effects, 1_000);
+    const resolveTick = vi.fn<TickResolver>();
+
+    expect(
+      consumeDamageOverTimePower(
+        effects,
+        {
+          kind: "poison",
+          sourceId: "rogue",
+          sourceSkillId: "poisoned_shiv",
+          targetKind: "monster",
+          targetId: "boss",
+        },
+        0.6,
+      ),
+    ).toBe(18);
+    expect(damageOverTimeRemainingPower(effect)).toBe(12);
+
+    advance(effects, 10_000, resolveTick);
+    expect(resolveTick.mock.calls.reduce((sum, call) => sum + call[2].power, 0)).toBe(12);
+    expect(effects).toEqual([]);
   });
 
   it("drops effects when either endpoint disappears and supports explicit room cleanup", () => {

@@ -120,4 +120,29 @@ describe("authoritative Shadow Dance planning", () => {
     if (!result.ok) throw new Error("expected a dense Shadow Dance route");
     expect(result.plan.strikes).toHaveLength(5);
   });
+
+  it("fills a sparse Thousand Cuts route with bounded returns to the primary target", () => {
+    const result = planShadowDance(
+      { x: 32, y: 128 },
+      [{ id: "boss", x: 128, y: 128, deadUntil: 0 }],
+      360,
+      5,
+      1_000,
+      terrain(),
+      radius,
+      { repeatPrimary: true },
+    );
+    if (!result.ok) throw new Error("expected a single-target Thousand Cuts route");
+    expect(result.plan.strikes).toHaveLength(5);
+    expect(result.plan.strikes.map((strike) => strike.targetId)).toEqual(
+      Array.from({ length: 5 }, () => "boss"),
+    );
+    expect(result.plan.strikes.map((strike) => strike.repeated ?? false)).toEqual([
+      false,
+      true,
+      true,
+      true,
+      true,
+    ]);
+  });
 });

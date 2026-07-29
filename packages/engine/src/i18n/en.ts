@@ -694,6 +694,30 @@ export const en = {
   "talent.evolution.priest.divine_nova.b.name": "Mercy",
   "talent.evolution.priest.divine_nova.b.description":
     "Multiply evolved Nova healing by 140% while reducing its damage output to 60%.",
+  "talent.evolution.rogue.shadow_step.a.name": "Executor",
+  "talent.evolution.rogue.shadow_step.a.description":
+    "Shadow Step grants a much stronger Opening; if its struck target dies within 2 seconds, halve the remaining cooldown.",
+  "talent.evolution.rogue.shadow_step.b.name": "Shadow Return",
+  "talent.evolution.rogue.shadow_step.b.description":
+    "Reactivate within 2 seconds to follow a collision-validated path back to your departure point, without a second Opening.",
+  "talent.evolution.rogue.vanish.a.name": "Predator",
+  "talent.evolution.rogue.vanish.a.description":
+    "Leave Vanish with a stronger Opening and empower the next Poisoned Shiv used within 2 seconds.",
+  "talent.evolution.rogue.vanish.b.name": "Smoke Screen",
+  "talent.evolution.rogue.vanish.b.description":
+    "Immediately clear aggro and gain 500 ms of authoritative protection while entering stealth.",
+  "talent.evolution.rogue.poisoned_shiv.a.name": "Concentrated Venom",
+  "talent.evolution.rogue.poisoned_shiv.a.description":
+    "Poison can build three independent, deterministically refreshed stacks on the same target.",
+  "talent.evolution.rogue.poisoned_shiv.b.name": "Rupture",
+  "talent.evolution.rogue.poisoned_shiv.b.description":
+    "Shadow Step consumes and immediately deals 60% of your poison's remaining scheduled damage.",
+  "talent.evolution.rogue.shadow_dance.a.name": "Dark Harvest",
+  "talent.evolution.rogue.shadow_dance.a.description":
+    "Each enemy killed during the sequence removes 1.5 seconds from Shadow Dance's cooldown, never below zero.",
+  "talent.evolution.rogue.shadow_dance.b.name": "Thousand Cuts",
+  "talent.evolution.rogue.shadow_dance.b.description":
+    "If fewer than five distinct targets exist, return to the primary target for 60%-power strikes.",
   "talent.node.mastery.name": "Mastery",
   "talent.node.mastery.description": "Greatly improve {skill}'s defining strengths.",
   "status.connecting": "connecting as {name}...",

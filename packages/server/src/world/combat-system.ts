@@ -29,7 +29,8 @@ export function isPlayerInvulnerable(player: PlayerRuntime, now: number): boolea
     player.cheatInvulnerable ||
     dashing ||
     isLumenCloudInvulnerable(player, now) ||
-    (player.class === "rogue" && player.rogueShadowDanceInvulnerableUntil > now)
+    (player.class === "rogue" &&
+      (player.rogueSmokeProtectionUntil > now || player.rogueShadowDanceInvulnerableUntil > now))
   );
 }
 

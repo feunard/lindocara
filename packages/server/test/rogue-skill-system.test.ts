@@ -3,6 +3,7 @@ import type { TerrainGeometry } from "@lindocara/engine/game.js";
 import {
   hasRogueLineOfSight,
   isShadowStepPathClear,
+  planShadowReturn,
   planShadowStep,
   type ShadowStepCandidate,
   shadowStepDestination,
@@ -93,6 +94,26 @@ describe("authoritative Shadow Step planning", () => {
   it("sweeps the whole Rogue body and never teleports through an obstacle", () => {
     const geometry = terrain([{ x: 145, y: 64, width: 12, height: 192 }]);
     expect(isShadowStepPathClear({ x: 64, y: 128 }, { x: 220, y: 128 }, geometry)).toBe(false);
+  });
+
+  it("validates Shadow Return against expiry and the same swept collision geometry", () => {
+    const point = { x: 64, y: 128, expiresAt: 2_000 };
+    expect(planShadowReturn({ x: 220, y: 128 }, point, 1_999, terrain())).toEqual({
+      ok: true,
+      destination: { x: 64, y: 128 },
+    });
+    expect(planShadowReturn({ x: 220, y: 128 }, point, 2_000, terrain())).toEqual({
+      ok: false,
+      reason: "expired",
+    });
+    expect(
+      planShadowReturn(
+        { x: 220, y: 128 },
+        point,
+        1_999,
+        terrain([{ x: 145, y: 64, width: 12, height: 192 }]),
+      ),
+    ).toEqual({ ok: false, reason: "blocked" });
   });
 
   it("reports no target when every living enemy is out of range or out of sight", () => {

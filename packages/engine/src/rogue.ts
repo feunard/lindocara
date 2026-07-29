@@ -12,6 +12,7 @@ export const ROGUE_BALANCE = {
     durationMs: 1_500,
     bonusRatio: 0.4,
     executorBonusRatio: 0.75,
+    predatorBonusRatio: 0.75,
     executorKillWindowMs: 2_000,
     executorCooldownReductionRatio: 0.5,
   },
@@ -24,6 +25,7 @@ export const ROGUE_BALANCE = {
     cooldownMs: 14_000,
     maximumDurationMs: 8_000,
     predatorShivWindowMs: 2_000,
+    predatorPoisonPowerMultiplier: 1.5,
     smokeProtectionMs: 500,
   },
   poisonedShiv: {

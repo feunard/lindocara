@@ -701,6 +701,30 @@ export const fr: Record<keyof typeof en, string> = {
   "talent.evolution.priest.divine_nova.b.name": "Miséricorde",
   "talent.evolution.priest.divine_nova.b.description":
     "Multiplie les soins de la Nova évoluée par 140 % et réduit ses dégâts à 60 %.",
+  "talent.evolution.rogue.shadow_step.a.name": "Exécuteur",
+  "talent.evolution.rogue.shadow_step.a.description":
+    "Pas de l'ombre donne une Ouverture bien plus forte ; si la cible frappée meurt sous 2 secondes, la recharge restante est réduite de moitié.",
+  "talent.evolution.rogue.shadow_step.b.name": "Retour d'ombre",
+  "talent.evolution.rogue.shadow_step.b.description":
+    "Réactivez sous 2 secondes pour revenir au point de départ par un trajet collisionné, sans générer une seconde Ouverture.",
+  "talent.evolution.rogue.vanish.a.name": "Prédateur",
+  "talent.evolution.rogue.vanish.a.description":
+    "Sortez de Disparition avec une Ouverture renforcée et amplifiez le prochain Surin empoisonné utilisé sous 2 secondes.",
+  "talent.evolution.rogue.vanish.b.name": "Écran de fumée",
+  "talent.evolution.rogue.vanish.b.description":
+    "Supprime immédiatement l'aggro et accorde 500 ms de protection autoritaire à l'entrée en furtivité.",
+  "talent.evolution.rogue.poisoned_shiv.a.name": "Venin concentré",
+  "talent.evolution.rogue.poisoned_shiv.a.description":
+    "Le poison peut former trois charges indépendantes, rafraîchies de manière déterministe sur la même cible.",
+  "talent.evolution.rogue.poisoned_shiv.b.name": "Rupture",
+  "talent.evolution.rogue.poisoned_shiv.b.description":
+    "Pas de l'ombre consomme et inflige immédiatement 60 % des dégâts de poison encore planifiés.",
+  "talent.evolution.rogue.shadow_dance.a.name": "Moisson noire",
+  "talent.evolution.rogue.shadow_dance.a.description":
+    "Chaque ennemi tué pendant la séquence retire 1,5 seconde de recharge à Danse des ombres, sans jamais passer sous zéro.",
+  "talent.evolution.rogue.shadow_dance.b.name": "Mille coupures",
+  "talent.evolution.rogue.shadow_dance.b.description":
+    "S'il existe moins de cinq cibles distinctes, revenez sur la cible principale avec des frappes à 60 % de puissance.",
   "talent.node.mastery.name": "Maîtrise",
   "talent.node.mastery.description": "Améliore fortement les atouts principaux de {skill}.",
   "status.connecting": "connexion en tant que {name}...",

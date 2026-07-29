@@ -12,6 +12,7 @@ export interface ShadowDanceStrikePlan {
   targetPosition: Vec2;
   from: Vec2;
   landing: Vec2;
+  repeated?: true;
 }
 
 export interface ShadowDancePlan {
@@ -23,6 +24,10 @@ export interface ShadowDancePlan {
 export type ShadowDancePlanningResult =
   | { ok: true; plan: ShadowDancePlan }
   | { ok: false; reason: "no_target" | "blocked" };
+
+export interface ShadowDancePlanningOptions {
+  repeatPrimary?: boolean;
+}
 
 const MAX_PLANNED_STRIKES = 8;
 
@@ -43,6 +48,7 @@ export function planShadowDance<T extends ShadowDanceCandidate>(
   now: number,
   terrain: TerrainGeometry,
   bodyRadius: (candidate: T) => number,
+  options: ShadowDancePlanningOptions = {},
 ): ShadowDancePlanningResult {
   const pool = [...candidates];
   const selectedIds = new Set<string>();
@@ -101,6 +107,22 @@ export function planShadowDance<T extends ShadowDanceCandidate>(
       ok: false,
       reason: firstVisibleTargetWasBlocked ? "blocked" : "no_target",
     };
+  if (options.repeatPrimary) {
+    const primary = pool.find((candidate) => candidate.id === first.targetId);
+    while (primary && strikes.length < boundedHits && primary.deadUntil <= now) {
+      if (!hasRogueLineOfSight(actorPosition, primary, terrain)) break;
+      const landing = shadowStepDestination(actorPosition, primary, bodyRadius(primary), terrain);
+      if (!landing) break;
+      strikes.push({
+        targetId: primary.id,
+        targetPosition: { x: primary.x, y: primary.y },
+        from: { ...actorPosition },
+        landing: { ...landing },
+        repeated: true,
+      });
+      actorPosition = { ...landing };
+    }
+  }
   return {
     ok: true,
     plan: {

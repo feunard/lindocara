@@ -46,6 +46,14 @@ export interface AdvanceDamageOverTimeOptions {
   ) => void;
 }
 
+export interface DamageOverTimeQuery {
+  kind?: DamageOverTimeKind;
+  sourceId?: string;
+  sourceSkillId?: string;
+  targetKind?: DamageOverTimeTargetKind;
+  targetId?: string;
+}
+
 const MAX_STACKS = 8;
 const MAX_TICKS_PER_STACK = 32;
 const MIN_INTERVAL_MS = 50;
@@ -194,6 +202,63 @@ export function damageOverTimeRemainingPower(effect: DamageOverTimeRuntime): num
     (total, stack) => total + stack.ticks.reduce((stackTotal, tick) => stackTotal + tick.power, 0),
     0,
   );
+}
+
+function matchesQuery(effect: DamageOverTimeRuntime, query: DamageOverTimeQuery): boolean {
+  return (
+    (query.kind === undefined || effect.kind === query.kind) &&
+    (query.sourceId === undefined || effect.sourceId === query.sourceId) &&
+    (query.sourceSkillId === undefined || effect.sourceSkillId === query.sourceSkillId) &&
+    (query.targetKind === undefined || effect.targetKind === query.targetKind) &&
+    (query.targetId === undefined || effect.targetId === query.targetId)
+  );
+}
+
+/**
+ * Converts a bounded ratio of scheduled power into an immediate authoritative payload. Power is
+ * removed from the oldest stack/tick order before the caller deals it, so the same poison can never
+ * be paid both now and on a later server tick.
+ */
+export function consumeDamageOverTimePower(
+  effects: DamageOverTimeRuntime[],
+  query: DamageOverTimeQuery,
+  ratio: number,
+): number {
+  const matching = effects
+    .filter((effect) => matchesQuery(effect, query))
+    .sort(
+      (left, right) =>
+        left.lastAppliedAt - right.lastAppliedAt ||
+        left.targetKind.localeCompare(right.targetKind) ||
+        left.targetId.localeCompare(right.targetId) ||
+        left.sourceId.localeCompare(right.sourceId) ||
+        left.kind.localeCompare(right.kind),
+    );
+  const total = matching.reduce((sum, effect) => sum + damageOverTimeRemainingPower(effect), 0);
+  let remainingToConsume = Math.max(
+    0,
+    Math.min(
+      total,
+      Math.round(total * Math.max(0, Math.min(1, Number.isFinite(ratio) ? ratio : 0))),
+    ),
+  );
+  const requested = remainingToConsume;
+  for (const effect of matching) {
+    for (const stack of [...effect.stacks].sort((left, right) => left.sequence - right.sequence)) {
+      for (const tick of stack.ticks) {
+        if (remainingToConsume <= 0) break;
+        const consumed = Math.min(tick.power, remainingToConsume);
+        tick.power -= consumed;
+        remainingToConsume -= consumed;
+      }
+      stack.ticks = stack.ticks.filter((tick) => tick.power > 0);
+      if (remainingToConsume <= 0) break;
+    }
+    effect.stacks = effect.stacks.filter((stack) => stack.ticks.length > 0);
+    if (effect.stacks.length === 0) removeEffect(effects, effect);
+    if (remainingToConsume <= 0) break;
+  }
+  return requested - remainingToConsume;
 }
 
 export function removeDamageOverTimeBySource(

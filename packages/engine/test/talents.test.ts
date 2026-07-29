@@ -1,3 +1,4 @@
+import { ROGUE_BALANCE } from "@lindocara/engine/rogue.js";
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
 import {
   activeEvolutionVariant,
@@ -14,7 +15,6 @@ import { describe, expect, it } from "vitest";
 describe("class talents", () => {
   it("ships four rooted branches with three intermediates and one or two final evolutions", () => {
     for (const [playerClass, nodes] of Object.entries(CLASS_TALENTS)) {
-      if (playerClass === "rogue") continue;
       for (const slot of [2, 3, 4, 5] as const) {
         const branch = nodes.filter((node) => node.slot === slot);
         expect(branch.filter((node) => node.root)).toHaveLength(1);
@@ -49,8 +49,30 @@ describe("class talents", () => {
     }
   });
 
-  it("keeps the Rogue talent tree absent while the class contract is hidden", () => {
-    expect(CLASS_TALENTS.rogue).toEqual([]);
+  it("ships two exclusive final variants for every Rogue technique branch", () => {
+    const expected = [
+      ["rogue.shadow_step.executor", "rogue.shadow_step.shadow_return"],
+      ["rogue.vanish.predator", "rogue.vanish.smoke_screen"],
+      ["rogue.poisoned_shiv.concentrated_venom", "rogue.poisoned_shiv.rupture"],
+      ["rogue.shadow_dance.dark_harvest", "rogue.shadow_dance.thousand_cuts"],
+    ];
+    for (const [index, slot] of ([2, 3, 4, 5] as const).entries()) {
+      const finals = CLASS_TALENTS.rogue.filter((node) => node.slot === slot && node.tier === 3);
+      expect(finals.map((node) => node.id)).toEqual(expected[index]);
+      expect(finals.map((node) => node.variantId)).toEqual(["a", "b"]);
+      expect(new Set(finals.map((node) => node.exclusiveGroup)).size).toBe(1);
+    }
+
+    const prerequisites = CLASS_TALENTS.rogue
+      .filter((node) => node.slot === 2 && !node.root && node.tier < 3)
+      .map((node) => node.id);
+    expect(
+      normalizeTalentSelection("rogue", 10, [
+        ...prerequisites,
+        "rogue.shadow_step.executor",
+        "rogue.shadow_step.shadow_return",
+      ]),
+    ).toEqual([...prerequisites, "rogue.shadow_step.executor"]);
   });
 
   it("detects a conflicting future variant without changing legacy capstone selections", () => {
@@ -278,5 +300,43 @@ describe("class talents", () => {
       damageMultiplier: 0.6,
       healMultiplier: 1.4,
     });
+  });
+
+  it("centralizes all eight Rogue evolution contracts", () => {
+    expect(
+      talentEffect("rogue", ["rogue.shadow_step.executor"], "rogue_executor", 2),
+    ).toMatchObject({
+      openingBonusRatio: ROGUE_BALANCE.opening.executorBonusRatio,
+      killWindowMs: 2_000,
+      cooldownReductionRatio: 0.5,
+    });
+    expect(
+      talentEffect("rogue", ["rogue.shadow_step.shadow_return"], "rogue_shadow_return", 2),
+    ).toMatchObject({ windowMs: 2_000 });
+    expect(talentEffect("rogue", ["rogue.vanish.predator"], "rogue_predator", 3)).toMatchObject({
+      openingBonusRatio: ROGUE_BALANCE.opening.predatorBonusRatio,
+      shivWindowMs: 2_000,
+      poisonPowerMultiplier: 1.5,
+    });
+    expect(
+      talentEffect("rogue", ["rogue.vanish.smoke_screen"], "rogue_smoke_screen", 3),
+    ).toMatchObject({ protectionMs: 500 });
+    expect(
+      talentEffect(
+        "rogue",
+        ["rogue.poisoned_shiv.concentrated_venom"],
+        "rogue_concentrated_venom",
+        4,
+      ),
+    ).toMatchObject({ maxStacks: 3 });
+    expect(
+      talentEffect("rogue", ["rogue.poisoned_shiv.rupture"], "rogue_rupture", 4),
+    ).toMatchObject({ remainingDamageRatio: 0.6 });
+    expect(
+      talentEffect("rogue", ["rogue.shadow_dance.dark_harvest"], "rogue_dark_harvest", 5),
+    ).toMatchObject({ cooldownReductionPerKillMs: 1_500 });
+    expect(
+      talentEffect("rogue", ["rogue.shadow_dance.thousand_cuts"], "rogue_thousand_cuts", 5),
+    ).toMatchObject({ repeatPowerRatio: 0.6 });
   });
 });

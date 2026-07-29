@@ -20,6 +20,14 @@ export type ShadowStepPlanningResult =
   | { ok: true; plan: ShadowStepPlan }
   | { ok: false; reason: "no_target" | "blocked" };
 
+export interface ShadowReturnPoint extends Vec2 {
+  expiresAt: number;
+}
+
+export type ShadowReturnPlanningResult =
+  | { ok: true; destination: Vec2 }
+  | { ok: false; reason: "expired" | "blocked" };
+
 const BODY_SWEEP_RADIUS = (PLAYER_SIZE - 1) / 2;
 const TARGET_CLEARANCE = 4;
 
@@ -135,5 +143,19 @@ export function planShadowStep<T extends ShadowStepCandidate>(
           destination,
         },
       }
+    : { ok: false, reason: "blocked" };
+}
+
+/** A second activation is still a swept body move; a remembered coordinate is never trusted alone. */
+export function planShadowReturn(
+  origin: Vec2,
+  point: ShadowReturnPoint,
+  now: number,
+  terrain: TerrainGeometry,
+): ShadowReturnPlanningResult {
+  if (point.expiresAt <= now) return { ok: false, reason: "expired" };
+  const destination = { x: point.x, y: point.y };
+  return isShadowStepPathClear(origin, destination, terrain)
+    ? { ok: true, destination }
     : { ok: false, reason: "blocked" };
 }

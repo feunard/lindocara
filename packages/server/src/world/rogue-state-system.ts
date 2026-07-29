@@ -1,5 +1,12 @@
 import { ROGUE_BALANCE } from "@lindocara/engine/rogue.js";
+import type { SkillSlot } from "@lindocara/engine/skills.js";
+import { skillWithTalents, type TalentEffect, talentEffects } from "@lindocara/engine/talents.js";
 import type { PlayerRuntime } from "./world-runtime.js";
+
+type ExecutorEffect = Extract<TalentEffect, { kind: "rogue_executor" }>;
+type PredatorEffect = Extract<TalentEffect, { kind: "rogue_predator" }>;
+type SmokeScreenEffect = Extract<TalentEffect, { kind: "rogue_smoke_screen" }>;
+type DarkHarvestEffect = Extract<TalentEffect, { kind: "rogue_dark_harvest" }>;
 
 /**
  * Grants one bounded Opening window. A second source replaces the first instead of stacking its
@@ -17,6 +24,26 @@ export function grantRogueOpening(
     bonusRatio: Math.max(0, bonusRatio),
   };
   player.dirty = true;
+}
+
+/**
+ * Intermediate power adds a bounded share of the normal Opening ratio. A named evolution may
+ * replace the base ratio, but never turns that generic investment into a second stacking state.
+ */
+export function rogueOpeningBonusRatio(
+  player: PlayerRuntime,
+  slot: Extract<SkillSlot, 2 | 3>,
+  evolvedBonusRatio?: number,
+): number {
+  const powerBonus = talentEffects(player.class, player.talents, slot).reduce(
+    (total, effect) => total + (effect.kind === "power_multiplier" ? effect.value : 0),
+    0,
+  );
+  return Math.max(
+    0,
+    (evolvedBonusRatio ?? ROGUE_BALANCE.opening.bonusRatio) +
+      ROGUE_BALANCE.opening.bonusRatio * Math.max(0, powerBonus),
+  );
 }
 
 /** Returns the live window without consuming it, clearing a stale runtime object on the way. */
@@ -89,7 +116,7 @@ export function exitRogueStealth(
   player.rogueSmokeProtectionUntil = 0;
   player.skillCooldowns[2] = Math.max(
     player.skillCooldowns[2] ?? 0,
-    now + ROGUE_BALANCE.vanish.cooldownMs,
+    now + skillWithTalents(player.class, player.talents, 3).cooldownMs,
   );
   if (options.offensive && wasActive) {
     grantRogueOpening(
@@ -119,6 +146,109 @@ export function expireRogueShadowDanceProtection(player: PlayerRuntime, now: num
   return true;
 }
 
+export function armRogueExecution(
+  player: PlayerRuntime,
+  targetId: string,
+  now: number,
+  effect: ExecutorEffect,
+): void {
+  player.rogueExecution = {
+    targetId,
+    expiresAt: now + Math.max(0, effect.killWindowMs),
+  };
+}
+
+export function resolveRogueExecutionKill(
+  player: PlayerRuntime,
+  targetId: string,
+  now: number,
+  effect: ExecutorEffect,
+): boolean {
+  const execution = player.rogueExecution;
+  if (!execution || execution.targetId !== targetId || execution.expiresAt < now) return false;
+  player.rogueExecution = null;
+  const currentDeadline = Math.max(now, player.skillCooldowns[1] ?? 0);
+  const remaining = Math.max(0, currentDeadline - now);
+  player.skillCooldowns[1] =
+    now +
+    Math.max(
+      0,
+      Math.round(remaining * (1 - Math.max(0, Math.min(1, effect.cooldownReductionRatio)))),
+    );
+  player.dirty = true;
+  return true;
+}
+
+export function expireRogueExecution(player: PlayerRuntime, now: number): boolean {
+  if (!player.rogueExecution || player.rogueExecution.expiresAt >= now) return false;
+  player.rogueExecution = null;
+  return true;
+}
+
+export function armRoguePredatorShiv(
+  player: PlayerRuntime,
+  now: number,
+  effect: PredatorEffect,
+): void {
+  player.roguePredatorShivUntil = now + Math.max(0, effect.shivWindowMs);
+}
+
+export function consumeRoguePredatorShivMultiplier(
+  player: PlayerRuntime,
+  now: number,
+  effect: PredatorEffect | undefined,
+): number {
+  if (!effect || player.roguePredatorShivUntil <= now) {
+    if (player.roguePredatorShivUntil > 0 && player.roguePredatorShivUntil <= now)
+      player.roguePredatorShivUntil = 0;
+    return 1;
+  }
+  player.roguePredatorShivUntil = 0;
+  player.dirty = true;
+  return Math.max(1, effect.poisonPowerMultiplier);
+}
+
+export function applyRogueSmokeProtection(
+  player: PlayerRuntime,
+  now: number,
+  effect: SmokeScreenEffect,
+): void {
+  player.rogueSmokeProtectionUntil = now + Math.max(0, effect.protectionMs);
+  player.dirty = true;
+}
+
+export function expireRogueSmokeProtection(player: PlayerRuntime, now: number): boolean {
+  if (player.rogueSmokeProtectionUntil <= 0 || player.rogueSmokeProtectionUntil > now) return false;
+  player.rogueSmokeProtectionUntil = 0;
+  return true;
+}
+
+export function expireRoguePredatorShiv(player: PlayerRuntime, now: number): boolean {
+  if (player.roguePredatorShivUntil <= 0 || player.roguePredatorShivUntil > now) return false;
+  player.roguePredatorShivUntil = 0;
+  return true;
+}
+
+export function expireRogueShadowReturn(player: PlayerRuntime, now: number): boolean {
+  if (!player.rogueShadowReturn || player.rogueShadowReturn.expiresAt >= now) return false;
+  player.rogueShadowReturn = null;
+  return true;
+}
+
+export function reduceRogueShadowDanceCooldown(
+  player: PlayerRuntime,
+  now: number,
+  kills: number,
+  effect: DarkHarvestEffect,
+): number {
+  const current = Math.max(now, player.skillCooldowns[4] ?? 0);
+  const reduction = Math.max(0, Math.floor(kills)) * Math.max(0, effect.cooldownReductionPerKillMs);
+  const next = Math.max(now, current - reduction);
+  player.skillCooldowns[4] = next;
+  player.dirty = true;
+  return next;
+}
+
 /**
  * Rogue combat windows are deliberately session-local. This single reset boundary is reused by
  * death, disconnect and map transition so no caller can forget one of the related states.
@@ -130,4 +260,5 @@ export function clearRogueTransientState(player: PlayerRuntime): void {
   player.roguePredatorShivUntil = 0;
   player.rogueShadowDanceInvulnerableUntil = 0;
   player.rogueShadowReturn = null;
+  player.rogueExecution = null;
 }

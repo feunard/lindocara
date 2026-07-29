@@ -169,6 +169,11 @@ export interface RogueShadowReturnRuntime extends Vec2 {
   expiresAt: number;
 }
 
+export interface RogueExecutionRuntime {
+  targetId: string;
+  expiresAt: number;
+}
+
 export type CleanseableNegativeEffect = "poison";
 
 export interface NegativeEffectRuntime {
@@ -238,6 +243,7 @@ export interface PlayerRuntime extends PlayerProfile {
   roguePredatorShivUntil: number;
   rogueShadowDanceInvulnerableUntil: number;
   rogueShadowReturn: RogueShadowReturnRuntime | null;
+  rogueExecution: RogueExecutionRuntime | null;
   /** Deliberately limited cleanse surface; currently only poison is compatible. */
   negativeEffects: Map<CleanseableNegativeEffect, NegativeEffectRuntime>;
   lastResurrectAt: number;
@@ -520,6 +526,7 @@ export function newPlayer(
     roguePredatorShivUntil: 0,
     rogueShadowDanceInvulnerableUntil: 0,
     rogueShadowReturn: null,
+    rogueExecution: null,
     negativeEffects: new Map(),
     lastResurrectAt:
       cooldowns.resurrectUntil === 0 ? 0 : cooldowns.resurrectUntil - RESURRECT_COOLDOWN_MS,

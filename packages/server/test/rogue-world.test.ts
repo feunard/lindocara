@@ -15,6 +15,27 @@ import {
   waitForRoomSockets,
 } from "./world-harness.js";
 
+const SHADOW_STEP_PREREQUISITES = [
+  "rogue.shadow_step.ambush",
+  "rogue.shadow_step.reach",
+  "rogue.shadow_step.readiness",
+] as const;
+const VANISH_PREREQUISITES = [
+  "rogue.vanish.ambush",
+  "rogue.vanish.readiness",
+  "rogue.vanish.mastery",
+] as const;
+const POISONED_SHIV_PREREQUISITES = [
+  "rogue.poisoned_shiv.force",
+  "rogue.poisoned_shiv.reach",
+  "rogue.poisoned_shiv.readiness",
+] as const;
+const SHADOW_DANCE_PREREQUISITES = [
+  "rogue.shadow_dance.force",
+  "rogue.shadow_dance.reach",
+  "rogue.shadow_dance.readiness",
+] as const;
+
 function rogueOpeningMapInput(): TestMapBody {
   return testMapInput("Rogue opening", {
     cols: 20,
@@ -78,7 +99,11 @@ function roguePoisonMapInput(monsterMaxHp: number): TestMapBody {
   };
 }
 
-function rogueDanceMapInput(monsterCount: number, wallCol?: number): TestMapBody {
+function rogueDanceMapInput(
+  monsterCount: number,
+  wallCol?: number,
+  monsterMaxHp = 500,
+): TestMapBody {
   const cols = 24;
   const rows = 15;
   const map = testMapInput("Rogue dance", {
@@ -99,7 +124,7 @@ function rogueDanceMapInput(monsterCount: number, wallCol?: number): TestMapBody
       event.kind === "monster"
         ? {
             ...event,
-            monsterMaxHp: 500,
+            monsterMaxHp,
             monsterDamage: 1,
             monsterSpeed: 20,
             monsterXp: 0,
@@ -127,10 +152,13 @@ function rogueDanceMapInput(monsterCount: number, wallCol?: number): TestMapBody
  */
 async function hiddenRogueHero(
   name: string,
-  options: Omit<TestHeroOptions, "class"> = {},
+  options: Omit<TestHeroOptions, "class"> & { talents?: readonly string[] } = {},
 ): Promise<TestHero> {
-  const hero = await testHero(name, { ...options, class: "warrior" });
-  await env.DB.prepare("UPDATE hero SET class = 'rogue' WHERE id = ?").bind(hero.heroId).run();
+  const { talents = [], ...heroOptions } = options;
+  const hero = await testHero(name, { ...heroOptions, class: "warrior" });
+  await env.DB.prepare("UPDATE hero SET class = 'rogue', talents = ? WHERE id = ?")
+    .bind(JSON.stringify(talents), hero.heroId)
+    .run();
   await env.DB.prepare("DELETE FROM hero_skill WHERE hero_id = ?").bind(hero.heroId).run();
   return hero;
 }
@@ -164,6 +192,30 @@ async function waitForDamageOverTime(roomKey: string, count: number): Promise<vo
   throw new Error(`timed out waiting for ${count} damage-over-time effects`);
 }
 
+interface DamageOverTimeDiagnostic {
+  kind: "poison";
+  sourceId: string;
+  targetKind: "monster" | "player";
+  targetId: string;
+  stacks: number;
+  remainingPower: number;
+}
+
+async function waitForDamageOverTimeEffect(
+  roomKey: string,
+  label: string,
+  predicate: (effect: DamageOverTimeDiagnostic) => boolean,
+): Promise<DamageOverTimeDiagnostic> {
+  const room = env.WORLD.getByName(roomKey);
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    const effect = (await room.roomDiagnostics()).damageOverTime[0];
+    if (effect && predicate(effect)) return effect;
+    await scheduler.wait(20);
+  }
+  throw new Error(`timed out waiting for ${label}`);
+}
+
 async function castPoisonedShiv(client: Client): Promise<number> {
   client.skill(2);
   const step = await until("poison setup Shadow Step", () =>
@@ -188,6 +240,32 @@ async function castPoisonedShiv(client: Client): Promise<number> {
       ),
   );
   return eventOffset;
+}
+
+async function resetCombatCooldowns(client: Client, label: string): Promise<void> {
+  const offset = client.received.length;
+  client.chat("/resetcd");
+  await until(label, () =>
+    client.received
+      .slice(offset)
+      .find((message) => message.t === "event" && message.code === "cheat.cooldowns"),
+  );
+}
+
+async function castNearbyShiv(client: Client, label: string): Promise<void> {
+  const offset = client.received.length;
+  client.skill(4);
+  await until(label, () =>
+    client.received
+      .slice(offset)
+      .find(
+        (message) =>
+          message.t === "event" &&
+          message.code === "combat.hit" &&
+          message.params?.skill === "poisoned_shiv" &&
+          message.params.poisonTick !== 1,
+      ),
+  );
 }
 
 afterEach(async () => {
@@ -753,6 +831,373 @@ describe("Rogue authoritative Shadow Dance", { timeout: 15_000 }, () => {
       expect(
         client.latestSnapshot?.monsters.find((monster) => monster.id === untouched.id)?.hp,
       ).toBe(500);
+    } finally {
+      client.close();
+    }
+  });
+});
+
+describe("Rogue authoritative evolution choices", { timeout: 20_000 }, () => {
+  it("uses Executor Opening on the struck target and halves the remaining Shadow Step cooldown", async () => {
+    const party = await testParty("rogue-executor", {
+      maps: [roguePoisonMapInput(80)],
+    });
+    const hero = await hiddenRogueHero("Executor", {
+      party,
+      account: party.host,
+      level: 10,
+      position: centre(5, 5),
+      talents: [...SHADOW_STEP_PREREQUISITES, "rogue.shadow_step.executor"],
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      await until("Executor welcome", () => client.welcome);
+      client.skill(2);
+      const step = await until("Executor Shadow Step", () =>
+        client.received.find(
+          (message) => message.t === "animation" && message.skillId === "shadow_step",
+        ),
+      );
+      if (step.t !== "animation") throw new Error("expected Executor Shadow Step");
+      await scheduler.wait(Math.max(0, step.recoveryEndsAt - Date.now() + 20));
+
+      const hitOffset = client.received.length;
+      client.action("attack");
+      const hit = await until("Executor Opening kill", () =>
+        client.received
+          .slice(hitOffset)
+          .find(
+            (message) =>
+              message.t === "event" &&
+              message.code === "combat.hit" &&
+              message.params?.skill === "dual_slash",
+          ),
+      );
+      if (hit.t !== "event") throw new Error("expected Executor hit");
+      expect(hit.params?.damage).toBe(80);
+      await until("Executor target death", () => client.latestSnapshot?.monsters.length === 0);
+      const state = await until("Executor reduced cooldown", () => {
+        const next = client.latestState;
+        const remaining =
+          (next?.cooldowns?.skillCooldowns[1] ?? 0) - (next?.serverNow ?? Number.NEGATIVE_INFINITY);
+        return remaining > 0 && remaining < 2_200 ? next : undefined;
+      });
+      expect((state.cooldowns?.skillCooldowns[1] ?? 0) - (state.serverNow ?? 0)).toBeLessThan(
+        2_200,
+      );
+    } finally {
+      client.close();
+    }
+  });
+
+  it("returns to the validated departure point without refreshing Opening or its cooldown", async () => {
+    const party = await testParty("rogue-shadow-return", {
+      maps: [roguePoisonMapInput(500)],
+    });
+    const origin = centre(5, 5);
+    const hero = await hiddenRogueHero("Return", {
+      party,
+      account: party.host,
+      level: 10,
+      position: origin,
+      talents: [...SHADOW_STEP_PREREQUISITES, "rogue.shadow_step.shadow_return"],
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      await until("Shadow Return welcome", () => client.welcome);
+      client.skill(2);
+      const stepped = await until("Shadow Return armed", () => {
+        const state = client.latestState;
+        const self = client.self();
+        const moved =
+          self && (Math.abs(self.x - origin.x) >= 0.01 || Math.abs(self.y - origin.y) >= 0.01);
+        return moved && (state?.rogue?.shadowReturnUntil ?? 0) > (state?.serverNow ?? 0)
+          ? state
+          : undefined;
+      });
+      const openingUntil = stepped.rogue?.openingUntil;
+      const cooldownUntil = stepped.cooldowns?.skillCooldowns[1];
+
+      client.skill(2);
+      await until("Shadow Return destination", () => {
+        const self = client.self();
+        return self &&
+          Math.abs(self.x - origin.x) < 0.01 &&
+          Math.abs(self.y - origin.y) < 0.01 &&
+          client.latestState?.rogue?.shadowReturnUntil === 0
+          ? self
+          : undefined;
+      });
+      expect(client.latestState?.rogue?.openingUntil).toBe(openingUntil);
+      expect(client.latestState?.cooldowns?.skillCooldowns[1]).toBe(cooldownUntil);
+    } finally {
+      client.close();
+    }
+  });
+
+  it("strengthens Predator's exit Opening and snapshots one empowered poison", async () => {
+    const party = await testParty("rogue-predator", {
+      maps: [roguePoisonMapInput(500)],
+    });
+    const hero = await hiddenRogueHero("Predator", {
+      party,
+      account: party.host,
+      level: 10,
+      position: centre(5, 5),
+      talents: [...VANISH_PREREQUISITES, "rogue.vanish.predator"],
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      await until("Predator welcome", () => client.welcome);
+      client.press("right");
+      await scheduler.wait(80);
+      client.release();
+      client.skill(3);
+      const vanish = await until("Predator Vanish", () =>
+        client.received.find(
+          (message) => message.t === "animation" && message.skillId === "vanish",
+        ),
+      );
+      if (vanish.t !== "animation") throw new Error("expected Predator Vanish");
+      await until("Predator stealth", () => {
+        const state = client.latestState;
+        return (state?.rogue?.stealthUntil ?? 0) > (state?.serverNow ?? 0) ? state : undefined;
+      });
+      await scheduler.wait(Math.max(0, vanish.recoveryEndsAt - Date.now() + 20));
+
+      const attackOffset = client.received.length;
+      client.action("attack");
+      const attackHit = await until("Predator Opening hit", () =>
+        client.received
+          .slice(attackOffset)
+          .find(
+            (message) =>
+              message.t === "event" &&
+              message.code === "combat.hit" &&
+              message.params?.skill === "dual_slash",
+          ),
+      );
+      if (attackHit.t !== "event") throw new Error("expected Predator Opening hit");
+      expect(Number(attackHit.params?.damage)).toBeGreaterThanOrEqual(85);
+      const attackAnimation = client.received
+        .slice(attackOffset)
+        .find((message) => message.t === "animation" && message.skillId === "dual_slash");
+      if (attackAnimation?.t !== "animation") throw new Error("expected Predator attack animation");
+      await scheduler.wait(Math.max(0, attackAnimation.recoveryEndsAt - Date.now() + 20));
+
+      const shivOffset = client.received.length;
+      client.skill(4);
+      await until("Predator Shiv hit", () =>
+        client.received
+          .slice(shivOffset)
+          .find(
+            (message) =>
+              message.t === "event" &&
+              message.code === "combat.hit" &&
+              message.params?.skill === "poisoned_shiv" &&
+              message.params.poisonTick !== 1,
+          ),
+      );
+      const poisonTick = await until("Predator empowered poison tick", () =>
+        client.received
+          .slice(shivOffset)
+          .find(
+            (message) =>
+              message.t === "event" &&
+              message.code === "combat.hit" &&
+              message.params?.poisonTick === 1,
+          ),
+      );
+      if (poisonTick.t !== "event") throw new Error("expected Predator poison tick");
+      expect(poisonTick.params?.damage).toBe(23);
+    } finally {
+      client.close();
+    }
+  });
+
+  it("arms a bounded Smoke Screen while dropping existing monster aggro", async () => {
+    const party = await testParty("rogue-smoke-screen", {
+      maps: [rogueStealthMapInput(6)],
+    });
+    const hero = await hiddenRogueHero("Smoke", {
+      party,
+      account: party.host,
+      level: 10,
+      position: centre(5, 5),
+      talents: [...VANISH_PREREQUISITES, "rogue.vanish.smoke_screen"],
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      await until("Smoke Screen welcome", () => client.welcome);
+      await waitForMonsterThreat(hero.roomKey, hero.heroId, true);
+      client.skill(3);
+      const protectedState = await until("Smoke Screen protection", () => {
+        const state = client.latestState;
+        const remaining =
+          (state?.rogue?.smokeProtectionUntil ?? 0) -
+          (state?.serverNow ?? Number.NEGATIVE_INFINITY);
+        return remaining > 0 ? state : undefined;
+      });
+      const protectionRemaining =
+        (protectedState.rogue?.smokeProtectionUntil ?? 0) - (protectedState.serverNow ?? 0);
+      expect(protectionRemaining).toBeGreaterThan(0);
+      expect(protectionRemaining).toBeLessThanOrEqual(500);
+      await waitForMonsterThreat(hero.roomKey, hero.heroId, false);
+      await until("Smoke Screen expiry", () =>
+        client.latestState?.rogue?.smokeProtectionUntil === 0 ? client.latestState : undefined,
+      );
+    } finally {
+      client.close();
+    }
+  });
+
+  it("caps Concentrated Venom at three live stack schedules", async () => {
+    const party = await testParty("rogue-concentrated-venom", {
+      maps: [roguePoisonMapInput(1_000)],
+    });
+    const hero = await hiddenRogueHero("Venom", {
+      party,
+      account: party.host,
+      level: 10,
+      position: centre(5, 5),
+      talents: [...POISONED_SHIV_PREREQUISITES, "rogue.poisoned_shiv.concentrated_venom"],
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      await until("Concentrated Venom welcome", () => client.welcome);
+      await castPoisonedShiv(client);
+      for (let cast = 2; cast <= 4; cast++) {
+        await resetCombatCooldowns(client, `Concentrated Venom reset ${cast}`);
+        await castNearbyShiv(client, `Concentrated Venom hit ${cast}`);
+      }
+      const effect = await waitForDamageOverTimeEffect(
+        hero.roomKey,
+        "three poison stacks",
+        (candidate) => candidate.stacks === 3,
+      );
+      expect(effect).toMatchObject({
+        kind: "poison",
+        sourceId: hero.heroId,
+        stacks: 3,
+      });
+    } finally {
+      client.close();
+    }
+  });
+
+  it("makes Rupture remove exactly the poison power it explodes", async () => {
+    const party = await testParty("rogue-rupture", {
+      maps: [roguePoisonMapInput(1_000)],
+    });
+    const hero = await hiddenRogueHero("Rupture", {
+      party,
+      account: party.host,
+      level: 10,
+      position: centre(5, 5),
+      talents: [...POISONED_SHIV_PREREQUISITES, "rogue.poisoned_shiv.rupture"],
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      await until("Rupture welcome", () => client.welcome);
+      await castPoisonedShiv(client);
+      const before = await waitForDamageOverTimeEffect(
+        hero.roomKey,
+        "Rupture poison schedule",
+        (effect) => effect.remainingPower > 0,
+      );
+      await resetCombatCooldowns(client, "Rupture cooldown reset");
+
+      const offset = client.received.length;
+      client.skill(2);
+      const explosion = await until("Rupture explosion", () =>
+        client.received
+          .slice(offset)
+          .find(
+            (message) =>
+              message.t === "event" &&
+              message.code === "combat.hit" &&
+              message.params?.poisonRupture === 1,
+          ),
+      );
+      if (explosion.t !== "event") throw new Error("expected Rupture explosion");
+      const consumed = Math.round(before.remainingPower * 0.6);
+      expect(explosion.params?.damage).toBe(consumed);
+      const after = await waitForDamageOverTimeEffect(
+        hero.roomKey,
+        "Rupture reduced poison schedule",
+        (effect) => effect.remainingPower === before.remainingPower - consumed,
+      );
+      expect(after.remainingPower + Number(explosion.params?.damage)).toBe(before.remainingPower);
+    } finally {
+      client.close();
+    }
+  });
+
+  it("reduces Dark Harvest cooldown once per kill without crossing the present", async () => {
+    const party = await testParty("rogue-dark-harvest", {
+      maps: [rogueDanceMapInput(5, undefined, 50)],
+    });
+    const hero = await hiddenRogueHero("Harvest", {
+      party,
+      account: party.host,
+      level: 10,
+      position: centre(5, 5),
+      talents: [...SHADOW_DANCE_PREREQUISITES, "rogue.shadow_dance.dark_harvest"],
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      await until("Dark Harvest welcome", () => client.welcome);
+      client.skill(5);
+      const sequence = await until("Dark Harvest sequence", () =>
+        client.received.find((message) => message.t === "rogue.shadow_dance"),
+      );
+      if (sequence.t !== "rogue.shadow_dance") throw new Error("expected Dark Harvest sequence");
+      expect(sequence.strikes).toHaveLength(5);
+      expect(sequence.strikes.every((strike) => strike.killed)).toBe(true);
+      const state = await until("Dark Harvest reduced state", () => {
+        const next = client.latestState;
+        const remaining =
+          (next?.cooldowns?.skillCooldowns[4] ?? 0) - (next?.serverNow ?? Number.NEGATIVE_INFINITY);
+        return remaining >= 0 && remaining < 2_500 ? next : undefined;
+      });
+      const remaining =
+        (state.cooldowns?.skillCooldowns[4] ?? 0) - (state.serverNow ?? Number.NEGATIVE_INFINITY);
+      expect(remaining).toBeGreaterThanOrEqual(0);
+      expect(remaining).toBeLessThan(2_500);
+    } finally {
+      client.close();
+    }
+  });
+
+  it("uses Thousand Cuts for four reduced repeats against one boss", async () => {
+    const party = await testParty("rogue-thousand-cuts", {
+      maps: [rogueDanceMapInput(1)],
+    });
+    const hero = await hiddenRogueHero("Cuts", {
+      party,
+      account: party.host,
+      level: 10,
+      position: centre(5, 5),
+      talents: [...SHADOW_DANCE_PREREQUISITES, "rogue.shadow_dance.thousand_cuts"],
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      await until("Thousand Cuts welcome", () => client.welcome);
+      client.skill(5);
+      const sequence = await until("Thousand Cuts sequence", () =>
+        client.received.find((message) => message.t === "rogue.shadow_dance"),
+      );
+      if (sequence.t !== "rogue.shadow_dance") throw new Error("expected Thousand Cuts sequence");
+      expect(sequence.strikes).toHaveLength(5);
+      expect(new Set(sequence.strikes.map((strike) => strike.targetId)).size).toBe(1);
+      expect(sequence.strikes.map((strike) => strike.repeated ?? false)).toEqual([
+        false,
+        true,
+        true,
+        true,
+        true,
+      ]);
+      expect(sequence.strikes.map((strike) => strike.damage)).toEqual([54, 32, 32, 32, 32]);
     } finally {
       client.close();
     }
