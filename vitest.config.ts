@@ -5,6 +5,8 @@ import { defineConfig } from "vitest/config";
 // `vitest run --project <name>` or `npm test -w @lindocara/<pkg>` runs one.
 export default defineConfig({
   test: {
-    projects: ["packages/*/vitest.config.ts"],
+    // The glob covers one vitest.config.ts per package; @lindocara/server also has a second,
+    // runtime-neutral project (test-api/) alongside its workerd one, so it's listed explicitly.
+    projects: ["packages/*/vitest.config.ts", "packages/server/test-api/vitest.config.ts"],
   },
 });

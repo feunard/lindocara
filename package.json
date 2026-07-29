@@ -20,6 +20,7 @@
     "test:watch": "vitest",
     "test:engine": "vitest run --project engine",
     "test:server": "vitest run --project server",
+    "test:server-api": "vitest run --project server-api",
     "test:renderer": "vitest run --project renderer",
     "test:client": "vitest run --project client",
     "test:editor": "vitest run --project editor",

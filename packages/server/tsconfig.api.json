@@ -18,5 +18,5 @@
     // root), so this is a zero-cost addition, not a new dependency.
     "types": ["node", "bun"]
   },
-  "include": ["src/api"]
+  "include": ["src/api", "test-api"]
 }
