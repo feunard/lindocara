@@ -15,19 +15,37 @@ the existing React/Radix primitives, with Tiny Swords limited to previews and re
 
 | Command | What it does |
 | --- | --- |
-| `npm run dev` | Vite + the Worker + the Durable Object, all in workerd |
+| `npm run dev` | **alepha dev** — the new `apps/main` stack, Node + auto-synced SQLite, serving the Alepha-ported `/api/*` (see "Alepha migration status" below) |
+| `npm run dev:legacy` | Vite + the Worker + the Durable Object, all in workerd — the **playable game** (the old `/api/*` + `/api/ws`) |
 | `npm run check` | lint, typecheck, test — run this before committing |
 | `npm run check:runtime` | lint, typecheck, runtime server/player UI tests and build; skips creator map/adventure validation |
-| `npm run loadtest -- --players=10 --duration=60 --scenario=mixed` | authenticated local WebSocket load test; remote targets require explicit opt-in |
+| `npm run loadtest -- --players=10 --duration=60 --scenario=mixed` | authenticated local WebSocket load test against the legacy stack; remote targets require explicit opt-in |
 | `npm run lint` / `lint:fix` | Biome |
 | `npm run typecheck` | one tsc per package + a Node tooling program (see below) |
-| `npm test` | Vitest inside workerd |
-| `npm run build` | client bundle + deployable `wrangler.json` |
-| `npm run deploy` | build, then `wrangler deploy` |
-| `npm run cf-typegen` | regenerate `src/worker-configuration.d.ts` from wrangler.jsonc |
-| `npm run db:generate` | diff `db/schema.ts` into a new `migrations/*.sql` |
+| `npm test` | Vitest — every package's project plus the Node-only `server-api` project (see below) |
+| `npm run build` | **alepha build** — bundles `apps/main` for its configured `platform()` adapter (`--target cloudflare` emits a Cloudflare artifact under `apps/main/dist/`; deploy stays frozen, see below) |
+| `npm run build:legacy` | client bundle + deployable `wrangler.json` for the legacy workerd stack |
+| `npm run deploy` | `alepha platform up -e production` — **not used yet**, deploy is frozen (see below) |
+| `npm run deploy:legacy` | `build:legacy` then `wrangler deploy` — the actual way the playable game ships today (`workflow_dispatch` only) |
+| `npm run cf-typegen` | regenerate `src/worker-configuration.d.ts` from the legacy `wrangler.jsonc` |
+| `npm run db:generate` | diff `db/schema.ts` into a new `migrations/*.sql` (legacy D1 schema; the Alepha side has no migrations yet, see below) |
 | `npm run db:migrate` | apply migrations to the local D1 |
 | `npm run db:migrate:remote` | apply migrations to production D1 (CI does this on deploy) |
+
+### Alepha migration status
+
+`apps/main` currently runs **two parallel implementations of `/api/*`**: the legacy one
+(`packages/server/src/index.ts` + `world.ts`, workerd, the original D1 schema) and a new one built
+on the vendored [Alepha](./.vendor/alepha) framework (`packages/server/src/api/`, Node/SQLite in
+dev, a generated Cloudflare artifact for later). **The legacy stack is authoritative for the running
+game** — the client (`packages/client`) still talks only to it — **until the realtime tranche** ports
+`/api/ws`, `World`/`GameSession`/`HeroPresence` and epoch-fenced hero saves onto Alepha. Until then,
+`npm run dev`/`npm run build` exercise the new stack in isolation (registration, login, maps,
+adventures, parties, heroes — no gameplay), and `npm run dev:legacy`/`build:legacy`/`deploy:legacy`
+remain how you actually run or ship the playable game. CF deploy of the Alepha stack is frozen to
+manual `workflow_dispatch` until then. See
+[`docs/superpowers/specs/2026-07-29-alepha-migration-design.md`](./docs/superpowers/specs/2026-07-29-alepha-migration-design.md)
+for the full plan and rationale.
 
 ## Architecture
 
