@@ -243,6 +243,7 @@ export const en = {
     "Stab at close range and apply five server-timed poison ticks.",
   "skill.rogue.shadow_dance.description":
     "Chain through up to five server-selected enemies without crossing blocked terrain.",
+  "skill.rogue.shadow_return.ready": "Return ready",
 
   // HUD
   "death.fallen_title": "You have fallen",

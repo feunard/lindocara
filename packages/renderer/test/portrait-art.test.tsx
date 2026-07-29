@@ -7,5 +7,9 @@ describe("Tiny Swords portrait selection", () => {
       frames: 6,
       source: expect.stringContaining("units/purple/monk/Idle.png"),
     });
+    expect(playerPortrait("rogue", { body: "wayfarer", primaryColor: "violet" })).toMatchObject({
+      frames: 6,
+      source: expect.stringContaining("Thief_Idle"),
+    });
   });
 });

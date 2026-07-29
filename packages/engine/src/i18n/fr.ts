@@ -245,6 +245,7 @@ export const fr: Record<keyof typeof en, string> = {
     "Frappe au corps à corps et applique cinq ticks de poison cadencés par le serveur.",
   "skill.rogue.shadow_dance.description":
     "Enchaîne jusqu'à cinq ennemis choisis par le serveur sans traverser de terrain bloqué.",
+  "skill.rogue.shadow_return.ready": "Retour prêt",
 
   // ATH
   "death.fallen_title": "Vous êtes tombé",

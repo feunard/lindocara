@@ -179,4 +179,61 @@ describe("skill bar cooldowns", () => {
       "Each distinct enemy pierced adds 15% damage to the next, capped at 60%.",
     );
   });
+
+  it("keeps Shadow Return actionable inside its authoritative window despite the base cooldown", () => {
+    const game = gameHandle();
+    useUiStore.setState({
+      game,
+      self: {
+        nick: "Shade",
+        level: 10,
+        hp: 100,
+        maxHp: 100,
+        life: "alive",
+        corpseDistance: null,
+        class: "rogue",
+        appearance: { body: "wayfarer", primaryColor: "violet" },
+        equipment: { mainHand: "shadow_daggers", offHand: null },
+      },
+      selfState: {
+        xp: 0,
+        xpToNext: 100,
+        life: "alive",
+        corpse: null,
+        inventory: { potions: 0, gold: 0, crystals: 0 },
+        quest: { status: "available", progress: 0, target: 3 },
+        serverNow: 1_000,
+        rogue: {
+          openingUntil: 0,
+          stealthUntil: 0,
+          smokeProtectionUntil: 0,
+          shadowReturnUntil: 3_000,
+        },
+        talents: {
+          selected: ["rogue.shadow_step.shadow_return"],
+          pointsSpent: 1,
+          pointsAvailable: 9,
+        },
+      },
+      skillCooldowns: {
+        1: 0,
+        2: performance.now() + 4_500,
+        3: 0,
+        4: 0,
+        5: 0,
+      },
+    });
+    render(<SkillBar />);
+
+    const shadowReturn = screen.getByRole("button", {
+      name: "2. Shadow Return. Evolution B. Return ready",
+    });
+    expect(shadowReturn).toBeEnabled();
+    expect(shadowReturn).toHaveClass("return-ready", "evolved--b");
+    expect(shadowReturn).toHaveAttribute("data-shadow-return-ready", "true");
+    expect(shadowReturn.querySelector(".skill-slot__return")).toHaveTextContent("Return ready");
+
+    fireEvent.click(shadowReturn);
+    expect(game.castSkill).toHaveBeenCalledWith(2);
+  });
 });

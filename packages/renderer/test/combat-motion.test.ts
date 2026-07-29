@@ -6,10 +6,17 @@ import {
 import { describe, expect, it } from "vitest";
 
 describe("combat mobility presentation", () => {
-  it("gives charge, dash and blink distinct visual identities", () => {
+  it("gives charge, dash, blink and Shadow Step distinct visual identities", () => {
     expect(
-      new Set(["shield_bash", "dash", "blink"].map((id) => mobilityVisual(id)?.color)).size,
-    ).toBe(3);
+      new Set(
+        ["shield_bash", "dash", "blink", "shadow_step"].map((id) => mobilityVisual(id)?.color),
+      ).size,
+    ).toBe(4);
+    expect(mobilityVisual("shadow_step")).toMatchObject({
+      durationMs: 180,
+      color: 0x8050c8,
+      width: 13,
+    });
     expect(mobilityVisual("quick_shot")).toBeNull();
   });
 

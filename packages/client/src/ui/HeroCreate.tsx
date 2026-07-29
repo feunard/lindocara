@@ -6,7 +6,8 @@
 
 import type { PlayerClass } from "@lindocara/engine/game.js";
 import { HERO_CLASSES } from "@lindocara/engine/hero.js";
-import { useState } from "react";
+import { playerPortrait } from "@lindocara/renderer/portrait-art.js";
+import { type CSSProperties, useState } from "react";
 import {
   createHeroApi,
   createPartyApi,
@@ -43,6 +44,13 @@ const CLASS_EMBLEM: Record<PlayerClass, string> = {
   rogue: "‡",
 };
 
+const CLASS_PREVIEW_COLOR = {
+  warrior: "ember",
+  ranger: "moss",
+  priest: "azure",
+  rogue: "violet",
+} as const;
+
 function ClassCard({
   heroClass,
   order,
@@ -55,6 +63,14 @@ function ClassCard({
   disabled: boolean;
 }) {
   const { focused, ref, itemProps } = useMenuItem({ onActivate: onPick, order, disabled });
+  const portrait = playerPortrait(heroClass, {
+    body: "wayfarer",
+    primaryColor: CLASS_PREVIEW_COLOR[heroClass],
+  });
+  const portraitStyle = {
+    backgroundImage: `url("${portrait.source}")`,
+    backgroundSize: `${portrait.frames * 100}% 100%`,
+  } satisfies CSSProperties;
   return (
     <button
       ref={ref}
@@ -62,8 +78,9 @@ function ClassCard({
       className={`class-card${focused ? " class-card--focused" : ""}`}
       {...itemProps}
     >
-      <span className="class-card__emblem" aria-hidden="true">
-        {CLASS_EMBLEM[heroClass]}
+      <span className="class-card__portrait" data-hero-class={heroClass} aria-hidden="true">
+        <span className="class-card__portrait-sprite" style={portraitStyle} />
+        <span className="class-card__emblem">{CLASS_EMBLEM[heroClass]}</span>
       </span>
       <span className="class-card__name">{t(`class.${heroClass}`)}</span>
       <span className="class-card__blurb">{t(`class.${heroClass}.blurb`)}</span>

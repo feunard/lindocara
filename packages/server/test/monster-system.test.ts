@@ -150,7 +150,7 @@ describe("authored monster tuning", () => {
 });
 
 describe("monster navigation on the tile grid", () => {
-  it("abandons a hidden Rogue immediately without erasing earned contribution", () => {
+  it("abandons a vanished Rogue immediately without erasing earned contribution", () => {
     const monster = chasingMonster();
     const player = targetPlayer(260, 220);
     player.class = "rogue";

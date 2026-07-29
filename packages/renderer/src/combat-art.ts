@@ -1,11 +1,11 @@
 import type { PrimaryColor } from "@lindocara/engine/character.js";
 import { actionForClassSlot } from "@lindocara/engine/combat-actions.js";
-import type { MonsterSpecies, PlayerClass } from "@lindocara/engine/game.js";
+import { type MonsterSpecies, PLAYER_CLASSES, type PlayerClass } from "@lindocara/engine/game.js";
 import type { ProjectileKind } from "@lindocara/engine/protocol.js";
 import { CLASS_SKILLS } from "@lindocara/engine/skills.js";
 import { type EnemySheet, TINY_SWORDS_ENEMIES } from "./enemy-art.js";
 import type { ServerCombatTimeline } from "./server-clock.js";
-import { TINY_SWORDS_ROOT } from "./tiny-swords-art.js";
+import { TINY_SWORDS_ROGUE_SHEETS, TINY_SWORDS_ROOT } from "./tiny-swords-art.js";
 
 const HEX_SHAMAN_PROJECTILE_SOURCE = new URL(
   "../../catalog/assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Goblin Raiders/Hex Shaman/Hex Shaman_Projectile.png",
@@ -150,6 +150,15 @@ function casterArt(playerClass: PlayerClass, skillId: string, color: PrimaryColo
   }
   if (playerClass === "ranger")
     return unitSheet(unitSource(color, "archer", "Archer_Shoot.png"), 8, duration, 3);
+  if (playerClass === "rogue")
+    return sheet(
+      TINY_SWORDS_ROGUE_SHEETS.attack.source,
+      TINY_SWORDS_ROGUE_SHEETS.attack.frameWidth,
+      TINY_SWORDS_ROGUE_SHEETS.attack.frameHeight,
+      TINY_SWORDS_ROGUE_SHEETS.attack.frames,
+      duration,
+      4,
+    );
   return unitSheet(unitSource(color, "monk", "Heal.png"), 11, duration, 3);
 }
 
@@ -255,6 +264,41 @@ export function combatArt(
       ...(kind === "heartseeker" ? { zone: styled(MAGIC_IMPACT, 0xff557d, 1.18) } : {}),
     };
   }
+  if (playerClass === "rogue") {
+    const fallback =
+      "Tiny Swords ne fournit pas de geste dédié à cette technique : Thief_Attack porte les deux dagues, complété par les effets existants du pack.";
+    if (skillId === "dual_slash")
+      return {
+        caster,
+        impact: styled(DUST, 0xa875ff, 0.82),
+        fallback,
+      };
+    if (skillId === "shadow_step")
+      return {
+        caster,
+        impact: styled(DUST, 0x8050c8, 1.28),
+        fallback,
+      };
+    if (skillId === "vanish")
+      return {
+        caster,
+        zone: styled(DUST, 0x6e45a8, 1.52),
+        accent: styled(MAGIC_IMPACT, 0x9d72dd, 0.72),
+        fallback,
+      };
+    if (skillId === "poisoned_shiv")
+      return {
+        caster,
+        impact: styled(MAGIC_IMPACT, GREEN_MAGIC, 0.76),
+        fallback,
+      };
+    return {
+      caster,
+      zone: styled(MAGIC_IMPACT, 0x8f55d9, 1.18),
+      accent: styled(DUST, 0xc58cff, 1.58),
+      fallback,
+    };
+  }
   if (skillId === "radiant_bolt")
     return {
       caster,
@@ -313,9 +357,8 @@ export function monsterCombatArt(species: MonsterSpecies): MonsterCombatArtDefin
 export function allCombatSheets(): CombatSheetArt[] {
   const unique = new Map<string, CombatSheetArt>();
   const colors: readonly PrimaryColor[] = ["azure", "ember", "moss", "violet"];
-  const classes: readonly PlayerClass[] = ["warrior", "ranger", "priest"];
   for (const color of colors) {
-    for (const playerClass of classes) {
+    for (const playerClass of PLAYER_CLASSES) {
       for (const skill of CLASS_SKILLS[playerClass]) {
         const art = combatArt(playerClass, skill.id, color);
         for (const sheet of [art.caster, art.projectile, art.impact, art.zone, art.accent]) {

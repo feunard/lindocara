@@ -334,9 +334,35 @@
   align-items: center;
   gap: 1rem;
 }
+.class-card__portrait {
+  position: relative;
+  width: 100%;
+  height: 7.25rem;
+  overflow: hidden;
+  border: 1px solid rgba(224, 190, 116, 0.28);
+  border-radius: 10px;
+  background:
+    radial-gradient(circle at 50% 72%, rgba(128, 80, 200, 0.3), transparent 46%),
+    linear-gradient(160deg, rgba(87, 67, 109, 0.64), rgba(10, 8, 14, 0.78));
+}
+.class-card__portrait-sprite {
+  position: absolute;
+  bottom: -2.2rem;
+  left: 50%;
+  width: 12rem;
+  height: 12rem;
+  background-position: 0 0;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  transform: translateX(-50%);
+}
 .class-card__emblem {
+  position: absolute;
+  right: 0.45rem;
+  bottom: 0.35rem;
   font-size: 2.4rem;
   color: var(--launch-gold);
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.8));
 }
 .hero-create__name {
   display: flex;

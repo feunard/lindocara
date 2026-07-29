@@ -1,4 +1,4 @@
-export type MobilitySkillId = "shield_bash" | "dash" | "blink";
+export type MobilitySkillId = "shield_bash" | "dash" | "blink" | "shadow_step";
 
 export interface MobilityVisual {
   durationMs: number;
@@ -10,10 +10,16 @@ const MOBILITY_VISUALS: Readonly<Record<MobilitySkillId, MobilityVisual>> = {
   shield_bash: { durationMs: 230, color: 0xffd66b, width: 14 },
   dash: { durationMs: 190, color: 0x6ad9ff, width: 10 },
   blink: { durationMs: 300, color: 0xc9a7ff, width: 18 },
+  shadow_step: { durationMs: 180, color: 0x8050c8, width: 13 },
 };
 
 export function mobilityVisual(skillId: string | undefined): MobilityVisual | null {
-  if (skillId === "shield_bash" || skillId === "dash" || skillId === "blink")
+  if (
+    skillId === "shield_bash" ||
+    skillId === "dash" ||
+    skillId === "blink" ||
+    skillId === "shadow_step"
+  )
     return MOBILITY_VISUALS[skillId];
   return null;
 }

@@ -229,7 +229,7 @@ describe("server protocol", () => {
     merchant: null,
   };
 
-  it("accepts the hidden Rogue loadout and only finite server-authored combat windows", () => {
+  it("accepts the Rogue loadout and only finite server-authored combat windows", () => {
     const rogue = {
       ...player,
       class: "rogue",

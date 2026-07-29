@@ -53,7 +53,7 @@ function rogue(talents: readonly string[] = []) {
   );
 }
 
-describe("hidden Rogue runtime contract", () => {
+describe("Rogue runtime contract", () => {
   it("refreshes one non-stacking Opening and consumes it only through the explicit hit boundary", () => {
     const player = rogue();
     grantRogueOpening(player, "shadow_step", 1_000);

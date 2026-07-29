@@ -142,6 +142,7 @@ import {
   TINY_SWORDS_FOAM_FRAMES,
   TINY_SWORDS_QUEST_ART,
   TINY_SWORDS_ROCKS,
+  TINY_SWORDS_ROGUE_SHEETS,
   TINY_SWORDS_SIGN_BOARD,
   TINY_SWORDS_STUMPS,
   TINY_SWORDS_TERRAIN,
@@ -246,6 +247,16 @@ const PORTAL_RING_COLOR = 0x9b7dff;
  */
 const UNIT_OFFSET_X = 16 - 102;
 const UNIT_OFFSET_Y = 31 - 136;
+/** Thief_Attack is the pack's intentional 128x192 exception. Catalogue foot offsets keep each
+ * differently padded Thief strip on the same authoritative ground point. */
+const ROGUE_UNIT_OFFSET_X = 16 - TINY_SWORDS_ROGUE_SHEETS.idle.frameWidth / 2;
+const ROGUE_IDLE_OFFSET_Y =
+  31 - (TINY_SWORDS_ROGUE_SHEETS.idle.frameHeight - TINY_SWORDS_ROGUE_SHEETS.idle.footOffset);
+const ROGUE_RUN_OFFSET_Y =
+  31 - (TINY_SWORDS_ROGUE_SHEETS.run.frameHeight - TINY_SWORDS_ROGUE_SHEETS.run.footOffset);
+const ROGUE_ATTACK_OFFSET_X = 16 - TINY_SWORDS_ROGUE_SHEETS.attack.frameWidth / 2;
+const ROGUE_ATTACK_OFFSET_Y =
+  31 - (TINY_SWORDS_ROGUE_SHEETS.attack.frameHeight - TINY_SWORDS_ROGUE_SHEETS.attack.footOffset);
 
 interface AtlasData {
   frames: Record<string, { x: number; y: number; w: number; h: number }>;
@@ -325,6 +336,7 @@ interface EntityView<T extends { id: string }> {
   movingUntil?: number;
   hitUntil?: number;
   wasDead?: boolean;
+  wasInvisible?: boolean;
   phase?: number;
   unitSprite?: Sprite;
   unitAnimations?: Record<UnitMotion, readonly Texture[]>;
@@ -523,10 +535,10 @@ async function loadArt(): Promise<ArtTextures> {
         new Texture({
           source: sheet.source,
           frame: new Rectangle(
-            frame * TINY_SWORDS_UNIT_FRAME,
+            frame * definition.frameWidth,
             0,
-            TINY_SWORDS_UNIT_FRAME,
-            TINY_SWORDS_UNIT_FRAME,
+            definition.frameWidth,
+            definition.frameHeight,
           ),
           label: `${definition.source}:${frame}`,
         }),
@@ -3173,7 +3185,10 @@ export class Renderer {
     const unitSprite = new Sprite(animations.idle[0]);
     unitSprite.width = TINY_SWORDS_UNIT_FRAME;
     unitSprite.height = TINY_SWORDS_UNIT_FRAME;
-    unitSprite.position.set(UNIT_OFFSET_X, UNIT_OFFSET_Y);
+    unitSprite.position.set(
+      player.class === "rogue" ? ROGUE_UNIT_OFFSET_X : UNIT_OFFSET_X,
+      player.class === "rogue" ? ROGUE_IDLE_OFFSET_Y : UNIT_OFFSET_Y,
+    );
     const selfRing = new Graphics();
     selfRing.label = SELF_RING_LABEL;
     selfRing.visible = this.#playerChrome;
@@ -3213,6 +3228,7 @@ export class Renderer {
       movingUntil: 0,
       hitUntil: 0,
       wasDead: isSpirit(player.life),
+      wasInvisible: player.invisible === true,
       phase: phaseFor(player.id),
       unitSprite,
       unitAnimations: animations,
@@ -3737,6 +3753,14 @@ export class Renderer {
       view.actionEndsAt > now;
     const guarding = player.guarding === true;
     if (!actionActive && !guarding) {
+      if (view.unitSprite) {
+        view.unitSprite.width = TINY_SWORDS_UNIT_FRAME;
+        view.unitSprite.height = TINY_SWORDS_UNIT_FRAME;
+        view.unitSprite.position.set(
+          player.class === "rogue" ? ROGUE_UNIT_OFFSET_X : UNIT_OFFSET_X,
+          player.class === "rogue" ? ROGUE_IDLE_OFFSET_Y : UNIT_OFFSET_Y,
+        );
+      }
       this.#clearExpiredAction(view, now);
       return false;
     }
@@ -3745,6 +3769,12 @@ export class Renderer {
     const art = combatArt(player.class, skillId, player.appearance.primaryColor);
     const frames = this.art.combatFrames.get(art.caster.source);
     if (!frames || frames.length === 0) return false;
+    view.unitSprite.width = art.caster.frameWidth;
+    view.unitSprite.height = art.caster.frameHeight;
+    view.unitSprite.position.set(
+      player.class === "rogue" ? ROGUE_ATTACK_OFFSET_X : UNIT_OFFSET_X,
+      player.class === "rogue" ? ROGUE_ATTACK_OFFSET_Y : UNIT_OFFSET_Y,
+    );
     const frame =
       guarding && !actionActive
         ? frames[Math.floor(now / 120) % frames.length]
@@ -3765,7 +3795,10 @@ export class Renderer {
       (view.actionImpactAt ?? Number.POSITIVE_INFINITY) <= now
     ) {
       const mobilityImpact =
-        skillId === "shield_bash" || skillId === "dash" || skillId === "blink"
+        skillId === "shield_bash" ||
+        skillId === "dash" ||
+        skillId === "blink" ||
+        skillId === "shadow_step"
           ? art.impact
           : undefined;
       const effect = art.zone ?? mobilityImpact;
@@ -3933,6 +3966,17 @@ export class Renderer {
       this.#burst(x, y, 0xff557d, 10);
       return;
     }
+    if (skillId === "vanish") {
+      this.#addPulse(x, y, 0x8050c8, 30, 420);
+      this.#burst(x, y, 0x9d72dd, 9);
+      return;
+    }
+    if (skillId === "shadow_dance") {
+      this.#addPulse(x, y, 0x8f55d9, 34, 460);
+      this.#addPulse(x, y, 0xc58cff, 20, 320);
+      this.#burst(x, y, 0x9d72dd, 12);
+      return;
+    }
     if (skillId === "divine_nova") {
       const radius = CLASS_SKILLS.priest[4]?.radius ?? 0;
       this.#playRangeIndicator(x, y, radius, 0xd8a0ff, actionId);
@@ -3985,6 +4029,27 @@ export class Renderer {
     if (!art) return player.class;
     this.#playCombatSheet(art, x + 16, y + 16);
     return player.class;
+  }
+
+  /** Poison ticks and Rupture are server-labelled outcomes; this only gives those exact results
+   * distinct scale and colour, never inventing a tick, target or damage amount client-side. */
+  playRoguePoisonImpact(x: number, y: number, rupture: boolean): PlayerClass {
+    const position = { x: x + PLAYER_SIZE / 2, y: y + PLAYER_SIZE / 2 };
+    const art = combatArt("rogue", "poisoned_shiv", "violet").impact;
+    if (art) {
+      this.#playCombatSheet(
+        {
+          ...art,
+          scale: (art.scale ?? 1) * (rupture ? 1.85 : 0.58),
+          durationMs: art.durationMs * (rupture ? 1.15 : 0.72),
+        },
+        position.x,
+        position.y,
+      );
+    }
+    this.#addPulse(position.x, position.y, rupture ? 0xb26cff : 0x62e68f, rupture ? 34 : 13, 360);
+    this.#burst(position.x, position.y, rupture ? 0x78ef9a : 0x62e68f, rupture ? 14 : 4);
+    return "rogue";
   }
 
   playMonsterImpact(species: MonsterSpecies, x?: number, y?: number): void {
@@ -4305,6 +4370,18 @@ export class Renderer {
         if (view.wasDead && !spirit && this.#isVisibleWorld(player.x, player.y, 80)) {
           this.#addPulse(player.x + 16, player.y + 16, 0xa8f2dc, 24, 650);
         }
+        if (
+          player.class === "rogue" &&
+          view.wasInvisible === true &&
+          player.invisible !== true &&
+          this.#isVisibleWorld(player.x, player.y, 80)
+        ) {
+          const position = centerOf(player);
+          const vanish = combatArt("rogue", "vanish", player.appearance.primaryColor);
+          if (vanish.zone) this.#playCombatSheet(vanish.zone, position.x, position.y);
+          this.#addPulse(position.x, position.y, 0xc58cff, 28, 420);
+          this.#burst(position.x, position.y, 0x9d72dd, 9);
+        }
         // A player lying dead IS their corpse — the corpse layer draws the body, so the
         // avatar steps aside. What is left standing is only ever the living or a ghost.
         const visible =
@@ -4336,7 +4413,15 @@ export class Renderer {
               const motion: UnitMotion = moving ? "run" : "idle";
               const frames = view.unitAnimations[motion];
               const frame = frames[Math.floor(now / 95) % frames.length] ?? frames[0];
-              if (frame) view.unitSprite.texture = frame;
+              if (frame) {
+                view.unitSprite.texture = frame;
+                if (player.class === "rogue") {
+                  view.unitSprite.position.set(
+                    ROGUE_UNIT_OFFSET_X,
+                    motion === "run" ? ROGUE_RUN_OFFSET_Y : ROGUE_IDLE_OFFSET_Y,
+                  );
+                }
+              }
             }
           }
           if (
@@ -4371,6 +4456,7 @@ export class Renderer {
         view.lastY = player.y;
         view.lastHp = player.hp;
         view.wasDead = spirit;
+        view.wasInvisible = player.invisible === true;
       },
       (view) => this.#resetVisualAction(view),
     );

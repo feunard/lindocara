@@ -145,21 +145,19 @@ function rogueDanceMapInput(
   };
 }
 
-/**
- * Commit 6 deliberately keeps Rogue out of the public create input. Runtime integration still
- * needs a real D1 hero and WebSocket, so create a normal fixture then switch only its stored class
- * before admission. Profile loading normalizes the incompatible starter weapon back to daggers.
- */
-async function hiddenRogueHero(
+/** Creates the public Rogue through the same API as the class picker, then applies only the
+ * high-level talent fixture a scenario explicitly requested. */
+async function rogueHero(
   name: string,
   options: Omit<TestHeroOptions, "class"> & { talents?: readonly string[] } = {},
 ): Promise<TestHero> {
   const { talents = [], ...heroOptions } = options;
-  const hero = await testHero(name, { ...heroOptions, class: "warrior" });
-  await env.DB.prepare("UPDATE hero SET class = 'rogue', talents = ? WHERE id = ?")
-    .bind(JSON.stringify(talents), hero.heroId)
-    .run();
-  await env.DB.prepare("DELETE FROM hero_skill WHERE hero_id = ?").bind(hero.heroId).run();
+  const hero = await testHero(name, { ...heroOptions, class: "rogue" });
+  if (talents.length > 0) {
+    await env.DB.prepare("UPDATE hero SET talents = ? WHERE id = ?")
+      .bind(JSON.stringify(talents), hero.heroId)
+      .run();
+  }
   return hero;
 }
 
@@ -275,7 +273,7 @@ afterEach(async () => {
 describe("Rogue authoritative opening and mobility", { timeout: 12_000 }, () => {
   it("plans Shadow Step server-side and consumes Opening only after Dual Slash really lands", async () => {
     const party = await testParty("rogue-opening", { maps: [rogueOpeningMapInput()] });
-    const hero = await hiddenRogueHero("Shade", {
+    const hero = await rogueHero("Shade", {
       party,
       account: party.host,
       level: 3,
@@ -380,7 +378,7 @@ describe("Rogue authoritative opening and mobility", { timeout: 12_000 }, () => 
 
   it("rejects Shadow Step through a wall without moving or starting its cooldown", async () => {
     const party = await testParty("rogue-wall", { maps: [rogueWallMapInput()] });
-    const hero = await hiddenRogueHero("Walled", {
+    const hero = await rogueHero("Walled", {
       party,
       account: party.host,
       level: 3,
@@ -416,7 +414,7 @@ describe("Rogue authoritative opening and mobility", { timeout: 12_000 }, () => 
 describe("Rogue authoritative stealth", { timeout: 15_000 }, () => {
   it("drops aggro, withholds the position from peers, and starts cooldown on offensive exit", async () => {
     const party = await testParty("rogue-stealth-peer", { maps: [rogueStealthMapInput(7)] });
-    const hero = await hiddenRogueHero("Veil", {
+    const hero = await rogueHero("Veil", {
       party,
       account: party.host,
       level: 5,
@@ -492,7 +490,7 @@ describe("Rogue authoritative stealth", { timeout: 15_000 }, () => {
 
   it("lets an already wound-up monster hit and break Vanish without granting Opening", async () => {
     const party = await testParty("rogue-stealth-hit", { maps: [rogueStealthMapInput(6)] });
-    const hero = await hiddenRogueHero("Interrupted", {
+    const hero = await rogueHero("Interrupted", {
       party,
       account: party.host,
       level: 5,
@@ -536,7 +534,7 @@ describe("Rogue authoritative stealth", { timeout: 15_000 }, () => {
 
   it("clears stealth on disconnect and restores only its bounded cooldown", async () => {
     const party = await testParty("rogue-stealth-reconnect");
-    const hero = await hiddenRogueHero("Reconnect", {
+    const hero = await rogueHero("Reconnect", {
       party,
       account: party.host,
       level: 5,
@@ -571,7 +569,7 @@ describe("Rogue authoritative poison", { timeout: 15_000 }, () => {
     const party = await testParty("rogue-poison-credit", {
       maps: [roguePoisonMapInput(85)],
     });
-    const hero = await hiddenRogueHero("Venom", {
+    const hero = await rogueHero("Venom", {
       party,
       account: party.host,
       level: 7,
@@ -624,7 +622,7 @@ describe("Rogue authoritative poison", { timeout: 15_000 }, () => {
     const party = await testParty("rogue-poison-reconnect", {
       maps: [roguePoisonMapInput(145)],
     });
-    const hero = await hiddenRogueHero("CleanReconnect", {
+    const hero = await rogueHero("CleanReconnect", {
       party,
       account: party.host,
       level: 7,
@@ -678,7 +676,7 @@ describe("Rogue authoritative Shadow Dance", { timeout: 15_000 }, () => {
     const party = await testParty("rogue-dance-empty", {
       maps: [rogueDanceMapInput(0)],
     });
-    const hero = await hiddenRogueHero("NoCut", {
+    const hero = await rogueHero("NoCut", {
       party,
       account: party.host,
       level: 10,
@@ -711,7 +709,7 @@ describe("Rogue authoritative Shadow Dance", { timeout: 15_000 }, () => {
     const party = await testParty("rogue-dance-five", {
       maps: [rogueDanceMapInput(5)],
     });
-    const hero = await hiddenRogueHero("FiveCuts", {
+    const hero = await rogueHero("FiveCuts", {
       party,
       account: party.host,
       level: 10,
@@ -776,7 +774,7 @@ describe("Rogue authoritative Shadow Dance", { timeout: 15_000 }, () => {
     const party = await testParty("rogue-dance-single", {
       maps: [rogueDanceMapInput(1)],
     });
-    const hero = await hiddenRogueHero("OneCut", {
+    const hero = await rogueHero("OneCut", {
       party,
       account: party.host,
       level: 10,
@@ -808,7 +806,7 @@ describe("Rogue authoritative Shadow Dance", { timeout: 15_000 }, () => {
     const party = await testParty("rogue-dance-wall", {
       maps: [rogueDanceMapInput(2, 8)],
     });
-    const hero = await hiddenRogueHero("WallCut", {
+    const hero = await rogueHero("WallCut", {
       party,
       account: party.host,
       level: 10,
@@ -842,7 +840,7 @@ describe("Rogue authoritative evolution choices", { timeout: 20_000 }, () => {
     const party = await testParty("rogue-executor", {
       maps: [roguePoisonMapInput(80)],
     });
-    const hero = await hiddenRogueHero("Executor", {
+    const hero = await rogueHero("Executor", {
       party,
       account: party.host,
       level: 10,
@@ -895,7 +893,7 @@ describe("Rogue authoritative evolution choices", { timeout: 20_000 }, () => {
       maps: [roguePoisonMapInput(500)],
     });
     const origin = centre(5, 5);
-    const hero = await hiddenRogueHero("Return", {
+    const hero = await rogueHero("Return", {
       party,
       account: party.host,
       level: 10,
@@ -939,7 +937,7 @@ describe("Rogue authoritative evolution choices", { timeout: 20_000 }, () => {
     const party = await testParty("rogue-predator", {
       maps: [roguePoisonMapInput(500)],
     });
-    const hero = await hiddenRogueHero("Predator", {
+    const hero = await rogueHero("Predator", {
       party,
       account: party.host,
       level: 10,
@@ -1019,7 +1017,7 @@ describe("Rogue authoritative evolution choices", { timeout: 20_000 }, () => {
     const party = await testParty("rogue-smoke-screen", {
       maps: [rogueStealthMapInput(6)],
     });
-    const hero = await hiddenRogueHero("Smoke", {
+    const hero = await rogueHero("Smoke", {
       party,
       account: party.host,
       level: 10,
@@ -1055,7 +1053,7 @@ describe("Rogue authoritative evolution choices", { timeout: 20_000 }, () => {
     const party = await testParty("rogue-concentrated-venom", {
       maps: [roguePoisonMapInput(1_000)],
     });
-    const hero = await hiddenRogueHero("Venom", {
+    const hero = await rogueHero("Venom", {
       party,
       account: party.host,
       level: 10,
@@ -1089,7 +1087,7 @@ describe("Rogue authoritative evolution choices", { timeout: 20_000 }, () => {
     const party = await testParty("rogue-rupture", {
       maps: [roguePoisonMapInput(1_000)],
     });
-    const hero = await hiddenRogueHero("Rupture", {
+    const hero = await rogueHero("Rupture", {
       party,
       account: party.host,
       level: 10,
@@ -1137,7 +1135,7 @@ describe("Rogue authoritative evolution choices", { timeout: 20_000 }, () => {
     const party = await testParty("rogue-dark-harvest", {
       maps: [rogueDanceMapInput(5, undefined, 50)],
     });
-    const hero = await hiddenRogueHero("Harvest", {
+    const hero = await rogueHero("Harvest", {
       party,
       account: party.host,
       level: 10,
@@ -1173,7 +1171,7 @@ describe("Rogue authoritative evolution choices", { timeout: 20_000 }, () => {
     const party = await testParty("rogue-thousand-cuts", {
       maps: [rogueDanceMapInput(1)],
     });
-    const hero = await hiddenRogueHero("Cuts", {
+    const hero = await rogueHero("Cuts", {
       party,
       account: party.host,
       level: 10,

@@ -161,7 +161,7 @@ describe("createHero", () => {
     });
   });
 
-  it("creates and reloads the hidden Rogue contract with server-owned daggers and five skills", async () => {
+  it("creates and reloads a playable Rogue with server-owned daggers and five skills", async () => {
     const db = createDb(env.DB);
     await seedAccount("rogue_host");
     const { partyId } = await seedParty("rogue_host");

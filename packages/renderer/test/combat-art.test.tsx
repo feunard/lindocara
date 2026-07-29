@@ -7,11 +7,15 @@ import {
   teleportEffectArt,
 } from "@lindocara/renderer/combat-art.js";
 import { ServerClock } from "@lindocara/renderer/server-clock.js";
-import { skillIconArt } from "@lindocara/renderer/tiny-swords-art.js";
+import {
+  allUnitSheets,
+  skillIconArt,
+  unitSheet,
+} from "@lindocara/renderer/tiny-swords-art.js";
 import { describe, expect, it } from "vitest";
 
 describe("Tiny Swords directional combat art", () => {
-  it("uses the dedicated warrior, ranger and priest caster sheets", () => {
+  it("uses dedicated caster sheets for all four playable classes", () => {
     expect(combatArt("warrior", "cleave", "azure").caster).toMatchObject({
       source: expect.stringContaining("units/blue/warrior/Warrior_Attack1.png"),
       frameWidth: 192,
@@ -24,6 +28,13 @@ describe("Tiny Swords directional combat art", () => {
     expect(combatArt("priest", "mend", "moss").caster.source).toContain(
       "units/yellow/monk/Heal.png",
     );
+    expect(combatArt("rogue", "dual_slash", "violet").caster).toMatchObject({
+      source: expect.stringContaining("Thief_Attack"),
+      frameWidth: 128,
+      frameHeight: 192,
+      frames: 9,
+      activeFrame: 4,
+    });
   });
 
   it("maps every hero colour to its matching Tiny Swords faction", () => {
@@ -38,6 +49,36 @@ describe("Tiny Swords directional combat art", () => {
         `/units/${folder}/warrior/`,
       );
     }
+  });
+
+  it("preloads the Rogue idle, run and narrow authored attack strips exactly once", () => {
+    const rogue = ["idle", "run", "attack"].map((motion) =>
+      unitSheet(
+        "rogue",
+        { body: "wayfarer", primaryColor: "violet" },
+        motion as "idle" | "run" | "attack",
+      ),
+    );
+    expect(rogue).toEqual([
+      expect.objectContaining({
+        source: expect.stringContaining("Thief_Idle"),
+        frameWidth: 192,
+        footOffset: 60,
+      }),
+      expect.objectContaining({
+        source: expect.stringContaining("Thief_Run"),
+        frameWidth: 192,
+        footOffset: 59,
+      }),
+      expect.objectContaining({
+        source: expect.stringContaining("Thief_Attack"),
+        frames: 9,
+        frameWidth: 128,
+        frameHeight: 192,
+        footOffset: 56,
+      }),
+    ]);
+    expect(allUnitSheets().filter((sheet) => sheet.source.includes("Thief"))).toHaveLength(3);
   });
 
   it("keeps the basic arrow plain and gives every ranger special shot a distinct treatment", () => {
@@ -88,6 +129,7 @@ describe("Tiny Swords directional combat art", () => {
     const whirlwind = combatArt("warrior", "whirlwind", "azure");
     const heartseeker = combatArt("ranger", "heartseeker", "azure");
     const nova = combatArt("priest", "divine_nova", "azure");
+    const dance = combatArt("rogue", "shadow_dance", "violet");
 
     expect(whirlwind).toMatchObject({
       zone: { source: expect.stringContaining("Explosion_02.png"), scale: 1.78 },
@@ -106,6 +148,11 @@ describe("Tiny Swords directional combat art", () => {
       accent: { source: expect.stringContaining("Explosion_02.png"), scale: 1.88 },
       impact: { source: expect.stringContaining("Explosion_01.png"), scale: 1.65 },
     });
+    expect(dance).toMatchObject({
+      zone: { tint: 0x8f55d9, scale: 1.18 },
+      accent: { tint: 0xc58cff, scale: 1.58 },
+      fallback: expect.stringContaining("Thief_Attack"),
+    });
   });
 
   it("uses authored Tiny Swords sheets as the primary Battle Cry visual", () => {
@@ -120,6 +167,14 @@ describe("Tiny Swords directional combat art", () => {
     expect(skillIconArt("warrior", 5).source).toContain("Explosion_02.png");
     expect(skillIconArt("priest", 3).source).toContain("Dust_02.png");
     expect(skillIconArt("priest", 5).source).toContain("Heal_Effect.png");
+    expect(skillIconArt("rogue", 1)).toMatchObject({
+      source: expect.stringContaining("Thief_Attack"),
+      frames: 9,
+      variant: "dual-slash",
+    });
+    expect(skillIconArt("rogue", 2)).toMatchObject({ variant: "shadow-step" });
+    expect(skillIconArt("rogue", 4)).toMatchObject({ variant: "poisoned-shiv" });
+    expect(skillIconArt("rogue", 5)).toMatchObject({ variant: "shadow-dance" });
   });
 
   it("uses the exact Hex Shaman magic projectile for Radiant Bolt", () => {

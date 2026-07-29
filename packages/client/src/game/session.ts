@@ -581,9 +581,12 @@ async function startGameIdentity(
           sound.combatPulse();
           if (typeof params?.skill === "string" && typeof x === "number" && typeof y === "number") {
             const actorId = typeof params.actorId === "string" ? params.actorId : client.selfId;
-            const impactClass = actorId
-              ? renderer.playCombatImpact(actorId, params.skill, x, y)
-              : undefined;
+            const poisonOutcome = params.poisonTick === 1 || params.poisonRupture === 1;
+            const impactClass = poisonOutcome
+              ? renderer.playRoguePoisonImpact(x, y, params.poisonRupture === 1)
+              : actorId
+                ? renderer.playCombatImpact(actorId, params.skill, x, y)
+                : undefined;
             sound.combatImpact(impactClass ?? playerClass());
           }
           break;

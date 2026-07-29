@@ -1,12 +1,13 @@
 import type { CharacterAppearance, Equipment, PrimaryColor } from "@lindocara/engine/character.js";
 import type { ConsumableId } from "@lindocara/engine/consumables.js";
-import type { PlayerClass } from "@lindocara/engine/game.js";
+import { PLAYER_CLASSES, type PlayerClass } from "@lindocara/engine/game.js";
 import type { SkillSlot } from "@lindocara/engine/skills.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import { Rectangle, Texture } from "pixi.js";
 
 export const TINY_SWORDS_ROOT = "/assets/lindocara/tiny-swords";
 export const TINY_SWORDS_UNIT_FRAME = 192;
+export type UnitMotion = "idle" | "run" | "attack";
 
 /**
  * The land sheet at its native 64px. `Tilemap_Flat.png` is a 4x4 autotile block (see
@@ -327,6 +328,53 @@ const HEX_SHAMAN_PROJECTILE_ICON = new URL(
   import.meta.url,
 ).href;
 
+/** The hooded, twin-dagger Thief requested for the Rogue, resolved directly from the generated
+ * Tiny Swords catalogue's vendor source paths. Attack frames are deliberately narrower than the
+ * idle/run frames in the pack; consumers must preserve the authored 128x192 geometry. */
+export const TINY_SWORDS_ROGUE_SHEETS = {
+  idle: {
+    source: new URL(
+      "../../catalog/assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Thief/Thief_Idle.png",
+      import.meta.url,
+    ).href,
+    frames: 6,
+    frameWidth: 192,
+    frameHeight: 192,
+    footOffset: 60,
+  },
+  run: {
+    source: new URL(
+      "../../catalog/assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Thief/Thief_Run.png",
+      import.meta.url,
+    ).href,
+    frames: 6,
+    frameWidth: 192,
+    frameHeight: 192,
+    footOffset: 59,
+  },
+  attack: {
+    source: new URL(
+      "../../catalog/assets/Tiny Swords (Enemy Pack)/Enemy Pack/Enemies/Thief/Thief_Attack.png",
+      import.meta.url,
+    ).href,
+    frames: 9,
+    frameWidth: 128,
+    frameHeight: 192,
+    footOffset: 56,
+  },
+} as const satisfies Readonly<
+  Record<
+    UnitMotion,
+    {
+      source: string;
+      frames: number;
+      frameWidth: number;
+      frameHeight: number;
+      footOffset: number;
+    }
+  >
+>;
+
 const SKILL_ICON_INDEX: Readonly<Record<PlayerClass, readonly number[]>> = {
   warrior: [5, 6, 5, 11, 5],
   ranger: [7, 7, 7, 6, 7],
@@ -347,6 +395,28 @@ export interface SkillIconArt {
 
 /** Mirrors the actual combat asset/effect used by each skill instead of generic inventory icons. */
 export function skillIconArt(playerClass: PlayerClass, slot: SkillSlot): SkillIconArt {
+  if (playerClass === "rogue") {
+    if (slot === 1 || slot === 5)
+      return {
+        source: TINY_SWORDS_ROGUE_SHEETS.attack.source,
+        frames: TINY_SWORDS_ROGUE_SHEETS.attack.frames,
+        frame: slot === 1 ? 4 : 7,
+        variant: slot === 1 ? "dual-slash" : "shadow-dance",
+      };
+    if (slot === 4)
+      return {
+        source: HEX_SHAMAN_PROJECTILE_ICON,
+        frames: 3,
+        frame: 0,
+        variant: "poisoned-shiv",
+      };
+    return {
+      source: TINY_SWORDS_EFFECTS.dustStrong,
+      frames: 10,
+      frame: slot === 2 ? 2 : 5,
+      variant: slot === 2 ? "shadow-step" : "vanish",
+    };
+  }
   if (playerClass === "ranger") {
     if (slot === 4)
       return { source: TINY_SWORDS_EFFECTS.dustStrong, frames: 10, frame: 2, variant: "dash" };
@@ -394,12 +464,10 @@ const FACTION: Readonly<Record<PrimaryColor, string>> = {
   violet: "purple",
 };
 
-const UNIT_FOLDER: Readonly<Record<PlayerClass, string>> = {
+const UNIT_FOLDER: Readonly<Record<Exclude<PlayerClass, "rogue">, string>> = {
   warrior: "warrior",
   ranger: "archer",
   priest: "monk",
-  // Hidden-contract fallback; the selectable rollout replaces this with the catalogued Thief.
-  rogue: "warrior",
 };
 
 const FILES = {
@@ -418,18 +486,14 @@ const FILES = {
     run: ["Run.png", 4],
     attack: ["Heal.png", 11],
   },
-  rogue: {
-    idle: ["Warrior_Idle.png", 8],
-    run: ["Warrior_Run.png", 6],
-    attack: ["Warrior_Attack1.png", 4],
-  },
 } as const;
-
-export type UnitMotion = "idle" | "run" | "attack";
 
 export interface UnitSheet {
   source: string;
   frames: number;
+  frameWidth: number;
+  frameHeight: number;
+  footOffset: number;
 }
 
 export function classForEquipment(equipment: Equipment): PlayerClass {
@@ -444,16 +508,20 @@ export function unitSheet(
   appearance: CharacterAppearance,
   motion: UnitMotion,
 ): UnitSheet {
+  if (playerClass === "rogue") return TINY_SWORDS_ROGUE_SHEETS[motion];
   const [file, frames] = FILES[playerClass][motion];
   return {
     source: `${TINY_SWORDS_ROOT}/units/${FACTION[appearance.primaryColor]}/${UNIT_FOLDER[playerClass]}/${file}`,
     frames,
+    frameWidth: TINY_SWORDS_UNIT_FRAME,
+    frameHeight: TINY_SWORDS_UNIT_FRAME,
+    footOffset: 56,
   };
 }
 
 export function allUnitSheets(): UnitSheet[] {
   const result = new Map<string, UnitSheet>();
-  for (const playerClass of ["warrior", "ranger", "priest"] as const) {
+  for (const playerClass of PLAYER_CLASSES) {
     for (const primaryColor of ["azure", "ember", "moss", "violet"] as const) {
       for (const motion of ["idle", "run", "attack"] as const) {
         const sheet = unitSheet(
