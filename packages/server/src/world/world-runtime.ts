@@ -137,6 +137,8 @@ export interface CombatActionRuntime {
   resolved: boolean;
   /** Remaining collision-resolved travel budget for a held mobility action. */
   mobilityDistance?: number;
+  /** Server-only per-cast set preventing Sacred Passage from healing one ally more than once. */
+  sacredPassageHealedIds?: Set<string>;
 }
 
 export interface WarriorCycloneRuntime {
@@ -146,6 +148,14 @@ export interface WarriorCycloneRuntime {
   intervalMs: number;
   radius: number;
   power: number;
+}
+
+export type CleanseableNegativeEffect = "poison";
+
+export interface NegativeEffectRuntime {
+  kind: CleanseableNegativeEffect;
+  sourceId: string;
+  expiresAt: number;
 }
 
 export type ProjectileTargetFilter = "monsters" | "wounded_allies";
@@ -202,6 +212,8 @@ export interface PlayerRuntime extends PlayerProfile {
   rallyPowerMultiplier: number;
   /** Server tick-driven Cyclone sequence. No autonomous timers are created per cast. */
   warriorCyclone: WarriorCycloneRuntime | null;
+  /** Deliberately limited cleanse surface; currently only poison is compatible. */
+  negativeEffects: Map<CleanseableNegativeEffect, NegativeEffectRuntime>;
   lastResurrectAt: number;
   messageTimes: number[];
   malformedCount: number;
@@ -476,6 +488,7 @@ export function newPlayer(
     rallyPowerUntil: 0,
     rallyPowerMultiplier: 0,
     warriorCyclone: null,
+    negativeEffects: new Map(),
     lastResurrectAt:
       cooldowns.resurrectUntil === 0 ? 0 : cooldowns.resurrectUntil - RESURRECT_COOLDOWN_MS,
     messageTimes: [],

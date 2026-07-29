@@ -255,6 +255,16 @@ import {
 } from "./world/party-system.js";
 import { persistPlayer } from "./world/persistence-system.js";
 import {
+  advanceSanctuaries,
+  cleanseNegativeEffect,
+  emergencyMendPower,
+  novaSpecializationMultipliers,
+  removeSanctuariesByOwner,
+  type SanctuaryRuntime,
+  sacredPassageTargets,
+  startSanctuary,
+} from "./world/priest-variant-system.js";
+import {
   advanceProjectiles,
   projectileOrigin,
   removeProjectilesByOwner,
@@ -342,6 +352,7 @@ export class World extends DurableObject<Env> {
   #location: ZoneLocation | null = null;
   #loot: GroundLoot[] = [];
   #projectiles: Projectile[] = [];
+  #sanctuaries: SanctuaryRuntime[] = [];
   #siteRespawnAt = new Map<string, number>();
   #profileSaves = new Map<string, Promise<boolean>>();
   #itemMutations = new Map<string, Promise<number | null>>();
@@ -1921,6 +1932,8 @@ export class World extends DurableObject<Env> {
         : {}),
     });
     if (!action) return false;
+    if (talentEffect(player.class, player.talents, "sacred_passage", slot))
+      action.sacredPassageHealedIds = new Set();
 
     // Attacking breaks invisibility only once the action has actually been accepted.
     player.invisibleUntil = 0;
@@ -2079,6 +2092,10 @@ export class World extends DurableObject<Env> {
       if (challenge) applyKingsChallenge(player, taunted, challenge, now);
       return;
     }
+    const novaMultipliers = novaSpecializationMultipliers(
+      talentEffect(player.class, player.talents, "nova_judgment", slot as SkillSlot),
+      talentEffect(player.class, player.talents, "nova_mercy", slot as SkillSlot),
+    );
     if (definition.shape === "area_damage" || definition.shape === "nova") {
       const cyclone = talentEffect(player.class, player.talents, "cyclone", slot as SkillSlot);
       if (cyclone) {
@@ -2095,11 +2112,36 @@ export class World extends DurableObject<Env> {
           withinRange(player, monster, radius + monsterBodyRadius(monster.species)) &&
           hasLineOfSight(player, monster, this.#zone().terrain.tiles)
         )
-          this.#damageMonster(socket, player, monster, skill, now, false);
+          this.#damageMonster(
+            socket,
+            player,
+            monster,
+            skill,
+            now,
+            false,
+            Math.max(
+              1,
+              Math.round(
+                (skill.power + Math.max(0, player.level - 1) * 2) * novaMultipliers.damage,
+              ),
+            ),
+          );
       }
     }
     if (definition.shape === "area_heal" || definition.shape === "nova") {
-      this.#areaHeal(socket, player, skill, now);
+      this.#areaHeal(socket, player, skill, now, novaMultipliers.healing);
+      const sanctuary = talentEffect(player.class, player.talents, "sanctuary", slot as SkillSlot);
+      if (sanctuary) {
+        startSanctuary(this.#sanctuaries, {
+          ownerId: player.id,
+          x: player.x,
+          y: player.y,
+          radius: skill.radius ?? skill.range,
+          power: skill.power + Math.max(0, player.level - 1) * 2,
+          effect: sanctuary,
+          now,
+        });
+      }
     }
   }
 
@@ -2381,8 +2423,60 @@ export class World extends DurableObject<Env> {
     }
   }
 
-  #areaHeal(ws: WebSocket, player: Player, skill: SkillDefinition, now: number): number {
+  #applySacredPassage(casterSocket: WebSocket, caster: Player, previous: Vec2, now: number): void {
+    const action = caster.action;
+    const healedIds = action?.sacredPassageHealedIds;
+    if (action?.skillId !== "blink" || !healedIds) return;
+    const effect = talentEffect(caster.class, caster.talents, "sacred_passage", 3);
+    if (!effect) return;
+    const from = { x: previous.x + PLAYER_SIZE / 2, y: previous.y + PLAYER_SIZE / 2 };
+    const to = { x: caster.x + PLAYER_SIZE / 2, y: caster.y + PLAYER_SIZE / 2 };
+    if (from.x === to.x && from.y === to.y) return;
+    const candidates = [...this.#players.values()].filter(
+      (target) =>
+        target !== caster && target.life === "alive" && this.#areCombatAllies(caster, target),
+    );
+    for (const target of sacredPassageTargets(candidates, healedIds, (candidate) => {
+      return (
+        sweptProjectileEntityImpact(
+          from,
+          to,
+          effect.width,
+          {
+            center: {
+              x: candidate.x + PLAYER_SIZE / 2,
+              y: candidate.y + PLAYER_SIZE / 2,
+            },
+            radius: PLAYER_SIZE / 2,
+          },
+          candidate.id,
+        ) !== null
+      );
+    })) {
+      const targetSocket = this.#socketByPlayerId.get(target.id);
+      if (!targetSocket) continue;
+      this.#healPlayer(
+        casterSocket,
+        caster,
+        targetSocket,
+        target,
+        effect.power + Math.max(0, caster.level - 1) * effect.powerPerLevel,
+        "blink",
+        now,
+        false,
+      );
+    }
+  }
+
+  #areaHeal(
+    ws: WebSocket,
+    player: Player,
+    skill: SkillDefinition,
+    now: number,
+    powerMultiplier = 1,
+  ): number {
     let healed = 0;
+    const absolution = talentEffect(player.class, player.talents, "absolution", skill.slot);
     for (const [targetSocket, target] of this.#players) {
       if (
         target.life !== "alive" ||
@@ -2391,7 +2485,13 @@ export class World extends DurableObject<Env> {
       )
         continue;
       if (!hasLineOfSight(player, target, this.#zone().terrain.tiles)) continue;
-      const amount = skill.power + Math.max(0, player.level - 1) * 2;
+      if (absolution) cleanseNegativeEffect(target, absolution.cleanse);
+      const amount = Math.max(
+        0,
+        Math.round(
+          (skill.power + Math.max(0, player.level - 1) * 2) * Math.max(0, powerMultiplier),
+        ),
+      );
       if (
         this.#healPlayer(
           ws,
@@ -2407,6 +2507,31 @@ export class World extends DurableObject<Env> {
         healed += 1;
     }
     return healed;
+  }
+
+  #resolveSanctuaryTick(sanctuary: SanctuaryRuntime, now: number): void {
+    const casterSocket = this.#socketByPlayerId.get(sanctuary.ownerId);
+    const caster = casterSocket ? this.#players.get(casterSocket) : undefined;
+    if (!casterSocket || !caster) return;
+    for (const [targetSocket, target] of this.#players) {
+      if (
+        target.life !== "alive" ||
+        !this.#areCombatAllies(caster, target) ||
+        pointDistance(sanctuary, target) > sanctuary.radius ||
+        !hasLineOfSight(sanctuary, target, this.#zone().terrain.tiles)
+      )
+        continue;
+      this.#healPlayer(
+        casterSocket,
+        caster,
+        targetSocket,
+        target,
+        sanctuary.power,
+        "prayer",
+        now,
+        target === caster,
+      );
+    }
   }
 
   #healPlayer(
@@ -3576,7 +3701,10 @@ export class World extends DurableObject<Env> {
       reclaimCorpse: (socket, player) => this.#reclaimCorpse(socket, player),
       collectLoot: (socket, player) => this.#collectLoot(socket, player),
       savePlayer: (player, socket) => this.#savePlayerInBackground(player, socket),
-      onPlayerMoved: (_socket, player, previous) => this.#detectPlayerTouch(player, previous),
+      onPlayerMoved: (socket, player, previous) => {
+        this.#detectPlayerTouch(player, previous);
+        this.#applySacredPassage(socket, player, previous, now);
+      },
     });
     const pausedNpcIds = new Set([
       ...this.#eventRuns.contexts.keys(),
@@ -3605,6 +3733,16 @@ export class World extends DurableObject<Env> {
     );
     advanceWarriorCyclones(this.#players.values(), now, (player, radius, power) =>
       this.#resolveWarriorCycloneStrike(player, radius, power, now),
+    );
+    advanceSanctuaries(
+      this.#sanctuaries,
+      now,
+      (ownerId) => {
+        const ownerSocket = this.#socketByPlayerId.get(ownerId);
+        const owner = ownerSocket ? this.#players.get(ownerSocket) : undefined;
+        return Boolean(owner?.authorized && !owner.transitioning && owner.life === "alive");
+      },
+      (sanctuary) => this.#resolveSanctuaryTick(sanctuary, now),
     );
     advanceProjectiles(
       {
@@ -4651,18 +4789,24 @@ export class World extends DurableObject<Env> {
     const owner = this.#projectileOwner(projectile);
     if (!owner || !canAct(owner.player.life) || !this.#areCombatAllies(owner.player, target))
       return;
+    const baseSkill = CLASS_SKILLS[owner.player.class].find(
+      (candidate) => candidate.id === projectile.sourceSkillId,
+    );
+    const emergency = baseSkill
+      ? talentEffect(owner.player.class, owner.player.talents, "emergency_mend", baseSkill.slot)
+      : undefined;
+    const healingPower = emergency
+      ? emergencyMendPower(projectile.power, target.hp, maxHpForLevel(target.level), emergency)
+      : projectile.power;
     const restored = this.#healPlayer(
       owner.socket,
       owner.player,
       targetSocket,
       target,
-      projectile.power,
+      healingPower,
       projectile.sourceSkillId,
       now,
       false,
-    );
-    const baseSkill = CLASS_SKILLS[owner.player.class].find(
-      (candidate) => candidate.id === projectile.sourceSkillId,
     );
     const chain = baseSkill
       ? talentEffect(owner.player.class, owner.player.talents, "chain_heal", baseSkill.slot)
@@ -4926,6 +5070,8 @@ export class World extends DurableObject<Env> {
     player.rallyPowerUntil = 0;
     player.rallyPowerMultiplier = 0;
     player.warriorCyclone = null;
+    player.negativeEffects.clear();
+    removeSanctuariesByOwner(this.#sanctuaries, player.id);
     removeProjectilesByOwner(this.#projectiles, player.id);
     player.dirty = true;
   }
@@ -5249,6 +5395,8 @@ export class World extends DurableObject<Env> {
     // A hero leaving (disconnect or map transition) aborts every run they triggered.
     abortRunsForHero(this.#eventRuns, player.id);
     cancelCombatAction(player);
+    player.negativeEffects.clear();
+    removeSanctuariesByOwner(this.#sanctuaries, player.id);
     removeProjectilesByOwner(this.#projectiles, player.id);
     removePlayerFromParties(this.#partyContext(), player.id);
     removePlayerCombatState(this.#monsters, player.id);
@@ -5276,6 +5424,7 @@ export class World extends DurableObject<Env> {
     this.#crossMapTeleports = 0;
     this.#loot = [];
     this.#projectiles = [];
+    this.#sanctuaries = [];
     this.#lootGrid.clear();
     this.#siteRespawnAt.clear();
     this.#parties.clear();

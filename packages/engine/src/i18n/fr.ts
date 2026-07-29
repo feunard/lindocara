@@ -541,9 +541,27 @@ export const fr: Record<keyof typeof en, string> = {
   "talent.node.chain_heal.name": "Grâce fluide",
   "talent.node.chain_heal.description":
     "{skill} rebondit sur un autre allié blessé pour {value} % de soin.",
+  "talent.node.emergency_mend.name": "Secours d'urgence",
+  "talent.node.emergency_mend.description":
+    "Amplifie fortement {skill} sur un allié à 30 % de vie ou moins, sans rebond.",
   "talent.node.blink_heal.name": "Lumière régénérante",
   "talent.node.blink_heal.description":
     "{skill} rend {value} points de vie lorsque vous réapparaissez.",
+  "talent.node.sacred_passage.name": "Passage sacré",
+  "talent.node.sacred_passage.description":
+    "Laisse une traînée de soin qui peut restaurer chaque allié traversé une fois par lancement.",
+  "talent.node.sanctuary.name": "Sanctuaire vivant",
+  "talent.node.sanctuary.description":
+    "Ancre trois ticks de soin bornés là où {skill} est lancée ; la zone ne vous suit jamais.",
+  "talent.node.absolution.name": "Absolution",
+  "talent.node.absolution.description":
+    "Renforce le soin instantané et retire le poison compatible des alliés visibles.",
+  "talent.node.nova_judgment.name": "Jugement",
+  "talent.node.nova_judgment.description":
+    "Spécialise {skill} vers des dégâts nettement augmentés et des soins réduits.",
+  "talent.node.nova_mercy.name": "Miséricorde",
+  "talent.node.nova_mercy.description":
+    "Spécialise {skill} vers des soins nettement augmentés et des dégâts réduits.",
   "talent.evolution.warrior.iron_guard.name": "Riposte parfaite",
   "talent.evolution.warrior.iron_guard.description":
     "Une garde absolue : parade parfaite sans dégâts et riposte renvoyant l'attaque.",
@@ -619,15 +637,39 @@ export const fr: Record<keyof typeof en, string> = {
   "talent.evolution.priest.mend.name": "Grâce bondissante",
   "talent.evolution.priest.mend.description":
     "Le soin rebondit vers un second allié blessé avec la moitié de sa puissance.",
-  "talent.evolution.priest.blink.name": "Transfiguration de Lumen",
+  "talent.evolution.priest.blink.name": "Transfiguration lumineuse",
   "talent.evolution.priest.blink.description":
     "Le nuage voyage plus loin, revient plus vite et restaure la vie à la réapparition.",
   "talent.evolution.priest.prayer.name": "Sanctuaire vivant",
   "talent.evolution.priest.prayer.description":
     "La prière devient un vaste sanctuaire aux soins nettement amplifiés.",
-  "talent.evolution.priest.divine_nova.name": "Supernova divine",
+  "talent.evolution.priest.divine_nova.name": "Jugement",
   "talent.evolution.priest.divine_nova.description":
-    "La nova éclate sur une zone plus large avec une puissance et des effets supérieurs.",
+    "La nova conserve sa puissance et sa portée évoluées, puis inflige bien plus de dégâts au prix des soins.",
+  "talent.evolution.priest.mend.a.name": "Grâce bondissante",
+  "talent.evolution.priest.mend.a.description":
+    "Conserve le rebond existant vers un second allié blessé et visible avec la moitié de la puissance.",
+  "talent.evolution.priest.mend.b.name": "Secours d'urgence",
+  "talent.evolution.priest.mend.b.description":
+    "Renonce au rebond pour augmenter le soin de 75 % sur un allié à 30 % de vie ou moins.",
+  "talent.evolution.priest.blink.a.name": "Transfiguration lumineuse",
+  "talent.evolution.priest.blink.a.description":
+    "Conserve le Pas de Lumen plus long, plus rapide à recharger et son soin à la rematérialisation.",
+  "talent.evolution.priest.blink.b.name": "Passage sacré",
+  "talent.evolution.priest.blink.b.description":
+    "Laisse une traînée collisionnée qui soigne chaque allié traversé une fois, jamais à l'arrêt.",
+  "talent.evolution.priest.prayer.a.name": "Sanctuaire vivant",
+  "talent.evolution.priest.prayer.a.description":
+    "Conserve la Prière plus forte et plus large, puis ancre trois ticks de soin à son point de lancement.",
+  "talent.evolution.priest.prayer.b.name": "Absolution",
+  "talent.evolution.priest.prayer.b.description":
+    "Déclenche une Prière instantanée supérieure et retire le poison compatible des alliés visibles.",
+  "talent.evolution.priest.divine_nova.a.name": "Jugement",
+  "talent.evolution.priest.divine_nova.a.description":
+    "Multiplie les dégâts de la Nova évoluée par 140 % et réduit ses soins à 60 %.",
+  "talent.evolution.priest.divine_nova.b.name": "Miséricorde",
+  "talent.evolution.priest.divine_nova.b.description":
+    "Multiplie les soins de la Nova évoluée par 140 % et réduit ses dégâts à 60 %.",
   "talent.node.mastery.name": "Maîtrise",
   "talent.node.mastery.description": "Améliore fortement les atouts principaux de {skill}.",
   "status.connecting": "connexion en tant que {name}...",

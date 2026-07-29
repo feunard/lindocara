@@ -34,7 +34,13 @@ const NODE_GLYPHS: Readonly<Record<Exclude<TalentLabel, "root">, string>> = {
   execute: "✧",
   comet_arrow: "☄",
   chain_heal: "∞",
+  emergency_mend: "✚",
   blink_heal: "✚",
+  sacred_passage: "⌇",
+  sanctuary: "☼",
+  absolution: "✥",
+  nova_judgment: "⚡",
+  nova_mercy: "♡",
   evolution: "✦",
   mastery: "★",
 };

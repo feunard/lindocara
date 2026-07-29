@@ -119,6 +119,30 @@ describe("class talents", () => {
     ).toEqual(legacySelection);
   });
 
+  it("keeps priest legacy capstones as A and rejects their mutually exclusive B choices", () => {
+    const expected = [
+      ["priest.mend.chain", "priest.mend.emergency"],
+      ["priest.blink.mastery", "priest.blink.sacred_passage"],
+      ["priest.prayer.mastery", "priest.prayer.absolution"],
+      ["priest.divine_nova.mastery", "priest.divine_nova.mercy"],
+    ];
+    for (const [index, slot] of ([2, 3, 4, 5] as const).entries()) {
+      const finals = CLASS_TALENTS.priest.filter((node) => node.slot === slot && node.tier === 3);
+      expect(finals.map((node) => node.id)).toEqual(expected[index]);
+      expect(finals.map((node) => node.variantId)).toEqual(["a", "b"]);
+      expect(new Set(finals.map((node) => node.exclusiveGroup)).size).toBe(1);
+    }
+
+    const prerequisites = CLASS_TALENTS.priest
+      .filter((node) => node.slot === 2 && !node.root && node.tier < 3)
+      .map((node) => node.id);
+    const legacySelection = [...prerequisites, "priest.mend.chain"];
+    expect(unlockTalent("priest", 10, legacySelection, "priest.mend.emergency")).toMatchObject({
+      ok: false,
+      reason: "exclusive",
+    });
+  });
+
   it("grants one spendable point per level while keeping learned roots free", () => {
     const initial = talentState("ranger", 10, []);
     expect(initial).toEqual({ selected: [], pointsSpent: 0, pointsAvailable: 10 });
@@ -223,5 +247,30 @@ describe("class talents", () => {
     expect(
       talentEffect("ranger", ["ranger.heartseeker.comet_arrow"], "comet_arrow", 5),
     ).toMatchObject({ directPowerRatio: 0.85, radius: 105, splashPowerRatio: 0.65 });
+  });
+
+  it("centralizes the priest specialization and cleanse contracts", () => {
+    expect(talentEffect("priest", ["priest.mend.emergency"], "emergency_mend", 2)).toMatchObject({
+      threshold: 0.3,
+      powerMultiplier: 0.75,
+    });
+    expect(
+      talentEffect("priest", ["priest.blink.sacred_passage"], "sacred_passage", 3),
+    ).toMatchObject({ width: 22, power: 18, powerPerLevel: 1 });
+    expect(talentEffect("priest", ["priest.prayer.mastery"], "sanctuary", 4)).toMatchObject({
+      ticks: 3,
+      intervalMs: 1_000,
+    });
+    expect(talentEffect("priest", ["priest.prayer.absolution"], "absolution", 4)).toEqual({
+      kind: "absolution",
+      cleanse: "poison",
+    });
+    expect(
+      talentEffect("priest", ["priest.divine_nova.mastery"], "nova_judgment", 5),
+    ).toMatchObject({ damageMultiplier: 1.4, healMultiplier: 0.6 });
+    expect(talentEffect("priest", ["priest.divine_nova.mercy"], "nova_mercy", 5)).toMatchObject({
+      damageMultiplier: 0.6,
+      healMultiplier: 1.4,
+    });
   });
 });

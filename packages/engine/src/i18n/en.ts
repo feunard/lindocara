@@ -535,8 +535,26 @@ export const en = {
   "talent.node.chain_heal.name": "Flowing grace",
   "talent.node.chain_heal.description":
     "{skill} bounces to another wounded ally for {value}% healing.",
+  "talent.node.emergency_mend.name": "Emergency aid",
+  "talent.node.emergency_mend.description":
+    "Greatly amplify {skill} on an ally at or below 30% health, without a bounce.",
   "talent.node.blink_heal.name": "Renewing light",
   "talent.node.blink_heal.description": "{skill} restores {value} health when you rematerialize.",
+  "talent.node.sacred_passage.name": "Sacred passage",
+  "talent.node.sacred_passage.description":
+    "Leave a healing trail that can restore each crossed ally once per cast.",
+  "talent.node.sanctuary.name": "Living sanctuary",
+  "talent.node.sanctuary.description":
+    "Anchor three bounded healing ticks where {skill} was cast; the zone never follows you.",
+  "talent.node.absolution.name": "Absolution",
+  "talent.node.absolution.description":
+    "Strengthen the instant heal and remove compatible poison from visible allies.",
+  "talent.node.nova_judgment.name": "Judgment",
+  "talent.node.nova_judgment.description":
+    "Specialize {skill} toward greatly increased damage and reduced healing.",
+  "talent.node.nova_mercy.name": "Mercy",
+  "talent.node.nova_mercy.description":
+    "Specialize {skill} toward greatly increased healing and reduced damage.",
   "talent.evolution.warrior.iron_guard.name": "Perfect Riposte",
   "talent.evolution.warrior.iron_guard.description":
     "An absolute guard: perfect parries prevent all damage and reflect the attack.",
@@ -612,15 +630,39 @@ export const en = {
   "talent.evolution.priest.mend.name": "Leaping Grace",
   "talent.evolution.priest.mend.description":
     "The heal bounces to a second wounded ally at half strength.",
-  "talent.evolution.priest.blink.name": "Lumen Transfiguration",
+  "talent.evolution.priest.blink.name": "Luminous Transfiguration",
   "talent.evolution.priest.blink.description":
     "The cloud travels farther, returns sooner, and restores health on rematerialization.",
   "talent.evolution.priest.prayer.name": "Living Sanctuary",
   "talent.evolution.priest.prayer.description":
     "Prayer becomes a vast sanctuary with substantially amplified healing.",
-  "talent.evolution.priest.divine_nova.name": "Divine Supernova",
+  "talent.evolution.priest.divine_nova.name": "Judgment",
   "talent.evolution.priest.divine_nova.description":
-    "The nova erupts across a wider area with greater power and richer effects.",
+    "The nova keeps its evolved power and reach, then deals far more damage at the cost of healing.",
+  "talent.evolution.priest.mend.a.name": "Leaping Grace",
+  "talent.evolution.priest.mend.a.description":
+    "Preserves the existing bounce to a second wounded visible ally at half strength.",
+  "talent.evolution.priest.mend.b.name": "Emergency Aid",
+  "talent.evolution.priest.mend.b.description":
+    "Forgo the bounce to increase healing by 75% on an ally at or below 30% health.",
+  "talent.evolution.priest.blink.a.name": "Luminous Transfiguration",
+  "talent.evolution.priest.blink.a.description":
+    "Preserves the longer, faster Lumen Step and its healing on rematerialization.",
+  "talent.evolution.priest.blink.b.name": "Sacred Passage",
+  "talent.evolution.priest.blink.b.description":
+    "Leave a collision-resolved trail that heals every crossed ally once, and never while stationary.",
+  "talent.evolution.priest.prayer.a.name": "Living Sanctuary",
+  "talent.evolution.priest.prayer.a.description":
+    "Preserves the stronger, wider Prayer and anchors three additional healing ticks at its cast point.",
+  "talent.evolution.priest.prayer.b.name": "Absolution",
+  "talent.evolution.priest.prayer.b.description":
+    "Deliver a stronger instant Prayer and cleanse the supported poison effect from visible allies.",
+  "talent.evolution.priest.divine_nova.a.name": "Judgment",
+  "talent.evolution.priest.divine_nova.a.description":
+    "Multiply evolved Nova damage by 140% while reducing its healing output to 60%.",
+  "talent.evolution.priest.divine_nova.b.name": "Mercy",
+  "talent.evolution.priest.divine_nova.b.description":
+    "Multiply evolved Nova healing by 140% while reducing its damage output to 60%.",
   "talent.node.mastery.name": "Mastery",
   "talent.node.mastery.description": "Greatly improve {skill}'s defining strengths.",
   "status.connecting": "connecting as {name}...",

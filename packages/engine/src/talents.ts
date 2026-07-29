@@ -58,7 +58,13 @@ export type TalentEffect =
       splashPowerRatio: number;
     }
   | { kind: "chain_heal"; ratio: number; range: number }
-  | { kind: "blink_heal"; value: number };
+  | { kind: "emergency_mend"; threshold: number; powerMultiplier: number }
+  | { kind: "blink_heal"; value: number }
+  | { kind: "sacred_passage"; width: number; power: number; powerPerLevel: number }
+  | { kind: "sanctuary"; ticks: number; intervalMs: number }
+  | { kind: "absolution"; cleanse: "poison" }
+  | { kind: "nova_judgment"; damageMultiplier: number; healMultiplier: number }
+  | { kind: "nova_mercy"; damageMultiplier: number; healMultiplier: number };
 
 export type TalentLabel =
   | "root"
@@ -83,7 +89,13 @@ export type TalentLabel =
   | "execute"
   | "comet_arrow"
   | "chain_heal"
+  | "emergency_mend"
   | "blink_heal"
+  | "sacred_passage"
+  | "sanctuary"
+  | "absolution"
+  | "nova_judgment"
+  | "nova_mercy"
   | "evolution"
   | "mastery";
 
@@ -390,24 +402,60 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
         label: "chain_heal",
         effects: [{ kind: "chain_heal", ratio: 0.5, range: 140 }],
       },
+      {
+        key: "emergency",
+        label: "emergency_mend",
+        effects: [{ kind: "emergency_mend", threshold: 0.3, powerMultiplier: 0.75 }],
+      },
     ]),
     ...branch("priest", 3, [
       { key: "distance", label: "distance", effects: [distance()] },
       { key: "renewal", label: "blink_heal", effects: [{ kind: "blink_heal", value: 20 }] },
       { key: "readiness", label: "cooldown", effects: [cooldown()] },
       { key: "mastery", label: "mastery", effects: [distance(0.3), cooldown(0.12)] },
+      {
+        key: "sacred_passage",
+        label: "sacred_passage",
+        effects: [{ kind: "sacred_passage", width: 22, power: 18, powerPerLevel: 1 }],
+      },
     ]),
     ...branch("priest", 4, [
       { key: "grace", label: "power", effects: [power()] },
       { key: "reach", label: "range", effects: [range()] },
       { key: "readiness", label: "cooldown", effects: [cooldown()] },
-      { key: "mastery", label: "mastery", effects: [power(0.3), range(0.15)] },
+      {
+        key: "mastery",
+        label: "mastery",
+        effects: [power(0.3), range(0.15), { kind: "sanctuary", ticks: 3, intervalMs: 1_000 }],
+      },
+      {
+        key: "absolution",
+        label: "absolution",
+        effects: [power(0.45), { kind: "absolution", cleanse: "poison" }],
+      },
     ]),
     ...branch("priest", 5, [
       { key: "radiance", label: "power", effects: [power()] },
       { key: "reach", label: "range", effects: [range()] },
       { key: "readiness", label: "cooldown", effects: [cooldown()] },
-      { key: "mastery", label: "mastery", effects: [power(0.35), range(0.1)] },
+      {
+        key: "mastery",
+        label: "nova_judgment",
+        effects: [
+          power(0.35),
+          range(0.1),
+          { kind: "nova_judgment", damageMultiplier: 1.4, healMultiplier: 0.6 },
+        ],
+      },
+      {
+        key: "mercy",
+        label: "nova_mercy",
+        effects: [
+          power(0.35),
+          range(0.1),
+          { kind: "nova_mercy", damageMultiplier: 0.6, healMultiplier: 1.4 },
+        ],
+      },
     ]),
   ],
 };

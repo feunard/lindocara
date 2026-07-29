@@ -97,6 +97,24 @@ describe("TalentTree", () => {
     expect(screen.getByRole("button", { name: /Comet Arrow\./ })).toBeInTheDocument();
   });
 
+  it("exposes the priest specializations with their distinct healing roles", () => {
+    const self = useUiStore.getState().self;
+    if (!self) throw new Error("self fixture missing");
+    useUiStore.setState({
+      talentsOpen: true,
+      game: gameHandle(),
+      self: { ...self, class: "priest" },
+    });
+    render(<TalentTree />);
+
+    expect(screen.getByRole("button", { name: /Leaping Grace\./ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Emergency Aid\./ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Sacred Passage\./ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Absolution\./ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Judgment\./ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Mercy\./ })).toBeInTheDocument();
+  });
+
   it("requires explicit confirmation before the free reset is sent", async () => {
     const game = gameHandle();
     const selfState = useUiStore.getState().selfState;
