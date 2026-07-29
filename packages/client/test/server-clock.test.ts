@@ -1,4 +1,8 @@
-import { clientCooldownDeadlines } from "@lindocara/client/game/cooldown-sync.js";
+import {
+  clientCooldownDeadlines,
+  clientShadowReturnDeadline,
+  skillCooldownBlocksCast,
+} from "@lindocara/client/game/cooldown-sync.js";
 import { ServerClock, serverTimestampToLocal } from "@lindocara/renderer/server-clock.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -61,5 +65,17 @@ describe("shared browser server clock", () => {
       recoveryEndsAt: 900,
     });
     expect(clientCooldownDeadlines(undefined, clock).attackUntil).toBe(0);
+    expect(clientShadowReturnDeadline(100_000, clock)).toBe(0);
+  });
+
+  it("keeps Shadow Return actionable inside its server-owned recast window", () => {
+    const clock = new ServerClock();
+    clock.sample(100_000, 500);
+
+    const returnUntil = clientShadowReturnDeadline(102_000, clock);
+    expect(returnUntil).toBe(2_500);
+    expect(clientShadowReturnDeadline(100_000, clock)).toBe(0);
+    expect(skillCooldownBlocksCast(5_000, returnUntil, 1_000)).toBe(false);
+    expect(skillCooldownBlocksCast(5_000, returnUntil, 2_500)).toBe(true);
   });
 });

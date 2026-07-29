@@ -12,6 +12,22 @@ export interface ClientCooldownDeadlines {
   skills: Record<SkillSlot, number>;
 }
 
+/** Projects the server-owned recast window without turning it into a speculative client cooldown. */
+export function clientShadowReturnDeadline(shadowReturnUntil: number, clock: ServerClock): number {
+  const sample = clock.currentSample();
+  if (!sample || shadowReturnUntil <= sample.serverNow) return 0;
+  return clock.toLocal(shadowReturnUntil) ?? 0;
+}
+
+/** Shadow Return is a server-authorized second activation inside the base skill's cooldown. */
+export function skillCooldownBlocksCast(
+  cooldownUntil: number,
+  shadowReturnUntil: number,
+  now: number,
+): boolean {
+  return cooldownUntil > now && shadowReturnUntil <= now;
+}
+
 /** Converts absolute server time into this page's monotonic performance clock. */
 export function clientCooldownDeadlines(
   value: CombatCooldownState | undefined,

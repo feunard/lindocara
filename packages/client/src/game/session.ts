@@ -34,7 +34,11 @@ import { type CharacterSummary, logout, type PartyListing, type StoredHero } fro
 import { t } from "../i18n.js";
 import { questTrackerNotifications } from "../quest-presentation.js";
 import { type LocalizedText, useUiStore } from "../store.js";
-import { clientCooldownDeadlines } from "./cooldown-sync.js";
+import {
+  clientCooldownDeadlines,
+  clientShadowReturnDeadline,
+  skillCooldownBlocksCast,
+} from "./cooldown-sync.js";
 import { type Connection, type ConnectionHandlers, WorldClient } from "./net.js";
 import { type PartyTargetResolution, resolvePartyTarget } from "./party.js";
 import { GameSound } from "./sound.js";
@@ -786,9 +790,14 @@ async function startGameIdentity(
   const castSkill = (slot: SkillSlot) => {
     if (interiorOpen()) return;
     const store = useUiStore.getState();
+    const now = performance.now();
     const cooldownUntil =
       slot === 1 ? store.attackCooldownUntil : (store.skillCooldowns[slot] ?? 0);
-    if (cooldownUntil > performance.now()) return;
+    const shadowReturnUntil =
+      store.self?.class === "rogue" && slot === 2
+        ? clientShadowReturnDeadline(store.selfState?.rogue?.shadowReturnUntil ?? 0, serverClock)
+        : 0;
+    if (skillCooldownBlocksCast(cooldownUntil, shadowReturnUntil, now)) return;
     if (slot === 1) {
       attack();
       return;
