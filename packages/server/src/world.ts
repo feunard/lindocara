@@ -237,6 +237,7 @@ import {
   advanceGuards,
   advanceMonsters,
   forgetPlayerFromMonsters,
+  resetMonsterNavigation,
 } from "./world/monster-system.js";
 import { advancePlayers } from "./world/movement-system.js";
 import { createNavigationRuntime, type NavigationRuntime } from "./world/navigation-system.js";
@@ -1386,31 +1387,11 @@ export class World extends DurableObject<Env> {
     if (player.identityKind !== "hero" || player.life !== "alive" || !player.authorized) return;
     const events = this.#location?.definition.events;
     if (!events || events.length === 0) return;
-    const touchesCell = (
-      position: { x: number; y: number },
-      event: MapEvent,
-      tolerance: number,
-    ): boolean => {
-      // Collision rejects a whole 13px movement step rather than clamping the body flush to a wall.
-      // Expand the event by exactly that maximum living-player step so the last accepted position
-      // still counts as contact with a solid door; a larger arbitrary interaction radius would make
-      // player-touch events fire from visibly separate cells.
-      const cell = this.#activeEventCell(event);
-      const left = cell.col * TILE_SIZE - tolerance;
-      const top = cell.row * TILE_SIZE - tolerance;
-      const right = (cell.col + 1) * TILE_SIZE + tolerance;
-      const bottom = (cell.row + 1) * TILE_SIZE + tolerance;
-      // Strict edges mean a body merely parked flush against a neighbouring cell has not entered it.
-      // The current-position tolerance below still catches a movement step rejected just before a
-      // solid cell; the previous position uses no tolerance so pressing toward that door creates the
-      // edge that starts the run.
-      return (
-        position.x < right &&
-        position.x + PLAYER_SIZE > left &&
-        position.y < bottom &&
-        position.y + PLAYER_SIZE > top
-      );
-    };
+    // Collision rejects a whole 13px movement step rather than clamping the body flush to a wall.
+    // Expand the event by exactly that maximum living-player step so the last accepted position
+    // still counts as contact with a solid door; a larger arbitrary interaction radius would make
+    // player-touch events fire from visibly separate cells. Strict edges in `#touchesEventCell`
+    // ensure a body merely parked flush against a neighbouring cell has not entered it.
     const movementTolerance = (PLAYER_SPEED * TICK_MS) / 1_000;
     let selected: {
       event: MapEvent;
@@ -1421,8 +1402,8 @@ export class World extends DurableObject<Env> {
       const runnable = this.#runnablePage(event, "player-touch");
       if (
         runnable !== null &&
-        !touchesCell(previous, event, 0) &&
-        touchesCell(player, event, movementTolerance)
+        !this.#touchesEventCell(previous, event, 0) &&
+        this.#touchesEventCell(player, event, movementTolerance)
       ) {
         selected = { event, runnable };
         break;
@@ -1436,6 +1417,71 @@ export class World extends DurableObject<Env> {
       heroId: player.id,
       runId: crypto.randomUUID(),
     });
+  }
+
+  /**
+   * Contact teleporters affect live monsters on the same authoritative movement edge as heroes.
+   * Only a single direct teleport command is eligible: a monster must never impersonate a hero to
+   * run dialogue, inventory, quest or party-state commands. Both contact trigger spellings are
+   * accepted so the teleporter preset (`player-touch`) and explicitly authored `event-touch`
+   * portals share the behaviour.
+   */
+  #detectMonsterTouch(monster: Monster, previous: Vec2): void {
+    const events = this.#location?.definition.events;
+    const mapId = this.#location?.zoneId;
+    if (!events || events.length === 0 || !mapId) return;
+    const movementTolerance = (monster.speed * TICK_MS) / 1_000;
+    for (const event of events) {
+      if (event.kind !== "normal") continue;
+      const pageIndex = activePageIndex(event, this.#adventureState);
+      if (pageIndex === null) continue;
+      const page = event.pages[pageIndex];
+      if (
+        !page ||
+        (page.trigger !== "player-touch" && page.trigger !== "event-touch") ||
+        page.commands.length !== 1
+      ) {
+        continue;
+      }
+      const command = page.commands[0];
+      if (
+        command?.t !== "teleport" ||
+        this.#touchesEventCell(previous, event, 0) ||
+        !this.#touchesEventCell(monster, event, movementTolerance)
+      ) {
+        continue;
+      }
+      if (command.mapId !== mapId) {
+        this.#logTeleportRefusedOnce(event.id, "monster_cross_map_unsupported", {
+          monsterId: monster.id,
+          sourceMapId: mapId,
+          destinationMapId: command.mapId,
+        });
+        return;
+      }
+      const terrain = this.#zone().terrain;
+      const destination = eventCellCentre(command);
+      const inBounds =
+        destination.x >= 0 &&
+        destination.y >= 0 &&
+        destination.x < terrain.width &&
+        destination.y < terrain.height;
+      if (!inBounds || !isWalkable(destination, PLAYER_SIZE, terrain)) {
+        this.#logTeleportRefusedOnce(event.id, inBounds ? "unwalkable" : "out_of_bounds", {
+          monsterId: monster.id,
+          mapId,
+          col: command.col,
+          row: command.row,
+        });
+        return;
+      }
+      const beforeTeleport = { x: monster.x, y: monster.y };
+      monster.x = destination.x;
+      monster.y = destination.y;
+      this.#monsterGrid.update(monster, beforeTeleport);
+      resetMonsterNavigation(monster);
+      return;
+    }
   }
 
   /**
@@ -1510,6 +1556,28 @@ export class World extends DurableObject<Env> {
   }
 
   /**
+   * Whether an actor-sized authoritative body overlaps an event cell. Contact checks share this
+   * exact geometry for heroes and monsters so a solid door teleporter behaves identically for both.
+   */
+  #touchesEventCell(
+    position: Vec2,
+    event: Pick<MapEvent, "id" | "col" | "row">,
+    tolerance: number,
+  ): boolean {
+    const cell = this.#activeEventCell(event);
+    const left = cell.col * TILE_SIZE - tolerance;
+    const top = cell.row * TILE_SIZE - tolerance;
+    const right = (cell.col + 1) * TILE_SIZE + tolerance;
+    const bottom = (cell.row + 1) * TILE_SIZE + tolerance;
+    return (
+      position.x < right &&
+      position.x + PLAYER_SIZE > left &&
+      position.y < bottom &&
+      position.y + PLAYER_SIZE > top
+    );
+  }
+
+  /**
    * The hibernation-restore recovery when the coordinator pull throws: fall back to the safe EMPTY
    * snapshot and re-derive the active events from it, so always-on events (pages with no conditions)
    * survive a failed pull instead of the room waking with no events at all. Extracted so the test
@@ -1545,6 +1613,8 @@ export class World extends DurableObject<Env> {
       id: string;
       species: MonsterSpecies;
       patrolRadius: number;
+      x: number;
+      y: number;
       threat: { playerId: string; amount: number }[];
     }[];
     projectiles: { id: string; ownerId: string; kind: ProjectileSnapshot["kind"] }[];
@@ -1576,6 +1646,8 @@ export class World extends DurableObject<Env> {
         id: monster.id,
         species: monster.species,
         patrolRadius: monster.patrolRadius,
+        x: monster.x,
+        y: monster.y,
         threat: [...monster.threat.values()].map(({ playerId, amount }) => ({ playerId, amount })),
       })),
       projectiles: this.#projectiles.map((projectile) => ({
@@ -4326,6 +4398,8 @@ export class World extends DurableObject<Env> {
         this.#startMonsterAttack(monster, target, attackedAt),
       defeatMonster: (monster: Monster, defeatedAt: number) =>
         this.#markMonsterDead(monster, defeatedAt),
+      onMonsterMoved: (monster: Monster, previous: Vec2) =>
+        this.#detectMonsterTouch(monster, previous),
     };
     advanceMonsters(monsterContext, now);
     advanceCombatActions(this.#monsters, now, (monster, action) =>

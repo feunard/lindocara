@@ -45,6 +45,8 @@ export interface MonsterSystemContext {
   navigation: NavigationRuntime;
   startAttack(monster: MonsterRuntime, target: PlayerRuntime | GuardRuntime, now: number): void;
   defeatMonster?(monster: MonsterRuntime, now: number): void;
+  /** Fired after an authoritative monster movement edge. World uses it for contact teleporters. */
+  onMonsterMoved?(monster: MonsterRuntime, previousPosition: Vec2): void;
 }
 
 function monsterAttackRange(monster: MonsterRuntime, now: number): number {
@@ -318,10 +320,11 @@ function moveMonsterDirect(
   monster.y = moved.y;
   context.monsterGrid.update(monster, previousPosition);
   const movedDistance = pointDistance(previousPosition, monster);
+  if (movedDistance > 0.05) context.onMonsterMoved?.(monster, previousPosition);
   return movedDistance > 0.05;
 }
 
-function resetMonsterNavigation(monster: MonsterRuntime): void {
+export function resetMonsterNavigation(monster: MonsterRuntime): void {
   monster.navigation.state = "idle";
   monster.navigation.path = [];
   monster.navigation.pathIndex = 0;

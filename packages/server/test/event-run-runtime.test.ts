@@ -262,6 +262,60 @@ describe("triggers, the run, and cross-room state", { timeout: 20_000 }, () => {
     );
   });
 
+  it("teleports a monster that crosses a contact teleporter without running hero commands", async () => {
+    const contactId = crypto.randomUUID();
+    const teleporterId = crypto.randomUUID();
+    const destination = { col: 8, row: 15 };
+    const placeholderMapId = "00000000-0000-4000-8000-000000000000";
+    const base = testMapInput("monster contact teleporter", {
+      spawn: { col: 23, row: 15 },
+      monsterSpawns: [{ col: 20, row: 15, species: "spear_goblin", patrolRadius: 8 * TILE_SIZE }],
+      events: [
+        scriptEvent(contactId, 21, 15, "player-touch", [
+          { t: "setSwitch", switchId: "0001", value: true },
+        ]),
+        scriptEvent(teleporterId, 22, 15, "player-touch", [
+          { t: "teleport", mapId: placeholderMapId, ...destination },
+        ]),
+      ],
+    });
+    const party = await testParty("monster-contact-teleporter", { maps: [base] });
+    const mapId = party.mapIds[0];
+    if (!mapId) throw new Error("expected a map");
+    await putMap(party, mapId, {
+      ...base,
+      events: base.events.map((event) =>
+        event.id === teleporterId
+          ? {
+              ...event,
+              pages: event.pages.map((eventPage) => ({
+                ...eventPage,
+                commands: [{ t: "teleport", mapId, ...destination }],
+              })),
+            }
+          : event,
+      ),
+    });
+
+    const hero = await testHero("Monster lure", { party, account: party.host });
+    const client = await Client.joinHero(hero);
+    await until("welcomed", () => client.welcome);
+
+    const diagnostics = await awaitDiag(
+      hero.roomKey,
+      "monster crossed the contact teleporter",
+      (diag) => (diag.monsters[0]?.x ?? Number.POSITIVE_INFINITY) < 10 * TILE_SIZE,
+    );
+    const teleportedMonster = diagnostics.monsters[0];
+    expect(teleportedMonster?.x).toBeGreaterThanOrEqual(
+      destination.col * TILE_SIZE + TILE_SIZE / 2,
+    );
+    expect(teleportedMonster?.x).toBeLessThan(10 * TILE_SIZE);
+    expect(teleportedMonster?.y).toBe(destination.row * TILE_SIZE + TILE_SIZE / 2);
+    expect(diagnostics.adventureState.switches["0001"]).not.toBe(true);
+    expect(diagnostics.eventRuns).toEqual([]);
+  });
+
   it("keeps only one run per event when triggered twice (the lock)", async () => {
     // A say program parks the run (waiting-advance), holding the lock indefinitely — a second
     // interact must be dropped, so exactly one say beat ever reaches the wire.
