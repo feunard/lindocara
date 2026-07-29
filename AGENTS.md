@@ -17,8 +17,10 @@ the existing React/Radix primitives, with Tiny Swords limited to previews and re
 | --- | --- |
 | `npm run dev` | **alepha dev** — the new `apps/main` stack, Node + auto-synced SQLite, serving the Alepha-ported `/api/*` (see "Alepha migration status" below) |
 | `npm run dev:legacy` | Vite + the Worker + the Durable Object, all in workerd — the **playable game** (the old `/api/*` + `/api/ws`) |
+| `npm run v` (`npx alepha verify`) | the full verify pipeline: lint → typecheck + tests (parallel) → catalog/map content checks → both builds; `--fast` skips content checks and builds |
 | `npm run check` | lint, typecheck, test — run this before committing |
 | `npm run check:runtime` | lint, typecheck, runtime server/player UI tests and build; skips creator map/adventure validation |
+| `npx alepha vendor diff` / `sync` | show local patches to the vendored framework / re-sync `.vendor/alepha` from `../alepha` main (each sync = its own commit, pinned in `.vendor/vendor.json`) |
 | `npm run loadtest -- --players=10 --duration=60 --scenario=mixed` | authenticated local WebSocket load test against the legacy stack; remote targets require explicit opt-in |
 | `npm run lint` / `lint:fix` | Biome |
 | `npm run typecheck` | one tsc per package + a Node tooling program (see below) |
