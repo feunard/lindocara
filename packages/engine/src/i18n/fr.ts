@@ -708,6 +708,9 @@ export const fr: Record<keyof typeof en, string> = {
   "talent.evolution.rogue.shadow_step.b.name": "Retour d'ombre",
   "talent.evolution.rogue.shadow_step.b.description":
     "Réactivez sous 2 secondes pour revenir au point de départ par un trajet collisionné, sans générer une seconde Ouverture.",
+  "talent.ultimate.rogue.shadow_step.name": "Traversée du voile",
+  "talent.ultimate.rogue.shadow_step.description":
+    "Pas de l'ombre peut traverser murs, eau, colliders et changements d'élévation. La position d'arrivée choisie par le serveur doit rester libre et praticable.",
   "talent.evolution.rogue.vanish.a.name": "Prédateur",
   "talent.evolution.rogue.vanish.a.description":
     "Sortez de Disparition avec une Ouverture renforcée et amplifiez le prochain Surin empoisonné utilisé sous 2 secondes.",

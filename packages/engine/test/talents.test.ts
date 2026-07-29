@@ -25,9 +25,11 @@ describe("class talents", () => {
         const tierOne = branch.filter((node) => node.tier === 1);
         const synergy = branch.filter((node) => node.tier === 2);
         const finals = branch.filter((node) => node.tier === 3);
+        const ultimates = branch.filter((node) => node.tier === 4);
         const group = `${playerClass}.${skill?.id}.evolution`;
+        const hasUltimate = playerClass === "rogue" && slot === 2;
 
-        expect(branch).toHaveLength(6);
+        expect(branch).toHaveLength(hasUltimate ? 7 : 6);
         expect(root).toMatchObject({
           id: `${playerClass}.${skill?.id}.root`,
           tier: 0,
@@ -54,6 +56,18 @@ describe("class talents", () => {
         expect(finals.map((node) => node.requires)).toEqual(
           Array.from({ length: 2 }, () => [...tierOne.map((node) => node.id), synergy[0]?.id]),
         );
+        expect(ultimates).toHaveLength(hasUltimate ? 1 : 0);
+        if (hasUltimate) {
+          expect(ultimates[0]).toMatchObject({
+            id: "rogue.shadow_step.veil_crossing",
+            tier: 4,
+            column: 0,
+            label: "ultimate",
+            requires: [...tierOne.map((node) => node.id), synergy[0]?.id],
+            requiresAll: true,
+            requiresOneOf: finals.map((node) => node.id),
+          });
+        }
       }
     }
     expect(branchCount).toBe(16);
@@ -123,6 +137,37 @@ describe("class talents", () => {
         exclusiveGroup: legacy.exclusiveGroup,
       }),
     ).toBe(legacy);
+  });
+
+  it("requires every intermediate and either exclusive final before the Shadow Step ultimate", () => {
+    const intermediates = [
+      "rogue.shadow_step.ambush",
+      "rogue.shadow_step.reach",
+      "rogue.shadow_step.readiness",
+    ];
+    const ultimate = "rogue.shadow_step.veil_crossing";
+
+    expect(normalizeTalentSelection("rogue", 10, [...intermediates, ultimate])).toEqual(
+      intermediates,
+    );
+    expect(unlockTalent("rogue", 10, intermediates, ultimate)).toMatchObject({
+      ok: false,
+      reason: "prerequisite",
+    });
+    for (const final of ["rogue.shadow_step.executor", "rogue.shadow_step.shadow_return"]) {
+      const fullBranch = [...intermediates, final];
+      expect(unlockTalent("rogue", 10, fullBranch, ultimate)).toEqual({
+        ok: true,
+        selected: [...fullBranch, ultimate],
+      });
+      expect(normalizeTalentSelection("rogue", 10, [...fullBranch, ultimate])).toEqual([
+        ...fullBranch,
+        ultimate,
+      ]);
+    }
+    expect(talentEffect("rogue", [ultimate], "rogue_shadow_phase", 2)).toEqual({
+      kind: "rogue_shadow_phase",
+    });
   });
 
   it("keeps warrior legacy capstones as A and rejects their mutually exclusive B choices", () => {

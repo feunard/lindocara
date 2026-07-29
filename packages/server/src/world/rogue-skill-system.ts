@@ -20,6 +20,11 @@ export type ShadowStepPlanningResult =
   | { ok: true; plan: ShadowStepPlan }
   | { ok: false; reason: "no_target" | "blocked" };
 
+export interface ShadowStepPlanningOptions {
+  /** Ignores the route and sight blockers, but never authorizes an invalid landing. */
+  phaseThroughObstacles?: boolean;
+}
+
 export interface ShadowReturnPoint extends Vec2 {
   expiresAt: number;
 }
@@ -52,7 +57,7 @@ export function isShadowStepPathClear(
   destination: Vec2,
   terrain: TerrainGeometry,
 ): boolean {
-  if (!isWalkable(destination, PLAYER_SIZE, terrain)) return false;
+  if (!isShadowStepLandingValid(destination, terrain)) return false;
   return (
     sweptProjectileTerrainImpact(
       centre(from),
@@ -64,17 +69,26 @@ export function isShadowStepPathClear(
   );
 }
 
-function nearestVisibleTarget<T extends ShadowStepCandidate>(
+export function isShadowStepLandingValid(destination: Vec2, terrain: TerrainGeometry): boolean {
+  return isWalkable(destination, PLAYER_SIZE, terrain);
+}
+
+function nearestShadowStepTarget<T extends ShadowStepCandidate>(
   origin: Vec2,
   candidates: Iterable<T>,
   range: number,
   now: number,
   terrain: TerrainGeometry,
+  options: ShadowStepPlanningOptions,
 ): T | null {
   let selected: T | null = null;
   let selectedDistance = Number.POSITIVE_INFINITY;
   for (const candidate of candidates) {
-    if (candidate.deadUntil > now || !hasRogueLineOfSight(origin, candidate, terrain)) continue;
+    if (
+      candidate.deadUntil > now ||
+      (!options.phaseThroughObstacles && !hasRogueLineOfSight(origin, candidate, terrain))
+    )
+      continue;
     const distance = Math.hypot(candidate.x - origin.x, candidate.y - origin.y);
     if (distance > range) continue;
     if (
@@ -99,6 +113,7 @@ export function shadowStepDestination(
   target: Vec2,
   targetBodyRadius: number,
   terrain: TerrainGeometry,
+  options: ShadowStepPlanningOptions = {},
 ): Vec2 | null {
   const axis = normalizeDirection(
     { x: target.x - origin.x, y: target.y - origin.y },
@@ -113,7 +128,10 @@ export function shadowStepDestination(
       x: targetCentre.x + direction.x * clearance - PLAYER_SIZE / 2,
       y: targetCentre.y + direction.y * clearance - PLAYER_SIZE / 2,
     };
-    if (isShadowStepPathClear(origin, destination, terrain)) return destination;
+    const valid = options.phaseThroughObstacles
+      ? isShadowStepLandingValid(destination, terrain)
+      : isShadowStepPathClear(origin, destination, terrain);
+    if (valid) return destination;
   }
   return null;
 }
@@ -130,10 +148,11 @@ export function planShadowStep<T extends ShadowStepCandidate>(
   now: number,
   terrain: TerrainGeometry,
   bodyRadius: (candidate: T) => number,
+  options: ShadowStepPlanningOptions = {},
 ): ShadowStepPlanningResult {
-  const target = nearestVisibleTarget(origin, candidates, range, now, terrain);
+  const target = nearestShadowStepTarget(origin, candidates, range, now, terrain, options);
   if (!target) return { ok: false, reason: "no_target" };
-  const destination = shadowStepDestination(origin, target, bodyRadius(target), terrain);
+  const destination = shadowStepDestination(origin, target, bodyRadius(target), terrain, options);
   return destination
     ? {
         ok: true,

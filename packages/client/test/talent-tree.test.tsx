@@ -153,6 +153,40 @@ describe("TalentTree", () => {
     expect(screen.getByRole("button", { name: /Mercy\./ })).toBeInTheDocument();
   });
 
+  it("renders the unlocked Shadow Step ultimate on the generic fifth row", async () => {
+    const game = gameHandle();
+    const self = useUiStore.getState().self;
+    const selfState = useUiStore.getState().selfState;
+    if (!self || !selfState) throw new Error("Rogue talent fixture missing");
+    useUiStore.setState({
+      talentsOpen: true,
+      game,
+      self: { ...self, class: "rogue" },
+      selfState: {
+        ...selfState,
+        talents: {
+          selected: [
+            "rogue.shadow_step.ambush",
+            "rogue.shadow_step.reach",
+            "rogue.shadow_step.readiness",
+            "rogue.shadow_step.executor",
+          ],
+          pointsSpent: 4,
+          pointsAvailable: 6,
+        },
+      },
+    });
+    const view = render(<TalentTree />);
+
+    const ultimate = screen.getByRole("button", { name: /Veil Crossing\..*Available/ });
+    expect(ultimate).toHaveClass("talent-node--ultimate", "talent-node--available");
+    expect(ultimate).toHaveStyle({ gridRow: "5", gridColumn: "2" });
+    expect(view.container.querySelectorAll(".talent-node--ultimate")).toHaveLength(1);
+
+    await userEvent.click(ultimate);
+    expect(game.unlockTalent).toHaveBeenCalledWith("rogue.shadow_step.veil_crossing");
+  });
+
   it("requires explicit confirmation before the free reset is sent", async () => {
     const game = gameHandle();
     const selfState = useUiStore.getState().selfState;

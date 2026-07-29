@@ -43,6 +43,7 @@ const NODE_GLYPHS: Readonly<Record<Exclude<TalentLabel, "root">, string>> = {
   nova_judgment: "⚡",
   nova_mercy: "♡",
   evolution: "✦",
+  ultimate: "✹",
   mastery: "★",
 };
 
@@ -97,19 +98,23 @@ export function TalentTree() {
       skillName,
       name: node.root
         ? skillName
-        : node.tier === 3
-          ? t(`talent.evolution.${self.class}.${skill.id}${evolutionSuffix}.name` as MessageKey)
-          : t(`talent.node.${node.label}.name` as MessageKey),
+        : node.tier === 4
+          ? t(`talent.ultimate.${self.class}.${skill.id}.name` as MessageKey)
+          : node.tier === 3
+            ? t(`talent.evolution.${self.class}.${skill.id}${evolutionSuffix}.name` as MessageKey)
+            : t(`talent.node.${node.label}.name` as MessageKey),
       description: node.root
         ? t(`skill.${self.class}.${skill.id}.description` as MessageKey)
-        : node.tier === 3
-          ? t(
-              `talent.evolution.${self.class}.${skill.id}${evolutionSuffix}.description` as MessageKey,
-            )
-          : t(`talent.node.${node.label}.description` as MessageKey, {
-              skill: skillName,
-              value: effectValue(node.effects),
-            }),
+        : node.tier === 4
+          ? t(`talent.ultimate.${self.class}.${skill.id}.description` as MessageKey)
+          : node.tier === 3
+            ? t(
+                `talent.evolution.${self.class}.${skill.id}${evolutionSuffix}.description` as MessageKey,
+              )
+            : t(`talent.node.${node.label}.description` as MessageKey, {
+                skill: skillName,
+                value: effectValue(node.effects),
+              }),
     };
   };
   const inspectedCopy = inspectedNode ? copyFor(inspectedNode) : null;
@@ -194,7 +199,7 @@ export function TalentTree() {
                       <button
                         type="button"
                         key={node.id}
-                        className={`talent-node${active ? " talent-node--active" : ""}${available ? " talent-node--available" : ""}${node.variantId ? ` talent-node--variant talent-node--variant-${node.variantId}` : ""}${exclusiveConflict ? " talent-node--exclusive-disabled" : ""}`}
+                        className={`talent-node${active ? " talent-node--active" : ""}${available ? " talent-node--available" : ""}${node.variantId ? ` talent-node--variant talent-node--variant-${node.variantId}` : ""}${node.tier === 4 ? " talent-node--ultimate" : ""}${exclusiveConflict ? " talent-node--exclusive-disabled" : ""}`}
                         style={{ gridRow: node.tier + 1, gridColumn: node.column + 2 }}
                         aria-pressed={active}
                         aria-disabled={exclusiveConflict ? true : undefined}

@@ -73,6 +73,7 @@ export type TalentEffect =
       cooldownReductionRatio: number;
     }
   | { kind: "rogue_shadow_return"; windowMs: number }
+  | { kind: "rogue_shadow_phase" }
   | {
       kind: "rogue_predator";
       openingBonusRatio: number;
@@ -116,18 +117,21 @@ export type TalentLabel =
   | "nova_judgment"
   | "nova_mercy"
   | "evolution"
+  | "ultimate"
   | "mastery";
 
 export interface TalentNode {
   id: string;
   class: PlayerClass;
   slot: Exclude<SkillSlot, 1>;
-  tier: 0 | 1 | 2 | 3;
+  tier: 0 | 1 | 2 | 3 | 4;
   column: -1 | 0 | 1;
   label: TalentLabel;
   root: boolean;
   requires: readonly string[];
   requiresAll: boolean;
+  /** Additional OR-set required after the ordinary prerequisite rule succeeds. */
+  requiresOneOf?: readonly string[];
   effects: readonly TalentEffect[];
   /** Final evolutions sharing this stable key are mutually exclusive. */
   exclusiveGroup?: string;
@@ -141,10 +145,16 @@ interface UpgradeSeed {
   effects: readonly TalentEffect[];
 }
 
+interface BranchOptions {
+  /** Optional fifth-row point; every branch can add one without changing the generic model. */
+  ultimate?: UpgradeSeed;
+}
+
 function branch(
   playerClass: PlayerClass,
   slot: Exclude<SkillSlot, 1>,
   upgrades: readonly [UpgradeSeed, UpgradeSeed, UpgradeSeed, UpgradeSeed, UpgradeSeed?],
+  options: BranchOptions = {},
 ): TalentNode[] {
   const skillId = skillFor(playerClass, slot).id;
   const rootId = `${playerClass}.${skillId}.root`;
@@ -154,6 +164,8 @@ function branch(
   const evolutionGroup = `${playerClass}.${skillId}.evolution`;
   const evolutionA = upgrades[3];
   const evolutionB = upgrades[4];
+  const evolutionAId = `${playerClass}.${skillId}.${evolutionA.key}`;
+  const evolutionBId = evolutionB ? `${playerClass}.${skillId}.${evolutionB.key}` : evolutionAId;
   const evolutionRequirements = [firstId, secondId, thirdId];
   return [
     {
@@ -205,7 +217,7 @@ function branch(
       effects: upgrades[2].effects,
     },
     {
-      id: `${playerClass}.${skillId}.${evolutionA.key}`,
+      id: evolutionAId,
       class: playerClass,
       slot,
       tier: 3,
@@ -221,7 +233,7 @@ function branch(
     ...(evolutionB
       ? [
           {
-            id: `${playerClass}.${skillId}.${evolutionB.key}`,
+            id: evolutionBId,
             class: playerClass,
             slot,
             tier: 3 as const,
@@ -233,6 +245,23 @@ function branch(
             effects: evolutionB.effects,
             exclusiveGroup: evolutionGroup,
             variantId: "b",
+          },
+        ]
+      : []),
+    ...(options.ultimate
+      ? [
+          {
+            id: `${playerClass}.${skillId}.${options.ultimate.key}`,
+            class: playerClass,
+            slot,
+            tier: 4 as const,
+            column: 0 as const,
+            label: "ultimate" as const,
+            root: false,
+            requires: evolutionRequirements,
+            requiresAll: true,
+            requiresOneOf: [evolutionAId, evolutionBId],
+            effects: options.ultimate.effects,
           },
         ]
       : []),
@@ -478,33 +507,44 @@ export const CLASS_TALENTS: Readonly<Record<PlayerClass, readonly TalentNode[]>>
     ]),
   ],
   rogue: [
-    ...branch("rogue", 2, [
-      { key: "ambush", label: "power", effects: [power()] },
-      { key: "reach", label: "range", effects: [range()] },
-      { key: "readiness", label: "cooldown", effects: [cooldown()] },
+    ...branch(
+      "rogue",
+      2,
+      [
+        { key: "ambush", label: "power", effects: [power()] },
+        { key: "reach", label: "range", effects: [range()] },
+        { key: "readiness", label: "cooldown", effects: [cooldown()] },
+        {
+          key: "executor",
+          label: "mastery",
+          effects: [
+            {
+              kind: "rogue_executor",
+              openingBonusRatio: ROGUE_BALANCE.opening.executorBonusRatio,
+              killWindowMs: ROGUE_BALANCE.opening.executorKillWindowMs,
+              cooldownReductionRatio: ROGUE_BALANCE.opening.executorCooldownReductionRatio,
+            },
+          ],
+        },
+        {
+          key: "shadow_return",
+          label: "mastery",
+          effects: [
+            {
+              kind: "rogue_shadow_return",
+              windowMs: ROGUE_BALANCE.shadowStep.returnWindowMs,
+            },
+          ],
+        },
+      ],
       {
-        key: "executor",
-        label: "mastery",
-        effects: [
-          {
-            kind: "rogue_executor",
-            openingBonusRatio: ROGUE_BALANCE.opening.executorBonusRatio,
-            killWindowMs: ROGUE_BALANCE.opening.executorKillWindowMs,
-            cooldownReductionRatio: ROGUE_BALANCE.opening.executorCooldownReductionRatio,
-          },
-        ],
+        ultimate: {
+          key: "veil_crossing",
+          label: "ultimate",
+          effects: [{ kind: "rogue_shadow_phase" }],
+        },
       },
-      {
-        key: "shadow_return",
-        label: "mastery",
-        effects: [
-          {
-            kind: "rogue_shadow_return",
-            windowMs: ROGUE_BALANCE.shadowStep.returnWindowMs,
-          },
-        ],
-      },
-    ]),
+    ),
     ...branch("rogue", 3, [
       { key: "ambush", label: "power", effects: [power()] },
       { key: "readiness", label: "cooldown", effects: [cooldown()] },
@@ -659,7 +699,12 @@ function prerequisitesMet(node: TalentNode, selected: ReadonlySet<string>, level
           : selected.has(prerequisite.id)),
     );
   };
-  return node.requiresAll ? node.requires.every(active) : node.requires.some(active);
+  const ordinaryRequirementsMet = node.requiresAll
+    ? node.requires.every(active)
+    : node.requires.some(active);
+  return (
+    ordinaryRequirementsMet && (node.requiresOneOf === undefined || node.requiresOneOf.some(active))
+  );
 }
 
 export function normalizeTalentSelection(

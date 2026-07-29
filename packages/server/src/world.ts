@@ -295,6 +295,7 @@ import {
 import { planShadowDance } from "./world/rogue-shadow-dance-system.js";
 import {
   hasRogueLineOfSight,
+  isShadowStepLandingValid,
   isShadowStepPathClear,
   planShadowReturn,
   planShadowStep,
@@ -2042,6 +2043,9 @@ export class World extends DurableObject<Env> {
     if (skill.id === "mend" && now - player.lastHealAt < skill.cooldownMs) return false;
     if (slot !== 1 && (player.skillCooldowns[slot - 1] ?? 0) > now) return false;
     const definition = actionForClassSlot(player.class, slot);
+    const shadowStepPhase =
+      definition.shape === "shadow_step" &&
+      talentEffect(player.class, player.talents, "rogue_shadow_phase", 2) !== undefined;
     const shadowStep =
       definition.shape === "shadow_step"
         ? planShadowStep(
@@ -2054,6 +2058,7 @@ export class World extends DurableObject<Env> {
             now,
             this.#zone().terrain,
             (monster) => monsterBodyRadius(monster.species),
+            { phaseThroughObstacles: shadowStepPhase },
           )
         : null;
     if (shadowStep && !shadowStep.ok) {
@@ -2159,6 +2164,7 @@ export class World extends DurableObject<Env> {
       action.rogueShadowStep = {
         targetId: shadowStep.plan.targetId,
         destination: { ...shadowStep.plan.destination },
+        phaseThroughObstacles: shadowStepPhase,
       };
     }
     if (talentEffect(player.class, player.talents, "sacred_passage", slot))
@@ -2239,13 +2245,19 @@ export class World extends DurableObject<Env> {
       const target = planned
         ? this.#monsters.find((monster) => monster.id === planned.targetId)
         : undefined;
+      const destinationValid = planned
+        ? planned.phaseThroughObstacles
+          ? isShadowStepLandingValid(planned.destination, this.#zone().terrain)
+          : isShadowStepPathClear(player, planned.destination, this.#zone().terrain)
+        : false;
       if (
         !planned ||
         !target ||
         target.deadUntil > now ||
         !withinRange(player, target, skill.range) ||
-        !hasRogueLineOfSight(player, target, this.#zone().terrain) ||
-        !isShadowStepPathClear(player, planned.destination, this.#zone().terrain)
+        (!planned.phaseThroughObstacles &&
+          !hasRogueLineOfSight(player, target, this.#zone().terrain)) ||
+        !destinationValid
       ) {
         this.#send(socket, {
           t: "event",

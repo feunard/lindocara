@@ -933,6 +933,50 @@ describe("Rogue authoritative evolution choices", { timeout: 20_000 }, () => {
     }
   });
 
+  it("crosses a wall only after the separate Shadow Step ultimate is selected", async () => {
+    const party = await testParty("rogue-veil-crossing", {
+      maps: [rogueWallMapInput()],
+    });
+    const hero = await rogueHero("VeilCross", {
+      party,
+      account: party.host,
+      level: 10,
+      position: centre(4, 5),
+      talents: [
+        ...SHADOW_STEP_PREREQUISITES,
+        "rogue.shadow_step.executor",
+        "rogue.shadow_step.veil_crossing",
+      ],
+    });
+    const client = await Client.joinHero(hero);
+    try {
+      const welcome = await until("Veil Crossing welcome", () => client.welcome);
+      const target = welcome.monsters[0];
+      if (!target) throw new Error("expected target beyond the wall");
+
+      client.skill(2);
+      await until("Veil Crossing animation", () =>
+        client.received.find(
+          (message) => message.t === "animation" && message.skillId === "shadow_step",
+        ),
+      );
+      const crossed = await until("Veil Crossing destination", () => {
+        const self = client.self();
+        return self && self.x > target.x ? self : undefined;
+      });
+
+      expect(crossed.x).toBeGreaterThan(target.x);
+      expect(client.latestState?.cooldowns?.skillCooldowns[1]).toBeGreaterThan(
+        client.latestState?.serverNow ?? 0,
+      );
+      expect(client.latestState?.rogue?.openingUntil).toBeGreaterThan(
+        client.latestState?.serverNow ?? 0,
+      );
+    } finally {
+      client.close();
+    }
+  });
+
   it("strengthens Predator's exit Opening and snapshots one empowered poison", async () => {
     const party = await testParty("rogue-predator", {
       maps: [roguePoisonMapInput(500)],

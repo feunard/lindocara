@@ -3512,7 +3512,7 @@ kbd {
 .talent-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(3.1rem, 1fr));
-  grid-template-rows: repeat(4, 5.15rem);
+  grid-template-rows: repeat(5, 5.15rem);
   gap: 0.4rem;
   background:
     linear-gradient(90deg, transparent 49%, rgb(183 150 70 / 34%) 49% 51%, transparent 51%),
@@ -3563,6 +3563,22 @@ kbd {
 
 .talent-node--variant-b.talent-node--available {
   box-shadow: 0 0 12px rgb(159 141 233 / 30%);
+}
+
+.talent-node--ultimate {
+  border-color: #b892ef;
+  background: linear-gradient(#44345e, #1d1930);
+}
+
+.talent-node--ultimate.talent-node--available {
+  color: #f1e7ff;
+  box-shadow: 0 0 15px rgb(184 146 239 / 42%);
+}
+
+.talent-node--ultimate.talent-node--active {
+  border-color: #e6c7ff;
+  background: linear-gradient(#65478a, #2c2145);
+  box-shadow: inset 0 0 14px rgb(220 183 255 / 28%);
 }
 
 .talent-node--exclusive-disabled {

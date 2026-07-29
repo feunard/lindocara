@@ -701,6 +701,9 @@ export const en = {
   "talent.evolution.rogue.shadow_step.b.name": "Shadow Return",
   "talent.evolution.rogue.shadow_step.b.description":
     "Reactivate within 2 seconds to follow a collision-validated path back to your departure point, without a second Opening.",
+  "talent.ultimate.rogue.shadow_step.name": "Veil Crossing",
+  "talent.ultimate.rogue.shadow_step.description":
+    "Shadow Step may cross walls, water, colliders and elevation boundaries. Its server-selected landing must still be free and walkable.",
   "talent.evolution.rogue.vanish.a.name": "Predator",
   "talent.evolution.rogue.vanish.a.description":
     "Leave Vanish with a stronger Opening and empower the next Poisoned Shiv used within 2 seconds.",

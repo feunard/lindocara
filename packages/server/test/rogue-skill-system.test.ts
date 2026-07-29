@@ -2,6 +2,7 @@ import { colliderIndexFrom } from "@lindocara/engine/collider.js";
 import type { TerrainGeometry } from "@lindocara/engine/game.js";
 import {
   hasRogueLineOfSight,
+  isShadowStepLandingValid,
   isShadowStepPathClear,
   planShadowReturn,
   planShadowStep,
@@ -31,6 +32,19 @@ function terrain(
       colliders.length > 0
         ? colliderIndexFrom(colliders, OPEN_TILES.cols, OPEN_TILES.rows)
         : noColliders(OPEN_TILES),
+  };
+}
+
+function waterBarrierTerrain(): TerrainGeometry {
+  const open = terrain();
+  return {
+    ...open,
+    tiles: {
+      ...OPEN_TILES,
+      kinds: OPEN_TILES.kinds.map((kind, index) =>
+        index % OPEN_TILES.cols === 2 ? ("water" as const) : kind,
+      ),
+    },
   };
 }
 
@@ -89,11 +103,39 @@ describe("authoritative Shadow Step planning", () => {
       ok: false,
       reason: "blocked",
     });
+    expect(
+      planShadowStep(origin, [target], 260, 1_000, geometry, bodyRadius, {
+        phaseThroughObstacles: true,
+      }),
+    ).toEqual({ ok: false, reason: "blocked" });
   });
 
   it("sweeps the whole Rogue body and never teleports through an obstacle", () => {
     const geometry = terrain([{ x: 145, y: 64, width: 12, height: 192 }]);
     expect(isShadowStepPathClear({ x: 64, y: 128 }, { x: 220, y: 128 }, geometry)).toBe(false);
+  });
+
+  it("phases through baked wall, water and elevation collision but keeps a valid landing", () => {
+    const origin = { x: 64, y: 128 };
+    const target = { id: "hidden", x: 256, y: 128, deadUntil: 0 };
+    const geometry = waterBarrierTerrain();
+
+    expect(planShadowStep(origin, [target], 260, 1_000, geometry, bodyRadius)).toEqual({
+      ok: false,
+      reason: "no_target",
+    });
+    expect(
+      planShadowStep(origin, [target], 260, 1_000, geometry, bodyRadius, {
+        phaseThroughObstacles: true,
+      }),
+    ).toMatchObject({
+      ok: true,
+      plan: {
+        targetId: "hidden",
+        destination: { x: 290, y: 128 },
+      },
+    });
+    expect(isShadowStepLandingValid({ x: 128, y: 128 }, geometry)).toBe(false);
   });
 
   it("validates Shadow Return against expiry and the same swept collision geometry", () => {

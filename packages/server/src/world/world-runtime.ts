@@ -143,6 +143,8 @@ export interface CombatActionRuntime {
   rogueShadowStep?: {
     targetId: string;
     destination: Vec2;
+    /** Frozen from the selected Tier 4 talent when the server accepts this cast. */
+    phaseThroughObstacles: boolean;
   };
 }
 
