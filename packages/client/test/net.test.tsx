@@ -92,6 +92,28 @@ const WELCOME: ServerMessage = {
   },
 };
 
+/** `connect()` now resolves `GET /api/join` before opening a socket (net-wire.test.ts covers the
+ *  wire shape in detail); this suite is about seq/ack/prediction/interpolation/resync, so every
+ *  test gets one fixed, always-succeeding join and awaits `flush()` once before touching the
+ *  fake socket. */
+function stubJoin(): void {
+  const mock = vi.fn(() =>
+    Promise.resolve(
+      new Response(JSON.stringify({ roomId: "party-1:verdant-reach", channelPath: "/ws/world" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    ),
+  );
+  vi.stubGlobal("fetch", mock);
+}
+
+/** Flushes the resolveJoin promise chain with a macrotask, robust to however many microtask hops
+ *  `api()`'s `await fetch` / `await response.json()` chain grows to. */
+async function flush(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 function handlers(): ConnectionHandlers {
   return {
     onWelcome: vi.fn(),
@@ -119,9 +141,11 @@ describe("WorldClient lifecycle", () => {
     vi.stubGlobal("WebSocket", FakeWebSocket);
   });
 
-  it("bounds unacknowledged prediction and requests one resync", () => {
+  it("bounds unacknowledged prediction and requests one resync", async () => {
+    stubJoin();
     const client = new WorldClient();
     client.connect(handlers(), "hero-1", "party-1");
+    await flush();
     const socket = FakeWebSocket.instances[0];
     expect(socket).toBeDefined();
     socket?.message(WELCOME);
@@ -130,14 +154,19 @@ describe("WorldClient lifecycle", () => {
       client.update({ up: false, down: false, left: false, right: true }, TICK_DT);
     }
 
-    const messages = socket?.sent.map((raw) => JSON.parse(raw) as { t: string }) ?? [];
+    // Every frame rides the `{roomId, message}` envelope (net-wire.test.ts covers its shape in
+    // detail) — unwrap it here since this test is only about the seq/resync counts underneath.
+    const messages =
+      socket?.sent.map((raw) => (JSON.parse(raw) as { message: { t: string } }).message) ?? [];
     expect(messages.filter((message) => message.t === "input")).toHaveLength(MAX_PENDING_COMMANDS);
     expect(messages.filter((message) => message.t === "world.resync")).toHaveLength(1);
   });
 
-  it("flips the self hero's facing from local input, without waiting for the server", () => {
+  it("flips the self hero's facing from local input, without waiting for the server", async () => {
+    stubJoin();
     const client = new WorldClient();
     client.connect(handlers(), "hero-1", "party-1");
+    await flush();
     const socket = FakeWebSocket.instances[0];
     socket?.message(WELCOME); // the welcome snapshot faces right (x: 1)
 
@@ -150,10 +179,12 @@ describe("WorldClient lifecycle", () => {
     expect(self?.facing.x).toBeLessThan(0); // faces left the frame the key is held, not after a round trip
   });
 
-  it("forwards the complete authoritative Shadow Dance result without deriving targets", () => {
+  it("forwards the complete authoritative Shadow Dance result without deriving targets", async () => {
+    stubJoin();
     const callbacks = handlers();
     const client = new WorldClient();
     client.connect(callbacks, "hero-1", "party-1");
+    await flush();
     const socket = FakeWebSocket.instances[0];
     socket?.message(WELCOME);
     const sequence = {
@@ -186,10 +217,12 @@ describe("WorldClient lifecycle", () => {
     ).toMatchObject({ x: 96, y: 32 });
   });
 
-  it("reports an error followed by close only once", () => {
+  it("reports an error followed by close only once", async () => {
+    stubJoin();
     const callbacks = handlers();
     const client = new WorldClient();
     client.connect(callbacks, "hero-1", "party-1");
+    await flush();
     const socket = FakeWebSocket.instances[0];
 
     socket?.dispatchEvent(new Event("error"));
@@ -199,10 +232,12 @@ describe("WorldClient lifecycle", () => {
     expect(callbacks.onClose).toHaveBeenCalledWith(1006, "connection error");
   });
 
-  it("closes a malformed initial frame instead of latching an unusable resync", () => {
+  it("closes a malformed initial frame instead of latching an unusable resync", async () => {
+    stubJoin();
     const callbacks = handlers();
     const client = new WorldClient();
     client.connect(callbacks, "hero-1", "party-1");
+    await flush();
     const socket = FakeWebSocket.instances[0];
 
     socket?.message({ t: "not-a-welcome" });

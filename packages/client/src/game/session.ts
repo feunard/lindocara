@@ -657,6 +657,11 @@ async function startGameIdentity(
   const openConnection = () => {
     client = new WorldClient();
     let closed = false;
+    // `WorldClient.connect()` itself resolves `GET /api/join` before opening the socket (identity
+    // and party id below), on every call — so the ZONE_TRANSITION (4008) branch's near-immediate
+    // `scheduleReconnect(120)` below, which calls `openConnection()` again, automatically re-runs
+    // resolveJoin and reads the hero's map AFTER the transition. No extra plumbing is needed here:
+    // this reconnect table only reacts to close codes, it never has to know a room changed.
     connection = client.connect(
       {
         ...handlers,

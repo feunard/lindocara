@@ -314,6 +314,25 @@ export const createHeroApi = (partyId: string, input: { name: string; class: Pla
 export const deleteHeroApi = (partyId: string, heroId: string) =>
   api<void>(`/api/parties/${partyId}/heroes/${heroId}`, { method: "DELETE" });
 
+/** What `GET /api/join` answers with: the room to dial and the channel it lives on. */
+export interface JoinResolution {
+  roomId: string;
+  channelPath: string;
+}
+
+/**
+ * `GET /api/join?party=<uuid>&hero=<uuid>` (`JoinController.resolveJoin`, `$secure({})`) — the
+ * realtime admission hint. Runs the same membership/ownership/map reads the room's own `onJoin`
+ * re-derives from D1, so this response is a HINT the socket revalidates, never an authorization; a
+ * stale or forged value here can only fail admission, not grant one. `WorldClient.connect()` calls
+ * this before every socket open, including every reconnect (a 4008 zone-transition reconnect gets
+ * a fresh call, so it reads the hero's map AFTER the transition, never the room it just left).
+ */
+export const resolveJoin = (partyId: string, heroId: string) =>
+  api<JoinResolution>(
+    `/api/join?party=${encodeURIComponent(partyId)}&hero=${encodeURIComponent(heroId)}`,
+  );
+
 /** Stable machine codes (from ApiError, or synthesized client-side) mapped to i18n keys. */
 export const ERROR_KEYS: Record<string, MessageKey> = {
   // Alepha's own auth routes (`/api/users/register*`, `/_auth/token`) are framework code, not this

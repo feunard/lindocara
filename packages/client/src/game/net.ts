@@ -54,11 +54,41 @@ import {
   type WorldCache,
 } from "@lindocara/engine/world-delta.js";
 import { DEFAULT_ZONE_ID, zoneDefinition } from "@lindocara/engine/zones.js";
+import { resolveJoin } from "../api.js";
 
 // A slightly deeper buffer covers short workerd/browser scheduling bursts, so AI movement stays
 // between two authoritative snapshots rather than briefly snapping to the newest one.
 const INTERPOLATION_DELAY_MS = 150;
 const BUFFER_MS = 1_000;
+
+/**
+ * The key the Alepha room stamps on every server->client frame
+ * (`WebSocketChannelConnection.ROOM_MARKER`, `.vendor/alepha/src/websocket/services/
+ * WebSocketClient.ts`) so a client subscribed to several rooms on one channel socket can tell
+ * them apart. This client only ever dials one room per socket, so the marker is pure transport
+ * noise here — strip it before the frame reaches `parseServerMessage`, the engine's single
+ * wire-parsing authority, so that parser never has to learn about a transport-level key.
+ */
+const ALEPHA_ROOM_MARKER = "__alephaRoom";
+
+function stripAlephaRoomMarker(raw: string): string {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return raw; // Not valid JSON; parseServerMessage's own JSON.parse rejects it uniformly.
+  }
+  if (
+    parsed !== null &&
+    typeof parsed === "object" &&
+    !Array.isArray(parsed) &&
+    ALEPHA_ROOM_MARKER in parsed
+  ) {
+    delete (parsed as Record<string, unknown>)[ALEPHA_ROOM_MARKER];
+    return JSON.stringify(parsed);
+  }
+  return raw;
+}
 
 interface BufferedSnapshot {
   receivedAt: number;
@@ -161,6 +191,10 @@ function predictPartial(
 
 export class WorldClient {
   #socket: WebSocket | null = null;
+  /** Set once `connect()`'s `resolveJoin` lands, for the party flow only; `null` for the legacy
+   *  rollback `character` seam, which has no room to wrap frames for. `#send` reads it every
+   *  send rather than being captured once, so it always reflects the CURRENT socket. */
+  #roomId: string | null = null;
   #buffer: BufferedSnapshot[] = [];
   #worldCache: WorldCache = createWorldCache();
   #lastWorldTick: number | null = null;
@@ -197,17 +231,8 @@ export class WorldClient {
   }
 
   connect(handlers: ConnectionHandlers, identityId: string, partyId?: string): Connection {
-    const url = new URL("/api/ws", window.location.href);
-    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-    if (partyId) {
-      url.searchParams.set("party", partyId);
-      url.searchParams.set("hero", identityId);
-    } else {
-      // Rollback-only seam for the legacy character test harness.
-      url.searchParams.set("character", identityId);
-    }
-    const socket = new WebSocket(url);
-    this.#socket = socket;
+    let cancelled = false;
+    let socket: WebSocket | null = null;
     let closeReported = false;
     const reportClose = (code: number, reason: string) => {
       if (closeReported) return;
@@ -216,30 +241,80 @@ export class WorldClient {
       handlers.onClose(code, reason);
     };
 
-    if (
-      import.meta.env.DEV &&
-      new URLSearchParams(window.location.search).get("navdebug") === "1"
-    ) {
-      socket.addEventListener("open", () => this.#send({ t: "navigation.debug", enabled: true }));
-    }
+    const attachSocket = (url: URL, roomId: string | null) => {
+      // `close()` may already have been called while `resolveJoin` was still in flight; opening a
+      // socket at this point would leak a connection nothing is going to close.
+      if (cancelled) return;
+      this.#roomId = roomId;
+      const ws = new WebSocket(url);
+      socket = ws;
+      this.#socket = ws;
 
-    socket.addEventListener("message", (event) => {
-      const message = typeof event.data === "string" ? parseServerMessage(event.data) : null;
-      if (message) {
-        this.#handle(message, handlers);
-        return;
+      if (
+        import.meta.env.DEV &&
+        new URLSearchParams(window.location.search).get("navdebug") === "1"
+      ) {
+        ws.addEventListener("open", () => this.#send({ t: "navigation.debug", enabled: true }));
       }
-      // There is no baseline to resynchronise before welcome. Closing with the WebSocket protocol
-      // error code makes the normal reconnect path start a fresh handshake instead of leaving the
-      // loading screen behind a resync request the server cannot satisfy for this client state.
-      if (this.#selfId === null) socket.close(1002, "invalid welcome");
-      else this.#requestResync();
-    });
 
-    socket.addEventListener("close", (event) => {
-      reportClose(event.code, event.reason);
-    });
-    socket.addEventListener("error", () => reportClose(1006, "connection error"));
+      ws.addEventListener("message", (event) => {
+        const message =
+          typeof event.data === "string"
+            ? parseServerMessage(stripAlephaRoomMarker(event.data))
+            : null;
+        if (message) {
+          this.#handle(message, handlers);
+          return;
+        }
+        // There is no baseline to resynchronise before welcome. Closing with the WebSocket
+        // protocol error code makes the normal reconnect path start a fresh handshake instead of
+        // leaving the loading screen behind a resync request the server cannot satisfy for this
+        // client state.
+        if (this.#selfId === null) ws.close(1002, "invalid welcome");
+        else this.#requestResync();
+      });
+
+      ws.addEventListener("close", (event) => {
+        reportClose(event.code, event.reason);
+      });
+      ws.addEventListener("error", () => reportClose(1006, "connection error"));
+    };
+
+    if (partyId) {
+      // Alepha ships its own `WebSocketClient`/`WebSocketChannelConnection`
+      // (`.vendor/alepha/src/websocket/services/WebSocketClient.ts`), but it swallows the close
+      // event's code and reason and reconnects on a fixed timer of its own. `session.ts`'s
+      // reconnect table needs the exact 4001-4008 vocabulary to tell a zone transition from a
+      // lost presence lease from a terminal kick, so we open the raw WebSocket ourselves and
+      // replicate only the wire envelope. Filed as an upstream feature request: surface the close
+      // code/reason on the channel connection and let the caller own retry policy.
+      resolveJoin(partyId, identityId)
+        .then((join) => {
+          const url = new URL(join.channelPath, window.location.href);
+          url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+          url.searchParams.set("roomId", join.roomId);
+          url.searchParams.set("party", partyId);
+          url.searchParams.set("hero", identityId);
+          attachSocket(url, join.roomId);
+        })
+        .catch((error: unknown) => {
+          if (cancelled) return;
+          console.error("resolveJoin failed", error);
+          // No room to dial. 1011 ("internal error") is neither a WS_CLOSE terminal code nor
+          // 1008/1009, so `session.ts`'s table treats it as a retryable network condition —
+          // bounded reconnect attempts, then the generic disconnect message.
+          reportClose(1011, "join resolution failed");
+        });
+    } else {
+      // Rollback-only seam for the legacy character test harness: the alepha `/api/join` resolver
+      // has no concept of a bare character id, so this path keeps dialing the legacy Worker's
+      // unwrapped `/api/ws` directly. Dies with legacy; kept compiling, unreachable from the
+      // primary party flow.
+      const url = new URL("/api/ws", window.location.href);
+      url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+      url.searchParams.set("character", identityId);
+      attachSocket(url, null);
+    }
 
     return {
       attack: () => this.#send({ t: "attack" }),
@@ -271,7 +346,12 @@ export class WorldClient {
           ...(rewardChoiceId === undefined ? {} : { rewardChoiceId }),
         }),
       abandonQuest: (questId) => this.#send({ t: "quest.abandon", questId }),
-      close: () => socket.close(1000, "client left"),
+      close: () => {
+        // Cancels a still-in-flight resolveJoin too, so it can never attach a socket after the
+        // caller has already walked away.
+        cancelled = true;
+        socket?.close(1000, "client left");
+      },
     };
   }
 
@@ -671,7 +751,11 @@ export class WorldClient {
 
   #send(message: ClientMessage): void {
     if (this.#socket?.readyState !== WebSocket.OPEN) return;
-    this.#socket.send(JSON.stringify(message));
+    // The room-scoped envelope (`{roomId, message}`, matching Alepha's own
+    // `WebSocketChannelConnection.send`) only applies to the party flow; the legacy `character`
+    // rollback seam dials the old unwrapped `/api/ws` wire and has no roomId to wrap with.
+    const frame: unknown = this.#roomId === null ? message : { roomId: this.#roomId, message };
+    this.#socket.send(JSON.stringify(frame));
   }
 
   #requestResync(): void {
