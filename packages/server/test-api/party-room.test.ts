@@ -21,6 +21,7 @@ import { $repository } from "alepha/orm";
 import { ServerProvider } from "alepha/server";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { adventures } from "../src/api/entities/adventures.ts";
+import { authoredQuestRewardClaims } from "../src/api/entities/authoredQuestRewardClaims.ts";
 import { heroes } from "../src/api/entities/heroes.ts";
 import { heroItems } from "../src/api/entities/heroItems.ts";
 import { heroQuests } from "../src/api/entities/heroQuests.ts";
@@ -37,6 +38,7 @@ class SeedProbe {
   heroItems = $repository(heroItems);
   heroQuests = $repository(heroQuests);
   partyAdventureStates = $repository(partyAdventureStates);
+  authoredQuestRewardClaims = $repository(authoredQuestRewardClaims);
 }
 
 let alepha: ReturnType<typeof createTestApp>;
@@ -358,6 +360,12 @@ describe("completeAuthoredQuest", () => {
     expect(heroAfter).toEqual(heroBefore);
     const itemsAfter = await probe.heroItems.findMany({ where: { heroId: { eq: heroId } } });
     expect(itemsAfter).toEqual(itemsBefore);
+    // Nothing changed means the reward-claim idempotency row was never written either — a stale
+    // caller must not even register a future idempotency slot.
+    const claims = await probe.authoredQuestRewardClaims.findMany({
+      where: { ownerId: { eq: heroId }, questId: { eq: quest.id } },
+    });
+    expect(claims).toHaveLength(0);
   });
 
   test("the correct epoch claims the reward exactly once (gold, xp and item granted)", async () => {

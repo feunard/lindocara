@@ -11,18 +11,33 @@
  * statement, so a stale-epoch caller mutates nothing at all rather than relying solely on the
  * per-statement fences to no-op.
  *
- * **Not one atomic D1 transaction.** Legacy's `claimAuthoredQuestReward` (`authored-quest-
- * rewards.ts`) issued one `D1Database.batch(...)`, which Cloudflare D1 documents as atomic —
- * either every statement lands or none does. Alepha's D1 provider reports
- * `supportsTransactions: false` (`$transactional()` degrades to a no-op there, per the tranche-1
- * discipline every other `src/api/` service already follows), and there is no equivalent raw batch
- * primitive exposed through `$repository`/`Repository.query()`. `claimQuestReward` below is
- * therefore a SEQUENCE of individually fenced statements: the claim-row insert first (the
- * idempotency + epoch gate — if this inserts zero rows nothing after it runs), then the hero core
- * update, then one statement per item change. Each statement is safe on its own (fenced or
- * conditioned on the claim existing), but the sequence as a whole is not all-or-nothing against a
- * mid-sequence crash the way legacy's batch was. Documented as a known gap in the task report;
- * revisit if/when Alepha exposes a real D1 batch escape hatch.
+ * **Not one atomic D1 transaction, and the scope of that gap is wider than `claimQuestReward`
+ * alone.** Legacy's `claimAuthoredQuestReward` (`authored-quest-rewards.ts`) issued one
+ * `D1Database.batch(...)`, which Cloudflare D1 documents as atomic — either every statement lands
+ * or none does. Alepha's D1 provider reports `supportsTransactions: false` (`$transactional()`
+ * degrades to a no-op there, per the tranche-1 discipline every other `src/api/` service already
+ * follows), and there is no equivalent raw batch primitive exposed through
+ * `$repository`/`Repository.query()`. `claimQuestReward` below is therefore a SEQUENCE of
+ * individually fenced statements: the claim-row insert first (the idempotency + epoch gate — if
+ * this inserts zero rows nothing after it runs), then the hero core update, then one statement per
+ * item change — EVERY hero-mutating statement in that sequence, including the item ones, re-checks
+ * `hero.session_epoch = ?` in its own `WHERE`/`EXISTS`, not just the leading claim insert, so a
+ * reconnect (epoch bump) landing BETWEEN the claim insert and a later statement makes that later
+ * statement a no-op instead of a stale-session item mutation. Each statement is therefore safe on
+ * its own, but the sequence as a whole is still not all-or-nothing against a mid-sequence crash the
+ * way legacy's batch was (e.g. the claim can land and the hero-core update crash before running).
+ *
+ * That gap is not confined to this method's own internals, either: `PartyRoom.completeAuthoredQuest`
+ * (the only caller) issues TWO MORE writes after `claimQuestReward` resolves — the party-state
+ * commit (`PartyRoom#commitState`, for a party-scope quest) and the personal-progress save
+ * (`savePersonalQuestProgress` below, for a personal-scope quest or a chained next quest) — and
+ * NEITHER of those is covered by this method's claim/epoch fencing at all. They are separate calls,
+ * separately fenced (the personal-progress save carries its own epoch fence; the party-state commit
+ * carries none, since party state is not hero-owned), executing after the reward has already been
+ * unrecoverably claimed. A crash between the claim succeeding and either of those two writes leaves
+ * the reward granted with the quest's own progress/state not yet reflecting it — recoverable only by
+ * a human replaying the write, not by any fence in this file. Documented as a known gap in the task
+ * report; revisit if/when Alepha exposes a real D1 batch escape hatch.
  */
 import type {
   AdventureRegistry,
@@ -274,6 +289,12 @@ export class AdventureStateService {
       `,
     );
 
+    // Every statement below re-fences on `hero.session_epoch` itself, exactly like the hero-core
+    // update just above — NOT only on the claim row's existence. The claim persists once inserted
+    // regardless of what happens to the hero afterward, so an EXISTS-on-claim-only gate would NOT
+    // catch a reconnect (epoch bump) landing between the claim insert and these statements; the
+    // repeated epoch check does. See this file's docblock for the fuller picture (this still isn't
+    // one atomic sequence with the claim insert or the hero-core update above).
     for (const item of input.consumeItems) {
       await this.heroItems.query(
         (table) => sql`
@@ -281,21 +302,29 @@ export class AdventureStateService {
           SET quantity = quantity - ${item.quantity}
           WHERE ${table.heroId} = ${input.heroId} AND ${table.itemDefinitionId} = ${item.itemId}
             AND quantity >= ${item.quantity}
+            AND EXISTS (
+              SELECT 1 FROM ${this.heroes.table}
+              WHERE ${this.heroes.table.id} = ${input.heroId}
+                AND ${this.heroes.table.sessionEpoch} = ${input.sessionEpoch}
+            )
         `,
       );
     }
     for (const item of input.items) {
-      await this.heroItems.upsert(
-        {
-          id: crypto.randomUUID(),
-          heroId: input.heroId,
-          itemDefinitionId: item.itemId,
-          quantity: item.quantity,
-        },
-        {
-          target: ["heroId", "itemDefinitionId"],
-          set: { quantity: sql`quantity + ${item.quantity}` },
-        },
+      await this.heroItems.query(
+        (table) => sql`
+          INSERT INTO ${table}
+            (${sql.raw(table.id.name)}, ${sql.raw(table.heroId.name)},
+             ${sql.raw(table.itemDefinitionId.name)}, quantity, ${sql.raw(table.createdAt.name)})
+          SELECT ${crypto.randomUUID()}, ${input.heroId}, ${item.itemId}, ${item.quantity}, ${Date.now()}
+          WHERE EXISTS (
+            SELECT 1 FROM ${this.heroes.table}
+            WHERE ${this.heroes.table.id} = ${input.heroId}
+              AND ${this.heroes.table.sessionEpoch} = ${input.sessionEpoch}
+          )
+          ON CONFLICT(${sql.raw(table.heroId.name)}, ${sql.raw(table.itemDefinitionId.name)}) DO UPDATE SET
+            quantity = quantity + excluded.quantity
+        `,
       );
     }
     return true;
