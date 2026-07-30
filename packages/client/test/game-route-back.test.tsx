@@ -28,7 +28,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const sessionMock = vi.hoisted(() => ({ start: vi.fn(), stop: vi.fn() }));
 vi.mock("@lindocara/client/game/session.js", () => ({
   startGameAsHero: sessionMock.start,
-  startGame: sessionMock.start,
   stopActiveGameSession: sessionMock.stop,
 }));
 

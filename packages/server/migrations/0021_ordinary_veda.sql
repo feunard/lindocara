@@ -1,1 +1,0 @@
-ALTER TABLE `hero` ADD `talents` text DEFAULT '[]' NOT NULL;

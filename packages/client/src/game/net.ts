@@ -191,9 +191,8 @@ function predictPartial(
 
 export class WorldClient {
   #socket: WebSocket | null = null;
-  /** Set once `connect()`'s `resolveJoin` lands, for the party flow only; `null` for the legacy
-   *  rollback `character` seam, which has no room to wrap frames for. `#send` reads it every
-   *  send rather than being captured once, so it always reflects the CURRENT socket. */
+  /** Set once `connect()`'s `resolveJoin` lands; `null` only before that resolves. `#send` reads
+   *  it every send rather than being captured once, so it always reflects the CURRENT socket. */
   #roomId: string | null = null;
   #buffer: BufferedSnapshot[] = [];
   #worldCache: WorldCache = createWorldCache();
@@ -230,7 +229,7 @@ export class WorldClient {
     return this.#selfId;
   }
 
-  connect(handlers: ConnectionHandlers, identityId: string, partyId?: string): Connection {
+  connect(handlers: ConnectionHandlers, identityId: string, partyId: string): Connection {
     let cancelled = false;
     let socket: WebSocket | null = null;
     let closeReported = false;
@@ -280,41 +279,30 @@ export class WorldClient {
       ws.addEventListener("error", () => reportClose(1006, "connection error"));
     };
 
-    if (partyId) {
-      // Alepha ships its own `WebSocketClient`/`WebSocketChannelConnection`
-      // (`.vendor/alepha/src/websocket/services/WebSocketClient.ts`), but it swallows the close
-      // event's code and reason and reconnects on a fixed timer of its own. `session.ts`'s
-      // reconnect table needs the exact 4001-4008 vocabulary to tell a zone transition from a
-      // lost presence lease from a terminal kick, so we open the raw WebSocket ourselves and
-      // replicate only the wire envelope. Filed as an upstream feature request: surface the close
-      // code/reason on the channel connection and let the caller own retry policy.
-      resolveJoin(partyId, identityId)
-        .then((join) => {
-          const url = new URL(join.channelPath, window.location.href);
-          url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-          url.searchParams.set("roomId", join.roomId);
-          url.searchParams.set("party", partyId);
-          url.searchParams.set("hero", identityId);
-          attachSocket(url, join.roomId);
-        })
-        .catch((error: unknown) => {
-          if (cancelled) return;
-          console.error("resolveJoin failed", error);
-          // No room to dial. 1011 ("internal error") is neither a WS_CLOSE terminal code nor
-          // 1008/1009, so `session.ts`'s table treats it as a retryable network condition —
-          // bounded reconnect attempts, then the generic disconnect message.
-          reportClose(1011, "join resolution failed");
-        });
-    } else {
-      // Rollback-only seam for the legacy character test harness: the alepha `/api/join` resolver
-      // has no concept of a bare character id, so this path keeps dialing the legacy Worker's
-      // unwrapped `/api/ws` directly. Dies with legacy; kept compiling, unreachable from the
-      // primary party flow.
-      const url = new URL("/api/ws", window.location.href);
-      url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-      url.searchParams.set("character", identityId);
-      attachSocket(url, null);
-    }
+    // Alepha ships its own `WebSocketClient`/`WebSocketChannelConnection`
+    // (`.vendor/alepha/src/websocket/services/WebSocketClient.ts`), but it swallows the close
+    // event's code and reason and reconnects on a fixed timer of its own. `session.ts`'s
+    // reconnect table needs the exact 4001-4008 vocabulary to tell a zone transition from a
+    // lost presence lease from a terminal kick, so we open the raw WebSocket ourselves and
+    // replicate only the wire envelope. Filed as an upstream feature request: surface the close
+    // code/reason on the channel connection and let the caller own retry policy.
+    resolveJoin(partyId, identityId)
+      .then((join) => {
+        const url = new URL(join.channelPath, window.location.href);
+        url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+        url.searchParams.set("roomId", join.roomId);
+        url.searchParams.set("party", partyId);
+        url.searchParams.set("hero", identityId);
+        attachSocket(url, join.roomId);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        console.error("resolveJoin failed", error);
+        // No room to dial. 1011 ("internal error") is neither a WS_CLOSE terminal code nor
+        // 1008/1009, so `session.ts`'s table treats it as a retryable network condition —
+        // bounded reconnect attempts, then the generic disconnect message.
+        reportClose(1011, "join resolution failed");
+      });
 
     return {
       attack: () => this.#send({ t: "attack" }),
@@ -752,8 +740,9 @@ export class WorldClient {
   #send(message: ClientMessage): void {
     if (this.#socket?.readyState !== WebSocket.OPEN) return;
     // The room-scoped envelope (`{roomId, message}`, matching Alepha's own
-    // `WebSocketChannelConnection.send`) only applies to the party flow; the legacy `character`
-    // rollback seam dials the old unwrapped `/api/ws` wire and has no roomId to wrap with.
+    // `WebSocketChannelConnection.send`). `#roomId` is only `null` in the brief window before
+    // `connect()`'s `resolveJoin` has landed; the socket isn't open yet either, so the branch
+    // above already returns before this matters in practice.
     const frame: unknown = this.#roomId === null ? message : { roomId: this.#roomId, message };
     this.#socket.send(JSON.stringify(frame));
   }

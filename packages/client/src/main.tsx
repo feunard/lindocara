@@ -1,8 +1,5 @@
 import { applyTinySwordsTheme } from "@lindocara/renderer/tiny-swords-assets.js";
-import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
 import { currentLocale } from "./i18n.js";
-import { LegacyShell } from "./ui/LegacyShell.js";
 import "./styles/app.css";
 
 document.documentElement.lang = currentLocale();
@@ -11,12 +8,11 @@ applyTinySwordsTheme();
 /**
  * The canvas is not React's (see the repo AGENTS.md gotcha) — a `position: fixed` sibling of
  * `#root`, and it must stay BEFORE `#root` in DOM order so `#root`'s chrome paints on top of it.
- * It used to arrive pre-built in the served HTML shell (the server's now-deleted `SpaController`,
- * or the legacy static `apps/main/index.html`); the `$page` router's own shell only emits `#root`
- * (Alepha's `ViteUtils.generateIndexHtml`), so the client bootstrap creates it here, before
- * anything mounts. `prepend` is safe precisely because `#root` is ALREADY in the served HTML by
- * the time this module runs (both the router shell and the legacy static one ship it) — nothing
- * needs to reorder around it, the canvas just needs to land before it.
+ * It used to arrive pre-built in the served HTML shell (the server's now-deleted `SpaController`);
+ * the `$page` router's own shell only emits `#root` (Alepha's `ViteUtils.generateIndexHtml`), so
+ * the client bootstrap creates it here, before anything mounts. `prepend` is safe precisely
+ * because `#root` is ALREADY in the served HTML by the time this module runs — nothing needs to
+ * reorder around it, the canvas just needs to land before it.
  */
 function ensureStage(): void {
   if (document.querySelector("#stage")) return;
@@ -26,11 +22,9 @@ function ensureStage(): void {
 }
 
 /**
- * The client's shared pre-mount bootstrap (locale, theme, the canvas), run by both browser
- * entries: the primary Alepha one (`apps/main/src/main.browser.ts`, which goes on to mount the
- * `$page` router from `ui/AppRouter.js`) and the rollback-only legacy Vite one
- * (`apps/main/src/legacy/main.ts`, which calls `mountLegacyApp` below). Returns whether the
- * caller should go on to mount its app at all.
+ * The client's shared pre-mount bootstrap (locale, theme, the canvas), run by the Alepha browser
+ * entry (`apps/main/src/main.browser.ts`, which goes on to mount the `$page` router from
+ * `ui/AppRouter.js`). Returns whether the caller should go on to mount its app at all.
  *
  * `?preview` takes over the whole page itself (see `dev/preview-route.ts`) and must be the only
  * thing touching `#stage`/`#root` from then on — mounting a real app on top of it would fight it
@@ -47,20 +41,4 @@ export function bootClient(): boolean {
     return false;
   }
   return true;
-}
-
-/**
- * Mounts the old zustand-screen-machine `<LegacyShell/>` (formerly `<App/>`, `ui/App.tsx` — Task 5
- * renamed the file once `ui/AppRouter.tsx`'s `$page` tree became the real app) into `#root`. Lives
- * here rather than in `apps/main/src/legacy/main.ts` (a plain `.ts` file, no JSX) — the
- * rollback-only counterpart to the primary path, which mounts Alepha's router instead.
- */
-export function mountLegacyApp(): void {
-  const root = document.querySelector("#root");
-  if (!root) throw new Error("index.html is missing #root");
-  createRoot(root).render(
-    <StrictMode>
-      <LegacyShell />
-    </StrictMode>,
-  );
 }

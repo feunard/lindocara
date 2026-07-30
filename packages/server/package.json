@@ -8,13 +8,9 @@
   },
   "dependencies": {
     "@lindocara/engine": "*",
-    "alepha": "*",
-    "drizzle-orm": "^0.45.2"
+    "alepha": "*"
   },
   "scripts": {
-    "test": "vitest run",
-    "cf-typegen": "wrangler types ./src/worker-configuration.d.ts",
-    "db:migrate": "wrangler d1 migrations apply lindocara --local",
-    "db:migrate:remote": "wrangler d1 migrations apply lindocara --remote"
+    "test": "vitest run"
   }
 }

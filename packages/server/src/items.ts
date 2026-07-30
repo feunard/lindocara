@@ -1,6 +1,20 @@
 import type { Equipment, MainHandItem, OffHandItem } from "@lindocara/engine/character.js";
 import type { PlayerClass } from "@lindocara/engine/game.js";
-import type { EquipmentSlot } from "./db/schema.js";
+
+/**
+ * Inlined from the legacy `db/schema.ts` EQUIPMENT_SLOTS tuple (deleted in Task 6's legacy
+ * retirement). Kept here rather than imported from `api/entities/heroEquipment.ts` because that
+ * entity intentionally does not export the type — see its docblock.
+ */
+export type EquipmentSlot =
+  | "main_hand"
+  | "off_hand"
+  | "head"
+  | "chest"
+  | "legs"
+  | "feet"
+  | "ring"
+  | "amulet";
 
 export const HEALTH_POTION_ID = "health_potion";
 

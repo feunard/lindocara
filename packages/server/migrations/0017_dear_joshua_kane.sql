@@ -1,1 +1,0 @@
-ALTER TABLE `map` DROP COLUMN `blocks`;

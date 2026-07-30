@@ -1,1 +1,0 @@
-ALTER TABLE `character` ADD `class` text DEFAULT 'warrior' NOT NULL;

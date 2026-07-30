@@ -1,14 +1,14 @@
 /**
  * The `$page` route tree — Alepha's router that replaced the old zustand `screen` machine
- * (`ui/LegacyShell.tsx`, the frozen rollback-only counterpart `App.tsx` used to be — see that
- * file's docblock). Every route is live now: `title`/`menu`/`credits`/`auth`, the three launch
+ * (`App.tsx`, formerly `ui/LegacyShell.tsx`, the frozen rollback-only counterpart to this file
+ * until the legacy retirement tranche deleted it entirely). Every route is live now:
+ * `title`/`menu`/`credits`/`auth`, the three launch
  * carousels (`playContinue`/`playNew`/`playJoin`, each with a loader — see that field group's own
  * docblock below), `game` (Task 5) and, since Task 6, `editor` — a lazy-loaded route (see its own
  * field docblock below) rendering the real `@lindocara/editor` shell instead of a stub.
  *
- * The root `layout` carries the chrome the old `App.tsx` used to own directly (now
- * `LegacyShell.tsx`'s equivalent lines): the boot ping (now `ReactAuth.ping()` -> guest fallback
- * -> /auth, replacing the old `fetchMe()`), the launch-menu music effect and the
+ * The root `layout` carries the chrome the old `App.tsx` used to own directly: the boot ping (now
+ * `ReactAuth.ping()` -> guest fallback -> /auth, replacing the old `fetchMe()`), the launch-menu music effect and the
  * LocaleToggle/StatusBar immersive toggle, all now driven by the URL instead of `screen`.
  * `TitleScreen`/`MainMenu`/`CreditsScreen` push through `useRouter()` directly (Task 6) — the
  * store's `setScreen`/`screen` machine is fully dead, both as a store field (removed Task 2) and
@@ -72,7 +72,7 @@ import { WorldMap } from "./WorldMap.js";
 
 /**
  * Paths where the game-chrome LocaleToggle/StatusBar hide — the pre-router `immersive` set ported
- * verbatim from what was `App.tsx:77-84` (now `LegacyShell.tsx`, same lines). Kept as pathnames
+ * verbatim from what was `App.tsx:77-84`. Kept as pathnames
  * rather than page names: pathname is what the layout's `useRouterState()` naturally exposes, and
  * every route below is still flat (no params).
  *
@@ -96,9 +96,9 @@ const IMMERSIVE_PATHS = new Set<string>([
 ]);
 
 /**
- * The in-game React tree (Task 5) — every component `LegacyShell.tsx`'s frozen ancestor rendered
- * under `screen === "game"` before Task 2 dropped that branch (that file's own docblock explains
- * why: the legacy pre-router shell can never reach `"game"` again). Every one of these already
+ * The in-game React tree (Task 5) — every component the old zustand-screen-machine shell (`App.tsx`,
+ * formerly `LegacyShell.tsx`, now deleted) rendered under `screen === "game"` before Task 2 dropped
+ * that branch. Every one of these already
  * reads the untouched zustand bridge (`store.ts`'s `self`/`selfState`/`party`/overlay
  * flags/`GameHandle`, per the plan's measured line) or a Task 2 atom directly
  * (`AdventureTestOverlay`/`Hud` read `adventureTestSessionAtom`) — nothing here changes what they
@@ -130,7 +130,7 @@ function GameScreen() {
   );
 }
 
-/** Paths where the launch-menu music bed plays (was `App.tsx:71-72`, now `LegacyShell.tsx`). */
+/** Paths where the launch-menu music bed plays (was `App.tsx:71-72`). */
 const LAUNCH_MENU_PATHS = new Set<string>(["/menu", "/play/continue", "/play/new", "/play/join"]);
 
 function AppLayout() {
@@ -409,15 +409,15 @@ export class AppRouter {
    * The creator tools, lazy-loaded (Task 6) — this is the ONE undeclared cross-package edge in the
    * whole app: `packages/client/package.json` deliberately does NOT depend on `@lindocara/editor`
    * (see the root AGENTS.md — "the client App lazy-`import()`s the editor at runtime without
-   * declaring it, so there is no static `client -> editor` cycle"), the same pattern
-   * `LegacyShell.tsx`'s own `lazy(async () => ...)` used before this route existed. `$page`'s own
+   * declaring it, so there is no static `client -> editor` cycle"), the same pattern the old
+   * `LegacyShell.tsx`'s own `lazy(async () => ...)` used before this route existed (and before that
+   * file was deleted). `$page`'s own
    * `lazy` contract (`$page.ts`) is `() => Promise<{ default: FC<...> }>`, not React's `lazy()`
    * shape, and `AdventureEditorScreen` is a NAMED export — `.then()` reshapes the module into the
    * `{ default }` envelope `ReactPageProvider.createElement` awaits and destructures inline, no
    * separate wrapper module needed. `npm run typecheck:client` resolves the type across the package
    * boundary via the workspace's node_modules symlink (created by npm workspaces regardless of a
-   * declared `package.json` dependency), the same way it already resolved for `LegacyShell.tsx`'s
-   * own lazy import.
+   * declared `package.json` dependency).
    */
   editor = $page({
     path: "/editor",

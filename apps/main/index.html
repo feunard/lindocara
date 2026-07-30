@@ -10,6 +10,12 @@
   <body>
     <canvas id="stage"></canvas>
     <div id="root"></div>
-    <script type="module" src="/src/legacy/main.ts"></script>
+    <!--
+      Not read by `alepha dev`/`alepha build` — the framework generates its own shell HTML
+      (`ViteUtils.generateIndexHtml`) from `src/main.browser.ts` by convention (see
+      `AppEntryProvider`). This file is vestigial, kept only in case a raw Vite root is ever
+      pointed at this app directly; the script entry below matches the real browser entry.
+    -->
+    <script type="module" src="/src/main.browser.ts"></script>
   </body>
 </html>

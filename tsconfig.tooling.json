@@ -1,8 +1,10 @@
 {
   // The one root program, for files that need Node types the packages don't: the app's Vite config,
-  // every package's vitest config, the server's drizzle config, the root scripts — plus the engine's
+  // every package's vitest config, the root scripts — plus the engine's
   // tests, which use Node globals (crypto) that the engine's deliberately pure src tsconfig can't
-  // host. Every other package typechecks its own src + test/ in its own tsconfig.
+  // host. Every other package typechecks its own src + test/ in its own tsconfig. The server's own
+  // drizzle config died with the legacy retirement (Task 6, 2026-07-30 alepha-migration
+  // deploy-cleanup) — Alepha's ORM owns migrations now.
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "lib": ["ES2022"],
@@ -11,7 +13,6 @@
   "include": [
     "apps/main/vite.config.ts",
     "packages/*/vitest.config.ts",
-    "packages/server/drizzle.config.ts",
     "scripts/**/*.ts",
     "packages/engine/test/**/*.ts"
   ]

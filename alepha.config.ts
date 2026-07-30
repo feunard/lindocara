@@ -37,10 +37,7 @@ export default defineConfig({
           await run("npm run catalog:check");
           await run("npm run map:check");
 
-          // Both stacks must stay buildable during the migration.
           await run("npm run build");
-          await run("npm run build:legacy");
-          await run.rm("apps/main/dist");
         },
       }),
     }),

@@ -30,7 +30,7 @@ import { type InteriorDoor, nearestInterior } from "@lindocara/renderer/interior
 import { MapSurface } from "@lindocara/renderer/minimap-surface.js";
 import { type RenderContext, Renderer } from "@lindocara/renderer/renderer.js";
 import { ServerClock } from "@lindocara/renderer/server-clock.js";
-import type { CharacterSummary, PartyListing, StoredHero } from "../api.js";
+import type { PartyListing, StoredHero } from "../api.js";
 import { t } from "../i18n.js";
 import { questTrackerNotifications } from "../quest-presentation.js";
 import { getGameNavigation } from "../state/navigation.js";
@@ -121,12 +121,8 @@ function gameplayPaused(): boolean {
   );
 }
 
-function heroLoadingColor(
-  identity: CharacterSummary | StoredHero,
-  persistentParty: PartyListing | null,
-): PrimaryColor {
-  if ("appearance" in identity) return identity.appearance.primaryColor;
-  switch (persistentParty?.myColor) {
+function heroLoadingColor(persistentParty: PartyListing): PrimaryColor {
+  switch (persistentParty.myColor) {
     case "red":
       return "ember";
     case "yellow":
@@ -303,8 +299,8 @@ function addEvent(text: string, tone: "info" | "good" | "bad"): void {
 }
 
 async function startGameIdentity(
-  identity: CharacterSummary | StoredHero,
-  persistentParty: PartyListing | null,
+  identity: StoredHero,
+  persistentParty: PartyListing,
   launchId: number,
 ): Promise<void> {
   const loadingStartedAt = performance.now();
@@ -314,7 +310,7 @@ async function startGameIdentity(
   initialStore.setHeroLoading({
     name: identity.name,
     class: identity.class,
-    color: heroLoadingColor(identity, persistentParty),
+    color: heroLoadingColor(persistentParty),
     phase: "preparing",
     progress: 8,
   });
@@ -338,7 +334,7 @@ async function startGameIdentity(
   useUiStore.getState().setHeroLoading({
     name: identity.name,
     class: identity.class,
-    color: heroLoadingColor(identity, persistentParty),
+    color: heroLoadingColor(persistentParty),
     phase: "preparing",
     progress: 32,
   });
@@ -410,7 +406,7 @@ async function startGameIdentity(
         useUiStore.getState().setHeroLoading({
           name: identity.name,
           class: identity.class,
-          color: heroLoadingColor(identity, persistentParty),
+          color: heroLoadingColor(persistentParty),
           phase: "world",
           progress: 68,
         });
@@ -465,7 +461,7 @@ async function startGameIdentity(
         useUiStore.getState().setHeroLoading({
           name: identity.name,
           class: identity.class,
-          color: heroLoadingColor(identity, persistentParty),
+          color: heroLoadingColor(persistentParty),
           phase: "world",
           progress: 90,
         });
@@ -749,7 +745,7 @@ async function startGameIdentity(
         },
       },
       identity.id,
-      persistentParty?.id,
+      persistentParty.id,
     );
   };
 
@@ -764,7 +760,7 @@ async function startGameIdentity(
   useUiStore.getState().setHeroLoading({
     name: identity.name,
     class: identity.class,
-    color: heroLoadingColor(identity, persistentParty),
+    color: heroLoadingColor(persistentParty),
     phase: "connecting",
     progress: 48,
   });
@@ -854,14 +850,7 @@ async function startGameIdentity(
     connection?.releaseSkill(slot);
   };
   const switchCharacter = () => {
-    if (persistentParty) stopSession();
-    // Task 5 reload audit: kept deliberately. `persistentParty` is only ever null when this whole
-    // session was launched via the rollback-only `startGame()` entrypoint (the compiled
-    // three-character roster) — the primary post-login UI always launches through
-    // `startGameAsHero()`, which always carries a party. That legacy flow has no `$page`/store
-    // state worth preserving across a character swap, so a hard reload is the correct,
-    // genuinely-cold-start behaviour here, not a shortcut around the navigation seam.
-    else window.location.reload();
+    stopSession();
   };
   const logoutAndReload = () => {
     stopSession();
@@ -1050,7 +1039,7 @@ async function startGameIdentity(
       useUiStore.getState().setHeroLoading({
         name: identity.name,
         class: identity.class,
-        color: heroLoadingColor(identity, persistentParty),
+        color: heroLoadingColor(persistentParty),
         phase: "ready",
         progress: 100,
       });
@@ -1087,8 +1076,8 @@ async function startGameIdentity(
 }
 
 async function launchGameIdentity(
-  identity: CharacterSummary | StoredHero,
-  persistentParty: PartyListing | null,
+  identity: StoredHero,
+  persistentParty: PartyListing,
 ): Promise<void> {
   const launchId = ++activeLaunchId;
   stopCurrentSession();
@@ -1104,11 +1093,6 @@ async function launchGameIdentity(
     }
     throw error;
   }
-}
-
-/** Rollback-only legacy entrypoint. The post-login UI no longer calls it. */
-export function startGame(character: CharacterSummary): Promise<void> {
-  return launchGameIdentity(character, null);
 }
 
 export function startGameAsHero(hero: StoredHero, party: PartyListing): Promise<void> {

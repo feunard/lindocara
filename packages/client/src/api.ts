@@ -6,7 +6,6 @@ import type {
 import type { AdventureRegistry } from "@lindocara/engine/adventure-state.js";
 import type { CreateAdventureTestSessionInput } from "@lindocara/engine/adventure-test.js";
 import type { AdventureAudioConfig, MapAudioConfig } from "@lindocara/engine/audio-catalog.js";
-import type { CharacterAppearance, Equipment } from "@lindocara/engine/character.js";
 import type { PlayerClass } from "@lindocara/engine/game.js";
 import type { MessageKey } from "@lindocara/engine/i18n/index.js";
 import type { MapElement, MapMarkers } from "@lindocara/engine/map-data.js";
@@ -19,15 +18,6 @@ import { onUnauthorized } from "./state/navigation.js";
 export interface Me {
   id: string;
   username: string;
-}
-
-export interface CharacterSummary {
-  id: string;
-  name: string;
-  appearance: CharacterAppearance;
-  level: number;
-  class: PlayerClass;
-  equipment: Equipment;
 }
 
 /** API errors carry stable machine codes the UI maps to i18n keys. */
@@ -55,14 +45,13 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     // The 401 seam (`state/navigation.ts`'s docblock): a dead/expired session — never a wrong
     // password (`InvalidCredentialsError`), which must not bounce the auth form back onto itself.
     // `UnauthorizedError` is Alepha's own `$secure()` class name (the framework port's routes);
-    // `session_expired` is the legacy hand-rolled Worker's equivalent for an existing-but-stale
-    // cookie (account deleted underneath it); `unauthorized` (lowercase) is that SAME hand-rolled
-    // Worker's code for no/invalid cookie at all (`requireSession()`, `packages/server/src/
-    // index.ts` — every `/api/maps`, `/api/adventures`, … route the editor calls uses it). Task 6
-    // found this third code was missing here: the editor's own local session-error checks
-    // (`isSessionError` in its six `ui/editor/*` files) special-cased it themselves, meaning this
-    // "global" hook was not actually global for every editor request before this fix. All three
-    // codes mean the same thing to a caller of this function.
+    // `session_expired`/`unauthorized` (lowercase) were the now-deleted legacy hand-rolled Worker's
+    // equivalents (`requireSession()`, formerly `packages/server/src/index.ts`) for an
+    // existing-but-stale cookie and a missing/invalid one respectively. Kept here even though the
+    // legacy stack is gone: the editor's own local session-error checks (`isSessionError` in its
+    // six `ui/editor/*` files) still special-case the same three codes, and this "global" hook
+    // stays the single source of truth for what counts as "unauthorized" to a caller of this
+    // function.
     if (code === "UnauthorizedError" || code === "session_expired" || code === "unauthorized") {
       onUnauthorized();
     }

@@ -1,1 +1,0 @@
-ALTER TABLE `character` ADD `resource_current` real;

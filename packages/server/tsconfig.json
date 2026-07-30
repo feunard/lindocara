@@ -1,6 +1,17 @@
 {
-  // The Worker and the Durable Object: workerd runtime, no DOM. The runtime globals come from
-  // the generated worker-configuration.d.ts (included via src) and the vitest-pool-workers types.
+  // INTERIM/BROKEN, pending Task 7 (2026-07-30 alepha-migration-deploy-cleanup, legacy retirement
+  // β): Task 6 deleted the legacy Worker/Durable-Object entry (`src/index.ts`, `src/world.ts`) and
+  // its wrangler-generated `src/worker-configuration.d.ts`, which used to supply this program's
+  // only source of workerd ambient globals (`WebSocket`, `crypto`, `scheduler`, `Env`, ...) for the
+  // remaining `src/world/**` KEEP modules. Without it this program no longer typechecks clean, and
+  // `test/` (Task 7's DIE/MIGRATE split, still physically present) additionally references both
+  // `cloudflare:test` and now-deleted src modules. `npm run typecheck:server` therefore no longer
+  // invokes this config — `tsconfig.api.json` alone already typechecks `src/world/**` and every
+  // remaining root keeper cleanly via transitive imports from `src/api/**` (verified: `tsc -p
+  // tsconfig.api.json --noEmit` is clean, using `@cloudflare/workers-types`' ambient globals
+  // through `node`/`bun` types rather than this program's `@cloudflare/vitest-pool-workers/types`).
+  // Task 7's plan already calls for `tsconfig.api.json` to become this package's sole
+  // `tsconfig.json` — that re-plumb retires this file rather than repairing it in place.
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "lib": ["ES2022"],

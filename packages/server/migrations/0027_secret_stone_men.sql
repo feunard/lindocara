@@ -1,1 +1,0 @@
-ALTER TABLE `party_adventure_state` ADD `quests` text DEFAULT '{}' NOT NULL;
