@@ -12,6 +12,11 @@ import { createGuards, type GuardRuntime } from "./world-runtime.js";
 
 const AUTHORED_GUARD_PREFIX = "guard-";
 
+/** Stable runtime id binding an authored guard event to its moving combat entity. */
+export function authoredGuardRuntimeId(eventId: string): string {
+  return `${AUTHORED_GUARD_PREFIX}${eventId}`;
+}
+
 export function activeAuthoredGuardDefinitions(
   events: readonly MapEvent[],
   state: PartyAdventureState,
@@ -20,7 +25,7 @@ export function activeAuthoredGuardDefinitions(
     if (activePageIndex(event, state) === null || event.patrolRadius === null) return [];
     return [
       {
-        id: `${AUTHORED_GUARD_PREFIX}${event.id}`,
+        id: authoredGuardRuntimeId(event.id),
         ...eventCellCentre(event),
         patrolRadius: event.patrolRadius,
       },

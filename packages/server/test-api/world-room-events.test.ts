@@ -36,6 +36,7 @@ import { DIALOGUE_CLOSE_RADIUS, type EventCommand } from "@lindocara/engine/even
 import { eventCellCentre, type MapEvent, type MapEventPage } from "@lindocara/engine/map-events.js";
 import { MAP_MIN_COLS, MAP_MIN_ROWS } from "@lindocara/engine/map-limits.js";
 import type { ServerMessage } from "@lindocara/engine/protocol.js";
+import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import type { PlayerRuntime } from "@lindocara/server/world/world-runtime.js";
 import { D1_SAVE_EVERY_TICKS } from "@lindocara/server/world/world-runtime.js";
 import { layeredWireTerrain } from "@lindocara/testing/map-fixtures.js";
@@ -252,6 +253,27 @@ function scriptEvent(
   };
 }
 
+function guardDialogueEvent(id: string, col: number, row: number): MapEvent {
+  return {
+    id,
+    col,
+    row,
+    name: "Garde",
+    ordinal: 11,
+    kind: "guard",
+    species: null,
+    patrolRadius: 160,
+    pages: [
+      page({
+        moveSpeed: 4,
+        moveFreq: 3,
+        optMoveAnim: true,
+        commands: [{ t: "say", name: "Garde", text: "La route est sûre." }],
+      }),
+    ],
+  };
+}
+
 /** A two-page appearance event: page 1 until switch 0001 holds, page 2 after. */
 function gateEvent(id: string, col: number, row: number): MapEvent {
   return {
@@ -411,6 +433,34 @@ async function heldPartyState(partyId: string): Promise<PartyAdventureState> {
 // -------------------------------------------------------------------------------------------------
 
 describe("world room events (FakeClock)", () => {
+  test("an authored guard speaks from its current patrol position", async () => {
+    const guard = guardDialogueEvent(crypto.randomUUID(), 5, 5);
+    const fixture = await newPlayableParty("guardtalk", [guard]);
+    const clock = new FakeClock();
+    const engine = createEngine(fixture.roomId, clock);
+    const socket = fakeSocket(fixture.userId, fixture.heroId, "c-1");
+    await engine.join(socket);
+    const state = roomState(engine);
+    const runtimeGuard = state.guards.find((candidate) => candidate.id === `guard-${guard.id}`);
+    if (!runtimeGuard) throw new Error("authored guard runtime missing");
+
+    // The guard has patrolled two cells away from its authored cell. Interaction must follow the
+    // moving authoritative entity instead of opening dialogue at the stale map coordinate.
+    runtimeGuard.x += 2 * TILE_SIZE;
+    const player = playerOf(state, fixture.heroId);
+    player.x = runtimeGuard.x - 40;
+    player.y = runtimeGuard.y;
+
+    await engine.message(socket.id, { t: "interact" });
+    await advanceTickSettled(clock);
+
+    expect(messagesOf(socket).find((message) => message.t === "event.say")).toMatchObject({
+      text: "La route est sûre.",
+      name: "Garde",
+    });
+    engine.dispose();
+  });
+
   test("two heroes triggering one gold chest the same tick yield exactly ONE grant", async () => {
     const eventId = crypto.randomUUID();
     const chest = scriptEvent(eventId, 1, 1, "action", [

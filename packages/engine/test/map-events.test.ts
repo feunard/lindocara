@@ -438,7 +438,7 @@ describe("parseMapEvents: authored guards", () => {
     expect(parseMapEvents([guard], COLS, ROWS)).toEqual([guard]);
   });
 
-  it("rejects a missing leash, monster tuning, or an autonomous command program", () => {
+  it("accepts dialogue while rejecting a missing leash or monster tuning", () => {
     expect(parseMapEvents([event({ kind: "guard" })], COLS, ROWS)).toBeNull();
     expect(
       parseMapEvents(
@@ -447,23 +447,16 @@ describe("parseMapEvents: authored guards", () => {
         ROWS,
       ),
     ).toBeNull();
-    expect(
-      parseMapEvents(
-        [
-          event({
-            kind: "guard",
-            patrolRadius: 96,
-            pages: [
-              guardPage({
-                commands: [{ t: "say", name: "Garde", text: "En position." }],
-              }),
-            ],
-          }),
-        ],
-        COLS,
-        ROWS,
-      ),
-    ).toBeNull();
+    const talkingGuard = event({
+      kind: "guard",
+      patrolRadius: 96,
+      pages: [
+        guardPage({
+          commands: [{ t: "say", name: "Garde", text: "En position." }],
+        }),
+      ],
+    });
+    expect(parseMapEvents([talkingGuard], COLS, ROWS)).toEqual([talkingGuard]);
     const ignoredPageFields: Partial<MapEventPage>[] = [
       { condSelfSwitch: "A" },
       { graphicAssetId: GOOD_ASSET_ID },

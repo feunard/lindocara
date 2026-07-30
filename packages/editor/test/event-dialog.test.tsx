@@ -287,6 +287,7 @@ describe("EventDialog", () => {
 
     // A functional kind hides the whole scripted editor: no page tabs, no condition checkboxes.
     expect(screen.queryByRole("tablist")).toBeNull();
+    expect(screen.getByRole("button", { name: t("editor.event.cmd.insert") })).toBeEnabled();
     expect(
       screen.queryByRole("checkbox", { name: t("editor.event.cond.switch") }),
     ).not.toBeInTheDocument();
@@ -311,10 +312,21 @@ describe("EventDialog", () => {
     expect(committed.pages).toHaveLength(1);
   });
 
-  it("shows a guard block and round-trips its authoritative patrol radius", async () => {
+  it("authors a guard dialogue and round-trips its authoritative patrol radius", async () => {
     const user = userEvent.setup({ delay: null });
     const { onCommit } = renderDialog(
-      seedEvent({ kind: "guard", species: null, patrolRadius: 96 }),
+      seedEvent({
+        kind: "guard",
+        name: "Garde",
+        species: null,
+        patrolRadius: 96,
+        pages: [
+          {
+            ...defaultEventPage(),
+            commands: [{ t: "say", name: "Garde", text: "En position." }],
+          },
+        ],
+      }),
       RUNTIME_REGISTRY,
     );
 
@@ -323,6 +335,10 @@ describe("EventDialog", () => {
       screen.queryByRole("combobox", { name: t("editor.markers.species") }),
     ).not.toBeInTheDocument();
     expect(screen.getByText(t("editor.event.kind.guard.hint"))).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Garde: En position." }));
+    const dialogue = screen.getByRole("textbox", { name: t("editor.event.cmd.field.text") });
+    await user.clear(dialogue);
+    await user.type(dialogue, "La route est sûre.");
     await user.click(screen.getByRole("checkbox", { name: t("editor.event.cond.switch") }));
 
     const radius = screen.getByRole("spinbutton", { name: t("editor.markers.radius") });
@@ -336,7 +352,9 @@ describe("EventDialog", () => {
     expect(committed.patrolRadius).toBe(160);
     expect(committed.pages).toHaveLength(1);
     expect(committed.pages[0]?.condSwitchId).toBe("0042");
-    expect(committed.pages[0]?.commands).toEqual([]);
+    expect(committed.pages[0]?.commands).toEqual([
+      { t: "say", name: "Garde", text: "La route est sûre." },
+    ]);
   });
 
   it("authors a free NPC's characteristics, patrol zone and walking routine", async () => {
@@ -352,6 +370,7 @@ describe("EventDialog", () => {
     );
 
     expect(screen.getByRole("tablist")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: t("editor.event.cmd.insert") })).toBeEnabled();
     expect(screen.getByText(t("editor.event.kind.npc.hint"))).toBeVisible();
     fireEvent.change(screen.getByRole("spinbutton", { name: t("editor.markers.radius") }), {
       target: { value: "160" },

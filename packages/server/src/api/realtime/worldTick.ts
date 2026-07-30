@@ -107,7 +107,7 @@ import { LOCAL_CHAT_RADIUS, SPATIAL_EVENT_RADIUS } from "@lindocara/engine/inter
 import {
   eventCellCentre,
   exitEvents,
-  isActiveWorldEventKind,
+  isInteractiveWorldEventKind,
   type MapEvent,
 } from "@lindocara/engine/map-events.js";
 import { merchantForRuntimeRoom } from "@lindocara/engine/merchant.js";
@@ -3466,7 +3466,9 @@ function triggerActionEventNearby(w: WorldGlue, player: PlayerRuntime): boolean 
   if (started) {
     const graphic = chosen.event.pages[chosen.pageIndex]?.graphicAssetId;
     const interaction =
-      graphic != null && editorAsset(graphic)?.domain === "character"
+      chosen.event.kind === "npc" ||
+      chosen.event.kind === "guard" ||
+      (graphic != null && editorAsset(graphic)?.domain === "character")
         ? "npcTalked"
         : "objectInteracted";
     recordActorQuestEvent(w, player, ({ id, mapId, actor }) =>
@@ -3946,7 +3948,7 @@ function triggerQuestTargetNearby(
   if (!mapId) return false;
   let nearest: { event: MapEvent; pageIndex: number; distance: number } | null = null;
   for (const event of state.location?.definition.events ?? []) {
-    if (!isActiveWorldEventKind(event.kind)) continue;
+    if (!isInteractiveWorldEventKind(event.kind)) continue;
     const pageIndex = activePageIndex(event, state.adventureState.state);
     if (pageIndex === null) continue;
     const page = event.pages[pageIndex];
@@ -3973,7 +3975,9 @@ function triggerQuestTargetNearby(
   w.deps.send(connectionId, { t: "quest.open", conversationId: conversation.id, entries });
   const graphic = found.event.pages[found.pageIndex]?.graphicAssetId;
   const interaction =
-    graphic != null && editorAsset(graphic)?.domain === "character"
+    found.event.kind === "npc" ||
+    found.event.kind === "guard" ||
+    (graphic != null && editorAsset(graphic)?.domain === "character")
       ? "npcTalked"
       : "objectInteracted";
   recordActorQuestEvent(w, player, ({ id, mapId: eventMapId, actor }) =>

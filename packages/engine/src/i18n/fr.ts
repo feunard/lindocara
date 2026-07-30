@@ -1619,7 +1619,7 @@ export const fr: Record<keyof typeof en, string> = {
   "editor.event.kind.spawn.hint":
     "Ce point est le départ global de l’aventure. Il est distinct du repli technique de chaque carte.",
   "editor.event.kind.guard.hint":
-    "Combattant allié géré par le serveur. Ses pages conditionnelles déterminent sa présence et son rayon limite ses déplacements.",
+    "Combattant allié géré par le serveur. Ses pages conditionnelles déterminent sa présence, son rayon limite ses déplacements et les actions de page permettent d’ajouter du dialogue.",
   "editor.event.kind.npc.hint":
     "Personnage libre avec apparence, dialogues, points de vie, puissance, vitesse, zone de déplacement et routine autonome.",
   "editor.event.preset.heading": "Placer",

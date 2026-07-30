@@ -17,12 +17,14 @@ import {
   type EventTrigger,
   eventCellCentre,
   isActiveWorldEventKind,
+  isInteractiveWorldEventKind,
   type MapEvent,
 } from "@lindocara/engine/map-events.js";
 import { PLAYER_SIZE, PLAYER_SPEED, TICK_MS, type Vec2 } from "@lindocara/engine/simulation.js";
 import { TILE_SIZE } from "@lindocara/engine/tilemap.js";
 import {
   activeAuthoredGuardDefinitions,
+  authoredGuardRuntimeId,
   reconcileActiveGuards,
 } from "../../world/authored-guard-system.js";
 import {
@@ -122,8 +124,14 @@ export function activeEventCell(
 /** Port of `#activeEventCentre`. */
 export function activeEventCentre(
   state: WorldRoomState,
-  event: Pick<MapEvent, "id" | "col" | "row">,
+  event: Pick<MapEvent, "id" | "col" | "row" | "kind">,
 ): { x: number; y: number } {
+  if (event.kind === "guard") {
+    const guard = state.guards.find(
+      (candidate) => candidate.id === authoredGuardRuntimeId(event.id),
+    );
+    if (guard) return guard;
+  }
   return eventCellCentre(activeEventCell(state, event));
 }
 
@@ -156,7 +164,7 @@ export function runnablePage(
   event: MapEvent,
   trigger: EventTrigger,
 ): { pageIndex: number; program: readonly EventCommand[] } | null {
-  if (!isActiveWorldEventKind(event.kind)) return null;
+  if (!isInteractiveWorldEventKind(event.kind)) return null;
   const pageIndex = activePageIndex(event, state.adventureState.state);
   if (pageIndex === null) return null;
   const page = event.pages[pageIndex];

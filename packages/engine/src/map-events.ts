@@ -55,7 +55,7 @@ import { type EditorAssetId, isEditorAssetId } from "./tiny-swords-catalog.js";
  * Entry/exit/spawn events stay single-page anchors. Monsters and guards deliberately keep
  * conditional pages: a confrontation or an ally can appear when the shared party state calls for
  * it without a second combat system or an autonomous event runner. A monster page runs its command
- * program on defeat; a guard page carries no commands and only selects presence.
+ * program on defeat; a guard page selects presence and may run dialogue on interaction.
  */
 export const EVENT_KINDS = ["normal", "npc", "entry", "exit", "monster", "guard", "spawn"] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
@@ -203,6 +203,11 @@ export function npcEvents(events: readonly MapEvent[]): MapEvent[] {
 /** Both scripted scenery and free NPCs are projected into the active world-event collection. */
 export function isActiveWorldEventKind(kind: EventKind): boolean {
   return kind === "normal" || kind === "npc";
+}
+
+/** Event kinds whose action-triggered page can be run by an interacting hero. */
+export function isInteractiveWorldEventKind(kind: EventKind): boolean {
+  return isActiveWorldEventKind(kind) || kind === "guard";
 }
 
 /** The adventure-start anchors on a map (D25). A map with at least one is a candidate first map. */
@@ -565,14 +570,13 @@ export function parseMapEvents(value: unknown, cols: number, rows: number): MapE
     ) {
       return null;
     }
-    // A guard page is declarative presence only. Self-switches cannot be changed without a command,
-    // while appearance, movement and triggers are owned by the guard simulation rather than the
-    // map-event layer. Reject non-default ignored fields instead of persisting misleading authoring.
+    // A guard page selects presence and may carry an action-triggered dialogue program. Appearance,
+    // movement and trigger selection remain owned by the guard simulation, so reject non-default
+    // ignored fields instead of persisting misleading authoring.
     if (
       kind === "guard" &&
       parsedPages.some(
         (page) =>
-          page.commands.length > 0 ||
           page.condSelfSwitch !== null ||
           page.graphicAssetId !== null ||
           page.moveType !== "fixed" ||

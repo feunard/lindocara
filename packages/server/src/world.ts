@@ -98,6 +98,7 @@ import {
   eventCellCentre,
   exitEvents,
   isActiveWorldEventKind,
+  isInteractiveWorldEventKind,
   type MapEvent,
 } from "@lindocara/engine/map-events.js";
 import { merchantForRuntimeRoom } from "@lindocara/engine/merchant.js";
@@ -189,6 +190,7 @@ import { completeParty, loadPartyForRuntime } from "./parties.js";
 import { loadProfile, saveProfile } from "./profile.js";
 import {
   activeAuthoredGuardDefinitions,
+  authoredGuardRuntimeId,
   reconcileActiveGuards,
 } from "./world/authored-guard-system.js";
 import {
@@ -1040,7 +1042,7 @@ export class World extends DurableObject<Env> {
     event: MapEvent,
     trigger: EventTrigger,
   ): { pageIndex: number; program: readonly EventCommand[] } | null {
-    if (!isActiveWorldEventKind(event.kind)) return null;
+    if (!isInteractiveWorldEventKind(event.kind)) return null;
     const pageIndex = activePageIndex(event, this.#adventureState);
     if (pageIndex === null) return null;
     const page = event.pages[pageIndex];
@@ -1152,7 +1154,7 @@ export class World extends DurableObject<Env> {
     if (!mapId) return false;
     let nearest: { event: MapEvent; pageIndex: number; distance: number } | null = null;
     for (const event of this.#location?.definition.events ?? []) {
-      if (!isActiveWorldEventKind(event.kind)) continue;
+      if (!isInteractiveWorldEventKind(event.kind)) continue;
       const pageIndex = activePageIndex(event, this.#adventureState);
       if (pageIndex === null) continue;
       const page = event.pages[pageIndex];
@@ -1178,7 +1180,9 @@ export class World extends DurableObject<Env> {
     this.#send(ws, { t: "quest.open", conversationId: conversation.id, entries });
     const graphic = nearest.event.pages[nearest.pageIndex]?.graphicAssetId;
     const interaction =
-      graphic != null && editorAsset(graphic)?.domain === "character"
+      nearest.event.kind === "npc" ||
+      nearest.event.kind === "guard" ||
+      (graphic != null && editorAsset(graphic)?.domain === "character")
         ? "npcTalked"
         : "objectInteracted";
     this.#recordActorQuestEvent(player, ({ id, mapId: eventMapId, actor }) =>
@@ -1364,7 +1368,9 @@ export class World extends DurableObject<Env> {
     if (started) {
       const graphic = best.event.pages[best.pageIndex]?.graphicAssetId;
       const interaction =
-        graphic != null && editorAsset(graphic)?.domain === "character"
+        best.event.kind === "npc" ||
+        best.event.kind === "guard" ||
+        (graphic != null && editorAsset(graphic)?.domain === "character")
           ? "npcTalked"
           : "objectInteracted";
       this.#recordActorQuestEvent(player, ({ id, mapId, actor }) =>
@@ -1550,10 +1556,16 @@ export class World extends DurableObject<Env> {
     return this.#activeEvents.find((candidate) => candidate.id === event.id) ?? event;
   }
 
-  #activeEventCentre(event: Pick<MapEvent, "id" | "col" | "row">): {
+  #activeEventCentre(event: Pick<MapEvent, "id" | "col" | "row" | "kind">): {
     x: number;
     y: number;
   } {
+    if (event.kind === "guard") {
+      const guard = this.#guards.find(
+        (candidate) => candidate.id === authoredGuardRuntimeId(event.id),
+      );
+      if (guard) return guard;
+    }
     return eventCellCentre(this.#activeEventCell(event));
   }
 

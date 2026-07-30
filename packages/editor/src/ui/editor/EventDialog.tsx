@@ -609,8 +609,8 @@ export function EventDialog({
           </p>
         )}
 
-        {/* Normal events expose complete pages. Guards reuse only the page tabs and party-state
-            conditions: their pages declare presence and may never run commands. */}
+        {/* Normal events and NPCs expose complete pages. Guards reuse page conditions for presence
+            and the action list for dialogue while their combat appearance/movement stays server-owned. */}
         {(draft.kind === "normal" || draft.kind === "npc" || draft.kind === "guard") && (
           <>
             {/* Page tabs: 1..n, add (≤ MAX_PAGES_PER_EVENT), delete (disabled at one page). */}
@@ -661,7 +661,7 @@ export function EventDialog({
 
             <div
               className={
-                draft.kind === "normal" || draft.kind === "npc"
+                draft.kind === "normal" || draft.kind === "npc" || draft.kind === "guard"
                   ? "grid gap-4 sm:grid-cols-2"
                   : "grid gap-4"
               }
@@ -895,7 +895,7 @@ export function EventDialog({
               </div>
 
               {/* Right column: the page's guided action list. */}
-              {(draft.kind === "normal" || draft.kind === "npc") && (
+              {(draft.kind === "normal" || draft.kind === "npc" || draft.kind === "guard") && (
                 <EventCommandEditor
                   commands={page.commands}
                   switches={registry.switches}

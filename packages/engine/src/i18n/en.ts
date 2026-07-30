@@ -1601,7 +1601,7 @@ export const en = {
   "editor.event.kind.spawn.hint":
     "This is the adventure’s global starting point. It is separate from each map’s technical fallback.",
   "editor.event.kind.guard.hint":
-    "Server-driven allied combatant. Conditional pages determine its presence and its radius bounds movement.",
+    "Server-driven allied combatant. Conditional pages determine its presence, its radius bounds movement, and page actions can add dialogue.",
   "editor.event.kind.npc.hint":
     "Free character with appearance, dialogue, health, power, speed, movement zone and an autonomous routine.",
   "editor.event.preset.heading": "Place",
