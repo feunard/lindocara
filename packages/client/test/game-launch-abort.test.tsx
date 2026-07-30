@@ -134,4 +134,59 @@ describe("aborting a game launch mid-flight", () => {
     expect(useUiStore.getState().game).not.toBeNull();
     expect(nav.toGame).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps a further launch's game handle and active party when an earlier stuck launch resolves after an intervening stop", async () => {
+    // The exact chain the review traced: A gets stuck loading its renderer; B (a hero switch)
+    // supersedes and completes; BACK stops B; C (another hero switch) launches and completes; only
+    // THEN does A's ancient renderer promise resolve. A generation counter that only remembers
+    // "did a stop happen since I launched" would wrongly treat B's stop as still meaning ME, and
+    // wipe C's already-installed state. Ownership must reflect who owns the store RIGHT NOW.
+    let resolveRendererA: (renderer: unknown) => void = () => {};
+    let rendererCalls = 0;
+    rendererMock.create.mockImplementation(() => {
+      rendererCalls += 1;
+      if (rendererCalls === 1) {
+        return new Promise((resolve) => {
+          resolveRendererA = resolve;
+        });
+      }
+      return Promise.resolve(fakeRenderer());
+    });
+
+    const launchA = startGameAsHero(HERO, PARTY);
+    expect(useUiStore.getState().heroLoading).not.toBeNull();
+    expect(useUiStore.getState().game).toBeNull();
+
+    // B supersedes A and completes normally.
+    const HERO_B: StoredHero = { ...HERO, id: "hero-2", name: "Hero B" };
+    const PARTY_B: PartyListing = { ...PARTY, id: "party-2" };
+    await startGameAsHero(HERO_B, PARTY_B);
+    expect(useUiStore.getState().game).not.toBeNull();
+    expect(nav.setActiveParty).toHaveBeenLastCalledWith(PARTY_B);
+
+    // BACK stops B (the exact seam AppRouter.tsx's leave effect calls).
+    stopActiveGameSession({ navigate: false });
+    expect(useUiStore.getState().game).toBeNull();
+    expect(useUiStore.getState().heroLoading).toBeNull();
+
+    // C launches (another hero switch) and completes normally.
+    const HERO_C: StoredHero = { ...HERO, id: "hero-3", name: "Hero C" };
+    const PARTY_C: PartyListing = { ...PARTY, id: "party-3" };
+    await startGameAsHero(HERO_C, PARTY_C);
+    const gameAfterC = useUiStore.getState().game;
+    expect(gameAfterC).not.toBeNull();
+    expect(nav.setActiveParty).toHaveBeenLastCalledWith(PARTY_C);
+
+    // Only now does A's long-stuck renderer resolve — A discovers it has long since been
+    // superseded, through a chain that includes an external stop that was NOT waiting on it.
+    const rendererA = fakeRenderer();
+    resolveRendererA(rendererA);
+    await launchA;
+
+    // A tore down only its own renderer...
+    expect(rendererA.destroy).toHaveBeenCalledTimes(1);
+    // ...and C's installed state is the exact same handle, untouched.
+    expect(useUiStore.getState().game).toBe(gameAfterC);
+    expect(nav.setActiveParty).toHaveBeenLastCalledWith(PARTY_C);
+  });
 });

@@ -1,13 +1,14 @@
 /**
- * The transport-level WebSocket frame cap: `websocketTransportCap.ts`'s `WEBSOCKET_OPTIONS_SEED`
- * raises the vendor-patched `websocketOptions` atom's `maxPayload`
- * (`.vendor/alepha/src/websocket/providers/NodeWebSocketServerProvider.ts`) to this app's 16 KiB
- * default and threads it into `new WebSocketServer({ maxPayload })`. That is the PRE-PARSE
- * backstop ahead of the app-level 2048-byte `MAX_FRAME_BYTES` cap `WorldRoom.handleMessage`
- * enforces AFTER Alepha's room transport has already `JSON.parse`d the frame — without a
- * transport-level ceiling, `ws`'s own default (~100 MiB) would let a hostile client force the
- * server to `JSON.parse` a payload nearly six orders of magnitude past anything legitimate before
- * the app-level cap ever ran.
+ * The transport-level WebSocket frame cap: `websocketTransportCap.ts`'s
+ * `WebSocketTransportCapProvider` reads `WEBSOCKET_MAX_PAYLOAD` through `$env` on its
+ * `"configure"` hook and writes it into the vendor-patched `websocketOptions` atom
+ * (`.vendor/alepha/src/websocket/providers/NodeWebSocketServerProvider.ts`), raising `maxPayload`
+ * to this app's 16 KiB default (`DEFAULT_WEBSOCKET_MAX_PAYLOAD_BYTES`) and threading it into
+ * `new WebSocketServer({ maxPayload })`. That is the PRE-PARSE backstop ahead of the app-level
+ * 2048-byte `MAX_FRAME_BYTES` cap `WorldRoom.handleMessage` enforces AFTER Alepha's room
+ * transport has already `JSON.parse`d the frame — without a transport-level ceiling, `ws`'s own
+ * default (~100 MiB) would let a hostile client force the server to `JSON.parse` a payload nearly
+ * six orders of magnitude past anything legitimate before the app-level cap ever ran.
  *
  * This proves the transport itself, not app code, refuses the oversized frame: `ws` closes the
  * connection with 1009 automatically once a received frame's declared length exceeds `maxPayload`

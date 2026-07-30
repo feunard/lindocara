@@ -307,6 +307,10 @@ async function startGameIdentity(
   const initialStore = useUiStore.getState();
   getGameNavigation()?.setActiveParty(persistentParty);
   initialStore.setAdventureVictory(false);
+  // Claims store ownership of this launch's `heroLoading`/`game` state synchronously, before the
+  // one `await` below — see `UiState.launchOwner`'s docblock. A newer launch overwrites this
+  // immediately when it starts, which is exactly the signal the stale branch below needs.
+  initialStore.setLaunchOwner(launchId);
   initialStore.setHeroLoading({
     name: identity.name,
     class: identity.class,
@@ -320,15 +324,22 @@ async function startGameIdentity(
   const renderer = await Renderer.create(canvas, serverClock);
   // Renderer creation is asynchronous — the ONLY `await` between "loading started" and "the game
   // handle is installed". `activeLaunchId` may have moved on for two reasons: another hero was
-  // launched while assets were loading (`launchGameIdentity`'s own `++activeLaunchId`), or the
-  // browser navigated away from `/game` mid-load (`ui/AppRouter.tsx`'s leave effect, widened to also
-  // watch `heroLoading`, calling `stopActiveGameSession({ navigate: false })`, which bumps this same
-  // counter). Either way this result no longer owns the page: destroy what it built and clear the
-  // loading state through the same seam a launch failure already uses, WITHOUT navigating — the
-  // caller (a fresh launch, or the browser itself) already owns where the app is going next.
+  // launched while assets were loading (`launchGameIdentity`'s own `++activeLaunchId`), or an
+  // explicit external stop fired mid-load — the browser navigated away from `/game`
+  // (`ui/AppRouter.tsx`'s leave effect, widened to also watch `heroLoading`) or the editor playtest
+  // overlay reset/returned, both calling `stopActiveGameSession()`, which bumps the same counter.
+  // Either way this result no longer owns the page and must destroy what it built — but the
+  // store-wide clear must run ONLY if this launch still OWNS the store (`UiState.launchOwner`):
+  // ownership is current truth, stamped synchronously by whichever launch is newest, so it stays
+  // correct through any number of further launches/stops that happened during this await — unlike
+  // a generation counter, which cannot tell an external stop already absorbed by a further
+  // legitimate launch from one still waiting on this launch. If a newer launch took over, it
+  // already re-stamped ownership to itself; wiping the store here would stomp its state.
   if (launchId !== activeLaunchId) {
     renderer.destroy();
-    returnFromGameSession({ navigate: false });
+    if (useUiStore.getState().launchOwner === launchId) {
+      returnFromGameSession({ navigate: false });
+    }
     return;
   }
   useUiStore.getState().setHeroLoading({

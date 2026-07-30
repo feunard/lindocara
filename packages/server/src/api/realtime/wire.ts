@@ -2,18 +2,22 @@
  * App-level wire caps for the realtime tranche's `$room`s. Alepha has no built-in frame-size
  * cap or per-connection rate limiter (recon-verified — see the realtime-tranche plan's
  * "Verified recon findings" #6), so every socketed room must enforce these itself in its
- * `onMessage`, the same way legacy `world.ts` does.
+ * `onMessage`.
  *
- * Values and names are copied verbatim from
- * `packages/server/src/world/world-runtime.ts:72-81` (NOT imported — `src/api/` never imports
- * legacy server code, see `packages/server/CLAUDE.md`'s "legacy stack stays untouched" rule).
- * If the legacy constants ever change, re-copy them here by hand.
+ * The five numeric caps are re-exported straight from `../../world/world-runtime.ts`, which
+ * stays their single source of truth: `src/world/*` is the pure domain-system layer this
+ * package's realtime rooms already compose with injected dependencies (see `WorldRoom.ts`'s own
+ * import of `world-runtime.js`), not retired legacy code, so importing it here is unremarkable
+ * and kills what would otherwise be a hand-maintained duplicate. This file's own addition is
+ * `frameByteLength`, the UTF-8-accurate byte counter these caps are measured against.
  */
-export const MAX_FRAME_BYTES = 2_048;
-export const RATE_WINDOW_MS = 1_000;
-export const RATE_MAX_MESSAGES = 35;
-export const MAX_MALFORMED = 5;
-export const MAX_QUEUED_COMMANDS = 12;
+export {
+  MAX_FRAME_BYTES,
+  MAX_MALFORMED,
+  MAX_QUEUED_COMMANDS,
+  RATE_MAX_MESSAGES,
+  RATE_WINDOW_MS,
+} from "../../world/world-runtime.js";
 
 const textEncoder = new TextEncoder();
 

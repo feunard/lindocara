@@ -189,6 +189,16 @@ interface UiState {
   eventDialogue: EventDialogue | null;
   questDialogue: QuestDialogue | null;
   game: GameHandle | null;
+  /** Which `game/session.ts` launch (its module-local `launchId`) currently owns `heroLoading`/
+   *  `game` and everything else `clearedGameSessionFields()` clears. Stamped once, synchronously,
+   *  at the very start of a launch — before its one `await Renderer.create()` — and cleared back to
+   *  null only by `clearedGameSession()`. A launch that discovers post-await it has been superseded
+   *  (`activeLaunchId` moved on) must clear the store ONLY IF it still owns it: ownership is
+   *  current truth, so it stays correct through any number of further launches/stops that happened
+   *  in between, unlike a generation counter that can't tell a stop already absorbed by a newer
+   *  legitimate launch from a stop still waiting on this one. See `game/session.ts`'s
+   *  `startGameIdentity` stale branch. */
+  launchOwner: number | null;
 
   setSelf(self: SelfHud | null): void;
   setSelfState(state: SelfState): void;
@@ -219,6 +229,7 @@ interface UiState {
   setEventDialogue(dialogue: EventDialogue | null): void;
   setQuestDialogue(dialogue: QuestDialogue | null): void;
   setGame(game: GameHandle | null): void;
+  setLaunchOwner(launchOwner: number | null): void;
   /** Everything a terminal disconnect must clear before a launch screen is usable again: the
    *  handle, the reconnect banner, and every full-screen overlay flag. Miss one and it survives
    *  into the next hero's session, already open over a world that has not welcomed it.
@@ -315,6 +326,7 @@ function clearedGameSessionFields() {
     eventDialogue: null,
     questDialogue: null,
     game: null,
+    launchOwner: null,
   };
 }
 
@@ -347,6 +359,7 @@ export const useUiStore = create<UiState>((set) => ({
   eventDialogue: null,
   questDialogue: null,
   game: null,
+  launchOwner: null,
 
   setSelf: (self) =>
     set((state) => {
@@ -431,5 +444,6 @@ export const useUiStore = create<UiState>((set) => ({
   setEventDialogue: (eventDialogue) => set({ eventDialogue }),
   setQuestDialogue: (questDialogue) => set({ questDialogue }),
   setGame: (game) => set({ game }),
+  setLaunchOwner: (launchOwner) => set({ launchOwner }),
   clearedGameSession: () => set(clearedGameSessionFields()),
 }));
